@@ -155,9 +155,6 @@ package survarium.rooms
         private var _chatKey:int = 0;
         // Who waits for the friends' rooms (FriendListRender's menu).
         private var _friendRooms:Function = null;
-        // Our room went while the results were up: the window, drawn as it
-        // was, waits under them and is hidden as they close.
-        private var _hideAfterResults:Boolean = false;
         // A join (or Play) waiting for its kit preset offer (`S1;O`,
         // presets.md): {room, play, at}; and the offer shown, the popup over
         // the view: {kind, preset, level, gear, max, room, play}.
@@ -410,31 +407,21 @@ package survarium.rooms
             syncChatTab();
         }
 
-        // LobbyMenu.onVsRemoved: the results are closing. A window whose room
-        // went under them is hidden now, before the lobby is drawn again (no
-        // frame shows it).
+        // LobbyMenu.onVsRemoved: the results are closing. The top menu's
+        // tab, left as it was under them (`show`), follows the window: Rooms
+        // for a room it opened in meanwhile (let in from a queue).
         public function resultsClosed():void
         {
-            if (!_hideAfterResults)
-                return;
-            _hideAfterResults = false;
-            if (_room == null)
-                show(false);
-            else
-                render();
+            if (topMenu != null)
+                topMenu.selectRoomsTab(_shown);
         }
 
         // LobbyMenu.show_victory_screen: a match is over. The room's chat
         // lines of the match did not reach the lobby (its game was in the
         // match): the tab is put up anew and given the room's last lines.
-        // Where we are is asked at once: a member who came by Play has left
-        // the room with the match's end (the owner's of 2026-10-20), which
-        // the state answered before the match does not say.
         public function matchOver():void
         {
             dropChatTab();
-            _fastUntil = getTimer() + 5000;
-            ask(RoomsWire.STATE, 1);
         }
 
         // Each frame: the chat's "Room Chat" tab, right of the general
@@ -621,7 +608,6 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
-            _hideAfterResults = false;
             if (!value)
             {
                 releaseInputFocus();
@@ -643,8 +629,12 @@ package survarium.rooms
                 _keys = true;
                 stage.addEventListener(KeyboardEvent.KEY_DOWN, listView.onKey, false, 0, false);
             }
-            // The top menu's tab follows: chosen while the window is open.
-            if (topMenu != null)
+            // The top menu's tab follows: chosen while the window is open. Not
+            // under the results: any change of that tab closes them
+            // (LobbyMenu.closeVS), and a window the server opens (let in
+            // from a queue) or hides then is not the player's choice. The
+            // tab follows as they close (resultsClosed).
+            if (topMenu != null && !resultsUp())
                 topMenu.selectRoomsTab(value);
             if (value)
             {
@@ -902,6 +892,9 @@ package survarium.rooms
                     sig += [r0.key, r0.level, r0.max, r0.size, r0.players, r0.phase, r0.map, r0.pin, r0.name].join(",") + "|";
                 }
                 sig += _total;
+                // A squad's soldier has Join and New room greyed: drawn
+                // anew when that changes (squads.md).
+                sig += LocalPlayerProfile.squadSoldier() ? ";soldier" : "";
                 if (_view == "list")
                 {
                     if (sig != _listSig)
@@ -1005,17 +998,6 @@ package survarium.rooms
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
-                // Out of the room while the results are up (one by Play
-                // leaves with its match's end): the window under them stays as
-                // it is, untouched, and goes as they close (resultsClosed), so
-                // closing them shows the lobby (rooms.md, "After a match").
-                // Hidden now, it would deselect the top menu's Rooms tab, and
-                // the results close on any change of that tab (LobbyMenu.closeVS).
-                if (had && _shown && resultsUp())
-                {
-                    _hideAfterResults = true;
-                    return;
-                }
                 // Only when something shown changed: this answers every poll,
                 // and a view drawn anew under the mouse loses its clicks, its
                 // drag and the PIN being typed.
@@ -1033,6 +1015,7 @@ package survarium.rooms
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
                     "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null};
+                var squads:String = "";
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
                 // may sound again (`alertNear`).
@@ -1045,7 +1028,7 @@ package survarium.rooms
                         _room.cards.push({"map": int(r[2]), "votes": int(r[3]), "mine": r[4] == "1"});
                     else if (r[0] == "P")
                         _room.members.push({"gear": int(r[2]), "owner": r[3] == "1", "me": r[4] == "1",
-                            "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1",
+                            "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1", "squad": 0,
                             "name": r.slice(8).join(";")});
                     else if (r[0] == "J")
                     {
@@ -1059,12 +1042,16 @@ package survarium.rooms
                     // A private room's teams, a digit a member (its owner's).
                     else if (r[0] == "A")
                         _room.teams = String(r[1]);
+                    // Its squads' marks, a character a member (0: none).
+                    else if (r[0] == "S")
+                        squads = String(r[1]);
                     else if (r[0] == "L")
                         _room.last = int(r[1]);
                 }
                 // Why a join from the All rooms tab (or a room made) left us
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
+                RoomsLook.markSquads(_room.members, squads);
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;
@@ -1148,8 +1135,8 @@ package survarium.rooms
         }
 
         // `S1;G;<key>;<members>`, then two rows a member: `P;<i>;<gear>;
-        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>` and its
-        // whole name. Drawn when it is the chosen room's and something
+        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>;<squad>` and
+        // its whole name (`squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
         // changed (only its box: the view under the mouse keeps its clicks
         // and the PIN typed).
         private function takeMembers(head:Array, rows:Array):void
@@ -1169,7 +1156,7 @@ package survarium.rooms
                 sig += String(rows[i].nickname) + "|" + name + "|";
                 list.push({"gear": int(f[2]), "owner": f[3] == "1", "me": f[4] == "1", "inMatch": f[5] == "1",
                     "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
-                    "name": name});
+                    "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
                 return;
@@ -1204,7 +1191,7 @@ package survarium.rooms
 
         internal function render():void
         {
-            if (!_shown || _hideAfterResults)
+            if (!_shown)
                 return;
             var focused:TextField = stage != null ? stage.focus as TextField : null;
             var editingPin:Boolean = focused != null && (focused == listView._joinPin || focused == createView._makePin);
@@ -1336,9 +1323,12 @@ package survarium.rooms
             ask(RoomsWire.OFFER + int(room.key), 1);
         }
 
-        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>`: kind 0 joins as
+        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>;<about>`: kind 0 joins as
         // asked; 1 (the room allows more than our kits), 2 (our gear is over
         // its max) and 3 (our kits can not play, preset n can) show the popup.
+        // `about` 1: Play would queue, the room is of the other bracket
+        // (the owner's of 2026-10-30): "Queue" (Play as it is) for the
+        // popup's first button.
         private function takeOffer(head:Array):void
         {
             var asked:Object = _offerAsk;
@@ -1352,7 +1342,8 @@ package survarium.rooms
                 return;
             }
             _offer = {"kind": kind, "preset": int(head[4]), "level": int(head[5]), "gear": int(head[6]),
-                "max": int(head[7]), "room": asked.room, "play": asked.play};
+                "max": int(head[7]), "room": asked.room, "play": asked.play,
+                "queue": asked.play && head.length > 8 && head[8] == "1"};
             _busyAt = 0;
             _playAskedAt = 0;
             applyPlay();
@@ -1409,8 +1400,12 @@ package survarium.rooms
             tf.text = text;
             var bw:Number = 200;
             var by:Number = y + h - 50;
-            look.button(look._content, say(_offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit"), x + w / 2 - bw - 8, by, bw,
-                _offer.kind == 1 ? onOfferAsIs : onOfferExit, null, 32);
+            // Play that would queue: "Queue" plays as it is; else "Enter
+            // anyway" (the kits as they are) or "Exit" (nothing).
+            var asIs:Boolean = _offer.queue || _offer.kind == 1;
+            var first:String = _offer.queue ? "st_srp_rooms_queue" : _offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit";
+            look.button(look._content, say(first), x + w / 2 - bw - 8, by, bw,
+                asIs ? onOfferAsIs : onOfferExit, null, 32);
             look.button(look._content, say("st_srp_rooms_switch_enter"), x + w / 2 + 8, by, bw, onOfferSwitch, null, 32, true);
         }
 

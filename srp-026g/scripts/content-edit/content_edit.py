@@ -44,7 +44,8 @@ Edits (edits.json):
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
-                    an int, a float (a number with a point), a text, or an object (a named table of
+                    an int, a float (a number with a point), a text, a vector (a list of 2-4
+                    numbers: a float2..float4, as a position), or an object (a named table of
                     those); a file that has the key already is refused
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
@@ -70,7 +71,8 @@ Edits (edits.json):
                     compile every registered language from its complete TSV dictionary;
                     preserve all source keys, check formats and the native text buffer limit;
                     map each of srp's own texts (st_srp_*) to itself in the UI mapping of the
-                    movies that read them (localization_026g.FLASH_MOVIES), after their rows.
+                    movies that read them (localization_026g.FLASH_MOVIES: each movie its
+                    prefix's), after their rows.
   "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
                                                        `by`, as a float (a matching file without it is
                                                        refused)
@@ -455,6 +457,12 @@ def value_record(buf, name_off, key, value):
         return REC.pack(value & 0xffffffff, name_off, crc, T_INT, 4)
     if isinstance(value, float):
         return REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], name_off, crc, T_FLOAT, 4)
+    if isinstance(value, list):
+        if not 2 <= len(value) <= 4 or not all(isinstance(x, (int, float)) and not isinstance(x, bool)
+                                              for x in value):
+            raise ValueError('%s: a vector is a list of 2 to 4 numbers, not %r' % (key, value))
+        floats = struct.pack('<%df' % len(value), *value)
+        return REC.pack(append(buf, floats), name_off, crc, T_INDEXED + len(value), len(floats))
     text = value.encode()
     return REC.pack(append(buf, text + b'\0'), name_off, crc, T_STR, len(text) + 1)
 
@@ -1138,12 +1146,12 @@ def main():
             if errors:
                 raise ValueError('UI mapping contains invalid UTF-8')
             keys = read_translations(directory / 'english.tsv').keys()
-            for movie in FLASH_MOVIES:
+            for movie, prefix in FLASH_MOVIES.items():
                 table = movie + '_strings'
                 have = {row[0]: row[1] for row in config[table]}
-                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys)):
+                if any(have.get(key, ui) != ui for ui, key in flash_rows(keys, prefix)):
                     raise ValueError(f'{table}: an srp text key mapped to another text')
-                rows = [row for row in flash_rows(keys) if row[0] not in have]
+                rows = [row for row in flash_rows(keys, prefix) if row[0] not in have]
                 if rows:
                     at = append_rows(buf(mapping), table, rows)
                     for k in range(at, at + len(rows)):

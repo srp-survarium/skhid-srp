@@ -72,6 +72,15 @@ impl Place {
         (raw < Self::COUNT as u32).then_some(Place(raw as u8))
     }
 
+    /// The place a movie names in decimal (the Tab list row's `id`); None for
+    /// anything else.
+    pub fn parse(text: &[u8]) -> Option<Place> {
+        if text.is_empty() || text.len() > 2 || !text.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        Place::new(text.iter().fold(0, |n, digit| n * 10 + u32::from(digit - b'0')))
+    }
+
     pub fn get(self) -> u8 {
         self.0
     }
@@ -106,5 +115,10 @@ mod tests {
         assert_eq!(Place::new(19).map(Place::get), Some(19));
         assert_eq!(Place::new(20), None);
         assert_eq!(Place::all().count(), 20);
+        assert_eq!(Place::parse(b"0").map(Place::get), Some(0));
+        assert_eq!(Place::parse(b"19").map(Place::get), Some(19));
+        for bad in [&b""[..], b"20", b"-1", b"1a", b" 1", b"100"] {
+            assert_eq!(Place::parse(bad), None, "{bad:?}");
+        }
     }
 }

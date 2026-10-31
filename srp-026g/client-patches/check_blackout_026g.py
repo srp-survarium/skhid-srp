@@ -19,17 +19,18 @@ records each call. The original runs the same way and must do what it did:
   another value or length, a short block or another magic; the original
   leaves it; esi, edi, ebp and the stack as the game's code leaves them;
 - the markers' feed: update_ui's `push edi / call 0x23AA10` (0x23B206) to
-  update_player_icons' prologue's end (0x23AA16): the hud movie told
-  root.force_interface_hidden and the icons movie root.force_interface_hidden
-  and root.force_interface_tab exactly at a change of the movie or the state
-  (and again at the next frame while the movie refuses, Invoke answering 0);
-  the original invokes nothing;
+  update_player_icons' prologue's end (0x23AA16): the hud movie and the icons
+  movie told root.force_interface_hidden exactly at a change of the movie or
+  the state (and again at the next frame while the movie refuses, Invoke
+  answering 0), never Tab's state: the allies' markers are the icons movie's
+  as in a plain match, Tab or not (the movie hides only the objects' and,
+  as always, an enemy's); the original invokes nothing;
 - Tab: on_keyboard_action from 0x25CD26 (bl Tab down) past show_player_list
   (a stub given the byte) and the game's Tab test: in a Blackout match the
   key goes on (0x25CD41, patch 58's kit keys), in another, and in the
   original, to the end (0x25CF0D) while Tab is down;
 - names: the native Alt/crosshair result through its HUD cache; Tab forces
-  same-team names only in Blackout, preserving other decisions, registers and
+  same-team names only in Blackout (an enemy's never), preserving other decisions, registers and
   stack; a new match resets the held key;
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
   while Tab is held in a Blackout match the action mask has no move and no
@@ -51,6 +52,9 @@ OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 STATIC_START, STATIC_PAST = 0x27B917, 0x27B932       # process_static_match_info: before the pushes, past the site
 REPLAY_START, REPLAY_RET = 0x1F094C, 0x1F0976        # the replay's chunk 1: its reader made, its `ret 8`
 ICONS_SITE, ICONS_PAST, PLAYER_ICONS = 0x23B206, 0x23AA16, 0x23AA10
+# The same site's other hooks' Invokes, which their own checks cover (patch 83, after this
+# patch's in the chain: check_hud_options_026g.py).
+OTHER_PATCHES_INVOKES = ("root.srp_hud_options",)
 TAB_START, SHOW_PLAYER_LIST = 0x25CD26, 0x2384C0
 KEY_ON, KEY_END = 0x25CD41, 0x25CF0D   # on_keyboard_action after its Tab test: the key's way (patch 58's), its end
 INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
@@ -164,7 +168,10 @@ class Run(hide.Run):
 
     # update_ui's `push edi / call` of update_player_icons (0x23B206), the hud in edi, its icons'
     # movie `icons` (0: none), to past update_player_icons' prologue: the Invokes.
-    def icons_fed(self, icons=hide.ICONS_MOVIE):
+    def icons_fed(self, icons=hide.ICONS_MOVIE, others=False):
+        """The site run as the game runs it: whether it went on as the game's,
+        and the Invokes (without the other patches' of the same site unless
+        `others`: patch 83's root.srp_hud_options, check_hud_options_026g.py's)."""
         self.movies(hide.HUD, 1, icons != 0)
         self.word(hide.ICONS_UI + 4, icons or hide.ICONS_MOVIE)
         sp = hide.STACK + 0x8000
@@ -182,7 +189,8 @@ class Run(hide.Run):
         kept = self.read(frame) == hide.GAME[UC_X86_REG_EBP] and (direct or wrapped) \
             and self.read(frame + 8) == hide.HUD and esp & 7 == 0 and esp <= frame \
             and all(regs[r] == v for r, v in {**hide.GAME, UC_X86_REG_EDI: hide.HUD}.items() if r != UC_X86_REG_EBP)
-        return self.stopped == ICONS_PAST and kept, self.invokes()
+        invoked = [c for c in self.invokes() if others or c[1] not in OTHER_PATCHES_INVOKES]
+        return self.stopped == ICONS_PAST and kept, invoked
 
     # on_keyboard_action from its Tab byte (al, 0x25CD26) through show_player_list (a stub) and the
     # game's Tab test: where the key goes, or None when the run was not as the game's.
@@ -279,33 +287,32 @@ def main():
                        "as its code leaves them")
 
     print("the markers' feed (update_player_icons' start 0x23AA10)")
-    told = lambda movie, flag, tab: [(movie, "root.force_interface_hidden", (flag,)),
-                                     (movie, "root.force_interface_tab", (tab,))]
+    told = lambda movie, flag: [(movie, "root.force_interface_hidden", (flag,))]
     hud = lambda flag: [(hide.HUD_MOVIE, "root.force_interface_hidden", (flag,))]
     M, OTHER = hide.ICONS_MOVIE, OTHER_ICONS
     frames = [
         # (what, the static info read first (None: as it is), Tab down (1), up (0) or as it is (None), the
         # icons' movie, it refuses, the Invokes wanted)
-        ("a match without, its first frame", b"", None, M, False, hud(0) + told(M, 0, 0)),
+        ("a match without, its first frame", b"", None, M, False, hud(0) + told(M, 0)),
         ("its next frame", None, None, M, False, []),
-        ("Tab down in it", None, 1, M, False, told(M, 0, 1)),
-        ("Tab up", None, 0, M, False, told(M, 0, 0)),
-        ("a Blackout match, its first frame: the hud forced, no players' markers", on, None, M, False,
-         hud(1) + told(M, 1, 0)),
+        ("Tab down in it", None, 1, M, False, []),
+        ("Tab up", None, 0, M, False, []),
+        ("a Blackout match, its first frame: the hud forced, the icons forced (the allies' markers kept)", on,
+         None, M, False, hud(1) + told(M, 1)),
         ("its next frame", None, None, M, False, []),
-        ("Tab down: the players' markers", None, 1, M, False, told(M, 1, 1)),
+        ("Tab down: nothing (the allies' markers stay as they are)", None, 1, M, False, []),
         ("Tab still held", None, 1, M, False, []),
-        ("Tab up: none again", None, 0, M, False, told(M, 1, 0)),
+        ("Tab up: nothing", None, 0, M, False, []),
         ("another Blackout match reusing both movie addresses", on, None, M, False,
-         hud(1) + told(M, 1, 0)),
-        ("the hud holding another icons' movie (a new game world's)", None, None, OTHER, False, told(OTHER, 1, 0)),
+         hud(1) + told(M, 1)),
+        ("the hud holding another icons' movie (a new game world's)", None, None, OTHER, False, told(OTHER, 1)),
         ("its next frame", None, None, OTHER, False, []),
         ("a Blackout match again, its icons movie without a root yet (Invoke answers 0)", on, None, M, True,
-         hud(1) + told(M, 1, 0)[:1]),
-        ("the next frame, the movie taking it", None, None, M, False, told(M, 1, 0)),
+         hud(1) + told(M, 1)),
+        ("the next frame, the movie taking it", None, None, M, False, told(M, 1)),
         ("the frame after", None, None, M, False, []),
         ("no icons' movie", None, None, 0, False, []),
-        ("the next match without", b"", None, M, False, hud(0) + told(M, 0, 0)),
+        ("the next match without", b"", None, M, False, hud(0) + told(M, 0)),
     ]
     for name, block, tab, icons, refuses, want in frames:
         if block is not None:

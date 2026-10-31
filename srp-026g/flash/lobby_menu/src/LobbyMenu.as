@@ -21,6 +21,7 @@ package
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFieldType;
+   import flash.text.TextFormat;
    import flash.ui.Keyboard;
    import flash.utils.Timer;
    import flash.utils.clearTimeout;
@@ -29,7 +30,6 @@ package
    import flash.utils.setTimeout;
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.controls.Button;
-   import scaleform.clik.controls.DropdownMenu;
    import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.controls.TextInput;
    import scaleform.clik.controls.TileList;
@@ -92,6 +92,7 @@ package
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
+   import survarium.controls.Transient;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -102,6 +103,7 @@ package
    import survarium.controls.NotificationListScrollContent;
    import survarium.controls.PlayerInfo;
    import survarium.controls.PlayerRanking;
+   import survarium.lobbypick.LobbyWindow;
    import survarium.controls.QuestWindow;
    import survarium.controls.SrvContextMenu;
    import survarium.controls.StatusPanel;
@@ -114,6 +116,7 @@ package
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.friends.FriendsMenu;
+   import survarium.friends.ChatMute;
    import survarium.friends.SquadInviteList;
    import survarium.friends.SquadList;
    import survarium.gsearch.LobbyGameLoad;
@@ -353,7 +356,7 @@ package
       
       protected var _superWidth:uint = 1920;
       
-      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e];
+      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya];
       
       private var survivalVisible:Boolean = false;
       
@@ -444,6 +447,17 @@ package
       protected var _isWheeled:Boolean = false;
       
       private var fadeBack:MovieClip = new FadeBackground();
+
+      // The black over the lobby's 3D scene while the exe puts another lobby in (srp_scene_fade),
+      // and the loading spinner on it.
+      private var _sceneFade:Sprite;
+
+      private var _sceneSpinner:MovieClip;
+
+      // The lobby window (the lobby button's) and what the exe last told it, [pick, shown].
+      private var _lobbyWindow:LobbyWindow;
+
+      private var _lobbyState:Array;
       
       protected var _tempIndex:uint = 0;
       
@@ -461,14 +475,17 @@ package
       // bars, windows and chat are the root's children, and what the game first put on the stage is
       // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (every layer put
       // above the lobby: the front, top and top2 containers with messages, the wheels, the loading
-      // screen, the fades, the right-click menu, CLIK's popups) and over it _overlay, above every
-      // modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
+      // screen, the fades, the right-click menu), over them _transients (the transient windows
+      // while open, docs/notes/transient-windows.md, and CLIK's popups) and over it _overlay, above
+      // every modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
       // the status panel is), _cards (the item cards, drawn as the root is), CLIK's drag canvas and
       // the tooltips. toggle_interface hides the root, so all of it, in one step; nothing of the
       // interface is on the stage beside it.
       private var _stageLayer:Sprite;
 
       private var _layers:Sprite;
+
+      private var _transients:Sprite;
 
       private var _overlay:Sprite;
 
@@ -513,23 +530,27 @@ package
       }
 
       // The layers the game first put on the stage, in the root (see _stageLayer): made before
-      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go.
+      // anything is added; CLIK's popup canvas, the right-click menu and the transient windows are
+      // told where theirs go.
       private function makeStageLayer() : void
       {
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          _layers = new Sprite();
+         _transients = new Sprite();
          _overlay = new Sprite();
          _corner = new Sprite();
          _cards = new Sprite();
          itemHintRenderer.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          itemHintRendererSec.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          this._stageLayer.addChild(this._layers);
+         this._stageLayer.addChild(this._transients);
          this._stageLayer.addChild(this._overlay);
          this._overlay.addChild(this._corner);
          this._overlay.addChild(this._cards);
          super.addChild(this._stageLayer);
-         PopUpManager.layer = this._layers;
+         PopUpManager.layer = this._transients;
+         Transient.layer = this._transients;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1243,6 +1264,7 @@ package
          this.profileSelector.y = 42;
          modifierWindow = new SrvModifiersControlReskin();
          notificationList = new SrvNotificationListSC();
+         this.notificationList.lobby = this;
          notificationListTemp = new SrvNotificationList();
          this.notificationList.registerRenderer(NotificationType.PLAIN,NotificationRendererSkinned);
          this.notificationList.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
@@ -1416,6 +1438,7 @@ package
          this.statusPanel.addEventListener(StatusPanel.SHOW_DAILY_MESSAGE,this.show_daily_reward_window_on_event);
          this.statusPanel.addEventListener(StatusPanel.MATCH_SETTINGS,this.onMatchSettigsToggle);
          this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);
+         this.statusPanel.addEventListener(StatusPanel.LOBBY_WINDOW,this.onLobbyWindow);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
@@ -2905,11 +2928,9 @@ package
       {
          PlayerInfo.premiumState = state;
          PlayerInfo.premiumLeft = label;
-         this.statusPanel.btn_premium.stateIndex = state;
-         this.statusPanel.btn_premium.label = label;
-         if(state != PremiumState.NONE && (this.statusPanel.btn_premium.discount))
+         if(state != PremiumState.NONE && (this.statusPanel.premiumDiscount))
          {
-            this.statusPanel.btn_premium.discount = 0;
+            this.statusPanel.premiumDiscount = 0;
             this.updatePremiumDiscountTime();
          }
          if(state != PremiumState.NONE && this.player_profile.buyPremium.visible == true)
@@ -3869,7 +3890,7 @@ package
             return false;
          }
          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
-         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
+         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage) && topMost != this._sceneFade)
          {
             return true;
          }
@@ -4088,6 +4109,8 @@ package
          {
             return;
          }
+         // it covers the lobby: the transient windows (over the layers) close
+         Transient.closeAll();
          var _back_back:MovieClip = new BackBlack();
          this._top_container.addChild(_back_back);
          _back_back.width = stage.stageWidth;
@@ -4151,20 +4174,15 @@ package
          {
             return true;
          }
-         // a dropdown's open list takes Esc itself; a closed dropdown still holding the focus does
-         // not, so Esc never opens the game's menu over a modal
-         if(stage.focus is DropdownMenu && DropdownMenu(stage.focus).selected)
-         {
-            trace("has_active_window::DropdownMenu");
-            return false;
-         }
-         var isAnyWindow:Boolean = !this._escapeHandled && (Modals.any() || stage.focus is TextField);
+         // a transient window (History, a dropdown's list) is over the modals: Esc closes it first
+         var isAnyWindow:Boolean = !this._escapeHandled && (Transient.any() || Modals.any() || stage.focus is TextField);
          _escapeHandled = false;
          return isAnyWindow;
       }
 
       // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
       // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
+      // closes the top transient window (History, the match settings, a dropdown's list), then
       // takes the keys from a text box (unless the right-click menu is open), then closes the
       // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
       // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
@@ -4175,6 +4193,10 @@ package
          if(this.showInterface())
          {
             _hiddenKeyUp = Keyboard.ESCAPE;
+            return;
+         }
+         if(Transient.escape())
+         {
             return;
          }
          if(!SrvContextMenu.visisble && this.leaveTextBox())
@@ -5394,8 +5416,9 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         // the match loads: the message up goes (closed, not answered as Esc would), else the top
-         // modal closes
+         // the match loads: the transient windows close (the loading screen is under their layer),
+         // the message up goes (closed, not answered as Esc would), else the top modal closes
+         Transient.closeAll();
          if(Message.isAnyMessage() != -1)
          {
             Message.close(Message.isAnyMessage());
@@ -5852,8 +5875,8 @@ package
       {
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
-         // A room left under the results (by Play, with its match's end):
-         // its window goes with them (after closeVS is off: its tab changes).
+         // The rooms window's tab, kept as it was under the results, follows it now (after closeVS
+         // is off: its tab changes).
          if(RoomsWindow.me != null)
          {
             RoomsWindow.me.resultsClosed();
@@ -5929,6 +5952,123 @@ package
          }
       }
       
+      // The lobby's scene changing (exe patch 81, docs/notes/lobby-scenes.md): a black over the 3D
+      // scene, under every panel (the root's first child), while the exe puts another lobby in;
+      // perMille of black (0 gone), the exe stepping it a frame each; `loading`: the game's loading
+      // spinner on it. The interface stays; no click lands on the black (get_mouse_over leaves it
+      // out), and it is off the display list while there is none.
+      public function srp_scene_fade(perMille:uint, loading:uint) : void
+      {
+         if(this._sceneFade == null)
+         {
+            this._sceneFade = new Sprite();
+            this._sceneFade.graphics.beginFill(0,1);
+            this._sceneFade.graphics.drawRect(-4096,-4096,12288,12288);
+            this._sceneFade.graphics.endFill();
+            this._sceneFade.mouseEnabled = false;
+            this._sceneFade.mouseChildren = false;
+            this._sceneSpinner = new LoadingIndicator();
+            this._sceneSpinner.mouseEnabled = false;
+            this._sceneSpinner.scaleX = this._sceneSpinner.scaleY = 0.7;
+            this._sceneFade.addChild(this._sceneSpinner);
+         }
+         var fade:Sprite = this._sceneFade;
+         if(perMille == 0)
+         {
+            if(fade.parent != null)
+            {
+               fade.parent.removeChild(fade);
+            }
+            this._sceneSpinner.stop();
+            return;
+         }
+         fade.alpha = Math.min(perMille,1000) / 1000;
+         if(fade.parent != this)
+         {
+            addChildAt(fade,0);
+         }
+         // the middle of the screen in the root's units (the root is scaled to the screen)
+         if(stage != null)
+         {
+            this._sceneSpinner.x = stage.stageWidth / scaleX / 2;
+            this._sceneSpinner.y = stage.stageHeight / scaleY / 2;
+         }
+         var spin:Boolean = loading != 0;
+         if(spin != this._sceneSpinner.visible)
+         {
+            this._sceneSpinner.visible = spin;
+            if(spin)
+            {
+               this._sceneSpinner.gotoAndPlay(1);
+            }
+            else
+            {
+               this._sceneSpinner.stop();
+            }
+         }
+      }
+
+      // What the lobby window shows (exe patch 81): the player's pick and the lobby shown, told by
+      // the exe when one changes.
+      public function srp_lobby_state(pick:uint, shown:uint) : void
+      {
+         this._lobbyState = [pick,shown];
+         if(this._lobbyWindow != null)
+         {
+            this._lobbyWindow.state(pick,shown);
+         }
+      }
+
+      // The lobby button (StatusPanel.LOBBY_WINDOW): the lobby window opened, or closed again; the
+      // exe's diagnostics build opens it so too (srp_lobby_window).
+      public function srp_lobby_window() : void
+      {
+         this.onLobbyWindow(null);
+      }
+
+      private function onLobbyWindow(e:Event) : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this.closeLobbyWindow();
+            return;
+         }
+         if(this._lobbyWindow == null)
+         {
+            // the font of the bottom bar's tabs (the game's own), as the rooms window's
+            var tabClass:Class = getDefinitionByName("ButtonChatTabBottom") as Class;
+            var sample:* = new tabClass();
+            var tabText:TextField = sample["textField"] as TextField;
+            var format:TextFormat = tabText != null ? tabText.getTextFormat() : new TextFormat();
+            this._lobbyWindow = new LobbyWindow(format.font,format.bold);
+            this._lobbyWindow.onClose = this.closeLobbyWindow;
+            if(this._lobbyState != null)
+            {
+               this._lobbyWindow.state(this._lobbyState[0],this._lobbyState[1]);
+            }
+         }
+         var window:LobbyWindow = this._lobbyWindow;
+         if(stage != null)
+         {
+            window.x = int((stage.stageWidth / scaleX - window.width) / 2);
+            window.y = int((stage.stageHeight / scaleY - window.height) / 2);
+         }
+         addChild(window);
+         Modals.open(window,Modals.LOBBY,this.closeLobbyWindow,function():Boolean
+         {
+            return window.parent != null;
+         });
+      }
+
+      private function closeLobbyWindow() : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this._lobbyWindow.parent.removeChild(this._lobbyWindow);
+         }
+         Modals.leave(this._lobbyWindow);
+      }
+
       private function test_clan_mamngment() : void
       {
          var createPermission:Function = function(value:String = null):Object
@@ -5982,12 +6122,25 @@ package
       
       private function toggleReports(e:Event) : void
       {
-         this.notificationList.visible = !this.notificationList.visible;
-         setChildIndex(this.notificationList,numChildren - 1);
-         if(this.notificationList.visible)
+         this.showHistory(!this.notificationList.visible);
+      }
+
+      // History (the bottom bar's button) is a transient window (Transient): open over the
+      // windows; any other window opening, a press outside it or Esc closes it as its button does.
+      public function showHistory(value:Boolean) : void
+      {
+         this.notificationList.visible = value;
+         this.bottom_panel.btnShowLogList.selected = value;
+         if(!value)
          {
-            this.notificationListTemp.clear(true);
+            Transient.closed(this.notificationList);
+            return;
          }
+         this.notificationListTemp.clear(true);
+         Transient.open(this.notificationList,this.bottom_panel.btnShowLogList,function():void
+         {
+            showHistory(false);
+         });
       }
       
       private function updateButtonsLocal(value:String) : void
@@ -6236,7 +6389,7 @@ package
             this._discountTimer.addEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
          }
          this.statusPanel.postRewardData = this._postRewardData;
-         this.statusPanel.btn_premium.discount = timeLeft;
+         this.statusPanel.premiumDiscount = timeLeft;
          this.add_notification(notif);
       }
       
@@ -6244,7 +6397,7 @@ package
       {
          var curTime:int;
          var delta:int;
-         if(this.statusPanel.btn_premium.discount > 0)
+         if(this.statusPanel.premiumDiscount > 0)
          {
             curTime = getTimer();
             delta = Math.round((curTime - this._postRewardData.startTime) / 1000);
@@ -6252,10 +6405,10 @@ package
             if(delta > 0)
             {
                this._postRewardData.startTime = curTime;
-               this.statusPanel.btn_premium.discount -= delta;
+               this.statusPanel.premiumDiscount = Math.max(this.statusPanel.premiumDiscount - delta,0);
             }
          }
-         if(this.statusPanel.btn_premium.discount <= 0)
+         if(this.statusPanel.premiumDiscount <= 0)
          {
             if((this._discountTimer))
             {
@@ -6357,21 +6510,57 @@ package
          _escapeHandled = false;
       }
       
-      // The game's right-click menu with the one item, at the mouse: a
-      // player of the Rankings window or of a room.
+      // Shared player actions for the Rankings window and both room lists.
       public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint, owner:DisplayObject = null) : void
       {
          if(nickname == null || nickname == "")
          {
             return;
          }
-         SrvContextMenu.show([{
+         var options:Array = [{
             name:LocalizationData.getName("show_player_info_button_hint"),
             click_function:function(e:* = null):void
             {
                askPlayerInfo(nickname,player,how);
             }
-         }],0,0,owner);
+         }];
+         if(nickname != PlayerInfo.nickname)
+         {
+            var friend:Object = FriendsMenu.getFriend(nickname);
+            options.push({
+               name:LocalizationData.getName(friend != null ? "remove_from_friends" : "add_to_friends"),
+               click_function:function():void
+               {
+                  if(friend != null)
+                  {
+                     ExternalInterface.call("remove_friend",uint(friend.id));
+                  }
+                  else
+                  {
+                     ExternalInterface.call("add_friend_name",nickname);
+                  }
+               }
+            });
+            options = options.concat(ChatMute.options(nickname));
+            options.push({
+               name:LocalizationData.getName("send_message"),
+               click_function:function():void
+               {
+                  ExternalInterface.call("start_friend_message",nickname);
+               }
+            });
+            if(PlayerInfo.commander && !PlayerInfo.isSquadFull && !SquadList.isInSquad(nickname))
+            {
+               options.push({
+                  name:LocalizationData.getName("invite_to_squad"),
+                  click_function:function():void
+                  {
+                     ExternalInterface.call("invite_to_squad",nickname);
+                  }
+               });
+            }
+         }
+         SrvContextMenu.show(options,0,0,owner);
       }
       
       private static function askPlayerInfo(nickname:String, player:uint, how:uint) : void
@@ -6504,7 +6693,7 @@ package
       // A match's results: a player in a room gets the room's window opened
       // first, so the results go over it and closing them shows the room
       // (the owner's of 2026-10-20). Out of a room: nothing. The window is
-      // told the match is over (its chat, where we are now).
+      // told the match is over (its chat).
       private function showRoomUnderResults() : void
       {
          try

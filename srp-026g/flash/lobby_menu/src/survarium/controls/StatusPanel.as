@@ -22,9 +22,9 @@ package survarium.controls
    import scaleform.clik.utils.Constraints;
    import scaleform.gfx.MouseEventEx;
    import survarium.Util;
-   import survarium.buttons.ButtonPremium;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
+   import survarium.lobbypick.LobbyButton;
    import survarium.gsearch.LobbyGameSearch;
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
@@ -49,6 +49,16 @@ package survarium.controls
       // dispatched when draw has laid the panel out (its exit and settings buttons placed): the
       // lobby draws those buttons above every modal where the panel draws them (LobbyMenu._corner)
       public static const LAID_OUT:String = "laidOut";
+
+      // dispatched by the lobby button (the player panel's, in the premium button's place): the
+      // lobby window opened or closed (LobbyMenu, exe patch 81, docs/notes/lobby-scenes.md)
+      public static const LOBBY_WINDOW:String = "lobbyWindow";
+
+      // the lobby button: the player panel's (topPanelLeftContainer_56)
+      public var btn_lobby:LobbyButton;
+
+      // the premium offer after a match (LobbyMenu.show_premium_post_reward): its seconds left, 0 none
+      public var premiumDiscount:int = 0;
       
       private var _show_query:Boolean = true;
       
@@ -118,8 +128,6 @@ package survarium.controls
       
       public var txPremium:TextField;
       
-      public var btn_premium:ButtonPremium;
-      
       public var centerContainerTop:MovieClip;
       
       public var right_corner:MovieClip;
@@ -175,7 +183,7 @@ package survarium.controls
       {
          super();
          trace("StatusPanel",this.panel_player,this.right_corner);
-         this.btn_premium = this.panel_player.btn_premium;
+         this.btn_lobby = this.panel_player.btn_lobby;
          this.right_corner = this.panelFaction;
          this.icon_generic = this.panel_player.icon_generic;
          this.btn_add_regular_money = this.panel_player.btn_add_regular_money;
@@ -199,6 +207,7 @@ package survarium.controls
          this.right_corner.btnShowDailyMessage.addEventListener(ButtonEvent.CLICK,this.showDailyMessage);
          trace("StatusPanel2",this.play_container.dropDownButton,this.panel_player.txLevel,this.matchSettings);
          this.dropDownButton = this.play_container.dropDownButton;
+         this.matchSettings.playContainer = this.play_container;
          this.dropDownButton.addEventListener(ButtonEvent.CLICK,this.showMatchSettings);
          this.panel_player.txLevel.text = "";
          this.matchSettings.visible = false;
@@ -206,7 +215,27 @@ package survarium.controls
       
       private function showMatchSettings(e:ButtonEvent) : void
       {
-         this.matchSettings.visible = !this.matchSettings.visible;
+         this.openMatchSettings(!this.matchSettings.visible);
+      }
+
+      // The match settings under Play (the arrow beside the mode) are a transient window
+      // (Transient): on the transient layer while open, over every window (the bar stays where it
+      // is); another window opening, a press outside them or Esc closes them as the arrow does.
+      // Their own dropdowns open from them.
+      private function openMatchSettings(value:Boolean) : void
+      {
+         this.matchSettings.visible = value;
+         if(value)
+         {
+            Transient.open(this.matchSettings,this.dropDownButton,function():void
+            {
+               openMatchSettings(false);
+            });
+         }
+         else
+         {
+            Transient.closed(this.matchSettings);
+         }
          dispatchEvent(new Event(MATCH_SETTINGS));
       }
       
@@ -505,10 +534,7 @@ package survarium.controls
             addChildAt(this._topMenu,getChildIndex(this.play_container) - 1);
             constraints.addElement("top_menu",this._topMenu,Constraints.CENTER_H);
          }
-         this.btn_premium.enabled = true;
-         this.btn_premium.constraintsDisabled = true;
-         this.btn_premium.preventAutosizing = true;
-         this.btn_premium.addEventListener(ButtonEvent.CLICK,this.showPremiumMessage);
+         this.btn_lobby.addEventListener(ButtonEvent.CLICK,this.onClickLobby);
          this.btn_add_regular_money.enabled = true;
          this.btn_add_premium_money.enabled = true;
          this.btn_add_premium_money.addEventListener(ButtonEvent.CLICK,this.onPremiumMoneyAddClick);
@@ -533,7 +559,6 @@ package survarium.controls
          this.factionHint.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.btn_add_premium_money.tooltipRendererName = "SrvProfileTipRenderer";
          this.btn_add_regular_money.tooltipRendererName = "SrvProfileTipRenderer";
-         this.btn_premium.tooltipRendererName = "SrvProfileTipRenderer";
          this.panel_player.hintButton.tooltipRendererName = "SrvProfileTipRenderer";
          this.right_corner.btnShowDailyMessage.tooltipRendererName = "SrvProfileTipRenderer";
          this.left_corner.btnKnowledgeBase.tooltipRendererName = "SrvProfileTipRenderer";
@@ -550,7 +575,6 @@ package survarium.controls
          }
          LocalizationData.addCallback(this.updateButtons,"btn_settings_label");
          stage.addEventListener(Event.RESIZE,this.onStageResize);
-         stage.addEventListener(MouseEvent.CLICK,this.onStageClick);
          players = 0;
          games = 0;
       }
@@ -616,17 +640,6 @@ package survarium.controls
          this.left_corner.videoTutorial.visible = false;
          ExternalInterface.call("video_tutorial_hide_clicked");
          this.sortAdminMessages();
-      }
-      
-      private function onStageClick(e:MouseEvent) : void
-      {
-         if((this.matchSettings.visible) && Message.isAnyMessage() == -1)
-         {
-            if(e.target != this.dropDownButton && e.target != this.matchSettings && !this.matchSettings.contains(e.target))
-            {
-               this.showMatchSettings(null);
-            }
-         }
       }
       
       private function updateMatchSettings(e:Event) : void
@@ -777,7 +790,6 @@ package survarium.controls
          this.btnChangeName.data = {name:LocalizationData.getName("btn_change_name_label")};
          this.btn_add_premium_money.data = {name:LocalizationData.getName("btn_add_premium_label")};
          this.btn_add_regular_money.data = {name:LocalizationData.getName("btn_exchange_premium_money")};
-         this.btn_premium.data = {name:LocalizationData.getName("btn_premium_hint")};
          this.left_corner.btnKnowledgeBase.data = {name:LocalizationData.getName("btn_knowledge_base")};
          this.left_corner.videoTutorial.textField.text = LocalizationData.getName("youtube_video_tutorial_button");
          this.left_corner.videoTutorial.closeBtn.x = this.left_corner.videoTutorial.textField.x + this.left_corner.videoTutorial.textField.textWidth + 10;
@@ -836,6 +848,11 @@ package survarium.controls
          ExternalInterface.call("power_off_button_click");
       }
       
+      private function onClickLobby(e:ButtonEvent) : void
+      {
+         dispatchEvent(new Event(LOBBY_WINDOW));
+      }
+
       private function onClickSettings() : void
       {
          ExternalInterface.call("show_settings");
@@ -907,7 +924,7 @@ package survarium.controls
          {
             messData = new Object();
          }
-         if(!this.btn_premium.discount)
+         if(!this.premiumDiscount)
          {
             messData.options = this._premiumOptions;
             Message.showMessage("premium",messData,true);
@@ -923,15 +940,12 @@ package survarium.controls
          }
       }
       
-      private function showPremiumMessage(e:ButtonEvent) : void
-      {
-         this.showPremium();
-      }
-      
       // Play in a room or a room's queue (survarium.rooms): "Leave room" or
       // "Leave queue" (`word`), red, on whatever the game's own Play is (a
       // squad's member, a kit the game refuses: Leave needs none of its
-      // conditions), grey from a press until its answer (`asking`).
+      // conditions), grey from a press until its answer (`asking`). A
+      // squad's soldier elsewhere: greyed, "In squad" (its leader plays for
+      // both, squads.md; the owner's of 2026-10-31).
       // Otherwise the game's own label and look. `each`: the frame's call,
       // which leaves the game's own Play enabled as the game sets it.
       public function showRoomsPlay(leaving:Boolean, queued:Boolean, asking:Boolean, each:Boolean, nativePlay:Boolean, word:String) : void
@@ -950,14 +964,15 @@ package survarium.controls
             }
             this.showPlayReasons(blocked);
          }
+         var soldier:Boolean = !leaving && !queued && LocalPlayerProfile.squadSoldier();
          // In the case of the game's own label (its Play is in capitals).
          var gameLabel:String = this._roomsPlayLabel != null ? this._roomsPlayLabel : String(btn.label);
-         var label:String = word;
+         var label:String = soldier ? LocalizationData.getName("st_srp_play_in_squad") : word;
          if(gameLabel != "" && gameLabel == gameLabel.toUpperCase())
          {
             label = label.toUpperCase();
          }
-         if(leaving || queued)
+         if(leaving || queued || soldier)
          {
             // The game sets its own label again (its language): ours over it
             // each time.
@@ -970,7 +985,7 @@ package survarium.controls
                btn.label = label;
             }
             this._roomsOurLabel = label;
-            this.tintPlay(RoomsLook.RED_TINT);
+            this.tintPlay(soldier ? new ColorTransform() : RoomsLook.RED_TINT);
          }
          else if(this._roomsPlayLabel != null)
          {

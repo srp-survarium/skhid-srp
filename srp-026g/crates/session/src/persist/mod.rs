@@ -72,7 +72,7 @@ pub struct AccountRecord {
     pub name: String,
     pub game: v021d::account::Account,
     pub friends: Vec<u32>,
-    pub ignored: Vec<u32>,
+    pub ignored: crate::chat_mutes::ChatMutes,
     pub active_profile: Option<u32>,
     pub notices: Vec<(u8, String)>,
     pub ban: Option<Ban>,

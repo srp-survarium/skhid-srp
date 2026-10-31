@@ -62,15 +62,6 @@ fn play_creates_each_bracket_on_demand_and_low_players_can_choose_high_rooms() {
         world.core.rooms.get(low_key).is_none(),
         "empty rooms disappear"
     );
-    assert!(
-        !world
-            .core
-            .rooms
-            .get(high_key)
-            .unwrap()
-            .by_play
-            .contains(&world.ids[low].0)
-    );
 }
 
 #[test]
@@ -92,7 +83,7 @@ fn a_client_cannot_create_a_public_room_or_leave_its_room_by_trying() {
 }
 
 #[test]
-fn five_wait_but_six_open_another_room_and_all_remain_play_members() {
+fn five_wait_but_six_open_another_room_and_all_stay_in_it_after_its_match() {
     let mut world = World::new();
     let (room, _) = full(&mut world, "Member", 1);
     let mut waiting = waiters(&mut world, "Waiting", 5, 1);
@@ -113,25 +104,17 @@ fn five_wait_but_six_open_another_room_and_all_remain_play_members() {
     assert_ne!(next, room);
     for &player in &waiting {
         assert_eq!(key(&world, player), next);
-        assert!(
-            world
-                .core
-                .rooms
-                .get(next)
-                .unwrap()
-                .by_play
-                .contains(&world.ids[player].0)
-        );
     }
     assert_eq!(world.core.rooms.queued_total(), 0);
-    // Their Play still means one match, including after scaling.
+    // After their match they are its members still (the owner's of
+    // 2026-10-31).
     let accounts: Vec<_> = waiting.iter().map(|&index| world.ids[index].0).collect();
     world
         .core
         .rooms
         .started(next, 123, 61, &accounts, world.now);
     world.core.room_match_over(123);
-    assert!(world.core.rooms.get(next).is_none());
+    assert!(waiting.iter().all(|&player| key(&world, player) == next));
 }
 
 #[test]
@@ -143,15 +126,6 @@ fn a_freed_place_admits_a_play_waiter_without_opening_another_room() {
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 1);
     assert_eq!(key(&world, waiting[0]), room);
-    assert!(
-        world
-            .core
-            .rooms
-            .get(room)
-            .unwrap()
-            .by_play
-            .contains(&world.ids[waiting[0]].0)
-    );
     assert_eq!(world.core.rooms.queued_total(), 4);
 }
 
@@ -252,30 +226,6 @@ fn six_waiters_across_two_full_rooms_expand_together() {
     let next = key(&world, waiting[0]);
     assert!(!keys.contains(&next));
     assert!(waiting.iter().all(|&player| key(&world, player) == next));
-}
-
-#[test]
-fn a_room_that_empties_after_its_match_admits_its_waiters() {
-    let mut world = World::new();
-    let (room, members) = full(&mut world, "Member", 1);
-    let waiting = waiters(&mut world, "Waiting", 5, 1);
-    let accounts: Vec<_> = members.iter().map(|&player| world.ids[player].0).collect();
-    for &account in &accounts {
-        world.core.rooms.came_by_play(account);
-    }
-    world
-        .core
-        .rooms
-        .started(room, 123, 61, &accounts, world.now);
-    world.core.room_match_over(123);
-    world.advance(Duration::from_secs(1));
-    assert_eq!(world.core.rooms.len(), 1);
-    assert!(waiting.iter().all(|&player| key(&world, player) == room));
-    assert_eq!(world.core.rooms.queued_total(), 0);
-    assert_eq!(
-        world.core.rooms.get(room).unwrap().owner,
-        world.ids[waiting[0]].0
-    );
 }
 
 #[test]

@@ -66,9 +66,6 @@
 //!   (0.2): in a match being played, what a battery and a ticket of lead
 //!   count for, in players (a late joiner goes to the side that counts for
 //!   less: `rooms`);
-//! - `SRP_SQUADS` (default on), `SRP_SQUADS_OFF_TEXT`: with `off` nobody
-//!   is invited to a squad, and the one who tries is told so in a message
-//!   box (`social.rs`);
 //! - `SRP_MIN_PATCH_REVISION` (default none; not a number from 0 to 255,
 //!   or one under the newest patch of the game data, stops srp
 //!   (`check_min_patch_revision`)): a game older than that patch revision
@@ -197,11 +194,6 @@ pub struct Settings {
     /// What a player counts for when the sides of a match are made
     /// (`SRP_BALANCE_*`; `session::v026g::balance`).
     pub balance: Weights,
-    /// Whether players may form squads (`SRP_SQUADS`, default on).
-    pub squads: bool,
-    /// What the message box of a refused squad invite says: a text key of
-    /// the game, or a sentence (`SRP_SQUADS_OFF_TEXT`).
-    pub squads_off_text: String,
     /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_GEAR`,
     /// `SRP_PVB_MAX_MATCHES`; `pvb`).
     pub pvb: pvb::Config,
@@ -310,31 +302,10 @@ impl Settings {
             balance.battery_lead,
             balance.ticket_lead
         );
-        let squads = match var("SRP_SQUADS") {
-            Some(value) => match value.trim().to_ascii_lowercase().as_str() {
-                "on" | "1" | "true" | "yes" => true,
-                "off" | "0" | "false" | "no" => false,
-                _ => {
-                    log::error!("SRP_SQUADS is `{value}`; it must be on or off. Using on");
-                    true
-                }
-            },
-            None => true,
-        };
-        // A text the client reads into 256 bytes (`lobby::limits::TEXT`).
-        let squads_off_text = var("SRP_SQUADS_OFF_TEXT")
-            .map(|text| text.trim().to_owned())
-            .filter(|text| !text.is_empty() && text.len() <= 255)
-            .unwrap_or_else(|| DEFAULT_SQUADS_OFF_TEXT.to_owned());
-        if !squads {
-            log::info!("Squads are off: an invite is refused with `{squads_off_text}`");
-        }
         Self {
             pvb: pvb::Config::from_env(),
             rooms: rooms::Config::from_env(),
             balance,
-            squads,
-            squads_off_text,
             min_patch_revision,
             bind: config.bind_addr(),
             public_host: config.public_host.clone(),
@@ -361,18 +332,11 @@ impl Settings {
             maps: map_pool(&DEFAULT_MODES, &[]),
             min_patch_revision: 0,
             balance: Weights::default(),
-            squads: true,
-            squads_off_text: DEFAULT_SQUADS_OFF_TEXT.to_owned(),
             pvb: pvb::Config::default(),
             rooms: rooms::Config::default(),
         }
     }
 }
-
-/// What a refused squad invite says (`SRP_SQUADS_OFF_TEXT`). The game has
-/// no text of its own for it (`social.md` §9.2), and its client shows a
-/// text that is no key of its as it is (`lobby_requests.md` §4.2).
-pub const DEFAULT_SQUADS_OFF_TEXT: &str = "Squads are switched off on this server.";
 
 /// A `SRP_BALANCE_*` number: 0 to 1000.
 fn parse_weight(value: &str) -> Option<f64> {

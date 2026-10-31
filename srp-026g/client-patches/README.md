@@ -105,12 +105,18 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
-| `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the players' markers and teammate names on Tab: six `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
+| `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the teammates' markers kept and their names on Tab: six `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
+| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
+| `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
+| `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
+| `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -131,8 +137,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
-| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
-| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench (the spot and the view from the lobby project's `srp_lobby`), turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1200 of `.srpw` (after patch 45's code; 0x1000 until patch 45's round 6), its state at 0xFC0 of `.srpd`; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
@@ -272,6 +278,18 @@ game's function takes it (`docs/notes/client_patch.md` 0.5).
   stack slot missing, a cleanup that is no number or larger than the slots, a
   result the rows do not give, and what
   it cannot pass (an XMM argument, varargs).
+- **A virtual function** (the game calls it through its object's vtable,
+  `mov eax,[ecx] / call [eax+slot]`, and the object's class varies): its row's
+  `call` is `virtual` and its `va` is `<class>+<slot>`, the class whose
+  virtual it is and the slot's byte offset
+  (`survarium::pure_game_effect_emitter+0x20`). Its implementations are the
+  re-kit's `vtables.tsv` rows of that slot whose class is the class or one
+  derived from it (`base`): each vtable, the function its slot holds there.
+  Each implementation must have its rows, all the same and thiscall (`this`
+  in ECX, the stack slots popped), and the row's words are checked against
+  each. The thunk takes `this` as its first argument and calls the slot of
+  its vtable. A class found later is one more `vtables.tsv` row (and its
+  function's ABI rows); a slot of a class with none is refused.
 - **The check** (`check_engine_026g.py`, in the self-test): for every
   function, what the exe's `ret`s pop is abi.tsv's cleanup; the thunk, called
   with a marker per argument, reaches the real function once with each marker
@@ -2733,6 +2751,48 @@ of the weapon").
   no snap when the weapon gets framed.
 - **Room.** 2 382 bytes. `check_weapon_table_026g.py` 52 checks. Section 3.42, round 5e.
 
+Round 6 (2026-10-29, the lobby scenes: each scene the player picks has its own table;
+`../docs/notes/lobby-scenes.md`).
+- **The spot from the scene.** The weapon's spot and the camera's view of it are no longer in the
+  code. When a weapon's window opens, `camera` reads them from the lobby's project config:
+  `srp_lobby/weapon` (a float3) and `srp_lobby/weapon_view` (radians). The path is the lobby menu, its
+  project (+114h), `[[project+17Ch]+108h]`, as the engine reads `camera/position`. Each key goes
+  through has_key 0xF6C00 before child 0xF6B10, and each type is checked. The classic lobby's values
+  (4.25, 1.30, 3.05) and -pi/2 are data now: the content edit `lobby-scenes-1.json`.
+- **No spot.** Without a full and well-typed `srp_lobby` the window is treated as an armour's: the
+  stock camera, the weapon in the hands.
+- **Any wall.** The bench's transform is turned about the vertical by R = weapon_view + pi/2 (rows
+  rotY(spin) rotZ(tilt) rotY(R)), so the weapon lies across the camera's view. R 0 (the classic)
+  skips the turn: its transform is bit for bit 5e's.
+- **State.** 0xBC bytes: +A0h the spot (x, y, z, 1), +B0h the view, +B4h/+B8h cos R and sin R.
+  They are written before TABLE is set.
+- **Room.** 2 779 bytes, past `.srpw`'s first page. Patch 47's code moves to `.srpw`+1200h and its
+  state to `.srpd`+FC0h.
+- **Checked:** `check_weapon_table_026g.py` 56 checks. Its lobby menu has a project with a real
+  binary config. New cases: four other spots and views, and eight refusals.
+
+Round 7 (2026-10-30, the lobby audit; `../docs/notes/lobby-scenes.md`, "The camera flight").
+- **The flight in Rust.** The camera's flight there and back is the Rust patch `weapon_flight`
+  (`rust/patches/src/weapon_flight.rs`, one lohook at `lobby_camera.view`, 0x2840F2: the tick
+  with its yaw and pitch final): the eye on a straight line between the two eyes (over a
+  character's head where it comes within 0.9 m of one), the yaw, pitch,
+  distance, side angle and zoom with it, one smoothstep over 0.45 s; back, to the stock camera's
+  eye (the wheel's target cut by the camera's own ray there, `engine_lobby_camera_ray`), a tick
+  held with no ray, then the stock camera from there. Until round 6 the NASM's glide went back
+  to the wheel's target with no ray, out of a small room, and the stock ray snapped it back
+  (up to 3.1 m).
+- **The interface.** Patch 45's state: the NASM writes TABLE, the targets and REQUEST (+2Ch, +1 a
+  request; EASE until round 6); the flight writes FLIGHT (+4: 0 stock, 1 moving, 2 resting; FLY
+  until round 6), which the NASM's camera, tick and ray read. The NASM's glide is gone (2 515
+  bytes); its ray clamps the wheel's target only.
+- **Checked:** `cargo test` (the flight's machine), `check_weapon_table_026g.py` 29 checks with the
+  game's tick (as is only: the flight is the arena's), the close in a room with no snap;
+  selftest checks 45 and `test_weapon_flight`.
+- **The captures' sweep** (`camera_sweep.rs`, diagnostics builds only, `--ragdoll-trace`, with
+  `srp_camera_sweep.txt` in the user data folder): the camera at a script's poses, the squad's
+  characters the account's own (`squad`), the scene without anyone in it (`empty`: the lobby's
+  three characters drop their players, 0x284AA0), for static captures of every lobby.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
@@ -2841,8 +2901,9 @@ the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals
 weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
 armour's).
 
-`weapon_decals_026g.asm` at `.srpw`+1000h (3145 bytes, the section's second page), its state (12
-bytes, the left button's press) at `.srpd`+FA0h; it begins with seven `jmp near`, its entries:
+`weapon_decals_026g.asm` at `.srpw`+1200h (3145 bytes, after patch 45's code; +1000h, the section's
+second page, until patch 45's round 6), its state (12 bytes, the left button's press) at `.srpd`+FC0h
+(+FA0h until then); it begins with seven `jmp near`, its entries:
 
 - **lookup** (+0) and **fill** (+5), called by patch 44 (`weapon_camo_026g.asm`, -DDECALS): what a
   weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
@@ -3476,10 +3537,10 @@ land beside it unchanged:
   esp+14h). The options' +57870h holds "SRBO", else zeros; the patch keeps the match's flag.
 - **The interface.** `player_icons.update_start` (0x23AA10, each frame): the hud movie
   `root.force_interface_hidden(flag)` (its root hidden but for the pre-match countdown and, while
-  Tab is held, its Tab view: HUD.as), the player icons `root.force_interface_hidden(flag)` and
-  `root.force_interface_tab(Tab held)` (forced: the objects' markers hidden, the players' on Tab),
-  told at a change of the movie or the state, again while a movie does not take it. Forced, the
-  movies' `hide_interface` does nothing (patch 62's F11, a match's reset).
+  Tab is held, its Tab view: HUD.as) and the player icons `root.force_interface_hidden(flag)`
+  (forced: the objects' markers hidden, the teammates' kept as in a plain match), each told at a
+  change of the movie or the state, again while a movie does not take it. Forced, the movies'
+  `hide_interface` does nothing (patch 62's F11, a match's reset).
 - **Tab.** `keyboard.tab_state` (0x25CD2C, BL Tab down): Tab's state; in a Blackout match BL
   cleared, so the key goes on as with Tab up (the game's Tab test at 0x25CD39; patch 58's kit keys
   at 0x25CD41). `input_builder.end` (0x2421B0, EBX the handler): while Tab is held the input's
@@ -3655,6 +3716,44 @@ language and every registered language by its own name. The launcher's PLAY,
 the replay start and the scripts pass no language by default. See
 `check_language_026g.py` and `../scripts/language-option/check.sh`.
 
+## Lobby scene by pick (patch 81)
+
+The lobby's scene is the one the player picks in the lobby window
+(`../docs/notes/lobby-scenes.md`): the player panel's lobby button (in the premium button's place) opens four cards,
+the Room (`lobby_scene/camp_069`, the default), the Basement (the classic,
+`lobby_scene/day`), the Bunker (`lobby_scene/stk2_bunker`) and the Hangar
+(`lobby_scene/hangar_046`). The pick is kept in user.cfg as `srp_lobby`
+(registered at game::on_configs_loaded's start in the site's chain after
+patch 79's and patch 83's handlers; user.cfg written when it changed), and the start's query
+asks its project in the classic's place (0x21E5CC). The four lobbies ship
+with the game: a project without its camera track is a bug, logged in
+srp_patches.log. Patch 45 takes the weapon's spot from the lobby project's `srp_lobby` table
+(Round 6).
+
+The window sends srp the pick (`3B` at 2 095 000 000 + id); srp keeps it
+and sends it back in `0xA1` with the squad commander's (two bytes after the
+squad; the stock reader stops before them), and the patch reads them
+(0x2747C3, 0x2748BC) into its own pick (saved) and `Squad::{None, Led}`;
+srp without a pick (the sign-in) is sent the saved one (the lobby client's
+0x270070). In a squad the lobby is the commander's pick.
+
+A change shows at once: at the lobby camera's tick (0x2840F2, after patch
+45's flight) with another lobby wanted than the one shown, the scene fades to
+black under every panel (the movie's `srp_scene_fade`, stepped a frame each,
+the loading spinner on it), then the patch asks that lobby's project alone
+and puts it in the old one's place behind the black: the project halves of lobby_menu::clear_resources and
+on_render_scenes_ready redone with the game's own functions (the old
+project's remove and static collisions, the track player's stop, the
+release; the new one's vtable+0Ch, its track's effect through the emitter's
+vtable, the insert and its collisions), the eye adaptation reset (the
+engine's byte 0xAC914C) and the camera at its stock pose; six frames later
+the black fades out. A project that fails behind the black is logged and the
+black fades out over the lobby shown; a match entered during a change leaves
+no black; once
+game::clear_resources (0x1ED030) runs nothing is asked. One enum (`Scene`),
+one transition function (`Scene::step`). See `check_lobby_scene_026g.py` and
+`../scripts/lobby-fade/check.sh`.
+
 ## Medical consumable countdown (patch 77)
 
 The Rust `consumable_activity` hook publishes the medkit class's current use-delay
@@ -3667,6 +3766,10 @@ and HUD cleanup clear the presentation; artefacts retain their existing display.
 This is presentation only. See `docs/notes/client_patch.md` and
 `check_consumable_activity_026g.py`; the Flash lifecycle check is
 `scripts/consumable-activity/check.sh`.
+A drug a bullet stopped (patch 84) shows its icon red for one second of the
+local player's simulation clock, the last unit's too; a spent drug, a death and
+the clean-up show none. The hook tells it by the timers set_active(0) leaves
+and keeps only each quick slot's last seen state; no ActionScript timer.
 
 ## Weight slowdown indicator (unreleased)
 
@@ -3702,6 +3805,20 @@ bullet hooks share ordered detours with ragdolls. There is no lamp C/NASM
 code. Native Unicorn tests cover all authored maps. Details and test limits:
 `../docs/notes/breakable_lamps.md`.
 
+## The Settings' HUD group (patch 83)
+
+The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): three settings kept in
+user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores` and `srp_hide_crosshair` (the
+crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
+`configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
+texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
+tells the hud movie the three at `player_icons.update_start` (after patch 65's hook) when the movie
+or a setting changes, and again after each match's or replay's options read (a new hud can be made
+at the last one's address). The hud hides the crosshair's hit marker, shows the Tab list as names
+only, and hides the crosshair. The stock quest progress and minimap controls are moved into the
+group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
+runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
+
 ## Artefact score (patch 80, unreleased)
 
 An anomaly's artefact scores 15 taken into an empty artefact slot, 5 with every
@@ -3714,3 +3831,110 @@ counts one. srp weighs event 5 5 and event 16 10. A match's computation
 changes: every client of a match needs it. `check_artefact_score_026g.py`
 runs the hook from the game's site and compares it with the game's own count
 of event 5 and `take_artefact`'s own slot search.
+
+## Names on the Tab map (patch 82, unreleased)
+
+While the Tab map is open and an Alt key is held, each player icon on it shows the player's name
+(the owner, 2026-10-30; `docs/notes/tab-map-names.md`). The hud movie draws them
+(`HUD.show_map_names`, the names from the Tab list's rows by place); the Rust `map_names` hook, in
+`game_world::on_keyboard_action` with the input world's keyboard (0x25CD1C, before it asks for
+Tab), reads both Alt keys' state and tells the movie `root.show_map_names` at each change. The
+interface only: no simulation change. `check_map_names_026g.py` runs the game's own
+on_keyboard_action, keyboard getter and is_key_down to past show_player_list in both builds.
+
+## Tab list cursor and friend requests (patch 86, unreleased)
+
+Ctrl pressed while the Tab list is held shows the hud's cursor (the kits'
+own `show_cursor`, 0x23A930) until Tab is let go. The view and the mouse
+buttons stop; the moves go on. That Ctrl press and its held and release
+events are taken from the player, so it does not crouch. A right-click on
+a row opens the hud movie's `PlayerRowMenu` with "Add to friends" and two chat mute entries. The
+entry sends the lobby's own friend request (`4D` type 0, through
+messaging_client::send_important_message 0x26AFB0) to that place's bare
+name. The rules are in `../docs/notes/tab-cursor-friends.md`.
+
+The Rust `tab_cursor` module has two lohooks of its own, and one more after
+Blackout's at a match's options read (`static_info.options_read`,
+`replay.options_read`, order 1), where the cursor state starts over:
+- `tab_cursor.key`: the start of game_world::on_keyboard_action (0x25CD00).
+  Its exit `taken` is the function's `ret 0Ch`, with AL 1.
+- `hud.callback`: the start of game_world_ui::scaleform_callback (0x233D30).
+  It answers `srp_player_menu`, `srp_add_friend` and `srp_chat_mute` itself;
+  any other call goes on to the game's own dispatch.
+
+The client's checks are the lobby's: never the account's own name or a
+friend's; five requests at once, then one every 10 s; and the lobby
+connection up, as the lobby's senders check it. A chat mute
+(`../docs/notes/chat-mute.md`) is the lobby menu's own `49 05` (kind 254, the
+mode), sent by lobby_client::comment_about_user (0x274470): never the own
+name, one of the three choices that changes the state the lobby's ignore list
+gives (a `<muted>` player's id marked with bit 31), the connection up.
+
+Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
+crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code
+beside the original.
+
+## World check (patch 87, unreleased)
+
+A game parses every world it is sent (0xE8) before its own reader takes it,
+with the parse the match server runs on every upload: the crate
+`../crates/world-frame` (`Frame::parse`, no_std, no alloc), a path
+dependency of `rust/patches` and a member of srp-026g's workspace
+(`../docs/notes/world_frame_check.md`). The frame must walk from the front
+to exactly its end, no mask bit may be at or past the game's 20 slots, and
+no section nor player state may be over the game's buffer for it. Each of
+these would kill the game in `game_state_history_item::deserialize`
+(0x324D80) or `mutable_buffer::reallocate` (0x7AB70), and no world a game
+made fails one.
+
+The Rust `world_check` module has two lohooks:
+- `world_load.unpacked` (0x27C0D0): before the load of an unpacked world
+  (0x27C0D9), the world in the frame's mutable buffer at EBP-24h;
+- `world_load.raw` (0x27C0FF): before the load of a raw world (0x27C111),
+  the world the rest of the packet's reader (ESI).
+
+A refused world is never loaded: the packet's reader is read to its end,
+`close_current_match(2)` leaves the match as the leave button does, a line
+goes to `srp_patches.log`, and the exit `refused` is the handler's epilogue
+(0x27C1E0). Nothing a match computes changes. `check_world_check_026g.py`
+runs both loads beside the original exe; `--drift` the client build against
+the server build on kept worlds.
+
+## Music (patch 88, unreleased)
+
+The main theme on the login screen, the lobby theme in the lobby, and the map's theme from its
+loading screen to 15 s past the match-start announcement, each fading in and out over 2 s, never
+two at once (the owner, 2026-10-28 and 2026-10-31; `../docs/notes/music.md`). Stock 0.26g plays no
+music; the tracks are the content pack `music@1` and each mode's `ui.loading_music`
+(`music-1.json`), as retail's. The Rust `music` module plays them in a sound scene of its own (the
+bus, class 38) that the game never makes current: the sound thread's tick (`sound_world.tick`,
+0x59AB1) keeps it among the active scenes and steps its volume, which the engine's own fade path
+gives its submix with the general volume; the volume is the stock Settings' Music slider's
+(`s_music_volume`, which the game's option names but never registered: patch 88 registers it at
+`configs.start`, a saved cc_float of 0 to 100, and the main menu no longer greys the slider out)
+times the fade. Its events: `game.tick` (the bus asked for, the 15 s,
+a fade done), `login_menu.activated`, `lobby_menu.activated`, `level_loading.ui` (the mode's `ui`
+table), `game_world_ui.welcome` (the announcement), `game.clear_resources` (the unload). Its tracks
+are single sounds loaded by `query_resources` (class 256) with a callback of its own
+(`resources.query_done`, a `callback` site: the generated entry handed to a boost function made
+by 0x176D0, no site rewritten). The presentation only: no simulation change.
+`check_music_026g.py` runs every hook from its site and the callback through the game's invoker,
+and the slider's variable through the game's lookup and setter.
+
+## A bullet stops a drug (patch 84, unreleased)
+
+A bullet that hits a player stops the healing drug he is using (the owner,
+2026-10-31; `../docs/notes/drug-interrupt.md`): in its use time it never
+starts healing, in its active time it stops, what it healed stays; the unit
+stays used. The Rust `drug_interrupt` hook is in `base_player::hit_impl` once
+`damage_model::hit_body_part` said the hit took health (0x2D9CB1): for a hit
+of type `ranged`, each of the victim's inventory slots holding a drug in use
+that heals (influences, so not the painkiller) gets the game's own
+`medkit::set_active(0)` (0x33D390, `engine_medkit_set_active`), the end
+medkit::tick gives a spent drug. A match's computation changes: every client
+of a match needs it. `check_drug_interrupt_026g.py` runs the hook from the
+game's site in the patched exe, and the game's own set_active(0) in the use
+time, the active time and between them.
+The stopped drug's quick slot shows red for a second of game time (display
+only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
+`../scripts/consumable-activity/check.sh`).

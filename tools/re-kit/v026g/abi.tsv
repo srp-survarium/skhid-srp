@@ -181,6 +181,7 @@ va	name	source	ret_cleanup	result
 0x00076920	vostok::physics::bullet_physics_world::object_query	manual	24	none; every hit (the callback 0x77320 never lowers the closest fraction) pushed by 0x78730 to the vector as a 28h record in ray_test's layout; a bare convex object's hit dereferences a null LocalShapeInfo (0x77403); inc [0x1F1D380]. Not for the ragdoll
 0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
+0x0007ab70	vostok::network_core::mutable_buffer::reallocate	manual	0	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
 0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
@@ -944,9 +945,11 @@ va	name	source	ret_cleanup	result
 0x0021df00	survarium::lobby_menu::update_player_region	manual	4	projects the lobby character's feet and head (character+8, -0.1 and +2 m) and calls the movie's root.set_player_region
 0x0021e170	survarium::lobby_menu::set_mouse_position	manual	12	
 0x0021e260	survarium::lobby_menu::demo_play	manual	4	
+0x0021e450	survarium::lobby_menu::query_resources	manual	0	void; queries game_scene, game_scene_view, sound_scene, the lobby's project (request list [ebp-80h]..[ebp-44h], the project's {name, class 40h} at [ebp-68h]/[ebp-64h], its user data pointer at [ebp-34h]), cursor.swf, lobby_menu.swf, default.player and static_game_parameters.options with on_render_scenes_ready as the callback (query_resources 0xE5B60 at 0x21E5ED, 8 requests); one caller, the lobby menu's ctor (0x21CDBD)
 0x0021f3d0	survarium::login_menu::enable_button	manual	0	
 0x0021f430	survarium::login_menu::update_online_queue	manual	4	
 0x002206d0	survarium::lobby_menu::show_match_making	manual	0	
+0x00220b20	survarium::lobby_menu::on_render_scenes_ready	manual	4	void; result i's resource at results+12Ch+2E0h*i; the project (result 3, +9CCh) kept at lobby menu+114h less 38h, inserted (vtable+0Ch, 0x285540), its track (project+1E4h) played at lobby menu+118h; a failed project query is not checked (its ret 4 at 0x221E77)
 0x00225220	survarium::lobby_menu::is_mouse_over_ui	manual	0	AL: Boolean OR of two observed UI result bytes
 0x002252d0	survarium::lobby_menu::set_match_making_status	manual	20	
 0x00225810	survarium::lobby_menu::on_stats_message_arrived	manual	4	
@@ -1062,7 +1065,7 @@ va	name	source	ret_cleanup	result
 0x00271d90	survarium::lobby_client::read_player_elo_rating	manual	4	
 0x00271df0	survarium::lobby_client::read_quest_list	manual	8	
 0x00271eb0	survarium::lobby_client::read_players_elo_list	manual	8	
-0x00274720	survarium::lobby_client::read_squad_info	manual	4	
+0x00274720	survarium::lobby_client::read_squad_info	manual	4	void; 0xA1: zeroes lc+1EA9B0h (FCh), keeps squad id +1EAAA4h, count +1EAAA8h, commander index +1EAAA9h, the members (50h each at +1EA9B0h), i_am_commander +1EAAACh, revision +1EAAA0h; then fill_squad_info
 0x002749d0	survarium::lobby_client::squad_ready_count	manual	0	
 0x00277aa0	survarium::lobby_client::find_item_by_id	manual	0	EAX = the matching inventory_item_descr, or end; caller pops the argument
 0x0027a300	survarium::network_client::on_match_packet_received	manual	8	
@@ -1077,9 +1080,10 @@ va	name	source	ret_cleanup	result
 0x00283bc0	survarium::lobby_camera::lobby_camera	manual	4	height 1.2, distance 1.96, the point (+A0h, +A8h) 0; vtables 0xA09EB4 (input) and 0xA09ED8 (+4)
 0x00283d30	survarium::lobby_camera::on_mouse_move	manual	16	AL = 1 while a drag turns the camera (a button of 52h held)
 0x00283eb0	survarium::lobby_camera::on_input_frame_end	manual	4	zeroes the frame's wheel (+C8h) and drag moves (+CCh, +D0h)
-0x00283ef0	survarium::lobby_camera::tick	manual	0	the camera world matrix at +48h; dt (at most 0.1 s) at [esp+10h] of its frame
-0x002844d0	survarium::lobby_camera::process_collision	manual	4	
+0x00283ef0	survarium::lobby_camera::tick	manual	0	the camera world matrix at +48h; dt (at most 0.1 s) at [esp+10h] of its frame; the yaw unlimited, the pitch clamped to +-1.0471976 every tick (0x2840C5: 0xA2DB08, 0x9C56C0), the wheel's target 1.5..4.6 (0x284081: 0xA7AFA4, 0xA2DB0C; its speed +E8h 3.0), the distance cut by the ray (0x284309) then clamped to 1.5..4.6 again (0x28430E): an obstacle nearer than 1.5 m is passed
+0x002844d0	survarium::lobby_camera::process_collision	manual	4	[EDI] = the distance to the first hit of the physics world's ray test (vtable+48h: out, origin, direction, length, group 10h, mask 8, 0, 1), no margin: it meets static collision of cgroup 8 / cmask 16 (props' `collision`, camera boxes), not walker_collision (cgroup 2)
 0x002845c0	survarium::lobby_camera::set_target	manual	4	targets +9Ch (height), +98h (side angle), +C0h (distance); [ECX] = the distance target it replaces; speeds +E0h..+E8h = |change| * 1.111 a second
+0x00284730	survarium::lobby_character::lobby_character	manual	8	EAX this; its position (EAX's float3) at +8h, the yaw +14h 0, the menu +D2BCh, the collision scene +D2C0h
 0x002849f0	survarium::lobby_character::update	manual	12	gives its player (+D2B8h) the upgrade mode (+F49Ch) and the decal transform (+F4A0h), updates it (0x2DA9A0) and draws it (call 0x2474A0 at 0x284A7E, return 0x284A83)
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
 0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
@@ -1210,7 +1214,7 @@ va	name	source	ret_cleanup	result
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
-0x002e5080	survarium::damage_model::hit_body_part	manual	0	
+0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
@@ -2056,8 +2060,25 @@ va	name	source	ret_cleanup	result
 0x00331c50	survarium::weapon_recoil_calculator::on_shot	manual	0	A shot (recoil object in EDI, weapon in [EDI]): x += (R - L)(1 - |x|^p), y += T(1 - max(y,0)^p), z += S(1 - z^p), S uniform in min/max_shake_recoil (weapon +448h/+44Ch, raw), R, L, T as the side/top ranges (+430h..+444h), p = recoil_power (+454h), each times apply_modifier (0x2D5AE0, index 12h); x, y clamped -1..1, z 0..1; speeds = (new - old) / (60/rpm) (+464h). Generator: [EDI+4] = [EDI+4] * 8088405h + 1.
 0x003321e0	survarium::weapon_recoil_calculator::compensation_pid	manual	4	One PID over the three axes (x, y, z at EDX, state at ECX = recoil object +24h: integrals +18h..+20h, previous errors +0Ch..+14h, gains Kp/Ki/Kd +24h/+28h/+2Ch); XMM4 = dt. Writes the three outputs at [EAX] (the tick negates them into the speeds).
 0x0033e680	survarium::oxygen_tank::find_influence	manual	8	EAX the influence row {body_part at +70h, hit_type, hit_coeff +84h, threshold +88h} matching the hit's body part and type, or 0 (observed)
-0x00285540	survarium::simple_game_project::insert_static	manual	0	none
-0x002855b0	survarium::simple_game_project::remove_static	manual	0	none
+0x00299d40	survarium::post_process_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect (count +1Ch taken) or 0
+0x00299ff0	survarium::hud_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect (count +1Ch taken) or 0 (0x29A079)
+0x0029a220	survarium::particle_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect or 0
+0x0029a580	survarium::sound_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect or 0 (its body 0x29A5E0)
+0x002efeb0	survarium::composite_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect or 0 (its own vtable+50h with this+138h); random_permutation's slot too
+0x00333010	survarium::reinforcement_storm_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect or 0
+0x00333220	survarium::client_effect_wrapper_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect or 0
+0x00333360	survarium::hit_player_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect or 0
+0x001f65d0	survarium::hud_game_effect_emitter::destroy	manual	4	void; destroys an effect its emitter made (vtable+1Ch; one body for the hud, post-process, sound, reinforcement storm, client wrapper and hit-player emitters)
+0x0029a320	survarium::particle_game_effect_emitter::destroy	manual	4	void
+0x002f0130	survarium::composite_game_effect_emitter::destroy	manual	4	void; lets go of its children (each child's emitter +0Ch vtable+1Ch at a count +1Ch of 0)
+0x002f08d0	survarium::random_permutation_game_effect_emitter::destroy	manual	4	void
+0x002855b0	survarium::simple_game_project::remove_static	manual	0	void; its game objects (+184h..+188h) vtable+24h unless +10Ch, its +1E8h entries (48h each, +1ECh of them) vtable+4 with +180h
+0x00285540	survarium::simple_game_project::insert_static	manual	0	void; remove's counterpart: the +1E8h entries' vtable+0, the game objects' vtable+20h
+0x002f8720	survarium::simple_game_project::on_inserted	manual	0	void; simple_game_project's vtable+0Ch (0xA0A064, also 0xA133F0 and 0xA163B8): each +1Ch..+20h entry (20h bytes) given to its +18h's vtable+0
+0x002f8850	survarium::static_collision::insert	manual	4	void; static_collision's vtable+0 (0xA029A8): its body into the physics world
+0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
+0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
+0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
 0x00291720	survarium::object_light::load	manual	12	none
@@ -2073,8 +2094,35 @@ va	name	source	ret_cleanup	result
 0x00239420	survarium::game_world_ui::update_minimap_players	manual	4	none: root.update_players of the hud movie [ui+8], one object a player (player_id, is_local_player, player_pos_x/y, player_rotation_in_rad, team = [player+6B8h]+45ECh, is_carrying_item, is_squad_player)
 0x00239a30	survarium::game_world_ui::update_minimap_local_player	manual	4	none: root.update_local_player of the hud movie [ui+8] (x, y, rotation, team = [local+6B8h]+45ECh, 2 without a local player at 0x239B3C), the minimap's own team
 0x0027a980	survarium::network_client::get_player	manual	8	EAX = the out pointer: the place's current kit player ([[client+1F1C40h]+18650h] + place x 30h, kit byte +0Ch), reference added, or 0; no active-mask check, unlike get_active_player 0x27A9C0; the network client's vtable 0x9FFB14 +4Ch
+0x0026fe70	survarium::lobby_client::query_squad_member_contents	manual	8	void; sends 34 00 <account> <kit>
+0x00274580	survarium::lobby_client::destroy_squad	manual	0	void; sends 4A 01 when [lc+1E57A8h] is -1
+0x002745d0	survarium::lobby_client::add_squad_member	manual	4	void; sends 4A 02 <name>
+0x00274660	survarium::lobby_client::drop_squad_member	manual	4	void; sends 4A 03 <account>
+0x002746d0	survarium::lobby_client::leave_squad	manual	0	void; sends 4A 04
+0x00222fe0	survarium::lobby_menu::on_squad_member_profile_arrived	manual	4	void; setup_profile of a squad panel (panel 0 when its first kit id is the body's +754h, else 1) and root.set_squad_player_type
 0x0025b9b0	survarium::game_world::play_particle	manual	20	none; the bullet_manager_engine slot 4 (vtable 0x9FC53C, game_world+0ECh) bullet_manager::play_particle_impl (0x3225C0) jumps to: two emitter transforms at the position to scene_renderer::play_particle_system (0x22660, the scene the world's renderer +200064h). Parameter 0: the first create_rotation(direction, normal) (0x25CB10), else rows normalize(normal x direction), direction x that, direction; the second, either way, rows normalize(normal x r), r, r x that, r the direction reflected in the normal. A normal along the direction makes both NaN: nothing drawn
 0x0025cb10	vostok::math::create_rotation	manual	0	EAX = ESI: float4x4 rows i = normalize(normal x direction), j = normal, k = i x normal, c = (0, 0, 0, 1); i and k NaN (1/0 times 0) when the normal is along the direction
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	manual	4	none; the node on top (its +4Ch the old top, cmpxchg8b with a tag)
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	manual	0	EAX: the top node, 0 when empty. bullet_manager::play_particle and play_sound pop the manager's +20h free list without testing it: 0 there writes [50h]. The list is 6 nodes a bullet slot (+0A0h, 192: 1152), every node back after each tick
 0x00321d10	survarium::bullet_manager::tick	manual	12	none; after the bullets, pops every functor of the manager's +30h stack (particles, sounds, decals, tracers: all, no cap a tick) and runs it, each node back to the +20h free list
+0x00270070	survarium::lobby_client::query_elo_players	manual	8	void; sends 3B 00 <start u32> <count u8> (the ranking page's request; srp's reserved starts too): the movie's request_players_range 0x28C960 calls it with the network client's lobby client
+0x0026afb0	survarium::messaging_client::send_important_message	manual	12	
+0x00233d30	survarium::game_world_ui::scaleform_callback	manual	16	
+0x0021bd80	survarium::network_client::messaging_client	manual	0	EAX: the messaging client, network client +1E58A4h (the lobby client +1E0h, its +1E56C4h)
+0x00014730	vostok::resources::store_first_unmanaged_resource	manual	0	
+0x00059fb0	vostok::sound::sound_world::add_scene_to_active	manual	0	
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	manual	12	
+0x00056800	vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy>::dec	manual	0	
+0x000630f0	vostok::type_to_int<vostok::sound::sound_scene_creation_params>	manual	0	EAX
+0x00065630	vostok::sound::sound_emitter::emit_hud_sound	manual	0	EAX
+0x000176d0	boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >	manual	8	
+0x00059a60	vostok::sound::sound_world::tick	manual	0	
+0x001ec890	survarium::game::tick	manual	4	
+0x001ed030	survarium::game::clear_resources	manual	0	
+0x0021eab0	survarium::login_menu::on_activate	manual	0	
+0x00220400	survarium::lobby_menu::switch_to_level_loading	manual	8	
+0x0005b390	vostok::sound::sound_instance_proxy_internal::free_object	manual	0	
+0x0028cbe0	survarium::lobby_menu::comment_about_user	manual	4	AL: 1 (callback handled)
+0x00274470	survarium::lobby_client::comment_about_user	manual	16	none: writes 49 05 {nickname, kind byte, mode byte} on the lobby link at entry ESP+4 +8 (0x37A0E0 begin, 0x379640 send); checks no connection (lobby_menu::comment_about_user 0x28CBE0 passes network_client vtable +3Ch, 0x219960, = network_client +1E0h)
+0x000587d0	vostok::sound::sound_scene::set_listener_properties	manual	8	
+0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
