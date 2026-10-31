@@ -256,18 +256,18 @@ fn door_717_walk() {
         let starts = ramp_turn_starts(grid, door, goal_node);
         println!("{project}: door at ({:.2}, {:.2}, {:.2}), goal ({:.2}, {:.2}, {:.2}); {} starts climb a ramp and turn before it", door.x, door.y, door.z, goal.x, goal.y, goal.z, starts.len());
         if let Some((start, _)) = starts.first() {
+            // What the switch costs: the planned route of the first start made again with the door gates.
             let node = grid.locate(*start, 1.0).unwrap();
             let route = path::plan(grid, node, goal_node).unwrap();
-            let pts = route.points();
-            for k in 1..pts.len() {
-                let (a, b) = (pts[k - 1].at, pts[k].at);
-                if a.distance_xz(door) < 20.0 || b.distance_xz(door) < 20.0 {
-                    println!("  leg {k}: ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}) len {:.2} centre {:?}", a.x, a.y, a.z, b.x, b.y, b.z, a.distance_xz(b), crate::v026g::bots::doors::centre_of(grid, a, b));
-                    if a.distance_xz(b) < 8.0 {
-                        println!("     {}", crate::v026g::bots::doors::explain(grid, a, b));
-                    }
-                }
-            }
+            let t = std::time::Instant::now();
+            let centred = route.clone().door_centred(grid);
+            println!(
+                "  door gates: the route of {:.0} m has {} corners, {} with them, made in {:.2} ms",
+                route.length(),
+                route.points().len(),
+                centred.points().len(),
+                t.elapsed().as_secs_f64() * 1000.0
+            );
         }
         for (start, turn) in starts.iter().take(6) {
           for centred in [false, true] {

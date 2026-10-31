@@ -1,11 +1,13 @@
 //! Door centres (A66): where a leg of a route crosses a doorway, the middle of its opening.
 //!
-//! The planner pulls a route straight over the floors, so at a doorway reached after a turn the leg cuts the jamb's corner
-//! over the floors nearest the post: the grid keeps a floor to within `exact_clearance` (0.3175 m) of a wall, and the client's
-//! body holds 0.41 m ([`HOLD_M`]), so a body on those floors presses on the jamb (J0, Chemical Plant's 717 door; the walk
-//! `tests/door_walk.rs`: 0.32-0.40 m from the jamb at 7 m/s). The middle of the opening is the one place the whole body fits.
-//! A corner at the middle of a doorway is the funnel algorithm's portal inset by the agent's radius, found from the floors:
-//! no wall triangles are needed, only that the floors across the doorway stop at both sides.
+//! The grid keeps a floor to within `exact_clearance` (0.3175 m) of a wall and the client's body holds 0.41 m ([`HOLD_M`]), so a
+//! body on the floors nearest a jamb presses on it (J0, Chemical Plant's 717 door). The walk steers at a point of the route
+//! `look_ahead_m + look_ahead_per_speed * speed` metres on (2.8 m at a walk), so after a turn short of a doorway it cuts the
+//! corner and arrives off the route by up to 0.65 m, which it takes a few metres to take out (the walk `tests/door_walk.rs`:
+//! the 717 door's leg runs 0.03 m from the middle of the opening, the body 0.32 m from the jamb). The middle of the opening
+//! is the one place the whole body fits. A corner there, which the walk steers at before the corner after it
+//! ([`Route::gate_within`]), is the funnel algorithm's portal inset by the agent's radius, found from the floors: no wall
+//! triangles are needed, only that the floors across the doorway stop at both sides.
 
 use mapdata::Vec3;
 use mapdata::grid::WalkGrid;
@@ -23,8 +25,6 @@ const WIDER_BY_M: f32 = 0.4;
 const BEYOND_M: f32 = 0.5;
 /// The leg is sampled at this step, metres.
 const SAMPLE_M: f32 = 0.125;
-/// A leg already crossing within this of the middle of the opening is left as it is, metres.
-const OFF_CENTRE_M: f32 = 0.08;
 /// The height a floor may differ from the leg's at a sample, metres (a ramp's floor is not on the chord).
 const HEIGHT_M: f32 = 0.8;
 /// The directions the span across is measured in: this many over a half turn.
@@ -66,7 +66,7 @@ fn narrowest_span(grid: &WalkGrid, at: Vec3) -> Option<(f32, [f32; 2])> {
     best
 }
 
-/// The middle of the doorway the leg from `a` to `b` crosses, if it crosses one off its middle: a narrowing of the floors
+/// The middle of the doorway the leg from `a` to `b` crosses, if it crosses one: a narrowing of the floors
 /// across the leg to at most [`DOOR_SPAN_M`], wider by [`WIDER_BY_M`] [`BEYOND_M`] before and after it. The point is on the
 /// floors (at the height of the leg there).
 pub fn centre_of(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<Vec3> {
@@ -103,27 +103,6 @@ pub fn centre_of(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<Vec3> {
     }
     let mid = (first + last) / 2;
     let (_, offset) = spans[mid]?;
-    if (offset[0] * offset[0] + offset[1] * offset[1]).sqrt() < OFF_CENTRE_M {
-        return None;
-    }
     let p = at(mid as f32 * SAMPLE_M);
     Some(Vec3::new(p.x + offset[0], p.y, p.z + offset[1]))
-}
-
-/// A debugging line for a leg (A66): the span at every sample along it, narrowest first.
-pub fn explain(grid: &WalkGrid, a: Vec3, b: Vec3) -> String {
-    let length = a.distance_xz(b);
-    let (ux, uz) = ((b.x - a.x) / length.max(1e-6), (b.z - a.z) / length.max(1e-6));
-    let mut out = String::new();
-    let mut t = 0.0;
-    while t <= length {
-        let s = (t / length.max(1e-6)).clamp(0.0, 1.0);
-        let at = Vec3::new(a.x + ux * t, a.y + (b.y - a.y) * s, a.z + uz * t);
-        match narrowest_span(grid, at) {
-            Some((w, o)) => out.push_str(&format!(" {t:.2}:{w:.2}({:.2},{:.2})", o[0], o[1])),
-            None => out.push_str(&format!(" {t:.2}:-")),
-        }
-        t += 0.25;
-    }
-    out
 }
