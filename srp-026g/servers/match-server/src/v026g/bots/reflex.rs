@@ -7113,6 +7113,7 @@ mod tests {
     fn the_pause_is_drawn_from_the_best_players_quartiles_far_and_only_when_on() {
         let mut fire = FireTuning::default();
         let mut rng = Rng::new(7);
+        fire.burst_pause = None;
         assert_eq!(fire.pause_ms(AutoClass::Rifle, 45.0, &mut rng), None, "off");
         fire.burst_pause = Some(BurstPause::players());
         let pause = fire.burst_pause.clone().unwrap();
