@@ -140,13 +140,21 @@ item's faction, level, slots and drop weight from its config in the server game 
   keeps them). Packs `stk2-novice@4`, `stk2-loner@4` (their icons only); `stk2-bandit@3`.
 - "One boot has a part of the trousers": the export's left loner boot carried the bottom
   of the camo pants' leg (a wrapped cuff up to 29 cm, on the pants' part of the map, cut
-  from the legs with the boot); its faces above 13 cm with no mirror image on the right
-  boot are dropped, so both are the low shoes. The sneakers and the Novice's boots are
+  from the legs with the boot); first its faces above 13 cm with no mirror image on the
+  right boot were dropped, then (it left a torn top) the whole left boot is the right
+  shoe mirrored. The sneakers and the Novice's boots are
   mirror images, with nothing extra. Checked with the Loner pants, the Novice jeans and
   stock full trousers (the loner's boots are `data_full`): no gap but a sliver at the back
   heel under the highest stock hems (13 cm; the shoes are 15.5 cm high).
 - Boot icons: each boot cut where its black shaft top begins, instead of a cap.
 - Packs `stk2-bandit@4`, `stk2-novice@5`, `stk2-loner@5`.
+- Then (the owner: the cut gloves and boots looked severed, with sawtooth edges; the left
+  loner shoe's top was torn): every glove and boot icon keeps the whole piece up to its own
+  cuff or top; of the black faces only those facing into the piece (lining, the inside of
+  an opening) are left out, and the outer ones take their mesh neighbours' colour. The
+  left loner boot is the right shoe mirrored (bones swapped Left/Right), with the same
+  finished collar; the loner's shoes' icon 20 % under the boots' fill, as the sneakers'.
+  Packs `stk2-bandit@5`, `stk2-novice@6`, `stk2-loner@6`.
 - The backpack is not fitted: its straps lie on the stock torsos as stock straps do and
   sink into the bulky ones (Zubr UM-4) as theirs do.
 - Renders of every piece with stock pieces of each class were checked; nothing was seen
@@ -168,8 +176,8 @@ item's faction, level, slots and drop weight from its config in the server game 
 
 ## Release
 
-- Three `pack` rows in `release/content.tsv`: `stk2-bandit@4`, `stk2-novice@5`,
-  `stk2-loner@5` (their pack.json sha256s). `release/build-content` composes them; the
-  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-4`, `stk2-novice-5`, `stk2-loner-5`), built as
+- Three `pack` rows in `release/content.tsv`: `stk2-bandit@5`, `stk2-novice@6`,
+  `stk2-loner@6` (their pack.json sha256s). `release/build-content` composes them; the
+  release PC keeps the folders in `$SKHID_PACKS_DIR` (`stk2-bandit-5`, `stk2-novice-6`, `stk2-loner-6`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
