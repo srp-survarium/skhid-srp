@@ -1248,6 +1248,10 @@ impl Motor {
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
                 ahead = self.drop_cap(route, s, pose.feet, ahead);
+                // A door gate on the way is steered at, not past (`Route::door_centred`).
+                if let Some(gate) = route.gate_within(s, ahead) {
+                    ahead = (gate - s).max(MIN_AHEAD_M);
+                }
                 match self.aim_point(route, s, ahead, &clear) {
                     Aim::Clear(target) | Aim::Unclear(target) => target,
                     // No point of the route is one the body walks to in a line: it is off it.
@@ -3556,6 +3560,30 @@ mod tests {
         // Uncapped it heads for a point round the corner (a turn to the side); capped at 0.5 m the point is
         // the corner's, straight ahead.
         assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
+    }
+
+    /// A door gate on the way (`Route::door_centred`) is steered at, not past: with the corner a gate the walk heads for it
+    /// from 2 m, where the look-ahead would take it to a point round the corner; once the body is at the gate the aim goes
+    /// on to the leg after it.
+    #[test]
+    fn the_walk_steers_at_a_door_gate_not_past_it() {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let corner = |gate: bool| {
+            let route = Route::new(vec![p(0.0, 0.0), p(3.0, 0.0), p(3.0, 4.0)]);
+            if gate { route.with_gate(Vec3::new(3.0, 0.0, 0.0)) } else { route }
+        };
+        let heading = |gate: bool, x: f32| {
+            let pose = Pose { feet: Vec3::new(x, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            let (decision, walked) = motor.walk(&mut corner(gate), &pose, 5.0, |_| true);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.turn.0.abs()
+        };
+        // 2 m short of the corner the look-ahead (2.65 m) reaches round it; with the gate the aim is the corner, dead ahead.
+        assert!(heading(true, 1.0) < heading(false, 1.0) * 0.5, "{} {}", heading(true, 1.0), heading(false, 1.0));
+        // At the gate it is reached: the aim is as without one.
+        assert_eq!(heading(true, 2.9), heading(false, 2.9));
     }
 
     /// B8 (Vector Laboratory, match 223ad08c bot 3, 138-200 s): a Drop of 3.58 m over 0.35 m across whose later legs come
