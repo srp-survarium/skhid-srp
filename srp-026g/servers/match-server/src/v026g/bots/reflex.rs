@@ -336,6 +336,16 @@ pub struct CombatTuning {
     /// blast's lethal reach is 2.4 m and its 10 m splash is wide, the
     /// roll's median is 2 m.
     pub grenade_off_m: f32,
+    /// [A187 R31] ... and, when set, the first contact's height more than this from the place's: not thrown, metres (the arc
+    /// came down on another storey or a ledge; `grenade_off_m` is on the ground plane only). A place is a body's feet or a spot's
+    /// floor; a floor is 3 m up. Of 151 smoke blasts 42 (28 %) went off more than 2.5 m above the place they were thrown at
+    /// (p75 +2.9 m, p90 +4.9 m). None: not asked (the throw as it was).
+    ///
+    /// Bench (smoke preset, 10 a side, 16 maps, seeds 1-8, the team with 2.5 m against the team without, sides swapped, 128 pairs, built on
+    /// the fixed tally of #859): the switch holds back the throws that would land on another storey (82 against 35 "lands off the place"
+    /// in 64 pairs, 414 throws against 476) and the team takes 20 % less `damage other` (144.1 against 180.6, z -3.0), but the outcome is
+    /// not moved: score +0.6 % (z +0.4), kills +0.9 %, deaths -1.0 %, and the by-side table disagrees (side A +11.8, side B -10.0). OFF.
+    pub grenade_off_y_m: Option<f32>,
     /// A teammate this near the line the grenade may run on, the first
     /// contact to [`arc::ROLL_WORST_M`] along its heading, and so on it:
     /// not thrown, metres. One in five blasts lay 8 m or more beyond the
@@ -785,6 +795,14 @@ pub struct CombatTuning {
     /// the climb is large it costs hits (tier 9-10, 35-50 m: 6.2 % on against 9.1 % off, z -4.2); where it is small it is neutral (tier
     /// 13-15, lateral lead and drop together, 40-65 m: 8.1 against 8.5 %, 20-40 m 13.9 against 14.3 %, kills +1.6 %, z +0.3).
     pub lead_drop: bool,
+    /// [recoil, register #28] The bot's mirror of its weapon's kick counts the shots the client's weapon fires, not every tick the fire key
+    /// is down: the client starts a shot only from the idle state (state 6) with a round in the weapon, and the state of the last shot
+    /// (its fire clip, and a bolt's chamber) and a reload keep it from idle (`weapon_core::fire_pred` 0x2E3CB0 reads the fire bit of the
+    /// input, `[weapon+0x5EC] == 6`, a chambered or magazine round, and no transition pending). The mirror fed the raw key counted shots
+    /// the client refused (a shot inside the last one's clip, a press during a reload; 2240 of 17769 ticks with a shot on either side,
+    /// tier 9-10) and ran its cadence on while the client's restarted, so the pull took back a kick that was not there or missed one that
+    /// was: the shot line of a later shot of a run stood +0.10 degrees above where the bot thought (`kick_gap`). Off: the raw key.
+    pub mirror_gated: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
     /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, the server's
@@ -1195,6 +1213,7 @@ impl Default for CombatTuning {
             grenade_land_m: 10.0,
             grenade_wall_m: 10.0,
             grenade_off_m: 8.0,
+            grenade_off_y_m: None,
             grenade_lane_m: 2.0,
             grenade_places: 3,
             grenade_tracks: true,
@@ -1278,6 +1297,7 @@ impl Default for CombatTuning {
             lead_target: true,
             lead_flight: false,
             lead_drop: false,
+            mirror_gated: true,
             aim_last_known: true,
             lead_most_ms: 300,
             lead_own: true,
@@ -2157,7 +2177,9 @@ fn weigh_view(
     if landing.contact.is_wall() && thrower < c.grenade_wall_m {
         return Err(Refuse::Wall);
     }
-    if landing.contact.point.distance_xz(at) > off_m {
+    if landing.contact.point.distance_xz(at) > off_m
+        || c.grenade_off_y_m.is_some_and(|off_y| (landing.contact.point.y - at.y).abs() > off_y)
+    {
         return Err(Refuse::Off);
     }
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
@@ -2874,6 +2896,14 @@ pub struct Reflex {
     kick_step: f32,
     /// The kick the view had at the start of this tick's weapon update (what [`Self::weapon_tick`] returned).
     kick_before: f32,
+    /// The mirror counts the shots the weapon can fire ([`CombatTuning::mirror_gated`], set each tick by [`Self::gate_mirror`]), and the
+    /// earliest the client's weapon can fire again, ms: the last counted shot's fire clip, and the bolt after it.
+    gated: bool,
+    ready_at: f32,
+    /// [bench] The mirror's kick after the tick's turn and before its shots (pitch units), and the shots it counted in the tick:
+    /// what the stand-in's own kick is read against.
+    #[cfg(test)]
+    seen: (f32, u8),
     /// The pitch unit's scale as the last tick's tuning has it (`kin.pitch_scale`): the kick is in the game's unit, the aim in elevations.
     scale: PitchScale,
 }
@@ -3761,11 +3791,48 @@ impl Reflex {
         let taken = self.recoil.turn(pitch);
         let auto = self.hands().held().gun.auto;
         let interval_ms = self.recoil.kick().interval_s() * 1000.0;
+        let gun = self.hands().held().gun;
+        let cycle_ms = gun.shot_ms() + gun.chamber_ms as f32;
+        // The client starts a shot from the idle state only (`fire_pred` 0x2E3CB0): not in the last shot's clip, not in a reload or a switch.
+        let (gated, ready_at) = (self.gated, &mut self.ready_at);
+        let can_fire = !gated || (now >= self.busy_until && *ready_at <= now as f32 + 1e-3);
         let recoil = &mut self.recoil;
-        let fire = keys & key::FIRE != 0;
-        self.cadence
-            .tick(now, fire, auto, interval_ms, |at| recoil.mean_shot(at));
+        let fire = keys & key::FIRE != 0 && can_fire;
+        #[cfg(test)]
+        let mut shots = 0u8;
+        #[cfg(test)]
+        {
+            self.seen.0 = recoil.y();
+        }
+        self.cadence.tick(now, fire, auto, interval_ms, |at| {
+            if gated {
+                if *ready_at > at + 1e-3 {
+                    return;
+                }
+                *ready_at = at + cycle_ms;
+            }
+            recoil.mean_shot(at);
+            #[cfg(test)]
+            {
+                shots = shots.saturating_add(1);
+            }
+        });
+        #[cfg(test)]
+        {
+            self.seen.1 = shots;
+        }
         taken
+    }
+
+    /// [recoil] Whether the mirror counts the shots the weapon can fire ([`CombatTuning::mirror_gated`]), for the next [`Self::sent`].
+    pub fn gate_mirror(&mut self, on: bool) {
+        self.gated = on;
+    }
+
+    /// [bench] The mirror's kick after the last tick's turn, before its shots, and the shots it counted ([`Self::sent`]).
+    #[cfg(test)]
+    pub(crate) fn seen(&self) -> (f32, u8) {
+        self.seen
     }
 
     /// The kick of the weapon in hand: another weapon taken (the pistol)
@@ -3775,6 +3842,7 @@ impl Reflex {
         if self.recoil.kick().item != item {
             self.recoil = Recoil::new(kick_of(item));
             self.cadence = Cadence::default();
+            self.ready_at = 0.0;
         }
     }
 
@@ -7435,6 +7503,44 @@ mod tests {
         }
     }
 
+    /// The mirror of the kick counts the shots the client's weapon fires: none while the weapon is busy (a reload, a switch) or inside the
+    /// last shot's clip (`mirror_gated`), and every key tick down when it is off.
+    #[test]
+    fn the_mirror_counts_only_the_shots_the_weapon_can_fire() {
+        let shots_at = |gated: bool, busy_until: u32, ready_at: f32, now: u32| {
+            let mut reflex = Reflex::default();
+            reflex.gate_mirror(gated);
+            // The first tick takes the weapon in hand (and clears the clip), so the state is set after it.
+            reflex.sent(now - 50, 0, 0.0);
+            reflex.busy_until = busy_until;
+            reflex.ready_at = ready_at;
+            reflex.sent(now, key::FIRE, 0.0);
+            reflex.seen().1
+        };
+        // Free: a shot, gated or not.
+        assert_eq!(shots_at(true, 0, 0.0, 1_000), 1);
+        assert_eq!(shots_at(false, 0, 0.0, 1_000), 1);
+        // A reload under way (or the switch): the client starts no shot; the raw key counted one.
+        assert_eq!(shots_at(true, 1_200, 0.0, 1_000), 0);
+        assert_eq!(shots_at(false, 1_200, 0.0, 1_000), 1);
+        // Inside the last shot's clip: none until it is over, and then one.
+        assert_eq!(shots_at(true, 0, 1_100.0, 1_050), 0);
+        assert_eq!(shots_at(true, 0, 1_100.0, 1_100), 1);
+        assert_eq!(shots_at(false, 0, 1_100.0, 1_050), 1);
+    }
+
+    /// A counted shot closes the weapon for its fire clip and the bolt after it, as the client's does.
+    #[test]
+    fn a_counted_shot_keeps_the_next_until_its_cycle_is_over() {
+        let mut reflex = Reflex::default();
+        reflex.gate_mirror(true);
+        reflex.sent(950, 0, 0.0);
+        reflex.sent(1_000, key::FIRE, 0.0);
+        let gun = reflex.hands().held().gun;
+        assert_eq!(reflex.seen().1, 1);
+        assert!((reflex.ready_at - (1_000.0 + gun.shot_ms() + gun.chamber_ms as f32)).abs() < 1e-3);
+    }
+
     /// A standing target `distance` m ahead and a burst on him, the way the bench stand-in runs it (the bot's mirror of the kick in
     /// the reflex, the game's kick in `truth`: the middle of every range with `random` false, drawn with it), the view as `drive.rs`
     /// builds it and the turn as it sends it (elevation, converted at the view with `turn_for`, the pull a `rise`). Returns the mean
@@ -10053,6 +10159,13 @@ mod tests {
             weigh_throw(&me, &view, far, (0.0, 0.0), &c, true, &arc::Floor { y: 0.0 }),
             Err(Refuse::Reach)
         );
+        // A place 2 m up (the arc comes down on the floor under it): thrown as it was; off the place with a height asked.
+        let up = Vec3::new(0.0, 2.0, 20.0);
+        let floor = arc::Floor { y: 0.0 };
+        assert_eq!(weigh_throw(&me, &view, up, (0.0, 0.0), &c, true, &floor), Ok(()));
+        let asked = CombatTuning { grenade_off_y_m: Some(1.5), ..c.clone() };
+        assert_eq!(weigh_throw(&me, &view, up, (0.0, 0.0), &asked, true, &floor), Err(Refuse::Off));
+        assert_eq!(weigh_throw(&me, &view, at, (0.0, 0.0), &asked, true, &floor), Ok(()));
         // A first contact on a wall 19 m out (clear of the thrower) for a
         // place at 27 m: off the place.
         let wall = |from: Vec3, dir: Vec3, max_t: f32| {

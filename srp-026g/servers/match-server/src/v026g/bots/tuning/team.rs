@@ -74,6 +74,70 @@ pub struct GangRule {
     pub floor: f32,
 }
 
+/// A job's pin from cover inside the held spot's own lanes (Breach part 1, `plays/crossfire.rs`): with no pin spot out
+/// of the lanes, a peek spot in his own lanes (hidden from his eye crouched, seeing him standing), held crouched with a
+/// few short peeks at his spot.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PinFromCover {
+    /// The peek spots' ring is sampled this many times as densely as the play's own: a peek spot is a narrow lip, and
+    /// the play's samples found one in 13 % of the polls, 4x in 36 % (`breach-plan.md`). PROVEN by the read.
+    pub samples_x: u32,
+    /// A peek stands this long, s: humans holding a spot stand up from a crouch for a median 1.15 s, p75 3.2 s
+    /// (`human-peeks.md`: 10 live matches of 6-10 players, 592 holds, PROVEN).
+    pub peek_s: f32,
+    /// Hidden between peeks from this to `hide_max_s`, s (the cycle then matches the humans' rate below).
+    pub hide_min_s: f32,
+    pub hide_max_s: f32,
+    /// At most this many peeks a play, then it ends (no peek pattern to read). GUESS.
+    pub peeks: u32,
+    /// At most this many peeks a minute: a cycle (peek and hide) is at least 60 / this long. Humans holding a spot
+    /// stand up 2.4 times a hold minute, 3.2 in holds they fired from (a hold's median 1.8, p75 5.7, p90 7.8; PROVEN,
+    /// `human-peeks.md`): 5 is about their p75, never their top.
+    pub per_minute: u32,
+    /// A peek spot is offered only if its walk fits the job it serves: its way (`Ctx::path_dist`) at `walk_mps` takes
+    /// at most this long, s. The jobs last a median 6.9 s (p75 13.3 s); with no cap 82 % of the walks needed longer
+    /// (median 27.6 s for 55.5 m) and only 11 of 104 arrived (`breach-plan.md`, gate 2); capped, 8 of 24 (gate 3).
+    /// PROVEN by the reads; 8 s GUESS.
+    pub peek_reach_s: f32,
+    /// The pinners' pace to a peek spot along their way, m/s: gate 3's capped walks went 1.1 m/s (14.1 m in a median
+    /// 12.6 s; they sneak near the spot). PROVEN by the read.
+    pub walk_mps: f32,
+}
+
+impl Default for PinFromCover {
+    fn default() -> Self {
+        Self { samples_x: 4, peek_s: 1.5, hide_min_s: 10.0, hide_max_s: 14.0, peeks: 4, per_minute: 5, peek_reach_s: 8.0, walk_mps: 1.1 }
+    }
+}
+
+/// [`PinFromCover`] parsed once for the play: the times in ms, the hide stretched so that no cycle beats the cap.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PinRule {
+    pub samples_x: u32,
+    pub peek_ms: u32,
+    pub hide_ms: (u32, u32),
+    pub peeks: u32,
+    /// The longest way to a peek spot, m (`peek_reach_s` at `walk_mps`).
+    pub reach_m: f32,
+}
+
+impl PinFromCover {
+    pub fn rule(&self) -> PinRule {
+        let ms = |s: f32| (s.max(0.0) * 1000.0) as u32;
+        let peek_ms = ms(self.peek_s).max(1);
+        let cycle_ms = 60_000 / self.per_minute.max(1);
+        let lo = ms(self.hide_min_s).max(cycle_ms.saturating_sub(peek_ms));
+        PinRule {
+            samples_x: self.samples_x.max(1),
+            peek_ms,
+            hide_ms: (lo, ms(self.hide_max_s).max(lo)),
+            peeks: self.peeks.max(1),
+            reach_m: self.peek_reach_s.max(0.0) * self.walk_mps.max(0.0),
+        }
+    }
+}
+
 /// The team's threat spots (K1, `threat.rs`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -201,6 +265,17 @@ pub struct ThreatTuning {
     /// PR C item 20: the gang-up cap on the plays aimed at one enemy (the commander's assignment). `None` (off): the
     /// plays are handed out as before. On by default.
     pub gang_up: Option<GangUp>,
+    /// Breach part 1 (`breach-plan.md`): a job's pinner with no pin spot out of the lanes pins from cover inside his
+    /// own lanes ([`PinFromCover`]): 36 % of the pinners' unplayed roles had every pin spot in a held line, 91 % of
+    /// those in his own lanes. `None` (off): that role goes unplayed as before.
+    ///
+    /// OFF by default: the play needs a job that outlives the walk to its spot, and in the bench the jobs end in the
+    /// fight itself, a median 6.9-9.0 s (gates 2 and 3, 96 matches each: its shooter died 32 %, its Flanker went down
+    /// 24-27 %, its Pinner 13-16 %, the spot cleared 13 %, ran its time 0.3-0.6 %). The walks went 1.1 m/s: with no cap
+    /// 11 of 104 arrived; capped to a walk that fits the job, 8 of 24 (0.08 a match), and 0 kills or deaths at a peek
+    /// in 96 matches. A longer job would not help (they end in the fight, not on a timer); nearer spots cannot be
+    /// reached in time. Kept for a mode or an enemy whose spots outlive a walk (a sniper held for minutes).
+    pub pin_from_cover: Option<PinFromCover>,
     /// Play 28 (the owner's X3 part 2, 2026-10-26): a free teammate whose weapon reaches a sensed enemy sniper (a rifle, a
     /// sniper rifle) takes a spot that sees his last sensed place within its own reach, from a way hidden from him and out of
     /// his lanes, and answers him from there. Off: no bot is offered the play. OFF by default, not settled (96 pairs by side,
@@ -316,6 +391,7 @@ impl Default for ThreatTuning {
             job_line_by_id: true,
             job_spot_levels: false,
             gang_up: Some(GangUp::default()),
+            pin_from_cover: None,
             answer_sniper: false,
             sniper_lanes: false,
         }
