@@ -46,6 +46,43 @@ impl Default for ModTuning {
     }
 }
 
+/// #25b, the owner's remembered sniper (2026-10-30 quiz: "Yes, 2 minutes"): a sniper the team senses (seen, heard or told)
+/// is a threat spot with lanes all round him (`threat::ThreatSpots::sniper_sensed`), held `memory_s` after the last sense
+/// by the spots' decay, at the place he was last sensed (never his live one; `threat::area_m` says how far he may be from
+/// it by then), let go at his death or a teammate's clear look. The routes keep out of his lanes like any held spot's, and
+/// the objective plays (Collect, Escort, Intercept, not a carrier going home) weigh a way through them: a cost, never a
+/// block.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SniperMemory {
+    /// How long a sensed sniper's spot is held after the last sense, s: the human snipers' area stays as dangerous for
+    /// 120 s and more after a kill (kill share per crossing within 20 m of an earlier kill spot 7-10 % in every bin up to
+    /// 120 s, `human25/reveal_decay.txt`, 145 live recordings of 12+ players). LIKELY.
+    pub memory_s: f32,
+    /// An objective play's score falls by this share for each 10 m of the straight way to its target that lies in the
+    /// sniper spots' lanes. GUESS.
+    pub way_cut_per_10m: Share,
+    /// ... but to no less than this share of it (a cost, never a block: humans do not avoid a revealed sniper's lane,
+    /// `human25`). GUESS.
+    pub way_floor: Share,
+    /// The routes keep out of the sensed snipers' lanes, as of a held spot of kills (`threat::Covered`). Off: only the
+    /// plays read the spots (the objectives' ways, the smoke's `bot.lanes`), the routes keep out of kill spots alone.
+    pub keep_out: bool,
+}
+
+impl Default for SniperMemory {
+    fn default() -> Self {
+        Self { memory_s: 120.0, way_cut_per_10m: Share::of(0.1), way_floor: Share::of(0.5), keep_out: true }
+    }
+}
+
+impl SniperMemory {
+    /// An objective play's share of its score for `exposed_m` of its way in the lanes.
+    pub fn way_weight(&self, exposed_m: f32) -> f32 {
+        (1.0 - self.way_cut_per_10m.get() * exposed_m.max(0.0) / 10.0).max(self.way_floor.get())
+    }
+}
+
 /// The gang-up cap (PR C item 20, `team::gang_factor`): a play aimed at an enemy that teammates' plays are already
 /// aimed at is scored lower when the commander hands the plays out, so the third bot takes its next best. The trade
 /// partner never counts and the first `free` mates are free (a pair on one enemy stays); the next ones pile.
@@ -214,6 +251,10 @@ pub struct ThreatTuning {
     /// score +1.7 % (z +1.1) on seeds 1-4, -3.0 % (z -1.8) on seeds 5-8, deaths to snipers within 10 s of a sighting -16 % then
     /// +10 %; it costs +9 % of the rays cast a second.
     pub sniper_lanes: bool,
+    /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
+    /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
+    /// objective play weighs them.
+    pub sniper_memory: Option<SniperMemory>,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -292,6 +333,7 @@ impl Default for ThreatTuning {
             gang_up: Some(GangUp::default()),
             answer_sniper: false,
             sniper_lanes: false,
+            sniper_memory: Some(SniperMemory::default()),
         }
     }
 }
