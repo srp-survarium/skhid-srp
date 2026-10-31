@@ -677,7 +677,7 @@ impl JumpCounts {
             }
             // `SRP_BENCH_JUMP_ROWS` (A187's residual check, local): one row per route jump: the link's rise, sprint held and the
             // body's speed at the press, a battery carried, where the honest stand-in came down and with which clip, the flags.
-            if std::env::var_os("SRP_BENCH_JUMP_ROWS").is_some()
+            if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_JUMP_ROWS")
                 && let Some((from, to)) = p.route
             {
                 let recs = &run.recs[p.place];
@@ -689,7 +689,7 @@ impl JumpCounts {
                 let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
                 // `SRP_BENCH_JUMP_TRACE=x,z;x,z`: the records of the presses at those take-offs (within 0.6 m), 1 s before to
                 // 2 s after, the first 6 failed (came down, or nowhere) and the first 6 up at each, a run.
-                if let Ok(spots) = std::env::var("SRP_BENCH_JUMP_TRACE")
+                if let Ok(spots) = crate::v026g::bots::tests::bench_settings().var("SRP_BENCH_JUMP_TRACE")
                     && let Some(spot) = spots.split(';').position(|s| {
                         let v: Vec<f32> = s.split(',').filter_map(|n| n.trim().parse().ok()).collect();
                         v.len() == 2 && (from.x - v[0]).hypot(from.z - v[1]) <= 0.6
