@@ -1884,7 +1884,7 @@ lobby_scene_on_squad_id_replay:
     db 0xc6, 0x83, 0xac, 0xaa, 0x1e, 0x00, 0x00
     jmp 0x2747ca
 
-; 0x2748bc read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's last byte there, the commander's quest faction: lohook -> lobby_scene_on_squad
+; 0x2748bc read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none): lohook -> lobby_scene_on_squad
 global lobby_scene_on_squad
 extern hook_lobby_scene_on_squad
 lobby_scene_on_squad:

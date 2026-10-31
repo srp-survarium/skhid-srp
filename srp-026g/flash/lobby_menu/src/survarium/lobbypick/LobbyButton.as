@@ -49,6 +49,10 @@ package survarium.lobbypick
          this._caption.autoSize = TextFieldAutoSize.LEFT;
          addChild(this._caption);
          this.back("up");
+         // CLIK measured the button while it was still empty (UIComponent.initialize, 0 x 0) and
+         // its draw would size it to that: the button draws its own box at its size instead.
+         this.preventAutosizing = true;
+         setSize(w,h);
       }
 
       // The label's text (the dictionary's, upper case), centred in the box.

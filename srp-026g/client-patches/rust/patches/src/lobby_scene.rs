@@ -26,6 +26,15 @@
 //! (`lobby_menu.deactivate`) puts a project that comes in at once; results
 //! once the game closes (`game.clear_resources`) are let go. One enum,
 //! [`Scene`], and one transition function, [`Scene::step`].
+//!
+//! While patch 45's camera is the table's (a weapon's upgrade window open,
+//! or its camera flying there or back) the lobby wanted is the one shown
+//! ([`Scene::wanted`]): patch 45 read the weapon's spot from the lobby
+//! shown's project when its table turned on, so a project put in under it
+//! would leave the weapon and the camera at the old lobby's spot in the new
+//! scene. A pick, or a squad's, made meanwhile plays once the window is
+//! closed and the camera home: a fade begun steps back out, a project that
+//! comes behind the black is let go, and the change starts again then.
 
 #![forbid(unsafe_code)]
 
@@ -35,7 +44,7 @@ use crate::vostok::clock;
 use crate::vostok::language::ConsoleString;
 use crate::vostok::settings::save_user_config;
 use crate::vostok::lobby_menu::{DrawnLobby, HiddenLobby, Picks, SceneQuery, ScenesReady, Shade, SquadId, SquadRead};
-use crate::vostok::lobby_camera::LobbyCamera;
+use crate::vostok::lobby_camera::{LobbyCamera, TableCamera, WeaponTableState};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::{Context, Flow, GameCell, LobbySceneOnScenesReadyExit, NoExit, Thread};
@@ -213,7 +222,7 @@ pub enum Scene {
 }
 
 /// What happens to the lobby's scene. `wanted` is the lobby wanted at that
-/// moment ([`Squad::lobby`] of the saved pick and the squad).
+/// moment ([`Scene::wanted`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
     /// The lobby menu builds its query (`lobby_menu.scene_request`).
@@ -283,6 +292,16 @@ fn per_mille(black: f32) -> u32 {
 }
 
 impl Scene {
+    /// The lobby wanted at an event: `picked` ([`Squad::lobby`] of the saved
+    /// pick and the squad), but the lobby shown while patch 45's camera is
+    /// the table's (its spot is the shown lobby's project's).
+    pub fn wanted(self, picked: Lobby, camera: TableCamera) -> Lobby {
+        match (self, camera) {
+            (Scene::Loaded { shown, .. }, TableCamera::Table) => shown,
+            _ => picked,
+        }
+    }
+
     /// The machine: the next scene and what the site does, for every scene
     /// and every event. A project is put in only behind the black or while
     /// the lobby is not drawn; one change at a time, the last wanted lobby
@@ -464,9 +483,9 @@ pub fn force(thread: &Thread, own: Option<Lobby>, squad: Option<Squad>) {
     }
 }
 
-/// The lobby wanted now.
+/// The lobby wanted now ([`Scene::wanted`]).
 fn wanted(thread: &Thread) -> Lobby {
-    SQUAD.get(thread).lobby(own(thread))
+    SCENE.get(thread).wanted(SQUAD.get(thread).lobby(own(thread)), WeaponTableState::of(thread).camera())
 }
 
 /// One step of the machine, the scene kept (before the site acts: a query
@@ -728,7 +747,10 @@ mod tests {
     /// a lobby's project loads), and what the screen shows.
     struct Game {
         scene: Scene,
-        wanted: Lobby,
+        /// The saved pick and the squad's lobby.
+        picked: Lobby,
+        /// Patch 45's camera.
+        camera: TableCamera,
         loads: fn(Lobby) -> bool,
         /// A query asked and its results not yet in, for this lobby.
         pending: Option<Lobby>,
@@ -743,13 +765,18 @@ mod tests {
         fn new(shown: Lobby, loads: fn(Lobby) -> bool) -> Game {
             Game {
                 scene: Scene::Loaded { shown, view: View::Drawn, change: Change::Settled },
-                wanted: shown,
+                picked: shown,
+                camera: TableCamera::Stock,
                 loads,
                 pending: None,
                 menu: shown,
                 black: 0,
                 actions: std::vec![],
             }
+        }
+
+        fn wanted(&self) -> Lobby {
+            self.scene.wanted(self.picked, self.camera)
         }
 
         fn view(&self) -> View {
@@ -774,10 +801,12 @@ mod tests {
                 Action::Clear => self.black = 0,
                 Action::SwapIn => {
                     assert_eq!(self.black, 1000, "a swap behind the black");
+                    assert_eq!(self.camera, TableCamera::Stock, "no swap under the table's camera");
                     self.menu = to();
                 }
                 Action::SwapAndClear => {
                     assert_ne!(self.view(), View::Drawn, "a swap at once only while not drawn");
+                    assert_eq!(self.camera, TableCamera::Stock, "no swap under the table's camera");
                     self.menu = to();
                     self.black = 0;
                 }
@@ -802,18 +831,18 @@ mod tests {
 
         /// The lobby's query built.
         fn query(&mut self) {
-            match self.event(Event::Query { wanted: self.wanted }) {
+            match self.event(Event::Query { wanted: self.wanted() }) {
                 Action::AskAlone(lobby) => self.pending = Some(lobby),
                 other => panic!("a change's query: {other:?}"),
             }
         }
 
         fn want(&mut self, lobby: Lobby) {
-            self.wanted = lobby;
+            self.picked = lobby;
         }
 
         fn tick(&mut self) {
-            self.event(Event::Tick { dt: FRAME, wanted: self.wanted });
+            self.event(Event::Tick { dt: FRAME, wanted: self.wanted() });
         }
 
         fn ticks(&mut self, n: usize) {
@@ -826,7 +855,7 @@ mod tests {
         fn results(&mut self) {
             while let Some(lobby) = self.pending.take() {
                 let loaded = (self.loads)(lobby);
-                self.event(Event::Ready { loaded, wanted: self.wanted });
+                self.event(Event::Ready { loaded, wanted: self.wanted() });
             }
         }
 
@@ -840,8 +869,8 @@ mod tests {
         fn settled(&self) -> bool {
             let Scene::Loaded { change, shown, .. } = self.scene else { return false };
             let done = match change {
-                Change::Settled => shown == self.wanted,
-                Change::Broken { lobby } => lobby == self.wanted,
+                Change::Settled => shown == self.wanted(),
+                Change::Broken { lobby } => lobby == self.wanted(),
                 _ => false,
             };
             done && self.black == 0 && self.pending.is_none()
@@ -943,6 +972,57 @@ mod tests {
         assert_eq!(game.actions.iter().filter(|a| **a == Action::SwapIn).count(), 1, "one swap: the last one wanted");
     }
 
+    /// A pick while a weapon's upgrade window has patch 45's camera (its
+    /// spot the lobby shown's): no project put in until the camera is the
+    /// stock one again, then the change.
+    #[test]
+    fn a_change_waits_for_the_upgrade_windows_camera() {
+        let swaps = |game: &Game| game.actions.iter().filter(|a| **a == Action::SwapIn).count();
+        let then_the_change = |mut game: Game| {
+            assert_eq!((game.menu, game.black, game.pending), (Lobby::Classic, 0, None), "{:?}", game.scene);
+            assert_eq!(swaps(&game), 0);
+            game.camera = TableCamera::Stock;
+            settle(&mut game, 300);
+            assert_eq!(game.shown(), Lobby::Stk2Bunker);
+            assert_eq!(swaps(&game), 1);
+        };
+        // picked with the window open: nothing at all while it is
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.camera = TableCamera::Table;
+        game.want(Lobby::Stk2Bunker);
+        game.ticks(60);
+        assert!(game.actions.iter().all(|a| *a == Action::Original), "{:?}", game.actions);
+        then_the_change(game);
+        // opened during the fade to black: the black stepped back out, nothing asked
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.want(Lobby::Stk2Bunker);
+        game.ticks(5);
+        game.camera = TableCamera::Table;
+        settle(&mut game, 300);
+        assert!(!game.actions.iter().any(|a| matches!(a, Action::AskAlone(_))));
+        then_the_change(game);
+        // opened while its project loads behind the black: its results let go, the black stepped out
+        let mut game = Game::new(Lobby::Classic, |_| true);
+        game.want(Lobby::Stk2Bunker);
+        game.ticks(20);
+        assert_eq!(game.pending, Some(Lobby::Stk2Bunker));
+        game.camera = TableCamera::Table;
+        game.results();
+        assert_eq!(*game.actions.last().unwrap(), Action::Reset);
+        settle(&mut game, 300);
+        then_the_change(game);
+    }
+
+    #[test]
+    fn the_lobby_wanted_is_the_shown_one_only_under_the_tables_camera() {
+        let loaded = Scene::Loaded { shown: Lobby::Classic, view: View::Drawn, change: Change::Settled };
+        assert_eq!(loaded.wanted(Lobby::Hangar046, TableCamera::Table), Lobby::Classic);
+        assert_eq!(loaded.wanted(Lobby::Hangar046, TableCamera::Stock), Lobby::Hangar046);
+        for scene in [Scene::Unasked, Scene::Starting(Lobby::Classic)] {
+            assert_eq!(scene.wanted(Lobby::Hangar046, TableCamera::Table), Lobby::Hangar046, "{scene:?}");
+        }
+    }
+
     #[test]
     fn a_match_entered_mid_change_leaves_no_black_and_the_return_shows_the_wanted_lobby() {
         for at in 0..70 {
@@ -988,14 +1068,15 @@ mod tests {
         }
     }
 
-    /// Every sequence of events (up to a length) from a lobby shown: a swap
-    /// only behind the black or while not drawn, one query at a time
-    /// (Game::event), no black left once settled, and the lobby shown one
-    /// that was wanted.
+    /// Every sequence of events (up to a length) from a lobby shown, patch
+    /// 45's camera taken and given back among them: a swap only behind the
+    /// black or while not drawn and never under the table's camera, one query
+    /// at a time (Game::event), no black left once settled, and the lobby
+    /// shown one that was wanted.
     #[test]
     fn no_sequence_swaps_in_sight_or_leaves_the_black() {
         const LOADS: [fn(Lobby) -> bool; 2] = [|_| true, |lobby| lobby != Lobby::Hangar046];
-        const KINDS: usize = 8;
+        const KINDS: usize = 9;
         let steps = 6;
         for loads in LOADS {
             for code in 0..KINDS.pow(steps) {
@@ -1017,9 +1098,15 @@ mod tests {
                             game.event(Event::Closing);
                         }
                         6 => game.ticks(9),
-                        _ => game.want(Lobby::Camp069),
+                        7 => game.want(Lobby::Camp069),
+                        _ => {
+                            game.camera = match game.camera {
+                                TableCamera::Stock => TableCamera::Table,
+                                TableCamera::Table => TableCamera::Stock,
+                            }
+                        }
                     }
-                    wanted.push(game.wanted);
+                    wanted.push(game.picked);
                     c /= KINDS;
                 }
                 game.results();

@@ -48,7 +48,7 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   srp the pick (`request_players_range(2 095 000 000 + id, 1)`, srp's `3B` at a reserved start,
   `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
   tells it (`root.srp_lobby_state(pick, shown)`), at its first frame and at each change.
-  The pictures are the lobbies' stock views without anyone in them (camp @12, bunker @6,
+  The pictures are the lobbies' stock views without anyone in them (camp @12, bunker @8,
   hangar @8, the classic): 560 x 380, twice the card, JPEG at q90 as the game's map renders are
   (`flash/lobby_menu/bitmaps/SrpLobby*.jpg`, 255 KB the four), cut from 2560 x 1440 captures of the
   diagnostics sweep's `empty`.
@@ -105,7 +105,8 @@ against the original's code on the same objects; captured in a game, below):
   lobby drawn (`lobby_camera.view`, the lobby camera's tick, after patch 45's flight), the lobby
   hidden (`lobby_menu::on_deactivate` 0x21D4A0, a match), shown (`on_activate` 0x21D2E0), the
   game closing (`game::clear_resources` 0x1ED030). The wanted lobby is `Squad::lobby` of the
-  saved pick and the squad at each event: a pick changed, a squad changed, a load done or failed,
+  saved pick and the squad at each event (the lobby shown while a weapon's upgrade window has
+  the camera, below): a pick changed, a squad changed, a load done or failed,
   a fade done, a match entered and the close all come as those.
 - **A frame with another lobby wanted than the one shown: the black, then the load.** The scene
   fades to black (`FADE_OUT`, 0.25 s), the exe
@@ -148,6 +149,16 @@ against the original's code on the same objects; captured in a game, below):
 - **The last lobby wanted wins:** a change during the fade to black asks, once black, the lobby
   wanted then (back to the one shown: the black stepped out, nothing asked); while a project loads
   behind the black, the new one is asked behind the same black.
+- **A weapon's upgrade window open** (patch 45's camera the table's: its table on, or its flight
+  there or back): the lobby wanted is the one shown (`Scene::wanted`). Patch 45 reads the
+  weapon's spot from the lobby shown's project when its table turns on, so a project put in under
+  it would leave the weapon and the camera at the old lobby's spot in the new scene (a squad: the
+  commander picks, or someone joins, while a mate has the window open). A pick made meanwhile
+  plays once the window is closed and the camera home: a fade begun steps back out, a project that
+  comes behind the black is let go, and the change starts again then, the new lobby's first frame
+  at the camera's ctor's pose. (Not the other way, the spot read again after the swap: that would
+  fly the camera from the old lobby's spot to the new one's in sight, and its height, distance and
+  side angle are the camera setter's, which only patch 32's start of the window calls.)
 - **A match entered during a change:** the black is gone at once; a project that comes while the
   lobby is hidden is put in at once; back in the lobby while it loads, the black and the spinner
   again. The lobby on return is the wanted one.

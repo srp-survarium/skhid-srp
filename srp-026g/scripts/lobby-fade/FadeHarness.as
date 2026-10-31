@@ -196,6 +196,10 @@ package
                b.enabled = true;
             else if(step[1] != null)
                b.dispatchEvent(new MouseEvent(step[1], true, false, 1, 1));
+            // drawn as the game draws it (CLIK's draw, which sizes the button)
+            b.validateNow();
+            if(Math.abs(b.width - b.boxWidth) > 1 || Math.abs(b.height - b.boxHeight) > 1 || !b.visible)
+               failures.push("the lobby button " + step[0] + " drawn at " + int(b.width) + " x " + int(b.height));
             var names:Array = [];
             for(var i:int = 0; i < b.numChildren; i++)
                names.push(getQualifiedClassName(b.getChildAt(i)) + ":" + b.getChildAt(i).name);
