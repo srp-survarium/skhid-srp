@@ -1995,11 +1995,12 @@ pub(super) enum LipGuard {
 /// to none, or to the brake against the velocity, whichever stops on the floor first. `planned`: the landings
 /// of the drops the route makes (a fall there is the route's). Every unplanned fall of the bench was off a
 /// lip (`WalkGrid::near_lip`), with the keys pushing the body over or its glide carrying it.
+#[cfg(test)]
 pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32) -> LipGuard {
     lip_guard_with(grid, kin, me, turn, keys, planned, hold, false)
 }
 
-/// [`lip_guard`] with the three gaps closed when `full` ([`Feel::lip_guard_full`]): a body with no move key held that still
+/// The lip guard with the three gaps closed when `full` ([`Feel::lip_guard_full`]): a body with no move key held that still
 /// glides is asked too (its stop is played, the brake against the velocity the way out); the floors [`body::RECKONING_M`]
 /// about the reckoned feet count for a lip's floors (the reckoned floor may be off the lip's band while the body is on it); and a
 /// walk is held when the same stop from the feet [`body::RECKONING_M`] to either side, where there is a floor, would fall.
@@ -2088,7 +2089,7 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
     guard
 }
 
-/// [`lip_guard`] on the tick's decision.
+/// [`lip_guard_with`] on the tick's decision.
 fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
     {
