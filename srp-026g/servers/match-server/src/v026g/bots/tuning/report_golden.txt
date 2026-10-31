@@ -5,7 +5,7 @@ switches ON commit: crossfire_point cut_given_crowd hold_to_arrival
 switches ON cover: spot_cost=0.5
 switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops sprint_gaps sprint_through unclear_aim zone_lines
 switches ON grid: client_numbers crouch_floors exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
-switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out zone_intensity
+switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out run_out zone_intensity
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
