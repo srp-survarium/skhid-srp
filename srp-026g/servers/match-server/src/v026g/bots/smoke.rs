@@ -83,8 +83,13 @@ impl CloudShape {
     /// The radius `ms` after the blast that hides: none while it forms and once it is gone, full, then
     /// shrinking.
     pub fn radius_after(&self, ms: u32) -> Option<f32> {
+        self.radius_after_formed(ms, self.forming_ms)
+    }
+
+    /// [`Self::radius_after`] with the cloud hiding from `forming_ms` after the blast ([`Forming`]).
+    pub fn radius_after_formed(&self, ms: u32, forming_ms: u32) -> Option<f32> {
         let full = self.radius_m;
-        if ms < self.forming_ms || ms >= self.gone_ms {
+        if ms < forming_ms || ms >= self.gone_ms {
             None
         } else if ms < self.full_ms {
             Some(full)
@@ -185,6 +190,38 @@ pub struct Cloud {
     pub shape: CloudShape,
 }
 
+/// [smoke.forming_client] From the blast until a cloud hides through its middle as the client draws it, ms: 1.24 s,
+/// where a line through about 8 of its puffs is 75 % opaque. PROVEN, read: the puffs spawn 0.2 s after the blast and
+/// fade in over 6.5 % of their 29 s (`smoke_grenade.particle`, the alpha keys), and one puff's texture
+/// (`fx/lighted_smoke/smoke1`, DXT5) averages 0.291 alpha over its disc (max 0.83: none is opaque alone). LIKELY, the
+/// layering: 1 - (1 - 0.291 k)^8 >= 0.75 at a fade-in key k of 0.547, 0.2 + 0.547 x 1.9 s
+/// (`traces-20261028/fx-smoke-data.md` section 7; the 8 puffs on a line rest on its size GUESSes).
+pub const CLIENT_FORMING_MS: u32 = 1_240;
+
+/// From when a team's eyes take a cloud to hide (`smoke.forming_client`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Forming {
+    /// The cloud shape's own `forming_ms` (the RDG-M's 0.7 s, a GUESS from the alpha keys alone).
+    OfShape,
+    /// [`CLIENT_FORMING_MS`]: as long as the client's puffs let a human see through it, never shorter.
+    Client,
+}
+
+impl Forming {
+    /// The forming time of `shape` under this rule, ms.
+    pub fn ms(self, shape: &CloudShape) -> u32 {
+        match self {
+            Self::OfShape => shape.forming_ms,
+            Self::Client => CLIENT_FORMING_MS.max(shape.forming_ms),
+        }
+    }
+
+    /// The team's rule by its smoke tuning.
+    pub fn of(tuning: &super::tuning::SmokeTuning) -> Self {
+        if tuning.forming_client { Self::Client } else { Self::OfShape }
+    }
+}
+
 impl Cloud {
     /// When it is gone.
     pub fn ends(&self) -> MatchMs {
@@ -193,10 +230,15 @@ impl Cloud {
 
     /// Its radius that hides at `at`: none before it hides (in the air, forming) and once gone.
     pub fn radius_at(&self, at: MatchMs) -> Option<f32> {
+        self.radius_formed(at, Forming::OfShape)
+    }
+
+    /// [`Self::radius_at`] under the forming rule `forming`.
+    pub fn radius_formed(&self, at: MatchMs, forming: Forming) -> Option<f32> {
         if at < self.pours {
             return None;
         }
-        self.shape.radius_after(at.since(self.pours))
+        self.shape.radius_after_formed(at.since(self.pours), forming.ms(&self.shape))
     }
 
     /// Whether it is (or will be) there at `at`: not yet ended.
@@ -219,7 +261,12 @@ impl Cloud {
     /// The length of the line from `a` to `b` inside it at `at`, metres: a vertical cylinder of its radius
     /// then, from `below_m` under its centre to its top.
     pub fn inside_m(&self, a: Vec3, b: Vec3, at: MatchMs) -> f32 {
-        let Some(r) = self.radius_at(at).filter(|r| *r > 0.0) else {
+        self.inside_formed(a, b, at, Forming::OfShape)
+    }
+
+    /// [`Self::inside_m`] under the forming rule `forming`.
+    pub fn inside_formed(&self, a: Vec3, b: Vec3, at: MatchMs, forming: Forming) -> f32 {
+        let Some(r) = self.radius_formed(at, forming).filter(|r| *r > 0.0) else {
             return 0.0;
         };
         let d = b - a;
@@ -270,14 +317,15 @@ impl Clouds {
     /// [planning] The clouds a smoke plan of `team`'s counts at `clock`, each at its full size from now (the owner: "they
     /// shouldnt throw smoke if smoke is already there"): every cloud live or forming, of either team (a puff is seen by
     /// all), and the team's own still in the air (thrown, and told: its thrower's mates know it), until it ends.
-    pub fn planning(&self, clock: u32, team: u8) -> Self {
+    /// Full under the team's forming rule `forming` (`smoke.forming_client`).
+    pub fn planning(&self, clock: u32, team: u8, forming: Forming) -> Self {
         let at = MatchMs(clock);
         Self(
             self.0
                 .iter()
                 .filter(|c| at < c.ends() && (at >= c.pours || c.team == team))
                 // Full now: poured at least its forming time ago (one already older keeps its age).
-                .map(|c| Cloud { pours: MatchMs(c.pours.0.min(clock.saturating_sub(c.shape.forming_ms))), ..*c })
+                .map(|c| Cloud { pours: MatchMs(c.pours.0.min(clock.saturating_sub(forming.ms(&c.shape)))), ..*c })
                 .collect(),
         )
     }
@@ -306,13 +354,15 @@ impl Clouds {
     /// has smoke now, else [`Veil::Clear`] (no line is tested).
     pub fn veil(&self, clock: u32, tuning: &super::tuning::SmokeTuning) -> Veil<'_> {
         let at = MatchMs(clock);
-        if !tuning.sight || !self.0.iter().any(|c| c.radius_at(at).is_some()) {
+        let forming = Forming::of(tuning);
+        if !tuning.sight || !self.0.iter().any(|c| c.radius_formed(at, forming).is_some()) {
             return Veil::Clear;
         }
         Veil::Smoke {
             clouds: &self.0,
             at,
             thin_m: tuning.thin_m.get(),
+            forming,
         }
     }
 }
@@ -328,6 +378,8 @@ pub enum Veil<'a> {
         at: MatchMs,
         /// A line inside a cloud for this long or more hides, metres (`SmokeTuning::thin_m`).
         thin_m: f32,
+        /// From when a cloud hides (`SmokeTuning::forming_client`).
+        forming: Forming,
     },
 }
 
@@ -337,10 +389,10 @@ impl Veil<'_> {
     pub fn hides(&self, a: Vec3, b: Vec3) -> bool {
         match *self {
             Veil::Clear => false,
-            Veil::Smoke { clouds, at, thin_m } => {
+            Veil::Smoke { clouds, at, thin_m, forming } => {
                 let mut inside = 0.0;
                 for cloud in clouds {
-                    inside += cloud.inside_m(a, b, at);
+                    inside += cloud.inside_formed(a, b, at, forming);
                     // Strictly more, as Valve's `IsLineBlockedBySmoke`.
                     if inside > thin_m {
                         return true;
@@ -355,11 +407,11 @@ impl Veil<'_> {
     pub fn hides_except(&self, a: Vec3, b: Vec3, except: CloudKey) -> bool {
         match *self {
             Veil::Clear => false,
-            Veil::Smoke { clouds, at, thin_m } => {
+            Veil::Smoke { clouds, at, thin_m, forming } => {
                 let inside: f32 = clouds
                     .iter()
                     .filter(|cloud| cloud.key() != except)
-                    .map(|cloud| cloud.inside_m(a, b, at))
+                    .map(|cloud| cloud.inside_formed(a, b, at, forming))
                     .sum();
                 inside > thin_m
             }
@@ -1065,6 +1117,26 @@ mod tests {
         .cloud_at(at, |_| None)
     }
 
+    /// [smoke.forming_client] A forming cloud hides from the client's 1.24 s after the blast, not the shape's 0.7 s;
+    /// once formed the two read alike.
+    #[test]
+    fn with_the_client_forming_a_cloud_hides_from_its_client_time() {
+        let c = cloud(Vec3::ZERO);
+        let pours = c.pours.0;
+        let at = |ms: u32| MatchMs(pours + ms);
+        assert_eq!(c.radius_formed(at(1_000), Forming::OfShape), Some(8.0), "the shape's: formed at 0.7 s");
+        assert_eq!(c.radius_formed(at(1_000), Forming::Client), None, "the client's: still forming");
+        assert_eq!(c.radius_formed(at(CLIENT_FORMING_MS), Forming::Client), Some(8.0));
+        assert_eq!(c.radius_formed(at(17_499), Forming::Client), c.radius_formed(at(17_499), Forming::OfShape));
+        // A line through its middle 1 s after the blast: seen with the client's forming, hidden without.
+        let tuning = |client: bool| SmokeTuning { forming_client: client, ..SmokeTuning::default() };
+        let clouds = Clouds::new(vec![c]);
+        let (a, b) = (Vec3::new(-20.0, 1.5, 0.0), Vec3::new(20.0, 1.5, 0.0));
+        assert!(clouds.covers(pours + 1_000, &tuning(false), a, b));
+        assert!(!clouds.covers(pours + 1_000, &tuning(true), a, b));
+        assert!(clouds.covers(pours + 1_300, &tuning(true), a, b));
+    }
+
     #[test]
     fn a_cloud_forms_holds_and_thins_away_from_its_blast() {
         let c = cloud(Vec3::ZERO);
@@ -1085,7 +1157,7 @@ mod tests {
     #[test]
     fn a_line_through_a_full_cloud_is_inside_it_for_its_width_and_a_graze_is_thin() {
         let c = cloud(Vec3::ZERO);
-        let full = MatchMs(c.pours.0 + c.shape.forming_ms + 100);
+        let full = MatchMs(c.pours.0 + Forming::of(&SmokeTuning::default()).ms(&c.shape) + 100);
         let r = c.shape.radius_m;
         // Through the middle at eye height: the whole diameter.
         let m = c.inside_m(Vec3::new(-20.0, 1.6, 0.0), Vec3::new(20.0, 1.6, 0.0), full);
@@ -1115,7 +1187,7 @@ mod tests {
             sight: false,
             ..SmokeTuning::default()
         };
-        let full = c.pours.0 + c.shape.forming_ms;
+        let full = c.pours.0 + Forming::of(&on).ms(&c.shape);
         assert!(!clouds.veil(full, &on).is_clear());
         assert!(clouds.veil(full, &off).is_clear());
         assert!(clouds.veil(c.thrown.0, &on).is_clear(), "still in the air");
@@ -1176,7 +1248,8 @@ mod tests {
         let two = Clouds::new(vec![behind, screen]);
         let thin = SmokeTuning::default();
         let mut through = KnownClouds::default();
-        let learnt = through.update(who, &two, two.veil(pop + 1_000, &thin), pop + 1_000, &thin, |_| true);
+        let formed = pop + Forming::of(&thin).ms(&screen.shape) + 300;
+        let learnt = through.update(who, &two, two.veil(formed, &thin), formed, &thin, |_| true);
         assert!(through.knows(screen.key()) && !through.knows(behind.key()), "{learnt:?}");
         // The enemy cloud's edge facing the bot, on its floor, 22 m off (8 m radius at 30 m), within the 40 m watch.
         let now = pop + 1_000;
@@ -1325,7 +1398,9 @@ mod scenarios {
         // Across the line, 4 m to its side: the line runs 13.9 m through it at the full 8 m radius.
         let cloud = [Vec3::new(4.0, 0.0, 15.0)];
         assert_eq!(looks(&view(me, him, &cloud, 500)), SEEN, "forming: not dense yet");
-        assert_eq!(looks(&view(me, him, &cloud, 700)), SMOKED);
+        let formed = Forming::of(&SmokeTuning::default()).ms(&SmokeGrenade::RDG_M.cloud);
+        assert_eq!(looks(&view(me, him, &cloud, formed - 50)), SEEN, "still forming");
+        assert_eq!(looks(&view(me, him, &cloud, formed)), SMOKED);
         assert_eq!(looks(&view(me, him, &cloud, 17_000)), SMOKED);
         // Thinning: the radius is 5.6 m at 20 s, still over the line; 3.8 m at 22 s, off it.
         assert_eq!(looks(&view(me, him, &cloud, 20_000)), SMOKED);
@@ -1566,7 +1641,7 @@ mod scenarios {
         };
         let t = SmokeTuning::default();
         let (eye, point) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(20.0, 1.3, 0.0));
-        let covers = |c: Cloud, team: u8, clock: u32| Clouds::new(vec![c]).planning(clock, team).covers(clock, &t, eye, point);
+        let covers = |c: Cloud, team: u8, clock: u32| Clouds::new(vec![c]).planning(clock, team, Forming::of(&t)).covers(clock, &t, eye, point);
         // In the air (pours later): its team's counts, the other's not; live clouds miss it.
         assert!(covers(cloud(0, 5_000), 0, 2_000), "own in the air");
         assert!(!covers(cloud(0, 5_000), 1, 2_000), "the other team's in the air");

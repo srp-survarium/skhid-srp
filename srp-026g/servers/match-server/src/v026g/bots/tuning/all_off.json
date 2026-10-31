@@ -126,6 +126,7 @@
   "smoke": {
     "anti_sniper": false,
     "cross_lane": false,
+    "forming_client": false,
     "react_watch": false,
     "sight": false,
     "spot_rules": false,
