@@ -1868,6 +1868,10 @@ pub(crate) fn real_bot_cost() {
                 pair_apart - pair_apart_settling
             );
             eprintln!("  route twins: {}", super::route_twins::line());
+            eprintln!("  {}", game.climbs.line());
+            for line in game.climbs.lines() {
+                eprintln!("  {line}");
+            }
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {} search_floors {} exposed_asked_m {:.1} exposed_kept_m {:.1}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
