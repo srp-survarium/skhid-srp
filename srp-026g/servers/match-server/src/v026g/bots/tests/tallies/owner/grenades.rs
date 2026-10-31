@@ -57,6 +57,7 @@ pub(super) struct GrenadeCounts {
     /// By place: what the bot's grenade logic counted at this tick's reading (none: not a bot).
     pub(super) reading: Vec<Option<GrenadeStats>>,
     pub(super) logic: GrenadeLogic,
+    pub(super) close: CloseBlasts,
     /// Throws as (thrower, team, the place, press) for [`SAME_SPOT_M`], and the pairs found: another bot
     /// of the team threw at a place within 3, 3-5, 5-8 m of this one within [`SAME_SPOT_MS`] before.
     pub(super) same_spot_log: Vec<(Place, u8, Vec3, u32)>,
@@ -180,6 +181,29 @@ pub(crate) fn thrown_at(text: &str) -> Option<(Vec3, u32)> {
     let mut v = xyz.split(", ").map(|n| n.parse::<f32>().ok());
     let at = Vec3::new(v.next()??, v.next()??, v.next()??);
     Some((at, rest.trim().parse().ok()?))
+}
+
+/// "throws a close grenade, blast at <ms>" (`reflex::start_close`, noted with the throw): the time of the blast.
+pub(crate) fn closed_at(text: &str) -> Option<u32> {
+    text.strip_prefix("throws a close grenade, blast at ")?.trim().parse().ok()
+}
+
+/// What the close throws (`grenade_close`) did to their own side: counted at their blasts.
+#[derive(Clone, Debug, Default)]
+pub(super) struct CloseBlasts {
+    /// The blasts of throws the bot decided as close ones: (thrower, time).
+    pub(super) noted: Vec<(Place, u32)>,
+    /// Close blasts gone off, and of them those that hurt the thrower or a mate.
+    pub(super) gone: u32,
+    pub(super) leaks: u32,
+    /// Damage and kills to [thrower, his teammates, enemies], and the bodies inside the radius.
+    pub(super) dmg: [f32; 3],
+    pub(super) kills: [u32; 3],
+    pub(super) inside: [u32; 3],
+    /// The least distance of the thrower, and of a teammate, to the blast, m.
+    pub(super) least_m: [f32; 2],
+    /// The first leaks: (thrower's distance, nearest mate's distance, the thrower's damage, the mates').
+    pub(super) cases: Vec<[f32; 4]>,
 }
 
 /// "holds a grenade back at (x, y, z): <reason>": the reason.
@@ -638,6 +662,7 @@ impl Topic for GrenadeCounts {
                     self.thrown_by_enemy[enemy_bin(game, note.place)] += 1;
                 }
             }
+            NoteKind::Closed { blast } => self.close.noted.push((note.place, blast)),
             NoteKind::HeldBack(why) => {
                 self.grenade_refused(why);
                 // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
@@ -852,6 +877,7 @@ impl GrenadeCounts {
             !off
         });
         for blast in gone {
+            let before = (self.blast_dmg, self.blast_kills, self.blast_in);
             self.live_blast(&blast);
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
@@ -884,6 +910,7 @@ impl GrenadeCounts {
                     self.blast_dmg[who] += hurt.body;
                     self.blast_kills[who] += u32::from(hurt.killed);
                 }
+                self.close_blast(game, &blast, before);
                 continue;
             }
             for (place, body) in game.bodies.iter().enumerate() {
@@ -907,6 +934,48 @@ impl GrenadeCounts {
                 let dmg = blast_damage(d);
                 self.blast_dmg[who] += dmg;
                 self.blast_kills[who] += u32::from(dmg >= body.health);
+            }
+            self.close_blast(game, &blast, before);
+        }
+    }
+
+    /// A blast of a throw the bot decided as a close one: what it did to its own side, from the change in the
+    /// totals since `before` (damage, kills, bodies inside the radius, by [thrower, mates, enemies]).
+    fn close_blast(&mut self, game: &Game, blast: &Blast, before: ([f32; 3], [u32; 3], [u32; 3])) {
+        let Some(at) = self.close.noted.iter().position(|&(thrower, time)| thrower == blast.thrower && time == blast.time) else {
+            return;
+        };
+        self.close.noted.swap_remove(at);
+        let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
+            return;
+        };
+        let dist = |place: Place| game.bodies.get(place).map_or(f32::INFINITY, |body| (Game::chest(body) - blast.at).length());
+        let mates = game
+            .bodies
+            .iter()
+            .enumerate()
+            .filter(|(place, body)| *place != blast.thrower && body.alive && body.team == team)
+            .map(|(place, _)| dist(place))
+            .fold(f32::INFINITY, f32::min);
+        let close = &mut self.close;
+        close.gone += 1;
+        let delta = |now: f32, was: f32| now - was;
+        let dmg = [0, 1, 2].map(|k| delta(self.blast_dmg[k], before.0[k]));
+        for k in 0..3 {
+            close.dmg[k] += dmg[k];
+            close.kills[k] += self.blast_kills[k] - before.1[k];
+            close.inside[k] += self.blast_in[k] - before.2[k];
+        }
+        let thrower = dist(blast.thrower);
+        close.least_m = if close.gone == 1 {
+            [thrower, mates]
+        } else {
+            [close.least_m[0].min(thrower), close.least_m[1].min(mates)]
+        };
+        if dmg[0] > 0.0 || dmg[1] > 0.0 {
+            close.leaks += 1;
+            if close.cases.len() < 12 {
+                close.cases.push([thrower, mates, dmg[0], dmg[1]]);
             }
         }
     }
@@ -962,6 +1031,21 @@ impl GrenadeCounts {
                 "volley": s.volley,
                 "near": s.near,
                 "fire_hidden_throw": hidden_throw,
+            });
+        }
+        let counted = logic.sum.close != [0; 7] || logic.sum.close_gate != [0; 20] || self.close.gone > 0;
+        if counted {
+            let close = &self.close;
+            json["grenade_close"] = serde_json::json!({
+                "stats": logic.sum.close,
+                "gate": logic.sum.close_gate,
+                "blasts": close.gone,
+                "leaks": close.leaks,
+                "dmg": close.dmg.map(|d| (100.0 * d).round() / 100.0),
+                "kills": close.kills,
+                "inside": close.inside,
+                "least_m": close.least_m.map(|d| (10.0 * d).round() / 10.0),
+                "cases": close.cases.iter().map(|c| c.map(|d| (10.0 * d).round() / 10.0)).collect::<Vec<_>>(),
             });
         }
         if let Some(listed) = self.listed {
@@ -1038,6 +1122,13 @@ impl GrenadeCounts {
             text.push_str(&format!(
                 "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard, held spot] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, alive minutes by the nearest enemy [<8 m, 8-30 m, farther, none] {:.1?}, thrown by the same {:?}, volley [windows, rolls, chance said no, second grenades, rolls with evidence, rolls without] {:?}, near floor [weighed again, way out found, thrown] {:?}, held spots by think [with a spot, sensed lately, in range, outside his lanes, no mate or other place, unclaimed, a frag in the kit] {:?}, stopped before the roll with a sensed spot [throw under way, target in sight, all thrown, lockout] {:?}, throws given up for a dropped spot [before the key, in the hold] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
                 logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, self.alive_by_enemy_ms.map(|ms| ms as f64 / 60_000.0), self.thrown_by_enemy, s.volley, s.near, s.held_funnel, s.held_busy, s.held_dropped, hidden_throw,
+            ));
+        }
+        if counted {
+            let close = &self.close;
+            text.push_str(&format!(
+                "; close throws [rolls with a close place, weighed, refused by the arc or a mate's blast, refused for a mate not seen lately, refused for no way out, decided, let go] {:?}, blasts {} (leaks: the thrower or a mate hurt {}), damage [thrower, mates, enemies] {:.2?}, killed {:?}, inside {:?}, nearest [thrower, mate] to the blast {:.1?} m, leak cases [thrower m, nearest mate m, thrower dmg, mates dmg] {:.2?}; close gates [thinks with a place in the band, stopped: throw under way, target in sight, all thrown, lockout; no frag, nothing left after window and claims, chance said no, a far place thrown instead, reached the close throw, no retreat or map; tracks in the band left out: too young, too old, error; close weighings refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place]] {:?}",
+                logic.sum.close, close.gone, close.leaks, close.dmg, close.kills, close.inside, close.least_m, close.cases, logic.sum.close_gate,
             ));
         }
         if let Some(listed) = self.listed {
