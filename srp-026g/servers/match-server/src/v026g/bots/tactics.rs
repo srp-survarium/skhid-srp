@@ -1196,6 +1196,37 @@ impl Tactics {
         self.route_nodes(start, goal, time, side, objective, &RouteFilter::open())
     }
 
+    /// When the way from `from` to `to` opens, if only zones that switch shut it: the way a plain search keeps off no zone
+    /// ([`path::plan_where`] over the spawn rule alone) is walked in 1 m steps, and each floor on it a zone shuts at `time`
+    /// ([`Hazards::allowed`]) gives the soonest the schedule opens it ([`Hazards::gate_end`]); the latest of them is the
+    /// answer. None when the way has no shut floor now (the failure is not a zone's), no way exists even with the zones
+    /// open, or some floor on it is shut by a zone that does not switch, a live field, or a span the prediction does not
+    /// end (no gate to wait for). It is one search over the whole grid: asked once by a bot that stands, not every tick.
+    pub fn gate_opens(&self, from: Vec3, to: Vec3, time: u32, side: Option<i32>) -> Option<u32> {
+        let grid = &self.world.grid;
+        let (a, b) = (grid.locate(from, 1.5)?, grid.locate(to, LOCATE_M)?);
+        let route = path::plan_where(grid, a, b, |node| self.spawn_ok(node, side, false))?;
+        let mut opens = time;
+        let mut prev = from;
+        for waypoint in route.points() {
+            let (here, there) = (prev, waypoint.at);
+            let steps = (here.distance_xz(there).ceil() as u32).max(1);
+            for step in 0..=steps {
+                let t = step as f32 / steps as f32;
+                let at = Vec3::new(
+                    here.x + (there.x - here.x) * t,
+                    here.y + (there.y - here.y) * t,
+                    here.z + (there.z - here.z) * t,
+                );
+                if let Some(node) = grid.locate(at, 1.0) {
+                    opens = opens.max(self.hazards.gate_end(node, time)?);
+                }
+            }
+            prev = there;
+        }
+        (opens > time).then_some(opens)
+    }
+
     /// [`Self::route_for`] between floors, keeping off what `filter` keeps
     /// out too (the spots a bot got stuck at, the landings of the jumps it
     /// gave up).

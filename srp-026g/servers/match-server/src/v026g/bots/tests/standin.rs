@@ -292,6 +292,8 @@ pub(crate) struct Body {
     pub(crate) last_hit: u32,
     /// The hits of the last half second and their stopping power ([`standin_stagger`]).
     pub(crate) stagger: standin_stagger::Stagger,
+    /// The movement level of the body's kit ([`standin_level`], `SRP_BENCH_STAND_IN_LEVEL`): 1.0, the nominal speed, unless set.
+    pub(crate) speed_level: f32,
     /// The bot's target as its last input was made (the reflex's).
     pub(crate) target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
@@ -683,6 +685,15 @@ impl Game {
         }
     }
 
+    /// The movement level of each place's body ([`standin_level::levels`]); a place with none keeps the nominal speed.
+    pub(crate) fn set_speed_levels(&mut self, levels: &[Option<f32>]) {
+        for (body, level) in self.bodies.iter_mut().zip(levels) {
+            if let Some(level) = *level {
+                body.speed_level = level;
+            }
+        }
+    }
+
     /// The drugs each bot's own profile holds ([`standin_heal::Heal::of_profile`]), by place: the first life's slots are filled
     /// at once. A match that does not call this has the standard kit's, all in store as the old profiles had it.
     pub(crate) fn set_heal_kits(&mut self, profiles: &[survarium::v026g::match_msgs::static_info::MatchProfile]) {
@@ -750,6 +761,7 @@ impl Game {
             leg_broken_until: 0,
             last_hit: 0,
             stagger: standin_stagger::Stagger::default(),
+            speed_level: 1.0,
             target: None,
             spread: bench_spread::Spread::default(),
             zone_spell: None,
@@ -1084,7 +1096,7 @@ impl Game {
                 body.leg_broken_until = 0;
             }
             standin_heal::advance(body, tick);
-            let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 };
+            let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level;
             if standin_stagger::model_on() {
                 level *= 1.0 - body.stagger.share(tick);
             } else if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
@@ -1140,7 +1152,11 @@ impl Game {
                         self.landings.push(landing);
                     }
                 } else {
-                    let (mut node, mut feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    let (mut node, mut feet, _) = if stand_in_edge() {
+                        slide_supported(grid, node, body.feet, to, grid.body().step, body::SUPPORT_M)
+                    } else {
+                        slide_capped(grid, node, body.feet, to, grid.body().step)
+                    };
                     // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
                     let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
                     if !pushing {

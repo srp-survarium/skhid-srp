@@ -175,6 +175,7 @@
   },
   "unstick": {
     "blind_stop_ms": null,
+    "home_gate_max_ms": null,
     "home_no_way_ms": null,
     "progress_ms": null,
     "suicide_after_ms": null,
