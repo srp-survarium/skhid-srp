@@ -25,7 +25,10 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   2026-10-31: "remove premium button and put lobby button there instead"): the original's
   premium button is taken out of the panel (`topPanelLeftContainer_56.placeLobbyButton`) and the
   lobby button drawn as the panel's money boxes (`SrvButtonTop`, no coin), as wide as the
-  premium button was. The premium itself is as before (its state, the x2 mark, the offer after a
+  premium button was. Its label is the top menu's look (Calibri bold 16, 0x9BADC1, upper case),
+  centred in the box by its measured size: the amount's own field embeds digits only, so letters
+  there were drawn from another font (the owner's test, 2026-10-31: "badly written and not
+  centered"). The premium itself is as before (its state, the x2 mark, the offer after a
   match: `StatusPanel.premiumDiscount`, the seconds the button kept); only its button is gone.
   The window's title and the button are `st_srp_lobby_title` ("Lobby"); the texts are
   dictionary keys (`client-patches/localization`), every language's.

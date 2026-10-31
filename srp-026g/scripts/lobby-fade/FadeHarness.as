@@ -155,29 +155,45 @@ package
       }
 
       // The lobby button: the player panel's (its symbol's class, made here: the lobby's status panel
-      // needs the exe), in the premium button's place (none left there), the dictionary's label.
+      // needs the exe), in the premium button's place (none left there). Its label, in every
+      // language: the dictionary's text in upper case, an embedded Calibri bold (the top menu's),
+      // every glyph drawn (each at least 5 px wide), inside the box with 4 px margins and centred
+      // in it both ways to the pixel.
       private function button(w:Object) : void
       {
-         var Panel:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("top_fla.topPanelLeftContainer_56") as Class;
-         var panel:Sprite = new Panel() as Sprite;
-         var b:Object = panel.getChildByName("btn_lobby");
-         trace("FADE lobby button: " + (b == null ? "none" : int(b.x) + "," + int(b.y) + " " + int(b.width) + " x " + int(b.height)
-            + ", '" + label(b) + "'"));
-         if(panel.getChildByName("btn_premium") != null)
-            failures.push("the premium button still in the player panel");
-         if(b == null || b != Object(panel).btn_lobby)
-            failures.push("no lobby button in the player panel");
-         else if(label(b) != "Lobby")
-            failures.push("the lobby button's label not the dictionary's");
-         // drawn at the top left, as the lobby draws it (window.png)
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         var Panel:Class = domain.getDefinition("top_fla.topPanelLeftContainer_56") as Class;
+         var dictionary:Object = domain.getDefinition("survarium.data.LocalizationData");
+         var panel:Sprite = null;
+         // a panel a language (the dictionary's text is read as the panel is made)
+         for each(var language:String in HarnessText.LANGUAGES.concat(["english"]))
+         {
+            dictionary.setData(HarnessText.DATA[language]);
+            panel = new Panel() as Sprite;
+            var b:Object = panel.getChildByName("btn_lobby");
+            var label:Object = panel.getChildByName("lobbyLabel");
+            if(panel.getChildByName("btn_premium") != null)
+               failures.push("the premium button still in the player panel");
+            if(b == null || b != Object(panel).btn_lobby || label == null)
+            {
+               failures.push("no lobby button with its label in the player panel");
+               return;
+            }
+            var text:String = HarnessText.DATA[language]["st_srp_lobby_title"];
+            var f:Object = label.getTextFormat();
+            var dx:Number = label.x + label.width / 2 - (b.x + b.width / 2);
+            var dy:Number = label.y + label.height / 2 - (b.y + b.height / 2);
+            trace("FADE lobby button " + language + ": '" + label.text + "' " + int(label.textWidth) + " x " + int(label.textHeight)
+               + " in " + int(b.width) + " x " + int(b.height) + ", off centre " + dx.toFixed(1) + "," + dy.toFixed(1));
+            if(label.text != text.toUpperCase() || !label.embedFonts || f.font != "Calibri" || !f.bold
+               || label.textWidth < 5 * text.length || label.width > b.width - 8
+               || Math.abs(dx) > 1 || Math.abs(dy) > 1)
+               failures.push("the lobby button's label in " + language + ": '" + label.text + "'");
+         }
+         // the English one drawn at the top left, as the lobby draws it (window.png)
          panel.x = 10;
          panel.y = 4;
          addChild(panel);
-      }
-
-      private function label(b:Object) : String
-      {
-         return b.getChildByName("content").getChildByName("txMoney").text;
       }
 
       private function finish(result:String) : void

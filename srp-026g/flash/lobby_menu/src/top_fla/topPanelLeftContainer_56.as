@@ -61,34 +61,45 @@ package top_fla
       // The owner (2026-10-31): "remove premium button and put lobby button there instead". The
       // premium button (the original's, `btn_premium`, which the timeline places) is taken out and
       // the lobby button takes its place, as wide: a money box of this panel (SrvButtonTop, the
-      // silver's frame, hover and press), the dictionary's label centred where the amount is, no
-      // coin.
+      // silver's frame, hover and press) without its coin and amount, its label the top menu's
+      // look (Calibri bold, its colour, upper case; the amount's own field embeds digits only, so
+      // letters there came out as another font's), a little larger than the amounts, centred both
+      // ways by its measured size.
+      private static const LABEL_SIZE:int = 16;
+      private static const LABEL_COLOUR:uint = 0x9BADC1;
+
       private function placeLobbyButton() : void
       {
          var slot:DisplayObject = getChildByName("btn_premium");
          var button:SrvButtonTop = new SrvButtonTop();
          button.name = "btn_lobby";
+         button.removeChild(button.getChildByName("content"));
          button.x = slot.x;
          button.y = slot.y;
          button.width = slot.width;
-         var content:MovieClip = button.getChildByName("content") as MovieClip;
-         content.removeChild(content.getChildByName("icon"));
-         var label:TextField = content.getChildByName("txMoney") as TextField;
-         var format:TextFormat = label.getTextFormat();
-         format.align = TextFormatAlign.CENTER;
-         label.defaultTextFormat = format;
-         label.x = -content.x;
-         label.width = slot.width;
-         label.mouseEnabled = false;
          addChildAt(button,getChildIndex(slot));
          removeChild(slot);
          this.btn_lobby = button;
+         var label:TextField = new TextField();
+         label.name = "lobbyLabel";
+         label.defaultTextFormat = new TextFormat("Calibri",LABEL_SIZE,LABEL_COLOUR,true);
+         label.embedFonts = true;
+         label.selectable = false;
+         label.mouseEnabled = false;
+         label.multiline = false;
+         label.wordWrap = false;
+         label.autoSize = TextFieldAutoSize.LEFT;
+         addChild(label);
          LocalizationData.addCallback(this.lobbyLabel,"st_srp_lobby_title");
       }
       
+      // The label's text, and its place: the middle of the button's box.
       private function lobbyLabel(text:String) : void
       {
-         TextField(MovieClip(this.btn_lobby.getChildByName("content")).getChildByName("txMoney")).text = text;
+         var label:TextField = getChildByName("lobbyLabel") as TextField;
+         label.text = text.toUpperCase();
+         label.x = Math.round(this.btn_lobby.x + (this.btn_lobby.width - label.width) / 2);
+         label.y = Math.round(this.btn_lobby.y + (this.btn_lobby.height - label.height) / 2);
       }
       
       internal function __setProp_hintButton_topPanelLeftContainer_() : *
