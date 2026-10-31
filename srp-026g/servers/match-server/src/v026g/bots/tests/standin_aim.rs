@@ -7,6 +7,13 @@
 //! read once, which no default reaches. A test names every key of the current default and fails when one is missing from the
 //! file, so a new aim switch is a decision for the camper too (his value, written in the file), not a silent follow of the bots'.
 //! The rest of his tuning (senses, motion, the decisions the stand-in's drive bypasses) is the build's defaults as before.
+//!
+//! The file is the aim of the build it was written in (the far aim of A182 on: the scopes' zoom on the error, the settling and
+//! the shot policy), because that is the one that matches the humans' camper: with the live-like view error the stand-in's bolt
+//! hits 30 % of its shots (172; humans 30.8 %) and kills 9.9 % of the crossings (humans 7.7 %, top quarter 16 %), where the aim
+//! without it hits 15 % and kills 4.7 % (A193, `snip73`, 32 cells an arm, tier 9-10, `AUTO-GUN-HIT-GAP.md`). At tier 13-15 his
+//! marksman rifle hits 28 % against the humans' 19.5 % (a known gap: the far aim is not tuned per class). A change of his play is
+//! a change of this file, measured against the humans' numbers, not a side effect of the bots' defaults.
 
 use super::*;
 use crate::v026g::bots::tuning::AimTuning;
