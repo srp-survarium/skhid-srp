@@ -875,7 +875,8 @@ mod tests {
         let mut me = body(0, 0, Vec3::ZERO, false);
         let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let shape = SmokeGrenade::RDG_M.cloud;
-        let pours = MatchMs(hides_at - crate::v026g::bots::smoke::Forming::of(smoke).ms(&shape));
+        // Hiding by `hides_at`, or from the blast when that is sooner than its forming (smoke from the start).
+        let pours = MatchMs(hides_at.saturating_sub(crate::v026g::bots::smoke::Forming::of(smoke).ms(&shape)));
         view.smoke = Clouds::new(vec![Cloud {
             by: 1,
             team: 1,
