@@ -10,7 +10,7 @@
 > test server is test.skhid.link, `srp-026g/deploy/test-server/README.md`). A
 > real client first signed in that morning, and matches
 > between real players have run since 08:13 UTC. What they showed and what was
-> fixed is in `srp-026g/WORK.md` (newest at the top) and OPEN-ISSUES.md. Until
+> fixed is in `srp-026g/WORK.md` (newest at the top). Until
 > that day everything was from disassembly, the game's data, scripted clients
 > and tests, and much of it still is: where a line below says LIKELY, or "not
 > seen with a real client", it means that. A local test with one game and a
@@ -438,8 +438,7 @@ servers only, so a switch would have nothing to switch.
 
 ## What is implemented, and what is refused
 
-Implemented (coded and tested; what live play has shown so far is in
-OPEN-ISSUES.md, "0.26g"):
+Implemented (coded and tested):
 
 | Area | State |
 |---|---|
@@ -454,8 +453,7 @@ OPEN-ISSUES.md, "0.26g"):
 | Operator | The web page above; the operator's text |
 
 Coded on 2026-10-12 and tested; most of it not looked at with a real client
-yet (`WORK.md` has each one's entry; what each message gets is in
-`srp-026g/docs/notes/coverage.md`):
+yet (`WORK.md` has each one's entry):
 
 | Area | Notes |
 |---|---|
@@ -526,8 +524,7 @@ with it `value << 20`), and `-minimum_resources_memory_size=<MiB>` is the
 floor of the resources arenas (option object 0xA83080, a float read at
 0xE9966, default 0x150 = 336 MiB). Neither covers the other. Upstream
 (`origin/feature/server-026g`, live under Wine) ran out of the 376 MiB arena
-while loading a map and fixed it with `-mt_allocator=768`
-(`upstream_compare.md` §10). Both keys together are what the players' start
+while loading a map and fixed it with `-mt_allocator=768`. Both keys together are what the players' start
 file and the shortcuts use, and maps load with them (live since 2026-10-12).
 
 Start the game from its `game\binaries\x86` folder (the client finds its
@@ -622,33 +619,3 @@ The compose file's defaults are another block of ports (2234/tcp, 2235/udp,
 beside a 0.21d server on one host without sharing a name, a volume or a port
 with it; that way was not taken. Both ways, and what each needs, are in
 `srp-026g/docs/DEPLOY.md`.
-
-## The cross-check: upstream's 0.26g branch
-
-Upstream has its own 0.26g work: branch `origin/feature/server-026g` of the
-`srp` repo (`srp`, commit `8204c88b7`). It is a **dev match
-server with a fixed roster**: no lobby service, no matchmaking, no accounts.
-But it was **live-tested with real 0.26g clients, under Wine** (Linux; never
-on Windows), before ours had met a real client.
-
-`srp-026g/docs/notes/upstream_compare.md` sets their findings
-against our notes and code, topic by topic, with the strength of each piece
-of evidence (live, oracle, static) and a list of recommended changes. The
-points it raised before our first live session:
-
-- the launch line needs `-mt_allocator=768` (done in `make_client_026g.py`,
-  the web page, the docs and the shortcuts);
-- the client joins messages into one datagram by default (our transport
-  note said it does not);
-- after a resync, a client's own inputs must not be replayed to it;
-- an unfocused client can stall for close to a minute (Wine evidence), and
-  our match server drops a silent client after 10 s. The lobby link is
-  ticked by the client in every state, focus or not (transport.md §6.1);
-  the lobby drops a silent link after 30 s (120 s in a match) and keeps
-  the session a minute more for the client's own reconnect
-  (`SRP_LOBBY_LINK_TIMEOUT_SECONDS`, `SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS`,
-  `SRP_LOBBY_SESSION_GRACE_SECONDS`);
-- under Wine only, the client dies in `qwave.dll` when it connects to the
-  lobby.
-
-The match server points were applied on 2026-10-12 (`WORK.md`).

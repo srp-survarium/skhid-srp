@@ -17,4 +17,4 @@ PR #691, revised 2026-10-28 after the owner asked to preserve normal play.
 - `kill_cap.rs` applies the limit; `reward_caps::Payment` owns its payment-only copy and applies
   it before the Research allowance. Unpaid feeding kills do not buy more Research objective pay.
 - Active opponents can also collude, and a legitimate player can repeatedly kill a passive
-  opponent. This deliberately conservative heuristic does not prove intent. See `farm_cap_audit.md`.
+  opponent. This deliberately conservative heuristic does not prove intent.

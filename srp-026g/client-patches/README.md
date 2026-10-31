@@ -3696,7 +3696,7 @@ site from the game's code on the game's own static baker:
 - A defect of the client itself is known and not patched: an input with the
   "previous weapon" bit from a player who holds something other than its two
   weapons can crash every client of a match
-  (`../docs/OPEN-ISSUES.md`, 26-24).
+  (`../docs/notes/match.md` §20).
 
 ## Language in Settings (patch 79)
 

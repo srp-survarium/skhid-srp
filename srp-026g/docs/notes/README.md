@@ -80,7 +80,6 @@ given), LIKELY or GUESS.
 | [kill-feed-icons.md](kill-feed-icons.md) | The kill feed's wall, ricochet and pain icons (the owner, 2026-10-25): weapon, wall or ricochet (0.69d0's icons and rules), pain (a white lightning bolt for pain shock), cause; when each shows (exe patch 67, the hud movie) |
 | [baked-textures.md](baked-textures.md) | Freezes in a match from camouflage and decal bakes (2026-10-25): why every game baked again (the stock delete of `streamed_textures`) and each player object baked the same textures again; the rules of exe patch 70 (the folder kept per revision, one bake or load for many queries) |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
-| [dynamic_anomalies.md](dynamic_anomalies.md) | **Not shipped** (taken out of revision 31, the owner, 2026-10-23: the pre-built cores overflow the saved world; redesign pending; the code is on `feat/dynamic-anomalies`). Dynamic anomalies as the release had them, on London and Cologne only (the owner, 2026-10-22; they charge, hurt, hold an artefact and go when it is taken; 27 places on London, 29 on Cologne; every other map static): the release's code, 0.26g's, the design, the rules, the maps, the server (exe patch 42 and a resources.db patch) |
 | [death-camera.md](death-camera.md) | The camera on the death screen: a held mouse button turns the view from the corpse's eyes, the wheel does nothing (the owner, 2026-10-21; exe patch 46) |
 | [ragdoll.md](ragdoll.md) | **Being built (patch 76, not run in a game).** Ragdolls on death (the owner, 2026-10-25): 0.26g has no joints in its Bullet; corpses are out of the simulation's physics; option C3, a visual-only XPBD ragdoll (crate `ragdoll`) reading the level by ray_test; phase 2: the bone array, the queries, the death key (+328h), the eye (+44Ch is "Item"), the battery, the cull, the threads; the Bodycam recipe; tests and costs |
 | [death-eyes.md](death-eyes.md) | The view fading on the death screen (the owner, 2026-10-26): over the respawn countdown, at its speed, the view loses brightness and colour under a narrowing vignette, three faint heartbeat dims, never fully dark, clear at once at the respawn; how the hud knows the time (the hud movie) |
@@ -106,10 +105,8 @@ given), LIKELY or GUESS.
 | [breakable_lamps.md](breakable_lamps.md) | Breakable lamps |
 | [buy-gold.md](buy-gold.md) | "Get Gold" opens the exchange |
 | [buy-modified.md](buy-modified.md) | Buy from a modified item's right-click menu |
-| [coverage.md](coverage.md) | What the client can send, and what srp does with it (2026-10-12 audit) |
 | [death-poses.md](death-poses.md) | Death poses |
 | [exchange.md](exchange.md) | The exchange window: amounts |
-| [farm_cap_audit.md](farm_cap_audit.md) | PR #691: farming pay limits |
 | [held_artefact_transfer.md](held_artefact_transfer.md) | Held artefact transfer (patch 78) |
 | [hide-ui-key.md](hide-ui-key.md) | A key that hides the interface |
 | [kill_cap.md](kill_cap.md) | Repeated-kill payment limit |
@@ -133,7 +130,6 @@ given), LIKELY or GUESS.
 | [serbia-flag.md](serbia-flag.md) | The Flag of Serbia decal |
 | [snapshot_rules.md](snapshot_rules.md) | The snapshot's game rules and statistics blobs |
 | [tab-list-left-places.md](tab-list-left-places.md) | The Tab list shows the places in the match (patches 39, 43) |
-| [upstream_compare.md](upstream_compare.md) | Upstream's match server against our notes and code |
 | [vegetation-runtime.md](vegetation-runtime.md) | Runtime vegetation |
 | [../DEPLOY.md](../DEPLOY.md) | The Docker files for the 0.26g server beside the live 0.21d one (ports table), certificates, the players' overlay |
 

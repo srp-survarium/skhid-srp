@@ -5,15 +5,6 @@
 > here is 0.26g's. The 0.21d facts are in CLIENT-FACTS-021D.md; do not mix
 > them: no 0.21d message is wire-compatible with 0.26g.
 
-> **Status, 2026-10-12.** The facts on this page come from reading the exe
-> and `resources.db`, from scripted clients and from tests; each says how
-> sure it is (PROVEN, LIKELY, GUESS). Since that day the server is live and
-> real clients play on it (SRP-026G.md); a fact that live play confirmed or
-> corrected says so, and `srp-026g/WORK.md` has the day's findings. The
-> players' exe is the full patch (section build, 50 ms hash interval); its
-> upload code runs in every live match. It does not have the battery rule
-> patch of that evening yet (the table of patch sites below).
-
 Addresses are virtual addresses in `survarium.exe` 0.26g (image base
 0x10000; `.text` VA 0x11000 = file 0x400, so file offset = VA − 0x10C00 in
 `.text`). Each fact keeps the tag its note gives it: **PROVEN** (read in the
@@ -79,7 +70,7 @@ How names were found:
 | `-splash_screen=0` | no splash (0.21d: `-no_splash_screen`) | used in the shortcut | |
 | `-localization=ukrainian` | language. The client maps russian, english, ukrainian, german, polish to its chat room and language byte | used in the shortcut; mapping PROVEN | login_chat.md §5.6 |
 | `-minimum_resources_memory_size=<MiB>` | The floor of the resources arenas: option object 0xA83080, a float read at 0xE9966; default 0x150 = 336 MiB. PROVEN (read 2026-10-12) | used in the shortcut (768) | |
-| `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768 | **not in the shortcut yet**; in `make_client_026g.py` and the web page | `upstream_compare.md` §10 |
+| `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768 | **not in the shortcut yet**; in `make_client_026g.py` and the web page | SRP-026G.md |
 | `-account_name=`, `-account_password=` | fill in the login (key objects 0xAA4910, 0xAA4B40) | PROVEN; that the launcher passes them LIKELY | login_chat.md §1 |
 | `-spectator` | "connect as spectator" | PROVEN it exists | login_chat.md §1 |
 | `-hash_check_interval_in_ms=N` | world hash interval; default 100 (0x27CC4F), option object 0xAA19F8 | PROVEN; the `=N` form LIKELY, not tried | match.md §14 |
@@ -389,7 +380,7 @@ PROVEN in the exe on 2026-10-12 unless tagged.
   tests `[inventory+0x1C8]`, 0x40 bytes past the end of the 0x188-byte
   inventory object, and calls through it when it is not 0. Bit 25 (action
   0x24) takes slot 7 in the same case and is safe. No fix is applied;
-  OPEN-ISSUES.md 26-24.
+  match.md §20.
 - The kit byte of a profile input is checked (0x321790).
 - **A game whose first world is a Team Deathmatch in play has the tickets
   of the start in its statistics** (`tickets_count` each, and a draw),
