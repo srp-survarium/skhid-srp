@@ -1,4 +1,4 @@
-//! Patch 45's camera flight (client_patch.md section 3.42, round 7): a
+//! Patch 45's camera flight (client_patch.md section 3.42, round 8): a
 //! weapon's upgrade window flies the lobby camera to the lobby's weapon
 //! spot, and its close flies it back.
 //!
@@ -9,7 +9,8 @@
 //! This is the flight alone, at `lobby_camera.view` every tick:
 //!
 //! - the eye moves on a straight line from where it is to where it goes
-//!   (over a character's head where the line comes within 0.9 m of one),
+//!   (arced over a character's head where the line comes within 0.9 m of
+//!   one: one arc over the whole flight, round 8),
 //!   the yaw, the pitch, the distance, the side angle and the zoom with it,
 //!   all by one smoothstep over [`DURATION`]: no cut, no start or stop at
 //!   full speed; the eye of either end is in the room, and so is the line
@@ -34,7 +35,8 @@ use ragdoll::math::{PI, Vec3, clamp};
 
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, StepTargets, Steps, TableRequest,
                                   WeaponTableState, forward};
-use crate::vostok::{Context, Flow, GameCell, NoExit};
+use crate::vostok::trace::{self, TraceFile};
+use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
 
 /// How long a flight takes (s).
 pub const DURATION: f32 = 0.45;
@@ -132,39 +134,53 @@ fn nearest_turn(from: f32, to: f32) -> f32 {
     from + d
 }
 
-/// The pose a share `s` of the way: the eye on the straight line between
-/// the two eyes (over a character's head where the line comes near one),
-/// the yaw (its nearest turn), the pitch, the distance, the side angle and
-/// the zoom by the same share; the point where that view looks from that eye.
 /// Where the lobby's characters stand (the exe's: the own at the origin, the
 /// squad panels' at (+-1, 0, 0.5); 0x21CCD2, 0x21CD33, 0x21CD94), on the floor.
 const CHARACTERS: [(f32, f32); 3] = [(0.0, 0.0), (1.0, 0.5), (-1.0, 0.5)];
-/// An eye nearer a character than this (across the floor) goes over its head.
+/// A line nearer a character than this (across the floor) goes over its head.
 const CLEAR: f32 = 0.9;
 /// The eye's height over a character's head (a character is about 1.85 m tall).
 const OVER: f32 = 2.25;
+/// The arc's top at most this high (the rooms' ceilings are above 2.6 m).
+const TOP: f32 = 2.5;
 
-/// How far the eye of the straight line must rise at `s` to pass over the
-/// characters (the camp's spot is behind the character: the line went
-/// through it, the game's capture of 2026-10-30): a smooth bump where the eye
-/// comes within CLEAR of one, none at either end.
-fn lift(eye: Vec3, s: f32) -> f32 {
-    let near = CHARACTERS
+/// How high the eye's path arcs over the straight line between two eyes: the
+/// whole flight rises and falls by `height * 4 s (1 - s)`, and the height is
+/// the least that takes the eye over every character the line passes within
+/// CLEAR of (at its share of the way there; the camp's spot is behind the
+/// character: the line went through it, the game's capture of 2026-10-30).
+/// One smooth arc over the whole flight: round 7 raised the eye in a bump
+/// only where it came near a character, 0.8 m up and down within a tenth of
+/// a second, the jump the owner saw in the Room (2026-10-31).
+fn arc_height(from: Vec3, to: Vec3) -> f32 {
+    let (dx, dz) = (to.x - from.x, to.z - from.z);
+    let across = dx * dx + dz * dz;
+    let height = CHARACTERS
         .iter()
         .map(|&(x, z)| {
-            let (dx, dz) = (eye.x - x, eye.z - z);
-            let u = clamp(1.0 - (dx * dx + dz * dz) / (CLEAR * CLEAR), 0.0, 1.0);
-            u * u
+            let s = if across > 1e-6 { clamp(((x - from.x) * dx + (z - from.z) * dz) / across, 0.0, 1.0) } else { 0.0 };
+            let at = from.lerp(to, s);
+            let (ex, ez) = (at.x - x, at.z - z);
+            let near = clamp(1.0 - (ex * ex + ez * ez) / (CLEAR * CLEAR), 0.0, 1.0);
+            let rise = (OVER - at.y) * near * near;
+            // the arc gives 4 s (1 - s) of its height there; near either end
+            // at least a quarter (an eye that starts beside a head stays low)
+            if rise > 0.0 { rise / clamp(4.0 * s * (1.0 - s), 0.25, 1.0) } else { 0.0 }
         })
         .fold(0.0, |a: f32, b| if b > a { b } else { a });
-    let ends = clamp(6.0 * s * (1.0 - s), 0.0, 1.0);
-    let rise = OVER - eye.y;
-    if rise > 0.0 { rise * near * ends } else { 0.0 }
+    let middle = (from.y + to.y) * 0.5;
+    clamp(height, 0.0, if TOP > middle { TOP - middle } else { 0.0 })
 }
 
+/// The pose a share `s` of the way: the eye on the straight line between
+/// the two eyes, raised by one arc over the whole way where the line passes a
+/// character ([`arc_height`]), the yaw (its nearest turn), the pitch, the
+/// distance, the side angle and the zoom by the same share; the point where
+/// that view looks from that eye.
 fn between(from: &CameraPose, to: &CameraPose, s: f32) -> CameraPose {
-    let line = from.eye().lerp(to.eye(), s);
-    let eye = Vec3::new(line.x, line.y + lift(line, s), line.z);
+    let (a, b) = (from.eye(), to.eye());
+    let line = a.lerp(b, s);
+    let eye = Vec3::new(line.x, line.y + arc_height(a, b) * 4.0 * s * (1.0 - s), line.z);
     let yaw = from.yaw + (nearest_turn(from.yaw, to.yaw) - from.yaw) * s;
     let pitch = from.pitch + (to.pitch - from.pitch) * s;
     let distance = from.distance + (to.distance - from.distance) * s;
@@ -279,9 +295,82 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Action::Hold(pose) => camera.set(&pose, Steps::Held),
         Action::Release(pose) => camera.set(&pose, Steps::Released),
     }
+    if let Action::Hold(pose) | Action::Release(pose) = action {
+        trace_pose(thread, dt, &flight, &pose);
+    }
     table.set_flight(flight.word());
     STATE.set(thread, State { flight, answered });
     Flow::Continue
+}
+
+/// A diagnostics build's trace of the flight (never a release's): a line of
+/// `srp_weapon_flight.csv` in the user data folder for every tick the flight
+/// gives the camera a pose: the tick's time (ms), the eye and the point (mm),
+/// the yaw and the pitch (mrad), the distance (mm) and the state (0 to the
+/// bench, 1 at it, 2 home, 3 landed, 4 stock), for checking the path frame by
+/// frame.
+fn trace_pose(thread: &Thread, dt: f32, flight: &Flight, pose: &CameraPose) {
+    static LOG: GameCell<Option<TraceFile>> = GameCell::new(None);
+    if !trace::enabled() {
+        return;
+    }
+    let file = match LOG.get(thread) {
+        Some(file) => file,
+        None => {
+            let Some(file) = TraceFile::open(thread, "srp_weapon_flight.csv") else { return };
+            LOG.set(thread, Some(file));
+            file
+        }
+    };
+    let state = match flight {
+        Flight::ToBench { .. } => 0,
+        Flight::AtBench { .. } => 1,
+        Flight::Home { .. } => 2,
+        Flight::Landed { .. } => 3,
+        Flight::Stock => 4,
+    };
+    let eye = pose.eye();
+    let thousand = |v: f32| if v >= 0.0 { (v * 1000.0 + 0.5) as i32 } else { (v * 1000.0 - 0.5) as i32 };
+    let values = [thousand(dt), thousand(eye.x), thousand(eye.y), thousand(eye.z), thousand(pose.point.x),
+                  thousand(pose.point.y), thousand(pose.point.z), thousand(pose.yaw), thousand(pose.pitch),
+                  thousand(pose.distance), state];
+    let mut line = [0u8; 160];
+    let mut n = 0;
+    for (k, v) in values.iter().enumerate() {
+        if k > 0 {
+            line[n] = b',';
+            n += 1;
+        }
+        n = decimal(&mut line, n, *v);
+    }
+    line[n] = b'\n';
+    file.write(thread, &line[..n + 1]);
+}
+
+/// `v` in decimal into `out` at `n`; the end.
+fn decimal(out: &mut [u8], n: usize, v: i32) -> usize {
+    let mut n = n;
+    if v < 0 {
+        out[n] = b'-';
+        n += 1;
+    }
+    let mut digits = [0u8; 10];
+    let mut k = 0;
+    let mut u = v.unsigned_abs();
+    loop {
+        digits[k] = b'0' + (u % 10) as u8;
+        k += 1;
+        u /= 10;
+        if u == 0 {
+            break;
+        }
+    }
+    while k > 0 {
+        k -= 1;
+        out[n] = digits[k];
+        n += 1;
+    }
+    n
 }
 
 #[cfg(test)]

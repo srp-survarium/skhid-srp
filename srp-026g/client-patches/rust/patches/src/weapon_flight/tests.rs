@@ -32,6 +32,21 @@ fn fly(mut flight: Flight, target: f32, limit: usize, done: impl Fn(&Flight) -> 
     (out, flight)
 }
 
+/// No jolt: the eye's velocity changes from one tick to the next by no more
+/// than the smoothstep's own over the way (its acceleration at most 6 L / T^2)
+/// and a little for the arc (round 7's bump over a character changed the
+/// height's velocity by 0.31 m a tick in the Room, the owner's jump of
+/// 2026-10-31; the arc's by 0.03).
+fn assert_smooth(eyes: &[Vec3]) {
+    let way = dist(*eyes.last().unwrap(), eyes[0]);
+    let allowed = 6.0 * way * (DT / DURATION) * (DT / DURATION) * 1.1 + 0.035;
+    let v: Vec<Vec3> = eyes.windows(2).map(|w| w[1] - w[0]).collect();
+    for (n, w) in v.windows(2).enumerate() {
+        let jolt = dist(w[1], w[0]);
+        assert!(jolt < allowed, "tick {n}: the velocity changed by {jolt} m a tick (at most {allowed})");
+    }
+}
+
 fn posed(a: &Action) -> CameraPose {
     match a {
         Action::Hold(p) | Action::Release(p) => *p,
@@ -57,8 +72,8 @@ fn to_the_bench_on_a_straight_line_eased_and_exactly_there() {
     let axis = e1 - e0;
     let mut eyes = vec![e0];
     eyes.extend(actions.iter().map(|a| posed(a).eye()));
-    // across the floor on the line; up only where it passes over a character (here the squad's
-    // right member's spot, 0.9 m)
+    // across the floor on the line; up by one arc where it passes over a character (here the
+    // squad's right member's spot, 0.9 m)
     let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z);
     let (f0, faxis) = (flat(e0), flat(axis));
     let flen = dist(flat(e1), f0);
@@ -67,8 +82,9 @@ fn to_the_bench_on_a_straight_line_eased_and_exactly_there() {
         let off = dist(flat(*e), f0 + faxis * (along / flen));
         assert!(off < 1e-4, "off the line by {off}");
         let on = e0 + axis * (along / flen);
-        assert!(e.y >= on.y - 1e-4 && e.y <= OVER + 1e-4, "{} against {}", e.y, on.y);
+        assert!(e.y >= on.y - 1e-4 && e.y <= TOP + 1e-4, "{} against {}", e.y, on.y);
     }
+    assert_smooth(&eyes);
     let steps: Vec<f32> = eyes.windows(2).map(|w| dist(w[1], w[0])).collect();
     let top = steps.iter().cloned().fold(0.0, f32::max);
     let peak = steps.iter().position(|s| *s == top).unwrap();
@@ -206,7 +222,44 @@ fn a_line_through_a_character_goes_over_its_head() {
         }
     }
     let steps: Vec<f32> = eyes.windows(2).map(|w| dist(w[1], w[0])).collect();
-    assert!(steps.iter().all(|s| *s < 0.6), "no jump: {steps:?}");
+    assert!(steps.iter().all(|s| *s < 0.35), "no jump: {steps:?}");
+    assert_smooth(&eyes);
     assert_eq!(posed(actions.last().unwrap()), view.at(1.2), "exactly there");
 }
 
+
+#[test]
+fn every_lobby_flight_is_smooth_there_and_back() {
+    // the four lobbies' spots (their projects' srp_lobby), from the stock start and from round
+    // the orbit, there and back
+    let spots = [
+        (Vec3::new(4.25, 1.3, 3.05), -PI / 2.0),
+        (Vec3::new(-1.6, 1.37, 3.255), PI / 2.0),
+        (Vec3::new(2.289, 1.24, 3.925), -2.3562),
+        (Vec3::new(-0.95, 1.35, -0.8), 0.0),
+    ];
+    for (point, yaw) in spots {
+        let view = BenchView { point, yaw, pitch: -0.25, side: 0.37, zoom: 1.0 };
+        for k in 0..12 {
+            let start = pose(Vec3::new(0.0, 1.2, 0.0), k as f32 * PI / 6.0, 0.0, if k % 2 == 0 { 1.96 } else { 3.5 });
+            let (flight, _) = Flight::Stock.step(Event::Asked { goal: Goal::Bench { view, distance: 1.2 }, now: start });
+            let (actions, _) = fly(flight, 1.2, 200, |f| matches!(f, Flight::AtBench { .. }));
+            let mut eyes = vec![start.eye()];
+            eyes.extend(actions.iter().map(|a| posed(a).eye()));
+            assert_smooth(&eyes);
+            // over the heads on the way (an end beside one is where the stock camera put it)
+            let (first, last) = (eyes[0], *eyes.last().unwrap());
+            for e in eyes.iter().filter(|e| dist(**e, first) > CLEAR && dist(**e, last) > CLEAR) {
+                for (x, z) in CHARACTERS {
+                    let across = ((e.x - x) * (e.x - x) + (e.z - z) * (e.z - z)).sqrt();
+                    assert!(across > 0.4 || e.y > 1.85, "the eye {e:?} in a character at ({x}, {z})");
+                }
+            }
+            let (flight, _) = Flight::AtBench { view, distance: 1.2 }.step(Event::Asked { goal: Goal::Home(start), now: view.at(1.2) });
+            let (actions, _) = fly(flight, 1.96, 200, |f| matches!(f, Flight::Landed { .. }));
+            let mut eyes = vec![view.at(1.2).eye()];
+            eyes.extend(actions.iter().map(|a| posed(a).eye()));
+            assert_smooth(&eyes);
+        }
+    }
+}
