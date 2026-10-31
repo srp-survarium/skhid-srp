@@ -117,6 +117,8 @@ goto end
 rem --- undo ------------------------------------------------------------
 :undo
 for %%P in (%PROGRAMS%) do call :remove %%P
+rem The Defender exclusion it once added is Skhid-defender-setup.cmd's to undo.
+if exist "%TOP%\Skhid-network-setup.defender" echo Defender: исключение папки игры удаляет Skhid-defender-setup.cmd --undo
 echo.
 echo Готово.
 goto end

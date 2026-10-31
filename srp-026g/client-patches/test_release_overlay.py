@@ -119,6 +119,18 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.build(refused, '--localization=polish')
 
+    def test_without_the_updater_the_game_starts_as_the_launcher_starts_it(self):
+        output = self.root / 'default'
+        self.build(output)
+        alone = (output / overlay.WITHOUT_UPDATER).read_text(encoding='ascii')
+        # The launcher's arguments, and nothing about the language (patch 79
+        # sets it).
+        [start] = [line for line in alone.splitlines() if line.startswith('start ')]
+        self.assertEqual(start, 'start "" survarium_skhid.exe ' + self.launcher.call_args.kwargs['arguments'])
+        self.assertEqual(start, 'start "" ' + overlay.launch_line('release.example:2234', embedded=True))
+        self.assertNotIn('localization', alone.lower())
+        self.assertNotIn('LANGUAGE', alone)
+
     def test_folder_and_zip_ship_identical_player_files(self):
         folder, archive = self.root / 'overlay', self.root / 'release.zip'
         self.build(folder)
@@ -588,7 +600,11 @@ class ReleaseTests(unittest.TestCase):
         # reads it: test_the_defender_marker_keeps_every_letter), in the
         # elevated run too.
         marker = top / 'Skhid-network-setup.defender'
+        pointer = 'Defender: исключение папки игры удаляет Skhid-defender-setup.cmd --undo'
+        self.assertNotIn(pointer, setup('--dry-run', '--undo'))
         marker.write_bytes(b'\xef\xbb\xbf' + x86.encode())
+        # The network setup, which made it once, says which file removes it.
+        self.assertIn(pointer, setup('--dry-run', '--undo'))
         undone = defender('--dry-run', '--undo')
         shown(commands(undone),
               [f'[dry-run] powershell Remove-MpPreference -ExclusionPath (the path in "{top_windows}'

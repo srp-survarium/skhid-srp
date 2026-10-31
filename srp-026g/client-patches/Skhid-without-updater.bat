@@ -1,52 +1,60 @@
 @echo off
 rem Installs Survarium 0.26g and Skhid, keeps them updated, and starts the game.
 rem No launcher, no updater. Put it in an empty folder (or the game's folder,
-rem the one that holds the folder named game) and start it. Windows 10 or later.
-rem Game language: english, russian, ukrainian, german, polish or serbian.
-rem Left empty, it is the language of Windows (english for any other).
-set LANGUAGE=
-set URL=https://skhid.link
+rem the one that holds the folder named game) and start it. Windows 10 1803 or
+rem later (its curl and tar).
 set GAME_URL=https://drive.usercontent.google.com/download?id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK^&export=download^&confirm=t
 set GAME_SHA=7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028
 cd /d "%~dp0"
+rem The server: the one updater_skhid.url names, as for the updater.
+set URL=https://skhid.link
+if exist "game\binaries\x86\updater_skhid.url" set /p URL=<"game\binaries\x86\updater_skhid.url"
 rem A second double-click while this window runs says so and stops: this one
-rem holds skhid-install.lock open until it ends.
+rem holds skhid-install.lock open while it installs (not the game, started
+rem after it).
 set STARTED=
 9>"skhid-install.lock" call :main
-if defined STARTED exit /b
+if not defined STARTED goto locked
+if errorlevel 1 exit /b 1
+
+rem 4. Play, as the launcher starts the game (the language is the game's own).
+rem It must start in game\binaries\x86: the game finds its certificate from there.
+cd /d "game\binaries\x86"
+start "" survarium_skhid.exe -mt_allocator=768 -minimum_resources_memory_size=768
+exit /b 0
+
+:locked
 echo Skhid is already being installed in another window. Wait for it to finish.
 pause
 exit /b 1
 
 :main
 set STARTED=1
+where /q curl.exe || goto old_windows
+where /q tar.exe || goto old_windows
 
-if defined LANGUAGE goto language_done
-set LANGUAGE=english
-set SYS_LANG=
-for /f %%l in ('powershell -NoProfile -Command "(Get-UICulture).TwoLetterISOLanguageName"') do set SYS_LANG=%%l
-if "%SYS_LANG%"=="ru" set LANGUAGE=russian
-if "%SYS_LANG%"=="uk" set LANGUAGE=ukrainian
-if "%SYS_LANG%"=="de" set LANGUAGE=german
-if "%SYS_LANG%"=="pl" set LANGUAGE=polish
-if "%SYS_LANG%"=="sr" set LANGUAGE=serbian
-:language_done
-
-rem 1. The Skhid files, when the server has new ones.
+rem 1. The Skhid files, when the server has new ones or one of them is gone
+rem (an antivirus deletes them): skhid-files.txt holds the ZIP's sha256 and,
+rem below it, the ZIP's files.
 set FILES_SHA=
 set HAVE_SHA=
 for /f "tokens=1,2" %%a in ('curl.exe -fsS "%URL%/api/client-files"') do if "%%a"=="sha256" set FILES_SHA=%%b
 if not defined FILES_SHA goto no_server
-if exist "game\binaries\x86\skhid-files.sha256" set /p HAVE_SHA=<"game\binaries\x86\skhid-files.sha256"
-if "%HAVE_SHA%"=="%FILES_SHA%" goto files_done
+set LIST=game\binaries\x86\skhid-files.txt
+if exist "%LIST%" set /p HAVE_SHA=<"%LIST%"
+if not "%HAVE_SHA%"=="%FILES_SHA%" goto files_get
+for /f "usebackq skip=1 delims=" %%f in ("%LIST%") do if not exist "%%~ff" goto files_get
+goto files_done
+:files_get
 echo Downloading the Skhid files...
 curl.exe -fL -o skhid-files.zip "%URL%/download" || goto failed
 call :sha skhid-files.zip %FILES_SHA% || goto failed
 rem Not this file (cmd reads on in a running script from where it was: a new
 rem one would be read wrongly), nor the updater (the file antivirus deletes).
 tar -xf skhid-files.zip --exclude Skhid-without-updater.bat --exclude updater_skhid.exe || goto failed
+(echo %FILES_SHA%& tar -tf skhid-files.zip --exclude Skhid-without-updater.bat --exclude updater_skhid.exe) > "%LIST%.part" || goto failed
+move /y "%LIST%.part" "%LIST%" >nul || goto failed
 del skhid-files.zip
-> "game\binaries\x86\skhid-files.sha256" echo %FILES_SHA%
 :files_done
 
 rem 2. The original game, when it is missing: 2.9 GB download, about 10 GB free needed.
@@ -75,10 +83,6 @@ del "%ARCHIVE%"
 rem 3. resources.db's patches: exactly the ones the server lists.
 echo Checking the game's patches...
 powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $json = (curl.exe -fsS '%URL%/patches') -join ''; if ($LASTEXITCODE -ne 0 -or -not $json) { throw 'Cannot get the patch list' }; $list = $json | ConvertFrom-Json; $keep = @(); foreach ($p in $list.PSObject.Properties) { $f = 'game\resources.db.' + $p.Name; $keep += 'resources.db.' + $p.Name; $h = $p.Value.sha256; if ((Test-Path $f) -and (Get-FileHash $f).Hash -eq $h) { continue }; $ok = $false; foreach ($u in (@($p.Value.urls) + @($p.Value.url) | Where-Object { $_ })) { Write-Host ('Downloading ' + $p.Name + '...'); curl.exe -fL -o ($f + '.part') $u; if ($LASTEXITCODE -eq 0 -and (Get-FileHash ($f + '.part')).Hash -eq $h) { Move-Item -Force ($f + '.part') $f; $ok = $true; break } }; if (-not $ok) { throw ('Cannot download ' + $p.Name) } }; Get-ChildItem 'game\resources.db.patch_*' | Where-Object { $keep -notcontains $_.Name } | Remove-Item" || goto failed
-
-rem 4. Play. It must start in game\binaries\x86: the game finds its certificate from there.
-cd /d "game\binaries\x86"
-start "" survarium_skhid.exe -localization=%LANGUAGE% -mt_allocator=768 -minimum_resources_memory_size=768
 exit /b 0
 
 rem Exit code 0 when the file's SHA-256 is the expected one.
@@ -88,6 +92,12 @@ exit /b %errorlevel%
 
 :no_server
 echo Cannot reach %URL%. Check the internet connection, or see VPN.txt.
+pause
+exit /b 1
+
+:old_windows
+echo This file needs Windows 10 version 1803 or later (its curl and tar).
+echo Update Windows, or start Skhid.bat (the launcher) instead.
 pause
 exit /b 1
 
