@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run patch 86 (rust/patches/src/tab_cursor.rs, its lohooks of tab_cursor.toml:
-a cursor over the Tab list, and a friend request from its rows;
-docs/notes/tab-cursor-friends.md) in the default build on made-up game
+a cursor over the Tab list, and a friend request and a chat mute from its
+rows; docs/notes/tab-cursor-friends.md, chat-mute.md) in the default build on made-up game
 objects, the original beside it.
 
     python check_tab_cursor_026g.py <original survarium.exe>
@@ -10,7 +10,7 @@ Requires Python `unicorn`. check_blackout_026g.py's harness (itself
 check_hide_ui_026g.py's: Scaleform's Invoke 0x511600 and show_cursor 0x23A930
 stubs that record each call, the clock's imports a counter of the case's).
 Stubbed besides: messaging_client::send_important_message (0x26AFB0, recorded,
-`ret 0Ch`).
+`ret 0Ch`) and lobby_client::comment_about_user (0x274470, recorded, `ret 10h`).
 
 - the game world's keys (game_world::on_keyboard_action 0x25CD00, from its
   start to past the patch's span 0x25CD09 or to its return): Ctrl pressed
@@ -22,13 +22,21 @@ Stubbed besides: messaging_client::send_important_message (0x26AFB0, recorded,
   and stack as the original's, which takes none and calls nothing;
 - the hud movie's calls (game_world_ui::scaleform_callback 0x233D30 to its
   return): `srp_player_menu(place)` answers root.srp_player_menu(place,
-  offer), the offer 1 only for a place of the match that is not the
-  account's own name nor a friend's (ASCII case ignored);
+  add_friend, mute, muted), add_friend 1 only for a place of the match that
+  is not the account's own name nor a friend's (ASCII case ignored), mute 1
+  for one that is not the own name (a friend's too), muted the player's
+  state by the lobby's ignore list (0 not on it, 1 hidden, 2 its id marked
+  with bit 31: shown as <muted>);
   `srp_add_friend(place)` sends the lobby's friend request (the messaging
   client, the place's name, type 0, "") when it is offered, the lobby
   connection's state 0 or 4 and the lobby's allowance has one (five at once,
   one more every 10 s), and answers
-  root.srp_friend_request(place, sent); a place that is not a number answers
+  root.srp_friend_request(place, sent); `srp_chat_mute(place, choice)` sends
+  the lobby's chat mute (the lobby client, the place's name, kind 254, the
+  choice 0, 1 or 2 as the mode) when the place is not the own name, the choice
+  one of the three and not the player's state already, and the lobby
+  connection's state 0 or 4, and answers
+  root.srp_chat_mute(place, sent); a place that is not a number answers
   nothing; both return as the function does (`ret 10h`); an unknown method
   goes on to the original's dispatch in both builds; the original answers
   and sends nothing;
@@ -48,6 +56,7 @@ import check_blackout_026g as blackout
 KEY_START, KEY_PAST = 0x25CD00, 0x25CD09     # on_keyboard_action's start, past the patch's span
 CALLBACK = 0x233D30
 SEND = 0x26AFB0
+COMMENT = 0x274470
 LIST, CURSOR, KITS = 0xBA, 0x2DC, 0x2DF        # the hud's flags
 HUD = hide.HANDLER + 4                          # the hud inside the game world's input handler
 TAB, LCTRL, RCTRL, W = 0x0F, 0x1D, 0x9D, 0x11
@@ -61,6 +70,8 @@ LOBBY = NC + 0x1E0
 MESSAGING = LOBBY + 0x1E56C4
 PLACES = ["sheep", "Wolf", "Bear", "Fox"]
 OWN, FRIEND_NAMES = "Sheep", ["bear", "Owl"]
+IGNORED = FRIENDS + 0x800                       # the ignore list's records
+SHOWN_MUTED = 1 << 31                           # srp's mark on a <muted> player's id
 FREQUENCY = 1000                                # the clock's ticks a second (check_blackout's stub)
 
 
@@ -72,12 +83,20 @@ class Run(blackout.Run):
             self.emu.mem_map(at, size, UC_PROT_ALL)
         self.sent = []
         self.emu.hook_add(UC_HOOK_CODE, self.send, begin=SEND, end=SEND)
+        self.emu.hook_add(UC_HOOK_CODE, self.comment, begin=COMMENT, end=COMMENT)
 
     def send(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
         self.sent.append((self.read(sp + 4), self.text(self.read(sp + 8)).decode(), self.read(sp + 12) & 0xFF,
                           self.text(emu.reg_read(UC_X86_REG_EDX)).decode()))
         emu.reg_write(UC_X86_REG_ESP, sp + 16)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def comment(self, emu, address, size, _):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.sent.append(("mute", self.read(sp + 4), self.text(self.read(sp + 8)).decode(),
+                          self.read(sp + 12) & 0xFF, self.read(sp + 16) & 0xFF))
+        emu.reg_write(UC_X86_REG_ESP, sp + 20)
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
 
     # ---- the keys
@@ -100,7 +119,7 @@ class Run(blackout.Run):
 
     # ---- the hud movie's calls
 
-    def lobby(self, state=0, link=True, own=OWN, friends=FRIEND_NAMES, count=len(PLACES)):
+    def lobby(self, state=0, link=True, own=OWN, friends=FRIEND_NAMES, count=len(PLACES), ignored=()):
         self.emu.mem_write(UI, bytes(0x1000))
         self.word(UI + 0x18, WORLD)
         self.word(WORLD + 0x9C, GAME)
@@ -119,16 +138,22 @@ class Run(blackout.Run):
             self.emu.mem_write(FRIENDS + 0x5C * i + 8, name.encode() + b"\0")
         self.word(MESSAGING + 0xC, FRIENDS)
         self.word(MESSAGING + 0x10, FRIENDS + 0x5C * len(friends))
+        for i, (name, id) in enumerate(ignored):
+            self.word(IGNORED + 0x5C * i + 4, id)
+            self.emu.mem_write(IGNORED + 0x5C * i + 8, name.encode() + b"\0")
+        self.word(MESSAGING + 0x1C, IGNORED)
+        self.word(MESSAGING + 0x20, IGNORED + 0x5C * len(ignored))
 
     def call(self, method, argument=None):
         """scaleform_callback(caller, method, arguments, count) on the hud:
-        what it popped, the movie's Invokes, the requests sent."""
+        what it popped, the movie's Invokes, the requests sent. `argument`:
+        none, a string, or a tuple of strings."""
         self.emu.mem_write(TEXT, method.encode() + b"\0")
-        count = 0
-        if argument is not None:
-            self.emu.mem_write(TEXT + 0x100, argument.encode() + b"\0")
-            self.emu.mem_write(ARGS, struct.pack("<IIIIII", 0, 6, TEXT + 0x100, 0, 0, 0))
-            count = 1
+        arguments = () if argument is None else (argument,) if isinstance(argument, str) else argument
+        for i, text in enumerate(arguments):
+            self.emu.mem_write(TEXT + 0x100 * (i + 1), text.encode() + b"\0")
+            self.emu.mem_write(ARGS + 0x18 * i, struct.pack("<IIIIII", 0, 6, TEXT + 0x100 * (i + 1), 0, 0, 0))
+        count = len(arguments)
         sp = hide.STACK + 0x8000
         for i, value in enumerate((hide.SENTINEL, CALLER, TEXT, ARGS, count)):
             self.word(sp + 4 * i, value)
@@ -238,19 +263,25 @@ def main():
     report(b[0] == KEY_PAST and b[4] == [], "its release on")
 
     print("the hud movie's calls (scaleform_callback 0x233D30)")
-    menu = lambda place, offer: [(hide.HUD_MOVIE, "root.srp_player_menu", (place, offer))]
+    menu = lambda place, offer, mute, muted=0: [(hide.HUD_MOVIE, "root.srp_player_menu", (place, offer, mute, muted))]
+    # Wolf (place 1) hidden, Fox (place 3) shown as <muted>, as the lobby's A3 08 gives them
+    muting = dict(ignored=[("WOLF", 7), ("fox", 9 | SHOWN_MUTED)])
     answer = lambda place, sent: [(hide.HUD_MOVIE, "root.srp_friend_request", (place, sent))]
     request = lambda name: [(MESSAGING, name, 0, "")]
+    muted = lambda place, sent: [(hide.HUD_MOVIE, "root.srp_chat_mute", (place, sent))]
+    mute = lambda name, mode: [("mute", LOBBY, name, 254, mode)]
     for r in (stock, ours):
         r.lobby()
         r.ticks = 10 * FREQUENCY
     calls = [
         # (what, the lobby's change (None: as it is), the clock's ticks after (None: as they are), the method,
         # its argument, the Invokes wanted, the requests wanted)
-        ("the menu of another player's place", None, None, "srp_player_menu", "1", menu(1, 1), []),
-        ("the menu of the own place (its name in another case)", None, None, "srp_player_menu", "0", menu(0, 0), []),
-        ("the menu of a friend's place (in another case)", None, None, "srp_player_menu", "2", menu(2, 0), []),
-        ("the menu of a place past the match's count", None, None, "srp_player_menu", "4", menu(4, 0), []),
+        ("the menu of another player's place", None, None, "srp_player_menu", "1", menu(1, 1, 1), []),
+        ("the menu of the own place (its name in another case)", None, None, "srp_player_menu", "0",
+         menu(0, 0, 0), []),
+        ("the menu of a friend's place (in another case): mute only", None, None, "srp_player_menu", "2",
+         menu(2, 0, 1), []),
+        ("the menu of a place past the match's count", None, None, "srp_player_menu", "4", menu(4, 0, 0), []),
         ("the menu of a place that is no number: no answer", None, None, "srp_player_menu", "x", [], []),
         ("the menu with no argument: no answer", None, None, "srp_player_menu", None, [], []),
         ("Add to friends: the lobby's request, sent", None, None, "srp_add_friend", "1", answer(1, 1),
@@ -269,7 +300,36 @@ def main():
         ("in state 1: not sent", dict(state=1), 130, "srp_add_friend", "1", answer(1, 0), []),
         ("no connection: not sent", dict(link=False), 140, "srp_add_friend", "1", answer(1, 0), []),
         ("an empty friend list: the friend's place offered", dict(friends=[]), 150, "srp_player_menu", "2",
-         menu(2, 1), []),
+         menu(2, 1, 1), []),
+        ("Hide messages: the lobby's mute, mode 1", dict(), None, "srp_chat_mute", ("1", "1"), muted(1, 1),
+         mute("Wolf", 1)),
+        ("Show name: <muted>, a friend's place: mode 2", None, None, "srp_chat_mute", ("2", "2"), muted(2, 1),
+         mute("Bear", 2)),
+        ("Unmute a <muted> player: mode 0", dict(ignored=[("Fox", 9 | SHOWN_MUTED)]), None, "srp_chat_mute",
+         ("3", "0"), muted(3, 1), mute("Fox", 0)),
+        ("many at once: each sent (no allowance)", None, None, "srp_chat_mute", ("3", "1"), muted(3, 1),
+         mute("Fox", 1)),
+        ("the own place: not sent", None, None, "srp_chat_mute", ("0", "1"), muted(0, 0), []),
+        ("a place past the match's count: not sent", None, None, "srp_chat_mute", ("4", "1"), muted(4, 0), []),
+        ("an unknown choice: not sent", None, None, "srp_chat_mute", ("1", "3"), muted(1, 0), []),
+        ("no choice: not sent", None, None, "srp_chat_mute", "1", muted(1, 0), []),
+        ("a mute in state 4: sent", dict(state=4), None, "srp_chat_mute", ("1", "2"), muted(1, 1),
+         mute("Wolf", 2)),
+        ("in state 1: not sent", dict(state=1), None, "srp_chat_mute", ("1", "2"), muted(1, 0), []),
+        ("no connection: not sent", dict(link=False), None, "srp_chat_mute", ("1", "2"), muted(1, 0), []),
+        ("a place that is no number: no answer", dict(), None, "srp_chat_mute", ("x", "1"), [], []),
+        ("the menu of a hidden player (ignore list, case ignored)", muting, None, "srp_player_menu", "1",
+         menu(1, 1, 1, 1), []),
+        ("the menu of a <muted> player (marked id)", None, None, "srp_player_menu", "3", menu(3, 1, 1, 2), []),
+        ("the menu of a friend not muted", None, None, "srp_player_menu", "2", menu(2, 0, 1, 0), []),
+        ("Hide a hidden player: not sent (unchanged)", None, None, "srp_chat_mute", ("1", "1"), muted(1, 0), []),
+        ("show a hidden player as <muted>: sent", None, None, "srp_chat_mute", ("1", "2"), muted(1, 1),
+         mute("Wolf", 2)),
+        ("<muted> a <muted> player: not sent (unchanged)", None, None, "srp_chat_mute", ("3", "2"), muted(3, 0),
+         []),
+        ("Unmute a <muted> player: sent", None, None, "srp_chat_mute", ("3", "0"), muted(3, 1), mute("Fox", 0)),
+        ("Unmute a player not muted: not sent (unchanged)", None, None, "srp_chat_mute", ("2", "0"), muted(2, 0),
+         []),
     ]
     for what, lobby, ticks, method, argument, invokes, sent in calls:
         results = []

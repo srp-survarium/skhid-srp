@@ -908,7 +908,7 @@ fn chat_friends_and_squads_read_back() {
     );
     // An ignored player's line is dropped after its sender id.
     assert_eq!(
-        client.receive(&ignore_list(&[(7, "Bob".into())]).unwrap()),
+        client.receive(&ignore_list(&[(7, "Bob".into(), ChatMuteMode::Hidden)]).unwrap()),
         Ok(Decoded::Friendship(FriendshipPush::Ignored(vec![(
             7,
             "Bob".into()

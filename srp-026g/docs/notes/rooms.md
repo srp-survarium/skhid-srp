@@ -352,6 +352,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   gives nothing, so account ids cannot be walked for anyone's kits. A place of the room's
   window from an older list (a member came or went since) gives nothing. The window's title is
   the whole name (from the room's member rows), not the state's cut one.
+- **Player actions in rooms and rankings:** the same menu also offers Add/Remove friend,
+  the two chat mute entries ([chat-mute.md](chat-mute.md)), Send message, and Invite to squad
+  when the local player leads a squad with space and the target is not already in it. Your own
+  entry only offers information. The room UI harness checks the menu.
 - **Deferred:**
   - **The list's counts** (the owner's of 2026-10-18: after rooms are solid): "Full · N in
     queue" on a full room, and totals in the list's header ("12 rooms · 87 players · 9

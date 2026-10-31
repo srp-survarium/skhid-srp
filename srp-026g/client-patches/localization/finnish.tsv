@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Yksityisviestit vain kavereilta
 st_microphone_sensitivity_option	Mikrofonin herkkyys
 st_minimap	Pienoiskartta
 st_minimap_bottom	Vasen alakulma
-st_minimap_off	Pienoiskartta pois
+st_minimap_off	Piilotettu pienoiskartta
 st_minimap_position	Pienoiskartan sijainti
 st_minimap_rotable_option	Lukitse pienoiskartta
 st_minimap_top	Vasen yläkulma
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Piilota pelaajien pisteet
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
+st_srp_hud_mute_hide	Piilota chat
+st_srp_hud_mute_mask	Näytä chat muodossa <muted>
+st_srp_hud_mute_not_sent	Ei lähetetty
+st_srp_hud_muted	Chat mykistetty
+st_srp_hud_unmute	Poista mykistys
+st_srp_hud_unmuted	Mykistys poistettu
 st_srp_inventory_search	Hae
 st_srp_language_option	Kieli:
 st_srp_language_restart	Vaatii uudelleenkäynnistyksen.

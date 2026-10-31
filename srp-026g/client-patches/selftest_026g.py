@@ -4653,7 +4653,7 @@ def test_hide_ui(original, image, before):
     check(not [f for f in found if (f[0], f[1]) not in allowed]
           and "Message.initStage(this._top_container);" in lobby and "MainScene.stage = this;" in lobby
           and "SrvContextMenu.registerStage(stage,this._layers);" in lobby
-          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._layers;" in lobby
+          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._transients;" in lobby
           and "_layer.addChild(_id);" in lobby_tree["survarium/controls/SrvContextMenu.as"]
           and "(layer ? layer : _stage).addChild(_dragCanvas);" in lobby_tree["scaleform/clik/managers/DragManager.as"]
           and "host.addChild(_defaultPopupCanvas);" in lobby_tree["scaleform/clik/managers/PopUpManager.as"]
@@ -4671,7 +4671,7 @@ def test_hide_ui(original, image, before):
           "the lobby's interface is its root: nothing of it is added to the stage (Message's container and "
           "MainScene.stage are inside the root); what the game put on the stage is in the root's last child, "
           "_stageLayer, at the stage's scale, made before anything else and kept last (addChild, addChildAt, "
-          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers; "
+          f"setChildIndex): {', '.join(layered)}, the right-click menu in _layers, CLIK's popup canvas in _transients; "
           "_overlay, above every modal: _corner, _cards (the item cards, no longer topmost), the drag canvas, the "
           "tooltips; no InterfaceHider, no timer")
     toggle = lobby[lobby.index("public function toggle_interface() : void"):]

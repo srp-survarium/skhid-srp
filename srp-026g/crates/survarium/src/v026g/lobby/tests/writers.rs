@@ -1030,10 +1030,18 @@ fn friend_lists() {
         "A3 07 0200  02000000 'Bob' 'SR' 01  03000000 'Eve' 00 02",
     );
     assert_bytes(&friend_list(&[]).unwrap(), "A3 07 0000");
-    // `08, u16 n`, n x {u32 id, name}.
+    // `08, u16 n`, n x {u32 id, name}; a `<muted>` player's id marked.
     assert_bytes(
-        &ignore_list(&[(9, "Troll".into())]).unwrap(),
+        &ignore_list(&[(9, "Troll".into(), ChatMuteMode::Hidden)]).unwrap(),
         "A3 08 0100 09000000 'Troll'",
+    );
+    assert_bytes(
+        &ignore_list(&[
+            (9, "Troll".into(), ChatMuteMode::Hidden),
+            (5, "Loud".into(), ChatMuteMode::Placeholder),
+        ])
+        .unwrap(),
+        "A3 08 0200 09000000 'Troll' 05000080 'Loud'",
     );
     // `09, u16 n`, n x {u32 id, u8 status}.
     assert_bytes(

@@ -1456,7 +1456,7 @@ st_messages_only_from_friends_option	Die persönlichen Mitteilungen nur von Freu
 st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
 st_minimap	Minikarte
 st_minimap_bottom	untere linke Winkel
-st_minimap_off	Minikarte AUS
+st_minimap_off	Versteckte Minikarte
 st_minimap_position	Position der Minikarte
 st_minimap_rotable_option	Minikarte fixieren
 st_minimap_top	Der obere linke Winkel.
@@ -2394,6 +2394,12 @@ st_srp_hide_scores_option	Spielerpunkte ausblenden
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet
 st_srp_hud_friend_sent	Freundschaftsanfrage gesendet
+st_srp_hud_mute_hide	Chat ausblenden
+st_srp_hud_mute_mask	Chat als <muted> zeigen
+st_srp_hud_mute_not_sent	Nicht gesendet
+st_srp_hud_muted	Chat stummgeschaltet
+st_srp_hud_unmute	Chat freigeben
+st_srp_hud_unmuted	Chat freigegeben
 st_srp_inventory_search	Suche
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.

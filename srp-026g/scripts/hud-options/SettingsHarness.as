@@ -23,7 +23,8 @@ package
     // Static as the stock static crosshair, Hidden as patch 83's; each pending
     // until Apply, Cancel dropping it; the other tabs; the glyphs. Ends on the
     // gameplay tab, then with Hide player scores checked (Apply enabled), then
-    // the crosshair list open, for check.sh's screenshots. Prints "SETTINGS ..." lines and "SETTINGS RESULT
+    // the crosshair list open, then the minimap position list open, for
+    // check.sh's screenshots. Prints "SETTINGS ..." lines and "SETTINGS RESULT
     // pass" or "SETTINGS RESULT fail: ...". No game or server.
     public class SettingsHarness extends Sprite
     {
@@ -103,6 +104,12 @@ package
                 if (frames == 100) trace("SETTINGS SHOT checked");
                 if (frames == 110) settings.settings_content.getChildByName("_srp_crosshair").open();
                 if (frames == 130) trace("SETTINGS SHOT open");
+                if (frames == 200)
+                {
+                    settings.settings_content.getChildByName("_srp_crosshair").close();
+                    settings.settings_content._setter_static_minimap_position.open();
+                }
+                if (frames == 230) trace("SETTINGS SHOT minimap");
             });
         }
 
@@ -261,7 +268,8 @@ package
         private function check():void
         {
             // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
-            //   the crosshair list's three choices, "Static minimap"], ...] for every dictionary
+            //   the crosshair list's three choices, "Static minimap", the minimap position list's three
+            //   (st_minimap_off, _bottom, _top)], ...] for every dictionary
             var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
             var root:* = loader.content;
             var settings:* = root.settings_window;
@@ -296,7 +304,7 @@ package
             values[11].value = 1;
             values[7].value = 1;
             // the minimap position list's choices (st_minimap_off, _bottom, _top), the lower left corner
-            settingsList[9].dataProvider = ["Minimap off", "Lower left corner", "Upper left corner"];
+            settingsList[9].dataProvider = [texts[0][10], texts[0][11], texts[0][12]];
             values[9].value = 1;
             root.set_settings(0, settingsList);
             root.set_values(0, values);
@@ -361,6 +369,32 @@ package
                         + cross.textField.textWidth + " of " + cross.textField.width * cross.scaleX + ")");
                 }
             }
+            // every dictionary's minimap position choices inside their list
+            var position:* = c._setter_static_minimap_position;
+            var positions:Object = position.dataProvider;
+            var shownPosition:int = position.selectedIndex;
+            var widest:String = "", widestWidth:Number = 0;
+            for each (row in texts)
+            {
+                position.dataProvider = new (domain.getDefinition("scaleform.clik.data.DataProvider") as Class)([row[10], row[11], row[12]]);
+                for (i = 0; i < 3; ++i)
+                {
+                    position.selectedIndex = i;
+                    position.validateNow();
+                    require(position.textField.textWidth + 4 < position.textField.width * position.scaleX, row[10 + i]
+                        + " fits the minimap position list (" + position.textField.textWidth + " of " + position.textField.width * position.scaleX + ")");
+                    if (position.textField.textWidth > widestWidth)
+                    {
+                        widest = row[10 + i];
+                        widestWidth = position.textField.textWidth;
+                    }
+                }
+            }
+            trace("SETTINGS minimap position list: every dictionary's choices fit, the widest " + widest + " (" + widestWidth + " of "
+                + position.textField.width * position.scaleX + ")");
+            position.dataProvider = positions;
+            position.selectedIndex = shownPosition;
+            position.validateNow();
             root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
             root.set_values(0, values);
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");

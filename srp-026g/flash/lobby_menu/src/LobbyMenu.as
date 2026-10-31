@@ -116,6 +116,7 @@ package
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.friends.FriendsMenu;
+   import survarium.friends.ChatMute;
    import survarium.friends.SquadInviteList;
    import survarium.friends.SquadList;
    import survarium.gsearch.LobbyGameLoad;
@@ -6511,21 +6512,57 @@ package
          _escapeHandled = false;
       }
       
-      // The game's right-click menu with the one item, at the mouse: a
-      // player of the Rankings window or of a room.
+      // Shared player actions for the Rankings window and both room lists.
       public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint, owner:DisplayObject = null) : void
       {
          if(nickname == null || nickname == "")
          {
             return;
          }
-         SrvContextMenu.show([{
+         var options:Array = [{
             name:LocalizationData.getName("show_player_info_button_hint"),
             click_function:function(e:* = null):void
             {
                askPlayerInfo(nickname,player,how);
             }
-         }],0,0,owner);
+         }];
+         if(nickname != PlayerInfo.nickname)
+         {
+            var friend:Object = FriendsMenu.getFriend(nickname);
+            options.push({
+               name:LocalizationData.getName(friend != null ? "remove_from_friends" : "add_to_friends"),
+               click_function:function():void
+               {
+                  if(friend != null)
+                  {
+                     ExternalInterface.call("remove_friend",uint(friend.id));
+                  }
+                  else
+                  {
+                     ExternalInterface.call("add_friend_name",nickname);
+                  }
+               }
+            });
+            options = options.concat(ChatMute.options(nickname));
+            options.push({
+               name:LocalizationData.getName("send_message"),
+               click_function:function():void
+               {
+                  ExternalInterface.call("start_friend_message",nickname);
+               }
+            });
+            if(PlayerInfo.commander && !PlayerInfo.isSquadFull && !SquadList.isInSquad(nickname))
+            {
+               options.push({
+                  name:LocalizationData.getName("invite_to_squad"),
+                  click_function:function():void
+                  {
+                     ExternalInterface.call("invite_to_squad",nickname);
+                  }
+               });
+            }
+         }
+         SrvContextMenu.show(options,0,0,owner);
       }
       
       private static function askPlayerInfo(nickname:String, player:uint, how:uint) : void
