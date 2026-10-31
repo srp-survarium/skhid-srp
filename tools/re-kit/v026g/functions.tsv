@@ -1882,3 +1882,4 @@ va	status	ref_021d	name
 0x00322b20	reviewed	0x001feedd	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop
 0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
 0x00274470	reviewed		survarium::lobby_client::comment_about_user
+0x007c6a20	observed		Scaleform::GFx::AS3ValueObjectInterface::SetMember

@@ -1189,7 +1189,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps", "map_names", "hud_options", "tab_cursor", "world_check")
+RUST_PATCHES = ("suicide_key", "ragdoll", "blackout", "consumable_activity", "language", "artefact_carry", "artefact_score", "lamps", "map_names", "hud_options", "tab_cursor", "world_check", "weapon_kit")
 
 
 def rust_hooks(original):
@@ -1939,6 +1939,11 @@ UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
 UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
+# a dword after the entries: patch 68's weapon_kit_preview_apply (the Rust
+# patch weapon_kit, vostok::upgrades), which the build writes once the arena
+# is linked (0 in the file and without an arena: patch 48's own apply)
+UPGRADE_PREVIEW_KIT_APPLY = 0x23
+WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_preview_apply"
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
@@ -2253,6 +2258,10 @@ def weapon_camo_va(late_join):
 SLOT, ENTRY, CALLEE, INLINE, ABI, JUMP = "slot", "entry", "callee", "inline", "abi", "jump"
 INSTALLS = {
     0x23B207: (CALLEE, "update_ui's update_player_icons, then the units' markers: icons", None, None),
+    # the weapon kit, patch 68 (the Rust patch weapon_kit's one code hook)
+    0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
+                     "ebp+38h): weapon_kit_query_room, which calls it, takes the kit's room below the frame and "
+                     "goes on at 0x2F1776 (the lohook weapon_kit.query_records)", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -3597,6 +3606,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
         upgrade_preview = open(upgrade_preview_bin(), "rb").read()
+        # `.srpx`, the arena, linked here: patch 48's kit_apply takes patch
+        # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
+        linked = arena(arena_blocks) if arena_blocks != () else None
+        upgrade_preview = with_kit_apply(upgrade_preview, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
@@ -3661,10 +3674,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
-            # `.srpx`, the arena: its blocks linked from their sources
-            # (link_026g.py), each hook's target taken from the link by
-            # its symbol.
-            linked = arena(arena_blocks) if arena_blocks != () else None
+            # `.srpx`, the arena (linked above, with patch 48's code): each
+            # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
@@ -3913,6 +3924,18 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def with_kit_apply(code, linked):
+    """upgrade_preview_026g.section.bin (`code`) with its kit_apply dword
+    (UPGRADE_PREVIEW_KIT_APPLY, zeros in the file) holding patch 68's
+    weapon_kit_preview_apply of the arena `linked`; as it is without one."""
+    if code[UPGRADE_PREVIEW_KIT_APPLY:UPGRADE_PREVIEW_KIT_APPLY + 4] != bytes(4):
+        sys.exit("upgrade_preview_026g.section.bin: its kit_apply dword (+23h) is not the zeros the build fills")
+    if linked is None or WEAPON_KIT_PREVIEW_APPLY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, WEAPON_KIT_PREVIEW_APPLY))
+    return code[:UPGRADE_PREVIEW_KIT_APPLY] + target + code[UPGRADE_PREVIEW_KIT_APPLY + 4:]
 
 
 def artefacts_backs(linked):

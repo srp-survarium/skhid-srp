@@ -16,7 +16,7 @@ engine_artefact_effect	0x313350	ESP+4:artefact ESP+8:time	void engine_artefact_e
 engine_apply_modifier	0x2d5ae0	EAX:modifiers ESI:index ESP+4:value ESP+8:weight	float engine_apply_modifier(const struct player_params_modifiers_container *modifiers, unsigned int index, float value, float weight)	thunk	
 engine_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_setup_profile(const void *profile, void *character, unsigned int kit)	thunk	
 engine_find_item_by_id	0x277aa0	ECX:begin EDI:end ESP+4:id	void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id)	thunk	
-engine_item_by_id	0x1f0090	EAX:dictionary ESP+4:id	void *engine_item_by_id(void *dictionary, unsigned int id)	thunk	
+engine_item_by_id	0x1f0090	EAX:dictionary ESP+4:id	struct item_entry *engine_item_by_id(struct items_dictionary *dictionary, unsigned int id)	thunk	
 engine_profile_assign	0x284d10	ESI:destination EDI:source	void *engine_profile_assign(void *destination, const void *source)	thunk	
 engine_profile_construct	0x2f73f0	ECX:this	void *engine_profile_construct(void *profile)	thunk	
 engine_allocation_name	0x420789	ECX:object	const void *engine_allocation_name(const void *where)	thunk	
@@ -75,3 +75,4 @@ engine_show_cursor	0x23a930	EDI:hud ESP+4:shown	void engine_show_cursor(struct g
 engine_send_important	0x26afb0	ESP+4:messaging ESP+8:target ESP+12:type EDX:text	void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)	thunk	
 engine_comment_about_user	0x274470	ESP+4:lobby_client ESP+8:nickname ESP+12:kind ESP+16:mode	void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)	thunk	
 engine_close_current_match	0x27a790	ECX:network_client ESP+4:reason	void engine_close_current_match(struct network_client *client, unsigned int reason)	thiscall	
+engine_gfx_set_member	0x7c6a20	ECX:interface ESP+4:target ESP+8:name ESP+12:value ESP+16:display	unsigned char engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display)	thiscall	
