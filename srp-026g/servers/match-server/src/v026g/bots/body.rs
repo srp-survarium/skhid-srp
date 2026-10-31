@@ -654,9 +654,13 @@ pub fn slide_supported(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3, 
             let fall = match walked {
                 Some((next, _)) if grid.position(next).y >= base - max_rise => return walked,
                 Some((next, _)) => Some((next, grid.position(next))),
-                None => dropped_to(grid, node, at, (mx, mz)).map(|next| (next, grid.position(next))),
-            }?;
-            // Held: the nearest floor of this one and those it walks to (not down a drop) within the support.
+                None => dropped_to(grid, node, at, (mx, mz))
+                    .or_else(|| dropped_past(grid, node, point, (mx, mz)))
+                    .map(|next| (next, grid.position(next))),
+            };
+            // Held: the nearest floor of this one and those it walks to (not down a drop) within the support; with no drop
+            // ahead, only a lip floor holds a body past its cells (a wall is not a ledge), so a body past the edge still walks
+            // along it.
             let held = std::iter::once(node)
                 .chain(
                     grid.links(node)
@@ -665,9 +669,12 @@ pub fn slide_supported(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3, 
                         .filter(|&next| grid.position(next).y >= base - max_rise && grid.position(next).y - base <= max_rise),
                 )
                 .map(|n| (n, grid.position(n).distance_xz(point)))
-                .filter(|&(_, d)| d <= support_m)
+                .filter(|&(n, d)| d <= support_m && (fall.is_some() || grid.is_lip(n)))
                 .min_by(|a, b| a.1.total_cmp(&b.1));
-            Some(held.map_or(fall, |(n, _)| (n, Vec3::new(point.x, grid.position(n).y, point.z))))
+            match held {
+                Some((n, _)) => Some((n, Vec3::new(point.x, grid.position(n).y, point.z))),
+                None => fall,
+            }
         });
         let Some((next, point)) = moved else {
             break;
@@ -728,17 +735,7 @@ fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32)) -> 
     let half = grid.cell_size() * 0.5 + 1e-4;
     let from = grid.position(node);
     let (px, pz) = (at.x + sx, at.z + sz);
-    grid.links(node)
-        // A drop link, or a gap drop walked off (no key: the body walks over
-        // the edge and comes down on its landing, `mapdata::grid::gap`).
-        .filter(|&(next, kind)| {
-            kind == LinkKind::Drop
-                || (kind == LinkKind::GapDrop
-                    && grid
-                        .off_link(node, next)
-                        .is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff))
-        })
-        .map(|(next, _)| next)
+    walk_off_drops(grid, node)
         .filter(|&next| {
             let to = grid.position(next);
             let (dx, dz) = (to.x - from.x, to.z - from.z);
@@ -755,6 +752,36 @@ fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32)) -> 
                 let p = grid.position(n);
                 (p.x - px).powi(2) + (p.z - pz).powi(2)
             };
+            d(a).total_cmp(&d(b))
+        })
+}
+
+/// The floors `node` drops to that a body walks off: a drop link, or a gap drop walked off (no key: the body walks over the
+/// edge and comes down on its landing, `mapdata::grid::gap`).
+fn walk_off_drops(grid: &WalkGrid, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    grid.links(node)
+        .filter(move |&(next, kind)| {
+            kind == LinkKind::Drop
+                || (kind == LinkKind::GapDrop
+                    && grid
+                        .off_link(node, next)
+                        .is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff))
+        })
+        .map(|(next, _)| next)
+}
+
+/// The drop of `node` a body that has gone past the support of its floors comes down on: `node`'s drop ahead of the step
+/// `(sx, sz)` nearest to `point`. A body held past the edge is further out than [`dropped_to`]'s line reaches.
+#[cfg(test)]
+fn dropped_past(grid: &WalkGrid, node: NodeId, point: Vec3, (sx, sz): (f32, f32)) -> Option<NodeId> {
+    let from = grid.position(node);
+    walk_off_drops(grid, node)
+        .filter(|&next| {
+            let to = grid.position(next);
+            (to.x - from.x) * sx + (to.z - from.z) * sz > 0.0
+        })
+        .min_by(|&a, &b| {
+            let d = |n: NodeId| grid.position(n).distance_xz(point);
             d(a).total_cmp(&d(b))
         })
 }
@@ -1192,6 +1219,29 @@ pub(super) mod tests {
             (node, feet, _) = slide_supported(&grid, node, feet, to, grid.body().step, SUPPORT_M);
         }
         assert!(feet.y > 1.9, "along the edge it stays up: {feet:?}");
+    }
+
+    /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of
+    /// [`dropped_to`] ends at the landing, short of where a held body is) nor stays up.
+    #[test]
+    fn a_held_body_walking_out_over_a_ledge_at_any_slant_comes_down() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        for deg in [-60.0_f32, -45.0, -30.0, -15.0, 0.0, 15.0, 30.0, 45.0, 60.0] {
+            let start = grid.locate(Vec3::new(8.0, 2.0, 5.0), 0.5).unwrap();
+            let (mut node, mut feet) = (start, grid.position(start));
+            let (s, c) = deg.to_radians().sin_cos();
+            for _ in 0..120 {
+                let to = feet + Vec3::new(c * 0.05, 0.0, s * 0.05);
+                (node, feet, _) = slide_supported(&grid, node, feet, to, grid.body().step, SUPPORT_M);
+            }
+            assert!(feet.y < 1.0, "at {deg} degrees the body comes down: {feet:?}");
+        }
     }
 
     /// With `JumpSnap::ByKeys` a jump the clip cannot make does not take the reckoned body up: a 1.2 m ledge pressed with
