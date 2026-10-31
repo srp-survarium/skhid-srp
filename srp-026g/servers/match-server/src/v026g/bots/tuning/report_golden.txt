@@ -25,7 +25,7 @@ switches OFF grid: keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease
-switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes
+switches OFF threat: answer_sniper job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes sniper_memory
 switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
@@ -38,7 +38,7 @@ switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
-switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"keep_out":true,"memory_s":120.0,"way_cut_per_10m":0.10000000149011612,"way_...
+switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5}
 switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
 changed numbers aim: combat.band_carrier_seen_ms=500 (default 0) combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18)
 changed numbers cheats: sight_hold_ms=450 (default 0)
