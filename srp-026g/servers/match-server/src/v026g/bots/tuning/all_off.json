@@ -101,6 +101,7 @@
   },
   "kin": {
     "edge": "lattice",
+    "fix_floor": "nearest",
     "jump_snap": "any",
     "pitch_scale": "radian"
   },

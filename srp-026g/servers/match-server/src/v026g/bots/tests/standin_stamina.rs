@@ -79,6 +79,8 @@ pub(crate) struct Rates {
     pub(crate) jump: f32,
     /// Not over its capacity (or skill 213).
     pub(crate) can_sprint: bool,
+    /// The weight's cost `t` of the kit (0 for a light one).
+    pub(crate) weight_cost: f32,
 }
 
 impl Rates {
@@ -88,6 +90,7 @@ impl Rates {
         regen: REGEN_PER_S,
         jump: JUMP_COST,
         can_sprint: true,
+        weight_cost: 0.0,
     };
 
     /// The rates of `item`'s kit in `tier` (its first kit with that weapon,
@@ -115,6 +118,7 @@ impl Rates {
                     regen: REGEN_PER_S * (1.0 + modifiers[index("stamina_regeneration_speed")]),
                     jump: JUMP_COST * carried * spending,
                     can_sprint: weight < capacity || modifiers[index("can_sprint")] > 0.0,
+                    weight_cost: t,
                 };
             }
         }
@@ -204,6 +208,16 @@ impl Stamina {
 
     pub(crate) fn low(&self) -> bool {
         self.flag == Flag::Low
+    }
+
+    /// The weight's cost `t` of the kit the rates are of.
+    pub(crate) fn weight_cost(&self) -> f32 {
+        self.rates.weight_cost
+    }
+
+    /// The kit is not over its capacity (or has skill 213): whatever the bar, the body may sprint by its weight.
+    pub(crate) fn can_sprint_by_weight(&self) -> bool {
+        self.rates.can_sprint
     }
 
     /// The body may move at sprint: the flag clear and not overburdened.
@@ -316,6 +330,7 @@ mod tests {
             regen: REGEN_PER_S,
             jump: JUMP_COST * (1.0 + 1.5 * t),
             can_sprint: true,
+            weight_cost: t,
         }
     }
 
