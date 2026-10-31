@@ -1375,6 +1375,7 @@ st_level_10_name	Stacja Radarowa "Vostok" (v0.21)
 st_level_11_name	Kurhan Mamaja (v0.21)
 st_level_12_name	Zakłady chemiczne (v0.11)
 st_level_13_name	Stacja Radarowa "Vostok" (v0.11)
+st_level_14_name	Rudnia (v0.69)
 st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
@@ -2425,6 +2426,7 @@ st_srp_map_london	Londyn
 st_srp_map_mamayev_kurgan	Kurhan Mamaja
 st_srp_map_mamayev_kurgan_v021	Kurhan Mamaja (v0.21)
 st_srp_map_rudnya	Rudnia
+st_srp_map_rudnya_v069	Rudnia (v0.69)
 st_srp_map_school	Szkoła
 st_srp_map_tarakanovsky_fort	Fort Tarakanów
 st_srp_map_vector	Laboratorium "Wektor"

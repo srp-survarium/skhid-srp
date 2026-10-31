@@ -1375,6 +1375,7 @@ st_level_10_name	Vosztok radarállomás (v0.21)
 st_level_11_name	Mamajev-kurgán (v0.21)
 st_level_12_name	Vegyi üzem (v0.11)
 st_level_13_name	Vosztok radarállomás (v0.11)
+st_level_14_name	Rudnya (v0.69)
 st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
@@ -2425,6 +2426,7 @@ st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev-kurgán
 st_srp_map_mamayev_kurgan_v021	Mamajev-kurgán (v0.21)
 st_srp_map_rudnya	Rudnya
+st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Iskola
 st_srp_map_tarakanovsky_fort	Tarakanovi erőd
 st_srp_map_vector	Vektor laboratórium
