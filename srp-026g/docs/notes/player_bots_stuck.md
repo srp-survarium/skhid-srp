@@ -1337,3 +1337,36 @@ decides as 0741a7c0):
   nearest: batt deaths a bot-minute +0.013 ± 0.007, reversals +1.42 ±
   0.71). Team kills over the 192 runs: batt 0 / 1 / 1, tdm 3 / 1 / 1 (tip,
   the stand-in's hurts, the gate).
+
+### The client's wall slide, and the stand-in's capsule (A191, 2026-10-31)
+
+The stand-in slid a body along every wall of the lattice at full speed and let it through every gap the grid has, so no bench showed
+the stalls the live game has at door jambs (A66: the stand-in passed the 717 jamb on Chemical Plant at 4.8-5.9 m/s). The rule the
+client moves a capsule by is `bullet_character_controller::player_step` 0x7BDA0 → `step_forward` 0x7D590 → `step_forward_impl` 0x7D2A0
+(PROVEN, read from the exe, `get_wall_slide_vector` 0x7AC50 run with Unicorn: equal to the rule below at 0, 10, 20, 25, 26, 30, 45, 60
+and 80 degrees):
+
+- The move of the tick (velocity × dt) is swept as a capsule; with a contact, the body goes to the contact (the sweep's fraction `t`) and
+  the rest of the move, `(1 - t)`, is slid: `unit(m - n (m·n) + K n) × |m| × f(c) × (1 - t)` for the unit move `m` and the wall's
+  horizontal unit normal `n`, `c = |m·n|`, `f = 1` when `c < D`, else `(1 - c) / (1 - D)`. Then the part of the slide that points
+  back against the first direction of the walk is taken off, a slide with `|v|² < 1e-5` ends the move, and up to three sweeps are made
+  (depth 0 to 2), while `cc_wall_slide` (0xA7203F, default on) holds.
+- `D` is `cc_wall_full_slide_dot` (0xA7AB14), `K` is `cc_wall_slide_bouncing_factor` (0xA7D5D8). The exe's defaults (0.9, 0.001) are not
+  the game's: `startup.cfg` of `resources.db` sets `cc_wall_full_slide_dot 0.50` and `cc_wall_slide_bouncing_factor 0.080` (with
+  `cc_wall_slide on`, `cc_wall_normal_via_ray on`, `cc_wall_normal_via_ray_offset 0.030`, `cc_move_step_margin 0.040`,
+  `cc_stand_move_complex_test on`, `cc_step_height 0.80`). So a wall met within 60 degrees of its normal takes speed
+  (30 degrees off the normal: 27 % of the rest of the move is slid; 45 degrees: 59 %; head on: all of it is lost), and a wall met
+  within 30 degrees of its plane is slid along at full speed.
+- The contact normal is the horizontal part of the sweep's (`character_move_sweep_callback::addSingleResult` 0x895F0); with
+  `cc_wall_normal_via_ray` and a move more head-on than `D` the exe takes a face's normal from a ray instead (0x89B80, LIKELY: a ray
+  along the move, 0.03 m past the contact). At a jamb's corner that is the difference between the round normal of the capsule's hemisphere
+  and the face's: a body walking at the face is stopped, one 0.25 m beside its edge slides round it at about half speed.
+- Not read: the Bullet sweep itself (`character_controller_move_step_tester::convex_sweep_test` 0x85A90 with the complex test on) and
+  the second half of 0x89B80; the stand-in takes the sweep to be an exact circle of the capsule's radius 0.38 m in the walls'
+  horizontal sections (GUESS: the complex test's shapes).
+
+`tests/standin_capsule.rs` does this for the stand-in's bodies (`SRP_BENCH_STAND_IN_CORNER`, on unless `off`): the walker mesh's
+faces that are not ground (steeper than the client's slope, or `dont_walk`) are cut by four planes 0.9-1.75 m over the feet (the step
+height is 0.80: lower faces are steps), the body is a circle of radius 0.38 m in those sections, pushed out of a wall it overlaps (at
+most 0.15 m a tick) and moved by the rule above; the lattice then walks it to where the rule put it (ledges, floors and the
+sprint lift stay the lattice's and the intended move's). Tests-only: the bots' reckoning does not know it.
