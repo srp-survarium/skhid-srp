@@ -76,6 +76,8 @@ global engine_static_model_bounds
 global engine_release_item
 global engine_release_model
 global engine_explosion_reach
+global engine_show_cursor
+global engine_send_important
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1029,6 +1031,40 @@ engine_explosion_reach:
     movss [esp], xmm0
     fld dword [esp]
     add esp, 4
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_cursor:
+    ; 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov edi, [esp + 24]   ; ui
+    call 0x23a930
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_send_important:
+    ; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; type -> 12
+    push dword [esp + 28]   ; target -> 8
+    push dword [esp + 28]   ; messaging -> 4
+    mov edx, [esp + 44]   ; text
+    call 0x26afb0
     pop edi
     pop esi
     pop ebx

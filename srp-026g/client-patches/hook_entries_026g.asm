@@ -1767,6 +1767,45 @@ language_on_configs_texts_replay:
     db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
     jmp 0x1ea30c
 
+; 0x25cd1c game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick: lohook -> map_names_on_key
+global map_names_on_key
+extern hook_map_names_on_key
+map_names_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_map_names_on_key
+    mov edx, map_names_on_key_replay
+    cmp eax, 0
+    je map_names_on_key_go
+    mov edx, 0x25cd22
+    cmp eax, 1
+    je map_names_on_key_go
+    ud2
+map_names_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+map_names_on_key_replay:
+    db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
+    jmp 0x25cd22
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
@@ -2050,6 +2089,90 @@ ragdoll_on_killed_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
+
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
+global tab_cursor_on_key
+extern hook_tab_cursor_on_key
+tab_cursor_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_key
+    mov edx, tab_cursor_on_key_replay
+    cmp eax, 0
+    je tab_cursor_on_key_go
+    mov edx, 0x25cd09
+    cmp eax, 1
+    je tab_cursor_on_key_go
+    mov edx, 0x25cf15
+    cmp eax, 2
+    je tab_cursor_on_key_go
+    ud2
+tab_cursor_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
+    jmp 0x25cd09
+
+; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
+global tab_cursor_on_hud_call
+extern hook_tab_cursor_on_hud_call
+tab_cursor_on_hud_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_hud_call
+    mov edx, tab_cursor_on_hud_call_replay
+    cmp eax, 0
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d36
+    cmp eax, 1
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d73
+    cmp eax, 2
+    je tab_cursor_on_hud_call_go
+    ud2
+tab_cursor_on_hud_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_hud_call_replay:
+    db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x233d36
 
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char

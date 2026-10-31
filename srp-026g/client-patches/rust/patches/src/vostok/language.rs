@@ -9,7 +9,8 @@ use core::cell::UnsafeCell;
 use core::ffi::CStr;
 
 use super::hook::Thread;
-use super::settings::{Registration, c_string};
+use super::settings::Registration;
+use super::ui::c_string;
 use crate::raw;
 
 pub use super::ui::MAX_STRINGS;

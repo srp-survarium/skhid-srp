@@ -71,3 +71,5 @@ engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
 engine_explosion_reach	0x3393f0	EAX:ray ESP+4:manager ESP+8:centre ESP+12:strength ESP+16:target	float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)	thunk	
+engine_show_cursor	0x23a930	EDI:hud ESP+4:shown	void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)	thunk	
+engine_send_important	0x26afb0	ESP+4:messaging ESP+8:target ESP+12:type EDX:text	void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)	thunk	

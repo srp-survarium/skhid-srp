@@ -4,8 +4,8 @@
 # patch 63 (team damage, at match_options::deserialize's end 0x1F0F30) and
 # Research's markers (update_ui's call of update_player_icons 0x23B207) can
 # land beside it unchanged. player_icons.update_start and the two options
-# reads are patch 83's sites too: their chains run this patch's hooks first
-# (order 1 and 0).
+# reads are patch 83's sites too, the options reads patch 86's too: their
+# chains run this patch's hooks first (order 1 and 0).
 name = "blackout"
 patch = 65
 

@@ -2387,6 +2387,9 @@ st_srp_exchange_short_silver	Недостаточно серебра
 st_srp_exchange_title	Обмен
 st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_scores_option	Скрыть очки игроков
+st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
+st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_inventory_search	Поиск
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.

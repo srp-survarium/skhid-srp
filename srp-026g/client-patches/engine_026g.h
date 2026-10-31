@@ -19,11 +19,13 @@ struct core_world;
 struct engine_cfg;
 struct game_material_manager;
 struct game_scene;
+struct game_world_ui;
 struct gfx_movie;
 struct gfx_value;
 struct inventory;
 struct match_options;
 struct material_pair;
+struct messaging_client;
 struct network_client;
 struct object_light;
 struct particle_slot;
@@ -256,5 +258,11 @@ void engine_release_model(struct scene_model *object, unsigned int *count);
 
 /* 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0 */
 float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target);
+
+/* 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4 */
+void engine_show_cursor(struct game_world_ui *ui, unsigned int shown);
+
+/* 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12 */
+void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text);
 
 #endif

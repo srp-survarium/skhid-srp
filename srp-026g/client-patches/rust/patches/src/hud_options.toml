@@ -4,7 +4,8 @@
 # hud_options.rs. Each site is another patch's too: this hook runs after it
 # (patch 79's configs.start and options.callback, patch 65's
 # player_icons.update_start, order 1; patch 65's static_info.options_read and
-# replay.options_read, order 0). Order 2 everywhere, so a third patch can take 1.
+# replay.options_read, order 0). Order 2 everywhere: patch 86 takes 1 at the
+# options reads.
 name = "hud_options"
 patch = 83
 
