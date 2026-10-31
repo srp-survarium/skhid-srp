@@ -39,9 +39,19 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
     both; none at all: a new room, both in it.
 - **Join** (either member, the list, a friend's menu, Switch): both come, or nobody moves. The
   mate the room does not let in (its max level, turned out) stays where it is and the other
-  goes alone. Too few places with both in no room: both wait in its queue (the answer is the
-  queue's place); one of them in a room: "That room is full."
-- **Queue:** both wait in it (the mate in no room). A pair goes in at two free places, together;
+  goes alone. Too few places (below) with both in no room, or none on its mate's team with
+  the mate in the room: it waits in its queue (both; the answer is the queue's place, the
+  PIN given counting for both); one of them in another room: "That room is full."
+- **Two places means two on one side** (the owner's of 2026-10-31):
+  - an open room has no teams before its match: two free places take the pair, and the sides
+    drawn at the start (`rooms::sides`, every way tried) always put it on one, as two places
+    of 2 a side, any players, can always be split so;
+  - a private room's teams are its owner's: the pair needs two places on one team (it goes on
+    the team with fewer, which has them if either does), one whose mate is in needs one on its
+    mate's team; one place on each team is none (`Room::has_places`), in a join as in the
+    queue;
+  - a match being played: below (Late join).
+- **Queue:** both wait in it (the mate in no room). A pair goes in at two free places on one side, together;
   one alone behind it may take a single place, the pair keeping its places. Leaving the queue
   takes both out. A mate who may not come when the places are there (kit, gone) leaves the
   other to go in alone.
@@ -57,9 +67,11 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   squad in the match (its id; the Tab list's icon). Its second member late (below) plays in no
   match squad.
 - **Late join:** a member whose mate is in the match goes in on its mate's side, or waits for
-  the next match while that side is full. Two who wait together: the first goes in only on a
-  side with places for both, and the second follows on it (the owner's of 2026-10-20: a squad
-  may make one team two players more).
+  the next match while that side is full. Two who wait together go in together, both places
+  reserved at once at the match server (`append_players`, `join_running_group`), on a side
+  with two places, or neither (one place on each side is none): they wait in the room, told
+  "The match is full.". A side's places count the places kept for players who may come back
+  (`rooms.md`, a side's places in a match being played), for anyone, alone or not.
 - **Leaving:** Leave takes only the one who leaves; its mate stays. A game gone keeps its
   place about 90 s as anyone's. Leaving the squad moves nobody.
 - **Ready** (`squad_ready`, the squad info's flag, `social.md` §2.2): a member is ready when

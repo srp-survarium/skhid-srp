@@ -247,16 +247,31 @@ impl Matchmaking {
         team: u8,
         reserve: impl FnOnce(usize, &[Seat]) -> bool,
     ) -> bool {
+        self.append_players(match_id, &[(player, team)], reserve)
+    }
+
+    /// [`Self::append_player`] for players who go in together (a squad,
+    /// each on its team): all seated, on places one after the other, or
+    /// none; `reserve` reserves them all at once.
+    pub fn append_players(
+        &self,
+        match_id: u32,
+        players: &[(Player, u8)],
+        reserve: impl FnOnce(usize, &[Seat]) -> bool,
+    ) -> bool {
         let mut inner = self.inner.locked();
         let queued = inner.queue.iter().any(|group| {
             group.players.iter().any(|waiting| {
-                waiting.account_id == player.account_id || waiting.session_id == player.session_id
+                players.iter().any(|(player, _)| {
+                    waiting.account_id == player.account_id
+                        || waiting.session_id == player.session_id
+                })
             })
         });
         if queued {
             return false;
         }
-        let Some((first, seats)) = inner.late_seat(match_id, player, team) else {
+        let Some((first, seats)) = inner.late_seats(match_id, players) else {
             return false;
         };
         if !reserve(first, &seats) {
@@ -524,6 +539,20 @@ impl Matchmaking {
             .map(|(match_id, index, _)| (match_id, index))
     }
 
+    /// The places of a match being played whose seats are kept (bit `i`:
+    /// place `i`): not given up, so their players may still come back
+    /// ([`Self::back_to_seat`]) though they are not in it now. A place
+    /// given up (left by its own word, a failed join) is not.
+    pub fn held_places(&self, match_id: u32) -> u32 {
+        let inner = self.inner.locked();
+        let Some(seats) = inner.matches.get(&match_id) else {
+            return 0;
+        };
+        (0..seats.len().min(32))
+            .filter(|&index| !inner.given_up.contains(&(match_id, index)))
+            .fold(0, |held, index| held | 1 << index)
+    }
+
     /// A match being played, as it was formed.
     pub fn formed_match(&self, match_id: u32) -> Option<FormedMatch> {
         let inner = self.inner.locked();
@@ -593,29 +622,40 @@ impl Inner {
     }
 
     /// The roster place `player` would take on `team` in a match being
-    /// played, and its index; `None` when the match takes nobody: it is no
-    /// match of growing rosters, its teams are fixed, `team` is over 1, the
-    /// player has a place in a match (one it gave up aside: it comes again
-    /// as a new place), or there is no room.
-    fn late_seat(&self, match_id: u32, player: Player, team: u8) -> Option<(usize, Vec<Seat>)> {
-        if team > 1
+    /// played, and the first's index; `None` when the match takes not all
+    /// of them: it is no match of growing rosters, its teams are fixed, a
+    /// `team` is over 1, a player has a place in a match (one it gave up
+    /// aside: it comes again as a new place) or comes twice, or there are
+    /// not places enough.
+    fn late_seats(&self, match_id: u32, players: &[(Player, u8)]) -> Option<(usize, Vec<Seat>)> {
+        let accounts: HashSet<u32> = players
+            .iter()
+            .map(|(player, _)| player.account_id)
+            .collect();
+        if players.is_empty()
+            || accounts.len() != players.len()
             || self.fixed_teams.contains(&match_id)
             || self.match_pools.get(&match_id) != Some(&QueuePool::GrowingRoster)
-            || self.live_seat_of_account(player.account_id).is_some()
+            || players.iter().any(|(player, team)| {
+                *team > 1 || self.live_seat_of_account(player.account_id).is_some()
+            })
         {
             return None;
         }
         let roster = self.matches.get(&match_id)?;
         let first = roster.len();
-        if first >= MAX_PLAYERS_PER_MATCH {
+        if first + players.len() > MAX_PLAYERS_PER_MATCH {
             return None;
         }
-        let seat = Seat {
-            player,
-            team,
-            squad: 0,
-        };
-        Some((first, vec![seat]))
+        let seats = players
+            .iter()
+            .map(|&(player, team)| Seat {
+                player,
+                team,
+                squad: 0,
+            })
+            .collect();
+        Some((first, seats))
     }
 
     /// The account's seat, unless it was given up.

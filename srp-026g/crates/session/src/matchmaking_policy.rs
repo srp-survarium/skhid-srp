@@ -55,6 +55,11 @@ pub struct LateRule {
     pub player_value: i64,
     /// What each side's lead counts for; nothing for the side that trails.
     pub lead: [i64; 2],
+    /// Each side's places whose players are not in the match now but keep
+    /// them (a game that broke: Play takes it back there). They count
+    /// against `capacity`, not as players of the side: a joiner never
+    /// fills a side one of them comes back to.
+    pub kept: [usize; 2],
 }
 
 /// Who goes into a match being played, and on which side.
@@ -100,7 +105,8 @@ pub fn place_joiner(
         )
     };
     let side = usize::from(key(1) < key(0));
-    placed(sides, joiner, side, rule)
+    // That side full with the places kept on it: the other one.
+    placed(sides, joiner, side, rule).or_else(|| placed(sides, joiner, 1 - side, rule))
 }
 
 /// Where a match being played takes `joiner` that has a side of its own
@@ -138,7 +144,10 @@ fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Opt
     let mut after = sides;
     after[side].players += joiner.players;
     after[side].strength += joiner.strength;
-    if joiner.players == 0 || joiner.players > rule.room || after[side].players > rule.capacity {
+    if joiner.players == 0
+        || joiner.players > rule.room
+        || after[side].players + rule.kept[side] > rule.capacity
+    {
         return None;
     }
     Some(LatePlacement {
@@ -163,7 +172,35 @@ mod tests {
             room: 20,
             player_value: 1200,
             lead: [0, 0],
+            kept: [0, 0],
         }
+    }
+
+    /// A place kept for a player who may come back counts against its
+    /// side's size: a full side by them sends the joiner to the other one,
+    /// and a squad needs both its places on one side.
+    #[test]
+    fn places_kept_for_players_who_may_come_back_count_against_a_side() {
+        let one = side(1, 0);
+        let pair = side(2, 0);
+        let kept = LateRule {
+            kept: [4, 0],
+            ..rule()
+        };
+        // 6 in side 0 and 4 kept for it: full. 8 in side 1: there.
+        let placed = place_joiner([side(6, 0), side(8, 0)], one, None, &kept).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        // A pair: one place on each side is not two on one.
+        let tight = LateRule {
+            kept: [3, 0],
+            ..rule()
+        };
+        assert!(place_joiner([side(6, 0), side(9, 0)], pair, None, &tight).is_none());
+        assert!(place_joiner_beside([side(6, 0), side(9, 0)], one, 0, &tight).is_some());
+        assert!(place_joiner_beside([side(6, 0), side(9, 0)], pair, 0, &tight).is_none());
+        // Without kept places a pair takes the side with two.
+        let placed = place_joiner([side(6, 0), side(9, 0)], pair, None, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
     }
 
     /// A private room's member goes to its own team, fewer or not, while it

@@ -468,12 +468,17 @@ impl Core<'_> {
             && self.host.admits(running.ticket.match_id, now)
     }
 
-    /// The sides of a running match as they are now, and the rule a late
-    /// joiner is put into it by ([`policy::place_joiner`]): sides of at
-    /// most `capacity` each (the caller's, a room's size), and no more
-    /// places than the match has left (places are never used twice).
+    /// The sides of a running match (`match_id`) as they are now, and the
+    /// rule a late joiner is put into it by ([`policy::place_joiner`]):
+    /// sides of at most `capacity` each (the caller's, a room's size), and
+    /// no more places than the match has left (places are never used
+    /// twice). A side's size counts its players in the match and the
+    /// places kept for players not in it now (`Matchmaking::held_places`:
+    /// a game that broke comes back to its place with Play), or one would
+    /// come back to a side a late joiner had filled, past its size.
     pub(super) fn late_rule(
         &self,
+        match_id: u32,
         running: &Running,
         live: Option<&LiveView>,
         capacity: usize,
@@ -483,8 +488,26 @@ impl Core<'_> {
             room: MAX_PLAYERS_PER_MATCH.saturating_sub(running.seats.len()),
             player_value: i64::from(self.settings.balance.player_value()),
             lead: self.lead_now(running, live),
+            kept: self.kept_places(match_id, running, live),
         };
         (Self::sides_now(running, live), rule)
+    }
+
+    /// Each side's places kept for players who are not in the match now
+    /// ([`LateRule::kept`]).
+    fn kept_places(&self, match_id: u32, running: &Running, live: Option<&LiveView>) -> [usize; 2] {
+        let Some(live) = live else {
+            // Not said: the whole roster counts as in it.
+            return [0; 2];
+        };
+        let held = self.store.matchmaking().held_places(match_id);
+        let mut kept = [0; 2];
+        for (place, &(_, team)) in running.seats.iter().enumerate().take(32) {
+            if live.present >> place & 1 == 0 && held >> place & 1 == 1 {
+                kept[usize::from(team.min(1))] += 1;
+            }
+        }
+        kept
     }
 
     /// `(what a side counts for, the players in it, its lead)`, in gear

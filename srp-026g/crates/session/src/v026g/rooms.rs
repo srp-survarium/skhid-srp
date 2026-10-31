@@ -252,6 +252,27 @@ impl Room {
         self.capacity().saturating_sub(self.members.len())
     }
 
+    /// Whether `comers` (one, or a squad of two) find places on one side:
+    /// beside their mate `beside` when it is in, on its team. An open room
+    /// has no teams before its match (its sides are drawn at the start, a
+    /// squad on one, [`sides`]): its free places are enough. A private
+    /// room's teams are its owner's arrangement: the comers need that many
+    /// places on one team, the mate's when it is in (the owner's of
+    /// 2026-10-31: a pair is never put on two teams).
+    pub fn has_places(&self, comers: usize, beside: Option<u32>) -> bool {
+        if self.free_places() < comers {
+            return false;
+        }
+        if self.is_open() {
+            return true;
+        }
+        let free = |side: u8| usize::from(PRIVATE_SIZE).saturating_sub(self.side_count(side));
+        match beside.and_then(|mate| self.sides.get(&mate).copied()) {
+            Some(side) => free(side) >= comers,
+            None => free(0).max(free(1)) >= comers,
+        }
+    }
+
     /// A member comes: last in the list, or right after its squad mate
     /// `beside` when that one is in; in a private room on its mate's side
     /// while that has a place, else on the side with fewer (side 0 of two
@@ -626,7 +647,10 @@ impl Rooms {
         key: u32,
         now: Instant,
     ) -> Result<(), Refused> {
-        let pin = self.take_pin(account_id, now);
+        let given = self.pins.remove(&account_id);
+        let pin = given
+            .filter(|(_, at)| now.saturating_duration_since(*at) <= PIN_LIFE)
+            .map(|(pin, _)| pin);
         let room = self.rooms.get(&key).ok_or(Refused::Unknown)?;
         if room.members.contains(&account_id) {
             return Ok(());
@@ -649,7 +673,11 @@ impl Rooms {
                 && room.lets_in(gear)
                 && !room.kicked.contains(&mate)
         });
-        if room.free_places() < 1 + usize::from(comes.is_some()) {
+        if !room.has_places(1 + usize::from(comes.is_some()), beside) {
+            // Its PIN is still there for the queue that follows.
+            if let Some(given) = given {
+                self.pins.insert(account_id, given);
+            }
             return Err(Refused::Full);
         }
         self.enter(account_id, key, beside);
@@ -761,6 +789,27 @@ impl Rooms {
         self.enqueue_as(account_id, gear, key, now, QueueChoice::Play)
     }
 
+    /// The account and its squad mate (with its equipment level; in no
+    /// room) wait in room `key`'s queue together, on the account's PIN: the
+    /// account's place, or why not (then neither waits). The mate the room
+    /// does not let in (its max level, turned out) stays out of it.
+    pub fn enqueue_party(
+        &mut self,
+        account_id: u32,
+        gear: u8,
+        mate: Option<(u32, u8)>,
+        key: u32,
+        now: Instant,
+        choice: QueueChoice,
+    ) -> Result<usize, Refused> {
+        let place = self.enqueue_as(account_id, gear, key, now, choice)?;
+        if let Some((mate, mate_gear)) = mate.filter(|(mate, _)| *mate != account_id) {
+            // Its mate's PIN opened the door.
+            let _ = self.enqueue_checked(mate, mate_gear, key, now, choice, true);
+        }
+        Ok(place)
+    }
+
     fn enqueue_as(
         &mut self,
         account_id: u32,
@@ -768,6 +817,20 @@ impl Rooms {
         key: u32,
         now: Instant,
         choice: QueueChoice,
+    ) -> Result<usize, Refused> {
+        self.enqueue_checked(account_id, gear, key, now, choice, false)
+    }
+
+    /// [`Self::enqueue_as`]; `opened`: the door was opened for it (its
+    /// squad mate's PIN), no PIN of its own asked.
+    fn enqueue_checked(
+        &mut self,
+        account_id: u32,
+        gear: u8,
+        key: u32,
+        now: Instant,
+        choice: QueueChoice,
+        opened: bool,
     ) -> Result<usize, Refused> {
         let pin = self.take_pin(account_id, now);
         if self.of_account.contains_key(&account_id) {
@@ -780,7 +843,7 @@ impl Rooms {
         if room.kicked.contains(&account_id) {
             return Err(Refused::Kicked);
         }
-        if !room.spec.door.opens(pin) {
+        if !opened && !room.spec.door.opens(pin) {
             return Err(Refused::WrongPin);
         }
         if !room.lets_in(gear) {
@@ -871,16 +934,18 @@ impl Rooms {
 
     /// The first of the room's queue that `ready` takes, out of the queue:
     /// with its squad mate (`mate_of`) when that one waits in the same
-    /// queue and `ready` takes it too, then the two need two free places.
-    /// A pair passed over for a place too few keeps its places; one alone
-    /// behind it may take that place. Those before it stay in their places.
+    /// queue and `ready` takes it too, then the two need two free places on
+    /// one side ([`Room::has_places`]), as one whose mate is in the room
+    /// needs one on its mate's team. One passed over keeps its places; one
+    /// alone behind it may take a place. Those before it stay in their
+    /// places.
     pub fn next_ready_in_queue(
         &mut self,
         key: u32,
         ready: &dyn Fn(u32) -> bool,
         mate_of: &dyn Fn(u32) -> Option<u32>,
     ) -> Vec<(u32, QueueChoice)> {
-        let Some(free) = self.rooms.get(&key).map(Room::free_places) else {
+        let Some(room) = self.rooms.get(&key) else {
             return Vec::new();
         };
         let Some(queue) = self.queues.get(&key) else {
@@ -892,8 +957,9 @@ impl Rooms {
             .filter(|&account_id| ready(account_id))
             .find_map(|first| {
                 let mate = mate_of(first).filter(|&mate| queue.contains(&mate) && ready(mate));
+                let beside = mate_of(first).filter(|mate| room.members.contains(mate));
                 let party: Vec<u32> = std::iter::once(first).chain(mate).collect();
-                (party.len() <= free).then_some(party)
+                room.has_places(party.len(), beside).then_some(party)
             });
         let Some(party) = party else {
             return Vec::new();
@@ -2148,5 +2214,61 @@ mod tests {
             [(30, QueueChoice::Chosen)]
         );
         assert_eq!(rooms.queue_place(31), Some((key, 1)));
+    }
+
+    /// A private room's teams: a pair needs two places on one team, one
+    /// whose mate is in needs one on its mate's team; one place on each
+    /// team is no place for a pair, which waits in the queue (on its PIN)
+    /// and comes in when one team has two.
+    #[test]
+    fn a_pair_needs_two_places_on_one_team_of_a_private_room() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        for account in 2..=18 {
+            rooms.give_pin(account, 1234, now);
+            rooms.join(account, 0, key, now).unwrap();
+        }
+        // 9 v 9: one place on each team.
+        assert_eq!(
+            rooms.get(key).unwrap().arranged().map(|side| side.len()),
+            [9, 9]
+        );
+        rooms.give_pin(30, 1234, now);
+        assert_eq!(
+            rooms.join_with(30, 0, Some((31, 0)), key, now),
+            Err(Refused::Full)
+        );
+        assert_eq!((rooms.key_of(30), rooms.key_of(31)), (None, None));
+        // The PIN is still there for the queue: both wait in it.
+        assert_eq!(
+            rooms.enqueue_party(30, 0, Some((31, 0)), key, now, QueueChoice::Chosen),
+            Ok(1)
+        );
+        assert_eq!(rooms.queue_place(31), Some((key, 2)));
+        let mate_of = |account: u32| match account {
+            30 => Some(31),
+            31 => Some(30),
+            _ => None,
+        };
+        assert!(
+            rooms
+                .next_ready_in_queue(key, &|_| true, &mate_of)
+                .is_empty()
+        );
+        // A member of team 2 leaves: two places on it, the pair comes there.
+        let team_2 = rooms.get(key).unwrap().arranged()[1][0];
+        rooms.leave(team_2);
+        let party = rooms.next_ready_in_queue(key, &|_| true, &mate_of);
+        assert_eq!(party.len(), 2);
+        assert!(rooms.admit(30, key, None));
+        assert!(rooms.admit(31, key, Some(30)));
+        let room = rooms.get(key).unwrap();
+        assert_eq!((room.sides[&30], room.sides[&31]), (1, 1));
+        // 9 v 10: one whose mate is on the full team has no place, one
+        // alone has the one left, a pair none.
+        assert!(!room.has_places(1, Some(30)));
+        assert!(room.has_places(1, None));
+        assert!(!room.has_places(2, None));
     }
 }

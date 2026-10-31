@@ -204,6 +204,15 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   owner's of 2026-10-19: players, then the previous team, then the balance; after a 4 v 8
   by strength), from its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
   left of it; one who comes later waits in the same room and plays its next match.
+- **A side's places in a match being played** (the owner's of 2026-10-31: "we never fully
+  delete players"): the side the joiner goes to must stay within the room's size counting
+  its players in the match **and** the places kept for players who are not in it now (a game
+  that broke: its seat is kept the whole match and Play takes it back there,
+  `Matchmaking::held_places`); a place given up (left by its own word, a failed join) does
+  not count. The side with fewer players full that way, the other one; both full: it waits
+  ("The match is full."). The roster's 20 places, never used twice, are the match server's
+  own limit ("player limit"). Until then a joiner could fill a side a player came back to,
+  past the room's size.
 - **A late join that fails** (its game did not come, left, or did not catch up; the match
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed
