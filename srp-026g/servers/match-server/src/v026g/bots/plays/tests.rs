@@ -536,6 +536,43 @@ fn friends_near_a_held_target_count_the_other_contender() {
     assert_eq!(friends(&s, 1), 2.0);
 }
 
+/// design-p1c §3 (`threat.concede`): a play aimed into a conceded area is refused when it is a fight or roam play and
+/// weighed when it is the objective's (item 13: never refused); the same line not conceded, or the switch off, changes
+/// nothing.
+#[test]
+fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
+    use crate::v026g::bots::threat::{HeldLine, Picture};
+    use crate::v026g::bots::tuning::Concede;
+    let battery = Vec3::new(30.0, 0.0, 35.0);
+    let mut s = Scenario::field(Mode::Batteries);
+    s.tuning.threat.concede = Some(Concede::default());
+    s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+    s.battery(BatteryState::Free(battery));
+    let collect = |s: &Scenario| {
+        s.candidates(0)
+            .into_iter()
+            .find(|c| c.kind == PlayKind::Collect && c.target == TargetRef::Battery(0))
+            .map(|c| c.score.get())
+    };
+    let roam = |s: &Scenario| s.cx(0).candidate(PlayKind::Roam, TargetRef::Point(battery), None).map(|c| c.score.get());
+    let clear = collect(&s).expect("a Collect of the battery");
+    let roam_clear = roam(&s).expect("a Roam to the battery's place");
+    // A shooter 15 m past the battery killed a bot by it: his lane runs over the battery.
+    let line = HeldLine::for_test(7, 15, Vec3::new(40.0, 0.0, 46.0), &[battery], Some(s.view.clock));
+    assert!(line.covers(battery));
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], ..Picture::default() });
+    assert_eq!(collect(&s), Some(clear), "held, not conceded");
+    assert_eq!(roam(&s), Some(roam_clear));
+    s.team.threat = Arc::new(Picture { held: vec![line], conceded: vec![7], ..Picture::default() });
+    let weighed = collect(&s).expect("weighed, not refused");
+    assert!((weighed - clear * Concede::default().objective_weight()).abs() < 1e-4, "{weighed} vs {clear}");
+    assert_eq!(roam(&s), None, "a roam into his lane is refused");
+    // Off: as it was.
+    s.tuning.threat.concede = None;
+    assert_eq!(collect(&s), Some(clear));
+    assert_eq!(roam(&s), Some(roam_clear));
+}
+
 /// #25b (`threat.sniper_memory`): a remembered sniper's lanes on the straight way to a battery score its Collect down by
 /// the metres in them, never under the floor; with the switch off, or the bot carrying, the score is as it was.
 #[test]

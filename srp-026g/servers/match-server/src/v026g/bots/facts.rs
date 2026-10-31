@@ -157,6 +157,10 @@ impl Bots {
             if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
             }
+            // [threat.concede] His death opens his areas in the enemies' memory of their tries (design-p1c §3).
+            if let Some(concede) = self.tunings.of(1 - team as u8).threat.concede {
+                super::concede::shooter_died(&mut self.teams[1 - team].features.threat, 1 - team as u8, a.place, time, &concede.rules());
+            }
             if self.tunings.of(team as u8).threat.spots {
                 let killers: Vec<Place> = after
                     .places
@@ -181,6 +185,10 @@ impl Bots {
                     && sensed + threat::SENSED_MS >= time
                 {
                     self.teams[team].features.threat.spots.died(death.at, killer, at, sensed, time, threat::SpotRules::of(&self.tunings.of(team as u8).threat));
+                    // [threat.concede] And a failed try on his area (design-p1c §3, item 11).
+                    if let Some(concede) = self.tunings.of(team as u8).threat.concede {
+                        super::concede::died(&mut self.teams[team].features.threat, team as u8, a.place, death.at, killer, at, time, &concede.rules());
+                    }
                 }
             }
             // An enemy known to carry a battery died: his team's HUD shows

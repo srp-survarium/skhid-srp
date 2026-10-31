@@ -88,25 +88,31 @@ impl SniperMemory {
 }
 
 /// design-p1c §3 "no feeding" (`concede.rs`): the team's tries on a shooter's area are remembered per area, and after
-/// `fails` failed ones the area is conceded for `concede_s` (no job or Breach on it, plays aimed into it score down, the
-/// routes keep their cost). A retry must differ from the last try by kind, by `retry_deg` of approach, or by `retry_s`.
+/// `fails` failed ones the area is conceded for `concede_s` (no job or Breach on it, the plays aimed into it refused or,
+/// the objective's, weighed down; the routes keep their cost). A retry must differ from the last try by kind, by
+/// `retry_deg` of approach, or by `retry_s`. The numbers are from the live recordings (`fx-threat-obj-human-note.md`):
+/// a human team's next man into a camper's lane comes a median 12 s after a death (p75 32 s), its next death to him a
+/// median 29 s after it; the old bots went in after 4 s and died again after 5.5 s.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Concede {
-    /// Failed tries (a role holder down, an untraded death at the spot, a job timed out or aborted) that concede the area.
-    /// design-p1c §3: 2. GUESS until the recordings' note.
+    /// Counted failures (a role holder down, a death at the spot nobody traded) that concede the area. design-p1c §3.
     pub fails: u8,
-    /// How long a conceded area stays conceded, s. design-p1c §3: 90-120. GUESS until the recordings' note.
+    /// How long a conceded area stays conceded, s: past the p90 of a camper's stay after a kill against the old bots
+    /// (51-62 s); 86 % of humans' re-entries come by 60 s. LIKELY.
     pub concede_s: f32,
-    /// A retry this many degrees or more off the last try's approach differs from it. GUESS.
+    /// A retry this many degrees or more off the last try's approach differs from it: out of the old +-20 deg lane. GUESS.
     pub retry_deg: f32,
-    /// A retry this long after the last try differs from it, s. GUESS.
+    /// A retry this long after the last try differs from it, s: humans' re-entry p75 32 s, next death median 29 s. LIKELY.
     pub retry_s: f32,
+    /// An objective play aimed into a conceded area: its score times this, so another objective goes first; never 0
+    /// (design-p1c item 13: a conceded spot over the only battery does not stall the objective). GUESS.
+    pub objective_weight: f32,
 }
 
 impl Default for Concede {
     fn default() -> Self {
-        Self { fails: 2, concede_s: 105.0, retry_deg: 45.0, retry_s: 30.0 }
+        Self { fails: 2, concede_s: 60.0, retry_deg: 45.0, retry_s: 30.0, objective_weight: 0.5 }
     }
 }
 
@@ -119,6 +125,11 @@ impl Concede {
             retry_deg: self.retry_deg.clamp(0.0, 180.0),
             retry_ms: (self.retry_s.max(0.0) * 1000.0) as u32,
         }
+    }
+
+    /// [`Self::objective_weight`] kept in (0, 1]: an objective play is weighed, never refused.
+    pub fn objective_weight(&self) -> f32 {
+        self.objective_weight.clamp(0.01, 1.0)
     }
 }
 

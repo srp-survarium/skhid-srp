@@ -1031,6 +1031,37 @@ impl Ctx<'_> {
         memory.way_weight(exposed_m)
     }
 
+    /// [threat.concede] A play's share of its score for aiming into a conceded area (design-p1c §3: its target within the
+    /// shooter's area or in his lanes, `Picture::conceded_at`): a fight or roam play is refused (0), so the bot plays
+    /// elsewhere; an objective or alarm play is weighed by `Concede::objective_weight`, never refused, so another objective
+    /// goes first and the only one is not stalled (item 13). 1 with the switch off, nothing conceded, no place for the
+    /// target, or a play for the bot itself (Retreat, Heal, Resupply).
+    fn concede_weight(&self, kind: PlayKind, target: TargetRef, rank: Rank) -> f32 {
+        let Some(concede) = self.tuning.threat.concede else {
+            return 1.0;
+        };
+        if self.team.threat.conceded.is_empty() || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply) {
+            return 1.0;
+        }
+        let Some(to) = self.point_of(target) else {
+            return 1.0;
+        };
+        if self.team.threat.conceded_at(to).is_none() {
+            return 1.0;
+        }
+        use super::concede::{Tally, tally};
+        match rank {
+            Rank::Objective | Rank::Alarm => {
+                tally(self.me.team, Tally::ObjectiveWeighed);
+                concede.objective_weight()
+            }
+            Rank::Fight | Rank::Roam => {
+                tally(self.me.team, Tally::PlayRefused);
+                0.0
+            }
+        }
+    }
+
     /// [threat.sniper_memory] The metres of the straight way from the bot to `to` that lie in the held sensed snipers'
     /// lanes (`Picture::sniper_regions`, the regions their casts see), sampled every `threat::STEP_M` (as `way_home`
     /// weighs its ways: straight, the floors under them).
@@ -1117,7 +1148,7 @@ impl Ctx<'_> {
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
         if !score.is_zero() {
-            score = Score::new(score.get() * self.sniper_way_weight(kind, target));
+            score = Score::new(score.get() * self.sniper_way_weight(kind, target) * self.concede_weight(kind, target, play.rank));
         }
         #[cfg(test)]
         fairness::scoring(None);
