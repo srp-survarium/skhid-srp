@@ -570,6 +570,7 @@ fn drive_tick_inner(
         if Gates::runs_out(intent.pace, intent.crouch, hurt, over.legs.is_none()) {
             intent.pace = Pace::Escape(EscapeWhy::Zone);
             intent.crouch = false;
+            #[cfg(test)]
             super::hazards::damage_zone_fixes::asked_by(bot.team, || super::hazards::damage_zone_fixes::count(super::hazards::damage_zone_fixes::Ev::RunOut));
         }
     }
