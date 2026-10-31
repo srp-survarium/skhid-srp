@@ -128,6 +128,11 @@ crates, beds and lockers, and the vaults beside it.
 - Not ported: two decal materials without a diffuse (`decal_dirt_006`,
   `moss_012_alpha`): their surfaces are left out; the outdoor trees (speedtree) and the
   power line outside.
+- Textures from 0.26g (checked 2026-10-31, not done): 13 of the 145 textures have a 0.26g
+  namesake and 4 are the same image (`native_same_image`, as Rudnya's and the 0.46c2 and 0.69d
+  lobbies'): `props/box/wood_big_nmap`, `props/covers/plywood_nmap`, `props/furniture/bed1` and
+  `chair_nmap`, 3.4 MiB of 146; the rest are STK2's own images. Not worth a version or a
+  reuse switch in build-stk2-lobby-026.
 
 ## Captures
 
