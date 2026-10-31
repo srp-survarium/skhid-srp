@@ -141,7 +141,8 @@ package
          else
          {
             trace("FADE window: " + int(w.width) + " x " + int(w.height) + " at " + int(w.x) + "," + int(w.y));
-            if(w.width < 800 || w.height < 150)
+            // two by two of vote-sized cards (280 x 190)
+            if(w.width < 2 * 280 || w.height < 2 * 190)
                failures.push("the lobby window too small: " + w.width + " x " + w.height);
             lobby.srp_lobby_window();
             if(w.parent != null)

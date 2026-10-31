@@ -6053,7 +6053,7 @@ package
          if(stage != null)
          {
             window.x = int((stage.stageWidth / scaleX - window.width) / 2);
-            window.y = int(stage.stageHeight / scaleY * 0.2);
+            window.y = int((stage.stageHeight / scaleY - window.height) / 2);
          }
          addChild(window);
          Modals.open(window,Modals.LOBBY,this.closeLobbyWindow,function():Boolean
