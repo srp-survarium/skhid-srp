@@ -1308,6 +1308,62 @@ pub mod sniper_way_tally {
     }
 }
 
+/// [measure, #25b] The detours round the covered regions against the ways they replaced, by team: does a detour pass the
+/// enemies the bot knows of (its own senses and its team's calls within [`detour_path_tally::KNOWN_MS`], `Track::own`;
+/// any weapon) more than the plain way did. Test builds only; nothing decides by it.
+#[cfg(test)]
+pub mod detour_path_tally {
+    use crate::v026g::bots::path::{Route, RouteHeight};
+    use mapdata::Vec3;
+
+    /// A known enemy this near a point of the way counts the way's metre as passing him, m.
+    pub const NEAR_M: f32 = 25.0;
+    /// A known place this fresh counts, ms.
+    pub const KNOWN_MS: u32 = 10_000;
+    /// The way is sampled every this many metres.
+    const STEP_M: f32 = 2.0;
+
+    thread_local! {
+        /// By team: [detours, plain metres, detour metres, plain metres near a known enemy, detour metres near one].
+        static PATHS: std::cell::Cell<[[f64; 5]; 2]> = const { std::cell::Cell::new([[0.0; 5]; 2]) };
+    }
+
+    /// The metres of `route` between `s0` and `s1` within [`NEAR_M`] of one of `known`.
+    pub fn near_m(route: &Route, heights: RouteHeight, s0: f32, s1: f32, known: &[Vec3]) -> f32 {
+        if known.is_empty() || s1 <= s0 {
+            return 0.0;
+        }
+        let steps = ((s1 - s0) / STEP_M).ceil().max(1.0) as usize;
+        let step = (s1 - s0) / steps as f32;
+        (0..steps)
+            .filter(|&k| {
+                let p = route.at(s0 + (k as f32 + 0.5) * step, heights);
+                known.iter().any(|e| e.distance_xz(p) <= NEAR_M)
+            })
+            .count() as f32
+            * step
+    }
+
+    /// A detour taken by a bot of `team`: the plain way's and the detour's metres, and of each the metres near a known enemy.
+    pub fn record(team: u8, plain_m: f32, detour_m: f32, plain_near_m: f32, detour_near_m: f32) {
+        PATHS.with(|cell| {
+            let mut all = cell.get();
+            let t = &mut all[usize::from(team).min(1)];
+            t[0] += 1.0;
+            t[1] += f64::from(plain_m);
+            t[2] += f64::from(detour_m);
+            t[3] += f64::from(plain_near_m);
+            t[4] += f64::from(detour_near_m);
+            cell.set(all);
+        });
+    }
+
+    /// The counts by team since the thread began.
+    pub fn counted() -> [[f64; 5]; 2] {
+        PATHS.with(std::cell::Cell::get)
+    }
+}
+
 impl ThreatSpots {
     fn event(&mut self, time: u32, id: u32, shooter: Place, at: Vec3, note: SpotNote) {
         if self.events.len() < EVENTS_KEPT {
