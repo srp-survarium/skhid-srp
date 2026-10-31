@@ -4,7 +4,8 @@
 //! legs (a landing). A pass is watched from the tick the body is within [`Kind::radius_m`] of a spot it is going towards to
 //! the tick it is that far past it, and counted per kind: the time, the time over the same path at the speed it came in with,
 //! the ticks under 1 m/s, the least distance to a wall (and the passes under the 0.41 m the client's controller holds), and
-//! the replans in it. Every run prints its own lines, one set per team (`passes_t0_door`, `passes_t1_door`), so the sweep
+//! the replans in it; and where the bodies died: in a pass, near a doorway of the route (within [`NEAR_DOOR_M`]), or elsewhere,
+//! carriers apart from the others. Every run prints its own lines, one set per team (`passes_t0_door`, `passes_t1_door`), so the sweep
 //! reads them by map and side, and a one-sided run reads the team with the switch against the team without it.
 
 use std::collections::HashMap;
@@ -20,6 +21,8 @@ const LANDING_RISE_M: f32 = 0.5;
 const PASS_LIMIT_MS: u32 = 20_000;
 /// The distance to a wall the client's controller holds the body at, m.
 const CONTROLLER_HOLD_M: f32 = 0.41;
+/// A body that dies within this of a doorway of its route died near it, m.
+const NEAR_DOOR_M: f32 = 6.0;
 /// A body that came within this of the spot has gone through it.
 const THROUGH_M: f32 = 1.5;
 
@@ -85,6 +88,14 @@ struct Sums {
     lost: u32,
 }
 
+/// Where a body died.
+#[derive(Clone, Copy, Debug)]
+enum Death {
+    InPass,
+    NearDoor,
+    Elsewhere,
+}
+
 /// A body's spots: those of the route it has, keyed by the route's size and ends.
 #[derive(Default)]
 struct Spots {
@@ -97,6 +108,10 @@ pub(super) struct Passes {
     watching: Vec<Option<Watch>>,
     /// By team, then [`Kind`].
     sums: [[Sums; 2]; 2],
+    /// Whether each body was alive at the last tick, and carrying.
+    alive: Vec<Option<bool>>,
+    /// By team, carrier or not, [`Death`].
+    deaths: [[[u32; 3]; 2]; 2],
     /// `doors::centre_of` of a leg (its ends in quarter metres), kept: the routes replan with the same legs.
     legs: HashMap<[i32; 6], Option<Vec3>>,
 }
@@ -111,6 +126,8 @@ impl Passes {
             spots: (0..bodies).map(|_| Spots::default()).collect(),
             watching: vec![None; bodies],
             sums: [[Sums::default(); 2]; 2],
+            alive: vec![None; bodies],
+            deaths: [[[0; 3]; 2]; 2],
             legs: HashMap::new(),
         }
     }
@@ -183,11 +200,23 @@ impl RouteTopic for Passes {
         let place = at.place;
         let feet = at.body.feet;
         if !at.body.alive {
-            if let Some(watch) = self.watching[place].take() {
+            let watched = self.watching[place].take();
+            if let Some(watch) = watched {
                 self.end(watch, true);
+            }
+            if let Some(carrying) = self.alive[place].take() {
+                let near = self.spots[place].spots.iter().any(|s| s.kind == Kind::Door && feet.distance_xz(s.at) <= NEAR_DOOR_M);
+                let death = match (watched, near) {
+                    (Some(_), _) => Death::InPass,
+                    (None, true) => Death::NearDoor,
+                    (None, false) => Death::Elsewhere,
+                };
+                let team = usize::from(run.teams[place].unwrap_or(0).min(1));
+                self.deaths[team][usize::from(carrying)][death as usize] += 1;
             }
             return;
         }
+        self.alive[place] = Some(at.body.carrying.is_some());
         let route = at.bots.bots[place].as_ref().and_then(|bot| bot.route.as_ref()).map(|(route, _)| route);
         let replanned = route.is_some_and(|route| self.read_spots(place, route, at.grid));
         match self.watching[place] {
@@ -277,6 +306,14 @@ impl RouteTopic for Passes {
                     s.under_hold,
                     s.replans,
                 ));
+            }
+        }
+        for team in 0..2 {
+            for (carrying, name) in [(1, "carriers"), (0, "others")] {
+                let d = self.deaths[team][carrying];
+                if d.iter().sum::<u32>() > 0 {
+                    line.ends.push(format!("passes_t{team}_deaths_{name} in_pass {} near_door {} elsewhere {}", d[0], d[1], d[2]));
+                }
             }
         }
     }
