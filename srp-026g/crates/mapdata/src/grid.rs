@@ -232,6 +232,11 @@ impl Body {
         self.step + self.radius * (1.0 - self.min_ground_normal_y)
     }
 
+    /// The highest rise a Walk link up climbs: the step, or with [`Self::capsule_steps`] the [`Self::edge_step`].
+    pub fn walk_climb(&self) -> f32 {
+        if self.capsule_steps { self.edge_step() } else { self.step }
+    }
+
     /// Whether the body walks ground as steep as the clients do (55°, not the exe's 50°): a jump then does not land
     /// on steep ground, which the client slides off ([`WalkGrid::cut_steep_climbs`]).
     pub(crate) fn client_slope(&self) -> bool {
