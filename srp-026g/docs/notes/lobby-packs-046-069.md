@@ -76,7 +76,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@12)
+## lobby_scene/camp_069 (pack lobby-camp-069@13)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -192,6 +192,12 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   overrides leave the four out. Found by game captures, one cause ruled out at a time: the fill
   light under the basin (@11 turned its shadow off: no change, undone in @12), every other
   shadowing light, the sun.
+- @13 (the owner, 2026-10-31: shadows "not diffused at all, always so crisp"; the classic lobby's
+  are right): the floor-level fills (`character_lights/point_light(3)`, `(10)`) cast no shadow, as
+  the classic's floor fills cast none; the window light `point_light(5)` keeps its shadow on a
+  256-texel map (`shadow_map_size_index` 2, as the classic's spot lights; it was 512). What softens
+  a shadow in 0.26g is in the next section.
+
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -215,3 +221,27 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles crows, light rays, dust, the stove fire (0.26 has none; the fly uses
   0.26's), the shadow proxies (`shadow_proxy_geom`: 0.26 has none), the fridge's sound, 0.69d
   metalness and detail maps, exposure, white balance and tone curve.
+
+## What softens a shadow in 0.26g
+
+Read 2026-10-31 in the stock point-light shader (`shaders/sm_4_0/point_light_accumulator.ps`,
+its sixteen compiled variants disassembled), the light's config reader (0x34F99C..0x34FB38) and
+the 0.10b engine source (`stage_lights.cpp`, `point_light_accumulator.ps`, `spot_shadow.h`):
+
+- **No per-light softness, size or blur field.** A shadowed light samples its shadow map with a
+  fixed kernel about one texel wide: 4 taps at `r_shadow_quality` 0 and 1, a 16-tap Poisson disc
+  at 2 and 3 (the shader variant's first flag; user.cfg's `r_shadow_quality`, 1 in the test
+  prefixes). The edge's width is the map's texel: `shadow_map_size_index` 0 = 1024, 1 = 512,
+  2 = 256 texels (0.10b's `index_to_shadow_size`), so a larger index draws a wider, softer edge.
+- **`shadow_transparency`** is added to the shadow term: `saturate(shadow + shadow_transparency)`,
+  the light left in the shadow (0: black). The exe reads it as a float or an int (0x34FB06); the
+  stock lights all carry the int 0.
+- **The classic lobby** (`day`): its five shadowing lights are two spots and three points; the
+  spots and one point use 256-texel maps, the floor-level fills cast no shadow, and its shadowing
+  points fall off steeply (`attenuation_power` 2.9..7.7), so a shadow fades away from its light.
+- **Global:** `r_shadow_quality` 2 or 3 (the game's shadow quality option) gives every light the
+  16-tap filter: smoother edges, not wider; 16 shadow-map reads a pixel instead of 4 for each
+  shadowed light. Not changed.
+- **The hangar** against the classic: one shadowing light, `character_lights/point_light(3)`, a
+  floor-level fill (0.8, 10 m, 512 texels): a floor fill casting a shadow, which the classic's do
+  not. Left as it is (the owner is not sure of the hangar; its shadow is faint).
