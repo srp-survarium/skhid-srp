@@ -328,7 +328,9 @@ pub struct ThreatTuning {
     pub sniper_lanes: bool,
     /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
     /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
-    /// objective play weighs them.
+    /// objective play weighs them. OFF by default (176 pairs by side, 2026-10-31): with `keep_out` the stand-in sniper's kills
+    /// a crossing 6.1 % -> 4.8 % (z -1.4) but score -1.6 % (z -1.3), the ON team dying +14.5 % more to snipers in TDM;
+    /// without `keep_out` score +0.4 % (z +0.4) and no protection (5.8 % -> 6.8 %). The cost is not named yet.
     pub sniper_memory: Option<SniperMemory>,
 }
 
@@ -409,7 +411,7 @@ impl Default for ThreatTuning {
             pin_from_cover: None,
             answer_sniper: false,
             sniper_lanes: false,
-            sniper_memory: Some(SniperMemory::default()),
+            sniper_memory: None,
         }
     }
 }
