@@ -964,7 +964,7 @@ pub(crate) fn the_young_overlap_is_split_by_kind_spawn_distance_width_and_origin
     assert_eq!(within, young, "{json}");
     // Born 1 s apart on points 0.6 m apart: together, adjacent.
     assert_eq!(team0["young_1m_origin_together_adjacent_together_apart_different"][0].as_u64().unwrap(), young, "{json}");
-    // The soak field is 40 m deep: open ground across a walk along x, unless no heading is known.
+    // The soak field: 4 m or more of floor across the walk (the first steps are 5.5 m from its edge, so one side can read under the 4 m a side), unless no heading is known.
     let width = &team0["young_1m_by_width_m_lt15_25_4_75_open_noheading"];
-    assert_eq!(width[4].as_u64().unwrap() + width[5].as_u64().unwrap(), young, "{json}");
+    assert_eq!((3..6).map(|k| width[k].as_u64().unwrap()).sum::<u64>(), young, "{json}");
 }

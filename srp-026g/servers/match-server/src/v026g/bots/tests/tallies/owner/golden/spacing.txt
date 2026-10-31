@@ -323,6 +323,17 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         ],
         "nearest_mate_m_sum": 4725.246674537659,
         "nearest_mate_samples": 360,
+        "opening_first_move_spread_s_lt025_075_15_3_up": [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        "opening_first_move_ticks_sum_and_n": [
+          31,
+          3
+        ],
         "overlap_05m_pair_s": 5,
         "overlap_1m_apart_none_taken_refused_heldoff": [
           5,
@@ -397,6 +408,12 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0
         ],
         "samples": 360,
+        "young_1m_ahead_one_both_neither_nowalk": [
+          1,
+          1,
+          1,
+          2
+        ],
         "young_1m_apart_none_taken_refused_heldoff_eased_otherclear_tied": [
           5,
           0,
@@ -459,6 +476,19 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
             112,
             0
           ]
+        ],
+        "young_pairs_by_kind_opening_mixed_respawn": [
+          60,
+          160,
+          80
+        ],
+        "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": [
+          8,
+          0,
+          0,
+          1,
+          0,
+          1
         ]
       },
       "1": {
@@ -750,6 +780,17 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         ],
         "nearest_mate_m_sum": 1703.6586437225342,
         "nearest_mate_samples": 360,
+        "opening_first_move_spread_s_lt025_075_15_3_up": [
+          1,
+          0,
+          1,
+          1,
+          0
+        ],
+        "opening_first_move_ticks_sum_and_n": [
+          84,
+          3
+        ],
         "overlap_05m_pair_s": 0,
         "overlap_1m_apart_none_taken_refused_heldoff": [
           0,
@@ -824,6 +865,12 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0
         ],
         "samples": 360,
+        "young_1m_ahead_one_both_neither_nowalk": [
+          0,
+          0,
+          0,
+          0
+        ],
         "young_1m_apart_none_taken_refused_heldoff_eased_otherclear_tied": [
           0,
           0,
@@ -886,6 +933,19 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
             218,
             0
           ]
+        ],
+        "young_pairs_by_kind_opening_mixed_respawn": [
+          60,
+          159,
+          0
+        ],
+        "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": [
+          14,
+          6,
+          5,
+          4,
+          0,
+          0
         ]
       }
     },
