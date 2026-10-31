@@ -72,13 +72,18 @@ package survarium.controls
       
       // An item's quick-slot icon is the cell of hudItems whose index its icon id (ui_desc/icon:
       // (column - 1) x 22 + row - 1) has in hudIcons; an id not there shows none. 0.26g's items fill
-      // cells 0 to 29 (6 to 9 its oxygen tanks, 28 and 29 the exoskeletons' backs).
+      // cells 0 to 29 (6 to 9 its oxygen tanks, 28 and 29 the exoskeletons' backs). The id does not
+      // say which lobby atlas the cell is of (the drugs' consumables, the tanks' backs): an item's
+      // cell must give an id no other quick-slot item's gives.
       protected static const NATIVE_HUD_ICONS:Array = [17,18,19,20,21,22,13,42,67,74,14,15,9,23,12,49,50,16,10,11,51,52,53,-1,-1,-1,-1,-1,110,113];
 
-      // srp's items with a quick slot (the oxygen tanks of its packs): their icon id and their bitmap
-      // of bitmaps/, drawn in hudItems' free cells from SRP_FIRST_CELL, in this order.
+      // srp's items with a quick slot (its packs' oxygen tanks and drugs): their icon id and their
+      // bitmap of bitmaps/, drawn in hudItems' free cells from SRP_FIRST_CELL, in this order.
       public static const SRP_HUD_ICONS:Array = [
-         {icon:302, bitmap:HudItemDoubleCylinder}   // 931 Double cylinder (equipment-029), icon 17, 14
+         {icon:302, bitmap:HudItemDoubleCylinder},     // 931 Double cylinder (equipment-029), icon 17, 14
+         {icon:59, bitmap:HudItemMilitaryMedkit},      // 390 Military Medkit (medicines), icon 16, 3
+         {icon:60, bitmap:HudItemBlackMarketMedkit},   // 1196 Black Market Medkit (medicines), icon 17, 3
+         {icon:61, bitmap:HudItemScienceMedkit}        // 391 Science Medkit (medicines), icon 18, 3
       ];
 
       public static const SRP_FIRST_CELL:uint = NATIVE_HUD_ICONS.length;

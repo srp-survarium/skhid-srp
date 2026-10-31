@@ -81,14 +81,23 @@ Medikit's dictionary rows at their new configs; the texts are in `client-patches
 |---|---|---|---|---|---|
 | 390 | `military_medkit`, Military Medkit | blue | 0.27d0 (id 390) | 3 Renaissance | [16, 3] |
 | 1196 | `blackmarket_medkit`, Black Market Medkit | green | 0.46c2 (id 1196) | 2 Black Market | [17, 3] |
-| 391 | `science_medkit`, Science Medkit | yellow | 0.27d0 (id 391) | 4 Fringe | [14, 1] |
+| 391 | `science_medkit`, Science Medkit | yellow | 0.27d0 (id 391) | 4 Fringe | [18, 3] |
 
 - 0.26g has no medkit model, in the world or in the hands: a medkit is its config, its dictionary
-  row and its lobby icon (`LobbyMenu_AmmoIcons`, the "consumables" atlas; the match HUD has no item
-  icons).
+  row, its lobby icon (`LobbyMenu_AmmoIcons`, the "consumables" atlas) and its quick-slot icon in
+  the match.
 - Icons: 0.27d's atlas cells as they are (the same box as 0.26g's orange one); the green from
   0.46c2's single icon, placed in its cell where 0.27d placed the same box. The cells are free in
-  the live movie (other packs draw in columns 4 and 5).
+  the live movie (other packs draw in columns 4 and 5). The yellow is 0.27d's [14, 1] drawn in
+  [18, 3]: the quick slot (below) would show [14, 1] as the Scavengers' oxygen tank.
+- The quick slot: the hud movie turns an icon cell into an id, (column - 1) x 22 + row - 1, whatever
+  atlas the cell is of, and shows the bitmap it lists for that id (`QuickSlots.as`: 0.26g's
+  `NATIVE_HUD_ICONS`, srp's `SRP_HUD_ICONS`). The bandages (23) and the Medikit (14) are 0.26g's;
+  the blue (59), green (60) and yellow (61) are srp's rows, their bitmaps the pack's lobby icons
+  (`flash/hud/bitmaps/HudItem*Medkit.png`). [14, 1] is id 13, 0.26g's first oxygen tank's. Used up
+  in its use time, a coloured medkit's slot shows its gray copy, the Medikit's and the bandages'
+  their icon dimmed (`scripts/hud-quick-icons/check.sh`). A new medicine's cell needs an id no
+  quick-slot item has, and its row there.
 - Ids: the donor's own, free in 0.26g and every pack (0.46c2's 759 and 760 for the first two are
   the Rattle pack's).
 - Faction: 0.46c2's names (The Renaissance Army / Fringe Settlers / Black Market Medkit).

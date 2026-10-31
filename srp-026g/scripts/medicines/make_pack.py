@@ -37,7 +37,7 @@ sys.path.insert(0, str(HERE.parent / 'content-edit'))
 import content_edit as ce  # noqa: E402
 
 PACK_ID = 'medicines'
-VERSION = '1'
+VERSION = '2'
 FOLDER = 'gameplay/items/medicines/'
 
 TEMPLATE = 'gameplay/items/drugs/medkit.options'
