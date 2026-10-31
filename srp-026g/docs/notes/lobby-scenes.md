@@ -48,7 +48,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@4)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@5)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -68,9 +68,26 @@ crates, beds and lockers, and the vaults beside it.
 
       character          ( 0.000, 0.000,  0.000)
       camera, default    ( 0.000, 1.200, -1.960)  yaw 0
-      weapon             (-1.800, 1.450, -1.000)  weapon_view 1.5708 (over the metal boxes)
+      weapon             (-0.950, 1.350, -0.800)  weapon_view 0 (in the air, beside the character)
       artefact           ( 1.710, 0.610, -1.100)  on a gas-mask crate
 
+- The upgrade view (@5): the shelter has no table (its crates, beds and shelves only), so
+  the weapon of an upgrade window floats in the air in front of the character, beside
+  him, and the camera looks at it along +z as the stock camera does: the character
+  stands beside the weapon in the view, and the flight there is short and stays in the
+  stock camera's own space. Up to @4 it was 0.40 m above the metal boxes by the south
+  wall, where the game showed it hanging before a bed frame (the owner, 2026-10-31: the
+  new lobbies had no craft table).
+- Textures (@5, the owner, 2026-10-31: "in bunker some textures are low-quality and fuzzy", the
+  switch box on the wall, the leaning plank): up to @4 the manifest scaled every STK2 texture to
+  at most 512 px and the props' (`props/`) to 256: 133 of the 142 with a source were smaller
+  than it (76 of 1024 px, 19 of 2048, 38 of 512 at 256). Their mips, DXT formats, sRGB and normal
+  maps were right. @5 takes every texture at its source's size (to 2048 px); the pack is 159 MB
+  (29 MB). The camp's and the hangar's packs keep their donors' textures up to 2048 px (the camp's
+  ten 4096 px ones at 2048): not this.
+- The cart (@5, the owner: "remove this untextured white thing with 4 wheels"): STK2's
+  `props/garage/cart`, by the leaning plank, left out (the slice's `exclude`), and the camera box
+  around it. Nothing stood on it.
 - The camera: boxes over the floor and around the props the eye got into (@2), and one
   across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
   into the dark).

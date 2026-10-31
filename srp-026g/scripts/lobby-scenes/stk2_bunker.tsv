@@ -1,9 +1,9 @@
-# The STK2 bomb shelter (pack lobby-stk2-bunker@4, projects/lobby_scene/stk2_bunker): where things are,
+# The STK2 bomb shelter (pack lobby-stk2-bunker@5, projects/lobby_scene/stk2_bunker): where things are,
 # in the lobby's world (metres, y up; the default camera looks along +z). Made by resource-porter's
 # build-stk2-lobby-026 (ports/stk2-bunker-lobby-to-026g.json), which bakes the STK2 scene into this frame.
 # yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
 # One row a line, tabs between: <key> <x> <y> <z> <yaw> <what>
 character	0.000	0.000	0.000	-	the lobby character's spot (the exe's: the origin, facing -z): the spot STK2's designers stood a novice in, in the octagonal store room; STK2 (37.49, -4.37, -24.66)
 camera_default_eye	0.000	1.200	-1.960	0	the stock camera at its start, in the room's east part
-weapon	-1.800	1.450	-1.000	1.5708	srp_lobby.weapon: 0.40 m above the metal boxes near the south wall; STK2 (38.49, -2.92, -26.46)
+weapon	-0.950	1.350	-0.800	0	srp_lobby.weapon: in the air in front of the character, beside him, seen along +z as the stock camera looks (the shelter has no table); STK2 (38.29, -3.02, -25.61)
 artefact	1.710	0.610	-1.100	-	resting on the small gas-mask crate on the floor; STK2 (38.59, -3.76, -22.95)
