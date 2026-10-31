@@ -36,7 +36,7 @@ below are content only: each is a project of its own next to the classic one, wh
   classic scene. Each scene's own spots are below; heights are of the surface under them, read
   from the meshes.
 
-## lobby_scene/hangar_046 (pack lobby-hangar-046@7)
+## lobby_scene/hangar_046 (pack lobby-hangar-046@8)
 
 - Source: 0.46c2, `projects/lobby_scene/day` of its 36 volumes. The owner asked for 0.40; 0.46c2 is
   the nearest build on disk with this lobby.
@@ -66,16 +66,26 @@ below are content only: each is a project of its own next to the classic one, wh
 - @7, the same light every run: its four box probes all had radius 9.0, the race of the camp's @8
   (below, @9); now 0.75 x their largest half-extent, and `environment_probe(2)`, which ties
   `environment_probe` (both 8.038), just below it. They meet only in a thin seam.
+- @8 (the owner, 2026-10-31: "in hangar in the front we can have better quality tree brushes"):
+  through the front gate's gaps (the -z wall, x -8.5..-2.8) the outside was the donor's
+  background card `level/01/background/back_bush` (two triangles with a 1024 px tree atlas, scaled
+  3x) and two of 0.26's `flora/bush_s_line_3` stretched 3 x 2 x 2: flat, blurry and aliased up
+  close. Both left out (`exclude_models`); in their place 0.26's own bushes and trees
+  (`native_scenery`, drawn only): `flora/bush_s_003`/`_005` just outside the gate, two fruit trees,
+  three birches and a poplar further out on the ground's rise (z -8.8..-14.8), their crowns over
+  the wall's top, none through it.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch 14, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
 - The stock camera frames him well at any distance (captures: stock and nearest). No wall within
   the orbit: the nearest is the right wall at 4.8 m (render meshes, rays from (0, 1.3, 0)), so no
   camera walls.
-- Weapon spot (`srp_lobby`): `weapon = (-9.90, 1.30, 6.95)`, the donor's workshop view, floating
-  over the floor (y 0) left behind the character; `weapon_view = 0.6545`, looking along
-  (-0.609, 0, 0.793) towards the hangar wall 5 m behind it (the donor's: distance 1.8, yaw 37.5,
-  pitch 0, fov 30, 0.69d's yaw convention being 0.26's, shown by the camp).
+- Weapon spot (`srp_lobby`), since @6: `weapon = (2.289, 1.24, 3.925)`, 0.40 m above 0.26's own
+  `props/furniture/workbench_02` (`native_props`, top 0.84 m) against the sandbags behind the
+  character's right (the hangar has no table of its own); `weapon_view = -2.3562`, looking at the
+  bench's front. Up to @5 the donor's workshop view, `(-9.90, 1.30, 6.95)`, `0.6545`, floating 1.3 m
+  over the floor (the donor's: distance 1.8, yaw 37.5, pitch 0, fov 30). Captured in a game
+  2026-10-31 with the upgrade window open (#778's lobby-scenes.md).
 - Artefact spot: on the burlap-covered crate stack right behind the character, (3.84, 1.42, 3.91)
   (its top at y 1.414).
 - Squad: donor (-0.705, 0, 0.562) rotation 200 and (0.814, 0, 0.595) rotation 162 (0.26: (1, 0, 0.5)
@@ -83,7 +93,7 @@ below are content only: each is a project of its own next to the classic one, wh
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@9)
+## lobby_scene/camp_069 (pack lobby-camp-069@10)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -181,6 +191,14 @@ below are content only: each is a project of its own next to the classic one, wh
   is what turned the window side blue in @3. Not the atmosphere: its two recalculations at load
   (scene_changed, then parameters_changed) take the scene view's final parameters, and their
   timing did not follow the state.
+- @10 (the owner, 2026-10-31: "I think in room the door got lost"): the right wall's doorway
+  (door_01's frame, x 1.65, z 2.1..3.4) showed a dark hole. Nothing was dropped: both donor doors
+  are in the project (`props/door/wood_door_01` at (1.76, 0, 2.1), its leaf swung open behind the
+  wall, and the double door `wood_door_02` beyond the doorway). Their leaves are one-sided panels
+  (material `hq/door/wood_door_01`, two_sided false in 0.69d too) that face away from the room:
+  0.69d's fixed camera never saw their back, 0.26 culls it. The porter's new
+  `two_sided_materials` draws that material from both sides (its own template and textures), so
+  the doorway shows the panelled door again.
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
   `look_at_yaw` -11.5, vertical fov 45; the character turned to 145.
@@ -191,8 +209,9 @@ below are content only: each is a project of its own next to the classic one, wh
   back windows' frames and curtains (inner face z -1.55), the left windows (x -2.10), the doorway
   (x 1.50), the front wall (z 5.53); 0.1 m thick, the room's full height. In a game (#778's
   build) the stock camera stays in the room, the eye about 1.5 m from him.
-- Weapon spot (`srp_lobby`): `weapon = (-1.60, 1.27, 3.255)`, the donor's workshop view, 0.30 m
-  over the work table (top y 0.97, the raincoat on it) left behind the character; the free part
+- Weapon spot (`srp_lobby`): `weapon = (-1.60, 1.37, 3.255)` (since @7; 1.27 before), the donor's
+  workshop view (its `weapon_workshop` lights), 0.40 m over the work table (top y 0.97, the
+  raincoat on it) left behind the character; the free part
   of the table is z 2.7..3.6 (a mug at z 2.6, a notebook from z 3.6). `weapon_view = 1.5708`,
   looking along -x at the table: the eye 1.2 m from it is in the room at x -0.4; from the other
   side it would be outside the left wall (x -2.44). The donor's: distance 1.6, yaw 90, pitch
