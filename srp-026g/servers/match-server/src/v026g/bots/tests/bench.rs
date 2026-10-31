@@ -963,6 +963,7 @@ pub(crate) fn real_bot_cost() {
             let mut play_ticks: std::collections::BTreeMap<String, u64> = Default::default();
             let mut deaths_by: std::collections::BTreeMap<String, u32> = Default::default();
             let mut carriers_killed = [0u32; 2];
+            let mut carrier_deaths = CarrierDeaths::default();
             // Deaths on a Collect of a lying battery with 4 or more living
             // enemies within 25 m of it, by the team: what
             // `collect::COLLECT_ENEMY_MARGIN` may cost.
@@ -1327,6 +1328,7 @@ pub(crate) fn real_bot_cost() {
                     for (shooter, carrier) in std::mem::take(&mut game.carrier_kills) {
                         *carrier_kills.entry(play_of(shooter)).or_default() += 1;
                         carriers_killed[usize::from(game.bodies[carrier].team)] += 1;
+                        carrier_deaths.add(game.bodies[shooter].team, &game.bodies[carrier]);
                     }
                     for bot in bots.bots.iter().flatten() {
                         let body = &game.bodies[bot.place];
@@ -1811,6 +1813,7 @@ pub(crate) fn real_bot_cost() {
             let (owner_line, mut owner_sums) = owner.finish(&game);
             // What the bots' profiles carry of upgrades (the roster's, not the tally's: it reads no profile).
             owner_sums["upgrades"] = upgrades_summary(&roster.upgrades);
+            owner_sums["carrier_deaths"] = carrier_deaths.json();
             eprintln!("  {owner_line}");
             // The refreshed sight's own counts: poll gaps, the ray budget's refusals, sights lost by
             // ping band (the match-end line; the code before the refresh has none of them).
@@ -2313,7 +2316,10 @@ pub(crate) fn bench_roster(
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_profile_kit(n + 1, team, role, equipment, tunings.of(team).kit.pockets()))
+        .map(|(n, (&team, role))| {
+            let _kit = team_kit_scope(team);
+            bot_profile_kit(n + 1, team, role, equipment, tunings.of(team).kit.pockets())
+        })
         .collect();
     let bots: Vec<_> = profiles.iter().map(bot_equipment_of).collect();
     BenchRoster {
@@ -2321,6 +2327,7 @@ pub(crate) fn bench_roster(
             .iter()
             .zip(teams)
             .map(|(bot, &team)| {
+                let _kit = team_kit_scope(team);
                 bot.map_or([standin_grenade::KitGrenades::default(); 3], |(equipment, role)| {
                     let kits = survarium::v026g::loadouts::bot_kits_kit(equipment, role, tunings.of(team).kit.pockets());
                     std::array::from_fn(|k| frag_pockets(kits[k]))

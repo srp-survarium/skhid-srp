@@ -568,6 +568,9 @@ impl Bot {
     /// Its kits are those of `equipment` (its role's): each full, the first
     /// in hand. For a bot made before its life begins.
     fn arm(&mut self, equipment: BotEquipment) {
+        // The bench's upgrades for one team only (`SRP_BENCH_UPGRADES_ONLY`): the team that has none gets its arms as if they were off.
+        #[cfg(test)]
+        let _kit = tests::team_kit_scope(self.team);
         let kits = Self::kits_of(self.role.map(BotRole::name), equipment);
         if kits.is_empty() {
             return;
