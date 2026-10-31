@@ -140,6 +140,7 @@ pub use team::PinFromCover;
 pub use team::PinRule;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
+pub use team::SniperMemory;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;

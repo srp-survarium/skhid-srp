@@ -9348,6 +9348,7 @@ mod tests {
             team.threat = Arc::new(Picture {
                 held: vec![HeldLine::for_test(3, 9, spot, victims, seen)],
                 jobs: Vec::new(),
+                sniper_regions: Vec::new(),
             });
             team
         };
@@ -9410,6 +9411,7 @@ mod tests {
             team.threat = Arc::new(Picture {
                 held: vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, distance)], Some(1_500))],
                 jobs: Vec::new(),
+                sniper_regions: Vec::new(),
             });
             let aim = AimTuning {
                 combat: CombatTuning {
@@ -9452,6 +9454,7 @@ mod tests {
             team.threat = Arc::new(Picture {
                 held: if held { vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, 22.0)], Some(1_500))] } else { Vec::new() },
                 jobs: Vec::new(),
+                sniper_regions: Vec::new(),
             });
             team
         };
