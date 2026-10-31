@@ -15,7 +15,7 @@ from pathlib import Path
 
 from common import DICTIONARY, ICON, MODIFICATIONS, MOVIE, PACK, Inputs, bcw, equipment046, sha, specs, text_keys
 
-VERSION = '1'
+VERSION = '2'
 DATA_TYPE = 4  # the native equipment data type
 
 

@@ -531,6 +531,37 @@ mod tests {
         assert!(generic.candidates(dictionary, 0, 3).is_empty());
     }
 
+    /// The German mountain rucksack (1877) on game data with its pack
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// mountain-rucksack): no faction and no seller (the owner, 2026-10-31:
+    /// the new equipment only drops), and in the generic table's pool of
+    /// back pieces of its level, by the Assault fighter's backpack's drop
+    /// weight. It makes that data the process's: run it alone.
+    #[test]
+    #[ignore = "needs game data with the pack mountain-rucksack (SRP_GAME_DATA); run alone"]
+    fn the_mountain_rucksack_drops_and_is_sold_by_no_one() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let item = dictionary.item_named("srp_mountain_rucksack").unwrap();
+        assert_eq!(item.dict_id, 1877);
+        let params = item_params(item.dict_id).unwrap();
+        let template = item_params(dictionary.item_named("ren_back_1").unwrap().dict_id).unwrap();
+        assert_eq!(params.faction, 0);
+        assert_eq!(
+            (params.item_level, params.drop_weight),
+            (template.item_level, template.drop_weight)
+        );
+        assert!(params.drop_weight > 0);
+        assert_eq!(prices::sellers_of(dictionary, item, params), []);
+        let generic = &Drops::shared().generic;
+        assert!(!generic.level_independent.contains(&item.category));
+        let pool = generic.candidates(dictionary, item.category, params.item_level);
+        assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id));
+        assert!(pool.iter().any(|candidate| candidate.dict_id == template.dict_id));
+    }
+
     #[test]
     fn an_item_of_drop_weight_0_is_never_dropped() {
         // An item whose config says drop_weight 0 (as the Duty

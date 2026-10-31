@@ -3,7 +3,7 @@
 The Bundeswehr mountain troops' rucksack (Gebirgsjägerrucksack), as Mil-Tec sells it
 (14016001, olive, 25 l, 32 x 21 x 40 cm). No build of Survarium has it, and no usable
 model of it exists, so it is modelled for 0.26g. It ships in the content pack
-`mountain-rucksack@1` (`scripts/mountain-rucksack`). The item's numbers are proposals:
+`mountain-rucksack@2` (`scripts/mountain-rucksack`). The item's numbers are proposals:
 balance is the owner's call.
 
 ## The item
@@ -11,9 +11,16 @@ balance is the owner's call.
 - Id 1877, `srp_mountain_rucksack`, back slot.
   - 1860, the id first asked for, is live: decals-069d took 1824-1862, and 1863 is taken too.
   - The STK2 outfits work in progress takes 1864-1876; 1877 is the next free id.
-- Renaissance Army, level 14.
+- No faction: the Independent traders', as the Novice's knit cap (1821). Level 14.
+- Drop only (the owner, 2026-10-31: all the new equipment):
+  - sold by no one. No `prices.rs` row names it, and the rule sells a piece of armour
+    only by its config's faction; nothing else sells it;
+  - it drops after matches: the generic drop table's back pieces (category 4, by level),
+    at level 14 (match levels 14-20), drop weight 20 as the other level-14 backpacks;
+  - tests: `prices::the_mountain_rucksack_is_sold_by_no_one`, and on data with the pack
+    `drops::the_mountain_rucksack_drops_and_is_sold_by_no_one` (ignored; `SRP_GAME_DATA`).
 - Everything else is the Assault fighter's backpack's (`ren_back_1`, 115), copied:
-  - 8 kg, 55,250, drop weight 20;
+  - 8 kg, drop weight 20, `base_cost` 55,250 (what selling it back and repairs go by);
   - its built-in bonuses (1031, 1171), modification and defect masks, repair, sound.
 - Name: "German mountain rucksack"; Russian "Горно-егерский рюкзак".
   - Ten catalog TSVs, keys `st_srp_mountain_rucksack_name` / `_desc`.
@@ -77,9 +84,13 @@ balance is the owner's call.
 - The colours and gloss in the game's light; the icon in the lobby.
 - The lid's binding and the buckles at a distance (normal-map detail).
 
+## Owner's decisions
+
+- 2026-10-31: no faction (the Independent traders), never sold, drops after matches.
+
 ## Owner's picks to confirm
 
-- Faction, level and the Assault fighter's backpack's stats and price.
+- Level and the Assault fighter's backpack's stats.
 - Id 1877.
 - Names: "German mountain rucksack", "Горно-егерский рюкзак".
 - Olive Mil-Tec colours (no Flecktarn version).

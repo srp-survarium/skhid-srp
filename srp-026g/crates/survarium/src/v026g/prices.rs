@@ -886,6 +886,34 @@ mod tests {
     }
 
     #[test]
+    fn the_mountain_rucksack_is_sold_by_no_one() {
+        // The German mountain rucksack (1877, pack mountain-rucksack): the
+        // Assault fighter's backpack's item with no faction, the Independent
+        // traders' as the Novice's knit cap, but never sold (the owner,
+        // 2026-10-31: the new equipment only drops). No row names it, so the
+        // rule, which sells a piece of armour by its config's faction, sells
+        // it nowhere; the backpack it copies is the Army's.
+        let dictionary = Dictionary::shared();
+        let template = dictionary.item_named("ren_back_1").unwrap();
+        let params = *item_params(template.dict_id).unwrap();
+        assert_eq!(params.faction, faction::RENAISSANCE);
+        assert!(!sellers_of(dictionary, template, &params).is_empty());
+        let rucksack = Item {
+            dict_id: 1877,
+            name: "srp_mountain_rucksack".to_owned(),
+            cfg_name: "gameplay/items/armour/back/srp_mountain_rucksack.options".to_owned(),
+            ..template.clone()
+        };
+        let no_faction = ItemParams {
+            dict_id: 1877,
+            faction: 0,
+            ..params
+        };
+        assert_eq!(sellers_of(dictionary, &rucksack, &no_faction), []);
+        assert!(!EXCEPTIONS.iter().any(|(name, _)| *name == rucksack.name));
+    }
+
+    #[test]
     fn the_bandit_balaclava_goes_by_the_rule() {
         // No exception (owner, 2026-10-16): Black Market at its item level,
         // within the faction's ranks 0 to 5. The test patch 15 makes it item

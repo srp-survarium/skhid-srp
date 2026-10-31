@@ -1,6 +1,6 @@
 # German mountain rucksack
 
-`mountain-rucksack@1` adds the Bundeswehr mountain troops' rucksack (1877), modelled for 0.26g.
+`mountain-rucksack@2` adds the Bundeswehr mountain troops' rucksack (1877), modelled for 0.26g.
 What ships, the proposals and what needs a look in game are in
 [docs/notes/mountain-rucksack.md](../../docs/notes/mountain-rucksack.md). `items.tsv` is the
 balance source. The icon cell, the catalog reader and the asset checks are equipment-046's
@@ -29,8 +29,8 @@ cd srp-026g/scripts/mountain-rucksack
 python3 prepare_inputs.py --model <model> --bundle <bundle> \
   --stock /path/to/stock-026g/resources.db --patches ~/.cache/skhid-release/patches \
   --game-data-bin ../../target/release/srp-game-data --out <inputs folder>
-python3 make_pack.py --inputs <inputs folder> --out <packs>/mountain-rucksack-1
-python3 check_pack.py <packs>/mountain-rucksack-1 <inputs folder>
+python3 make_pack.py --inputs <inputs folder> --out <packs>/mountain-rucksack-2
+python3 check_pack.py <packs>/mountain-rucksack-2 <inputs folder>
 ```
 
 `prepare_inputs.py --pin` takes the inputs from the model and the bundle instead and writes
