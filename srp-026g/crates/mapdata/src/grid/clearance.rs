@@ -139,10 +139,11 @@ mod tests {
         beam.extend(wall(5.0, 1.7, 2.4));
         let mut full = floor();
         full.extend(wall(5.0, 0.0, 2.4));
-        // 0.125 m from the plane: the floor is taken by the full wall (its clearance under the radius) and kept under the beam.
-        let (b, f) = (at(&grid(&beam), 4.875), at(&grid(&full), 4.875));
-        assert!(b.unwrap() > 0.38, "under the beam the capsule fits by its round top: {b:?}");
-        assert!(f.is_none(), "the floor 0.125 m from a wall from the floor is not a floor");
+        // 0.375 m from the plane (the grid keeps such a floor either way): under the beam the capsule's round top clears it by the curve
+        // (the beam's underside is 0.28 m over the cylinder's top, where the capsule reaches 0.257 m), by a wall from the floor it does not.
+        let (b, f) = (at(&grid(&beam), 4.625).unwrap(), at(&grid(&full), 4.625).unwrap());
+        assert!(b >= 0.38, "under the beam the capsule fits by its round top: {b}");
+        assert!(f < 0.38, "beside a wall from the floor it does not: {f}");
     }
 
     /// The table reads the same twice and is no part of the grid: floors and links are as without it.
