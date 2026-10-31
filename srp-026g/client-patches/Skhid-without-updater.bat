@@ -9,6 +9,17 @@ set URL=https://skhid.link
 set GAME_URL=https://drive.usercontent.google.com/download?id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK^&export=download^&confirm=t
 set GAME_SHA=7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028
 cd /d "%~dp0"
+rem A second double-click while this window runs says so and stops: this one
+rem holds skhid-install.lock open until it ends.
+set STARTED=
+9>"skhid-install.lock" call :main
+if defined STARTED exit /b
+echo Skhid is already being installed in another window. Wait for it to finish.
+pause
+exit /b 1
+
+:main
+set STARTED=1
 
 if defined LANGUAGE goto language_done
 set LANGUAGE=english
@@ -43,7 +54,10 @@ if exist "game\resources.db" if exist "game\binaries\x86\survarium.exe" goto gam
 set ARCHIVE=game\.skhid-game.7z
 if exist "%ARCHIVE%" call :sha "%ARCHIVE%" %GAME_SHA% >nul && goto extract
 echo Downloading Survarium 0.26g (2.9 GB)...
-curl.exe -fL -C - -o "%ARCHIVE%" "%GAME_URL%" || goto failed
+rem A part already as big as the whole (a broken download) cannot be resumed.
+if exist "%ARCHIVE%" powershell -NoProfile -Command "if ((Get-Item '%ARCHIVE%').Length -ge 2906544103) { Remove-Item '%ARCHIVE%' }"
+curl.exe -fL -C - -o "%ARCHIVE%" "%GAME_URL%"
+if errorlevel 1 goto game_download_failed
 call :sha "%ARCHIVE%" %GAME_SHA% || (del "%ARCHIVE%" & goto failed)
 :extract
 echo Unpacking Survarium 0.26g...
@@ -77,7 +91,14 @@ echo Cannot reach %URL%. Check the internet connection, or see VPN.txt.
 pause
 exit /b 1
 
+:game_download_failed
+rem 33: the mirror cannot go on from where it stopped: next time from the start.
+if %errorlevel%==33 del "%ARCHIVE%"
 :failed
-echo Something failed, so the game is not started. Start this file again to retry.
+echo.
+echo Something went wrong, so the game is not started. Check the internet
+echo connection and the free space (about 10 GB for a new game), close the
+echo game if it is open, then start this file again: it goes on from where
+echo it stopped.
 pause
 exit /b 1
