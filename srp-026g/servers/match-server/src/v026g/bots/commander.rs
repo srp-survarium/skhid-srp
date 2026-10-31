@@ -34,7 +34,7 @@ fn breach_tick(
     side: Option<i32>,
     notes: &mut Vec<Note>,
 ) -> Vec<(Place, Vec3, [Option<Place>; 3])> {
-    use super::concede::{JobKind, Offer, SpotEvent, Try, TryKind};
+    use super::concede::{JobKind, Offer, Try, TryKind};
     let mut killed = Vec::new();
     let (holds, held) = lines;
     threat.kills.retain(|k| now.saturating_sub(k.time) <= threat::DEATH_KEPT_MS);
@@ -90,13 +90,13 @@ fn breach_tick(
                 {
                     killed.push((shooter, at, bots));
                 }
-                if let Some(c) = concede {
+                // The spot memory (camper-decision-map.md §2): a death is recorded once, where it is seen (`concede::died`), and his
+                // death opens the area there too; the Breach records only its failures that cost no life (gather, abort, time).
+                if let (Some(c), breach::Phase::Failed { why, .. }) = (concede, phase)
+                    && !why.counts()
+                {
                     let area = threat.spot_memory.area_of(at, Some(shooter), now);
-                    match phase {
-                        breach::Phase::Done { done: breach::Done::ShooterDied { .. }, .. } => threat.spot_memory.apply(area, SpotEvent::Succeeded, now, &c),
-                        breach::Phase::Failed { why, .. } => threat.spot_memory.record(area, JobKind::Breach, why, from, now, &c),
-                        _ => {}
-                    }
+                    threat.spot_memory.record(area, JobKind::Breach, why, from, now, &c);
                 }
             }
             _ => {}
