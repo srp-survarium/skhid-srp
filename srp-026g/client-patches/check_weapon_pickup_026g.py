@@ -980,6 +980,7 @@ def late_join(patched):
     r.load(r.picker, record(slot10=(DIED + 900, 6, KIT, 1)))
     assert len(r.queries) == 1 and r.slot(r.inventory, 10) == gun + 0x10, r.log
     assert r.slot(cooked, 10) == r.own_gun + 0x10
+    assert r.native == [("set_user", gun, r.picker), ("initialize", gun)], ("a fresh cook: set_user + initialize", r.native)
     assert any("a loaded record: installed: slot 10's picked gun (taken at 13250 ms, the gun of place 6 kit 1 "
                "slot 10)" in l for l in r.log), r.log
     print("ok a late join's record naming a gun not on this client: cooked from its recipe in the wait (the "
@@ -1352,12 +1353,18 @@ def holster(patched):
     assert r.load(r.picker, window_record) == RECORD
     assert r.native[:2] == [("deactivate", second, 1), ("forget", r.picker + 0x750, second)], r.native
     r.put_away_in_slot(second)
+    assert [n for n in r.native if n[1] == first] == [], ("the re-installed first gun: no weapon call of ours", r.native)
+    assert r.native == [("deactivate", second, 1), ("forget", r.picker + 0x750, second)], r.native
     assert r.slot(r.inventory, 10) == first + 0x10 and r.slot(second_cooked, 10) == second + 0x10
     assert r.slot(first_cooked, 10) == r.own_gun + 0x10, "the own gun hidden with the first picked gun again"
     assert r.read(r.registry + 4 * PICK_ID) == first and r.read(first + 0xC, 1)[0] == PICK_ID
     assert r.read(r.registry + 4 * PENDING_ID) == second and r.read(second + 0xC, 1)[0] == PENDING_ID
     assert r.read(r.registry + 4 * GUN_ID) == r.own_gun
-    assert [l.split(" ms ", 1)[1].split(" (taken", 1)[0] for l in r.log if " ms " in l] == [
+    assert any("ms gun %#x: put away, registry id %d, slot 10 (deactivate(1) + forget_active_object)"
+               % (second, PICK_ID) in l for l in r.log), r.log
+    assert any("ms gun %#x: a loaded record re-installed, registry id %d, slot 10 (no weapon call" % (first, PICK_ID) in l
+               for l in r.log), r.log
+    assert [l.split(" ms ", 1)[1].split(" (taken", 1)[0] for l in r.log if " ms " in l and " ms gun " not in l] == [
         "gave back to its drop: slot 10's picked gun", "a loaded record: installed: slot 10's picked gun",
         "a loaded record: registered: slot 10's pending gun"], r.log
     assert r.save(r.picker) == window_record
@@ -1529,12 +1536,14 @@ def stage2(patched, original):
     r.reader(GUN_ID)
     # ... and with it again: installed without the switch (the reader switches).
     assert r.load(r.picker, record(slot10=PICKED)) == RECORD
-    assert r.native == [("set_user", r.new_gun, r.picker), ("initialize", r.new_gun)], r.native
+    assert r.native == [], ("a gun already in hands here: no weapon call of ours (the reader's)", r.native)
     r.reader(PICK_ID)
     r.installed()
+    assert any("a loaded record re-installed, registry id %d, slot 10 (no weapon call" % PICK_ID in l
+               for l in r.log), r.log
     print("ok a loaded record without the pick: the held gun put away as the native switch does (deactivate, "
-          "forget, in its slot), then restored, the gun back in its drop; with it: installed again from it, "
-          "without the switch's calls")
+          "forget, in its slot), then restored, the gun back in its drop; with it: installed again from it with no "
+          "weapon call of ours (it was in hands here: the game's reader set_users and activates it)")
 
     # The donor's body leaves the world (its respawn: base_player::remove(1)) while its gun is lent:
     # the drop ends, the lent gun stays.

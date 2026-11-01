@@ -214,6 +214,19 @@ nothing in hands.
   After a rollback's put-away the reader loads the animation player anew
   (0x395B50 releases the old tree, +E100h, and builds the snapshot's), so
   nothing of the gun's animations survives the load.
+- **A gun re-installed by a loaded record** (the owner's option A,
+  2026-11-01, after three 83Lb41 crashes that all followed a rollback
+  re-installing a replacement pickup's old gun): a gun already in hands on
+  this client gets no weapon call of ours; the game's reader set_users and
+  activates it once the animation player is loaded (0x2DB662..0x2DB67B,
+  0x2DB7F3..0x2DB80D), as for any of its own guns, and never initializes
+  it. Only a fresh cook (a late join's) is set_user'd and initialized.
+  83Lb41 set_user'd and initialized the used gun too: initialize resets its
+  logic to the initial state and enters it (0x2E2A88, 0x2E2A97) outside any
+  switch. Not proven the crash's cause (the dumps had no heap); the fallback
+  is a fresh cook on re-install. Logged for the next crash (D): every picked
+  gun's object address at its cook, registration, install, put-away, let-go,
+  re-install and free, with its registry id and slot (`gun 0x...:` lines).
 - **The switch** (`pickup.switch` 0x2D76D0, reached once the held gun is
   ready to be deactivated): every check first, the gun in hands put away
   (above), then the install (the stage 2a moves; the gun under

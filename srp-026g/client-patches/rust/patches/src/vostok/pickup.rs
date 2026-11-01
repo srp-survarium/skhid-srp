@@ -220,7 +220,23 @@ pub enum Mode<'a> {
     Replace(Option<(u8, bool)>, &'a Installed, &'a Registered),
     /// A loaded world's record (a rollback, a late join): the native reader
     /// switches the held object; the snapshot gives the magazine and reserve.
-    Load,
+    Load(Fresh),
+}
+
+/// Whether a gun loaded into a slot was ever active on this client.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fresh {
+    /// Never in hands here (a late join's, a resync's cook): set_user and
+    /// initialize, as a switch would before its activate.
+    Yes,
+    /// Already in hands here (a rollback re-installs it): no weapon call of
+    /// ours. The game's reader set_users it and activates it once the
+    /// animation player is loaded (0x2DB662..0x2DB67B, 0x2DB7F3..0x2DB80D),
+    /// as for any gun of its own; it never initializes one. (83Lb41 also
+    /// set_user'd and initialized it, resetting its logic to the initial
+    /// state and entering it, outside any switch: the crashes all followed
+    /// such a re-install.)
+    No,
 }
 
 /// A pickup site's player.
@@ -468,7 +484,7 @@ impl Failure {
 pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, id: RegistryId,
                mode: Mode<'_>) -> Result<Installed, Failure> {
     let (registered, replacing) = match mode {
-        Mode::Load => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
+        Mode::Load(_) => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
         Mode::Switch(_, r) => (r, None),
         Mode::Replace(_, old, r) => (r, Some(old)),
     };
@@ -503,7 +519,7 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
 /// which run after, have nothing of it to deactivate; its animations dropped
 /// from the player's animation player (forget_active_object) in any case,
 /// so no event of them reaches the gun once it is let go (and freed).
-pub fn put_away(player: &Player<'_>, installed: &Installed) {
+pub fn put_away(player: &Player<'_>, installed: &Installed) -> PutAway {
     // SAFETY: the live player, its inventory slot's item read as a weapon
     // only when it is the installed gun.
     unsafe {
@@ -511,8 +527,9 @@ pub fn put_away(player: &Player<'_>, installed: &Installed) {
         let Some(gun) = p.inventory()
             .and_then(|inventory| inventory.slots().at(usize::from(installed.own.slot())).item())
             .map(|item| item.active_object())
-            .filter(|gun| gun.address() == installed.gun) else { return };
-        if p.held_item() == Some(gun) {
+            .filter(|gun| gun.address() == installed.gun) else { return PutAway::NotInSlot };
+        let held = p.held_item() == Some(gun);
+        if held {
             raw::engine_weapon_deactivate(Some(gun), 1);
             p.set_held_item(None);
             if p.pending_item() == Some(gun) {
@@ -520,6 +537,28 @@ pub fn put_away(player: &Player<'_>, installed: &Installed) {
             }
         }
         raw::engine_forget_active_object(p.animation().cast(), Some(gun));
+        if held { PutAway::Deactivated } else { PutAway::Forgotten }
+    }
+}
+
+/// What [`put_away`] did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PutAway {
+    /// Held: deactivate(1), then forget_active_object.
+    Deactivated,
+    /// Not held: forget_active_object only.
+    Forgotten,
+    /// The gun was not in its slot: nothing.
+    NotInSlot,
+}
+
+impl PutAway {
+    pub fn text(self) -> &'static str {
+        match self {
+            PutAway::Deactivated => "deactivate(1) + forget_active_object",
+            PutAway::Forgotten => "forget_active_object (not held)",
+            PutAway::NotInSlot => "not in its slot: nothing",
+        }
     }
 }
 
@@ -535,7 +574,7 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
         let held = p.held_item();
         let registered = match mode {
             Mode::Switch(_, r) | Mode::Replace(_, _, r) => Some(r),
-            Mode::Load => None,
+            Mode::Load(_) => None,
         };
         if let Some(r) = registered {
             let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
@@ -663,10 +702,11 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
                 grant(w, Ammo::grant(capacity, loaded, chamber));
                 raw::engine_weapon_activate(Some(gun), 1);
             }
-            Mode::Load => {
+            Mode::Load(Fresh::Yes) => {
                 raw::engine_weapon_set_user(Some(gun), Some(p));
                 raw::engine_weapon_initialize(Some(gun));
             }
+            Mode::Load(Fresh::No) => {}
         }
         Ok(Installed { cook, own, slot, own_gun: own_gun.address(), gun: gun.address(), moved, saved,
                        cooked: cooked_binding, id })
@@ -1293,6 +1333,31 @@ impl GunPose {
 /// The model box of the cooked gun of `cook` (its `slot`): its model
 /// (weapon+1810h, load_weapon's at the weapon's cook) -> the render
 /// reference -> its skeleton instance -> the resource's +108h.
+/// The address of the cooked gun of `cook` (its `slot`), for the log.
+pub fn gun_address(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<u32> {
+    let inventory = gun_cook::inventory(thread, cook)?;
+    // SAFETY: the made cooked inventory, its gun read after its vtable.
+    unsafe { cooked_gun(inventory, slot).map(|(_, gun)| gun.address()) }
+}
+
+impl Registered {
+    /// The gun's address (for the log).
+    pub fn gun(&self) -> u32 {
+        self.gun
+    }
+}
+
+impl Installed {
+    /// The registry id and the own gun's address (for the log).
+    pub fn id(&self) -> RegistryId {
+        self.id
+    }
+
+    pub fn own_gun(&self) -> u32 {
+        self.own_gun
+    }
+}
+
 pub fn gun_box(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<GunBox> {
     let inventory = gun_cook::inventory(thread, cook)?;
     // SAFETY: the made cooked inventory (its ticket holds it), its gun read
