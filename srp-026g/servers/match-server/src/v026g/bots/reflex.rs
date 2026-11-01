@@ -10269,6 +10269,7 @@ mod tests {
                 held: vec![HeldLine::for_test(3, 9, spot, victims, seen)],
                 jobs: Vec::new(),
                 sniper_regions: Vec::new(),
+                snipers: Vec::new(),
                 concede: Default::default(),
             });
             team
@@ -10333,6 +10334,7 @@ mod tests {
                 held: vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, distance)], Some(1_500))],
                 jobs: Vec::new(),
                 sniper_regions: Vec::new(),
+                snipers: Vec::new(),
                 concede: Default::default(),
             });
             let aim = AimTuning {
@@ -10377,6 +10379,7 @@ mod tests {
                 held: if held { vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, 22.0)], Some(1_500))] } else { Vec::new() },
                 jobs: Vec::new(),
                 sniper_regions: Vec::new(),
+                snipers: Vec::new(),
                 concede: Default::default(),
             });
             team

@@ -157,8 +157,11 @@ pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
 pub use unstick::UnstickTuning;
 
-/// RFC 7386: `patch` merged into `target`. An object merges key by key, `null` takes a key out, anything
-/// else replaces what is there.
+/// `patch` merged into `target` as RFC 7386 merges, but for its `null`: an object merges key by key, a `null` is
+/// put in as the key's value (the field's none), anything else replaces what is there. RFC 7386 takes a `null`'s
+/// key out, and an absent key reads as the field's default: under a section that is none in the defaults, the
+/// patch's object starts empty, so `{"threat":{"concede":{"lone_peek":null}}}` took `lone_peek` out and read its
+/// default `Some` back (board 2026-11-01T04:15:20Z).
 pub(crate) fn merge_patch(target: &mut serde_json::Value, patch: serde_json::Value) {
     let serde_json::Value::Object(patch) = patch else {
         *target = patch;
@@ -169,29 +172,8 @@ pub(crate) fn merge_patch(target: &mut serde_json::Value, patch: serde_json::Val
     }
     let target = target.as_object_mut().expect("made an object above");
     for (key, value) in patch {
-        if value.is_null() {
-            target.remove(&key);
-        } else {
-            merge_patch(target.entry(key).or_insert(serde_json::Value::Null), value);
-        }
+        merge_patch(target.entry(key).or_insert(serde_json::Value::Null), value);
     }
-}
-
-/// The `null`s of `patch` for keys that have a value in `base` are put in `base` and taken out of `patch`
-/// ([`Tuning::apply_patch`]).
-fn nulls_set_none(base: &mut serde_json::Value, patch: &mut serde_json::Value) {
-    let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) = (base, patch) else { return };
-    patch.retain(|key, value| match base.get_mut(key) {
-        Some(slot) if value.is_null() && !slot.is_null() => {
-            *slot = serde_json::Value::Null;
-            false
-        }
-        Some(slot) => {
-            nulls_set_none(slot, value);
-            true
-        }
-        None => true,
-    });
 }
 
 /// `Ok` if `ok`, else the name of what is wrong.
@@ -243,13 +225,12 @@ impl Tuning {
     }
 
     /// `patch` merged into a tuning's JSON `value`: the old keys of a moved field read as their new ones, an object
-    /// merges key by key, a list or a scalar replaces what is there ([`merge_patch`]), and a `null` for a field
-    /// that has a value there sets the field to none. (RFC 7386 takes the key out, and an absent key is the field's
-    /// default; the defaults are on, so a patch that switches an optional number off says `null`. A field that
-    /// cannot be none refuses the `null` when the whole is read.)
+    /// merges key by key, a list or a scalar replaces what is there, and a `null` sets the field to none, at any
+    /// depth, under a section that is none in `value` too ([`merge_patch`]). The defaults are on, so a patch that
+    /// switches an optional field off says `null`. A field that cannot be none, or a name the tuning does not
+    /// have, refuses the `null` when the whole is read.
     pub fn apply_patch(value: &mut serde_json::Value, mut patch: serde_json::Value) -> Result<(), String> {
         legacy::upgrade(&mut patch)?;
-        nulls_set_none(value, &mut patch);
         merge_patch(value, patch);
         Ok(())
     }
@@ -488,25 +469,27 @@ mod tests {
         assert!(Tuning::load(&path).is_ok());
     }
 
-    /// RFC 7386's examples of the merge.
+    /// RFC 7386's examples of the merge, but for a `null`: it stays as the key's value (the field's none), at any
+    /// depth, where the RFC takes the key out.
     #[test]
-    fn the_merge_is_rfc_7386() {
+    fn the_merge_is_rfc_7386_but_a_null_is_none() {
         let cases = [
             (r#"{"a":"b"}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
             (r#"{"a":"b"}"#, r#"{"b":"c"}"#, r#"{"a":"b","b":"c"}"#),
-            (r#"{"a":"b"}"#, r#"{"a":null}"#, "{}"),
-            (r#"{"a":"b","b":"c"}"#, r#"{"a":null}"#, r#"{"b":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"a":null}"#, r#"{"a":null}"#),
+            (r#"{"a":"b","b":"c"}"#, r#"{"a":null}"#, r#"{"a":null,"b":"c"}"#),
             (r#"{"a":["b"]}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
             (r#"{"a":"c"}"#, r#"{"a":["b"]}"#, r#"{"a":["b"]}"#),
-            (r#"{"a":{"b":"c"}}"#, r#"{"a":{"b":"d","c":null}}"#, r#"{"a":{"b":"d"}}"#),
+            (r#"{"a":{"b":"c"}}"#, r#"{"a":{"b":"d","c":null}}"#, r#"{"a":{"b":"d","c":null}}"#),
             (r#"{"a":[{"b":"c"}]}"#, r#"{"a":[1]}"#, r#"{"a":[1]}"#),
             (r#"["a","b"]"#, r#"["c","d"]"#, r#"["c","d"]"#),
             (r#"{"a":"b"}"#, r#"["c"]"#, r#"["c"]"#),
             (r#"{"a":"foo"}"#, "null", "null"),
             (r#"{"a":"foo"}"#, r#""bar""#, r#""bar""#),
             (r#"{"e":null}"#, r#"{"a":1}"#, r#"{"e":null,"a":1}"#),
-            (r#"[1,2]"#, r#"{"a":"b","c":null}"#, r#"{"a":"b"}"#),
-            ("{}", r#"{"a":{"bb":{"ccc":null}}}"#, r#"{"a":{"bb":{}}}"#),
+            (r#"[1,2]"#, r#"{"a":"b","c":null}"#, r#"{"a":"b","c":null}"#),
+            ("{}", r#"{"a":{"bb":{"ccc":null}}}"#, r#"{"a":{"bb":{"ccc":null}}}"#),
+            (r#"{"a":null}"#, r#"{"a":{"b":null,"c":1}}"#, r#"{"a":{"b":null,"c":1}}"#),
         ];
         for (target, patch, want) in cases {
             let mut value: serde_json::Value = serde_json::from_str(target).unwrap();
@@ -575,11 +558,30 @@ mod tests {
         assert_eq!(off.feel.carrier_jump_m, None);
         assert_eq!(off.sense.sprint_body_mps, None);
         assert_eq!(off.unstick.unknown_meant_needs_keys, defaults.unstick.unknown_meant_needs_keys);
-        // A `null` for a field that cannot be none is refused, whichever way it is said.
+        // Under a section that is none in the defaults (`threat.concede`): a `null` inside it is none too, a field
+        // left out is the section's own default, and a `null` for the section is none.
+        assert_eq!(defaults.threat.concede, None);
+        let peek_off = Tuning::parse(r#"{"threat":{"concede":{"lone_peek":null}}}"#).unwrap();
+        assert_eq!(peek_off.threat.concede, Some(Concede { lone_peek: None, ..Concede::default() }));
+        let fails = Tuning::parse(r#"{"threat":{"concede":{"fails":3}}}"#).unwrap();
+        assert_eq!(fails.threat.concede, Some(Concede { fails: 3, ..Concede::default() }));
+        assert!(Concede::default().lone_peek.is_some());
+        let none = Tuning::parse(r#"{"threat":{"concede":null}}"#).unwrap();
+        assert_eq!(none.hash(), defaults.hash());
+        // The same through `apply_patch` over another base (the bench's way): over all-off too.
+        let mut value = serde_json::to_value(Tuning::all_off()).unwrap();
+        Tuning::apply_patch(&mut value, serde_json::json!({"threat": {"concede": {"lone_peek": null}}})).unwrap();
+        let read = Tuning::from_value(value).unwrap();
+        assert_eq!(read.threat.concede, Some(Concede { lone_peek: None, ..Concede::default() }));
+        // A `null` for a field that cannot be none, or for a name the tuning does not have, is refused, whichever way
+        // it is said.
         for bad in [
             r#"{"heal":{"on":null}}"#,
             r#"{"sense":null}"#,
             r#"{"plays":{"roam":null}}"#,
+            r#"{"threat":{"concede":{"fails":null}}}"#,
+            r#"{"threat":{"concede":{"no_such":null}}}"#,
+            r#"{"smoke":{"no_such":null}}"#,
             r#"{"sense":{"shot_range":70}}"#,
             r#"[1]"#,
             "{not json",
@@ -638,7 +640,7 @@ mod tests {
         assert!(changes.len() > 60, "{}", changes.len());
         // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
         // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
-        const OFF_BY_DEFAULT: &[&str] = &["/kin/fix_floor", "/feel/past_drop", "/spacing/apart_tie", "/spacing/lane", "/spacing/queue"];
+        const OFF_BY_DEFAULT: &[&str] = &["/feel/past_drop", "/spacing/apart_tie", "/spacing/lane"];
         for (pointer, off) in changes {
             if OFF_BY_DEFAULT.contains(&pointer.as_str()) {
                 assert_eq!(defaults.pointer(&pointer), Some(off), "{pointer} is on by default now: take it off OFF_BY_DEFAULT");
