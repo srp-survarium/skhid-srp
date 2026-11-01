@@ -19,6 +19,7 @@ mod pockets;
 mod probe;
 mod reversal_roles;
 mod stuck;
+mod turns;
 mod walking;
 mod zones;
 
@@ -108,6 +109,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         side_slides(),
         lip_gaps(),
         edge_falls(),
+        air_steers(),
         request_gaps(),
         shots_heard(),
         holder_stand_sight(),
@@ -149,6 +151,8 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(passes::Passes::new(bodies)),
         wall_clear(),
         wall_clear_kept(),
+        sprint_turns(),
+        Box::new(turns::Turns::new(bodies)),
     ]
 }
 

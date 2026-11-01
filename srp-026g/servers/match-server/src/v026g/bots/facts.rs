@@ -157,6 +157,28 @@ impl Bots {
             if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
             }
+            // [threat.breach, traps.at_cleared] The killing team's kill feed: the enemy it killed, and its killer when one's
+            // kills rose.
+            let winners = self.tunings.of(1 - team as u8);
+            if winners.threat.breach.is_some() || winners.traps.at_cleared.is_some() {
+                let killers: Vec<Place> = after
+                    .places
+                    .iter()
+                    .zip(&before.places)
+                    .filter(|(now, was)| usize::from(now.team & 1) != team && now.kills > was.kills)
+                    .map(|(now, _)| now.place)
+                    .collect();
+                let kills = &mut self.teams[1 - team].features.threat.kills;
+                kills.retain(|k| time.saturating_sub(k.time) <= threat::DEATH_KEPT_MS);
+                kills.push(super::breach::Kill {
+                    victim: a.place,
+                    killer: match killers[..] {
+                        [killer] => Some(killer),
+                        _ => None,
+                    },
+                    time,
+                });
+            }
             // [threat.concede] His death opens his areas in the enemies' memory of their tries (design-p1c §3).
             if let Some(concede) = self.tunings.of(1 - team as u8).threat.concede {
                 super::concede::shooter_died(&mut self.teams[1 - team].features.threat, 1 - team as u8, a.place, time, &concede.rules());

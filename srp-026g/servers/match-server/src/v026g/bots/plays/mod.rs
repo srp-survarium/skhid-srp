@@ -26,6 +26,7 @@
 
 pub mod ambush;
 pub mod answer;
+pub mod breach;
 pub mod buddy;
 pub mod collect;
 pub mod cover_human;
@@ -132,10 +133,12 @@ pub enum PlayKind {
     Resupply,
     /// Play 28: a teammate whose weapon reaches him answers a sniper the team sensed.
     Answer,
+    /// A crosser of a Breach on a held spot (`threat.breach`, design-p1c §1): gather out of his lanes, go on one tick, hold.
+    Breach,
 }
 
 impl PlayKind {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 24] = [
         Self::Roam,
         Self::Collect,
         Self::Ambush,
@@ -159,6 +162,7 @@ impl PlayKind {
         Self::Cut,
         Self::Resupply,
         Self::Answer,
+        Self::Breach,
     ];
 
     /// The personality family whose weight the play's `Personality`
@@ -168,7 +172,7 @@ impl PlayKind {
             Self::Ambush | Self::HoldExit | Self::GuardLead | Self::Crossfire | Self::Cut | Self::Answer => {
                 Family::Hold
             }
-            Self::Intercept | Self::Trade | Self::LateDenial | Self::Hunt => Family::Push,
+            Self::Intercept | Self::Trade | Self::LateDenial | Self::Hunt | Self::Breach => Family::Push,
             Self::Sneak | Self::Flank | Self::Raid => Family::Sneak,
             Self::Escort | Self::CoverHuman | Self::PairUp | Self::Buddy => Family::Support,
             Self::Roam
@@ -201,6 +205,7 @@ impl PlayKind {
                 | Self::Hunt
                 | Self::Cut
                 | Self::Answer
+                | Self::Breach
         )
     }
 }
@@ -1281,6 +1286,7 @@ pub enum Running {
     Cut(cut::State),
     Resupply(resupply::State),
     Answer(answer::State),
+    Breach(breach::State),
 }
 
 impl Running {
@@ -1331,6 +1337,7 @@ impl Running {
             Self::Cut(_) => PlayKind::Cut,
             Self::Resupply(_) => PlayKind::Resupply,
             Self::Answer(_) => PlayKind::Answer,
+            Self::Breach(_) => PlayKind::Breach,
         }
     }
 
@@ -1372,6 +1379,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     cut::candidates(cx, out);
     resupply::candidates(cx, out);
     answer::candidates(cx, out);
+    breach::candidates(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
 }
@@ -1410,6 +1418,7 @@ pub fn start(
         PlayKind::Cut => Running::Cut(cut::start(target, cx, rng)),
         PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
         PlayKind::Answer => Running::Answer(answer::start(target, cx, rng)),
+        PlayKind::Breach => Running::Breach(breach::start(target, cx, rng)),
     }
 }
 
@@ -1439,6 +1448,7 @@ pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -
         Running::Cut(s) => cut::step(s, target, cx, rng),
         Running::Resupply(s) => resupply::step(s, target, cx, rng),
         Running::Answer(s) => answer::step(s, target, cx, rng),
+        Running::Breach(s) => breach::step(s, target, cx, rng),
     }
 }
 
@@ -1479,6 +1489,7 @@ pub fn default_tuning(kind: PlayKind) -> PlayTuning {
         PlayKind::Cut => cut::tuning(),
         PlayKind::Resupply => resupply::tuning(),
         PlayKind::Answer => answer::tuning(),
+        PlayKind::Breach => breach::tuning(),
     }
 }
 
@@ -1508,6 +1519,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
         PlayKind::Cut => cut::NUMBERS,
         PlayKind::Resupply => resupply::NUMBERS,
         PlayKind::Answer => answer::NUMBERS,
+        PlayKind::Breach => breach::NUMBERS,
     }
 }
 

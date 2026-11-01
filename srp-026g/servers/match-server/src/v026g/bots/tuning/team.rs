@@ -108,13 +108,52 @@ pub struct Concede {
     /// An objective play aimed into a conceded area: its score times this, so another objective goes first; never 0
     /// (design-p1c item 13: a conceded spot over the only battery does not stall the objective). GUESS.
     pub objective_weight: f32,
-    /// [item 15] A lone bot hit from a held spot's lane makes no second peek into it for a while ([`LonePeek`]).
+    /// [item 15] A lone bot hit from a held spot's lane makes no second peek into it for a while ([`LonePeek`]). Off by its
+    /// by-side bench (battery camper, 128 pairs, concede on both teams: second-peek deaths 32 vs 30, z +0.82; camper kills
+    /// 373 vs 367): it refused 1,982 candidate plays against the like-last rule's 756,335 ahead of it in the same check,
+    /// since a death sets its lane's last try for `retry_s` and a hit then a peek mostly fall in a lane already tried.
     pub lone_peek: Option<LonePeek>,
+    /// A shooter's death keeps the tries on his areas for a while ([`KeepAfterDeath`]); none: his death opens them.
+    pub keep_after_death: Option<KeepAfterDeath>,
 }
 
 impl Default for Concede {
     fn default() -> Self {
-        Self { fails: 2, concede_s: 60.0, retry_deg: 45.0, retry_s: 30.0, objective_weight: 0.5, lone_peek: Some(LonePeek::default()) }
+        Self {
+            fails: 2,
+            concede_s: 60.0,
+            retry_deg: 45.0,
+            retry_s: 30.0,
+            objective_weight: 0.5,
+            lone_peek: None,
+            keep_after_death: Some(KeepAfterDeath::default()),
+        }
+    }
+}
+
+/// No feeding, look 2 (`concede::SpotState::Down`): a camper killed at his spot comes back to it. Live, within 180 s of
+/// his death he is back within 10 m in 69 % of the PvB runs (median 41 s, p75 66 s; humans' matches 59 %, 48 s, p75 89 s)
+/// and kills from it again in 53 % (`traces-20261028/fx-threat-obj-same-spot-note.md`). His death keeps the team's tries
+/// on his areas for `keep_s`: anything is offered while he is down, and they are taken up when the team senses him back in
+/// one or a try fails on it again.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct KeepAfterDeath {
+    /// How long, s: Valve's nav-area danger, "one kill == 1.0, which we will forget about in two minutes"; covers the p75
+    /// of his return. LIKELY.
+    pub keep_s: f32,
+}
+
+impl Default for KeepAfterDeath {
+    fn default() -> Self {
+        Self { keep_s: 120.0 }
+    }
+}
+
+impl KeepAfterDeath {
+    /// [`Self::keep_s`] in ms.
+    pub fn keep_ms(&self) -> u32 {
+        (self.keep_s.max(0.0) * 1000.0) as u32
     }
 }
 
@@ -153,12 +192,89 @@ impl Concede {
             concede_ms: (self.concede_s.max(0.0) * 1000.0) as u32,
             retry_deg: self.retry_deg.clamp(0.0, 180.0),
             retry_ms: (self.retry_s.max(0.0) * 1000.0) as u32,
+            keep_ms: self.keep_after_death.map(|k| k.keep_ms()),
         }
     }
 
     /// [`Self::objective_weight`] kept in (0, 1]: an objective play is weighed, never refused.
     pub fn objective_weight(&self) -> f32 {
         self.objective_weight.clamp(0.01, 1.0)
+    }
+}
+
+/// design-p1c §1, items 13, 14, 16, 18 (`breach.rs`): when a held spot's Flank failed or found no flank spot, two crossers
+/// gather out of his lanes and out of his sight, go on one tick to two cover points that see his spot from two bearings out
+/// of his lanes, and the second trades the first; a pinner holds him meanwhile when one is free. The numbers are the live
+/// humans' (`fx-gear-breach-human-note.md`: 478 campers ended by the victims' team in 402 recordings of 12+ players; counts
+/// PROVEN, timings LIKELY to the worlds' 5 s).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Breach {
+    /// The crossers wait for each other this long at most after the longer walk to the gather points at the walk cap, s:
+    /// the camper's median life after his last kill (8 s); a group not there by then fails (`GatherTimedOut`), it does not
+    /// trickle.
+    pub gather_s: f32,
+    /// A crosser walks this far to its gather point at most, m; a farther mate is no crosser. Humans' comers stood within
+    /// 35 m of his spot at his death and made their last 8 m inside the 30 s before (the note's comer rule); the first
+    /// bench's crossers walked 13-127 m (median ~55) and half the Breaches lost one on the way. GUESS from that window.
+    pub walk_max_m: f32,
+    /// The walk from the gather points to the cover points, s at most (half of the humans' 2+ comers go within 5 s of
+    /// each other).
+    pub go_s: f32,
+    /// At the cover points the job holds this long for him, s, then ends (`Time`). GUESS.
+    pub hold_s: f32,
+    /// A crosser's death is traded when he dies within this, s (humans' median 4 s, the stat tools' 5 s window).
+    pub trade_s: f32,
+    /// The two cover points lie this far apart, m at least and at most (humans' nearest pair at his death: P25 7 m,
+    /// median 12 m).
+    pub apart_min_m: f32,
+    pub apart_max_m: f32,
+    /// Seen from his spot, the cover points' bearings differ by this at least, degrees (84 % of humans' pushes came from
+    /// two or more 45-degree sectors, median spread 68 degrees).
+    pub bearing_min_deg: f32,
+    /// The cover points lie this far from his spot, m (the killer of a camper stood P25 9.6 / median 18.7 m off).
+    pub cover_min_m: f32,
+    pub cover_max_m: f32,
+    /// A gather point lies this far from its cover point, m, out of his lanes and out of his sight. GUESS.
+    pub gather_min_m: f32,
+    pub gather_max_m: f32,
+}
+
+impl Default for Breach {
+    fn default() -> Self {
+        Self {
+            gather_s: 8.0,
+            walk_max_m: 40.0,
+            go_s: 6.0,
+            hold_s: 10.0,
+            trade_s: 5.0,
+            apart_min_m: 6.0,
+            apart_max_m: 12.0,
+            bearing_min_deg: 30.0,
+            cover_min_m: 8.0,
+            cover_max_m: 22.0,
+            gather_min_m: 5.0,
+            gather_max_m: 15.0,
+        }
+    }
+}
+
+impl Breach {
+    /// The rules, parsed once (`breach::BreachRules`).
+    pub fn rules(&self) -> crate::v026g::bots::breach::BreachRules {
+        let ms = |s: f32| (s.max(0.0) * 1000.0) as u32;
+        let band = |lo: f32, hi: f32| (lo.max(0.0), hi.max(lo.max(0.0)));
+        crate::v026g::bots::breach::BreachRules {
+            gather_ms: ms(self.gather_s),
+            walk_max_m: self.walk_max_m.max(0.0),
+            go_ms: ms(self.go_s),
+            hold_ms: ms(self.hold_s),
+            trade_ms: ms(self.trade_s),
+            apart_m: band(self.apart_min_m, self.apart_max_m),
+            bearing_min_deg: self.bearing_min_deg.clamp(0.0, 180.0),
+            cover_m: band(self.cover_min_m, self.cover_max_m),
+            gather_m: band(self.gather_min_m, self.gather_max_m),
+        }
     }
 }
 
@@ -421,6 +537,9 @@ pub struct ThreatTuning {
     /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. OFF by
     /// default: not built into the jobs yet (the memory and its rules only).
     pub concede: Option<Concede>,
+    /// design-p1c §1, items 13, 14, 16, 18 ([`Breach`], `breach.rs`): the group push on a held spot whose Flank failed or
+    /// found no flank spot. OFF by default until its by-side bench.
+    pub breach: Option<Breach>,
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -536,6 +655,7 @@ impl Default for ThreatTuning {
             sniper_lanes: false,
             sniper_memory: Some(SniperMemory::default()),
             concede: None,
+            breach: None,
         }
     }
 }
@@ -717,6 +837,8 @@ pub struct ThinkTuning {
     /// (a lockout lasts as long as the sprint keys are held), stops sprinting early enough to arrive at a jump with the
     /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off: the sprint and the jumps as before; the reckoning is counted.
     pub stamina: bool,
+    /// The rates the bar is reckoned at ([`StaminaRates`]).
+    pub stamina_rates: StaminaRates,
     /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
     /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off: the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
     pub fall_lock: bool,
@@ -737,9 +859,24 @@ impl Default for ThinkTuning {
             door_centres: false,
             wall_clear_corners: false,
             stamina: true,
+            stamina_rates: StaminaRates::Light,
             fall_lock: true,
         }
     }
+}
+
+/// The rates the bot reckons its stamina bar at (`stamina::Rates`): a heavy kit's bar empties up to 2.5 times as fast
+/// as the light kit's, so at the light rates a sprint that is long for the kit runs its real bar to 0 with the reckoning
+/// still over the reserve (A207: the stand-in's lockouts rose 41 to 198 with the sprint on short legs). The bar is the
+/// player's HUD, so the bot knowing its kit's is no cheat.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StaminaRates {
+    /// As it was: every kit at the light kit's (spend 5 a second, regain 10, a jump 10).
+    #[default]
+    Light,
+    /// Each life at its kit's: the weight's cost against the kit's capacity and the skills (`stamina::Rates::of_kit`).
+    Kit,
 }
 
 /// A personality (play 14): weights per play family and motor habits.

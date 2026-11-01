@@ -1086,7 +1086,8 @@ impl Game {
                 let taken = body.recoil.turn(turn.1);
                 body.pitch = (body.pitch + turn.1 + taken).clamp(-1.0, 1.0);
                 // The honest stand-in's jump: the keys and the facing at
-                // the press pick its clip and way; none in the air.
+                // the press pick its clip and way; in the air only the
+                // air control steers (`SRP_BENCH_STAND_IN_AIR`).
                 if jump && body.alive && body.node.is_some() && body.flight.is_none() {
                     let staggered =
                         body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
@@ -1106,6 +1107,7 @@ impl Game {
                         prepare,
                         base: None,
                         fall: None,
+                        air: [0.0; 2],
                     });
                 }
             }
@@ -1209,7 +1211,7 @@ impl Game {
                     body.node = Some(node);
                     body.feet = feet;
                 } else if body.flight.is_some() {
-                    // Keys held in the air do not steer it (no air control).
+                    // Keys held in the air steer it only with `SRP_BENCH_STAND_IN_AIR` (`standin_jump::air_control`).
                     let walls = self.walls.as_deref().expect("built at the press");
                     let took_off = body.flight.map(|f| (f.from, f.base));
                     let sections = stand_in_corner().then(|| {

@@ -70,6 +70,7 @@
     "past_drop": "window",
     "sprint_gaps": false,
     "sprint_through": false,
+    "sprint_turns": null,
     "unclear_aim": false,
     "zone_lines": false
   },
@@ -166,6 +167,7 @@
     "search_queue": "first_come",
     "shut_in_gate": false,
     "stamina": false,
+    "stamina_rates": "light",
     "stranded_start": false
   },
   "traps": {

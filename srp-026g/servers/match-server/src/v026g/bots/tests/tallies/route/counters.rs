@@ -350,6 +350,17 @@ pub(super) fn edge_falls() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The stand-in's air control (`SRP_BENCH_STAND_IN_AIR`, `standin_jump::air_control`): airborne ticks steered, airborne ticks with
+/// none, jumps come down, and of them those it moved 0.25 m or more.
+pub(super) fn air_steers() -> Box<dyn RouteTopic> {
+    Delta::of(
+        crate::v026g::bots::tests::standin_jump::air_steer_stats,
+        |d, line| {
+            line.ends.push(format!("stand_in_air steered/unsteered/landed/moved {}/{}/{}/{}", d[0], d[1], d[2], d[3]));
+        },
+    )
+}
+
 /// The sprint lift (`motor::lifts`), by band of rise (up to 0.80 m, 0.80-0.95, 0.95-1.05, 1.05-1.11): lifts tried (the body
 /// stood at the face), got up, given up for the jump; the jumps pressed up those faces with the body calm and in a fight
 /// or a rush; and the faces a body in a fight or a rush did not lift (top short, sprint blocked, no run).
@@ -804,6 +815,27 @@ pub(super) fn route_ends() -> Box<dyn RouteTopic> {
                     age / n.max(1)
                 ));
             }
+        },
+    )
+}
+
+/// The sprint by the turn ahead (`motor::sprint_turns`, `feel.sprint_turns`): the walking ticks of the legs it is for and
+/// those sprinted; of them, under the old rule's start (10 m of straight way) and within its release before a corner;
+/// the sprints let go of standing, before a sharp turn or a jump, before the route's end, with the view off the way; the
+/// ticks with no room for one before a sharp turn and before the end; and the ticks a later release still let go of a sprint
+/// the rule held (a low passage, lining up for a jump, the bar, a planned drop). Only a team with the switch on counts.
+pub(super) fn sprint_turns() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_turns::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "sprint_turns_walking {} sprint_turns_sprinting {} sprint_turns_short_leg {} sprint_turns_past_corner {} \
+                 sprint_turns_ended_standing {} sprint_turns_ended_sharp {} sprint_turns_ended_route_end {} sprint_turns_ended_facing {} \
+                 sprint_turns_no_room_sharp {} sprint_turns_no_room_end {} \
+                 sprint_turns_overruled_low {} sprint_turns_overruled_jump {} sprint_turns_overruled_bar {} sprint_turns_overruled_drop {} \
+                 sprint_turns_edge {} sprint_turns_edge_sprinting {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]
+            ));
         },
     )
 }

@@ -137,6 +137,7 @@ pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
 pub use team::GangUp;
+pub use team::LonePeek;
 pub use team::ModTuning;
 pub use team::PerchTuning;
 pub use team::Personalities;
@@ -146,6 +147,7 @@ pub use team::PinRule;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
 pub use team::SniperMemory;
+pub use team::StaminaRates;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;
@@ -559,20 +561,21 @@ mod tests {
         assert_eq!(off.sense.sprint_body_mps, None);
         assert_eq!(off.unstick.unknown_meant_needs_keys, defaults.unstick.unknown_meant_needs_keys);
         // Under a section that is none in the defaults (`threat.concede`): a `null` inside it is none too, a field
-        // left out is the section's own default, and a `null` for the section is none.
+        // left out is the section's own default, and a `null` for the section is none. (`keep_after_death`: on in the
+        // section's default, so its `null` is the case.)
         assert_eq!(defaults.threat.concede, None);
-        let peek_off = Tuning::parse(r#"{"threat":{"concede":{"lone_peek":null}}}"#).unwrap();
-        assert_eq!(peek_off.threat.concede, Some(Concede { lone_peek: None, ..Concede::default() }));
+        let keep_off = Tuning::parse(r#"{"threat":{"concede":{"keep_after_death":null}}}"#).unwrap();
+        assert_eq!(keep_off.threat.concede, Some(Concede { keep_after_death: None, ..Concede::default() }));
         let fails = Tuning::parse(r#"{"threat":{"concede":{"fails":3}}}"#).unwrap();
         assert_eq!(fails.threat.concede, Some(Concede { fails: 3, ..Concede::default() }));
-        assert!(Concede::default().lone_peek.is_some());
+        assert!(Concede::default().keep_after_death.is_some());
         let none = Tuning::parse(r#"{"threat":{"concede":null}}"#).unwrap();
         assert_eq!(none.hash(), defaults.hash());
         // The same through `apply_patch` over another base (the bench's way): over all-off too.
         let mut value = serde_json::to_value(Tuning::all_off()).unwrap();
-        Tuning::apply_patch(&mut value, serde_json::json!({"threat": {"concede": {"lone_peek": null}}})).unwrap();
+        Tuning::apply_patch(&mut value, serde_json::json!({"threat": {"concede": {"keep_after_death": null}}})).unwrap();
         let read = Tuning::from_value(value).unwrap();
-        assert_eq!(read.threat.concede, Some(Concede { lone_peek: None, ..Concede::default() }));
+        assert_eq!(read.threat.concede, Some(Concede { keep_after_death: None, ..Concede::default() }));
         // A `null` for a field that cannot be none, or for a name the tuning does not have, is refused, whichever way
         // it is said.
         for bad in [
@@ -640,7 +643,7 @@ mod tests {
         assert!(changes.len() > 60, "{}", changes.len());
         // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
         // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
-        const OFF_BY_DEFAULT: &[&str] = &["/kin/margin_edge", "/feel/past_drop", "/spacing/apart_tie", "/spacing/lane"];
+        const OFF_BY_DEFAULT: &[&str] = &["/kin/margin_edge", "/feel/past_drop", "/feel/sprint_turns", "/spacing/apart_tie", "/spacing/lane", "/think/stamina_rates"];
         for (pointer, off) in changes {
             if OFF_BY_DEFAULT.contains(&pointer.as_str()) {
                 assert_eq!(defaults.pointer(&pointer), Some(off), "{pointer} is on by default now: take it off OFF_BY_DEFAULT");
