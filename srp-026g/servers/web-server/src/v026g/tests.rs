@@ -1846,3 +1846,92 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
     assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
     assert_eq!(repository.all_admin_actions().len(), 1);
 }
+
+#[test]
+fn the_admin_mutes_and_unmutes_a_chat_with_its_audit_rows() {
+    let (world, repository) = kept_world();
+    let id = world.player("loud", "secret");
+    world.player("bystander", "secret");
+    let page = world.admin(&[("tab", "mute")]);
+    assert!(page.contains("value=mute id=tab-mute checked"), "{page}");
+
+    // A mute needs a reason and whole hours: nothing is done without them.
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("mute_reason", " ")]);
+    assert!(body.contains("A reason is required"), "{body}");
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_hours", "soon"),
+        ("mute_reason", "spam"),
+    ]);
+    assert!(body.contains("Hours: a whole number"), "{body}");
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "ghost"),
+        ("mute_reason", "x"),
+    ]);
+    assert!(body.contains("No such user"), "{body}");
+    assert!(world.web.store.chat_ban(id).is_none());
+    assert!(repository.all_admin_actions().is_empty());
+
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_hours", "2"),
+        ("mute_reason", "<spam>"),
+    ]);
+    // One POST, one line a script greps for.
+    let ban = world.web.store.chat_ban(id).expect("muted");
+    assert_eq!(ban.reason, "<spam>");
+    let until = ban.until.expect("timed");
+    let said = format!(
+        "loud's chat muted until {} {} UTC.",
+        session::utc::date(until),
+        session::utc::clock(until)
+    );
+    assert!(body.contains(&said), "{body}");
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].account_id, id);
+    assert_eq!(actions[0].kind, "chat_mute");
+    assert_eq!(actions[0].change, "chat muted");
+    assert_eq!(actions[0].reason, "<spam>");
+    assert_eq!(actions[0].before, "not muted");
+    assert!(
+        actions[0].after.starts_with("until "),
+        "{}",
+        actions[0].after
+    );
+    // The bans tab lists it, escaped.
+    let bans = world.admin(&[("tab", "bans")]);
+    assert!(
+        bans.contains("Chat mutes") && bans.contains("&lt;spam&gt;"),
+        "{bans}"
+    );
+
+    // For good replaces it.
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_reason", "spam"),
+    ]);
+    assert!(body.contains("loud's chat muted for good."), "{body}");
+    assert_eq!(
+        world.web.store.chat_ban(id).map(|ban| ban.until),
+        Some(None)
+    );
+
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
+    assert!(body.contains("loud's chat unmuted."), "{body}");
+    assert!(world.web.store.chat_ban(id).is_none());
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
+    assert!(body.contains("loud's chat was not muted."), "{body}");
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 3);
+    assert!(actions.iter().any(|action| action.change == "chat unmuted"
+        && action.before == "for good"
+        && action.after == "not muted"));
+    // Nothing of the account's game changes, and the other account is not muted.
+    assert!(world.told.changed.locked().is_empty());
+    assert!(world.web.store.chat_bans().is_empty());
+}
