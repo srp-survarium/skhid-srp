@@ -153,7 +153,11 @@ impl CamperOptions {
             rule,
             crouch,
             long_gun,
-            moving: MoveOptions::parse(get("SRP_BENCH_CAMPER_MOVE").as_deref(), get("SRP_BENCH_CAMPER_DWELL_S").as_deref())?,
+            moving: MoveOptions::parse(
+                get("SRP_BENCH_CAMPER_MOVE").as_deref(),
+                get("SRP_BENCH_CAMPER_DWELL_S").as_deref(),
+                get("SRP_BENCH_CAMPER_LEAVE").as_deref(),
+            )?,
             at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
             watch: Watch::parse(get("SRP_BENCH_CAMPER_WATCH").as_deref())?,
             side: CamperSide::parse(get("SRP_BENCH_CAMPER_SIDE").as_deref())?,
@@ -375,6 +379,8 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
     assert_eq!(all.side, CamperSide::BySeed);
     assert_eq!(all.start, CamperStart::Spot(Arrival::LiveWalk));
     assert_eq!(all.returns, ReturnRule::Live);
+    let leaving = with(&[("SRP_BENCH_CAMPER_MOVE", "live"), ("SRP_BENCH_CAMPER_LEAVE", "live")]).expect("known values");
+    assert_eq!(leaving.moving, Some(MoveOptions::Live(LiveLeave::PerKill)));
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
         ("SRP_BENCH_CAMPER_CROUCH", "yes"),
@@ -385,6 +391,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_START", "home"),
         ("SRP_BENCH_CAMPER_ARRIVE", "walk"),
         ("SRP_BENCH_CAMPER_ARRIVE", "live"),
+        ("SRP_BENCH_CAMPER_LEAVE", "live"),
         ("SRP_BENCH_CAMPER_RETURN", "sometimes"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
