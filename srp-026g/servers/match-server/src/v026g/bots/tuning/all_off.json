@@ -139,7 +139,8 @@
     "react_watch": false,
     "sight": false,
     "spot_rules": false,
-    "throw_keeps_route": false
+    "throw_keeps_route": false,
+    "wait_for_cloud": null
   },
   "threat": {
     "area": false,
