@@ -58,6 +58,8 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// Where the stop forecast's margin falls off a ledge ([`MarginEdge`]).
+    pub margin_edge: MarginEdge,
     /// Which floor a world's feet are put on ([`FixFloor`]).
     pub fix_floor: FixFloor,
     /// How a view's pitch unit relates to its elevation ([`PitchScale`]): the unit is 60.0 degrees up and 67.48 down
@@ -95,6 +97,24 @@ pub enum Edge {
     /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
     #[default]
     Client,
+}
+
+/// Where the stop forecast's margin (`body::stays_up`: the same stop from [`super::body::RECKONING_M`] further on along the body's
+/// way, for a body not exactly where it is reckoned) falls off a ledge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MarginEdge {
+    /// At the grid's cell boundary ([`Edge::Lattice`]) whatever [`Kinematics::edge`] is: with [`Edge::Client`] the forecast moves
+    /// the body up to [`super::body::SUPPORT_M`] past its floor's centre, past the cell's boundary, and the margin from there falls at
+    /// once, whichever way the body goes. A body walking along a lip on its last floor is held by the full lip guard's sides
+    /// (`Feel::lip_guard_full`: the same walk [`super::body::RECKONING_M`] to the side) every tick, and by its own margin once it is
+    /// reckoned past the boundary: of the ticks the guard held a walk in the bench's stuck episodes at lips, 56 % were held for a
+    /// side only (A205, 5 of 16 runs).
+    #[default]
+    Lattice,
+    /// As the body itself ([`Kinematics::edge`]): the margin is the forecast's body a little further on, so it falls where that
+    /// body would.
+    Body,
 }
 
 /// Which floor of the walk grid the reckoning puts a world's feet on (`body::BodyTrack::fixed`), the floor it moves the body on from.
@@ -135,6 +155,7 @@ impl Default for Kinematics {
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            margin_edge: MarginEdge::Lattice,
             fix_floor: FixFloor::Nearest,
             pitch_scale: PitchScale::Client,
         }

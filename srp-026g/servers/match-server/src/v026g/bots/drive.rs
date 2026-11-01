@@ -2606,6 +2606,35 @@ mod tests {
         assert_eq!((wider > 0, narrower), (true, 0), "wider {wider} narrower {narrower}");
     }
 
+    /// [`kin::MarginEdge`]: a walk along the rim on the slab's last floor (its centre 0.125 m inside the rim) stays up, the body held
+    /// by the client's edge. With the margin at the lattice's edge the full guard's sides hold it (the side 0.3 m out is past the
+    /// cell's boundary, where its margin falls at once), and the plain guard holds a body reckoned past the boundary for its own
+    /// margin. With the margin at the body's edge both walk on, and a walk toward the rim is stopped as before.
+    #[test]
+    fn a_walk_along_a_rim_is_held_only_with_the_margin_at_the_lattices_edge() {
+        let world = slab();
+        let grid = &world.grid;
+        let lattice = kin::Kinematics::default();
+        let body = kin::Kinematics { margin_edge: kin::MarginEdge::Body, ..lattice.clone() };
+        assert_eq!((lattice.edge, lattice.margin_edge), (kin::Edge::Client, kin::MarginEdge::Lattice), "the defaults");
+        let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
+        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full);
+        // Along the rim on its last floor: the sides.
+        assert!(held(walk(&lattice, 55.875, 0.0, true)), "held for a side");
+        assert_eq!(walk(&lattice, 55.875, 0.0, false), LipGuard::Safe, "the plain guard has no sides");
+        assert_eq!(walk(&body, 55.875, 0.0, true), LipGuard::Safe);
+        // Reckoned 0.1 m past the boundary (within the support): its own margin.
+        assert!(held(walk(&lattice, 56.1, 0.0, false)), "held for its own margin");
+        assert_eq!(walk(&body, 56.1, 0.0, false), LipGuard::Safe);
+        assert_eq!(walk(&body, 56.1, 0.0, true), LipGuard::Safe);
+        // Toward the rim: stopped either way.
+        let toward = -std::f32::consts::FRAC_PI_2;
+        for full in [false, true] {
+            assert!(held(walk(&body, 55.4, toward, full)), "{full}");
+            assert!(held(walk(&lattice, 55.4, toward, full)), "{full}");
+        }
+    }
+
     /// [`Feel::lip_guard_full`], the give-up is a state with what ends it: kept while the body stays near where it was given up and
     /// holds the same move keys (asked for the glide only), watched again once it has moved or presses other keys.
     #[test]
