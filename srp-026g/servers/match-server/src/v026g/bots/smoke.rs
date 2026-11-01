@@ -685,6 +685,112 @@ pub struct SmokePlan {
     pub aim: SmokeAim,
     pub for_use: SmokeUse,
     pub covers_m: f32,
+    /// The line the cloud is for.
+    pub line: SmokeLine,
+}
+
+/// The line a smoke is for: the threat's eye to the chest over the crossing, and the crossing (the route's first point
+/// in his sight, where the bot would step into it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SmokeLine {
+    pub eye: Vec3,
+    pub target: Vec3,
+    pub crossing: Vec3,
+}
+
+/// [A208 `smoke.wait_for_cloud`] Whose cloud a hold is for: the bot's own smoke, by its use, or a mate's in the air
+/// (`CloudWaiters::Crossers`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WaitsFor {
+    Own(SmokeUse),
+    Mates,
+}
+
+impl WaitsFor {
+    /// The counters' columns: the uses in [`SmokeUse::ALL`]'s order, then the mates'.
+    pub const COUNT: usize = SmokeUse::ALL.len() + 1;
+
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Own(u) => u.index(),
+            Self::Mates => SmokeUse::ALL.len(),
+        }
+    }
+}
+
+/// [A208 `smoke.wait_for_cloud`] Why a hold for a cloud ended (`Reflex::cloud_holding`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HoldEnd {
+    /// The clouds hid the line.
+    Hidden,
+    /// A target that is not the line's threat took the bot.
+    Fight,
+    /// Hit since the hold began.
+    Hit,
+    /// An enemy its own senses put within `close_m` lately.
+    Close,
+    /// The cap ran out.
+    Cap,
+}
+
+/// [A208 `smoke.wait_for_cloud`] A hold short of a crossing until a cloud hides its line: what `Reflex::start_smoke`
+/// takes for a thrower (from the launch on) and `Reflex::hold_for_cloud` for a bot crossing under a mate's cloud. The
+/// bot walks its route on to `hold` and stands there, looking at the threat's eye, until the clouds (its team's
+/// forming rule) hide the line, or a fight, a hit, an enemy sensed close or the cap ends it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CloudWait {
+    pub waits_for: WaitsFor,
+    pub line: SmokeLine,
+    /// The enemy the line is against, when known: his being its target is no fight that ends the hold (the reflex
+    /// holds the sniper that outranges it as its target, seen or not: `Reflex::outranged_by`).
+    pub threat: Option<Place>,
+    /// Where it holds: the last point of its route short of the crossing that the threat's eyes do not see (its feet
+    /// when there is none ahead of it).
+    pub hold: Vec3,
+    /// The latest end, ms after the hold's start (the press for its own smoke, the hold's begin for a mate's): the
+    /// grenade's fuse, the forming and `margin_ms`.
+    pub cap_ms: u32,
+    pub thin_m: f32,
+    pub forming: Forming,
+    pub close_m: f32,
+    pub close_sensed_ms: u32,
+}
+
+impl CloudWait {
+    /// The hold for `plan` by a bot of a team whose tuning is `tuning` (None with `smoke.wait_for_cloud` off), with
+    /// `grenade` thrown: its own smoke's, or with `mates` a mate's cloud in the air (only with
+    /// `CloudWaiters::Crossers`). Every `start_smoke` caller (the lanes, the sniper, an objective actor's, a Breach
+    /// thrower's) takes its wait from here.
+    pub fn of(
+        tuning: &super::tuning::SmokeTuning,
+        grenade: &SmokeGrenade,
+        line: SmokeLine,
+        threat: Option<Place>,
+        waits_for: WaitsFor,
+        hold: Vec3,
+    ) -> Option<Self> {
+        let w = tuning.wait_for_cloud?;
+        if waits_for == WaitsFor::Mates && w.who != super::tuning::CloudWaiters::Crossers {
+            return None;
+        }
+        let forming = Forming::of(tuning);
+        Some(Self {
+            waits_for,
+            line,
+            threat,
+            hold,
+            cap_ms: grenade.cloud.fuse_ms + forming.ms(&grenade.cloud) + w.margin_ms,
+            thin_m: tuning.thin_m.get(),
+            forming,
+            close_m: w.close_m.get(),
+            close_sensed_ms: w.close_sensed_ms,
+        })
+    }
+
+    /// Whether the clouds `clouds` hide its line at `now`.
+    pub fn hidden(&self, clouds: &Clouds, now: u32) -> bool {
+        Veil::Smoke { clouds: clouds.all(), at: MatchMs(now), thin_m: self.thin_m, forming: self.forming }.hides(self.line.eye, self.line.target)
+    }
 }
 
 /// The view a smoke is thrown with from the thrower's eye (`arc::Flight::thrown_by`'s yaw and pitch), and where its
@@ -773,12 +879,14 @@ pub fn smoke_between(
             aim,
             for_use,
             covers_m,
+            line: SmokeLine { eye: threat_eye, target: chest, crossing },
         })
     })
 }
 
 /// A smoke on a spot (a held spot, its holder's eye `spot_eye`): the floor under it, if the throw reaches it. Its
-/// `covers_m` is the smoke on the line from the spot's eye to `toward` (the thrower's side).
+/// `covers_m` is the smoke on the line from the spot's eye to `toward` (the thrower's side), its line that one (the
+/// crossing at `toward`).
 pub fn smoke_on(reach: &Reach<'_>, spot_eye: Vec3, toward: Vec3, for_use: SmokeUse) -> Option<SmokePlan> {
     let floor = reach.floor(spot_eye)?;
     let aim = reach.aim(floor)?;
@@ -787,6 +895,7 @@ pub fn smoke_on(reach: &Reach<'_>, spot_eye: Vec3, toward: Vec3, for_use: SmokeU
         aim,
         for_use,
         covers_m: reach.smoke_on_line(aim.rest, spot_eye, toward),
+        line: SmokeLine { eye: spot_eye, target: toward, crossing: toward },
     })
 }
 
@@ -884,6 +993,64 @@ pub mod tally {
     /// A smoke throw under way when its thrower's life ended.
     pub fn died(team: u8, for_use: super::SmokeUse) {
         step(team, for_use, 3);
+    }
+
+    /// [A208 `smoke.wait_for_cloud`] What became of the holds for a cloud, and (switch on or off) of each thrown smoke's
+    /// crossing, by team and whose cloud (`WaitsFor::index`).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Wait {
+        /// A hold begun; it ends in one of the next six.
+        Begun,
+        /// The cloud hid the line.
+        Hidden,
+        /// A target took the bot.
+        Fight,
+        /// Hit since the hold began.
+        Hit,
+        /// An enemy its own senses put within `close_m`.
+        Close,
+        /// The cap ran out.
+        Cap,
+        /// The life ended in the hold.
+        Died,
+        /// The time held, ms (summed).
+        HeldMs,
+        /// A thrown smoke's bot came to its crossing (within 2.5 m) with the line hidden from the client's eyes, or
+        /// open, or not within 15 s of the launch (its route went elsewhere, or it died).
+        CrossedHidden,
+        CrossedOpen,
+        CrossedNever,
+    }
+
+    impl Wait {
+        pub fn ended(end: super::HoldEnd) -> Self {
+            match end {
+                super::HoldEnd::Hidden => Self::Hidden,
+                super::HoldEnd::Fight => Self::Fight,
+                super::HoldEnd::Hit => Self::Hit,
+                super::HoldEnd::Close => Self::Close,
+                super::HoldEnd::Cap => Self::Cap,
+            }
+        }
+    }
+
+    pub const WAITS: usize = 11;
+    pub type Waits = [[[u64; WAITS]; super::WaitsFor::COUNT]; 2];
+
+    thread_local! {
+        static WAIT_COUNTS: Cell<Waits> = const { Cell::new([[[0; WAITS]; super::WaitsFor::COUNT]; 2]) };
+    }
+
+    pub fn wait(team: u8, waits_for: super::WaitsFor, what: Wait, n: u64) {
+        WAIT_COUNTS.with(|c| {
+            let mut counts = c.get();
+            counts[usize::from(team & 1)][waits_for.index()][what as usize] += n;
+            c.set(counts);
+        });
+    }
+
+    pub fn waits() -> Waits {
+        WAIT_COUNTS.with(Cell::get)
     }
 
     pub fn throws() -> Throws {

@@ -55,6 +55,8 @@ pub struct Scenario {
     pub zone_armour: std::sync::Arc<crate::v026g::bots::zone_cost::ZoneArmour>,
     pub no_way_to: Vec<(Vec3, u32)>,
     pub dry: bool,
+    /// `BotFacts::hit` (item 15).
+    pub hit: Option<crate::v026g::bots::concede::Hit>,
     /// `BotFacts::ammo`.
     pub ammo: crate::v026g::bots::guns::Ammo,
     /// `BotFacts::failed_stands`.
@@ -149,6 +151,7 @@ impl Scenario {
             zone_armour: Default::default(),
             no_way_to: Vec::new(),
             dry: false,
+            hit: None,
             ammo: Default::default(),
             failed_stands: Vec::new(),
             crossing: None,
@@ -315,6 +318,7 @@ impl Scenario {
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
                 dry: self.dry,
+                hit: self.hit,
                 ammo: self.ammo,
                 crossing: self.crossing,
                 held_choke: self.held_choke,
@@ -534,6 +538,95 @@ fn friends_near_a_held_target_count_the_other_contender() {
     s.view.places[0].feet = at;
     assert_eq!(friends(&s, 0), 2.0);
     assert_eq!(friends(&s, 1), 2.0);
+}
+
+/// design-p1c §3 (`threat.concede`): a play aimed into a conceded area is refused when it is a fight or roam play and
+/// weighed when it is the objective's (item 13: never refused); the same line not conceded, or the switch off, changes
+/// nothing.
+#[test]
+fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
+    use crate::v026g::bots::threat::{HeldLine, Picture};
+    use crate::v026g::bots::tuning::Concede;
+    let battery = Vec3::new(30.0, 0.0, 35.0);
+    let mut s = Scenario::field(Mode::Batteries);
+    // Late enough for a try 40 s before.
+    s.view.clock = s.view.clock.max(60_000);
+    s.tuning.threat.concede = Some(Concede::default());
+    s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+    s.battery(BatteryState::Free(battery));
+    let collect = |s: &Scenario| {
+        s.candidates(0)
+            .into_iter()
+            .find(|c| c.kind == PlayKind::Collect && c.target == TargetRef::Battery(0))
+            .map(|c| c.score.get())
+    };
+    let roam = |s: &Scenario| s.cx(0).candidate(PlayKind::Roam, TargetRef::Point(battery), None).map(|c| c.score.get());
+    let clear = collect(&s).expect("a Collect of the battery");
+    let roam_clear = roam(&s).expect("a Roam to the battery's place");
+    // A shooter 15 m past the battery killed a bot by it: his lane runs over the battery.
+    let line = HeldLine::for_test(7, 15, Vec3::new(40.0, 0.0, 46.0), &[battery], Some(s.view.clock));
+    assert!(line.covers(battery));
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], ..Picture::default() });
+    assert_eq!(collect(&s), Some(clear), "held, not conceded");
+    assert_eq!(roam(&s), Some(roam_clear));
+    let concede = crate::v026g::bots::concede::Offers { conceded: vec![7], tried: Vec::new() };
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
+    let weighed = collect(&s).expect("weighed, not refused");
+    assert!((weighed - clear * Concede::default().objective_weight()).abs() < 1e-4, "{weighed} vs {clear}");
+    assert_eq!(roam(&s), None, "a roam into his lane is refused");
+    // Tried, not conceded: his last victim died on this lane 10 s ago, so a roam into it is like the last try and refused,
+    // the Collect weighed; 40 s after, it differs by its time.
+    let now = s.view.clock;
+    let last = crate::v026g::bots::concede::Try {
+        kind: crate::v026g::bots::concede::TryKind::Peek,
+        bearing: crate::v026g::bots::concede::bearing(line.at, battery),
+        at: now.saturating_sub(10_000),
+    };
+    let concede = crate::v026g::bots::concede::Offers { conceded: Vec::new(), tried: vec![(7, last)] };
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
+    assert_eq!(roam(&s), None, "like the last try");
+    assert!(collect(&s).is_some_and(|w| (w - weighed).abs() < 1e-4));
+    let concede = crate::v026g::bots::concede::Offers { conceded: Vec::new(), tried: vec![(7, crate::v026g::bots::concede::Try { at: now.saturating_sub(40_000), ..last })] };
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
+    assert_eq!(roam(&s), Some(roam_clear), "30 s past it");
+    // Off: as it was.
+    s.tuning.threat.concede = None;
+    assert_eq!(collect(&s), Some(clear));
+    assert_eq!(roam(&s), Some(roam_clear));
+}
+
+/// design-p1c item 15 (`threat.concede.lone_peek`): a lone bot hit lately by a held spot's shooter is refused a roam back into
+/// the lane it was hit from; with a mate within 10 m, or 12 s after the hit, or from another side, it goes.
+#[test]
+fn a_lone_bot_hit_from_a_lane_makes_no_second_peek_into_it() {
+    use crate::v026g::bots::concede::Hit;
+    use crate::v026g::bots::threat::{HeldLine, Picture};
+    use crate::v026g::bots::tuning::Concede;
+    let mut s = Scenario::field(Mode::Batteries);
+    s.view.clock = s.view.clock.max(60_000);
+    s.tuning.threat.concede = Some(Concede::default());
+    let me = Vec3::new(10.0, 0.0, 10.0);
+    s.bot(0, 0, me);
+    // His spot 25 m east of the bot; he killed someone 10 m north of the bot (a held line, nothing conceded or tried).
+    let spot = Vec3::new(35.0, 0.0, 10.0);
+    let lane = Vec3::new(14.0, 0.0, 10.0);
+    let line = HeldLine::for_test(7, 15, spot, &[Vec3::new(12.0, 0.0, 10.0)], Some(s.view.clock));
+    assert!(line.covers(lane));
+    s.team.threat = Arc::new(Picture { held: vec![line], ..Picture::default() });
+    let roam = |s: &Scenario| s.cx(0).candidate(PlayKind::Roam, TargetRef::Point(lane), None).map(|c| c.score.get());
+    let clear = roam(&s).expect("no hit: a roam into his lane");
+    let now = s.view.clock;
+    s.hit = Some(Hit { shooter_at: spot, from: me, at: now - 2_000 });
+    assert_eq!(roam(&s), None, "hit 2 s ago from that lane, alone");
+    s.hit = Some(Hit { shooter_at: spot, from: me, at: now - 13_000 });
+    assert_eq!(roam(&s), Some(clear), "13 s after the hit");
+    s.hit = Some(Hit { shooter_at: spot, from: Vec3::new(35.0, 0.0, 40.0), at: now - 2_000 });
+    assert_eq!(roam(&s), Some(clear), "hit from another side (90 deg off)");
+    s.hit = Some(Hit { shooter_at: Vec3::new(80.0, 0.0, 80.0), from: me, at: now - 2_000 });
+    assert_eq!(roam(&s), Some(clear), "hit by someone else, no held spot of his");
+    s.hit = Some(Hit { shooter_at: spot, from: me, at: now - 2_000 });
+    s.bot(1, 0, me + Vec3::new(4.0, 0.0, 0.0));
+    assert!(roam(&s).is_some(), "a mate 4 m off: they go together");
 }
 
 /// #25b (`threat.sniper_memory`): a remembered sniper's lanes on the straight way to a battery score its Collect down by

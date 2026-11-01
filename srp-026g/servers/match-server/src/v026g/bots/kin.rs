@@ -109,6 +109,14 @@ pub enum FixFloor {
     Nearest,
     /// The nearest floor at most [`FIX_ABOVE_M`] over the feet, else the nearest: feet are on their floor or over it.
     Under,
+    /// [`Self::Under`] while the body's own jump is in the air (its jump key held at a decided tick within
+    /// [`super::body::JUMP_AIR_MS`] before the world's), else [`Self::Nearest`]. A world shows a body between floors in a jump
+    /// (School r1: rising at the facade, its own floor under it) and in a fall (Tarakanovsky Fort (-54, 8, 12): walked off a
+    /// ledge, 0.5 m under the top it left and over a lower top 0.6-0.8 m aside that it falls past); only the jump's floor is
+    /// under it. Over every differing fix of the rev 38+ live recordings (14,097, A204), the mean error of the reckoning at the
+    /// next world is 0.638 m with this rule, 1.380 with [`Self::Nearest`] and 0.944 with [`Self::Under`], and no map is worse
+    /// than with [`Self::Nearest`] (Under alone was worse on four: Tarakanovsky Fort 1.644 against 0.691).
+    UnderInJump,
 }
 
 /// How far over a world's feet [`FixFloor::Under`] takes a floor, metres: a floor's height is its cell centre's, which on the

@@ -88,6 +88,26 @@ fn threat_tick(
     // The jobs (K2) and the picture the plays read, every tick (the bots
     // move).
     let held = threat.spots.held_lines(now, rules);
+    // [threat.concede] The held lines whose shooter's area the team conceded or tried (design-p1c §3), by id, sorted; and
+    // the memory's areas left open long enough forgotten.
+    let concede = match tuning.threat.concede {
+        Some(_) => {
+            threat.spot_memory.forget_old(now);
+            let memory = &threat.spot_memory;
+            let mut offers = super::concede::Offers::default();
+            for line in &held {
+                match memory.area_at(line.at).map(|area| memory.offers(area, now)) {
+                    Some(super::concede::Offer::None) => offers.conceded.push(line.id),
+                    Some(super::concede::Offer::NotLike(last)) => offers.tried.push((line.id, last)),
+                    Some(super::concede::Offer::Any) | None => {}
+                }
+            }
+            offers.conceded.sort_unstable();
+            offers.tried.sort_unstable_by_key(|&(id, _)| id);
+            offers
+        }
+        None => super::concede::Offers::default(),
+    };
     if tuning.threat.job {
         let mates: Vec<threat::Mate> = bots
             .iter()
@@ -111,11 +131,37 @@ fn threat_tick(
                 Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing })
             })
             .collect();
-        let holds = threat::holds(&held, tuning.threat.job_kills);
+        let mut holds = threat::holds(&held, tuning.threat.job_kills);
+        // [threat.concede] No job on a conceded area, nor a new one like the last failed try on a tried one (a Flank: the
+        // same kind, so only its time differs; design-p1c §3).
+        if let Some(concede) = tuning.threat.concede {
+            let (memory, jobs, rules) = (&threat.spot_memory, &threat.jobs, concede.rules());
+            holds.retain(|l| {
+                let Some(area) = memory.area_at(l.at) else {
+                    return true;
+                };
+                let running = jobs.iter().any(|j| j.spot == l.id);
+                match memory.offers(area, now) {
+                    super::concede::Offer::Any => true,
+                    super::concede::Offer::None => {
+                        super::concede::tally(team, super::concede::Tally::JobRefusedConceded);
+                        false
+                    }
+                    super::concede::Offer::NotLike(last) => {
+                        let next = super::concede::Try { kind: super::concede::TryKind::Job(super::concede::JobKind::Flank), bearing: last.bearing, at: now };
+                        let differs = running || super::concede::differs(&last, &next, &rules);
+                        if !differs {
+                            super::concede::tally(team, super::concede::Tally::JobRefusedLike);
+                        }
+                        differs
+                    }
+                }
+            });
+        }
         let areas = objective.home_spots(&tactics.world.map);
         let job_team = threat::JobTeam { mates: &mates, size: view.team(team).count(), objective_areas: &areas };
         let spots = &threat.spots;
-        let unheld = |id| spots.unheld_why(id, now);
+        let unheld = |id| if concede.is_conceded(id) { threat::JobEnd::Conceded } else { spots.unheld_why(id, now) };
         // A role's bot stands out of every held line, or of the holds' only (the switch off).
         let lanes = if tuning.threat.job_out_of_all_lines { &held[..] } else { &holds[..] };
         let opening = if tuning.threat.job_open_staffed { threat::Opening::Staffed } else { threat::Opening::ThenDropped };
@@ -167,7 +213,7 @@ fn threat_tick(
         }
     }
     let sniper_regions = if tuning.threat.sniper_memory.is_some() { threat.spots.sniper_regions(now) } else { Vec::new() };
-    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions };
+    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, concede };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }
@@ -530,6 +576,7 @@ impl Bots {
                     set_aside: &bot.features.memory.set_aside,
                     failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
+                    hit: bot.reflex.last_hit(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
                     held_choke: bot.held_choke,
@@ -696,6 +743,7 @@ impl Bots {
                     set_aside: &bot.features.memory.set_aside,
                     failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
+                    hit: bot.reflex.last_hit(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
                     held_choke: bot.held_choke,
@@ -735,6 +783,15 @@ impl Bots {
                     assignment.kind, assignment.target, assignment.score, assignment.reason
                 ),
             );
+            // [threat.concede] A play taken whose target lies in a conceded area: the objective's (its cost, item 13) or
+            // another (a fight or roam play is refused there; what remains is the bot's own or an alarm).
+            if tuning.threat.concede.is_some()
+                && cx.point_of(assignment.target).is_some_and(|to| state.knowledge.threat.conceded_at(to).is_some())
+            {
+                let rank = plays::default_tuning(assignment.kind).rank;
+                let tally = if rank == plays::Rank::Objective { super::concede::Tally::TakenObjective } else { super::concede::Tally::TakenOther };
+                super::concede::tally(team, tally);
+            }
             if self.trace.enabled() {
                 let (mut top, left) = asked
                     .iter()
