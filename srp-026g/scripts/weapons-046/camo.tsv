@@ -28,3 +28,16 @@ weapons/pistols/colt_m1911/colt_m1911_stock		weapons/pistols/colt_m1911/colt_m19
 weapons/pistols/colt_m1911/colt_m1911_mag		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_mag_s
 weapons/pistols/colt_m1911/colt_m1911_frame		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_frame_s
 weapons/pistols/colt_m1911/colt_m1911_bolt		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_bolt_s
+# The sights, barrels, muzzle brakes and rounds get a mask that paints nothing (parts.tsv: no part,
+# weapon_camo.py --bare-masks), so a camouflaged gun finds every surface's _aoac and they stay bare.
+weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake		weapons/assault/enfield_l85a2/enfield_l85a2:muzzle_enfield_l85a2_muzzle_brake_s
+weapons/assault/enfield_l85a2/enfield_l85a2_ironsight		weapons/assault/enfield_l85a2/enfield_l85a2:scope_enfield_l85a2_ironsight_s
+weapons/lmg/fort_401/fort_401_ironsight		weapons/lmg/fort_401/fort_401:scope_fort_401_ironsight_s
+weapons/lmg/fort_401/fort_401_muzzle_brake		weapons/lmg/fort_401/fort_401:muzzle_fort_401_muzzle_brake_s
+weapons/pistols/glock_17/glock_17_barrel		weapons/pistols/glock_17/glock_17:barrel_glock_17_barrel_s
+weapons/pistols/glock_17/glock_17_back_cap		weapons/pistols/glock_17/glock_17:back_cap_glock_17_back_cap_s
+weapons/pistols/glock_17/glock_17_ironsight		weapons/pistols/glock_17/glock_17:ironsight_glock_17_ironsight_s
+weapons/ammo/para_9x19/para_9x19		weapons/pistols/glock_17/glock_17:mag_para_9x19_s
+weapons/pistols/colt_m1911/colt_m1911_barrel		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_barrel_s
+weapons/pistols/colt_m1911/colt_m1911_ironsight		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_ironsight_s
+weapons/ammo/acp_45/acp_45		weapons/pistols/colt_m1911/colt_m1911:acp_45_s
