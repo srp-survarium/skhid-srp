@@ -10,6 +10,9 @@
 #   camouflage; armour's records as they come;
 # - a drop on a slot (UpgradeSlot.handleDropEvent, onItemDropped) shown at once: a decal into the
 #   second decal slot, a camouflage beside the kit's scope;
+# - the muzzle device (patch 90): its slot on the Attachments page of a weapon that takes devices
+#   (no slot on one that takes none, nor on armour), apart from the scope's; a kit naming a device
+#   fills it; a drag lights only the slot an item fits; a device the weapon does not take is greyed;
 # - the window's texts in every language of client-patches/localization fitting their fields.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
@@ -37,7 +40,8 @@ KEYS = {'btn_upgrade_label': 'st_btn_upgrade_label', 'scope_window_title': 'st_s
         'decal_slot': 'st_decal_slot', 'camo_slot': 'st_camo_slot',
         'scope_slot': 'st_picatinny_scope_medium_name', 'default_scope': 'st_default_scope_name',
         'scope_screen_hint': 'st_srp_scope_screen_hint', 'modification_screen_hint': 'st_modification_screen_hint',
-        'modification_screen_edit_decal_hint': 'st_modification_screen_edit_decal_hint', 'confirm': 'st_confirm'}
+        'modification_screen_edit_decal_hint': 'st_modification_screen_edit_decal_hint', 'confirm': 'st_confirm',
+        'st_srp_muzzle_slot': 'st_srp_muzzle_slot'}
 languages = [name for name, *_ in LANGUAGES]
 data = {}
 for language in languages:
