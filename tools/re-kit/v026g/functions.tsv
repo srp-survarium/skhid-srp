@@ -2000,3 +2000,6 @@ va	status	ref_021d	name
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
+0x0030d750	reviewed	0x001b1cf4	survarium::computed_reload_animation_time_scale
+0x0030e1f0	reviewed	0x001f1795	survarium::weapon_core_reload_state::get_weapon_lexeme
+0x0030ee40	reviewed	0x001b1e1a	survarium::computed_shotgun_reload_animation_time_scale
