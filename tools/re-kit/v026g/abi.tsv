@@ -2161,3 +2161,4 @@ va	name	source	ret_cleanup	result
 0x000ddff0	vostok::command_line::key::initialize(pcstr)	manual	4	
 0x000de0c0	vostok::command_line::key_initializator::operator()	manual	4	
 0x000df020	vostok::command_line::iterate_keys<key_initializator>	manual	0	
+0x000eee30	vostok::math::create_perspective_projection	manual	0	

@@ -5109,3 +5109,8 @@ va	name	location	role	basis
 0x000de0c0	vostok::command_line::key_initializator::operator()	ESI	parsed key name	observed
 0x000de0c0	vostok::command_line::key_initializator::operator()	entry ESP+4	parsed value string	observed
 0x000df020	vostok::command_line::iterate_keys<key_initializator>	entry ESP+4	empty predicate storage (the caller passes a zero byte)	observed
+0x000eee30	vostok::math::create_perspective_projection	XMM0	vertical field of view, radians (halved and tangent taken inside)	observed
+0x000eee30	vostok::math::create_perspective_projection	entry ESP+4	aspect ratio (divides 1/tan(fov/2) for m00)	observed
+0x000eee30	vostok::math::create_perspective_projection	entry ESP+8	near plane	observed
+0x000eee30	vostok::math::create_perspective_projection	entry ESP+0xC	far plane; caller pops the three	observed
+0x000eee30	vostok::math::create_perspective_projection	ESI	output float4x4 (D3D left-handed: m22 = f/(f-n), m23 = 1, m32 = -n f/(f-n))	observed
