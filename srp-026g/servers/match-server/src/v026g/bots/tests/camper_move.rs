@@ -48,7 +48,19 @@ pub(crate) enum CamperAt {
     /// exit that cannot be flanked, where every sight on him comes from one way. Outside their spawn area: no route enters it (`Tactics`'s
     /// spawn rule), so a spot within 25 m was reached in 9 of 211 lives (A212 §2, `wsl-out/batteries/sb-base-efdd5d69-20261101`).
     Exit,
+    /// [A239] A live camper's spot (the camp spec, `traces-20261028/fx-threat-obj-camp-spec-note.md`): [`LIVE_SPAWN_M`] from his own
+    /// team's nearest spawn, the one that sees the most of the other side's route points [`LIVE_SIGHT_M`] off, then the one seen from
+    /// the fewest (the hidden rule's measure); with none in the spawn band, the nearest to it ([`live_ranked`]).
+    Live,
 }
+
+/// [A239] How far a live camper's spot ([`CamperAt::Live`]) lies from his own team's nearest spawn, m: the live human campers'
+/// spot from their life's spawn against the old bots, median 95 m (77 m against humans); the stand-in's old rule gave 70-72 m.
+const LIVE_SPAWN_M: (f32, f32) = (80.0, 100.0);
+
+/// [A239] The sightlines a live camper's spot is chosen by ([`CamperAt::Live`]), m: the live campers' kill distance against the old
+/// bots, median 16 m (p25 10, p75 25); the stand-in's old rule (any sight within [`CAMPER_SEES_M`]) killed at 20-24 m.
+const LIVE_SIGHT_M: (f32, f32) = (10.0, 25.0);
 
 /// The nearest a spawn exit spot ([`CamperAt::Exit`]) lies to the other team's spawns, m: their spawn area, which no route enters.
 const EXIT_MIN_M: f32 = crate::v026g::bots::tactics::SPAWN_AREA_M;
@@ -86,7 +98,8 @@ impl CamperAt {
             Some("battery") => Ok(Self::Battery),
             Some("container") => Ok(Self::Container),
             Some("exit") => Ok(Self::Exit),
-            Some(other) => Err(format!("SRP_BENCH_CAMPER_AT={other:?}: battery, container or exit")),
+            Some("live") => Ok(Self::Live),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_AT={other:?}: battery, container, exit or live")),
         }
     }
 }
@@ -123,6 +136,7 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
     let map = &tactics.world.map;
     let anchors: Vec<Vec3> = match options.at {
         CamperAt::Free => return Pool::ByRule(candidates),
+        CamperAt::Live => return Pool::Ranked(live_ranked(tactics, side, options, candidates)),
         CamperAt::Battery => map.battery_spawners.iter().map(|s| s.item).collect(),
         CamperAt::Container => map.containers.iter().filter(|c| c.team == side).map(|c| c.position).collect(),
         CamperAt::Exit => map.spawns.iter().filter(|s| s.team == 1 - side).map(|s| s.position).collect(),
@@ -158,6 +172,41 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
         .collect();
     ranked.sort_by(|(a, ca), (b, cb)| a.total_cmp(b).then(cb.sees.cmp(&ca.sees)));
     Pool::Ranked(ranked.into_iter().map(|(_, c)| c).collect())
+}
+
+/// [A239] The candidates of [`CamperAt::Live`], best first: those in [`LIVE_SPAWN_M`] of his own spawns first, the rest by how far out
+/// of it they lie ([`spawn_gap_m`]); then by the other side's route points they see [`LIVE_SIGHT_M`] off, more first; then by the share
+/// of those seeing them seen from, fewer first (the hidden rule's measure; 0 under the spot rule `most`). A candidate that sees none
+/// [`LIVE_SIGHT_M`] off is left out.
+fn live_ranked(tactics: &Tactics, side: i32, options: &CamperOptions, candidates: Vec<Candidate>) -> Vec<Candidate> {
+    let spawns: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| s.team == side).map(|s| s.position).collect();
+    let theirs: Vec<Vec3> = tactics.routes_of(1 - side).flat_map(|r| r.points.iter().copied()).filter(|p| p.is_finite()).collect();
+    let sight = &tactics.world.sight;
+    let eye_up = super::super::view::still_eye(Vec3::ZERO, options.crouch);
+    let seen_share = |c: &Candidate| c.seen as f32 / c.sees.max(1) as f32;
+    let mut ranked: Vec<(f32, u32, Candidate)> = candidates
+        .into_iter()
+        .filter(|c| c.sees > 0)
+        .filter_map(|c| {
+            let close = theirs
+                .iter()
+                .filter(|q| (LIVE_SIGHT_M.0..=LIVE_SIGHT_M.1).contains(&q.distance_xz(c.at)))
+                .filter(|&&q| super::super::aimpoint::shows(c.at + eye_up, q, false, sight, || true))
+                .count() as u32;
+            (close > 0).then(|| (spawn_gap_m(&spawns, c.at), close, c))
+        })
+        .collect();
+    ranked.sort_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)).then(seen_share(&a.2).total_cmp(&seen_share(&b.2))));
+    ranked.into_iter().map(|(_, _, c)| c).collect()
+}
+
+/// [A239] How far `at` lies out of [`LIVE_SPAWN_M`] from the nearest of `spawns`, m: 0 within it; infinite with no spawn.
+fn spawn_gap_m(spawns: &[Vec3], at: Vec3) -> f32 {
+    let nearest = spawns.iter().map(|s| s.distance_xz(at)).fold(f32::INFINITY, f32::min);
+    if !nearest.is_finite() {
+        return f32::INFINITY;
+    }
+    (LIVE_SPAWN_M.0 - nearest).max(nearest - LIVE_SPAWN_M.1).max(0.0)
 }
 
 /// Whether `at` lies [`EXIT_MIN_M`] to [`EXIT_MAX_M`] from the nearest of the other team's `spawns`.
@@ -1291,11 +1340,45 @@ mod tests {
         assert!(!in_exit_band(&[], Vec3::ZERO), "no spawn of theirs: no exit");
     }
 
+    /// [A239] A live camper's spot: 80-100 m from his own nearest spawn, else by how far out of that it lies.
+    #[test]
+    fn a_live_camper_spot_lies_eighty_to_a_hundred_metres_from_his_spawn() {
+        let spawns = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 20.0)];
+        assert_eq!(spawn_gap_m(&spawns, Vec3::new(90.0, 4.0, 0.0)), 0.0);
+        assert_eq!(spawn_gap_m(&spawns, Vec3::new(80.0, 0.0, 20.0)), 0.0, "by the nearest spawn");
+        assert!((spawn_gap_m(&spawns, Vec3::new(70.0, 0.0, 0.0)) - 10.0).abs() < 1e-4, "10 m short");
+        assert!((spawn_gap_m(&spawns, Vec3::new(105.0, 0.0, 0.0)) - 5.0).abs() < 1e-4, "5 m past");
+        assert_eq!(spawn_gap_m(&[], Vec3::ZERO), f32::INFINITY, "no spawn of his");
+    }
+
+    /// [A239] On the soak field (80 m across: no route point 80 m from a spawn) the live spot is the one nearest the band that sees the
+    /// other side's routes 10-25 m off, from the old rule's candidates: side 0's north lane run on to x 45, 15 m short of side 1's.
+    #[test]
+    fn the_live_spot_is_the_nearest_the_band_that_sees_their_routes_close() {
+        let mut tactics = tactics();
+        let mut routes = camper_routes();
+        routes[0].points.push(Vec3::new(45.0, 0.0, 33.0));
+        tactics.set_routes(routes);
+        let options = CamperOptions { at: CamperAt::Live, ..CamperOptions::OFF };
+        let Pool::Ranked(ranked) = camper_pool(&tactics, 0, &options) else {
+            panic!("a ranked pool");
+        };
+        assert!(!ranked.is_empty());
+        let mine: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| s.team == 0).map(|s| s.position).collect();
+        let gaps: Vec<f32> = ranked.iter().map(|c| spawn_gap_m(&mine, c.at)).collect();
+        assert!(gaps.windows(2).all(|w| w[0] <= w[1]), "nearest the band first: {gaps:?}");
+        let all = camper_candidates(&tactics, 0, options.rule, options.crouch);
+        assert!(ranked.iter().all(|c| all.contains(c)), "the old rule's candidates");
+        let (at, _) = camper_spot_at(&tactics, 0, &options).expect("a live spot");
+        assert_eq!(at, ranked[0].at);
+    }
+
     /// An unknown value is refused, not read as the default.
     #[test]
     fn unknown_settings_are_refused() {
         assert_eq!(CamperAt::parse(None), Ok(CamperAt::Free));
         assert_eq!(CamperAt::parse(Some("exit")), Ok(CamperAt::Exit));
+        assert_eq!(CamperAt::parse(Some("live")), Ok(CamperAt::Live));
         assert!(CamperAt::parse(Some("exits")).is_err());
         assert_eq!(CamperStart::parse(None), Ok(CamperStart::Spawn));
         assert_eq!(CamperStart::parse(Some("spot")), Ok(CamperStart::Spot));
