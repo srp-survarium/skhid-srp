@@ -257,8 +257,9 @@ def build(args, work):
         t.parent.mkdir(parents=True, exist_ok=True)
         t.write_bytes(data)
     (args.out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    replaces = [{'files': sorted(cfgs), 'from': aimed, 'to': new}
-                for new, by in sorted(edits.items()) for aimed, cfgs in sorted(by.items())]
+    # replace_string's `files` is one glob: an entry a config
+    replaces = [{'files': c, 'from': aimed, 'to': new}
+                for new, by in sorted(edits.items()) for aimed, cfgs in sorted(by.items()) for c in sorted(cfgs)]
     about = (f"The live scope variants' reticles at the screen's centre (pack live-scope-eye; srp-026g/docs/notes/"
              f"weapon_scopes.md, section 8): {len(per_cfg)} variant configs name an aimed model on the tilted line of "
              "sight of their weapon model's turned aim locator. Made by scripts/live-scope-eye/make_pack.py.")
