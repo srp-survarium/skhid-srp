@@ -2054,10 +2054,16 @@ st_shop	Obchod
 st_shop_label	Obchod
 st_shop_scope_1p69_hyperon_description	Optika se 4x zvětšením
 st_shop_scope_1p69_hyperon_name	Optika Zenit Hyperion, 4x
+st_shop_scope_acog_ta01_description	Optika se 4x zvětšením
+st_shop_scope_acog_ta01_name	Optika TA01, 4x
 st_shop_scope_acog_ta31_description	Optika se 4x zvětšením
 st_shop_scope_acog_ta31_name	Optika TA31, 4x
 st_shop_scope_aimpoint_compm4_description	Švédský kolimátor s bodem 2 MOA a baterií až na osm let nepřetržitého provozu. Americká armáda ho přijala jako M68 CCO. Montuje se na lištu Picatinny.
-st_shop_scope_aimpoint_compm4_name	Kolimátor CompM4
+st_shop_scope_aimpoint_compm4_name	Kolimátor CompM4, 2x
+st_shop_scope_aperture_description	Optika se 3x zvětšením
+st_shop_scope_aperture_name	Optika Aperture, 3x
+st_shop_scope_belomo_pk01_description	Kolimátor se 2x zvětšením.
+st_shop_scope_belomo_pk01_name	Kolimátor PK-01VI, 2x
 st_shop_scope_cobra_ekp_8_description	Ruský kolimátor se čtyřmi volitelnými červenými obrazci. Umožňuje rychlé míření s oběma očima otevřenýma. Montuje se na boční lištu zbraní typu Kalašnikov.
 st_shop_scope_cobra_ekp_8_name	Kolimátor Kobra EKP-8
 st_shop_scope_docter_description	Kompaktní německý otevřený kolimátor s červeným bodem. Je lehký a umožňuje rychlé míření. Určený pro brokovnice, pistole a krátké zbraně.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	Optika se 4x zvětšením
 st_shop_scope_elcan_specterdr_name	Optika SpecterDR, 4x
 st_shop_scope_eotech_552_description	Americký holografický zaměřovač: kruh 65 MOA s bodem 1 MOA uprostřed, napájený AA bateriemi. Rychlý na krátkou a střední vzdálenost. Montáž na lištu Picatinny.
 st_shop_scope_eotech_552_name	Kolimátor EOTech 552
+st_shop_scope_eotech_xps2_description	Kolimátor pro rychlé míření.
+st_shop_scope_eotech_xps2_name	Kolimátor EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Kolimátor se 2x zvětšením.
+st_shop_scope_hensoldt_rsas_name	Kolimátor RSA-S, 2x
+st_shop_scope_leupold_3_7_description	Optika se 6x zvětšením
+st_shop_scope_leupold_3_7_name	Optika Leupold 3-7, 6x
 st_shop_scope_leupold_deltapoint_description	Kompaktní americký kolimátor s červeným trojúhelníkem. Určený pro pistole a lehké zbraně. Je tak malý, že nepřekáží.
 st_shop_scope_leupold_deltapoint_name	Kolimátor Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Optika se 4x zvětšením
 st_shop_scope_leupold_mk4_name	Optika Leupold MK4, 4x
+st_shop_scope_ncstar_4_description	Kolimátor pro rychlé míření.
+st_shop_scope_ncstar_4_name	Kolimátor NcSTAR 4
 st_shop_scope_pso_1_description	Optika se 4x zvětšením
 st_shop_scope_pso_1_name	Optika PSO-1, 4x
 st_shop_scope_pso_1_old_description	Optika se 4x zvětšením

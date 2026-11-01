@@ -1,0 +1,15 @@
+# 0.69d0's materials of the new optics, as 0.26g gets them: loc2:<name> an existing material of ours (weapons/loc2/<name>, patch 19's
+# 0.51c5 modules: the same lens, reticle and grid materials), else made again (vostok-port build-material-patch) on the 0.26g template named
+# 0.69d0 material (material_instances/weapons/modules/...)	how
+scopes/scope_lense_1p	loc2:scope_lense_1p
+scopes/scope_lense_3p	loc2:scope_lense_3p
+scopes/scope_aimgrid	loc2:scope_aimgrid
+scopes/scope_reddot	loc2:scope_reddot
+scopes/acog/acog_scope	loc2:acog
+collimators/ncstar_4_collimator	material_instances/weapons/loc2/eotech_552.material
+collimators/eotech_xps2_collimator	material_instances/weapons/loc2/eotech_552.material
+collimators/belomo_pk01_collimator	material_instances/weapons/loc2/aimpoint_comp_m4.material
+collimators/hensoldt_rsas_collimator	material_instances/weapons/loc2/aimpoint_comp_m4.material
+scopes/aperture_scope	material_instances/weapons/loc2/leupold_mk4.material
+scopes/aperture_scope_rubber	material_instances/weapons/loc2/leupold_mk4.material
+scopes/leupold_3_7x4x8_scope	material_instances/weapons/loc2/leupold_mk4.material

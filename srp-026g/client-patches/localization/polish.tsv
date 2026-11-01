@@ -2054,10 +2054,16 @@ st_shop	Sklep
 st_shop_label	Sklep
 st_shop_scope_1p69_hyperon_description	Celownik optyczny o powiększeniu 4x
 st_shop_scope_1p69_hyperon_name	Celownik optyczny Zenit "Hyperion", x4
+st_shop_scope_acog_ta01_description	Celownik optyczny o powiększeniu 4x
+st_shop_scope_acog_ta01_name	Celownik optyczny TA01, x4
 st_shop_scope_acog_ta31_description	Celownik optyczny o powiększeniu 4x
 st_shop_scope_acog_ta31_name	Celownik optyczny TA31, x4
 st_shop_scope_aimpoint_compm4_description	Szwedzki celownik kolimatorowy z punktem 2 MOA i baterią wystarczającą na nawet osiem lat ciągłej pracy. Przyjęty przez armię USA jako M68 CCO; montowany na szynie Picatinny.
-st_shop_scope_aimpoint_compm4_name	Kolimator CompM4
+st_shop_scope_aimpoint_compm4_name	Kolimator CompM4, x2
+st_shop_scope_aperture_description	Celownik optyczny o powiększeniu 3x
+st_shop_scope_aperture_name	Celownik optyczny Aperture, x3
+st_shop_scope_belomo_pk01_description	Celownik kolimatorowy o powiększeniu 2x.
+st_shop_scope_belomo_pk01_name	Kolimator PK-01VI, x2
 st_shop_scope_cobra_ekp_8_description	Rosyjski celownik kolimatorowy z czterema wybieranymi czerwonymi znakami celowniczymi. Pozwala szybko celować obojgiem otwartych oczu; montowany na bocznej szynie broni rodziny Kałasznikowa.
 st_shop_scope_cobra_ekp_8_name	Kolimator Cobra EKP-8
 st_shop_scope_docter_description	Kompaktowy niemiecki otwarty celownik kolimatorowy z czerwonym punktem. Lekki i szybki w celowaniu; przeznaczony do strzelb, pistoletów i krótkiej broni.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	Celownik optyczny o powiększeniu 4x
 st_shop_scope_elcan_specterdr_name	Celownik optyczny SpecterDR, x4
 st_shop_scope_eotech_552_description	Amerykański celownik holograficzny: pierścień 65 MOA z punktem 1 MOA pośrodku, zasilany bateriami AA. Szybki na krótkim i średnim dystansie; montowany na szynie Picatinny.
 st_shop_scope_eotech_552_name	Kolimator EOTech 552
+st_shop_scope_eotech_xps2_description	Celownik kolimatorowy do szybkiego celowania.
+st_shop_scope_eotech_xps2_name	Kolimator EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Celownik kolimatorowy o powiększeniu 2x.
+st_shop_scope_hensoldt_rsas_name	Kolimator RSA-S, x2
+st_shop_scope_leupold_3_7_description	Celownik optyczny o powiększeniu 6x
+st_shop_scope_leupold_3_7_name	Celownik optyczny Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Kompaktowy amerykański celownik kolimatorowy z czerwonym trójkątnym znakiem celowniczym. Przeznaczony do pistoletów i lekkiej broni; na tyle mały, że nie przeszkadza.
 st_shop_scope_leupold_deltapoint_name	Kolimator Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Celownik optyczny o powiększeniu 4x
 st_shop_scope_leupold_mk4_name	Celownik optyczny Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Celownik kolimatorowy do szybkiego celowania.
+st_shop_scope_ncstar_4_name	Kolimator NcSTAR 4
 st_shop_scope_pso_1_description	Celownik optyczny o powiększeniu 4x
 st_shop_scope_pso_1_name	Celownik optyczny PSO-1, x4
 st_shop_scope_pso_1_old_description	Celownik optyczny o powiększeniu 4x

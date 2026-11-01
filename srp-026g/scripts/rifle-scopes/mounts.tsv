@@ -1,0 +1,41 @@
+# made by survey.py: each weapon of ours with a mount, for a collimator and for a scope: the variant of ours
+# whose mount it takes, its translation (metres, the scope frame) and the rails it adds (- none)
+# weapon	collimator	its translation	its rails	scope	its translation	its rails
+a_545	fit_a_545_aimpoint_compm4	-0.00596,0.09488,0.22413	-	fit_a_545_acog_ta31	-0.00596,0.09488,0.22413	-
+aek_919k	fitn_docter_aek_919k	0.00620,-0.00372,0.15190	scope_short_picatinnyrail_s	-	-	-
+ak_12	fit_ak_12_aimpoint_compm4	0.00000,0.09164,0.20285	-	fit_ak_12_acog_ta31	0.00000,0.09164,0.20285	-
+ak_12_premium	fitn_aimpoint_compm4_ak_12_premium	0.00000,0.09164,0.20285	-	fitn_acog_ta31_ak_12_premium	0.00000,0.09164,0.20285	-
+ak_74m	fit_ak_74m_eotech_552	-0.00374,0.03769,-0.09155	picatini_lastochka_s	fit_ak_74m_acog_ta31	-0.00374,0.03769,-0.09155	picatini_lastochka_s
+akmn	fit_akmn_eotech_552	-0.00367,0.03712,-0.09155	picatini_lastochka_s	fit_akmn_acog_ta31	-0.00367,0.03712,-0.09155	picatini_lastochka_s
+akmn_premium	fitn_eotech_552_akmn_premium	-0.00367,0.03712,-0.09155	picatini_lastochka_s	fitn_acog_ta31_akmn_premium	-0.00367,0.03712,-0.09155	picatini_lastochka_s
+akmn_premium_2	fitn_eotech_552_akmn_premium_2	-0.00367,0.03712,-0.09155	picatini_lastochka_s	fitn_acog_ta31_akmn_premium_2	-0.00367,0.03712,-0.09155	picatini_lastochka_s
+ash_12	fit_ash_12_aimpoint_compm4	-0.00114,0.13977,0.06393	-	fit_ash_12_acog_ta31	-0.00114,0.13977,0.06393	-
+benelli_m4	fit_benelli_m4_aimpoint_compm4	0.00004,-0.00952,0.02991	-	-	-	-
+fn_fnc	fitn_aimpoint_compm4_fn_fnc	0.00108,0.10118,0.09142	-	fitn_acog_ta31_fn_fnc	0.00108,0.10118,0.09142	-
+fort_17	fit_fort_17_leupold_deltapoint	-0.00709,0.01625,0.02059	picatini_pistol_s	-	-	-
+hk416	fitn_aimpoint_compm4_hk416	0.00015,0.00192,0.00000	-	fitn_acog_ta31_hk416	0.00015,0.00192,0.00000	-
+izh_27_lancaster_premium_2	fitn_docter_izh_27_lancaster_premium_2	-0.00000,0.00184,0.05241	scope_short_picatinnyrail_s	-	-	-
+kedr	fitn_aimpoint_compm4_kedr	0.00000,0.08671,0.02901	scope_short_picatinnyrail_s	-	-	-
+m4a1	fitn_aimpoint_compm4_m4a1	-0.00000,-0.00415,-0.08322	-	fitn_acog_ta31_m4a1	-0.00000,-0.00415,-0.08322	-
+magnum	fit_magnum_docter	0.00235,0.00303,-0.05011	coltpython_picatinnyrail_s	-	-	-
+mp7	fitn_aimpoint_compm4_mp7	-0.01030,0.00001,0.05698	-	-	-	-
+mp_153	fit_mp_153_aimpoint_compm4	-0.00600,0.09029,0.12562	scope_medium_picatinnyrail_s	-	-	-
+msbs_carbine	fitn_aimpoint_compm4_msbs_carbine	0.00020,0.00217,0.00000	-	fitn_acog_ta31_msbs_carbine	0.00020,0.00217,0.00000	-
+neostead	fitn_docter_neostead	0.02440,0.11308,0.04590	-	-	-	-
+neostead_2	fitn_docter_neostead_2	0.02440,0.11308,0.04590	-	-	-	-
+pp2000	fit_pp2000_aimpoint_compm4	-0.00029,0.07302,-0.04834	-	-	-	-
+rem_870	fit_rem_870_aimpoint_compm4	0.01000,0.06302,0.05442	scope_medium_picatinnyrail_s	-	-	-
+rpd	fit_rpd_aimpoint_compm4	0.00014,0.00524,-0.17797	picatini_rpd_01_s	fit_rpd_acog_ta31	0.00014,0.00524,-0.17797	picatini_rpd_01_s
+rpk	-	-	-	fit_rpk_acog_ta31	-0.00400,0.03615,-0.09116	picatini_lastochka_s
+soc_vepr	-	-	-	fitn_acog_ta31_soc_vepr	0.02440,0.05478,0.05058	picatini_lastochka_s
+socom16	fit_socom16_aimpoint_compm4	0.01036,0.00523,-0.11766	picatini_socom16_s	-	-	-
+spas_12	fit_spas_12_docter	-0.01400,0.02030,0.01456	scope_short_picatinnyrail_s	-	-	-
+sr2m	fit_sr2m_aimpoint_compm4	0.00000,0.05766,-0.04308	-	-	-	-
+toz_122	fit_toz_122_docter	-0.00007,-0.00350,0.02117	-	-	-	-
+toz_34	fit_toz_34_docter	-0.00000,0.07117,0.04458	scope_short_picatinnyrail_s	-	-	-
+ump45	fit_ump45_aimpoint_compm4	-0.01499,0.04927,-0.05088	-	-	-	-
+valmet	fitn_aimpoint_compm4_valmet	-0.00600,0.07176,0.14600	scope_medium_picatinnyrail_s	-	-	-
+vepr	-	-	-	fit_vepr_acog_ta31	0.00200,0.05115,0.10305	picatini_lastochka_s
+vepr_12	fitn_aimpoint_compm4_vepr_12	0.02530,0.05334,0.05324	picatini_lastochka_s	-	-	-
+vepr_12_premium	fitn_aimpoint_compm4_vepr_12_premium	0.02530,0.05334,0.05324	picatini_lastochka_s	-	-	-
+vepr_premium	-	-	-	fitn_acog_ta31_vepr_premium	0.00200,0.05115,0.10305	picatini_lastochka_s

@@ -2054,10 +2054,16 @@ st_shop	Kauppa
 st_shop_label	Kauppa
 st_shop_scope_1p69_hyperon_description	4x kiikaritähtäin
 st_shop_scope_1p69_hyperon_name	Zenit Hyperion -kiikaritähtäin, 4x
+st_shop_scope_acog_ta01_description	4x kiikaritähtäin
+st_shop_scope_acog_ta01_name	TA01-kiikaritähtäin, 4x
 st_shop_scope_acog_ta31_description	4x kiikaritähtäin
 st_shop_scope_acog_ta31_name	TA31-kiikaritähtäin, 4x
 st_shop_scope_aimpoint_compm4_description	Ruotsalainen punapistetähtäin 2 MOA:n pisteellä. Paristo kestää jopa kahdeksan vuotta jatkuvaa käyttöä. Yhdysvaltain armeijan käytössä nimellä M68 CCO. Picatinny-kiinnitys.
-st_shop_scope_aimpoint_compm4_name	CompM4-punapistetähtäin
+st_shop_scope_aimpoint_compm4_name	CompM4-punapistetähtäin, 2x
+st_shop_scope_aperture_description	3x kiikaritähtäin
+st_shop_scope_aperture_name	Aperture-kiikaritähtäin, 3x
+st_shop_scope_belomo_pk01_description	2x punapistetähtäin.
+st_shop_scope_belomo_pk01_name	PK-01VI-punapistetähtäin, 2x
 st_shop_scope_cobra_ekp_8_description	Venäläinen heijastintähtäin neljällä punaisella tähtäinkuviolla. Nopea tähdätä molemmat silmät auki. Kiinnittyy Kalašnikov-tyyppisten aseiden sivukiskoon.
 st_shop_scope_cobra_ekp_8_name	Kobra EKP-8 -tähtäin
 st_shop_scope_docter_description	Kompakti saksalainen avoin punapistetähtäin. Kevyt ja nopea tähdätä. Tehty haulikoille, pistooleille ja lyhyille aseille.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	4x kiikaritähtäin
 st_shop_scope_elcan_specterdr_name	SpecterDR-kiikaritähtäin, 4x
 st_shop_scope_eotech_552_description	Amerikkalainen hologrammitähtäin: 65 MOA:n rengas ja keskellä 1 MOA:n piste, AA-paristot. Nopea lähi- ja keskipitkillä etäisyyksillä. Picatinny-kiinnitys.
 st_shop_scope_eotech_552_name	EOTech 552 -tähtäin
+st_shop_scope_eotech_xps2_description	Punapistetähtäin nopeaan tähtäämiseen.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 -tähtäin
+st_shop_scope_hensoldt_rsas_description	2x punapistetähtäin.
+st_shop_scope_hensoldt_rsas_name	RSA-S-punapistetähtäin, 2x
+st_shop_scope_leupold_3_7_description	6x kiikaritähtäin
+st_shop_scope_leupold_3_7_name	Leupold 3-7 -kiikaritähtäin, 6x
 st_shop_scope_leupold_deltapoint_description	Kompakti amerikkalainen heijastintähtäin punaisella kolmiolla. Tehty pistooleille ja kevyille aseille. Pieni koko ei ole tiellä.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint -tähtäin
 st_shop_scope_leupold_mk4_description	4x kiikaritähtäin
 st_shop_scope_leupold_mk4_name	Leupold MK4 -kiikaritähtäin, 4x
+st_shop_scope_ncstar_4_description	Punapistetähtäin nopeaan tähtäämiseen.
+st_shop_scope_ncstar_4_name	NcSTAR 4 -punapistetähtäin
 st_shop_scope_pso_1_description	4x kiikaritähtäin
 st_shop_scope_pso_1_name	PSO-1-kiikaritähtäin, 4x
 st_shop_scope_pso_1_old_description	4x kiikaritähtäin

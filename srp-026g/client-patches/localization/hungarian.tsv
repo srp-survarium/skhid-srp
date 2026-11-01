@@ -2054,10 +2054,16 @@ st_shop	Bolt
 st_shop_label	Bolt
 st_shop_scope_1p69_hyperon_description	4x nagyítású távcső
 st_shop_scope_1p69_hyperon_name	Zenit Hyperion távcső, 4x
+st_shop_scope_acog_ta01_description	4x nagyítású távcső
+st_shop_scope_acog_ta01_name	TA01 távcső, 4x
 st_shop_scope_acog_ta31_description	4x nagyítású távcső
 st_shop_scope_acog_ta31_name	TA31 távcső, 4x
 st_shop_scope_aimpoint_compm4_description	Svéd vöröspontos irányzék 2 MOA ponttal, akár nyolc év folyamatos használatra elég elemmel. Az amerikai hadsereg M68 CCO néven rendszeresítette. Picatinny-sínre szerelhető.
-st_shop_scope_aimpoint_compm4_name	CompM4 irányzék
+st_shop_scope_aimpoint_compm4_name	CompM4 irányzék, 2x
+st_shop_scope_aperture_description	3x nagyítású távcső
+st_shop_scope_aperture_name	Aperture távcső, 3x
+st_shop_scope_belomo_pk01_description	2x nagyítású vöröspontos irányzék.
+st_shop_scope_belomo_pk01_name	PK-01VI irányzék, 2x
 st_shop_scope_cobra_ekp_8_description	Orosz irányzék négy választható vörös célképpel. Gyors célzást tesz lehetővé két nyitott szemmel. Kalasnyikov-típusú fegyverek oldalsínjére szerelhető.
 st_shop_scope_cobra_ekp_8_name	Kobra EKP-8 irányzék
 st_shop_scope_docter_description	Kompakt német nyitott reflexirányzék vörös ponttal. Könnyű és gyorsan célozható, sörétes puskákhoz, pisztolyokhoz és rövid fegyverekhez készült.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	4x nagyítású távcső
 st_shop_scope_elcan_specterdr_name	SpecterDR távcső, 4x
 st_shop_scope_eotech_552_description	Amerikai holografikus irányzék: 65 MOA gyűrű, középen 1 MOA ponttal, AA elemekkel. Gyors célzás közeli és közepes távolságon. Picatinny-sínre szerelhető.
 st_shop_scope_eotech_552_name	EOTech 552 irányzék
+st_shop_scope_eotech_xps2_description	Vöröspontos irányzék a gyors célzáshoz.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 irányzék
+st_shop_scope_hensoldt_rsas_description	2x nagyítású vöröspontos irányzék.
+st_shop_scope_hensoldt_rsas_name	RSA-S irányzék, 2x
+st_shop_scope_leupold_3_7_description	6x nagyítású távcső
+st_shop_scope_leupold_3_7_name	Leupold 3-7 távcső, 6x
 st_shop_scope_leupold_deltapoint_description	Kompakt amerikai reflexirányzék vörös háromszög céljellel. Pisztolyokhoz és könnyű fegyverekhez készült, kis mérete nem zavarja a használatot.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint irányzék
 st_shop_scope_leupold_mk4_description	4x nagyítású távcső
 st_shop_scope_leupold_mk4_name	Leupold MK4 távcső, 4x
+st_shop_scope_ncstar_4_description	Vöröspontos irányzék a gyors célzáshoz.
+st_shop_scope_ncstar_4_name	NcSTAR 4 irányzék
 st_shop_scope_pso_1_description	4x nagyítású távcső
 st_shop_scope_pso_1_name	PSO-1 távcső, 4x
 st_shop_scope_pso_1_old_description	4x nagyítású távcső

@@ -2054,10 +2054,16 @@ st_shop	Prodavnica
 st_shop_label	Prodavnica
 st_shop_scope_1p69_hyperon_description	Nišan sa uvećanjem x4.
 st_shop_scope_1p69_hyperon_name	Optički nišan Zenit Hyperion, x4
+st_shop_scope_acog_ta01_description	Nišan sa uvećanjem x4.
+st_shop_scope_acog_ta01_name	Optički nišan TA01, x4
 st_shop_scope_acog_ta31_description	Nišan sa uvećanjem x4.
 st_shop_scope_acog_ta31_name	Optički nišan TA31, x4
 st_shop_scope_aimpoint_compm4_description	Švedski refleksni nišan sa tačkom od 2 MOA i baterijom koja traje do osam godina neprekidne upotrebe. Američka vojska ga je usvojila kao M68 CCO. Postavlja se na Pikatinijevu šinu.
-st_shop_scope_aimpoint_compm4_name	Kolimatorski nišan CompM4
+st_shop_scope_aimpoint_compm4_name	Kolimatorski nišan CompM4, x2
+st_shop_scope_aperture_description	Nišan sa uvećanjem x3.
+st_shop_scope_aperture_name	Optički nišan Aperture, x3
+st_shop_scope_belomo_pk01_description	Kolimatorski nišan sa uvećanjem x2.
+st_shop_scope_belomo_pk01_name	Kolimatorski nišan PK-01VI, x2
 st_shop_scope_cobra_ekp_8_description	Ruski kolimatorski nišan sa četiri crvene končanice. Omogućava brzo nišanjenje sa oba oka otvorena. Postavlja se na bočnu šinu oružja tipa Kalašnjikov.
 st_shop_scope_cobra_ekp_8_name	Kolimatorski nišan Kobra EKP-8
 st_shop_scope_docter_description	Kompaktni nemački otvoreni refleksni nišan sa crvenom tačkom. Lak i brz za nišanjenje, namenjen sačmaricama, pištoljima i kratkom oružju.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	Nišan sa uvećanjem x4.
 st_shop_scope_elcan_specterdr_name	Optički nišan SpecterDR, x4
 st_shop_scope_eotech_552_description	Američki holografski nišan sa prstenom od 65 MOA i središnjom tačkom od 1 MOA. Napaja se AA baterijama. Brz na malim i srednjim daljinama. Postavlja se na Pikatinijevu šinu.
 st_shop_scope_eotech_552_name	Kolimatorski nišan EOTech 552
+st_shop_scope_eotech_xps2_description	Kolimatorski nišan za brzo nišanjenje.
+st_shop_scope_eotech_xps2_name	Kolimatorski nišan EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Kolimatorski nišan sa uvećanjem x2.
+st_shop_scope_hensoldt_rsas_name	Kolimatorski nišan RSA-S, x2
+st_shop_scope_leupold_3_7_description	Nišan sa uvećanjem x6.
+st_shop_scope_leupold_3_7_name	Optički nišan Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Kompaktni američki refleksni nišan sa crvenim trouglom. Namenjen pištoljima i lakom oružju; dovoljno mali da ne smeta.
 st_shop_scope_leupold_deltapoint_name	Kolimatorski nišan Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Nišan sa uvećanjem x4.
 st_shop_scope_leupold_mk4_name	Optički nišan Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Kolimatorski nišan za brzo nišanjenje.
+st_shop_scope_ncstar_4_name	Kolimatorski nišan NcSTAR 4
 st_shop_scope_pso_1_description	Nišan sa uvećanjem x4.
 st_shop_scope_pso_1_name	Optički nišan PSO-1, x4
 st_shop_scope_pso_1_old_description	Nišan sa uvećanjem x4.

@@ -2054,10 +2054,16 @@ st_shop	Shop
 st_shop_label	Shop
 st_shop_scope_1p69_hyperon_description	Scope with x4 magnification
 st_shop_scope_1p69_hyperon_name	Zenit "Hyperion" optical sight, x4
+st_shop_scope_acog_ta01_description	Scope with x4 magnification
+st_shop_scope_acog_ta01_name	TA01 optical sight, x4
 st_shop_scope_acog_ta31_description	Scope with x4 magnification
 st_shop_scope_acog_ta31_name	TA31 optical sight, x4
 st_shop_scope_aimpoint_compm4_description	Swedish red dot sight with a 2 MOA dot and a battery that lasts up to eight years of constant use. Adopted by the US Army as the M68 CCO; mounts on a Picatinny rail.
-st_shop_scope_aimpoint_compm4_name	CompM4 collimator
+st_shop_scope_aimpoint_compm4_name	CompM4 collimator, x2
+st_shop_scope_aperture_description	Scope with x3 magnification
+st_shop_scope_aperture_name	Aperture optical sight, x3
+st_shop_scope_belomo_pk01_description	Red dot sight with x2 magnification.
+st_shop_scope_belomo_pk01_name	PK-01VI collimator, x2
 st_shop_scope_cobra_ekp_8_description	Russian collimator sight with four selectable red reticles. Lets the shooter aim fast with both eyes open; mounts on the side rail of Kalashnikov-type weapons.
 st_shop_scope_cobra_ekp_8_name	Cobra EKP-8 collimator
 st_shop_scope_docter_description	Compact German open reflex sight with a red dot. Light and quick to aim with; made for shotguns, handguns and short weapons.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	Scope with x4 magnification
 st_shop_scope_elcan_specterdr_name	SpecterDR optical sight, x4
 st_shop_scope_eotech_552_description	American holographic sight: a 65 MOA ring with a 1 MOA dot in the centre, powered by AA batteries. Fast on close and medium ranges; mounts on a Picatinny rail.
 st_shop_scope_eotech_552_name	EOTech 552 collimator
+st_shop_scope_eotech_xps2_description	Red dot sight for fast aiming.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 collimator
+st_shop_scope_hensoldt_rsas_description	Red dot sight with x2 magnification.
+st_shop_scope_hensoldt_rsas_name	RSA-S collimator, x2
+st_shop_scope_leupold_3_7_description	Scope with x6 magnification
+st_shop_scope_leupold_3_7_name	Leupold 3-7 optical sight, x6
 st_shop_scope_leupold_deltapoint_description	Compact American reflex sight with a red triangle aiming mark. Made for handguns and light weapons; small enough to stay out of the way.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint collimator
 st_shop_scope_leupold_mk4_description	Scope with x4 magnification
 st_shop_scope_leupold_mk4_name	Leupold MK4 optical sight, x4
+st_shop_scope_ncstar_4_description	Red dot sight for fast aiming.
+st_shop_scope_ncstar_4_name	NcSTAR 4 collimator
 st_shop_scope_pso_1_description	Scope with x4 magnification
 st_shop_scope_pso_1_name	PSO-1 optical sight, x4
 st_shop_scope_pso_1_old_description	Scope with x4 magnification

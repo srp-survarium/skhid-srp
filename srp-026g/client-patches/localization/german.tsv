@@ -2054,10 +2054,16 @@ st_shop	Laden
 st_shop_label	Laden
 st_shop_scope_1p69_hyperon_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_1p69_hyperon_name	Zenit "Hyperion" Optisches Visier, x4
+st_shop_scope_acog_ta01_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_acog_ta01_name	TA01 optisches Visier, x4
 st_shop_scope_acog_ta31_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_acog_ta31_name	TA31 optisches Visier, x4
 st_shop_scope_aimpoint_compm4_description	Schwedisches Rotpunktvisier mit einem 2-MOA-Punkt und einer Batterie, die bis zu acht Jahre Dauerbetrieb hält. Von der US-Armee als M68 CCO eingeführt; wird auf einer Picatinny-Schiene montiert.
-st_shop_scope_aimpoint_compm4_name	CompM4 Kollimator
+st_shop_scope_aimpoint_compm4_name	CompM4 Kollimator, x2
+st_shop_scope_aperture_description	Zielfernrohr mit Vergrößerung x3
+st_shop_scope_aperture_name	Aperture optisches Visier, x3
+st_shop_scope_belomo_pk01_description	Rotpunktvisier mit Vergrößerung x2.
+st_shop_scope_belomo_pk01_name	PK-01VI Kollimator, x2
 st_shop_scope_cobra_ekp_8_description	Russisches Kollimatorvisier mit vier wählbaren roten Absehen. Ermöglicht schnelles Zielen mit beiden Augen offen; wird an der Seitenschiene von Waffen der Kalaschnikow-Familie montiert.
 st_shop_scope_cobra_ekp_8_name	Cobra EKP-8 Kollimator
 st_shop_scope_docter_description	Kompaktes deutsches offenes Reflexvisier mit Leuchtpunkt. Leicht und schnell im Anschlag; für Flinten, Pistolen und kurze Waffen gebaut.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_elcan_specterdr_name	SpecterDR optisches Visier, x4
 st_shop_scope_eotech_552_description	Amerikanisches holografisches Visier: ein 65-MOA-Ring mit einem 1-MOA-Punkt in der Mitte, betrieben mit AA-Batterien. Schnell auf kurze und mittlere Entfernung; wird auf einer Picatinny-Schiene montiert.
 st_shop_scope_eotech_552_name	EOTech 552 Kollimator
+st_shop_scope_eotech_xps2_description	Rotpunktvisier für schnelles Zielen.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 Kollimator
+st_shop_scope_hensoldt_rsas_description	Rotpunktvisier mit Vergrößerung x2.
+st_shop_scope_hensoldt_rsas_name	RSA-S Kollimator, x2
+st_shop_scope_leupold_3_7_description	Zielfernrohr mit Vergrößerung x6
+st_shop_scope_leupold_3_7_name	Leupold 3-7 optisches Visier, x6
 st_shop_scope_leupold_deltapoint_description	Kompaktes amerikanisches Reflexvisier mit einem roten dreieckigen Zielpunkt. Für Pistolen und leichte Waffen gebaut; so klein, dass es nicht stört.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint-Kollimator
 st_shop_scope_leupold_mk4_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_leupold_mk4_name	Leupold MK4 optisches Visier, x4
+st_shop_scope_ncstar_4_description	Rotpunktvisier für schnelles Zielen.
+st_shop_scope_ncstar_4_name	NcSTAR 4 Kollimator
 st_shop_scope_pso_1_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_pso_1_name	PSO-1 optisches Visier, x4
 st_shop_scope_pso_1_old_description	Zielfernrohr mit Vergrößerung x4

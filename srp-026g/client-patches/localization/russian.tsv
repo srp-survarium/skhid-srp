@@ -2054,10 +2054,16 @@ st_shop	Магазин
 st_shop_label	Магазин
 st_shop_scope_1p69_hyperon_description	Четырехкратный оптический прицел
 st_shop_scope_1p69_hyperon_name	Оптический прицел Зенит "Гиперон", x4
+st_shop_scope_acog_ta01_description	Четырехкратный оптический прицел
+st_shop_scope_acog_ta01_name	Оптический прицел TA01, x4
 st_shop_scope_acog_ta31_description	Четырехкратный оптический прицел
 st_shop_scope_acog_ta31_name	Оптический прицел TA31, x4
 st_shop_scope_aimpoint_compm4_description	Шведский коллиматорный прицел с точкой 2 MOA и батареей, которой хватает до восьми лет непрерывной работы. Принят на вооружение армии США как M68 CCO; крепится на планку Пикатинни.
-st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4
+st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4, x2
+st_shop_scope_aperture_description	Трехкратный оптический прицел
+st_shop_scope_aperture_name	Оптический прицел Aperture, x3
+st_shop_scope_belomo_pk01_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_belomo_pk01_name	Коллиматор ПК-01ВИ, x2
 st_shop_scope_cobra_ekp_8_description	Российский коллиматорный прицел с четырьмя сменными красными прицельными марками. Позволяет быстро целиться с обоими открытыми глазами; крепится на боковую планку оружия семейства Калашникова.
 st_shop_scope_cobra_ekp_8_name	Коллиматор Кобра ЭКП-8
 st_shop_scope_docter_description	Компактный немецкий открытый коллиматорный прицел с красной точкой. Лёгкий и быстрый в прицеливании; создан для гладкоствольного оружия, пистолетов и компактного оружия.
@@ -2066,10 +2072,18 @@ st_shop_scope_elcan_specterdr_description	Четырехкратный опти�
 st_shop_scope_elcan_specterdr_name	Оптический прицел SpecterDR, x4
 st_shop_scope_eotech_552_description	Американский голографический прицел: кольцо 65 MOA с точкой 1 MOA в центре, питание от батарей AA. Быстрый на ближней и средней дистанции; крепится на планку Пикатинни.
 st_shop_scope_eotech_552_name	Коллиматор EOTech 552
+st_shop_scope_eotech_xps2_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_eotech_xps2_name	Коллиматор EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_hensoldt_rsas_name	Коллиматор RSA-S, x2
+st_shop_scope_leupold_3_7_description	Шестикратный оптический прицел
+st_shop_scope_leupold_3_7_name	Оптический прицел Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Компактный американский коллиматорный прицел с красной треугольной прицельной маркой. Создан для пистолетов и лёгкого оружия; настолько мал, что не мешает.
 st_shop_scope_leupold_deltapoint_name	Коллиматор Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Четырехкратный оптический прицел
 st_shop_scope_leupold_mk4_name	Оптический прицел Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_ncstar_4_name	Коллиматор NcSTAR 4
 st_shop_scope_pso_1_description	Четырехкратный оптический прицел
 st_shop_scope_pso_1_name	Оптический прицел ПСО-1, x4
 st_shop_scope_pso_1_old_description	Четырехкратный оптический прицел
