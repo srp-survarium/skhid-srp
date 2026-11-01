@@ -2,19 +2,24 @@
 //! docs/notes/weapon_pickup.md "How a pickup is installed"): the native
 //! moves only, no policy.
 //!
+//! - [`register_pending`] makes a cooked gun the picker's pending object
+//!   under a registry id of its own ([`RegistryId::reserved`]), so that the
+//!   game's own switch holsters the gun in hands; [`unregister_pending`]
+//!   undoes it.
 //! - [`install`] swaps the picker's held own gun (its weapon slot) with a
 //!   cooked gun (its slot of the cooked inventory), moves the gun's bound
 //!   ammunition into the own gun's ammunition slots (the own stacks parked
 //!   in the cooked inventory), then free ones, and rebinds the gun to them
-//!   (its selected stack first), binds the gun to the world (the core, the own
-//!   gun's registry id and the core's entry for it, the bullet manager), and
-//!   either replays the weapon switch (deactivate, forget, held = pending,
-//!   set_user, initialize, the magazine, activate) or, for a loaded world's
-//!   record, leaves the held object to the native reader (0x2DB62B
-//!   deactivates the old and set_users the new when they differ).
+//!   (its selected stack first), binds the gun to the world (the core, the
+//!   slot's reserved registry id and the core's entry for it, the bullet
+//!   manager), and either replays the switch the game is at (deactivate,
+//!   forget, held = the pending gun, set_user, initialize, the magazine,
+//!   activate) or, for a loaded world's record, leaves the held object to
+//!   the native reader (0x2DB62B deactivates the old and set_users the new
+//!   when they differ).
 //! - [`restore`] puts everything back as it was cooked and the own gun in
-//!   its slot and its registry entry; the held object is left to the caller
-//!   (remove deactivates it, the reader switches it).
+//!   its slot, the reserved id's entry emptied; the held object is left to
+//!   the caller (remove deactivates it, the reader switches it).
 //! - every check is made before the first write: a refusal changes nothing.
 //! - the crate: [`crate_view`], a copy of the inventory with the own gun and
 //!   the own parked stacks in their places, what the native resupply reads;
@@ -27,7 +32,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Refill, WeaponSlot};
+pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Refill, WeaponSlot, PLACES};
 
 use super::config::{ConfigError, ConfigValue};
 
@@ -45,6 +50,46 @@ const NO_ITEM: u16 = 0xFFFF;
 /// eight slots).
 const MOVES: usize = 8;
 
+/// An index into the world core's active-object registry (core+18B4Ch, a
+/// buffer_vector of 255 entries inline at core+18B58h: a byte id, FFh none;
+/// game_world_core's constructor 0x2CFFEE..0x2D000B). The game appends to
+/// it and never erases: each place's six weapons at place x 6 (the late
+/// join's bind_slot_reserved), then the victory items
+/// (gather_victory_items_rule::set_game_world_core 0x313F50); snapshots
+/// carry ids only (held 0x2DB626, pending 0x2DB796, inventory+178h
+/// 0x2FE578) and nothing saves, loads or rolls back the registry itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RegistryId(u8);
+
+/// What a reserved registry id is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// The gun picked into this weapon slot.
+    Picked(WeaponSlot),
+    /// A picked gun waiting for the weapon switch (the pending object).
+    Pending,
+}
+
+impl RegistryId {
+    /// Three ids a place at the registry's top, below FFh (none): 195..254.
+    const RESERVED: u8 = 0xFF - 3 * PLACES;
+
+    /// `place`'s id for `role`: the same on every client, whatever the
+    /// game appended (when it stayed below [`RESERVED`](Self::RESERVED)).
+    pub const fn reserved(place: Place, role: Role) -> RegistryId {
+        let n = match role {
+            Role::Picked(WeaponSlot::First) => 0,
+            Role::Picked(WeaponSlot::Second) => 1,
+            Role::Pending => 2,
+        };
+        RegistryId(Self::RESERVED + 3 * place.get() + n)
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0
+    }
+}
+
 /// Why a gun was not installed or restored (nothing was changed).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
@@ -58,6 +103,11 @@ pub enum Refusal {
     BadAmmo,
     /// What is in the slots is not what the install put there.
     Changed,
+    /// The game's own registry ids reach the reserved ones, or the reserved
+    /// id holds another object.
+    RegistryTaken,
+    /// The player's pending object is not the registered gun.
+    NotPending,
 }
 
 impl Refusal {
@@ -68,6 +118,8 @@ impl Refusal {
             Refusal::NoCookedGun => "the cooked gun is gone or not a weapon",
             Refusal::BadAmmo => "a bound ammunition slot of the cooked gun is empty",
             Refusal::Changed => "the slots no longer hold what the install put there",
+            Refusal::RegistryTaken => "the registry's reserved id is taken (the game's own ids reach it, or another gun holds it)",
+            Refusal::NotPending => "the player's pending object is not the picked gun",
         }
     }
 }
@@ -110,25 +162,62 @@ pub struct Installed {
     /// manager, put back at the restore.
     saved: (u32, u8, u32, u32),
     cooked: Binding,
+    /// Its registry id (the slot's reserved one).
+    id: RegistryId,
 }
 
 impl Installed {
     pub fn cook(&self) -> CookId {
         self.cook
     }
+
+    /// The gun's address (compared with the held object, never read through).
+    pub fn gun(&self) -> u32 {
+        self.gun
+    }
+}
+
+/// A cooked gun registered as a player's pending object, as values: what
+/// [`unregister_pending`] puts back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Registered {
+    cook: CookId,
+    /// The gun's slot in the cooked inventory.
+    slot: WeaponSlot,
+    gun: u32,
+    id: RegistryId,
+    /// The gun's registry id as cooked.
+    cooked_id: u8,
+}
+
+impl Registered {
+    pub fn id(&self) -> RegistryId {
+        self.id
+    }
+}
+
+/// Who makes a registered gun the pending object.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Select {
+    /// The pickup: pending = the gun now.
+    Now,
+    /// A loaded world: the native reader resolves the state's pending id
+    /// (0x2DB796) through the registry after this.
+    ByReader,
 }
 
 /// How an install treats the held object.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode<'a> {
-    /// The pickup: the switch replayed, the magazine and reserve granted
-    /// ([`Ammo::grant`]) from the donor's gun's magazine and chamber (a full
-    /// magazine when its gun is not there).
-    Switch(Option<(u8, bool)>),
-    /// A pickup over a borrowed gun held (its install): that one restored
+    /// The game's switch to the registered pending gun (tick_active_object
+    /// 0x2D76D0, the own gun holstered): the switch's calls made, the
+    /// magazine and reserve granted ([`Ammo::grant`]) from the donor's gun's
+    /// magazine and chamber (a full magazine when its gun was not there).
+    Switch(Option<(u8, bool)>, &'a Registered),
+    /// The switch from a borrowed gun held (its install): that one restored
     /// first (the own gun and ammunition back, to be parked again), then
-    /// the pickup's switch from it.
-    Replace(Option<(u8, bool)>, &'a Installed),
+    /// the switch from it.
+    Replace(Option<(u8, bool)>, &'a Installed, &'a Registered),
     /// A loaded world's record (a rollback, a late join): the native reader
     /// switches the held object; the snapshot gives the magazine and reserve.
     Load,
@@ -145,6 +234,8 @@ pub enum Site {
     Resupply,
     ClientResupply,
     Destroy,
+    TickActive,
+    Switch,
 }
 
 pub fn player<'t>(ctx: &'t Context<'_>, site: Site) -> Option<Player<'t>> {
@@ -159,6 +250,8 @@ pub fn player<'t>(ctx: &'t Context<'_>, site: Site) -> Option<Player<'t>> {
             Site::Resupply => raw::site::pickup_resupply::player(ctx),
             Site::ClientResupply => raw::site::pickup_client_resupply::player(ctx),
             Site::Destroy => raw::site::player_destroy::player(ctx),
+            Site::TickActive => raw::site::pickup_tick_active::player(ctx),
+            Site::Switch => raw::site::pickup_switch::player(ctx),
         }
     };
     Player::of(ctx, raw)
@@ -347,19 +440,29 @@ unsafe fn set(inventory: raw::Inventory, slot: u8, item: raw::Item) {
 
 /// Installs the cooked gun of `cook` (its `slot`) in place of `player`'s own
 /// gun of `own`. Refused before any write when anything is not as expected.
-pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, mode: Mode<'_>)
-               -> Result<Installed, Refusal> {
+pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, id: RegistryId,
+               mode: Mode<'_>) -> Result<Installed, Refusal> {
     let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: the live player (its hook's), its inventory and world core;
     // the made cooked inventory (its ticket holds a reference); items read
     // as weapons only after their vtables say so; every slot index below 23.
     unsafe {
         let p = player.this;
-        let held = p.held_item().filter(|&h| p.pending_item() == Some(h));
+        let held = p.held_item();
+        let registered = match mode {
+            Mode::Switch(_, r) | Mode::Replace(_, _, r) => Some(r),
+            Mode::Load => None,
+        };
+        if let Some(r) = registered {
+            let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
+            if r.cook != cook || r.gun != gun.address() || p.pending_item() != Some(gun) {
+                return Err(Refusal::NotPending);
+            }
+        }
         // Over a borrowed gun: every check of the new gun that the restore
         // does not change, before the restore's first write.
-        if let Mode::Replace(_, old) = mode {
-            if old.own != own || held.map(|h| h.address()) != Some(old.gun) {
+        if let Mode::Replace(_, old, _) = mode {
+            if old.own != own || held.map(|h| h.address()) != Some(old.gun) || old.id != id {
                 return Err(Refusal::NotInHands);
             }
             let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
@@ -376,7 +479,7 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
         if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
             return Err(Refusal::NotInHands);
         }
-        if matches!(mode, Mode::Switch(_)) && held != Some(own_gun) {
+        if matches!(mode, Mode::Switch(..)) && held != Some(own_gun) {
             return Err(Refusal::NotInHands);
         }
         let (gun_item, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
@@ -423,13 +526,13 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
                                  world: item.world().map_or(0, |c| c.address()), displaced });
         }
         let indices = w.ammo_slots();
-        let id = read(ow.registry_id());
-        let objects = core.objects().ok_or(Refusal::NoPlayerState)?;
-        let saved = (w.core().map_or(0, |c| c.address()), read(w.registry_id()),
+        let objects = registry(core, id, gun)?;
+        let cooked_id = registered.map_or_else(|| read(w.registry_id()), |r| r.cooked_id);
+        let saved = (w.core().map_or(0, |c| c.address()), cooked_id,
                      gun_item.world().map_or(0, |c| c.address()), read(w.bullet_manager()));
-        // Nothing written before here.
+        // Nothing written before here (but a replaced gun's restore).
         w.set_core(Some(core));
-        *w.registry_id() = id;
+        *w.registry_id() = id.0;
         gun_item.set_world(Some(core));
         *w.bullet_manager() = read(ow.bullet_manager());
         *w.load_on_initialize() = 0;
@@ -460,15 +563,18 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
             set(inventory, own.slot(), gun_item);
             set(cooked, slot.slot(), own_item);
         }
-        objects.at(usize::from(id)).set_item(Some(gun));
+        objects.at(usize::from(id.0)).set_item(Some(gun));
+        if let Some(r) = registered {
+            objects.at(usize::from(r.id.0)).set_item(None);
+        }
         match mode {
-            Mode::Switch(ammo) | Mode::Replace(ammo, _) => {
-                // The gun in hands: the own one, or the borrowed one replaced.
+            Mode::Switch(ammo, _) | Mode::Replace(ammo, _, _) => {
+                // The switch tick_active_object is at (0x2D76D0..0x2D7722),
+                // from the gun in hands: the own one, or the borrowed one replaced.
                 let outgoing = held.unwrap_or(own_gun);
                 raw::engine_weapon_deactivate(Some(outgoing), 1);
                 raw::engine_forget_active_object(p.animation().cast(), Some(outgoing));
                 p.set_held_item(Some(gun));
-                p.set_pending_item(Some(gun));
                 raw::engine_weapon_set_user(Some(gun), Some(p));
                 raw::engine_weapon_initialize(Some(gun));
                 let capacity = read(w.capacity());
@@ -482,7 +588,98 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
             }
         }
         Ok(Installed { cook, own, slot, own_gun: own_gun.address(), gun: gun.address(), moved, saved,
-                       cooked: cooked_binding })
+                       cooked: cooked_binding, id })
+    }
+}
+
+/// The registry's entries, when `id` is reserved for `gun`: the game's own
+/// ids end below the reserved ones, and the entry is empty or the gun's.
+///
+/// # Safety
+/// `core` is the live world core.
+unsafe fn registry(core: raw::CoreWorld, id: RegistryId, gun: raw::Item) -> Result<raw::InventorySlot, Refusal> {
+    unsafe { registry_or(core, id, gun, None) }
+}
+
+/// [`registry`], the entry also allowed to hold `replaced` (a gun the
+/// install restores first).
+///
+/// # Safety
+/// `core` is the live world core.
+unsafe fn registry_or(core: raw::CoreWorld, id: RegistryId, gun: raw::Item, replaced: Option<u32>)
+                      -> Result<raw::InventorySlot, Refusal> {
+    unsafe {
+        let objects = core.objects().ok_or(Refusal::NoPlayerState)?;
+        let end = core.objects_end().ok_or(Refusal::NoPlayerState)?;
+        let used = end.address().wrapping_sub(objects.address()) / 4;
+        if used > u32::from(RegistryId::RESERVED) {
+            return Err(Refusal::RegistryTaken);
+        }
+        match objects.at(usize::from(id.0)).item() {
+            Some(other) if other != gun && Some(other.address()) != replaced => Err(Refusal::RegistryTaken),
+            _ => Ok(objects),
+        }
+    }
+}
+
+/// Registers the cooked gun of `cook` (its `slot`) under `id` (a player's
+/// [`Role::Pending`] id) and, as `select` says, makes it `player`'s pending
+/// object: the game's switch then holsters the gun in hands and comes to
+/// [`install`] (tick_active_object 0x2D76D0). Nothing else of the gun is
+/// bound yet: a pending object is only asked whether it may be held
+/// (vtable+0, a weapon's 0x301CA0 says yes) and its id saved (0x2DB196).
+pub fn register_pending(player: &Player<'_>, cook: CookId, slot: WeaponSlot, id: RegistryId, select: Select)
+                        -> Result<Registered, Refusal> {
+    let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
+    // SAFETY: the live player and its world core; the made cooked
+    // inventory, its gun read as a weapon after its vtable.
+    unsafe {
+        let p = player.this;
+        let core = p.world_core().ok_or(Refusal::NoPlayerState)?;
+        let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
+        let objects = registry(core, id, gun)?;
+        let w = gun.weapon();
+        let cooked_id = read(w.registry_id());
+        *w.registry_id() = id.0;
+        objects.at(usize::from(id.0)).set_item(Some(gun));
+        if select == Select::Now {
+            p.set_pending_item(Some(gun));
+        }
+        Ok(Registered { cook, slot, gun: gun.address(), id, cooked_id })
+    }
+}
+
+/// Undoes [`register_pending`]: the id's entry emptied, the gun's id as
+/// cooked, and the player's pending object, when it is still the gun, the
+/// held one (no switch: the gun in hands is drawn again).
+pub fn unregister_pending(player: &Player<'_>, registered: &Registered) {
+    // SAFETY: the live player and its world core; the gun compared with the
+    // registered address before it is written through.
+    unsafe {
+        let p = player.this;
+        if let Some(objects) = p.world_core().and_then(|core| core.objects()) {
+            let entry = objects.at(usize::from(registered.id.0));
+            if entry.item().map(|i| i.address()) == Some(registered.gun) {
+                entry.set_item(None);
+            }
+        }
+        if p.pending_item().map(|i| i.address()) == Some(registered.gun) {
+            p.set_pending_item(p.held_item());
+        }
+        let gun = gun_cook::inventory(player.thread, registered.cook)
+            .and_then(|cooked| cooked_gun(cooked, registered.slot))
+            .filter(|(_, g)| g.address() == registered.gun);
+        if let Some((_, gun)) = gun {
+            *gun.weapon().registry_id() = registered.cooked_id;
+        }
+    }
+}
+
+impl Player<'_> {
+    /// Whether its pending object is `registered`'s gun.
+    pub fn pending_is(&self, registered: &Registered) -> bool {
+        // SAFETY: the live player's pending object, compared only.
+        unsafe { self.this.pending_item().map(|i| i.address()) == Some(registered.gun) }
     }
 }
 
@@ -542,24 +739,10 @@ unsafe fn grant(w: raw::Weapon, ammo: Ammo) {
 /// the native reader switches it). Refused before any write when the slots
 /// do not hold what the install put there.
 pub fn restore(player: &Player<'_>, installed: &Installed) -> Result<(), Refusal> {
-    let cooked = gun_cook::inventory(player.thread, installed.cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: as install; every item is compared with what the install
     // recorded before it is used.
     unsafe {
-        let p = player.this;
-        let (inventory, core) = (p.inventory().ok_or(Refusal::NoPlayerState)?, p.world_core().ok_or(Refusal::NoPlayerState)?);
-        let gun_item = inventory.slots().at(usize::from(installed.own.slot())).item().ok_or(Refusal::Changed)?;
-        let own_item = cooked.slots().at(usize::from(installed.slot.slot())).item().ok_or(Refusal::Changed)?;
-        let (gun, own_gun) = (gun_item.active_object(), own_item.active_object());
-        if gun.address() != installed.gun || own_gun.address() != installed.own_gun {
-            return Err(Refusal::Changed);
-        }
-        for m in installed.moved.iter().flatten() {
-            if inventory.slots().at(usize::from(m.to)).item().map(|i| i.address()) != Some(m.item)
-                || cooked.slots().at(usize::from(m.from)).item().map(|i| i.address()) != m.displaced {
-                return Err(Refusal::Changed);
-            }
-        }
+        let Restorable { cooked, inventory, core, gun_item, own_item, gun } = restorable(player, installed)?;
         let objects = core.objects().ok_or(Refusal::NoPlayerState)?;
         let w = gun.weapon();
         let indices = w.ammo_slots();
@@ -593,13 +776,106 @@ pub fn restore(player: &Player<'_>, installed: &Installed) -> Result<(), Refusal
         }
         *w.ammo_count() = binding.count;
         *w.ammo_selected() = binding.selected;
-        objects.at(usize::from(read(own_gun.weapon().registry_id()))).set_item(Some(own_gun));
+        let entry = objects.at(usize::from(installed.id.0));
+        if entry.item() == Some(gun) {
+            entry.set_item(None);
+        }
         let (saved_core, saved_id, saved_world, saved_bullets) = installed.saved;
         w.set_core(world_of(saved_core, core));
         *w.registry_id() = saved_id;
         gun_item.set_world(world_of(saved_world, core));
         *w.bullet_manager() = saved_bullets;
         Ok(())
+    }
+}
+
+/// What [`restore`] moves, checked to be what the install put there.
+struct Restorable {
+    cooked: raw::Inventory,
+    inventory: raw::Inventory,
+    core: raw::CoreWorld,
+    gun_item: raw::Item,
+    own_item: raw::Item,
+    gun: raw::Item,
+}
+
+/// [`restore`]'s checks, no write.
+fn restorable(player: &Player<'_>, installed: &Installed) -> Result<Restorable, Refusal> {
+    let cooked = gun_cook::inventory(player.thread, installed.cook).ok_or(Refusal::NoCookedGun)?;
+    // SAFETY: the live player, its inventory and core; the made cooked
+    // inventory; items compared with what the install recorded.
+    unsafe {
+        let p = player.this;
+        let (inventory, core) = (p.inventory().ok_or(Refusal::NoPlayerState)?, p.world_core().ok_or(Refusal::NoPlayerState)?);
+        let gun_item = inventory.slots().at(usize::from(installed.own.slot())).item().ok_or(Refusal::Changed)?;
+        let own_item = cooked.slots().at(usize::from(installed.slot.slot())).item().ok_or(Refusal::Changed)?;
+        let (gun, own_gun) = (gun_item.active_object(), own_item.active_object());
+        if gun.address() != installed.gun || own_gun.address() != installed.own_gun {
+            return Err(Refusal::Changed);
+        }
+        for m in installed.moved.iter().flatten() {
+            if inventory.slots().at(usize::from(m.to)).item().map(|i| i.address()) != Some(m.item)
+                || cooked.slots().at(usize::from(m.from)).item().map(|i| i.address()) != m.displaced {
+                return Err(Refusal::Changed);
+            }
+        }
+        Ok(Restorable { cooked, inventory, core, gun_item, own_item, gun })
+    }
+}
+
+/// Every check [`install`] makes, for the pickup's command: the switch it
+/// waits for then cannot be refused (unless the slots changed meanwhile:
+/// a defensive refusal). `ids` the slot's and the pending registry ids;
+/// `replacing` the borrowed gun held in the slot, if any.
+pub fn can_install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, ids: (RegistryId, RegistryId),
+                   replacing: Option<&Installed>) -> Result<(), Refusal> {
+    let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
+    // SAFETY: as install, reads only.
+    unsafe {
+        let p = player.this;
+        let (inventory, core) = (p.inventory().ok_or(Refusal::NoPlayerState)?, p.world_core().ok_or(Refusal::NoPlayerState)?);
+        let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
+        registry_or(core, ids.0, gun, replacing.map(|old| old.gun))?;
+        registry(core, ids.1, gun)?;
+        let held = p.held_item();
+        if p.pending_item() != held {
+            return Err(Refusal::NotInHands);
+        }
+        let own_item = inventory.slots().at(usize::from(own.slot())).item().ok_or(Refusal::NotInHands)?;
+        let own_gun = own_item.active_object();
+        if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE || held != Some(own_gun) {
+            return Err(Refusal::NotInHands);
+        }
+        if let Some(old) = replacing {
+            if old.own != own || old.gun != own_gun.address() || old.id != ids.0 {
+                return Err(Refusal::NotInHands);
+            }
+            restorable(player, old)?;
+        }
+        let b = binding(gun.weapon()).ok_or(Refusal::BadAmmo)?;
+        if b.indices[..usize::from(b.count)].iter()
+            .any(|&from| from >= SLOTS || cooked.slots().at(from as usize).item().is_none()) {
+            return Err(Refusal::BadAmmo);
+        }
+        Ok(())
+    }
+}
+
+/// A weapon key while a pickup waits for its switch is ignored: the
+/// registered gun the pending object again and `slot` the inventory's
+/// selected slot (+170h, which inventory::action set for the key: left, a
+/// later key for that slot would be skipped as already selected, 0x2FCAE5).
+pub fn select_pending(player: &Player<'_>, registered: &Registered, slot: WeaponSlot) {
+    // SAFETY: the live player, its world core's registry entry compared
+    // with the registered gun before it is used.
+    unsafe {
+        let p = player.this;
+        let Some(objects) = p.world_core().and_then(|core| core.objects()) else { return };
+        let Some(gun) = objects.at(usize::from(registered.id.0)).item().filter(|g| g.address() == registered.gun) else { return };
+        p.set_pending_item(Some(gun));
+        if let Some(inventory) = p.inventory() {
+            *inventory.selected_slot() = u32::from(slot.slot());
+        }
     }
 }
 

@@ -426,6 +426,7 @@ vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>
 survarium::player	pending_item	0x12C	ptr<survarium::item>	the active object to switch to (m_next; tick_active_object 0x2D7655 switches when it differs from +128h; deserialize 0x2DB7BA)
 survarium::player	animation	0x750	u32	its animation player (forget_active_object's EAX, the switch 0x2D76E5)
 survarium::core_world	objects	0x18B4C	ptr<survarium::inventory_slot>	the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
+survarium::core_world	objects_end	0x18B50	ptr<survarium::inventory_slot>	the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
 survarium::item	active_object	-0x10	obj<survarium::item>	a weapon's inventory item's active object (a weapon slot holds active+10h): only for an item known to be a weapon's
 survarium::weapon	core	0x4	ptr<survarium::core_world>	the bound world core (bind_to_game_core 0x2E3117); a cooked gun has none
 survarium::weapon	registry_id	0xC	u8	its index in core+18B4Ch (bind_to_game_core 0x2E311F; the held/pending ids serialized 0x2DB626)
@@ -443,6 +444,7 @@ survarium::weapon	load_on_initialize	0x5F4	u8	initialize loads the magazine (2E2
 survarium::ammo_slot	slot	0x0	u32	an inventory slot index (relative to inventory+10Ch)
 survarium::ammo_slot	size	0x4	size	one index (initialize's +5ACh reads step 4)
 survarium::inventory	weight_dirty	0x184	u8	m_need_to_recalculate_weight (set_item 0x2FC673; resupply_from_profile writes it)
+survarium::inventory	selected_slot	0x170	u32	the slot last selected (inventory::action 0x2FCB18 after the player's set_target, its vtable 0xA10B04 +4 0x2D8210 writing +12Ch; 0x2FCAE5 skips a selection of the slot already selected; 17h none, the constructor 0x2FC533)
 survarium::inventory	size	0x188	size	what resupply_from_profile and check_resupply read of it (slots +10Ch..+167h, +184h written): patch 85's crate view
 survarium::remove_frame	unload	0x4	u8	base_player::remove's flag (low byte): 1 the death/respawn removal (deactivate, unload_to_profile), 0 a snapshot's same-kit removal
 survarium::item_entry	config	0x114	ptr<survarium::item_config>	its config holder (fill_items_dictionary_impl 0x286486: [entry+114h]+108h the root it asks ui_desc of, 0x2864B0)

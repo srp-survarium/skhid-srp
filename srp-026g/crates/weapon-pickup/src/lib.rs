@@ -198,22 +198,38 @@ pub struct Pick {
     pub recipe: Recipe,
 }
 
-/// The one record a player's state carries: its drop and what is picked
-/// into each of its weapon slots (7, 10).
+/// A pickup waiting for its weapon switch: the gun of `pick` is the
+/// picker's pending object (its own registry id), the gun in hands of
+/// `slot` holstering; the game's own switch puts it into `slot`. The
+/// donor's magazine and chamber it gets then (None: a full magazine, the
+/// donor's gun not there at the command) are fixed at the command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pending {
+    pub slot: WeaponSlot,
+    pub pick: Pick,
+    pub magazine: Option<(u8, bool)>,
+}
+
+/// The one record a player's state carries: its drop, what is picked
+/// into each of its weapon slots (7, 10) and a pickup waiting for its
+/// switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Record {
     pub drop: Drop,
     pub picks: [Option<Pick>; 2],
+    pub pending: Option<Pending>,
 }
 
 impl Record {
-    pub const EMPTY: Record = Record { drop: Drop::None, picks: [None; 2] };
+    pub const EMPTY: Record = Record { drop: Drop::None, picks: [None; 2], pending: None };
     /// Its bytes in a player's state: the version, the drop (its tag, kit
     /// and slot in one byte), then for slot 7 and slot 10 a byte (0 none,
     /// else the recipe's place + 1, its kit << 5, its slot << 7) and the
-    /// tick (u32).
-    pub const BYTES: usize = 12;
-    const VERSION: u8 = 2;
+    /// tick (u32); then the pending pickup: its weapon slot (0 none, 1
+    /// slot 7, 2 slot 10), its pick as a slot's, the magazine and a byte
+    /// (bit 0 the donor's magazine known, bit 1 its chamber).
+    pub const BYTES: usize = 20;
+    const VERSION: u8 = 3;
 
     pub fn pick(&self, slot: WeaponSlot) -> Option<Pick> {
         self.picks[usize::from(slot.bit())]
@@ -221,6 +237,27 @@ impl Record {
 
     pub fn set_pick(&mut self, slot: WeaponSlot, pick: Option<Pick>) {
         self.picks[usize::from(slot.bit())] = pick;
+    }
+
+    fn encode_pick(out: &mut [u8], pick: Pick) {
+        let r = pick.recipe;
+        out[0] = (r.place.0 + 1) | r.kit.0 << 5 | r.slot.bit() << 7;
+        out[1..5].copy_from_slice(&pick.taken.0.to_le_bytes());
+    }
+
+    /// A pick's 5 bytes ([`encode_pick`](Self::encode_pick)): None for a
+    /// zero byte with a zero tick, refused (outer None) for anything else
+    /// out of range.
+    fn decode_pick(bytes: &[u8]) -> Option<Option<Pick>> {
+        let taken = Ms(u32::from_le_bytes([bytes[1], bytes[2], bytes[3], bytes[4]]));
+        match bytes[0] {
+            0 => (taken.0 == 0).then_some(None),
+            b => Some(Some(Pick { taken, recipe: Recipe {
+                place: Place::new((b & 0x1F).checked_sub(1)?)?,
+                kit: Kit::new(b >> 5 & 3)?,
+                slot: WeaponSlot::from_bit(b >> 7),
+            } })),
+        }
     }
 
     pub fn encode(self) -> [u8; Self::BYTES] {
@@ -233,9 +270,15 @@ impl Record {
         };
         for (at, pick) in [2, 7].into_iter().zip(self.picks) {
             if let Some(p) = pick {
-                let r = p.recipe;
-                out[at] = (r.place.0 + 1) | r.kit.0 << 5 | r.slot.bit() << 7;
-                out[at + 1..at + 5].copy_from_slice(&p.taken.0.to_le_bytes());
+                Self::encode_pick(&mut out[at..at + 5], p);
+            }
+        }
+        if let Some(p) = self.pending {
+            out[12] = 1 + p.slot.bit();
+            Self::encode_pick(&mut out[13..18], p.pick);
+            if let Some((loaded, chamber)) = p.magazine {
+                out[18] = loaded;
+                out[19] = 1 | u8::from(chamber) << 1;
             }
         }
         out
@@ -254,18 +297,20 @@ impl Record {
             (2, 0) => Drop::Taken,
             _ => return None,
         };
-        let pick = |at: usize| -> Option<Option<Pick>> {
-            let taken = Ms(u32::from_le_bytes([bytes[at + 1], bytes[at + 2], bytes[at + 3], bytes[at + 4]]));
-            match bytes[at] {
-                0 => (taken.0 == 0).then_some(None),
-                b => Some(Some(Pick { taken, recipe: Recipe {
-                    place: Place::new((b & 0x1F).checked_sub(1)?)?,
-                    kit: Kit::new(b >> 5 & 3)?,
-                    slot: WeaponSlot::from_bit(b >> 7),
-                } })),
-            }
+        let pending = match (bytes[12], Self::decode_pick(&bytes[13..18])?, bytes[18], bytes[19]) {
+            (0, None, 0, 0) => None,
+            (tag @ 1..=2, Some(pick), loaded, flags) => Some(Pending {
+                slot: WeaponSlot::from_bit(tag - 1),
+                pick,
+                magazine: match flags {
+                    0 if loaded == 0 => None,
+                    1 | 3 => Some((loaded, flags == 3)),
+                    _ => return None,
+                },
+            }),
+            _ => return None,
         };
-        Some(Record { drop, picks: [pick(2)?, pick(7)?] })
+        Some(Record { drop, picks: [Self::decode_pick(&bytes[2..7])?, Self::decode_pick(&bytes[7..12])?], pending })
     }
 }
 
@@ -525,21 +570,34 @@ mod tests {
     fn records_round_trip_and_refuse_anything_else() {
         let recipe = Recipe { place: Place::new(19).unwrap(), kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second };
         let pick = Pick { taken: Ms(78_112), recipe };
+        let waiting = |slot, magazine| Some(Pending { slot, pick: Pick { taken: Ms(90_001), recipe }, magazine });
         let cases = [
             Record::EMPTY,
-            Record { drop: Drop::Taken, picks: [Some(pick), None] },
-            Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(pick)] },
-            Record { drop: Drop::None, picks: [Some(pick), Some(Pick { taken: Ms(1), recipe })] },
+            Record { drop: Drop::Taken, picks: [Some(pick), None], pending: None },
+            Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(pick)],
+                     pending: None },
+            Record { drop: Drop::None, picks: [Some(pick), Some(Pick { taken: Ms(1), recipe })], pending: None },
+            Record { drop: Drop::None, picks: [None, Some(pick)], pending: waiting(WeaponSlot::Second, Some((17, true))) },
+            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, None) },
+            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, Some((0, false))) },
         ];
         for record in cases {
             assert_eq!(Record::decode(record.encode()), Some(record));
         }
         assert_eq!(cases[1].encode()[2], 20 | 2 << 5 | 1 << 7, "place + 1, kit, slot");
+        assert_eq!(cases[4].encode()[12..], [2, 20 | 2 << 5 | 1 << 7, 0x91, 0x5F, 1, 0, 17, 3], "slot 10, the pick, 17 + chamber");
         let good = cases[1].encode();
-        for (at, value) in [(0, 1), (1, 3), (1, 6), (1, 1 | 3 << 2), (2, 0x60), (2, 21), (7, 0x60), (8, 1)] {
+        for (at, value) in [(0, 2), (1, 3), (1, 6), (1, 1 | 3 << 2), (2, 0x60), (2, 21), (7, 0x60), (8, 1),
+                            (12, 1), (13, 1), (18, 5), (19, 1)] {
             let mut bad = good;
             bad[at] = value;
             assert_eq!(Record::decode(bad), None, "byte {at} = {value}");
+        }
+        let pending = cases[4].encode();
+        for (at, value) in [(12, 0), (12, 3), (13, 0), (19, 2), (19, 4)] {
+            let mut bad = pending;
+            bad[at] = value;
+            assert_eq!(Record::decode(bad), None, "pending byte {at} = {value}");
         }
     }
 

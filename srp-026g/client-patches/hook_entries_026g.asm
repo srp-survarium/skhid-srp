@@ -3164,6 +3164,87 @@ weapon_pickup_on_client_resupply_replay:
     db 0x8b, 0x80, 0x0c, 0x01, 0x00, 0x00
     jmp 0x2954f5
 
+; 0x2d7650 base_player::tick_active_object's entry (push ecx / push ebx / push esi / mov esi,eax; ret 4, called only at 0x2D96A1): EAX the player, before the pending object (+12Ch) is asked or the held one updated: lohook -> weapon_pickup_on_tick_active
+global weapon_pickup_on_tick_active
+extern hook_weapon_pickup_on_tick_active
+weapon_pickup_on_tick_active:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_tick_active
+    mov edx, weapon_pickup_on_tick_active_replay
+    cmp eax, 0
+    je weapon_pickup_on_tick_active_go
+    mov edx, 0x2d7655
+    cmp eax, 1
+    je weapon_pickup_on_tick_active_go
+    ud2
+weapon_pickup_on_tick_active_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_tick_active_replay:
+    db 0x51, 0x53, 0x56, 0x8b, 0xf0
+    jmp 0x2d7655
+
+; 0x2d76d0 tick_active_object's switch (mov ecx,[esi+128h], reached from 0x2D76B5 and 0x2D76C0 once the held object is ready to be deactivated and the pending one may be activated): ESI the player, held +128h the outgoing, pending +12Ch the incoming; switched is mov ecx,[esi+128h] before the new held object's update (0x2D772A): lohook -> weapon_pickup_on_switch
+global weapon_pickup_on_switch
+extern hook_weapon_pickup_on_switch
+weapon_pickup_on_switch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_switch
+    mov edx, weapon_pickup_on_switch_replay
+    cmp eax, 0
+    je weapon_pickup_on_switch_go
+    mov edx, 0x2d76d6
+    cmp eax, 1
+    je weapon_pickup_on_switch_go
+    mov edx, 0x2d7724
+    cmp eax, 2
+    je weapon_pickup_on_switch_go
+    ud2
+weapon_pickup_on_switch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_switch_replay:
+    db 0x8b, 0x8e, 0x28, 0x01, 0x00, 0x00
+    jmp 0x2d76d6
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked

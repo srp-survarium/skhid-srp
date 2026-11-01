@@ -377,6 +377,7 @@ def main():
     print("ok the donor destroyed while its gun cooks: the completion gives the gun, recipe and profile back")
 
     stage2(patched, original)
+    holster(patched)
     second_pickup(patched)
     two_slots(patched)
     ordinary_kit(patched)
@@ -397,13 +398,20 @@ CAN_USE, CAN_USE_AFTER, CAN_USE_AVAILABLE = 0x2F809C, 0x2F80A2, 0x2F80B3
 HINT, HINT_AFTER, HINT_AVAILABLE = 0x2F80E4, 0x2F80EA, 0x2F8116
 RESUPPLY, RESUPPLY_AFTER = 0x2F81B8, 0x2F81BE
 CLIENT_RESUPPLY, CLIENT_RESUPPLY_AFTER = 0x2954EF, 0x2954F5
-NEW_SPANS = {SAVE_SITE: 6, LOAD_SITE: 6, REMOVE_SITE: 6, CAN_USE: 6, HINT: 6, RESUPPLY: 6, CLIENT_RESUPPLY: 6}
+NEW_SPANS = {SAVE_SITE: 6, LOAD_SITE: 6, REMOVE_SITE: 6, CAN_USE: 6, HINT: 6, RESUPPLY: 6, CLIENT_RESUPPLY: 6,
+             0x2D7650: 5, 0x2D76D0: 6}
 WRITE_U8, DEACTIVATE, FORGET, SET_USER, INITIALIZE, ACTIVATE, ACTIVE_PLAYER = (
     0x1F3DE0, 0x244860, 0x3919E0, 0x2445E0, 0x2449E0, 0x244610, 0x2D0AB0)
 SET_OWNER = 0x243590                        # inventory_item::set_owner: the item's +250h/+254h (ret 8)
 CHORD = 1 << 29
 PATTERNS = [v for v in range(64) if bin(v).count("1") >= 2][:20]
 GUN_ID, BULLETS, CAPACITY = 4, 0xB0B0, 30
+# The registry's reserved top (vostok::pickup::RegistryId::reserved): three ids a place from 195, slot 7's
+# pick, slot 10's pick, the pending gun. The picker is place 3.
+RESERVED = 0xFF - 3 * 20
+def reserved(place, role):
+    return RESERVED + 3 * place + {7: 0, 10: 1, "pending": 2}[role]
+PICK_ID, PENDING_ID = reserved(3, 10), reserved(3, "pending")
 CFG_CHILD, CFG_HAS = 0xF6B10, 0xF6C00
 
 
@@ -411,11 +419,12 @@ def command(target):
     return CHORD | PATTERNS[target] << 14
 
 
-def record(drop=None, slot7=None, slot10=None):
+def record(drop=None, slot7=None, slot10=None, pending=None):
     """weapon_pickup::Record::encode: drop ('open', kit, slot bit) / 'taken'; each weapon slot's pick
-    (taken ms, the recipe's place, kit, slot bit)."""
-    out = bytearray(12)
-    out[0] = 2
+    (taken ms, the recipe's place, kit, slot bit); the pickup waiting for its switch (its weapon slot 7
+    or 10, its pick, the donor's (magazine, chamber) or None)."""
+    out = bytearray(RECORD)
+    out[0] = 3
     if drop == "taken":
         out[1] = 2
     elif drop:
@@ -426,7 +435,17 @@ def record(drop=None, slot7=None, slot10=None):
             taken, place, kit, slot = pick
             out[at] = (place + 1) | kit << 5 | slot << 7
             out[at + 1:at + 5] = struct.pack("<I", taken)
+    if pending:
+        slot, (taken, place, kit, slot_bit), magazine = pending
+        out[12] = 1 if slot == 7 else 2
+        out[13] = (place + 1) | kit << 5 | slot_bit << 7
+        out[14:18] = struct.pack("<I", taken)
+        if magazine:
+            out[18], out[19] = magazine[0], 1 | magazine[1] << 1
     return bytes(out)
+
+
+RECORD = 20
 
 
 class Pick(Run):
@@ -458,14 +477,17 @@ class Pick(Run):
         emu.hook_add(UC_HOOK_CODE, self.dispatch, begin=DISPATCH, end=DISPATCH)
         for at in (CAN_HOLD, VT4, VT_UPDATE, VT_READY):
             emu.hook_add(UC_HOOK_CODE, self.weapon_asks, begin=at, end=at)
+        self.ready = True
 
     def weapon_asks(self, emu, address, *_):
-        """The weapon's answers to the switch: it can be held, it is ready to switch."""
-        self.ret(4 if address in (CAN_HOLD, VT4) else 0, 1)
+        """The weapon's answers to the switch: it can be held, it is ready to switch (unless `ready` is
+        off: still holstering)."""
+        self.ret(4 if address in (CAN_HOLD, VT4) else 0, 0 if address == VT_READY and not self.ready else 1)
 
     def switch(self, to):
         """The player's switch to the weapon `to` (its pending object, as a weapon key sets it) by the
         game's own tick_active_object: what is held after it."""
+        self.ready = True
         self.word(self.picker + 0x12C, to)
         self.native = []
         self.emu.reg_write(UC_X86_REG_EAX, self.picker)
@@ -579,8 +601,9 @@ class Pick(Run):
         own gun in slot 10, bound to its ammunition in slot 8, slot 7 empty."""
         self.match()
         self.player()
-        self.registry = self.blk(0x40)
+        self.registry = self.blk(0x400)
         self.word(CORE + 0x18B4C, self.registry)
+        self.word(CORE + 0x18B50, self.registry + 4 * 12)      # the game's own ids: 0..11
         self.emu.mem_write(WEAPON + 0x5E5, bytes([17]))
         self.emu.mem_write(WEAPON + 0x5F0, bytes([1, 1]))
         self.roster = {PLACE: PLAYER}
@@ -686,13 +709,18 @@ class Pick(Run):
         assert self.stopped in (stops or (after,)), (hex(site), hex(self.stopped or 0))
         return out, esp
 
-    def pick(self, target=PLACE, now=None, picker=None):
+    def pick(self, target=PLACE, now=None, picker=None, switch=True):
+        """The pickup command played at the input's apply point, then (`switch`) the game's switch it
+        waits for, the held gun ready (holstered) at the next tick_active_object."""
         p = picker or self.picker
         if now is not None:
             self.word(p + 0x324, now)
         self.word(p + 0x330, command(target))
         self.native = []
         self.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: p, UC_X86_REG_EAX: p + 0x32C})
+        self.word(p + 0x330, 0)
+        if switch:
+            self.tick(player=p)
 
     def save(self, player):
         self.written = bytearray()
@@ -722,11 +750,32 @@ class Pick(Run):
         assert (self.read(own + 0x10 + 0x250), self.read(own + 0x10 + 0x254)) == (cooked, 10)
         assert (self.read(self.own_ammo + 0x250), self.read(self.own_ammo + 0x254)) == (cooked, 11)
         assert [self.read(x + 0xD0) for x in (gun + 0x10, own + 0x10, self.new_ammo, self.own_ammo)] == [1] * 4
-        assert self.read(gun + 4) == CORE and self.read(gun + 0xC, 1)[0] == GUN_ID
+        assert self.read(gun + 4) == CORE and self.read(gun + 0xC, 1)[0] == PICK_ID
         assert self.read(gun + 0x10 + 0x248) == CORE and self.read(self.new_ammo + 0x248) == CORE
         assert self.read(gun + 0x5A0) == BULLETS and self.read(gun + 0x5F4, 1)[0] == 0
         assert self.read(self.read(gun + 0x5AC)) == 8 and self.read(gun + 0x5B0, 2) == b"\1\0"
-        assert self.read(self.registry + 4 * GUN_ID) == gun
+        assert self.read(self.registry + 4 * PICK_ID) == gun and self.read(self.registry + 4 * PENDING_ID) == 0
+        assert self.read(self.registry + 4 * GUN_ID) == self.own_gun, "the own gun keeps its id and entry"
+        self.in_hands()
+
+    def in_hands(self, player=None):
+        """The owner's invariant: a living picker always has a gun in its hands, held and pending set,
+        pending the held gun or a registered picked gun."""
+        p = player or self.picker
+        held, pending = self.read(p + 0x128), self.read(p + 0x12C)
+        assert held and self.read(held) == WEAPON_VTABLE, ("nothing in hands", hex(held))
+        assert pending and self.read(pending) == WEAPON_VTABLE, ("no pending object", hex(pending))
+
+    def tick(self, ready=True, now=None, player=None):
+        """The game's tick_active_object of the picker as it is (its pending object not changed): the
+        held gun `ready` to be deactivated or still holstering."""
+        p = player or self.picker
+        if now is not None:
+            self.word(p + 0x324, now)
+        self.ready = ready
+        self.emu.reg_write(UC_X86_REG_EAX, p)
+        self.call(TICK_ACTIVE, args=(0,))
+        return self.read(p + 0x128)
 
     def restored(self):
         """Everything as before the pickup: the cooked inventory as cooked, the own gun and its
@@ -743,6 +792,7 @@ class Pick(Run):
         assert self.read(gun + 0x10 + 0x248) == 0 and self.read(self.new_ammo + 0x248) == 0
         assert self.read(self.read(gun + 0x5AC)) == 11 and self.read(gun + 0x5B0, 2) == b"\1\0"
         assert self.read(self.registry + 4 * GUN_ID) == own
+        assert self.read(self.registry + 4 * PICK_ID) == 0 and self.read(self.registry + 4 * PENDING_ID) == 0
 
 
 def second_pickup(patched):
@@ -762,10 +812,12 @@ def second_pickup(patched):
     assert r.slot(inv, 10) == gun + 0x10 and r.slot(inv, 8) == ammo, [hex(r.slot(inv, n)) for n in (8, 10)]
     assert r.slot(second, 10) == own + 0x10 and r.slot(second, 11) == r.own_ammo, "the own gun and ammo hidden"
     assert r.slot(first, 10) == first_gun + 0x10 and r.slot(first, 11) == first_ammo, "the first picked gun let go"
-    assert r.read(r.registry + 4 * GUN_ID) == gun and r.read(r.picker + 0x128) == gun
+    assert r.read(r.registry + 4 * PICK_ID) == gun and r.read(r.picker + 0x128) == gun
+    assert r.read(r.registry + 4 * GUN_ID) == own and r.read(first_gun + 0xC, 1)[0] == 0
     assert r.native[0] == ("deactivate", first_gun, 1) and r.native[1][::2] == ("forget", first_gun), r.native
     assert r.save(r.picker) == record(slot10=(DIED + 2_500, 6, KIT, 1))
     assert any("let go, replaced: slot 10's picked gun (taken at 13350 ms" in l for l in r.log), r.log
+    r.in_hands()
     # Its death: the respawn's removal puts the own gun and ammunition back.
     r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
     assert r.slot(inv, 10) == own + 0x10 and r.slot(inv, 8) == r.own_ammo
@@ -951,10 +1003,178 @@ def no_branch_into(original):
         assert not hits, (hex(va), [hex(h) for h in hits])
 
 
+def holster(patched):
+    """Option (b): the pickup committed at the command (the drop taken, every check of the install made,
+    the gun the picker's pending object under its own reserved registry id), the holster only its
+    animation: the game's switch holsters the gun in hands and then the gun takes the slot. Weapon keys
+    while holstering are ignored; only the picker's death cancels; a switch that never comes is made
+    at the deadline; a rollback inside the holster leaves the registry as the record says; a defensive
+    refusal at the switch draws the old gun back. The picker always has a gun in its hands."""
+    taken = DIED + 1_000
+    waiting = (10, PICKED, (17, 1))
+
+    def started():
+        r = Pick(patched)
+        r.setup()
+        r.ready = False
+        r.pick(switch=False)
+        r.tick(ready=False)
+        return r
+
+    def window(r):
+        """The command played, the own gun holstering: nothing of the slots moved yet."""
+        gun, own = r.new_gun, r.own_gun
+        assert r.read(r.picker + 0x128) == own and r.read(r.picker + 0x12C) == gun
+        assert r.slot(r.inventory, 10) == own + 0x10 and r.slot(r.cooked, 10) == gun + 0x10
+        assert r.read(gun + 0xC, 1)[0] == PENDING_ID and r.read(r.registry + 4 * PENDING_ID) == gun
+        assert r.read(r.registry + 4 * PICK_ID) == 0 and r.read(r.registry + 4 * GUN_ID) == own
+        assert r.native == [], r.native
+        assert r.save(r.picker) == record(pending=waiting), r.save(r.picker).hex()
+        assert r.save(PLAYER) == record("taken"), "claimed at the command"
+        r.in_hands()
+
+    # The switch: the command, the holster (ticks not ready), the game's switch.
+    r = started()
+    window(r)
+    r.tick(ready=False, now=taken + 400)
+    window(r)
+    assert any(f"took (the gun in hands holstering): slot 10's pending gun (taken at {taken} ms, the gun of place 5 "
+               f"kit 1 slot 10), registry id {PENDING_ID}" in l for l in r.log), r.log
+    assert r.tick(now=taken + 600) == r.new_gun
+    r.installed()
+    assert r.native == [("deactivate", r.own_gun, 1), ("forget", r.picker + 0x750, r.own_gun),
+                        ("set_user", r.new_gun, r.picker), ("initialize", r.new_gun),
+                        ("activate", r.new_gun, 1)], r.native
+    assert r.read(r.new_gun + 0x5E5, 1)[0] == 17 and r.read(r.new_gun + 0x5F1, 1)[0] == 1
+    assert r.save(r.picker) == record(slot10=PICKED) and r.save(PLAYER) == record("taken")
+    assert any("switched (the gun in hands holstered): slot 10's picked gun" in l for l in r.log), r.log
+    print("ok (b) the command claims the drop and registers the gun as the pending object under its own id "
+          f"({PENDING_ID}: the own gun keeps id {GUN_ID} and stays in its slot while it holsters); the game's "
+          f"switch then installs it (id {PICK_ID}, the switch's calls, the donor's magazine); logged at the command "
+          "and the switch; a gun in hands throughout")
+
+    # A weapon key while holstering: ignored (pending and the selected slot put back).
+    r = started()
+    other = r.second(double_handed=0)
+    r.word(r.picker + 0x12C, other)
+    r.word(r.inventory + 0x170, 7)
+    r.tick(ready=False, now=taken + 200)
+    window(r)
+    assert r.read(r.inventory + 0x170) == 10
+    assert any("ignored another weapon switch while holstering for: slot 10's picked gun" in l for l in r.log), r.log
+    r.tick(now=taken + 500)
+    r.installed()
+    print("ok a weapon key while holstering is ignored until the swap (the pending object and the inventory's "
+          "selected slot +170h put back), then the switch comes")
+
+    # The donor's body leaves the world while the picker holsters: the pickup stands.
+    r = started()
+    r.remove(PLAYER, taken + 300)
+    window_record = r.save(r.picker)
+    assert window_record == record(pending=waiting) and r.save(PLAYER) == record()
+    r.tick(now=taken + 700)
+    r.installed()
+    print("ok the donor's body leaving the world during the holster does not cancel it: the gun is the picker's")
+
+    # The deadline: no switch within 3 s of the command, then the swap at once, at that tick.
+    r = started()
+    r.tick(ready=False, now=taken + 2_999)
+    window(r)
+    r.log.clear()
+    r.tick(ready=False, now=taken + 3_000)
+    r.installed()
+    assert r.read(r.picker + 0x12C) == r.new_gun and r.native[0] == ("deactivate", r.own_gun, 1)
+    assert any("switched AT ONCE (no switch within the deadline)" in l for l in r.log), r.log
+    print("ok a switch that never comes: at 3 s after the command the gun is installed at once (logged as such)")
+
+    # The picker's death while holstering: the only cancel. The gun back in the drop (open again).
+    r = started()
+    r.log.clear()
+    r.run(DEATH_SITE, (DEATH_AFTER,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_ECX: r.picker})
+    assert r.read(r.picker + 0x128) == r.own_gun and r.read(r.picker + 0x12C) == r.own_gun
+    assert r.read(r.registry + 4 * PENDING_ID) == 0 and r.read(r.new_gun + 0xC, 1)[0] == 0
+    assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
+    assert r.save(r.picker)[12:] == bytes(8) and r.save(PLAYER) == record(("open", KIT, 1))
+    assert any("CANCELLED the switch to: slot 10's picked gun" in l and "(its death)" in l for l in r.log), r.log
+    r.in_hands()
+    print("ok the picker's death while holstering cancels: the own gun stays in hands, the reserved id emptied, "
+          "the gun back in its body's drop (open again)")
+
+    # A rollback inside the holster window. Back to before the command: the registry as before it, the
+    # gun back in its drop; the command played again takes it from there.
+    r = started()
+    r.load(PLAYER, record(("open", KIT, 1)))
+    r.load(r.picker, record())
+    assert r.read(r.registry + 4 * PENDING_ID) == 0 and r.read(r.new_gun + 0xC, 1)[0] == 0
+    assert r.read(r.picker + 0x12C) == r.own_gun, "pending back to the held gun (the reader then sets the state's)"
+    r.queries = []
+    r.pick(switch=False)
+    window(r)
+    assert r.queries == [], "taken again from the drop, no cook"
+    # After the switch, back into the window: the pick undone, the gun registered pending again.
+    r.tick(now=taken + 600)
+    r.installed()
+    assert r.load(r.picker, record(pending=waiting)) == RECORD
+    assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
+    assert r.read(r.registry + 4 * PICK_ID) == 0 and r.read(r.registry + 4 * PENDING_ID) == r.new_gun
+    assert r.read(r.new_gun + 0xC, 1)[0] == PENDING_ID
+    assert any("a loaded record: registered: slot 10's pending gun" in l for l in r.log), r.log
+    # The reader sets held and pending from the state's ids (the own gun's and PENDING_ID's entries).
+    r.word(r.picker + 0x128, r.read(r.registry + 4 * GUN_ID))
+    r.word(r.picker + 0x12C, r.read(r.registry + 4 * PENDING_ID))
+    r.native = []
+    window(r)
+    r.tick(now=taken + 700)
+    r.installed()
+    print("ok a rollback inside the holster: to before the command the reserved id is emptied and the gun "
+          "back in its drop (taken again, no cook); from after the switch back into the window the pick is "
+          "undone and the gun registered pending again, the registry as the record says; the switch then "
+          "comes again")
+
+    # A defensive refusal at the switch (the slots changed under the holster): cancelled, the old gun
+    # drawn back by the native switch, never nothing in hands.
+    r = started()
+    r.word(r.cooked + 0x10C + 4 * 11, 0)            # the gun's bound stack gone from its cooked slot
+    r.log.clear()
+    assert r.tick(now=taken + 600) == r.own_gun
+    assert ("activate", r.own_gun, 1) in r.native and r.read(r.picker + 0x12C) == r.own_gun
+    assert r.read(r.registry + 4 * PENDING_ID) == 0 and r.slot(r.inventory, 10) == r.own_gun + 0x10
+    assert any("CANCELLED the switch to" in l and "bound ammunition slot" in l for l in r.log), r.log
+    assert r.save(PLAYER) == record(("open", KIT, 1))
+    r.in_hands()
+    # ... and a command whose install would be refused is refused at once, nothing changed.
+    q = Pick(patched)
+    q.setup()
+    q.word(q.cooked + 0x10C + 4 * 11, 0)
+    q.pick(switch=False)
+    assert q.read(q.picker + 0x12C) == q.own_gun and q.read(q.registry + 4 * PENDING_ID) == 0
+    assert q.save(PLAYER) == record(("open", KIT, 1)) and q.save(q.picker) == record()
+    q.in_hands()
+    print("ok a defensive refusal at the switch: cancelled and logged, the native switch draws the own gun "
+          "back; a command whose install would be refused is refused at the command, nothing changed")
+
+    # A pickup over a picked gun waits for the switch too (both ids reserved: slot 10's and the pending).
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    first = r.new_gun
+    second, gun, ammo = r.new_life(6, SPAWNED + 20_000, DIED + 2_000)
+    r.pick(target=6, now=DIED + 2_500, switch=False)
+    r.tick(ready=False)
+    assert r.read(r.picker + 0x128) == first and r.read(r.picker + 0x12C) == gun
+    assert r.read(r.registry + 4 * PICK_ID) == first and r.read(r.registry + 4 * PENDING_ID) == gun
+    r.tick()
+    assert r.read(r.registry + 4 * PICK_ID) == gun and r.read(r.registry + 4 * PENDING_ID) == 0
+    assert r.read(r.picker + 0x128) == gun and r.slot(second, 10) == r.own_gun + 0x10
+    r.in_hands()
+    print("ok a pickup over a picked gun: both guns registered while it holsters (slot 10's id and the "
+          "pending one), then the new one takes slot 10's id")
+
+
 def stage2(patched, original):
     no_branch_into(original)
     print("ok nothing in the original branches into the new spans (0x2DAF70, 0x2DB4CF, 0x2DA790, 0x2F809C, "
-          "0x2F80E4, 0x2F81B8, 0x2954EF)")
+          "0x2F80E4, 0x2F81B8, 0x2954EF, tick_active_object 0x2D7650 and its switch 0x2D76D0)")
 
     r = Pick(patched)
     r.setup()
@@ -1002,7 +1222,9 @@ def stage2(patched, original):
     assert r.read(r.picker + 0x128) == r.read(r.picker + 0x12C) == r.new_gun
     assert r.read(r.new_gun + 0x5E5, 1)[0] == 17 and r.read(r.new_gun + 0x5F1, 1)[0] == 1
     assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", CAPACITY)
-    assert any("place 3 at 13350 ms took: slot 10's picked gun (taken at 13350 ms, the gun of place 5 kit 1 slot 10)" in l
+    assert any("place 3 at 13350 ms took (the gun in hands holstering): slot 10's pending gun (taken at 13350 ms, the gun "
+               f"of place 5 kit 1 slot 10), registry id {PENDING_ID}" in l for l in r.log), r.log
+    assert any("place 3 at 13350 ms switched (the gun in hands holstered): slot 10's picked gun (taken at 13350 ms" in l
                for l in r.log), r.log
     took = [l.split("pickup: ", 1)[1] for l in r.log if "pickup: place 3 pickup: " in l]
     assert took == ["place 3 pickup: the donor's magazine 17, chamber 1",
@@ -1089,12 +1311,12 @@ def stage2(patched, original):
 
     # A loaded record without the pick (a rollback undoing it): restored before the native readers,
     # the gun back in its body's drop.
-    assert r.load(r.picker, record()) == 12
+    assert r.load(r.picker, record()) == RECORD
     r.restored()
     assert r.read(r.picker + 0x128) == r.new_gun, "held left to the native reader"
     assert r.native == []
     # ... and with it again: installed without the switch (the reader switches).
-    assert r.load(r.picker, record(slot10=PICKED)) == 12
+    assert r.load(r.picker, record(slot10=PICKED)) == RECORD
     r.installed()
     assert r.native == [("set_user", r.new_gun, r.picker), ("initialize", r.new_gun)], r.native
     print("ok a loaded record without the pick: the install restored (held left to the reader), the gun back "
@@ -1126,10 +1348,10 @@ def stage2(patched, original):
     r.word(r.picker + 0x324, gone + 10_000)
     r.load(r.picker, record(slot10=PICKED))
     r.installed()
-    assert r.load(r.picker, b"\x07" + bytes(11)) == 12
+    assert r.load(r.picker, b"\x07" + bytes(RECORD - 1)) == RECORD
     r.restored()
     assert any("record of place 3 does not decode (read as empty): bad bytes" in l for l in r.log), r.log
-    assert r.load(r.picker, bytes(12), size=8) == 0
+    assert r.load(r.picker, bytes(RECORD), size=8) == 0
     assert any("the state is too short" in l for l in r.log)
     print("ok a record that does not decode (bad bytes, a short state): logged loudly, read as empty (the pick "
           "restored), never a crash")
@@ -1295,6 +1517,8 @@ def stage2b(patched):
     # The command played: taken; the gun is hidden on the ragdoll, the prompt gone.
     r.word(r.picker + 0x330, sent)
     r.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: r.picker, UC_X86_REG_EAX: r.picker + 0x32C})
+    r.word(r.picker + 0x330, 0)
+    r.tick()
     r.installed()
     # "Already taken" only while the gun is still drawn there (before the ragdoll's next draw hides it).
     assert r.hud() == [("st_weapon_already_taken",)], "the gun still seen at its spot"

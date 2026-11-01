@@ -1332,6 +1332,15 @@ impl Inventory {
         unsafe { self.0.byte_add(0x184).cast::<u8>().as_ptr() }
     }
 
+    /// +0x170 (u32): the slot last selected (inventory::action 0x2FCB18 after the player's set_target, its vtable 0xA10B04 +4 0x2D8210 writing +12Ch; 0x2FCAE5 skips a selection of the slot already selected; 17h none, the constructor 0x2FC533)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn selected_slot(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x170).cast::<u32>().as_ptr() }
+    }
+
     /// 0x188 bytes: what resupply_from_profile and check_resupply read of it (slots +10Ch..+167h, +184h written): patch 85's crate view
     pub const SIZE: usize = 0x188;
 
@@ -5704,6 +5713,24 @@ impl CoreWorld {
     #[inline(always)]
     pub unsafe fn set_objects(self, value: Option<InventorySlot>) {
         unsafe { self.0.byte_add(0x18b4c).cast::<Option<InventorySlot>>().write_volatile(value) }
+    }
+
+    /// +0x18b50 (ptr<survarium::inventory_slot>): the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn objects_end(self) -> Option<InventorySlot> {
+        unsafe { self.0.byte_add(0x18b50).cast::<Option<InventorySlot>>().read_volatile() }
+    }
+
+    /// +0x18b50 (ptr<survarium::inventory_slot>): the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_objects_end(self, value: Option<InventorySlot>) {
+        unsafe { self.0.byte_add(0x18b50).cast::<Option<InventorySlot>>().write_volatile(value) }
     }
 }
 
@@ -10683,6 +10710,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// pickup.tick_active (0x2d7650): base_player::tick_active_object's entry (push ecx / push ebx / push esi / mov esi,eax; ret 4, called only at 0x2D96A1): EAX the player, before the pending object (+12Ch) is asked or the held one updated
+    pub mod pickup_tick_active {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// pickup.switch (0x2d76d0): tick_active_object's switch (mov ecx,[esi+128h], reached from 0x2D76B5 and 0x2D76C0 once the held object is ready to be deactivated and the pending one may be activated): ESI the player, held +128h the outgoing, pending +12Ch the incoming; switched is mov ecx,[esi+128h] before the new held object's update (0x2D772A)
+    pub mod pickup_switch {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
 }

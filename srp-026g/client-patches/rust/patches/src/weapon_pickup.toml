@@ -53,3 +53,14 @@ handler = "on_resupply"
 [[hook]]
 site = "pickup.client_resupply"
 handler = "on_client_resupply"
+
+# the game's weapon switch: a pickup waits for it (the picked gun the
+# pending object, under its own registry id), cancelled when the pending
+# object changes; at the switch the gun takes the slot
+[[hook]]
+site = "pickup.tick_active"
+handler = "on_tick_active"
+
+[[hook]]
+site = "pickup.switch"
+handler = "on_switch"

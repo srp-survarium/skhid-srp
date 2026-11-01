@@ -136,6 +136,75 @@
   ragdoll's gun, the prompt and the input builder's encoding (stage 2b) are
   built and checked under Unicorn; not run in a game yet.
 
+## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
+
+The owner (2026-11-01): a pickup is a normal weapon switch, the gun in hands
+holstered and the new one drawn; committed at Use, the holster only its
+animation; weapon keys ignored until the swap; only the picker's death
+cancels; a switch that never comes is made at a deadline; never alive with
+nothing in hands.
+
+- **The registry** (core+18B4Ch, read in the exe, re-kit rows): an inline
+  buffer_vector of 255 active-object pointers (core+18B58h; end +18B50h,
+  capacity +18B54h = begin+3FCh; game_world_core 0x2CFFEE..0x2D000B), a byte
+  id each, FFh none. Appended only by bind_to_game_core 0x2E30F0 (each
+  place's six weapons at place x 6, the late join's bind_slot_reserved,
+  the end then at least begin+120) and the victory items'
+  gather_victory_items_rule::set_game_world_core 0x313F50 (once, after the
+  places); never erased; reset only by ~game_world_core (0x2D0330). No
+  serialize, deserialize, history capture or rollback touches it: the states
+  carry ids only (held 0x2DB626, pending 0x2DB796, inventory+178h 0x2FE578),
+  resolved through it when read. So an entry is the same on every client as
+  long as each client writes it at the same tick, and a loaded state needs
+  its ids' entries set before the native readers.
+- **Reserved ids**: the top 60, 195..254, three a place: its slot 7's
+  pick, slot 10's, its pending gun (`vostok::pickup::RegistryId::reserved`).
+  A registration refuses when the game's own ids reach 195 or the entry holds
+  another object. The own gun keeps its id and entry throughout (stage 2a
+  gave the picked gun the own gun's id).
+- **The command** (carry.filter): the rule, the gun, then every check the
+  install makes (`can_install`: both reserved ids, the own gun held in its
+  slot, the cooked binding, a replaced pick restorable); then the drop is
+  taken, the gun registered under the pending id and made the pending
+  object (+12Ch), the record's `pending` set (the weapon slot, the pick, the
+  donor's magazine and chamber, fixed now). Nothing of the slots moves. The
+  game's tick_active_object sees pending != held: the held gun plays its hide.
+- **While holstering** (`pickup.tick_active` 0x2D7650, each tick): a pending
+  object other than the gun (a weapon key: inventory::action 0x2FCAA0 ->
+  set_target 0x2D8210, +170h the selected slot) is put back, with +170h, and
+  logged; 3 s after the command (`SWITCH_DEADLINE_MS`, the player's
+  simulation time: the same tick on every client) the install is made there
+  and then. The donor's body leaving the world does not cancel it.
+- **The switch** (`pickup.switch` 0x2D76D0, reached once the held gun is
+  ready to be deactivated): the install (the stage 2a moves; the gun under
+  the slot's reserved id, the pending id emptied; the switch's calls:
+  deactivate, forget, held = gun, set_user, initialize, the magazine,
+  activate), exit to 0x2D7724 (the new held gun's update). A refusal there
+  (the slots changed under the holster) cancels and lets the native switch
+  run: it draws the held gun again.
+- **The cancel**: the picker's death (`died`), and its removal or
+  destruction (cleanup): the gun unregistered (its id as cooked, the entry
+  emptied, pending = held), back in its drop, the drop open again while its
+  body is in the world.
+- **A loaded record** (rollback, late join): a pending gun the record does
+  not name is unregistered and back in its drop; one it names is found (or
+  cooked) and registered under the pending id before the reader resolves
+  0x2DB796; picks as before, under the slot's id.
+- **The record** is 20 bytes (version 3): the 12 of stage 2a, then the
+  pending pickup: its slot (0 none, 1 slot 7, 2 slot 10), the pick's byte and
+  tick, the magazine, a byte (bit 0 known, bit 1 chamber).
+- **Logged**: `took (the gun in hands holstering): slot S's pending gun
+  (...), registry id N`; `ignored another weapon switch while holstering
+  for`; `switched (the gun in hands holstered)` or `switched AT ONCE (no
+  switch within the deadline)`; `CANCELLED the switch to: ... (why)`; `a
+  loaded record: registered`.
+- **Checked** (`check_weapon_pickup_026g.py`, `holster`): the command's
+  registration and the switch's install, a weapon key ignored, the donor's
+  body leaving, the deadline, the death, a rollback to before the command
+  and from after the switch back into the window, a defensive refusal at the
+  switch and at the command, a pickup over a picked gun; a gun in hands
+  asserted on every path.
+
 ## How a pickup is installed (patch 85, stage 2a, built, not run in a game)
 
 `rust/patches/src/weapon_pickup.rs` (the records, the decision, the log)
@@ -373,7 +442,7 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   deactivate, `forget_active_object` 0x3919E0, held = pending = new, new
   +10h(player) set_user, +14h initialize, +18h(1) activate.
 - **What a cooked gun lacks**: active+4 and +258h (the core), the
-  registry ID +0Ch (give it the replaced gun's; core+18B4Ch is a fixed
+  registry ID +0Ch (a reserved one of its own, above: core+18B4Ch is a fixed
   buffer_vector, `bind_to_game_core` 0x2E30F0 would append), and +5A0h, the
   bullet manager (set only by 0x2D7570 for roster weapons; `instant_fire`
   passes it to `emit_bullet` 0x322830: zero crashes the first shot). Clear

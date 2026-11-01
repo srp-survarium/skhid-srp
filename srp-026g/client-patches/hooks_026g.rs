@@ -1707,6 +1707,41 @@ pub extern "C" fn hook_weapon_pickup_on_client_resupply(frame: &mut Frame) -> u3
     }
 }
 
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_tick_active` (0x2d7650, base_player::tick_active_object's entry (push ecx / push ebx / push esi / mov esi,eax; ret 4, called only at 0x2D96A1): EAX the player, before the pending object (+12Ch) is asked or the held one updated) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_tick_active(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_tick_active` calls this, from the game's jump at 0x2d7650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_tick_active(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_switch (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnSwitchExit { Switched }
+/// The entry `weapon_pickup_on_switch` (0x2d76d0, tick_active_object's switch (mov ecx,[esi+128h], reached from 0x2D76B5 and 0x2D76C0 once the held object is ready to be deactivated and the pending one may be activated): ESI the player, held +128h the outgoing, pending +12Ch the incoming; switched is mov ecx,[esi+128h] before the new held object's update (0x2D772A)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_switch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_switch` calls this, from the game's jump at 0x2d76d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_switch(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code

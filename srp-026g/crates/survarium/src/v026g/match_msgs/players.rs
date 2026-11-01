@@ -653,7 +653,7 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
-                2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record, empty
+                3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record, empty
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store
@@ -753,7 +753,7 @@ mod tests {
             slot: weapon_pickup::WeaponSlot::Second,
         };
         let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
-        let pickup = weapon_pickup::Record { drop: weapon_pickup::Drop::None, picks: [Some(pick), None] };
+        let pickup = weapon_pickup::Record { drop: weapon_pickup::Drop::None, picks: [Some(pick), None], pending: None };
         let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory());
         let block = PlayerBlock {
             place: 4,

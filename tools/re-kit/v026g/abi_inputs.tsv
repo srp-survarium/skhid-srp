@@ -5183,3 +5183,10 @@ va	name	location	role	basis
 0x00019ff0	vostok::engine::engine_world::logic_dispatch_callbacks	ECX	the engine world	observed
 0x0001a390	vostok::engine::engine_world::logic	ECX	the engine world (+2B8h render world, +2ECh logic frame, +2F8h destruction started)	observed
 0x00243dd0	survarium::weapon::on_show	entry ESP+4	was_visible: nonzero adds its models to the scene (weapon_core::activate passes its own argument, 1 at a switch)	observed
+0x00313f50	survarium::gather_victory_items_rule::set_game_world_core	ECX	the rule (+110h..+114h its victory items; +158h set to the core)	observed
+0x00313f50	survarium::gather_victory_items_rule::set_game_world_core	entry ESP+4	game world core (its registry +18B4Ch)	observed
+0x002cfe90	survarium::game_world_core::game_world_core	EAX	core: the active-object registry is an inline buffer_vector, begin = end = core+18B58h, capacity end +18B54h = begin+3FCh (255 entries, a byte id, FFh none) (0x2CFFEE..0x2D000B)	observed
+0x002d02a0	survarium::game_world_core::~game_world_core	EBP	core: the registry's end set back to its begin (0x2D0330), its only reset; nothing erases an entry, and no serialize, deserialize, history capture or rollback touches core+18B4Ch..+18B57h but the id lookups (exe scan of every +18B4Ch..+18B58h displacement, 2026-11-01)	observed
+0x002db490	survarium::base_player::deserialize	at 0x2DB796	the pending id byte: FFh none, else core+18B4Ch begin[id] into +12Ch (0x2DB7A4..0x2DB7BA), as the held id	observed
+0x002fe550	survarium::inventory::deserialize	at 0x2FE578	an active-object id byte for inventory+178h: FFh none, else core+18B4Ch begin[id] through its player (+174h vtable+0Ch, +120h) (0x2FE5A3..0x2FE5C2)	observed
+0x002d7650	survarium::base_player::tick_active_object	at 0x2D7655	a pending object (+12Ch) other than held is asked vtable+0(player) first and dropped (pending = held) when it says no; a client weapon's (vtable 0xA04174 +0 = 0x301CA0) always says yes	observed

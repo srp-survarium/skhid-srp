@@ -1985,3 +1985,4 @@ va	status	ref_021d	name
 0x000e5ab0	observed	0x000b13ab	vostok::resources::dispatch_callbacks
 0x00286410	observed		survarium::fill_items_dictionary_impl
 0x00279e10	observed		vostok::memory::multi_threading_single_size_allocator_policy<vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::node>::allocate
+0x00313f50	reviewed	0x001fbcaf	survarium::gather_victory_items_rule::set_game_world_core
