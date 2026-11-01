@@ -325,3 +325,43 @@ so a ninth needs a ninth row. Weapon balance 1 adds the magazine: line 134
 (the weapon's `magazine_capacity`), and in the movie a `diff_9` row in
 sprite 1538 and `ItemCompare`'s constructor adding `getChildByName("diff_9")`
 to its rows when there is one (`scripts/content-edit/README.md`).
+
+## 8. A consumable's buy starts at 30 (2026-11-01)
+
+The owner: "when buying consumables, it should always try to buy at least 30 if enough money (this
+is for new players who might buy less and not understand why they no longer have consumables in
+the game)"; "this shouldn't take into account energy drinks and similar items which give passive
+bonuses per round".
+
+- **Where:** the buy dialog (`MessageAsk.update_slider` -> `startCount`), the one place a buy's
+  starting count is set. Every buy reaches it through `LobbyMenu.try_buy_item`: the card's Buy, a
+  double click, the right-click Buy (inventory, shop, kit slot), a drop on a pocket. The player can
+  still move the slider anywhere; only where it starts changes.
+- **Consumables:** stacks of category 10 (drugs: bandages, medkits, painkiller, antitoxin, the
+  medicines pack's), 11 (traps) and 24 (grenades), the pockets' categories.
+- **Not the boosters** (category 10 too, config `type` `booster`, dict 339..344: the Tornado energy
+  drink and the like): told apart by `fills_whole_pocket`, which every booster has and no other
+  stack of the data. They give their bonus while carried (`data.md`), so they start at one, as
+  before. Nor ammo (one clip; it has Autobuy), items that are no stack, sales, relocations.
+- **The count:** 30 (`CONSUMABLE_START_COUNT`), or the dialog's own most when less: what the money
+  buys, 100 at most. No money: the slider at 0 and Buy off, as before. The data has no per-item
+  stack cap.
+- **A drop on a pocket** starts at 30 too (the owner on #1003: "i'd say it should be 30 there
+  too"): a buy is no longer capped by the pocket's size. You own all you buy; the pocket carries
+  what it takes (its size, one for an item that fills a whole pocket), the rest stays in the
+  inventory. The lobby sends it as the ammo window does (`46 00`, `apply_profile_items`): the units
+  in the pocket (`count`) and the units owned after the buy (`count_in_inventory`: owned + bought,
+  `LobbyMenu.relocate_to_paperdoll`); the server buys what is beyond the stack (`move_items`,
+  `top_up`) and puts `count` in the pocket. Before, the lobby sent the bought units as both, so a
+  drop of N with N or more owned already bought nothing. Moving owned units into a pocket (the
+  relocate dialog) keeps the pocket's size as its most.
+- **Price:** the dialog's own total, count x price (30 medkits at 20: 600 silver). No consumable is
+  premium; one still locked at its seller, offered for gold (`getItemLockedCost`), counts the same
+  way in gold.
+- **Server:** unchanged. A buy needs a count of at least 1 and the money; it has no default count.
+  It never knew a pocket's size (gear and skills set it in the exe). Test:
+  `a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory`.
+- `try_buy_item` now gives the dialog the item's category (`_obj.category`; it gave the sellers
+  under that name, which nothing read).
+- **Check:** `scripts/consumables-buy-30/check.sh <lobby_menu.swf>` (Ruffle; fails on the movie
+  before this change).
