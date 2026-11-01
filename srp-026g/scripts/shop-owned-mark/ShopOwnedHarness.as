@@ -21,7 +21,7 @@ package
    // - a bundle whose id is the rifle's dictionary id: no mark (a bundle's id is not an item's);
    // - the helmet bought (the account comes again, as the server sends it after a buy): marked;
    // - the rifle sold: unmarked; the scope it wore stays owned, marked.
-   // The box (the character panel's Autobuy box, CheckBoxSharedPD): off at first, labelled, left of
+   // The box (the compare box's symbol, CheckBoxShared): off at first, labelled, left of
    // Buy on its row (a Russian label too); on, the owned items' entries leave the list and the others
    // stay; with the upgrades tab chosen too; the decal bought while it is on leaves the list; off,
    // every entry is back.
@@ -360,15 +360,15 @@ package
          return false;
       }
 
-      // The shop's "not owned" box: the list's child of the Autobuy box's class (the last, should the
-      // list have another).
+      // The shop's "not owned" box: the list's child of the compare box's class that is not the
+      // compare box (the last, should the list have another).
       private function toggle() : *
       {
          var found:* = null;
          for(var i:int = 0; i < inventory.numChildren; i++)
          {
             var child:DisplayObject = inventory.getChildAt(i);
-            if(getQualifiedClassName(child) == "CheckBoxSharedPD")
+            if(getQualifiedClassName(child) == "CheckBoxShared" && child != inventory.checkboxCompareItems)
             {
                found = child;
             }

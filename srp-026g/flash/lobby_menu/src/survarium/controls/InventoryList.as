@@ -272,7 +272,7 @@ package survarium.controls
       private var _searchNames:Dictionary = new Dictionary();
 
       // The shop's "not owned" check box (makeOwnedToggle).
-      private var _ownedToggle:CheckBoxSharedPD;
+      private var _ownedToggle:CheckBoxShared;
 
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
@@ -2218,13 +2218,15 @@ package survarium.controls
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
       }
 
-      // The shop's "Hide owned" check box (shop-owned-mark.md): the character panel's Autobuy box
-      // (CheckBoxSharedPD), its label and tooltip as Autobuy's, in the shop's Buy button's row
+      // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
+      // (CheckBoxShared), the character panel's Autobuy box's look (CheckBoxSharedPD: the same box,
+      // tick and label, but its bitmaps fill shapes unsmoothed, pixelated once the lobby is scaled to
+      // the screen), with Autobuy's label sizing and tooltip; in the shop's Buy button's row
       // (btnSellBig) at its left, at the window's margin as the compare box below it; shown in the shop
       // only. Off when the lobby opens.
       private function makeOwnedToggle() : void
       {
-         _ownedToggle = new CheckBoxSharedPD();
+         _ownedToggle = new CheckBoxShared();
          LocalizationData.addButton(this._ownedToggle,"st_srp_shop_not_owned");
          this._ownedToggle.tooltipRendererName = "SrvProfileTipRendererStyled";
          this._ownedToggle.fitLabel();

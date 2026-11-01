@@ -13,11 +13,13 @@ items".
   are never marked (a bundle's id is not an item's).
   - A scope, camouflage or decal worn on an item stays one item of the stash (`items.md` §6, the
     stash lists it once, attached to its host): it is owned whatever wears it.
-- **The "Hide owned" box:** the lobby's own check box, the character panel's Autobuy box
-  (`CheckBoxSharedPD`): its look, label and tooltip as Autobuy's (the owner, 2026-11-01: "there was
-  already toggle logic before"). It sits in the Buy button's row, at its left, at the window's margin
-  as "Compare items" below it (the owner: "can it be on BUY level to the left?"); the longest label
-  (Russian, "Скрыть имеющиеся") ends well before Buy. Label `st_srp_shop_not_owned`, tooltip
+- **The "Hide owned" box:** the lobby's own check box, the character panel's Autobuy box: its look,
+  label and tooltip as Autobuy's (the owner, 2026-11-01: "there was already toggle logic before").
+  Its symbol is "Compare items"' (`CheckBoxShared`): the same box, tick and label as Autobuy's
+  (`CheckBoxSharedPD`), whose bitmaps fill shapes unsmoothed, so its tick was pixelated wherever
+  the lobby is scaled to the screen (live rev 41). It sits in the Buy button's row, at its left, at
+  the window's margin as "Compare items" below it (the owner: "can it be on BUY level to the
+  left?"); the longest label (Russian, "Скрыть имеющиеся") ends well before Buy. Label `st_srp_shop_not_owned`, tooltip
   `st_srp_shop_not_owned_hint`. Checked, the shop leaves out the entries of items owned, by the mark's
   own check, so the two never disagree; it works with every tab and filter. Shop only; off when the
   lobby opens, kept as set while it is open.
