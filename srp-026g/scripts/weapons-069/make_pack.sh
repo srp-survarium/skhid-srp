@@ -12,15 +12,15 @@
 #   1. resource-porter's port-weapons-069d (its shared weapon core with 0.69d0 as the donor,
 #      docs/weapons-069d-026.md): the bundle of ports/weapons-069d.json and its sidecar, from
 #      <donor.db> (the 0.69d0 files, its scripts/weapons-069d-donor.py) over what packs are
-#      composed over: the stock resources.db and the manifest's base patches;
-#   2. the lobby icons (render-weapons-069d-icons.py) into the cells the configs name;
-#   3. vostok-port pack from-bundle against the same files;
-#   4. the camouflage masks (_aoac, client patch 44) of camo.tsv (camo_rows.py writes it from the
+#      composed over: the stock resources.db and the manifest's base patches (with each gun's
+#      lobby icon: 0.69d0's own, levelled);
+#   2. vostok-port pack from-bundle against the same files;
+#   3. the camouflage masks (_aoac, client patch 44) of camo.tsv (camo_rows.py writes it from the
 #      bundle; checked) by ../weapon-camo/weapon_camo.py --pack --bare-masks: parts.tsv leaves the
 #      cartridges and the loose shell plain, and each still gets a mask (one that paints nothing), so
 #      every surface of a camouflaged gun finds its _aoac. The configs take the camouflage by the
 #      edit list weapon-camo-069-1.json.
-# Needs cargo (nix-shell -p cargo rustc gcc zlib), Python with numpy and Pillow, magick (the
+# Needs cargo (nix-shell -p cargo rustc gcc zlib), Python with numpy and Pillow (weapon_camo.py), magick (the
 # porter's texture encoder). Writes <work folder> (new) and the pack folders (new).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -52,11 +52,6 @@ fi
 "$port" port-weapons-069d --manifest "$porter/ports/weapons-069d.json" \
     --donor-spec "$porter/ports/donor-weapons-069d.json" --donor "$donor" \
     --target-db "$SKHID_STOCK_DB" "${layers[@]}" --output "$work/bundle" >"$work/port.log"
-# The players' lobby movie (the last patch's): the native icons' exposure and the cells, which must
-# be empty.
-last=$cache/$(cut -f1 "$root/release/patches.tsv" | grep '^resources.db.patch_' | tail -1)
-"$port" extract --db "$last" --path flash_movies/lobby_menu.swf --output "$work/lobby_menu.swf" >/dev/null
-python3 -I "$porter/scripts/render-weapons-069d-icons.py" --bundle "$work/bundle" --lobby-swf "$work/lobby_menu.swf"
 "$port" pack from-bundle --base-db "$SKHID_STOCK_DB" "${bases[@]}" --bundle "$work/bundle" \
     --output "$pack" --id weapons-069 --version "$version"
 # Camouflage masks: weapon_camo.py reads the bundle's models and textures and the stock _aoac

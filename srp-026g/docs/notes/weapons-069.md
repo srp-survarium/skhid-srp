@@ -38,8 +38,10 @@ G3SG/1's 7.62x51 in clips of 20 weapons-031's), so their rows come before this o
 - Kill feed icons are 0.69d0's own numbers and images (`icon_<n + 1>.png`): hud bitmaps
   `CombatLogWeapon85/86/96/97/98` (`CombatLogItem` finds an icon past the clip's frames by its
   class name), and the lobby's `KillFeedWeapon<n>` from them (`make_lobby_weapon_icons.py`).
-- Lobby icons are rendered from the converted meshes, exposed as the native rifles' icons; the
-  23 mm round shows the 12x70 smallshot's cell, as 0.69d0 does.
+- Lobby icons are 0.69d0's own (`weapon_<y>_<x>.png` of its `ui_desc.icon`), which 0.69d0 draws
+  diagonally: the port levels them (mirrored, turned by the art's axis, muzzle right) and fits
+  them to the cell ([weapons-069-icons.png](weapons-069-icons.png): before, renders of the
+  diffuse alone; after). The 23 mm round shows the 12x70 smallshot's cell, as 0.69d0 does.
 - Texts: `st_srp_weapon069_<name>_name/_desc` and `st_srp_ammo069_23mm_r_name/_desc` in the ten
   localization tables.
 
