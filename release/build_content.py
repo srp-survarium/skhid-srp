@@ -373,6 +373,61 @@ def lamp_check(world):
     print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
 
 
+# A map's project of one mode: projects/<level>/<weather>_<mode>/client_project.
+MODE_PROJECT = re.compile(r'^projects/[^/]+/[a-z]+_(\d)/client_project$')
+# The chargers mode ("Protective device: chargers", rule 89): the only mode whose
+# projects may hold its charging stations and their spawn boxes.
+CHARGERS_MODE = '3'
+STATION = re.compile(r'^/server_objects/victory_item_spawn_points\[\d+\]/name$')
+OBJECT_TYPE = re.compile(r'^/client_objects\[\d+\]/game_object_type$')
+
+
+def mode_object_problems(path, rows):
+    """The chargers mode's objects in a map project of another mode: a charging
+    station (server_objects/victory_item_spawn_points) or a spawn box
+    (client_objects of type victory_items_spawn_box). `rows` are the file's
+    content_edit.walk rows. Stock 0.26g left one station and its three boxes in
+    Tarakanovsky Fort's battery and Team Deathmatch projects (and Research's,
+    made from those), and players saw them in those matches
+    (fort-chargers-leftover-1.json)."""
+    match = MODE_PROJECT.match(path)
+    if not match or match.group(1) == CHARGERS_MODE:
+        return []
+    mode = match.group(1)
+    problems = []
+    for key, _, value in rows:
+        text = value.decode(errors='replace') if isinstance(value, (bytes, bytearray)) else None
+        if STATION.match(key):
+            problems.append(f'{path}: a charging station of the chargers mode (mode 3), {text}, in a mode-{mode} '
+                            'project')
+        elif OBJECT_TYPE.match(key) and text == 'victory_items_spawn_box':
+            problems.append(f'{path}: a spawn box of the chargers mode (mode 3), {key.rsplit("/", 1)[0]}, in a '
+                            f'mode-{mode} project')
+    return problems
+
+
+def mode_object_check(base, base_files, game, world):
+    """No live map project holds the chargers mode's objects in another mode
+    (mode_object_problems): every map project of the base and of the
+    manifest, as the manifest leaves it."""
+    import importlib.util
+    own = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'content-edit' / 'content_edit.py'
+    spec = importlib.util.spec_from_file_location('content_edit_for_modes', str(own))
+    ce = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ce)
+    paths = sorted(p for p in set(base_files) | set(world.bytes) if MODE_PROJECT.match(p))
+    files = game.get(base, [p for p in paths if p not in world.bytes])
+    files.update({p: world.bytes[p] for p in paths if p in world.bytes})
+    problems = [problem for p in paths for problem in mode_object_problems(p, ce.walk(bytearray(files[p])))]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'MODES: {problem}')
+        raise Problem(f'{len(problems)} object(s) of the chargers mode in a project of another mode: no patch made '
+                      '(an edit list takes them out, as fort-chargers-leftover-1.json)')
+    print(f'modes: no chargers station or spawn box in the {len(paths)} map projects of the other modes')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for option in ('stock', 'patches', 'list', 'bin', 'tree', 'manifest', 'work'):
@@ -411,6 +466,7 @@ def main():
         # uses a type 0.26g files already use at that path or is allowlisted.
         type_check(base, base_files, game, world)
         lamp_check(world)
+        mode_object_check(base, base_files, game, world)
 
         # What the sources make, against what players have.
         folder = work / 'world'

@@ -71,6 +71,13 @@ PROVEN from `projects/*` and `gameplay/game_modes/*.options` (`match_making_para
 - Respawn point gained `invulnerability_time` (6), `enemy_check_radius` (1.2), `ally_check_radius` (0.8), `is_temporary`. PROVEN (`projects/level_01/day_3/client_project`).
 - New `resupply_zone` per team (`resupply_time_in_ms: 3000`, `team`). PROVEN (`client_objects` of level_01/day_2).
 - Mode 3 `victory_item_spawn_point` (layer `mode_3`): `spawners_weight`, attached `spawn_boxes` and `spawners` (e.g. 3 boxes, 6 spawners), charging-station models (`new_mode/2/energy_charging_*`). PROVEN.
+- Stock 0.26g's leftover, level_05 only: its mode 2 and 4 projects (and so skhid's mode 5, copied from mode 4)
+  kept one mode-3 station, `victory_item_spawn_point(4)` at (-0.29, 3.25, 46.58) with its 3 spawn boxes
+  `logic/vip/mode_3/victory_item_spawn_box(12..14)` (`client_objects`, `is_temporary`), naming 6 spawners those
+  projects lack. Players saw its device, lamp and boxes in Fort battery and Team Deathmatch matches (the owner,
+  2026-11-01, floating over the fort). Content-edit `fort-chargers-leftover-1` takes them out of the 9 projects;
+  `release/build_content.py` `mode_object_check` refuses a station or spawn box in any map project of a mode
+  other than 3. No other map's mode 2, 4 or 5 project has one. PROVEN (data).
 - Anomalies/artefacts shrank on level_01: 0.21d 7 anomaly cores / 27 artefact containers / 21 damage zones → 0.26g 2 / 16 / 2 (now in `client_objects`). PROVEN.
 
 ---
