@@ -185,16 +185,15 @@ pub enum Tally {
     /// A play taken whose target lies in a conceded area: an objective play (the objective's cost, item 13), another.
     TakenObjective,
     TakenOther,
-    /// [item 15] A bot hit from a lane: a wait begun; a play refused for aiming into that lane while it waits; the wait
-    /// ended by a mate near, by its time.
-    PeekWaitBegun,
-    PeekRefused,
-    PeekWaitMate,
-    PeekWaitTime,
+    /// [item 15] A hit a bot took from a shooter it sensed (its reflex's, any shooter); a play of a lone bot refused (or,
+    /// objective, weighed) for aiming back into a held spot's lane it was hit from; one let go because a mate stood near.
+    LoneHit,
+    LonePeekRefused,
+    LonePeekWithMate,
 }
 
 /// The [`Tally`]s, in order, and their names in the tally.
-pub const TALLIES: [(Tally, &str); 20] = [
+pub const TALLIES: [(Tally, &str); 19] = [
     (Tally::DeathBeforeHold, "deaths_before_hold"),
     (Tally::DeathPeek, "deaths_peek"),
     (Tally::DeathJob, "deaths_job"),
@@ -211,10 +210,9 @@ pub const TALLIES: [(Tally, &str); 20] = [
     (Tally::ObjectiveWeighedLike, "objective_weighed_like_last"),
     (Tally::TakenObjective, "taken_objective_into_conceded"),
     (Tally::TakenOther, "taken_other_into_conceded"),
-    (Tally::PeekWaitBegun, "peek_wait_begun"),
-    (Tally::PeekRefused, "peek_refused"),
-    (Tally::PeekWaitMate, "peek_wait_ended_mate"),
-    (Tally::PeekWaitTime, "peek_wait_ended_time"),
+    (Tally::LoneHit, "lone_hits"),
+    (Tally::LonePeekRefused, "lone_peek_refused"),
+    (Tally::LonePeekWithMate, "lone_peek_with_mate"),
 ];
 
 #[cfg(test)]
@@ -239,6 +237,31 @@ pub fn tally(_: u8, _: Tally) {}
 #[cfg(test)]
 pub fn tallied() -> [[u64; TALLIES.len()]; 2] {
     TALLIED.with(|cell| cell.get())
+}
+
+/// [item 15] A hit a bot took from a shooter it sensed (`Reflex::last_hit`): where it sensed him, where the bot stood, when.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hit {
+    pub shooter_at: Vec3,
+    pub from: Vec3,
+    pub at: u32,
+}
+
+/// [item 15] Whether a try aimed at `to` by a bot at `feet` goes back into the lane it was `hit` from: the shooter's spot a
+/// held line of `picture` (he was sensed within its area), `to` in that area or its lanes, and the try's bearing (from where
+/// the bot stands at his area, from `to` at a point of his lanes) within `retry_deg` of the bearing the hit came from.
+pub fn into_hit_lane(picture: &Picture, hit: &Hit, to: Vec3, feet: Vec3, rules: &ConcedeRules) -> bool {
+    picture.held.iter().any(|line| {
+        if line.at.distance_xz(hit.shooter_at) > AREA_M {
+            return false;
+        }
+        let into_area = line.at.distance_xz(to) <= AREA_M;
+        if !into_area && !line.covers(to) {
+            return false;
+        }
+        let from = if into_area { feet } else { to };
+        apart(bearing(line.at, from), bearing(line.at, hit.from)) < rules.retry_deg
+    })
 }
 
 /// The bearing of `from` seen from the spot `at`, degrees in [0, 360).

@@ -108,11 +108,40 @@ pub struct Concede {
     /// An objective play aimed into a conceded area: its score times this, so another objective goes first; never 0
     /// (design-p1c item 13: a conceded spot over the only battery does not stall the objective). GUESS.
     pub objective_weight: f32,
+    /// [item 15] A lone bot hit from a held spot's lane makes no second peek into it for a while ([`LonePeek`]).
+    pub lone_peek: Option<LonePeek>,
 }
 
 impl Default for Concede {
     fn default() -> Self {
-        Self { fails: 2, concede_s: 60.0, retry_deg: 45.0, retry_s: 30.0, objective_weight: 0.5 }
+        Self { fails: 2, concede_s: 60.0, retry_deg: 45.0, retry_s: 30.0, objective_weight: 0.5, lone_peek: Some(LonePeek::default()) }
+    }
+}
+
+/// design-p1c item 15: a bot hit by a shooter it sensed, his spot a held line, is refused (or, objective, weighed) a play back
+/// into that lane from the bearing the hit came from for `wait_s`, while no mate stands within `mate_m` of it (with a mate
+/// it goes: two peeking together, not one after another). The second peek on the bench: 16 of 144 kills of the static
+/// stand-in, 6 of 92 of the one by a battery, a median 11 s after the first hit (`fx-threat-obj-nofeed-bench.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LonePeek {
+    /// How long after the hit, s: a human team's median re-entry into a camper's lane (`fx-threat-obj-human-note.md`).
+    /// LIKELY.
+    pub wait_s: f32,
+    /// A mate this near makes the bot not alone, m: a pair that can trade (design-p1c §1, 3-5 m apart when they go). GUESS.
+    pub mate_m: f32,
+}
+
+impl Default for LonePeek {
+    fn default() -> Self {
+        Self { wait_s: 12.0, mate_m: 10.0 }
+    }
+}
+
+impl LonePeek {
+    /// [`Self::wait_s`] in ms.
+    pub fn wait_ms(&self) -> u32 {
+        (self.wait_s.max(0.0) * 1000.0) as u32
     }
 }
 

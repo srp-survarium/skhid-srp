@@ -2977,6 +2977,8 @@ pub struct Reflex {
     /// Hit with no shooter sensed: where it stood and the marker's
     /// direction, for its team's callout ([`Self::take_hit_note`]).
     hit_note: Option<(Vec3, f32)>,
+    /// [threat.concede, item 15] Its last hit from a shooter it sensed ([`Self::last_hit`]).
+    last_hit: Option<super::concede::Hit>,
     /// Outranged by the target (play 11's band); the next hide from it
     /// not before `next_outranged`.
     outranged: bool,
@@ -3430,6 +3432,12 @@ impl Reflex {
     /// Nothing to fire: weapon 1 has no round in it nor to load, and no
     /// pistol with one (the kit's ammo lasts the match: dry until a spawn
     /// with another kit).
+    /// [threat.concede, item 15] Its last hit from a shooter it sensed: where he was, where it stood, when (none in a new life:
+    /// the reflex is new each life).
+    pub fn last_hit(&self) -> Option<super::concede::Hit> {
+        self.last_hit
+    }
+
     pub fn dry(&self) -> bool {
         match &self.hands {
             Some(hands) => hands.primary.dry() && hands.pistol.is_none_or(|p| p.dry()),
@@ -4452,6 +4460,10 @@ impl Reflex {
                 .min_by(|a, b| d(a.1).total_cmp(&d(b.1)))
         };
         if let Some(&(_, at, error_m, _)) = pick {
+            if hit {
+                self.last_hit = Some(super::concede::Hit { shooter_at: at, from: me.feet, at: now });
+                super::concede::tally(me.team, super::concede::Tally::LoneHit);
+            }
             self.threat = Some(Threat {
                 at,
                 error_m,

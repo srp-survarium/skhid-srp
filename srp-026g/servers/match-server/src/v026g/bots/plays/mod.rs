@@ -509,6 +509,8 @@ pub struct BotFacts<'a> {
     /// Where its Crossfire's enemy was when the play began, and when
     /// (`commit.crossfire_point`).
     pub held_choke: Option<(Place, Vec3, u32)>,
+    /// [threat.concede, item 15] Its last hit from a shooter it sensed (`Reflex::last_hit`).
+    pub hit: Option<super::concede::Hit>,
 }
 
 /// A play that fails this soon after it starts ...
@@ -1046,7 +1048,9 @@ impl Ctx<'_> {
             return 1.0;
         };
         let offers = &self.team.threat.concede;
-        if (offers.conceded.is_empty() && offers.tried.is_empty())
+        let lone_hit = concede.lone_peek.zip(self.bot.hit).is_some_and(|(lone, hit)| self.now < hit.at.saturating_add(lone.wait_ms()));
+        if (offers.conceded.is_empty() && offers.tried.is_empty() && !lone_hit)
+            || self.team.threat.held.is_empty()
             || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply)
         {
             return 1.0;
@@ -1055,12 +1059,29 @@ impl Ctx<'_> {
             return 1.0;
         };
         let try_kind = if kind == PlayKind::Answer { TryKind::Answer } else { TryKind::Peek };
+        let rules = concede.rules();
         let (refused, weighed) = if self.team.threat.conceded_at(to).is_some() {
             (Tally::PlayRefused, Tally::ObjectiveWeighed)
         } else if !matches!(target, TargetRef::ThreatSpot(_))
-            && like_last(&self.team.threat, to, self.me.feet, try_kind, self.now, &concede.rules())
+            && like_last(&self.team.threat, to, self.me.feet, try_kind, self.now, &rules)
         {
             (Tally::PlayRefusedLike, Tally::ObjectiveWeighedLike)
+        } else if let Some(lone) = concede.lone_peek
+            && let Some(hit) = self.bot.hit
+            && self.now < hit.at.saturating_add(lone.wait_ms())
+            && !matches!(target, TargetRef::ThreatSpot(_))
+            && super::concede::into_hit_lane(&self.team.threat, &hit, to, self.me.feet, &rules)
+        {
+            // Item 15: back into the lane it was hit from; with a mate near it goes (two together).
+            let mate_near = self
+                .view
+                .team(self.me.team)
+                .any(|p| p.place != self.me.place && p.alive && p.feet.distance_xz(self.me.feet) <= lone.mate_m);
+            if mate_near {
+                tally(self.me.team, Tally::LonePeekWithMate);
+                return 1.0;
+            }
+            (Tally::LonePeekRefused, Tally::LonePeekRefused)
         } else {
             return 1.0;
         };
