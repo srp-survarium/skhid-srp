@@ -47,24 +47,34 @@
   (int(0.7 x 3 + 0.5) = 2 of the default 3); the borrowed gun's
   ammunition 7 (30 a clip, a bag) in slots 8, 9 and 11, 13 rounds in it:
   2 bags are 60 rounds, slot 8 gets 47, slots 9 and 11 nothing.
-- On the picker's death the borrowed gun vanishes (not dropped again) and the
-  next life has the original loadout.
+- One rule per weapon slot (the owner, 2026-11-01): weapon slots 7 and 10
+  each have a hidden twin, and a pickup acts on the slot of the gun in
+  hands only. Holding its own gun: that gun and its ammunition go hidden,
+  the picked gun takes the slot (a normal gun there: switching, the hud,
+  weight and reload are the game's). Holding a picked gun: it is let go
+  and the new one takes the slot; the own gun stays hidden. Both slots may
+  hold picked guns. On the picker's death or respawn each slot gets its own
+  gun and ammunition back and the picked guns go (not dropped again). A
+  stack both own guns share (one calibre) stays with the gun that still
+  binds it and is hidden with whichever own gun goes last; each slot's
+  restore gives back what its own pickup hid. No donor is tracked: a drop
+  is its body's, and a picked gun is the picker's.
+- The carry rule, exactly (the owner, 2026-11-01): two pistols yes; two
+  two-handed guns only with the terminator skill
+  (`use_two_double_handed_weapons`); `disable_second_weapon` keeps guns to
+  slot 7.
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
   never the other slot's; any gun for any gun; the carry rules after the
   skill modifiers hold: `disable_second_weapon` (modifier 64) keeps guns to
   slot 7 (a gun held in slot 10 is not replaced), and without
   `use_two_double_handed_weapons` (modifier 25) a double-handed gun is
   refused while the other slot holds one. Handedness is the item's
-  `double_handed` (weapon+5E9h). A pickup while holding a borrowed gun
-  replaces it (the owner, 2026-11-01): the borrowed gun and its ammunition
-  go, the new one comes in with its own, the player's own gun and ammunition
-  stay parked and come back at its death or respawn; the carry rules hold.
-  My picks: a player holds at most one borrowed gun (holding its other gun
-  while it borrows: no pickup); nothing in hands but a gun of its two: no
-  pickup.
+  `double_handed` (weapon+5E9h). Nothing in hands but a gun of its two
+  slots: no pickup.
 - Synced: only each player's record (its drop: open with its kit and slot,
-  or taken; and the gun it borrows: its donor's place and life, kit and
-  slot, and the own slot it holds it in), 12 bytes at the start of its
+  or taken; for each weapon slot the gun picked into it: the pickup's tick
+  and the recipe, the profile kit slot it was cooked from, read only to
+  cook it anew on a client without it), 12 bytes at the start of its
   state. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
@@ -72,7 +82,7 @@
   feature", smallest version everywhere):
   - the records are kept by place, not by kit player object: a state is a
     place's (its current kit's player); base_player::remove(1) of the
-    place's player clears its record (its drop and its borrow);
+    place's player clears its record (its drop and its picks);
   - the magazine and chamber are those of the donor's gun in its slot when
     the donor's current player is of the drop's kit, else a full magazine;
     the reserve is one magazine; any other bound stack of the gun is empty;
@@ -84,13 +94,14 @@
     then differs);
   - the crate's checks say "available" while the borrowed gun's loaded
     stack is below its refill;
-  - a gun given back (its holder's death, respawn, destruction, a rollback)
-    stays cooked until 3 s after its body left the world, or after the
-    give-back when that is later (a rollback can take it again); a loaded world's gun is freed at the next frame.
+  - a picked gun let go (its picker's death, respawn, destruction, another
+    pickup into its slot) stays cooked 3 s (a rollback can take it back);
+    a rollback undoing a pickup puts its gun back in its body's drop; an
+    untaken drop's gun is freed 3 s after its body left the world.
 - My picks for stage 2b (the same rule):
   - the prompt shows only when the pickup would be taken now (the drop open,
     its gun made on this client, the picker alive with a gun of its own in
-    hands, no borrow, the carry rules), as patch 78's take prompt; patch
+    hands, the carry rules), as patch 78's take prompt; patch
     78's own targets (a teammate's offer, a ground artefact) come first; the
     nearest gun wins;
   - the target is the gun's model box as the renderer has it, padded by
@@ -102,7 +113,7 @@
   - Use's press sent as a pickup stays the pickup's until Use is let go (the
     crate or a battery under the body is not used by the same press);
   - the gun of a drop taken is hidden on its donor's ragdoll, and so is a
-    borrowed gun on its dead holder's (it vanishes);
+    picked gun in its dead holder's hands (it vanishes);
   - a gun whose config has no name shows the text without one.
 - Status (2026-10-31): the shared rules (`crates/weapon-pickup`), the
   server's check and record shift, the instance (a gun cooked at each
@@ -123,25 +134,24 @@ cooked gun).
   short state) is logged and read as empty. Kept by place of the match
   (its world core): the death sets the place's drop (open with kit and
   slot when it held one of its own two guns; none when it
-  held a borrowed gun, which vanishes, or anything else), a pickup the
-  picker's borrow and the donor's drop taken, base_player::remove(1) the
-  whole record empty (the drop ends with the body, the borrow with the
-  life), the player's destruction the borrow none. The server reads the native
+  held a picked gun, which vanishes, or anything else), a pickup the
+  picker's slot's pick and the donor's drop taken, base_player::remove(1)
+  the whole record empty (the drop ends with the body, the picks with the
+  life), the player's destruction the picks none. Its bytes: the version
+  (2), the drop (tag, kit << 2, slot << 4), then for slot 7 and slot 10 a
+  byte (0 none, else the recipe's place + 1, kit << 5, slot << 7) and the
+  pickup's tick (u32). The server reads the native
   fields from `FIELDS_AT = 2 + Record::BYTES`.
 - **The pickup**, at `carry.filter` (0x2D876F; artefact_carry's handler
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
   the command (`weapon_pickup::command` of +330h); the rule
-  (`weapon_pickup::decide`: alive, no borrow, its own gun held and pending
+  (`weapon_pickup::decide`: alive, a gun of its two slots held and pending
   in slot 7 or 10, another place's open drop, the carry rule: the other
   slot's gun's +5E9h and the kit's modifiers 64 and 25 through
   apply_modifier 0x2D5AE0) first without the gun's handedness; the gun from
-  the cache (a cook of that place, life, kit and slot nobody holds; the
-  life is the dead donor's spawn time, player+328h, the same in a
-  rollback's replay of the death at another time; two lives of one place
-  are two guns: 83g41 crashed when a borrow of a place's earlier life and
-  one of its next life read as the same record, so a rollback left the
-  wrong gun installed under the native readers), or (a death this client
-  did not see) cooked
+  the cache (a cook of that place, kit and slot nobody holds, whatever its
+  death's time: a rollback replays a death at another time), or (a death
+  this client did not see) cooked
   from the donor's profile, waited for if not in; the rule again with the
   cooked gun's +5E9h; then the install:
   - every check before the first write: the own gun a client weapon in its
@@ -173,14 +183,16 @@ cooked gun).
   +5B1h as cooked, the own gun in its slot and its registry entry); the
   held object is left as it is. At base_player::remove(1) (`pickup.remove`
   0x2DA790; flag 0, a snapshot's same-kit removal, is left alone) remove
-  then deactivates the borrowed gun itself and unloads the own loadout into
+  then deactivates the picked gun itself and unloads the own loadout into
   the profile; at the player's destruction (`player.destroy`) the
   destructor sees the own gun.
 - **A loaded record** (rollback, late join, resync): at `pickup.load`,
-  before the native readers, the borrow is made what the record says: an
-  installed borrow the record does not name is restored; a borrow the
-  record names and nobody installed is installed without the switch (its
-  gun found or cooked from the donor's profile and waited for; set_user and
+  before the native readers, each weapon slot is made what the record says:
+  a picked gun the record does not name is restored and its gun put back
+  in its body's drop (a rollback undoing the pickup); a pick the record
+  names and the slot lacks is installed without the switch (its gun the
+  one let go, else an untaken drop's of the same recipe, else cooked from
+  the recipe's profile kit slot and waited for; set_user and
   initialize only, held left: 0x2DB62B deactivates the old held object and
   set_users the new one when they differ, and the inventory reader then
   finds the slots as the snapshot has them).

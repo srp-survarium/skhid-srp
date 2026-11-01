@@ -168,7 +168,7 @@ pub struct PlayerState {
     /// owner's kit index too].
     pub current_index: u8,
     pub target_index: u8,
-    /// Client patch 85's record: the player's drop and the gun it borrows.
+    /// Client patch 85's record: the player's drop and its picked guns.
     pub pickup: weapon_pickup::Record,
     /// One for each item of the profile, in the static info's order:
     /// `amount_in_storage` of a stack item (what was not handed out to a
@@ -189,7 +189,7 @@ pub struct PlayerState {
 /// Where the native fields start: after the two kit indices, client patch
 /// 85 (`weapon_pickup`, written at base_player::serialize's start 0x2DAF70,
 /// read at 0x2DB4CF) puts the player's pickup record
-/// (`weapon_pickup::Record`: its drop and its borrowed gun).
+/// (`weapon_pickup::Record`: its drop and its picked guns).
 pub const FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
 
 impl PlayerState {
@@ -270,7 +270,7 @@ pub struct Supplies {
     /// Whether the kit's items were found in the inventory: with `false`
     /// every `in_hand`, `condition` and `magazine` is `None` and says
     /// nothing (a dead player's inventory, or a layout read wrong). Never
-    /// for a player holding a borrowed gun (client patch 85): its own
+    /// for a player holding a picked gun (client patch 85): its own
     /// ammunition there is parked out of the inventory, not used.
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
@@ -303,7 +303,7 @@ impl Supplies {
             .collect();
         let mut inventory_read = false;
         let kit = profile.kits.get(usize::from(head.current_index));
-        if let Some(kit) = kit.filter(|_| head.pickup.borrow.is_none()) {
+        if let Some(kit) = kit.filter(|_| head.pickup.picks == [None; 2]) {
             let state = block.state;
             let mut at = PlayerState::head_len(items.len());
             // Items come by ascending slot (0x2FE50A..0x2FE53B), each with
@@ -653,7 +653,7 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
-                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record, empty
+                2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record, empty
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store
@@ -747,14 +747,13 @@ mod tests {
         assert!(supplies.items.iter().all(|item| item.in_hand.is_none()));
         // Holding a borrowed gun (patch 85): its own ammunition is parked
         // out of the inventory, which is not read (nothing used is guessed).
-        let borrow = weapon_pickup::Borrow {
-            donor: weapon_pickup::Place::new(2).unwrap(),
-            life: weapon_pickup::Life(54_300),
+        let recipe = weapon_pickup::Recipe {
+            place: weapon_pickup::Place::new(2).unwrap(),
             kit: weapon_pickup::Kit::new(1).unwrap(),
             slot: weapon_pickup::WeaponSlot::Second,
-            own: weapon_pickup::WeaponSlot::First,
         };
-        let pickup = weapon_pickup::Record { drop: weapon_pickup::Drop::None, borrow: Some(borrow) };
+        let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
+        let pickup = weapon_pickup::Record { drop: weapon_pickup::Drop::None, picks: [Some(pick), None] };
         let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory());
         let block = PlayerBlock {
             place: 4,

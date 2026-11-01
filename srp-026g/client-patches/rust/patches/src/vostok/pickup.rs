@@ -818,31 +818,40 @@ pub struct View(u32);
 
 static VIEW: Lock<raw::InventoryStorage> = Lock::new(raw::InventoryStorage::zeroed());
 
-/// A copy of `player`'s inventory (188h) with its own gun in its slot and
-/// its own parked stacks where the borrowed ones are (a free slot's empty):
-/// the loadout the profile names, what
+/// A copy of `player`'s inventory (188h) with, for each install, its own
+/// gun in its slot and its own parked stacks where the picked ones are (a
+/// free slot's empty): the loadout the profile names, what
 /// resupply_from_profile and check_resupply read (slots +10Ch..+167h; they
 /// write +184h only).
-pub fn crate_view(player: &Player<'_>, installed: &Installed, thread: &Thread) -> Option<View> {
-    let cooked = gun_cook::inventory(thread, installed.cook)?;
-    // SAFETY: the live inventory, 188h bytes of it copied into our room; the
-    // own gun's item (in the cooked inventory) compared before it is used.
-    unsafe {
-        let inventory = player.this.inventory()?;
-        let own_item = cooked.slots().at(usize::from(installed.slot.slot())).item()?;
-        if own_item.active_object().address() != installed.own_gun {
+pub fn crate_view(player: &Player<'_>, installs: &[Option<Installed>; 2], thread: &Thread) -> Option<View> {
+    let mut own = [None; 2];
+    for (room, installed) in own.iter_mut().zip(installs) {
+        let Some(installed) = installed else { continue };
+        let cooked = gun_cook::inventory(thread, installed.cook)?;
+        // SAFETY: the made cooked inventory; the own gun's item compared
+        // before it is used.
+        let item = unsafe { cooked.slots().at(usize::from(installed.slot.slot())).item() }?;
+        if unsafe { item.active_object() }.address() != installed.own_gun {
             return None;
         }
+        *room = Some((cooked, item, *installed));
+    }
+    // SAFETY: the live inventory, 188h bytes of it copied into our room; the
+    // own items checked above, the parked stacks compared with the install's.
+    unsafe {
+        let inventory = player.this.inventory()?;
         Some(VIEW.with(thread, |room| {
             let view = room.handle();
             core::ptr::copy_nonoverlapping(inventory.address() as usize as *const u8, view.address() as usize as *mut u8,
                                            raw::Inventory::SIZE);
-            view.slots().at(usize::from(installed.own.slot())).set_item(Some(own_item));
-            // The picker's own stack where a borrowed one is (the native
-            // refill needs an item in every slot the profile names), or none.
-            for m in installed.moved.iter().flatten() {
-                let own = cooked.slots().at(usize::from(m.from)).item().filter(|i| Some(i.address()) == m.displaced);
-                view.slots().at(usize::from(m.to)).set_item(own);
+            for (cooked, own_item, installed) in own.iter().flatten() {
+                view.slots().at(usize::from(installed.own.slot())).set_item(Some(*own_item));
+                // The picker's own stack where a picked one is (the native
+                // refill needs an item in every slot the profile names), or none.
+                for m in installed.moved.iter().flatten() {
+                    let own = cooked.slots().at(usize::from(m.from)).item().filter(|i| Some(i.address()) == m.displaced);
+                    view.slots().at(usize::from(m.to)).set_item(own);
+                }
             }
             View(view.address())
         }))

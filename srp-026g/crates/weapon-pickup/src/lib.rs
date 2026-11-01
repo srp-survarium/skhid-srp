@@ -10,9 +10,10 @@
 //! - a drop, open until its gun leaves the world with its body (the place's
 //!   player removed: its respawn or its departure), and the one synced
 //!   record a player carries in its state ([`Record`]): its own drop (open or
-//!   taken) and the gun it borrows, if any;
-//! - the rule of a pickup ([`decide`]): the held gun replaced by any gun, as
-//!   the carry rules after the skill modifiers allow ([`CarryRule`]).
+//!   taken) and, for each of its two weapon slots, the gun picked into it
+//!   (its own gun then hidden);
+//! - the rule of a pickup ([`decide`]): the gun in hands replaced by any
+//!   gun, as the carry rules after the skill modifiers allow ([`CarryRule`]).
 #![cfg_attr(not(test), no_std)]
 
 /// Patch 78's marker bit (unused by the game; bits 30, 31 stay clear).
@@ -107,12 +108,6 @@ impl Ms {
     }
 }
 
-/// A player's life: its spawn time (player+328h), the same on every client
-/// and across rollbacks. A place's lives each drop their own gun: a cooked
-/// gun is a life's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Life(pub u32);
-
 /// The 20 six-bit patterns with two or more bits set, in increasing order:
 /// place n's pickup command carries the nth.
 const PATTERNS: [u8; PLACES as usize] = {
@@ -185,78 +180,92 @@ impl Drop {
     }
 }
 
-/// The gun a living player holds instead of its own `own` slot's: the gun
-/// `donor`'s life `life` dropped, its `kit`'s `slot` gun.
+/// A picked gun's config: the profile kit slot its gun was cooked from.
+/// Read only to cook it anew (a client without it: a late join, a resync),
+/// never to find a gun.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Borrow {
-    pub donor: Place,
-    pub life: Life,
+pub struct Recipe {
+    pub place: Place,
     pub kit: Kit,
     pub slot: WeaponSlot,
-    pub own: WeaponSlot,
 }
 
-/// The one record a player's state carries: its drop and its borrow.
+/// The gun picked into a weapon slot (the slot's own gun hidden meanwhile):
+/// its pickup's tick, which tells two pickups apart, and its recipe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pick {
+    pub taken: Ms,
+    pub recipe: Recipe,
+}
+
+/// The one record a player's state carries: its drop and what is picked
+/// into each of its weapon slots (7, 10).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Record {
     pub drop: Drop,
-    pub borrow: Option<Borrow>,
+    pub picks: [Option<Pick>; 2],
 }
 
 impl Record {
-    pub const EMPTY: Record = Record { drop: Drop::None, borrow: None };
-    /// Its bytes in a player's state.
+    pub const EMPTY: Record = Record { drop: Drop::None, picks: [None; 2] };
+    /// Its bytes in a player's state: the version, the drop (its tag, kit
+    /// and slot in one byte), then for slot 7 and slot 10 a byte (0 none,
+    /// else the recipe's place + 1, its kit << 5, its slot << 7) and the
+    /// tick (u32).
     pub const BYTES: usize = 12;
-    const VERSION: u8 = 1;
+    const VERSION: u8 = 2;
+
+    pub fn pick(&self, slot: WeaponSlot) -> Option<Pick> {
+        self.picks[usize::from(slot.bit())]
+    }
+
+    pub fn set_pick(&mut self, slot: WeaponSlot, pick: Option<Pick>) {
+        self.picks[usize::from(slot.bit())] = pick;
+    }
 
     pub fn encode(self) -> [u8; Self::BYTES] {
         let mut out = [0u8; Self::BYTES];
         out[0] = Self::VERSION;
-        match self.drop {
-            Drop::None => {}
-            Drop::Open { kit, slot } => {
-                out[1] = 1;
-                out[2] = kit.0;
-                out[3] = slot.bit();
+        out[1] = match self.drop {
+            Drop::None => 0,
+            Drop::Open { kit, slot } => 1 | kit.0 << 2 | slot.bit() << 4,
+            Drop::Taken => 2,
+        };
+        for (at, pick) in [2, 7].into_iter().zip(self.picks) {
+            if let Some(p) = pick {
+                let r = p.recipe;
+                out[at] = (r.place.0 + 1) | r.kit.0 << 5 | r.slot.bit() << 7;
+                out[at + 1..at + 5].copy_from_slice(&p.taken.0.to_le_bytes());
             }
-            Drop::Taken => out[1] = 2,
-        }
-        if let Some(b) = self.borrow {
-            out[4..8].copy_from_slice(&b.life.0.to_le_bytes());
-            out[8] = 1;
-            out[9] = b.donor.0;
-            out[10] = b.kit.0 | b.slot.bit() << 4;
-            out[11] = b.own.bit();
         }
         out
     }
 
-    /// Parses the bytes [`encode`](Self::encode) writes (bytes 4..8 the
-    /// borrow's donor life); anything else is refused (None): an unknown
-    /// version, tag or value, or non-zero padding.
+    /// Parses the bytes [`encode`](Self::encode) writes; anything else is
+    /// refused (None): an unknown version or tag, a value out of range, or
+    /// a tick without a pick.
     pub fn decode(bytes: [u8; Self::BYTES]) -> Option<Record> {
         if bytes[0] != Self::VERSION {
             return None;
         }
-        let bit = |b: u8| (b <= 1).then(|| WeaponSlot::from_bit(b));
-        let drop = match bytes[1] {
-            0 if bytes[2..4] == [0; 2] => Drop::None,
-            1 => Drop::Open { kit: Kit::new(bytes[2])?, slot: bit(bytes[3])? },
-            2 if bytes[2..4] == [0; 2] => Drop::Taken,
+        let drop = match (bytes[1] & 3, bytes[1] >> 2) {
+            (0, 0) => Drop::None,
+            (1, rest) if rest < 8 => Drop::Open { kit: Kit::new(rest & 3)?, slot: WeaponSlot::from_bit(rest >> 2) },
+            (2, 0) => Drop::Taken,
             _ => return None,
         };
-        let borrow = match bytes[8] {
-            0 if bytes[9..12] == [0; 3] && bytes[4..8] == [0; 4] => None,
-            1 if bytes[10] & !0x13 == 0 => Some(Borrow {
-                donor: Place::new(bytes[9])?,
-                life: Life(u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]])),
-                kit: Kit::new(bytes[10] & 0x0F)?,
-                slot: bit(bytes[10] >> 4)?,
-                own: bit(bytes[11])?,
-            }),
-            _ => return None,
+        let pick = |at: usize| -> Option<Option<Pick>> {
+            let taken = Ms(u32::from_le_bytes([bytes[at + 1], bytes[at + 2], bytes[at + 3], bytes[at + 4]]));
+            match bytes[at] {
+                0 => (taken.0 == 0).then_some(None),
+                b => Some(Some(Pick { taken, recipe: Recipe {
+                    place: Place::new((b & 0x1F).checked_sub(1)?)?,
+                    kit: Kit::new(b >> 5 & 3)?,
+                    slot: WeaponSlot::from_bit(b >> 7),
+                } })),
+            }
         };
-        Some(Record { drop, borrow })
+        Some(Record { drop, picks: [pick(2)?, pick(7)?] })
     }
 }
 
@@ -310,16 +319,12 @@ pub struct Picker {
     /// The gun in its other weapon slot, if any.
     pub other: Option<Handedness>,
     pub rule: CarryRule,
-    pub borrow: Option<Borrow>,
 }
 
 /// Why a pickup command does nothing (every client refuses it alike).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
     Dead,
-    /// It borrows a gun and holds its other one (a borrowed gun is replaced
-    /// only from its hands: one borrow at a time).
-    Borrowing,
     /// No gun of its two in its hands.
     NoGunInHands,
     /// Its own place, or a drop not available (none, taken, its body gone).
@@ -331,31 +336,21 @@ pub enum Refusal {
     TwoDoubleHanded,
 }
 
-/// A pickup every client plays: `picker`'s held slot takes `target`'s drop.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Take {
-    pub borrow: Borrow,
-}
-
 /// The rule of a pickup command (the owner's, `weapon_pickup.md`): a living
-/// picker with one of its guns in hands (its borrowed one, when it borrows:
-/// the new gun replaces it), an available drop of another place; the held
-/// gun is replaced (never the other slot's)
-/// by any gun the carry rule allows beside the other slot's: with
+/// picker with a gun of its two weapon slots in hands (its own or a picked
+/// one), an available drop of another place; the slot in hands takes the
+/// drop's gun (never the other slot), which the result names, as the carry
+/// rule allows beside the other slot's gun: with
 /// [`CarryRule::OneWeapon`] only a gun held in slot 7 with slot 10 empty,
 /// with [`CarryRule::OneDoubleHanded`] no double-handed gun beside another.
-/// `life` is the life of `target` whose drop it is; `incoming` gives the
-/// drop's gun's handedness (asked only when the other slot holds a
-/// double-handed gun).
-pub fn decide(picker: Picker, target: Place, drop: Drop, life: Life,
-              incoming: impl FnOnce(Kit, WeaponSlot) -> Handedness) -> Result<Take, Refusal> {
+/// `incoming` gives the drop's gun's handedness (asked only when the other
+/// slot holds a double-handed gun).
+pub fn decide(picker: Picker, target: Place, drop: Drop,
+              incoming: impl FnOnce(Kit, WeaponSlot) -> Handedness) -> Result<WeaponSlot, Refusal> {
     if !picker.alive {
         return Err(Refusal::Dead);
     }
     let own = picker.held.ok_or(Refusal::NoGunInHands)?;
-    if picker.borrow.is_some_and(|b| b.own != own) {
-        return Err(Refusal::Borrowing);
-    }
     if target == picker.place {
         return Err(Refusal::NotAvailable);
     }
@@ -370,7 +365,7 @@ pub fn decide(picker: Picker, target: Place, drop: Drop, life: Life,
         }
         _ => {}
     }
-    Ok(Take { borrow: Borrow { donor: target, life, kit, slot, own } })
+    Ok(own)
 }
 
 /// The borrowed gun's ammunition: the magazine as the donor left it (the
@@ -469,8 +464,6 @@ pub fn crate_refill(bags: u32, loaded: AmmoBags, stack: u16, magazine: (u8, bool
 mod tests {
     use super::*;
 
-    const LIFE: Life = Life(4_000);
-
     #[test]
     fn commands_round_trip_and_stay_apart_from_carry() {
         for p in 0..PLACES {
@@ -514,73 +507,63 @@ mod tests {
 
     #[test]
     fn records_round_trip_and_refuse_anything_else() {
-        let borrow = Borrow { donor: Place::new(19).unwrap(), life: Life(54_300), kit: Kit::new(2).unwrap(),
-                              slot: WeaponSlot::Second, own: WeaponSlot::First };
+        let recipe = Recipe { place: Place::new(19).unwrap(), kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second };
+        let pick = Pick { taken: Ms(78_112), recipe };
         let cases = [
             Record::EMPTY,
-            Record { drop: Drop::Taken, borrow: Some(borrow) },
-            Record { drop: Drop::Open { kit: Kit::new(0).unwrap(), slot: WeaponSlot::First }, borrow: None },
+            Record { drop: Drop::Taken, picks: [Some(pick), None] },
+            Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(pick)] },
+            Record { drop: Drop::None, picks: [Some(pick), Some(Pick { taken: Ms(1), recipe })] },
         ];
         for record in cases {
             assert_eq!(Record::decode(record.encode()), Some(record));
         }
+        assert_eq!(cases[1].encode()[2], 20 | 2 << 5 | 1 << 7, "place + 1, kit, slot");
         let good = cases[1].encode();
-        for (at, value) in [(0, 2), (1, 3), (8, 2), (9, 20), (10, 3), (10, 0x22), (11, 2), (2, 1)] {
+        for (at, value) in [(0, 1), (1, 3), (1, 6), (1, 1 | 3 << 2), (2, 0x60), (2, 21), (7, 0x60), (8, 1)] {
             let mut bad = good;
             bad[at] = value;
             assert_eq!(Record::decode(bad), None, "byte {at} = {value}");
         }
-        // Bytes 4..8 are the borrow's donor life: zero without a borrow.
-        assert_eq!(&good[4..8], &54_300u32.to_le_bytes());
-        let mut padded = cases[2].encode();
-        padded[5] = 1;
-        assert_eq!(Record::decode(padded), None, "a life without a borrow");
     }
 
     #[test]
     fn a_pickup_takes_an_available_drop_once() {
         let me = Place::new(1).unwrap();
         let picker = Picker { place: me, alive: true, held: Some(WeaponSlot::Second), other: None,
-                              rule: CarryRule::OneDoubleHanded, borrow: None };
+                              rule: CarryRule::OneDoubleHanded };
         let donor = Place::new(4).unwrap();
         let kit = Kit::new(2).unwrap();
         let drop = Drop::Open { kit, slot: WeaponSlot::First };
         let rifle = |_, _| Handedness::Two;
-        let take = decide(picker, donor, drop, LIFE, rifle).unwrap();
-        assert_eq!(take.borrow, Borrow { donor, life: LIFE, kit, slot: WeaponSlot::First, own: WeaponSlot::Second });
-        assert_eq!(decide(picker, donor, Drop::Taken, LIFE, rifle), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, Drop::None, LIFE, rifle), Err(Refusal::NotAvailable), "its body gone");
-        assert_eq!(decide(picker, me, drop, LIFE, rifle), Err(Refusal::NotAvailable));
-        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, LIFE, rifle), Err(Refusal::Dead));
-        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, LIFE, rifle), Err(Refusal::NoGunInHands));
-        // Holding a borrowed gun: the new one replaces it, in the same slot.
-        let borrowing = Picker { borrow: Some(take.borrow), ..picker };
-        let other = Place::new(7).unwrap();
-        assert_eq!(decide(borrowing, other, drop, LIFE, rifle).unwrap().borrow.own, WeaponSlot::Second);
-        assert_eq!(decide(Picker { held: Some(WeaponSlot::First), ..borrowing }, other, drop, LIFE, rifle),
-                   Err(Refusal::Borrowing), "its other gun in hands");
+        assert_eq!(decide(picker, donor, drop, rifle), Ok(WeaponSlot::Second), "the slot in hands");
+        assert_eq!(decide(picker, donor, Drop::Taken, rifle), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, donor, Drop::None, rifle), Err(Refusal::NotAvailable), "its body gone");
+        assert_eq!(decide(picker, me, drop, rifle), Err(Refusal::NotAvailable));
+        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, rifle), Err(Refusal::Dead));
+        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, rifle), Err(Refusal::NoGunInHands));
     }
 
     #[test]
     fn the_held_gun_is_replaced_as_the_carry_rules_allow() {
         let picker = Picker { place: Place::new(1).unwrap(), alive: true, held: Some(WeaponSlot::Second),
-                              other: Some(Handedness::One), rule: CarryRule::OneDoubleHanded, borrow: None };
+                              other: Some(Handedness::One), rule: CarryRule::OneDoubleHanded };
         let (donor, kit) = (Place::new(4).unwrap(), Kit::new(0).unwrap());
         let drop = Drop::Open { kit, slot: WeaponSlot::First };
         let (rifle, pistol) = (|_, _| Handedness::Two, |_, _| Handedness::One);
         // Any gun for any gun: a rifle for the held pistol beside a pistol.
-        assert_eq!(decide(picker, donor, drop, LIFE, rifle).unwrap().borrow.own, WeaponSlot::Second);
+        assert_eq!(decide(picker, donor, drop, rifle), Ok(WeaponSlot::Second));
         // Beside a rifle: a pistol yes, a rifle no, unless modifier 25.
         let beside = Picker { other: Some(Handedness::Two), ..picker };
-        assert!(decide(beside, donor, drop, LIFE, pistol).is_ok());
-        assert_eq!(decide(beside, donor, drop, LIFE, rifle), Err(Refusal::TwoDoubleHanded));
-        assert!(decide(Picker { rule: CarryRule::TwoDoubleHanded, ..beside }, donor, drop, LIFE, rifle).is_ok());
+        assert!(decide(beside, donor, drop, pistol).is_ok());
+        assert_eq!(decide(beside, donor, drop, rifle), Err(Refusal::TwoDoubleHanded));
+        assert!(decide(Picker { rule: CarryRule::TwoDoubleHanded, ..beside }, donor, drop, rifle).is_ok());
         // Modifier 64: slot 7 alone.
         let one = Picker { rule: CarryRule::OneWeapon, other: None, ..picker };
-        assert_eq!(decide(one, donor, drop, LIFE, pistol), Err(Refusal::SecondWeaponDisabled));
-        assert!(decide(Picker { held: Some(WeaponSlot::First), ..one }, donor, drop, LIFE, rifle).is_ok());
+        assert_eq!(decide(one, donor, drop, pistol), Err(Refusal::SecondWeaponDisabled));
+        assert!(decide(Picker { held: Some(WeaponSlot::First), ..one }, donor, drop, rifle).is_ok());
         assert_eq!(decide(Picker { held: Some(WeaponSlot::First), other: Some(Handedness::One), ..one }, donor,
-                          drop, LIFE, pistol), Err(Refusal::SecondWeaponDisabled));
+                          drop, pistol), Err(Refusal::SecondWeaponDisabled));
         assert_eq!(CarryRule::from_modifiers(0.0, 0.0), CarryRule::OneDoubleHanded);
         assert_eq!(CarryRule::from_modifiers(0.0, 1.0), CarryRule::TwoDoubleHanded);
         assert_eq!(CarryRule::from_modifiers(1.0, 1.0), CarryRule::OneWeapon);
