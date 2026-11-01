@@ -468,6 +468,13 @@ fn drive_tick_inner(
         && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let glance_yields =
         over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
+    // [A227] The look along a hit marker's direction: taken with the legs going or standing, or given way.
+    #[cfg(test)]
+    if over.glance && bot.reflex.marker(time).is_some() {
+        use super::reflex::hit_marks::{Mark, add};
+        let moving = matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
+        add(me.team, if glance_yields { Mark::LookYielded } else if moving { Mark::LookWalking } else { Mark::LookStanding });
+    }
     // A use within its reach (a take of a battery, a put-in, a steal): the
     // play's view wins over the reflex's aim, and the reflex neither takes
     // the legs nor fires meanwhile. The client's use is one ray along the
