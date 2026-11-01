@@ -146,16 +146,19 @@ The files players get are an explicit, committed list:
 `release/patches.tsv` (live) and `release/patches-test.tsv` (test), one
 `<name> <sha256> <size> <urls>` row per file, tabs between, the patches in
 revision order. `<urls>` is the file's URLs, one space apart, in the order
-the players' updater tries them: for a patch the patches server's
-(`$SKHID_PATCHES_URL/<name>`, always first), then mirrors; 1 to 8, none
-twice. The server data is built of exactly those rows and `/patches` offers
-exactly those (then the mirrors of `mirrors.tsv`, below); a file on the
+the players' updater tries them: Google Drive's first (the owner's rule,
+2026-11-01), then the patches server's (`$SKHID_PATCHES_URL/<name>`: every
+patch row has it, the release downloads and builds from it), then the
+rest; 1 to 8, none twice. The server data is built of exactly those rows and `/patches` offers
+exactly those (with the mirrors of `mirrors.tsv`, below); a file on the
 patches server that is not listed is offered to no one.
 `release/upload-patch` (and `release.sh --resources`) adds the row when it
 publishes: **commit the list with the release's record**. A row's patch is
 never changed (a published patch is never replaced; a fix is the next
 revision); only its URLs may be. The preflight checks every row against
-the patches server (size, sha256) and every URL of it (below).
+the patches server (size, sha256) and every URL of it (below): the
+patches server's must give it; another that does not is a WARNING (players
+move on to the next URL), a problem only when no URL of the file gives it.
 
 **The game's archive** is a row too, of `release/game.tsv` (the same form,
 for the live and the test environment alike): `survarium-026g.7z`, the pinned
@@ -177,11 +180,12 @@ archive's start): `release/add-mirror` downloads a new one whole.
 downloads the file from `<url>` as the updater does (up to 5 redirects,
 http and https only), checks it is not a web page and has the row's size
 and sha256, and, under the release lock and after a y/N, puts the row
-`<file> <url>` into srp's `mirrors.tsv` in its data volume (the live host
-through the jump host; `--test` the test environment): srp reads it again
-when it changes and offers its rows after the release's URLs of the file,
-in their order (`--first`, `--at <n>`: the place among the file's rows;
-8 URLs a file in all). A bad row (a file the release has not, a URL the
+`<file> <url> [<n>]` into srp's `mirrors.tsv` in its data volume (the live
+host through the jump host; `--test` the test environment): srp reads it
+again when it changes and adds its rows to the release's URLs of the file,
+in their order, each after the URLs so far or as the n-th (`--first`, `--at
+<n>`: the place among all the file's URLs, the release's too: a new Google
+Drive link goes `--first`; 8 URLs a file in all). A bad row (a file the release has not, a URL the
 updater would refuse, past 8) is logged by srp and skipped; it never breaks
 `/patches`. `release/add-mirror --remove <file> <url>` takes a row out.
 To build a URL into the next release too (the updater's and the .bat's own
@@ -200,7 +204,8 @@ failed. The game's archive is gone on from at the next URL (`Range`); a
 patch is fetched again whole.
 
 The checks of every URL (release.sh's preflight, build-server-db for the
-mirrors, add-mirror) download it whole once and keep the result per (URL,
+mirrors, add-mirror) download it whole once (streamed into its sha256,
+nothing kept; stopped only by a stall: under 10 KB/s for 2 minutes) and keep the result per (URL,
 sha256) in `~/.cache/skhid-release/patch-urls.checked` (`$XDG_CACHE_HOME`
 if set): later runs ask such a URL for its first bytes only (200 or 206,
 not a web page, the row's size when the answer gives the whole file's
@@ -392,8 +397,8 @@ The order, as it runs:
    `docker compose up -d --no-deps --force-recreate srp26` (after any
    `.env` change the container is made anew, never just restarted).
 6. **Checks**: the container running, healthy, not restarting; the
-   log's `game data:` line; `/patches` and `/game` the list's (then any
-   rows of `mirrors.tsv` after each file's URLs);
+   log's `game data:` line; `/patches` and `/game` the list's (with any
+   rows of `mirrors.tsv` among each file's URLs);
    `/api/client-files` names the new ZIP and (an srp that says it)
    `min-revision <rev>`. Then srp.db: at its start srp copies it with `VACUUM INTO` to
    `backups/srp-<unix>.db` before it opens it, so that copy is the state

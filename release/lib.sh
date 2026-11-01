@@ -199,19 +199,26 @@ check_patch_url() {
         fi
         return 1
     fi
-    got=$(curl -sS "${CURL_AS_UPDATER[@]}" --max-time "${HTTP_TIMEOUT:-600}" -o "$out" -w '%{http_code} %{content_type}' "$url" 2>/dev/null || true)
-    status=${got%% *} type=${got#* }
+    # Streamed into its sha256, nothing kept (2.9 GB for the game's
+    # archive); no limit on the whole, one on a stall (under 10 KB/s for 2
+    # minutes). curl says the status, the type and the size on stderr, last.
+    local got_sha
+    got_sha=$({ curl -sS "${CURL_AS_UPDATER[@]}" --connect-timeout 30 --speed-limit 10240 --speed-time 120 \
+        -w '%{stderr}\n%{http_code} %{size_download} %{content_type}\n' "$url" 2>"$out" || true; } | sha256sum | cut -d' ' -f1)
+    got=$(tail -n 1 "$out")
+    rm -f "$out"
+    status=${got%% *} got=${got#* }
+    total=${got%% *} type=${got#* }
     type=${type,,}
     if [[ $status != 200 ]]; then
         URL_PROBLEM="$url answers ${status:-nothing}, not 200"
     elif [[ $type == text/html* ]]; then
         URL_PROBLEM="$url answers with a web page ($type), not the file (Google Drive: use https://drive.usercontent.google.com/download?id=<id>&export=download&confirm=t)"
-    elif [[ $(size_of "$out") != "$size" ]]; then
-        URL_PROBLEM="$url gave $(size_of "$out") bytes, not $size"
-    elif [[ $(sha256_of "$out") != "$sha" ]]; then
-        URL_PROBLEM="$url gave sha256 $(sha256_of "$out"), not $sha"
+    elif [[ $total != "$size" ]]; then
+        URL_PROBLEM="$url gave $total bytes, not $size"
+    elif [[ $got_sha != "$sha" ]]; then
+        URL_PROBLEM="$url gave sha256 $got_sha, not $sha"
     fi
-    rm -f "$out"
     [[ -z $URL_PROBLEM ]] || return 1
     CHECKED='downloaded whole'
     if ! grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; then
@@ -454,8 +461,8 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # The offered-patch list (use_patches first), a committed file: one patch a
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
-# order the players' updater tries them: the patches server's first, then
-# mirrors, 1 to 8, none twice. The server data is built of exactly these
+# order the players' updater tries them (Google Drive's first, the owner's
+# rule; the patches server's among them, always), 1 to 8, none twice. The server data is built of exactly these
 # and /patches offers exactly these; a file on the patches server that is
 # not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
 # row of the game's archive in the same form ($GAME_NAME, any host first):
@@ -487,7 +494,7 @@ read_patch_list() {
             if [[ $list == "$GAME_LIST" ]]; then
                 GAME_ROW="$name $sha $size $url"
             else
-                [[ ${url%% *} == "$PATCHES_URL/$name" ]] || die "$list:$n: ${url%% *} is not $PATCHES_URL/$name (the list of another patches server?)"
+                [[ " $url " == *" $PATCHES_URL/$name "* ]] || die "$list:$n: no URL is $PATCHES_URL/$name (the list of another patches server?)"
                 LIST_TOP=$number
                 rows+=("$name $sha $size $url")
             fi
@@ -524,8 +531,8 @@ list_game_json() {
 
 # Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
 # ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
-# downloaded there from its row's first URL (200, the row's size and
-# sha256). Sets PATCH_CACHE to that folder.
+# downloaded there from the patches server (200, the row's size and
+# sha256), never from a mirror's quota. Sets PATCH_CACHE to that folder.
 PATCH_CACHE=''
 cache_patches() {
     local name sha size urls file url status
@@ -538,7 +545,7 @@ cache_patches() {
             say "$name: in the cache"
             continue
         fi
-        url=${urls%% *}
+        url=$PATCHES_URL/$name
         say "$name: downloading $url ($size bytes)"
         status=$(http_get "$url" "$file.part")
         [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
@@ -546,6 +553,32 @@ cache_patches() {
             die "GET $url did not give the $size bytes of sha256 $sha that $PATCH_LIST names"
         mv "$file.part" "$file"
     done <<<"$LIST"
+}
+
+# check_file_urls <name> <sha256> <size> <urls> <scratch> <how> [<needed URL>]:
+# every URL of a file's row, as check_patch_url checks it (<how>: '' or
+# quick). One that fails is a WARNING line: the players' updater moves on
+# to the next. False, with URL_PROBLEM saying why, when <needed URL> fails
+# (a patch's on the patches server: the release builds the server data from
+# it) or no URL gives the file. URLS_GOOD: how many gave it.
+URLS_GOOD=0
+check_file_urls() {
+    local name=$1 sha=$2 size=$3 urls=$4 dir=$5 how=$6 needed=${7:-} url last=''
+    local -a each
+    read -r -a each <<<"$urls"
+    URLS_GOOD=0
+    for url in "${each[@]}"; do
+        if check_patch_url "$url" "$sha" "$size" "$dir" "$how"; then
+            URLS_GOOD=$((URLS_GOOD + 1))
+            say "  ok       $name at $url: $CHECKED"
+        elif [[ $url == "$needed" ]]; then
+            return 1
+        else
+            say "  WARNING  $name: $URL_PROBLEM (players move on to its next URL; put it right, or take it out of the row)"
+            last=$URL_PROBLEM
+        fi
+    done
+    ((URLS_GOOD)) || { URL_PROBLEM="none of its URLs gives it (the last: $last)"; return 1; }
 }
 
 # The sha256 of the stock db $1, hashed once and then cached by its size,
@@ -1242,12 +1275,13 @@ check_server() {
 }
 
 # Whether <served> (JSON of files, /patches as srp writes it) is <expected>
-# with any mirrors of mirrors.tsv after each file's URLs: the same files,
-# each with the same members, its URLs starting with the expected ones.
+# with any mirrors of mirrors.tsv among each file's URLs: the same files,
+# each with the same members, every expected URL there in its order.
 served_as() {
     jq -en --argjson got "$1" --argjson want "$2" '($got | keys) == ($want | keys) and
         all($want | to_entries[]; .key as $k | .value as $w | $got[$k] as $g |
-            ($g | del(.urls)) == ($w | del(.urls)) and $g.urls[:($w.urls | length)] == $w.urls)' >/dev/null 2>&1
+            ($g | del(.urls)) == ($w | del(.urls)) and
+            [$g.urls[] | select(. as $u | $w.urls | index($u))] == $w.urls)' >/dev/null 2>&1
 }
 
 # <revision>: /api/client-files names the new ZIP (sha256, size) and, when

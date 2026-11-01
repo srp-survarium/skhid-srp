@@ -132,9 +132,9 @@ rem release's files with their addresses.
 #skhid-powershell
 # One step, $env:SKHID_STEP: `game` (the original game's archive into
 # game\.skhid-game.7z) or `patches` (game\resources.db.patch_* made the
-# list's). The addresses: the server's (/game, /patches) when it answers
-# with the pinned archive and a list, else the lines `#skhid-file <name>
-# <sha256> <size> <url>...` at the end, written in at build time
+# list's). The addresses: the server's (/game, /patches) when it can be
+# reached, else the lines `#skhid-file <name> <sha256> <size> <url>...` at
+# the end (only missing patches fetched then, none deleted), written in at build time
 # (make_client_026g.py --downloads). Each file's addresses are tried in
 # their order; any failure moves on to the next, which goes on from the
 # bytes on disk (every address has the same pinned bytes). One line of
@@ -174,11 +174,11 @@ function Get-ServerJson([string]$path) {
     $answer = (& curl.exe -fs --connect-timeout 10 --max-time 60 ($env:URL + $path)) -join ''
     $code = $LASTEXITCODE
     if ($code -ne 0 -or -not $answer) {
-        Say 'skhid-list' 'failed' $env:URL "$path cannot be fetched (curl $code): the addresses written into this file are used"
+        Say 'skhid-list' 'failed' $env:URL "$path cannot be fetched (curl $code)"
         return $null
     }
     try { return ($answer | ConvertFrom-Json) } catch {
-        Say 'skhid-list' 'failed' $env:URL "$path is no list: the addresses written into this file are used"
+        Say 'skhid-list' 'failed' $env:URL "$path is no list"
         return $null
     }
 }
@@ -221,7 +221,6 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
     $path = Join-Path $here $path
     $try = "$path.try"
     $headers = "$path.headers"
-    $errors = "$path.errors"
     if ((Test-Path -LiteralPath $path) -and ($size -eq 0 -or (Get-Item -LiteralPath $path -Force).Length -eq $size) -and (Get-Sha $path) -eq $sha) {
         Say $what 'ok' 'here' 'already downloaded, SHA-256 verified'
         return $true
@@ -234,10 +233,11 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
         if (Test-Path -LiteralPath $path) { $have = (Get-Item -LiteralPath $path -Force).Length }
         if ($size -gt 0 -and $have -ge $size) { Remove-Item -Force -LiteralPath $path; $have = 0 }
         Say $what 'try' $where "address $at of $($urls.Count), $url, from byte $have"
-        Remove-Item -Force -LiteralPath $try, $headers, $errors -ErrorAction SilentlyContinue
+        Remove-Item -Force -LiteralPath $try, $headers -ErrorAction SilentlyContinue
         $options = @('-sS', '-L', '--max-redirs', '5', '--proto', '=http,https', '--proto-redir', '=http,https',
-            '--connect-timeout', '10', '--speed-limit', '51200', '--speed-time', '120',
-            '-D', $headers, '--stderr', $errors, '-o', $try, '-w', '%{http_code} %{size_download} %{content_type}')
+            '--connect-timeout', '10', '-D', $headers, '-o', $try, '-w', '%{http_code} %{size_download} %{content_type}')
+        # Too slow is a failure only while another address remains.
+        if ($at -lt $urls.Count) { $options += @('--speed-limit', '51200', '--speed-time', '120') }
         if ($have -gt 0) { $options += @('-r', "$have-") }
         $written = (& curl.exe @options $url) -join ''
         $code = $LASTEXITCODE
@@ -266,6 +266,10 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
             } else {
                 $why = 'answered another part of the file than was asked for'
             }
+        } elseif ($status -eq '416' -and $have -gt 0) {
+            # No part from there: the bytes kept are not a part of the file.
+            Remove-Item -Force -LiteralPath $path
+            $why = "HTTP 416 from byte ${have}: the bytes kept were deleted, the next try starts from 0"
         } elseif ($status -eq '200') {
             # The whole file again (a server that gives no part).
             if (Test-Path -LiteralPath $try) { Move-Item -LiteralPath $try -Destination $path -Force }
@@ -278,13 +282,14 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
         if (-not $why) {
             $length = 0
             if (Test-Path -LiteralPath $path) { $length = (Get-Item -LiteralPath $path -Force).Length }
-            if ($size -gt 0 -and $length -lt $size) {
+            if (-not (Test-Path -LiteralPath $path)) {
+                $why = 'an empty answer'
+            } elseif ($size -gt 0 -and $length -lt $size) {
                 $why = "cut short at byte $length of $size"
             } elseif ((Get-Sha $path) -ne $sha) {
                 Remove-Item -Force -LiteralPath $path
                 $why = "wrong SHA-256 (not $sha)"
             } else {
-                Remove-Item -Force -LiteralPath $errors -ErrorAction SilentlyContinue
                 Say $what 'ok' $where "$length bytes, SHA-256 verified"
                 return $true
             }
@@ -292,7 +297,6 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
         Say $what 'failed' $where "$why ($got bytes received)"
         $script:failures += "${where}: $why"
     }
-    Remove-Item -Force -LiteralPath $errors -ErrorAction SilentlyContinue
     $false
 }
 
@@ -319,9 +323,17 @@ function Invoke-Step {
         if (Get-File 'skhid-game' $env:ARCHIVE $env:GAME_SHA ([long]$env:GAME_SIZE) $urls) { $global:skhidStatus = 0 } else { Show-Failed 'Survarium 0.26g' }
         return
     }
+    # The server's list when it can be reached (a list it cannot give is a
+    # failure, as ever); else the rows written in, of which a missing or
+    # damaged patch is fetched and nothing is deleted: this file is never
+    # updated, and the game may need newer patches than it names.
     $files = @()
-    $list = Get-ServerJson '/patches'
-    if ($list) {
+    if ($env:SKHID_ONLINE) {
+        $list = Get-ServerJson '/patches'
+        if ($null -eq $list) {
+            Write-Host "The list of the game's patches cannot be had from $($env:URL)."
+            return
+        }
         foreach ($p in $list.PSObject.Properties) {
             $files += [pscustomobject]@{ Name = 'resources.db.' + $p.Name; Sha = $p.Value.sha256; Size = 0; Urls = @(@($p.Value.urls) + @($p.Value.url) | Where-Object { $_ }) }
         }
@@ -345,8 +357,10 @@ function Invoke-Step {
         }
         Move-Item -LiteralPath ($place + '.part') -Destination $place -Force
     }
-    $keep = @($files | ForEach-Object { $_.Name })
-    Get-ChildItem (Join-Path $here 'game\resources.db.patch_*') | Where-Object { $keep -notcontains $_.Name } | Remove-Item
+    if ($env:SKHID_ONLINE) {
+        $keep = @($files | ForEach-Object { $_.Name })
+        Get-ChildItem (Join-Path $here 'game\resources.db.patch_*') | Where-Object { $keep -notcontains $_.Name } | Remove-Item
+    }
     $global:skhidStatus = 0
 }
 

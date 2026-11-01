@@ -1074,32 +1074,27 @@ if ((patches_ok && listed)); then
             problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
             continue
         fi
-        read -r -a each <<<"$urls"
-        for url in "${each[@]}"; do
-            say "  ...      $name at $url"
-            if check_patch_url "$url" "$sha" "$size" "$work"; then
-                urls_checked=$((urls_checked + 1))
-            else
-                bad=1
-                problem "$PATCH_LIST: $name: $URL_PROBLEM"
-            fi
-        done
+        if check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name"; then
+            urls_checked=$((urls_checked + URLS_GOOD))
+        else
+            bad=1
+            problem "$PATCH_LIST: $name: $URL_PROBLEM"
+        fi
     done <<<"$LIST"
     ((bad)) || okay "the offered-patch list: $listed patch(es), each on $PATCHES_LABEL with its sha256, and its $urls_checked URL(s) giving it"
 elif ((patches_ok)); then
     okay "the offered-patch list ($PATCH_LIST) is empty"
 fi
 # The game's archive: each URL of its row, by its first bytes (the 2.9 GB
-# are downloaded whole by release/add-mirror only).
+# are downloaded whole by release/add-mirror only); one that fails is a
+# warning, none that works a problem.
 if ((patches_ok)) && [[ -n $GAME_ROW ]]; then
     read -r name sha size urls <<<"$GAME_ROW"
-    read -r -a each <<<"$urls"
-    bad=0
-    for url in "${each[@]}"; do
-        say "  ...      $name at $url"
-        check_patch_url "$url" "$sha" "$size" "$work" quick || { bad=1; problem "$GAME_LIST: $name: $URL_PROBLEM"; }
-    done
-    ((bad)) || okay "the game's archive ($name): its ${#each[@]} URL(s) giving it, by its first bytes"
+    if check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick; then
+        okay "the game's archive ($name): $URLS_GOOD URL(s) giving it, by its first bytes"
+    else
+        problem "$GAME_LIST: $name: $URL_PROBLEM"
+    fi
 fi
 if [[ -n $rev ]] && ((LIST_TOP > rev)); then
     problem "$PATCH_LIST offers resources.db.patch_$LIST_TOP, above this release's revision $rev"

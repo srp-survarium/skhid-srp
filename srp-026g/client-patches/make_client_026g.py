@@ -162,8 +162,9 @@ EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
 BUGTRAP_DLL = os.path.abspath(os.path.join(
     HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
-# Where the original game is had by hand: the first address of its row in
-# release/game.tsv, the bytes client/updater/logic/src/game.rs pins (the
+# Where the original game is had by hand: the patches server's address of its
+# row in release/game.tsv (no download quota), the bytes
+# client/updater/logic/src/game.rs pins (the
 # updater and Skhid-without-updater.bat take every address of that row).
 GAME_URL = "http://2.28.121.133:8090/survarium-026g.7z"
 SRP_CERT = os.path.join(HERE, "survarium_login_server.crt")

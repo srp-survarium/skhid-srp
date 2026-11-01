@@ -320,8 +320,8 @@ another archive, the addresses built into the updater at release time are
 used (`SKHID_BUILTIN_GAME`, the `/game` of the row of `release/game.tsv`,
 which `release/build-zip` passes to the build; a build
 without it has none, and says so). A server that answers always wins. srp's
-`/game` is the release's addresses (that row) and then the rows of its
-`mirrors.tsv` (see "Mirrors" below).
+`/game` is the release's addresses (that row) with the rows of its
+`mirrors.tsv` added (see "Mirrors" below).
 
 **The download** is that of a patch's file (`http::get_file`), with the
 rules of "Mirrors" below: redirects followed, a web page refused. The
@@ -350,7 +350,8 @@ lookup, 10 s connect, 30 s send and receive), `host not found (DNS)`,
 `unreachable`, `connection reset`, `HTTP <status>`, `web page "<its
 title>", not the file` (the `<title>` of its first 8 KB, any host's: Google
 Drive's "Quota exceeded" page among them), `too slow: <n> KB/s over 2
-minutes (under 50 KB/s)` (`download::Speed`), `cut short at byte <n> of
+minutes (under 50 KB/s)` (`download::Speed`; only while another address
+remains: the last one is waited for, however slow), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
@@ -521,14 +522,16 @@ host, as it is not for the update server: the file is checked against the
 list's SHA-256, and the list came from the update server over HTTPS.
 
 - **Mirrors.** The addresses are tried in their order, each once a round,
-  two rounds a run: srp's list gives the release's (`release/patches.tsv`)
-  and after them the rows of srp's `mirrors.tsv`, which `release/add-mirror`
-  writes and srp reads again when it changes. Any failure moves on to the
+  two rounds a run: srp's list gives the release's (`release/patches.tsv`,
+  Google Drive's first) with the rows of srp's `mirrors.tsv` added (after
+  them, or at a row's place), which `release/add-mirror` writes and srp
+  reads again when it changes. Any failure moves on to the
   next address: no
   connection or a broken one, another status than 200, a web page
   (`Content-Type: text/html`: a sign-in page, Google Drive's "cannot scan
   this file for viruses" or "Quota exceeded" page; its title is in the
-  log), slower than 50 KB/s over 2 minutes, a body shorter than its
+  log), slower than 50 KB/s over 2 minutes (while another address
+  remains), a body shorter than its
   Content-Length, another SHA-256, too many redirects or one to an address
   a list may not name. Each try is a line of the log too (`... (try 1 of
   2): asking`). The second round tries again only the addresses that failed on the

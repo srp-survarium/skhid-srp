@@ -215,7 +215,7 @@ class ReleaseTests(unittest.TestCase):
         rows = Path(overlay.HERE, '..', '..', 'release', 'game.tsv').read_text(encoding='ascii').splitlines()
         [game] = [row.split('\t') for row in rows if not row.startswith('#')]
         self.assertEqual(game[:3], ['survarium-026g.7z', digest, size])
-        self.assertEqual(game[3].split(' ')[0], overlay.GAME_URL)
+        self.assertIn(overlay.GAME_URL, game[3].split(' '))
         # No --downloads: no address written in.
         self.assertNotIn(b'\n#skhid-file ', alone)
         self.assertIn('start Skhid-without-updater.bat', ' '.join(readme.split()))

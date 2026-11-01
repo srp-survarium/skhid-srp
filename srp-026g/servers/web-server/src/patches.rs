@@ -9,8 +9,8 @@
 //! ```
 //!
 //! Each file's URLs are the updater's to try in their order: the release's
-//! (the patches server, then the mirrors of the release's list), then the
-//! rows of `mirrors.tsv` ([`Downloads`]). The `/patches` form is that of
+//! (those of the release's list), with the rows of `mirrors.tsv` added
+//! ([`Downloads`]). The `/patches` form is that of
 //! updater 0.3.0, which reads the one-`url` form of the updaters before it
 //! too; those never read this one: a release that brings 0.3.0 has them
 //! install it first (the overlay comes before the patch step), and it does
@@ -64,14 +64,16 @@ impl OfferedPatch {
 const MAX_URLS: usize = resources_db::server::MAX_URLS;
 
 /// What is offered: the release's files (those of the server's game data)
-/// with their URLs, and after those the rows of `mirrors.tsv` of srp's data
-/// folder, one `<file> <url>` a line (tab or spaces between; `#` starts a
+/// with their URLs, and the rows of `mirrors.tsv` of srp's data folder, one
+/// `<file> <url> [<n>]` a line (tab or spaces between; `#` starts a
 /// comment), the file the name of a file of the release: `resources.db.
-/// patch_<n>` or the game's archive's. The file is read again when its
-/// time or size changed (looked at each request, no restart). A row of a
-/// file the release has not, of a URL the updater would refuse, of one the
-/// file has already, or past the file's 8th URL is logged and skipped: it
-/// never breaks the list.
+/// patch_<n>` or the game's archive's. A row's URL is added after the
+/// file's URLs so far, or, with `<n>` (1 to 8), as its n-th (the rows in
+/// their order: `release/add-mirror --first` puts a Google Drive link before
+/// the release's). The file is read again when its time or size changed
+/// (looked at each request, no restart). A row of a file the release has
+/// not, of a URL the updater would refuse, of one the file has already, or
+/// past the file's 8th URL is logged and skipped: it never breaks the list.
 pub struct Downloads {
     patches: Vec<OfferedPatch>,
     game: Option<OfferedPatch>,
@@ -166,8 +168,8 @@ impl Downloads {
 }
 
 /// Adds the rows of `mirrors` (the text of `mirrors.tsv`) to the files'
-/// URLs, after those they have; `skipped(line, why)` for each row that is
-/// not taken. How many were.
+/// URLs, after those they have or at the row's place; `skipped(line, why)`
+/// for each row that is not taken. How many were.
 fn add_mirrors(
     mirrors: &str,
     patches: &mut [OfferedPatch],
@@ -181,9 +183,19 @@ fn add_mirrors(
             continue;
         }
         let words: Vec<&str> = line.split_whitespace().collect();
-        let [file, url] = words[..] else {
-            skipped(at + 1, format!("{line:?} is not <file> <url>"));
-            continue;
+        let (file, url, place) = match words[..] {
+            [file, url] => (file, url, None),
+            [file, url, n] => match n.parse::<usize>() {
+                Ok(place @ 1..=MAX_URLS) if !n.starts_with('0') => (file, url, Some(place)),
+                _ => {
+                    skipped(at + 1, format!("{n:?} is not a place from 1 to {MAX_URLS}"));
+                    continue;
+                }
+            },
+            _ => {
+                skipped(at + 1, format!("{line:?} is not <file> <url> [<n>]"));
+                continue;
+            }
         };
         let offered = patches
             .iter_mut()
@@ -206,7 +218,10 @@ fn add_mirrors(
                 format!("{file} has {MAX_URLS} URLs already, the most the updater takes"),
             );
         } else {
-            offered.urls.push(url.to_owned());
+            let place = place.map_or(offered.urls.len(), |place| {
+                (place - 1).min(offered.urls.len())
+            });
+            offered.urls.insert(place, url.to_owned());
             taken += 1;
         }
     }
@@ -313,16 +328,30 @@ mod tests {
                     resources.db.patch_12 ftp://m/12\n\
                     resources.db.patch_12 http://m/a\"b\n\
                     resources.db.patch_12\n\
-                    resources.db.patch_12 http://m/12 extra\n\
-                    resources.db.patch_12 http://m2/12\r\n";
+                    resources.db.patch_12 http://m/12 two words\n\
+                    resources.db.patch_12 http://m2/12\r\n\
+                    resources.db.patch_12 https://drive/12 1\n\
+                    resources.db.patch_14 https://drive/14 2\n\
+                    resources.db.patch_14 https://far/14 7\n\
+                    resources.db.patch_14 https://zero/14 0\n\
+                    resources.db.patch_14 https://nine/14 9\n";
         let taken = add_mirrors(text, &mut patches, Some(&mut game), &mut |line, why| {
             skipped.push(format!("{line}: {why}"))
         });
-        assert_eq!(taken, 3);
-        assert_eq!(patches[0].urls, ["http://p/12", "http://m2/12"]);
+        assert_eq!(taken, 6);
+        // A place: the n-th of the URLs so far (past the end: the last).
+        assert_eq!(
+            patches[0].urls,
+            ["https://drive/12", "http://p/12", "http://m2/12"]
+        );
         assert_eq!(
             patches[1].urls,
-            ["http://p/14", "https://m.example/p14?id=1&x=2"]
+            [
+                "http://p/14",
+                "https://drive/14",
+                "https://m.example/p14?id=1&x=2",
+                "https://far/14"
+            ]
         );
         assert_eq!(game.urls.len(), 8);
         assert_eq!(game.urls[7], "https://archive.org/download/x/g.7z");
@@ -335,8 +364,10 @@ mod tests {
                 "8: patch_12 is no file of the release's",
                 "9: \"ftp://m/12\" is not a URL the players' updater takes",
                 "10: \"http://m/a\\\"b\" is not a URL the players' updater takes",
-                "11: \"resources.db.patch_12\" is not <file> <url>",
-                "12: \"resources.db.patch_12 http://m/12 extra\" is not <file> <url>",
+                "11: \"resources.db.patch_12\" is not <file> <url> [<n>]",
+                "12: \"resources.db.patch_12 http://m/12 two words\" is not <file> <url> [<n>]",
+                "17: \"0\" is not a place from 1 to 8",
+                "18: \"9\" is not a place from 1 to 8",
             ]
         );
     }

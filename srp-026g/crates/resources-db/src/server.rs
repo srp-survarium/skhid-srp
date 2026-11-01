@@ -312,7 +312,8 @@ impl GameArchive {
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
         {
             return Err(format!(
-                "{name:?}: the game's archive is named of letters, digits, . _ -, and not as an                  archive the game mounts"
+                "{name:?}: the game's archive is named of letters, digits, . _ -, and not as an \
+                 archive the game mounts"
             ));
         }
         let size = size_of(size)

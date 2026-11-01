@@ -236,7 +236,13 @@ fn fetch(
         );
         session.begin_progress();
         session.state(state::DOWNLOADING);
-        let (result, received) = get(session, address, path, have, pin)?;
+        // Too slow is a failure only while another address remains.
+        let slow = if at + 1 < count {
+            http::Slow::Leave
+        } else {
+            http::Slow::Wait
+        };
+        let (result, received) = get(session, address, path, have, pin, slow)?;
         let why = match result {
             Ok(()) => match win::file_size(path).unwrap_or(0) {
                 size if size != pin.size => format!("cut short at byte {size} of {}", pin.size),
@@ -291,6 +297,7 @@ fn get(
     path: &str,
     from: u64,
     pin: Pin,
+    slow: http::Slow,
 ) -> Result<(Result<(), HttpError>, u64), Option<String>> {
     let opened = if from == 0 {
         win::File::create(path)
@@ -305,6 +312,7 @@ fn get(
         &address.url,
         from,
         pin.size,
+        slow,
         &mut |to| log!("{LABEL}: {} redirects to {to}", address.text),
         &mut |at, chunk| {
             if at != written {

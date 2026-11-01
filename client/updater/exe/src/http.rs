@@ -55,6 +55,17 @@ pub enum HttpError {
     BadRange,
 }
 
+/// What a download slower than `download::MIN_SPEED` over a stretch of
+/// `download::SLOW_WINDOW_MS` does.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Slow {
+    /// Goes on: no other address would give the file (the last of a list's,
+    /// and every download of one address).
+    Wait,
+    /// Ends with `HttpError::Slow`: another address may do better.
+    Leave,
+}
+
 /// Where a file's body goes: `sink(at, chunk)`, `chunk` the file's bytes
 /// from byte `at`.
 pub type Sink<'a> = dyn FnMut(u64, &[u8]) -> Result<(), HttpError> + 'a;
@@ -170,6 +181,7 @@ pub fn get_stream(
         &answer.request,
         0,
         limit,
+        Slow::Wait,
         &mut |_, chunk| sink(chunk),
         progress,
     )
@@ -188,11 +200,12 @@ pub fn get_stream(
 /// part) is the whole file again, from byte 0. `sink(at, chunk)`: `chunk`
 /// is the file's from byte `at`. `progress(done, total)`: the file's bytes
 /// up to here, of its size when the answer says it. `limit`: the most bytes
-/// the file may have.
+/// the file may have; `slow`: whether a slow download ends.
 pub fn get_file(
     url: &Url,
     from: u64,
     limit: u64,
+    slow: Slow,
     hop: &mut dyn FnMut(&str),
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
@@ -244,6 +257,7 @@ pub fn get_file(
             &answer.request,
             0,
             u64::MAX,
+            Slow::Wait,
             &mut |_, chunk| {
                 page.extend_from_slice(chunk);
                 if page.len() >= PAGE_HEAD {
@@ -257,7 +271,7 @@ pub fn get_file(
         let read = page.len() as u64;
         return Err(HttpError::Html(download::title(&page), read));
     }
-    receive(&answer.request, at, limit, sink, progress)
+    receive(&answer.request, at, limit, slow, sink, progress)
 }
 
 /// The WinHTTP session of one download: no step waits longer than its
@@ -391,12 +405,13 @@ fn text_header(request: &Internet, which: u32, limit: usize) -> Option<String> {
     (ok != 0).then(|| from_wide(&text[..(size as usize / 2).min(text.len())]))
 }
 
-/// The body of the answer, the file's from byte `at`, into `sink`; a
-/// stretch slower than `download::MIN_SPEED` ends it.
+/// The body of the answer, the file's from byte `at`, into `sink`; with
+/// [`Slow::Leave`] a stretch slower than `download::MIN_SPEED` ends it.
 fn receive(
     request: &Internet,
     at: u64,
     limit: u64,
+    slow: Slow,
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
@@ -412,7 +427,9 @@ fn receive(
         if !progress(at + received, total) {
             return Err(HttpError::Stopped);
         }
-        if let Some(speed) = speed.slow(win::ticks(), received) {
+        if slow == Slow::Leave
+            && let Some(speed) = speed.slow(win::ticks(), received)
+        {
             return Err(HttpError::Slow(speed));
         }
         let mut read = 0_u32;

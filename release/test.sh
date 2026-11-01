@@ -626,7 +626,7 @@ expect_refused "build-server-db: valid cache cannot hide an unavailable primary 
     "$here/build-server-db" --out "$T/work/sgd-missing-primary.db"
 mv "$T/patches/resources.db.patch_3.saved" "$T/patches/resources.db.patch_3"
 expect_refused "build-server-db never overwrites" "never overwritten" "$here/build-server-db" --out "$T/work/sgd.db"
-expect_refused "build-server-db refuses another server's list" "is not http://127.0.0.1:$site_port/resources.db.patch_3" \
+expect_refused "build-server-db refuses another server's list" "no URL is http://127.0.0.1:$site_port/resources.db.patch_3" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCHES_URL=.*|SKHID_PATCHES_URL=http://127.0.0.1:$site_port|")" "$here/build-server-db" --out "$T/work/sgd2.db"
 printf 'resources.db.patch_7\t%s\t5\t%s\n' "$sha3" "$P/resources.db.patch_7" >"$T/bad.tsv"
 expect_refused "build-server-db needs each listed patch at 200" "answered 404, not 200" \
@@ -686,8 +686,8 @@ check "add-mirror: the URL is in the cache" grep -qxF "$sha3 $size3 $M/hop/5/res
 check "add-mirror: says so when the site does not list it" has "$out" "does not list $M/hop/5/resources.db.patch_3"
 check "add-mirror: the release lock is free after" test ! -e "$T/lock"
 out=$(yes_to "${am[@]}" --first resources.db.patch_3 "$M/files/resources.db.patch_3") || fail "add-mirror --first: $out"
-check "add-mirror --first: before the file's other rows" test "$(cut -f2 "$T/volume/mirrors.tsv" | tr '\n' ' ')" = \
-    "$M/files/resources.db.patch_3 $M/hop/5/resources.db.patch_3 "
+check "add-mirror --first: a row of place 1, the first of all the file's URLs" test "$(cat "$T/volume/mirrors.tsv")" = \
+    "$(printf 'resources.db.patch_3\t%s\nresources.db.patch_3\t%s\t1' "$M/hop/5/resources.db.patch_3" "$M/files/resources.db.patch_3")"
 expect_refused "add-mirror: a row there already" "is a row of resources.db.patch_3 in the live host's mirrors.tsv already" \
     "${am[@]}" resources.db.patch_3 "$M/files/resources.db.patch_3"
 expect_refused "add-mirror --remove: no such row" "is not a row of resources.db.patch_3" \
@@ -711,14 +711,19 @@ check "build-server-db: the data offers the mirrors in their order" has "$out" \
     "  patch_3 sha256 $sha3 urls $P/resources.db.patch_3 $M/hop/5/resources.db.patch_3 $M/files/resources.db.patch_3"
 check "build-server-db: a mirror checked before is asked for its first bytes only" \
     bash -c "test -s $T/mirror.log && ! grep -v ' bytes=0-12\$' $T/mirror.log"
-check "build-server-db: says so" has "$out" "mirror $M/files/resources.db.patch_3: as checked before"
+check "build-server-db: says so" has "$out" "ok       resources.db.patch_3 at $M/files/resources.db.patch_3: as checked before"
 check "the data is made of the list with its mirrors" quiet "$bin" check "$T/work/sgd-mirrors.db" --db "$T/resources.db" \
     --patch "$patch=$P/resources.db.patch_3 $M/hop/5/resources.db.patch_3 $M/files/resources.db.patch_3" \
     --patch "$T/r12/resources.db.patch_12=$P/resources.db.patch_12"
 mv "$T/mirror/resources.db.patch_3" "$T/mirror/kept_3"
-expect_refused "build-server-db: a mirror that no longer gives the patch" \
-    "resources.db.patch_3: $M/hop/5/resources.db.patch_3 answers 404 now (it gave the file before)" \
-    env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m2.db"
+out=$(env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m2.db" 2>&1) || fail "build-server-db, a mirror down: $out"
+check "build-server-db: a mirror that no longer gives the patch is a warning" has "$out" \
+    "WARNING  resources.db.patch_3: $M/hop/5/resources.db.patch_3 answers 404 now (it gave the file before)"
+mv "$T/patches/resources.db.patch_3" "$T/patches/kept_3"
+expect_refused "build-server-db: ... the patches server's copy is needed" \
+    "resources.db.patch_3: $P/resources.db.patch_3 answers 404 now" \
+    env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m3.db"
+mv "$T/patches/kept_3" "$T/patches/resources.db.patch_3"
 mv "$T/mirror/kept_3" "$T/mirror/resources.db.patch_3"
 # The game's archive: a row of the list, its URLs asked for their first
 # bytes alone at build time, named in the data, offered at /game; add-mirror
@@ -737,8 +742,13 @@ check "build-server-db: says what /game offers" has "$out" "/game will offer: {\
 check "lib: /game as the data says it" test "$(bash -c ". $(printf '%q' "$here/lib.sh") && offered_game_in \"\$('$bin' info $T/work/sgd-game.db)\"")" = \
     "survarium-026g.7z $gsha $gsize $M/files/g.7z"
 printf 'survarium-026g.7z\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/none.7z" >"$T/bad.tsv"
-expect_refused "build-server-db: a URL of the game's archive that does not give it" "survarium-026g.7z: $M/files/none.7z answers 404 now" \
+expect_refused "build-server-db: no URL of the game's archive gives it" \
+    "survarium-026g.7z: none of its URLs gives it (the last: $M/files/none.7z answers 404 now)" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
+printf 'survarium-026g.7z\t%s\t%s\t%s %s\n' "$gsha" "$gsize" "$M/files/none.7z" "$M/files/g.7z" >"$T/bad.tsv"
+out=$(env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd-g2.db" 2>&1) ||
+    fail "build-server-db, one URL of the game's archive down: $out"
+check "build-server-db: one URL of the game's archive down is a warning" has "$out" "WARNING  survarium-026g.7z: $M/files/none.7z answers 404 now"
 printf 'resources.db.patch_3\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/g.7z" >"$T/bad.tsv"
 expect_refused "the game's list: its one row is the game's archive" "one row, of survarium-026g.7z" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
@@ -750,14 +760,14 @@ check "add-mirror: the game's archive, downloaded whole, its row in mirrors.tsv"
 rm "$T/volume/mirrors.tsv"
 check "lib: /patches with mirrors after the release's URLs is as the data says" bash -c \
     ". $(printf '%q' "$here/lib.sh") && served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"m1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
-check "lib: ... and not with another URL before them, or another file" bash -c \
-    ". $(printf '%q' "$here/lib.sh") && ! served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"m1\",\"u1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}' && ! served_as '{\"patch_4\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
+check "lib: ... or before them (add-mirror --first), but not without one of them, or another file" bash -c \
+    ". $(printf '%q' "$here/lib.sh") && served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"m1\",\"u1\",\"u2\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"u2\"]}}' && ! served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"m1\",\"u2\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"u2\"]}}' && ! served_as '{\"patch_4\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
 # The list's own rules for a row's URLs.
 nine=$(for n in 1 2 3 4 5 6 7 8; do printf ' %s/files/m%s' "$M" "$n"; done)
 for case in "$P/resources.db.patch_3  $M/x|one space apart" "$P/resources.db.patch_3 $M/x $M/x|is there twice" \
     "$P/resources.db.patch_3$nine|9 URLs; the players' updater takes at most 8" \
     "$P/resources.db.patch_3 ftp://127.0.0.1/x|ftp://127.0.0.1/x is not a URL the players' updater takes" \
-    "$M/x $P/resources.db.patch_3|$M/x is not $P/resources.db.patch_3"; do
+    "$M/x|no URL is $P/resources.db.patch_3"; do
     printf 'resources.db.patch_3\t%s\t%s\t%s\n' "$sha3" "$size3" "${case%%|*}" >"$T/bad.tsv"
     expect_refused "the list refuses a row: ${case#*|}" "${case#*|}" \
         env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
@@ -1719,19 +1729,19 @@ check "release: the next run asks the mirrors for their first bytes only" \
     bash -c "test -s $T/mirror.log && ! grep -v ' bytes=0-12\$' $T/mirror.log"
 mv "$T/mirror/resources.db.patch_3" "$T/mirror/kept_3"
 run quiet --dry-run --minutes 2 || true
-check "release: a mirror that no longer gives the patch is a problem" has "$out" \
-    "  - $T/mirrored.tsv: resources.db.patch_3: $M/files/resources.db.patch_3 answers 404 now (it gave the file before)"
+check "release: a mirror that no longer gives the patch is a warning" has "$out" \
+    "  WARNING  resources.db.patch_3: $M/files/resources.db.patch_3 answers 404 now (it gave the file before)"
 # Replaced since by a file of another size that starts as a patch does:
 # seen by the size the answer gives, a 200's Content-Length or a 206's
 # Content-Range.
 head -c $((size3 - 1)) "$T/mirror/kept_3" >"$T/mirror/resources.db.patch_3"
 run quiet --dry-run --minutes 2 || true
-check "release: a mirror whose file is now of another size is a problem (200)" has "$out" \
-    "  - $T/mirrored.tsv: resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
+check "release: a mirror whose file is now of another size is a warning (200)" has "$out" \
+    "  WARNING  resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
 touch "$T/mirror.ranges"
 run quiet --dry-run --minutes 2 || true
-check "release: a mirror whose file is now of another size is a problem (206)" has "$out" \
-    "  - $T/mirrored.tsv: resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
+check "release: a mirror whose file is now of another size is a warning (206)" has "$out" \
+    "  WARNING  resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
 mv "$T/mirror/kept_3" "$T/mirror/resources.db.patch_3"
 : >"$T/mirror.log"
 run quiet --dry-run --minutes 2 || fail "release.sh --dry-run, mirrors with ranges: $out"

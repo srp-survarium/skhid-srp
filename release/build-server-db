@@ -4,17 +4,20 @@
 # Builds the game server's server-game-data.db from the stock resources.db
 # ($SKHID_STOCK_DB) and the patches of the offered-patch list
 # release/patches.tsv, exactly those, in its order:
-#   1. reads the list (every row checked: name, sha256, size, its URLs, the
-#      first on $SKHID_PATCHES_URL);
+#   1. reads the list (every row checked: name, sha256, size, its URLs, one
+#      of them on $SKHID_PATCHES_URL);
 #   2. uses the local patch cache, checking each file's size and sha256;
-#      downloads a missing or invalid file from its first URL (HTTP 200).
-#      Checks every URL as the updater fetches it (redirects followed, not
-#      a web page), whole once and then by its first bytes (lib.sh
-#      check_patch_url). Cached bytes never replace URL availability checks;
+#      downloads a missing or invalid file from the patches server (HTTP
+#      200). Checks every URL as the updater fetches it (redirects
+#      followed, not a web page), whole once and then by its first bytes
+#      (lib.sh check_patch_url): the patches server's must give it; another
+#      that does not is a WARNING (players move on to the next), unless
+#      none does. Cached bytes never replace URL availability checks;
 #   3. the game's archive's row (survarium-026g.7z, release/game.tsv):
 #      each of its URLs asked for its first bytes as the updater fetches it
 #      (200 or 206, not a web page, the row's size, a 7z archive; never the
-#      2.9 GB: release/add-mirror downloads a new URL whole);
+#      2.9 GB: release/add-mirror downloads a new URL whole); one that does
+#      not give it is a WARNING, none that does stops it;
 #   4. srp-game-data build --db $SKHID_STOCK_DB --patch "<file>=<urls>" ...
 #      [--game "<the game's row>"] --out <file> (the row's URLs, one space
 #      apart), then srp-game-data
@@ -58,26 +61,15 @@ cache_patches
 args=()
 while read -r name sha size urls; do
     [[ -n $name ]] || continue
-    read -r -a each <<<"$urls"
-    url=${each[0]}
-    check_patch_url "$url" "$sha" "$size" "$work" || die "$name: $URL_PROBLEM"
-    say "$name: $url: $CHECKED; cached $size bytes, sha256 $sha, as the list says"
-    for mirror in "${each[@]:1}"; do
-        check_patch_url "$mirror" "$sha" "$size" "$work" ||
-            die "$name: $URL_PROBLEM (a mirror in $PATCH_LIST: put it right, or take it out of the row)"
-        say "$name: mirror $mirror: $CHECKED, as the list says"
-    done
+    check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name" ||
+        die "$name: $URL_PROBLEM (in $PATCH_LIST)"
+    say "$name: cached $size bytes, sha256 $sha, as the list says; $URLS_GOOD URL(s) giving it"
     args+=(--patch "$PATCH_CACHE/$name=$urls")
 done <<<"$LIST"
 ((${#args[@]})) || say "no patch in $PATCH_LIST"
 if [[ -n $GAME_ROW ]]; then
     read -r name sha size urls <<<"$GAME_ROW"
-    read -r -a each <<<"$urls"
-    for url in "${each[@]}"; do
-        check_patch_url "$url" "$sha" "$size" "$work" quick ||
-            die "$name: $URL_PROBLEM (in $GAME_LIST: put it right, or take it out of the row)"
-        say "$name: $url: $CHECKED, as the list says"
-    done
+    check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick || die "$name: $URL_PROBLEM (in $GAME_LIST)"
     args+=(--game "$GAME_ROW")
 else
     say "no $GAME_NAME in $GAME_LIST: /game offers nothing (the updater uses the addresses built into it)"

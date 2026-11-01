@@ -592,7 +592,13 @@ impl Run<'_> {
                     at + 1,
                     address.text
                 );
-                let result = self.download(&part, patch, address);
+                // Too slow is a failure only while another address remains.
+                let slow = if at + 1 < count {
+                    http::Slow::Leave
+                } else {
+                    http::Slow::Wait
+                };
+                let result = self.download(&part, patch, address, slow);
                 let identity = match result {
                     Ok(identity) => identity,
                     Err(miss) => {
@@ -676,6 +682,7 @@ impl Run<'_> {
         part: &str,
         patch: &Patch,
         address: &Address,
+        slow: http::Slow,
     ) -> Result<Option<Identity>, Miss> {
         let output = retried("written", part, &mut || File::create(part))
             .map_err(|code| Miss::Here(file_fail(part, code, "written")))?;
@@ -690,6 +697,7 @@ impl Run<'_> {
             &address.url,
             0,
             MAX_PATCH,
+            slow,
             &mut |to| log!("patches: {name}: {} redirects to {to}", address.text),
             &mut |_, chunk| {
                 written += chunk.len() as u64;
