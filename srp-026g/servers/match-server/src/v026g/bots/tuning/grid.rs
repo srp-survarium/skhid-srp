@@ -75,11 +75,11 @@ pub struct GridTuning {
     /// map's (see `gap_links`).
     pub drop_room: bool,
     /// Whether the maps' walk grids ask a sprint jump's run-up (1.5 m straight behind its take-off) after the erosion, of the
-    /// take-offs and floors it leaves (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes jumps of its own
-    /// (a jump past a floor that went starts a cell back) and takes floors off a run-up's line, so checked before it 366 of the
-    /// offered maps' 3,716 sprint-band jumps over 1.05 m keep less than 1.5 m straight behind them, 290 of them jumps the erosion
-    /// made (A236); the motor gives such a jump up for no clear run. Off (the default) until its bench. A grid is the map's (see
-    /// `gap_links`).
+    /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes
+    /// jumps of its own (a jump past a floor that went starts a cell back) and takes floors off a run-up's line, so checked before
+    /// it 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m keep less than 1.5 m straight behind them, 290 of them
+    /// jumps the erosion made (A236); the motor gives such a jump up for no clear run. Off (the default) until its bench. A grid
+    /// is the map's (see `gap_links`).
     pub run_ups_after_erosion: bool,
 }
 

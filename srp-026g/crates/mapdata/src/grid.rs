@@ -161,7 +161,8 @@ pub struct Body {
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
     /// Whether the sprint jumps' run-ups ([`SPRINT_RUN_UP_M`] straight behind the take-off, `WalkGrid::drop_short_run_ups`) are
-    /// asked after the erosion, of the take-offs and floors it leaves, not before it. The erosion makes Jump links of its own (a
+    /// asked after the erosion, of the take-offs and floors it leaves, in metres (a floor along a diagonal is a cell's diagonal
+    /// on), not before it in cells with the radius the erosion takes. The erosion makes Jump links of its own (a
     /// jump past a floor that went starts a cell back; a jump whose landing went lands further on) and takes floors off a run-up's
     /// line: checked before it, 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m are left with less than 1.5 m straight
     /// behind them, 290 of them jumps the erosion made (A236). A build input: in the key when set.
@@ -457,6 +458,30 @@ pub fn walking_press_lead(rise: f32, across: f32, run: f32) -> Option<f32> {
 /// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
 /// sprint from rest is at full speed by 2 m, and 1.5 m is the least tried; bot-side the motor wants 2 m).
 pub const SPRINT_RUN_UP_M: f32 = 1.5;
+
+/// How [`WalkGrid::drop_short_run_ups`] measures a sprint jump's run-up.
+#[derive(Clone, Copy, Debug)]
+enum RunUp {
+    /// So many floors back, along a side or a diagonal alike: before the erosion, the run and the body's radius the erosion
+    /// takes off the take-off's side.
+    Cells(usize),
+    /// So many metres back from the take-off the erosion leaves ([`Body::run_ups_after_erosion`]): a floor along a side is a
+    /// cell on, one along a diagonal a cell's diagonal.
+    Metres(f32),
+}
+
+impl RunUp {
+    /// The floors to walk back along direction `d` ([`DIRS`]: the sides first, then the diagonals).
+    fn cells(self, d: usize, cell: f32) -> usize {
+        match self {
+            Self::Cells(n) => n,
+            Self::Metres(m) => {
+                let step = if d < 4 { cell } else { cell * std::f32::consts::SQRT_2 };
+                (m / step).ceil() as usize
+            }
+        }
+    }
+}
 /// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
 /// GUESS, benched.
 pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
@@ -881,17 +906,15 @@ impl WalkGrid {
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
-        // Before the erosion the run is counted with the radius the erosion takes off the take-off's side.
         if !body.run_ups_after_erosion {
-            let cells = ((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize;
-            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, cells);
+            let run = RunUp::Cells(((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize);
+            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, run);
         }
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact));
         if body.run_ups_after_erosion {
-            let cells = (SPRINT_RUN_UP_M / cell).ceil() as usize;
-            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, cells);
+            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
         wide.off = match links {
             OffMeshLinks::None => Vec::new(),
@@ -1255,14 +1278,15 @@ impl WalkGrid {
     }
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
-    /// [`SPRINT_RUN_UP_M`] behind their take-off: `cells` floors walked back from it in the opposite direction, each a
+    /// [`SPRINT_RUN_UP_M`] behind their take-off (`run`): the floors walked back from it in the opposite direction, each a
     /// Walk link within a step of the one before (a sprint from rest is at speed by 2 m, 8e). The links of the capped band
     /// (rises from `max_jump` up to the exe body's top) are kept without a run-up: a cap does not cut what the base kept
     /// for an objective only they reach. Returns the links taken away and those of the band kept with none.
-    fn drop_short_run_ups(&self, wide: &mut Wide, cells: usize) -> (usize, usize) {
+    fn drop_short_run_ups(&self, wide: &mut Wide, run: RunUp) -> (usize, usize) {
         let (mut cut, mut kept) = (0, 0);
         for a in 0..self.height.len() {
             for d in 0..8 {
+                let cells = run.cells(d, self.cell);
                 let b = wide.links[a][d];
                 if b == NONE
                     || wide.kinds[a][d] != LinkKind::Jump
@@ -4884,9 +4908,8 @@ pub(crate) mod tests {
             tris.extend(floor(5.0, 0.0, 12.0, 10.0, 1.2));
             tris.extend(crate_box(3.5, 5.3, 4.0, 5.55, 2.0));
             let grid = WalkGrid::build(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body);
-            let cells = (SPRINT_RUN_UP_M / 0.25).ceil() as usize;
-            // The floors walked straight back from `a` against the way (di, dk), each a Walk link within a step.
-            let run = |a: NodeId, di: f32, dk: f32| {
+            // The floors walked straight back from `a` against the way (di, dk), each a Walk link within a step, up to `cells`.
+            let run = |a: NodeId, di: f32, dk: f32, cells: usize| {
                 let (mut at, mut n) = (a, 0);
                 while n < cells {
                     let p = grid.position(at);
@@ -4912,7 +4935,10 @@ pub(crate) mod tests {
                     }
                     jumps += 1;
                     let way = |d: f32| if d.abs() < 0.01 { 0.0 } else { d.signum() };
-                    short += usize::from(run(a, way(pb.x - pa.x), way(pb.z - pa.z)) < cells);
+                    let (di, dk) = (way(pb.x - pa.x), way(pb.z - pa.z));
+                    // 1.5 m: six cells along a side, five along a diagonal.
+                    let cells = if di != 0.0 && dk != 0.0 { 5 } else { 6 };
+                    short += usize::from(run(a, di, dk, cells) < cells);
                 }
             }
             (jumps, short)
