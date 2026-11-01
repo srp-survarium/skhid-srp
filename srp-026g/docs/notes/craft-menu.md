@@ -13,7 +13,8 @@ upgrade)").
   Upgrade, Wear, Fix, Modification, Appearance). Before, it gave no menu: the window locks the list.
 - **Buy:** as in the inventory: listed when the shop sells the item and the account has unlocked it;
   for an owned item whatever its modifications (`buy-modified.md`). It buys a stock item at the
-  shop's price, without the "already purchased" question.
+  shop's price, after the "already purchased" question for an item owned (the owner, 2026-11-01:
+  only the inventory's right-click Buy skips it; `items.md` §6).
 - **Sell:** an owned item, not in the shop's list, and not the item being upgraded or the donor
   the window holds (the craft would name an item no longer owned); the game's sell dialog asks
   first.

@@ -273,6 +273,34 @@ Not yet seen in a running game: the stash with one camouflage on several
 items, the upgrade window's drop on each, and a match showing each item's
 camouflage.
 
+**Buying an item owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I don't
+get warning that it was already bought"; "it shouldn't just be camo, it should also be scopes and
+other things"; "in shop it shouldn't, it should only skip from rmb on item in your inventory, since
+there it is a voluntary action"):
+
+- Every buy in the lobby goes through `LobbyMenu.try_buy_item` (`GangShop.buyFunction`,
+  `MainScene.buyFunction`). An item owned already that is no stack is asked about there first,
+  with the stock box "This item is already purchased by you. Would you like to buy anyway?"
+  (`st_already_in_inventory`): OK opens the buy dialog, Cancel buys nothing.
+- Not asked: Buy chosen from the right-click menu of an item the player owns, an inventory row or
+  a kit slot (`ItemCard.buyFromOwnMenu`, `try_buy_item`'s `ownItemMenu`): the player's own wish
+  for another, a stock copy of a modified item too (`buy-modified.md`).
+- Asked: everything else. The shop tab (card Buy, double click, right-click Buy on an entry,
+  a drop on the character), the card's Buy or a double click on an owned row, and the craft and
+  attachment windows' Buy (`InventoryList.buyFromCraftMenu`).
+- Never asked: a bundle (its id is no item's) and a stack (ammo, medkits add to theirs).
+- What lacked the box until 2026-11-01:
+  - a camouflage, from anywhere: the stock movie left camouflages out (LIKELY: a copy was worn by
+    one item then);
+  - the card's Buy, a double click and the windows' Buy on an owned row: revision 25 asked only for
+    a buy from a shop entry (`sourceSlot == SHOP`).
+- `ItemCard.acceptAction`, a second buy with its own check that nothing called, is gone.
+- A second camouflage or decal is of no use: one copy is worn on any number of items (above).
+  Weapons take the same category 25 items (`weapon-camo.md`).
+- Ownership comes from the inventory the movie has (`InventoryList.hasItem`). The server buys as
+  before.
+- Check: `scripts/buy-owned/check.sh <lobby_menu.swf>` (Ruffle).
+
 ## 7. The lines of an item's card (2026-10-18)
 
 The lobby's item hover card shows text the data keeps, not values it

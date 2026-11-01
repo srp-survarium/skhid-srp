@@ -2012,7 +2012,15 @@ package survarium.controls
          {
             this.setPrimaryItem(item);
          }
-         this._item_control.onBtnClick1();
+         // an owned item's own menu: no "already purchased" question; a shop entry's: the card's Buy
+         if(item.descriptor <= ItemPlace.INVENTORY)
+         {
+            this._item_control.buyFromOwnMenu();
+         }
+         else
+         {
+            this._item_control.onBtnClick1();
+         }
       }
 
       // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
@@ -3627,8 +3635,8 @@ package survarium.controls
       }
       
       // As the item card's Buy: by the dictionary id, at the shop's price;
-      // the shop names the seller. A buy on an owned item is not asked
-      // whether the account wants another.
+      // the shop names the seller. An item owned already is asked about
+      // first, as every buy (LobbyMenu.try_buy_item).
       private function buyFromCraftMenu(item:Object) : void
       {
          var profile:* = parent != null ? parent["player_profile"] : null;
