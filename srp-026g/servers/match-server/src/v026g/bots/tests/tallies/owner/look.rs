@@ -9,8 +9,9 @@
 //!   bearing to that line's spot (the nearest such line), in bands (15, 45, 90 degrees), and the ticks it walked in all;
 //! - **the first enemy hit of a life**, by play and by shooter (the stand-in human or a bot): the victim's view off the
 //!   shooter at that hit (bands as above), whether it pressed fire before it died or 5 s passed, and whether it died within
-//!   1 s of the hit (A222's window); apart, the victims that walked at the hit, and those that stood in a held lane of
-//!   their team whose shooter is the one who hit them (the hits a watch of the known lanes could have met).
+//!   1 s of the hit (A222's window); apart, the victims that walked at the hit by what each knew of its shooter (in his
+//!   held lane; his place known to its own or its team's senses within 10 s, `Track::own`; nothing): the look each would
+//!   have needed; and any victim that stood in a held lane of its team whose shooter is the one who hit it.
 //!
 //! The angles are on the ground (yaw only). Nothing decides by these counts.
 
@@ -52,6 +53,40 @@ fn lane_band(held: &[HeldLine], feet: Vec3, yaw: f32) -> Option<usize> {
         .map(|line| band(off_deg(yaw, feet, line.at)))
 }
 
+/// What a walking victim knew of the one who hit it, at the hit: the look each case asks of a fix.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Knew {
+    /// It stood in a held lane of its team whose shooter he is (a watch of the known lanes meets him).
+    HisLane,
+    /// Not in his lane, but its own or its team's senses placed him within [`KNOWN_MS`] (a look at where he was meets him).
+    WhereHeWas,
+    /// Neither.
+    Nothing,
+}
+
+impl Knew {
+    const ALL: [Knew; 3] = [Knew::HisLane, Knew::WhereHeWas, Knew::Nothing];
+
+    fn of(in_his_lane: bool, placed: bool) -> Self {
+        match (in_his_lane, placed) {
+            (true, _) => Knew::HisLane,
+            (false, true) => Knew::WhereHeWas,
+            (false, false) => Knew::Nothing,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Knew::HisLane => "his_lane",
+            Knew::WhereHeWas => "where_he_was",
+            Knew::Nothing => "nothing",
+        }
+    }
+}
+
+/// A known enemy's place this fresh counts, ms (as the detour count's `KNOWN_MS`).
+const KNOWN_MS: u32 = 10_000;
+
 /// A first hit of a life, followed until the victim's death or [`FOLLOW_MS`].
 #[derive(Clone, Copy, Debug)]
 struct FirstHit {
@@ -60,8 +95,8 @@ struct FirstHit {
     by_human: bool,
     band: usize,
     fired: bool,
-    /// The victim walked at the hit (as the walking count's ticks).
-    walking: bool,
+    /// The victim walked at the hit (as the walking count's ticks), and what it knew of its shooter.
+    walking: Option<Knew>,
     /// The victim stood in a held lane of its team whose shooter is the one who hit it: the team knew where he shoots from.
     in_his_lane: bool,
 }
@@ -78,9 +113,10 @@ struct ByPlay {
     quick_deaths: u64,
     human_first_hits: [u64; BANDS_DEG.len() + 1],
     human_quick_deaths: u64,
-    /// The first hits on a walking victim, and on one in its shooter's held lane: by band, died within [`QUICK_MS`].
-    walking_first_hits: [u64; BANDS_DEG.len() + 1],
-    walking_quick_deaths: u64,
+    /// The first hits on a walking victim by what it knew of its shooter ([`Knew::ALL`]'s order), and on any victim in its
+    /// shooter's held lane: by band, died within [`QUICK_MS`].
+    walking_first_hits: [[u64; BANDS_DEG.len() + 1]; 3],
+    walking_quick_deaths: [u64; 3],
     lane_first_hits: [u64; BANDS_DEG.len() + 1],
     lane_quick_deaths: u64,
 }
@@ -94,6 +130,8 @@ pub(super) struct LookCounts {
     open: Vec<Option<FirstHit>>,
     /// Whether each place has had its life's first hit (reset when it comes alive again).
     hit_this_life: Vec<bool>,
+    /// The enemies each bot's own or its team's senses placed within [`KNOWN_MS`], at its last read (`Track::own`).
+    placed: Vec<Vec<Place>>,
     hits_seen: usize,
     kills_seen: usize,
     by_play: BTreeMap<u16, ByPlay>,
@@ -101,7 +139,7 @@ pub(super) struct LookCounts {
 
 impl LookCounts {
     pub(super) fn new(n: usize) -> Self {
-        Self { open: vec![None; n], hit_this_life: vec![false; n], ..Self::default() }
+        Self { open: vec![None; n], hit_this_life: vec![false; n], placed: vec![Vec::new(); n], ..Self::default() }
     }
 
     pub(super) fn set_human(&mut self, human: Option<Place>) {
@@ -121,9 +159,9 @@ impl LookCounts {
             counts.human_first_hits[hit.band] += 1;
             counts.human_quick_deaths += u64::from(quick);
         }
-        if hit.walking {
-            counts.walking_first_hits[hit.band] += 1;
-            counts.walking_quick_deaths += u64::from(quick);
+        if let Some(knew) = hit.walking {
+            counts.walking_first_hits[knew as usize][hit.band] += 1;
+            counts.walking_quick_deaths[knew as usize] += u64::from(quick);
         }
         if hit.in_his_lane {
             counts.lane_first_hits[hit.band] += 1;
@@ -135,6 +173,23 @@ impl LookCounts {
 impl Topic for LookCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
+        if place >= self.placed.len() {
+            self.placed.resize(place + 1, Vec::new());
+        }
+        let placed = &mut self.placed[place];
+        placed.clear();
+        if let Some(bot) = bot {
+            placed.extend(
+                bot.memory
+                    .tracks()
+                    .iter()
+                    .filter(|t| t.own.is_some_and(|(_, when)| tick.wrapping_sub(when) <= KNOWN_MS))
+                    .map(|t| t.who),
+            );
+        }
     }
 
     fn bots(&mut self, bots: &Bots, _game: &Game) {
@@ -191,14 +246,16 @@ impl Topic for LookCounts {
             self.hit_this_life[victim] = true;
             let fired = vr.keys & key::FIRE != 0;
             let held = &self.held[usize::from(v.team).min(1)];
+            let in_his_lane = held.iter().any(|l| l.shooter == shooter && l.covers(vr.feet));
+            let placed = self.placed.get(victim).is_some_and(|p| p.contains(&shooter));
             self.open[victim] = Some(FirstHit {
                 at: t,
                 play: vr.play,
                 by_human: self.human == Some(shooter),
                 band: band(off_deg(vr.yaw, vr.feet, sr.feet)),
                 fired,
-                walking: walks(vr),
-                in_his_lane: held.iter().any(|l| l.shooter == shooter && l.covers(vr.feet)),
+                walking: walks(vr).then(|| Knew::of(in_his_lane, placed)),
+                in_his_lane,
             });
         }
         self.hits_seen = run.hits.len();
@@ -225,9 +282,19 @@ impl Topic for LookCounts {
         let mut lines = vec![format!(
             "owner-test look (A229: the view while walking a play; bands up to {BANDS_DEG:?} deg, then past): by play, walking ticks, \
              of them in a held lane of the team by the view off its spot; first enemy hits of a life by the view off the shooter, \
-             fired before death or 5 s, died within 1 s (the stand-in human's apart, the walking victims' apart, and those in their \
-             shooter's held lane apart)"
+             fired before death or 5 s, died within 1 s (the stand-in human's apart; the walking victims' by what each knew of its \
+             shooter: in his held lane, his place known within 10 s, nothing; any victim in its shooter's held lane apart)"
         )];
+        // A walking victim's first hits by what it knew of its shooter: by band, died within 1 s.
+        let walking = |c: &ByPlay| -> serde_json::Map<String, serde_json::Value> {
+            Knew::ALL
+                .iter()
+                .map(|&k| {
+                    let by = serde_json::json!({ "by_band": c.walking_first_hits[k as usize], "died_1s": c.walking_quick_deaths[k as usize] });
+                    (k.name().to_owned(), by)
+                })
+                .collect()
+        };
         for (play, c) in &self.by_play {
             let play = name(*play);
             json.insert(
@@ -240,15 +307,14 @@ impl Topic for LookCounts {
                     "first_hit_died_1s": c.quick_deaths,
                     "human_first_hits_by_band": c.human_first_hits,
                     "human_first_hit_died_1s": c.human_quick_deaths,
-                    "walking_first_hits_by_band": c.walking_first_hits,
-                    "walking_first_hit_died_1s": c.walking_quick_deaths,
+                    "walking_first_hits": walking(c),
                     "lane_first_hits_by_band": c.lane_first_hits,
                     "lane_first_hit_died_1s": c.lane_quick_deaths,
                 }),
             );
             lines.push(format!(
                 "  {play}: walking {} ticks, in a held lane {:?}; first hits {:?}, fired {}, died within 1 s {}; by the human {:?}, died within 1 s {}; \
-                 walking {:?}, died within 1 s {}; in his held lane {:?}, died within 1 s {}",
+                 walking by what it knew of him {}; in his held lane {:?}, died within 1 s {}",
                 c.walk_ticks,
                 c.lane_ticks,
                 c.first_hits,
@@ -256,8 +322,11 @@ impl Topic for LookCounts {
                 c.quick_deaths,
                 c.human_first_hits,
                 c.human_quick_deaths,
-                c.walking_first_hits,
-                c.walking_quick_deaths,
+                Knew::ALL
+                    .iter()
+                    .map(|&k| format!("{} {:?} ({})", k.name(), c.walking_first_hits[k as usize], c.walking_quick_deaths[k as usize]))
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 c.lane_first_hits,
                 c.lane_quick_deaths
             ));
@@ -293,5 +362,14 @@ mod tests {
         assert_eq!(lane_band(&held, feet, kin::yaw_of([0.0, -1.0])), Some(3), "facing the farther one, the nearer behind");
         assert_eq!(lane_band(&held, Vec3::new(30.0, 0.0, 20.0), 0.0), None, "out of every lane");
         assert_eq!(lane_band(&[], feet, 0.0), None);
+    }
+
+    #[test]
+    fn what_a_walking_victim_knew_of_its_shooter_puts_his_lane_first() {
+        assert_eq!(Knew::of(true, true), Knew::HisLane);
+        assert_eq!(Knew::of(true, false), Knew::HisLane);
+        assert_eq!(Knew::of(false, true), Knew::WhereHeWas);
+        assert_eq!(Knew::of(false, false), Knew::Nothing);
+        assert_eq!(Knew::ALL.map(|k| k as usize), [0, 1, 2], "the counts' order");
     }
 }
