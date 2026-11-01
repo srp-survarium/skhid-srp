@@ -85,6 +85,8 @@ pub(crate) struct CamperOptions {
     pub(crate) watch: Watch,
     /// Which team he stands on ([`CamperSide`]).
     pub(crate) side: CamperSide,
+    /// Where each of his lives starts ([`CamperStart`]).
+    pub(crate) start: CamperStart,
 }
 
 impl CamperOptions {
@@ -96,6 +98,7 @@ impl CamperOptions {
         at: CamperAt::Free,
         watch: Watch::Around,
         side: CamperSide::Given,
+        start: CamperStart::Spawn,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -129,6 +132,7 @@ impl CamperOptions {
             at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
             watch: Watch::parse(get("SRP_BENCH_CAMPER_WATCH").as_deref())?,
             side: CamperSide::parse(get("SRP_BENCH_CAMPER_SIDE").as_deref())?,
+            start: CamperStart::parse(get("SRP_BENCH_CAMPER_START").as_deref())?,
         })
     }
 }
@@ -334,12 +338,14 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_AT", "container"),
         ("SRP_BENCH_CAMPER_WATCH", "lane"),
         ("SRP_BENCH_CAMPER_SIDE", "seed"),
+        ("SRP_BENCH_CAMPER_START", "spot"),
     ])
     .expect("known values");
     assert_eq!((all.rule, all.crouch, all.long_gun, all.at), (SpotRule::Hidden, true, true, CamperAt::Container));
     assert!(all.moving.is_some());
     assert_eq!(all.watch, Watch::Lane);
     assert_eq!(all.side, CamperSide::BySeed);
+    assert_eq!(all.start, CamperStart::Spot);
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
         ("SRP_BENCH_CAMPER_CROUCH", "yes"),
@@ -347,6 +353,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_AT", "batery"),
         ("SRP_BENCH_CAMPER_WATCH", "lanes"),
         ("SRP_BENCH_CAMPER_SIDE", "team1"),
+        ("SRP_BENCH_CAMPER_START", "home"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
         assert!(with(pairs).is_err(), "{bad:?}");
@@ -360,7 +367,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);

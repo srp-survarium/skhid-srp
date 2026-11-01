@@ -44,9 +44,38 @@ pub(crate) enum CamperAt {
     Battery,
     /// Within [`AT_NEAR_M`] of his own team's container.
     Container,
-    /// Within [`AT_NEAR_M`] of the other team's spawn, the point they are seen from in the narrowest sector: a spawn exit that
-    /// cannot be flanked, where every sight on him comes from one way.
+    /// [`EXIT_MIN_M`] to [`EXIT_MAX_M`] from the other team's nearest spawn, the point they are seen from in the narrowest sector: a spawn
+    /// exit that cannot be flanked, where every sight on him comes from one way. Outside their spawn area: no route enters it (`Tactics`'s
+    /// spawn rule), so a spot within 25 m was reached in 9 of 211 lives (A212 §2, `wsl-out/batteries/sb-base-efdd5d69-20261101`).
     Exit,
+}
+
+/// The nearest a spawn exit spot ([`CamperAt::Exit`]) lies to the other team's spawns, m: their spawn area, which no route enters.
+const EXIT_MIN_M: f32 = crate::v026g::bots::tactics::SPAWN_AREA_M;
+
+/// The farthest, m: where the live spawn campers stood (A199 runs, the camper's spot to the victim's spawn place over 2,935 spawn kills of
+/// humans: median 35 m, p25 24, p75 46; 3,611 of the old live bots' campers: median 34 m, p75 40).
+const EXIT_MAX_M: f32 = 45.0;
+
+/// Where each life of the stand-in camper starts (`SRP_BENCH_CAMPER_START`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum CamperStart {
+    /// On a spawn point of his team, as every body: he walks to his spot.
+    #[default]
+    Spawn,
+    /// On his spot ([`camper_spot_at`]): a bench of what his victims do (a spawn exit held, §2), not of his walk across the map.
+    Spot,
+}
+
+impl CamperStart {
+    /// Unset: [`Self::Spawn`]; `spawn`, `spot`; anything else is refused.
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("spawn") => Ok(Self::Spawn),
+            Some("spot") => Ok(Self::Spot),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_START={other:?}: spawn or spot")),
+        }
+    }
 }
 
 impl CamperAt {
@@ -62,7 +91,7 @@ impl CamperAt {
     }
 }
 
-/// How near a battery, a container or a spawn the spot of [`CamperAt`] lies, m (an-anticamper §8.1's definition).
+/// How near a battery or a container the spot of [`CamperAt`] lies, m (an-anticamper §8.1's definition).
 const AT_NEAR_M: f32 = 25.0;
 
 /// The candidates a camper of `options` may hold: the spots of [`CamperAt`] over [`camper_candidates`], in the order he takes
@@ -100,7 +129,13 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
     };
     let near: Vec<Candidate> = candidates
         .into_iter()
-        .filter(|c| c.sees > 0 && anchors.iter().any(|a| a.distance_xz(c.at) <= AT_NEAR_M))
+        .filter(|c| {
+            c.sees > 0
+                && match options.at {
+                    CamperAt::Exit => in_exit_band(&anchors, c.at),
+                    _ => anchors.iter().any(|a| a.distance_xz(c.at) <= AT_NEAR_M),
+                }
+        })
         .collect();
     if options.at != CamperAt::Exit {
         return Pool::ByRule(near);
@@ -123,6 +158,12 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
         .collect();
     ranked.sort_by(|(a, ca), (b, cb)| a.total_cmp(b).then(cb.sees.cmp(&ca.sees)));
     Pool::Ranked(ranked.into_iter().map(|(_, c)| c).collect())
+}
+
+/// Whether `at` lies [`EXIT_MIN_M`] to [`EXIT_MAX_M`] from the nearest of the other team's `spawns`.
+fn in_exit_band(spawns: &[Vec3], at: Vec3) -> bool {
+    let nearest = spawns.iter().map(|s| s.distance_xz(at)).fold(f32::INFINITY, f32::min);
+    (EXIT_MIN_M..=EXIT_MAX_M).contains(&nearest)
 }
 
 /// The camper's first spot by [`CamperAt`] over [`camper_candidates`]; none if no route point of his side that sees the other
@@ -981,12 +1022,18 @@ mod tests {
         let tactics = tactics();
         let free = CamperOptions::OFF;
         assert_eq!(camper_spot_at(&tactics, 0, &free), camper_spot_by(&tactics, 0, SpotRule::Most, false));
-        // The soak field has no battery spawners, containers or spawns on the other side: nothing is near.
-        for at in [CamperAt::Battery, CamperAt::Container, CamperAt::Exit] {
+        // The soak field has no battery spawners or containers: nothing is near.
+        for at in [CamperAt::Battery, CamperAt::Container] {
             let options = CamperOptions { at, ..CamperOptions::OFF };
             assert_eq!(camper_spot_at(&tactics, 0, &options), None, "{at:?}");
             assert_eq!(camper_pool(&tactics, 0, &options).pick(options.rule, |_| true), None, "{at:?}");
         }
+        // Its other side's spawns (75, 10) and (75, 20) have no route point of side 0 within 20 m, some 20-45 m off: the exit is one of them.
+        let options = CamperOptions { at: CamperAt::Exit, ..CamperOptions::OFF };
+        let theirs: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| s.team == 1).map(|s| s.position).collect();
+        let (at, _) = camper_spot_at(&tactics, 0, &options).expect("an exit spot 20-45 m from their spawns");
+        assert!(in_exit_band(&theirs, at), "{at:?}");
+        assert_eq!(camper_pool(&tactics, 0, &options).pick(options.rule, |_| true).map(|(p, _)| p), Some(at));
     }
 
     /// The next spot is drawn from the scenario's set and the hidden rule's: a pool that holds only some candidates never gives
@@ -1007,12 +1054,27 @@ mod tests {
         assert_eq!(ranked.pick(SpotRule::Most, |c| c.at.x > 30.0).map(|(at, _)| at.x), Some(40.0));
     }
 
+    /// A spawn exit spot lies outside the other team's spawn area and no farther than the live spawn campers stood, by the nearest of
+    /// their spawns.
+    #[test]
+    fn a_spawn_exit_spot_lies_twenty_to_forty_five_metres_from_their_nearest_spawn() {
+        let spawns = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(100.0, 0.0, 0.0)];
+        assert!(!in_exit_band(&spawns, Vec3::new(10.0, 0.0, 0.0)), "inside their spawn area");
+        assert!(in_exit_band(&spawns, Vec3::new(0.0, 5.0, 30.0)));
+        assert!(!in_exit_band(&spawns, Vec3::new(0.0, 0.0, 50.0)), "farther than the live campers");
+        assert!(!in_exit_band(&spawns, Vec3::new(85.0, 0.0, 0.0)), "the other spawn is 15 m off");
+        assert!(!in_exit_band(&[], Vec3::ZERO), "no spawn of theirs: no exit");
+    }
+
     /// An unknown value is refused, not read as the default.
     #[test]
     fn unknown_settings_are_refused() {
         assert_eq!(CamperAt::parse(None), Ok(CamperAt::Free));
         assert_eq!(CamperAt::parse(Some("exit")), Ok(CamperAt::Exit));
         assert!(CamperAt::parse(Some("exits")).is_err());
+        assert_eq!(CamperStart::parse(None), Ok(CamperStart::Spawn));
+        assert_eq!(CamperStart::parse(Some("spot")), Ok(CamperStart::Spot));
+        assert!(CamperStart::parse(Some("spots")).is_err());
         assert_eq!(MoveOptions::parse(None, None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("0"), None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("1"), Some("30")), Ok(Some(MoveOptions { dwell_s: 30.0 })));
