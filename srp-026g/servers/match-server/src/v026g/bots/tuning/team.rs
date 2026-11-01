@@ -545,8 +545,11 @@ pub struct ThreatTuning {
     /// default: the bench has one stand-in camper, so no by-side bench of a pair yet.
     pub pair_target: Option<PairTarget>,
     /// A229 ([`WalkWatch`], `plays/watch.rs`): a play's walk with a known threat ahead looks at it (the spot of a held lane
-    /// the bot stands in; with `known`, an enemy's last known place) instead of along the route. OFF by default until its
-    /// by-side bench.
+    /// the bot stands in; with `known`, an enemy's last known place) instead of along the route. OFF by default: by side
+    /// against the stand-in human (128 pairs, 2026-11-01) kills +0.4 % (z +0.3) and deaths -0.4 % (z -0.3), but a watched
+    /// walk takes no sprint, so the objective plays lost theirs (Intercept sprinting -59 %, Escort -43 %): delivered -8 %
+    /// (z -2.4), enemy carriers killed -24 % (z -3.1), own carriers lost +32 % (z +3.1)
+    /// (`traces-20261028/fx-threat-obj-a229-a231-note.md` §6).
     pub walk_watch: Option<WalkWatch>,
 }
 
