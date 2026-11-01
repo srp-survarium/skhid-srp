@@ -3047,9 +3047,6 @@ va	status	ref_021d	name
 0x0050d670	inferred-high	0x00371010	Scaleform::Render::Renderer2D::BeginFrame
 0x0050fec0	inferred-high	0x00373770	Scaleform::Render::ContextImpl::RTHandle::NextCapture
 0x00543cb0	inferred-medium	0x0023721c	stlp_std::basic_streambuf<char,stlp_std::char_traits<char> >::showmanyc
-0x00572660	inferred-high	0x003d8270	Scaleform::Render::DrawableImageContext::OnNextCapture
-0x005ed340	inferred-high	0x00445aa0	Scaleform::Render::DICommandQueue::updateCPUModifiedImagesRT
-0x005ee080	inferred-high	0x004467e0	Scaleform::Render::DICommandQueue::OnNextCapture
 0x006ac5b0	inferred-medium	0x002372ea	stlp_std::basic_streambuf<char,stlp_std::char_traits<char> >::underflow
 0x008521a0	inferred-medium	0x0068cde5	`dynamic initializer for 's_net_stats_match_sent_messages_previous''
 0x00854750	inferred-high	0x0068de1e	survarium::`dynamic initializer for 'g_file_opener''

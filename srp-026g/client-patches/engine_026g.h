@@ -17,6 +17,9 @@ struct cc_bool;
 struct cc_float;
 struct cc_string;
 struct core_world;
+struct critical_section;
+struct di_command_queue;
+struct drawable_image_context;
 struct engine_cfg;
 struct game_allocator;
 struct game_effect;
@@ -56,6 +59,7 @@ struct query_function;
 struct query_user_data;
 struct ray_result;
 struct render_model_instance;
+struct render_notify;
 struct render_visual;
 struct resource_request;
 struct scene_model;
@@ -387,5 +391,20 @@ void engine_set_listener(struct sound_scene *scene, const float *position, const
 
 /* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
 void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
+
+/* the IAT slot 0x8700d0 (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_enter_critical_section)(struct critical_section * section);
+
+/* the IAT slot 0x8700cc (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_leave_critical_section)(struct critical_section * section);
+
+/* 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue);
+
+/* 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify);
+
+/* 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_di_queue_release(struct di_command_queue *queue);
 
 #endif

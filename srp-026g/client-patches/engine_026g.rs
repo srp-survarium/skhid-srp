@@ -217,6 +217,12 @@ unsafe extern "thiscall" {
     pub fn engine_close_current_match(client: *mut c_void, reason: u32);
     /// 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
     pub fn engine_gfx_set_member(interface: *mut c_void, target: *mut c_void, name: *const u8, value: *const c_void, display: u32) -> u8;
+    /// 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_capture_remove(context: *mut c_void, queue: *mut c_void);
+    /// 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_queue_next_capture(queue: *mut c_void, notify: *mut c_void);
+    /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+    pub fn engine_di_queue_release(queue: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -237,4 +243,8 @@ unsafe extern "C" {
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x870064 (an import, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
+    /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
+    pub static engine_enter_critical_section: unsafe extern "stdcall" fn(*mut c_void);
+    /// the IAT slot 0x8700cc (an import, stdcall): void engine_leave_critical_section(struct critical_section *section)
+    pub static engine_leave_critical_section: unsafe extern "stdcall" fn(*mut c_void);
 }

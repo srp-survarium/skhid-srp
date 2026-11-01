@@ -2871,6 +2871,87 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
+; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
+global scaleform_capture_on_next_capture
+extern hook_scaleform_capture_on_next_capture
+scaleform_capture_on_next_capture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_scaleform_capture_on_next_capture
+    mov edx, scaleform_capture_on_next_capture_replay
+    cmp eax, 0
+    je scaleform_capture_on_next_capture_go
+    mov edx, 0x57267b
+    cmp eax, 1
+    je scaleform_capture_on_next_capture_go
+    mov edx, 0x57269c
+    cmp eax, 2
+    je scaleform_capture_on_next_capture_go
+    ud2
+scaleform_capture_on_next_capture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+scaleform_capture_on_next_capture_replay:
+    db 0x8b, 0x4e, 0x44, 0x8d, 0x7e, 0x40
+    jmp 0x57267b
+
+; 0x5ed1e0 DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4): lohook -> scaleform_capture_on_queue_destroy
+global scaleform_capture_on_queue_destroy
+extern hook_scaleform_capture_on_queue_destroy
+scaleform_capture_on_queue_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_scaleform_capture_on_queue_destroy
+    mov edx, scaleform_capture_on_queue_destroy_replay
+    cmp eax, 0
+    je scaleform_capture_on_queue_destroy_go
+    mov edx, 0x5ed1e6
+    cmp eax, 1
+    je scaleform_capture_on_queue_destroy_go
+    ud2
+scaleform_capture_on_queue_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+scaleform_capture_on_queue_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
+    jmp 0x5ed1e6
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

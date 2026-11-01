@@ -5113,3 +5113,16 @@ va	name	location	role	basis
 0x000de0c0	vostok::command_line::key_initializator::operator()	ESI	parsed key name	observed
 0x000de0c0	vostok::command_line::key_initializator::operator()	entry ESP+4	parsed value string	observed
 0x000df020	vostok::command_line::iterate_keys<key_initializator>	entry ESP+4	empty predicate storage (the caller passes a zero byte)	observed
+0x00505ca0	Scaleform::RefCountImpl::AddRef	ECX	the counted object (this; its count at +4)	observed
+0x00505cb0	Scaleform::RefCountImpl::Release	ECX	the counted object (this; its count at +4): a DICommandQueue at patch 93's release of the queue it held	observed
+0x005725f0	Scaleform::Render::DrawableImageContext::ExecuteNextCapture	ECX	the drawable image context (this)	observed
+0x005725f0	Scaleform::Render::DrawableImageContext::ExecuteNextCapture	entry ESP+4	the render notify of the capture	observed
+0x00572660	Scaleform::Render::DrawableImageContext::OnNextCapture	ECX	the context's ContextCaptureNotify base (context+8)	observed
+0x00572660	Scaleform::Render::DrawableImageContext::OnNextCapture	entry ESP+4	the render notify of the capture	observed
+0x005726b0	Scaleform::Render::DrawableImageContext::AddCaptureNotify	ECX	the drawable image context (this; its lock at +24h, its list's end at +40h)	observed
+0x005726b0	Scaleform::Render::DrawableImageContext::AddCaptureNotify	entry ESP+4	the queue to add (a DICommandQueue, its links prev +8, next +0Ch)	observed
+0x005726f0	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify	ECX	the drawable image context (this; its lock at +24h)	observed
+0x005726f0	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify	entry ESP+4	the queue to remove (a DICommandQueue, its links prev +8, next +0Ch)	observed
+0x005ed1e0	Scaleform::Render::DICommandQueue::~DICommandQueue	ECX	the command queue (this; its context at +34h)	observed
+0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	ECX	the command queue (this)	observed
+0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	entry ESP+4	the render notify of the capture	observed

@@ -109,6 +109,11 @@ global engine_query_one
 global engine_release_emitter
 global engine_set_listener
 global engine_medkit_set_active
+global engine_enter_critical_section
+global engine_leave_critical_section
+global engine_di_capture_remove
+global engine_di_queue_next_capture
+global engine_di_queue_release
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -136,6 +141,11 @@ engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_in
 engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
 engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 engine_gfx_set_member equ 0x7c6a20   ; 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
+engine_enter_critical_section equ 0x8700d0   ; the IAT slot 0x8700d0 (an import, stdcall)
+engine_leave_critical_section equ 0x8700cc   ; the IAT slot 0x8700cc (an import, stdcall)
+engine_di_capture_remove equ 0x5726f0   ; 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
+engine_di_queue_next_capture equ 0x5ee080   ; 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
+engine_di_queue_release equ 0x505cb0   ; 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

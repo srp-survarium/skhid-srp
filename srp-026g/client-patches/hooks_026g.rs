@@ -1543,6 +1543,41 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- scaleform_capture (patch 93) ----
+
+/// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ScaleformCaptureOnNextCaptureExit { Done }
+/// The entry `scaleform_capture_on_next_capture` (0x572675, DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scaleform_capture_on_next_capture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scaleform_capture_on_next_capture` calls this, from the game's jump at 0x572675,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scaleform_capture::on_next_capture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- scaleform_capture (patch 93) ----
+
+/// The entry `scaleform_capture_on_queue_destroy` (0x5ed1e0, DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scaleform_capture_on_queue_destroy` calls this, from the game's jump at 0x5ed1e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scaleform_capture::on_queue_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

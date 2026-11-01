@@ -2161,3 +2161,11 @@ va	name	source	ret_cleanup	result
 0x000ddff0	vostok::command_line::key::initialize(pcstr)	manual	4	
 0x000de0c0	vostok::command_line::key_initializator::operator()	manual	4	
 0x000df020	vostok::command_line::iterate_keys<key_initializator>	manual	0	
+0x00505ca0	Scaleform::RefCountImpl::AddRef	manual	0	void; InterlockedExchangeAdd(this+4, 1)
+0x00505cb0	Scaleform::RefCountImpl::Release	manual	0	void; InterlockedExchangeAdd(this+4, -1), at 0 its vtable+0 (scalar deleting destructor) with 1
+0x005725f0	Scaleform::Render::DrawableImageContext::ExecuteNextCapture	manual	4	void; the context's vtable+4: the inner render Context's NextCapture (0x50F920) when context+18h is set
+0x00572660	Scaleform::Render::DrawableImageContext::OnNextCapture	manual	4	void; ContextCaptureNotify's vtable+4 (RTHandle::NextCapture 0x50FEC0's call eax at 0x5100CB), render thread
+0x005726b0	Scaleform::Render::DrawableImageContext::AddCaptureNotify	manual	4	void; appends the queue to the context's list under the context's lock (+24h)
+0x005726f0	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify	manual	4	void; unlinks the queue under the context's lock (+24h) and zeroes its links; a queue already unlinked (next 0) is left as is
+0x005ed1e0	Scaleform::Render::DICommandQueue::~DICommandQueue	manual	0	void; writes its count 2, removes itself from its context (0x5ED1F4), releases the context, frees its commands, writes its count 0
+0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	manual	4	void; AddRef, updateCPUModifiedImagesRT (takes the queue's lock +44h), ExecuteNextCapture, Release

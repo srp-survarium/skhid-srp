@@ -450,3 +450,12 @@ survarium::victory_item_status	size	0x100	size	a battery's record (on_event 0x33
 survarium::gather_victory_items_rule_core	items_begin	0x110	ptr<survarium::inventory_slot>	its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
 survarium::gather_victory_items_rule_core	items_end	0x114	ptr<survarium::inventory_slot>	the vector's end (0x313D70)
 survarium::match_place	team	0x45EC	u32	the place's team, 0 or 1 (on_event 0x334AE3, is_solo_delivery 0x334D28)
+scaleform::drawable_image_capture_notify	context	-0x8	obj<scaleform::drawable_image_context>	the DrawableImageContext this ContextCaptureNotify base is part of (context+8: OnNextCapture 0x572660's ECX, kept in ESI)
+scaleform::drawable_image_context	queue_lock	0x24	obj<windows::critical_section>	the lock of its queues' list (a Scaleform::Lock): Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) hold it for their link writes alone; the stock OnNextCapture (0x572660) and OnCapture (0x5744E0) walk the list without it
+scaleform::drawable_image_context	queues	0x40	obj<scaleform::di_queue_link>	its queues' list's end (the sentinel): its next (+4Ch) the first queue, its prev (+48h) the last (AddCaptureNotify 0x5726B0 appends there)
+scaleform::di_queue_link	next	0xC	ptr<scaleform::di_queue_link>	the next queue's link or the context's end (a list node's next; RemoveCaptureNotify 0x5726F0 zeroes a removed queue's)
+scaleform::di_queue_link	queue	0x0	obj<scaleform::di_command_queue>	the queue this link is (a DICommandQueue is its own list node, its prev at +8, next at +0Ch); not when the link is its context's end
+scaleform::di_command_queue	references	0x4	u32	its reference count (RefCountImpl: AddRef/Release 0x505CA0/0x505CB0 by InterlockedExchangeAdd; at 0 Release destroys it; the destructor 0x5ED1E0 then writes 2, later 0)
+scaleform::di_command_queue	context	0x34	ptr<scaleform::drawable_image_context>	its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
+scaleform::render_notify	vtable	0x0	u32	a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
+scaleform::di_command_queue	link	0x0	obj<scaleform::di_queue_link>	itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)

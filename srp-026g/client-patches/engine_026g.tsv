@@ -104,3 +104,8 @@ engine_query_one	0x0e5b60	EAX:requests ECX:count ESP+4:callback ESP+8:allocator 
 engine_release_emitter	0x011540	ECX:pointer	void engine_release_emitter(struct sound_emitter **pointer)	thunk	
 engine_set_listener	0x0587d0	ESI:scene EAX:position ESP+4:front ESP+8:top	void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top)	thunk	
 engine_medkit_set_active	0x33d390	ESP+4:medkit AL:active ESP+8:time	void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)	thunk	
+engine_enter_critical_section	0x8700d0	-	void engine_enter_critical_section(struct critical_section *section)	import	
+engine_leave_critical_section	0x8700cc	-	void engine_leave_critical_section(struct critical_section *section)	import	
+engine_di_capture_remove	0x5726f0	ECX:context ESP+4:queue	void engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue)	thiscall	
+engine_di_queue_next_capture	0x5ee080	ECX:queue ESP+4:notify	void engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify)	thiscall	
+engine_di_queue_release	0x505cb0	ECX:queue	void engine_di_queue_release(struct di_command_queue *queue)	thiscall	
