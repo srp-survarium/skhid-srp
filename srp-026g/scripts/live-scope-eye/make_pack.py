@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """make_pack.py: the live scope variants' reticles back at the screen's centre (pack live-scope-eye,
-edit list live-scope-eye-1.json; srp-026g/docs/notes/weapon_scopes.md, section 8).
+edit list live-scope-eye-1.json; srp-026g/docs/notes/live-scope-eye.md).
 
 usage: python3 -I make_pack.py --live <folder> --compose <vostok-port> --out <packs folder>/live-scope-eye-<version>
 
@@ -249,7 +249,7 @@ def build(args, work):
     pack = {'format_version': 1, 'id': PACK_ID, 'version': VERSION, 'target_build': '0.26g',
             'description': 'the live scope variants\' reticles back at the screen\'s centre: an aimed model on the '
                            'tilted line of sight of each weapon model whose aim locator is turned '
-                           '(srp-026g/docs/notes/weapon_scopes.md, section 8)',
+                           '(srp-026g/docs/notes/live-scope-eye.md)',
             'operations': operations, 'server': {'items': []},
             'notes': ['made by srp-026g/scripts/live-scope-eye/make_pack.py']}
     for p, data in files.items():
