@@ -353,6 +353,7 @@ def build(args, work):
         if roots.file(cfg) is None:
             sys.exit(f'{gun}: no {cfg} in --guns')
         weapons[gun] = (cfg, lib.leaves(roots.file(cfg))['/object/model'])
+    drops = {g: ([] if d == '-' else d.split()) for g, _k, _m, _f, d in survey.rows('guns.tsv')}
     variants = our_variants(args.live)
     refs = references(args, work, donor, optics, fits, variants, weapons, roots)
     new_mounts = mounts_new()
@@ -417,19 +418,29 @@ def build(args, work):
             files.update(rs.files_of(idle_out, work))
             files.update(rs.files_of(aim_out, work))
             change = None
+            drop = drops.get(gun, [])
+            if kind == 'S' and drop:
+                # the gun's model without the sight under the optic, its eye its own
+                change = f'{base_model}_n_optic'
+                target = work / 'models' / (change + '.skinned_model')
+                if not target.exists():
+                    shutil.copytree(from_dir, target)
+                    leave_out(target, drop)
+                    files.update(rs.files_of(target, work))
             if kind == 'C':
                 # the aim locator's own position: the eye less its bone's origin
                 needed = (sp[0] - eye[0] - aim_bone[0], sp[1] + eye[1] - aim_bone[1])
                 has_point = lib.locator(lib.leaves(base_dir / 'render/export_properties'), 'scope_point')
-                candidates = ([(base_model, base_dir)] if has_point else []) + eyes.get(gun, [])
+                candidates = ([(base_model, base_dir)] if has_point and not drop else []) + eyes.get(gun, [])
                 candidates += [(v['change'], lib.model_dir(args.live, v['change'])) for v in live_variants.values()
-                               if v['weapons'] == [gun] and v['change']]
+                               if v['weapons'] == [gun] and v['change'] and not drop]
                 change = rs.eye_model(candidates, base_model, needed)
                 if change is False:
                     change = f'{base_model}_n_{short}'
                     target = work / 'models' / (change + '.skinned_model')
                     shutil.copytree(from_dir, target)
                     rs.moved_eye(target, needed)
+                    leave_out(target, drop)
                     files.update(rs.files_of(target, work))
                     eyes.setdefault(gun, []).append((change, target))
                 elif change is None:
@@ -457,6 +468,26 @@ def build(args, work):
                                    ref['leaves'], ref['idle']))
     write_pack(args, files, entries, report, icons)
     write_edit_list(args.live, compat, weapons, placeholders, roots)
+
+
+def leave_out(model, surfaces):
+    """A copied model without `surfaces`: out of its LOD lists and its render folder."""
+    if not surfaces:
+        return
+    path = model / 'settings'
+    buf = bytearray(path.read_bytes())
+    d = lib.leaves(path)
+    for s in surfaces:
+        lists = sorted({k.rsplit('[', 1)[0] for k, v in d.items() if k.startswith('/lod_hierrarchy/') and v == s})
+        if not lists:
+            sys.exit(f'{model}: no surface {s}')
+        for lst in lists:
+            rs.ce.remove_item(buf, lst.lstrip('/'), s)
+        shutil.rmtree(model / 'render' / s)
+    path.write_bytes(bytes(buf))
+    left = lib.leaves(path)
+    if any(v in surfaces for k, v in left.items() if k.startswith('/lod_hierrarchy/')):
+        sys.exit(f'{model}: a surface left out is still listed')
 
 
 def shop_item(args, files, entries, name, dict_id, price, icon, fov, first, texts, model):

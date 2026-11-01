@@ -254,3 +254,49 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
   scope's aimed view on a few weapons (the reticle centred, the dot in the window, the zoom), the
   outside look on the AKs' side rail and the M4's carry handle, the Leupold 3-7's eyepiece far back
   on the AKs, the icons, the CompM4 at x2.
+
+## 7. Scope fits for the release-41 guns, and the Walther Competition II (2026-11-01)
+
+The owner (2026-11-01): "Properly port all weapons. And their attachments (all we can)." Every scope
+we sell goes on each release-41 gun 0.69d0 gives it to; the one optic of 0.69d0 and 0.46c2 that we
+did not sell, the Walther Competition II collimator, becomes a shop scope. Pack `scope-fits`, edit
+list `scope-fits-1`, made by `scripts/scope-fits` (prepare_donor.sh, prepare_live.sh, survey.py,
+make_pack.py, review.py).
+
+- **What else exists:** 0.69d0's optics are 0.46c2's and more. Of them we did not sell the Walther
+  Competition II (the HK416's and MSBS's stock collimator), the EOTech G33 x3 magnifier (it sits behind a
+  collimator: no scope alone, 0.26g has one zoom a scope) and the Leupold 3-7 "summer17" (a skin). Laser
+  sights and suppressors are not scopes (and no suppressors, ever).
+- **The Walther Competition II:** item 2120, seller 0, 8,000 silver, x1.25 (fov 0.8, as 0.69d0's
+  aim_zoom 1.2), its icon in LobbyMenu_AmmoIcons [20, 4], the texts our stock Walther has
+  (`st_walther_competition2_collimator_*`). Made as the rifle scopes' collimators: 0.69d0's module and
+  aimed model, our red dot at its eye 0.6 m on; drawn with the stock Walther's material (the same
+  mesh and UVs, turned half about Y: 0.26g's own textures, nothing imported). It goes on each
+  weapon 0.69d0 gives it to that has a collimator mount of ours (section 6's mounts.tsv) and on the
+  release-41 guns, but not the HK416 and MSBS (it is their stock scope).
+- **Where an optic goes** (`survey.py`, `mounts.tsv`): where 0.69d0 mounts it: the gun's slot, or the
+  rail a module adds (the MP5's claw mount, the FAMAS carry-handle rail, the G3's claw mount, the
+  KS-23M's and PPSh's medium rail, the AKMSU's Zenit B-18 on its cover, the SVU's dovetail mount,
+  the pistols' bridge mount), the rail drawn with the optic. The new guns' meshes are 0.69d0's vertex
+  for vertex (checked), so 0.69d0's locators hold, each in its bone's frame (the Minimi's rail hangs
+  on its feed cover's bone). A chain that needs a module our gun does not have in its mesh (a
+  replaced handguard) is not taken. The variant's translation is the scope frame's: the weapon
+  draws a scope at scope_point turned half about Y, as 0.69d0 draws a module at its locator
+  (PROVEN: patch 19's AK-12 and M4A1 variants sit exactly where 0.69d0's locators put the module).
+- **How a variant is made** (`make_pack.py`): from a variant of ours of that scope (its reference: the
+  same models, materials, red dot and eyepiece players know), the module's mesh found in it (exactly,
+  or by its bounding box: our Kobra, DeltaPoint and old PSO-1 are the same shapes written in another
+  order; our Leupold Mk4's turret is bigger, its lens the same), moved to the gun's mount. A
+  collimator's eye: the gun's model copied with only its `aim` locator moved onto the sight line
+  (as section 6). A scope's aimed model (its eyepiece) sits before the gun's own eye as it sits
+  before the reference's; the gun's model is its own (hidden when aiming). The L85A2's and Fort-401's
+  rear sights, which their port baked in on the very rail the optic takes (0.69d0 takes the
+  module off for it), are left out of the model every scope variant of theirs sets.
+- **Fits** (fit.tsv): 212 variants, dict ids 2901 on (claimed to 3299). No scope: the OTs-14 Groza
+  (0.69d0 mounts its optics only on the tactical handguard that replaces its own; our 0.31a2 Groza has
+  its carry handle and handguard in its mesh) and the Mauser (0.69d0 gives it none). The Docter fits
+  none (0.69d0 links it but gives it no slot on them).
+- **Checked:** `release/build-content` with the three weapon packs; srp starts on the data; a review
+  sheet (`review.py`) of each gun with a collimator and a scope, outside and aimed: optics on their
+  rails, reticles centred, red dots in the windows. The pack is made from the weapon packs' files
+  (`guns.sha256`): a new version of a weapon pack means survey.py and make_pack.py again.
