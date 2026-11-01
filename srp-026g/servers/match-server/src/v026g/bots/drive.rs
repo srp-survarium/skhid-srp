@@ -2340,9 +2340,14 @@ impl Gates {
     }
 
     /// Whether the route stays while the legs stand with no goal: standing to throw a smoke, with
-    /// `smoke.throw_keeps_route` (the walk goes on along the route its crossing was planned for).
+    /// `smoke.throw_keeps_route` (the walk goes on along the route its crossing was planned for), and holding for a
+    /// cloud short of the crossing (`smoke.wait_for_cloud`: the walk goes on through it).
     pub(super) fn keeps_route(legs: Option<Legs>, switch: bool) -> bool {
-        switch && legs.is_some_and(|legs| legs.why == LegsWhy::ThrowingSmoke)
+        legs.is_some_and(|legs| match legs.why {
+            LegsWhy::ThrowingSmoke => switch,
+            LegsWhy::WaitingForCloud => true,
+            _ => false,
+        })
     }
 }
 
@@ -2495,6 +2500,7 @@ mod tests {
         let legs = |why| Some(Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why });
         assert!(Gates::keeps_route(legs(LegsWhy::ThrowingSmoke), true));
         assert!(!Gates::keeps_route(legs(LegsWhy::ThrowingSmoke), false));
+        assert!(Gates::keeps_route(legs(LegsWhy::WaitingForCloud), false), "a hold for a cloud walks on through the crossing");
         assert!(!Gates::keeps_route(legs(LegsWhy::Throwing), true), "a frag throw drops it as before");
         assert!(!Gates::keeps_route(legs(LegsWhy::Range), true));
         assert!(!Gates::keeps_route(None, true));

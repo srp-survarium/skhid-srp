@@ -102,6 +102,8 @@ pub(super) struct SmokeCounts {
     /// The eyes' counts on this thread when the match began (`smoke::tally::counts`).
     eyes_start: [[u64; smoke::tally::EVENTS]; 2],
     throws_start: smoke::tally::Throws,
+    /// [A208] The holds for a cloud and the thrown smokes' crossings at the match's start.
+    waits_start: smoke::tally::Waits,
     /// The tracker's throws and clouds at the last tick, and its clouds then; grenade keys of humans whose pockets
     /// are not known (a real cloud the model cannot make).
     thrown: Thrown,
@@ -157,6 +159,7 @@ impl SmokeCounts {
         Self {
             eyes_start: smoke::tally::counts(),
             throws_start: smoke::tally::throws(),
+            waits_start: smoke::tally::waits(),
             thrown: Thrown::default(),
             clouds: Vec::new(),
             unknown_pockets: 0,
@@ -557,6 +560,14 @@ impl SmokeCounts {
                 .collect()
         };
         let by_who = |who: usize| -> [[[u32; 5]; 3]; 2] { [deaths[0][who], deaths[1][who]] };
+        // [A208] The holds for a cloud and the thrown smokes' crossings, by team, each by whose cloud ([CrossLane,
+        // AntiSniper, ObjectiveActor, Breach, mates]).
+        let now_waits = smoke::tally::waits();
+        let waits = |what: smoke::tally::Wait| -> serde_json::Value {
+            let w = what as usize;
+            let team = |t: usize| -> Vec<u64> { (0..smoke::WaitsFor::COUNT).map(|f| now_waits[t][f][w] - self.waits_start[t][f][w]).collect() };
+            serde_json::json!([team(0), team(1)])
+        };
         let json = serde_json::json!({
             "smoke_bot_throws_by_use": uses_json,
             "smoke_bot_thrown_by_role": roles_json,
@@ -596,6 +607,25 @@ impl SmokeCounts {
             "smoke_top_deaths_by_class": classes(0),
             "smoke_rest_deaths_by_class": classes(1),
         });
+        let mut json = json;
+        if let Some(map) = json.as_object_mut() {
+            use smoke::tally::Wait::{Begun, Cap, Close, CrossedHidden, CrossedNever, CrossedOpen, Died, Fight, HeldMs, Hidden, Hit};
+            for (key, what) in [
+                ("smoke_hold_begun", Begun),
+                ("smoke_hold_hidden", Hidden),
+                ("smoke_hold_fight", Fight),
+                ("smoke_hold_hit", Hit),
+                ("smoke_hold_close", Close),
+                ("smoke_hold_cap", Cap),
+                ("smoke_hold_died", Died),
+                ("smoke_hold_ms", HeldMs),
+                ("smoke_crossed_hidden", CrossedHidden),
+                ("smoke_crossed_open", CrossedOpen),
+                ("smoke_crossed_never", CrossedNever),
+            ] {
+                map.insert(key.to_owned(), waits(what));
+            }
+        }
         let text = format!(
             "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); spot rules: plans refused, smoke there {:?}, a mate's claim {:?}, crossings under a cloud {:?}; plans skipped while sprinting {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; anti-sniper throws by class {:?}: {:?}; sniper crossings by [not smoked, smoked] [crossings, crossed alive, died to him, died to another] {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),

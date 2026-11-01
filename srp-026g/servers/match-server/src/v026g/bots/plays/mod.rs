@@ -509,6 +509,8 @@ pub struct BotFacts<'a> {
     /// Where its Crossfire's enemy was when the play began, and when
     /// (`commit.crossfire_point`).
     pub held_choke: Option<(Place, Vec3, u32)>,
+    /// [threat.concede, item 15] Its last hit from a shooter it sensed (`Reflex::last_hit`).
+    pub hit: Option<super::concede::Hit>,
 }
 
 /// A play that fails this soon after it starts ...
@@ -1031,6 +1033,70 @@ impl Ctx<'_> {
         memory.way_weight(exposed_m)
     }
 
+    /// [threat.concede] A play's share of its score for aiming into a conceded area (design-p1c §3: its target within the
+    /// shooter's area or in his lanes, `Picture::conceded_at`): a fight or roam play is refused (0), so the bot plays
+    /// elsewhere; an objective or alarm play is weighed by `Concede::objective_weight`, never refused, so another objective
+    /// goes first and the only one is not stalled (item 13). 1 with the switch off, nothing conceded, no place for the
+    /// target, or a play for the bot itself (Retreat, Heal, Resupply).
+    ///
+    /// The same holds on a tried area for a try like the last (`concede::like_last`, design-p1c §3 "each retry must differ
+    /// from the last"): the same lane within `retry_s` of a death there. A K2 job's play (its target the spot) is not a
+    /// lone try: its job was checked against the last try when it opened.
+    fn concede_weight(&self, kind: PlayKind, target: TargetRef, rank: Rank) -> f32 {
+        use super::concede::{Tally, TryKind, like_last, tally};
+        let Some(concede) = self.tuning.threat.concede else {
+            return 1.0;
+        };
+        let offers = &self.team.threat.concede;
+        let lone_hit = concede.lone_peek.zip(self.bot.hit).is_some_and(|(lone, hit)| self.now < hit.at.saturating_add(lone.wait_ms()));
+        if (offers.conceded.is_empty() && offers.tried.is_empty() && !lone_hit)
+            || self.team.threat.held.is_empty()
+            || matches!(kind, PlayKind::Retreat | PlayKind::Heal | PlayKind::Resupply)
+        {
+            return 1.0;
+        }
+        let Some(to) = self.point_of(target) else {
+            return 1.0;
+        };
+        let try_kind = if kind == PlayKind::Answer { TryKind::Answer } else { TryKind::Peek };
+        let rules = concede.rules();
+        let (refused, weighed) = if self.team.threat.conceded_at(to).is_some() {
+            (Tally::PlayRefused, Tally::ObjectiveWeighed)
+        } else if !matches!(target, TargetRef::ThreatSpot(_))
+            && like_last(&self.team.threat, to, self.me.feet, try_kind, self.now, &rules)
+        {
+            (Tally::PlayRefusedLike, Tally::ObjectiveWeighedLike)
+        } else if let Some(lone) = concede.lone_peek
+            && let Some(hit) = self.bot.hit
+            && self.now < hit.at.saturating_add(lone.wait_ms())
+            && !matches!(target, TargetRef::ThreatSpot(_))
+            && super::concede::into_hit_lane(&self.team.threat, &hit, to, self.me.feet, &rules)
+        {
+            // Item 15: back into the lane it was hit from; with a mate near it goes (two together).
+            let mate_near = self
+                .view
+                .team(self.me.team)
+                .any(|p| p.place != self.me.place && p.alive && p.feet.distance_xz(self.me.feet) <= lone.mate_m);
+            if mate_near {
+                tally(self.me.team, Tally::LonePeekWithMate);
+                return 1.0;
+            }
+            (Tally::LonePeekRefused, Tally::LonePeekRefused)
+        } else {
+            return 1.0;
+        };
+        match rank {
+            Rank::Objective | Rank::Alarm => {
+                tally(self.me.team, weighed);
+                concede.objective_weight()
+            }
+            Rank::Fight | Rank::Roam => {
+                tally(self.me.team, refused);
+                0.0
+            }
+        }
+    }
+
     /// [threat.sniper_memory] The metres of the straight way from the bot to `to` that lie in the held sensed snipers'
     /// lanes (`Picture::sniper_regions`, the regions their casts see), sampled every `threat::STEP_M` (as `way_home`
     /// weighs its ways: straight, the floors under them).
@@ -1117,7 +1183,7 @@ impl Ctx<'_> {
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
         if !score.is_zero() {
-            score = Score::new(score.get() * self.sniper_way_weight(kind, target));
+            score = Score::new(score.get() * self.sniper_way_weight(kind, target) * self.concede_weight(kind, target, play.rank));
         }
         #[cfg(test)]
         fairness::scoring(None);
