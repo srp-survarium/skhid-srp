@@ -78,9 +78,11 @@
 //!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default half) of their silver and
 //!   experience, and so do the premium half and the items' bonus counted
 //!   from them; reputation, the drop and the pay of a level reached are as
-//!   in any match. It counts for no quest and no daily bonus, and, as every
-//!   match with a bot of the server's, moves no rating and no balance
-//!   rating.
+//!   in any match, but at most at match level 7
+//!   ([`super::pvb::MAX_REWARD_LEVEL`] for the pay,
+//!   [`super::pvb::MAX_DROP_LEVEL`] for the drop). It counts for no quest
+//!   and no daily bonus, and, as every match with a bot of the server's,
+//!   moves no rating and no balance rating.
 //! - **A room with a PIN's match** ([`MatchResult::private`]; the
 //!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
 //!   too: no experience, silver, reputation, quest, daily bonus, drop or
@@ -1422,6 +1424,9 @@ struct Shared<'a> {
     reward_level: u16,
     /// The reward level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
+    /// Drop-table level, capped at seven for PvE. The match's actual
+    /// level and equipment remain unchanged.
+    drop_level: u16,
     /// A test bot was in the match, or it is a room with a PIN's
     /// ([`MatchResult::private`]): nobody's rating moves.
     unrated: bool,
@@ -1447,6 +1452,11 @@ impl<'a> Shared<'a> {
         } else {
             result.match_level
         };
+        let drop_level = if result.vs_bots {
+            result.match_level.min(super::pvb::MAX_DROP_LEVEL)
+        } else {
+            result.match_level
+        };
         let multipliers = Dictionary::shared()
             .match_level(usize::from(reward_level))
             .map_or((1.0, 1.0, 1.0), |level| {
@@ -1466,6 +1476,7 @@ impl<'a> Shared<'a> {
             weights: static_info::weights_of(result.game_mode, terms.score_weights),
             reward_level,
             multipliers,
+            drop_level,
             unrated: false,
             money_floor: 0,
         }
@@ -2126,7 +2137,7 @@ impl<'a> Shared<'a> {
             // in match" under it, and prints either × 100 (`results.md`
             // §9), so a fraction always has the second label.
             full.drop_chances = [base, from_result, from_premium, 0.0];
-            let level = self.result.match_level.min(u16::from(u8::MAX)) as u8;
+            let level = self.drop_level.min(u16::from(u8::MAX)) as u8;
             let found = (rng.below(1 << 24) as f32 / (1 << 24) as f32) < chance;
             let rolled = if found {
                 drops::roll(

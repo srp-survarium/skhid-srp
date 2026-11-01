@@ -3850,3 +3850,41 @@ fn pve_rewards_stop_at_level_seven_including_the_money_rate_and_premium() {
     assert!(settle(15, false).players[0].reward.money > settle(7, false).players[0].reward.money);
     assert!(settle(3, true).players[0].reward.money < seven.players[0].reward.money);
 }
+
+#[test]
+fn pve_drops_stop_at_level_seven() {
+    let players = alice_and_bob();
+    let settle = |level, vs_bots, seed| {
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        Results::new()
+            .settle(&outcome, &accounts(&players), &terms(), &mut Rng::new(seed))
+            .unwrap()
+            .players[0]
+            .reward
+            .drop
+    };
+    // The highest item level the generic table's row of match level 7 gives.
+    let row = &Drops::shared().generic.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
+    let top = row.iter().rposition(|&weight| weight > 0).unwrap() as u8;
+    let level_of = |drop: Option<Dropped>| {
+        drop.filter(|drop| is_gear(drop.dict_id))
+            .map(|drop| item_params(drop.dict_id).unwrap().item_level)
+    };
+    let (mut pve_gear, mut pvp_above) = (0, 0);
+    for seed in 1..=300 {
+        let at_seven = settle(7, true, seed);
+        assert_eq!(settle(15, true, seed), at_seven, "seed {seed}");
+        if let Some(level) = level_of(at_seven) {
+            pve_gear += 1;
+            assert!(level <= top, "seed {seed}: level {level} over {top}");
+        }
+        // PvP rolls at its own level.
+        pvp_above += u32::from(level_of(settle(15, false, seed)).is_some_and(|level| level > top));
+    }
+    assert!(
+        pve_gear > 30 && pvp_above > 30,
+        "{pve_gear} PvE gear, {pvp_above} PvP above {top}, row {row:?}"
+    );
+}

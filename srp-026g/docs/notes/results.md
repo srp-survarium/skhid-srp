@@ -461,3 +461,8 @@ The supplied 128/7 bot-match screenshot paid 49,992 base silver plus 24,996 prem
 At the ceiling, its silver scales by `(4.97 * 1.7) / (10.17 * 2.2)`, about 28.3k including premium,
 subject to per-cell rounding. No live balance is changed retroactively. The floor uses these
 capped base rewards; a sole human already earns their own median and gets no floor addition.
+
+**Drops (owner's choice, 2026-11-01).** The end-of-match drop of PvE is rolled the same way, at
+`min(actual match level, 7)` (`pvb::MAX_DROP_LEVEL`, `Shared::drop_level`): the generic table's row
+of match level 7, item levels 5 to 8 (10 / 50 / 30 / 10 %). PvP drops roll at the match's own level.
+A drop card used on a PvE match's results screen still rolls at the match's own level.
