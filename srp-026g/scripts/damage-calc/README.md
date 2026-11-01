@@ -43,6 +43,6 @@ The server binary includes `srp-026g/servers/web-server/damage/`: a content patc
 
 The item dictionary (`gameplay/db_static_dictionaries`) decides which items exist: a patch can leave a retired config behind (the one-piece Duty suit in the back slot). Items are keyed by their config's file name, or by the dictionary's name where file names clash (the exo pieces are all `duty_exo_026` / `freedom_exo_026`, one per slot).
 
-The standalone page loads `maps/<key>.webp` from beside itself. `assets/maps/maps.json` holds each map's pixel↔world affine (from the HUD minimap frame), a 64×64 ground-height grid, and how the scale was checked. `assets/hud-doll/` holds the HUD doll's bitmaps and placement; `FINDINGS.md` there records how the client tints it (0x2370e0). Without an icons dir the page has no item pictures.
+The standalone page loads `maps/<key>.webp` from beside itself. `assets/maps/maps.json` holds each map's pixel↔world affine (from the HUD minimap frame), a 64×64 ground-height grid, and how the scale was checked. `assets/hud-doll/` holds the HUD doll's bitmaps and placement. Without an icons dir the page has no item pictures.
 
 Text: `T(en, uk)` in `ui.js` and `rules.js`, `data-uk` on the template's own text. Item, map and modification names come from the game's localization (`name_uk`, `label_uk`). The page takes its language from `?lang=`, else from the document (the website sets it).

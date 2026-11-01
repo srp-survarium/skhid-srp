@@ -1,6 +1,5 @@
 package
 {
-   import com.greensock.TweenLite;
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.BlendMode;
@@ -38,14 +37,11 @@ package
    import survarium.constants.CombatAction;
    import survarium.constants.CombatLogTeam;
    import survarium.constants.Faction;
-   import survarium.constants.ItemDictId;
    import survarium.constants.MinimapPosition;
    import survarium.constants.ProfileState;
-   import survarium.constants.Reward;
    import survarium.constants.SquadState;
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
-   import survarium.constants.UiSound;
    import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
@@ -210,23 +206,6 @@ package
       
       protected var _gameType:uint = 0;
       
-      private var _tutor:MovieClip = new SrvTutorialSliders();
-      
-      // The tutorial panel: not shown, or slid in (onTutorialAdded).
-      private static const TUTOR_HIDDEN:int = 0;
-      
-      private static const TUTOR_SHOWN:int = 1;
-      
-      private var _tutorState:int = TUTOR_HIDDEN;
-      
-      private var _tutorVisible:Boolean = false;
-      
-      private var _tutorFrame:int = 0;
-      
-      private var _tutorRewards:Array;
-      
-      private var _tutorRewardAmount:int;
-      
       private var textIndex:int = 0;
       
       private var _fps:uint;
@@ -278,98 +257,9 @@ package
          addEventListener(Event.RENDER,this.onInitRender);
       }
       
-      private function addTutorial() : void
-      {
-         this._tutor.x = 0;
-         this._tutor.y = 273;
-         this._tutor.alpha = 1;
-         TweenLite.killTweensOf(this._tutor);
-         TweenLite.from(this._tutor,0.2,{
-            x:-this._tutor.width,
-            alpha:0,
-            onComplete:this.onTutorialAdded
-         });
-      }
-      
-      private function onTutorialAdded() : void
-      {
-         _tutorState = TUTOR_SHOWN;
-      }
-      
-      private function removeTutorial() : void
-      {
-         TweenLite.to(this._tutor,0.2,{
-            x:-this._tutor.width,
-            alpha:0,
-            onComplete:this.onTutorialRemoved
-         });
-      }
-      
-      private function onTutorialRemoved() : void
-      {
-         trace("onTutorialRemoved",this._tutorVisible);
-         if(!this._tutorVisible)
-         {
-            if(this.contains(this._tutor))
-            {
-               removeChild(this._tutor);
-               _tutorState = TUTOR_HIDDEN;
-            }
-         }
-         else
-         {
-            this.addTutorial();
-            this.setTutorData();
-         }
-      }
-      
-      private function setTutorData() : void
-      {
-         this._tutor.gotoAndStop(this._tutorFrame + 1);
-         this._tutor.textField1.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_1");
-         this._tutor.textField2.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_2");
-         if(this._tutor.textField3)
-         {
-            this._tutor.textField3.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_3");
-            if(this._tutor.textField4)
-            {
-               this._tutor.textField4.text = Util.getMoneyString(this._tutorRewardAmount);
-            }
-         }
-      }
-      
+      // The match's own tutorial: the exe hides it at each match's start (0x27AE59).
       public function show_tutorial_slide(bool:Boolean, index:uint) : void
       {
-         trace("show_tutorial_slide",bool,index,this._tutor,this._tutorState);
-         _tutorVisible = bool;
-         _tutorFrame = index;
-         if(bool)
-         {
-            addChild(this._tutor);
-            if(this._tutorState == TUTOR_HIDDEN)
-            {
-               this.setTutorData();
-               this.addTutorial();
-            }
-         }
-         else
-         {
-            if(this.contains(this._tutor))
-            {
-               if(this._tutor.currentFrame != this._tutor.totalFrames)
-               {
-                  ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
-               }
-               this.removeTutorial();
-            }
-            return;
-         }
-         trace("_tutor",this._tutor.x,this._tutor.y,this._tutor.parent);
-      }
-      
-      public function set_tutorial_rewards(value:Array) : void
-      {
-         _tutorRewardAmount = value[0] && value[0].reward ? (value[0].reward[0].amount) : 0;
       }
       
       public function create_bitmap_data() : void
@@ -540,7 +430,7 @@ package
             trace("createGray::",i,newIcon,index);
             grayBitmaps[index] = newIcon;
          }
-         // the exoskeletons' backs and srp's oxygen tanks (QuickSlots.SRP_HUD_ICONS) gray when used up
+         // the exoskeletons' backs and srp's quick-slot items (QuickSlots.SRP_HUD_ICONS) gray when used up
          for(i = 28; i < QuickSlots.SRP_FIRST_CELL + QuickSlots.SRP_HUD_ICONS.length; i++)
          {
             index = i;
@@ -791,23 +681,8 @@ package
          this.update_objects(m_objects);
       }
       
-      private function test_all_tut() : void
-      {
-         this.show_tutorial_slide(false,2);
-         this.show_tutorial_slide(true,3);
-      }
-      
       private function test_all() : void
       {
-         this.set_tutorial_rewards([{
-            name:"tutorial_completed",
-            reward:[{
-               type:Reward.MONEY,
-               param:ItemDictId.GENERIC_MONEY,
-               amount:77
-            }]
-         }]);
-         this.show_tutorial_slide(true,2);
          this.quick_slots.visible = true;
          this.fill_slots([{
             slot_id:1,

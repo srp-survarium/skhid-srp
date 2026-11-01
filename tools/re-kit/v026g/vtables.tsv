@@ -1,0 +1,26 @@
+vtable	slot	va	class	base	basis
+0x00a0bc24	0x1c	0x001f65d0	survarium::post_process_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x299C73; post-process by the cooks' order (post_process, hud, particle, sound), not by a name
+0x00a0bc24	0x20	0x00299d40	survarium::post_process_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x299C73; post-process by the cooks' order (post_process, hud, particle, sound), not by a name
+0x00a0bc7c	0x1c	0x001f65d0	survarium::hud_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x299FD7; +20h is hud_game_effect_emitter::emit
+0x00a0bc7c	0x20	0x00299ff0	survarium::hud_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x299FD7; +20h is hud_game_effect_emitter::emit
+0x00a0bcd4	0x1c	0x0029a320	survarium::particle_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x29A139; particle by the cooks' order, not by a name
+0x00a0bcd4	0x20	0x0029a220	survarium::particle_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x29A139; particle by the cooks' order, not by a name
+0x00a0bd2c	0x1c	0x001f65d0	survarium::sound_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x29A4A7; +20h calls sound_game_effect_emitter::emit (0x29A5E0)
+0x00a0bd2c	0x20	0x0029a580	survarium::sound_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x29A4A7; +20h calls sound_game_effect_emitter::emit (0x29A5E0)
+0x00a1203c	0x1c	0x002f0130	survarium::composite_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by composite_game_effect_emitter_cook<composite_game_effect_emitter>::finish_query (0x1FC54C)
+0x00a1203c	0x20	0x002efeb0	survarium::composite_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by composite_game_effect_emitter_cook<composite_game_effect_emitter>::finish_query (0x1FC54C)
+0x00a120b4	0x1c	0x002f08d0	survarium::random_permutation_game_effect_emitter	survarium::pure_game_effect_emitter	observed: composite's slots but +1Ch; made at 0x2F06E3; random permutation by elimination
+0x00a120b4	0x20	0x002efeb0	survarium::random_permutation_game_effect_emitter	survarium::pure_game_effect_emitter	observed: composite's slots but +1Ch; made at 0x2F06E3; random permutation by elimination
+0x00a19974	0x1c	0x001f65d0	survarium::reinforcement_storm_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by reinforcement_storm_game_effect_emitter_cook::translate_query (0x2EDA6E)
+0x00a19974	0x20	0x00333010	survarium::reinforcement_storm_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by reinforcement_storm_game_effect_emitter_cook::translate_query (0x2EDA6E)
+0x00a199cc	0x1c	0x001f65d0	survarium::client_effect_wrapper_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x333134; client effect wrapper by elimination (the one cook left)
+0x00a199cc	0x20	0x00333220	survarium::client_effect_wrapper_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x333134; client effect wrapper by elimination (the one cook left)
+0x00a19a24	0x1c	0x001f65d0	survarium::hit_player_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by hit_player_game_effect_emitter_cook::translate_query (0x2EE3A2)
+0x00a19a24	0x20	0x00333360	survarium::hit_player_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by hit_player_game_effect_emitter_cook::translate_query (0x2EE3A2)
+0x009ffe74	0x0	0x0021d2e0	survarium::lobby_menu	survarium::base_game_scene	observed: the active scene's on_activate (game::switch_to_lobby 0x1ED249: [scene]+0)
+0x009ffe74	0x4	0x0021d4a0	survarium::lobby_menu	survarium::base_game_scene	observed: the active scene's on_deactivate (game::switch_to_lobby 0x1ED23B, game::clear_resources 0x1ED0B0: [scene]+4)
+0x009ffe74	0x28	0x0021d080	survarium::lobby_menu	survarium::lobby_menu	observed: lobby_menu::clear_resources
+0x00a0a064	0xc	0x002f8720	survarium::simple_game_project	survarium::simple_game_project	observed: on_render_scenes_ready's project vtable+0Ch (0x220E52); 0xA133F0 and 0xA163B8 hold it too
+0x00a029a8	0x0	0x002f8850	survarium::static_collision	survarium::static_collision	observed: made by new_array_helper<static_collision> (0x22F9A6); insert, on_render_scenes_ready 0x22196D
+0x00a029a8	0x4	0x002f8970	survarium::static_collision	survarium::static_collision	observed: remove, lobby_menu::clear_resources 0x21D0BE
+0x009fac8c	0x10	0x001ed030	survarium::game	survarium::game	observed: game::clear_resources (the game closing; it deactivates the active scene and clears the lobby menu)

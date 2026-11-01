@@ -72,6 +72,49 @@ WEAPON_1, WEAPON_2, LEGS, VEST_SLOT = 7, 10, 4, 2
 AK, SVD, PISTOL, PISTOL2, VEST, LEGS_ITEM, STASH_RIFLE, STALE = 501, 502, 503, 504, 505, 506, 507, 508
 
 
+# The lobby menu's project (+114h) and its binary config, as the engine keeps them loaded: the classic
+# lobby's, its srp_lobby the weapon's spot patch 45 reads (docs/notes/lobby-scenes.md; the content edit
+# lobby-scenes-1).
+PROJECT_AT, CONFIG_AT, RECORDS_AT = MENU + 0x4000, MENU + 0x4400, MENU + 0x5000
+CLASSIC = {"srp_lobby": {"weapon": (4.25, 1.30, 3.05), "weapon_view": -1.5707964},
+           "camera": {"position": (-1.951, 2.086, -0.854), "distance": 4.667}, "project_name": "lobby_scene"}
+
+
+def config_bytes(tree, at):
+    """A binary config as the engine keeps one loaded (content_edit.py's records, 24 bytes: +0 the data,
+    +8 the name, +10h the name's CRC32, +14h the type, +16h the count; the offsets pointers), laid at `at`:
+    (its bytes, the root record's address). A dict is a named table (its children by CRC), a float a
+    float, an int an int, a 3-tuple a float3, a str a string."""
+    import zlib
+    out = bytearray()
+
+    def put(blob, align=4):
+        while len(out) % align:
+            out.append(0)
+        here = at + len(out)
+        out.extend(blob)
+        return here
+
+    def record(name, value):
+        crc = zlib.crc32(name.encode()) & 0xFFFFFFFF if name else 0
+        name_at = put(name.encode() + b"\0") if name else 0
+        if isinstance(value, dict):
+            kids = sorted((record(k, v) for k, v in value.items()), key=lambda r: struct.unpack_from("<I", r, 16)[0])
+            return struct.pack("<IIIIIHH", put(b"".join(kids), 8) if kids else 0, 0, name_at, 0, crc, 3, len(kids))
+        if isinstance(value, float):
+            return struct.pack("<IIIIIHH", f32(value), 0, name_at, 0, crc, 2, 4)
+        if isinstance(value, int):
+            return struct.pack("<IIIIIHH", value & 0xFFFFFFFF, 0, name_at, 0, crc, 1, 4)
+        if isinstance(value, tuple):
+            return struct.pack("<IIIIIHH", put(struct.pack(f"<{len(value)}f", *value)), 0, name_at, 0, crc,
+                               4 + len(value), 4 * len(value))
+        text = value.encode()
+        return struct.pack("<IIIIIHH", put(text + b"\0"), 0, name_at, 0, crc, 5, len(text) + 1)
+
+    root = put(record("", tree), 8)
+    return bytes(out), root
+
+
 def f32(value):
     return struct.unpack("<I", struct.pack("<f", value))[0]
 
@@ -142,6 +185,10 @@ class Lobby:
             pristine[state + delta] = bytes(base.WEAPON_PREVIEW_STATE_SIZE)
             table = state - base.WEAPON_PREVIEW_STATE_OFFSET + base.WEAPON_TABLE_STATE_OFFSET
             pristine[table + delta] = bytes(base.WEAPON_TABLE_STATE_SIZE)
+        if any(name == base.ARENA_NAME for name, *_ in base.Headers(data).sections(data)):
+            # the Rust patches' state (patch 45's camera flight among them): zeros again for each lobby
+            block = base.arena().blocks["patches.state"]
+            pristine[block.va + delta] = bytes(block.size)
         return emu, stubs, pristine
 
     def fill_lobby(self, kits, chosen, count, items):
@@ -155,10 +202,15 @@ class Lobby:
                           (SCENE, SCENE + 0x100), (SCENE + 0x100 + 0x2C, STUBS + 0x30),
                           (SCENE + 0x100 + 0x38, STUBS + 0x40)):
             self.word(at, value)
+        blob, root = config_bytes(CLASSIC, RECORDS_AT)
+        emu.mem_write(RECORDS_AT, blob)
+        for at, value in ((MENU + 0x114, PROJECT_AT), (PROJECT_AT + 0x17C, CONFIG_AT), (CONFIG_AT + 0x108, root)):
+            self.word(at, value)
         # The camera as its constructor (0x283BC0) leaves it and a tick has
         # moved it: height 1.2, distance 1.96, side angle 0.
         for offset, value in ((0x98, 0.0), (0xAC, 0.0), (0x9C, 1.2), (0xA4, 1.2), (0xC0, 1.96), (0xC4, 1.96)):
             self.word(CAMERA + offset, f32(value))
+        self.word(CAMERA + 0x88, MENU)            # its lobby menu (patch 45 reads the menu's project)
         # The profile: its table and its kits; the character shows buffer 0
         # (a copy of it) with the chosen kit.
         if items is None:
@@ -295,7 +347,7 @@ KITS = kits_of({WEAPON_1: AK, WEAPON_2: PISTOL, VEST_SLOT: VEST, LEGS: LEGS_ITEM
                {WEAPON_2: PISTOL2, VEST_SLOT: VEST},
                {WEAPON_1: SVD, VEST_SLOT: VEST})
 # A weapon shown: the build's camera is patch 45's, which looks at the weapon
-# above the workbench (weapon_table_026g.asm's bench_y and frame_view;
+# above the workbench (the classic project's srp_lobby/weapon and frame_view;
 # check_weapon_table_026g.py runs it); patch 32's own were 1.05 and 0.85.
 # patch 45's frame_view for a 1 m weapon (16:9 without a viewport; check_weapon_table_026g.py's
 # frame()): the camera's distance and its side angle (the weapon left of the view's middle)

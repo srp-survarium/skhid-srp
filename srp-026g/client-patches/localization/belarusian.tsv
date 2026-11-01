@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Віншуем! Вы цяпер баец Чорн�
 st_blackmarket_level_unlock_3	Віншуем! Вы цяпер дзясятнік Чорнага Рынку!
 st_blackmarket_level_unlock_4	Віншуем! Вы цяпер сотнік Чорнага Рынку!
 st_blackmarket_level_unlock_5	Віншуем! Вы цяпер эліта Чорнага Рынку!
+st_blackmarket_medkit_description	Цалкам лечыць цела, галаву і боль. Не лечыць рукі і ногі.
+st_blackmarket_medkit_name	Аптэчка Чорнага Рынку
 st_blackmarket_meele_kill_descr	Калі не можаш выканаць працу чыста - будзь гатовы запэцкаць рукі. Менавіта гэтым мы і адрозніваемся ад астатніх. Дакажы, што ты адзін з нас - папрацуй рукамі.
 st_blackmarket_meele_kill_name	Брудная праца
 st_blackmarket_meele_kill_obj	Забіць праціўнікаў у бліжнім баі:
@@ -880,7 +882,7 @@ st_decorations_options	Якасць дэкарацый
 st_default_profile_name1	Профіль 1
 st_default_profile_name2	Профіль 2
 st_default_profile_name3	Профіль 3
-st_default_scope_name	Стандарт. прыцэл
+st_default_scope_name	Штатны прыцэл
 st_defeat	Паражэнне
 st_defuse_trap	Абясшкодзіць ({USE})
 st_disband_clan_message	Вы ўпэўнены, што хочаце распусціць клан?
@@ -1375,6 +1377,7 @@ st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаеў курган (v0.21)
 st_level_12_name	Хімзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
+st_level_14_name	Рудня (v0.69)
 st_lifebone_activation_hint	Жывакост актываваны! Усе крытычныя пашкоджанні вылечаны! Здароўе адноўлена!
 st_lifebone_pickup_hint	Артэфакт Жывакост. Паскарае рэгенерацыю здароўя.
 st_lightning_quality_option	Якасць асвятлення
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Скінуць навыкі?
 st_messages_censor_option	Уключыць цэнзуру паведамленняў
 st_messages_only_from_friends_option	Прымаць асабістыя паведамленні толькі ад сяброў
 st_microphone_sensitivity_option	Адчувальнасць мікрафона
+st_military_medkit_description	Цалкам лечыць рукі і ногі. Аднаўляе 60% здароўя цела і галавы і 50% болю.
+st_military_medkit_name	Армейская аптэчка
 st_minimap	Мінікарта
 st_minimap_bottom	Ніжні левы вугал
 st_minimap_off	Схаваная мінікарта
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Выйграць бой з лікам прынесе
 st_scavengers_win_x_games_descr	Мы жывём у жорсткім свеце. Пераможцу дастаецца ўсё, а таму, хто прайграў, застаюцца толькі крошкі. Запомні: каманда, якая перамагла ў баі, атрымлівае большую ўзнагароду.
 st_scavengers_win_x_games_name	Смак перамогі
 st_scavengers_win_x_games_obj	Выйграць баёў:
+st_science_medkit_description	Цалкам лечыць рукі, ногі, цела і галаву. Аднаўляе 50% болю. Вылечвае атручванне і прамянёвую хваробу.
+st_science_medkit_name	Навуковая аптэчка
 st_scientists_faction	Інстытут
 st_search_label	Пошук
 st_search_range	Узровень матча
@@ -2417,6 +2424,11 @@ st_srp_loadout_sell_many	Выкарыстоўваецца ў камплекта�
 st_srp_loadout_sell_one	Выкарыстоўваецца ў камплекце %1$s. Прадаць?
 st_srp_loadout_title	Камплект
 st_srp_loadout_unfit	не для бою
+st_srp_lobby_basement	Падвал
+st_srp_lobby_bunker	Бункер
+st_srp_lobby_hangar	Ангар
+st_srp_lobby_room	Пакой
+st_srp_lobby_title	Лобі
 st_srp_login_account_hint	Акаўнт ствараецца пры першым уваходзе
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
@@ -2425,6 +2437,7 @@ st_srp_map_london	Лондан
 st_srp_map_mamayev_kurgan	Мамаеў курган
 st_srp_map_mamayev_kurgan_v021	Мамаеў курган (v0.21)
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
 st_srp_map_tarakanovsky_fort	Тараканаўскі форт
 st_srp_map_vector	Лабараторыя "Вектар"
@@ -2441,7 +2454,6 @@ st_srp_matches_in_match	Вы ўжо ў матчы
 st_srp_matches_in_squad	Спачатку пакіньце атрад
 st_srp_matches_joining	уваход…
 st_srp_matches_maintenance	Скончыцца пасля пачатку абслугоўвання
-st_srp_matches_mode_protective_device	Ахоўная прылада
 st_srp_matches_no_answer	Няма адказу, паспрабуйце яшчэ
 st_srp_matches_no_late_join	Матч не прымае новых гульцоў
 st_srp_matches_no_place	У матчы няма вольных месцаў
@@ -2452,6 +2464,7 @@ st_srp_matches_played_before	Вы ўжо гулялі ў гэтым матчы
 st_srp_matches_queued	Спачатку скасуйце пошук
 st_srp_matches_starting	старт
 st_srp_matches_title	Матчы
+st_srp_matches_versus	на
 st_srp_matches_waiting	чаканне
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт
 st_srp_mode_chargers	Ахоўная прылада: зараднікі
@@ -2532,6 +2545,7 @@ st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Аддача -4 %, ча�
 st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Дульны тормаз Zenit DTK-3, M24x1.5
 st_srp_optics	Оптыка
 st_srp_options_hud	Інтэрфейс бою:
+st_srp_play_in_squad	У атрадзе
 st_srp_pvb_at_limit	Ужо ідзе максімум матчаў з ботамі адначасова, паспрабуйце праз хвіліну
 st_srp_pvb_at_limit_count	Ужо ідзе максімум матчаў з ботамі адначасова (%1$s/%2$s), паспрабуйце праз хвіліну
 st_srp_pvb_busy	%1$s (занята)
@@ -2589,6 +2603,7 @@ st_srp_rooms_code_12	Ваш рыштунак вышэй за макс. узро�
 st_srp_rooms_code_13	Ваш камплект не мог гуляць (няма зброі або мала патронаў): вас вывелі з пакоя.
 st_srp_rooms_code_14	Не ўдалося выбраць камплект.
 st_srp_rooms_code_16	Націсніце «Гуляць», каб увайсці ў адкрыты пакой.
+st_srp_rooms_code_17	Пакой выбірае камандзір атрада.
 st_srp_rooms_code_2	Гэтага пакоя больш няма.
 st_srp_rooms_code_3	Няправільны PIN.
 st_srp_rooms_code_4	Пакой запоўнены.
@@ -2676,6 +2691,7 @@ st_srp_rooms_waiting	Чакаем гульцоў
 st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік пачне.
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
+st_srp_scope_slot	Прыцэл
 st_srp_skills	Навыкі
 st_srp_speed_label	Хуткасць
 st_srp_speed_title	Хуткасць руху: %1$s
@@ -2763,6 +2779,34 @@ st_stats_saved	Выратавана:
 st_stats_silent_kills	Непрыкметных забойстваў:
 st_stats_stolen_victory_items	Скрадзена батарэй:
 st_status_str	Статус:
+st_stk2_bandit_026_boots_desc	Паношаныя красоўкі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Красоўкі
+st_stk2_bandit_026_legs_desc	Спартыўныя штаны з лампасамі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Спартыўныя штаны
+st_stk2_bandit_026_torso_desc	Чорны скураны бомбер паверх футболкі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Скураны бомбер
+st_stk2_loner_026_boots_desc	Скураныя боты адзіночкі на шнуроўцы са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Боты адзіночкі
+st_stk2_loner_026_hand_desc	Беспалыя пальчаткі адзіночкі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Беспалыя пальчаткі адзіночкі
+st_stk2_loner_026_legs_desc	Камуфляжныя штаны з налакотнікамі, кабурой і падсумкамі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Камуфляжныя штаны адзіночкі
+st_stk2_loner_026_torso_desc	Куртка з капюшонам пад разгрузачнай камізэлькай з падсумкамі са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Куртка адзіночкі з разгрузкай
+st_stk2_novice_026_back_desc	Брызентавы заплечнік сталкера-навічка на адной лямцы са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Заплечнік навічка
+st_stk2_novice_026_boots_desc	Скураныя боты сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Боты навічка
+st_stk2_novice_026_hand_desc	Беспалыя пальчаткі сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Беспалыя пальчаткі навічка
+st_stk2_novice_026_hood_desc	Брызентавы капюшон сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Капюшон навічка
+st_stk2_novice_026_legs_desc	Паношаныя джынсы сталкера-навічка са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Джынсы навічка
+st_stk2_novice_026_torso_desc	Палявая куртка сталкера-навічка з біклагай і нажом на рэмені са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Палявая куртка навічка
+st_stk2_novice_026_torso_v2_desc	Палявая куртка сталкера-навічка з двума падсумкамі на рэмені са скасаванага S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Палявая куртка навічка з падсумкамі
 st_storage	Склад
 st_string_pattern_error	Імя змяшчае некарэктныя сімвалы або мае некарэктную даўжыню
 st_support	Падтрымка

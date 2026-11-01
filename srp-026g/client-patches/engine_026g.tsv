@@ -56,6 +56,18 @@ engine_setlocale	0x426ae1	ESP+4:category ESP+8:locale	char *engine_setlocale(uns
 engine_save_user_config	0x1e9030	-	void engine_save_user_config(void)	cdecl	
 engine_translate_text	0x1ff0f0	ECX:translator ESP+4:key ESP+8:output	void engine_translate_text(struct text_translator *translator, const char *key, char *out)	thiscall	
 engine_get_user_default_lcid	0x87027c	-	unsigned int engine_get_user_default_lcid(void)	import	
+engine_lobby_query_resources	0x21e450	EAX:menu	void engine_lobby_query_resources(struct lobby_menu *menu)	thunk	
+engine_lobby_query_players_range	0x270070	EAX:client ESP+4:start ESP+8:count	void engine_lobby_query_players_range(struct lobby_client *client, unsigned int start, unsigned int count)	thunk	
+engine_project_remove	0x2855b0	ESI:project	void engine_project_remove(struct simple_game_project *project)	thunk	
+engine_project_insert	0x285540	EAX:project	void engine_project_insert(struct simple_game_project *project)	thunk	
+engine_project_on_inserted	0x2f8720	ECX:project	void engine_project_on_inserted(struct simple_game_project *project)	thiscall	
+engine_collision_insert	0x2f8850	ECX:collision ESP+4:world	void engine_collision_insert(struct static_collision *collision, struct bullet_physics_world *world)	thiscall	
+engine_collision_remove	0x2f8970	ECX:collision ESP+4:world	void engine_collision_remove(struct static_collision *collision, struct bullet_physics_world *world)	thiscall	
+engine_effects_stop	0x2de7f0	EDI:effects	void engine_effects_stop(struct game_effect_list *effects)	thunk	
+engine_effect_play	0x2de090	EDI:player ESP+4:effect ESP+8:second ESP+12:third ESP+16:fourth ESP+20:listener	void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener)	thunk	
+engine_emitter_emit	survarium::pure_game_effect_emitter+0x20	ECX:emitter ESP+4:out ESP+8:first ESP+12:second	struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second)	virtual	
+engine_emitter_destroy	survarium::pure_game_effect_emitter+0x1c	ECX:emitter ESP+4:effect	void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect)	virtual	
+engine_release_resource	0x0e0210	ECX:instance EAX:count	void engine_release_resource(struct game_project_resource *resource, unsigned int *count)	thunk	
 engine_visual_insert	0x285fa0	ECX:visual ESP+4:scene	void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
 engine_visual_remove	0x285fe0	ECX:visual ESP+4:scene	void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
 engine_light_insert	0x291790	ECX:light	void engine_light_insert(struct object_light *light)	thiscall	light: ObjectLight ->
@@ -70,11 +82,27 @@ engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ES
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
+engine_lobby_camera_ray	0x2844d0	EAX:camera ESI:point EDI:distance ESP+4:direction	void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)	thunk	
+engine_read_file	0x870064	-	unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)	import	
+engine_lobby_character_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)	thunk	
+engine_lobby_character_release_player	0x284aa0	ESI:lobby_character ESP+4:byte	void engine_lobby_character_release_player(struct lobby_character *character, unsigned int byte)	thunk	
 engine_explosion_reach	0x3393f0	EAX:ray ESP+4:manager ESP+8:centre ESP+12:strength ESP+16:target	float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)	thunk	
 engine_show_cursor	0x23a930	EDI:hud ESP+4:shown	void engine_show_cursor(struct game_world_ui *ui, unsigned int shown)	thunk	
 engine_send_important	0x26afb0	ESP+4:messaging ESP+8:target ESP+12:type EDX:text	void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)	thunk	
+engine_emit_hud_sound	0x065630	ESI:emitter EAX:scene ECX:user EDI:out	struct sound_instance_proxy **engine_emit_hud_sound(struct sound_emitter *emitter, struct sound_scene **scene, struct world_user *user, struct sound_instance_proxy **out)	thunk	
+engine_play_voice	0x05aba0	ECX:proxy ESP+4:mode ESP+8:producer ESP+12:receiver	void engine_play_voice(struct sound_instance_proxy *proxy, unsigned int mode, const void *producer, const void *receiver)	thiscall	
+engine_free_voice	0x05b390	ECX:proxy	void engine_free_voice(struct sound_instance_proxy *proxy)	thiscall	
+engine_bind_query_callback	0x0176d0	ESI:boost ESP+4:f ESP+8:value	void engine_bind_query_callback(struct query_function *boost, const void *f, unsigned int value)	thunk	
+engine_scene_params_type	0x0630f0	-	unsigned int engine_scene_params_type(void)	thunk	
+engine_add_active_scene	0x059fb0	ECX:world EAX:scene	void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene)	thunk	
+engine_store_first_resource	0x014730	ESP+4:result ESP+8:value	void engine_store_first_resource(struct queries_result *result, void *value)	cdecl	result: QueryResults, tag: QueryTag ->
 engine_comment_about_user	0x274470	ESP+4:lobby_client ESP+8:nickname ESP+12:kind ESP+16:mode	void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)	thunk	
 engine_close_current_match	0x27a790	ECX:network_client ESP+4:reason	void engine_close_current_match(struct network_client *client, unsigned int reason)	thiscall	
 engine_gfx_set_member	0x7c6a20	ECX:interface ESP+4:target ESP+8:name ESP+12:value ESP+16:display	unsigned char engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display)	thiscall	
+engine_cc_float	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind)	thunk	
+engine_query_one	0x0e5b60	EAX:requests ECX:count ESP+4:callback ESP+8:allocator ESP+12:user ESP+16:parent ESP+20:flag	void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag)	thunk	
+engine_release_emitter	0x011540	ECX:pointer	void engine_release_emitter(struct sound_emitter **pointer)	thunk	
+engine_set_listener	0x0587d0	ESI:scene EAX:position ESP+4:front ESP+8:top	void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top)	thunk	
+engine_medkit_set_active	0x33d390	ESP+4:medkit AL:active ESP+8:time	void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)	thunk	
 engine_calculate_locator	0x243bc0	ESP+4:locator ESP+8:world ESP+12:bones ESP+16:extra EDI:output_matrix	void engine_calculate_locator(const struct locator *locator, const float *world, const float *bones, const float *extra, float *output)	thunk	
 engine_model_locator	0x1585b0	ECX:owner ESP+4:name ESP+8:output	unsigned int engine_model_locator(struct skeleton_render_model *owner, const char *name, struct locator *output)	thunk	

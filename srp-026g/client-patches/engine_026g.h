@@ -14,10 +14,18 @@ struct buffer_writer;
 struct bullet_manager;
 struct bullet_physics_world;
 struct cc_bool;
+struct cc_float;
 struct cc_string;
 struct core_world;
 struct engine_cfg;
+struct game_allocator;
+struct game_effect;
+struct game_effect_list;
+struct game_effect_listener;
+struct game_effect_player;
+struct game_effect_slot;
 struct game_material_manager;
+struct game_project_resource;
 struct game_scene;
 struct game_world_ui;
 struct gfx_movie;
@@ -27,10 +35,14 @@ struct gfx_value;
 struct inventory;
 struct item_entry;
 struct items_dictionary;
+struct lobby_camera;
+struct lobby_character;
 struct lobby_client;
+struct lobby_menu;
 struct locator;
 struct match_options;
 struct material_pair;
+struct medkit;
 struct messaging_client;
 struct network_client;
 struct object_light;
@@ -38,17 +50,30 @@ struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
+struct player_profile;
+struct pure_game_effect_emitter;
+struct queries_result;
+struct query_function;
+struct query_user_data;
 struct ray_result;
 struct render_model_instance;
 struct render_visual;
+struct resource_request;
 struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
+struct simple_game_project;
 struct skeleton_render_model;
+struct sound_emitter;
+struct sound_instance_proxy;
+struct sound_scene;
+struct sound_world;
+struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
 struct text_translator;
+struct world_user;
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
 const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key);
@@ -221,6 +246,42 @@ void __attribute__((thiscall)) engine_translate_text(struct text_translator *tra
 /* the IAT slot 0x87027c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_user_default_lcid)(void);
 
+/* 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0 */
+void engine_lobby_query_resources(struct lobby_menu *menu);
+
+/* 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8 */
+void engine_lobby_query_players_range(struct lobby_client *client, unsigned int start, unsigned int count);
+
+/* 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0 */
+void engine_project_remove(struct simple_game_project *project);
+
+/* 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0 */
+void engine_project_insert(struct simple_game_project *project);
+
+/* 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_project_on_inserted(struct simple_game_project *project);
+
+/* 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_collision_insert(struct static_collision *collision, struct bullet_physics_world *world);
+
+/* 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_collision_remove(struct static_collision *collision, struct bullet_physics_world *world);
+
+/* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
+void engine_effects_stop(struct game_effect_list *effects);
+
+/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
+
+/* virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX */
+struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second);
+
+/* virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4 */
+void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0 */
+void engine_release_resource(struct game_project_resource *resource, unsigned int *count);
+
 /* 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly */
 void __attribute__((thiscall)) engine_visual_insert(struct render_visual *visual, struct game_scene *scene);
 
@@ -263,6 +324,18 @@ void engine_release_item(struct artefact *object, unsigned int *count);
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_model(struct scene_model *object, unsigned int *count);
 
+/* 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4 */
+void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction);
+
+/* the IAT slot 0x870064 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_read_file)(void * file, void * bytes, unsigned int size, unsigned int * read, void * overlapped);
+
+/* 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8 */
+void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit);
+
+/* 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4 */
+void engine_lobby_character_release_player(struct lobby_character *character, unsigned int byte);
+
 /* 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0 */
 float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target);
 
@@ -272,6 +345,27 @@ void engine_show_cursor(struct game_world_ui *ui, unsigned int shown);
 /* 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12 */
 void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text);
 
+/* 0x65630 vostok::sound::sound_emitter::emit_hud_sound: emitter ESI, scene EAX, user ECX, out EDI; pops 0; EAX */
+struct sound_instance_proxy **engine_emit_hud_sound(struct sound_emitter *emitter, struct sound_scene **scene, struct world_user *user, struct sound_instance_proxy **out);
+
+/* 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_play_voice(struct sound_instance_proxy *proxy, unsigned int mode, const void *producer, const void *receiver);
+
+/* 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_free_voice(struct sound_instance_proxy *proxy);
+
+/* 0x176d0 boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >: boost ESI, f ESP+4, value ESP+8; pops 8 */
+void engine_bind_query_callback(struct query_function *boost, const void *f, unsigned int value);
+
+/* 0x630f0 vostok::type_to_int<vostok::sound::sound_scene_creation_params>: no arguments; pops 0; EAX */
+unsigned int engine_scene_params_type(void);
+
+/* 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0 */
+void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene);
+
+/* 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_store_first_resource(struct queries_result *result, void *value);
+
 /* 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16 */
 void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode);
 
@@ -280,6 +374,21 @@ void __attribute__((thiscall)) engine_close_current_match(struct network_client 
 
 /* 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display);
+
+/* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
+void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind);
+
+/* 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0 */
+void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag);
+
+/* 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0 */
+void engine_release_emitter(struct sound_emitter **pointer);
+
+/* 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8 */
+void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top);
+
+/* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
+void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
 
 /* 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16 */
 void engine_calculate_locator(const struct locator *locator, const float *world, const float *bones, const float *extra, float *output);

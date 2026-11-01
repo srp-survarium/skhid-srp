@@ -13,7 +13,7 @@ pub enum ConfigValue<'t> {
     Number(f32),
     Table(ConfigTable<'t>),
     Array(ConfigEntries<'t>),
-    /// A string (node_type 5): its C string, in the config's own memory.
+    /// A text (type 5): its bytes, without the zero.
     Text(&'t CStr),
     Unsupported,
 }
@@ -38,12 +38,10 @@ impl<'t> ConfigValue<'t> {
                     let entries = ConfigEntries(entries);
                     if kind == 3 { Self::Table(ConfigTable { node, entries }) } else { Self::Array(entries) }
                 }
-                // the loader relocated the string's pointer into the config,
-                // which lives for 't (the caller's), its bytes terminated
-                5 => match node.text() {
-                    text if text.is_null() => return Err(ConfigError::WrongType),
-                    text => Self::Text(CStr::from_ptr(text.cast())),
-                },
+                // a text's count is its bytes with the zero: the string is
+                // read no further than that.
+                5 => super::ui::c_string(node.text(), usize::from(node.count().read()))
+                    .map_or(Self::Unsupported, Self::Text),
                 _ => Self::Unsupported,
             })
         }

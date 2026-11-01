@@ -1141,6 +1141,9 @@ HUD_CALLS = {0x236AD0: ("show_pregame", 0), 0x236B50: ("set_pregame", 4), 0x236A
              0x236C30: ("set_respawn_time", 4), 0xE0210: ("destroy_player", 0)}
 
 
+WELCOME_SITE = 0x23B36A          # update_ui's `mov byte [edi+370h],1` (sites_026g.tsv game_world_ui.welcome)
+
+
 def hud_update(data, countdown, mode, tip_shown):
     """game_world_ui::update_ui (0x23B200) from its test of the countdown
     flag (0x23B307) to the players' rows (0x23B421), the game's own
@@ -1171,6 +1174,13 @@ def hud_update(data, countdown, mode, tip_shown):
     calls = []
 
     def visit(uc, address, size, _):
+        # patch 88's lohook at game_world_ui.welcome (0x23B36A, the music's): its entry replays the
+        # 7 bytes it replaced (`mov byte [edi+370h],1`) before the music's handler, which this
+        # check of update_ui's own flow does not run: the replayed instruction, then on
+        if address == WELCOME_SITE and bytes(uc.mem_read(WELCOME_SITE, 1)) == b"\xe9":
+            uc.mem_write(uc.reg_read(UC_X86_REG_EDI) + 0x370, b"\x01")
+            uc.reg_write(UC_X86_REG_EIP, WELCOME_SITE + 7)
+            return
         if address not in HUD_CALLS:
             return
         name, pops = HUD_CALLS[address]

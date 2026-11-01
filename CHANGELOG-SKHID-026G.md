@@ -778,3 +778,39 @@ update changes what a match computes.
 - TODO: #835 Ragdoll: no headshot launch (exp_neg is 0 from 20)
 - TODO: #764 Add breakable map lamps with the Rust patch framework
 - TODO: #838 Wiki icons: read the shop filters from FiltersWindow's list functions
+
+## 31 Oct, 19:04 — TODO: the owner's words (update required)
+
+<!-- Revision 40 (026g-rev40), released 2026-10-31 19:04 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #842 Shop filters: one table the lobby build and the wiki read
+- TODO: #843 Lamps: orient each shatter burst in a frame the game can build
+- TODO: #841 Rooms: drop the vote sentence from the room's bar
+- TODO: #845 Lobby: a right-click menu's Buy buys the item it was opened on
+- TODO: #852 Play that would queue offers the other bracket's room as Join does
+- TODO: #857 Tab map: names over the player icons while Alt is held (patch 82)
+- TODO: #860 Tab list: Ctrl shows a cursor, and a row's menu sends a friend request (patch 86)
+- TODO: #876 Rooms: members by Play stay after the match; the results stay up under room changes
+- TODO: #863 Settings: Hide hit markers, Hide player scores (exe patch 83)
+- TODO: #862 Lobby: transient windows (History closes when anything else opens; PvP/bots list over Rooms)
+- TODO: #879 Settings HUD group: "Hidden minimap" as "Hidden crosshair"
+- TODO: #878 Mute chat: two state-dependent entries in the lobby's player menu and the Tab list's row menu (patch 86)
+- TODO: #880 World frame check: the match server and the game refuse a world no game could load (patch 87, crate world-frame)
+- TODO: #895 Short scope slot label and stock scope names that fit the upgrade window
+- TODO: #884 Squads of two: Play and Join take the mate along, marked in the rooms
+- TODO: #881 Music: the menus' and maps' themes, 15 s past the start (patch 88, pack music@1)
+- TODO: #851 STK2 outfits: the bandit's, the Novice's and the loner's pieces (packs stk2-bandit, stk2-novice, stk2-loner)
+- TODO: #883 Patch 84: a bullet that hits a player stops the healing drug in use
+- TODO: #901 Blackout: show teammates' markers all match, not only on Tab
+- TODO: #882 Medicines: three coloured medkits, all five made from one table
+- TODO: #805 Rudnya (v0.69): 0.69d's Rudnya as map 204 and its battery and Research modes (216-218)
+- TODO: #909 Launcher: read the installer's values without opening any key
+- TODO: #778 Lobby scene picked in a lobby window, the squad commander's in a squad, shown at once behind a fade (patch 81); patch 45 round 7
+- TODO: #776 Content: the 0.46c2 hangar and 0.69d tent-camp lobbies (lobby-hangar-046@7, lobby-camp-069@9)
+- TODO: #802 STK2 bomb shelter lobby (lobby-stk2-bunker@4): relit warm, the whole shelter; the Bar dropped
+- TODO: #915 Lobby selection review: keep the lobby under the upgrade window, drop content-rev40
+- TODO: #899 Start Skhid without the updater; split the Defender exclusion from the network setup
+- TODO: #913 Lobby button: drawn at its box's size (it vanished in the game)
+- TODO: #919 Rudnya (v0.69): ammo only at the bases
+- TODO: #916 Lobby packs: textures 0.26g already has drawn from its own files (hangar @9, camp @17)
+- TODO: #920 Drops: no camouflage or decal the player already has

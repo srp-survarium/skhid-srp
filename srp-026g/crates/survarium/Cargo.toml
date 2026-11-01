@@ -22,6 +22,8 @@ lzma-rust2 = { workspace = true }
 # The lobby's results types are kept in srp's database as JSON
 # (`session::v026g::rewards`).
 serde = { workspace = true }
+# The ED/EE mask and length, as the transport works them out (`v026g::match_msgs`).
+udp-transport = { workspace = true }
 
 
 [features]

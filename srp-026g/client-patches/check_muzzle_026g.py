@@ -167,6 +167,10 @@ class Run:
         self.emu.mem_write(at, text.encode() + b"\0")
         return at
 
+    def text_node(self, text):
+        """A text node (type 5): its string, the count its bytes with the zero."""
+        return self.node(T_STRING, self.string(text), len(text.encode()) + 1)
+
     def node(self, kind=T_INT, data=0, count=0):
         """A config node (18h bytes: the value, the type at +14h, the count +16h)."""
         at = self.block(0x18)
@@ -243,16 +247,15 @@ class Run:
         preview animation, no scope; `data` its data table's ints and
         strings (None: no data table)."""
         resource = self.block(0x140)
-        shell, shoot = self.string("shells/5_45x040"), self.string("fx/weapons/ak_74")
         particles = self.table({"bullet_shells_count": self.node(T_INT, 1), "shoot_pfx_count": self.node(T_INT, 2),
-                                "bullet_shells": self.node(T_STRING, shell), "shoot": self.node(T_STRING, shoot)})
-        animation = self.node(T_STRING, self.string("weapons/ak_74/preview"))
+                                "bullet_shells": self.text_node("shells/5_45x040"),
+                                "shoot": self.text_node("fx/weapons/ak_74")})
+        animation = self.text_node("weapons/ak_74/preview")
         preview = self.node(4, animation, 1)
-        entries = {"particles": particles, "object": self.table({"model": self.node(T_STRING,
-                                                                                   self.string("weapons/ak74m/ak74m"))}),
+        entries = {"particles": particles, "object": self.table({"model": self.text_node("weapons/ak74m/ak74m")}),
                    "user_animations_in_place": self.table({"preview": preview})}
         if data is not None:
-            entries["data"] = self.table({k: self.node(T_STRING, self.string(v)) if isinstance(v, str)
+            entries["data"] = self.table({k: self.text_node(v) if isinstance(v, str)
                                           else self.node(T_INT, v) for k, v in data.items()})
         root = self.table(entries)
         self.u32(resource + 0x108, root)
@@ -520,7 +523,7 @@ def main():
     g.emu.mem_write(path, b"weapons/x\0")
     node(root, T_TABLE, g.block(0x18), 1)
     node(data, T_TABLE, g.block(0x18), 2)
-    node(model_key, T_STRING, path)
+    node(model_key, T_STRING, path, len(b"weapons/x") + 1)
     node(fire_key, T_INT, 50)
     names.update({(root, b"data"): data, (data, b"srp_muzzle_model"): model_key,
                   (data, b"srp_muzzle_fire_mm"): fire_key})

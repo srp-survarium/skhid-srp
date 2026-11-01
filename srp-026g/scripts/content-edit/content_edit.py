@@ -44,7 +44,8 @@ Edits (edits.json):
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
-                    an int, a float (a number with a point), a text, or an object (a named table of
+                    an int, a float (a number with a point), a text, a vector (a list of 2-4
+                    numbers: a float2..float4, as a position), or an object (a named table of
                     those); a file that has the key already is refused
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
@@ -456,6 +457,12 @@ def value_record(buf, name_off, key, value):
         return REC.pack(value & 0xffffffff, name_off, crc, T_INT, 4)
     if isinstance(value, float):
         return REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], name_off, crc, T_FLOAT, 4)
+    if isinstance(value, list):
+        if not 2 <= len(value) <= 4 or not all(isinstance(x, (int, float)) and not isinstance(x, bool)
+                                              for x in value):
+            raise ValueError('%s: a vector is a list of 2 to 4 numbers, not %r' % (key, value))
+        floats = struct.pack('<%df' % len(value), *value)
+        return REC.pack(append(buf, floats), name_off, crc, T_INDEXED + len(value), len(floats))
     text = value.encode()
     return REC.pack(append(buf, text + b'\0'), name_off, crc, T_STR, len(text) + 1)
 

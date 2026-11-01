@@ -382,7 +382,7 @@ const MOVE_STEPS: u32 = 4;
 /// A roster change (0xE9, 0xEA) is for a tick this far ahead: it is with
 /// every client before its tick, so none stamps it onto a later one of
 /// its own ("CORRECTED", match.md section 5.1). Another 0.26g server ran
-/// with 300 ms against real clients (upstream_compare.md topic 4).
+/// with 300 ms against real clients.
 const ROSTER_LEAD_MS: u32 = 300;
 /// How often clients' disagreeing hashes are logged at most.
 const DISAGREEMENT_LOG: Duration = Duration::from_secs(10);
@@ -2832,7 +2832,7 @@ impl Game {
     /// until acked (a relay's own 250 ms would lose them on a slow link).
     /// The client's own inputs are never sent back to it: it has them,
     /// and one that came back late would be moved to another tick by the
-    /// client (seen live by another server, upstream_compare.md topic 7).
+    /// client (seen live by another server).
     ///
     /// A client resynced while it plays had the inputs and the roster
     /// changes since the snapshot before (`send_replay`), all acked: it

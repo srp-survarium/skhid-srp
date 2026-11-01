@@ -1,10 +1,11 @@
 """SWF containers and ABC blocks, as much as the movie build needs: tags, DoABC, SymbolClass, class names,
-and bitmaps from PNG files."""
+and bitmaps from PNG and JPEG files."""
 import struct
 import zlib
 
 DO_ABC, DO_ABC_OLD, SYMBOL_CLASS, END = 82, 72, 76, 0
 DEFINE_BITS_LOSSLESS2 = 36
+DEFINE_BITS_JPEG2 = 21
 # The tags that define a character, its id their first field.
 DEFINES = {2, 6, 7, 10, 11, 14, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 75, 83, 84, 87, 90, 91}
 
@@ -160,6 +161,27 @@ def bitmap(cid, width, height, rgba):
         r, g, b, a = rgba[i:i + 4]
         argb += bytes((a, r * a // 255, g * a // 255, b * a // 255))
     return tag(DEFINE_BITS_LOSSLESS2, struct.pack('<HBHH', cid, 5, width, height) + zlib.compress(bytes(argb), 9))
+
+
+def jpeg(cid, data):
+    """A DefineBitsJPEG2 tag (the JPEG whole, its tables in it) of a baseline JPEG file, and its
+    (width, height). The game's own renders are JPEG (DefineBits); a progressive one Flash does not
+    read."""
+    if data[:2] != b'\xff\xd8' or data[-2:] != b'\xff\xd9':
+        raise ValueError('not a JPEG file (SOI ... EOI)')
+    pos = 2
+    while pos + 4 <= len(data):
+        if data[pos] != 0xFF:
+            raise ValueError(f'a JPEG marker expected at {pos}')
+        marker = data[pos + 1]
+        length, = struct.unpack_from('>H', data, pos + 2)
+        if marker == 0xC0:
+            height, width = struct.unpack_from('>HH', data, pos + 5)
+            return tag(DEFINE_BITS_JPEG2, struct.pack('<H', cid) + data), (width, height)
+        if 0xC1 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            raise ValueError('a JPEG must be baseline (SOF0)')
+        pos += 2 + length
+    raise ValueError('no frame (SOF0) in the JPEG')
 
 
 class _Reader:

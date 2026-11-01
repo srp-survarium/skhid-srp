@@ -1,0 +1,75 @@
+{
+  "target": {
+    "sha256": "1e1ae04dc981fc4f5734c56559fb0f2e0e74c787bcc53ebbfdc233f440d65448",
+    "file_size": 13386392,
+    "machine": "amd64",
+    "preferred_image_base": "0x200000000",
+    "archive_member": "Survarium/game/binaries/x64/survarium.exe",
+    "sections": [
+      {
+        "name": ".text",
+        "rva": "0x1000",
+        "va": "0x200001000",
+        "raw_offset": 1024,
+        "raw_size": 9063936,
+        "virtual_size": 9063839
+      },
+      {
+        "name": ".rdata",
+        "rva": "0x8a6000",
+        "va": "0x2008a6000",
+        "raw_offset": 9064960,
+        "raw_size": 2006528,
+        "virtual_size": 2006228
+      },
+      {
+        "name": ".data",
+        "rva": "0xa90000",
+        "va": "0x200a90000",
+        "raw_offset": 11071488,
+        "raw_size": 1683968,
+        "virtual_size": 355522464
+      },
+      {
+        "name": ".pdata",
+        "rva": "0x15d9e000",
+        "va": "0x215d9e000",
+        "raw_offset": 12755456,
+        "raw_size": 355840,
+        "virtual_size": 355440
+      },
+      {
+        "name": ".msvcjmc",
+        "rva": "0x15df5000",
+        "va": "0x215df5000",
+        "raw_offset": 13111296,
+        "raw_size": 2048,
+        "virtual_size": 1867
+      },
+      {
+        "name": "_RDATA",
+        "rva": "0x15df6000",
+        "va": "0x215df6000",
+        "raw_offset": 13113344,
+        "raw_size": 3072,
+        "virtual_size": 2896
+      },
+      {
+        "name": ".rsrc",
+        "rva": "0x15df7000",
+        "va": "0x215df7000",
+        "raw_offset": 13116416,
+        "raw_size": 169984,
+        "virtual_size": 169984
+      },
+      {
+        "name": ".reloc",
+        "rva": "0x15e21000",
+        "va": "0x215e21000",
+        "raw_offset": 13286400,
+        "raw_size": 92672,
+        "virtual_size": 92532
+      }
+    ]
+  }
+}
