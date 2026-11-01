@@ -70,8 +70,8 @@
   - the crate's checks say "available" while a borrowed stack is below its
     refill;
   - a gun given back (its holder's death, respawn, destruction, a rollback)
-    stays cooked until 3 s after its body left the world (a rollback can
-    take it again); a loaded world's gun is freed at the next frame.
+    stays cooked until 3 s after its body left the world, or after the
+    give-back when that is later (a rollback can take it again); a loaded world's gun is freed at the next frame.
 - My picks for stage 2b (the same rule):
   - the prompt shows only when the pickup would be taken now (the drop open,
     its gun made on this client, the picker alive with a gun of its own in
@@ -189,8 +189,9 @@ cooked gun).
   rounds a clip and B bags a clip.
 - **The cache**: a gun installed is lent (never freed by its body's end or
   its donor's destruction); kept, it is freed 3 s after its donor's
-  remove(1) (the body left the world: `Origin::Death.gone`), so a rollback
-  that takes it again finds it.
+  remove(1) (the body left the world: `Origin::Death.gone`), or after its
+  give-back when that came later (a holder's respawn long after the body
+  went), so a rollback that takes it again finds it and cooks nothing.
 - **For stage 2b**: `borrowing(thread, player)`, `instance(thread, place,
   died)`; the death's body (player object and life) kept with the place's
   record (below).

@@ -846,7 +846,9 @@ def stage2(patched, original):
     print("ok base_player::remove: flag 0 leaves the borrow; flag 1 puts the own gun and its ammunition back first "
           "(its unload charges the own profile), held left for remove to deactivate; the record borrows nothing")
 
-    # A record that does not decode: logged, read as empty, the reader past it.
+    # A record that does not decode: logged, read as empty, the reader past it (10 s after the
+    # donor's body left the world).
+    r.word(r.picker + 0x324, gone + 10_000)
     r.load(r.picker, record(borrow=(PLACE, KIT, 1, 1)))
     r.installed()
     assert r.load(r.picker, b"\x07" + bytes(11)) == 12
@@ -857,8 +859,12 @@ def stage2(patched, original):
     print("ok a record that does not decode (bad bytes, a short state): logged loudly, read as empty (the borrow "
           "restored), never a crash")
     r.step(gone + 3_600)
-    assert r.read(r.cooked + 0xD0) == 1, "given back once nobody holds it, 3 s after the body left"
-    print("ok given back, the gun is freed at the next frame's step 3 s after its body left the world")
+    r.step(gone + 12_900)
+    assert r.read(r.cooked + 0xD0) == 2, "kept 3 s from its give-back, after its body left (a rollback's)"
+    r.step(gone + 13_000)
+    assert r.read(r.cooked + 0xD0) == 1, "given back once nobody holds it, 3 s after its give-back"
+    print("ok given back 10 s after its body left the world, the gun is kept 3 s from the give-back (a rollback "
+          "may take it again) and freed at the next frame's step after them")
 
     # Availability ends when the body leaves the world: a command after the donor's removal.
     late = Pick(patched)

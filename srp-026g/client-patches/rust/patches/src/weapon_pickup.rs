@@ -70,7 +70,8 @@ const HOLDERS_MAX: usize = 60;
 pub enum Origin {
     /// A donor's death: its life (spawn time, player+328h), the death's
     /// simulation time and, once its body left the world (its respawn, its
-    /// departure: base_player::remove(1)), that time.
+    /// departure: base_player::remove(1)), the time its margin counts from:
+    /// that, or a later give-back of the gun.
     Death { spawned: u32, died: Ms, gone: Option<Ms> },
     /// Named by a loaded world's record, or a pickup of a death this client
     /// did not see (a late join).
@@ -284,10 +285,24 @@ fn set_holder(thread: &Thread, player: PlayerId, holder: Option<Holder>) -> bool
     })
 }
 
-fn set_use(thread: &Thread, cook: CookId, using: Use) {
-    traced(Trace::Always, "CACHE", "set_use", &CACHE, thread, |cache| {
+fn lend(thread: &Thread, cook: CookId, player: PlayerId) {
+    traced(Trace::Always, "CACHE", "lend", &CACHE, thread, |cache| {
         if let Some(entry) = cache.iter_mut().flatten().find(|e| e.gun.id() == cook) {
-            entry.using = using;
+            entry.using = Use::Lent(player);
+        }
+    });
+}
+
+/// The cook given back at `at`: kept; when its body has left the world
+/// before `at`, for the margin from `at` (a rollback may take it again).
+fn keep(thread: &Thread, cook: CookId, at: Ms) {
+    traced(Trace::Always, "CACHE", "keep", &CACHE, thread, |cache| {
+        if let Some(entry) = cache.iter_mut().flatten().find(|e| e.gun.id() == cook) {
+            entry.using = Use::Kept;
+            if let Origin::Death { gone: Some(gone), .. } = &mut entry.origin
+                && at.since(*gone) < u32::MAX / 2 {
+                *gone = at;
+            }
         }
     });
 }
@@ -345,7 +360,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, want: Option<Borrow>) {
     match outcome {
         Ok((cook, installed)) => {
             let kept = set_holder(thread, player.id(), Some(Holder { player: player.id(), borrow, installed }));
-            set_use(thread, cook, Use::Lent(player.id()));
+            lend(thread, cook, player.id());
             log_borrow("a loaded record: installed", player, borrow, if kept { "" } else { " (NO ROOM to remember it)" });
         }
         Err(why) => log_borrow("a loaded record's borrow NOT installed (the state will not match)", player, borrow,
@@ -354,12 +369,13 @@ fn reconcile(player: &Player<'_>, thread: &Thread, want: Option<Borrow>) {
 }
 
 /// Restores `holder`'s install and gives its gun back to the cache (kept
-/// for a rollback's pickup again until its body has left the world and the margin passed).
+/// for a rollback's pickup again until its body has left the world and the
+/// margin passed since the later of that and now).
 fn give_back_from(player: &Player<'_>, thread: &Thread, holder: Holder, why: &str) {
     log_borrow("restoring", player, holder.borrow, why);
     let outcome = native::restore(player, &holder.installed);
     set_holder(thread, player.id(), None);
-    set_use(thread, holder.installed.cook(), Use::Kept);
+    keep(thread, holder.installed.cook(), Ms(player.time()));
     match outcome {
         Ok(()) => log_borrow("restored", player, holder.borrow, why),
         Err(refusal) => log_borrow("FAILED to restore", player, holder.borrow, refusal.text()),
@@ -488,7 +504,7 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Taken, Wh
     if !set_holder(thread, player.id(), Some(Holder { player: player.id(), borrow, installed })) {
         log(&[Text("NO ROOM to remember a borrow (it will not be restored)")]);
     }
-    set_use(thread, cook, Use::Lent(player.id()));
+    lend(thread, cook, player.id());
     update_record(thread, world, place, |r| r.borrow = Some(borrow));
     update_record(thread, world, target, |r| r.drop = DropState::Taken);
     Ok(Taken { borrow, magazine, installed })
