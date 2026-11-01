@@ -4,8 +4,9 @@ The lobby projects resource-porter makes from S.T.A.L.K.E.R. 2's (2011-12) level
 (build-stk2-lobby-026): the bomb shelter (pack lobby-stk2-bunker,
 ports/stk2-bunker-lobby-to-026g.json), the blockpost guard hut of STK2's own lobby (lobby-stk2,
 ports/stk2-lobby-to-026g.json) and the Bar's shooting gallery (lobby-stk2-bar,
-ports/stk2-bar-lobby-to-026g.json): their sources, the manifests' choices and each version. What a lobby project must give, the lobby window and the
-upgrade view are the lobby selection's (lobby-scenes.md, #778).
+ports/stk2-bar-lobby-to-026g.json): their sources, the manifests' choices and each version.
+What a lobby project must give, the lobby window and the upgrade view are the lobby
+selection's (lobby-scenes.md, #778).
 
 ## STK2 lighting (the bomb shelter; the hut and the Bar as their own sections say)
 
