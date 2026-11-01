@@ -100,34 +100,37 @@ the capture units' `capture_zones`). Moving spawns or capture units, or changing
 stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
 list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
-## weapon-stats.tsv: the weapon table
+## Stats tables: weapon-stats.tsv
 
-Every retune of a gun's stats is a row of [`weapon-stats.tsv`](weapon-stats.tsv): `<weapon>
-<key path> <value> <why>`, tabs between, the value that key of
-`gameplay/items/weapons/<weapon>.options` takes over the base and the packs. To retune a gun, add
-its row or change its value; nothing else is kept by hand:
+A stats table holds every number of its category that is worth tuning: a row a config, a column a
+stat, `notes` last (why a value is what it is). [`weapon-stats.tsv`](weapon-stats.tsv) has a row
+per weapon config (`wpn_ak_12` is `gameplay/items/weapons/wpn_ak_12.options`) and a column per
+stat (`damage`, `pierce`, `rpm`, `top_max`, `melee`, ...). **To retune a gun, edit its cell**;
+nothing else is kept by hand. `content_edit.py` `STATS` says, per category, which configs it covers,
+each column's key path in the config, which columns a match computes with, and how its card lines
+are made; a new category (`armor-stats.tsv`, ...) is an entry there and its table.
 
-- its manifest row (`edit weapon-stats.tsv`) is the last before `localization-1.json`, so a row also
-  retunes a gun a pack ports;
-- a value with a point is a float; an int key becomes one only where 0.26g's configs mix the two
-  (`release/content_type_check.py`, `number_either`); a row that changes nothing, a key the config
-  lacks, or a weapon's key twice is refused;
-- then every weapon config's card lines that mirror a value (`content_edit.py` `WEAPON_CARD`: 1 damage
-  x100, 2 base dispersion, 3 armour piercing x100, 4 rate of fire, a bolt or pump gun's with its
-  chambering, 15 weight, 24 and 140 the falloff's start, 105 movement, 132 stopping power x100, 133 aim
-  time, 134 magazine, 138-160 the details of `weapon-details-ui-1.json`, 161 the kill feed icon) are
-  written from it, whatever the base, a pack or an edit list left there; `release/build-content`
-  refuses a card that says another number than its config;
-- a weapon value a match computes with (`release/build_content.py` `MATCH_KEYS`: damage, piercing,
-  rate of fire, magazine, reload, falloff, recoil, dispersion, sway, melee, ...) that differs from
-  what players have needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`:
-  build-content refuses it without one.
+- Its manifest row (`edit weapon-stats.tsv`) is the last before `localization-1.json`: it applies
+  after the packs, so a ported gun is a row too.
+- Each config takes its row's numbers where it has others, and keeps its type (an int key takes a
+  fraction as a float, which `release/content_type_check.py` allows only where 0.26g's configs mix
+  the two). A config the table leaves as it is is not written.
+- Every config of the category needs its row, and every row its config; a cell is empty exactly
+  where the config has no such key; an unknown column is refused.
+- Then the card lines that mirror a value are written from it (`WEAPON_CARD`: 1 damage x100, 2 base
+  dispersion, 3 armour piercing x100, 4 rate of fire, a bolt or pump gun's with its chambering, 15
+  weight, 24 and 140 the falloff's start, 105 movement, 132 stopping power x100, 133 aim time, 134
+  magazine, 138-160 the details of `weapon-details-ui-1.json`, 161 the kill feed icon).
+- `release/build-content` refuses a build where a config is not its row (the round trip), a card
+  line says another number than its config, or a match column (`STATS` `match`) differs from what
+  players have and `crates/session/src/v026g/simulation_changes.tsv` has no `next` row.
+- `python3 content_edit.py --dump-stats <category> <folder>` prints the table of the configs in a
+  folder: a new category's first version.
 
-It took in the stat lists weapon-balance-2 (the AK-12s, the Socom16, the A-545; the premium AK-12's
-defaults went to golden-weapons-1), socom-nerf-1, svd-level-1, patch19-melee-1, shake-031-1 and
-recoil-hk416-m4a1-1 (2026-11-01; their reasons in git history, `docs/notes/weapon_balance_2.md`,
-`docs/notes/socom_nerf.md` and #951, #1001, #1011): the configs it builds are theirs value for value,
-and their card lines are written, not copied.
+The weapon table's first version is the configs `release/build-content 41` built on 2026-11-01 (so
+it changed nothing). It took in the stat lists weapon-balance-2 (the premium AK-12's defaults went
+to golden-weapons-1), socom-nerf-1, svd-level-1, patch19-melee-1 and shake-031-1 (their reasons in
+the notes column, git history, `docs/notes/weapon_balance_2.md` and `docs/notes/socom_nerf.md`).
 
 ## weapon-balance-1.json (2026-10-18)
 
@@ -154,7 +157,7 @@ weapon / kills the same players get with their other weapons.
 | a magazine line on every weapon card (83): `ui_properties` line 134 "Magazine" (a new text in the six localization tables), a `props_list` entry after the rate of fire with the weapon's `magazine_capacity` | the card did not say how many rounds a magazine holds; it draws eight comparable lines and every weapon had eight, so the patch also carries the lobby movie with a ninth row (`srp-026g/docs/notes/items.md` §7) |
 
 The lobby card shows text kept in each config (`ui_desc/props_list`), not the
-values: the list changed that text with each value (`set_prop`; the weapon table writes it now).
+values: the list changed that text with each value (`set_prop`; weapon-stats.tsv's build writes it now).
 
 The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4fe7`) is patch 20's
 (sha256 `f21eac03…e117`) with two tags changed and every other tag byte-identical: sprite 1538

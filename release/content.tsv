@@ -20,8 +20,8 @@
 #   edit   <file>.json   -   srp-026g/scripts/content-edit/<file>.json applied by content_edit.py,
 #          in order, to the files as the rows above leave them ("from" values are the base's).
 #          With a base row's name as the source: a record, applied in that patch. Every edit list
-#          of content-edit has a row. weapon-stats.tsv, the weapon table, is one too: a gun's
-#          retune is a row there (its README section), the cards follow.
+#          of content-edit has a row. A stats table (<category>-stats.tsv: weapon-stats.tsv, a row
+#          a weapon, a column a stat) is one too: a gun's retune is a cell there, the cards follow.
 # A new pack or edit list: a row at the end of its kind. A retune of an edit list or a movie
 # change: no row to add (the source changed). A pack's new version: its row's name and sha256; the
 # files an earlier version added and it no longer makes stay live as they are (build-content lists
@@ -119,5 +119,5 @@ edit	medicines-1.json	-	the bandages' (66) and the Medikit's (67) dictionary row
 edit	rudnya-ammo-1.json	-	Rudnya (v0.69), all four modes: ammo only at the bases: the two mid-map ammo boxes, by the decent house and the church, removed with their models and collision; each base box refills only its own team (the other team's resupply zone removed)
 edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun> (E)", exe patch 85) in the existing collection widget; strings in the unified language catalog.
 edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
-edit	weapon-stats.tsv	-	the weapon table: each gun's stats over its config, a row a value (a retune is a row), then every weapon's card lines written from its config (content_edit.py WEAPON_CARD)
+edit	weapon-stats.tsv	-	the weapons' stats: a row a weapon, a column a stat (a retune is a cell), written into each weapon's config where it says otherwise, then every weapon's card lines from its config (content_edit.py STATS, WEAPON_CARD)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

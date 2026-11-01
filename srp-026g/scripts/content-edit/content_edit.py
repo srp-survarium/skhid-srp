@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """content_edit.py: make a resources.db patch folder by editing game configs in place.
 
-usage: python3 -I content_edit.py <edits.json | weapon-stats.tsv> <live folder> <out folder> [--check]
+usage: python3 -I content_edit.py <edits.json | <category>-stats.tsv> <live folder> <out folder> [--check]
 
 <live folder>  the live game files, at their game paths (gameplay/items/...) or flattened as
                `dbgrab <server-game-data.db> get gameplay/ <dir>` writes them (gameplay__items__...).
@@ -118,12 +118,13 @@ Edits (edits.json):
                        "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
                                                        allow_bones: this surface's other native bones
                                                        (indices), which then follow the head too
-The weapon table (weapon-stats.tsv, rows `<weapon> <key path> <value> <why>`): each row sets that
-number of gameplay/items/weapons/<weapon>.options (a value written with a point is a float, so an int
-key becomes one: release/content_type_check.py allows it only where 0.26g's configs mix the two; a row
-that changes nothing is refused). Then every weapon config's card lines that mirror a value
-(WEAPON_CARD) are written from it, the configs the table leaves alone too: nothing copies a number
-to a card by hand.
+A stats table (<category>-stats.tsv, STATS: weapon-stats.tsv a row a weapon, a column a stat): every
+config of the category gets the numbers of its row where it has others (a key keeps its type; an
+int key takes a fraction as a float: release/content_type_check.py allows it only where 0.26g's
+configs mix the two), then its card lines that mirror a value are written from it. A config without
+a row, a row without a config, an unknown column, an empty cell where the config has the key (or a
+cell where it has not) are refused. `--dump-stats <category> <live folder>` prints the table of the
+configs there, as they are.
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -647,8 +648,6 @@ def set_prop(buf, prop_id, frm, to):
     raise KeyError('prop %d' % prop_id)
 
 
-WEAPONS = 'gameplay/items/weapons/%s.options'
-
 # The weapon card's lines (ui_desc/props_list) that mirror a number of the weapon's config: prop_id:
 # (key path, times); the line's text is that number times `times`, as number_text writes it. Rate of
 # fire (4) and weight (15) are weapon_card's own. A key a config lacks has no line there.
@@ -689,14 +688,135 @@ def weapon_card(buf):
     return out
 
 
-def card_differences(buf):
-    """[(prop_id, the card's text, the config's)] of each card line of the weapon config `buf` that
-    says another number than its config value (weapon_card)."""
+# The stats tables, <category>-stats.tsv beside this file: a row a config of the category (named as
+# its path between the folder of `configs` and its suffix: wpn_ak_12), a column a stat by its plain
+# name, `notes` last. A category: `configs`, the glob of its game paths; `columns`, each column's
+# key path in the config; `match`, the columns a match computes with (release/build_content.py
+# wants the `next` row of simulation_changes.tsv when one changes); `cards`, the function of a
+# config to the text of its card lines that mirror its values ({prop_id: text}), or None.
+STATS = {
+    'weapon': {
+        'configs': 'gameplay/items/weapons/wpn_*.options',
+        'columns': {
+            'damage': 'parameters/bullet_damage', 'pierce': 'parameters/bullet_pierce',
+            'rpm': 'parameters/rounds_per_minute', 'magazine': 'parameters/magazine_capacity',
+            'reload': 'parameters/reload_time', 'reload_start': 'parameters/reload_start_time',
+            'reload_end': 'parameters/reload_end_time', 'chamber': 'parameters/chamber_a_round_time',
+            'aim_time': 'parameters/aim_time', 'show_time': 'parameters/show_time',
+            'hide_time': 'parameters/hide_time', 'zoom': 'parameters/aim_zoom_factor',
+            'weight': 'parameters/weight', 'movement': 'parameters/movement_speed_modifier',
+            'stopping': 'parameters/stopping_power', 'stamina_damage': 'parameters/stamina_damage',
+            'near_m': 'parameters/max_damage_distance', 'far_m': 'parameters/min_damage_distance',
+            'far_damage': 'parameters/min_damage_amount',
+            'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
+            'spread': 'dispersion/base_dispersion', 'shot_spread': 'dispersion/one_shoot_dispersion_amount',
+            'max_spread': 'dispersion/max_dispersion', 'spread_growth': 'dispersion/growth_speed',
+            'aim_speed': 'dispersion/speed_of_aiming', 'hip_spread': 'dispersion/from_the_hip_multiplier',
+            'aim_spread': 'dispersion/aim_multiplier', 'reload_spread': 'dispersion/reload_dispersion_amount',
+            'recoil': 'recoil/recoil_power', 'top_min': 'recoil/min_top_recoil', 'top_max': 'recoil/max_top_recoil',
+            'left_min': 'recoil/min_left_recoil', 'left_max': 'recoil/max_left_recoil',
+            'right_min': 'recoil/min_right_recoil', 'right_max': 'recoil/max_right_recoil',
+            'pid_p': 'recoil/compensation_proportional_gain', 'pid_i': 'recoil/compensation_integral_gain',
+            'pid_d': 'recoil/compensation_derivational_gain',
+            'shake_min': 'recoil/min_shake_recoil', 'shake_max': 'recoil/max_shake_recoil',
+            'shake_time': 'recoil/shake_time_scale',
+            'sway_h': 'breath_vibration/base_horizontal_amplitude', 'sway_v': 'breath_vibration/base_vertical_amplitude',
+            'sway_period': 'breath_vibration/base_period', 'melee': 'melee/data/k_damage',
+        },
+        'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_start', 'reload_end', 'chamber',
+                  'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
+                  'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
+                  'aim_speed', 'hip_spread', 'aim_spread', 'reload_spread', 'recoil', 'top_min', 'top_max',
+                  'left_min', 'left_max', 'right_min', 'right_max', 'pid_p', 'pid_i', 'pid_d', 'shake_min',
+                  'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
+        'cards': weapon_card,
+    },
+}
+
+
+def stats_category(path):
+    """The STATS entry of a stats table's file (<category>-stats.tsv); another name is refused."""
+    name = os.path.basename(path)
+    if not name.endswith('-stats.tsv') or name[:-len('-stats.tsv')] not in STATS:
+        raise ValueError('%s: not <category>-stats.tsv of a category of STATS (%s)' % (name, ', '.join(STATS)))
+    return STATS[name[:-len('-stats.tsv')]]
+
+
+def stats_config(category, name):
+    """A row's config: its name between the folder of the category's glob and its suffix."""
+    glob = category['configs']
+    return glob[:glob[:glob.index('*')].rindex('/') + 1] + name + glob[glob.rindex('*') + 1:]
+
+
+def read_stats(path):
+    """A stats table: (its category, {config: ({column: cell}, notes)}). Refused (ValueError): a column
+    the category has not or a column of it missing, a row of another length, a cell no number, a
+    config twice."""
+    category = stats_category(path)
+    with open(path, encoding='utf-8') as f:
+        lines = [l for l in f.read().splitlines() if l.strip() and not l.startswith('#')]
+    head = lines[0].split('\t')
+    columns, known = head[1:-1], category['columns']
+    unknown, missing = [c for c in columns if c not in known], [c for c in known if c not in columns]
+    if head[-1] != 'notes' or unknown or missing or len(set(columns)) != len(columns):
+        raise ValueError('%s: the header is <config> <the columns, each once> notes: unknown %s, missing %s'
+                         % (path, unknown, missing))
+    rows = {}
+    for line in lines[1:]:
+        fields = line.split('\t')
+        if len(fields) != len(head):
+            raise ValueError('%s: %s: %d fields, not %d' % (path, fields[0], len(fields), len(head)))
+        config = stats_config(category, fields[0])
+        for column, cell in zip(columns, fields[1:-1]):
+            if cell and not re.fullmatch(r'-?\d+(\.\d+)?(e-?\d+)?', cell):
+                raise ValueError('%s: %s %s: %r is no number' % (path, fields[0], column, cell))
+        if config in rows:
+            raise ValueError('%s: %s is there twice' % (path, fields[0]))
+        rows[config] = (dict(zip(columns, fields[1:-1])), fields[-1])
+    return category, rows
+
+
+def stat_text(t, raw):
+    """A config's number as its table writes it: an int, or the shortest float that is these 32 bits."""
+    if t == T_INT:
+        return str(as_number(t, raw))
+    for digits in range(6, 10):
+        text = '%.*g' % (digits, as_number(t, raw))
+        if struct.unpack('<I', struct.pack('<f', float(text)))[0] == raw:
+            return text
+
+
+def stats_differences(buf, category, cells):
+    """[(column, key path, the cell, the config's text)] of every column where the config `buf`
+    disagrees with its row: another number (an int key with a fraction too: the cell makes it a
+    float), a key the row leaves empty, a cell for a key the config has not ('' for either none)."""
+    out = []
+    for column, key in category['columns'].items():
+        cell = cells[column]
+        try:
+            data, _, _, t, _ = rec(buf, find(buf, key))
+            have = stat_text(t, data & 0xffffffff) if t in (T_INT, T_FLOAT) else '(not a number)'
+        except KeyError:
+            have = ''
+        if not cell or not have or have == '(not a number)':
+            same_value = cell == have
+        elif t == T_INT:
+            same_value = float(cell) == int(have)
+        else:
+            same_value = struct.pack('<f', float(cell)) == struct.pack('<f', float(have))
+        if not same_value:
+            out.append((column, key, cell, have))
+    return out
+
+
+def card_differences(buf, card):
+    """[(prop_id, the card's text, the config's)] of each card line (ui_desc/props_list) of the config
+    `buf` that says another number than `card(buf)` makes of its values."""
     try:
         lines = children(buf, find(buf, 'ui_desc/props_list'))
     except KeyError:
         return []
-    want, out = weapon_card(buf), []
+    want, out = card(buf), []
     for entry in lines:
         prop_id, text = (value_of(buf, find(buf, k, entry)) for k in ('prop_id', 'prop_value'))
         if prop_id in want and want[prop_id] != text:
@@ -704,34 +824,22 @@ def card_differences(buf):
     return sorted(out)
 
 
-def weapon_table(path):
-    """The rows of the weapon table (weapon-stats.tsv): [(config, key path, value)], a value written
-    with a point a float. A malformed row, or a weapon's key twice, is refused."""
-    rows, seen = [], set()
-    for n, line in enumerate(open(path, encoding='utf-8').read().splitlines(), 1):
-        if not line.strip() or line.startswith('#'):
-            continue
-        fields = line.split('\t')
-        if len(fields) != 4 or not all(fields) or not re.fullmatch(r'wpn_\w+', fields[0]) or \
-                not re.fullmatch(r'-?\d+(\.\d+)?', fields[2]):
-            sys.exit('%s:%d: not <wpn_...> <key path> <number> <why>, tabs between' % (path, n))
-        weapon, key, text, _ = fields
-        if (weapon, key) in seen:
-            sys.exit('%s:%d: %s %s is there twice' % (path, n, weapon, key))
-        seen.add((weapon, key))
-        rows.append((WEAPONS % weapon, key, float(text) if '.' in text else int(text)))
-    return rows
-
-
-def set_stat(buf, path, value):
-    """A row of the weapon table: the number at `path` becomes `value` (a float makes an int a float).
-    A row that changes nothing is refused."""
-    off = find(buf, path)
-    before = bytes(buf[off:off + 24])
-    d, _, _, t, _ = rec(buf, off)
-    set_number(buf, path, as_number(t, d & 0xffffffff), value, as_float=isinstance(value, float))
-    if bytes(buf[off:off + 24]) == before:
-        raise ValueError('%s is %r already: the row changes nothing' % (path, value))
+def dump_stats(name, live):
+    """`content_edit.py --dump-stats <category> <live folder>`: the stats table of the configs there,
+    as they are (a table's first version: its notes are empty)."""
+    category = STATS[name]
+    glob = category['configs']
+    start, end = glob[:glob.index('*')].rindex('/') + 1, -len(glob[glob.rindex('*') + 1:])
+    print('\t'.join([name] + list(category['columns']) + ['notes']))
+    for root, _, names in sorted(os.walk(live)):
+        for n in sorted(names):
+            path = os.path.relpath(os.path.join(root, n), live).replace(os.sep, '/')
+            if fnmatch.fnmatch(path, glob):
+                buf = bytearray(open(os.path.join(root, n), 'rb').read())
+                cells = {c: '' for c in category['columns']}
+                for column, key, _, have in stats_differences(buf, category, cells):
+                    cells[column] = have
+                print('\t'.join([path[start:end]] + list(cells.values()) + ['']))
 
 
 def prefix_strings(buf, key, prefix):
@@ -1133,13 +1241,15 @@ def require_headwear_bind(config, paths):
 
 
 def main():
+    if sys.argv[1:2] == ['--dump-stats']:
+        return dump_stats(*sys.argv[2:4])
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
     if len(args) != 3:
         sys.exit(__doc__)
     edits_file, live, out = args
-    table = weapon_table(edits_file) if edits_file.endswith('.tsv') else None
-    edits = json.load(open(edits_file, encoding='utf-8')) if table is None else {}
+    stats = read_stats(edits_file) if edits_file.endswith('-stats.tsv') else None
+    edits = json.load(open(edits_file, encoding='utf-8')) if stats is None else {}
     if not check and os.path.exists(out):
         sys.exit('%s: already there' % out)
     files = {}
@@ -1209,20 +1319,36 @@ def main():
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
-    for cfg, path, value in table or ():
-        try:
-            set_stat(buf(cfg), path, value)
-        except (KeyError, ValueError, TypeError) as why:
-            sys.exit('%s %s: %s' % (cfg, path, why))
-        allowed.setdefault(cfg, set()).add('/' + path)
-    if table is not None:
-        cards = 0
-        for p in sorted(fnmatch.filter(files, WEAPONS % 'wpn_*')):
-            for prop_id, text, want in card_differences(bufs.get(p) or bytearray(open(files[p], 'rb').read())):
+    if stats is not None:
+        category, rows = stats
+        configs = sorted(fnmatch.filter(files, category['configs']))
+        unmatched = [p for p in configs if p not in rows] + [p for p in rows if p not in files]
+        if unmatched:
+            sys.exit('%s: %s: a config without its row, or a row without its config' % (edits_file, unmatched[0]))
+        values = cards = 0
+        for p in configs:
+            cells = rows[p][0]
+            for column, key, cell, have in stats_differences(bufs.get(p) or bytearray(open(files[p], 'rb').read()),
+                                                             category, cells):
+                if not cell or not have:
+                    sys.exit('%s %s (%s): the row says %r, the config %r: a cell is empty where the config has no '
+                             'such key, and only there' % (p, column, key, cell, have))
+                b = buf(p)
+                d, _, _, t, _ = rec(b, find(b, key))
+                to = float(cell) if t == T_FLOAT or float(cell) != int(float(cell)) else int(float(cell))
+                set_number(b, key, as_number(t, d & 0xffffffff), to, as_float=isinstance(to, float))
+                allowed.setdefault(p, set()).add('/' + key)
+                print('%s %s: %s -> %s' % (p, column, have, cell))
+                values += 1
+            if p in bufs and stats_differences(bufs[p], category, cells):
+                sys.exit('%s: does not read back as its row: %s' % (p, stats_differences(bufs[p], category, cells)))
+            for prop_id, text, want in card_differences(bufs.get(p) or bytearray(open(files[p], 'rb').read()),
+                                                        category['cards']) if category['cards'] else ():
                 allowed.setdefault(p, set()).add(set_prop(buf(p), prop_id, text, want))
                 print('card %s %d: %s -> %s' % (p, prop_id, text, want))
                 cards += 1
-        print('weapon table: %d rows, %d card lines written from the configs' % (len(table), cards))
+        print('%s: %d rows, %d values written, %d card lines written from the configs'
+              % (os.path.basename(edits_file), len(rows), values, cards))
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])

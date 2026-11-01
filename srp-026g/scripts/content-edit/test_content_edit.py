@@ -261,49 +261,92 @@ def weapon(damage, card_damage, rpm=600, chamber=None):
                                               {'prop_id': 15, 'prop_value': '3.0'}]}})
 
 
+WEAPON = ce.STATS['weapon']
+
+
+def table(rows, columns=None):
+    """A weapon-stats.tsv: {weapon: {column: cell}}, the other cells empty."""
+    columns = columns or list(WEAPON['columns'])
+    return '# a comment\n' + '\t'.join(['weapon'] + columns + ['notes']) + '\n' + ''.join(
+        '\t'.join([name] + [cells.get(c, '') for c in columns] + ['why']) + '\n' for name, cells in rows.items())
+
+
+def row_of(text, name):
+    """The cells of a weapon's row of a table's text, as read_stats reads them."""
+    with tempfile.TemporaryDirectory() as folder:
+        (Path(folder) / 'weapon-stats.tsv').write_text(text)
+        return ce.read_stats(str(Path(folder) / 'weapon-stats.tsv'))[1][ce.stats_config(WEAPON, name)][0]
+
+
+def cells_of(damage, rpm=600, k_damage=2):
+    return {'damage': damage, 'rpm': str(rpm), 'weight': '3', 'melee': str(k_damage)}
+
+
 class WeaponTable(unittest.TestCase):
-    def run_table(self, rows, weapons):
+    def run_table(self, text, weapons):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         root = Path(folder.name)
         for name, data in weapons.items():
-            path = root / 'live' / (ce.WEAPONS % name)
+            path = root / 'live' / ce.stats_config(WEAPON, name)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(bytes(data))
-        (root / 'weapon-stats.tsv').write_text('# weapon\tkey path\tvalue\twhy\n' +
-                                               ''.join('\t'.join(row) + '\twhy\n' for row in rows))
+        (root / 'weapon-stats.tsv').write_text(text)
         result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), str(root / 'weapon-stats.tsv'),
                                  str(root / 'live'), str(root / 'out')], capture_output=True, text=True)
         return result, root / 'out'
 
-    def test_rows_set_their_values_and_every_card_follows_its_config(self):
-        """A row sets its value (a point makes an int a float); every weapon's card is written from its
-        config, a weapon no row names too; a weapon whose card agrees is not written."""
-        result, out = self.run_table(
-            [('wpn_a', 'parameters/bullet_damage', '0.5'), ('wpn_a', 'melee/data/k_damage', '1.5')],
-            {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.45, '40'), 'wpn_c': weapon(0.3, '30')})
+    def out(self, out, name):
+        return bytearray((out / ce.stats_config(WEAPON, name)).read_bytes())
+
+    def test_each_cell_is_its_configs_value_and_every_card_follows(self):
+        """A changed cell is written (an int key with a fraction becomes a float), every card is written
+        from its config, a weapon whose row and card agree is not written."""
+        text = table({'wpn_a': cells_of('0.5', k_damage=1.5), 'wpn_b': cells_of('0.45'), 'wpn_c': cells_of('0.3')})
+        result, out = self.run_table(text, {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.45, '40'),
+                                            'wpn_c': weapon(0.3, '30')})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('0 unexpected differences', result.stdout)
-        a = bytearray((out / (ce.WEAPONS % 'wpn_a')).read_bytes())
+        a = self.out(out, 'wpn_a')
         self.assertTrue(ce.same(value(a, 'parameters/bullet_damage'), 0.5))
         self.assertEqual(ce.rec(a, ce.find(a, 'melee/data/k_damage'))[3], ce.T_FLOAT)
         self.assertEqual(value(a, 'melee/data/k_damage'), 1.5)
+        self.assertEqual(ce.rec(a, ce.find(a, 'parameters/rounds_per_minute'))[3], ce.T_INT)
         self.assertEqual(value(a, 'ui_desc/props_list[0]/prop_value'), '50')
-        b = bytearray((out / (ce.WEAPONS % 'wpn_b')).read_bytes())
-        self.assertEqual(value(b, 'ui_desc/props_list[0]/prop_value'), '45')
-        self.assertFalse((out / (ce.WEAPONS % 'wpn_c')).exists())
-        self.assertEqual(ce.card_differences(a) + ce.card_differences(b), [])
+        self.assertEqual(value(self.out(out, 'wpn_b'), 'ui_desc/props_list[0]/prop_value'), '45')
+        self.assertFalse((out / ce.stats_config(WEAPON, 'wpn_c')).exists())
+        for name in ('wpn_a', 'wpn_b'):
+            data = self.out(out, name)
+            self.assertEqual(ce.card_differences(data, ce.weapon_card), [])
+            self.assertEqual(ce.stats_differences(data, WEAPON, row_of(text, name)), [])
 
-    def test_a_row_that_changes_nothing_or_twice_is_refused(self):
-        for rows in ([('wpn_a', 'parameters/bullet_damage', '0.55')],
-                     [('wpn_a', 'parameters/rounds_per_minute', '500')] * 2,
-                     [('wpn_a', 'parameters/no_such_key', '1')]):
-            result, out = self.run_table(rows, {'wpn_a': weapon(0.55, '55')})
-            self.assertNotEqual(result.returncode, 0, rows)
+    def test_a_table_the_configs_cannot_take_is_refused(self):
+        good = {'wpn_a': cells_of('0.55')}
+        for text, weapons in (
+                (table(good, list(WEAPON['columns']) + ['range']), {'wpn_a': weapon(0.55, '55')}),  # unknown
+                (table(good, list(WEAPON['columns'])[1:]), {'wpn_a': weapon(0.55, '55')}),          # missing
+                (table(good), {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.4, '40')}),           # no row
+                (table({'wpn_a': {**good['wpn_a'], 'melee': ''}}), {'wpn_a': weapon(0.55, '55')}),  # key kept
+                (table({'wpn_a': {**good['wpn_a'], 'pierce': '0.3'}}), {'wpn_a': weapon(0.55, '55')})):  # none
+            result, out = self.run_table(text, weapons)
+            self.assertNotEqual(result.returncode, 0, text)
             self.assertFalse(out.exists())
+
+    def test_the_dump_reads_back_as_its_configs(self):
+        weapons = {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.1 + 0.2, '30')}
+        with tempfile.TemporaryDirectory() as folder:
+            for name, data in weapons.items():
+                path = Path(folder) / ce.stats_config(WEAPON, name)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(bytes(data))
+            text = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), '--dump-stats', 'weapon',
+                                   folder], capture_output=True, text=True, check=True).stdout
+        for name, data in weapons.items():
+            self.assertEqual(ce.stats_differences(data, WEAPON, row_of(text, name)), [])
 
     def test_a_bolt_guns_rate_of_fire_counts_its_chambering(self):
         """The stock cards' rule: rounds a minute with chambering each, rounded down (the Mosin: 27)."""
         self.assertEqual(ce.weapon_card(weapon(1.1, '110', rpm=160, chamber=1.8))[4], '27')
         self.assertEqual(ce.weapon_card(weapon(1.2, '120', rpm=200, chamber=1.2))[4], '40')
-        self.assertEqual(ce.card_differences(weapon(0.5, '50', rpm=160, chamber=1.8)), [(4, '160', '27')])
+        self.assertEqual(ce.card_differences(weapon(0.5, '50', rpm=160, chamber=1.8), ce.weapon_card),
+                         [(4, '160', '27')])

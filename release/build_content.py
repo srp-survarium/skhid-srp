@@ -18,10 +18,12 @@ The manifest's rows, in this order of kinds (each kind's rows in their order):
   edit   <file>.json             - | resources.db.patch_<n>
          srp-026g/scripts/content-edit/<file>.json applied by content_edit.py to the files as the
          rows above (and the edits before it) leave them; or, with a base row's name, a record;
-         weapon-stats.tsv, the weapon table, the same way (its rows, then every weapon's card)
+         <category>-stats.tsv, a stats table (content_edit.py STATS), the same way: its cells
+         into the configs of its category, then their cards
 Every Flash tree of srp-026g/flash needs a movie row and every edit list of content-edit a row.
-Every weapon card must say its config's numbers, and a weapon value a match computes with
-(MATCH_KEYS) that players have otherwise needs the `next` row of simulation_changes.tsv.
+After the edits, every config of a category with a stats table is its row, its card lines say
+its numbers, and a match column (STATS `match`) that players have otherwise needs the `next` row
+of simulation_changes.tsv.
 
 Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
 them players do not have so: what the next patch carries; absent when there is none) and
@@ -53,16 +55,6 @@ LOBBY = 'lobby_menu'
 # configs have both there: content_type_check.number_either). Empty: today's content needs none.
 TYPE_ALLOWLIST = {}
 
-WEAPONS = 'gameplay/items/weapons/wpn_*.options'
-# The weapon config values a match computes with (a key ending in / is its whole table): one
-# that players have otherwise needs the `next` row of SIMULATION_CHANGES (replays of older games
-# would play out otherwise). Cards, levels, prices and looks are not here.
-MATCH_KEYS = ('parameters/bullet_damage', 'parameters/bullet_pierce', 'parameters/rounds_per_minute',
-              'parameters/magazine_capacity', 'parameters/reload_time', 'parameters/chamber_a_round_time',
-              'parameters/min_damage_amount', 'parameters/min_damage_distance', 'parameters/max_damage_distance',
-              'parameters/stopping_power', 'parameters/aim_time', 'parameters/show_time', 'parameters/hide_time',
-              'parameters/weight', 'parameters/movement_speed_modifier', 'recoil/', 'dispersion/',
-              'breath_vibration/', 'melee/')
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
 
 
@@ -343,8 +335,8 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
         if kind != 'edit' or source != '-':
             continue
         known = sorted(set(base_files) | set(world.bytes))
-        if name.endswith('.tsv'):           # the weapon table: its rows, then every weapon's card
-            paths = fnmatch.filter(known, WEAPONS)
+        if name.endswith('-stats.tsv'):     # a stats table: every config of its category
+            paths = fnmatch.filter(known, own_content_edit().stats_category(name)['configs'])
         else:
             paths = edit_paths(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')), known)
         movies = [p for p in paths if p.startswith('flash_movies/')]
@@ -422,33 +414,47 @@ def own_content_edit():
     return module
 
 
-def weapon_checks(base, base_files, live, game, world, tree, compared):
-    """Every weapon card says its config's numbers (content_edit.card_differences: the weapon
-    table writes them; a card a later row or a pack left otherwise is a Problem), and a weapon value of
-    MATCH_KEYS that players have otherwise needs the `next` row of SIMULATION_CHANGES."""
+def stats_checks(rows, base, base_files, live, game, world, tree, compared):
+    """Per category of content_edit.STATS: every config of it is its row of the stats table (a row
+    each, the same numbers: the round trip), its card lines say its numbers, and a value of a match
+    column that players have otherwise needs the `next` row of SIMULATION_CHANGES."""
     ce = own_content_edit()
-    paths = sorted(fnmatch.filter(set(base_files) | set(world.bytes), WEAPONS))
-    configs = {**game.get(base, [p for p in paths if p not in world.bytes]),
-               **{p: world.bytes[p] for p in paths if p in world.bytes}}
-    problems = [f'{path}: card line {prop_id} says {text!r}, its config {want!r}'
-                for path in paths for prop_id, text, want in ce.card_differences(bytearray(configs[path]))]
+    tables = {name: edits_dir(tree) / name for kind, name, source, _, _ in rows
+              if kind == 'edit' and source == '-' and name.endswith('-stats.tsv')}
+    problems, moved = [], []
+    for category_name, category in ce.STATS.items():
+        paths = sorted(fnmatch.filter(set(base_files) | set(world.bytes), category['configs']))
+        configs = {**game.get(base, [p for p in paths if p not in world.bytes]),
+                   **{p: world.bytes[p] for p in paths if p in world.bytes}}
+        table = tables.get(f'{category_name}-stats.tsv')
+        table_rows = ce.read_stats(str(table))[1] if table else {}
+        if table:
+            problems += [f'{p}: no row in {table.name}' for p in paths if p not in table_rows]
+            problems += [f'{p}: a row of {table.name}, no such config' for p in table_rows if p not in configs]
+        for path in paths:
+            data = bytearray(configs[path])
+            if path in table_rows:
+                problems += [f'{path}: {column} ({key}) is {have or "absent"}, its row says {cell or "nothing"}'
+                             for column, key, cell, have in ce.stats_differences(data, category, table_rows[path][0])]
+            if category['cards']:
+                problems += [f'{path}: card line {prop_id} says {text!r}, its config {want!r}'
+                             for prop_id, text, want in ce.card_differences(data, category['cards'])]
+        changed = [p for p in paths if p in world.bytes and compared[p][0] == 'differs']
+        players = game.get(live, changed)
+        keys = [category['columns'][c] for c in sorted(category['match'])]
+        for path in changed:
+            was, now = ({q[1:]: (t, v) for q, t, v in ce.walk(bytearray(data)) if q[1:] in keys}
+                        for data in (players[path], world.bytes[path]))
+            moved += [f'{path} {key}' for key in keys if was.get(key) != now.get(key)]
+        print(f'{category_name} stats: {len(paths)} config(s)' + (f', each its row of {table.name}' if table else '')
+              + (', every card line its number' if category['cards'] else ''))
     if problems:
         print()
         for problem in problems:
-            print(f'CARD: {problem}')
-        raise Problem(f'{len(problems)} weapon card line(s) say another number than the config: no patch made '
-                      '(the weapon table, weapon-stats.tsv, writes them: its row last among the weapon edits)')
-    print(f'weapon cards: {len(paths)} weapon(s), every card line says its config\'s number')
-    changed = [p for p in paths if p in world.bytes and compared[p][0] == 'differs']
-    players = game.get(live, changed)
-
-    def values(data):
-        return {q[1:]: (t, v) for q, t, v in ce.walk(bytearray(data))
-                if any(q[1:] == k or (k.endswith('/') and q[1:].startswith(k)) for k in MATCH_KEYS)}
-    moved = []
-    for path in changed:
-        was, now = values(players[path]), values(world.bytes[path])
-        moved += [f'{path} {key}' for key in sorted(set(was) | set(now)) if was.get(key) != now.get(key)]
+            print(f'STATS: {problem}')
+        raise Problem(f'{len(problems)} config(s) that are not their stats table\'s row or card(s) that say another '
+                      'number: no patch made (the <category>-stats.tsv row writes them: its edit row last but '
+                      'localization)')
     if not moved:
         return
     changes = tree / SIMULATION_CHANGES
@@ -456,10 +462,10 @@ def weapon_checks(base, base_files, live, game, world, tree, compared):
     for line in moved:
         print(f'  match value: {line}')
     if not marked:
-        raise Problem(f'{len(moved)} weapon value(s) a match computes with differ from what players have, and '
+        raise Problem(f'{len(moved)} value(s) a match computes with differ from what players have, and '
                       f'{SIMULATION_CHANGES} has no `next` row: add its words there (replays of older games '
                       'would play out otherwise)')
-    print(f'{len(moved)} weapon value(s) a match computes with differ from players\': {SIMULATION_CHANGES} has '
+    print(f'{len(moved)} value(s) a match computes with differ from players\': {SIMULATION_CHANGES} has '
           'its `next` row')
 
 
@@ -528,7 +534,7 @@ def main():
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         compared = game.compare(live, folder) if world.bytes else {}
-        weapon_checks(base, base_files, live, game, world, args.tree, compared)
+        stats_checks(rows, base, base_files, live, game, world, args.tree, compared)
         problems = []
         live_files = game.files(live)
         unmade = sorted(p for p, name in live_files.items() if name not in base_names and p not in world.bytes)
