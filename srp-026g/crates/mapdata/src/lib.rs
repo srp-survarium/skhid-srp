@@ -127,6 +127,10 @@ pub const CAPSULE_STEPS_ALGO: u32 = 1;
 /// The same for the walk-offs kept only where the capsule has room to walk off the edge ([`Body::drop_room`],
 /// `WalkGrid::cut_blocked_walk_offs`), in [`grid_key_with_links`] only for a body that asks for it.
 pub const DROP_ROOM_ALGO: u32 = 1;
+/// The same for the floors reached by a slip off a walk-off's take-off ([`Body::slip_landings`], `WalkGrid::slip_landings`), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own: a key with only this flag is not one with only
+/// another flag whose value is 1.
+pub const SLIP_LANDINGS_ALGO: u32 = 0x5119_0001;
 /// The same for the sprint jumps' run-ups asked after the erosion ([`Body::run_ups_after_erosion`], `WalkGrid::drop_short_run_ups`),
 /// in [`grid_key_with_links`] only for a body that asks for it.
 pub const RUN_UPS_AFTER_EROSION_ALGO: u32 = 1;
@@ -264,6 +268,10 @@ pub fn grid_key_with_links(
     // The room to walk off is a switch too.
     if body.drop_room {
         digest.u32(DROP_ROOM_ALGO);
+    }
+    // The floors a slip reaches are a switch too.
+    if body.slip_landings {
+        digest.u32(SLIP_LANDINGS_ALGO);
     }
     // So is the run-ups' place in the build.
     if body.run_ups_after_erosion {
