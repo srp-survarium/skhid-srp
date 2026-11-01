@@ -225,102 +225,28 @@ pub const fn spawn_seed(place: u8, kit: u8, slot: u8, time: u32) -> u32 {
 /// own stack can be parked from.
 pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 
-/// An own ammunition stack parked while a picked gun holds its slot: the
-/// kit slot it came from and its rounds (they do not change while parked).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ParkedStack {
-    slot: u8,
-    count: u16,
-}
-
-impl ParkedStack {
-    /// None for a slot no weapon binds ammunition to.
-    pub fn new(slot: u8, count: u16) -> Option<ParkedStack> {
-        AMMO_SLOTS.contains(&slot).then_some(ParkedStack { slot, count })
-    }
-
-    pub const fn slot(self) -> u8 {
-        self.slot
-    }
-
-    pub const fn count(self) -> u16 {
-        self.count
-    }
-}
-
-/// What a weapon slot's pick keeps hidden of the own kit, for the server's
-/// count of the ammunition used (the owner: borrowed ammunition is never
-/// charged, own ammunition by what was really used): the own gun's
-/// magazine and the own stacks parked (at most [`Parked::STACKS`]; the
-/// install parks no more). Written from the client's install at each save,
-/// read by the server only: a loaded record's is ignored by the client.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Parked {
-    pub magazine: u8,
-    pub stacks: [Option<ParkedStack>; Parked::STACKS],
-}
-
-impl Parked {
-    pub const STACKS: usize = 4;
-    const BYTES: usize = 2 + 3 * Self::STACKS;
-
-    fn encode(self, out: &mut [u8]) {
-        out[0] = 1;
-        out[1] = self.magazine;
-        for (at, stack) in (2..).step_by(3).zip(self.stacks.into_iter().flatten()) {
-            out[at] = stack.slot;
-            out[at + 1..at + 3].copy_from_slice(&stack.count.to_le_bytes());
-        }
-    }
-
-    /// None (outer) for bytes [`encode`](Self::encode) does not write.
-    fn decode(bytes: &[u8]) -> Option<Option<Parked>> {
-        match bytes[0] {
-            0 => bytes[1..Self::BYTES].iter().all(|&b| b == 0).then_some(None),
-            1 => {
-                let mut stacks = [None; Self::STACKS];
-                let mut ended = false;
-                for (n, stack) in stacks.iter_mut().enumerate() {
-                    let at = 2 + 3 * n;
-                    let count = u16::from_le_bytes([bytes[at + 1], bytes[at + 2]]);
-                    match bytes[at] {
-                        0 if count == 0 => ended = true,
-                        slot if !ended => *stack = Some(ParkedStack::new(slot, count)?),
-                        _ => return None,
-                    }
-                }
-                Some(Some(Parked { magazine: bytes[1], stacks }))
-            }
-            _ => None,
-        }
-    }
-}
-
 /// The one record a player's state carries: its drop, what is picked
-/// into each of its weapon slots (7, 10), a pickup waiting for its
-/// switch, and what each pick keeps hidden of the own kit (the server's).
+/// into each of its weapon slots (7, 10) and a pickup waiting for its
+/// switch. Nothing of the own kit a pick sets aside: that is neither
+/// charged nor refunded (the owner, 2026-11-02), so no game writes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Record {
     pub drop: Drop,
     pub picks: [Option<Pick>; 2],
     pub pending: Option<Pending>,
-    /// For each weapon slot with a pick, its [`Parked`] (None: not known,
-    /// the client did not install it).
-    pub parked: [Option<Parked>; 2],
 }
 
 impl Record {
-    pub const EMPTY: Record = Record { drop: Drop::None, picks: [None; 2], pending: None, parked: [None; 2] };
+    pub const EMPTY: Record = Record { drop: Drop::None, picks: [None; 2], pending: None };
     /// Its bytes in a player's state: the version, the drop (its tag, kit
     /// and slot in one byte), then for slot 7 and slot 10 a byte (0 none,
     /// else the recipe's place + 1, its kit << 5, its slot << 7) and the
     /// tick (u32); then the pending pickup: its weapon slot (0 none, 1
     /// slot 7, 2 slot 10), its pick as a slot's, the magazine and a byte
-    /// (bit 0 the donor's magazine known, bit 1 its chamber); then for slot
-    /// 7 and slot 10 the parked own kit (a byte 0 none or 1, the own gun's
-    /// magazine, four stacks of a slot byte (0 none) and a u16 count).
-    pub const BYTES: usize = 20 + 2 * Parked::BYTES;
-    const VERSION: u8 = 4;
+    /// (bit 0 the donor's magazine known, bit 1 its chamber). Version 5:
+    /// version 4 had 28 more bytes, the own kit each pick set aside.
+    pub const BYTES: usize = 20;
+    const VERSION: u8 = 5;
 
     pub fn pick(&self, slot: WeaponSlot) -> Option<Pick> {
         self.picks[usize::from(slot.bit())]
@@ -372,11 +298,6 @@ impl Record {
                 out[19] = 1 | u8::from(chamber) << 1;
             }
         }
-        for (at, parked) in [20, 20 + Parked::BYTES].into_iter().zip(self.parked) {
-            if let Some(parked) = parked {
-                parked.encode(&mut out[at..at + Parked::BYTES]);
-            }
-        }
         out
     }
 
@@ -407,13 +328,7 @@ impl Record {
             _ => return None,
         };
         let picks = [Self::decode_pick(&bytes[2..7])?, Self::decode_pick(&bytes[7..12])?];
-        let parked = [Parked::decode(&bytes[20..20 + Parked::BYTES])?,
-                      Parked::decode(&bytes[20 + Parked::BYTES..20 + 2 * Parked::BYTES])?];
-        // A slot's parked kit only beside its pick.
-        if picks.iter().zip(parked).any(|(pick, parked)| pick.is_none() && parked.is_some()) {
-            return None;
-        }
-        Some(Record { drop, picks, pending, parked })
+        Some(Record { drop, picks, pending })
     }
 }
 
@@ -688,31 +603,23 @@ mod tests {
         let waiting = |slot, magazine| Some(Pending { slot, pick: Pick { taken: Ms(90_001), recipe }, magazine });
         let cases = [
             Record::EMPTY,
-            Record { drop: Drop::Taken, picks: [Some(pick), None], pending: None, parked: [None; 2] },
+            Record { drop: Drop::Taken, picks: [Some(pick), None], pending: None },
             Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(pick)],
-                     pending: None, parked: [None; 2] },
-            Record { drop: Drop::None, picks: [Some(pick), Some(Pick { taken: Ms(1), recipe })], pending: None, parked: [None; 2] },
-            Record { drop: Drop::None, picks: [None, Some(pick)], pending: waiting(WeaponSlot::Second, Some((17, true))), parked: [None; 2] },
-            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, None), parked: [None; 2] },
-            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, Some((0, false))), parked: [None; 2] },
+                     pending: None },
+            Record { drop: Drop::None, picks: [Some(pick), Some(Pick { taken: Ms(1), recipe })], pending: None },
+            Record { drop: Drop::None, picks: [None, Some(pick)], pending: waiting(WeaponSlot::Second, Some((17, true))) },
+            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, None) },
+            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, Some((0, false))) },
         ];
         for record in cases {
             assert_eq!(Record::decode(record.encode()), Some(record));
         }
         assert_eq!(cases[1].encode()[2], 20 | 2 << 5 | 1 << 7, "place + 1, kit, slot");
         assert_eq!(cases[4].encode()[12..20], [2, 20 | 2 << 5 | 1 << 7, 0x91, 0x5F, 1, 0, 17, 3], "slot 10, the pick, 17 + chamber");
-        // The own kit a pick parks: the own gun's magazine and its stacks (slot, count).
-        let parked = Parked { magazine: 23, stacks: [ParkedStack::new(8, 90), ParkedStack::new(19, 300), None, None] };
-        let borrowing = Record { drop: Drop::None, picks: [Some(pick), None], pending: None, parked: [Some(parked), None] };
-        assert_eq!(Record::decode(borrowing.encode()), Some(borrowing));
-        assert_eq!(borrowing.encode()[20..28], [1, 23, 8, 90, 0, 19, 0x2C, 1]);
-        assert_eq!(ParkedStack::new(7, 1), None, "a weapon slot is no ammunition's");
-        let good_parked = borrowing.encode();
-        for (at, value) in [(20, 2), (22, 7), (25, 0), (28, 7), (34, 1)] {
-            let mut bad = good_parked;
-            bad[at] = value;
-            assert_eq!(Record::decode(bad), None, "parked byte {at} = {value}");
-        }
+        assert_eq!(Record::BYTES, 20);
+        let mut old = cases[1].encode();
+        old[0] = 4;
+        assert_eq!(Record::decode(old), None, "version 4 (with the own kit set aside) is not read");
         let good = cases[1].encode();
         for (at, value) in [(0, 2), (1, 3), (1, 6), (1, 1 | 3 << 2), (2, 0x60), (2, 21), (7, 0x60), (8, 1),
                             (12, 1), (13, 1), (18, 5), (19, 1)] {

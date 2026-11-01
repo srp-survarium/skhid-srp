@@ -391,9 +391,9 @@ def main():
     abc(patched)
     late_join(patched)
     late_join_after_player_made(patched)
-    parked_from_the_record(patched)
+    a_loaded_record_saves_the_same(patched)
     a_new_life(patched)
-    the_end_refunds_the_parked_block(patched)
+    the_end_refunds_nothing_set_aside(patched)
     no_cook_in_a_tick(patched)
     crate_per_gun(patched)
     stage2b(patched)
@@ -436,7 +436,7 @@ def record(drop=None, slot7=None, slot10=None, pending=None):
     (taken ms, the recipe's place, kit, slot bit); the pickup waiting for its switch (its weapon slot 7
     or 10, its pick, the donor's (magazine, chamber) or None)."""
     out = bytearray(RECORD)
-    out[0] = 4
+    out[0] = 5
     if drop == "taken":
         out[1] = 2
     elif drop:
@@ -457,7 +457,7 @@ def record(drop=None, slot7=None, slot10=None, pending=None):
     return bytes(out)
 
 
-RECORD = 48
+RECORD = 20
 # The record's synced part; the rest (20..48) is the own kit each pick parks, the server's (save() keeps it in
 # `parked`).
 SYNCED = 20
@@ -1113,12 +1113,12 @@ def late_join_after_player_made(patched):
           "guns cooks nothing; the record read alone with the flag up still refuses (as before)")
 
 
-def parked_from_the_record(patched):
-    """The record's parked block (the picker's hidden own magazine and stacks, hashed with its state) is a
-    function of the record: a client that loads it (a late join) installs the pick over its own objects (here a
-    full magazine and stack of its own), takes the record's values into its hidden own kit and saves the same 48
-    bytes; a rollback's load over a hidden own kit that changed since saves the loaded bytes too. The live
-    0x1c0ebd31: joiners wrote zeros there and were dropped within seconds."""
+def a_loaded_record_saves_the_same(patched):
+    """No byte of a picker's state depends on the game that writes it: the record (20 bytes, version 5) has
+    nothing of the own kit a pick sets aside (the live 0x1c0ebd31: joiners wrote zeros in the old 28-byte block
+    and were dropped). A picker's state saved, loaded by a fresh client (a late join) whose own kit differs (a full
+    magazine and stack of its own), saved again: byte-identical; a rollback's load then save: identical. The kit
+    set aside is the same hidden in both games (no magazine, each stack as the kit gives it)."""
     r = Pick(patched)
     r.setup()
     r.emu.mem_write(r.own_gun + 0x5E5, bytes([9]))
@@ -1127,7 +1127,7 @@ def parked_from_the_record(patched):
     r.installed()
     r.save(r.picker)
     full = bytes(r.written)
-    assert full[SYNCED + 14:SYNCED + 19] == bytes([1, 9, 8, 40, 0]), full[SYNCED:].hex()  # slot 10's block
+    assert len(full) == RECORD == 20 and full[0] == 5, full.hex()
 
     j = Pick(patched)
     j.setup()
@@ -1137,8 +1137,8 @@ def parked_from_the_record(patched):
     assert j.slot(j.inventory, 10) == j.new_gun + 0x10, j.log
     j.save(j.picker)
     assert bytes(j.written) == full, ("a loading client saves what it loaded", bytes(j.written).hex(), full.hex())
-    assert j.read(j.own_gun + 0x5E5, 1)[0] == 9 and j.read(j.own_ammo + 0x260, 2) == struct.pack("<H", 40), \
-        "the hidden own kit is the record's (what the restore gives back)"
+    hidden = lambda g: (g.read(g.own_gun + 0x5E5, 1), g.read(g.own_gun + 0x5F1, 1), g.read(g.own_ammo + 0x260, 2))
+    assert hidden(r) == hidden(j) == (b"\0", b"\0", struct.pack("<H", 108)), (hidden(r), hidden(j))
     assert not any("NOT" in l for l in j.log), j.log
 
     # A rollback's load (the pick stays installed) over a hidden own kit changed since: the loaded bytes again.
@@ -1146,9 +1146,9 @@ def parked_from_the_record(patched):
     r.load(r.picker, full)
     r.save(r.picker)
     assert bytes(r.written) == full, ("a rollback saves what it loaded", bytes(r.written).hex(), full.hex())
-    print("ok the parked block is the record's: a late joiner installs the pick over its own full kit and saves "
-          "the 48 bytes it loaded (magazine 9, slot 8 x 40), its hidden own kit set from them; a rollback's load "
-          "over a changed hidden kit saves the loaded bytes too")
+    print("ok a picker's state is no game's own: saved (20-byte record, version 5), loaded by a late joiner with "
+          "its own full kit, saved again: byte-identical; a rollback's load and save too; the kit set aside hidden "
+          "alike in both games (no magazine, each stack as the kit gives it, 108)")
 
 
 def a_new_life(patched):
@@ -1183,32 +1183,58 @@ def a_new_life(patched):
           "fire mode left) and a fresh cook give the same +5A4h..+60Fh; the seed the spawn hook's (%#x)" % seed)
 
 
-def the_end_refunds_the_parked_block(patched):
-    """At a pick's end (base_player::remove(1)) the native unload refunds the counts in the picker's slots: they
-    are made the parked block's (the record's, hashed in every game) whatever objects are where, so a game whose
-    restore was refused (here: its cooked own slot changed) refunds what the others do (live 0x1c0ebd31: the donor's
-    game refunded 14, and in another pick 120 rounds less)."""
-    def ended(refused):
-        r = Pick(patched)
-        r.setup()
-        r.emu.mem_write(r.own_gun + 0x5E5, bytes([9, 0]))
-        r.emu.mem_write(r.own_gun + 0x5F1, b"\1")
-        r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 40))
-        r.pick()
-        r.installed()
-        r.save(r.picker)                        # each tick's state: the block as written, kept
-        if refused:
-            r.word(r.cooked + 0x10C + 4 * 10, r.stack(1))
-        r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
-        gun = r.slot(r.inventory, 10) - 0x10
-        return (r.read(r.slot(r.inventory, 8) + 0x260, 2), r.read(gun + 0x5E5, 1), r.read(gun + 0x5F1, 1),
-                r.slot(r.inventory, 10) == r.own_gun + 0x10), r
-    (restored, r), (refused, f) = ended(False), ended(True)
-    assert restored[3] and not refused[3], "the second game's restore was refused"
+UNLOAD = 0x2FD2D0                           # inventory::unload_to_profile: AL kit, inventory, profile; ret 8
+STORE_8 = PROFILE + ITEMS + 0xB4 * 8 + 8    # amount_in_storage of the kit 0 slot 8's item (its word: item 8)
+
+
+def end_of_pick(patched, hidden=None, refused=False):
+    """A picker (place 3, kit 0, 4000 rounds of its slot-8 ammunition in store) takes the donor's gun over its
+    own (its own slot-8 stack set aside), the hidden own stack then `hidden` rounds in this game (a game's own
+    count: a late joiner's made-up kit, or whatever made it differ), the restore `refused` in this game or not;
+    then base_player::remove(1) (the patch's hook) and the native unload (0x2FD2D0) as remove runs it. The store
+    after, the picker's slot 8 and its slot-10 gun's magazine and chamber."""
+    r = Pick(patched)
+    r.setup()
+    r.word(STORE_8, 4_000)
+    # Kit 0 as a real kit is: no item in the slots its inventory leaves empty (the unload reads every named one).
+    for slot in set(range(23)) - {8, 10}:
+        r.emu.mem_write(PROFILE + SLOTS + 4 * slot, struct.pack("<H", 0xFFFF))
+    for stack in (r.own_ammo, r.new_ammo):         # stack items (entry +22Ah): the unload refunds their count
+        r.emu.mem_write(r.read(stack + 0x25C) + 0x22A, b"\1")
+    r.emu.mem_write(r.own_gun + 0x5E5, bytes([9]))
+    r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 90))
+    r.pick()
+    r.installed()
+    if hidden is not None:
+        r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", hidden))
+    if refused:
+        r.word(r.cooked + 0x10C + 4 * 10, r.stack(1))
+    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    gun = r.slot(r.inventory, 10) - 0x10
+    in_slots = (r.read(r.slot(r.inventory, 8) + 0x260, 2), r.read(gun + 0x5E5, 1), r.read(gun + 0x5F1, 1))
+    r.emu.reg_write(UC_X86_REG_EAX, 0)
+    try:
+        r.call(UNLOAD, args=(r.inventory, PROFILE))
+    except Exception:
+        raise AssertionError("the native unload stopped at %#x" % r.emu.reg_read(UC_X86_REG_EIP))
+    return r.read(STORE_8), in_slots, r
+
+
+def the_end_refunds_nothing_set_aside(patched):
+    """At a pick's end (base_player::remove(1)) the own kit set aside is not refunded, in every game alike: the
+    native unload then finds the pick's slot gun with no magazine and no chambered round and the slots the install
+    moved stacks into empty, whatever objects are there. Restored or refused, with any hidden count: the same store
+    (the live 0x1c0ebd31: the donor's game refunded 14, and in another pick 120 rounds less)."""
+    (store, slots, _), (refused_store, refused_slots, f) = end_of_pick(patched), end_of_pick(patched, refused=True)
     assert any("FAILED to restore" in l for l in f.log), f.log
-    assert restored[:3] == refused[:3] == (struct.pack("<H", 40), b"\x09", b"\0"), (restored, refused)
-    print("ok a pick's end refunds the parked block in every game: restored or refused, the picker's slot 8 holds "
-          "40 and its slot-10 gun 9 rounds and no chambered round when the native unload runs")
+    assert slots == refused_slots == (b"\0\0", b"\0", b"\0"), (slots, refused_slots)
+    assert store == refused_store == 4_000, (store, refused_store)
+    # The two live cases: a hidden stack of 90 against 76 (14 rounds) and of 120 against 0 (120).
+    for a, b in ((90, 76), (120, 0)):
+        assert end_of_pick(patched, a)[0] == end_of_pick(patched, b)[0] == 4_000, (a, b)
+    print("ok a pick's end refunds nothing set aside, in every game alike: restored or refused, the unload finds "
+          "slot 8 and the slot-10 gun empty; the store stays 4000; the live cases (hidden 90 vs 76, 120 vs 0) end "
+          "with the same store")
 
 
 def no_cook_in_a_tick(patched):
@@ -1848,12 +1874,10 @@ def stage2(patched, original):
                for l in r.log), r.log
     took = [l.split("pickup: ", 1)[1] for l in r.log if "pickup: place 3 pickup: " in l]
     assert took == ["place 3 pickup: the donor's magazine 17, chamber 1",
-                    f"place 3 pickup: slot 8 ammo 2204 x {CAPACITY} (cooked slot 11); own ammo 217 x 90 parked"], took
-    assert r.save(r.picker) == record(slot10=PICKED)
-    # The own kit slot 10's pick parks, for the server: the own gun's magazine (12) and the own 5.45
-    # (90 rounds) parked from slot 8; slot 7 picks nothing.
-    assert r.parked[14:] == bytes([1, 12, 8, 90, 0]) + bytes(9), r.parked.hex()
-    assert r.parked[:14] == bytes(14)
+                    f"place 3 pickup: slot 8 ammo 2204 x {CAPACITY} (cooked slot 11); own ammo 217 x 108 parked"], took  # set aside as the kit gives it
+    assert r.save(r.picker) == record(slot10=PICKED) and r.parked == b"", "the record: nothing of the own kit"
+    # The own kit set aside, the same in every game: the own gun empty, the own 5.45 as the kit gives it (108).
+    assert r.read(r.own_gun + 0x5E5, 1) == b"\0" and r.read(r.own_ammo + 0x260, 2) == struct.pack("<H", 108)
     assert r.save(PLAYER) == record("taken")
     print("ok the pickup at set_input's apply point (carry.filter): the slots swapped by the game's set_item, the "
           "ammunition into the own gun's slot (8, the own stack parked in the cooked inventory) and rebound, the gun bound (core, registry id and entry, bullet "

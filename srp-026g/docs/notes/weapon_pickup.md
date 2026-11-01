@@ -18,7 +18,10 @@
   one full magazine in reserve.
 - "Your ammo is replaced" (the owner, 2026-10-31): the borrowed gun's
   ammunition goes into the slots of the gun it replaces (the picker's own
-  stacks there are kept aside and come back with the own gun); more
+  stacks there are set aside and come back with the own gun as objects);
+  the own kit set aside is neither charged nor refunded (the owner,
+  2026-11-02: "too complicated for something that doesn't cost anything";
+  its counts are no game's own, below); more
   stacks than those slots: free ammunition slots, then the gun binds the
   ones placed. A pickup is never refused for room.
 - The picker's own ammo crate refills the borrowed gun by the game's own
@@ -89,9 +92,9 @@
 - Synced: only each player's record (its drop: open with its kit and slot,
   or taken; for each weapon slot the gun picked into it: the pickup's tick
   and the recipe, the profile kit slot it was cooked from, read only to
-  cook it anew on a client without it; the pickup waiting for its switch;
-  and, read by the server only, what each pick parks of the own kit), 48
-  bytes at the start of its state. The command rides in the input (patch 78's bit 29 with a pattern of
+  cook it anew on a client without it; the pickup waiting for its switch),
+  20 bytes at the start of its state; nothing of the own kit a pick sets
+  aside. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
 - My picks for stage 2a (the owner: "just don't overcomplicate the
@@ -140,17 +143,31 @@
 
 ## The live desyncs of rev41 (match 0x1c0ebd31, 2026-11-01) and their fixes
 
-- **The parked block** (late joiners, from 138 s on): a client that loaded a
-  record naming a pick wrote the parked block from its own objects (zeros or
-  a full kit). The loaded block now becomes the hidden own kit
-  (`vostok::pickup::apply_parked`), so the next save writes back what was
-  loaded, and the restore gives back the same kit.
-- **A pick's end** (one game refunded 14, in another pick 120 rounds less): at
-  base_player::remove(1) the counts the native unload refunds (the gun in the
-  pick's slot: its magazine, no chambered round; each parked stack's slot: its
-  count) are the parked block's as last saved or loaded, whatever objects are
-  where (`unload_as_parked`). The chambered round of the own gun is not
-  refunded, in every game alike.
+- **The own kit set aside** (late joiners from 138 s on; one game's store 14,
+  in another pick 120 rounds apart at a pick's end). Rev41's record carried
+  a 28-byte block of the own kit each pick set aside (the own gun's magazine
+  and stacks), written from each game's own objects: a client that loaded
+  the record (a late joiner, a resync) wrote zeros or its own made-up kit
+  there, and at a pick's end the native unload (inventory::unload_to_profile
+  0x2FD2D0, from base_player::remove(1)) refunded whatever counts that game
+  had, or the borrowed ones where its restore was refused. In the live
+  worlds every differing player-state byte between a joiner's or a wrong
+  world and the checked one of the same tick was in that block (offsets 23,
+  25), in a profile item's store at a pick's end (82..83) or in a re-used
+  copy's seed (239..242). Now (version 5) the block is gone, and the own kit
+  set aside is no game's own: hidden, the own gun has no magazine and no
+  chambered round and each own stack is as the kit gives it (its slot
+  word's allowance), in every game (`set_aside`, at every install); at a
+  pick's end the unload finds the pick's slot gun empty and every slot the
+  install moved a stack into empty (`refund_nothing`), whatever object is
+  there, so it refunds nothing for them, in every game. Why the two live
+  cases cannot happen: the store a pick's end leaves is the store before
+  plus what the unload refunds, and the unload now reads only counts the
+  patch wrote as constants (0) in every game, not counts any game kept on its
+  own; the record has no byte a game fills from its own objects. Unicorn
+  (`the_end_refunds_nothing_set_aside`): hidden 90 against 76 and 120 against
+  0, and a restore refused against one done, end with the same store;
+  rev41's build (#1024) on the same scenario: 14, 120 and 51 rounds apart.
 - **A re-used copy** (seed 1 against 0x442aa381): at the switch the picked gun
   takes a spawn's state: `KIT_STATE_FIELDS` and +5A4h before the initialize,
   the spawn hook's seed (`weapon_pickup::spawn_seed`: the picker's place, kit,
@@ -303,14 +320,15 @@ cooked gun).
   held a picked gun, which vanishes, or anything else), a pickup the
   picker's slot's pick and the donor's drop taken, base_player::remove(1)
   the whole record empty (the drop ends with the body, the picks with the
-  life), the player's destruction the picks none. Its bytes (48, version
-  4): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
+  life), the player's destruction the picks none. Its bytes (20, version
+  5): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
   slot 10 a byte (0 none, else the recipe's place + 1, kit << 5, slot << 7)
   and the pickup's tick (u32); the pending pickup (8 bytes, "The switch"
-  above); for slot 7 and slot 10 the parked own kit (14 bytes: present,
-  the own gun's magazine, four stacks of slot and u16 rounds), which the
-  server counts a borrower's own ammunition by. The server reads the native
-  fields from `FIELDS_AT = 2 + Record::BYTES`.
+  above). (Version 4 had 28 more bytes, the own kit each pick set aside,
+  written from each game's own objects: the rev41 late joins, below.) The
+  server reads the native fields from `FIELDS_AT = 2 + Record::BYTES`; for
+  a player holding a pick it reads the kit's stacks it does not find (set
+  aside) as the kit gives them, so autobuy charges nothing for them.
 - **The pickup**, at `carry.filter` (0x2D876F; artefact_carry's handler
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
   the command (`weapon_pickup::command` of +330h); the rule
@@ -385,8 +403,9 @@ cooked gun).
   `parameters/required_bags` (integers; the stack's dictionary entry
   +25Ch, its config +114h, the root +108h; the lobby's
   process_default_relocate_item 0x289EB2..0x289EF3 reads the same); the
-  real inventory's weight marked, EAX the view (the native refill then
-  refills the own parked stacks, charging the own storage). Logged: `place
+  real inventory's weight marked, EAX the view (the own stacks set aside
+  are as the kit gives them, so the native refill charges nothing for
+  them). Logged: `place
   P crate: the weapon slot's own ammo: slot S, the kit's N of ammo O (clip
   C/B) = bags` for each, then `place P crate: slot S ammo A before ->
   after; the weapon slot's bags = total (clip C/B) less in-gun` for the

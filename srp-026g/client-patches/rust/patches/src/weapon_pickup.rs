@@ -58,7 +58,7 @@ use core::ffi::CStr;
 
 use world_frame::Frame;
 
-use weapon_pickup::{Drop as DropState, Handedness, Hands, Ms, Parked, Pending, Pick, Picker, Place, Recipe, Record, WeaponSlot,
+use weapon_pickup::{Drop as DropState, Handedness, Hands, Ms, Pending, Pick, Picker, Place, Recipe, Record, WeaponSlot,
                     PLACES};
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
@@ -431,28 +431,10 @@ fn unpick(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, how: Unpick, w
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, Site::Save) {
         let thread = ctx.thread();
-        let located = located(&player);
-        let mut record = located.map_or(Record::EMPTY, |(world, place)| placed_at(thread, world, place).0);
-        record.parked = SLOTS.map(|slot| parked_now(&player, thread, &record, slot));
-        // Kept as written (hashed): what the pick's end refunds (`on_remove`).
-        if let Some((world, place)) = located {
-            update_record(thread, world, place, |r| r.parked = record.parked);
-        }
+        let record = located(&player).map_or(Record::EMPTY, |(world, place)| placed_at(thread, world, place).0);
         native::write_record(ctx, &record.encode());
     }
     Flow::Continue
-}
-
-/// What `record`'s pick in `slot` keeps hidden of the own kit, as the save
-/// writes it: as installed here (a loaded record's made so, `reconcile`); a
-/// pick not installed here keeps the record's (the state then differs
-/// anyway, logged).
-fn parked_now(player: &Player<'_>, thread: &Thread, record: &Record, slot: WeaponSlot) -> Option<Parked> {
-    let loaded = record.parked[usize::from(slot == WeaponSlot::Second)];
-    record.pick(slot).and_then(|_| match held(thread, player.id(), slot) {
-        Some((_, _, installed)) => native::parked(player, &installed),
-        None => loaded,
-    })
 }
 
 /// `pickup.load` (base_player::deserialize's start): the player's record,
@@ -528,17 +510,6 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
         match outcome {
             Ok(()) => log_pick("a loaded record: installed", player, slot, pick, ""),
             Err(why) => log_pick("a loaded record's pick NOT installed (the state will not match)", player, slot, pick, why.text()),
-        }
-    }
-    // The hidden own kit as the record has it (the picker's real one; a
-    // client that loaded the record installed it over its own objects):
-    // what each save writes back, and what the restore gives back.
-    for slot in SLOTS {
-        let (Some(parked), Some((_, pick, installed))) = (record.parked[usize::from(slot == WeaponSlot::Second)],
-                                                          held(thread, player.id(), slot)) else { continue };
-        if !native::apply_parked(player, &installed, parked) {
-            log_pick("a loaded record's hidden own kit NOT as its record (the state will not match)", player, slot,
-                     pick, "");
         }
     }
     let Some(pending) = record.pending.filter(|_| pending_differs) else { return };
@@ -718,20 +689,13 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(player) = native::player(ctx, Site::Remove) else { return Flow::Continue };
     let thread = ctx.thread();
     cancel(&player, thread, Cancel::Removal);
-    // What the unload then refunds of each pick's own kit: the parked block
-    // the saves wrote (hashed in every game), not whatever objects are where.
-    let parked = located(&player).map(|(world, place)| {
-        let record = record_at(thread, world, place);
-        SLOTS.map(|slot| record.pick(slot).and_then(|_| record.parked[usize::from(slot == WeaponSlot::Second)])
-            .or_else(|| parked_now(&player, thread, &record, slot)))
-    });
+    let installs = SLOTS.map(|slot| held(thread, player.id(), slot).map(|h| h.2));
     for slot in SLOTS {
         unpick(&player, thread, slot, Unpick::Removed, "its removal (a respawn or a departure)");
     }
-    for (slot, parked) in SLOTS.into_iter().zip(parked.unwrap_or([None; 2])) {
-        if let Some(parked) = parked {
-            native::unload_as_parked(&player, slot, parked);
-        }
+    // The own kit set aside is not refunded by the unload, in every game alike.
+    for installed in installs.iter().flatten() {
+        native::refund_nothing(&player, installed);
     }
     if let Some((world, place)) = located(&player) {
         let (record, _) = placed_at(thread, world, place);

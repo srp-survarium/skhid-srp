@@ -32,7 +32,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Parked, ParkedStack, Place, Refill, WeaponSlot,
+pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Refill, WeaponSlot,
                         PLACES};
 
 use super::config::{ConfigError, ConfigValue};
@@ -666,8 +666,6 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
             .filter(|&slot| AMMO.iter().any(|&a| u32::from(a) == slot))
             .filter(|&slot| !other.is_some_and(|o| o.indices[..usize::from(o.count)].contains(&slot)))
             .map(|slot| slot as u8)
-            // At most the record's parked stacks (the server's count of the own use).
-            .take(Parked::STACKS)
             .chain(AMMO.into_iter().filter(|&slot| inventory.slots().at(usize::from(slot)).item().is_none()));
         for slot in candidates {
             if targets_len < MOVES && !targets[..targets_len].contains(&slot) {
@@ -727,6 +725,7 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
             set(inventory, own.slot(), gun_item);
             set(cooked, slot.slot(), own_item);
         }
+        set_aside(p, ow, cooked, &moved);
         objects.at(usize::from(id.0)).set_item(Some(gun));
         if let Some(r) = registered {
             objects.at(usize::from(r.id.0)).set_item(None);
@@ -957,89 +956,52 @@ unsafe fn grant(w: raw::Weapon, ammo: Ammo) {
     }
 }
 
-/// What `installed` keeps hidden of the own kit, for the record (the
-/// server's count of the own ammunition used): the own gun's magazine and
-/// each own stack parked from a slot, its rounds. None when it cannot be
-/// read as installed.
-pub fn parked(player: &Player<'_>, installed: &Installed) -> Option<Parked> {
-    let cooked = gun_cook::inventory(player.thread, installed.cook)?;
-    // SAFETY: the made cooked inventory; every item compared with what the
-    // install recorded before it is read.
+/// The own kit a pick sets aside is neither charged nor refunded (the
+/// owner, 2026-11-02): its counts are no game's own. Hidden, they are the
+/// same in every game, whatever each had (a late joiner installs the pick
+/// over its own made-up objects): the own gun with no magazine and no
+/// chambered round, each own stack as the kit gives it (its slot word's
+/// allowance, none for no item), so the crate charges nothing for them.
+///
+/// # Safety
+/// `player` is live; `own_gun` its own weapon and `moved`'s own stacks in
+/// `cooked` as the install just placed them.
+unsafe fn set_aside(player: raw::Player, own_gun: raw::Weapon, cooked: raw::Inventory, moved: &[Option<Moved>; MOVES]) {
     unsafe {
-        let own_item = cooked.slots().at(usize::from(installed.slot.slot())).item()?;
-        let own_gun = own_item.active_object();
-        if ItemId::of(own_gun) != installed.own_gun || read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
-            return None;
+        *own_gun.loaded() = 0;
+        *own_gun.chamber() = 0;
+        let kit = usize::from(read(player.kit()));
+        let words = player.profile().filter(|_| kit < 3).map(|profile| profile.kit_slots().at(kit).slots());
+        for m in moved.iter().flatten() {
+            let Some(stack) = cooked.slots().at(usize::from(m.from)).item().filter(|&i| Some(ItemId::of(i)) == m.displaced)
+            else { continue };
+            let allowance = words.map(|w| w.at(usize::from(m.to)))
+                .filter(|&word| read(word.item()) != NO_ITEM).map_or(0, |word| read(word.allowance()));
+            *stack.count() = allowance;
         }
-        let mut stacks = [None; Parked::STACKS];
-        let mut n = 0;
-        for m in installed.moved.iter().flatten() {
-            let Some(displaced) = m.displaced else { continue };
-            let stack = cooked.slots().at(usize::from(m.from)).item().filter(|&i| ItemId::of(i) == displaced)?;
-            *stacks.get_mut(n)? = Some(ParkedStack::new(m.to, read(stack.count()))?);
-            n += 1;
-        }
-        Some(Parked { magazine: read(own_gun.weapon().loaded()), stacks })
     }
 }
 
-/// Makes what `installed` keeps hidden of the own kit what `parked` says (a
-/// loaded record's: the picker's real own magazine and stacks, which a
-/// client that loaded the record never had): the own gun's magazine and
-/// each parked own stack's count, in the order [`parked`] reads them. So
-/// the next save writes back exactly what was loaded, and the restore at
-/// base_player::remove(1) gives back the same own kit in every game. False
-/// when the hidden own kit is not what `parked` names (a stack missing or in
-/// another slot): what matches is written.
-pub fn apply_parked(player: &Player<'_>, installed: &Installed, parked: Parked) -> bool {
-    let Some(cooked) = gun_cook::inventory(player.thread, installed.cook) else { return false };
-    // SAFETY: the made cooked inventory; every item compared with what the
-    // install recorded before it is written.
-    unsafe {
-        let Some(own_item) = cooked.slots().at(usize::from(installed.slot.slot())).item() else { return false };
-        let own_gun = own_item.active_object();
-        if ItemId::of(own_gun) != installed.own_gun || read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
-            return false;
-        }
-        let w = own_gun.weapon();
-        *w.loaded() = parked.magazine.min(read(w.capacity()));
-        let mut all = parked.magazine <= read(w.capacity());
-        let mut stacks = parked.stacks.iter();
-        for m in installed.moved.iter().flatten() {
-            let Some(displaced) = m.displaced else { continue };
-            let want = stacks.next().copied().flatten();
-            let stack = cooked.slots().at(usize::from(m.from)).item().filter(|&i| ItemId::of(i) == displaced);
-            match (want, stack) {
-                (Some(want), Some(stack)) if want.slot() == m.to => *stack.count() = want.count(),
-                _ => all = false,
-            }
-        }
-        all && stacks.all(Option::is_none)
-    }
-}
-
-/// Before base_player::remove(1)'s unload (inventory::unload_to_profile
-/// 0x2FD2D0: each weapon's magazine and chamber into its retained stack,
-/// then each ammunition slot's count onto the profile item of the kit's
-/// slot word), at the end of a pick: the counts it refunds made the
-/// parked block's, whatever item is where (the own kit restored, or not):
-/// the gun in `slot` its magazine and no chambered round, each parked
-/// stack's slot its count. The block is the record's, hashed in every game,
-/// so every game refunds the same (live 0x1c0ebd31: one game refunded 14,
-/// another 120 rounds less at a pick's end).
-pub fn unload_as_parked(player: &Player<'_>, slot: WeaponSlot, parked: Parked) {
+/// At the end of a pick (base_player::remove(1), before its unload,
+/// inventory::unload_to_profile 0x2FD2D0: each weapon's magazine and
+/// chamber into its retained stack, then each ammunition slot's count onto
+/// the profile item of the kit's slot word): the own kit set aside is not
+/// refunded, in every game alike, whatever item is where (restored, or a
+/// restore refused): the gun in the pick's slot with no magazine and no
+/// chambered round, each slot the install moved a stack into empty. The
+/// respawn's setup gives the new life's kit from the store as usual.
+pub fn refund_nothing(player: &Player<'_>, installed: &Installed) {
     // SAFETY: the live player's inventory at remove's entry; an item read
     // as a weapon only after its vtable says so; counts written in place.
     unsafe {
         let Some(inventory) = player.this.inventory() else { return };
-        if let Some(gun) = weapon_in(inventory, slot) {
-            let w = gun.weapon();
-            *w.loaded() = parked.magazine.min(read(w.capacity()));
-            *w.chamber() = 0;
+        if let Some(gun) = weapon_in(inventory, installed.own) {
+            *gun.weapon().loaded() = 0;
+            *gun.weapon().chamber() = 0;
         }
-        for stack in parked.stacks.iter().flatten() {
-            if let Some(item) = inventory.slots().at(usize::from(stack.slot())).item() {
-                *item.count() = stack.count();
+        for m in installed.moved.iter().flatten() {
+            if let Some(item) = inventory.slots().at(usize::from(m.to)).item() {
+                *item.count() = 0;
             }
         }
         *inventory.weight_dirty() = 1;
