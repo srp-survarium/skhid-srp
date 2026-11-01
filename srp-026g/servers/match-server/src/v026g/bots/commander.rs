@@ -213,7 +213,9 @@ fn threat_tick(
         }
     }
     let sniper_regions = if tuning.threat.sniper_memory.is_some() { threat.spots.sniper_regions(now) } else { Vec::new() };
-    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, concede };
+    // [threat.answer_sniper, A210] Play 28 answers a sniper the team remembers, not only one the bot sensed lately.
+    let snipers = if tuning.threat.answer_sniper { threat.spots.sniper_spots(now) } else { Vec::new() };
+    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, snipers, concede };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }
@@ -595,6 +597,9 @@ impl Bots {
             if let Some(a) = bot.assignment.as_ref()
                 && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
             {
+                if a.kind == plays::PlayKind::Answer {
+                    plays::answer::left_out(&cx, a.target);
+                }
                 let dist = match bot.intent.go {
                     Go::To { at, .. } => Some(me.feet.distance_xz(at)),
                     _ => None,

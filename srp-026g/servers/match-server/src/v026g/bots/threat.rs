@@ -1786,6 +1786,21 @@ impl ThreatSpots {
         regions.dedup();
         regions
     }
+
+    /// [threat.answer_sniper, A210] The held sensed snipers' spots as lanes ([`HeldLane`]): where the team last sensed each
+    /// sniper, when, and how far from there he may be by now. Held as long as `threat.sniper_memory` keeps them.
+    pub fn sniper_spots(&self, now: u32) -> Vec<HeldLane> {
+        self.held(now)
+            .filter(|s| s.is_sensed())
+            .map(|s| HeldLane {
+                at: s.at,
+                shooter: s.shooter,
+                reach_m: s.reach_m,
+                sensed: s.sensed(),
+                area_m: area_m(s.sensed().map(|t| now.saturating_sub(t))),
+            })
+            .collect()
+    }
 }
 
 /// How far round a job's held spot its flank and pin rings look under and over his height for floors, m
@@ -1881,6 +1896,12 @@ impl Job {
         } else {
             None
         }
+    }
+
+    /// A job as the plays' tests read it (no bot let a role of it go).
+    #[cfg(test)]
+    pub fn of(spot: u32, shooter: Place, flanker: Option<Holder>, pinner: Option<Holder>) -> Self {
+        Self { spot, objective: false, shooter, since: 0, flanker, pinner, passed: Vec::new() }
     }
 
     fn holder(&self, role: Role) -> Option<Holder> {
@@ -2026,12 +2047,20 @@ pub struct Picture {
     pub held: Vec<HeldLine>,
     pub jobs: Vec<Job>,
     pub sniper_regions: Vec<u32>,
+    /// [threat.answer_sniper, A210] The held sensed snipers' spots ([`ThreatSpots::sniper_spots`]), for play 28 once the
+    /// bot's own sense of him is old; empty with the play off.
+    pub snipers: Vec<HeldLane>,
     /// [threat.concede] The held lines whose shooter's area the team has conceded or tried (`concede.rs`): the plays aimed
     /// into a conceded one are refused, or weighed down for the objective; a try on a tried one differs from its last.
     pub concede: super::concede::Offers,
 }
 
 impl Picture {
+    /// The held sensed sniper spot of `shooter`, if any.
+    pub fn sniper(&self, shooter: Place) -> Option<&HeldLane> {
+        self.snipers.iter().find(|s| s.shooter == shooter)
+    }
+
     /// The held line covering `p`, if any.
     pub fn line_at(&self, p: Vec3) -> Option<&HeldLine> {
         self.held.iter().find(|l| l.covers(p))
@@ -3058,6 +3087,7 @@ mod tests {
                 passed: Vec::new(),
             }],
             sniper_regions: Vec::new(),
+            snipers: Vec::new(),
             concede: Default::default(),
         };
         assert!(matches!(picture.job_of(2), Some((_, Role::Flanker, l)) if l.id == 4));
