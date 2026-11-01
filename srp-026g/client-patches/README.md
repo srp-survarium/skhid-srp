@@ -110,6 +110,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
+| `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -3980,3 +3981,29 @@ time, the active time and between them.
 The stopped drug's quick slot shows red for a second of game time (display
 only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
 `../scripts/consumable-activity/check.sh`).
+
+## A weapon shown while aimed keeps its body (patch 91, unreleased)
+
+After a resync the held rifle could be drawn as its sight and the hands alone (the owner's
+screenshot, 2026-11-01; `../docs/notes/weapon-show.md`). weapon::on_show (0x243DD0) took an
+aimed branch when the weapon's scope view (+181Eh, the world's: a resync gives it from the
+snapshot) was on in first person: the aimed sight in, +181Dh (the aimed sight in the scene) set,
+and so no body (the body's add at 0x243EFD waits for +181Dh 0). With a red dot (an optic whose
+`hide_weapon_on_aim`, +11Ch, is false: every EOTech, Aimpoint, Cobra, Docter and DeltaPoint)
+nothing added it back when the aim was released.
+
+**The patch** (`WEAPON_SHOW`, every full build): 0x243E32 `jz near 0x243EC7` (`0F 84 8F 00 00
+00`) becomes `jmp 0x243EC7` / nop (`E9 90 00 00 00 90`): on_show always adds the idle sight and
+the body, as 0.10b's did, and the next weapon::draw (0x244F80) aims through the game's own
+add_aimed_rifle_scope_to_scene (0x244B60), which takes the body out (and hides the hands) for a
+full-screen scope alone. Six bytes; no relocation under them, nothing aims inside them.
+
+Drawing only: +181Eh is never written; no row in
+`../crates/session/src/v026g/simulation_changes.tsv`; games with and without it play together.
+`../docs/notes/client_patch.md` section 3.60 has the proof, and why the body's test stays on
++181Dh rather than on the body's own in-scene byte.
+
+Checked: `selftest_026g.py` check 91; `check_weapon_show_026g.py` runs on_show and the draw's
+models with the game's code for the scope (the renderer stubbed with its in-scene byte): the
+original loses the body in first person with a red dot, the build keeps it, every other case
+ends each draw as the original. **Not run in a game.**

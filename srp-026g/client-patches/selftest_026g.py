@@ -411,6 +411,14 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+91. every full build: a held weapon shown while its player aims keeps its
+    body (patch 91, WEAPON_SHOW): weapon::on_show's `jz near 0x243EC7` at
+    0x243E32 is `jmp 0x243EC7` / nop (the idle sight and the body always),
+    the aimed branch and the body's test on +181Dh as the original's,
+    weapon::draw's scope test and add_aimed_rifle_scope_to_scene as the
+    original's, no write of +181Eh in on_show, draw or the scope's add and
+    remove, no relocation under the six bytes, nothing aims inside them;
+    cert-only keeps the original. check_weapon_show_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -830,6 +838,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     # Patch 43 gives back what that default withheld (test_tab_self).
     ranges.append((P.file_offset(P.TAB_SELF[0]), len(P.TAB_SELF[1])))
     rewritten.append((P.TAB_SELF[0], P.TAB_SELF[0] + len(P.TAB_SELF[1])))
+    # Patch 91: on_show's aimed branch's six bytes (test_weapon_show).
+    ranges.append((P.file_offset(P.WEAPON_SHOW[0]), len(P.WEAPON_SHOW[1])))
+    rewritten.append((P.WEAPON_SHOW[0], P.WEAPON_SHOW[0] + len(P.WEAPON_SHOW[1])))
     # Patch 52: the Stage focus getter's 46 bytes (test_stage_focus).
     ranges.append((P.file_offset(P.STAGE_FOCUS[0]), len(P.STAGE_FOCUS[1])))
     rewritten.append((P.STAGE_FOCUS[0], P.STAGE_FOCUS[0] + len(P.STAGE_FOCUS[1])))
@@ -1169,12 +1180,16 @@ def test_start_up_folder(original, image, mode):
               "original's")
         check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[1])) == P.STAGE_FOCUS[1],
               "cert-only: the Stage focus getter (patch 52) is the original's")
+        check(image.read(P.WEAPON_SHOW[0], len(P.WEAPON_SHOW[1])) == P.WEAPON_SHOW[1],
+              "cert-only: weapon::on_show (patch 91) is the original's")
         return
     check(image.read(P.TAB_SELF[0], len(P.TAB_SELF[2])) == P.TAB_SELF[2],
           f"{P.TAB_SELF[0]:#x}: patch 43's `jmp short` with the journal off by default: on_activate gives the hud "
           "its player's name (test_tab_self)")
     check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[2])) == P.STAGE_FOCUS[2],
           f"{P.STAGE_FOCUS[0]:#x}: patch 52's tests in the Stage focus getter (test_stage_focus)")
+    check(image.read(P.WEAPON_SHOW[0], len(P.WEAPON_SHOW[2])) == P.WEAPON_SHOW[2],
+          f"{P.WEAPON_SHOW[0]:#x}: patch 91's `jmp` in weapon::on_show (test_weapon_show)")
     # mounter::finish from the read of the mount's root to its `ret 0Ch`.
     start, end = 0x46B04, 0x46B3D
     tail = ["mov eax,[eax+0x34]", "test eax,eax", "jnz 0x46b0f", "xor ecx,ecx", "jmp short 0x46b12",
@@ -5435,6 +5450,68 @@ def test_tab_self(original, image, before):
           "aims at the second byte" + "".join(f", {h:#x}" for h in found + under))
 
 
+def test_weapon_show(original, image, before):
+    """Check 91: a held weapon shown while its player aims keeps its body
+    (patch 91, WEAPON_SHOW): weapon::on_show always takes its idle branch
+    (the idle sight and the body), and the next weapon::draw aims.
+    check_weapon_show_026g.py runs it. Every full build, as patch 43."""
+    stock = Image(original)
+    rows = lambda blob, at, size: [text for _, _, text in ndisasm(blob.read(at, size), at)]
+    va, old, new = P.WEAPON_SHOW
+    check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+          f"{va:#x}: the original's `{old.hex()}` (jz near), `{new.hex()}` (jmp, nop) here and in the build without "
+          "the late join")
+    head = ["cmp byte [esi+0x181e],0x0"]
+    aimed = ["mov eax,esi", "call 0x243940", "test al,al", "jz near 0x243ec7"]
+    check(rows(stock, 0x243E2B, 0x1C) == head + ["jz near 0x243ec7"] + aimed,
+          "the original: on_show takes its aimed branch when +181Eh is set and 0x243940 (the local player's, in "
+          "first person) says so")
+    check(rows(image, 0x243E2B, 0x1C) == head + ["jmp 0x243ec7", "nop"] + aimed,
+          "here `jmp 0x243ec7`: the idle branch always; the aimed branch's bytes stay, unreached")
+    branch = rows(stock, 0x243E47, 0x243EC7 - 0x243E47)
+    idle = rows(stock, 0x243EC7, 0x243F3C - 0x243EC7)
+    check(branch[:12] == ["mov edx,[esi+0x180c]", "lea eax,[esi+0x9bc]", "push eax", "push eax", "mov eax,[edi+0x10c]",
+                          "lea ecx,[esp+0x14]", "push ecx", "mov ecx,[edx+0x9c]", "mov edx,[ecx+0x5360]",
+                          "mov ecx,[edx+0x200064]", "add eax,0x108", "push ecx"]
+          and branch[12] == "call 0x21cd0" and branch[-2:] == ["mov byte [esi+0x181d],0x1", "jmp short 0x243efd"]
+          and "mov eax,[edi+0x108]" in idle and idle[idle.index("cmp byte [esi+0x181d],0x0") + 1] == "jnz 0x243f3c"
+          and "mov eax,[esi+0x1810]" in idle and idle[-1] == "call 0x21cd0",
+          "the aimed branch adds the optic's aimed model (+10Ch) and sets +181Dh; the idle one adds the idle model "
+          "(+108h); then the body (+1810h) is added only while +181Dh is 0 (0x243EFD)")
+    # draw's scope: the local player's in first person with +181Eh and not
+    # +181Dh aims (add_aimed_rifle_scope_to_scene); +181Dh without +181Eh
+    # (or not in first person) goes back (remove_aimed_rifle_scope_from_scene).
+    check(rows(stock, 0x244F80, 0x244FBF - 0x244F80) == [
+              "mov eax,ebx", "call 0x243940", "test al,al", "jz 0x244fad", "mov al,[ebx+0x181e]", "test al,al",
+              "jz 0x244fad", "cmp byte [ebx+0x181d],0x0", "jnz 0x244fa9", "lea edi,[esp+0x10]", "call 0x244b60",
+              "jmp short 0x244fbf", "test al,al", "jnz 0x244fbf", "cmp byte [ebx+0x181d],0x0", "jz 0x244fbf",
+              "lea edi,[esp+0x10]", "call 0x244c50"],
+          "weapon::draw (0x244F80) aims when the weapon is the local player's in first person, +181Eh is set and "
+          "+181Dh is not, and goes back when +181Dh is set otherwise")
+    add = rows(stock, 0x244B60, 0x244C48 - 0x244B60)
+    check(add.count("call 0x21f40") == 2 and add.count("call 0x21cd0") == 1
+          and add.index("mov eax,[eax+0x108]") < add.index("call 0x21f40") < add.index("call 0x21cd0")
+          and add[add.index("cmp byte [eax+0x11c],0x0") + 1:add.index("cmp byte [eax+0x11c],0x0") + 5]
+          == ["jz 0x244c3f", "mov eax,esi", "call 0x243940", "test al,al"]
+          and "mov eax,[esi+0x1810]" in add and add[-3:] == ["mov byte [esi+0x181d],0x1", "pop ecx", "ret"],
+          "add_aimed_rifle_scope_to_scene (0x244B60) takes the idle model out, adds the aimed one, takes the body "
+          "out only for hide_weapon_on_aim (+11Ch) in first person, and sets +181Dh")
+    # Nothing on_show, draw or the two scope functions run writes +181Eh.
+    writes = [r for at, size in ((0x243DD0, 0x243F94 - 0x243DD0), (0x244B60, 0x244D35 - 0x244B60),
+                                 (0x244E10, 0x245241 - 0x244E10)) for r in rows(image, at, size)
+              if "+0x181e]" in r.split(",")[0] and not r.startswith(("cmp ", "test "))]
+    # weapon::deserialize's three writes, read the same way (the filter sees a write).
+    known = [r for r in rows(stock, 0x244A40, 0x244AA4 - 0x244A40)
+             if "+0x181e]" in r.split(",")[0] and not r.startswith(("cmp ", "test "))]
+    check(not writes and known == ["mov [edi+0x181e],dl", "mov [edi+0x181e],al", "mov [edi+0x181e],al"],
+          "on_show, draw and the scope's add and remove never write +181Eh (the world's; weapon::deserialize "
+          "0x244A40 writes it three times)")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    found = aimed_inside(original, va, len(old), 0x82)
+    check(not under and not found, "no base relocation under the six bytes and nothing aims inside them"
+          + "".join(f", {h:#x}" for h in found + under))
+
+
 def test_replay_link(original, image, before):
     """"Watch replay" (patch revision 14, REPLAY_LINK_HOOK): the lobby's
     video_tutorial_link_clicked opened its link buffer with ShellExecuteA;
@@ -6835,6 +6912,7 @@ def test_late_join(original, without, server, source):
     test_blackout(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
+    test_weapon_show(original, image, before)
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)

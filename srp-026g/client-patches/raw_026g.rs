@@ -4305,6 +4305,24 @@ impl Weapon {
     pub unsafe fn optics(self) -> Option<WeaponOptics> {
         unsafe { self.0.byte_add(0x1808).cast::<Option<WeaponOptics>>().read_volatile() }
     }
+
+    /// +0x181d (u8): the optic's aimed model is in the scene (and, for hide_weapon_on_aim, the body out): set by add_aimed_rifle_scope_to_scene 0x244C3F (and the stock on_show's aimed branch 0x243EBE), cleared by remove_aimed_rifle_scope_from_scene 0x244D2C and on_hide 0x2440C0; drawing only, not in the world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_in_scene(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x181d).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x181e (u8): the scope's view is on: weapon::tick sets it at the aim's progress (+5FCh) past the optic's change_scope_factor (+110h, 0x244B26) and clears it (0x244B54); in the world (serialize 0x244A14, deserialize 0x244A6C) and its hash: a patch never writes it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_view(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x181e).cast::<u8>().as_ptr() }
+    }
 }
 
 /// A survarium::weapon_hide_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -4361,6 +4379,15 @@ impl WeaponOptics {
     #[inline(always)]
     pub unsafe fn aim_model(self) -> Option<SceneModel> {
         unsafe { self.0.byte_add(0x10c).cast::<Option<SceneModel>>().read_volatile() }
+    }
+
+    /// +0x11c (u8): the config's hide_weapon_on_aim (rifle_scope ctor 0x2996C0, ESP+10h): aimed, the weapon's body is out of the scene and the hands hidden (add_aimed_rifle_scope_to_scene 0x244BCF); 0, the gun stays drawn under the aimed optic
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hide_weapon_on_aim(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x11c).cast::<u8>().as_ptr() }
     }
 }
 

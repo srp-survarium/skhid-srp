@@ -1917,6 +1917,8 @@ va	status	ref_021d	name
 0x00304370	reviewed	0x001e8da3	survarium::hit_type
 0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
 0x001b9460	reviewed	0x0012d125	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x00243940	verified		survarium::weapon::is_first_person_view
+0x002996c0	verified		survarium::rifle_scope::rifle_scope
 0x00118430	reviewed	0x000d5e2c	vostok::render::engine::world::add_model
 0x001184c0	reviewed	0x000d5ed5	vostok::render::engine::world::update_model
 0x00118540	reviewed	0x000d5f76	vostok::render::engine::world::remove_model

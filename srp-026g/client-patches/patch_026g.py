@@ -196,6 +196,12 @@ Patches:
   (access violation at 0x77200B, a key pressed in the lobby, 2026-10-22).
   The 46 bytes at 0x771FED test the pointer as FocusManager.getFocus does
   and read null instead (STAGE_FOCUS);
+- a held weapon shown while its player aims (patch 91, every full build):
+  weapon::on_show (0x243DD0) took its aimed branch and never added the
+  weapon's body, which a red dot's release of the aim does not add back
+  (after a resync: only the sight and the hands drawn). `jz near` at
+  0x243E32 becomes `jmp`: the idle sight and the body always, the next
+  draw aims (WEAPON_SHOW);
 - the late join (patch revision 5; the default build only, not
   --cave=hash-mismatch): a player enters a match that is being played.
   The game keeps room for twenty players from the first connection (three
@@ -1294,6 +1300,27 @@ TAB_LIST_LOOP = (TAB_LIST_LOOP_VA,
 # relocations) are not under the two bytes. Every full build, as JOURNAL_DEFAULT.
 # The hud's lists and chat only.
 TAB_SELF = (0x1F9478, bytes.fromhex("85c0"), bytes.fromhex("eb0d"))
+
+# A held weapon shown while its player aims keeps its body (patch 91,
+# README; client_patch.md section 3.60; the rules: ../docs/notes/weapon-show.md).
+# weapon::on_show (0x243DD0) took the aimed branch when the weapon's "aim"
+# byte (+181Eh, the world's: weapon::deserialize 0x244A40 sets it from a
+# snapshot) was set and the weapon is the local player's in first person
+# (0x243940): it added the optic's aimed model, set +181Dh (the aimed model
+# is in the scene) and so skipped the body's add (0x243EFD), whatever the
+# optic's hide_weapon_on_aim (+11Ch). With an optic that shows the gun when
+# aimed (+11Ch 0) nothing added the body back: releasing the aim
+# (weapon::draw 0x244FAD -> remove_aimed_rifle_scope_from_scene 0x244C50)
+# restores the body only for +11Ch 1. A world load (a resync, a late join)
+# shows the weapon while +181Eh is set: only the sight and the hands were
+# drawn. `je 0x243EC7` at 0x243E32 becomes `jmp 0x243EC7` / nop: on_show
+# always adds the idle sight and the body, as 0.10b's on_show did, and the
+# next weapon::draw (0x244F80) aims through add_aimed_rifle_scope_to_scene
+# (0x244B60), which takes the body out for +11Ch 1 alone. Only the
+# scene's models and +181Dh change (+181Eh is never written); no base
+# relocation is under the six bytes and nothing aims inside them. Every
+# full build, as TAB_SELF. What is drawn only.
+WEAPON_SHOW = (0x243E32, bytes.fromhex("0f848f000000"), bytes.fromhex("e99000000090"))
 
 # The lobby's `stage.focus` reads null for a focused object whose
 # ActionScript object is gone (patch 52, README; client_patch.md section
@@ -3221,6 +3248,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     # had withheld (patch 43; no relocation under the two bytes).
     patch(data, *TAB_SELF)
     rewritten.append((TAB_SELF[0], TAB_SELF[0] + len(TAB_SELF[1])))
+    # Every build: a weapon shown while aimed adds its body (patch 91).
+    patch(data, *WEAPON_SHOW)
+    rewritten.append((WEAPON_SHOW[0], WEAPON_SHOW[0] + len(WEAPON_SHOW[1])))
     # Every build: `stage.focus` reads null for a focused object without its
     # ActionScript object (patch 52; no relocation under the 46 bytes).
     patch(data, *STAGE_FOCUS)
