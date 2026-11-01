@@ -124,7 +124,7 @@ use tallies::{fight_tally, owner};
 use bench::*;
 pub(crate) use camper::*;
 mod camper_move;
-pub(crate) use camper_move::{Arrival, BenchCamper, CamperAt, CamperStart, MoveOptions};
+pub(crate) use camper_move::{Arrival, BenchCamper, CamperAt, CamperStart, LiveLeave, MoveOptions};
 pub(crate) use standin_aim::human_tuning;
 pub(crate) use team_kit::scope as team_kit_scope;
 pub(crate) use standin_watch::{AT_REST_MPS, Watch, lane_look};
