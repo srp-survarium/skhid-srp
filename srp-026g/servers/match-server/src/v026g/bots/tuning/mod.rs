@@ -156,6 +156,8 @@ pub use team::SniperMemory;
 pub use team::StaminaRates;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
+pub use team::WalkWatch;
+pub use team::WatchKnown;
 pub use teams::TeamTunings;
 pub use traps::DefeatedTuning;
 pub use traps::PassTuning;

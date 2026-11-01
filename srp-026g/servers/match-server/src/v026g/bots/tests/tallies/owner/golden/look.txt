@@ -1,0 +1,388 @@
+owner-test look (A229: the view while walking a play; bands up to [15.0, 45.0, 90.0] deg, then past): by play, walking ticks, of them in a held lane of the team by the view off its spot; first enemy hits of a life by the view off the shooter, fired before death or 5 s, died within 1 s (the stand-in human's apart; the walking victims' by what each knew of its shooter: in his held lane, his place known within 10 s, nothing; any victim in its shooter's held lane apart)
+  Roam: walking 821 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 2, 1], fired 2, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 0] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  Collect: walking 661 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 3, 0], fired 3, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 0] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  Crossfire: walking 802 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 3, 0], fired 0, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 3, 0] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  Cut: walking 821 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 1, 1], fired 2, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 1] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  Heal: walking 0 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 1, 2, 1], fired 2, died within 1 s 1; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 0] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  Trade: walking 600 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 0, 3], fired 0, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 1] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  walk watch (threat.walk_watch) steps by team ["lane", "known", "crossing", "carrying", "nothing"]: [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
+{
+  "look": {
+    "Collect": {
+      "first_hit_died_1s": 0,
+      "first_hit_fired": 3,
+      "first_hits_by_band": [
+        0,
+        0,
+        3,
+        0
+      ],
+      "human_first_hit_died_1s": 0,
+      "human_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_first_hit_died_1s": 0,
+      "lane_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_ticks_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "walk_ticks": 661,
+      "walking_first_hits": {
+        "his_lane": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "nothing": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "where_he_was": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        }
+      }
+    },
+    "Crossfire": {
+      "first_hit_died_1s": 0,
+      "first_hit_fired": 0,
+      "first_hits_by_band": [
+        0,
+        0,
+        3,
+        0
+      ],
+      "human_first_hit_died_1s": 0,
+      "human_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_first_hit_died_1s": 0,
+      "lane_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_ticks_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "walk_ticks": 802,
+      "walking_first_hits": {
+        "his_lane": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "nothing": {
+          "by_band": [
+            0,
+            0,
+            3,
+            0
+          ],
+          "died_1s": 0
+        },
+        "where_he_was": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        }
+      }
+    },
+    "Cut": {
+      "first_hit_died_1s": 0,
+      "first_hit_fired": 2,
+      "first_hits_by_band": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "human_first_hit_died_1s": 0,
+      "human_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_first_hit_died_1s": 0,
+      "lane_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_ticks_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "walk_ticks": 821,
+      "walking_first_hits": {
+        "his_lane": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "nothing": {
+          "by_band": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "died_1s": 0
+        },
+        "where_he_was": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        }
+      }
+    },
+    "Heal": {
+      "first_hit_died_1s": 1,
+      "first_hit_fired": 2,
+      "first_hits_by_band": [
+        0,
+        1,
+        2,
+        1
+      ],
+      "human_first_hit_died_1s": 0,
+      "human_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_first_hit_died_1s": 0,
+      "lane_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_ticks_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "walk_ticks": 0,
+      "walking_first_hits": {
+        "his_lane": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "nothing": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "where_he_was": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        }
+      }
+    },
+    "Roam": {
+      "first_hit_died_1s": 0,
+      "first_hit_fired": 2,
+      "first_hits_by_band": [
+        0,
+        0,
+        2,
+        1
+      ],
+      "human_first_hit_died_1s": 0,
+      "human_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_first_hit_died_1s": 0,
+      "lane_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_ticks_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "walk_ticks": 821,
+      "walking_first_hits": {
+        "his_lane": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "nothing": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "where_he_was": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        }
+      }
+    },
+    "Trade": {
+      "first_hit_died_1s": 0,
+      "first_hit_fired": 0,
+      "first_hits_by_band": [
+        0,
+        0,
+        0,
+        3
+      ],
+      "human_first_hit_died_1s": 0,
+      "human_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_first_hit_died_1s": 0,
+      "lane_first_hits_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "lane_ticks_by_band": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "walk_ticks": 600,
+      "walking_first_hits": {
+        "his_lane": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        },
+        "nothing": {
+          "by_band": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "died_1s": 0
+        },
+        "where_he_was": {
+          "by_band": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "died_1s": 0
+        }
+      }
+    }
+  },
+  "walk_watch": {
+    "team0": {
+      "carrying": 0,
+      "crossing": 0,
+      "known": 0,
+      "lane": 0,
+      "nothing": 0
+    },
+    "team1": {
+      "carrying": 0,
+      "crossing": 0,
+      "known": 0,
+      "lane": 0,
+      "nothing": 0
+    }
+  }
+}

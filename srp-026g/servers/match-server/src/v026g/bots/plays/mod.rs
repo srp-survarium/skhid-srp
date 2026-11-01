@@ -51,6 +51,7 @@ pub mod roam;
 pub mod sneak;
 pub mod station;
 pub mod trade;
+pub mod watch;
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
