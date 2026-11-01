@@ -48,7 +48,7 @@ selection's (lobby-scenes.md, #778).
   before, at most 512 px, props 256). Weapons on tables and STK2's static characters are
   left out.
 
-## STK2 blockpost hut (`lobby_scene/stk2_blockpost`, pack lobby-stk2@3)
+## STK2 blockpost hut (`lobby_scene/stk2_blockpost`, pack lobby-stk2@4)
 
 The owner (2026-11-01): "let's add 2 more lobbies into the game from stk2. One is house and
 another one is shooting range". The house is STK2's own lobby (`lobby_scene/project.xprj`,
@@ -59,7 +59,7 @@ made and never shipped.
 - Spot: the hut's floor between the door and the campfire (STK2 (2.090, 1.107, 27.106)), facing
   the door. The default view looks across the room to the cabinet and the window wall.
 - Kept: the whole STK2 project, five objects, merged in one model
-  (`level/stk2_blockpost/main_v3`, new with each version as the bunker's). Up to @2 these were
+  (`level/stk2_blockpost/main_v<version>`, `main_v4`, new with each version as the bunker's). Up to @2 these were
   five models of their own under `level/stk2_lobby`. STK2's terrain is not ported: a flat grass
   plane 1.107 m below the floor. The hut's walls are the camera's collision. 43 MB.
 - Spots (data `srp-026g/scripts/lobby-scenes/stk2_blockpost.tsv`):
@@ -76,15 +76,21 @@ made and never shipped.
   along +z, with the cabinet's back panel behind it.
 - Textures (@3): at their STK2 sources' full size, up to 2048 px. Up to @2 they were capped at
   1024: the walls' plaster, the concrete and its normal map, the concrete decal and the windows.
-- Light (@3, as the bunker's @8):
+- Light (@3 and @4, as the bunker's @8):
   - one box probe over the room (half extents 2.7, 1.35, 2.7), with the bunker's warm-neutral
     gradient and ambient 0.45;
-  - STK2's hut light (a white sphere light, 5.5 x 2, range 5, no fixture) now hangs 3 cm under
-    the bulb of a pendant (`props/light/green_lamp_with_wire` and its glowing
-    `props/light/lamp_on`, drawn only). The pendant is on the crossing of two tie beams
-    (-2.0, 2.58, 0.6), 0.8 m from STK2's spot and 1.0 m clear of the squad's left member (a first
-    try right at STK2's spot hung 0.18 m over that member's head). The light is warm and softer:
-    (1, 0.78, 0.55), intensity 2.4, range 7, falloff 1.5;
+  - STK2's hut light (a white sphere light, 5.5 x 2, range 5, no fixture) is warm and softer:
+    (1, 0.78, 0.55), intensity 2.4, range 7, falloff 1.5. @3 hung it under a pendant
+    (`props/light/green_lamp_with_wire` with its glowing `props/light/lamp_on`). In the game the
+    pendant's enamel shade, lit only from inside, showed as a black disc near the eye from behind
+    and above: the hut is low, so the shade hung into the orbit. @4 puts the light in the glass of
+    a caged ceiling plafond instead (`props/light/plafon_lamp` and its glowing
+    `props/light/plafon_lamp_on`, drawn only, 0.52 m deep), on the crossing of two tie beams
+    (-2.0, 2.58, 0.6). That is 0.8 m from STK2's spot and 1.0 m clear of the squad's left member
+    (a first try right at STK2's spot hung 0.18 m over that member's head);
+  - a soft warm fill on the window side (@4: (1.8, 2.1, -0.4), (1, 0.92, 0.82), 0.9, range 4).
+    In the game the character was a black silhouette with the camera there, because the lamp,
+    the campfire and the character fill all stand on the door and campfire side;
   - the campfire's light is warm (1, 0.82, 0.6);
   - no light casts a shadow, and the sun stays at 0.
 - The view out (@3): through the open doorway the camera saw the grass plane end at 40 m and
@@ -95,6 +101,11 @@ made and never shipped.
   it, past 200 m.
 - The camera (@2): a cage 0.15 m inside the hut (walls, floor and ceiling, the doorway closed)
   and boxes on the cabinet, the stool and the campfire.
+- In the game (2026-11-01): the full squad, the orbit at 1.96 and 4.6 m, from above and below,
+  the view out of the doorway and the upgrade view. The light is warm and as bright as the
+  bunker's. No hard shadows. The squad is clear of the campfire. Through the doorway the spruces
+  are dark against a dusk sky, beyond the porch railing. The window side, though no longer a
+  silhouette, stays the hut's darker side.
 
 ## STK2 Bar shooting gallery (`lobby_scene/stk2_bar`, pack lobby-stk2-bar@4)
 
@@ -142,6 +153,10 @@ hall before it. Manifest `ports/stk2-bar-lobby-to-026g.json`. The owner dropped 
 - The audit (@4): no view ray of the orbit meets nothing (the gallery is closed). The eye is
   behind a surface in 8.2 % of the orbit, the stock floor rows. Views with over 10 % back faces
   are 8.1 %: the floor rows and two cells over a pallet on the floor at pitch +45..50.
+- In the game (2026-11-01, the same poses): warm, no blue, no hard shadows. The squad is lit from
+  every side. The hall behind the character is dimmer, with a bright pool under its far lamp.
+  From above (pitch -25) the eye stays under the ceiling. The upgrade view frames the workbench
+  against the targets and the bottle shelf.
 
 ## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@8)
 
@@ -228,6 +243,11 @@ crates, beds and lockers, and the vaults beside it.
   reuse switch in build-stk2-lobby-026.
 
 ## Captures
+
+The hut and the Bar (2026-11-01): the diagnostics sweep of this branch's exe, each project in the
+Bunker's slot (`srp_lobby 3`, a local test patch over the live layers), no input but the sign-in.
+The lobby window's pictures are the `empty` scene at 2560 x 1440, cut between the interface's
+bars (y 180..1390) to the card's framing.
 
 Headless, the debug exe of feat/lobby-select choosing `stk2_blockpost` with each
 project in its place (a local test patch), no input but the sign-in. On the machine
