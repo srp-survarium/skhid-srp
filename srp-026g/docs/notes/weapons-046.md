@@ -62,6 +62,11 @@ balances "around the current balance".
 - **Sights by the model's own `aim` locator:** 0.46c2 has no `aim_offset`, and the template's
   (the SVD's -0.11, the PKP's 0.12, the pistols' -0.1) put the SVU's sight 30 px and the Fort-401's
   post 17 px low: the port leaves it out, as for 0.31a2.
+- **Sounds carry their loudness preset.** A sound's `.raw_options` names an SPL preset
+  (`sounds/spl/<preset>.spl`); 0.46c2's Beretta 93R and Glock 17 shutters name
+  `main_3rd_view_suppressed`, which 0.26g had not, and the CZ 75's shot (the Colt's too) plays the
+  Beretta's shutter. The sound cook then read a null config (exe+0x62731) and every match with one of
+  the four crashed at load. The pack ships 0.46c2's preset; the port carries a sound's preset or stops.
 - **Rarity:** the Glock 17's `base_rarity_level` is 0 (0.46c2's daily-quest Glock had 3, a gold name).
 - **Decals:** the same default as the live pistols (`weapon-decals-1`: an empty `data/decals`; the
   size is client patch 44's, 6 cm to start, one for every weapon), so the pistols' look large.
