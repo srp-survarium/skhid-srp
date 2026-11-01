@@ -2427,6 +2427,8 @@ st_srp_loadout_unfit	не для боя
 st_srp_lobby_basement	Подвал
 st_srp_lobby_bunker	Бункер
 st_srp_lobby_hangar	Ангар
+st_srp_lobby_house	Дом
+st_srp_lobby_range	Тир
 st_srp_lobby_room	Комната
 st_srp_lobby_title	Лобби
 st_srp_login_account_hint	Аккаунт создаётся при первом входе

@@ -13,7 +13,7 @@ package survarium.lobbypick
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsLook;
 
-   // The lobby window (exe patch 81, docs/notes/lobby-scenes.md): four cards as the rooms' map vote
+   // The lobby window (exe patch 81, docs/notes/lobby-scenes.md): six cards as the rooms' map vote
    // draws its own (RoomsRoom), the lobby's render over the whole card, its name on a dark band. A
    // click on one picks that lobby: srp is told (its 3B at PICK_BASE + id, the lobby's id), gives
    // the pick back in 0xA1, and the exe shows that lobby behind its fade. The pick has the gold frame.
@@ -23,11 +23,13 @@ package survarium.lobbypick
    {
       public static const PICK_BASE:int = 2095000000;
 
-      // the cards in id order, 1 to 4: their names (dictionary keys) and pictures (bitmaps/)
-      private static const NAMES:Array = ["st_srp_lobby_room","st_srp_lobby_basement","st_srp_lobby_bunker","st_srp_lobby_hangar"];
-      private static const PICTURES:Array = ["SrpLobbyRoom","SrpLobbyBasement","SrpLobbyBunker","SrpLobbyHangar"];
+      // the cards in id order, 1 to 6: their names (dictionary keys) and pictures (bitmaps/)
+      private static const NAMES:Array = ["st_srp_lobby_room","st_srp_lobby_basement","st_srp_lobby_bunker","st_srp_lobby_hangar","st_srp_lobby_house","st_srp_lobby_range"];
+      private static const PICTURES:Array = ["SrpLobbyRoom","SrpLobbyBasement","SrpLobbyBunker","SrpLobbyHangar","SrpLobbyHouse","SrpLobbyRange"];
 
-      // a vote card's size (RoomsRoom: a third of the rooms window less its margins, 190 high), two by two
+      // a vote card's size (RoomsRoom: a third of the rooms window less its margins, 190 high), three
+      // to a row
+      private static const COLUMNS:int = 3;
       private static const CARD_W:int = 280;
       private static const CARD_H:int = 190;
       private static const GAP:int = 14;
@@ -52,19 +54,20 @@ package survarium.lobbypick
          super();
          name = "srpLobbyWindow";
          this._look = new RoomsLook(this,this,font,bold);
-         var w:Number = PAD * 2 + CARD_W * 2 + GAP;
-         var h:Number = TITLE_H + CARD_H * 2 + GAP + PAD;
+         var rows:int = Math.ceil(NAMES.length / COLUMNS);
+         var w:Number = PAD * 2 + CARD_W * COLUMNS + GAP * (COLUMNS - 1);
+         var h:Number = TITLE_H + CARD_H * rows + GAP * (rows - 1) + PAD;
          graphics.beginFill(0x0E1214,0.96);
          graphics.drawRect(0,0,w,h);
          graphics.endFill();
          graphics.lineStyle(1,0x3A4248);
          graphics.drawRect(0,0,w,h);
          this._title = this._look.text(this,"",PAD,14,w - PAD * 2,16,RoomsLook.LIGHT);
-         for(var i:int = 0; i < 4; i++)
+         for(var i:int = 0; i < NAMES.length; i++)
          {
             var cell:Sprite = new Sprite();
-            cell.x = PAD + i % 2 * (CARD_W + GAP);
-            cell.y = TITLE_H + int(i / 2) * (CARD_H + GAP);
+            cell.x = PAD + i % COLUMNS * (CARD_W + GAP);
+            cell.y = TITLE_H + int(i / COLUMNS) * (CARD_H + GAP);
             var cls:Class = getDefinitionByName(PICTURES[i]) as Class;
             cell.addChild(new Bitmap(RoomsLook.cover(new cls() as BitmapData,CARD_W,CARD_H)));
             var shade:Shape = new Shape();
@@ -94,7 +97,7 @@ package survarium.lobbypick
       private function labels(title:String) : void
       {
          this._title.text = title.toUpperCase();
-         for(var i:int = 0; i < 4; i++)
+         for(var i:int = 0; i < NAMES.length; i++)
          {
             TextField(this._names[i]).text = LocalizationData.getName(NAMES[i]);
          }
@@ -119,7 +122,7 @@ package survarium.lobbypick
       // The pick framed gold (3 px), the others as a vote card is (1 px).
       private function redraw() : void
       {
-         for(var i:int = 0; i < 4; i++)
+         for(var i:int = 0; i < NAMES.length; i++)
          {
             var mine:Boolean = i + 1 == this.marked();
             var frame:Shape = this._frames[i];

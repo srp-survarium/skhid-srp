@@ -1,8 +1,9 @@
 # Lobby scenes
 
 The owner (2026-10-30): "a lobby selection screen" in place of a lobby by faction. A button in
-the lobby opens a window of four cards, a picture and a name each (the owner,
-2026-10-31: drawn as the rooms' map-vote cards); a click on one shows that lobby, behind a fade. In a squad every member is shown its commander's
+the lobby opens a window of six cards (four until the owner's "let's add 2 more lobbies into the
+game from stk2. One is house and another one is shooting range", 2026-11-01), a picture and a name
+each (the owner, 2026-10-31: drawn as the rooms' map-vote cards); a click on one shows that lobby, behind a fade. In a squad every member is shown its commander's
 pick ("when someone joins your squad, they go into your lobby, so it switches for them"). Exe
 patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's window
 (`flash/lobby_menu/src/survarium/lobbypick/LobbyWindow.as`), srp's pick
@@ -20,6 +21,8 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   | 2  | the Basement (`st_srp_lobby_basement`) | `lobby_scene/day`, the classic (stock) |
   | 3  | the Bunker (`st_srp_lobby_bunker`) | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2 |
   | 4  | the Hangar (`st_srp_lobby_hangar`) | `lobby_scene/hangar_046`, the 0.46c2 hangar |
+  | 5  | the House (`st_srp_lobby_house`)   | `lobby_scene/stk2_blockpost`, S.T.A.L.K.E.R. 2's blockpost guard hut |
+  | 6  | the Shooting Range (`st_srp_lobby_range`) | `lobby_scene/stk2_bar`, S.T.A.L.K.E.R. 2's Bar shooting gallery |
 
 - **The button** is the player panel's, top left, in the premium button's place (the owner,
   2026-10-31: "remove premium button and put lobby button there instead"): the original's
@@ -37,10 +40,10 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   dictionary keys (`client-patches/localization`), every language's.
 - **The pick is kept in user.cfg** as the console variable `srp_lobby` (`srp_lobby 3`), written by
   the exe (user.cfg saved at once when it changed), read once into `Lobby` (`Lobby::parse`): no
-  line, an empty or unknown value is the Room. The four lobbies ship with the game (the owner,
+  line, an empty or unknown value is the Room. The six lobbies ship with the game (the owner,
   2026-10-30: "lobby files can't be missing"): there is no fallback for a missing one.
-- **The window** (`LobbyWindow`, the lobby movie's ActionScript): the four cards in id order, two
-  by two, each a rooms map-vote card (`RoomsRoom`): 280 x 190, the lobby's render over the whole
+- **The window** (`LobbyWindow`, the lobby movie's ActionScript): the six cards in id order, three
+  to a row (3 x 2; the count is the movie's `NAMES`), each a rooms map-vote card (`RoomsRoom`): 280 x 190, the lobby's render over the whole
   card (`RoomsLook.cover`, as `mapRender`), its name in white on a band of black at 0.62 along the
   bottom 58 px; the pick framed gold (3 px), the others 1 px. The pictures are the empty scenes
   (the owner, 2026-10-31: no character), from the stock camera, made by the diagnostics sweep's
@@ -49,9 +52,9 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
   tells it (`root.srp_lobby_state(pick, shown)`), at its first frame and at each change.
   The pictures are the lobbies' stock views without anyone in them (camp @12, bunker @8,
-  hangar @8, the classic): 560 x 380, twice the card, JPEG at q90 as the game's map renders are
-  (`flash/lobby_menu/bitmaps/SrpLobby*.jpg`, 255 KB the four), cut from 2560 x 1440 captures of the
-  diagnostics sweep's `empty`.
+  hangar @8, the classic, blockpost @4, bar @4): 560 x 380, twice the card, JPEG at q90 as the
+  game's map renders are (`flash/lobby_menu/bitmaps/SrpLobby*.jpg`, 403 KB the six), cut from
+  2560 x 1440 captures of the diagnostics sweep's `empty`.
 - **srp keeps each online account's pick** (in memory, `Player::lobby_pick`; none before one) and
   sends it back in `0xA1`: two bytes after the squad (after the id alone for none), the receiver's
   own pick and its commander's (0 none; no squad, none). A pick changed is `squads_dirty`: every
@@ -83,7 +86,7 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 - The lobby menu is made once, at the game's start (`game::create_lobby_menu`), and asks for its
   scene with its movies in one query (0x21E450); the exe asks for the saved pick's lobby there
   instead of `lobby_scene/day`.
-- **A project that fails to load is a bug** (the four ship with the game; one without its camera
+- **A project that fails to load is a bug** (the six ship with the game; one without its camera
   track is logged in `srp_patches.log`, and the lobby menu takes its results as they are, as the
   stock game would). A missing project crashes the project's cook (a null config read at
   0x22C11E, `project_cooker_simple::create_game_objects`; seen in a game, 2026-10-29): the
@@ -288,7 +291,8 @@ and the static collision the camera's ray meets, ray-cast with embree; the orbit
 yaws, 25 pitches and 7 distances; the squad's spots; the weapon's spot and the flight from 72
 starts. The share of (yaw, pitch) whose eye is behind a visible surface at the wheel's 4.6 m (the
 stock floor's 8 % in every lobby included), before and after the packs (the blockpost and the
-bar were audited before the owner's pick of 2026-10-30 and ship nowhere):
+bar were audited before the owner's pick of 2026-10-30, which left them out; the owner took them in
+as the House and the Shooting Range on 2026-11-01):
 
 | lobby | before | after | what was wrong, what changed |
 |---|---|---|---|
