@@ -54,6 +54,28 @@ struct Stray {
     told: bool,
 }
 
+/// The players who gave their place in `game` up: by their own word
+/// (0xE0), not by a link or a game that broke, or removed as idle
+/// (anti-AFK, as a player who leaves). Each session can be put in another
+/// match, and the queue no longer sends it back to this one when it presses
+/// Play. (Until 2026-10-12 it did, for as long as the match ran: live, a
+/// player who left a match of two was sent back to it three times.) The
+/// place stays in the roster, and the lobby takes the player out of its
+/// room; joining it again while the match is played puts it in as a new
+/// place (the owner's of 2026-10-19), and the result counts its latest
+/// place only.
+fn release_quits(game: &mut Game, registry: &MatchRegistry, store: &SessionStore) {
+    for (session_id, account_id) in game.take_quits() {
+        registry.release(session_id);
+        store.matchmaking().leave_match(account_id);
+        log::info!(
+            "Match {:#x}: session {session_id:#x} gave its place up (it left by its own word, \
+             0xE0, or was removed as idle), and its room if it was in one",
+            game.id
+        );
+    }
+}
+
 /// The 0.26g match server: runs every match the lobby makes in `registry`
 /// on the configured UDP port (`SRP_BIND_HOST`, `SRP_MATCH_PORT`), and
 /// hands each finished one to `results`. Returns only on a socket error.
@@ -268,26 +290,7 @@ impl Server {
                     })
             {
                 game.receive(index, datagram, now);
-                for (session_id, account_id) in game.take_quits() {
-                    // The player left by its own word (0xE0), not by a
-                    // link or a game that broke: it has given its place
-                    // up. Its session can be put in another match, and the
-                    // queue no longer sends it back to this one when it
-                    // presses Play. (Until 2026-10-12 it did, for as long
-                    // as the match ran: live, a player who left a match of
-                    // two was sent back to it three times.) The place
-                    // stays in the roster, and the lobby takes the player
-                    // out of its room; joining it again while the match is
-                    // played puts it in as a new place (the owner's of
-                    // 2026-10-19), and the result counts its latest place
-                    // only.
-                    self.registry.release(session_id);
-                    self.store.matchmaking().leave_match(account_id);
-                    log::info!(
-                        "Match {match_id:#x}: player {index} left by its own word (0xE0): its \
-                         place is given up (and its room left, if it was in one)"
-                    );
-                }
+                release_quits(game, &self.registry, &self.store);
                 return;
             }
             self.routes.remove(&addr);
@@ -455,6 +458,8 @@ impl Server {
                 game.sync_roster(formed, now);
             }
             datagrams.extend(game.poll(now));
+            // A player removed as idle (anti-AFK) gives its place up there.
+            release_quits(game, &self.registry, &self.store);
             for (place, account_id) in game.take_rejected_joins() {
                 if self.registry.release_place(game.id, place) {
                     self.store.matchmaking().join_failed(account_id);

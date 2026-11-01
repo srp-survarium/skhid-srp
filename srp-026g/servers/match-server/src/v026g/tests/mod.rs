@@ -8,6 +8,7 @@
 
 use super::test_client as client;
 
+mod afk;
 mod bots;
 mod driven;
 mod game;

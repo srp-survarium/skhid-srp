@@ -115,12 +115,14 @@ use survarium::v026g::match_msgs::{
 use udp_transport::{Event, SendError, Transport};
 use world_frame::{Frame, Places};
 
+use super::afk::{self, Watch};
 use super::battery_cap;
 use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
+mod afk_watch;
 mod driven;
 mod late_join;
 mod live;
@@ -928,6 +930,9 @@ pub(crate) struct Game {
     stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
+    /// Anti-AFK: whether this match removes idle players, decided when it
+    /// is made, and each player's time without input ([`afk_watch`]).
+    afk: Watch,
 }
 
 impl Game {
@@ -936,6 +941,8 @@ impl Game {
         let players = formed.places.len();
         let rule = TimelimitRule::new(TimelimitParams::of(formed.map, players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
+        // Once for the match: a private room's (a PIN) removes nobody.
+        let afk = Watch::new(settings.anti_afk, formed.private);
         Self {
             id: formed.match_id,
             port,
@@ -982,6 +989,7 @@ impl Game {
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
+            afk,
             drives: Self::new_drives(&formed),
             walkers,
             formed,
@@ -1236,6 +1244,7 @@ impl Game {
             }
         }
         self.reset_catchup(index, true);
+        self.afk.restart(index);
         log::info!(
             "Match {:#x}: player {index} (session {session_id:#x}) connected from {addr}",
             self.id
@@ -3363,6 +3372,8 @@ impl Game {
             return;
         }
         peer.inputs_received += 1;
+        // Anti-AFK: late or not, its player is at its keys.
+        self.afk.input(index, &input, now);
         // Made by its game for a tick of the present: it simulates.
         peer.simulating_at = Some(now);
         let late = clock.saturating_sub(time);
@@ -5232,10 +5243,9 @@ impl Game {
                     }
                 }
                 Stage::Gone => {
-                    // The end, again, if the first was never acked.
-                    if self.finished_at.is_some()
-                        && let Some((serial, message)) = peer.farewell.take()
-                    {
+                    // The end, again, if the first was never acked: the
+                    // match's, or a player's removed as idle (`afk_watch`).
+                    if let Some((serial, message)) = peer.farewell.take() {
                         if peer.transport.is_lost(serial) {
                             // With the tick of now: the client's
                             // `leave_match` refuses a tick too far back
@@ -5261,6 +5271,7 @@ impl Game {
         self.check_world_lost(now);
         self.check_bots_alone(now);
         self.check_pvb_stall(now);
+        self.check_idle(now);
 
         if self.clock_start.is_some()
             && self.finished_at.is_none()

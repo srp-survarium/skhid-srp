@@ -244,6 +244,7 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_RESYNC_WORLD_ONLY` | off | `on`: a playing client is resynced with 0xE8 alone |
 | `SRP_RESTORE_LIMIT` | 0 | Resyncs in a row without agreement after which a client is disconnected; 0: no limit |
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
+| `SRP_ANTI_AFK` | 180 | A player without input for this many seconds of play (at least 60) is removed from the match as one who leaves; never in a private room's match; `off`: never (`docs/notes/anti-afk.md`) |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
 | `SRP_MAPDATA_BUILT` | `<SRP_MAPDATA_DIR>/built` | Where the server writes the grids and trees it builds of the maps and reads them the next time; `off`: built at each load |
 | `SRP_MAPDATA_KEEP` | 1 | Built maps kept that no match holds |
