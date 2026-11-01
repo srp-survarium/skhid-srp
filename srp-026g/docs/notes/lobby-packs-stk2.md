@@ -1,11 +1,13 @@
-# Lobby packs: the STK2 bomb shelter
+# Lobby packs: the STK2 lobbies
 
-The lobby project resource-porter makes from S.T.A.L.K.E.R. 2's (2011-12) bomb shelter, pack
-lobby-stk2-bunker (build-stk2-lobby-026, ports/stk2-bunker-lobby-to-026g.json): its source, the
-manifest's choices and each version. What a lobby project must give, the lobby window and the
+The lobby projects resource-porter makes from S.T.A.L.K.E.R. 2's (2011-12) levels
+(build-stk2-lobby-026): the bomb shelter (pack lobby-stk2-bunker,
+ports/stk2-bunker-lobby-to-026g.json), the blockpost guard hut of STK2's own lobby (lobby-stk2,
+ports/stk2-lobby-to-026g.json) and the Bar's shooting gallery (lobby-stk2-bar,
+ports/stk2-bar-lobby-to-026g.json): their sources, the manifests' choices and each version. What a lobby project must give, the lobby window and the
 upgrade view are the lobby selection's (lobby-scenes.md, #778).
 
-## STK2 lighting (the bomb shelter; the blockpost as at @2)
+## STK2 lighting (the bomb shelter; the hut and the Bar as their own sections say)
 
 - Kept from STK2: the project's own lights (point, sphere and box lights as points; spots
   and plane spots as spots with their cones and directions; the sun with its colour,
@@ -41,14 +43,104 @@ upgrade view are the lobby selection's (lobby-scenes.md, #778).
   transform (scale, rotation, translation), clipped to the box and merged by material
   into one model with their low collision (cmask 20, cgroup 10: the camera's ray stops
   at the walls). Materials on native 0.26g templates by STK2 base material and flags;
-  textures at most 512 px (props 256). Weapons on tables and STK2's static characters
-  are left out.
+  textures at their sources' size, to 2048 px (the bunker's @5, the hut's @3, the Bar's @4;
+  before, at most 512 px, props 256). Weapons on tables and STK2's static characters are
+  left out.
 
-## STK2 Bar (dropped)
+## STK2 blockpost hut (`lobby_scene/stk2_blockpost`, pack lobby-stk2@3)
 
-The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bomb shelter
-the Bandits'). Its manifest stays in resource-porter
-(`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
+The owner (2026-11-01): "let's add 2 more lobbies into the game from stk2. One is house and
+another one is shooting range". The house is STK2's own lobby (`lobby_scene/project.xprj`,
+2011-12): the a02 blockpost guard hut alone on terrain, with a campfire on its floor, a sentry
+cabinet, a mattress and a stool. Manifest `ports/stk2-lobby-to-026g.json`. @1 and @2 (#768) were
+made and never shipped.
+
+- Spot: the hut's floor between the door and the campfire (STK2 (2.090, 1.107, 27.106)), facing
+  the door. The default view looks across the room to the cabinet and the window wall.
+- Kept: the whole STK2 project, five objects, merged in one model
+  (`level/stk2_blockpost/main_v3`, new with each version as the bunker's). Up to @2 these were
+  five models of their own under `level/stk2_lobby`. STK2's terrain is not ported: a flat grass
+  plane 1.107 m below the floor. The hut's walls are the camera's collision. 43 MB.
+- Spots (data `srp-026g/scripts/lobby-scenes/stk2_blockpost.tsv`):
+
+      character          ( 0.000, 0.000,  0.000)
+      camera, default    ( 0.000, 1.200, -1.960)  yaw 0
+      weapon             ( 0.900, 1.600,  2.550)  weapon_view 0 (above the sentry cabinet's counter)
+      artefact           (-0.468, 0.500,  2.310)  on the stool
+
+- The squad (@2): the campfire stood where the squad's left member is, so it moved to
+  (-1.15, 0, 1.65). Up to @2 the campfire composite's own light (it casts shadows) stayed at the
+  old spot. @3 moves it with the logs (a slice's `moves` take lights too).
+- The upgrade view: the weapon 0.41 m above the sentry cabinet's counter (top 1.19 m), seen
+  along +z, with the cabinet's back panel behind it.
+- Textures (@3): at their STK2 sources' full size, up to 2048 px. Up to @2 they were capped at
+  1024: the walls' plaster, the concrete and its normal map, the concrete decal and the windows.
+- Light (@3, as the bunker's @8):
+  - one box probe over the room (half extents 2.7, 1.35, 2.7), with the bunker's warm-neutral
+    gradient and ambient 0.45;
+  - STK2's hut light (a white sphere light, 5.5 x 2, range 5, no fixture) now hangs 3 cm under
+    the bulb of a pendant (`props/light/green_lamp_with_wire` and its glowing
+    `props/light/lamp_on`, drawn only). The pendant is on the crossing of two tie beams
+    (-2.0, 2.58, 0.6), 0.8 m from STK2's spot and 1.0 m clear of the squad's left member (a first
+    try right at STK2's spot hung 0.18 m over that member's head). The light is warm and softer:
+    (1, 0.78, 0.55), intensity 2.4, range 7, falloff 1.5;
+  - the campfire's light is warm (1, 0.82, 0.6);
+  - no light casts a shadow, and the sun stays at 0.
+- The view out (@3): through the open doorway the camera saw the grass plane end at 40 m and
+  nothing past it. Now 0.26's own spruces (`flora/elka_green_01..05`) and bushes (`flora/bush_s_*`)
+  stand round the hut at 6..25 m, drawn only, and the grass reaches 200 m. The sky shows above
+  them and through the gaps at the eaves, as for any hut. The audit: of the orbit's view rays,
+  1 % meet nothing, all of them the sky. Below the horizon it is 0.01 %, within 0.8 degrees of
+  it, past 200 m.
+- The camera (@2): a cage 0.15 m inside the hut (walls, floor and ceiling, the doorway closed)
+  and boxes on the cabinet, the stool and the campfire.
+
+## STK2 Bar shooting gallery (`lobby_scene/stk2_bar`, pack lobby-stk2-bar@4)
+
+The shooting range: the lower level of STK2's `bar_shooting_gallery` (2011-12), with the
+gallery's lanes, targets, camouflage nets, the bottle shelf at the lanes' end, its lamps, and the
+hall before it. Manifest `ports/stk2-bar-lobby-to-026g.json`. The owner dropped it on 2026-10-30
+(one lobby per faction) and brought it back on 2026-11-01. @1..@3 never shipped.
+
+- Spot: at the head of the lanes (STK2 (97.0, -3.208, 0.6)), the lanes behind the character and
+  the hall before him.
+- Kept: the box x 77..102.5, y -3.6..0.3, z -7..6 (STK2 world): 286 of 544 objects, merged in
+  `level/stk2_bar/main_v4`. 16 props have no model in the archive (barrels, buckets, cement bags,
+  broken bottles) and are left out, and so are the planks under the squad's right member (@2).
+  The canister on the vent stack by the workbench sits on the floor (@3: the upgrade flight).
+  141 MB.
+- Spots (data `srp-026g/scripts/lobby-scenes/stk2_bar.tsv`):
+
+      character          ( 0.000, 0.000,  0.000)
+      camera, default    ( 0.000, 1.200, -1.960)  yaw 0
+      weapon             (-2.610, 1.240,  3.150)  weapon_view 0 (above 0.26's workbench_02)
+      artefact           (-0.900, 1.288,  4.200)  on the bottle shelf
+
+- The upgrade view (@2): the gallery has no table near the character, so 0.26's
+  `props/furniture/workbench_02` stands in the back left corner with the weapon 0.41 m above
+  it, seen along +z.
+- Textures (@4): at their STK2 sources' full size, up to 2048 px. Up to @3 they were capped at
+  512, and the props' at 256.
+- Light (@4, as the bunker's @8):
+  - no light casts a shadow. Up to @3 the gallery's spot, the hall's three ceiling lamps, the
+    watering-can lamp and the halogen work lamps' spots all cast one;
+  - no blue cast. The halogen work lamps were blue-white (0.62..0.71, 0.63..0.75, 0.91) and are
+    warm white (1, 0.9, 0.78). STK2's sun (0.46, 0.53, 0.78) cast no shadow, so it lit the
+    whole level blue; it is left out, as the bunker's is;
+  - the hall's three ceiling lamps 12 m behind the character (range 19.6, which lit the hall
+    flat) are warm (1, 0.86, 0.7) with range 14;
+  - the room probe's ambient is 0.45 (0.2). The warm ambient fills along the hall and the
+    gallery and the warm bounce on the character's back stay from @3.
+  - The lamps are STK2's own composites, each with its fixture: the halogen work lamps, the
+    ceiling lamps and the watering-can lamp. Nothing is added.
+- The camera (@4): the hall's ceiling collision (3.07 m) has no margin, so at the wheel's far
+  end with the eye above the point (pitch -25 degrees, 49 of 72 yaws) the eye stopped on it and
+  saw into the level above. A box now sits 0.15..0.29 m under the ceiling over the hall, and
+  another over the carton boxes and shelf by the right wall, which the eye got into at yaw
+  50..75. The @2 and @3 boxes stay: the floor, the workbench, the bottle shelf.
+- The audit (@4): no view ray of the orbit meets nothing (the gallery is closed). The eye is
+  behind a surface in 8.2 % of the orbit, the stock floor rows. Views with over 10 % back faces
+  are 8.1 %: the floor rows and two cells over a pallet on the floor at pitch +45..50.
 
 ## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@8)
 
