@@ -3838,15 +3838,19 @@ of event 5 and `take_artefact`'s own slot search.
 
 ## Battery progress (patch 92, unreleased)
 
-A battery's carrier scores a point for each 10 m the battery comes nearer its team's container than
-it has been in its life, from the match's start or its last delivery, whoever carried it (the owner,
-2026-11-01; `docs/notes/battery_credit.md`). The Rust `battery_progress` hook in `base_player::tick`
-(0x2DAAD3) counts 10 hundredths of event 6 a step in the carrier's place and kit cell and tells the
-statistics' listener; each battery's record keeps the nearest steps per team in its unused
-+FEh/+FFh, untouched again at start_match (0x334999) and at a put-in (0x334CEA), and saved after the
-record's own fields (0x334F66, 0x3350D0). A match's computation and the world's statistics change:
-every client of a match needs it, and the server reads two more bytes a battery.
-`check_battery_progress_026g.py` runs the hooks and the game's own serialize and deserialize.
+A battery's carriers earn 2 points for each 10 m the battery comes nearer their team's container
+than it has been in its life, from the match's start or its last delivery, whoever carried it; the
+points are held on the battery and paid when it is put into that team's container, to every carrier
+at once, and dropped when the other team delivers it (the owner, 2026-11-01: the score ticking up
+mid-carry told the enemy who brings a battery in; `docs/notes/battery_credit.md`). The Rust
+`battery_progress` hook in `base_player::tick` (0x2DAAD3) holds the steps for the carrier's place
+and kit; at a put-in (0x334CEA) the container team's carriers are counted 40 hundredths of event 6
+a step and the statistics' listener told; each battery's life (its nearest band per team and the
+held steps) is the patch's own state, begun again at start_match (0x334999) and at a put-in, and
+saved after the record's own fields (0x334F66, 0x3350D0). A match's computation and the world's
+statistics change: every client of a match needs it, and the server reads 3 bytes and 2 a carrier
+more a battery. `check_battery_progress_026g.py` runs the hooks and the game's own serialize and
+deserialize.
 
 ## Names on the Tab map (patch 82, unreleased)
 

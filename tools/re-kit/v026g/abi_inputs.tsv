@@ -3253,11 +3253,15 @@ va	name	location	role	basis
 0x00334ac0	survarium::victory_item_event_manager::on_event	EAX	the victory item	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+4	the player's place (byte)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+8	the player's kit (byte)	observed
-0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+12	the event (4: spotted)	observed
+0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+12	the event: 4 spotted (event 19 and first_finder when still FFh, 0x334B14..0x334B3A), 1 taken out of a container (+FDh, 0x334B4D), 0 put into a container (event 20, then the shares and the reset, owner_team the putter's team, 0x334B55..0x334CEA)	observed
 0x00334dc0	survarium::victory_item_event_manager::serialize	stack+4	victory item event manager	inferred
 0x00334dc0	survarium::victory_item_event_manager::serialize	EDI	writer	inferred
 0x00334fb0	survarium::victory_item_event_manager::deserialize	stack+4	victory item event manager	inferred
 0x00334fb0	survarium::victory_item_event_manager::deserialize	EDX	reader	inferred
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	EAX	the putter's team (on_event 0x334CAD)	observed
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	ECX	the battery's record (0x334CB1)	observed
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	EDI	the manager (0x334CB3; its options at +0A3Ch, 0x335133)	observed
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	entry ESP+4	the event the shares count: 6 never delivered, 17 the enemy owned it, 18 own team (0x334C8C..0x334CAC)	observed
 0x003353c0	survarium::intermediate_shared_statistics::serialize	stack+4	intermediate statistics	inferred
 0x003353c0	survarium::intermediate_shared_statistics::serialize	stack+8	writer	inferred
 0x003355f0	survarium::intermediate_shared_statistics::deserialize	stack+4	intermediate statistics	inferred

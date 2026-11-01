@@ -511,8 +511,7 @@ survarium::victory_item_event_manager	container_0	0xA20	f32	team 0's container's
 survarium::victory_item_event_manager	container_1	0xA2C	f32	team 1's container's position, 3 f32 (start_match 0x334988)
 survarium::victory_item_event_manager	rule	0xA38	ptr<survarium::gather_victory_items_rule_core>	the battery rule, set by start_match (0x33490E); 0 in a mode without batteries (the clear 0x3348E5; serialize writes nothing then, 0x334DD0)
 survarium::victory_item_event_manager	options	0xA3C	ptr<survarium::match_options>	the match's options (start_match 0x334914): a place's team at +45ECh + place x 45FCh (on_event 0x334AD9..0x334AE3)
-survarium::victory_item_status	progress_0	0xFE	u8	patch 92's: how near team 0's container the battery has come this life (0 untouched, else 10 m steps + 1); unused by the game, which writes +F0h..+FDh only
-survarium::victory_item_status	progress_1	0xFF	u8	patch 92's: the same for team 1's container
+survarium::victory_item_event_manager	statistics	-0x2760	obj<survarium::shared_statistics>	the shared statistics it is part of: the only manager is their +2760h (shared_statistics::on_victory_item_event 0x2F55D6: lea esi,[eax+2760h])
 survarium::victory_item_status	size	0x100	size	a battery's record (on_event 0x334B11: shl ecx,8)
 survarium::gather_victory_items_rule_core	items_begin	0x110	ptr<survarium::inventory_slot>	its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
 survarium::gather_victory_items_rule_core	items_end	0x114	ptr<survarium::inventory_slot>	the vector's end (0x313D70)

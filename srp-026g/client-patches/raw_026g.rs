@@ -9961,6 +9961,15 @@ impl VictoryItemEventManager {
     pub unsafe fn set_options(self, value: Option<MatchOptions>) {
         unsafe { self.0.byte_add(0xa3c).cast::<Option<MatchOptions>>().write_volatile(value) }
     }
+
+    /// -0x2760 (obj<survarium::shared_statistics>): the shared statistics it is part of: the only manager is their +2760h (shared_statistics::on_victory_item_event 0x2F55D6: lea esi,[eax+2760h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn statistics(self) -> SharedStatistics {
+        SharedStatistics(unsafe { self.0.byte_sub(0x2760) })
+    }
 }
 
 /// A survarium::victory_item_status (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -9975,24 +9984,6 @@ impl VictoryItemStatus {
     #[inline(always)]
     pub fn address(self) -> u32 {
         self.0.as_ptr() as usize as u32
-    }
-
-    /// +0xfe (u8): patch 92's: how near team 0's container the battery has come this life (0 untouched, else 10 m steps + 1); unused by the game, which writes +F0h..+FDh only
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn progress_0(self) -> *mut u8 {
-        unsafe { self.0.byte_add(0xfe).cast::<u8>().as_ptr() }
-    }
-
-    /// +0xff (u8): patch 92's: the same for team 1's container
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn progress_1(self) -> *mut u8 {
-        unsafe { self.0.byte_add(0xff).cast::<u8>().as_ptr() }
     }
 
     /// 0x100 bytes: a battery's record (on_event 0x334B11: shl ecx,8)
@@ -12171,7 +12162,7 @@ pub mod site {
         }
     }
 
-    /// battery.delivered (0x334cea): victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record
+    /// battery.delivered (0x334cea): victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record, ESI the manager, EAX the team of the player who put it in (its [esp+8], 0x334CC5), whose container it is now in
     pub mod battery_delivered {
         #[allow(unused_imports)]
         use super::*;
@@ -12183,6 +12174,24 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn record(machine: &impl Machine) -> Option<VictoryItemStatus> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(VictoryItemStatus)
+        }
+
+        /// ESI: a survarium::victory_item_event_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<VictoryItemEventManager> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(VictoryItemEventManager)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn team(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 
@@ -12210,7 +12219,7 @@ pub mod site {
         }
     }
 
-    /// battery.load (0x3350d0): victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader
+    /// battery.load (0x3350d0): victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader, EBP the manager (0x33505D)
     pub mod battery_load {
         #[allow(unused_imports)]
         use super::*;
@@ -12231,6 +12240,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(BufferReader)
+        }
+
+        /// EBP: a survarium::victory_item_event_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<VictoryItemEventManager> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(VictoryItemEventManager)
         }
     }
 }

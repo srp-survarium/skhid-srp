@@ -398,7 +398,7 @@ pub extern "C" fn hook_battery_progress_on_match_start(frame: &mut Frame) -> u32
 
 // ---- battery_progress (patch 92) ----
 
-/// The entry `battery_progress_on_delivered` (0x334cea, victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record) calls this with the saved machine.
+/// The entry `battery_progress_on_delivered` (0x334cea, victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record, ESI the manager, EAX the team of the player who put it in (its [esp+8], 0x334CC5), whose container it is now in) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_battery_progress_on_delivered(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `battery_progress_on_delivered` calls this, from the game's jump at 0x334cea,
@@ -428,7 +428,7 @@ pub extern "C" fn hook_battery_progress_on_save(frame: &mut Frame) -> u32 {
 
 // ---- battery_progress (patch 92) ----
 
-/// The entry `battery_progress_on_load` (0x3350d0, victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader) calls this with the saved machine.
+/// The entry `battery_progress_on_load` (0x3350d0, victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader, EBP the manager (0x33505D)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `battery_progress_on_load` calls this, from the game's jump at 0x3350d0,

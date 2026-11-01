@@ -374,7 +374,7 @@ def fields(path=None):
         module = module_of(kind)
         offset = number(row["offset"])
         image = module == "image"
-        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x400000)
+        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x4000, 0x400000)
         typed = TYPED.fullmatch(kind_type)
         of, target = ("value", None) if kind_type in FIELD_TYPES else ("size", None) if kind_type == "size" \
             else (("data" if typed.group(2) in ("u8", "f32") else typed.group(1)), typed.group(2)) if typed else (None, None)
@@ -385,7 +385,7 @@ def fields(path=None):
                 or not low <= offset < high or offset % align or (module, field) in seen \
                 or (image and of not in ("value", "obj")) or (of == "size" and (offset <= 0 or module in sized)):
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
-                          f"from -0x1000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
+                          f"from -0x4000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
                           f"of {', '.join(FIELD_TYPES)}, ptr<kind>, ptr<u8>, obj<kind> or size (a kind's, "
                           "once, not an image's)")
         seen.add((module, field))

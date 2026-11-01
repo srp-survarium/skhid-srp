@@ -960,7 +960,7 @@ battery_progress_on_match_start_replay:
     db 0x8b, 0x86, 0x38, 0x0a, 0x00, 0x00
     jmp 0x33499f
 
-; 0x334cea victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record: lohook -> battery_progress_on_delivered
+; 0x334cea victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record, ESI the manager, EAX the team of the player who put it in (its [esp+8], 0x334CC5), whose container it is now in: lohook -> battery_progress_on_delivered
 global battery_progress_on_delivered
 extern hook_battery_progress_on_delivered
 battery_progress_on_delivered:
@@ -1038,7 +1038,7 @@ battery_progress_on_save_replay:
     db 0x8b, 0x44, 0x24, 0x24, 0x8b, 0x80, 0x38, 0x0a, 0x00, 0x00
     jmp 0x334f70
 
-; 0x3350d0 victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader: lohook -> battery_progress_on_load
+; 0x3350d0 victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader, EBP the manager (0x33505D): lohook -> battery_progress_on_load
 global battery_progress_on_load
 extern hook_battery_progress_on_load
 battery_progress_on_load:
