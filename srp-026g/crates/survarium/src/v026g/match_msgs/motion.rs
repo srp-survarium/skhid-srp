@@ -89,7 +89,11 @@ pub struct Damage {
     /// `m_linear_horizontal_speed` [LIKELY m/s: 3.1–3.6 walking, 5.2–5.3
     /// sprinting].
     pub linear_horizontal_speed: f32,
-    /// `m_last_hit_time_ms`: the world's time of the last bullet hit
+    /// `m_last_hit_time_ms`: the world's time of the last hit that took
+    /// health, of any type (a bullet, a zone, a fall, a blast):
+    /// `damage_model::hit_body_part` 0x2E5080, the one damage step of every
+    /// hit (`base_player::hit_impl` 0x2D9B90), writes the hit's time at
+    /// 0x2E5134 when the damage the armour left is above 0.0 (PROVEN)
     /// [LIKELY 0 before the first].
     pub last_hit_time_ms: u32,
     /// `m_health` of each body part (20 in every world seen); [LIKELY]

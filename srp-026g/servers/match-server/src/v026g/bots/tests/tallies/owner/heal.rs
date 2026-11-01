@@ -1,4 +1,4 @@
-use super::super::standin_heal::{DrugPress, Pressed, model_of};
+use super::super::standin_heal::{DrugPress, Pressed, Stopped, model_of};
 use crate::v026g::bots::stock::Drug;
 use crate::v026g::bots::reflex::HealNote;
 use super::*;
@@ -22,6 +22,8 @@ pub(super) struct HealCounts {
     noted: Vec<Option<u32>>,
     /// By place: what the bot's reflex says at this tick's reading (none: not a bot).
     now: Vec<Option<HealNow>>,
+    /// [A217] By place: the presses held while hits landed, and those made at a hold's end (the reflex's counts).
+    holds: Vec<[u32; 2]>,
 }
 
 impl HealCounts {
@@ -30,6 +32,7 @@ impl HealCounts {
             recs: vec![Vec::new(); n],
             noted: vec![None; n],
             now: vec![None; n],
+            holds: vec![[0; 2]; n],
         }
     }
 }
@@ -50,6 +53,9 @@ impl Topic for HealCounts {
     }
 
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(bot) = bot {
+            self.holds[place] = [bot.reflex.heal_holds, bot.reflex.heal_held_presses];
+        }
         self.now[place] = bot.map(|bot| HealNow {
             target: bot.reflex.target().is_some(),
             heal_walking: bot.reflex.heal_walking(),
@@ -471,8 +477,9 @@ impl HealCounts {
             (100.0 * f64::from(hits.iter().map(|h| h.0).sum::<f32>()) / hits.len() as f64).round() / 100.0
         };
         let by_depth: Vec<f64> = bands.iter().map(|&(a, b)| Scale::pct(a, b)).collect();
-        // Deaths while a drug's window is open: its delay and its active time from the press (nothing but death
-        // ends a use: `fact-health-recovery.md` §2), as `heal_dead_within_5s_per_100_heals` takes the next 5 s.
+        // Deaths while a drug's window is open: its delay and its active time from the press (a death, and since
+        // revision 40 a bullet that took health, ends a use: patch 84), as `heal_dead_within_5s_per_100_heals`
+        // takes the next 5 s.
         let window_ms = |drug: Drug| {
             let model = model_of(drug);
             ((model.delay_s + model.active_s) * 1000.0) as u32
@@ -530,6 +537,25 @@ impl HealCounts {
             "heal_enemy_m_line": enemy_line,
             "heal_cover_m_line": [covers as f64, (cover_sum * 10.0).round() / 10.0],
         });
+        // [A217] Patch 84: the drugs a bullet stopped (the stand-in's truth) and the presses the bots held, by team.
+        let team_of = |place: Place| usize::from(game.bodies[place].team & 1);
+        let mut stops = [[0u32; 2]; 2];
+        let mut stops_medkit = [0u32; 2];
+        for &(_, place, drug, at) in &game.drug_stops {
+            stops[team_of(place)][usize::from(at == Stopped::Active)] += 1;
+            stops_medkit[team_of(place)] += u32::from(drug == Drug::Medkit);
+        }
+        let mut holds = [[0u32; 2]; 2];
+        for (place, h) in self.holds.iter().enumerate().filter(|(place, _)| *place < game.bodies.len()) {
+            for (sum, n) in holds[team_of(place)].iter_mut().zip(h) {
+                *sum += n;
+            }
+        }
+        json["heal_drug_stops_in_delay_by_team"] = serde_json::json!([stops[0][0], stops[1][0]]);
+        json["heal_drug_stops_active_by_team"] = serde_json::json!([stops[0][1], stops[1][1]]);
+        json["heal_drug_stops_medkit_by_team"] = serde_json::json!(stops_medkit);
+        json["heal_holds_by_team"] = serde_json::json!([holds[0][0], holds[1][0]]);
+        json["heal_held_presses_by_team"] = serde_json::json!([holds[0][1], holds[1][1]]);
         json["deaths_in_item_window"] = window_deaths.into();
         json["deaths_in_item_window_by_kind"] = serde_json::json!(window_by_kind);
         let text = format!(

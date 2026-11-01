@@ -1288,6 +1288,10 @@ impl Bots {
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
+            // [A217] A hit after a drug's press stops it (patch 84): the pantry keeps the first one.
+            if let Some(hit) = hurt.last_hit_ms {
+                bot.features.stock.pantry.hit(hit);
+            }
         }
     }
 
