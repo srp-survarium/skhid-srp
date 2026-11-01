@@ -210,7 +210,28 @@ package survarium.upgrade
          }
          return !fits(hostDictId,int(item.dictId));
       }
-      
+
+      // A double click on an owned item of the inventory while the window is open
+      // (InventoryList.onItemDoubleClick): the item goes where a drop puts it (put), into the first
+      // slot shown that takes it and is empty, else the first that takes it (a decal over the first
+      // decal when both are full). False, and nothing done, when no slot shown takes it, the window
+      // already holds it or a decal's place is being edited (the slots locked: lockControls).
+      public static function attach(item:Object) : Boolean
+      {
+         var slot:UpgradeSlot = null;
+         if(!instance || !instance.visible || !instance._data || !item || instance.decalControl.visible)
+         {
+            return false;
+         }
+         slot = instance.slotFor(item);
+         if(slot == null)
+         {
+            return false;
+         }
+         instance.put(slot,uint(item.itemId));
+         return true;
+      }
+
       // A weapon's upgrades by its logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle 4,
       // grip 5): the records as they come (the decals), the weapon kit's record (exe patch 68 gives
       // its object kit_own, the kit's own slot, and kit_camo, kit_muzzle, kit_grip, the dict ids it
@@ -677,33 +698,63 @@ package survarium.upgrade
          }
       }
       
+      // A drag's start lights up the slots its item goes into (a slot takes a drop only lit up:
+      // UpgradeSlot.handleDropEvent).
       public function selectAgeements(category:int, dictId:int = 0) : void
       {
          trace("UW::selectAgeements",category,dictId,this._slots);
-         if(hostDictId >= 0)
-         {
-            this.decalSlot.highlighted = category == ItemCategory.DECALS && this.decalSlot.visible && Boolean(this.decalSlot.enabled);
-            this.decalSlot1.highlighted = category == ItemCategory.DECALS && this.decalSlot1.visible && Boolean(this.decalSlot1.enabled);
-            this.decalSlot2.highlighted = category == ItemCategory.CAMOUFLAGES && this.decalSlot2.visible && Boolean(this.decalSlot2.enabled);
-            this.camoSlot.highlighted = category == ItemCategory.SCOPES && fits(hostDictId,dictId) && Boolean(this.camoSlot.enabled);
-            return;
-         }
          var i:int = 0;
          while(i < this._slots.length)
          {
-            trace("iterate::",this._slots[i].index,this._slotAgreements[this._slots[i].index],this._slots[i].enabled);
-            if(Boolean(this._slotAgreements[this._slots[i].index]) && Boolean((this._slotAgreements[this._slots[i].index] as Array).indexOf(category) != -1) && Boolean(this._slots[i].enabled))
+            this._slots[i].highlighted = this.takes(this._slots[i],category,dictId);
+            i++;
+         }
+      }
+
+      // Whether a slot, as the window shows it, takes an item of this category and dict id: a
+      // weapon's decals, camouflage (decalSlot2) and the scopes that fit it (camoSlot); armour's by
+      // the slots' categories (_slotAgreements, the game's restrictions added).
+      protected function takes(slot:UpgradeSlot, category:int, dictId:int) : Boolean
+      {
+         if(!slot.visible || !slot.enabled)
+         {
+            return false;
+         }
+         if(hostDictId >= 0)
+         {
+            return category == this.weaponSlotCategory(slot) && (category != ItemCategory.SCOPES || fits(hostDictId,dictId));
+         }
+         return Boolean(this._slotAgreements[slot.index]) && (this._slotAgreements[slot.index] as Array).indexOf(category) != -1;
+      }
+
+      // Where a double click puts an item (attach): the first slot shown that takes it and is
+      // empty, else the first that takes it; none when a slot of the window holds it already.
+      protected function slotFor(item:Object) : UpgradeSlot
+      {
+         var i:int = 0;
+         var slot:UpgradeSlot = null;
+         var first:UpgradeSlot = null;
+         if(this.holds(null,uint(item.itemId)))
+         {
+            return null;
+         }
+         while(i < this._slots.length)
+         {
+            slot = this._slots[i];
+            if(this.takes(slot,int(item.category),int(item.dictId)))
             {
-               trace("highlighted true");
-               this._slots[i].highlighted = true;
-            }
-            else
-            {
-               trace("highlighted false");
-               this._slots[i].highlighted = false;
+               if(!slot.data)
+               {
+                  return slot;
+               }
+               if(first == null)
+               {
+                  first = slot;
+               }
             }
             i++;
          }
+         return first;
       }
       
       public function deselectAgeements() : void
@@ -1058,40 +1109,46 @@ package survarium.upgrade
 
       private function onItemDropped(event:DragEvent) : void
       {
-         var i:uint;
-         var item:Object;
-         var slot:UpgradeSlot;
          trace("onItemDropped::",event.dragData);
          if(event.dragData)
          {
-            i = 0;
-            while(i < this._slots.length)
-            {
-               slot = this._slots[i];
-               trace("slotId::",event.dragData.itemId,slot.data ? slot.data.itemId : "ff");
-               if(slot.data && slot.data.itemId == event.dragData.itemId)
-               {
-                  // a move from another slot of this window: the relocate below moves it on the
-                  // server (keeping a decal's place), so emptying the slot it left sends no drop
-                  this._moving = true;
-                  slot.dropSlot();
-                  this._moving = false;
-               }
-               i++;
-            }
-            slot = event.target as UpgradeSlot;
-            trace("updateData::");
-            item = this.create_item(event.dragData.itemId);
-            // an item not owned (none should be listed): nothing to put, and no error that would
-            // leave the drag on the cursor
-            if(item == null)
-            {
-               return;
-            }
-            slot.setData(item);
-            trace("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
-            ExternalInterface.call("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
+            this.put(event.target as UpgradeSlot,uint(event.dragData.itemId));
          }
+      }
+
+      // An owned item into a slot, as a drop (onItemDropped) or a double click (attach) puts it:
+      // shown in the slot at once and sent to the game (relocate_upgrade_item); what the slot held
+      // comes off the item there.
+      protected function put(slot:UpgradeSlot, itemId:uint) : void
+      {
+         var i:uint = 0;
+         var other:UpgradeSlot = null;
+         var item:Object = null;
+         while(i < this._slots.length)
+         {
+            other = this._slots[i];
+            trace("slotId::",itemId,other.data ? other.data.itemId : "ff");
+            if(other.data && other.data.itemId == itemId)
+            {
+               // a move from another slot of this window: the relocate below moves it on the
+               // server (keeping a decal's place), so emptying the slot it left sends no drop
+               this._moving = true;
+               other.dropSlot();
+               this._moving = false;
+            }
+            i++;
+         }
+         trace("updateData::");
+         item = this.create_item(itemId);
+         // an item not owned (none should be listed): nothing to put, and no error that would
+         // leave the drag on the cursor
+         if(item == null)
+         {
+            return;
+         }
+         slot.setData(item);
+         trace("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
+         ExternalInterface.call("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
       }
       
       private function completeRelocate(result:Object) : void

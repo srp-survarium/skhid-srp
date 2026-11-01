@@ -10,6 +10,9 @@
 #   camouflage; armour's records as they come;
 # - a drop on a slot (UpgradeSlot.handleDropEvent, onItemDropped) shown at once: a decal into the
 #   second decal slot, a camouflage beside the kit's scope;
+# - a double click on an inventory item (InventoryList.onItemDoubleClick, UpgradeWindow.attach): a
+#   camouflage into its slot, a decal into the first free decal slot (over the first when both are
+#   full), a scope into its slot, on the page that shows the slot; armour's too; window closed: nothing;
 # - the window's texts in every language of client-patches/localization fitting their fields.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
