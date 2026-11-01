@@ -162,6 +162,13 @@ services:
       # 2000) together, the oldest first.
       - SRP_BOT_TRACE_DIR
       - SRP_BOT_TRACE_MAX_MB
+      # The bots' tuning (docs/SRP-026G.md): a JSON merge patch over the
+      # shipped defaults, read at the start and again before each match;
+      # unset: the defaults. The admin page's Bots tab keeps its changes
+      # over it in SRP_BOT_ADMIN_TUNING (from the next match), with their
+      # audit beside it (bot-admin-tuning.audit.jsonl); empty: in memory.
+      - SRP_BOT_TUNING
+      - SRP_BOT_ADMIN_TUNING=${SRP_BOT_ADMIN_TUNING-/srv/srp/data/bot-admin-tuning.json}
       # Rooms, the players' "servers" (servers/lobby-server/src/v026g/rooms.rs):
       # every PvP match is a room's; they need the lobby movie that has them.
       - SRP_ROOMS_MAX

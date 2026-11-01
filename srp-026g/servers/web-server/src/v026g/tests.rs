@@ -94,6 +94,7 @@ fn world_with(accounts: GameAccounts) -> World {
             patches: Vec::new(),
             min_patch_revision: 0,
             replays: None,
+            bots: None,
         }),
     };
     World {
@@ -1679,4 +1680,220 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
     world.accounts.flush();
     assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
     assert_eq!(repository.all_admin_actions().len(), 1);
+}
+
+/// A bots' desk in memory: two groups (one with a shown-only knob), and
+/// what it was asked.
+struct Desk {
+    view: Mutex<session::v026g::bot_desk::DeskView>,
+    asked: Mutex<Vec<String>>,
+}
+
+impl Desk {
+    fn new() -> Self {
+        use session::v026g::bot_desk::{DeskView, Group, Kept, Knob, KnobState, Text};
+        let knob = |key: &str, state: KnobState, value: &str| Knob {
+            key: key.to_owned(),
+            label: Text {
+                en: "A <knob>",
+                uk: "Параметр",
+            },
+            state,
+            value: value.to_owned(),
+            default: value.to_owned(),
+            limits: "0.01–0.5".to_owned(),
+        };
+        let view = DeskView {
+            source: "the shipped defaults".to_owned(),
+            kept: Kept::Memory,
+            refused: None,
+            groups: vec![
+                Group {
+                    key: "brackets",
+                    title: Text {
+                        en: "Skill by the players' equipment",
+                        uk: "Навичка",
+                    },
+                    note: Some(Text {
+                        en: "Shown only.",
+                        uk: "Лише показано.",
+                    }),
+                    knobs: vec![knob("skill.max", KnobState::Shown, "1")],
+                },
+                Group {
+                    key: "balance",
+                    title: Text {
+                        en: "Self-balancing",
+                        uk: "Самобалансування",
+                    },
+                    note: None,
+                    knobs: vec![
+                        knob("skill.step", KnobState::Settable, "0.15"),
+                        knob("skill.every_s", KnobState::Settable, "30"),
+                    ],
+                },
+            ],
+            audit: Vec::new(),
+        };
+        Self {
+            view: Mutex::new(view),
+            asked: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl session::v026g::bot_desk::BotDesk for Desk {
+    fn view(&self) -> session::v026g::bot_desk::DeskView {
+        self.view.locked().clone()
+    }
+
+    fn set(
+        &self,
+        changes: &[(String, String)],
+        from: &str,
+    ) -> Result<Vec<session::v026g::bot_desk::Change>, String> {
+        self.asked.locked().push(format!("set {changes:?} from {from}"));
+        if let Some((key, _)) = changes.iter().find(|(_, text)| text == "<bad>") {
+            return Err(format!("{key}: `<bad>` is not a number"));
+        }
+        let mut view = self.view.locked();
+        let mut made = Vec::new();
+        for (key, text) in changes {
+            let knob = view
+                .groups
+                .iter_mut()
+                .flat_map(|group| &mut group.knobs)
+                .find(|knob| &knob.key == key)
+                .ok_or("no such knob")?;
+            made.push(session::v026g::bot_desk::Change {
+                at: 1_761_998_400,
+                from: from.to_owned(),
+                key: key.clone(),
+                old: knob.value.clone(),
+                new: text.clone(),
+            });
+            knob.value = text.clone();
+        }
+        let older = std::mem::replace(&mut view.audit, made.clone());
+        view.audit.extend(older);
+        Ok(made)
+    }
+
+    fn reset(
+        &self,
+        group: Option<&str>,
+        from: &str,
+    ) -> Result<Vec<session::v026g::bot_desk::Change>, String> {
+        self.asked.locked().push(format!("reset {group:?} from {from}"));
+        let mut view = self.view.locked();
+        let mut made = Vec::new();
+        for taken in view
+            .groups
+            .iter_mut()
+            .filter(|taken| group.is_none_or(|key| key == taken.key))
+        {
+            for knob in &mut taken.knobs {
+                if knob.value != knob.default {
+                    made.push(session::v026g::bot_desk::Change {
+                        at: 1_761_998_460,
+                        from: from.to_owned(),
+                        key: knob.key.clone(),
+                        old: knob.value.clone(),
+                        new: knob.default.clone(),
+                    });
+                    knob.value = knob.default.clone();
+                }
+            }
+        }
+        let older = std::mem::replace(&mut view.audit, made.clone());
+        view.audit.extend(older);
+        Ok(made)
+    }
+}
+
+#[test]
+fn the_bots_tab_sets_what_was_changed_and_resets_after_a_confirm() {
+    let mut world = world();
+    // A server without the bots' tuning says so.
+    let off = world.admin(&[("tab", "bots")]);
+    assert!(off.contains("The bots' tuning is not on this server."), "{off}");
+    let desk = Arc::new(Desk::new());
+    world.web.game.as_mut().unwrap().bots = Some(desk.clone());
+    // Before the token: the tab, and nothing of the desk.
+    let page = world.web.route(&get("/hidden"), "t").body;
+    assert!(page.contains("id=tab-bots") && page.contains("Shown once the token is right."));
+    assert!(!page.contains("skill.step"));
+    // The tab: each group, a field for a settable knob only, the defaults, the limits, the resets.
+    let shown = world.admin(&[("tab", "bots")]);
+    assert!(shown.contains("id=tab-bots checked"), "{shown}");
+    assert!(shown.contains("name=\"bot.skill.step\" value=\"0.15\""), "{shown}");
+    assert!(shown.contains("name=\"was.skill.step\" value=\"0.15\""), "{shown}");
+    assert!(!shown.contains("name=\"bot.skill.max\""), "{shown}");
+    assert!(shown.contains("Shown only.") && shown.contains("A &lt;knob&gt;") && shown.contains("0.01–0.5"));
+    assert!(shown.contains("value=\"reset:balance\"") && !shown.contains("value=\"reset:brackets\""));
+    assert!(shown.contains("value=\"reset:all\"") && shown.contains("No changes yet."));
+    assert!(desk.asked.locked().is_empty());
+    // Only the field changed is set; the message says what changed and from when.
+    let saved = world.admin(&[
+        ("tab", "bots"),
+        ("bot.skill.step", "0.2"),
+        ("was.skill.step", "0.15"),
+        ("bot.skill.every_s", "30"),
+        ("was.skill.every_s", "30"),
+    ]);
+    assert!(
+        saved.contains("Saved, from the next match: skill.step 0.15 → 0.2"),
+        "{saved}"
+    );
+    assert_eq!(
+        desk.asked.locked().as_slice(),
+        [r#"set [("skill.step", "0.2")] from t"#]
+    );
+    // The audit, the newest first.
+    assert!(saved.contains("2025-11-01 12:00"), "{saved}");
+    // A refused value changes nothing, and the reason is escaped.
+    let refused = world.admin(&[
+        ("tab", "bots"),
+        ("bot.skill.every_s", "<bad>"),
+        ("was.skill.every_s", "30"),
+    ]);
+    assert!(
+        refused.contains("Refused, nothing changed: skill.every_s: `&lt;bad&gt;`"),
+        "{refused}"
+    );
+    // A reset shows what goes back and waits for its confirm.
+    let asked = world.admin(&[("tab", "bots"), ("bots_do", "reset:balance")]);
+    assert!(
+        asked.contains("Confirm below to put these back to their defaults: skill.step 0.2 → 0.15"),
+        "{asked}"
+    );
+    assert!(asked.contains("value=\"confirm:balance\""), "{asked}");
+    assert_eq!(desk.asked.locked().len(), 2);
+    let cancelled = world.admin(&[("tab", "bots"), ("bots_do", "cancel")]);
+    assert!(!cancelled.contains("confirm:balance"));
+    let done = world.admin(&[("tab", "bots"), ("bots_do", "confirm:balance")]);
+    assert!(
+        done.contains("Reset, from the next match: skill.step 0.2 → 0.15"),
+        "{done}"
+    );
+    assert_eq!(
+        desk.asked.locked().last().unwrap(),
+        r#"reset Some("balance") from t"#
+    );
+    // Nothing left to reset; the whole tab's reset asks for no group.
+    let nothing = world.admin(&[("tab", "bots"), ("bots_do", "reset:all")]);
+    assert!(nothing.contains("Nothing to reset"), "{nothing}");
+    world.admin(&[("tab", "bots"), ("bots_do", "confirm:all")]);
+    assert_eq!(desk.asked.locked().last().unwrap(), "reset None from t");
+    // Without the token nothing is asked.
+    let before = desk.asked.locked().len();
+    let wrong = world.web.route(
+        &post(
+            "/hidden",
+            &[("token", "bad"), ("tab", "bots"), ("bots_do", "confirm:all")],
+        ),
+        "t",
+    );
+    assert!(wrong.body.contains("Wrong token"));
+    assert_eq!(desk.asked.locked().len(), before);
 }
