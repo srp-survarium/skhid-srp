@@ -1026,8 +1026,8 @@ def holster(patched):
     """Option (b): the pickup committed at the command (the drop taken, every check of the install made,
     the gun the picker's pending object under its own reserved registry id), the holster only its
     animation: the game's switch holsters the gun in hands and then the gun takes the slot. Weapon keys
-    while holstering are ignored; only the picker's death cancels; a switch that never comes is made
-    at the deadline; a rollback inside the holster leaves the registry as the record says; a defensive
+    while holstering are ignored; only the picker's death cancels; the swap is always the game's own (a gun firing is waited for; past
+    3 s the game is asked each tick to look at the switch, never forced); a rollback inside the holster leaves the registry as the record says; a defensive
     refusal at the switch draws the old gun back. The picker always has a gun in its hands."""
     taken = DIED + 1_000
     waiting = (10, PICKED, (17, 1))
@@ -1123,16 +1123,50 @@ def holster(patched):
     r.installed()
     print("ok the donor's body leaving the world during the holster does not cancel it: the gun is the picker's")
 
-    # The deadline: no switch within 3 s of the command, then the swap at once, at that tick.
+    # A pickup while firing (the 83Lb41 crash: the gun in hands never ready while the trigger is held,
+    # then force-swapped at the 3 s deadline mid-fire, its intervals firing on a gun with no user). The
+    # game's fire -> hide waits for the trigger and its animation, as for a 1/2 key: the pickup waits
+    # too, however long, and nothing of the gun in hands is put away while it is not ready (its
+    # intervals stay the game's). Past 3 s the game is asked, each tick at the input's apply point, to
+    # look at the switch (m_need_to_select_animations), logged once; never a forced swap. A rollback
+    # during the wait keeps it waiting. Once the trigger is let go the game's switch puts the gun away
+    # (deactivate, forget, in its slot) and the picked gun is drawn.
+    def apply_input(g, now):
+        g.word(g.picker + 0x324, now)
+        g.word(g.picker + 0x330, 0x20)                     # fire held
+        g.emu.mem_write(g.picker + 0x33E, b"\0")
+        g.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: g.picker, UC_X86_REG_EAX: g.picker + 0x32C})
+        return g.read(g.picker + 0x33E, 1) == b"\1"
     r = started()
-    r.tick(ready=False, now=taken + 2_999)
-    window(r)
+    r.native, r.put_away = [], []
     r.log.clear()
-    r.tick(ready=False, now=taken + 3_000)
+    for t in range(100, 2_999, 450):
+        assert not apply_input(r, taken + t), "no nudge before the deadline"
+        r.tick(ready=False, now=taken + t)                # firing: not ready to be deactivated
+    window(r)
+    nudged = [apply_input(r, taken + t) for t in (3_000, 3_050, 4_000, 6_000)]
+    assert nudged == [True] * 4, nudged
+    for t in (3_000, 4_000, 6_000, 9_000):
+        r.tick(ready=False, now=taken + t)
+    window(r)                                               # still waiting: nothing put away, no switch
+    assert r.native == [] and r.put_away == [], r.native
+    waits = [l for l in r.log if "still waiting for the gun in hands to be put away" in l]
+    assert len(waits) == 1, r.log
+    assert not any("AT ONCE" in l for l in r.log), r.log
+    # A rollback during the wait (to a state of the window): it keeps waiting, the registry as before.
+    assert r.load(r.picker, record(pending=waiting)) == RECORD
+    window(r)
+    r.tick(ready=False, now=taken + 9_100)
+    window(r)
+    # The trigger let go: the game's switch.
+    assert r.tick(now=taken + 9_400) == r.new_gun
     r.installed()
-    assert r.read(r.picker + 0x12C) == r.new_gun and r.native[0] == ("deactivate", r.own_gun, 1)
-    assert any("switched AT ONCE (no switch within the deadline)" in l for l in r.log), r.log
-    print("ok a switch that never comes: at 3 s after the command the gun is installed at once (logged as such)")
+    r.put_away_in_slot(r.own_gun)
+    assert r.native.index(("deactivate", r.own_gun, 1)) == 0
+    print("ok a pickup while firing waits as a 1/2 key does: no switch and nothing of the firing gun put away while "
+          "it is not ready (its intervals stay the game's), past 3 s the game is asked each tick to look at the "
+          "switch (logged once), never forced; a rollback during the wait keeps it waiting; the trigger let go, the "
+          "game's switch puts the gun away in its slot and draws the picked one")
 
     # The picker's death while holstering: the only cancel. The gun back in the drop (open again).
     r = started()

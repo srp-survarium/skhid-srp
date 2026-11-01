@@ -102,7 +102,8 @@ enum At {
     /// `picker`'s pending object (registered), waiting for the weapon
     /// switch into `pending.slot`; `from` the drop it was taken from, where
     /// a cancel or a rollback undoing the pickup puts it back.
-    Pending { picker: PlayerId, pending: Pending, registered: Registered, from: DropOf },
+    /// `nudged`: past the deadline, logged (runtime only).
+    Pending { picker: PlayerId, pending: Pending, registered: Registered, from: DropOf, nudged: bool },
     /// Picked into `picker`'s weapon slot `slot` (its own gun hidden in the
     /// cooked inventory); `from` the drop it was taken from, where a
     /// rollback undoing the pickup puts it back.
@@ -279,7 +280,7 @@ fn held(thread: &Thread, player: PlayerId, slot: WeaponSlot) -> Option<(CookId, 
 /// its registration and the drop it came from.
 fn pending_of(thread: &Thread, player: PlayerId) -> Option<(CookId, Pending, Registered, DropOf)> {
     CACHE.with(thread, |cache| cache.iter().flatten().find_map(|e| match e.at {
-        At::Pending { picker, pending, registered, from } if picker == player => Some((e.gun.id(), pending, registered, from)),
+        At::Pending { picker, pending, registered, from, .. } if picker == player => Some((e.gun.id(), pending, registered, from)),
         _ => None,
     }))
 }
@@ -423,7 +424,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
         let at = RegistryId::reserved(Place::new(player.place()).ok_or(Why::NoPlace)?, Role::Pending);
         let registered = native::register_pending(player, id, pending.pick.recipe.slot, at, Select::ByReader)
             .map_err(Why::Install)?;
-        move_to(thread, id, |_| At::Pending { picker: player.id(), pending, registered, from });
+        move_to(thread, id, |_| At::Pending { picker: player.id(), pending, registered, from, nudged: false });
         Ok::<_, Why>(registered)
     })();
     match outcome {
@@ -545,6 +546,7 @@ fn body_drop(thread: &Thread, place: Place) -> Option<(CookId, Recipe, DropOf)> 
 /// The input's apply point (composed from artefact_carry's `carry.filter`,
 /// before patch 78 filters the actions): a pickup command is played.
 pub fn on_filter(player: &Player<'_>, thread: &Thread) {
+    nudge(player, thread);
     let Some(target) = weapon_pickup::command(player.input_actions()) else { return };
     match take(player, thread, target) {
         Ok((pending, registered)) => log_registered("took (the gun in hands holstering)", player, pending, registered),
@@ -588,22 +590,29 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     // As a weapon key: the switch is looked at this tick (the hide starts now).
     player.select_animations_now();
     let pending = Pending { slot: into, pick: Pick { taken: Ms(player.time()), recipe }, magazine };
-    move_to(thread, cook, |_| At::Pending { picker: player.id(), pending, registered, from });
+    move_to(thread, cook, |_| At::Pending { picker: player.id(), pending, registered, from, nudged: false });
     update_record(thread, world, place, |r| r.pending = Some(pending));
     update_record(thread, world, target, |r| r.drop = DropState::Taken);
     Ok((pending, registered))
 }
 
-/// The longest a pickup waits for the game's switch (the gun in hands
-/// holstering, its hide animation well under this): then it switches at
-/// once, at the same tick on every client.
+/// How long a pickup waits for the game's switch before it asks the game,
+/// every tick, to look at it again (m_need_to_select_animations): the
+/// fallback for a switch the game was never asked to look at. The swap is
+/// still the game's own, when the gun in hands is ready to be put away
+/// (is_ready_to_be_deactivated): never forced. A gun firing is not ready
+/// (the game's fire -> hide transition waits for the trigger and its
+/// animation, as for a 1/2 key), and a gun put away before it is ready
+/// keeps animation intervals forget_active_object does not drop: their
+/// events reached it with no user (the 83Lb41 crashes, both after a forced
+/// swap at this deadline).
 const SWITCH_DEADLINE_MS: u32 = 3_000;
 
 /// `pickup.tick_active` (tick_active_object's entry, each player each
 /// tick): a pickup waiting for its switch keeps the picked gun the pending
 /// object (a weapon key, or anything else that set another, is ignored until
 /// the swap: the pending object and the inventory's selected slot +170h are
-/// put back); past [`SWITCH_DEADLINE_MS`] it switches now.
+/// put back).
 pub fn on_tick_active(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(player) = native::player(ctx, Site::TickActive) else { return Flow::Continue };
@@ -612,10 +621,30 @@ pub fn on_tick_active(ctx: &mut Context<'_>) -> Flow<NoExit> {
         native::select_pending(&player, &registered, pending.slot);
         log_pick("ignored another weapon switch while holstering for", &player, pending.slot, pending.pick, "");
     }
-    if Ms(player.time()).since(pending.pick.taken) >= SWITCH_DEADLINE_MS {
-        switch(&player, thread, Path::Deadline);
-    }
     Flow::Continue
+}
+
+/// At the input's apply point, each tick: a pickup waiting for its switch
+/// past [`SWITCH_DEADLINE_MS`] asks the game to look at the switch this tick
+/// (m_need_to_select_animations, as a changed input does); logged once.
+fn nudge(player: &Player<'_>, thread: &Thread) {
+    let Some((cook, pending, _, _)) = pending_of(thread, player.id()) else { return };
+    if Ms(player.time()).since(pending.pick.taken) < SWITCH_DEADLINE_MS {
+        return;
+    }
+    player.select_animations_now();
+    let mut first = false;
+    move_to(thread, cook, |at| match at {
+        At::Pending { picker, pending, registered, from, nudged: false } => {
+            first = true;
+            At::Pending { picker, pending, registered, from, nudged: true }
+        }
+        other => other,
+    });
+    if first {
+        log_pick("still waiting for the gun in hands to be put away (no switch within the deadline; the game is \
+                  asked to look at it each tick, never forced) for", player, pending.slot, pending.pick, "");
+    }
 }
 
 /// `pickup.switch` (tick_active_object's switch: the gun in hands is
@@ -625,19 +654,10 @@ pub fn on_tick_active(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_switch(ctx: &mut Context<'_>) -> Flow<WeaponPickupOnSwitchExit> {
     let thread = ctx.thread();
     let Some(player) = native::player(ctx, Site::Switch) else { return Flow::Continue };
-    match switch(&player, thread, Path::Holstered) {
+    match switch(&player, thread) {
         Some(true) => Flow::Exit(WeaponPickupOnSwitchExit::Switched),
         Some(false) | None => Flow::Continue,
     }
-}
-
-/// How a pickup's switch came.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Path {
-    /// The game's switch, the gun in hands holstered.
-    Holstered,
-    /// [`SWITCH_DEADLINE_MS`] passed without it.
-    Deadline,
 }
 
 /// `player`'s pickup waiting for its switch installed now: Some(true)
@@ -645,7 +665,7 @@ enum Path {
 /// again: done either way), Some(false) refused before anything changed
 /// (cancelled: the held object stays, the pending one is it again; the
 /// native switch draws it), None no pickup waits.
-fn switch(player: &Player<'_>, thread: &Thread, path: Path) -> Option<bool> {
+fn switch(player: &Player<'_>, thread: &Thread) -> Option<bool> {
     let (cook, pending, registered, from) = pending_of(thread, player.id())?;
     let (world, place) = located(player)?;
     let replaced = held(thread, player.id(), pending.slot);
@@ -680,11 +700,7 @@ fn switch(player: &Player<'_>, thread: &Thread, path: Path) -> Option<bool> {
         r.set_pick(pending.slot, Some(pending.pick));
         r.pending = None;
     });
-    let how = match path {
-        Path::Holstered => "switched (the gun in hands holstered)",
-        Path::Deadline => "switched AT ONCE (no switch within the deadline)",
-    };
-    log_pick(how, player, pending.slot, pending.pick, "");
+    log_pick("switched (the gun in hands holstered)", player, pending.slot, pending.pick, "");
     log_installed(player, pending.magazine, &installed);
     Some(true)
 }

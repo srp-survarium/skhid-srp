@@ -177,9 +177,18 @@ nothing in hands.
 - **While holstering** (`pickup.tick_active` 0x2D7650, each tick): a pending
   object other than the gun (a weapon key: inventory::action 0x2FCAA0 ->
   set_target 0x2D8210, +170h the selected slot) is put back, with +170h, and
-  logged; 3 s after the command (`SWITCH_DEADLINE_MS`, the player's
-  simulation time: the same tick on every client) the install is made there
-  and then. The donor's body leaving the world does not cancel it.
+  logged. The swap is always the game's own, when the gun in hands is ready
+  to be put away (is_ready_to_be_deactivated): a gun firing is not (the
+  fire -> hide transition waits for the trigger and its animation, 0.10b
+  weapon_core.cpp 193/210, the switch looked at before fire in its tick),
+  so the pickup waits as a 1/2 key does, the old gun firing on. 3 s after the
+  command (`SWITCH_DEADLINE_MS`, simulation time) the input's apply point
+  sets m_need_to_select_animations each tick (logged once), so the game
+  looks at the switch; never a forced swap. (83Lb41 forced it at 3 s: twice
+  a gun put away mid-fire or mid-draw kept animation intervals that
+  forget_active_object does not drop, and their sound events then read
+  its cleared user: the crashes at 0x298252.) The donor's body leaving the
+  world does not cancel it.
 - **Putting a gun away** (the 83Lb41 crash, 2026-11-01): an animation
   interval's event reached a weapon_sound_effect (0x297C50 -> 0x2981A0) whose
   weapon had no user: deactivate(1) clears +8 (0x2E2EE0) and the event read
@@ -193,6 +202,9 @@ nothing in hands.
   out: deactivate(1) then forget_active_object (dropping its intervals by
   pointer, 0x3A1BF0), in its slot, bound as it was, before anything moves;
   for the reader and remove the held object is then none (they skip it).
+  After a rollback's put-away the reader loads the animation player anew
+  (0x395B50 releases the old tree, +E100h, and builds the snapshot's), so
+  nothing of the gun's animations survives the load.
 - **The switch** (`pickup.switch` 0x2D76D0, reached once the held gun is
   ready to be deactivated): every check first, the gun in hands put away
   (above), then the install (the stage 2a moves; the gun under
@@ -214,8 +226,8 @@ nothing in hands.
   tick, the magazine, a byte (bit 0 known, bit 1 chamber).
 - **Logged**: `took (the gun in hands holstering): slot S's pending gun
   (...), registry id N`; `ignored another weapon switch while holstering
-  for`; `switched (the gun in hands holstered)` or `switched AT ONCE (no
-  switch within the deadline)`; `CANCELLED the switch to: ... (why)`; `a
+  for`; `still waiting for the gun in hands to be put away (no switch within
+  the deadline; ...)`; `switched (the gun in hands holstered)`; `CANCELLED the switch to: ... (why)`; `a
   loaded record: registered`.
 - **Checked** (`check_weapon_pickup_026g.py`, `holster`): the command's
   registration and the switch's install, a weapon key ignored, the donor's
