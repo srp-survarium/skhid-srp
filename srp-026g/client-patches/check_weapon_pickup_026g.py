@@ -565,6 +565,10 @@ class Pick(Run):
         self.inventory = self.blk(0x200)
         self.own_gun = self.gun(double_handed=own_double_handed, ammo_slot=8, loaded=12)
         self.own_ammo = self.stack(90)
+        # Real configs: the own 5.45x39 7N10 (217: 30 a clip, a bag a clip), the borrowed PKP's
+        # 7.62x54 7N13 (2204: 100 a clip, 2 bags a clip).
+        self.ammo_config(self.own_ammo, 217, 30, 1)
+        self.ammo_config(self.new_ammo, 2204, 100, 2)
         self.emu.mem_write(self.own_gun + 0xC, bytes([GUN_ID]))
         self.word(self.own_gun + 0x4, CORE)
         self.word(self.own_gun + 0x5A0, BULLETS)
@@ -729,12 +733,16 @@ def stage2(patched, original):
     assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", CAPACITY)
     assert any("place 3 at 13350 ms took: the gun of place 5 kit 1 slot 10 in place of its slot 10" in l
                for l in r.log), r.log
+    took = [l.split("pickup: ", 1)[1] for l in r.log if "pickup: place 3 pickup: " in l]
+    assert took == ["place 3 pickup: the donor's magazine 17, chamber 1",
+                    f"place 3 pickup: slot 8 ammo 2204 x {CAPACITY} (cooked slot 11); own ammo 217 x 90 parked"], took
     assert r.save(r.picker) == record(borrow=(PLACE, KIT, 1, 1))
     assert r.save(PLAYER) == record("taken")
     print("ok the pickup at set_input's apply point (carry.filter): the slots swapped by the game's set_item, the "
           "ammunition into the own gun's slot (8, the own stack parked in the cooked inventory) and rebound, the gun bound (core, registry id and entry, bullet "
           "manager, autoload off), the switch replayed (deactivate, forget, held = pending, set_user, initialize, "
-          "activate), the donor's magazine and chamber with one magazine in reserve; picker borrows, drop taken")
+          "activate), the donor's magazine and chamber with one magazine in reserve; picker borrows, drop taken; "
+          "logged: the donor's magazine and chamber, the stack placed (slot, ammunition, count) and the own one parked")
 
     r.pick()
     assert any("refused, the picker already holds a borrowed gun" in l for l in r.log)
@@ -745,8 +753,6 @@ def stage2(patched, original):
     # (217: 30 a clip, a bag a clip) has the kit's allowance of 90 rounds in slot 8, 3 bags; the
     # borrowed PKP's 7.62x54 7N13 (2204: 100 a clip, 2 bags a clip) gets what 3 bags carry of it,
     # one belt of 100, the gun's magazine and chamber (17 + 1) inside: 82, for free.
-    r.ammo_config(r.own_ammo, 217, 30, 1)
-    r.ammo_config(r.new_ammo, 2204, 100, 2)
     allowance = lambda rounds: r.emu.mem_write(PROFILE + SLOTS + 4 * 8, struct.pack("<HH", 8, rounds))
     allowance(90)
     storage = r.read(PROFILE + ITEMS, 0xB4 * 69)
@@ -979,6 +985,8 @@ def stage2b(patched):
     r.setup()
     assert r.draw(), "an open drop's gun is drawn"
     assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
+    assert r.hud() == [("st_weapon_pick_up", NAME)]
+    assert sights(r) == ["offered"], "once per drop and reason"
     print("ok the donor's gun drawn on its ragdoll (carry.weapon: the site's transform, its model's box): the "
           "picker looking at it within 2.2 m, in sight, is offered it: show_artefact_offer(\"st_weapon_pick_up\", "
           "the gun's ui_desc/text_descriptions/name translated)")
@@ -998,16 +1006,21 @@ def stage2b(patched):
     r.installed()
     assert not r.draw() and r.removed == [r.instance], "the taken gun is still drawn"
     assert r.hud() == [("",)], "the prompt stays after the take"
+    assert sights(r)[-1] == "not offered, already taken", sights(r)
     assert r.hud() == [] and r.build(USE) == USE
     print("ok the command played (carry.filter): taken; its gun out of the scene on the ragdoll (native draw "
           "skipped, as patch 78 hides a carrier's), the prompt gone, Use the game's again")
 
-    for case, change in (("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.])),
-                         ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9])),
-                         ("a wall between", lambda g: setattr(g, "wall", True)),
-                         ("a second double-handed gun", lambda g: g.second(double_handed=1)),
-                         ("modifier 64 with the gun in slot 10", lambda g: g.modifier(64, 1.0)),
-                         ("the match has fewer places", lambda g: g.emu.mem_write(PLACES_AT, b"\x05"))):
+    rule = "; held 10 two-handed, other %s, gun two-handed, rule %s"
+    for case, change, sight in (
+            ("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.]), "in reach, not aimed at its box"),
+            ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9]), "out of reach (2.2 m)"),
+            ("a wall between", lambda g: setattr(g, "wall", True), "not offered, no line of sight (the level's ray)"),
+            ("a second double-handed gun", lambda g: g.second(double_handed=1),
+             "not offered, a second double-handed gun without modifier 25" + rule % ("two-handed", "1 two-handed")),
+            ("modifier 64 with the gun in slot 10", lambda g: g.modifier(64, 1.0),
+             "not offered, its kit carries one gun only, in slot 7 (modifier 64)" + rule % ("none", "1 gun (mod 64)")),
+            ("the match has fewer places", lambda g: g.emu.mem_write(PLACES_AT, b"\x05"), "offered")):
         g = Prompt(patched)
         g.setup()
         if change:
@@ -1015,6 +1028,7 @@ def stage2b(patched):
         assert g.draw()
         assert g.hud() == [], (case, g.invokes())
         assert g.build(USE) == USE, case
+        assert sights(g) == [sight], (case, sights(g))
     g = Prompt(patched)
     g.setup()
     g.word(g.picker + 0x324, DIED + 60_000)
@@ -1028,7 +1042,14 @@ def stage2b(patched):
     assert g.hud() == [("st_weapon_pick_up", NAME)], "5 cm of padding"
     print("ok no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
           "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 5 cm; offered 60 s after the death while the body is there, "
-          "gone with base_player::remove(1) of the body")
+          "gone with base_player::remove(1) of the body; each drop's reason logged once a change (not aimed at, "
+          "out of reach, no line of sight, the carry rule with both slots' handedness and the gun's, taken)")
+
+
+def sights(run):
+    """The sight lines of the gun of place 5 the picker logged."""
+    head = "pickup: place 3 sees the gun of place 5: "
+    return [l.split(head, 1)[1] for l in run.log if head in l]
 
 
 def frame_for(run, flag):

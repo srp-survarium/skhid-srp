@@ -250,6 +250,19 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   game's text translator (0x1FF0F0); `Pick up %1$s ({USE})`, `{USE}` the
   bound key (the localizer's), `%1$s` the name (the movie's
   `LocalizationData.format`). The target is remembered for Use.
+  Each kept pose's verdict is logged once per drop body and change of
+  reason (never per frame): `pickup: place P sees the gun of place T:
+  offered`, or `out of reach (2.2 m)` (the box's centre farther than the
+  reach and its padded half diagonal), `in reach, not aimed at its box`,
+  `not offered, no line of sight`, `already taken`, `no drop in its
+  record`, `the body drawn is not its drop's`, `its gun not made on this
+  client`, or the carry rule's refusal with `held <slot> <its gun's
+  handedness>, other <the other slot's gun's>, gun <the drop's>, rule <the
+  kit's>`.
+- **The pickup's log**: after `took`, `place P pickup: the donor's magazine
+  M, chamber C` (or a full magazine, the donor's gun not there) and a line
+  for each borrowed stack placed: `slot S ammo A x N (cooked slot F); own
+  ammo O x K parked` (or `no own stack there`).
 - **The command** (artefact_carry's on_input_end at `input_builder.end`,
   after patch 78's chord step): on Use's down edge while a gun is the
   prompt's and the input has no carry command, the mask becomes

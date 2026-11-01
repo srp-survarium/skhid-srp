@@ -694,6 +694,55 @@ unsafe fn borrowed_stacks(player: &Player<'_>, installed: &Installed) -> StackRe
     out
 }
 
+/// A stack of an inventory slot: its ammunition's dictionary id (none: no
+/// entry) and its count.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StackSeen {
+    pub dict_id: Option<u16>,
+    pub count: u16,
+}
+
+/// What the install placed, for the log: each borrowed stack in the
+/// picker's `slot` (from the cooked inventory's `from`), and the own stack
+/// parked from that slot in the cooked `from`, if one was there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Placed {
+    pub slot: u8,
+    pub from: u8,
+    pub stack: StackSeen,
+    pub parked: Option<StackSeen>,
+}
+
+/// # Safety
+/// `item` is a live inventory item.
+unsafe fn seen(item: raw::Item) -> StackSeen {
+    unsafe { StackSeen { dict_id: item.entry().map(|e| read(e.dict_id())), count: read(item.count()) } }
+}
+
+impl Installed {
+    /// The stacks it placed as they are now in `player`'s inventory and the
+    /// cooked one (a slot that no longer holds what it placed: none).
+    pub fn placed(&self, player: &Player<'_>) -> [Option<Placed>; MOVES] {
+        let mut out = [None; MOVES];
+        let cooked = gun_cook::inventory(player.thread, self.cook);
+        // SAFETY: the live player's inventory and the made cooked one; each
+        // item compared with what the install placed before it is read.
+        unsafe {
+            let Some(inventory) = player.this.inventory() else { return out };
+            for (room, m) in out.iter_mut().zip(self.moved.iter()) {
+                let Some(m) = m else { continue };
+                let Some(stack) = inventory.slots().at(usize::from(m.to)).item().filter(|i| i.address() == m.item)
+                else { continue };
+                let parked = cooked.and_then(|c| c.slots().at(usize::from(m.from)).item())
+                    .filter(|own| Some(own.address()) == m.displaced)
+                    .map(|own| seen(own));
+                *room = Some(Placed { slot: m.to, from: m.from, stack: seen(stack), parked });
+            }
+        }
+        out
+    }
+}
+
 /// Whether a borrowed stack is below what the crate refills it to.
 pub fn reserve_low(player: &Player<'_>, installed: &Installed) -> bool {
     // SAFETY: the live player.

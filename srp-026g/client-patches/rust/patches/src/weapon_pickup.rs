@@ -442,14 +442,26 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
 pub fn on_filter(player: &Player<'_>, thread: &Thread) {
     let Some(target) = weapon_pickup::command(player.input_actions()) else { return };
     match take(player, thread, target) {
-        Ok(borrow) => log_borrow("took", player, borrow, ""),
+        Ok(taken) => {
+            log_borrow("took", player, taken.borrow, "");
+            log_installed(player, taken.magazine, &taken.installed);
+        }
         Err(why) => log(&[Text("place "), Dec(u32::from(player.place())), Text(" asked for the gun of place "),
                           Dec(u32::from(target.get())), Text(" at "), Dec(player.time()), Text(" ms: refused, "),
                           Text(why.text())]),
     }
 }
 
-fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Borrow, Why> {
+/// A pickup played: the borrow, the donor's magazine and chamber it was
+/// given (None: its gun was not there, a full magazine) and what was
+/// installed.
+struct Taken {
+    borrow: Borrow,
+    magazine: Option<(u8, bool)>,
+    installed: Installed,
+}
+
+fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Taken, Why> {
     let (world, place) = located(player).ok_or(Why::NoPlace)?;
     let mine = record_at(thread, world, place);
     let theirs = record_at(thread, world, target);
@@ -477,7 +489,7 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Borrow, W
     set_use(thread, cook, Use::Lent(player.id()));
     update_record(thread, world, place, |r| r.borrow = Some(borrow));
     update_record(thread, world, target, |r| r.drop = DropState::Taken);
-    Ok(borrow)
+    Ok(Taken { borrow, magazine, installed })
 }
 
 /// The place's current player, seen from `player`'s world.
@@ -872,22 +884,29 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
     let (eye, forward) = viewer.carry_eye();
     let forward = unit(forward)?;
     let mut best: Option<(f32, Place, CookId, WeaponSlot)> = None;
+    let mut sights = [None; PLACES as usize];
     for (n, seen) in seen.iter().enumerate() {
         let (Some(seen), Some(target)) = (seen, Place::new(n as u8)) else { continue };
-        let Some(distance) = enters(&seen.pose, eye, forward, REACH, PAD) else { continue };
-        if best.is_some_and(|(nearest, ..)| nearest <= distance) {
-            continue;
+        let sight = match enters(&seen.pose, eye, forward, REACH, PAD) {
+            None if within(&seen.pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
+            None => Err(Sight::OutOfReach),
+            Some(distance) => {
+                gun_cook::trace(Trace::Budget, &[Text("aim: place "), Dec(u32::from(target.get())), Text(" in reach, offer")]);
+                offer(thread, viewer, world, sender, target, seen.body).and_then(|(cook, slot)| {
+                    gun_cook::trace(Trace::Budget, &[Text("aim: ray_test calling")]);
+                    let blocked = distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some();
+                    gun_cook::trace(Trace::Budget, &[Text("aim: ray_test returned")]);
+                    if blocked { Err(Sight::Blocked) } else { Ok((distance, cook, slot)) }
+                })
+            }
+        };
+        if let Ok((distance, cook, slot)) = sight
+            && !best.is_some_and(|(nearest, ..)| nearest <= distance) {
+            best = Some((distance, target, cook, slot));
         }
-        gun_cook::trace(Trace::Budget, &[Text("aim: place "), Dec(u32::from(target.get())), Text(" in reach, offer")]);
-        let Some((cook, slot)) = offer(thread, viewer, world, sender, target, seen.body) else { continue };
-        gun_cook::trace(Trace::Budget, &[Text("aim: ray_test calling")]);
-        let blocked = distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some();
-        gun_cook::trace(Trace::Budget, &[Text("aim: ray_test returned")]);
-        if blocked {
-            continue;
-        }
-        best = Some((distance, target, cook, slot));
+        sights[n] = Some((seen.body, sight.map(|_| ()).err().unwrap_or(Sight::Offered)));
     }
+    log_sights(thread, viewer, sights);
     let (_, target, cook, slot) = best?;
     let places = GameWorldUi::at_update_icons(ctx)?.places()?;
     weapon_pickup::allowed(sender, target, places).then_some(())?;
@@ -897,28 +916,147 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
     Some((Aimed { target, sender, places }, name))
 }
 
+/// What the prompt makes of a drop's gun it sees on its ragdoll.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Sight {
+    /// Farther than the reach from the eye.
+    OutOfReach,
+    /// Within reach, the eye's segment misses the gun's box.
+    NotAimedAt,
+    /// The body drawn is not the drop's death's.
+    NotItsBody,
+    Taken,
+    /// The place has no drop (its record's).
+    NoDrop,
+    /// The gun of that death not made on this client (yet).
+    CookNotReady,
+    /// The viewer has no place, profile or kit.
+    NoPicker,
+    /// The cooked gun's handedness could not be read.
+    NoHandedness,
+    /// The rule says no: the picker's held slot and its gun's handedness,
+    /// the other slot's gun's, its kit's carry rule and the gun's handedness.
+    Refused { why: weapon_pickup::Refusal, held: Option<(WeaponSlot, Option<Handedness>)>,
+              other: Option<Handedness>, rule: weapon_pickup::CarryRule, incoming: Handedness },
+    /// The level's ray is not clear up to the gun.
+    Blocked,
+    /// It would be taken (the nearest such one is the prompt's).
+    Offered,
+}
+
+/// Each place's drop body and what was last logged of it.
+static SIGHTS: GameCell<[Option<(Body, Sight)>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
+
+/// One line for each drop whose sight changed (a new body, or a new reason).
+fn log_sights(thread: &Thread, viewer: &Player<'_>, now: [Option<(Body, Sight)>; PLACES as usize]) {
+    let before = SIGHTS.get(thread);
+    for (n, (was, is)) in before.iter().zip(now.iter()).enumerate() {
+        let Some((_, sight)) = is.filter(|is| *was != Some(*is)) else { continue };
+        log_sight(viewer, n as u8, sight);
+    }
+    // A drop not seen this frame keeps what was logged of it.
+    let mut kept = before;
+    for (k, is) in kept.iter_mut().zip(now) {
+        if is.is_some() {
+            *k = is;
+        }
+    }
+    SIGHTS.set(thread, kept);
+}
+
+fn slot_text(slot: Option<(WeaponSlot, Option<Handedness>)>) -> &'static str {
+    match slot {
+        Some((WeaponSlot::First, _)) => "7 ",
+        Some((WeaponSlot::Second, _)) => "10 ",
+        None => "none",
+    }
+}
+
+fn hand_text(hand: Option<Handedness>) -> &'static str {
+    match hand {
+        Some(Handedness::One) => "one-handed",
+        Some(Handedness::Two) => "two-handed",
+        None => "none",
+    }
+}
+
+fn log_sight(viewer: &Player<'_>, target: u8, sight: Sight) {
+    let head = [Text("place "), Dec(u32::from(viewer.place())), Text(" sees the gun of place "), Dec(u32::from(target)),
+                Text(": ")];
+    let text = match sight {
+        Sight::OutOfReach => "out of reach (2.2 m)",
+        Sight::NotAimedAt => "in reach, not aimed at its box",
+        Sight::NotItsBody => "not offered, the body drawn is not its drop's",
+        Sight::Taken => "not offered, already taken",
+        Sight::NoDrop => "not offered, no drop in its record",
+        Sight::CookNotReady => "not offered, its gun not made on this client",
+        Sight::NoPicker => "not offered, the viewer has no place, profile or kit",
+        Sight::NoHandedness => "not offered, the gun's handedness unread",
+        Sight::Blocked => "not offered, no line of sight (the level's ray)",
+        Sight::Offered => "offered",
+        Sight::Refused { why, held, other, rule, incoming } => {
+            let rule = match rule {
+                weapon_pickup::CarryRule::OneWeapon => "1 gun (mod 64)",
+                weapon_pickup::CarryRule::OneDoubleHanded => "1 two-handed",
+                weapon_pickup::CarryRule::TwoDoubleHanded => "2 two-handed (mod 25)",
+            };
+            return log_joined(&[&head, &[Text("not offered, "), Text(Why::Rule(why).text()), Text("; held "),
+                                         Text(slot_text(held)), Text(held.map_or("", |(_, own)| hand_text(own))),
+                                         Text(", other "), Text(hand_text(other)),
+                                         Text(", gun "), Text(hand_text(Some(incoming))), Text(", rule "), Text(rule)]]);
+        }
+    };
+    log_joined(&[&head, &[Text(text)]]);
+}
+
 /// What a pickup of `target`'s drop by `viewer` would take now: its cook
-/// (made on this client) and the drop's slot; none unless `body` is that
-/// drop's dead body.
+/// (made on this client) and the drop's slot; else why not (`body` not that
+/// drop's dead body, the drop not open, its gun not made, the rule).
 fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target: Place, body: Body)
-         -> Option<(CookId, WeaponSlot)> {
+         -> Result<(CookId, WeaponSlot), Sight> {
     let (theirs, last) = placed_at(thread, world, target);
     if last != Some(body) {
-        return None;
+        return Err(Sight::NotItsBody);
     }
     // Open until the body leaves the world (the record ends it there).
-    let DropState::Open { kit, slot, died } = theirs.drop else { return None };
-    let cook = death_cook(thread, Source { place: target, kit, slot }, died)?;
+    let (kit, slot, died) = match theirs.drop {
+        DropState::Open { kit, slot, died } => (kit, slot, died),
+        DropState::Taken => return Err(Sight::Taken),
+        DropState::None => return Err(Sight::NoDrop),
+    };
+    let cook = death_cook(thread, Source { place: target, kit, slot }, died).ok_or(Sight::CookNotReady)?;
     if !matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }) {
-        return None;
+        return Err(Sight::CookNotReady);
     }
-    let picker = picker_of(viewer, place, record_at(thread, world, place).borrow)?;
+    let picker = picker_of(viewer, place, record_at(thread, world, place).borrow).ok_or(Sight::NoPicker)?;
     gun_cook::trace(Trace::Budget, &[Text("offer: handedness reading")]);
     let incoming = native::handedness(thread, cook, slot);
     gun_cook::trace(Trace::Budget, &[Text("offer: handedness read")]);
-    let incoming = incoming?;
-    let take = weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming).ok()?;
-    Some((cook, take.borrow.slot))
+    let incoming = incoming.ok_or(Sight::NoHandedness)?;
+    let take = weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming)
+        .map_err(|why| Sight::Refused { why, held: picker.held.map(|slot| (slot, viewer.weapon_handedness(slot))),
+                                        other: picker.other, rule: picker.rule, incoming })?;
+    Ok((cook, take.borrow.slot))
+}
+
+/// Whether the gun's box (padded by `pad`) is within `reach` of `eye`: its
+/// centre nearer than the reach and the box's half diagonal.
+fn within(pose: &GunPose, eye: [f32; 3], reach: f32, pad: f32) -> bool {
+    let m = &pose.transform;
+    let mut centre = [m[12], m[13], m[14]];
+    let mut radius = 0.0f32;
+    for axis in 0..3 {
+        let row = [m[axis * 4], m[axis * 4 + 1], m[axis * 4 + 2]];
+        let middle = (pose.lo[axis] + pose.hi[axis]) * 0.5;
+        for (c, r) in centre.iter_mut().zip(row) {
+            *c += middle * r;
+        }
+        let half = (pose.hi[axis] - pose.lo[axis]) * 0.5 * ragdoll::math::sqrt(dot(row, row)) + pad;
+        radius += half * half;
+    }
+    let d = [centre[0] - eye[0], centre[1] - eye[1], centre[2] - eye[2]];
+    let limit = reach + ragdoll::math::sqrt(radius);
+    dot(d, d) <= limit * limit
 }
 
 fn unit([x, y, z]: [f32; 3]) -> Option<[f32; 3]> {
@@ -1057,6 +1195,28 @@ fn log_joined(parts: &[&[Piece<'_>]]) {
     log(&pieces[..at]);
 }
 
+/// A pickup's ammunition: the donor's magazine and chamber, then a line for
+/// each borrowed stack placed (its slot, ammunition, count, the cooked slot
+/// it came from) and the own stack parked from that slot.
+fn log_installed(player: &Player<'_>, magazine: Option<(u8, bool)>, installed: &Installed) {
+    let place = [Text("place "), Dec(u32::from(player.place())), Text(" pickup: ")];
+    match magazine {
+        Some((loaded, chamber)) => log_joined(&[&place, &[Text("the donor's magazine "), Dec(u32::from(loaded)),
+                                                          Text(", chamber "), Dec(u32::from(chamber))]]),
+        None => log_joined(&[&place, &[Text("the donor's gun not there: a full magazine")]]),
+    }
+    let dict = |s: native::StackSeen| s.dict_id.map_or(0xFFFF, u32::from);
+    for p in installed.placed(player).iter().flatten() {
+        let stack = [Text("slot "), Dec(u32::from(p.slot)), Text(" ammo "), Dec(dict(p.stack)), Text(" x "),
+                     Dec(u32::from(p.stack.count)), Text(" (cooked slot "), Dec(u32::from(p.from)), Text(")")];
+        match p.parked {
+            Some(own) => log_joined(&[&place, &stack, &[Text("; own ammo "), Dec(dict(own)), Text(" x "),
+                                                        Dec(u32::from(own.count)), Text(" parked")]]),
+            None => log_joined(&[&place, &stack, &[Text("; no own stack there")]]),
+        }
+    }
+}
+
 /// A crate's refill of one borrowed stack: its slot, ammunition, count
 /// before and after, and the target's inputs (the kit's allowance for the
 /// slot in rounds of the own ammunition and the bags they take, the borrowed
@@ -1136,6 +1296,20 @@ mod tests {
         // Looking down at x = 1.4 (0.4 m along the gun from its centre).
         assert!(enters(&gun, [1.4, 1.0, 0.], [0., -1., 0.], REACH, PAD).is_some());
         assert_eq!(enters(&gun, [1.0, 1.0, 0.4], [0., -1., 0.], REACH, PAD), None, "its thickness is across z");
+    }
+
+    #[test]
+    fn a_missed_gun_is_out_of_reach_or_not_aimed_at() {
+        let mut at = IDENTITY;
+        (at[12], at[13], at[14]) = (0.0, 0.2, 2.0);
+        let gun = pose(at);
+        // Its centre 2.01 m away, its box's half diagonal (padded) 0.6 m.
+        assert!(within(&gun, [0., 0., 0.], REACH, PAD), "looking away from it in reach");
+        assert!(within(&gun, [0., 0.2, -0.75], REACH, PAD), "its centre 2.75 m away");
+        assert!(!within(&gun, [0., 0.2, -1.0], REACH, PAD));
+        // Turned across x, at (1, 0, 0).
+        let turned = pose([0., 0., -1., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1.0, 0.0, 0.0, 1.]);
+        assert!(within(&turned, [-1.5, 0., 0.], REACH, PAD) && !within(&turned, [-2.0, 0., 0.], REACH, PAD));
     }
 
     fn aimed(target: u8) -> Option<Aimed> {
