@@ -87,8 +87,11 @@ pub struct GridTuning {
     /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes
     /// jumps of its own (a jump past a floor that went starts a cell back) and takes floors off a run-up's line, so checked before
     /// it 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m keep less than 1.5 m straight behind them, 290 of them
-    /// jumps the erosion made (A236); the motor gives such a jump up for no clear run. Off (the default) until its bench. A grid
-    /// is the map's (see `gap_links`).
+    /// jumps the erosion made (A236); the motor gives such a jump up for no clear run. On by default (A249's walks: one bot sent
+    /// over each changed jump on its map, 188 starts both ways: the motor's give-ups for no run-up 16 -> 6, stuck notes 41 -> 31,
+    /// the goals reached and the times the same; at the jumps it takes away the bots made the jump 21 times in 126 arrivals at the
+    /// take-off). The old value offers jumps the client's body cannot make from their run, so the all-off arm keeps the default
+    /// (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub run_ups_after_erosion: bool,
     /// Whether the maps' walk grids measure a walk up off perched steep ground (a by-slope floor over the clients' 55 degrees whose cell's
     /// centre stands over ground more than 0.3 m lower) from the walkable ground its climb began on, whatever the floor it reaches, and give a landing on steep ground no base (`mapdata::Body::steep_walk_base`):
@@ -115,7 +118,7 @@ impl Default for GridTuning {
             capsule_steps: false,
             drop_room: true,
             slip_landings: false,
-            run_ups_after_erosion: false,
+            run_ups_after_erosion: true,
             steep_walk_base: false,
         }
     }

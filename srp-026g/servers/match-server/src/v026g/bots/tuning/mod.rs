@@ -691,6 +691,7 @@ mod tests {
             "/cover/pierce",
             "/grid/client_numbers",
             "/grid/drop_room",
+            "/grid/run_ups_after_erosion",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
             "/heal/drug_stops",
