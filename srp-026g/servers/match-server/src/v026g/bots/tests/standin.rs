@@ -1314,6 +1314,16 @@ impl Game {
                 body.step_m = body.feet.distance_xz(before);
                 body.step_vec = Vec3::new(body.feet.x - before.x, 0.0, body.feet.z - before.z);
                 body.moved += body.step_m;
+                // C14: a body standing still on a slope the client slides it off (counting only).
+                let moving = body.keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0;
+                if !moving
+                    && body.flight.is_none()
+                    && tick >= body.air_until
+                    && body.step_m / TICK_S < standin_climb::STILL_MS
+                    && let (Some(node), Some(walker)) = (body.node, self.walls.as_deref())
+                {
+                    self.climbs.still.note(node, body.feet, walker);
+                }
                 if body.carrying.is_some() {
                     self.carry_m += body.step_m;
                     self.carry_ticks += 1;
