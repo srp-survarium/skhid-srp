@@ -1713,6 +1713,39 @@ mod tests {
         assert_eq!(poor, before);
     }
 
+    /// A consumable bought onto a pocket at more than the pocket takes
+    /// (`docs/notes/items.md` §8): the lobby names the units wanted in all
+    /// (those owned and the 30 bought) and the pocket's. The 30 are bought,
+    /// the pocket holds its share, the rest stays in the inventory.
+    #[test]
+    fn a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory() {
+        const POCKET: u8 = 14;
+        let dictionary = Dictionary::shared();
+        let mut account = rich_and_known(10_000);
+        let medkit = dict("medkit");
+        let owned = account.add_item(medkit, 4);
+        let cost = step_cost(&account, dictionary, medkit).unwrap();
+        let money = account.generic_money;
+        let dialog = [Relocation {
+            item_id: 0,
+            dict_id: medkit,
+            source_slot: SHOP_SLOT,
+            target_slot: POCKET,
+            count: 3,
+            count_in_inventory: 4 + 30,
+        }];
+        move_items(&mut account, 1, &dialog, NOW).unwrap();
+        assert_eq!(account.item(owned).unwrap().condition_or_stack, 34);
+        assert_eq!(
+            account.kits[0].slots[usize::from(POCKET)],
+            Some(KitSlot {
+                item_id: owned,
+                count: 3
+            })
+        );
+        assert_eq!(account.generic_money, money - 30 * cost);
+    }
+
     /// One pocket an item type (`docs/notes/one-pocket-a-type.md`).
     #[test]
     fn an_item_type_goes_into_one_pocket() {

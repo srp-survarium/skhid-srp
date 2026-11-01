@@ -78,9 +78,11 @@
 //!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default half) of their silver and
 //!   experience, and so do the premium half and the items' bonus counted
 //!   from them; reputation, the drop and the pay of a level reached are as
-//!   in any match. It counts for no quest and no daily bonus, and, as every
-//!   match with a bot of the server's, moves no rating and no balance
-//!   rating.
+//!   in any match, but at most at match level 7
+//!   ([`super::pvb::MAX_REWARD_LEVEL`] for the pay,
+//!   [`super::pvb::MAX_DROP_LEVEL`] for the drop). It counts for no quest
+//!   and no daily bonus, and, as every match with a bot of the server's,
+//!   moves no rating and no balance rating.
 //! - **A room with a PIN's match** ([`MatchResult::private`]; the
 //!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
 //!   too: no experience, silver, reputation, quest, daily bonus, drop or
@@ -504,6 +506,12 @@ pub struct MatchReport {
     /// before it was known: not private.
     #[serde(default)]
     pub private: bool,
+    /// A match against the server's bots ([`MatchResult::vs_bots`]): a
+    /// drop card on its screen rolls at its capped drop level
+    /// ([`super::pvb::drop_level`]). Absent from a report kept before it
+    /// was known: not against bots.
+    #[serde(default)]
+    pub vs_bots: bool,
     /// The part of `97` every player gets.
     pub stats: lobby::MatchStats,
     /// By roster place.
@@ -1174,6 +1182,7 @@ impl Results {
             end: result.end,
             match_level: result.match_level,
             private: result.private,
+            vs_bots: result.vs_bots,
             stats,
             players,
         });
@@ -1284,7 +1293,8 @@ impl Results {
     }
 
     /// `46 03`: the account uses a drop card on the results screen of
-    /// `match_id` ([`use_drop_card`], at the match's level). One card for
+    /// `match_id` ([`use_drop_card`], at the match's drop level,
+    /// [`super::pvb::drop_level`]). One card for
     /// each player that finished the match, once (the owner's rule,
     /// 2026-10-20; the original's screen takes one card too:
     /// `docs/notes/drop_cards.md`). Refused, and nothing changed, for a
@@ -1293,7 +1303,7 @@ impl Results {
     /// for already, an item that is no drop card of the account, or a roll
     /// that gave nothing. Lock the account before calling it, as for
     /// [`Results::claim_premium`]; mark it dirty after.
-    /// Returns the match's level and what the card did.
+    /// Returns the level the card rolled at and what the card did.
     ///
     /// The mark is the account's own ([`Account::drop_cards`]): it is
     /// checked and made under the account's lock, which the caller holds
@@ -1358,14 +1368,15 @@ impl Results {
         if account.drop_cards.contains(&match_id) {
             return Err(DropCardRefusal::Used);
         }
-        let used = use_card(account, card_item_id, report.match_level, table, rng)?;
+        let level = super::pvb::drop_level(report.match_level, report.vs_bots);
+        let used = use_card(account, card_item_id, level, table, rng)?;
         // Marked even when its `98` cannot be written: the card is spent
         // and the item given.
         account.drop_cards = kept;
         if let Err(at) = account.drop_cards.binary_search(&match_id) {
             account.drop_cards.insert(at, match_id);
         }
-        Ok((report.match_level, used))
+        Ok((level, used))
     }
 }
 
@@ -1467,6 +1478,9 @@ struct Shared<'a> {
     reward_level: u16,
     /// The reward level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
+    /// Drop-table level, capped at seven for PvE. The match's actual
+    /// level and equipment remain unchanged.
+    drop_level: u16,
     /// A test bot was in the match, or it is a room with a PIN's
     /// ([`MatchResult::private`]): nobody's rating moves.
     unrated: bool,
@@ -1492,6 +1506,7 @@ impl<'a> Shared<'a> {
         } else {
             result.match_level
         };
+        let drop_level = super::pvb::drop_level(result.match_level, result.vs_bots);
         let multipliers = Dictionary::shared()
             .match_level(usize::from(reward_level))
             .map_or((1.0, 1.0, 1.0), |level| {
@@ -1511,6 +1526,7 @@ impl<'a> Shared<'a> {
             weights: static_info::weights_of(result.game_mode, terms.score_weights),
             reward_level,
             multipliers,
+            drop_level,
             unrated: false,
             money_floor: 0,
         }
@@ -2178,7 +2194,7 @@ impl<'a> Shared<'a> {
             // in match" under it, and prints either × 100 (`results.md`
             // §9), so a fraction always has the second label.
             full.drop_chances = [base, from_result, from_premium, 0.0];
-            let level = self.result.match_level.min(u16::from(u8::MAX)) as u8;
+            let level = self.drop_level.min(u16::from(u8::MAX)) as u8;
             let found = (rng.below(1 << 24) as f32 / (1 << 24) as f32) < chance;
             let rolled = if found {
                 drops::roll(
@@ -2419,8 +2435,8 @@ pub struct DropCardUse {
 
 /// Use a drop card (the voucher `drop_card`, the screen's stash map): one
 /// card for one roll of the `drop_card_drop` table, which always gives.
-/// `match_level` is that of the match the screen shows
-/// ([`MatchReport::match_level`]). Refused, and nothing changed, when the
+/// `match_level` is the drop level of the match the screen shows
+/// ([`super::pvb::drop_level`]). Refused, and nothing changed, when the
 /// item is no drop card of the account ([`DropCardRefusal::NoCard`]) or
 /// the roll gives nothing ([`DropCardRefusal::NoRoll`]): deny with the
 /// game's `st_cannot_use_drop_card`. The lobby goes through

@@ -103,6 +103,7 @@ global engine_add_active_scene
 global engine_store_first_resource
 global engine_comment_about_user
 global engine_close_current_match
+global engine_gfx_set_member
 global engine_cc_float
 global engine_query_one
 global engine_release_emitter
@@ -134,6 +135,7 @@ engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_in
 engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
 engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
 engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+engine_gfx_set_member equ 0x7c6a20   ; 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

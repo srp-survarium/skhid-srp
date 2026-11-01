@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Larkspur activated! All the critical wounds cured! H
 st_lifebone_pickup_hint	Larkspur artifact. Increases health regeneration. 
 st_lightning_quality_option	Lighting quality
 st_login_button_label	Enter
-st_login_default_text	E-mail
+st_login_default_text	Nickname
 st_login_eula_label	Licensing agreement
 st_login_menu_accept	Accept
 st_login_menu_cancel	Cancel
 st_login_menu_status_access_level_restriction	The access level is insufficient to enter.
 st_login_menu_status_connecting	Authorizing…
 st_login_menu_status_error_connection	Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Invalid e-mail or password
+st_login_menu_status_invalid_user_or_password	Invalid nickname or password
 st_login_menu_status_invalid_version	You're using an outdated version of the game.
 st_login_menu_status_sign_in_already_online	 The user is already in the game
 st_login_menu_status_sign_in_attempt_interval_violated	You have exceeded the number of allowed login attempts. Try again in 10 seconds.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
 st_srp_scope_slot	Optics
+st_srp_shop_not_owned	Hide owned
+st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s

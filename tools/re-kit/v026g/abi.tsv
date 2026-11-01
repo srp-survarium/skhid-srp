@@ -1411,6 +1411,7 @@ va	name	source	ret_cleanup	result
 0x00331480	survarium::character_dispersion_calculator::get_skill_influence	manual	4	XMM0: the stance's character_dispersion_skill_influence (table at [EDX+8]); its low-stamina one (+30h) when XMM0 in (stamina deficit) is over the threshold at 0xA0D984
 0x00331560	survarium::character_dispersion_calculator::get_target_koef	manual	8	XMM0: the stance's character_dispersion_params value (table at [EBX+4]; idle_dispersion +0, idle_aim_dispersion +4, crouch +18h/+1Ch, ...): aimed as is, from the hip through apply_modifier(index 38h dispersion_from_hip); at least low_stamina_dispersion (+30h) x stack+8 (stamina deficit)
 0x003317c0	survarium::character_dispersion_calculator::get_broken_hands_penalty	manual	4	XMM0: 0 with no broken hand, else injury_penalty_for_double_handed (+34h) / _for_one_handed (+38h), through apply_modifier(index 41h injury_penalty)
+0x00334900	survarium::victory_item_event_manager::start_match	manual	4	no result
 0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
 0x00334dc0	survarium::victory_item_event_manager::serialize	manual	4	
 0x00334fb0	survarium::victory_item_event_manager::deserialize	manual	4	
@@ -2124,7 +2125,39 @@ va	name	source	ret_cleanup	result
 0x0005b390	vostok::sound::sound_instance_proxy_internal::free_object	manual	0	
 0x0028cbe0	survarium::lobby_menu::comment_about_user	manual	4	AL: 1 (callback handled)
 0x00274470	survarium::lobby_client::comment_about_user	manual	16	none: writes 49 05 {nickname, kind byte, mode byte} on the lobby link at entry ESP+4 +8 (0x37A0E0 begin, 0x379640 send); checks no connection (lobby_menu::comment_about_user 0x28CBE0 passes network_client vtable +3Ch, 0x219960, = network_client +1E0h)
+0x002f1750	survarium::item_config_cook::translate_query	manual	4	the modified config: one entry (the modification's row, the record's value as params) per default modification, modification and upgrade record; the records read only through [ebp+40h], at 0x2F1799 (the count, alloca of 10h a entry) and 0x2F18D0..0x2F195A; esp restored from ebp (0x2F2041)
+0x002f2060	survarium::item_config_query::get_item	manual	0	AL: 1 and the query's +8..+17h (dict id, modifications*, upgrades*, dictionary) at [edi]; 0 when the query is another thread's (+2Ch against 0x205D30), [edi] not written
+0x001f13d0	survarium::inventory_item_descr::deserialize_body	manual	12	reads u8 n1 x {u32 id, bool state} into +14h and u8 n2 x {u32 id, u32 dict id, u64 value, u8 slot} into +60h (resize 0x1F1610: more than three records is the fatal assert 0x1F1655/0x1F16C4)
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	manual	0	elements of 18h; past the inline capacity (three, +6Ch..+B4h of the item record) the fatal asserts at 0x1F1655 (line 9Bh) and 0x1F16C4 (line A2h)
+0x00288180	survarium::lobby_menu::fill_item_upgrades	manual		each upgrade record (+60h of the item record esi) an object {id, param} (SetMember 0x288278, 0x2882E1; PushBack at 0x2882F6); the index byte at [esp+80h]
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	manual	16	AL: set; slot 5 (+14h) of the AS3 object interface vtable 0x8FC288 (the AS3 movie root writes it at 0x7AB0CB), its profiler scope "ObjectInterface::SetMember" (0x8CF12C, 0x7C6A36); the lobby's upgrades to Flash call it through the vtable (0x2882D8)
+0x00288520	survarium::lobby_menu::fill_inventory_contents	manual		ebp frame: [ebp-28h] {begin, end, capacity} of {item id, host id} pairs (an alloca of 50h bytes an inventory item, 0x28857F), [ebp-14h] the inventory vector (lc+1EA978h), [ebp-0Ch] its end, [ebp-18h] the item's id, [ebp-5] the record index; each record's pair pushed at 0x2885C9, each item's is_attached_to from them (0x288672)
+0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	manual	0	pushes [edi] (8 bytes) at the vector esi's end; the fatal assert when end reaches capacity (0x28B0F4)
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	manual	8	
 0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
 0x001b9390	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Sorts the visible probes by radius (+0x320) descending, from stage_visibility::execute_stage 0x1B6B54 (filter_and_sort_env_probes inlined); returns at once for 16 or fewer, leaving them to the final insertion sort.
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Stable for equal radii: probes of one radius keep the probe tree query order (frustum_culling), which changes from run to run (the probes reach the scene as their cubemaps load). render_environment_probes draws them in this order, each over the ones before.
+0x00243940	survarium::weapon::is_first_person_view	manual	0	AL: 1 when the weapon's user (+8) has +F4E3h 0 and the place (+114h) of the game's network client's local player ([[user+F478h]+53ACh]+4); 0.10b's !m_is_third_view (on_show, on_hide, tick, draw, the scope add)
+0x002996c0	survarium::rifle_scope::rifle_scope	manual	24	EAX: this; +108h idle model, +10Ch aimed model, +110h change_scope_factor, +114h fov_factor, +118h near_plane_factor, +11Ch hide_weapon_on_aim (0.10b rifle_scope.h)
+0x00118430	vostok::render::engine::world::add_model	manual	16	
+0x001184c0	vostok::render::engine::world::update_model	manual	12	
+0x00118540	vostok::render::engine::world::remove_model	manual	8	
+0x001bd7f0	vostok::render::fill_light	manual	0	void; the caller (0x1BDEA1) removes the two pushed arguments
+0x001c9e40	vostok::render::light::set_color_and_intensity	manual	4	void
+0x0034e020	vostok::render::environment_sun_direction	manual	0	EAX = the output pointer (ESI)
+0x001a8900	vostok::render::effect_compiler::set_constant_float4	manual	8	
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	manual	12	
+0x001acb30	vostok::render::reflection_surface_rejected	manual	0	AL = 1 when the surface is left out of local reflections, 0 when it takes part
+0x00162550	vostok::render::rt_index_to_name	manual	0	EAX = the target's constant name string ("$user$..."), jump table 0x16272C
+0x001d1c60	vostok::render::sky_dome_geometry::sky_dome_geometry	manual	4	EAX = the receiver
+0x001d2150	vostok::render::sky_dome_geometry::draw	manual	4	void
+0x003df370	vostok::render::parse_shader_resources	manual	16	void (0x3DF27C uses no result)
+0x003de820	vostok::render::res_xs_hw<vostok::render::vs_data>::create_hw_shader	manual	4	EAX = the HRESULT of ID3D11Device::CreateVertexShader
+0x00033970	vostok::render::update_skeleton_command::execute	manual	0	void
+0x00033920	vostok::render::update_skeleton_command::`scalar deleting destructor'	manual	4	EAX = the receiver
+0x00391af0	vostok::animation::animation_player::compute_bones_matrices	manual	20	void
+0x001f2640	survarium::player::first_third_person_animations_resolver	manual	4	EAX = the destination delegate
+0x00011140	boost::function_base::clear	manual	0	void
+0x000ddff0	vostok::command_line::key::initialize(pcstr)	manual	4	
+0x000de0c0	vostok::command_line::key_initializator::operator()	manual	4	
+0x000df020	vostok::command_line::iterate_keys<key_initializator>	manual	0	

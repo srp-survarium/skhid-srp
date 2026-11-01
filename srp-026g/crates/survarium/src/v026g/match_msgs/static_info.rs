@@ -108,7 +108,7 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     0.0,  // suicide
     0.0,  // team kill
     ARTEFACT_SCORE_SLOTS_FULL, // artefact (every one an anomaly gives)
-    10.0, // bring victory item (x0.01 by the client)
+    10.0, // bring victory item (x0.01 by the client; patch 92: 10 a 10 m of progress)
     2.5,  // teammate cure
     2.5,  // teammate rescue
     2.5,  // revenge

@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zosta
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
 st_login_button_label	Wejdź
-st_login_default_text	E-mail
+st_login_default_text	Nick
 st_login_eula_label	Umowa licencyjna\n z użytkownikiem końcowym gry „Survarium”
 st_login_menu_accept	Akceptuj
 st_login_menu_cancel	Anuluj
 st_login_menu_status_access_level_restriction	Niewystarczający poziom dostępu, aby wejść.
 st_login_menu_status_connecting	Autoryzacja…
 st_login_menu_status_error_connection	Brak połączenia z serwerem Skhid. Zezwól na grę w zaporze (Skhid-network-setup.cmd). W Rosji użyj VPN i dodaj do niego pliki .exe gry (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Nieprawidłowy e-mail lub hasło
+st_login_menu_status_invalid_user_or_password	Nieprawidłowy nick lub hasło
 st_login_menu_status_invalid_version	Korzystasz z nieaktualnej wersji gry.
 st_login_menu_status_sign_in_already_online	Użytkownik jest już w grze
 st_login_menu_status_sign_in_attempt_interval_violated	Przekroczono maksymalną liczbę prób logowana. Spróbuj ponownie za 10 sekund.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
 st_srp_scope_slot	Optyka
+st_srp_shop_not_owned	Ukryj posiadane
+st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s

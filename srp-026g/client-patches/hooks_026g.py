@@ -10,7 +10,9 @@ A patch's declaration is only names -- which site, and the handler:
 Everything else is a fact written once in the raw tables and read here:
 
     sites_026g.tsv    a named site: its VA, its kind (call/splice/pointer/
-                      vtable/callback/lohook/code), the callee it uses (an
+                      vtable/callback/lohook/code; `entry`, VA `-`: a Rust
+                      handler our own NASM calls, cdecl, aligned as a
+                      lohook), the callee it uses (an
                       engine_026g.tsv row, for the kinds that call a game
                       function), the span it covers, its named exits (lohook)
                       and a short `what`. The kind follows from the site, so a
@@ -157,7 +159,11 @@ def read_sites(path=None):
             raise Bad(f"sites_026g.tsv: {name!r} is no site name (dotted, e.g. input_builder.spot_query)")
         exits = [] if row["exits"].strip() in ("", "-") else [
             (e.split("@")[0], engine_026g.number(e.split("@")[1])) for e in row["exits"].split(";")]
-        out[name] = {"site": name, "va": engine_026g.number(row["va"]), "kind": row["kind"].strip(),
+        kind = row["kind"].strip()
+        # an `entry` is called by our own code, not the game's: it has no VA
+        if (row["va"].strip() == "-") != (kind == "entry"):
+            raise Bad(f"sites_026g.tsv: {name}: a VA is `-` for an entry, and only for one")
+        out[name] = {"site": name, "va": None if kind == "entry" else engine_026g.number(row["va"]), "kind": kind,
                      "callee": row["callee"].strip(), "span": None if row["span"].strip() in ("", "-")
                      else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip()}
     return out
@@ -403,6 +409,45 @@ def lohook_entry(h):
     return lines
 
 
+def entry_hook(patch, row, sites):
+    """An `[[entry]]`: a Rust handler our own NASM calls (cdecl; a patch's
+    code at a fixed place calls it through a dword the build writes). No site
+    in the exe, nothing replaced or installed: the entry saves the machine
+    and aligns the stack as a lohook's does, hands the handler a Context
+    (its arguments are the site's ESP frame, `holds`), and returns to the
+    caller. Its handler returns Flow::Continue."""
+    name = patch["name"]
+    site = site_of(name, "entry", row, sites)
+    if site["exits"] or site["span"] is not None:
+        raise Bad(f"{name}: entry {site['site']} has no span and no exits (it returns to its caller)")
+    return {"patch": name, "patch_no": patch["patch"], "kind": "entry", "site": None,
+            "site_name": site["site"], "original": b"", "handler": row["handler"], "what": site["what"],
+            "exits": [], "install": ("entry", None), "entry": f"{name}_{row['handler']}",
+            "shim": f"hook_{name}_{row['handler']}"}
+
+
+def entry_template(h):
+    """The NASM of an entry: a lohook's save (the same frame, so the
+    Context's site ESP is the caller's: the return address, then the
+    arguments) with the stack aligned to 16 at the shim's call, then the
+    machine restored and a `ret` to the caller. A Flow other than Continue
+    is a bug (ud2)."""
+    e = h["entry"]
+    return [f"global {e}", f"extern {h['shim']}", f"{e}:",
+            "    lea esp, [esp - 4]",                   # a lohook's dispatch slot: the same Regs frame
+            "    pushfd", "    pushad", "    cld",
+            "    mov ebp, esp",
+            "    sub esp, 512", "    and esp, -16", "    fxsave [esp]", "    mov edi, esp",
+            "    sub esp, 8", "    and esp, -16",
+            "    mov [esp], ebp", "    mov [esp+4], edi",
+            "    mov eax, esp", "    sub esp, 12", "    push eax",
+            f"    call {h['shim']}",
+            "    cmp eax, 0", f"    je {e}_go",
+            "    ud2",
+            f"{e}_go:", "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd",
+            "    lea esp, [esp + 4]", "    ret"]
+
+
 def code_hook(patch, row, sites, exe=None):
     """A `[[code]]`: hand-written NASM (the escape hatch) the author gives
     (`source`, its `symbol`, a byte `limit`); linked into patches.code and
@@ -444,6 +489,8 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
                 out.append(code_hook(patch, row, sites, exe))
             elif kind == "lohook":
                 out.append(lohook_hook(patch, row, sites, exe))
+            elif kind == "entry":
+                out.append(entry_hook(patch, row, sites))
             else:
                 raise Bad(f"{patch['name']}: site {row['site']} has unknown kind {kind!r}")
     entries = [h["entry"] for h in out]
@@ -454,7 +501,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # wraps the chain; the first non-Continue result ends it.
     grouped = {}
     for h in out:
-        grouped.setdefault(h["site"], []).append(h)
+        grouped.setdefault(h["site_name"] if h["site"] is None else h["site"], []).append(h)
     out = []
     for group in grouped.values():
         if len(group) == 1:
@@ -474,7 +521,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
-    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out)
+    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out if h["site"] is not None)
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")
@@ -568,7 +615,7 @@ def rs_text(hs, tables=()):
     for h in [member for h in hs for member in h.get("chain", [h])]:
         if h["kind"] == "code":
             continue                                   # raw NASM, no shim or Original
-        if h["kind"] == "lohook":
+        if h["kind"] in ("lohook", "entry"):
             lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
             arms = ["        Flow::Continue => 0,", "        Flow::Skip => 1,"]
             if h["exits"]:
@@ -580,11 +627,14 @@ def rs_text(hs, tables=()):
                 arms.append("        Flow::Exit(e) => 2 + e as u32,")
             else:
                 arms.append("        Flow::Exit(e) => match e {},")
+            at = h["site_name"] if h["site"] is None else f"{h['site']:#x}"
+            whence = (f"from our own code's call ({h['site_name']})" if h["site"] is None
+                      else f"from the game's jump at {h['site']:#x}")
             lines += [
-                f"/// The entry `{h['entry']}` ({h['site']:#x}, {h['what']}) calls this with the saved machine.",
+                f"/// The entry `{h['entry']}` ({at}, {h['what']}) calls this with the saved machine.",
                 "#[unsafe(no_mangle)]",
                 f"pub extern \"C\" fn {h['shim']}(frame: &mut Frame) -> u32 {{",
-                f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's jump at {h['site']:#x},",
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, {whence},",
                 "    // on the game's thread; `frame` is its saved registers and fxsave area.",
                 "    let mut ctx = unsafe { Context::new(frame) };",
                 f"    match crate::{h['patch']}::{h['handler']}(&mut ctx) {{",
@@ -740,6 +790,9 @@ def asm_text(hs, tables=(), exe=None):
         if h["kind"] == "lohook":
             lines += ["", f"; {h['site']:#x} {h['what']}: lohook -> {h['entry']}"] + lohook_entry(h)
             continue
+        if h["kind"] == "entry":
+            lines += ["", f"; {h['site_name']} {h['what']}: entry -> {h['entry']}"] + entry_template(h)
+            continue
         macro = h["entry_macro"]
         lines += ["", f"; {h['site']:#x} {h['what']}: {h['kind']} -> {h['entry']} (wraps {h['function']} "
                   f"{h['target']:#x})"]
@@ -780,6 +833,8 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
         how, opcode = h["install"]
         if how in ("vtable", "callback"):
             continue  # a runtime copy (audited above) or a callback handed at run time: no write
+        if how == "entry":
+            continue  # called by our own code, through what the build writes (no image install)
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
@@ -814,7 +869,7 @@ def install_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"]) for patch in tomls for row in patch.get("hook", ())
-            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback")]
+            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback", "entry")]
 
 
 def stale():

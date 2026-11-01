@@ -437,7 +437,8 @@ def site_holds(kinds_, path=None):
                 raise Refused(f"sites_026g.tsv: {row['site']}: holds {token!r}: name=REGISTER:kind, a kind of "
                               "fields_026g.tsv, or name=REGISTER:u32 (not ESP), each name once")
             holds.append((match.group(1), match.group(2), None if value else module_of(match.group(3))))
-        out.append((row["site"].strip(), number(row["va"]), row["what"].strip(), holds))
+        out.append((row["site"].strip(), None if row["va"].strip() == "-" else number(row["va"]),
+                    row["what"].strip(), holds))
     return out
 
 
@@ -659,7 +660,9 @@ def raw_kind(k, kinds_):
             value = f"*mut {x['target']}" if x["of"] == "data" else f"Option<{kinds_[module_of(x['target'])]['type']}>"
             lines += doc + [f"    pub unsafe fn {x['field']}(self) -> {value} {{",
                             f"        unsafe {{ {place}.cast::<{value}>().read_volatile() }}", "    }"]
-            if k["size"]:                              # a kind we have room for: one we fill
+            # a kind we have room for (one we fill), or a function's frame (its
+            # locals are the function's own, which a hook at its site may set)
+            if k["size"] or k["kind"].endswith("_frame"):
                 lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
                                 f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
     size = k["size"]
@@ -747,7 +750,7 @@ def raw_text(fs, fields_, sites=None):
               "", "/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles.",
               "#[allow(dead_code)]", "pub mod site {", "    #[allow(unused_imports)]", "    use super::*;"]
     for site, va, what, regs in holds:
-        lines += ["", f"    /// {site} ({va:#x}): {what}", f"    pub mod {site.replace('.', '_')} {{",
+        lines += ["", f"    /// {site} ({'our entry' if va is None else f'{va:#x}'}): {what}", f"    pub mod {site.replace('.', '_')} {{",
                   "        #[allow(unused_imports)]", "        use super::*;"]
         for name, location, module in regs:
             if module is None:

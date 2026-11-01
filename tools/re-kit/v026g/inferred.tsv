@@ -762,9 +762,6 @@ va	status	ref_021d	name
 0x001171d0	inferred-medium	0x000d54a5	vostok::render::query_material_per_vertex_type
 0x001176e0	inferred-medium	0x000d5611	vostok::render::on_fs_iterator_materials_ready
 0x00117ea0	inferred-medium	0x000d5ac7	vostok::render::flush_hw_commands
-0x00118430	inferred-medium	0x000d5e2c	vostok::render::engine::world::add_model
-0x001184c0	inferred-medium	0x000d5ed5	vostok::render::engine::world::update_model
-0x00118540	inferred-medium	0x000d5f76	vostok::render::engine::world::remove_model
 0x00119320	inferred-medium	0x000d6c72	vostok::variant<32>::try_get<vostok::render::engine::world *>
 0x001193c0	inferred-medium	0x000d6cf1	vostok::buffer_vector<vostok::fixed_string<128> >::push_back
 0x00119570	inferred-medium	0x000d6ec3	vostok::detail::concrete_type_helper<vostok::render::material_effects_instance_cook_data *>::copy_helper
@@ -984,7 +981,6 @@ va	status	ref_021d	name
 0x001ba6e0	inferred-medium	0x0012db62	vostok::render::stage_debug::`scalar deleting destructor'
 0x001bd6b0	inferred-medium	0x0012fc41	vostok::render::lights_db::lights_db
 0x001bd7b0	inferred-medium	0x0012fc95	vostok::render::lights_db::create
-0x001bd7f0	inferred-medium	0x0012fccf	vostok::render::fill_light
 0x001be0d0	inferred-medium	0x001303dc	vostok::buffer_vector<vostok::render::light_data>::insert
 0x001be3a0	inferred-high		vostok::math::float4x4::create_rotation_x
 0x001bf570	inferred-medium	0x00133103	vostok::render::register_effect_descriptors
@@ -3136,4 +3132,21 @@ va	status	ref_021d	name
 0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription
 0x0026afb0	inferred-medium		survarium::messaging_client::send_important_message
 0x0021bd80	inferred-medium		survarium::network_client::messaging_client
+0x002f1750	inferred-high		survarium::item_config_cook::translate_query
+0x002f2060	inferred-medium		survarium::item_config_query::get_item
+0x001f13d0	inferred-medium		survarium::inventory_item_descr::deserialize_body
+0x001f1610	inferred-medium		vostok::buffer_vector<survarium::upgrade>::resize
+0x003584e0	inferred-medium		survarium::item_config_cook::substitute_upgrade_params
+0x00288180	inferred-medium		survarium::lobby_menu::fill_item_upgrades
+0x0028b0f0	inferred-medium		vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back
 0x0034f940	inferred-medium		vostok::render::load_props_impl
+0x001d1c60	inferred-high		vostok::render::sky_dome_geometry::sky_dome_geometry
+0x001d2150	inferred-high		vostok::render::sky_dome_geometry::draw
+0x003df370	inferred-high		vostok::render::parse_shader_resources
+0x00033970	inferred-high		vostok::render::update_skeleton_command::execute
+0x00033920	inferred-high		vostok::render::update_skeleton_command::`scalar deleting destructor'
+0x00391af0	inferred-high		vostok::animation::animation_player::compute_bones_matrices
+0x00011140	inferred-high		boost::function_base::clear
+0x000ddff0	inferred-high		vostok::command_line::key::initialize(pcstr)
+0x000de0c0	inferred-high		vostok::command_line::key_initializator::operator()
+0x000df020	inferred-high		vostok::command_line::iterate_keys<key_initializator>

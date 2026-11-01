@@ -168,7 +168,7 @@ package survarium.rooms
                     ? win.say("st_srp_rooms_queue") : win.say("st_srp_rooms_join");
             var made:Array = look.footer(joinable != null ? [[win.say("st_srp_rooms_new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("st_srp_rooms_new"), win.createView.onNew, null]]);
-            if (joinable != null && !queuedHere && (!joins(joinable) || !mayGoIn(joinable)))
+            if (joinable != null && !queuedHere && (!joins(joinable) || !LocalPlayerProfile.mayEnter(joinable.max)))
             {
                 made[1].enabled = false;
                 // Greyed by a reason (presets.md): the reasons in its tip.
@@ -504,17 +504,6 @@ package survarium.rooms
             return room != null && win._room == null && win._queueKey == room.key;
         }
 
-        // Whether no reason greys Join (or Queue) for `room` (presets.md): a
-        // join asks the popup first, which may offer a loadout that can play
-        // (mayEnter); a full room's queue asks nothing, so its kits must
-        // play now (mayPlay).
-        private function mayGoIn(room:Object):Boolean
-        {
-            if (room.players >= room.size * 2)
-                return LocalPlayerProfile.mayPlay();
-            return LocalPlayerProfile.mayEnter(room.max);
-        }
-
         // Whether Join takes us there: a member (the All rooms tab) not into
         // its own room, nor a full one (its queue is from no room only).
         private function joins(room:Object):Boolean
@@ -524,14 +513,17 @@ package survarium.rooms
 
         // Join (or Queue for a full room) as the button does; the PIN typed
         // goes first. A member joining another room leaves its own (the
-        // server's, as Leave). A join asks first whether it offers one of our
-        // kit presets (presets.md; RoomsWindow.askOffer), then comes back
-        // with `preset`: 0 none, else put on before the join.
+        // server's, as Leave). A join (or queue) asks first whether it offers
+        // one of our kit presets (presets.md; RoomsWindow.askOffer), then
+        // comes back with `preset`: 0 none, else put on before the join (or
+        // queue: the server's PRESET joins a room with places, else queues).
+        // Greyed by a reason (presets.md) unless the popup can offer a
+        // loadout that can play (mayEnter).
         private function joinRoom(room:Object, preset:int = -1):void
         {
             // A Join of the player's own: no longer the window Play opened.
             win._openedByPlayAt = 0;
-            if (room == null || win._steps.length > 0 || !joins(room) || !mayGoIn(room))
+            if (room == null || win._steps.length > 0 || !joins(room) || !LocalPlayerProfile.mayEnter(room.max))
                 return;
             win._busyAt = getTimer();
             win._stepsAt = win._busyAt;
@@ -546,13 +538,13 @@ package survarium.rooms
                 win.pinRefused();
                 return;
             }
-            if (start == RoomsWire.JOIN && preset < 0)
+            if (preset < 0)
             {
                 win.askOffer(room);
                 return;
             }
             var at:int = start + room.key;
-            if (start == RoomsWire.JOIN && preset > 0)
+            if (preset > 0)
                 at = RoomsWire.PRESET + (preset - 1) * RoomsWire.PRESET_STEP + room.key;
             if (room.pin)
             {

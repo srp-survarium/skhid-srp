@@ -14,6 +14,11 @@ USAGE
         [--required-patches=<n>,...] the default exe stops at its start without
                                      these resources.db.patch_<n> (patch 49): a
                                      release's offered patches (patch_026g.py)
+        [--downloads=<list.tsv>]...  the release's files and their URLs
+                                     (release/game.tsv, release/patches.tsv: the
+                                     game's archive, the patches) written into
+                                     Skhid-without-updater.bat, which uses them
+                                     when the server cannot be reached
         [--check]                    every check, nothing written
         [--pack-zip]                 write the output as a ZIP instead of a folder
         [--bugtrap=<BugTrap.dll>]     defaults to the Rust release build in this repo
@@ -91,7 +96,8 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         for a player whose antivirus deletes updater_skhid.exe: installs and
         updates the game and the Skhid files with curl, tar, PowerShell and
         7zr.exe, without the launcher and the updater, and starts the game
-        (Skhid-without-updater.bat here).
+        (Skhid-without-updater.bat here, with the files of --downloads
+        written in at its end: `#skhid-file <name> <sha256> <size> <url>...`).
     <output>/Skhid.sh
         the same for Linux (Skhid.sh beside this script): `bash Skhid.sh`
         runs play_skhid.sh from wherever it is called, with its arguments.
@@ -134,6 +140,7 @@ updater downloads the original game from its pinned mirror when it is missing.
 import hashlib
 import os
 from pathlib import Path
+import re
 import sys
 import zipfile
 
@@ -155,11 +162,11 @@ EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
 BUGTRAP_DLL = os.path.abspath(os.path.join(
     HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
-# The same build-2777 mirror pinned in client/updater/logic/src/game.rs.
-GAME_URL = (
-    "https://drive.usercontent.google.com/download?"
-    "id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK&export=download&confirm=t"
-)
+# Where the original game is had by hand: the patches server's address of its
+# row in release/game.tsv (no download quota), the bytes
+# client/updater/logic/src/game.rs pins (the
+# updater and Skhid-without-updater.bat take every address of that row).
+GAME_URL = "http://2.28.121.133:8090/survarium-026g.7z"
 SRP_CERT = os.path.join(HERE, "survarium_login_server.crt")
 EXE_DIR = os.path.join("binaries", "x86")
 EXE_DIR_WINDOWS = "binaries\\x86"
@@ -334,6 +341,32 @@ def crlf(data):
     return data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
 
 
+def read_downloads(path):
+    """The rows of a release's list (release/patches.tsv): `<name> <sha256>
+    <size> <urls>`, tabs between, the URLs one space apart; `#` starts a
+    comment. Each as the line Skhid-without-updater.bat reads at its end."""
+    lines = []
+    for number, line in enumerate(Path(path).read_text(encoding="ascii").splitlines(), 1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if (len(fields) != 4 or not re.fullmatch(r"[A-Za-z0-9._-]+", fields[0])
+                or not re.fullmatch(r"[0-9a-f]{64}", fields[1]) or not re.fullmatch(r"[1-9][0-9]*", fields[2])
+                or not re.fullmatch(r"https?://[!-~]+( https?://[!-~]+)*", fields[3])):
+            sys.exit(f"{path}:{number}: not <name> <sha256> <size> <urls> with tabs between")
+        lines.append(f"#skhid-file {' '.join(fields)}")
+    return lines
+
+
+def without_updater(downloads):
+    """`Skhid-without-updater.bat` with `downloads` (lines of read_downloads)
+    at its end, in ASCII with CRLF line ends."""
+    text = Path(HERE, WITHOUT_UPDATER).read_bytes().replace(b"\r\n", b"\n")
+    if downloads:
+        text = text.rstrip(b"\n") + b"\n" + "".join(line + "\n" for line in downloads).encode("ascii")
+    return crlf(text)
+
+
 def vpn_help():
     """`VPN.txt`: UTF-8 with a byte order mark, so that an old Notepad reads
     its Russian half as UTF-8."""
@@ -504,6 +537,7 @@ def main():
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
     late_join, revision, required = True, None, None
+    downloads = []
     for option in options:
         if option == "--check":
             check = True
@@ -513,6 +547,8 @@ def main():
             revision = P.parse_revision(option[len("--revision="):])
         elif option.startswith("--required-patches="):
             required = P.parse_required_patches(option[len("--required-patches="):])
+        elif option.startswith("--downloads="):
+            downloads += read_downloads(option[len("--downloads="):])
         elif option == "--pack-zip":
             archive = True
         elif option == "--cert-only":
@@ -592,7 +628,7 @@ def main():
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
             (STARTER, starter()),
-            (WITHOUT_UPDATER, crlf(Path(HERE, WITHOUT_UPDATER).read_bytes())),
+            (WITHOUT_UPDATER, without_updater(downloads)),
             # Windows checkouts may use CRLF; Bash needs LF.
             (LINUX_STARTER, Path(HERE, LINUX_STARTER).read_bytes().replace(b"\r\n", b"\n")),
             (VPN_HELP, vpn_help()),

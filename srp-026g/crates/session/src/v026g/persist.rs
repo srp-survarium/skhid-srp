@@ -19,7 +19,7 @@ use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgr
 use super::clans::Clan;
 use super::moderation::AdminAction;
 use crate::LockExt;
-use crate::persist::{DATA_DIR_VAR, DB_FILE, DB_VAR, DEFAULT_DATA_DIR, PersistError};
+use crate::persist::{DB_FILE, DB_VAR, PersistError};
 
 mod admin_actions;
 mod balance;
@@ -441,13 +441,7 @@ impl SqliteGameRepository {
                 return Ok(None);
             }
         }
-        let dir = std::env::var_os(DATA_DIR_VAR)
-            .filter(|dir| !dir.is_empty())
-            .map_or_else(
-                || std::path::PathBuf::from(DEFAULT_DATA_DIR),
-                std::path::PathBuf::from,
-            );
-        Self::open_in(&dir).map(Some)
+        Self::open_in(&crate::persist::data_dir()).map(Some)
     }
 
     /// The schema version of the 0.26g tables.

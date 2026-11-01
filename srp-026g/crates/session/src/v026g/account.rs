@@ -682,7 +682,10 @@ impl Account {
             // What the client's tables lack would crash it.
             super::items_rules::make_safe(item);
             item.modifications.truncate(limits::MODIFICATIONS);
-            item.upgrades.truncate(limits::UPGRADES);
+            // A weapon's six logical slots go to the client packed into
+            // three records (wire::item_descr_at); any other item's three.
+            item.upgrades
+                .truncate(super::items_rules::upgrade_capacity(item.dict_id));
         }
         let next_item = self.inventory.iter().map(|item| item.item_id + 1).max();
         self.next_item_id = self.next_item_id.max(next_item.unwrap_or(1)).max(1);

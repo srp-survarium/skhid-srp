@@ -9,6 +9,7 @@
 use alloc::format;
 use alloc::string::String;
 
+use updater_logic::download;
 use updater_logic::network::{self, Failure};
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
@@ -193,7 +194,10 @@ pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
             format!("The download from {host} broke off ({got} of {expected} bytes). Try again.")
         }
         HttpError::Stopped => "Stopped.".into(),
-        HttpError::Html => format!(
+        HttpError::Html(Some(title), _) => {
+            format!("{host} answered {path} with a web page, not the file (\"{title}\").")
+        }
+        HttpError::Html(None, _) => format!(
             "{host} answered {path} with a web page, not the file (a sign-in or virus-scan page)."
         ),
         HttpError::Redirects => format!(
@@ -203,7 +207,101 @@ pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
         HttpError::BadRedirect(location) => {
             format!("{host} redirected {path} to an address the updater does not take: {location}")
         }
+        HttpError::Slow(speed) => format!(
+            "The download from {host} was too slow ({} KB/s over {} minutes). Try again later.",
+            speed / 1024,
+            download::SLOW_WINDOW_MS / 60_000
+        ),
+        HttpError::BadRange => {
+            format!("{host} answered {path} with another part of the file than was asked for.")
+        }
     }
+}
+
+/// Why one address of a file did not give it, in a few words, for the log
+/// and the list of every address's failure: which timeout, the host not
+/// found or not reached, the status, a web page and its title, too slow,
+/// cut short.
+pub fn reason(error: &HttpError) -> String {
+    match error {
+        HttpError::Network(step, code) => match (*step, *code) {
+            ("send" | "connect", network::ERROR_WINHTTP_TIMEOUT) => {
+                "connect timeout (no connection within 10 s)".into()
+            }
+            ("receive" | "status", network::ERROR_WINHTTP_TIMEOUT) => {
+                "receive timeout (no answer within 30 s)".into()
+            }
+            (_, network::ERROR_WINHTTP_TIMEOUT) => {
+                "receive timeout (nothing received for 30 s)".into()
+            }
+            (_, network::ERROR_WINHTTP_NAME_NOT_RESOLVED) => "host not found (DNS)".into(),
+            (_, network::ERROR_WINHTTP_CANNOT_CONNECT) => {
+                "unreachable (connection refused or no route)".into()
+            }
+            (_, network::ERROR_WINHTTP_CONNECTION_ERROR) => "connection reset".into(),
+            (step, code) => format!("network error {code} ({step}: {})", win::error_text(code)),
+        },
+        HttpError::Status(status) => format!("HTTP {status}"),
+        HttpError::TooLarge => "larger than the file".into(),
+        HttpError::Cut { got, expected } => format!("cut short at byte {got} of {expected}"),
+        HttpError::Stopped => "stopped".into(),
+        HttpError::Html(Some(title), _) => format!("web page \"{title}\", not the file"),
+        HttpError::Html(None, _) => "web page, not the file".into(),
+        HttpError::Redirects => {
+            format!("more than {} redirects", updater_logic::url::MAX_REDIRECTS)
+        }
+        HttpError::BadRedirect(location) => {
+            format!("redirect to an address the updater does not take: {location}")
+        }
+        HttpError::Slow(speed) => format!(
+            "too slow: {} KB/s over {} minutes (under {} KB/s)",
+            speed / 1024,
+            download::SLOW_WINDOW_MS / 60_000,
+            download::MIN_SPEED / 1024
+        ),
+        HttpError::BadRange => "answered another part of the file than was asked for".into(),
+    }
+}
+
+/// None of the game archive's addresses gave it: each one's host and why
+/// (the start of it fits the launcher's line, [`reported`]).
+pub fn game_download_failed(failures: &str) -> String {
+    format!(
+        "Game download failed: {failures}. Start the launcher again: it goes on from where it \
+         stopped."
+    )
+}
+
+/// Where to send the log, worded as the crash reporter's
+/// (`client/bugtrap/src/crash_text.rs`): said after every failure the
+/// player ends on ([`reported`]).
+pub const SEND_LOG: &str = "Send game\\binaries\\x86\\updater_skhid.log to #bugreports in \
+                            Discord (tag: install): discord.gg/Pxa4prXfwu";
+
+/// The longest line the launcher shows (`updater_logic::pipe`).
+const LINE: usize = 255;
+
+/// A failure the run ends on, with [`SEND_LOG`] after it: the reason cut
+/// to leave it room in the launcher's line (the log has the whole of it).
+pub fn reported(message: &str) -> String {
+    let room = LINE - SEND_LOG.len() - 1;
+    let shown: String = if message.chars().count() > room {
+        let mut cut: String = message.chars().take(room - 3).collect();
+        cut.push_str("...");
+        cut
+    } else {
+        message.into()
+    };
+    format!("{shown} {SEND_LOG}")
+}
+
+/// The game is missing and no address of its archive is known: the server
+/// offers none (`reason`) and this updater has none built in.
+pub fn game_no_address(reason: &str) -> String {
+    format!(
+        "The original game is not installed, and no address of its archive is known: {reason} \
+         Nothing was downloaded."
+    )
 }
 
 /// What to do about a file error, by its Windows code.
