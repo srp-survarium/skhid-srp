@@ -87,6 +87,8 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
+    s("SRP_BENCH_JUMP_ROWS", "off", "set: one `jumprow` line per route jump (the link's rise, sprint and speed the tick before the press, a battery carried, where the honest stand-in came down and with which clip); tallies/owner/jumps.rs"),
+    s("SRP_BENCH_JUMP_TRACE", "unset", "`x,z;x,z;...` with `SRP_BENCH_JUMP_ROWS`: `jumptrace` lines of the presses at those take-offs (within 0.6 m), 1 s before to 2 s after, the first 6 failed and the first 6 up at each a run"),
     s("SRP_BENCH_CARRIER_JUMP", "off", "`on` (or `1`) plans a battery carrier's routes over the jump links up to the standing jump's 0.998 m only (`Feel::carrier_jump_m` Some); off by default: every jump link"),
     s("SRP_BENCH_REST_OFF_LIP", "off", "`on` (or `1`) moves a walk's goal that lies on a lip (or within the body's radius of one) inward to the nearest floor off the edge (`ThinkTuning::rest_off_lip`); off by default: the goal as the play gave it"),
     s("SRP_BENCH_EXACT_EROSION", "off", "`on` (or `1`) takes, after the cell rounds, the floors nearer to a wall than the body's radius, measured exactly (`mapdata::Erosion::Exact`), `GridTuning::exact_erosion`; off by default: the cells' erosion"),
