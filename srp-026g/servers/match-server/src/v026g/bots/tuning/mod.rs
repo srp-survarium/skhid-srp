@@ -147,6 +147,7 @@ pub use team::PinRule;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
 pub use team::SniperMemory;
+pub use team::StaminaRates;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use teams::TeamTunings;
@@ -642,7 +643,7 @@ mod tests {
         assert!(changes.len() > 60, "{}", changes.len());
         // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
         // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
-        const OFF_BY_DEFAULT: &[&str] = &["/feel/past_drop", "/spacing/apart_tie", "/spacing/lane"];
+        const OFF_BY_DEFAULT: &[&str] = &["/feel/past_drop", "/feel/sprint_turns", "/spacing/apart_tie", "/spacing/lane", "/think/stamina_rates"];
         for (pointer, off) in changes {
             if OFF_BY_DEFAULT.contains(&pointer.as_str()) {
                 assert_eq!(defaults.pointer(&pointer), Some(off), "{pointer} is on by default now: take it off OFF_BY_DEFAULT");

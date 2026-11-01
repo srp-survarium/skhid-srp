@@ -456,6 +456,36 @@ mod tests {
         assert_eq!(Rates::of(BotTier::Low, "no_such_weapon"), Rates::LIGHT);
     }
 
+    /// The bot's own reckoning at its kit's rates (`think.stamina_rates` kit, `bots::stamina::Rates::of_kit`) works
+    /// the body's rates: for each weapon, the first kit that has it (the kit these rates are of).
+    #[test]
+    fn the_bots_reckoning_at_its_kits_rates_is_the_bodys() {
+        use crate::v026g::bots::stamina;
+
+        let roles = [BotRole::Camper, BotRole::Flanker, BotRole::Support, BotRole::Rusher];
+        for tier in BotTier::ALL {
+            let equipment = BotEquipment::of(tier, RusherKits::default());
+            let mut seen = Vec::new();
+            for role in roles {
+                let kits = bot_kits(equipment, role);
+                let modifiers = bot_skills::bot_modifiers(&kits);
+                for (k, kit) in kits.iter().enumerate() {
+                    let Some(arms) = Arms::of_kit(equipment, role, k) else {
+                        continue;
+                    };
+                    let item = arms.primary.0.item;
+                    if seen.contains(&item) {
+                        continue;
+                    }
+                    seen.push(item);
+                    let body = Rates::of(tier, item);
+                    let bot = stamina::Rates::of_kit(kit, &modifiers);
+                    assert_eq!((bot.spend, bot.regen, bot.jump), (body.spend, body.regen, body.jump), "{tier:?} {role:?} {k} {item}");
+                }
+            }
+        }
+    }
+
     /// In the game: a body that holds SPRINT and FORWARD runs at the sprint
     /// pace until its bar is empty, then walks with the keys held, and a
     /// jump pressed while the flag is set is refused.
