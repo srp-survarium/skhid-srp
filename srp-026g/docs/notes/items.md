@@ -273,6 +273,21 @@ Not yet seen in a running game: the stash with one camouflage on several
 items, the upgrade window's drop on each, and a match showing each item's
 camouflage.
 
+**Buying a camouflage owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I
+don't get warning that it was already bought"):
+
+- A second copy is of no use: the one copy is worn on any number of items (above), armour and
+  weapons alike (`weapon-camo.md`: the same category 25 items).
+- The shop's Buy (`LobbyMenu.try_buy_item`: the shop list's and its right-click menu's) asks
+  first, with the stock box any item owned already gets: "This item is already purchased by you.
+  Would you like to buy anyway?" (`st_already_in_inventory`); OK opens the buy dialog, Cancel buys
+  nothing.
+- The stock movie left camouflages out of that box (LIKELY: a copy was worn by one item then); the
+  exception is gone. Decals had the box already. The item card's Buy (`ItemCard.acceptAction`)
+  never left them out.
+- Ownership is the inventory the movie has (`InventoryList.hasItem`); the server buys as before.
+- Check: `scripts/buy-owned/check.sh <lobby_menu.swf>` (Ruffle).
+
 ## 7. The lines of an item's card (2026-10-18)
 
 The lobby's item hover card shows text the data keeps, not values it

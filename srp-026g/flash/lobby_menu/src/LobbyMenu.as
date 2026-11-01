@@ -3431,7 +3431,9 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != ItemCategory.CAMOUFLAGES && (sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid)))
+         // An item owned already: asked first, a camouflage too (one is worn on any number of items,
+         // docs/notes/items.md §6, so a second is of no use).
+         if(!_descr.is_stack && sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
