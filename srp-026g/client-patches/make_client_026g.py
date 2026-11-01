@@ -103,11 +103,12 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         Windows Firewall outbound allow rules for the three programs; --undo
         removes them, --dry-run prints the commands. It asks Windows for
         administrator rights itself (the UAC prompt) and says everything in
-        Russian (Skhid-network-setup.cmd here).
+        Russian on a Windows in Russian, Ukrainian or Belarusian, in English
+        on any other (Skhid-network-setup.cmd here).
     <output>/Skhid-defender-setup.cmd
-        a Microsoft Defender exclusion of game\binaries\x86, with --undo and
-        --dry-run, the rights and the Russian the same way
-        (Skhid-defender-setup.cmd here).
+        a Microsoft Defender exclusion of game\binaries\x86, then the Skhid
+        files Defender deleted put back, with --undo and --dry-run, the
+        rights and the languages the same way (Skhid-defender-setup.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
 
@@ -395,8 +396,9 @@ def readme(server, description, files, embedded=False, site=None):
             "   which is in this archive.",
             "   If Windows warns about an unknown publisher, let it run:",
             "   these files are not signed.",
-            f"   If Microsoft Defender blocks or deletes the game's files, run {DEFENDER_SETUP}",
-            "   (in Russian): it excludes game\\binaries\\x86 from its scans.",
+            f"   If Microsoft Defender blocks or deletes the game's files, run {DEFENDER_SETUP}:",
+            "   it excludes game\\binaries\\x86 from its scans and puts back the files",
+            "   it deleted.",
             "   If your antivirus deletes updater_skhid.exe, start",
             f"   {WITHOUT_UPDATER} instead: it installs and updates the game itself.",
             "   Linux: install Wine and Winetricks, open a terminal in that folder and",

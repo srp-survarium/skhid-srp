@@ -42,6 +42,9 @@ def unix_locale(name):
 
 # A Russian Windows, under Wine: ru_RU.UTF-8 (on NixOS, nix-shell -p glibcLocales).
 RUSSIAN = unix_locale('ru_RU.UTF-8')
+# The Windows display languages the setup scripts speak Russian in (any
+# other, or none: English).
+RUSSIAN_UI = ('ru', 'uk', 'be')
 # What runs the script's PowerShell code: Windows PowerShell, elsewhere pwsh
 # (PowerShell 7; on NixOS nix shell nixpkgs#powershell).
 POWERSHELL = shutil.which('powershell') if os.name == 'nt' else shutil.which('pwsh')
@@ -386,13 +389,19 @@ class ReleaseTests(unittest.TestCase):
             text = texts[name] = script.decode('cp866')
             self.assertEqual(text.encode('cp866'), script)
             self.assertEqual(script.count(b'\n'), script.count(b'\r\n'))
-            # Every line a player reads is Russian (the owner, 2026-10-26: only
-            # Russians use it): an echo is Russian, or only names and paths, or
-            # a --dry-run command.
+            # Every line a player reads is in the language of the Windows (the
+            # owner, 2026-11-01): a %RU% line is Russian, a %EN% line English;
+            # an echo is only names and paths, or a --dry-run command.
             for line in text.splitlines():
-                said = re.match(r'\s*(?:if [^(]* )?echo[ (.](.*)', line, re.I)
-                if said and not said[1].startswith('[dry-run]') and re.search(r'[A-Za-z]{4,} [a-z]{2,}', said[1]):
-                    self.assertRegex(said[1], '[А-Яа-яЁё]', line)
+                said = re.match(r'\s*(?:if [^(]* )?(echo|%RU%|%EN%)[ (.](.*)', line, re.I)
+                if not said:
+                    continue
+                if said[1] == '%RU%':
+                    self.assertRegex(said[2], '[А-Яа-яЁё]|^=+$', line)
+                elif said[1] == '%EN%':
+                    self.assertTrue(said[2].isascii(), line)
+                elif not said[2].startswith('[dry-run]'):
+                    self.assertNotRegex(said[2], r'[A-Za-z]{4,} [a-z]{2,}|[А-Яа-яЁё]', line)
             # The elevation: the normal UAC prompt, by Start-Process -Verb RunAs
             # of cmd.exe and the command line a dry run prints.
             self.assertIn('Start-Process -FilePath $env:ComSpec -ArgumentList $env:SKHID_CMDLINE -Verb RunAs', text)
@@ -406,6 +415,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(name, readme)
         network, defender = texts[overlay.NETWORK_SETUP], texts[overlay.DEFENDER_SETUP]
         self.assertRegex(network, r"Write-Output \('ВНИМАНИЕ: [^']*'")
+        self.assertRegex(network, r"Write-Output \('WARNING: [^']*'")
         self.assertIn('set "PROGRAMS=' + ' '.join(PROGRAMS) + '"', network)
         # Each does its one thing: the firewall's no Defender, Defender's no firewall.
         self.assertNotIn('MpPreference', network)
@@ -419,18 +429,30 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('VPN.txt', readme)
         self.assertIn('VPN.txt', (folder / 'LINUX.txt').read_text(encoding='utf-8'))
 
-    def windows_env(self, locale='en_US.UTF-8'):
+    def windows_env(self, locale='en_US.UTF-8', ui=None):
         """The environment of a Windows program here: this one, or Wine's in a
         prefix of its own (no window is opened). Under Wine, `locale` is the
         Windows': ru_RU.UTF-8 is a Russian one (code page 866), en_US.UTF-8
-        an English one (437)."""
+        an English one (437). `ui`, when given, is the display language the
+        setup scripts are told: a stand-in powershell.exe first in the PATH
+        prints it ('': nothing) and does nothing else."""
         if os.name == 'nt':
-            return dict(os.environ)
-        prefix = self.root / ('wineprefix-' + locale.split('.')[0])
-        prefix.mkdir(exist_ok=True)
-        env = {k: v for k, v in os.environ.items()
-               if k not in ('DISPLAY', 'WAYLAND_DISPLAY', 'LANGUAGE') and not k.startswith('LC_')}
-        env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all', LANG=locale, LC_ALL=locale)
+            env = dict(os.environ)
+        else:
+            prefix = self.root / ('wineprefix-' + locale.split('.')[0])
+            prefix.mkdir(exist_ok=True)
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ('DISPLAY', 'WAYLAND_DISPLAY', 'LANGUAGE') and not k.startswith('LC_')}
+            env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all', LANG=locale, LC_ALL=locale)
+        if ui is not None:
+            stubs = self.root / ('ui-' + (ui or 'none'))
+            if not stubs.exists():
+                stubs.mkdir()
+                exit_program(stubs / 'powershell.exe', 0, ui)
+            if os.name == 'nt':
+                env['PATH'] = str(stubs) + os.pathsep + env['PATH']
+            else:
+                env['WINEPATH'] = 'Z:' + str(stubs).replace('/', '\\')
         return env
 
     def cmd(self, folder, *arguments, env=None):
@@ -443,12 +465,12 @@ class ReleaseTests(unittest.TestCase):
             print(command, done.returncode, done.stdout, done.stderr)
         return done.stdout.decode('cp866').replace('\r\n', '\n').splitlines()
 
-    def setup_script(self, top, name, *options, locale='en_US.UTF-8'):
+    def setup_script(self, top, name, *options, locale='en_US.UTF-8', ui='ru'):
         """The script `name` of the overlay in `top`, run by its name from its
         folder (it finds the folder itself, %~dp0)."""
-        return self.cmd(top, name, *options, env=self.windows_env(locale))
+        return self.cmd(top, name, *options, env=self.windows_env(locale, ui))
 
-    def elevated(self, line, locale='en_US.UTF-8'):
+    def elevated(self, line, locale='en_US.UTF-8', ui='ru'):
         """The elevated run of a dry run's `elevate:` line, as Start-Process
         starts it (cmd.exe and that command line), without asking for
         administrator rights, from another folder (an elevated one starts in
@@ -459,7 +481,7 @@ class ReleaseTests(unittest.TestCase):
                             b'"%ComSpec%" !SKHID_TEST_CMDLINE!\r\n')
         prefix = '[dry-run] elevate: cmd.exe '
         self.assertTrue(line.startswith(prefix), line)
-        env = self.windows_env(locale)
+        env = self.windows_env(locale, ui)
         env['SKHID_TEST_CMDLINE'] = line[len(prefix):]
         return self.cmd(self.root, 'elevate.cmd', env=env)
 
@@ -468,15 +490,16 @@ class ReleaseTests(unittest.TestCase):
         # Folders with a space and brackets, with an &, with a !, in
         # Cyrillic, Ukrainian (і, which code page 866 has not) and Polish, as
         # a player's may be; under Wine on a Russian Windows and on an
-        # English one.
+        # English one. Each in another display language: Russian for ru, uk
+        # and be, English for the others and when PowerShell says nothing.
         locales = ['en_US.UTF-8']
         if os.name != 'nt' and RUSSIAN:
             locales.insert(0, 'ru_RU.UTF-8')
         for locale in locales:
-            for name in ('My Games (x86)', 'Tom & Jerry (x86)', 'Wow! Games (x86)', 'Мои игры! & (x86)',
-                         'Віталій (x86)', 'Café Łódź (x86)'):
-                with self.subTest(locale=locale, folder=name):
-                    self.setup_scripts_in(self.root / locale / name / 'Survarium', locale)
+            for name, ui in (('My Games (x86)', 'ru'), ('Tom & Jerry (x86)', 'en'), ('Wow! Games (x86)', 'uk'),
+                             ('Мои игры! & (x86)', ''), ('Віталій (x86)', 'be'), ('Café Łódź (x86)', 'de')):
+                with self.subTest(locale=locale, folder=name, ui=ui):
+                    self.setup_scripts_in(self.root / locale / name / 'Survarium', locale, ui)
 
     def assertShown(self, lines, expected, locale):
         """`lines` (what the script printed into a pipe) are `expected`, but
@@ -500,8 +523,11 @@ class ReleaseTests(unittest.TestCase):
         for line, want in zip(lines, expected):
             self.assertRegex(line, '^' + pattern(want) + '$', '\n'.join(lines))
 
-    def setup_scripts_in(self, top, locale):
+    def setup_scripts_in(self, top, locale, ui):
         self.build(top)
+
+        def said(russian, english):
+            return russian if ui in RUSSIAN_UI else english
         x86 = str(top / 'game' / 'binaries' / 'x86')
         if os.name != 'nt':
             x86 = 'Z:' + x86.replace('/', '\\')
@@ -516,10 +542,17 @@ class ReleaseTests(unittest.TestCase):
             return [line for line in lines if line.startswith('[dry-run] ') and 'elevate:' not in line]
 
         def setup(*options):
-            return self.setup_script(top, overlay.NETWORK_SETUP, *options, locale=locale)
+            return self.setup_script(top, overlay.NETWORK_SETUP, *options, locale=locale, ui=ui)
 
         def defender(*options):
-            return self.setup_script(top, overlay.DEFENDER_SETUP, *options, locale=locale)
+            return self.setup_script(top, overlay.DEFENDER_SETUP, *options, locale=locale, ui=ui)
+
+        # The restore of the files Defender deleted: from the server
+        # updater_skhid.url names, else skhid.link.
+        def restore(site):
+            return [f'[dry-run] download {site}/download, check it against the sha256 of {site}/api/client-files',
+                    f'[dry-run] put back its files missing in "{top_windows}", overwriting none']
+        site = (top / 'game' / 'binaries' / 'x86' / 'updater_skhid.url').read_text().strip()
 
         def shown(lines, expected):
             self.assertShown(lines, expected, locale)
@@ -534,10 +567,12 @@ class ReleaseTests(unittest.TestCase):
 
         # The firewall.
         added = setup('--dry-run')
-        self.assertIn('Настройка сети Skhid', added)
-        shown([line for line in added if line.startswith('Папка игры:')], [f'Папка игры: "{top_windows}"'])
+        self.assertIn(said('Настройка сети Skhid', 'Skhid network setup'), added)
+        folder = said('Папка игры: ', 'Game folder: ')
+        shown([line for line in added if line.startswith(folder)], [f'{folder}"{top_windows}"'])
         for program in PROGRAMS:
-            self.assertIn(f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)', added)
+            self.assertIn(said(f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)',
+                               f'Firewall: {program} is allowed outgoing connections (TCP and UDP)'), added)
         expected = []
         for program, protocol in rules:
             expected += [delete(program, protocol),
@@ -552,7 +587,7 @@ class ReleaseTests(unittest.TestCase):
         shown(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-network-setup.cmd" '
                         '--elevated --dry-run"'])
         if faithful:
-            elevated = self.elevated(elevate[0], locale)
+            elevated = self.elevated(elevate[0], locale, ui)
             shown(commands(elevated), expected)
             self.assertFalse([line for line in elevated if 'elevate:' in line])
         # Every rule is removed by its name before it is added: a second run
@@ -565,16 +600,16 @@ class ReleaseTests(unittest.TestCase):
               ['[dry-run] elevate: cmd.exe /d /c ""' + top_windows + '\\Skhid-network-setup.cmd" '
                '--elevated --undo --dry-run"'])
         if faithful:
-            elevated = self.elevated([line for line in undone if 'elevate:' in line][0], locale)
+            elevated = self.elevated([line for line in undone if 'elevate:' in line][0], locale, ui)
             self.assertEqual(commands(elevated), commands(undone), '\n'.join(elevated))
 
         # The Defender exclusion: game\binaries\x86 alone, never the folder
-        # above it.
+        # above it; then the files Defender deleted.
         added = defender('--dry-run')
-        self.assertIn('Исключение Skhid в Microsoft Defender', added)
-        shown([line for line in added if line.startswith('Папка игры:')], [f'Папка игры: "{top_windows}"'])
+        self.assertIn(said('Исключение Skhid в Microsoft Defender', 'Skhid exclusion in Microsoft Defender'), added)
+        shown([line for line in added if line.startswith(folder)], [f'{folder}"{top_windows}"'])
         expected = [f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
-                    f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender":']
+                    f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender":'] + restore(site)
         shown(commands(added), expected)
         # What the marker would hold: the path as it is, by the line that
         # writes it.
@@ -584,7 +619,7 @@ class ReleaseTests(unittest.TestCase):
         shown(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-defender-setup.cmd" '
                         '--elevated --dry-run"'])
         if faithful:
-            elevated = self.elevated(elevate[0], locale)
+            elevated = self.elevated(elevate[0], locale, ui)
             shown(commands(elevated), expected)
             self.assertFalse([line for line in elevated if 'elevate:' in line])
         self.assertEqual(defender('--dry-run'), added)
@@ -592,7 +627,8 @@ class ReleaseTests(unittest.TestCase):
         # did not add.
         undone = defender('--dry-run', '--undo')
         self.assertFalse(commands(undone), '\n'.join(undone))
-        self.assertIn('Defender: этот файл не добавлял здесь исключений, удалять нечего.', undone)
+        self.assertIn(said('Defender: этот файл не добавлял здесь исключений, удалять нечего.',
+                           'Defender: this file added no exclusion here, nothing to remove.'), undone)
         shown([line for line in undone if 'elevate:' in line],
               ['[dry-run] elevate: cmd.exe /d /c ""' + top_windows + '\\Skhid-defender-setup.cmd" '
                '--elevated --undo --dry-run"'])
@@ -600,7 +636,8 @@ class ReleaseTests(unittest.TestCase):
         # reads it: test_the_defender_marker_keeps_every_letter), in the
         # elevated run too.
         marker = top / 'Skhid-network-setup.defender'
-        pointer = 'Defender: исключение папки игры удаляет Skhid-defender-setup.cmd --undo'
+        pointer = said('Defender: исключение папки игры удаляет Skhid-defender-setup.cmd --undo',
+                       "Defender: the game folder's exclusion is removed by Skhid-defender-setup.cmd --undo")
         self.assertNotIn(pointer, setup('--dry-run', '--undo'))
         marker.write_bytes(b'\xef\xbb\xbf' + x86.encode())
         # The network setup, which made it once, says which file removes it.
@@ -611,18 +648,30 @@ class ReleaseTests(unittest.TestCase):
                '\\Skhid-network-setup.defender")',
                f'[dry-run] delete "{top_windows}\\Skhid-network-setup.defender"'])
         if faithful:
-            elevated = self.elevated([line for line in undone if 'elevate:' in line][0], locale)
+            elevated = self.elevated([line for line in undone if 'elevate:' in line][0], locale, ui)
             self.assertEqual(commands(elevated), commands(undone), '\n'.join(elevated))
         marker.unlink()
 
+        # Defender deleted the exe: the Defender setup knows its place by the
+        # updater's address still, and puts the exe back.
+        exe = top / 'game' / 'binaries' / 'x86' / 'survarium_skhid.exe'
+        kept = exe.read_bytes()
+        exe.unlink()
+        shown(commands(defender('--dry-run')), expected)
         # Not beside the game: each says where it belongs and changes nothing.
-        (top / 'game' / 'binaries' / 'x86' / 'survarium_skhid.exe').unlink()
+        (top / 'game' / 'binaries' / 'x86' / 'updater_skhid.url').unlink()
         for run in (setup, defender):
             lost = run('--dry-run')
-            self.assertIn('Не найден survarium_skhid.exe в папке', lost)
+            self.assertIn(said('Не найден survarium_skhid.exe в папке', 'survarium_skhid.exe is not in the folder'),
+                          lost)
             self.assertFalse([line for line in lost if line.startswith('[dry-run] ')])
-            self.assertIn('Неизвестный параметр: --firewall-off', run('--firewall-off'))
-        self.assertIn('Неизвестный параметр: --defender-yes', setup('--defender-yes'))
+            self.assertIn(said('Неизвестный параметр: --firewall-off', 'Unknown option: --firewall-off'),
+                          run('--firewall-off'))
+        self.assertIn(said('Неизвестный параметр: --defender-yes', 'Unknown option: --defender-yes'),
+                      setup('--defender-yes'))
+        # Without the updater's address, the server is skhid.link.
+        exe.write_bytes(kept)
+        shown(commands(defender('--dry-run'))[2:], restore('https://skhid.link'))
 
     def powershell_of(self, word):
         """The PowerShell code of the shipped Defender script's powershell
@@ -643,7 +692,8 @@ class ReleaseTests(unittest.TestCase):
         read by the undo's, with stand-ins for the Defender cmdlets (no
         exclusion is made): a path's every letter, Ukrainian and Polish too,
         which code page 866 has not; and a marker of the earlier script
-        (#453: the path in 866 and a line end) still read."""
+        (#453: the path in 866 and a line end) still read. What the undo says
+        is Russian on a Russian Windows (SKHID_RU), English on another."""
         add, remove = self.powershell_of('Add-MpPreference'), self.powershell_of('Remove-MpPreference')
         stand_ins = (
             "$log = $env:SKHID_TEST_LOG; $utf8 = [Text.UTF8Encoding]::new($false); "
@@ -661,6 +711,9 @@ class ReleaseTests(unittest.TestCase):
             env.pop('SKHID_TEST_REFUSE', None)
             if refuse:
                 env['SKHID_TEST_REFUSE'] = '1'
+            env.pop('SKHID_RU', None)
+            if locale.startswith('ru'):
+                env['SKHID_RU'] = '1'
             done = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-Command', stand_ins + code],
                                   env=env, capture_output=True, timeout=300)
             said = done.stdout.decode('oem' if os.name == 'nt' else 'utf-8', 'replace')
@@ -679,20 +732,93 @@ class ReleaseTests(unittest.TestCase):
                     rc, said = run(remove, path, locale=locale)
                     self.assertEqual(rc, 0, said)
                     if os.name != 'nt':
-                        self.assertEqual(said, f'Defender: исключение "{path}" удалено.')
+                        self.assertEqual(said, f'Defender: исключение "{path}" удалено.' if locale.startswith('ru')
+                                         else f'Defender: the exclusion "{path}" is removed.')
                     self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [f'add|{path}', f'remove|{path}'])
                     # Refused: said, and the marker stays (the script deletes
                     # it only after a removal).
                     rc, said = run(remove, path, refuse=True, locale=locale)
                     self.assertEqual(rc, 1, said)
                     if os.name != 'nt':
-                        self.assertEqual(said, f'Defender: исключение "{path}" удалить не удалось.')
+                        self.assertEqual(said, f'Defender: исключение "{path}" удалить не удалось.'
+                                         if locale.startswith('ru')
+                                         else f'Defender: the exclusion "{path}" could not be removed.')
             # The earlier script's marker: code page 866, a line end.
             path = paths[2]
             log.unlink(missing_ok=True)
             marker.write_bytes(path.encode('cp866') + b'\r\n')
             self.assertEqual(run(remove, path, locale=locale)[0], 0)
             self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [f'remove|{path}'])
+
+    @unittest.skipUnless(POWERSHELL, 'PowerShell (pwsh elsewhere than on Windows)')
+    def test_the_defender_setup_puts_back_the_files_defender_deleted(self):
+        """The restore after the exclusion, by its PowerShell against a server
+        here: the missing updater_skhid.exe put back from the ZIP, a file
+        that is there left as it is, nothing of the download left; a ZIP
+        that is not the one announced, or no server, changes nothing."""
+        import http.server
+        import threading
+        restore = self.powershell_of('/api/client-files')
+        packed = io.BytesIO()
+        with zipfile.ZipFile(packed, 'w') as archive:
+            for name in ('Skhid.bat', 'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/updater_skhid.exe'):
+                archive.writestr(name, 'from the server: ' + name)
+        packed = packed.getvalue()
+        announced = [hashlib.sha256(packed).hexdigest()]
+
+        class Site(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = {'/api/client-files': f'skhid-client-files 1\nsha256 {announced[0]}\nsize {len(packed)}\n'
+                        'min-revision 0\n'.encode(), '/download': packed}.get(self.path, b'')
+                self.send_response(200 if body else 404)
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Site)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        top = self.root / 'Мои игры! & (x86)' / 'Survarium'
+        x86 = top / 'game' / 'binaries' / 'x86'
+        x86.mkdir(parents=True)
+        (top / 'Skhid.bat').write_bytes(b"the player's starter")
+        (x86 / 'survarium_skhid.exe').write_bytes(b"the player's exe")
+        updater = x86 / 'updater_skhid.exe'
+
+        def run(ru, site=f'http://127.0.0.1:{server.server_port}/'):
+            env = dict(os.environ, SKHID_TOP=str(top), SKHID_SITE=site)
+            env.pop('SKHID_RU', None)
+            if ru:
+                env['SKHID_RU'] = '1'
+            done = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-Command', restore],
+                                  env=env, capture_output=True, timeout=300)
+            said = done.stdout.decode('oem' if os.name == 'nt' else 'utf-8', 'replace')
+            return done.returncode, said.strip().splitlines()
+
+        def files():
+            return {str(path.relative_to(top)): path.read_bytes() for path in top.rglob('*') if path.is_file()}
+        player = files()
+        self.assertEqual(run(True), (0, ['Восстановлены файлы Skhid:',
+                                         '  ' + os.path.join('game', 'binaries', 'x86', 'updater_skhid.exe')]))
+        self.assertEqual(files(), dict(player, **{
+            os.path.join('game', 'binaries', 'x86', 'updater_skhid.exe'):
+                b'from the server: game/binaries/x86/updater_skhid.exe'}))
+        self.assertEqual(run(False), (0, ['No Skhid file is missing, nothing to restore.']))
+        updater.unlink()
+        announced[0] = '0' * 64
+        self.assertEqual(run(False), (1, ['Restore: the download is damaged (wrong sha256). Nothing changed.']))
+        self.assertEqual(run(True), (1, ['Восстановление: скачанный архив повреждён (не тот sha256). '
+                                         'Ничего не изменено.']))
+        self.assertEqual(files(), player)
+        server.shutdown()
+        server.server_close()
+        site = f'http://127.0.0.1:{server.server_port}'
+        self.assertEqual(run(False, site), (1, [f'Restore: could not download the Skhid files from {site}. '
+                                                'Nothing changed.']))
+        self.assertEqual(files(), player)
 
     @unittest.skipUnless(WINE and os.name != 'nt', "Wine (on Windows, a real run would change its firewall)")
     def test_the_setup_scripts_ask_for_administrator_rights(self):
@@ -713,59 +839,85 @@ class ReleaseTests(unittest.TestCase):
             shutil.rmtree(stubs, ignore_errors=True)
             stubs.mkdir()
             exit_program(stubs / 'fltmc.exe', fltmc)
-            exit_program(stubs / 'powershell.exe', powershell)
+            # PowerShell also says the display language (the elevation's
+            # stand-in prints it too: a line no check looks for).
+            exit_program(stubs / 'powershell.exe', powershell, ui)
             env = self.windows_env(locale)
             env['WINEPATH'] = 'Z:' + str(stubs).replace('/', '\\')
             return self.cmd(top, script, *options, env=env)
 
-        # Each script: what it needs the rights for, the end of its "say Yes"
+        # Each script: the line of what needs the rights, the end of its "say Yes"
         # line, its own lines (the work done), and those of a run with the
         # rights (the stand-in PowerShell fails: Defender's exclusion is not
-        # added, and the firewall's script goes on without it).
-        firewall = [f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)' for program in PROGRAMS]
-        for script, need, why, prefix, admin_lines in (
-                (overlay.NETWORK_SETUP, 'Для правил брандмауэра', 'настроил брандмауэр.', 'Брандмауэр:',
-                 firewall + ['Готово. Чтобы убрать всё это: Skhid-network-setup.cmd --undo']),
-                (overlay.DEFENDER_SETUP, 'Для исключения в Defender', 'добавил исключение.', 'Defender:',
-                 ['Defender: исключение добавить не удалось. Возможно, защитой управляет'])):
-            with self.subTest(script=script):
-                asks = [need + ' нужны права администратора. Сейчас Windows',
-                        'спросит разрешение (контроль учётных записей): нажмите "Да". Тогда этот',
-                        'файл запустится ещё раз, в новом окне.']
-                declined = ['Ничего не изменено: Windows не дала прав администратора.',
-                            'Запустите этот файл ещё раз и в окне Windows нажмите "Да", чтобы он', why]
+        # added, and the firewall's script goes on without it); in Russian
+        # and in English.
+        for ui in ('ru', 'en'):
+            if ui == 'ru':
+                firewall = [f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)' for program in PROGRAMS]
+                scripts = (
+                    (overlay.NETWORK_SETUP, 'Для правил брандмауэра нужны права администратора. Сейчас Windows',
+                     'настроил брандмауэр.', 'Брандмауэр:',
+                     firewall + ['Готово. Чтобы убрать всё это: Skhid-network-setup.cmd --undo']),
+                    (overlay.DEFENDER_SETUP, 'Для исключения в Defender нужны права администратора. Сейчас Windows',
+                     'добавил исключение.', 'Defender:',
+                     ['Defender: исключение добавить не удалось. Возможно, защитой управляет']))
+                asks_tail = ['спросит разрешение (контроль учётных записей): нажмите "Да". Тогда этот',
+                             'файл запустится ещё раз, в новом окне.']
+                declined_head = ['Ничего не изменено: Windows не дала прав администратора.',
+                                 'Запустите этот файл ещё раз и в окне Windows нажмите "Да", чтобы он']
+                unchanged, press = 'Ничего не изменено', 'Нажмите любую клавишу, чтобы закрыть окно.'
+                not_admin = 'Ничего не изменено: у этого окна нет прав администратора.'
+            else:
+                firewall = [f'Firewall: {program} is allowed outgoing connections (TCP and UDP)' for program in PROGRAMS]
+                scripts = (
+                    (overlay.NETWORK_SETUP, 'The firewall rules need administrator rights. Windows will now ask',
+                     'sets up the firewall.', 'Firewall:',
+                     firewall + ['Done. To remove all this: Skhid-network-setup.cmd --undo']),
+                    (overlay.DEFENDER_SETUP, 'The Defender exclusion needs administrator rights. Windows will now ask',
+                     'adds the exclusion.', 'Defender:',
+                     ['Defender: the exclusion could not be added. Perhaps another antivirus']))
+                asks_tail = ['for permission (User Account Control): click "Yes". Then this file',
+                             'will start again, in a new window.']
+                declined_head = ['Nothing changed: Windows gave no administrator rights.',
+                                 'Start this file again and click "Yes" in the Windows prompt, so that it']
+                unchanged, press = 'Nothing changed', 'Press any key to close the window.'
+                not_admin = 'Nothing changed: this window has no administrator rights.'
+            for script, need, why, prefix, admin_lines in scripts:
+                with self.subTest(script=script, ui=ui):
+                    asks = [need, *asks_tail]
+                    declined = [*declined_head, why]
 
-                def work(lines):
-                    return [line for line in lines if line.startswith(prefix)]
+                    def work(lines):
+                        return [line for line in lines if line.startswith(prefix)]
 
-                # No rights, Yes at the prompt: the elevated copy (a new
-                # window) does the work; this one ends at once, with nothing
-                # done and no pause. A negative exit code of fltmc is no
-                # rights either (an "if errorlevel 1" would take it for them).
-                for no_rights in (1, -5):
-                    accepted = run(script, no_rights, 0)
-                    self.assertEqual(accepted[accepted.index(asks[0]):][:3], asks, '\n'.join(accepted))
-                    self.assertFalse(work(accepted), '\n'.join(accepted))
-                    self.assertFalse([line for line in accepted if 'Ничего не изменено' in line or 'Нажмите' in line])
-                # No at the prompt: nothing changed, run it again and say Yes.
-                refused = run(script, 1, 1)
-                self.assertEqual(refused[refused.index(asks[0]):][:3], asks, '\n'.join(refused))
-                self.assertEqual(refused[refused.index(declined[0]):][:3], declined, '\n'.join(refused))
-                self.assertFalse(work(refused))
-                self.assertIn('Нажмите любую клавишу, чтобы закрыть окно.', refused)
-                # The elevated copy without the rights after all: it asks no more.
-                again = run(script, 1, 0, '--elevated')
-                self.assertIn('Ничего не изменено: у этого окна нет прав администратора.', again)
-                self.assertNotIn(asks[0], again)
-                self.assertFalse(work(again))
-                # With the rights: no question, the work (Wine's netsh may
-                # refuse the rules; the script goes on) and the rest.
-                admin = run(script, 0, 1)
-                self.assertNotIn(asks[0], admin)
-                for line in admin_lines:
-                    self.assertIn(line, admin, '\n'.join(admin))
-                self.assertEqual(work(admin), [line for line in admin_lines if line.startswith(prefix)],
-                                 '\n'.join(admin))
+                    # No rights, Yes at the prompt: the elevated copy (a new
+                    # window) does the work; this one ends at once, with nothing
+                    # done and no pause. A negative exit code of fltmc is no
+                    # rights either (an "if errorlevel 1" would take it for them).
+                    for no_rights in (1, -5):
+                        accepted = run(script, no_rights, 0)
+                        self.assertEqual(accepted[accepted.index(asks[0]):][:3], asks, '\n'.join(accepted))
+                        self.assertFalse(work(accepted), '\n'.join(accepted))
+                        self.assertFalse([line for line in accepted if unchanged in line or press in line])
+                    # No at the prompt: nothing changed, run it again and say Yes.
+                    refused = run(script, 1, 1)
+                    self.assertEqual(refused[refused.index(asks[0]):][:3], asks, '\n'.join(refused))
+                    self.assertEqual(refused[refused.index(declined[0]):][:3], declined, '\n'.join(refused))
+                    self.assertFalse(work(refused))
+                    self.assertIn(press, refused)
+                    # The elevated copy without the rights after all: it asks no more.
+                    again = run(script, 1, 0, '--elevated')
+                    self.assertIn(not_admin, again)
+                    self.assertNotIn(asks[0], again)
+                    self.assertFalse(work(again))
+                    # With the rights: no question, the work (Wine's netsh may
+                    # refuse the rules; the script goes on) and the rest.
+                    admin = run(script, 0, 1)
+                    self.assertNotIn(asks[0], admin)
+                    for line in admin_lines:
+                        self.assertIn(line, admin, '\n'.join(admin))
+                    self.assertEqual(work(admin), [line for line in admin_lines if line.startswith(prefix)],
+                                     '\n'.join(admin))
 
     def console(self, folder, env, command):
         """What Wine's console shows on a terminal for cmd /d /c `command` in
@@ -802,32 +954,46 @@ class ReleaseTests(unittest.TestCase):
         return escapes.sub('', seen.decode('utf-8', 'replace'))
 
     @unittest.skipUnless(WINE and os.name != 'nt', "Wine's console on a terminal")
-    def test_the_setup_scripts_speak_russian_in_a_console(self):
+    def test_the_setup_scripts_speak_the_players_language_in_a_console(self):
         """What a player reads in the window, on a Russian Windows (code page
         866) and on an English one (437): Russian, not the letters of another
-        code page; and the console's own code page back at the end. (The
-        Russian Windows needs the ru_RU.UTF-8 locale here.)"""
+        code page, or English, by the display language; and the console's own
+        code page back at the end. (The Russian Windows needs the ru_RU.UTF-8
+        locale here.)"""
         top = self.root / 'Мои игры' / 'Survarium'
         self.build(top)
         x86 = 'Z:' + str(top / 'game' / 'binaries' / 'x86').replace('/', '\\')
-        folder = f'Папка игры: "{x86.rsplit(chr(92) + "game", 1)[0]}"'
+        top_windows = x86.rsplit(chr(92) + "game", 1)[0]
         windows = [('en_US.UTF-8', '437')]
         if RUSSIAN:
             windows.insert(0, ('ru_RU.UTF-8', '866'))
-        for locale, own in windows:
-            env = self.windows_env(locale)
-            for script, lines in (
-                    (overlay.NETWORK_SETUP, ('Настройка сети Skhid',
-                                             'Добавляет правила брандмауэра Windows, которые разрешают трём программам',
-                                             'Брандмауэр остаётся включённым.', folder,
-                                             'Брандмауэр: survarium_skhid.exe разрешены исходящие соединения (TCP и UDP)',
-                                             'Готово. Чтобы убрать всё это: Skhid-network-setup.cmd --undo')),
-                    (overlay.DEFENDER_SETUP, ('Исключение Skhid в Microsoft Defender',
-                                              'Microsoft Defender может по ошибке принять изменённые файлы игры',
-                                              f'  "{x86}"', 'Defender остаётся включённым.', folder,
-                                              f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
-                                              'Готово. Чтобы убрать исключение: Skhid-defender-setup.cmd --undo'))):
-                with self.subTest(locale=locale, script=script):
+        said = {
+            'ru': ((overlay.NETWORK_SETUP, ('Настройка сети Skhid',
+                                            'Добавляет правила брандмауэра Windows, которые разрешают трём программам',
+                                            'Брандмауэр остаётся включённым.', f'Папка игры: "{top_windows}"',
+                                            'Брандмауэр: survarium_skhid.exe разрешены исходящие соединения (TCP и UDP)',
+                                            'Готово. Чтобы убрать всё это: Skhid-network-setup.cmd --undo')),
+                   (overlay.DEFENDER_SETUP, ('Исключение Skhid в Microsoft Defender',
+                                             'Microsoft Defender может по ошибке принять изменённые файлы игры',
+                                             f'  "{x86}"', 'Defender остаётся включённым.',
+                                             f'Папка игры: "{top_windows}"',
+                                             f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
+                                             'Готово. Чтобы убрать исключение: Skhid-defender-setup.cmd --undo'))),
+            'en': ((overlay.NETWORK_SETUP, ('Skhid network setup',
+                                            "Adds Windows Firewall rules that allow the game's three programs in",
+                                            'The firewall stays on.', f'Game folder: "{top_windows}"',
+                                            'Firewall: survarium_skhid.exe is allowed outgoing connections (TCP and UDP)',
+                                            'Done. To remove all this: Skhid-network-setup.cmd --undo')),
+                   (overlay.DEFENDER_SETUP, ('Skhid exclusion in Microsoft Defender',
+                                             "Microsoft Defender may mistake the game's changed files",
+                                             f'  "{x86}"', 'Defender stays on.', f'Game folder: "{top_windows}"',
+                                             f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
+                                             'Done. To remove the exclusion: Skhid-defender-setup.cmd --undo'))),
+        }
+        for (locale, own), ui in ((window, ui) for window in windows for ui in said):
+            env = self.windows_env(locale, ui)
+            for script, lines in said[ui]:
+                with self.subTest(locale=locale, script=script, ui=ui):
                     seen = self.console(top, env, script + ' --dry-run & chcp')
                     for line in lines:
                         self.assertIn(line, seen, seen)
@@ -835,21 +1001,32 @@ class ReleaseTests(unittest.TestCase):
                     self.assertEqual(pages, [own], seen)
 
 
-def exit_program(path, code):
-    """A Windows console program that ends with exit code `code` and does
-    nothing else: a 32-bit PE whose one section holds `push code; call
-    [ExitProcess]` and the import of ExitProcess from kernel32."""
+def exit_program(path, code, said=''):
+    """A Windows console program that writes the line `said` (if any) to its
+    standard output, ends with exit code `code` and does nothing else: a
+    32-bit PE whose one section holds `WriteFile(GetStdHandle(-11), ...);
+    ExitProcess(code)` and the imports of the three from kernel32."""
     section_rva, base = 0x1000, 0x400000
-    descriptor, lookup, address, hint, dll = 0x40, 0x80, 0x90, 0xA0, 0xC0
+    descriptor, lookup, address, hints, dll, written, text = 0x40, 0x80, 0x90, 0xA0, 0xE0, 0xF0, 0x100
     section = bytearray(0x200)
-    assert -128 <= code < 128  # push imm8, sign-extended
-    section[:8] = bytes([0x6A, code & 0xFF, 0xFF, 0x15]) + (base + section_rva + address).to_bytes(4, 'little')
+    line = (said + '\r\n').encode('ascii') if said else b''
+    assert -128 <= code < 128 and len(line) < 128  # push imm8, sign-extended
+
+    def at(offset):
+        return (base + section_rva + offset).to_bytes(4, 'little')
+    # The import address table: ExitProcess, GetStdHandle, WriteFile.
+    section[:37] = (bytes([0x6A, 0xF5, 0xFF, 0x15]) + at(address + 4)  # GetStdHandle(STD_OUTPUT_HANDLE)
+                    + bytes([0x6A, 0, 0x68]) + at(written) + bytes([0x6A, len(line), 0x68]) + at(text)
+                    + bytes([0x50, 0xFF, 0x15]) + at(address + 8)  # WriteFile(it, text, len, &written, 0)
+                    + bytes([0x6A, code & 0xFF, 0xFF, 0x15]) + at(address))  # ExitProcess(code)
     struct.pack_into('<5I', section, descriptor, section_rva + lookup, 0, 0, section_rva + dll,
                      section_rva + address)
-    struct.pack_into('<I', section, lookup, section_rva + hint)
-    struct.pack_into('<I', section, address, section_rva + hint)
-    section[hint:hint + 14] = b'\0\0ExitProcess\0'
+    for i, name in enumerate((b'ExitProcess', b'GetStdHandle', b'WriteFile')):
+        struct.pack_into('<I', section, lookup + 4 * i, section_rva + hints + 0x10 * i)
+        struct.pack_into('<I', section, address + 4 * i, section_rva + hints + 0x10 * i)
+        section[hints + 0x10 * i:hints + 0x10 * i + len(name) + 3] = b'\0\0' + name + b'\0'
     section[dll:dll + 13] = b'KERNEL32.dll\0'
+    section[text:text + len(line)] = line
     headers = bytearray(0x200)
     headers[:2] = b'MZ'
     struct.pack_into('<I', headers, 0x3C, 0x40)
