@@ -397,6 +397,10 @@ pub(crate) struct CamperMotion {
     last_think: u32,
     /// The spot he came from, to keep him from bouncing between two.
     previous: Option<Vec3>,
+    /// [A239] [`MoveOptions::Live`]: the spot his next life starts on, chosen while he is dead ([`Self::start_after_death`]), and
+    /// the life (its spawn time) it was chosen after.
+    life_start: Option<Vec3>,
+    chosen_after: Option<u32>,
     rng: Rng,
     /// What happened, for the notes and the tests: moves counted by cause.
     pub(crate) counts: MotionCounts,
@@ -417,6 +421,8 @@ pub(crate) struct MotionCounts {
     pub(crate) gave_up: u32,
     /// [A239] Leaves decided on an enemy near after a kill ([`MoveOptions::Live`]).
     pub(crate) enemy_near: u32,
+    /// [A239] Lives started on another spot than the one he died at ([`CamperMotion::start_after_death`]).
+    pub(crate) life_starts_elsewhere: u32,
 }
 
 /// What a think of the camper knows.
@@ -462,6 +468,8 @@ impl CamperMotion {
             life: me.spawned,
             last_think: now,
             previous: None,
+            life_start: None,
+            chosen_after: None,
             rng,
             counts: MotionCounts::default(),
         }
@@ -519,14 +527,14 @@ impl CamperMotion {
         self.intent(t)
     }
 
-    /// A new life: back to the same spot after the death with the human's chance, else a new spot; [`MoveOptions::Live`]: on his
-    /// first spot (where `SRP_BENCH_CAMPER_START=spot` puts him; else he walks there).
+    /// A new life: back to the same spot after the death with the human's chance, else a new spot; [`MoveOptions::Live`]: on the
+    /// spot chosen for it while he was dead ([`Self::start_after_death`]; `SRP_BENCH_CAMPER_START=spot` puts him there, else he
+    /// walks there), his first spot if none was.
     fn respawned(&mut self, t: &Think<'_>, dead_ms: u32) {
         if self.moving == MoveOptions::Live
-            && let Some((first, _)) = camper_spot_at(t.tactics, t.side, &self.options)
+            && let Some(to) = self.life_start.take().or_else(|| camper_spot_at(t.tactics, t.side, &self.options).map(|(at, _)| at))
         {
-            self.previous = None;
-            self.mode = Mode::Leave { to: first, since: t.now };
+            self.mode = Mode::Leave { to, since: t.now };
             return;
         }
         let spot = self.spot();
@@ -660,14 +668,43 @@ impl CamperMotion {
 
     /// The next spot of his scenario: the best by the rule, other than the one he came from, far enough from `from`.
     fn next_spot(&self, t: &Think<'_>, from: Vec3) -> Option<Vec3> {
-        let far = if self.options.at == CamperAt::Free { LEAVE_MIN_M } else { ANCHORED_MIN_M };
-        let pool = camper_pool(t.tactics, t.side, &self.options);
+        self.next_spot_in(t.tactics, t.side, from)
+    }
+
+    /// [`Self::next_spot`] on `tactics` for `side`. A live camper's spots ([`CamperAt::Live`]) are any of his kind on the map, so
+    /// the next lies [`LEAVE_MIN_M`] off as with [`CamperAt::Free`]; the anchored scenarios' [`ANCHORED_MIN_M`].
+    fn next_spot_in(&self, tactics: &Tactics, side: i32, from: Vec3) -> Option<Vec3> {
+        let far = if matches!(self.options.at, CamperAt::Free | CamperAt::Live) { LEAVE_MIN_M } else { ANCHORED_MIN_M };
+        let pool = camper_pool(tactics, side, &self.options);
         let usable = |c: &Candidate, skip_previous: bool| {
             c.at.distance_xz(from) >= far && !(skip_previous && self.previous.is_some_and(|p| p.distance_xz(c.at) < far))
         };
         pool.pick(self.options.rule, |c| usable(c, true))
             .or_else(|| pool.pick(self.options.rule, |c| usable(c, false)))
             .map(|(at, _)| at)
+    }
+
+    /// [A239] [`MoveOptions::Live`], once a life of his (spawned at `dead_life`) has ended: the spot his next life starts on, once per
+    /// death (none again for the same life, nor for another motion): back to the spot he held with the live campers' chance of a
+    /// return within 10 m ([`LIVE_SAME_P`] + [`LIVE_NEAR_P`], half of them), else another spot of his kind [`LEAVE_MIN_M`] or more
+    /// off. With `SRP_BENCH_CAMPER_START=spot` every life began on his first spot, where the bots had just killed him: he was
+    /// cleared there in 70 % of his lives (camp-live-move-replica-70ad999e).
+    pub(crate) fn start_after_death(&mut self, tactics: &Tactics, side: i32, dead_life: u32) -> Option<Vec3> {
+        if self.moving != MoveOptions::Live || self.chosen_after == Some(dead_life) {
+            return None;
+        }
+        self.chosen_after = Some(dead_life);
+        let last = self.spot();
+        let to = if self.rng.range(0.0, 1.0) < LIVE_SAME_P + LIVE_NEAR_P {
+            last
+        } else {
+            let next = self.next_spot_in(tactics, side, last).unwrap_or(last);
+            self.previous = Some(last);
+            next
+        };
+        self.counts.life_starts_elsewhere += u32::from(to != last);
+        self.life_start = Some(to);
+        Some(to)
     }
 
     /// At the new spot: its area, a new stay.
@@ -1019,6 +1056,15 @@ impl BenchCamper {
         &self.tuning
     }
 
+    /// [A239] While he is dead after the life spawned at `dead_life`: the spot his next life starts on, once per death, when he moves
+    /// as a live camper ([`CamperMotion::start_after_death`]); none otherwise.
+    pub(crate) fn start_after_death(&mut self, tactics: &Tactics, side: i32, dead_life: u32) -> Option<Vec3> {
+        match &mut self.state {
+            CamperState::Moving { motion, .. } => motion.start_after_death(tactics, side, dead_life),
+            _ => None,
+        }
+    }
+
     /// The spot he began at and how many route points it sees, once found.
     pub(crate) fn first_spot(&self) -> Option<(Vec3, u32)> {
         match &self.state {
@@ -1342,6 +1388,32 @@ mod tests {
         // A new life far from it: he heads for the first spot.
         m.step(&Think { now: 1_000, me: &me_at(Vec3::new(5.0, 0.0, 10.0), 0, 1.0, 900), enemy: None, tactics: &tactics, side: 0 });
         assert!(matches!(m.mode, Mode::Leave { to, .. } if to == first), "{:?}", m.mode);
+    }
+
+    /// [A239] While dead the live camper chooses his next life's spot once: back to his spot about half the time (the live returns
+    /// within 10 m), else another 25 m or more off; the area camper chooses none.
+    #[test]
+    fn the_live_camper_chooses_his_next_lifes_spot_once_per_death() {
+        let tactics = tactics();
+        let live = CamperOptions { moving: Some(MoveOptions::Live), ..CamperOptions::OFF };
+        let mut m = motion_with(live, 1);
+        let first = m.start_after_death(&tactics, 0, 0).expect("a start");
+        assert_eq!(m.start_after_death(&tactics, 0, 0), None, "once per death");
+        assert_eq!(m.life_start, Some(first));
+        let (mut back, mut elsewhere) = (0, 0);
+        for seed in 0..200 {
+            let mut m = motion_with(live, seed);
+            let at = m.start_after_death(&tactics, 0, 0).expect("a start");
+            if at == m.spot() {
+                back += 1;
+            } else {
+                assert!(at.distance_xz(m.spot()) >= LEAVE_MIN_M, "{at:?}");
+                elsewhere += 1;
+            }
+        }
+        assert!((70..=130).contains(&back) && elsewhere > 0, "back {back}, elsewhere {elsewhere}");
+        let mut area = motion();
+        assert_eq!(area.start_after_death(&tactics, 0, 0), None);
     }
 
     /// He walks to his new spot, stops inside the arrival radius the motor is asked for, and a point he cannot reach is given up.
