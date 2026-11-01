@@ -975,8 +975,9 @@ Pairs (`srp-026g/docs/images/renderer-026g/`; left stock, right PCSS; `r_shadow_
   receiver-plane bias (the full kernel radius times a slope clamped at tan = 10) pushed the
   compared depth behind a blocker that sits a few cm from its receiver. The current version
   biases each tap by its own distance from the centre and clamps the slope at tan = 2 (section
-  13): the bench shadow is back whole; the shelf's band is back, its far lower-left corner is
-  still lighter than stock.
+  13), and the normal offset is 1.5 shadow-map texels along the normal instead of the stock
+  9 cm towards the light: the bench shadow is back whole, the shelf's band is back; the far
+  lower-left corner of the shelf's shadow is still lighter than stock.
 
 Shadows lost or added against stock, OBSERVED (local-light diffuse in 8x8 blocks, the character
 masked out; % of blocks over 25 % brighter / darker):
@@ -984,9 +985,10 @@ masked out; % of blocks over 25 % brighter / darker):
 ```
                         shelf wall   under bench   whole view
 first try, 6 cm, q1      +46 / -0     +26 / -1      +5 / -2
-current,   6 cm, q1      +15 / -0      +5 / -3      +2 / -1
-current,  15 cm, q1      +19 / -0      +9 / -0      +3 / -2
-current,   6 cm, q2      +13 / -0      +1 / -0      +3 / -1   (against stock q2)
+per-tap bias, 6 cm, q1   +15 / -0      +5 / -3      +2 / -1
+current,   6 cm, q1       +8 / -3      +2 / -6      +2 / -2
+current,  15 cm, q1      +14 / -4      +4 / -6      +2 / -3
+current,   6 cm, q2       +6 / -1      +3 / -1      +4 / -2   (against stock q2)
 ```
 
 **Cost, OBSERVED** (GPU time of the 57 shadowed light draws of this frame, RenderDoc replay on an
@@ -995,13 +997,13 @@ draws stay at about 95 us):
 
 ```
 r_shadow_quality   stock     PCSS 6 cm        PCSS 15 cm
-       1           182 us    346 us (+164)    347 us (+165)
-       2           355 us    577 us (+222)    -
-whole frame (sum of draws): stock 2.25 ms (q1) / 2.49 ms (q2); PCSS 2.27..2.33 ms (q1) / 2.79 ms (q2)
+       1           182 us    363 us (+181)    362 us (+180)
+       2           355 us    600 us (+245)    -
+whole frame (sum of draws): stock 2.25 ms (q1) / 2.49 ms (q2); PCSS 2.34..2.42 ms (q1) / 2.82 ms (q2)
 ```
 
-PCSS at quality 1 (16 blocker loads + 8 compares) costs about what the stock quality 2 filter
-does (346 against 355 us). Frames per second were not measured: under the dummy display and the
+PCSS at quality 1 (16 blocker loads + 8 compares) costs what the stock quality 2 filter does,
+within the measurement's noise (363 against 355 us). Frames per second were not measured: under the dummy display and the
 capture layer the frame rate is set by the CPU and the 60 Hz mode, and the shadow cost
 (0.1..0.25 ms a frame here) is below what fps would show; the per-draw GPU time is the measure.
 
@@ -1080,6 +1082,9 @@ no shader; they are not a size and stay unused. PROVEN (the inputs), design (the
                     keep depths < the tap's biased receiver depth; none -> lit (no filter taps)
 2. penumbra         z_b = Qn / (Q - mean blocker depth)
                     w   = R (z_r - z_b) / z_b * P00 / (2 z_r)    in uv, clamped 1 .. 24 texels
+normal offset       1.5 shadow-map texels at the receiver, along the G-buffer normal (the stock
+                    24 / shadow_map_size metres towards the light moved a wall's receiver in
+                    front of a shelf on it at a grazing light)
 3. filter           N_f bilinear compare taps on a disc of radius w
                     s = saturate(mean + shadow_transparency)
 receiver-plane bias, per tap: depth minus (|tap| * radius + 1.5 texels) * Qn/z_r^2 *
@@ -1093,8 +1098,8 @@ disc: Vogel (golden angle); at r_shadow_quality 2 and 3 rotated per pixel by int
       as grain; the screen-fixed pattern is only smoothed when the player picks TAA)
 ```
 
-`R` is the light's radius, `z_r` the receiver's distance from the light. The stock normal offset
-(section 4.4) and the stock depth test (`0 <= d <= 1`) are kept.
+`R` is the light's radius, `z_r` the receiver's distance from the light. The stock depth test
+(`0 <= d <= 1`) is kept; the normal offset is PCSS's own (above), not the stock one (section 4.4).
 
 **Cost by `r_shadow_quality`** (the permutation's A digit), shadow-map reads per pixel of a
 shadowed light (a point light: per pixel of each face; each read is one instruction, a compare read
@@ -1111,8 +1116,11 @@ ALU slots (point, SSDO on): stock 146 / 181; PCSS 382 (q1), 595 (q2), 739 (q3)
 
 **Tested** in the Basement, section 11: contact hardening on the floor and the characters; the
 bench's shadow kept whole; the far corner of the shelf's shadow on the wall still lighter than
-stock (13..19 % of that wall's blocks). Next: the stock normal offset (up to 9 cm for a 256 map)
-scaled down where the penumbra is wide, which should give that corner back.
+stock (8 % of that wall's blocks at 6 cm, 14 % at 15 cm). What is left there is the per-tap
+receiver-plane bias over a wide penumbra at a grazing light: the clean fix is a slope-scaled depth
+bias in the shadow map itself (the caster draws' rasterizer state, an exe change), so that the
+shader needs no receiver bias; an exact per-tap receiver plane from screen derivatives is the
+shader-only one, and ps_4_0's coarse derivatives made that blocky (section 11).
 
 **Limits.**
 - Point-light faces are rendered with exactly 90 degrees and no guard band, so a kernel that

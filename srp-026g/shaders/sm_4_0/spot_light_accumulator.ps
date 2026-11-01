@@ -231,7 +231,13 @@ light_accumulator main( pixel_shader_input input )
 	// tan of the receiver's angle to the light, clamped to 2 (63 degrees): a steeper bias would push the
 	// compared depth behind a blocker that sits close to its receiver (a shelf on a wall) and lose its shadow
 	float slope				= min( sqrt( 1.0f - n_dot_l_shadow*n_dot_l_shadow )/max( n_dot_l_shadow, 0.1f ), 2.0f );
-	float shadow			= pcss_shadow( mul( view_to_light_matrix, float4( mul( m_V2W, float4( position + offset, 1.0f ) ), 1.0f ) ), input.position.xy, slope );
+	// the normal offset: along the normal only and 1.5 shadow-map texels at the receiver, not the stock
+	// 24 / shadow_map_size metres towards the light (9 cm for a 256 map): moved that far towards a
+	// grazing light, a wall's receiver passes in front of a shelf on it and loses its shadow
+	float4 world_position	= float4( mul( m_V2W, float4( position, 1.0f ) ), 1.0f );
+	float texel_metres		= 2.0f*dot( view_to_light_matrix[3], world_position )/( length( view_to_light_matrix[0].xyz )*shadow_map_size );
+	float3 pcss_position	= position + normal*( 1.5f*texel_metres );
+	float shadow			= pcss_shadow( mul( view_to_light_matrix, float4( mul( m_V2W, float4( pcss_position, 1.0f ) ), 1.0f ) ), input.position.xy, slope );
 #else
 	float shadow			= shadow_factor( position + offset );
 #endif
