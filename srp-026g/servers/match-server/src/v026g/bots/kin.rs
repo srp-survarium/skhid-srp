@@ -108,8 +108,8 @@ pub enum MarginEdge {
     /// the body up to [`super::body::SUPPORT_M`] past its floor's centre, past the cell's boundary, and the margin from there falls at
     /// once, whichever way the body goes. A body walking along a lip on its last floor is held by the full lip guard's sides
     /// (`Feel::lip_guard_full`: the same walk [`super::body::RECKONING_M`] to the side) every tick, and by its own margin once it is
-    /// reckoned past the boundary: of the ticks the guard held a walk in the bench's stuck episodes at lips, 56 % were held for a
-    /// side only (A205, 5 of 16 runs).
+    /// reckoned past the boundary: of the 3,705 ticks the guard held a walk in the bench's stuck episodes at lips, 2,031 (55 %) were
+    /// held for a side only, the rest for the walk itself; with `edge = lattice` and no sides, 680, all for the walk (A205, 16 runs).
     #[default]
     Lattice,
     /// As the body itself ([`Kinematics::edge`]): the margin is the forecast's body a little further on, so it falls where that
