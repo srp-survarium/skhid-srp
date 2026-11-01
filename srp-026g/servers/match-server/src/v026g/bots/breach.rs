@@ -67,7 +67,8 @@ pub enum Done {
 /// A Breach's phase: what each phase needs and nothing else.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
-    /// The crossers walk to their gather points and wait there, until `until`.
+    /// The crossers walk to their gather points and wait there, until `until` (the longer walk at the walk cap, and
+    /// [`BreachRules::gather_ms`] more).
     Gather { until: u32 },
     /// The go tick was `at`: the crossers walk to their cover points.
     Go { at: u32 },
@@ -175,7 +176,7 @@ pub struct Breach {
 }
 
 impl Breach {
-    /// A new job: the crossers start for their gather points.
+    /// A new job: the crossers start for their gather points, the longer walk `walk_ms` at the walk cap.
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         line: &HeldLine,
@@ -183,6 +184,7 @@ impl Breach {
         pinner: Option<Holder>,
         crossers: [Crosser; CROSSERS],
         points_at_open: Option<[u32; 2]>,
+        walk_ms: u32,
         now: u32,
         rules: &BreachRules,
     ) -> Self {
@@ -195,7 +197,7 @@ impl Breach {
             pinner,
             crossers,
             points_at_open,
-            phase: Phase::Gather { until: now + rules.gather_ms },
+            phase: Phase::Gather { until: now + walk_ms + rules.gather_ms },
         }
     }
 
@@ -332,11 +334,12 @@ pub fn role_in(breaches: &[Breach], place: Place) -> Option<(&Breach, BreachRole
     breaches.iter().find_map(|b| b.role_of(place).map(|role| (b, role)))
 }
 
-/// A crosser's two points.
+/// A crosser's two points, and its walk to the first, m.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Plan {
     pub gather: Vec3,
     pub cover: Vec3,
+    pub walk_m: f32,
 }
 
 /// Why no Breach could be planned on a spot.
@@ -354,7 +357,8 @@ pub enum NoPlan {
 /// cover band round his spot that see it (crouched eye to his chest), out of every held line `lanes` (his own included), fine
 /// goals out of the spawn areas; two of them [`BreachRules::apart_m`] apart and [`BreachRules::bearing_min_deg`] apart in
 /// bearing from his spot, the pair with the shortest walk for the crossers; a gather point for each in the gather band round
-/// its cover point, out of his sight (no bullet line from his spot) and out of the lanes, the nearest the crosser.
+/// its cover point, out of his sight (no bullet line from his spot) and out of the lanes, the nearest walk from the crosser
+/// ([`walk_m`]; a point no walk reaches is none).
 #[allow(clippy::too_many_arguments)]
 pub fn plan(
     tactics: &Tactics,
@@ -407,7 +411,7 @@ pub fn plan(
     }
     // The best pair whose cover points both have a gather point.
     for (_, cover) in pairs.into_iter().take(4) {
-        let mut plans = [Plan { gather: cover[0], cover: cover[0] }; CROSSERS];
+        let mut plans = [Plan { gather: cover[0], cover: cover[0], walk_m: 0.0 }; CROSSERS];
         let mut all = true;
         for k in 0..CROSSERS {
             let query = SpotQuery {
@@ -421,9 +425,10 @@ pub fn plan(
                 .into_iter()
                 .map(|s| s.at)
                 .filter(|&p| out_of_lanes(p) && fine(p) && p.distance_xz(line.at) > cover[k].distance_xz(line.at))
-                .min_by(|a, b| a.distance_xz(feet[k]).total_cmp(&b.distance_xz(feet[k])));
+                .filter_map(|p| walk_m(tactics, feet[k], p).map(|walk| (p, walk)))
+                .min_by(|a, b| a.1.total_cmp(&b.1));
             match gather {
-                Some(gather) => plans[k] = Plan { gather, cover: cover[k] },
+                Some((gather, walk_m)) => plans[k] = Plan { gather, cover: cover[k], walk_m },
                 None => {
                     all = false;
                     break;
@@ -436,6 +441,26 @@ pub fn plan(
     }
     Err(NoPlan::NoGather)
 }
+
+/// The walk from `from` to `to`, m: the regions' way between their floors ([`Tactics::walk_estimate`]), at least the straight
+/// line; the straight line where `from` has no floor under it to tell; `None` where `to` has no floor or no way reaches it (a
+/// crosser sent there ended its play "no way to its goal").
+fn walk_m(tactics: &Tactics, from: Vec3, to: Vec3) -> Option<f32> {
+    let grid = &tactics.world.grid;
+    let straight = from.distance_xz(to);
+    let goal = super::path::goal_floor(grid, to)?;
+    match grid.locate(from, WALK_FLOOR_M) {
+        Some(start) => tactics.walk_estimate(start, goal).map(|walk| walk.max(straight)),
+        None => Some(straight),
+    }
+}
+
+/// A crosser's feet are on a floor within this, m (`Ctx::storey_walk_dist`'s reach).
+const WALK_FLOOR_M: f32 = 1.5;
+
+/// A crosser's walk to its gather point is timed at the client's walk cap, m/s (`plays::crossfire::WALK_M_S`, PROVEN); it
+/// sprints where it may, so this is the slowest it goes upright.
+pub const WALK_M_S: f32 = super::plays::crossfire::WALK_M_S;
 
 /// A spot whose Flank failed (its flanker down, its time run, nobody to hold it, or a flanker that did not take the play: no
 /// flank spot), due a Breach until `until`.
@@ -471,33 +496,46 @@ pub struct Team<'a> {
 /// What a tick of the team's Breaches did, for the notes and the counts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
-    /// A Breach opened on `spot`, with a pinner or not.
-    Opened { spot: u32, pinner: bool, objective: bool },
+    /// A Breach opened on `spot`, with a pinner or not; its crossers and their walks to their gather points (m), and the
+    /// time the gather has (ms).
+    Opened { spot: u32, pinner: bool, objective: bool, crossers: [(Place, f32); CROSSERS], gather_ms: u32 },
     /// A due spot got none: no plan (and why), too few free crossers, the team's cap, or the spot memory refused it.
     NotOpened { spot: u32, why: NotOpened },
     /// A phase change of the Breach on `spot` (his spot `at` when it opened, its try from `from`) from phase `was`, its first
-    /// crosser death so far, and its bots.
-    Stepped { spot: u32, shooter: Place, at: Vec3, from: Vec3, was: Phase, step: Step, life_ms: u32, first_death: Option<u32>, bots: [Option<Place>; 3] },
+    /// crosser death so far, its bots, and its crossers as the team saw them this tick.
+    Stepped {
+        spot: u32,
+        shooter: Place,
+        at: Vec3,
+        from: Vec3,
+        was: Phase,
+        step: Step,
+        life_ms: u32,
+        first_death: Option<u32>,
+        bots: [Option<Place>; 3],
+        crossers: [CrosserNow; CROSSERS],
+    },
 }
 
 impl Event {
     /// Its note line.
     pub fn note(&self) -> String {
         match *self {
-            Event::Opened { spot, pinner, objective } => format!(
-                "breach on threat spot {spot} opened ({}{})",
+            Event::Opened { spot, pinner, objective, crossers: [(a, wa), (b, wb)], gather_ms } => format!(
+                "breach on threat spot {spot} opened ({}{}): crossers {a} ({wa:.0} m to its gather point) and {b} ({wb:.0} m), {:.1} s to gather",
                 if pinner { "two crossers and a pinner" } else { "two crossers, no pinner free" },
-                if objective { ", objective work" } else { "" }
+                if objective { ", objective work" } else { "" },
+                gather_ms as f32 / 1000.0
             ),
             Event::NotOpened { spot, why } => format!("breach on threat spot {spot} not opened: {why:?}"),
-            Event::Stepped { spot, step, life_ms, .. } => {
+            Event::Stepped { spot, step, life_ms, crossers, .. } => {
                 let what = match step {
                     Step::Went { waited_ms } => format!("the crossers go after {:.1} s gathering", waited_ms as f32 / 1000.0),
                     Step::Holding { took_ms } => format!("the crossers hold after {:.1} s going", took_ms as f32 / 1000.0),
                     Step::FirstDeath { .. } => "a crosser went down".to_string(),
                     Step::PinnerLost { down } => format!("the pinner was lost ({})", if down { "down" } else { "not free" }),
                     Step::Ended(Phase::Done { done, .. }) => format!("ends: {done:?}"),
-                    Step::Ended(Phase::Failed { why, .. }) => format!("fails: {why:?}"),
+                    Step::Ended(Phase::Failed { why, .. }) => format!("fails: {why:?} (crossers {:?}, {:?})", crossers[0], crossers[1]),
                     Step::Ended(phase) => format!("ends in {}", phase.name()),
                 };
                 format!("breach on threat spot {spot}: {what} ({:.1} s in)", life_ms as f32 / 1000.0)
@@ -581,7 +619,7 @@ pub fn tick(
             if let Step::FirstDeath { at } = step {
                 first_death = Some(at);
             }
-            events.push(Event::Stepped { spot, shooter, at, from, was, step, life_ms, first_death, bots });
+            events.push(Event::Stepped { spot, shooter, at, from, was, step, life_ms, first_death, bots, crossers });
         }
     }
     breaches.retain(|b| !b.phase.ended());
@@ -655,6 +693,7 @@ pub fn tick(
             }
         };
         let crossers = [0, 1].map(|k| Crosser { holder: Holder { place: free[k].place, since: now }, gather: plans[k].gather, cover: plans[k].cover });
+        let walk_ms = (plans.iter().map(|p| p.walk_m).fold(0.0, f32::max) / WALK_M_S * 1000.0) as u32;
         let from = {
             let [a, b] = [plans[0].cover, plans[1].cover];
             Vec3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5)
@@ -668,8 +707,14 @@ pub fn tick(
             let place = pinning.filter(|p| free[CROSSERS..].iter().any(|m| m.place == *p)).unwrap_or(free[CROSSERS].place);
             Holder { place, since: now }
         });
-        breaches.push(Breach::open(line, objective, pinner, crossers, team.points, now, rules));
-        events.push(Event::Opened { spot: d.spot, pinner: pinner.is_some(), objective });
+        breaches.push(Breach::open(line, objective, pinner, crossers, team.points, walk_ms, now, rules));
+        events.push(Event::Opened {
+            spot: d.spot,
+            pinner: pinner.is_some(),
+            objective,
+            crossers: [0, 1].map(|k| (free[k].place, plans[k].walk_m)),
+            gather_ms: walk_ms + rules.gather_ms,
+        });
     }
     due.retain(|d| !spent.contains(&d.spot));
     events
@@ -844,7 +889,7 @@ mod tests {
     fn job(now: u32) -> Breach {
         let h = |place| Holder { place, since: now };
         let c = |place, x| Crosser { holder: h(place), gather: Vec3::new(x, 0.0, 0.0), cover: Vec3::new(x, 0.0, 10.0) };
-        Breach::open(&line(), false, Some(h(1)), [c(2, 0.0), c(3, 8.0)], None, now, &RULES)
+        Breach::open(&line(), false, Some(h(1)), [c(2, 0.0), c(3, 8.0)], None, 0, now, &RULES)
     }
 
     fn facts(a: CrosserNow, b: CrosserNow) -> Facts {
@@ -966,10 +1011,10 @@ mod tests {
         let mut due = vec![Due { spot: 4, until: 20_000 }];
         // Bot 5 stands in his lane (z 30 -> 60, x 0): not taken; 1, 2, 3 out of it.
         let mates = [mate(1, 20.0, 20.0, None), mate(2, -20.0, 20.0, None), mate(3, 25.0, 0.0, None), mate(5, 0.0, 50.0, None)];
-        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f + Vec3::new(0.0, 0.0, 5.0) }));
+        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f + Vec3::new(0.0, 0.0, 5.0), walk_m: 0.0 }));
         let ok = |_: &HeldLine, _: Vec3| Ok(());
         let events = tick(&mut breaches, &mut due, &held, &held, &team(&mates, &[]), &ok, &mut plan, 1_000, &RULES);
-        assert_eq!(events, vec![Event::Opened { spot: 4, pinner: true, objective: false }]);
+        assert_eq!(events, vec![Event::Opened { spot: 4, pinner: true, objective: false, crossers: [(1, 0.0), (2, 0.0)], gather_ms: 8_000 }]);
         assert!(due.is_empty());
         let b = &breaches[0];
         assert_eq!((b.crossers[0].holder.place, b.crossers[1].holder.place, b.pinner.map(|p| p.place)), (1, 2, Some(3)));
@@ -1003,7 +1048,7 @@ mod tests {
     #[test]
     fn a_due_spot_is_refused_with_its_reason() {
         let held = [line()];
-        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f }));
+        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f, walk_m: 0.0 }));
         let ok = |_: &HeldLine, _: Vec3| Ok(());
         let one = [mate(1, 20.0, 20.0, None)];
         let two = [mate(1, 20.0, 20.0, None), mate(2, -20.0, 20.0, None)];
@@ -1021,7 +1066,10 @@ mod tests {
         let mut no_cover = |_: &HeldLine, _: [Vec3; CROSSERS]| Err(NoPlan::NoCover);
         assert_eq!(run(&two, 12, &ok, &mut no_cover), vec![Event::NotOpened { spot: 4, why: NotOpened::Plan(NoPlan::NoCover) }]);
         // With two only: no pinner.
-        assert_eq!(run(&two, 12, &ok, &mut plan), vec![Event::Opened { spot: 4, pinner: false, objective: false }]);
+        assert_eq!(
+            run(&two, 12, &ok, &mut plan),
+            vec![Event::Opened { spot: 4, pinner: false, objective: false, crossers: [(1, 0.0), (2, 0.0)], gather_ms: 8_000 }]
+        );
     }
 
     /// [Breach] On the soak field the plan finds two cover points the rules' distance and bearings apart that see his spot,
@@ -1055,5 +1103,29 @@ mod tests {
             assert!((RULES.cover_m.0..=RULES.cover_m.1).contains(&p.cover.distance_xz(held.at)), "{p:?}");
             assert!(p.gather.distance_xz(held.at) > p.cover.distance_xz(held.at), "{p:?}");
         }
+        // Each walk is at least the straight line from the crosser.
+        for (p, f) in plans.iter().zip(feet_of(&held)) {
+            assert!(p.walk_m >= f.distance_xz(p.gather) - 1e-3, "{p:?}");
+        }
+    }
+
+    fn feet_of(held: &HeldLine) -> [Vec3; CROSSERS] {
+        [held.at + Vec3::new(30.0, 0.0, 0.0), held.at + Vec3::new(-30.0, 0.0, 0.0)]
+    }
+
+    /// [Breach] The gather has the longer crosser's walk at the walk cap, then `gather_ms`: a crosser 35 m off its gather
+    /// point is given 10 s to walk it (the bench's first runs timed out with one crosser still on its way).
+    #[test]
+    fn the_gather_time_counts_the_longer_walk() {
+        let held = [line()];
+        let mut breaches = Vec::new();
+        let mut due = vec![Due { spot: 4, until: 20_000 }];
+        let mates = [mate(1, 20.0, 20.0, None), mate(2, -20.0, 20.0, None)];
+        let walks = [35.0, 7.0];
+        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok([0, 1].map(|k| Plan { gather: feet[k], cover: feet[k], walk_m: walks[k] }));
+        let ok = |_: &HeldLine, _: Vec3| Ok(());
+        let events = tick(&mut breaches, &mut due, &held, &held, &team(&mates, &[]), &ok, &mut plan, 1_000, &RULES);
+        assert_eq!(events, vec![Event::Opened { spot: 4, pinner: false, objective: false, crossers: [(1, 35.0), (2, 7.0)], gather_ms: 18_000 }]);
+        assert_eq!(breaches[0].phase, Phase::Gather { until: 19_000 });
     }
 }

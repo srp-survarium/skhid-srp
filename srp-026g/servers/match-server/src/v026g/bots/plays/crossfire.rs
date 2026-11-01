@@ -31,7 +31,7 @@ const JOB_HEALTH: f32 = 0.35;
 pub const PIN_DEPTH_M: f32 = 15.0;
 /// [A192] The walk to a choke is timed at the client's walk cap, m/s (PROVEN:
 /// 3.5 m/s times 1 + the movement modifiers, `motor.rs`; a sprint is 5.0-5.1).
-const WALK_M_S: f32 = 3.5;
+pub const WALK_M_S: f32 = 3.5;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the choke, metres.
