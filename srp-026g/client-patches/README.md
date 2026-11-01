@@ -3723,7 +3723,7 @@ The lobby's scene is the one the player picks in the lobby window
 (`../docs/notes/lobby-scenes.md`): the player panel's lobby button (in the premium button's place) opens six cards,
 the Room (`lobby_scene/camp_069`, the default), the Basement (the classic,
 `lobby_scene/day`), the Bunker (`lobby_scene/stk2_bunker`), the Hangar
-(`lobby_scene/hangar_046`), the House (`lobby_scene/stk2_blockpost`) and the
+(`lobby_scene/hangar_046`), the House (`lobby_scene/stk2_house`) and the
 Shooting Range (`lobby_scene/stk2_bar`). The pick is kept in user.cfg as `srp_lobby`
 (registered at game::on_configs_loaded's start in the site's chain after
 patch 79's and patch 83's handlers; user.cfg written when it changed), and the start's query

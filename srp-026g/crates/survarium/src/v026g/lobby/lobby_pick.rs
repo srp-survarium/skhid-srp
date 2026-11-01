@@ -20,7 +20,7 @@ pub enum LobbyPick {
     Bunker,
     /// `lobby_scene/hangar_046`.
     Hangar,
-    /// `lobby_scene/stk2_blockpost`.
+    /// `lobby_scene/stk2_house`.
     House,
     /// `lobby_scene/stk2_bar`.
     Range,
