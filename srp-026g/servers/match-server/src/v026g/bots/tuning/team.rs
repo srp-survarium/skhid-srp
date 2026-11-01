@@ -396,14 +396,18 @@ pub struct ThreatTuning {
     /// sniper rifle) takes a spot that sees his last sensed place within its own reach, from a way hidden from him and out of
     /// his lanes, and answers him from there. Off: no bot is offered the play. OFF by default, not settled (96 pairs by side,
     /// 2026-10-30): score +1.5 % (z +0.9) on seeds 1-4, -1.5 % (z -1.0) on seeds 5-8; it fires (4.6 starts a match, 0.2 sniper
-    /// kills by answerers) but the snipers killed and the deaths to them do not move, and it scores plays +6 %.
+    /// kills by answerers) but the snipers killed and the deaths to them do not move, and it scores plays +6 %. A210
+    /// (2026-11-01): its runs lasted 5 s (a quarter taken mid-walk by a play of its band, a third lapsing with the bot's own
+    /// 10 s sense of him); now its walk is a hold walking to its spot and it answers the sniper the team remembers.
     pub answer_sniper: bool,
     /// X3 (the owner, 2026-10-26: "keep to the task by a route out of the sniper's sight"): a sniper the team senses is a
     /// threat spot at once, with lanes all round him (the ground he sees within his weapon's reach), so the routes of the team
     /// keep out of his sight as they keep out of a shooter who has killed (`ThreatTuning::sprint` crosses where they cannot).
     /// Off: a sniper is kept out of only after he has killed. OFF by default, not settled (96 pairs by side, 2026-10-30):
     /// score +1.7 % (z +1.1) on seeds 1-4, -3.0 % (z -1.8) on seeds 5-8, deaths to snipers within 10 s of a sighting -16 % then
-    /// +10 %; it costs +9 % of the rays cast a second.
+    /// +10 %; it costs +9 % of the rays cast a second. A210 (2026-11-01): with `sniper_memory` on (the default) the sensed
+    /// snipers are spots whatever this says (its one read, `commander.rs`: `sniper_lanes || sniper_memory.is_some()`), so it
+    /// acts only with the memory off; it stays OFF.
     pub sniper_lanes: bool,
     /// #25b: a sensed sniper's spot remembered for about two minutes as his area ([`SniperMemory`]); it makes the spots
     /// whether or not `sniper_lanes` is on. Off: `sniper_lanes`' spots as #836 made them (held 15 s after a sense), and no
