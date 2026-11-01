@@ -2168,6 +2168,8 @@ st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 náb
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo_762x51_belt_description	Puškový náboj NATO v pásu po 100 kusech pro kulomety.
+st_srp_ammo_762x51_belt_name	7,62x51, pás
 st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač
 st_srp_crosshair_hidden	Skrytý zaměřovač

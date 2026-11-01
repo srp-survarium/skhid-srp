@@ -2168,6 +2168,8 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo_762x51_belt_description	NATO-Gewehrpatrone im 100-Schuss-Gurt für Maschinengewehre.
+st_srp_ammo_762x51_belt_name	7,62x51, Gurt
 st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier

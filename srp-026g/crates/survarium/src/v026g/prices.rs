@@ -300,6 +300,10 @@ pub const EXCEPTIONS: &[(&str, &[(u8, u8)])] = {
         // 12x70 smallshot: the Vepr-12 (Renaissance) and Saiga-12K (Edge),
         // rank 7 each.
         ("ammo_12mm_buck2", &[(REN, 7), (EDGE, 7)]),
+        // The 7.62x51 belt of 100 (pack weapons-046, docs/notes/weapons-046.md):
+        // the Fort-401's (Edge, level 14: rank 9), as the PKP's 7N13 belt is
+        // the PKP's.
+        ("ammo_7.62x51_belt", &[(EDGE, 9)]),
         // --- Drugs, the trap, grenades (the four faction pages and
         // `Items` W:9996; PROVEN) ---
         ("bandages", &[(SCAV, 1)]),
@@ -373,6 +377,8 @@ pub const AMMO_PRICES: &[(&str, u32, u32)] = &[
     ("ammo_7.62x54_7n13", 300, 150),
     // Half is 12.5.
     ("ammo_12mm_buck2", 25, 10),
+    // The Fort-401's belt of 100, as the PKP's.
+    ("ammo_7.62x51_belt", 300, 150),
 ];
 
 /// Items the tables of this module name that come with a game patch not
@@ -387,6 +393,8 @@ pub const UNRELEASED: &[&str] = &[
     "ammo_5.7x28",
     "ammo_7.62x54_7n13",
     "ammo_12mm_buck2",
+    // The 7.62x51 belt of 100 (pack weapons-046).
+    "ammo_7.62x51_belt",
     // The STK2 Novice's cap (resource-porter pack novice-6).
     "novice_026_helmet",
     // The STK2 outfits (packs stk2-bandit, stk2-novice, stk2-loner).

@@ -2168,6 +2168,8 @@ st_sr3m_bundle_descr	<white>Змяшчае наступныя прадметы:\
 st_sr3m_bundle_name	Набор СР-3М "Віхор"
 st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
+st_srp_ammo_762x51_belt_description	Вінтовачны патрон НАТА ў стужцы на 100 патронаў для кулямётаў.
+st_srp_ammo_762x51_belt_name	7.62x51, стужка
 st_srp_attachments	Абвес
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
