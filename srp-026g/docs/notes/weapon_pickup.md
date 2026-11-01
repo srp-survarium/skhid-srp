@@ -429,8 +429,9 @@ cooked gun).
   initialize, activate, forget) are recorded, not run; a cooked gun's
   inventory item header names the donor's place and kit in snapshots (the
   inventory reader was not traced for it); a client whose cook failed, or
-  whose wait was refused (a late joiner whose players were made this
-  frame), refuses a pickup the others accept and then differs.
+  whose wait was refused (a pickup in the tick after its players were made,
+  a replay's key frame), refuses a pickup the others accept and then
+  differs.
 
 ## How the local client offers and sends a pickup (patch 85, stage 2b, built, not run in a game)
 
@@ -627,17 +628,40 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   frame's `after_move` clears it (a frame's own dispatch lies between); a
   wait while it is marked does not dispatch and refuses (logged). A true
   deferral would need the late join's C completion to look at it: not done.
-- **A loaded world** (a late join, a resync): the record names donor place,
-  kit and slot; `need_cook(donor player, kit, slot)` finds a gun of that
-  source nobody holds or cooks one (origin "a loaded world's") and waits the same
-  way. The record's reader is inside `base_player::deserialize` of the 0xE8
-  load (network_client::process_dynamic_match_info 0x27C0xx ->
-  game_world_core::deserialize 0x2D0B70), a network handler outside any
-  tick; the game itself dispatches from a network handler
-  (process_static_match_info 0x27BEE7 loops on 0xE5AB0). No new
-  reentrancy: the same callbacks as the game's own loop, with the late
-  join's guarded as above. A loaded world's gun nobody holds is freed at
-  the next frame, or at its donor's destruction.
+  The mark is any player made (a match's own kit players too), so it is up
+  from a joiner's player cooks (inside its 0xE4 load) until the first
+  game_world::tick after on_match_ready's set_match (0x27AB6E) reaches the
+  join 0x1F7C3C. A frozen move does not keep it (both early-outs of the
+  move call, 0x1F7C24 and 0x1F7C2D, jump to that join; the freeze is checked
+  inside move, 0x2D2E4A), but nothing orders such a tick before the 0xE8:
+  an 0xE8 handled in the frame of the last player cook (a server answering
+  0xDA at once, a replay's first key frame) found the mark up, and a record
+  naming a gun this client never cooked was refused and logged "NOT
+  installed": that client then differed.
+- **A loaded world** (a late join, a resync; follow-up of 2026-11-01): the
+  guns its records name are cooked before the world is installed, never in
+  its load. Patch 87's sites (`world_load.unpacked` 0x27C0D0,
+  `world_load.raw` 0x27C0FF: process_dynamic_match_info before
+  game_world_core::deserialize 0x2D0B70, a network handler outside any tick
+  and any load) call `weapon_pickup::before_world_load` once the world
+  parses: each player state's record (its bytes 2..50, `world_frame`'s
+  `Frame::states`) names its picks and its pending pickup; a pick the
+  place's player holds (or has pending) as named is kept by the reader; for
+  each recipe, as many copies as the rest name, less its idle copies (in a
+  drop or let go), are cooked from the recipe's place's player (the
+  network client's get_active_player 0x27A9C0) and waited for. That wait is
+  not refused on the mark: here the game's own frame dispatch could have
+  run every callback, a late join's install among them (it then binds its
+  slot before the world is installed, between simulation updates); the game
+  itself dispatches in a network handler (process_static_match_info
+  0x27BEE7 loops on 0xE5AB0). The record's reader (`pickup.load`, inside
+  `base_player::deserialize`) then takes each named gun from what this
+  client has: the copy the picker let go, else a drop's of the recipe (one
+  cooked here among them), else any copy of the recipe let go, and never
+  waits for one. Only a load with no such site before it (a replay's key
+  frame, 0x1EE377) or a cook that failed here cooks at the reader and waits
+  there, refused on the mark as before. A loaded world's gun nobody holds
+  is freed at the next frame, or at its donor's destruction.
 - **The log** (`srp_patches.log`, each line with the process id): `pickup:
   asked for the gun of place P kit K slot S (death at T ms): address space A
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it

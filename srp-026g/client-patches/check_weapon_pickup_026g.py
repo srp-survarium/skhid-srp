@@ -388,6 +388,7 @@ def main():
     ordinary_kit(patched)
     abc(patched)
     late_join(patched)
+    late_join_after_player_made(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -983,8 +984,9 @@ def abc(patched):
 
 
 def late_join(patched):
-    """A loaded record naming a gun this client has none of (a late join, a resync): cooked anew
-    from its recipe (the profile of place 6's kit 1, slot 10) in the wait, then installed."""
+    """A loaded record naming a gun this client has none of, with no world load before it (a replay's
+    key frame): cooked anew from its recipe (the profile of place 6's kit 1, slot 10) in the wait, then
+    installed."""
     r = Pick(patched)
     r.setup()
     r.roster[6] = PLAYER
@@ -997,8 +999,94 @@ def late_join(patched):
     assert r.native == [("set_user", gun, r.picker), ("initialize", gun)], ("a fresh cook: set_user + initialize", r.native)
     assert any("a loaded record: installed: slot 10's picked gun (taken at 13250 ms, the gun of place 6 kit 1 "
                "slot 10)" in l for l in r.log), r.log
-    print("ok a late join's record naming a gun not on this client: cooked from its recipe in the wait (the "
-          "game's dispatch), installed without the switch")
+    print("ok a loaded record naming a gun not on this client, no world load before it: cooked from its recipe "
+          "in the wait (the game's dispatch), installed without the switch")
+
+
+PLAYER_MADE_SITE, PLAYER_MADE_AFTER = 0x202DD0, 0x202DD6
+WORLD_LOAD_SITE, WORLD_LOAD_AFTER = 0x27C0D0, 0x27C0D9      # world_load.unpacked, before the load call
+GET_ACTIVE_PLAYER = 0x27A9C0
+
+
+def world_with(states):
+    """A world as the 0xE8 handler loads it: its time, the mask, each place's state (not animated),
+    six empty sections."""
+    out = bytearray(struct.pack("<II", DIED + 2_000, sum(1 << place for place in states)))
+    for place in sorted(states):
+        out += struct.pack("<H", len(states[place])) + states[place] + b"\0"
+    return bytes(out + bytes(2 * 6))
+
+
+def load_world(r, world):
+    """process_dynamic_match_info at world_load.unpacked (patch 87's site, patch 85's preparation composed):
+    the world in the frame's buffer {allocator, begin, capacity, size} at EBP-24h, EDI the client."""
+    frame, at = r.blk(0x100) + 0x80, r.blk(len(world))
+    r.emu.mem_write(at, world)
+    for off, value in ((-0x24, 0), (-0x20, at), (-0x1C, 0x8000), (-0x18, len(world))):
+        r.word(frame + off, value)
+    r.lohook(WORLD_LOAD_SITE, WORLD_LOAD_AFTER, {UC_X86_REG_EDI: CLIENT, UC_X86_REG_EBP: frame, UC_X86_REG_ESI: at,
+                                                 UC_X86_REG_EDX: len(world), UC_X86_REG_ECX: CORE})
+
+
+def late_join_after_player_made(patched):
+    """The late join's first world (0xE8) with its players made this frame (player_cook.ready, the flag the
+    wait refuses on: a late join's install must not run inside a load): the gun a record names that this
+    client never cooked is cooked at the 0xE8 handler before the load (world_load.unpacked, outside any tick
+    and load: the wait there is not refused) and the record's reader installs it without a wait; the state
+    then matches the record. The load alone (no world load before it: a replay's key frame) still refuses."""
+    pick = (DIED + 900, 6, KIT, 1)
+    loaded = record(slot10=pick)
+
+    def joiner():
+        r = Pick(patched)
+        r.setup()
+        r.roster[6] = PLAYER
+
+        def active_player(emu, address, *_):          # thiscall: ECX the client, out, place; ret 8
+            sp = emu.reg_read(UC_X86_REG_ESP)
+            out, place = r.read(sp + 4), r.read(sp + 8)
+            player = r.roster.get(place, 0)
+            r.word(out, player)
+            if player:
+                r.word(player + 0xD0, r.read(player + 0xD0) + 1)
+            r.ret(8, out)
+        r.emu.hook_add(UC_HOOK_CODE, active_player, begin=GET_ACTIVE_PLAYER, end=GET_ACTIVE_PLAYER)
+        r.lohook(PLAYER_MADE_SITE, PLAYER_MADE_AFTER, {})
+        cooked, gun, ammo = r.cooked_gun()
+        r.on_dispatch = cooked
+        r.queries = []
+        return r, cooked, gun
+
+    # Before: the record read with the flag up refuses the wait; the slot keeps the own gun.
+    r, cooked, gun = joiner()
+    r.load(r.picker, loaded)
+    assert r.slot(r.inventory, 10) == r.own_gun + 0x10, "installed with a player made this frame"
+    assert any("waited for the gun of place 6 kit 1 slot 10" in l and "a player was made since the last move" in l
+               for l in r.log), r.log
+    assert any("a loaded record's pick NOT installed (the state will not match)" in l for l in r.log), r.log
+
+    # The 0xE8: cooked before the load, then read with no cook and no wait.
+    r, cooked, gun = joiner()
+    load_world(r, world_with({3: b"\0\0" + loaded}))
+    assert len(r.queries) == 1, ("one cook before the load", r.log)
+    assert any("a world to load names the gun of place 6 kit 1 slot 10, which this client has no idle copy of" in l
+               for l in r.log), r.log
+    assert any("waited for the gun of place 6 kit 1 slot 10" in l and "made" in l for l in r.log), r.log
+    r.queries = []
+    r.load(r.picker, loaded)
+    assert r.queries == [] and r.slot(r.inventory, 10) == gun + 0x10, r.log
+    assert r.slot(cooked, 10) == r.own_gun + 0x10
+    assert r.native == [("set_user", gun, r.picker), ("initialize", gun)], ("a fresh cook: set_user + initialize", r.native)
+    assert not any("NOT installed" in l for l in r.log), r.log
+    assert r.save(r.picker) == loaded, "the state matches the record"
+    # A world whose records name only guns this client has: nothing cooked.
+    r.queries = []
+    load_world(r, world_with({3: b"\0\0" + loaded}))
+    assert r.queries == [], r.log
+    print("ok a late join's first world with its players made this frame (player_cook.ready): the gun a record "
+          "names that this client never cooked is cooked at the 0xE8 handler before the load, the reader installs "
+          "it with no wait (fresh: set_user + initialize), the state saved is the record; a world naming only kept "
+          "guns cooks nothing; the record read alone with the flag up still refuses (as before)")
 
 
 def crate_per_gun(patched):

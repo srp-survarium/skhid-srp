@@ -70,6 +70,11 @@ pub struct NetworkClient<'t> {
 }
 
 impl<'t> NetworkClient<'t> {
+    /// The client a site's typed register holds, on its hook's thread.
+    pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
+        NetworkClient { this, thread }
+    }
+
     /// The match's places' count (0 without match options).
     pub fn places(&self) -> u32 {
         // SAFETY: the client, alive for the hook; match_options is its own.
@@ -118,6 +123,34 @@ pub enum Held {
 /// read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerId(u32);
+
+/// An inventory item (or an active object, a weapon) as a value kept between
+/// hooks: its address, compared, never read through. Made only from its
+/// handle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemId(u32);
+
+impl ItemId {
+    pub(in crate::vostok) fn of(item: raw::Item) -> ItemId {
+        ItemId(item.address())
+    }
+
+    /// Its address, for the log.
+    pub fn address(self) -> u32 {
+        self.0
+    }
+}
+
+/// A match's world core as a value kept between hooks: which match a
+/// record is of. Made only from its handle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldKey(u32);
+
+impl WorldKey {
+    pub(in crate::vostok) fn of(core: raw::CoreWorld) -> WorldKey {
+        WorldKey(core.address())
+    }
+}
 
 /// A model's skeleton, kept between hooks (a cache's key).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

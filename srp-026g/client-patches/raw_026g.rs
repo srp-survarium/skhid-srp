@@ -440,13 +440,22 @@ impl Game {
         unsafe { self.0.byte_add(0x5350).cast::<Option<SoundWorld>>().write_volatile(value) }
     }
 
-    /// +0x53a4 (u32): the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
+    /// +0x53a4 (ptr<survarium::items_dictionary>): the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn dictionary(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x53a4).cast::<u32>().as_ptr() }
+    pub unsafe fn dictionary(self) -> Option<ItemsDictionary> {
+        unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().read_volatile() }
+    }
+
+    /// +0x53a4 (ptr<survarium::items_dictionary>): the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_dictionary(self, value: Option<ItemsDictionary>) {
+        unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().write_volatile(value) }
     }
 }
 
@@ -5263,13 +5272,22 @@ impl Weapon {
         unsafe { self.0.byte_add(0x538).cast::<Option<Item>>().write_volatile(value) }
     }
 
-    /// +0x5a0 (u32): the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
+    /// +0x5a0 (ptr<survarium::bullet_manager>): the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn bullet_manager(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x5a0).cast::<u32>().as_ptr() }
+    pub unsafe fn bullet_manager(self) -> Option<BulletManager> {
+        unsafe { self.0.byte_add(0x5a0).cast::<Option<BulletManager>>().read_volatile() }
+    }
+
+    /// +0x5a0 (ptr<survarium::bullet_manager>): the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_bullet_manager(self, value: Option<BulletManager>) {
+        unsafe { self.0.byte_add(0x5a0).cast::<Option<BulletManager>>().write_volatile(value) }
     }
 
     /// +0x5ac (ptr<survarium::ammo_slot>): its compatible ammunition's inventory slot indices (cook 0x2C7855..0x2C79E5; initialize 2E2A99)
@@ -9250,13 +9268,22 @@ impl InventoryRecipe {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x0 (u32): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
+    /// +0x0 (ptr<survarium::player_profile>): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn profile(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    pub unsafe fn profile(self) -> Option<PlayerProfile> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PlayerProfile>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::player_profile>): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_profile(self, value: Option<PlayerProfile>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PlayerProfile>>().write_volatile(value) }
     }
 
     /// +0x4 (u8): the kit (0x2C72E3)
@@ -9268,31 +9295,58 @@ impl InventoryRecipe {
         unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
     }
 
-    /// +0x8 (u32): the items dictionary (0x202866)
+    /// +0x8 (ptr<survarium::items_dictionary>): the items dictionary (0x202866)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn dictionary(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    pub unsafe fn dictionary(self) -> Option<ItemsDictionary> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ItemsDictionary>>().read_volatile() }
     }
 
-    /// +0xc (u32): the physics world (0x20286F; armour items only, 0x2C7102)
+    /// +0x8 (ptr<survarium::items_dictionary>): the items dictionary (0x202866)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn physics_world(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    pub unsafe fn set_dictionary(self, value: Option<ItemsDictionary>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ItemsDictionary>>().write_volatile(value) }
     }
 
-    /// +0x10 (u32): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    /// +0xc (ptr<survarium::spatial_tree>): the physics world (0x20286F; armour items only, 0x2C7102)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn game_world(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    pub unsafe fn physics_world(self) -> Option<SpatialTree> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<SpatialTree>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::spatial_tree>): the physics world (0x20286F; armour items only, 0x2C7102)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_physics_world(self, value: Option<SpatialTree>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<SpatialTree>>().write_volatile(value) }
+    }
+
+    /// +0x10 (ptr<survarium::game_world>): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game_world(self) -> Option<GameWorld> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<GameWorld>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::game_world>): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game_world(self, value: Option<GameWorld>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<GameWorld>>().write_volatile(value) }
     }
 
     /// +0x14 (u32): the match seed, options+577B0h (0x2028A6)
@@ -9371,22 +9425,40 @@ impl InventoryVariant {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x8 (u32): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
+    /// +0x8 (ptr<survarium::inventory_recipe>): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn recipe(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    pub unsafe fn recipe(self) -> Option<InventoryRecipe> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<InventoryRecipe>>().read_volatile() }
     }
 
-    /// +0x28 (u32): the variant's own address (0x2028CE; the query copies the user data by it)
+    /// +0x8 (ptr<survarium::inventory_recipe>): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn this(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    pub unsafe fn set_recipe(self, value: Option<InventoryRecipe>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<InventoryRecipe>>().write_volatile(value) }
+    }
+
+    /// +0x28 (ptr<survarium::inventory_variant>): the variant's own address (0x2028CE; the query copies the user data by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn this(self) -> Option<InventoryVariant> {
+        unsafe { self.0.byte_add(0x28).cast::<Option<InventoryVariant>>().read_volatile() }
+    }
+
+    /// +0x28 (ptr<survarium::inventory_variant>): the variant's own address (0x2028CE; the query copies the user data by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_this(self, value: Option<InventoryVariant>) {
+        unsafe { self.0.byte_add(0x28).cast::<Option<InventoryVariant>>().write_volatile(value) }
     }
 
     /// +0x0 (u32): its vtable, 0x9FD808 (0x2028E0)
@@ -9684,13 +9756,22 @@ impl PvpMatch {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x130 (u32): the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
+    /// +0x130 (ptr<survarium::spatial_tree>): the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn spatial_tree(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x130).cast::<u32>().as_ptr() }
+    pub unsafe fn spatial_tree(self) -> Option<SpatialTree> {
+        unsafe { self.0.byte_add(0x130).cast::<Option<SpatialTree>>().read_volatile() }
+    }
+
+    /// +0x130 (ptr<survarium::spatial_tree>): the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_spatial_tree(self, value: Option<SpatialTree>) {
+        unsafe { self.0.byte_add(0x130).cast::<Option<SpatialTree>>().write_volatile(value) }
     }
 
     /// +0x1f8 (obj<survarium::core_world>): the world core (game_world_core::move's argument, 0x1F7C2F; network_client::on_idle 0x27D084)
@@ -10314,6 +10395,21 @@ pub struct GameAllocator(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl GameAllocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A survarium::spatial_tree (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpatialTree(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SpatialTree {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {

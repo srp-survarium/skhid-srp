@@ -41,13 +41,18 @@ pub fn on_raw(ctx: &mut Context<'_>) -> Flow<WorldCheckOnRawExit> {
 }
 
 /// A world the site could not read (no client, a reader outside its bytes:
-/// never seen) goes on to the game's load as before.
+/// never seen) goes on to the game's load as before. A world that parses is
+/// loaded, patch 85's guns its records name made first
+/// (`weapon_pickup::before_world_load`: outside any tick, before the load).
 fn check(load: Option<WorldLoad<'_>>) -> Verdict {
     let Some(load) = load else {
         return Verdict::Load;
     };
-    match verdict(load.state()) {
-        Ok(()) => Verdict::Load,
+    match Frame::parse_state(load.state(), Places::ALL) {
+        Ok(frame) => {
+            crate::weapon_pickup::before_world_load(&load, &frame);
+            Verdict::Load
+        }
         Err(refusal) => {
             log(refusal, load.state().len());
             load.leave();
