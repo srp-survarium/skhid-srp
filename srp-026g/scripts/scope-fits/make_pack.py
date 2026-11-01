@@ -419,12 +419,16 @@ def build(args, work):
             files.update(rs.files_of(aim_out, work))
             change = None
             drop = drops.get(gun, [])
-            if kind == 'S' and drop:
-                # the gun's model without the sight under the optic, its eye its own
+            if kind == 'S' and (drop or aim_turned(from_dir)):
+                # the gun's model without the sight under the optic and its eye looking straight
+                # along the bore (an aim locator turned about x tilts the view: the eyepiece, set
+                # before the eye along the bore, then shows its reticle off the screen's centre,
+                # where the bullets go; seen in the game on the AK-74M, 10 px at x4), its eye its own
                 change = f'{base_model}_n_optic'
                 target = work / 'models' / (change + '.skinned_model')
                 if not target.exists():
                     shutil.copytree(from_dir, target)
+                    level_eye(target)
                     leave_out(target, drop)
                     files.update(rs.files_of(target, work))
             if kind == 'C':
@@ -434,6 +438,7 @@ def build(args, work):
                 candidates = ([(base_model, base_dir)] if has_point and not drop else []) + eyes.get(gun, [])
                 candidates += [(v['change'], lib.model_dir(args.live, v['change'])) for v in live_variants.values()
                                if v['weapons'] == [gun] and v['change'] and not drop]
+                candidates = [(m, d) for m, d in candidates if d and not aim_turned(d)]
                 change = rs.eye_model(candidates, base_model, needed)
                 if change is False:
                     change = f'{base_model}_n_{short}'
@@ -468,6 +473,22 @@ def build(args, work):
                                    ref['leaves'], ref['idle']))
     write_pack(args, files, entries, report, icons)
     write_edit_list(args.live, compat, weapons, placeholders, roots)
+
+
+def aim_turned(model):
+    """Whether a model's aim locator is turned (the view through it tilted)."""
+    rotation = lib.locator(lib.leaves(model / 'render/export_properties'), 'aim')[2]
+    return bool(rotation) and max(abs(x) for x in rotation) > 1e-6
+
+
+def level_eye(model):
+    """A copied model's aim locator unturned, where it is."""
+    path = model / 'render/export_properties'
+    buf = bytearray(path.read_bytes())
+    i, _, rotation = lib.locator(lib.leaves(path), 'aim')
+    if rotation is not None:
+        rs.set_float3(buf, f'locators[{i}]/rotation', [0.0, 0.0, 0.0])
+    path.write_bytes(bytes(buf))
 
 
 def leave_out(model, surfaces):

@@ -1,5 +1,5 @@
 {
- "_about": "The scope fits (pack scope-fits; srp-026g/docs/notes/weapon_scopes.md, section 7): an addons { mount: 1 } placeholder in the 15 release-41 guns that take a scope and have no addons (a type-3 modifier adds only to a table with a child), and an items_compatibility row for each gun and scope it fits (212; the lobby movie's scope pairs; scripts/scope-fits/fit.tsv). Made by scripts/scope-fits/make_pack.py.",
+ "_about": "The scope fits (pack scope-fits; srp-026g/docs/notes/weapon_scopes.md, section 7): an addons { mount: 1 } placeholder in the 18 release-41 guns that take a scope and have no addons (a type-3 modifier adds only to a table with a child), and an items_compatibility row for each gun and scope it fits (212; the lobby movie's scope pairs; scripts/scope-fits/fit.tsv). Made by scripts/scope-fits/make_pack.py.",
  "add_value": [
   {"files": ["gameplay/items/weapons/wpn_scar_h.options"], "table": "", "key": "addons", "value": {"mount": 1}},
   {"files": ["gameplay/items/weapons/wpn_vhs_2.options"], "table": "", "key": "addons", "value": {"mount": 1}},
@@ -10,6 +10,9 @@
   {"files": ["gameplay/items/weapons/wpn_fort_401.options"], "table": "", "key": "addons", "value": {"mount": 1}},
   {"files": ["gameplay/items/weapons/wpn_jackhammer.options"], "table": "", "key": "addons", "value": {"mount": 1}},
   {"files": ["gameplay/items/weapons/wpn_akmsu.options"], "table": "", "key": "addons", "value": {"mount": 1}},
+  {"files": ["gameplay/items/weapons/wpn_famas.options"], "table": "", "key": "addons", "value": {"mount": 1}},
+  {"files": ["gameplay/items/weapons/wpn_g3sg1.options"], "table": "", "key": "addons", "value": {"mount": 1}},
+  {"files": ["gameplay/items/weapons/wpn_ks_23m.options"], "table": "", "key": "addons", "value": {"mount": 1}},
   {"files": ["gameplay/items/weapons/wpn_ppsh_drum.options"], "table": "", "key": "addons", "value": {"mount": 1}},
   {"files": ["gameplay/items/weapons/wpn_cz_75.options"], "table": "", "key": "addons", "value": {"mount": 1}},
   {"files": ["gameplay/items/weapons/wpn_mp443.options"], "table": "", "key": "addons", "value": {"mount": 1}},
