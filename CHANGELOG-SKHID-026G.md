@@ -814,3 +814,38 @@ update changes what a match computes.
 - TODO: #919 Rudnya (v0.69): ammo only at the bases
 - TODO: #916 Lobby packs: textures 0.26g already has drawn from its own files (hangar @9, camp @17)
 - TODO: #920 Drops: no camouflage or decal the player already has
+
+## 1 Nov, 22:38 — TODO: the owner's words (update required)
+
+<!-- Revision 41 (026g-rev41), released 2026-11-01 22:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #921 Remove dead Rust code
+- TODO: #922 Remove stale docs, unused 0.100b tools and unused example files
+- TODO: #923 Remove the dead tutorial code from the lobby and hud movies
+- TODO: #924 Small audit fixes: Blackout in Matches, one on/off switch, one mask length, RUST_PATCHES
+- TODO: #926 Remove old notes and one-off audits
+- TODO: #946 Rudnya (v0.69): each base ammo crate refills its own team only
+- TODO: #991 Notes: the 0.26g renderer as a light bake needs it
+- TODO: #999 Login: ask for the nickname, not the e-mail
+- TODO: #983 Shop: a check mark on owned items, and a Hide owned box
+- TODO: #985 Rooms: rejoin the room's running match through the room after a relaunch
+- TODO: #982 Queue of a full room offers a loadout as Join does
+- TODO: #1000 Batteries: points for a battery's new progress toward its container (patch 92)
+- TODO: #984 Lobby: buying an item owned asks first; only the inventory's right-click Buy skips it
+- TODO: #1002 Player vs Bots: drops roll at match level 7 at most, drop cards too
+- TODO: #893 Weapon kit, step A: the kit transport and a second decal on weapons (patch 68, Rust)
+- TODO: #996 Patch 91: a weapon shown while aimed keeps its body
+- TODO: #1004 Upgrade window: a double click puts a camouflage, decal or scope in its slot
+- TODO: #1003 Shop: a consumable's buy starts at 30
+- TODO: #1009 Download mirrors: the game's archive and the patches from many addresses, resumed, logged
+- TODO: #990 build-content: files an earlier version of a pack left stay, listed
+- TODO: #1013 Setup scripts: English as well as Russian; the Defender setup puts back deleted files
+- TODO: #1017 release/test.sh: Ctrl-C tests signal a release.sh that can be interrupted
+- TODO: #1018 Crash dumps: referenced memory live, full memory for local tests
+- TODO: #939 Balance the sides by K/D at the match's equipment level
+- TODO: #1023 Battery points: progress paid at the delivery; found 5, delivery share 5
+- TODO: #1024 Patch 85: pick up a dead player's gun
+- TODO: #951 Patch 19's 0.29a3 weapons: melee k_damage 1.5, as every native weapon's
+- TODO: #1001 Content: 0.31a2's lower screen shake (shake-031-1)
+- TODO: #1011 Content: HK416 and M4A1 kick nearer the AK-12 (recoil-hk416-m4a1-1)
+- TODO: #1031 Revert #1011 (HK416/M4A1 recoil) for revision 41
