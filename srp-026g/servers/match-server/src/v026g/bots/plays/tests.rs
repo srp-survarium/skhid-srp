@@ -601,10 +601,11 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
 fn a_lone_bot_hit_from_a_lane_makes_no_second_peek_into_it() {
     use crate::v026g::bots::concede::Hit;
     use crate::v026g::bots::threat::{HeldLine, Picture};
-    use crate::v026g::bots::tuning::Concede;
+    use crate::v026g::bots::tuning::{Concede, LonePeek};
     let mut s = Scenario::field(Mode::Batteries);
     s.view.clock = s.view.clock.max(60_000);
-    s.tuning.threat.concede = Some(Concede::default());
+    // Off by default (its bench: `Concede::lone_peek`); on here.
+    s.tuning.threat.concede = Some(Concede { lone_peek: Some(LonePeek::default()), ..Concede::default() });
     let me = Vec3::new(10.0, 0.0, 10.0);
     s.bot(0, 0, me);
     // His spot 25 m east of the bot; he killed someone 10 m north of the bot (a held line, nothing conceded or tried).

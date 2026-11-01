@@ -66,6 +66,14 @@ pub struct GridTuning {
     /// by the live players with no jump; 59 % of the offered maps' standing-jump links rise that much in one edge (A198). Off
     /// (the default) until a client test shows the walk. A grid is the map's (see `gap_links`).
     pub capsule_steps: bool,
+    /// Whether a walk-off of the maps' walk grids (a Drop link, a walk-off gap drop) is kept only where the capsule walking off the
+    /// edge has room (`mapdata::Body::drop_room`): no wall on the move's side of the take-off, between a step and the crouched
+    /// height over it, within the radius less half a cell of the way down. The links check the landing's ceiling only; a wall
+    /// past the edge, between the floors a drop spans, holds the body at the edge (A206, the offered maps: 4,350 links cut; their
+    /// take-off cells had a live stuck note 1.75 times as often as the others, live bodies walked off 4 of them, at one spot of
+    /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
+    /// map's (see `gap_links`).
+    pub drop_room: bool,
 }
 
 impl Default for GridTuning {
@@ -82,6 +90,7 @@ impl Default for GridTuning {
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
+            drop_room: false,
         }
     }
 }
@@ -106,6 +115,7 @@ impl GridTuning {
             keep_last_resorts: self.keep_last_resorts,
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
+            drop_room: self.drop_room,
             ..body
         }
     }

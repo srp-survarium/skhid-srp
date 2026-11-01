@@ -108,13 +108,52 @@ pub struct Concede {
     /// An objective play aimed into a conceded area: its score times this, so another objective goes first; never 0
     /// (design-p1c item 13: a conceded spot over the only battery does not stall the objective). GUESS.
     pub objective_weight: f32,
-    /// [item 15] A lone bot hit from a held spot's lane makes no second peek into it for a while ([`LonePeek`]).
+    /// [item 15] A lone bot hit from a held spot's lane makes no second peek into it for a while ([`LonePeek`]). Off by its
+    /// by-side bench (battery camper, 128 pairs, concede on both teams: second-peek deaths 32 vs 30, z +0.82; camper kills
+    /// 373 vs 367): it refused 1,982 candidate plays against the like-last rule's 756,335 ahead of it in the same check,
+    /// since a death sets its lane's last try for `retry_s` and a hit then a peek mostly fall in a lane already tried.
     pub lone_peek: Option<LonePeek>,
+    /// A shooter's death keeps the tries on his areas for a while ([`KeepAfterDeath`]); none: his death opens them.
+    pub keep_after_death: Option<KeepAfterDeath>,
 }
 
 impl Default for Concede {
     fn default() -> Self {
-        Self { fails: 2, concede_s: 60.0, retry_deg: 45.0, retry_s: 30.0, objective_weight: 0.5, lone_peek: Some(LonePeek::default()) }
+        Self {
+            fails: 2,
+            concede_s: 60.0,
+            retry_deg: 45.0,
+            retry_s: 30.0,
+            objective_weight: 0.5,
+            lone_peek: None,
+            keep_after_death: Some(KeepAfterDeath::default()),
+        }
+    }
+}
+
+/// No feeding, look 2 (`concede::SpotState::Down`): a camper killed at his spot comes back to it. Live, within 180 s of
+/// his death he is back within 10 m in 69 % of the PvB runs (median 41 s, p75 66 s; humans' matches 59 %, 48 s, p75 89 s)
+/// and kills from it again in 53 % (`traces-20261028/fx-threat-obj-same-spot-note.md`). His death keeps the team's tries
+/// on his areas for `keep_s`: anything is offered while he is down, and they are taken up when the team senses him back in
+/// one or a try fails on it again.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct KeepAfterDeath {
+    /// How long, s: Valve's nav-area danger, "one kill == 1.0, which we will forget about in two minutes"; covers the p75
+    /// of his return. LIKELY.
+    pub keep_s: f32,
+}
+
+impl Default for KeepAfterDeath {
+    fn default() -> Self {
+        Self { keep_s: 120.0 }
+    }
+}
+
+impl KeepAfterDeath {
+    /// [`Self::keep_s`] in ms.
+    pub fn keep_ms(&self) -> u32 {
+        (self.keep_s.max(0.0) * 1000.0) as u32
     }
 }
 
@@ -153,6 +192,7 @@ impl Concede {
             concede_ms: (self.concede_s.max(0.0) * 1000.0) as u32,
             retry_deg: self.retry_deg.clamp(0.0, 180.0),
             retry_ms: (self.retry_s.max(0.0) * 1000.0) as u32,
+            keep_ms: self.keep_after_death.map(|k| k.keep_ms()),
         }
     }
 

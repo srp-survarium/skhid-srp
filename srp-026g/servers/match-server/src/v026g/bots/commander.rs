@@ -192,6 +192,8 @@ fn threat_tick(
     }
     let eye = Vec3::new(0.0, view::eye_height(false, 0.0, 0.0), 0.0);
     let watchers: Vec<Vec3> = view.team(team).map(|p| p.feet + eye).collect();
+    // [threat.concede.keep_after_death] A shooter sensed back in an area whose tries his death kept takes them up.
+    let keep = tuning.threat.concede.map(|c| c.rules()).filter(|r| r.keep_ms.is_some());
     let mut enemies = Vec::new();
     for bot in bots.iter().flatten().filter(|b| b.team == team) {
         for track in bot.memory.tracks() {
@@ -200,6 +202,9 @@ fn threat_tick(
             {
                 enemies.push(at);
                 threat.spots.shooter_sensed(track.who, at, time, rules);
+                if let Some(keep) = &keep {
+                    super::concede::shooter_sensed(threat, team, track.who, at, now, keep);
+                }
                 if sniper_spots && weapons.get(track.who).copied().flatten() == Some(reflex::WeaponKind::Sniper) {
                     let combat = &tuning.aim.combat;
                     let reach = combat.band(reflex::WeaponKind::Sniper).1 + combat.band_slack_m;
