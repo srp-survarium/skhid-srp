@@ -41,7 +41,7 @@ KEYS = {'btn_upgrade_label': 'st_btn_upgrade_label', 'scope_window_title': 'st_s
         'scope_slot': 'st_picatinny_scope_medium_name', 'default_scope': 'st_default_scope_name',
         'scope_screen_hint': 'st_srp_scope_screen_hint', 'modification_screen_hint': 'st_modification_screen_hint',
         'modification_screen_edit_decal_hint': 'st_modification_screen_edit_decal_hint', 'confirm': 'st_confirm',
-        'st_srp_muzzle_slot': 'st_srp_muzzle_slot'}
+        'st_srp_scope_slot': 'st_srp_scope_slot', 'st_srp_muzzle_slot': 'st_srp_muzzle_slot'}
 languages = [name for name, *_ in LANGUAGES]
 data = {}
 for language in languages:
