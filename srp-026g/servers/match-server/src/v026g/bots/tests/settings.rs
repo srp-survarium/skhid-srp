@@ -199,6 +199,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_STAGGER_MODEL", "`on`", "**model** `on`/`off`: a hit slows the stand-in by its weapon's `stopping_power` times the ammunition's `k_power`, the last 0.5 s summed and capped at 0.5, and stops its sprint (the game's rule, standin_stagger.rs); `off`: every hit slows it to 0.75 for 0.5 s (the stand-in before)"),
     s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
+    s("SRP_BENCH_STAND_IN_DRUGS", "rev40 (live)", "**model** with the drugs on, `rev40`: a bullet that took health stops every drug in use (patch 84) and the Medikit takes 40 % of the pain (revision 40); `rev39`: neither, the drugs as they were before revision 40 (standin_heal.rs `rev40`)"),
     s("SRP_BENCH_TRAPS_MODEL", "on", "**model** `on`/`off`: the stand-in has the bear traps (placing, the sensor, a shot or a use that disarms) or not (standin_traps.rs); with no body carrying a trap it changes nothing"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];

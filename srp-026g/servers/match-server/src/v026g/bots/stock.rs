@@ -80,8 +80,22 @@ pub struct Held {
     pub total: u16,
     /// Units in the slot now (this life).
     pub hand: u16,
-    /// The last press of this life, ms.
-    pub pressed: Option<u32>,
+    /// The last press of this life.
+    pub pressed: Option<Press>,
+}
+
+/// A press of a drug's key, and what the worlds said of it since.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Press {
+    /// When it went out, ms.
+    pub at: u32,
+    /// The first hit that took health after it, the world's ms (`m_last_hit_time_ms`, written only for a hit
+    /// that took health: `damage_model::hit_body_part` 0x2E5134, PROVEN). Patch 84 stops the drug if it landed
+    /// before the drug's end (`HealTuning::drug_stops`). The world keeps only the last hit, so a hit inside the
+    /// drug's time followed by another after its end, both between two worlds, reads as the later one; and a hit
+    /// that is no bullet (a zone, a fall, a blast) stops nothing in the game but is read as one (LIKELY rare
+    /// within a drug's few seconds).
+    pub hit: Option<u32>,
 }
 
 /// One drug of one kit in a world, as [`readings`] has it.
@@ -347,6 +361,23 @@ impl Pantry {
         self.counts.short_spawns += u32::from(short);
     }
 
+    /// A trusted world says the last hit that took health was at `hit_ms` (the world's ms, 0: none): each press of
+    /// the kit in use made before it and not hit yet takes it as its first hit ([`Press::hit`]).
+    pub fn hit(&mut self, hit_ms: u32) {
+        if hit_ms == 0 {
+            return;
+        }
+        let kit = self.kit;
+        for held in self.kit_at(kit) {
+            if let Some(press) = held.pressed.as_mut()
+                && press.hit.is_none()
+                && hit_ms > press.at
+            {
+                press.hit = Some(hit_ms);
+            }
+        }
+    }
+
     /// The drugs of the kit in use.
     pub fn held(&self) -> &[Held] {
         self.kits.get(self.kit).map_or(&[], Vec::as_slice)
@@ -400,7 +431,7 @@ impl Pantry {
         };
         held.hand -= 1;
         held.total = held.total.saturating_sub(1);
-        held.pressed = Some(now);
+        held.pressed = Some(Press { at: now, hit: None });
         let drug = held.drug;
         if let Some(at) = Drug::ALL.iter().position(|&d| d == drug) {
             self.counts.pressed[at] += 1;
@@ -438,7 +469,7 @@ impl Pantry {
                     });
                 let h = &mut held[at];
                 h.slot = r.slot;
-                if h.pressed.is_some_and(|p| time < p + PRESS_LAG_MS) {
+                if h.pressed.is_some_and(|p| time < p.at + PRESS_LAG_MS) {
                     continue;
                 }
                 let stored = r.stored.min(u32::from(u16::MAX)) as u16;
@@ -812,5 +843,23 @@ mod tests {
             18,
             "the store is for the next life"
         );
+    }
+
+    /// [A217] A world's last hit that took health after a press is the press's first hit; one before it, a later
+    /// one, or none changes nothing, and a new life's press starts clean.
+    #[test]
+    fn the_first_hit_after_a_press_is_kept_with_it() {
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        assert!(pantry.pressed(0, 10_000));
+        let press = |pantry: &Pantry| pantry.at_key(0).and_then(|held| held.pressed);
+        pantry.hit(0);
+        pantry.hit(9_500);
+        assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: None }), "none, and a hit before the press");
+        pantry.hit(11_200);
+        pantry.hit(12_000);
+        assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: Some(11_200) }), "the first after it stays");
+        pantry.new_life(0);
+        assert_eq!(press(&pantry), None);
     }
 }

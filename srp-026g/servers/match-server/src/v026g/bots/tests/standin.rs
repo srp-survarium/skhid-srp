@@ -649,6 +649,8 @@ pub(crate) struct Game {
     /// bodies' pools and drugs in the worlds of the last two seconds
     /// ([`Game::seen_at`]).
     pub(crate) drug_log: Vec<standin_heal::DrugPress>,
+    /// [A217] Every drug a bullet stopped (patch 84, [`standin_heal::stop_on_bullet`]).
+    pub(crate) drug_stops: Vec<standin_heal::DrugStop>,
     pub(crate) seen: VecDeque<(u32, Vec<standin_heal::Seen>)>,
     /// The bear traps placed, and what befell them ([`standin_traps`]).
     pub(crate) traps: standin_traps::Traps,
@@ -915,6 +917,7 @@ impl Game {
             landings: Vec::new(),
             climbs: standin_climb::Climbs::default(),
             drug_log: Vec::new(),
+            drug_stops: Vec::new(),
             seen: VecDeque::new(),
             traps: standin_traps::Traps::default(),
             world,
@@ -1865,7 +1868,9 @@ impl Game {
         }
         let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
+        let before = standin_heal::health_of(other);
         let stamina = standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
         other.stamina.hit(stamina);
         other.last_hit = tick;
         other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun));
@@ -1908,7 +1913,9 @@ impl Game {
             }
             let pain_before = self.bodies[target].pools.pain;
             let other = &mut self.bodies[target];
+            let before = standin_heal::health_of(other);
             standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
+            standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
             other.last_hit = tick;
             // Every pellet that landed is a bullet of its own.
             other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun) * landed.len() as f32);
