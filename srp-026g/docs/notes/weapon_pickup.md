@@ -63,7 +63,8 @@
   while it borrows: no pickup); nothing in hands but a gun of its two: no
   pickup.
 - Synced: only each player's record (its drop: open with its kit and slot,
-  or taken; and the gun it borrows), 12 bytes at the start of its
+  or taken; and the gun it borrows: its donor's place and life, kit and
+  slot, and the own slot it holds it in), 12 bytes at the start of its
   state. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
@@ -134,9 +135,13 @@ cooked gun).
   in slot 7 or 10, another place's open drop, the carry rule: the other
   slot's gun's +5E9h and the kit's modifiers 64 and 25 through
   apply_modifier 0x2D5AE0) first without the gun's handedness; the gun from
-  the cache (a cook of that place, kit and slot nobody holds, whatever its
-  death's time: a rollback replays a death at another time), or (a death
-  this client did not see) cooked
+  the cache (a cook of that place, life, kit and slot nobody holds; the
+  life is the dead donor's spawn time, player+328h, the same in a
+  rollback's replay of the death at another time; two lives of one place
+  are two guns: 83g41 crashed when a borrow of a place's earlier life and
+  one of its next life read as the same record, so a rollback left the
+  wrong gun installed under the native readers), or (a death this client
+  did not see) cooked
   from the donor's profile, waited for if not in; the rule again with the
   cooked gun's +5E9h; then the install:
   - every check before the first write: the own gun a client weapon in its

@@ -46,7 +46,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use weapon_pickup::{Borrow, Drop as DropState, Handedness, Kit, Ms, Picker, Place, Record, WeaponSlot, PLACES};
+use weapon_pickup::{Borrow, Drop as DropState, Handedness, Kit, Life, Ms, Picker, Place, Record, WeaponSlot, PLACES};
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
@@ -68,20 +68,21 @@ const HOLDERS_MAX: usize = 60;
 /// Where an instance's gun is from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Origin {
-    /// A donor's death: its life (spawn time, player+328h), the death's
-    /// simulation time and, once its body left the world (its respawn, its
-    /// departure: base_player::remove(1)), the time its margin counts from:
-    /// that, or a later give-back of the gun.
-    Death { spawned: u32, died: Ms, gone: Option<Ms> },
+    /// A donor's death: the death's simulation time and, once its body
+    /// left the world (its respawn, its departure: base_player::remove(1)),
+    /// the time its margin counts from: that, or a later give-back.
+    Death { died: Ms, gone: Option<Ms> },
     /// Named by a loaded world's record, or a pickup of a death this client
     /// did not see (a late join).
     Loaded,
 }
 
-/// The gun: its donor's place, kit and weapon slot.
+/// The gun: its donor's place and life, kit and weapon slot (a place's
+/// lives each drop their own gun; a rollback replays a death in its life).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Source {
     pub place: Place,
+    pub life: Life,
     pub kit: Kit,
     pub slot: WeaponSlot,
 }
@@ -125,7 +126,7 @@ static PLAYER_MADE: AtomicBool = AtomicBool::new(false);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Body {
     player: PlayerId,
-    spawned: u32,
+    life: Life,
 }
 
 /// A place's synced record, of the match (its world core), and its last
@@ -329,7 +330,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, want: Option<Borrow>) {
     let Some(borrow) = want else { return };
     let outcome = (|| {
         let donor = peer(player, borrow.donor).ok_or(Why::NoDonor)?;
-        let cook = need_cook(thread, &donor, borrow.kit, borrow.slot).map_err(Why::Gun)?;
+        let cook = need_cook(thread, &donor, borrow.life, borrow.kit, borrow.slot).map_err(Why::Gun)?;
         let installed = native::install(player, borrow.own, cook, borrow.slot, Mode::Load).map_err(Why::Install)?;
         Ok::<_, Why>((cook, installed))
     })();
@@ -386,13 +387,12 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
                   Text(" slot "), Dec(u32::from(slot.slot())), Text(" ends")]);
         }
     }
-    let (donor, spawned, at) = (player.id(), player.spawned(), Ms(player.time()));
+    let (donor, life, at) = (player.id(), Life(player.spawned()), Ms(player.time()));
     CACHE.with(thread, |cache| {
-        for entry in cache.iter_mut().flatten().filter(|e| e.donor == donor) {
-            if let Origin::Death { spawned: s, died, gone: None } = entry.origin
-                && s == spawned {
-                    entry.origin = Origin::Death { spawned, died, gone: Some(at) };
-                }
+        for entry in cache.iter_mut().flatten().filter(|e| e.donor == donor && e.source.life == life) {
+            if let Origin::Death { died, gone: None } = entry.origin {
+                entry.origin = Origin::Death { died, gone: Some(at) };
+            }
         }
     });
     Flow::Continue
@@ -413,19 +413,19 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
         _ => DropState::None,
     };
     if let Some((world, place)) = located(player) {
-        let body = Body { player: player.id(), spawned: player.spawned() };
+        let body = Body { player: player.id(), life: Life(player.spawned()) };
         update_placed(thread, world, place, |r, b| {
             r.drop = drop;
             *b = Some(body);
         });
     }
     let (DropState::Open { kit, slot, .. }, Some(place)) = (drop, Place::new(player.place())) else { return };
-    let spawned = player.spawned();
+    let life = Life(player.spawned());
     let known = CACHE.with(thread, |cache| {
-        cache.iter().flatten().any(|e| e.source.place == place && matches!(e.origin, Origin::Death { spawned: s, .. } if s == spawned))
+        cache.iter().flatten().any(|e| e.source.place == place && e.source.life == life && matches!(e.origin, Origin::Death { .. }))
     });
     if !known {
-        ask(player, thread, Source { place, kit, slot }, Origin::Death { spawned, died: Ms(player.time()), gone: None });
+        ask(player, thread, Source { place, life, kit, slot }, Origin::Death { died: Ms(player.time()), gone: None });
     }
 }
 
@@ -458,21 +458,23 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Taken, Wh
     let mine = record_at(thread, world, place);
     let theirs = record_at(thread, world, target);
     let picker = picker_of(player, place, mine.borrow).ok_or(Why::NoPlace)?;
+    // The drop is its body's: the place's player, dead, its life.
+    let donor = peer(player, target).ok_or(Why::NoDonor)?;
+    let life = Life(donor.spawned());
     // The rule without the gun first (a pistol refuses least): no cook is
     // waited for a refusal.
-    weapon_pickup::decide(picker, target, theirs.drop, |_, _| Handedness::One).map_err(Why::Rule)?;
+    weapon_pickup::decide(picker, target, theirs.drop, life, |_, _| Handedness::One).map_err(Why::Rule)?;
     let DropState::Open { kit, slot } = theirs.drop else { return Err(Why::Rule(weapon_pickup::Refusal::NotAvailable)) };
     let own = picker.held.ok_or(Why::Rule(weapon_pickup::Refusal::NoGunInHands))?;
-    let source = Source { place: target, kit, slot };
-    let donor = peer(player, target);
+    let source = Source { place: target, life, kit, slot };
     let cook = match kept_cook(thread, source) {
         Some(id) => wait_for(thread, id, source).map_err(Why::Gun)?,
         // A death this client did not see (it joined after): cooked now.
-        None => need_cook(thread, donor.as_ref().ok_or(Why::NoDonor)?, kit, slot).map_err(Why::Gun)?,
+        None => need_cook(thread, &donor, life, kit, slot).map_err(Why::Gun)?,
     };
     let incoming = native::handedness(thread, cook, slot).ok_or(Why::Install(native::Refusal::NoCookedGun))?;
-    let take = weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming).map_err(Why::Rule)?;
-    let magazine = donor.filter(|d| d.kit() == Some(kit)).and_then(|d| d.magazine(slot));
+    let take = weapon_pickup::decide(picker, target, theirs.drop, life, |_, _| incoming).map_err(Why::Rule)?;
+    let magazine = (donor.kit() == Some(kit)).then(|| donor.magazine(slot)).flatten();
     // Over a borrowed gun in hands: that one goes (restored to its cooked
     // inventory), the own gun and ammunition stay parked under the new one.
     let replaced = holder_of(thread, player.id());
@@ -554,11 +556,11 @@ fn kept_box(thread: &Thread, source: Source) -> Option<GunBox> {
 }
 
 /// The gun a record names (its donor `donor`, a player of the donor's
-/// place, and the kit and slot), not held by anyone: one already cooked of
-/// that source, or a cook asked for now; waited for.
-fn need_cook(thread: &Thread, donor: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<CookId, Refused> {
+/// place, the donor's life, the kit and slot), not held by anyone: one
+/// already cooked of that source, or a cook asked for now; waited for.
+fn need_cook(thread: &Thread, donor: &Player<'_>, life: Life, kit: Kit, slot: WeaponSlot) -> Result<CookId, Refused> {
     let place = Place::new(donor.place()).ok_or(Refused::Missing)?;
-    let source = Source { place, kit, slot };
+    let source = Source { place, life, kit, slot };
     let id = match kept_cook(thread, source) {
         Some(id) => id,
         None => ask(donor, thread, source, Origin::Loaded).ok_or(Refused::NotAsked(Refusal::NoTicket))?,
@@ -786,7 +788,7 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
         return RagdollGun::Hidden;
     }
     let Some((world, place)) = located(player) else { return RagdollGun::Shown };
-    let body = Body { player: player.id(), spawned: player.spawned() };
+    let body = Body { player: player.id(), life: Life(player.spawned()) };
     let (record, last) = placed_at(thread, world, place);
     if last != Some(body) {
         return RagdollGun::Shown;
@@ -794,7 +796,8 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
     match record.drop {
         DropState::Taken => RagdollGun::Hidden,
         DropState::Open { kit, slot } => {
-            let pose = kept_box(thread, Source { place, kit, slot }).and_then(|model| native::drawn_gun(ctx, model));
+            let pose = kept_box(thread, Source { place, life: body.life, kit, slot })
+                .and_then(|model| native::drawn_gun(ctx, model));
             SEEN.with(thread, |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
             RagdollGun::Shown
         }
@@ -1001,14 +1004,14 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target:
         DropState::Taken => return Err(Sight::Taken),
         DropState::None => return Err(Sight::NoDrop),
     };
-    let cook = kept_cook(thread, Source { place: target, kit, slot }).ok_or(Sight::CookNotReady)?;
+    let cook = kept_cook(thread, Source { place: target, life: body.life, kit, slot }).ok_or(Sight::CookNotReady)?;
     if !matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }) {
         return Err(Sight::CookNotReady);
     }
     let picker = picker_of(viewer, place, record_at(thread, world, place).borrow).ok_or(Sight::NoPicker)?;
     let incoming = native::handedness(thread, cook, slot);
     let incoming = incoming.ok_or(Sight::NoHandedness)?;
-    let take = weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming)
+    let take = weapon_pickup::decide(picker, target, theirs.drop, body.life, |_, _| incoming)
         .map_err(|why| Sight::Refused { why, held: picker.held.map(|slot| (slot, viewer.weapon_handedness(slot))),
                                         other: picker.other, rule: picker.rule, incoming })?;
     Ok((cook, take.borrow.slot))
@@ -1157,7 +1160,8 @@ fn log(rest: &[Piece<'_>]) {
 
 fn log_borrow(what: &str, player: &Player<'_>, borrow: Borrow, why: &str) {
     log(&[Text("place "), Dec(u32::from(player.place())), Text(" at "), Dec(player.time()), Text(" ms "), Text(what),
-          Text(": the gun of place "), Dec(u32::from(borrow.donor.get())), Text(" kit "), Dec(u32::from(borrow.kit.get())),
+          Text(": the gun of place "), Dec(u32::from(borrow.donor.get())), Text(" life "), Dec(borrow.life.0),
+          Text(" kit "), Dec(u32::from(borrow.kit.get())),
           Text(" slot "), Dec(u32::from(borrow.slot.slot())), Text(" in place of its slot "),
           Dec(u32::from(borrow.own.slot())), Text(if why.is_empty() { "" } else { " (" }), Text(why),
           Text(if why.is_empty() { "" } else { ")" })]);
@@ -1229,8 +1233,9 @@ fn log_refill(player: &Player<'_>, c: &native::Crate) {
 }
 
 fn log_source(what: &str, source: Source, origin: Origin, rest: &[Piece<'_>]) {
-    let head = [Text(what), Text(" the gun of place "), Dec(u32::from(source.place.get())), Text(" kit "),
-                Dec(u32::from(source.kit.get())), Text(" slot "), Dec(u32::from(source.slot.slot()))];
+    let head = [Text(what), Text(" the gun of place "), Dec(u32::from(source.place.get())), Text(" life "),
+                Dec(source.life.0), Text(" kit "), Dec(u32::from(source.kit.get())), Text(" slot "),
+                Dec(u32::from(source.slot.slot()))];
     let (died, n) = match origin {
         Origin::Death { died, .. } => ([Text(" (death at "), Dec(died.0), Text(" ms)")], 3),
         Origin::Loaded => ([Text(" (a loaded world's)"), Text(""), Text("")], 1),

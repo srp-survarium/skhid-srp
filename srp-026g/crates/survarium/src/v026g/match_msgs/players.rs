@@ -749,6 +749,7 @@ mod tests {
         // out of the inventory, which is not read (nothing used is guessed).
         let borrow = weapon_pickup::Borrow {
             donor: weapon_pickup::Place::new(2).unwrap(),
+            life: weapon_pickup::Life(54_300),
             kit: weapon_pickup::Kit::new(1).unwrap(),
             slot: weapon_pickup::WeaponSlot::Second,
             own: weapon_pickup::WeaponSlot::First,
