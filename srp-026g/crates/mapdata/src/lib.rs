@@ -131,6 +131,9 @@ pub const DROP_ROOM_ALGO: u32 = 1;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own: a key with only this flag is not one with only
 /// another flag whose value is 1.
 pub const SLIP_LANDINGS_ALGO: u32 = 0x5119_0001;
+/// The same for the sprint jumps' run-ups asked after the erosion ([`Body::run_ups_after_erosion`], `WalkGrid::drop_short_run_ups`),
+/// in [`grid_key_with_links`] only for a body that asks for it.
+pub const RUN_UPS_AFTER_EROSION_ALGO: u32 = 1;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -266,6 +269,10 @@ pub fn grid_key_with_links(
     // The floors a slip reaches are a switch too.
     if body.slip_landings {
         digest.u32(SLIP_LANDINGS_ALGO);
+    }
+    // So is the run-ups' place in the build.
+    if body.run_ups_after_erosion {
+        digest.u32(RUN_UPS_AFTER_EROSION_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {
