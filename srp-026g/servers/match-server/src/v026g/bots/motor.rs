@@ -693,12 +693,12 @@ const KEY_HOLD_TICKS: u32 = 2;
 /// (more than a sector and a half: the facing swung round).
 const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
 
-/// The lane a walk is in this tick (A175, `spacing.lane`): how far to the left the steering point moves (negative: the right), whether the body itself stands where a shift is safe,
-/// and the test of a shifted point against the route's own (the same floor, off a lip and a fall).
+/// The lane a walk is in this tick (A175, `spacing.lane`): how far to the left the steering point moves (negative: the right), whether the body itself stands where a shift is safe
+/// (or why not), and the test of a shifted point against the route's own (the same floor, off a lip and a fall; or why not).
 pub struct LaneAim<'a> {
     pub offset_m: f32,
-    pub body_ok: bool,
-    pub safe: &'a dyn Fn(Vec3, Vec3) -> bool,
+    pub body: Result<(), super::apart::Unsafe>,
+    pub safe: &'a dyn Fn(Vec3, Vec3) -> Result<(), super::apart::Unsafe>,
 }
 
 /// A lane is kept off a gate, a jump or a drop within this far past the look-ahead, m, and off the route's last stretch of this length, m: the route's own line is the one that lines
@@ -1311,8 +1311,8 @@ impl Motor {
         }
         // The left of the way is a quarter turn: (-dz, dx).
         let shifted = Vec3::new(target.x - dz / len * lane.offset_m, target.y, target.z + dx / len * lane.offset_m);
-        if !lane.body_ok || !(lane.safe)(shifted, target) {
-            self.lane_use = LaneUse::UnsafeFloor;
+        if let Err(why) = lane.body.and_then(|()| (lane.safe)(shifted, target)) {
+            self.lane_use = LaneUse::UnsafeFloor(why);
             return target;
         }
         if !clear(shifted) {
@@ -3912,7 +3912,7 @@ mod tests {
     /// route has its end, a gate or a jump near; each with its reason.
     #[test]
     fn a_lane_moves_the_steering_point_over_only_where_the_route_is_plain_and_the_ground_is_the_routes() {
-        use super::super::apart::LaneUse;
+        use super::super::apart::{LaneUse, Unsafe};
         let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
         let line = || Route::new(vec![p(0.0, 0.0), p(30.0, 0.0)]);
         let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
@@ -3921,8 +3921,8 @@ mod tests {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
             let safe_floor = lane.is_some_and(|(_, _, safe)| safe);
-            let safe = move |_: Vec3, _: Vec3| safe_floor;
-            let aim = lane.map(|(offset_m, body_ok, _)| LaneAim { offset_m, body_ok, safe: &safe });
+            let safe = move |_: Vec3, _: Vec3| if safe_floor { Ok(()) } else { Err(Unsafe::OtherFloor) };
+            let aim = lane.map(|(offset_m, body_ok, _)| LaneAim { offset_m, body: if body_ok { Ok(()) } else { Err(Unsafe::BodyAtEdge) }, safe: &safe });
             let (decision, walked) = motor.walk_in_lane(route, pose, 5.0, |p: Vec3| clear || p.z.abs() < 0.5, aim);
             assert_eq!(walked, Walked::OnTheWay);
             (decision.turn.0, motor.lane_use)
@@ -3937,8 +3937,8 @@ mod tests {
         // The shifted point is not one the body walks to in a line: the route's own point, counted.
         assert_eq!(walk(&mut line(), &pose, Some((0.9, true, true)), false), (straight, LaneUse::NoRoom));
         // Not the route's floor, or the body itself at a lip: the route's own point.
-        assert_eq!(walk(&mut line(), &pose, Some((0.9, true, false)), true), (straight, LaneUse::UnsafeFloor));
-        assert_eq!(walk(&mut line(), &pose, Some((0.9, false, true)), true), (straight, LaneUse::UnsafeFloor));
+        assert_eq!(walk(&mut line(), &pose, Some((0.9, true, false)), true), (straight, LaneUse::UnsafeFloor(Unsafe::OtherFloor)));
+        assert_eq!(walk(&mut line(), &pose, Some((0.9, false, true)), true), (straight, LaneUse::UnsafeFloor(Unsafe::BodyAtEdge)));
         // The route's last stretch (6 m): its own line.
         let near_end = Pose { feet: Vec3::new(26.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
         assert_eq!(walk(&mut line(), &near_end, Some((0.9, true, true)), true).1, LaneUse::RouteBusy);

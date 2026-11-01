@@ -1561,18 +1561,25 @@ fn drive_tick_inner(
                             Some(offset_m) => {
                                 let grid = &tactics.world.grid;
                                 let off_edge = |node: NodeId| !(grid.near_lip(node) || grid.is_lip(node) || grid.near_fall(node));
-                                let body_ok = grid.locate(me.feet, 1.5).is_some_and(off_edge);
-                                let safe = |shifted: Vec3, target: Vec3| {
-                                    grid.locate(shifted, 0.6).is_some_and(|node| off_edge(node) && (grid.position(node).y - target.y).abs() < LANE_FLOOR_M)
+                                let body = match grid.locate(me.feet, 1.5) {
+                                    None => Err(apart::Unsafe::BodyNoFloor),
+                                    Some(node) if !off_edge(node) => Err(apart::Unsafe::BodyAtEdge),
+                                    Some(_) => Ok(()),
                                 };
-                                bot.motor.walk_in_lane(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body_ok, safe: &safe }))
+                                let safe = |shifted: Vec3, target: Vec3| match grid.locate(shifted, 0.6) {
+                                    None => Err(apart::Unsafe::NoFloor),
+                                    Some(node) if !off_edge(node) => Err(apart::Unsafe::AtEdge),
+                                    Some(node) if (grid.position(node).y - target.y).abs() >= LANE_FLOOR_M => Err(apart::Unsafe::OtherFloor),
+                                    Some(_) => Ok(()),
+                                };
+                                bot.motor.walk_in_lane(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body, safe: &safe }))
                             }
                             None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                         },
                     };
                     #[cfg(test)]
                     {
-                        bot.bench_lane = bot.motor.lane_use as u8;
+                        bot.bench_lane = bot.motor.lane_use;
                     }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
@@ -1710,6 +1717,8 @@ fn drive_tick_inner(
     {
         bot.bench_apart = 0;
     }
+    // Whether the side step was taken this tick (the queue's abreast order waits only where the two do not part sideways).
+    let mut stepped = false;
     if tuning.spacing.apart {
         let away = apart::key_away(me, view, tuning.spacing.apart_m.get());
         if away.key != 0 {
@@ -1733,6 +1742,7 @@ fn drive_tick_inner(
             if tied {
                 decision.keys |= away.other_key();
             }
+            stepped = clear || tied;
             let eased = !held_off && !clear && !tied && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
             if eased {
                 decision.keys &= !(key::FORWARD | key::SPRINT);
@@ -1742,6 +1752,44 @@ fn drive_tick_inner(
                 // A refused step (2) whose other side is clear is 5: the bot is against a wall on the side away from him, not in a corridor; 6 is the step to the other side (`apart_tie`).
                 bot.bench_apart = if held_off { 3 } else if clear { 1 } else if tied { 6 } else if eased { 4 } else if other_clear { 5 } else { 2 };
             }
+        }
+    }
+    // [spacing.queue] A212: a teammate just ahead on the bot's way is not walked into (`apart::queue`, Reynolds' queuing): the sprint is dropped inside `gap_m`, forward too
+    // inside `stop_m`. Not on a jump of the route (a sprint jump needs its run-up), not while the fight holds the keys, not in an escape. It only lets keys go: the lip guard
+    // below still has the last word.
+    #[cfg(test)]
+    {
+        bot.bench_queue = apart::QueueUse::Idle;
+    }
+    if let Some(queue) = tuning.spacing.queue {
+        let give = apart::queue(me, view, queue.gap_m.get(), queue.stop_m.get(), queue.cone_deg.get(), stepped);
+        if give != apart::Give::None {
+            let used = if bot.motor.lining_up() || bot.motor.jumped().is_some() {
+                apart::QueueUse::RefusedJump
+            } else if intent.hold != 0 || over.strafe != 0 || over.fire || using {
+                apart::QueueUse::RefusedHeld
+            } else if matches!(intent.pace, Pace::Escape(_)) {
+                apart::QueueUse::RefusedEscape
+            } else {
+                let sprinting = decision.keys & key::SPRINT != 0;
+                match give {
+                    apart::Give::Slow => {
+                        decision.keys &= !key::SPRINT;
+                        if sprinting { apart::QueueUse::SlowDropped } else { apart::QueueUse::SlowNoSprint }
+                    }
+                    apart::Give::Stop { abreast } => {
+                        decision.keys &= !(key::FORWARD | key::SPRINT);
+                        if abreast { apart::QueueUse::Yield } else { apart::QueueUse::Stop }
+                    }
+                    apart::Give::None => apart::QueueUse::Idle,
+                }
+            };
+            #[cfg(test)]
+            {
+                bot.bench_queue = used;
+            }
+            #[cfg(not(test))]
+            let _ = used;
         }
     }
     // [lip guard] On a lip's floors the keys of this tick are played forward to a stop: a key that carries the
