@@ -1486,14 +1486,6 @@ fn drive_tick_inner(
                 Pace::Cruise | Pace::Arrive => motor::Gait::Cruise,
                 Pace::Walk | Pace::Sneak => motor::Gait::Walk,
             };
-            // The floor under the body, for the sprint through turns only (`Feel::sprint_turns`): at an edge its old rule decides.
-            if bot.motor.feel.sprint_turns.is_some() {
-                let grid = &tactics.world.grid;
-                pose.floor = match grid.locate(me.feet, 1.5) {
-                    Some(node) if grid.is_lip(node) || grid.near_lip(node) || grid.near_fall(node) => motor::Floor::Edge,
-                    _ => motor::Floor::Open,
-                };
-            }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where
@@ -1531,11 +1523,18 @@ fn drive_tick_inner(
                     };
                     // On a lip's floors the walk keeps to the route's line: a line to a point further on cuts the
                     // corner it turns at over the rim.
-                    bot.motor.ahead_cap = {
-                        let grid = &tactics.world.grid;
-                        let cap = bot.motor.feel.lip_look_ahead_m.get();
-                        (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
-                    };
+                    // The same floor tells the sprint through turns an edge (`Feel::sprint_turns`): there its old rule decides.
+                    let grid = &tactics.world.grid;
+                    let cap = bot.motor.feel.lip_look_ahead_m.get();
+                    let turns = bot.motor.feel.sprint_turns.is_some();
+                    let floor = (cap > 0.0 || turns).then(|| grid.locate(me.feet, 1.5)).flatten();
+                    bot.motor.ahead_cap = (cap > 0.0 && floor.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap);
+                    if turns {
+                        pose.floor = match floor {
+                            Some(node) if grid.is_lip(node) || grid.near_lip(node) || grid.near_fall(node) => motor::Floor::Edge,
+                            _ => motor::Floor::Open,
+                        };
+                    }
                     #[cfg(test)]
                     {
                         bot.bench_walk = if aim.is_some() { 2 } else { 1 };
