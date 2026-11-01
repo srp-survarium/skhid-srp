@@ -22,6 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
+  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
+                                                       live three numbers, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
@@ -224,6 +226,17 @@ def set_number(buf, path, frm, to, as_float=False):
         raise ValueError('%s is an int; %r needs "as_float": true' % (path, to))
     raw = struct.unpack('<I', struct.pack('<f' if t == T_FLOAT else '<i', to if t == T_FLOAT else int(to)))[0]
     REC.pack_into(buf, off, (data & ~0xffffffff) | raw, idoff, crc, t, cnt)
+
+
+def set_vector(buf, path, frm, to):
+    """A float3 value's three numbers, in place."""
+    at, _, _, t, _ = rec(buf, find(buf, path))
+    if t != 7 or len(frm) != 3 or len(to) != 3:
+        raise TypeError('%s: a float3 and three numbers each' % path)
+    old = struct.unpack_from('<3f', buf, at)
+    if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    struct.pack_into('<3f', buf, at, *to)
 
 
 def set_bool(buf, path, frm, to):
@@ -1089,6 +1102,9 @@ def main():
         print('promote_rolled_defaults: %d defaults' % len(changed))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_vector', []):
+        set_vector(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('set_bool', []):
         set_bool(buf(e['file']), e['path'], e['from'], e['to'])

@@ -261,7 +261,14 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   load_weapon 0x243A9A at the weapon's cook, 0x24B0DC -> +108h the render
   reference -> +0 its skeleton instance -> +62B4h its resource -> +108h, 6
   f32, turned by Y(pi): [-maxx, miny, -maxz] .. [-minx, maxy, -minz];
-  refused when not finite, inverted or a side over 4 m).
+  refused when not finite, inverted or a side over 4 m). Eight gun models
+  of the data (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr)
+  had the exporter's default box, +-1 m, so their target was a 2 m cube
+  (83f41: "too big", offered off the gun); the content edit list
+  `weapon-boxes-1.json` gives them their vertices' box (the skinned
+  vertices are on the GPU only: the game has no other box of them). A new
+  drop's box is logged once by the viewer: `place P: the gun box of place
+  T at (x, y, z), half sizes (a, b, c) mm`, world, along its own axes.
 - **The prompt** (artefact_carry's on_hud at `player_icons.update_start`,
   after patch 78's own targets): for each kept pose, the eye's (player+44Ch:
   position m[12..14], forward m[8..10]) 2.2 m segment into the box padded by

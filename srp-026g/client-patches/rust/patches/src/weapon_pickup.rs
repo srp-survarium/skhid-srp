@@ -866,7 +866,7 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
             && !best.is_some_and(|(nearest, ..)| nearest <= distance) {
             best = Some((distance, target, cook, slot));
         }
-        sights[n] = Some((seen.body, sight.map(|_| ()).err().unwrap_or(Sight::Offered)));
+        sights[n] = Some((seen.body, sight.map(|_| ()).err().unwrap_or(Sight::Offered), seen.pose));
     }
     log_sights(thread, viewer, sights);
     let (_, target, cook, slot) = best?;
@@ -908,20 +908,37 @@ enum Sight {
 static SIGHTS: GameCell<[Option<(Body, Sight)>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 
 /// One line for each drop whose sight changed (a new body, or a new reason).
-fn log_sights(thread: &Thread, viewer: &Player<'_>, now: [Option<(Body, Sight)>; PLACES as usize]) {
+/// A new drop's gun box is logged once (its world centre and half sizes).
+fn log_sights(thread: &Thread, viewer: &Player<'_>, now: [Option<(Body, Sight, GunPose)>; PLACES as usize]) {
     let before = SIGHTS.get(thread);
     for (n, (was, is)) in before.iter().zip(now.iter()).enumerate() {
-        let Some((_, sight)) = is.filter(|is| *was != Some(*is)) else { continue };
-        log_sight(viewer, n as u8, sight);
+        let Some((body, sight, pose)) = *is else { continue };
+        if was.map(|(b, _)| b) != Some(body) {
+            log_box(viewer, n as u8, &pose);
+        }
+        if *was != Some((body, sight)) {
+            log_sight(viewer, n as u8, sight);
+        }
     }
     // A drop not seen this frame keeps what was logged of it.
     let mut kept = before;
     for (k, is) in kept.iter_mut().zip(now) {
-        if is.is_some() {
-            *k = is;
+        if let Some((body, sight, _)) = is {
+            *k = Some((body, sight));
         }
     }
     SIGHTS.set(thread, kept);
+}
+
+/// `place P: the gun box of place T at (x, y, z), half sizes (a, b, c) mm` (world).
+fn log_box(viewer: &Player<'_>, target: u8, pose: &GunPose) {
+    let (centre, half) = world_box(pose);
+    let mm = |v: f32| [Text(if v < 0.0 { "-" } else { "" }), Dec((v.abs() * 1000.0) as u32)];
+    let [c0, c1, c2] = centre.map(mm);
+    let [h0, h1, h2] = half.map(mm);
+    log_joined(&[&[Text("place "), Dec(u32::from(viewer.place())), Text(": the gun box of place "), Dec(u32::from(target)),
+                   Text(" at (")], &c0, &[Text(", ")], &c1, &[Text(", ")], &c2, &[Text("), half sizes (")],
+                 &h0, &[Text(", ")], &h1, &[Text(", ")], &h2, &[Text(") mm")]]);
 }
 
 fn slot_text(slot: Option<(WeaponSlot, Option<Handedness>)>) -> &'static str {
@@ -1000,21 +1017,28 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target:
 /// Whether the gun's box (padded by `pad`) is within `reach` of `eye`: its
 /// centre nearer than the reach and the box's half diagonal.
 fn within(pose: &GunPose, eye: [f32; 3], reach: f32, pad: f32) -> bool {
+    let (centre, half) = world_box(pose);
+    let radius: f32 = half.iter().map(|h| (h + pad) * (h + pad)).sum();
+    let d = [centre[0] - eye[0], centre[1] - eye[1], centre[2] - eye[2]];
+    let limit = reach + ragdoll::math::sqrt(radius);
+    dot(d, d) <= limit * limit
+}
+
+/// The gun's box in the world: its centre, and its half sizes along its
+/// own axes (the model box's, times each axis's scale), metres.
+fn world_box(pose: &GunPose) -> ([f32; 3], [f32; 3]) {
     let m = &pose.transform;
     let mut centre = [m[12], m[13], m[14]];
-    let mut radius = 0.0f32;
+    let mut half = [0.0f32; 3];
     for axis in 0..3 {
         let row = [m[axis * 4], m[axis * 4 + 1], m[axis * 4 + 2]];
         let middle = (pose.model.lo[axis] + pose.model.hi[axis]) * 0.5;
         for (c, r) in centre.iter_mut().zip(row) {
             *c += middle * r;
         }
-        let half = (pose.model.hi[axis] - pose.model.lo[axis]) * 0.5 * ragdoll::math::sqrt(dot(row, row)) + pad;
-        radius += half * half;
+        half[axis] = (pose.model.hi[axis] - pose.model.lo[axis]) * 0.5 * ragdoll::math::sqrt(dot(row, row));
     }
-    let d = [centre[0] - eye[0], centre[1] - eye[1], centre[2] - eye[2]];
-    let limit = reach + ragdoll::math::sqrt(radius);
-    dot(d, d) <= limit * limit
+    (centre, half)
 }
 
 fn unit([x, y, z]: [f32; 3]) -> Option<[f32; 3]> {

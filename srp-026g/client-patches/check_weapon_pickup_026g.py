@@ -1078,6 +1078,9 @@ def stage2b(patched):
     assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
     assert r.hud() == [("st_weapon_pick_up", NAME)]
     assert sights(r) == ["offered"], "once per drop and reason"
+    boxes = [l for l in r.log if "the gun box of place 5" in l]
+    assert len(boxes) == 1 and boxes[0].endswith(
+        "place 3: the gun box of place 5 at (0, 1000, 1000), half sizes (50, 50, 500) mm"), boxes
     print("ok the donor's gun drawn on its ragdoll (carry.weapon: the site's transform; the box its cooked gun's, "
           "nothing of the body's model read): the "
           "picker looking at it within 2.2 m, in sight, is offered it: show_artefact_offer(\"st_weapon_pick_up\", "
@@ -1106,6 +1109,9 @@ def stage2b(patched):
     rule = "; held 10 two-handed, other %s, gun two-handed, rule %s"
     for case, change, sight in (
             ("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.]), "in reach, not aimed at its box"),
+            ("15 cm beside the gun", lambda g: g.eye([0., 0., 1.], [0.15, 1.0, 0.]), "in reach, not aimed at its box"),
+            ("at the body 40 cm below it", lambda g: g.eye([0., -0.371, 0.928], [0., 1.0, 0.]),
+             "in reach, not aimed at its box"),
             ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9]), "out of reach (2.2 m)"),
             ("a wall between", lambda g: setattr(g, "wall", True), "not offered, no line of sight (the level's ray)"),
             ("a second double-handed gun", lambda g: g.second(double_handed=1),
@@ -1140,7 +1146,8 @@ def stage2b(patched):
     g.eye([0., -1., 0.], [0.09, 2.0, 1.2])
     g.draw()
     assert g.hud() == [("st_weapon_pick_up", NAME)], "5 cm of padding"
-    print("ok no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
+    print("ok the box is the gun's own (10 cm thick, 1 m long, at its transform; logged once a drop): no prompt 15 cm "
+          "beside it or at the body below it; no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
           "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 5 cm; offered 60 s after the death while the body is there, "
           "gone with base_player::remove(1) of the body (its pose forgotten); each drop's reason logged once a change (not aimed at, "
           "out of reach, no line of sight, the carry rule with both slots' handedness and the gun's, taken)")
