@@ -95,6 +95,22 @@ impl Place {
     }
 }
 
+/// A map's id in the maps dictionary (`maps_dict`, 204 Rudnya's): what a
+/// match's options name (+577B4h) and what the lobby loads a level by.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MapId(u32);
+
+impl MapId {
+    pub fn new(raw: u32) -> MapId {
+        MapId(raw)
+    }
+
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

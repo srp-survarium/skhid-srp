@@ -1,11 +1,12 @@
 //! player::update_camera 0x1F3480 at `camera.eye` (sites_026g.tsv): the
 //! camera's player, EAX the eye transform the view is given (the player's
-//! +44Ch in the first person).
+//! +44Ch in the first person). And the camera's angle (patch 22's uro_fov).
 
 use core::cell::UnsafeCell;
 
 use super::context::{Context, Reg};
-use super::world::Player;
+use super::hook::Thread;
+use super::world::{Player, floats, read};
 use crate::raw;
 
 /// The camera's player, and whether the view is given its own eye (the
@@ -34,3 +35,21 @@ unsafe impl Sync for Eye {}
 /// The eye given to the view (not 0: the arena's data, beside the crate's
 /// other statics).
 static EYE: Eye = Eye(UnsafeCell::new([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
+
+/// The transform the view is given at this site (EAX, after an earlier
+/// hook's [`look_from`]): a row-vector 4x4, its rows right, up, forward and
+/// the place; what the screen shows this frame.
+pub fn view_transform(ctx: &Context<'_>) -> Option<[f32; 16]> {
+    // SAFETY: the context is this site's: EAX the eye transform update_camera
+    // gives the view (the player's +44Ch, its third person's copy on the
+    // stack, or EYE), 16 f32 alive while it runs on its thread.
+    unsafe { raw::site::camera_eye::eye(ctx).map(|eye| floats(eye.value())) }
+}
+
+/// The camera's vertical angle unaimed, in degrees: uro_fov, the Settings'
+/// FOV (patch 22's projection: an aim narrows it).
+pub fn field_of_view(_: &Thread) -> f32 {
+    // SAFETY: the console variable's value, in the image for the whole run;
+    // only the game's thread (the Thread's) sets it.
+    unsafe { read(raw::image::uro_fov().value()) }
+}

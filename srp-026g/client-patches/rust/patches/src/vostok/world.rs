@@ -218,6 +218,17 @@ impl<'t> Player<'t> {
         unsafe { self.this.eye() as usize as u32 }
     }
 
+    /// The maps_dict id of its match (the network client's match options).
+    pub fn match_map(&self) -> Option<super::types::MapId> {
+        // SAFETY: the player's game world, its game and network client and
+        // the client's own match options: alive for the hook.
+        unsafe {
+            let client = self.this.game_world()?.game()?.network_client()?;
+            let options = raw::engine_match_options(Some(client))?;
+            Some(super::types::MapId::new(u32::from(read(options.map_id()))))
+        }
+    }
+
     /// The physics world (the level's ray).
     pub fn physics_world(&self) -> Option<PhysicsWorld<'t>> {
         // SAFETY: as inserted.

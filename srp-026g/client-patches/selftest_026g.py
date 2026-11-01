@@ -4143,6 +4143,70 @@ def test_lobby_scene(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_pose_marker(original, image, before):
+    """Check 89: the local build's pose marker (patch 89, the Rust patch
+    `pose_marker`, three lohooks of pose_marker.toml; ../docs/notes/pose-marker.md):
+    the comma key in a match writes the camera's pose to srp_poses.tsv, only in
+    a diagnostics build. Here: the key is no game action's (M is
+    set_next_ammo_type's), the level's site and what it reads, the chains
+    (after patch 86 at tab_cursor.key, after patch 76 at camera.eye), the jmps,
+    and this build's diagnostics off: a release's exe writes nothing (its
+    hooks return at once). check_pose_marker_026g.py runs the hooks on made-up
+    objects in the default and the diagnostics build."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    text_at = lambda at: bytes(original[stock.offset(at):original.index(b"\0", stock.offset(at))])
+    keys = {text_at(struct.unpack("<I", stock.read(0xA74AF0 + 20 * i, 4))[0]):
+            text_at(struct.unpack("<I", stock.read(0xA74AF0 + 20 * i + 16, 4))[0])
+            for i in range((0xA74FA0 - 0xA74AF0) // 20) if struct.unpack("<I", stock.read(0xA74AF0 + 20 * i + 16, 4))[0]}
+    names = {}
+    for i in range(200):
+        name, code = struct.unpack("<II", stock.read(0xA74FA0 + 0x88 * i, 8))
+        if not name:
+            break
+        names[text_at(name)] = code
+    check(keys.get(b"set_next_ammo_type") == b"kM" and b"kCOMMA" not in keys.values() and names.get(b"kCOMMA") == 0x33
+          and names.get(b"kM") == 0x32,
+          "the action table's default keys (0xA74AF0): M is set_next_ammo_type's (the input's next-ammo bit), "
+          "the comma (kCOMMA, DIK 33h in the key names 0xA74FA0) no action's: patch 89 takes the comma")
+    check(rows(0x22047D, 0x1B) == ["call 0x21f910", "mov edx,[eax+0x8]", "add eax,byte +0x8", "mov eax,[edx+0x108]",
+                                   "mov edi,0x9ff2fc", "call 0xf6b10"]
+          and text_at(0x9FF2FC) == b"mode" and rows(0x21F993, 6) == ["lea eax,[eax+eax*2]", "lea eax,[esi+eax*4]"]
+          and rows(0x21F927, 0xB) == ["mov esi,[edx+0x160]", "mov edx,esi", "nop", "cmp [edx],edi"],
+          "switch_to_level_loading: map_descriptor_by_id (0x21F910: the entry of 0Ch whose +0 is the id, from "
+          "[dictionary+160h]) at 0x22047D, then at 0x220482 its +8, the config, whose root (+108h) is asked for "
+          "\"mode\"")
+    import hooks_026g
+    every = hooks_026g.hooks()
+    members = [m for h in every for m in h.get("chain", [h])]
+    hooks = {h["site_name"]: h for h in members if h["patch"] == "pose_marker"}
+    heads = {h["site_name"]: h for h in every if h.get("chain")}
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted(hooks) == ["camera.eye", "level_loading.map", "tab_cursor.key"]
+          and all(h["kind"] == "lohook" for h in hooks.values())
+          and [m["patch"] for m in heads["tab_cursor.key"]["chain"]] == ["tab_cursor", "pose_marker"]
+          and [m["patch"] for m in heads["camera.eye"]["chain"]] == ["ragdoll", "pose_marker"],
+          "pose_marker.toml's three hooks are lohooks: at tab_cursor.key after patch 86's, at camera.eye after "
+          "patch 76's death camera (the eye it gives the view), level_loading.map its own")
+    for site in ("level_loading.map", "tab_cursor.key", "camera.eye"):
+        h = heads.get(site, hooks[site])
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({site}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+    trace = linked.symbols["SRP_DIAGNOSTICS"]
+    check(image.read(trace, 4) == P.DIAGNOSTICS_OFF,
+          "the build's diagnostics are off: the pose marker writes nothing (only --diagnostics makes it 1)")
+
+
 def test_weapon_flight(original, image, before):
     """Check 45 (round 7): patch 45's camera flight, the Rust patch
     `weapon_flight` (one lohook, weapon_flight.toml, at lobby_camera.view;
@@ -6777,6 +6841,7 @@ def test_late_join(original, without, server, source):
     test_language(original, image, before)
     test_lobby_scene(original, image, before)
     test_weapon_flight(original, image, before)
+    test_pose_marker(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

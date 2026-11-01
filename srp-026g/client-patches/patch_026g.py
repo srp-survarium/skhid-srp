@@ -30,12 +30,15 @@ USAGE (this script never touches the source exe):
         Only the bitmap at the end of the patches' mount and the PE
         checksum differ; each <n> is 1 to 255. Not with --no-late-join,
         --cave=hash-mismatch or --cert-only
-    python patch_026g.py <survarium.exe> <survarium_srp.exe> --ragdoll-trace
-        the default build with patch 76's diagnostics on: every living hit
-        and every death's ragdoll start as a line of srp_ragdoll.csv in the
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --diagnostics
+        the default build with the Rust patches' diagnostics on: patch 76's
+        srp_ragdoll.csv (every living hit and every death's ragdoll start),
+        patch 45's lobby camera sweep (srp_camera_sweep.txt) and patch 89's
+        pose marker (the comma key in a match: srp_poses.tsv), all in the
         user data folder. A local build for us (never a release's:
         release/build-zip does not pass it); only the Rust crate's
-        SRP_DIAGNOSTICS and the PE checksum differ
+        SRP_DIAGNOSTICS and the PE checksum differ. --ragdoll-trace is
+        the same flag's older name
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -3999,9 +4002,9 @@ DIAGNOSTICS_OFF = struct.pack("<I", int.from_bytes(b"OFF\0", "big"))
 
 def with_diagnostics(data):
     """The build with the Rust patches' opt-in diagnostics on (patch 76's
-    srp_ragdoll.csv): the crate's SRP_DIAGNOSTICS, DIAGNOSTICS_OFF in every
-    build, made 1. A local build only: release/build-zip never passes
-    --ragdoll-trace."""
+    srp_ragdoll.csv, patch 45's camera sweep, patch 89's pose marker): the
+    crate's SRP_DIAGNOSTICS, DIAGNOSTICS_OFF in every build, made 1. A local
+    build only: release/build-zip never passes --diagnostics."""
     va = arena().symbols["SRP_DIAGNOSTICS"]
     data = bytearray(data)
     at = next((raw + va - IMAGE_BASE - rva for _, rva, vsize, raw, rsize, _ in Headers(data).sections(data)
@@ -4041,7 +4044,7 @@ def main():
             revision = parse_revision(option[11:])
         elif option.startswith("--required-patches="):
             required = parse_required_patches(option[len("--required-patches="):])
-        elif option == "--ragdoll-trace":
+        elif option in ("--diagnostics", "--ragdoll-trace"):
             diagnostics = True
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
@@ -4067,9 +4070,10 @@ def main():
                               required_patches=required)
     if diagnostics:
         if late_join_code is None:
-            sys.exit("--ragdoll-trace goes with the default build only (patch 76 is in the late join's arena)")
+            sys.exit("--diagnostics goes with the default build only (the Rust patches are in the late join's arena)")
         data = with_diagnostics(data)
-        description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"
+        description += (", the diagnostics on (srp_ragdoll.csv, the camera sweep, the pose marker's srp_poses.tsv; "
+                        "a local build, never a release)")
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

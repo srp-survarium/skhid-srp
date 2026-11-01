@@ -381,4 +381,10 @@ void engine_set_listener(struct sound_scene *scene, const float *position, const
 /* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
 void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
 
+/* the IAT slot 0x870184 (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_get_local_time)(unsigned int * time);
+
+/* the IAT slot 0x870044 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_file_size)(void * file, unsigned int * high);
+
 #endif

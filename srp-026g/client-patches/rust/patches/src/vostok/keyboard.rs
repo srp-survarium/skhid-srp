@@ -42,6 +42,8 @@ pub struct Dik(u8);
 
 impl Dik {
     pub const TAB: Dik = Dik(0x0F);
+    /// DIK_COMMA: the key right of M (no action has it by default: the action table 0xA74AF0).
+    pub const COMMA: Dik = Dik(0x33);
     pub const LEFT_CONTROL: Dik = Dik(0x1D);
     pub const RIGHT_CONTROL: Dik = Dik(0x9D);
     /// DIK_LMENU: the left Alt, the key the game shows the names over the players by (render_name 0x1F2DCD).

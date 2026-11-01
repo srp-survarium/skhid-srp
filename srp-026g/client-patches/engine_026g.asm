@@ -108,6 +108,8 @@ global engine_query_one
 global engine_release_emitter
 global engine_set_listener
 global engine_medkit_set_active
+global engine_get_local_time
+global engine_get_file_size
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -134,6 +136,8 @@ engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_in
 engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
 engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
 engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
+engine_get_local_time equ 0x870184   ; the IAT slot 0x870184 (an import, stdcall)
+engine_get_file_size equ 0x870044   ; the IAT slot 0x870044 (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
