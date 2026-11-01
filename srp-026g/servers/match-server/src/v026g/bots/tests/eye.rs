@@ -365,6 +365,14 @@ fn pre_eye_pin_tuning() -> Tuning {
         old.think.stamina_rates = tuning::StaminaRates::Light;
     }
 
+    // A234: the cheats `all_off.json` no longer names; the pin has them.
+    tuning.aim.combat.aim_last_known = false;
+    tuning.aim.combat.band_carrier_seen_ms = 0;
+    tuning.aim.combat.worth.hurt_from = crate::v026g::bots::worth::HurtFrom::Body;
+    tuning.sense.bush_notice = 0.0;
+    tuning.sense.grass_notice = 0.0;
+    tuning.smoke.sight = false;
+
     // #534: the eye is where the game's bullet starts.
     tuning.aim.combat.live_eye = false;
 

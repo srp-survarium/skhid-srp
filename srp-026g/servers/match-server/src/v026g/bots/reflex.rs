@@ -876,7 +876,8 @@ pub struct CombatTuning {
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
     /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, the server's
     /// true place of an enemy the bot has not seen (`MatchView::place`), so its view pre-aims at him: a cheat (A147,
-    /// the owner's rule "smarter, never cheaters"). ON by default; `all_off.json` keeps it off (the old behaviour).
+    /// the owner's rule "smarter, never cheaters"). ON by default, and `all_off.json` keeps it on too (A234: no cheat
+    /// comes back in the all-off arm).
     pub aim_last_known: bool,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,

@@ -203,7 +203,8 @@ impl Tuning {
 
     /// The tuning with every option that the defaults have on put back off (`all_off.json`): the bots as they were
     /// before the owner's set shipped, except where the old value is wrong by the client or the game (the pitch unit, the
-    /// use ray, the zones' pools: A223), which keeps the default. The switch report is against it
+    /// use ray, the zones' pools: A223) or a cheat, information no player has (sight through smoke, the true health: A234),
+    /// which keeps the default. The switch report is against it
     /// ([`Tuning::switch_report`]), the tests of what an option changes start from it, and its JSON is the bench's OFF arm.
     pub fn all_off() -> Self {
         Self::parse(include_str!("all_off.json")).expect("all_off.json is a valid patch")
@@ -625,7 +626,8 @@ mod tests {
 
     /// `all_off.json` is the patch that puts every option the defaults have on back off (the bench's OFF arm,
     /// `SRP_BENCH_TUNING`): each of its values differs from the default it patches, so none is stale, the tuning it
-    /// makes is a valid one with the options off, and it never brings back a value wrong by the game (`KEPT_RIGHT`).
+    /// makes is a valid one with the options off, and it never brings back a value wrong by the game (`KEPT_RIGHT`) or a
+    /// cheat (`NO_CHEATS`).
     #[test]
     fn the_all_off_patch_switches_off_what_the_defaults_have_on() {
         let patch: serde_json::Value = serde_json::from_str(include_str!("all_off.json")).unwrap();
@@ -666,9 +668,23 @@ mod tests {
             "/sense/use_ray_m",
             "/think/stamina_rates",
         ];
+        // Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
+        // "smarter, never cheaters"): the patch never names them either, so the all-off arm keeps the default.
+        const NO_CHEATS: &[&str] = &[
+            "/aim/combat/aim_last_known",
+            "/aim/combat/band_carrier_seen_ms",
+            "/aim/combat/worth/hurt_from",
+            "/sense/bush_notice",
+            "/sense/grass_notice",
+            "/smoke/sight",
+        ];
         for pointer in KEPT_RIGHT {
             assert!(defaults.pointer(pointer).is_some(), "{pointer} is no switch of the tuning");
             assert!(patch.pointer(pointer).is_none(), "{pointer}'s old value is wrong by the game: the all-off arm keeps the default");
+        }
+        for pointer in NO_CHEATS {
+            assert!(defaults.pointer(pointer).is_some(), "{pointer} is no switch of the tuning");
+            assert!(patch.pointer(pointer).is_none(), "{pointer}'s old value is information no player has: the all-off arm keeps the default");
         }
         // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
         // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
@@ -694,7 +710,7 @@ mod tests {
         assert_eq!(off.feel.carrier_jump_m, None);
         assert!(off.aim.combat.grenade_push_tracks);
         let off = serde_json::to_value(off).unwrap();
-        for pointer in KEPT_RIGHT {
+        for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
             assert_eq!(off.pointer(pointer), defaults.pointer(pointer), "{pointer}");
         }
     }
