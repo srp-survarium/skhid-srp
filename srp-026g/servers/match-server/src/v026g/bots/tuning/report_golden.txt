@@ -22,7 +22,7 @@ switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
-switches OFF feel: fight_lift floor_height_clear press_in_reach sprint_turns straight_jumps
+switches OFF feel: fight_lift floor_height_clear press_in_reach straight_jumps
 switches OFF grid: capsule_steps drop_room keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
@@ -33,7 +33,7 @@ switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0} pierce={"max_share":0.5,"pierce":0.3125}
-switch values feel: drop_truth=links past_drop=window
+switch values feel: drop_truth=links past_drop=window sprint_turns={"gaits":"run_and_cruise","keep_facing_deg":30.0,"merge_m":2.0,"min_run_m":1....
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: edge=client fix_floor=under_in_jump jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place
@@ -41,7 +41,7 @@ switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values smoke: wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
 switch values spacing: callouts=seen_and_heard queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
-switch values think: search_queue=fair stamina_rates=light
+switch values think: search_queue=fair stamina_rates=kit
 switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
 switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
 switch values unstick: drop_shut={"kept_ms":45000,"near_m":2.0}

@@ -4388,8 +4388,10 @@ mod tests {
                     side <= 0.3 && at.feet.distance_xz(ledge.take_off) <= 0.9,
                     "{label}: {at:?}"
                 );
-                // No sprint from 2.5 m before the take-off.
-                for (pose, decision) in climb.poses.iter().zip(&climb.decisions) {
+                // No sprint from 2.5 m before the take-off up to the press (after the landing the walk on the top may sprint:
+                // `feel.sprint_turns`).
+                let pressed_at = climb.presses[0].0;
+                for (pose, decision) in climb.poses.iter().zip(&climb.decisions).take(pressed_at + 1) {
                     if pose.feet.distance_xz(ledge.take_off) <= LINE_UP_FROM_M {
                         assert_eq!(decision.keys & key::SPRINT, 0, "{label}: {pose:?}");
                     }
