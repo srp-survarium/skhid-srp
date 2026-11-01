@@ -1018,6 +1018,34 @@ pub fn apply_parked(player: &Player<'_>, installed: &Installed, parked: Parked) 
     }
 }
 
+/// Before base_player::remove(1)'s unload (inventory::unload_to_profile
+/// 0x2FD2D0: each weapon's magazine and chamber into its retained stack,
+/// then each ammunition slot's count onto the profile item of the kit's
+/// slot word), at the end of a pick: the counts it refunds made the
+/// parked block's, whatever item is where (the own kit restored, or not):
+/// the gun in `slot` its magazine and no chambered round, each parked
+/// stack's slot its count. The block is the record's, hashed in every game,
+/// so every game refunds the same (live 0x1c0ebd31: one game refunded 14,
+/// another 120 rounds less at a pick's end).
+pub fn unload_as_parked(player: &Player<'_>, slot: WeaponSlot, parked: Parked) {
+    // SAFETY: the live player's inventory at remove's entry; an item read
+    // as a weapon only after its vtable says so; counts written in place.
+    unsafe {
+        let Some(inventory) = player.this.inventory() else { return };
+        if let Some(gun) = weapon_in(inventory, slot) {
+            let w = gun.weapon();
+            *w.loaded() = parked.magazine.min(read(w.capacity()));
+            *w.chamber() = 0;
+        }
+        for stack in parked.stacks.iter().flatten() {
+            if let Some(item) = inventory.slots().at(usize::from(stack.slot())).item() {
+                *item.count() = stack.count();
+            }
+        }
+        *inventory.weight_dirty() = 1;
+    }
+}
+
 /// Puts `installed` back: the own gun in its slot and registry entry, the
 /// cooked gun and its ammunition back in the cooked inventory as cooked.
 /// The held object is left as it is (the caller's: remove deactivates it,

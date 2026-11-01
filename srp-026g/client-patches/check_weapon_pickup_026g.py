@@ -391,6 +391,7 @@ def main():
     late_join_after_player_made(patched)
     parked_from_the_record(patched)
     a_new_life(patched)
+    the_end_refunds_the_parked_block(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1177,6 +1178,34 @@ def a_new_life(patched):
     assert struct.unpack_from("<I", fresh, 0) == (0xFFFFFFFF,), "the last tick of a spawn"
     print("ok a picked gun starts a new life at its switch: a re-used copy (seed 0x442aa381, last tick, recoil, aim, "
           "fire mode left) and a fresh cook give the same +5A4h..+60Fh; the seed the spawn hook's (%#x)" % seed)
+
+
+def the_end_refunds_the_parked_block(patched):
+    """At a pick's end (base_player::remove(1)) the native unload refunds the counts in the picker's slots: they
+    are made the parked block's (the record's, hashed in every game) whatever objects are where, so a game whose
+    restore was refused (here: its cooked own slot changed) refunds what the others do (live 0x1c0ebd31: the donor's
+    game refunded 14, and in another pick 120 rounds less)."""
+    def ended(refused):
+        r = Pick(patched)
+        r.setup()
+        r.emu.mem_write(r.own_gun + 0x5E5, bytes([9, 0]))
+        r.emu.mem_write(r.own_gun + 0x5F1, b"\1")
+        r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 40))
+        r.pick()
+        r.installed()
+        r.save(r.picker)                        # each tick's state: the block as written, kept
+        if refused:
+            r.word(r.cooked + 0x10C + 4 * 10, r.stack(1))
+        r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+        gun = r.slot(r.inventory, 10) - 0x10
+        return (r.read(r.slot(r.inventory, 8) + 0x260, 2), r.read(gun + 0x5E5, 1), r.read(gun + 0x5F1, 1),
+                r.slot(r.inventory, 10) == r.own_gun + 0x10), r
+    (restored, r), (refused, f) = ended(False), ended(True)
+    assert restored[3] and not refused[3], "the second game's restore was refused"
+    assert any("FAILED to restore" in l for l in f.log), f.log
+    assert restored[:3] == refused[:3] == (struct.pack("<H", 40), b"\x09", b"\0"), (restored, refused)
+    print("ok a pick's end refunds the parked block in every game: restored or refused, the picker's slot 8 holds "
+          "40 and its slot-10 gun 9 rounds and no chambered round when the native unload runs")
 
 
 def crate_per_gun(patched):
