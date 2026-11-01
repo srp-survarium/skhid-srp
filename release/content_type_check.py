@@ -5,9 +5,8 @@ the previous version of that file, the value's type (float2/3/4 vs an indexed
 table vs an int vs a float vs a string vs a named table). A value at a path
 new to the file has one of the types 0.26g already uses at that structural
 path (the corpus of every base config), or an allowlist row with a reason
-(new keys only); an int key may become a float only by a widening row. It
-fails with the file, the path, the old type and the new type; build-content
-also refuses a file at a config path the reader refuses.
+(new keys only). It fails with the file, the path, the old type and the new
+type; build-content also refuses a file at a config path the reader refuses.
 
 Two bugs in the Research pack builder (#297) got past every check this guards
 against: it wrote every vector (float2/3/4) as an indexed table, through a
@@ -193,13 +192,11 @@ def corpus_with(walk, previous):
     return out
 
 
-def violations(walk, old, new, path, corp, allowlist, widenings=()):
+def violations(walk, old, new, path, corp, allowlist):
     """The type problems of one changed file (`new` its bytes, `old` its
     previous bytes or None), a list of strings; value by value:
     - a value at a path the previous version has (its own path, the entry's
-      index and object type kept) has the type it had there, except an int
-      that becomes a float at a (file, key path) of `widenings` (a number the
-      game's reader takes either way; nothing else ever changes type);
+      index and object type kept) has the type it had there;
     - a value at a path new to the file, whose structural path 0.26g already
       uses (the corpus, and the file's own previous version), has one of the
       types used there, unless `allowlist` has (file, structural path): a
@@ -222,8 +219,6 @@ def violations(walk, old, new, path, corp, allowlist, widenings=()):
     for key in sorted(new_raw):
         structural, t = new_raw[key]
         if key in old_raw:
-            if old_raw[key][1] == T_INT and t == T_FLOAT and (path, key) in widenings:
-                continue
             if old_raw[key][1] != t:
                 out.append(f"{path}: {key or '/'} was {type_name(old_raw[key][1])}, now {type_name(t)} "
                            f"(a key that exists keeps its value type)")

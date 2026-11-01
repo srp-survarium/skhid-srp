@@ -69,10 +69,7 @@ table):
 
 A new key that has to take another type than 0.26g's goes in `build_content.py`'s `TYPE_ALLOWLIST`
 as (game path, structural path) with the reason; a row never lets a key that exists change its
-type. It is empty: today's content needs none. The one change of type an existing key may take is an
-int becoming a float, where an edit gives it a fraction and the game's reader of that key takes
-either: a row of `TYPE_WIDENINGS` (game path, key path) naming that reader (shake-031-1's
-`max_shake_recoil`, read by 0x331840). The check fails with the file, the path, the old type
+type. It is empty: today's content needs none. The check fails with the file, the path, the old type
 and the new type, and no patch is made. It reuses this folder's `content_edit.py` as the reader
 (`walk`) and names structural paths as Research's pack builder does
 (`scripts/research-mode/make_pack.py`): a list entry by its `game_object_type`

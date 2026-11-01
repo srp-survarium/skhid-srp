@@ -47,14 +47,6 @@ LOBBY = 'lobby_menu'
 # exists change its type. Empty: today's content needs none.
 TYPE_ALLOWLIST = {}
 
-# An int key that an edit makes a float (and nothing else: never another type,
-# never float to int), because its new value is a fraction and the game's
-# reader of that key takes an int or a float: {(game path, key path): reason}.
-_SHAKE = ('0.31a2\'s max_shake_recoil 0.4 (shake-031-1) where the base has the int 1; '
-          'weapon_recoil_parameters::load 0x331840 reads an int or a float (cvtsi2ss)')
-TYPE_WIDENINGS = {(f'gameplay/items/weapons/wpn_{gun}.options', '/recoil/max_shake_recoil'): _SHAKE
-                  for gun in ('m4a1', 'hk416', 'msbs_carbine', 'uzi', 'uzi_premium', 'uzi_premium_2')}
-
 
 class Problem(Exception):
     pass
@@ -351,8 +343,7 @@ def type_check(base, base_files, game, world):
             except ctc.NotAConfig as why:
                 problems.append(f'{path} ({label}): a config the reader refuses ({why})')
     for path in sorted(world.bytes):
-        problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST,
-                                    TYPE_WIDENINGS)
+        problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST)
     if problems:
         print()
         for problem in problems:
