@@ -116,4 +116,5 @@ edit	exo-boots-1.json	-	the Duty and Freedom exoskeleton boots worn under full-l
 edit	music-1.json	-	each playable mode's map theme, mode.ui.loading_music as retail's (levels 1-9 their own; the v0.21 and v0.11 maps their original's; Research's its level's), for exe patch 88 (docs/notes/music.md)
 edit	medicines-1.json	-	the bandages' (66) and the Medikit's (67) dictionary rows name their configs of pack medicines, gameplay/items/medicines/ (docs/notes/medicines.md)
 edit	rudnya-ammo-1.json	-	Rudnya (v0.69), all four modes: ammo only at the bases: the two mid-map ammo boxes, by the decent house and the church, removed with their models and collision; each base box refills only its own team (the other team's resupply zone removed)
+edit	recoil-hk416-m4a1-1.json	-	the HK416 and M4A1 kick nearer the AK-12 (the owner, 2026-11-01): recoil_power 0.88 -> 0.55, top kick 1.98-2.2 -> 1.7-1.9, the card's props 146-147 to match (after weapon-details-ui-1)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
