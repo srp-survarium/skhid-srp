@@ -1687,6 +1687,11 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // asks for the stand itself, and the route ends there only at its
             // floor's height (`motor::arrived`). Cologne CG-17.
             let within = if near { 0.0 } else { num("reach_m") * 0.6 };
+            // [threat.breach] §13: the objective players do not walk into a held lane alone while the team's Breach on it
+            // gathers or goes: wait out of it, on once the crossers hold.
+            if super::breach::waits_for_breach(cx, stand) {
+                return Step::Continue(Intent::stay());
+            }
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(within))
         }
         State::Take {
@@ -1823,6 +1828,11 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                             .any(|d| d.at.distance_xz(p) < near)
                 }) {
                     points.remove(0);
+                }
+                // [threat.breach] §14: the carrier waits out of a held lane on its way while the team's Breach on it gathers or
+                // goes, and crosses last, once the crossers hold.
+                if super::breach::waits_for_breach(cx, points.first().copied().unwrap_or(home)) {
+                    return Step::Continue(Intent::stay().hold_fire());
                 }
                 if let Some(&at) = points.first() {
                     return Step::Continue(

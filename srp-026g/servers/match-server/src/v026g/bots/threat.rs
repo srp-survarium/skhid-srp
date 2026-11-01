@@ -434,10 +434,12 @@ pub enum JobTally {
     GivenUnsensed,
     /// [threat.concede] Ended: its spot's area was conceded (`concede.rs`).
     EndConceded,
+    /// [threat.breach] Ended: a Breach took its spot over.
+    EndBreached,
 }
 
 /// The [`JobTally`]s, in order, and their names in the tally.
-pub const JOB_TALLIES: [(JobTally, &str); 12] = [
+pub const JOB_TALLIES: [(JobTally, &str); 13] = [
     (JobTally::EndShooterDied, "ended_shooter_died"),
     (JobTally::EndUnseen, "ended_unseen"),
     (JobTally::EndFaded, "ended_faded"),
@@ -450,6 +452,7 @@ pub const JOB_TALLIES: [(JobTally, &str); 12] = [
     (JobTally::DownUnknown, "down_by_unknown"),
     (JobTally::GivenUnsensed, "given_unsensed"),
     (JobTally::EndConceded, "ended_conceded"),
+    (JobTally::EndBreached, "ended_breached"),
 ];
 
 impl JobTally {
@@ -464,6 +467,7 @@ impl JobTally {
             JobEnd::Time => JobTally::EndTime,
             JobEnd::Nobody => JobTally::EndNobody,
             JobEnd::Conceded => JobTally::EndConceded,
+            JobEnd::Breached => JobTally::EndBreached,
         }
     }
 }
@@ -559,6 +563,7 @@ fn role_name(role: Role) -> &'static str {
     match role {
         Role::Flanker => "flanker",
         Role::Pinner => "pinner",
+        Role::Crosser => "crosser",
     }
 }
 
@@ -1879,6 +1884,9 @@ pub enum Role {
     Flanker,
     /// Holds him from the edge of his reach, out of his lanes (Crossfire).
     Pinner,
+    /// One of a Breach's two crossers (`breach.rs`): gathers out of his lanes, goes on one tick to a cover point that sees his
+    /// spot. A Flank job has none.
+    Crosser,
 }
 
 /// A role's bot and when it was given the role.
@@ -1926,13 +1934,16 @@ impl Job {
         match role {
             Role::Flanker => self.flanker,
             Role::Pinner => self.pinner,
+            Role::Crosser => None,
         }
     }
 
-    fn holder_mut(&mut self, role: Role) -> &mut Option<Holder> {
+    /// The slot of `role`; a Flank job has no crosser's.
+    fn holder_mut(&mut self, role: Role) -> Option<&mut Option<Holder>> {
         match role {
-            Role::Flanker => &mut self.flanker,
-            Role::Pinner => &mut self.pinner,
+            Role::Flanker => Some(&mut self.flanker),
+            Role::Pinner => Some(&mut self.pinner),
+            Role::Crosser => None,
         }
     }
 }
@@ -1975,6 +1986,8 @@ pub struct JobTeam<'a> {
     pub mates: &'a [Mate],
     pub size: usize,
     pub objective_areas: &'a [Vec3],
+    /// [threat.breach] The team's bots holding a Breach's roles off the objective (`breach.rs`): the cap counts them too.
+    pub breach_roles: usize,
 }
 
 /// Why a role went ([`JobEvent::Passed`]).
@@ -2016,6 +2029,8 @@ pub enum JobEnd {
     Nobody,
     /// [threat.concede] Its spot's area was conceded: the team's tries on it failed (`concede.rs`, design-p1c §3).
     Conceded,
+    /// [threat.breach] A Breach opened on its spot (its flank failed or found no flank spot): the Breach is the try now.
+    Breached,
 }
 
 impl std::fmt::Display for JobEnd {
@@ -2029,6 +2044,7 @@ impl std::fmt::Display for JobEnd {
             JobEnd::Time => write!(f, "ran its time"),
             JobEnd::Nobody => write!(f, "no bot free to hold it"),
             JobEnd::Conceded => write!(f, "its area is conceded"),
+            JobEnd::Breached => write!(f, "a Breach took it over"),
         }
     }
 }
@@ -2219,13 +2235,16 @@ pub fn jobs_tick(
                 None
             };
             if let Some(why) = why {
-                *j.holder_mut(role) = None;
+                if let Some(slot) = j.holder_mut(role) {
+                    *slot = None;
+                }
                 j.passed.push(h.place);
                 events.push(JobEvent::Passed { spot, role, place: h.place, why });
             }
         }
     }
-    let share = team.size.div_ceil(JOB_SHARE);
+    // The cap's bots off the objective, less those the team's Breaches hold.
+    let share = team.size.div_ceil(JOB_SHARE).saturating_sub(team.breach_roles);
     let staff = StaffRules { mates, lanes, share, now };
     if opening == Opening::ThenDropped {
         open_then_drop(jobs, rested, held, team, &staff, &mut events);
@@ -2368,7 +2387,9 @@ impl StaffRules<'_> {
                 .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
                 .map(|m| m.place);
             if let Some(place) = pick {
-                *jobs[i].holder_mut(role) = Some(Holder { place, since: self.now });
+                if let Some(slot) = jobs[i].holder_mut(role) {
+                    *slot = Some(Holder { place, since: self.now });
+                }
                 events.push(JobEvent::Given { spot: line.id, role, place });
             }
         }
@@ -2503,6 +2524,11 @@ pub struct TeamThreat {
     pub deaths: Vec<Death>,
     /// [threat.concede] The team's tries on each shooter's area (`concede.rs`).
     pub spot_memory: super::concede::SpotMemory,
+    /// [threat.breach] The team's Breaches (`breach.rs`), and the held spots whose Flank failed, due one.
+    pub breaches: Vec<super::breach::Breach>,
+    pub breach_due: Vec<super::breach::Due>,
+    /// [threat.breach] The enemies the team killed of the last [`DEATH_KEPT_MS`] and its killers (the kill feed's).
+    pub kills: Vec<super::breach::Kill>,
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -2972,7 +2998,7 @@ mod tests {
         let held = [a, b, c];
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas };
+        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0 };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
         jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(12, &[]), &unheld, 1_000);
         let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
@@ -3035,7 +3061,7 @@ mod tests {
         let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
         let far = Vec3::new(0.0, 0.0, 500.0);
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
-        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[] };
+        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0 };
         let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
         // A far spot first in the list: both slots still go to the spots the bots can reach.
         let held = [spot(2, far, 8), spot(3, at(0.0), 9), spot(4, Vec3::new(0.0, 0.0, 30.0), 10)];
@@ -3065,7 +3091,7 @@ mod tests {
         let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
         let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None };
         let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
-        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[] };
+        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0 };
         let (holds, lanes) = ([hold.clone()], [hold, one]);
         assert!(lanes[1].covers(mates[0].feet), "the test's bot stands in the one-kill line");
         assert!(!lanes.iter().any(|l| l.covers(mates[1].feet) || l.covers(mates[2].feet)), "the others in none");
@@ -3092,7 +3118,7 @@ mod tests {
         ];
         let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
         let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
-            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[] }, &unheld, now)
+            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0 }, &unheld, now)
         };
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);
