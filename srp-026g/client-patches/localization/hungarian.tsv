@@ -2152,8 +2152,6 @@ st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.
 st_srp_ammo069_23mm_r_name	23x75R, sörét
-st_srp_ammo069_762x51_g3_desc	7.62x51 puskalőszer 20 töltényes tárakban, a H&K G3SG/1-hez.
-st_srp_ammo069_762x51_g3_name	7.62x51, G3 tár
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt

@@ -1,4 +1,8 @@
 # The weapons-069 guns' textures that get an _aoac (weapon_camo.py), made by camo_rows.py
+weapons/ammo/nato_556x45/nato_556x45		weapons/assault/famas/famas:m4_30_round_mag_nato_556x45_s
+weapons/ammo/ps_762x39/ps_762x39		weapons/assault/akmsu/akmsu:ak_762x39_30_round_sb7_mag_ps_762x39_s
+weapons/ammo/shell_40cal/shell_40cal		weapons/shotguns/ks_23/ks_23:shell_40cal_s
+weapons/ammo/tt_762x25/tt_762x25		weapons/pistols/mauser_m712/mauser:mauser_m712_10round_mag_tt_762x25_s,weapons/smg/ppsh/ppsh:ppsh_762x25_71_round_mag_tt_762x25_s
 weapons/assault/akmsu/akmsu_reciever_01		weapons/assault/akmsu/akmsu:akmsu_reciever_01_s
 weapons/assault/akmsu/akmsu_reciever_02		weapons/assault/akmsu/akmsu:akmsu_reciever_02_s
 weapons/assault/famas/famas_01		weapons/assault/famas/famas:famas_01_s

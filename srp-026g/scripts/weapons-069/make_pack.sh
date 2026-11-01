@@ -16,8 +16,10 @@
 #   2. the lobby icons (render-weapons-069d-icons.py) into the cells the configs name;
 #   3. vostok-port pack from-bundle against the same files;
 #   4. the camouflage masks (_aoac, client patch 44) of camo.tsv (camo_rows.py writes it from the
-#      bundle; checked) by ../weapon-camo/weapon_camo.py --pack. The configs take the camouflage
-#      by the edit list weapon-camo-069-1.json.
+#      bundle; checked) by ../weapon-camo/weapon_camo.py --pack --bare-masks: parts.tsv leaves the
+#      cartridges and the loose shell plain, and each still gets a mask (one that paints nothing), so
+#      every surface of a camouflaged gun finds its _aoac. The configs take the camouflage by the
+#      edit list weapon-camo-069-1.json.
 # Needs cargo (nix-shell -p cargo rustc gcc zlib), Python with numpy and Pillow, magick (the
 # porter's texture encoder). Writes <work folder> (new) and the pack folders (new).
 set -euo pipefail
@@ -66,6 +68,6 @@ cp -as "$(realpath "$work/bundle/overlay")/." "$work/camo/"
 options=textures/character/human/black_market_01/black_market_01_torso_aoac.options
 "$port" extract --db "$SKHID_STOCK_DB" --path "$options" --output "$work/camo/$options" >/dev/null
 python3 -I "$root/srp-026g/scripts/weapon-camo/weapon_camo.py" "$here/camo.tsv" "$work/camo" "$work/camo" \
-    "$camo" --pack "weapons-069-camo@$camo_version"
+    "$camo" --pack "weapons-069-camo@$camo_version" --bare-masks
 echo "weapons-069@$version: $(sha256sum "$pack/pack.json" | cut -d' ' -f1)"
 echo "weapons-069-camo@$camo_version: $(sha256sum "$camo/pack.json" | cut -d' ' -f1)"

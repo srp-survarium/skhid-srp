@@ -2152,8 +2152,6 @@ st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.
 st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
-st_srp_ammo069_762x51_g3_desc	Gewehrpatronen 7,62x51 in Magazinen zu 20 Schuss, für das H&K G3SG/1.
-st_srp_ammo069_762x51_g3_name	7,62x51, G3-Magazin
 st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
