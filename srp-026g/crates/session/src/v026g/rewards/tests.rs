@@ -3937,3 +3937,184 @@ fn a_drop_card_on_a_pve_match_rolls_at_level_seven() {
     }
     assert!(pvp_above > 10, "{pvp_above} PvP cards above {top}");
 }
+
+/// The history's records made so far and not written.
+fn history_of(results: &Results) -> Vec<MatchRecord> {
+    results.inner.locked().changes.history.clone()
+}
+
+#[test]
+fn a_settled_match_is_kept_for_the_history_without_its_bots() {
+    let mut players = alice_and_bob();
+    // Carol (team 0) scored less than Alice and left; Dan never came in; a
+    // server's bot played for team 1.
+    let mut carol = player(2, 0, "Carol", counters_of(1, &[(event::HEADSHOT_KILL, 2)]));
+    carol.present_at_end = false;
+    carol.left = true;
+    carol.score = 1;
+    let mut dan = player(3, 1, "Dan", PlayerStatistics::default());
+    dan.entered = false;
+    dan.present_at_end = false;
+    let mut bot = player(4, 1, "Bot", counters_of(0, &[(event::KILL, 9)]));
+    bot.driven = true;
+    bot.account_id = 0;
+    players.extend([carol, dan, bot]);
+    players[0].statistics = Some(counters_of(
+        0,
+        &[
+            (event::KILL, 3),
+            (event::ASSIST, 1),
+            (event::DEATH, 1),
+            (event::GRENADE_KILL, 1),
+            (event::MELEE_KILL, 1),
+            (event::PUT_VICTORY_ITEM_IN_CONTAINER, 2),
+        ],
+    ));
+    let store = accounts(&players);
+    let results = Results::new();
+    let report = results
+        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+
+    let records = history_of(&results);
+    assert_eq!(records.len(), 1);
+    let record = &records[0];
+    assert_eq!(record.game_match_id, MATCH);
+    assert_eq!(record.kind, MatchKind::Public);
+    assert_eq!(
+        record.info,
+        history::MatchInfo {
+            ended_at: NOW,
+            duration_ms: 700_000,
+            map_id: 1,
+            game_mode: mode::BATTERIES,
+            match_level: 0,
+            winner: history::Winner::FirstTeam,
+            team_points: [3, 1],
+        }
+    );
+    let ids: Vec<u32> = record
+        .players
+        .iter()
+        .map(|player| player.account_id)
+        .collect();
+    assert_eq!(ids, [10, 11, 12], "no bot, nobody who never came in");
+    let alice = &record.players[0].line;
+    assert_eq!(
+        (alice.team, alice.place, alice.presence),
+        (0, 1, history::Presence::Finished)
+    );
+    assert_eq!((alice.kills, alice.deaths), (3, 1));
+    assert_eq!(alice.rating, report.players[0].reward.rating_after);
+    assert_eq!(
+        alice.counters,
+        history::Counters {
+            assists: 1,
+            headshots: 0,
+            grenade_kills: 1,
+            melee_kills: 1,
+            batteries: 2,
+            capture_hundredths: 0,
+        }
+    );
+    let carol = &record.players[2].line;
+    assert_eq!((carol.place, carol.presence), (2, history::Presence::Left));
+    assert_eq!(carol.counters.headshots, 2, "every kit counts");
+    assert_eq!(record.players[1].line.place, 1);
+    assert!(record.players.iter().all(|player| player.clan_id.is_none()));
+}
+
+#[test]
+fn a_private_room_and_a_match_against_bots_are_kept_by_their_kind() {
+    for (private, vs_bots, kind) in [
+        (true, false, MatchKind::Private),
+        (false, true, MatchKind::VsBots),
+        (true, true, MatchKind::Private),
+    ] {
+        let players = alice_and_bob();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.private = private;
+        result.vs_bots = vs_bots;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        let records = history_of(&results);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].kind, kind);
+    }
+}
+
+#[test]
+fn an_untrusted_match_is_kept_without_its_counters_or_winner() {
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let results = Results::new();
+    let mut result = result(players);
+    result.trusted_by = 0;
+    results.settle(&result, &store, &terms(), &mut Rng::new(1));
+    let record = &history_of(&results)[0];
+    assert_eq!(record.info.winner, history::Winner::Unknown);
+    assert_eq!(
+        record.players[0].line.counters,
+        history::Counters::default()
+    );
+    assert_eq!(record.players[0].line.kills, 3, "the scoreboard's");
+
+    // A match that never began has nobody in it: nothing is kept.
+    let results = Results::new();
+    let mut waited = alice_and_bob_result();
+    waited.played_ms = None;
+    results.settle(&waited, &store, &terms(), &mut Rng::new(1));
+    assert!(history_of(&results).is_empty());
+}
+
+fn alice_and_bob_result() -> MatchResult {
+    let mut result = result(alice_and_bob());
+    result.end = MatchEnd::TimeLimit;
+    result
+}
+
+#[test]
+fn a_research_match_keeps_captures_not_batteries() {
+    let mut players = alice_and_bob();
+    players[0].statistics = Some(counters_of(
+        0,
+        &[
+            (event::RESEARCH_CAPTURE, 150),
+            (event::PUT_VICTORY_ITEM_IN_CONTAINER, 1),
+        ],
+    ));
+    let store = accounts(&players);
+    let results = Results::new();
+    let mut result = result(players);
+    result.game_mode = mode::RESEARCH;
+    results.settle(&result, &store, &terms(), &mut Rng::new(1));
+    let counters = history_of(&results)[0].players[0].line.counters;
+    assert_eq!((counters.capture_hundredths, counters.batteries), (150, 0));
+}
+
+#[test]
+fn the_history_is_written_at_the_next_save() {
+    let dir = std::env::temp_dir().join(format!(
+        "srp-g26-history-save-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    let repository = crate::v026g::SqliteGameRepository::open_in(&dir).unwrap();
+    let store = GameAccounts::with_repository(Box::new(repository)).unwrap();
+    let players = alice_and_bob();
+    for player in &players {
+        store.get_or_create(player.account_id, &player.name);
+    }
+    let results = Results::attached(&store);
+    results.settle(&result(players), &store, &terms(), &mut Rng::new(1));
+    store.flush();
+    assert!(history_of(&results).is_empty());
+    let history = store.history().unwrap();
+    let matches = history.player_matches(10, None, 10).unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].1.kills, 3);
+    assert_eq!(history.player(11).unwrap().unwrap().totals.matches, 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}

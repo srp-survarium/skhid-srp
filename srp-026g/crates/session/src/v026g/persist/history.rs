@@ -1,0 +1,1391 @@
+//! The match history in srp's SQLite file (`docs/notes/match_history.md`):
+//! every finished match ([`MatchRecord`], made by
+//! [`crate::v026g::rewards::Results::settle`]) and its players, with the
+//! public matches' totals by player and by clan added up as each is
+//! written. [`MatchHistory`] reads them for the site, on a connection of its
+//! own: only public matches are ever read back.
+
+use std::path::Path;
+use std::sync::Mutex;
+
+use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, Transaction, params};
+
+use crate::LockExt;
+use crate::persist::PersistError;
+use crate::v026g::account::level_at;
+use crate::v026g::clans::{self, status};
+
+/// The schema step that adds the history. A database of before has no
+/// matches: the history starts with the first match after it.
+pub(super) const MIGRATION: &str = "
+    CREATE TABLE g26_matches (
+        -- The history's own number, counting up: the site's match id.
+        id            INTEGER PRIMARY KEY,
+        -- The match server's id: random, it can come again after a restart.
+        game_match_id INTEGER NOT NULL,
+        -- Unix seconds.
+        ended_at      INTEGER NOT NULL,
+        duration_ms   INTEGER NOT NULL,
+        -- maps_dict's id.
+        map_id        INTEGER NOT NULL,
+        game_mode     INTEGER NOT NULL,
+        match_level   INTEGER NOT NULL,
+        kind          TEXT NOT NULL CHECK (kind IN ('public', 'private', 'vs_bots')),
+        winner        TEXT NOT NULL CHECK (winner IN ('team0', 'team1', 'draw', 'unknown')),
+        team0_points  INTEGER NOT NULL,
+        team1_points  INTEGER NOT NULL
+    );
+    CREATE INDEX g26_matches_public ON g26_matches (id) WHERE kind = 'public';
+    CREATE INDEX g26_matches_by_end ON g26_matches (ended_at);
+    -- One row a player who was in the match; no bot.
+    CREATE TABLE g26_match_players (
+        match_id      INTEGER NOT NULL REFERENCES g26_matches(id) ON DELETE CASCADE,
+        account_id    INTEGER NOT NULL,
+        -- The registered clan it was of then, if any.
+        clan_id       INTEGER,
+        team          INTEGER NOT NULL,
+        -- In its team by score, from 1.
+        place         INTEGER NOT NULL,
+        presence      TEXT NOT NULL CHECK (presence IN ('finished', 'left')),
+        rating        INTEGER NOT NULL,
+        score         INTEGER NOT NULL,
+        kills         INTEGER NOT NULL,
+        deaths        INTEGER NOT NULL,
+        assists       INTEGER NOT NULL,
+        headshots     INTEGER NOT NULL,
+        grenade_kills INTEGER NOT NULL,
+        melee_kills   INTEGER NOT NULL,
+        batteries     INTEGER NOT NULL,
+        -- Research's captures, in hundredths of one.
+        captures      INTEGER NOT NULL,
+        PRIMARY KEY (match_id, account_id)
+    ) WITHOUT ROWID;
+    CREATE INDEX g26_match_players_by_account ON g26_match_players (account_id, match_id);
+    CREATE INDEX g26_match_players_by_clan ON g26_match_players (clan_id, match_id)
+        WHERE clan_id IS NOT NULL;
+    -- The public matches added up, by player and by clan.
+    CREATE TABLE g26_player_totals (
+        account_id    INTEGER PRIMARY KEY,
+        matches       INTEGER NOT NULL,
+        wins          INTEGER NOT NULL,
+        score         INTEGER NOT NULL,
+        kills         INTEGER NOT NULL,
+        deaths        INTEGER NOT NULL,
+        assists       INTEGER NOT NULL,
+        headshots     INTEGER NOT NULL,
+        grenade_kills INTEGER NOT NULL,
+        melee_kills   INTEGER NOT NULL,
+        batteries     INTEGER NOT NULL,
+        captures      INTEGER NOT NULL
+    );
+    CREATE INDEX g26_player_totals_matches ON g26_player_totals (matches);
+    CREATE INDEX g26_player_totals_wins ON g26_player_totals (wins);
+    CREATE INDEX g26_player_totals_kills ON g26_player_totals (kills);
+    CREATE INDEX g26_player_totals_score ON g26_player_totals (score);
+    CREATE INDEX g26_player_totals_headshots ON g26_player_totals (headshots);
+    CREATE INDEX g26_player_totals_batteries ON g26_player_totals (batteries);
+    CREATE TABLE g26_clan_totals (
+        clan_id       INTEGER PRIMARY KEY,
+        matches       INTEGER NOT NULL,
+        wins          INTEGER NOT NULL,
+        score         INTEGER NOT NULL,
+        kills         INTEGER NOT NULL,
+        deaths        INTEGER NOT NULL,
+        assists       INTEGER NOT NULL,
+        headshots     INTEGER NOT NULL,
+        grenade_kills INTEGER NOT NULL,
+        melee_kills   INTEGER NOT NULL,
+        batteries     INTEGER NOT NULL,
+        captures      INTEGER NOT NULL
+    );
+    -- What the site looks a player up by, and a player's clan.
+    CREATE INDEX g26_accounts_by_name ON g26_accounts (name COLLATE NOCASE);
+    CREATE INDEX g26_accounts_by_rating ON g26_accounts (rating);
+    CREATE INDEX g26_clan_members_by_account ON g26_clan_members (account_id);
+    ";
+
+/// Who could join a match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MatchKind {
+    /// Matchmaking or an open room: the only kind ever served.
+    Public,
+    /// A room with a PIN.
+    Private,
+    /// One player against the server's bots.
+    VsBots,
+}
+
+impl MatchKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Private => "private",
+            Self::VsBots => "vs_bots",
+        }
+    }
+}
+
+/// How a match ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Winner {
+    /// Team 0 won.
+    FirstTeam,
+    /// Team 1 won.
+    SecondTeam,
+    Draw,
+    /// No trusted snapshot said.
+    Unknown,
+}
+
+impl Winner {
+    /// The match server's winner byte: 0 or 1, the draw, else unknown.
+    pub fn of(winner: Option<u8>, draw: u8) -> Self {
+        match winner {
+            Some(0) => Self::FirstTeam,
+            Some(1) => Self::SecondTeam,
+            Some(value) if value == draw => Self::Draw,
+            _ => Self::Unknown,
+        }
+    }
+
+    /// The team that won, if one did.
+    pub fn team(self) -> Option<u8> {
+        match self {
+            Self::FirstTeam => Some(0),
+            Self::SecondTeam => Some(1),
+            Self::Draw | Self::Unknown => None,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::FirstTeam => "team0",
+            Self::SecondTeam => "team1",
+            Self::Draw => "draw",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "team0" => Self::FirstTeam,
+            "team1" => Self::SecondTeam,
+            "draw" => Self::Draw,
+            "unknown" => Self::Unknown,
+            _ => return None,
+        })
+    }
+}
+
+/// Whether a player was still in the match at its end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Presence {
+    Finished,
+    Left,
+}
+
+impl Presence {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Finished => "finished",
+            Self::Left => "left",
+        }
+    }
+
+    fn parse(text: &str) -> Option<Self> {
+        match text {
+            "finished" => Some(Self::Finished),
+            "left" => Some(Self::Left),
+            _ => None,
+        }
+    }
+}
+
+/// The game events counted for the site, of one match or added up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Counters {
+    pub assists: u64,
+    pub headshots: u64,
+    pub grenade_kills: u64,
+    pub melee_kills: u64,
+    /// Batteries put into a container.
+    pub batteries: u64,
+    /// Research's captures, in hundredths of one.
+    pub capture_hundredths: u64,
+}
+
+/// A player's line of one match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerLine {
+    pub team: u8,
+    /// In its team by score, from 1.
+    pub place: u8,
+    pub presence: Presence,
+    /// The visible rating after the match.
+    pub rating: u16,
+    pub score: u64,
+    pub kills: u64,
+    pub deaths: u64,
+    pub counters: Counters,
+}
+
+/// One player of a [`MatchRecord`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerRecord {
+    pub account_id: u32,
+    /// The registered clan it is of.
+    pub clan_id: Option<u32>,
+    pub line: PlayerLine,
+}
+
+/// What a match was, whoever played it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchInfo {
+    /// Unix seconds.
+    pub ended_at: u64,
+    pub duration_ms: u32,
+    /// maps_dict's id.
+    pub map_id: u8,
+    pub game_mode: u8,
+    pub match_level: u16,
+    pub winner: Winner,
+    pub team_points: [u16; 2],
+}
+
+/// A finished match as the history keeps it: no bots in it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MatchRecord {
+    pub game_match_id: u32,
+    pub kind: MatchKind,
+    pub info: MatchInfo,
+    pub players: Vec<PlayerRecord>,
+}
+
+/// Public matches added up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Totals {
+    pub matches: u64,
+    pub wins: u64,
+    pub score: u64,
+    pub kills: u64,
+    pub deaths: u64,
+    pub counters: Counters,
+}
+
+/// A total the top lists sort by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TotalsKey {
+    Matches,
+    Wins,
+    Kills,
+    Score,
+    Headshots,
+    Batteries,
+}
+
+impl TotalsKey {
+    /// The column, of `g26_player_totals` and `g26_clan_totals` alike.
+    fn column(self) -> &'static str {
+        match self {
+            Self::Matches => "matches",
+            Self::Wins => "wins",
+            Self::Kills => "kills",
+            Self::Score => "score",
+            Self::Headshots => "headshots",
+            Self::Batteries => "batteries",
+        }
+    }
+}
+
+/// What the players' top list sorts by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerRanking {
+    /// The visible rating.
+    Rating,
+    Totals(TotalsKey),
+}
+
+/// A registered clan, as a player's tag links it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClanRef {
+    pub id: u32,
+    pub tag: String,
+}
+
+/// A player as the site names it: its in-game name and current clan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Named {
+    pub account_id: u32,
+    pub name: String,
+    pub clan: Option<ClanRef>,
+}
+
+/// A player's card: who it is now and its totals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerCard {
+    pub player: Named,
+    pub level: u8,
+    pub experience: u32,
+    pub rating: u16,
+    pub totals: Totals,
+}
+
+/// A public match of the history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchSummary {
+    /// The history's number.
+    pub id: u64,
+    pub info: MatchInfo,
+    /// How many players the history has of it.
+    pub players: u32,
+}
+
+/// A player's line of a match with who it is now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MatchPlayer {
+    pub player: Named,
+    pub level: u8,
+    pub line: PlayerLine,
+}
+
+/// One line of the players' top list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TopPlayer {
+    pub player: Named,
+    pub level: u8,
+    pub rating: u16,
+    pub totals: Totals,
+}
+
+/// One line of the best single-match scores.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BestLine {
+    pub player: Named,
+    pub summary: MatchSummary,
+    pub line: PlayerLine,
+}
+
+/// A registered clan with its totals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClanLine {
+    pub id: u32,
+    pub name: String,
+    pub tag: String,
+    pub level: u8,
+    pub members: u32,
+    pub totals: Totals,
+}
+
+/// A member of a [`ClanCard`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClanMember {
+    pub player: Named,
+    pub commander: bool,
+    pub level: u8,
+    pub rating: u16,
+    /// All its public matches, in the clan or not.
+    pub totals: Totals,
+}
+
+/// A registered clan: its totals and members, commander first, then by
+/// score.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClanCard {
+    pub clan: ClanLine,
+    pub leader: Named,
+    pub members: Vec<ClanMember>,
+}
+
+/// How the site names a clan.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClanKey<'a> {
+    Id(u32),
+    Tag(&'a str),
+}
+
+/// Writes a match and adds a public one to the totals, in one
+/// transaction.
+pub(super) fn record(
+    connection: &mut Connection,
+    record: &MatchRecord,
+) -> Result<(), PersistError> {
+    let transaction = connection.transaction()?;
+    let info = &record.info;
+    transaction.execute(
+        "INSERT INTO g26_matches (game_match_id, ended_at, duration_ms, map_id, game_mode,
+             match_level, kind, winner, team0_points, team1_points)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            record.game_match_id,
+            info.ended_at.min(i64::MAX as u64) as i64,
+            info.duration_ms,
+            info.map_id,
+            info.game_mode,
+            info.match_level,
+            record.kind.as_str(),
+            info.winner.as_str(),
+            info.team_points[0],
+            info.team_points[1],
+        ],
+    )?;
+    let match_id = transaction.last_insert_rowid();
+    for player in &record.players {
+        let line = &player.line;
+        let counters = &line.counters;
+        transaction.execute(
+            "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
+                 rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
+                 batteries, captures)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            params![
+                match_id,
+                player.account_id,
+                player.clan_id,
+                line.team,
+                line.place,
+                line.presence.as_str(),
+                line.rating,
+                line.score as i64,
+                line.kills as i64,
+                line.deaths as i64,
+                counters.assists as i64,
+                counters.headshots as i64,
+                counters.grenade_kills as i64,
+                counters.melee_kills as i64,
+                counters.batteries as i64,
+                counters.capture_hundredths as i64,
+            ],
+        )?;
+        if record.kind == MatchKind::Public {
+            let won = info.winner.team() == Some(line.team);
+            add_totals(
+                &transaction,
+                "g26_player_totals",
+                "account_id",
+                player.account_id,
+                line,
+                won,
+            )?;
+            if let Some(clan_id) = player.clan_id {
+                add_totals(
+                    &transaction,
+                    "g26_clan_totals",
+                    "clan_id",
+                    clan_id,
+                    line,
+                    won,
+                )?;
+            }
+        }
+    }
+    transaction.commit()?;
+    Ok(())
+}
+
+fn add_totals(
+    transaction: &Transaction,
+    table: &str,
+    key: &str,
+    id: u32,
+    line: &PlayerLine,
+    won: bool,
+) -> Result<(), PersistError> {
+    let counters = &line.counters;
+    transaction.execute(
+        &format!(
+            "INSERT INTO {table} ({key}, matches, wins, score, kills, deaths, assists, headshots,
+                 grenade_kills, melee_kills, batteries, captures)
+             VALUES (?1, 1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT({key}) DO UPDATE SET
+                 matches = matches + 1, wins = wins + excluded.wins,
+                 score = score + excluded.score, kills = kills + excluded.kills,
+                 deaths = deaths + excluded.deaths, assists = assists + excluded.assists,
+                 headshots = headshots + excluded.headshots,
+                 grenade_kills = grenade_kills + excluded.grenade_kills,
+                 melee_kills = melee_kills + excluded.melee_kills,
+                 batteries = batteries + excluded.batteries,
+                 captures = captures + excluded.captures"
+        ),
+        params![
+            id,
+            u8::from(won),
+            line.score as i64,
+            line.kills as i64,
+            line.deaths as i64,
+            counters.assists as i64,
+            counters.headshots as i64,
+            counters.grenade_kills as i64,
+            counters.melee_kills as i64,
+            counters.batteries as i64,
+            counters.capture_hundredths as i64,
+        ],
+    )?;
+    Ok(())
+}
+
+/// The columns a [`Named`] is read from, `a` being `g26_accounts`: id,
+/// name, clan id, clan tag (four).
+const NAMED: &str = "a.account_id, a.name, c.clan_id, c.tag";
+const _: () = assert!(status::ACCEPTED == 0);
+/// Joins the account's current registered clan to `a` (status 0:
+/// accepted).
+const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
+         ON cm.account_id = a.account_id AND cm.status = 0
+     LEFT JOIN g26_clans c ON c.clan_id = cm.clan_id AND c.registered != 0";
+/// The columns of a [`MatchSummary`] of `m` (nine).
+const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
+     m.winner, m.team0_points, m.team1_points,
+     (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id)";
+/// The columns of a [`PlayerLine`] of `p` (thirteen).
+const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
+     p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures";
+/// The columns of [`Totals`] of `t` (eleven).
+const TOTALS: &str = "t.matches, t.wins, t.score, t.kills, t.deaths, t.assists, t.headshots,
+     t.grenade_kills, t.melee_kills, t.batteries, t.captures";
+
+fn bad(what: &str, text: &str) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        0,
+        rusqlite::types::Type::Text,
+        format!("{what} {text:?}").into(),
+    )
+}
+
+fn u64_at(row: &Row, index: usize) -> rusqlite::Result<u64> {
+    Ok(row.get::<_, Option<i64>>(index)?.unwrap_or(0).max(0) as u64)
+}
+
+fn named_at(row: &Row, at: usize) -> rusqlite::Result<Named> {
+    let clan = match (
+        row.get::<_, Option<u32>>(at + 2)?,
+        row.get::<_, Option<String>>(at + 3)?,
+    ) {
+        (Some(id), Some(tag)) => Some(ClanRef { id, tag }),
+        _ => None,
+    };
+    Ok(Named {
+        account_id: row.get(at)?,
+        name: row.get(at + 1)?,
+        clan,
+    })
+}
+
+fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
+    let winner: String = row.get(at + 6)?;
+    Ok(MatchSummary {
+        id: u64_at(row, at)?,
+        info: MatchInfo {
+            ended_at: u64_at(row, at + 1)?,
+            duration_ms: row.get(at + 2)?,
+            map_id: row.get(at + 3)?,
+            game_mode: row.get(at + 4)?,
+            match_level: row.get(at + 5)?,
+            winner: Winner::parse(&winner).ok_or_else(|| bad("winner", &winner))?,
+            team_points: [row.get(at + 7)?, row.get(at + 8)?],
+        },
+        players: row.get(at + 9)?,
+    })
+}
+
+fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
+    let presence: String = row.get(at + 2)?;
+    Ok(PlayerLine {
+        team: row.get(at)?,
+        place: row.get(at + 1)?,
+        presence: Presence::parse(&presence).ok_or_else(|| bad("presence", &presence))?,
+        rating: row.get(at + 3)?,
+        score: u64_at(row, at + 4)?,
+        kills: u64_at(row, at + 5)?,
+        deaths: u64_at(row, at + 6)?,
+        counters: Counters {
+            assists: u64_at(row, at + 7)?,
+            headshots: u64_at(row, at + 8)?,
+            grenade_kills: u64_at(row, at + 9)?,
+            melee_kills: u64_at(row, at + 10)?,
+            batteries: u64_at(row, at + 11)?,
+            capture_hundredths: u64_at(row, at + 12)?,
+        },
+    })
+}
+
+/// [`Totals`] at `at`; all 0 for a row with none (a `LEFT JOIN`).
+fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
+    Ok(Totals {
+        matches: u64_at(row, at)?,
+        wins: u64_at(row, at + 1)?,
+        score: u64_at(row, at + 2)?,
+        kills: u64_at(row, at + 3)?,
+        deaths: u64_at(row, at + 4)?,
+        counters: Counters {
+            assists: u64_at(row, at + 5)?,
+            headshots: u64_at(row, at + 6)?,
+            grenade_kills: u64_at(row, at + 7)?,
+            melee_kills: u64_at(row, at + 8)?,
+            batteries: u64_at(row, at + 9)?,
+            capture_hundredths: u64_at(row, at + 10)?,
+        },
+    })
+}
+
+fn level_of(experience: u32) -> u8 {
+    level_at(experience).0
+}
+
+/// The history as the site reads it: public matches only, on a read-only
+/// connection of its own, so a request never waits for the accounts'
+/// writer (the file is in WAL mode). Every query is an indexed lookup of
+/// at most [`MatchHistory::MAX_ROWS`] rows.
+pub struct MatchHistory {
+    connection: Mutex<Connection>,
+}
+
+impl MatchHistory {
+    /// The most rows a list gives.
+    pub const MAX_ROWS: usize = 50;
+
+    /// Opens the file at `path`, which [`super::SqliteGameRepository`]
+    /// made and brought to this schema.
+    pub(super) fn open(path: &Path) -> Result<Self, PersistError> {
+        let connection = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        connection.execute_batch("PRAGMA busy_timeout = 2000;")?;
+        Ok(Self {
+            connection: Mutex::new(connection),
+        })
+    }
+
+    /// The account with this in-game name (Latin letters in any case).
+    pub fn account_by_name(&self, name: &str) -> Result<Option<u32>, PersistError> {
+        Ok(self
+            .connection
+            .locked()
+            .query_row(
+                "SELECT account_id FROM g26_accounts WHERE name = ?1 COLLATE NOCASE
+                 ORDER BY account_id LIMIT 1",
+                [name],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
+    /// The account's card; `None` for no account.
+    pub fn player(&self, account_id: u32) -> Result<Option<PlayerCard>, PersistError> {
+        Ok(self
+            .connection
+            .locked()
+            .query_row(
+                &format!(
+                    "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
+                     FROM g26_accounts a {CLAN_JOIN}
+                     LEFT JOIN g26_player_totals t ON t.account_id = a.account_id
+                     WHERE a.account_id = ?1"
+                ),
+                [account_id],
+                |row| {
+                    let experience: u32 = row.get(4)?;
+                    Ok(PlayerCard {
+                        player: named_at(row, 0)?,
+                        level: level_of(experience),
+                        experience,
+                        rating: row.get(5)?,
+                        totals: totals_at(row, 6)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+
+    /// The account's public matches before `before` (the newest with
+    /// `None`), newest first, at most `limit`.
+    pub fn player_matches(
+        &self,
+        account_id: u32,
+        before: Option<u64>,
+        limit: usize,
+    ) -> Result<Vec<(MatchSummary, PlayerLine)>, PersistError> {
+        let connection = self.connection.locked();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {SUMMARY}, {LINE}
+             FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+             WHERE p.account_id = ?1 AND p.match_id < ?2 AND m.kind = 'public'
+             ORDER BY p.match_id DESC LIMIT ?3"
+        ))?;
+        let rows = statement
+            .query_map(params![account_id, upper(before), bounded(limit)], |row| {
+                Ok((summary_at(row, 0)?, line_at(row, 10)?))
+            })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The account's public matches that ended at `since` or later, added
+    /// up by UTC day (`YYYY-MM-DD`), oldest first.
+    pub fn player_days(
+        &self,
+        account_id: u32,
+        since: u64,
+    ) -> Result<Vec<(String, Totals)>, PersistError> {
+        let connection = self.connection.locked();
+        let mut statement = connection.prepare_cached(
+            "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*),
+                 SUM(CASE WHEN (m.winner = 'team0' AND p.team = 0)
+                           OR (m.winner = 'team1' AND p.team = 1) THEN 1 ELSE 0 END),
+                 SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
+                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures)
+             FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+             WHERE p.account_id = ?1 AND m.kind = 'public' AND m.ended_at >= ?2
+               AND p.match_id >= IFNULL((SELECT id FROM g26_matches WHERE ended_at >= ?2
+                   ORDER BY ended_at LIMIT 1), 9223372036854775807)
+             GROUP BY day ORDER BY day",
+        )?;
+        let rows = statement.query_map(
+            params![account_id, since.min(i64::MAX as u64) as i64],
+            |row| Ok((row.get(0)?, totals_at(row, 1)?)),
+        )?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Public matches before `before`, newest first, at most `limit`; with
+    /// `clan`, those a player of that clan played in.
+    pub fn matches(
+        &self,
+        before: Option<u64>,
+        limit: usize,
+        clan: Option<u32>,
+    ) -> Result<Vec<MatchSummary>, PersistError> {
+        let connection = self.connection.locked();
+        let rows: Vec<MatchSummary> = match clan {
+            None => {
+                let mut statement = connection.prepare_cached(&format!(
+                    "SELECT {SUMMARY} FROM g26_matches m
+                     WHERE m.kind = 'public' AND m.id < ?1 ORDER BY m.id DESC LIMIT ?2"
+                ))?;
+                let rows = statement.query_map(params![upper(before), bounded(limit)], |row| {
+                    summary_at(row, 0)
+                })?;
+                rows.collect::<Result<_, _>>()?
+            }
+            Some(clan_id) => {
+                let mut statement = connection.prepare_cached(&format!(
+                    "SELECT {SUMMARY}
+                     FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+                     WHERE p.clan_id = ?1 AND p.match_id < ?2 AND m.kind = 'public'
+                     GROUP BY p.match_id ORDER BY p.match_id DESC LIMIT ?3"
+                ))?;
+                let rows = statement
+                    .query_map(params![clan_id, upper(before), bounded(limit)], |row| {
+                        summary_at(row, 0)
+                    })?;
+                rows.collect::<Result<_, _>>()?
+            }
+        };
+        Ok(rows)
+    }
+
+    /// A public match and its players, by team, then place.
+    pub fn game_match(
+        &self,
+        id: u64,
+    ) -> Result<Option<(MatchSummary, Vec<MatchPlayer>)>, PersistError> {
+        let connection = self.connection.locked();
+        let summary = connection
+            .query_row(
+                &format!(
+                    "SELECT {SUMMARY} FROM g26_matches m WHERE m.id = ?1 AND m.kind = 'public'"
+                ),
+                [id.min(i64::MAX as u64) as i64],
+                |row| summary_at(row, 0),
+            )
+            .optional()?;
+        let Some(summary) = summary else {
+            return Ok(None);
+        };
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {NAMED}, a.exp_total, {LINE}
+             FROM g26_match_players p JOIN g26_accounts a ON a.account_id = p.account_id
+             {CLAN_JOIN}
+             WHERE p.match_id = ?1 ORDER BY p.team, p.place"
+        ))?;
+        let rows = statement.query_map([summary.id as i64], |row| {
+            Ok(MatchPlayer {
+                player: named_at(row, 0)?,
+                level: level_of(row.get(4)?),
+                line: line_at(row, 5)?,
+            })
+        })?;
+        Ok(Some((summary, rows.collect::<Result<_, _>>()?)))
+    }
+
+    /// The top `limit` players by `by`, of those with a public match and
+    /// that `keep` keeps (it is asked of each in order until enough).
+    pub fn top(
+        &self,
+        by: PlayerRanking,
+        limit: usize,
+        keep: &dyn Fn(u32) -> bool,
+    ) -> Result<Vec<TopPlayer>, PersistError> {
+        let order = match by {
+            PlayerRanking::Rating => "a.rating DESC, a.account_id".to_owned(),
+            PlayerRanking::Totals(key) => format!("t.{} DESC, t.account_id", key.column()),
+        };
+        let connection = self.connection.locked();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
+             FROM g26_player_totals t JOIN g26_accounts a ON a.account_id = t.account_id
+             {CLAN_JOIN}
+             ORDER BY {order} LIMIT ?1"
+        ))?;
+        // Room for the ones `keep` leaves out.
+        let mut rows = statement.query([bounded(limit) + MatchHistory::MAX_ROWS as i64])?;
+        let mut top = Vec::new();
+        while top.len() < bounded(limit) as usize
+            && let Some(row) = rows.next()?
+        {
+            let player = named_at(row, 0)?;
+            if !keep(player.account_id) {
+                continue;
+            }
+            top.push(TopPlayer {
+                player,
+                level: level_of(row.get(4)?),
+                rating: row.get(5)?,
+                totals: totals_at(row, 6)?,
+            });
+        }
+        Ok(top)
+    }
+
+    /// The best `limit` single-match scores of public matches that ended
+    /// at `since` or later.
+    pub fn best(&self, since: u64, limit: usize) -> Result<Vec<BestLine>, PersistError> {
+        let connection = self.connection.locked();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {NAMED}, {SUMMARY}, {LINE}
+             FROM g26_matches m JOIN g26_match_players p ON p.match_id = m.id
+             JOIN g26_accounts a ON a.account_id = p.account_id
+             {CLAN_JOIN}
+             WHERE m.ended_at >= ?1 AND m.kind = 'public'
+             ORDER BY p.score DESC, m.id DESC LIMIT ?2"
+        ))?;
+        let rows = statement.query_map(
+            params![since.min(i64::MAX as u64) as i64, bounded(limit)],
+            |row| {
+                Ok(BestLine {
+                    player: named_at(row, 0)?,
+                    summary: summary_at(row, 4)?,
+                    line: line_at(row, 14)?,
+                })
+            },
+        )?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The top `limit` registered clans by `by`.
+    pub fn clans(&self, by: TotalsKey, limit: usize) -> Result<Vec<ClanLine>, PersistError> {
+        let connection = self.connection.locked();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT c.clan_id, c.name, c.tag, c.experience,
+                 (SELECT COUNT(*) FROM g26_clan_members cm
+                  WHERE cm.clan_id = c.clan_id AND cm.status = 0),
+                 {TOTALS}
+             FROM g26_clan_totals t JOIN g26_clans c ON c.clan_id = t.clan_id
+             WHERE c.registered != 0
+             ORDER BY t.{} DESC, t.clan_id LIMIT ?1",
+            by.column()
+        ))?;
+        let rows = statement.query_map([bounded(limit)], clan_line)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// A registered clan's card.
+    pub fn clan(&self, key: ClanKey) -> Result<Option<ClanCard>, PersistError> {
+        let connection = self.connection.locked();
+        let (filter, value) = match key {
+            ClanKey::Id(id) => ("c.clan_id = ?1", rusqlite::types::Value::from(id)),
+            ClanKey::Tag(tag) => ("c.tag = ?1 COLLATE NOCASE", tag.to_owned().into()),
+        };
+        let found = connection
+            .query_row(
+                &format!(
+                    "SELECT c.clan_id, c.name, c.tag, c.experience,
+                         (SELECT COUNT(*) FROM g26_clan_members cm
+                          WHERE cm.clan_id = c.clan_id AND cm.status = 0),
+                         {TOTALS}, c.leader
+                     FROM g26_clans c LEFT JOIN g26_clan_totals t ON t.clan_id = c.clan_id
+                     WHERE {filter} AND c.registered != 0
+                     ORDER BY c.clan_id LIMIT 1"
+                ),
+                [value],
+                |row| Ok((clan_line(row)?, row.get::<_, u32>(16)?)),
+            )
+            .optional()?;
+        let Some((clan, leader_id)) = found else {
+            return Ok(None);
+        };
+        // Its accepted members and its commander (who is one of them).
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
+             FROM g26_clan_members m JOIN g26_accounts a ON a.account_id = m.account_id
+             {CLAN_JOIN}
+             LEFT JOIN g26_player_totals t ON t.account_id = a.account_id
+             WHERE m.clan_id = ?1 AND (m.status = ?2 OR m.account_id = ?3)
+             ORDER BY a.account_id != ?3, IFNULL(t.score, 0) DESC, a.account_id"
+        ))?;
+        let rows = statement.query_map(params![clan.id, status::ACCEPTED, leader_id], |row| {
+            let player = named_at(row, 0)?;
+            Ok(ClanMember {
+                commander: player.account_id == leader_id,
+                player,
+                level: level_of(row.get(4)?),
+                rating: row.get(5)?,
+                totals: totals_at(row, 6)?,
+            })
+        })?;
+        let members: Vec<ClanMember> = rows.collect::<Result<_, _>>()?;
+        let leader = match members.iter().find(|member| member.commander) {
+            Some(member) => member.player.clone(),
+            None => Named {
+                account_id: leader_id,
+                name: connection
+                    .query_row(
+                        "SELECT name FROM g26_accounts WHERE account_id = ?1",
+                        [leader_id],
+                        |row| row.get(0),
+                    )
+                    .optional()?
+                    .unwrap_or_default(),
+                clan: None,
+            },
+        };
+        Ok(Some(ClanCard {
+            clan,
+            leader,
+            members,
+        }))
+    }
+}
+
+fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
+    let experience: u32 = row.get(3)?;
+    Ok(ClanLine {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        tag: row.get(2)?,
+        level: clans::level_of(experience),
+        members: row.get(4)?,
+        totals: totals_at(row, 5)?,
+    })
+}
+
+/// A page's upper bound: everything with `None`.
+fn upper(before: Option<u64>) -> i64 {
+    before.map_or(i64::MAX, |id| id.min(i64::MAX as u64) as i64)
+}
+
+/// A list's length, 1 to [`MatchHistory::MAX_ROWS`].
+fn bounded(limit: usize) -> i64 {
+    limit.clamp(1, MatchHistory::MAX_ROWS) as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{GameRepository, MIGRATIONS, SqliteGameRepository};
+    use super::*;
+    use crate::persist::DB_FILE;
+    use crate::v026g::account::Account;
+    use crate::v026g::clans::{Clan, Member};
+
+    struct TempDir(std::path::PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "srp-g26-history-{name}-{}-{:?}",
+                std::process::id(),
+                std::thread::current().id()
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+
+        fn db(&self) -> std::path::PathBuf {
+            self.0.join(DB_FILE)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn line(team: u8, place: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
+        PlayerLine {
+            team,
+            place,
+            presence: Presence::Finished,
+            rating: 100,
+            score,
+            kills,
+            deaths,
+            counters: Counters {
+                assists: 1,
+                headshots: 2,
+                grenade_kills: 0,
+                melee_kills: 0,
+                batteries: 1,
+                capture_hundredths: 50,
+            },
+        }
+    }
+
+    /// Alice (10, of clan 7) beats Bob (11) on team 0's win.
+    fn record(kind: MatchKind, ended_at: u64) -> MatchRecord {
+        MatchRecord {
+            game_match_id: 0xABCD,
+            kind,
+            info: MatchInfo {
+                ended_at,
+                duration_ms: 845_000,
+                map_id: 3,
+                game_mode: 2,
+                match_level: 12,
+                winner: Winner::FirstTeam,
+                team_points: [5, 3],
+            },
+            players: vec![
+                PlayerRecord {
+                    account_id: 10,
+                    clan_id: Some(7),
+                    line: line(0, 1, 300, 14, 6),
+                },
+                PlayerRecord {
+                    account_id: 11,
+                    clan_id: None,
+                    line: line(1, 1, 100, 6, 14),
+                },
+            ],
+        }
+    }
+
+    /// A repository with Alice, Bob and Alice's clan, and its reader.
+    fn repository(dir: &TempDir) -> (SqliteGameRepository, MatchHistory) {
+        let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
+        let mut alice = Account::new("Alice");
+        alice.rating = 150;
+        repository.save(10, &alice).unwrap();
+        repository.save(11, &Account::new("Bob")).unwrap();
+        repository
+            .save_clan(&Clan {
+                id: 7,
+                name: "Skhid".to_owned(),
+                tag: "SKH".to_owned(),
+                registered: true,
+                leader: 10,
+                ranks: Vec::new(),
+                members: vec![Member {
+                    account_id: 10,
+                    rank: 0,
+                    status: status::ACCEPTED,
+                }],
+                daily_message: String::new(),
+                experience: 0,
+                money: 0,
+            })
+            .unwrap();
+        let history = repository.history().unwrap().unwrap();
+        (repository, history)
+    }
+
+    #[test]
+    fn a_database_of_before_gets_the_tables_and_keeps_its_accounts() {
+        let dir = TempDir::new("upgrade");
+        let own = MIGRATIONS
+            .iter()
+            .position(|step| *step == MIGRATION)
+            .expect("the step is in the list");
+        {
+            let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
+            repository.save(10, &Account::new("Alice")).unwrap();
+            let connection = Connection::open(dir.db()).unwrap();
+            // Back to the step before: the history's tables gone.
+            connection
+                .execute_batch(
+                    "DROP TABLE g26_match_players; DROP TABLE g26_matches;
+                     DROP TABLE g26_player_totals; DROP TABLE g26_clan_totals;
+                     DROP INDEX g26_accounts_by_name; DROP INDEX g26_accounts_by_rating;
+                     DROP INDEX g26_clan_members_by_account;",
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "UPDATE g26_meta SET value = ?1 WHERE key = 'schema'",
+                    [own as i64],
+                )
+                .unwrap();
+        }
+        let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
+        assert_eq!(repository.version().unwrap(), MIGRATIONS.len() as i64);
+        assert_eq!(repository.load_all().unwrap().len(), 1);
+        repository
+            .record_match(&record(MatchKind::Public, 1000))
+            .unwrap();
+        let history = repository.history().unwrap().unwrap();
+        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 1);
+    }
+
+    #[test]
+    fn public_matches_are_served_and_added_up_the_others_only_kept() {
+        let dir = TempDir::new("kinds");
+        let (mut repository, history) = repository(&dir);
+        repository
+            .record_match(&record(MatchKind::Public, 1000))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::Private, 2000))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::VsBots, 3000))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::Public, 4000))
+            .unwrap();
+
+        let kept: i64 = Connection::open(dir.db())
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM g26_matches", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(kept, 4, "every match is kept");
+
+        let card = history.player(10).unwrap().unwrap();
+        assert_eq!(card.player.name, "Alice");
+        assert_eq!(
+            card.player.clan,
+            Some(ClanRef {
+                id: 7,
+                tag: "SKH".to_owned()
+            })
+        );
+        assert_eq!(card.rating, 150);
+        assert_eq!(
+            card.totals,
+            Totals {
+                matches: 2,
+                wins: 2,
+                score: 600,
+                kills: 28,
+                deaths: 12,
+                counters: Counters {
+                    assists: 2,
+                    headshots: 4,
+                    grenade_kills: 0,
+                    melee_kills: 0,
+                    batteries: 2,
+                    capture_hundredths: 100,
+                },
+            }
+        );
+        let bob = history.player(11).unwrap().unwrap();
+        assert_eq!((bob.totals.matches, bob.totals.wins), (2, 0));
+        assert_eq!(bob.player.clan, None);
+
+        let ids: Vec<u64> = history
+            .matches(None, 50, None)
+            .unwrap()
+            .iter()
+            .map(|summary| summary.id)
+            .collect();
+        assert_eq!(ids, [4, 1]);
+        assert!(history.game_match(2).unwrap().is_none());
+        assert!(history.game_match(3).unwrap().is_none());
+        let (summary, players) = history.game_match(4).unwrap().unwrap();
+        assert_eq!(summary.players, 2);
+        assert_eq!(summary.info.winner, Winner::FirstTeam);
+        assert_eq!(summary.info.team_points, [5, 3]);
+        assert_eq!(players[0].player.name, "Alice");
+        assert_eq!(players[0].line, line(0, 1, 300, 14, 6));
+        assert_eq!(players[1].line.team, 1);
+        assert!(history.player(99).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_players_matches_come_by_page_newest_first() {
+        let dir = TempDir::new("pages");
+        let (mut repository, history) = repository(&dir);
+        for at in 1..=5 {
+            repository
+                .record_match(&record(MatchKind::Public, at * 100))
+                .unwrap();
+        }
+        repository
+            .record_match(&record(MatchKind::Private, 600))
+            .unwrap();
+        let page: Vec<u64> = history
+            .player_matches(10, None, 2)
+            .unwrap()
+            .iter()
+            .map(|(summary, _)| summary.id)
+            .collect();
+        assert_eq!(page, [5, 4]);
+        let next: Vec<u64> = history
+            .player_matches(10, Some(4), 2)
+            .unwrap()
+            .iter()
+            .map(|(summary, _)| summary.id)
+            .collect();
+        assert_eq!(next, [3, 2]);
+        // A limit is 1 to 50.
+        assert_eq!(history.player_matches(10, None, 0).unwrap().len(), 1);
+        assert_eq!(history.matches(Some(3), 50, None).unwrap().len(), 2);
+        // The clan's: Alice's matches, not Bob's alone.
+        assert_eq!(history.matches(None, 50, Some(7)).unwrap().len(), 5);
+        assert!(history.matches(None, 50, Some(8)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn days_add_up_by_utc_day() {
+        let dir = TempDir::new("days");
+        let (mut repository, history) = repository(&dir);
+        const DAY: u64 = 86_400;
+        for at in [DAY + 10, DAY + 20, 3 * DAY + 5] {
+            repository
+                .record_match(&record(MatchKind::Public, at))
+                .unwrap();
+        }
+        let days = history.player_days(10, 0).unwrap();
+        assert_eq!(days.len(), 2);
+        assert_eq!(days[0].0, "1970-01-02");
+        assert_eq!(
+            (days[0].1.matches, days[0].1.wins, days[0].1.kills),
+            (2, 2, 28)
+        );
+        assert_eq!(days[1].0, "1970-01-04");
+        let since = history.player_days(10, 2 * DAY).unwrap();
+        assert_eq!(since.len(), 1);
+        assert_eq!(history.player_days(11, 0).unwrap()[0].1.wins, 0);
+    }
+
+    #[test]
+    fn the_top_lists_skip_who_is_left_out() {
+        let dir = TempDir::new("top");
+        let (mut repository, history) = repository(&dir);
+        repository
+            .record_match(&record(MatchKind::Public, 100))
+            .unwrap();
+        let by_kills = history
+            .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
+            .unwrap();
+        let names: Vec<&str> = by_kills
+            .iter()
+            .map(|top| top.player.name.as_str())
+            .collect();
+        assert_eq!(names, ["Alice", "Bob"]);
+        let by_rating = history
+            .top(PlayerRanking::Rating, 10, &|id| id != 10)
+            .unwrap();
+        assert_eq!(by_rating.len(), 1);
+        assert_eq!(by_rating[0].player.name, "Bob");
+        assert_eq!(
+            history
+                .top(PlayerRanking::Rating, 1, &|_| true)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let best = history.best(0, 20).unwrap();
+        assert_eq!(best[0].player.name, "Alice");
+        assert_eq!(best[0].line.score, 300);
+        assert!(history.best(101, 20).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_clan_has_its_members_rows_added_up_and_its_members() {
+        let dir = TempDir::new("clan");
+        let (mut repository, history) = repository(&dir);
+        repository
+            .record_match(&record(MatchKind::Public, 100))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::Private, 200))
+            .unwrap();
+        let clans = history.clans(TotalsKey::Score, 10).unwrap();
+        assert_eq!(clans.len(), 1);
+        assert_eq!(
+            (clans[0].tag.as_str(), clans[0].level, clans[0].members),
+            ("SKH", 1, 1)
+        );
+        assert_eq!((clans[0].totals.matches, clans[0].totals.score), (1, 300));
+
+        for key in [ClanKey::Id(7), ClanKey::Tag("skh")] {
+            let card = history.clan(key).unwrap().unwrap();
+            assert_eq!(card.clan.name, "Skhid");
+            assert_eq!(card.leader.name, "Alice");
+            assert_eq!(card.members.len(), 1);
+            assert!(card.members[0].commander);
+            assert_eq!(card.members[0].totals.kills, 14);
+        }
+        assert!(history.clan(ClanKey::Id(8)).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_player_is_found_by_its_name() {
+        let dir = TempDir::new("name");
+        let (_repository, history) = repository(&dir);
+        assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.account_by_name("Bob").unwrap(), Some(11));
+        assert_eq!(history.account_by_name("Carol").unwrap(), None);
+    }
+
+    #[test]
+    fn the_queries_use_their_indexes() {
+        let dir = TempDir::new("plans");
+        let (_repository, _history) = repository(&dir);
+        let connection = Connection::open(dir.db()).unwrap();
+        let plan = |sql: &str| -> String {
+            let mut statement = connection
+                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .unwrap();
+            let rows = statement
+                .query_map([], |row| row.get::<_, String>(3))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            rows.join("; ")
+        };
+        for (sql, index) in [
+            (
+                "SELECT * FROM g26_match_players p WHERE p.account_id = 1 AND p.match_id < 9
+                 ORDER BY p.match_id DESC LIMIT 5",
+                "g26_match_players_by_account",
+            ),
+            (
+                "SELECT id FROM g26_matches m WHERE m.kind = 'public' AND m.id < 9
+                 ORDER BY m.id DESC LIMIT 5",
+                "",
+            ),
+            (
+                "SELECT * FROM g26_player_totals t ORDER BY t.kills DESC LIMIT 5",
+                "g26_player_totals_kills",
+            ),
+            (
+                "SELECT account_id FROM g26_accounts WHERE name = 'x' COLLATE NOCASE",
+                "g26_accounts_by_name",
+            ),
+            (
+                "SELECT id FROM g26_matches WHERE ended_at >= 5 ORDER BY ended_at LIMIT 1",
+                "g26_matches_by_end",
+            ),
+        ] {
+            let plan = plan(sql);
+            assert!(
+                !plan.contains("SCAN") || plan.contains("USING"),
+                "{sql}: {plan}"
+            );
+            assert!(!plan.contains("TEMP B-TREE"), "{sql}: {plan}");
+            assert!(plan.contains(index), "{sql}: {plan}");
+        }
+    }
+}

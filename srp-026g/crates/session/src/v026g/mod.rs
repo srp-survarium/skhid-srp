@@ -150,6 +150,8 @@ pub struct GameAccounts {
     /// A new account wears the starter kits and has the starter premium
     /// ([`tutorial::signup_grant_with`]); off only in tests ([`Self::set_starter_kit`]).
     starter_kit: AtomicBool,
+    /// The match history as the site reads it; `None` kept in memory.
+    history: Option<persist::history::MatchHistory>,
 }
 
 impl Default for GameAccounts {
@@ -172,6 +174,7 @@ impl GameAccounts {
             flush_hooks: Mutex::new(Vec::new()),
             pending_actions: Mutex::new(Vec::new()),
             starter_kit: AtomicBool::new(true),
+            history: None,
         }
     }
 
@@ -188,6 +191,7 @@ impl GameAccounts {
         let loaded = repository.load_all()?;
         let clans = repository.load_clans()?;
         let results = repository.load_results()?;
+        let history = repository.history()?;
         let mut lacking = known::Lacking::default();
         for (account_id, account) in &loaded {
             lacking.account(*account_id, account);
@@ -252,6 +256,7 @@ impl GameAccounts {
             flush_hooks: Mutex::new(Vec::new()),
             pending_actions: Mutex::new(Vec::new()),
             starter_kit: AtomicBool::new(true),
+            history,
         })
     }
 
@@ -515,6 +520,12 @@ impl GameAccounts {
     /// The clans and clan teams.
     pub fn clans(&self) -> &clans::Clans {
         &self.clans
+    }
+
+    /// The match history for the site ([`persist::history`]); `None` for a
+    /// store kept in memory.
+    pub fn history(&self) -> Option<&persist::history::MatchHistory> {
+        self.history.as_ref()
     }
 
     /// The account with this id, if it has 0.26g state.

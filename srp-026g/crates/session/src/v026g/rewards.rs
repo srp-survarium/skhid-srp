@@ -168,6 +168,7 @@ use survarium::v026g::quests::MatchStats as QuestStats;
 use super::account::Account;
 use super::pay::{self, Pay};
 use super::persist::GameRepository;
+use super::persist::history::{self, MatchKind, MatchRecord};
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
 use super::{GameAccounts, balance, items_rules, rules, wire};
 use crate::LockExt;
@@ -687,11 +688,13 @@ struct Changes {
     saved: Vec<u32>,
     /// Reports no longer kept.
     deleted: Vec<u32>,
+    /// Matches for the history ([`history`]), not written yet.
+    history: Vec<MatchRecord>,
 }
 
 impl Changes {
     fn is_empty(&self) -> bool {
-        !self.state && self.saved.is_empty() && self.deleted.is_empty()
+        !self.state && self.saved.is_empty() && self.deleted.is_empty() && self.history.is_empty()
     }
 }
 
@@ -942,13 +945,14 @@ impl Results {
         }
     }
 
-    /// Write what changed since the last call to `repository`: the reports
-    /// no longer kept are deleted, the new ones written, then the state
-    /// that lists them. Each row is its own write: srp ending between two
-    /// leaves rows [`Results::restored`] puts right. A write that fails is
-    /// tried again at the next call.
+    /// Write what changed since the last call to `repository`: the matches
+    /// settled are kept in the history ([`history`], each in one
+    /// transaction), the reports no longer kept are deleted, the new ones
+    /// written, then the state that lists them. Each row is its own write:
+    /// srp ending between two leaves rows [`Results::restored`] puts right.
+    /// A write that fails is tried again at the next call.
     pub fn save_changes(&self, repository: &mut dyn GameRepository) {
-        let (state, saved, deleted) = {
+        let (state, saved, deleted, matches) = {
             let mut inner = self.inner.locked();
             if inner.changes.is_empty() {
                 return;
@@ -963,9 +967,18 @@ impl Results {
                     Some((match_id, serde_json::to_string(&*report)))
                 })
                 .collect();
-            (state, saved, changes.deleted)
+            (state, saved, changes.deleted, changes.history)
         };
         let mut again = Changes::default();
+        for record in matches {
+            if let Err(error) = repository.record_match(&record) {
+                log::error!(
+                    "Match {:#x} not kept in the history: {error}; retrying",
+                    record.game_match_id
+                );
+                again.history.push(record);
+            }
+        }
         for match_id in deleted {
             if let Err(error) = repository.delete_result(&report_key(match_id)) {
                 log::error!("Match {match_id:#x}'s report not deleted: {error}; retrying");
@@ -1000,6 +1013,7 @@ impl Results {
             inner.changes.state |= again.state;
             inner.changes.saved.extend(again.saved);
             inner.changes.deleted.extend(again.deleted);
+            inner.changes.history.extend(again.history);
         }
     }
 
@@ -1132,6 +1146,7 @@ impl Results {
         }
 
         let stats = shared.match_stats(&held);
+        let record = shared.history_record(&bots, &players, accounts);
         let report = Arc::new(MatchReport {
             match_id: result.match_id,
             end: result.end,
@@ -1158,6 +1173,7 @@ impl Results {
         inner.reports.push_back(report.clone());
         inner.changes.state = true;
         inner.changes.saved.push(report.match_id);
+        inner.changes.history.extend(record);
         Some(report)
     }
 
@@ -1549,6 +1565,108 @@ impl<'a> Shared<'a> {
         matches!(self.standing(player), Standing::Finished | Standing::Left)
             && player.team < 2
             && self.winner == Some(player.team)
+    }
+
+    /// The match as the history keeps it ([`history`]): every account that
+    /// was in it, each with its line and its rating after (`reports`, by
+    /// roster place); no bot (`bots`, by roster place). `None` when no
+    /// account was in it.
+    fn history_record(
+        &self,
+        bots: &[bool],
+        reports: &[PlayerReport],
+        accounts: &GameAccounts,
+    ) -> Option<MatchRecord> {
+        let result = self.result;
+        let research = result.game_mode == mode::RESEARCH;
+        let mut players: Vec<history::PlayerRecord> = Vec::new();
+        for ((player, &bot), report) in result.players.iter().zip(bots).zip(reports) {
+            let presence = match self.standing(player) {
+                Standing::Finished => history::Presence::Finished,
+                Standing::Left => history::Presence::Left,
+                Standing::Absent | Standing::NotPlayed => continue,
+            };
+            if bot || player.account_id == 0 || accounts.get(player.account_id).is_none() {
+                continue;
+            }
+            let events = self.events(player);
+            let count = |event| u64::from(total(&events, event));
+            players.push(history::PlayerRecord {
+                account_id: player.account_id,
+                clan_id: accounts
+                    .clans()
+                    .clan_of(player.account_id)
+                    .filter(|clan| clan.registered)
+                    .map(|clan| clan.id),
+                line: history::PlayerLine {
+                    team: player.team,
+                    place: 0,
+                    presence,
+                    rating: report.reward.rating_after,
+                    score: u64::from(player.score),
+                    kills: u64::from(player.kills),
+                    deaths: u64::from(player.deaths),
+                    counters: history::Counters {
+                        assists: count(event::ASSIST),
+                        headshots: count(event::HEADSHOT_KILL),
+                        grenade_kills: count(event::GRENADE_KILL),
+                        melee_kills: count(event::MELEE_KILL),
+                        // Research counts its captures where a battery
+                        // mode counts a delivery's share (`event`).
+                        batteries: if research {
+                            0
+                        } else {
+                            count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
+                        },
+                        capture_hundredths: if research {
+                            count(event::RESEARCH_CAPTURE)
+                        } else {
+                            0
+                        },
+                    },
+                },
+            });
+        }
+        if players.is_empty() {
+            return None;
+        }
+        // The place in its team by score; a tie goes to the roster's order.
+        let places: Vec<u8> = players
+            .iter()
+            .enumerate()
+            .map(|(index, me)| {
+                let ahead = players.iter().enumerate().filter(|&(other, them)| {
+                    them.line.team == me.line.team
+                        && (them.line.score > me.line.score
+                            || (them.line.score == me.line.score && other < index))
+                });
+                u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
+            })
+            .collect();
+        for (player, place) in players.iter_mut().zip(places) {
+            player.line.place = place;
+        }
+        let kind = if result.private {
+            MatchKind::Private
+        } else if result.vs_bots {
+            MatchKind::VsBots
+        } else {
+            MatchKind::Public
+        };
+        Some(MatchRecord {
+            game_match_id: result.match_id,
+            kind,
+            info: history::MatchInfo {
+                ended_at: self.terms.now,
+                duration_ms: result.duration_ms,
+                map_id: result.map_id,
+                game_mode: result.game_mode,
+                match_level: result.match_level,
+                winner: history::Winner::of(self.winner, DRAW),
+                team_points: result.team_points,
+            },
+            players,
+        })
     }
 
     /// A player's counters, if the result's numbers can be used.
