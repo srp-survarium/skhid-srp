@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	Deutsches Rotpunktvisier von Walther, ur
 st_walther_competition2_collimator_name	Competition II Kollimator
 st_wasted	Kosten
 st_weapon_aim_action	Zielen (halt.)
+st_weapon_already_taken	Bereits aufgehoben
+st_weapon_cannot_carry	Kein zweites Gewehr möglich
+st_weapon_cannot_pick_up	Kann nicht aufgehoben werden
 st_weapon_could_not_be_used	Verwundung der Hände! Es ist unmöglich, die Waffen zu verwenden
 st_weapon_fire_action	Schießen
+st_weapon_no_gun_in_hands	Waffe in die Hand nehmen zum Tauschen
+st_weapon_one_gun_only	Nur eine Waffe tragbar
+st_weapon_pick_up	%1$s aufheben ({USE})
 st_weapon_reload_action	Nachladen
+st_weapon_switching	Waffenwechsel abwarten
 st_wear	Anziehen
 st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.
 st_weight_booster_name	 Anomalie Starke

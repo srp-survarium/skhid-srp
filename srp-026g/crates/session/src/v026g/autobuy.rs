@@ -422,6 +422,30 @@ mod tests {
         );
     }
 
+    /// The owner's case: the AK kit took a PKP (patch 85) and fired 300
+    /// rounds with it; the match ends with the PKP in hand. The block (the
+    /// match server's read of the record's parked own kit) says the own
+    /// 5.45 is all there: nothing of it is charged, though the kit's
+    /// counter says 300 bullets.
+    #[test]
+    fn a_borrowed_guns_shots_are_not_the_kits_ammo() {
+        let (account, _, _) = rifleman(300);
+        let rounds = dict("ammo_5.45x39_7n6m");
+        // 180 in store, 120 parked out of the kit's slot (and no magazine
+        // rounds of the AK left: it was emptied before the pickup).
+        let mut supplies = block(&[(rounds, 180)]);
+        supplies.alive = true;
+        supplies.inventory_read = true;
+        supplies.items[0].in_hand = Some(120);
+        supplies.items[0].slot = Some(8);
+        assert_eq!(used(&account, Some(&supplies), &[300, 0, 0], 0), []);
+        // Had it fired 40 of its own before the pickup (80 parked): 40.
+        supplies.items[0].in_hand = Some(80);
+        assert_eq!(used(&account, Some(&supplies), &[340, 0, 0], 0), [(rounds, 40)]);
+        // Without the record's parked kit the old fallback charged the 300.
+        assert_eq!(used(&account, None, &[300, 0, 0], 0), [(rounds, 300)]);
+    }
+
     #[test]
     fn without_the_boxes_what_was_used_is_gone_and_nothing_is_spent() {
         let (mut account, rifle, ammo) = rifleman(300);

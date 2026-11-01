@@ -42,7 +42,7 @@ pub(in crate::vostok) unsafe fn write_floats<const N: usize>(at: *mut f32, value
 
 /// The game world, at `game_world.after_move`.
 pub struct GameWorld<'t> {
-    this: raw::GameWorld,
+    pub(in crate::vostok) this: raw::GameWorld,
     thread: &'t Thread,
 }
 

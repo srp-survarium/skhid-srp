@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	Német Walther vöröspontos irányzék,
 st_walther_competition2_collimator_name	Competition II irányzék
 st_wasted	Fogyasztás
 st_weapon_aim_action	Célzás (nyomva tartva)
+st_weapon_already_taken	Már felvették
+st_weapon_cannot_carry	Nem vihetsz második puskát
+st_weapon_cannot_pick_up	Ezt nem veheted fel
 st_weapon_could_not_be_used	Sérült karok! Nem használhatsz fegyvert
 st_weapon_fire_action	Lövés
+st_weapon_no_gun_in_hands	Végy fegyvert a kezedbe a cseréhez
+st_weapon_one_gun_only	Csak egy fegyvert vihetsz
+st_weapon_pick_up	%1$s felvétele ({USE})
 st_weapon_reload_action	Újratöltés
+st_weapon_switching	Várd meg a fegyverváltást
 st_wear	Alkalmazás
 st_weight_booster_description	Fehérje az izomnövekedéshez és erősödéshez szükséges tápanyagokkal. Fizikai terhelés nélkül azonban hatástalan.
 st_weight_booster_name	Anomális Erő fehérje

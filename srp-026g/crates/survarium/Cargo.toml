@@ -10,6 +10,9 @@ workspace = true
 # Client patch 78 ends each player's state with the carry's snapshot
 # (`v026g::match_msgs::motion`).
 artefact-carry = { path = "../artefact-carry" }
+# Client patch 85 starts each player's state with its pickup record
+# (`v026g::match_msgs::players::FIELDS_AT`).
+weapon-pickup = { path = "../weapon-pickup" }
 # A weapon's upgrades packed as the client reads them (`v026g::weapon_kit`;
 # the client's arena builds the same crate, patch 68).
 weapon-kit = { workspace = true }

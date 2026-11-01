@@ -93,6 +93,16 @@ class MapEditorEdits(unittest.TestCase):
                 ce.set_entry(data, 'objects', {'full_name': 'first'}, frm, to)
             self.assertEqual(data, before)
 
+    def test_set_vector_changes_one_float3_and_refuses_a_stale_one(self):
+        data = config({'bounding_box': {'min': (-1.0, -1.0, -1.0), 'max': (1.0, 1.0, 1.0)}})
+        ce.set_vector(data, 'bounding_box/min', [-1, -1, -1], [-0.5, -0.25, -0.125])
+        self.assertTrue(ce.same(value(data, 'bounding_box/min'), [-0.5, -0.25, -0.125]))
+        self.assertTrue(ce.same(value(data, 'bounding_box/max'), [1.0, 1.0, 1.0]))
+        before = bytes(data)
+        with self.assertRaises(ValueError):
+            ce.set_vector(data, 'bounding_box/max', [2, 1, 1], [0, 0, 0])
+        self.assertEqual(data, before)
+
     def test_nested_copy_does_not_change_the_model(self):
         data = fixture()
         ce.add_entry(data, 'objects', {'full_name': 'first'}, {'full_name': 'first'},
