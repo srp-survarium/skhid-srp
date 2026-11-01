@@ -1,0 +1,293 @@
+{
+ "_about": "Tarakanovsky Fort (level_05) without the chargers mode's leftover station (the owner, 2026-11-01: charging-station props in Team Deathmatch and battery matches). Stock 0.26g left one station of the chargers mode (mode 3), server_objects/victory_item_spawn_points victory_item_spawn_point(4) at (-0.29, 3.25, 46.58), and its three spawn boxes (client_objects logic/vip/mode_3/victory_item_spawn_box(12) to (14), is_temporary, the boxes energy_chargingdevicebox) in the Fort's battery (mode 2) and Team Deathmatch (mode 4) projects of every weather; the Research projects (mode 5), copied from those, kept them too. The station names six spawners these projects do not have; only the chargers projects (_3) are its mode. Both are taken out of the nine projects (_2, _4, _5 in day, evening and rain); the _3 projects keep their five. Changes the simulation (a game object fewer: simulation_changes.tsv). release/build_content.py mode_object_check refuses a station or spawn box in a project of another mode.",
+ "remove_entry": [
+  {
+   "file": "projects/level_05/day_2/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_2/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_2/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_4/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_4/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_4/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_5/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_5/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/evening_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_5/client_project",
+   "list": "server_objects/victory_item_spawn_points",
+   "where": {
+    "game_object_type": "victory_item_spawn_point",
+    "name": "victory_item_spawn_point(4)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(12)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(13)"
+   }
+  },
+  {
+   "file": "projects/level_05/rain_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "victory_items_spawn_box",
+    "full_name": "logic/vip/mode_3/victory_item_spawn_box(14)"
+   }
+  }
+ ]
+}

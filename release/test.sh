@@ -2571,6 +2571,37 @@ check "type check: ... but an allowlist row never lets a key that exists change 
 check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
     bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
 
+# The chargers mode's objects only in its own projects (build_content.py
+# mode_object_problems): stock 0.26g's station and spawn boxes in Tarakanovsky
+# Fort's battery and Team Deathmatch projects showed in those matches
+# (fort-chargers-leftover-1.json).
+python3 - "$here/build_content.py" "$T/modes.log" <<'EOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location('bc', sys.argv[1])
+bc = importlib.util.module_from_spec(spec); spec.loader.exec_module(bc)
+station = ('/server_objects/victory_item_spawn_points[0]/name', 5, b'victory_item_spawn_point(4)')
+box = ('/client_objects[270]/game_object_type', 5, b'victory_items_spawn_box')
+light = ('/client_objects[3]/game_object_type', 5, b'light')
+cases = {'tdm': bc.mode_object_problems('projects/level_05/day_4/client_project', [station, box, light]),
+         'battery': bc.mode_object_problems('projects/level_05/evening_2/client_project', [box]),
+         'research': bc.mode_object_problems('projects/level_05/rain_5/client_project', [station]),
+         'chargers': bc.mode_object_problems('projects/level_05/day_3/client_project', [station, box]),
+         'lobby': bc.mode_object_problems('projects/lobby_scene/day/client_project', [station, box]),
+         'clean_tdm': bc.mode_object_problems('projects/level_07/day_4/client_project', [light])}
+with open(sys.argv[2], 'w') as f:
+    for name, problems in cases.items():
+        f.write('%s\t%d\t%s\n' % (name, len(problems), ' | '.join(problems)))
+EOF
+mo() { grep -P "^$1\t" "$T/modes.log" | cut -f2; }
+check "modes: a chargers station and spawn box in a Team Deathmatch project are refused" test "$(mo tdm)" = 2
+check "modes: ... the message names the station and the mode" \
+    bash -c "grep -P '^tdm\t' '$T/modes.log' | grep -q 'victory_item_spawn_point(4), in a mode-4 project'"
+check "modes: a spawn box in a battery project is refused" test "$(mo battery)" = 1
+check "modes: a station in a Research project is refused" test "$(mo research)" = 1
+check "modes: the chargers projects keep their stations and boxes" test "$(mo chargers)" = 0
+check "modes: a project that is no map's mode (a lobby scene) is not judged" test "$(mo lobby)" = 0
+check "modes: a Team Deathmatch project without them passes" test "$(mo clean_tdm)" = 0
+
 echo
 if ((failures)); then
     echo "$failures FAILED"
