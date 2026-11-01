@@ -71,9 +71,18 @@ pub struct GridTuning {
     /// height over it, within the radius less half a cell of the way down. The links check the landing's ceiling only; a wall
     /// past the edge, between the floors a drop spans, holds the body at the edge (A206, the offered maps: 4,350 links cut; their
     /// take-off cells had a live stuck note 1.75 times as often as the others, live bodies walked off 4 of them, at one spot of
-    /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
-    /// map's (see `gap_links`).
+    /// Tarakanovsky Fort, and no live body stood on the floors only they led to). On by default (A206's bench, both teams with it
+    /// against both without, 192 pairs: stuck cases -46 %, stuck seconds -56 %, falls off the route -10 %). The old value is wrong
+    /// by the client (a walk-off its capsule cannot make: live bodies walked off none of the 1,567 cut walk-off gap drops), so the
+    /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub drop_room: bool,
+    /// Whether the maps' walk grids ask a sprint jump's run-up (1.5 m straight behind its take-off) after the erosion, of the
+    /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes
+    /// jumps of its own (a jump past a floor that went starts a cell back) and takes floors off a run-up's line, so checked before
+    /// it 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m keep less than 1.5 m straight behind them, 290 of them
+    /// jumps the erosion made (A236); the motor gives such a jump up for no clear run. Off (the default) until its bench. A grid
+    /// is the map's (see `gap_links`).
+    pub run_ups_after_erosion: bool,
     /// Whether the maps' walk grids measure a walk up off perched steep ground (a by-slope floor over the clients' 55 degrees whose cell's
     /// centre stands over ground more than 0.3 m lower) from the walkable ground its climb began on, whatever the floor it reaches, and give a landing on steep ground no base (`mapdata::Body::steep_walk_base`):
     /// the client's body does not rest on such ground. Mamayev Kurgan day 4's boulder floor (-2.90, 29.58, 105.38), a drop's landing,
@@ -97,7 +106,8 @@ impl Default for GridTuning {
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
-            drop_room: false,
+            drop_room: true,
+            run_ups_after_erosion: false,
             steep_walk_base: false,
         }
     }
@@ -124,6 +134,7 @@ impl GridTuning {
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
             drop_room: self.drop_room,
+            run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
             ..body
         }

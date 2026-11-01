@@ -127,6 +127,9 @@ pub const CAPSULE_STEPS_ALGO: u32 = 1;
 /// The same for the walk-offs kept only where the capsule has room to walk off the edge ([`Body::drop_room`],
 /// `WalkGrid::cut_blocked_walk_offs`), in [`grid_key_with_links`] only for a body that asks for it.
 pub const DROP_ROOM_ALGO: u32 = 1;
+/// The same for the sprint jumps' run-ups asked after the erosion ([`Body::run_ups_after_erosion`], `WalkGrid::drop_short_run_ups`),
+/// in [`grid_key_with_links`] only for a body that asks for it.
+pub const RUN_UPS_AFTER_EROSION_ALGO: u32 = 1;
 /// The same for the walks up off steep ground measured from where the climb began ([`Body::steep_walk_base`],
 /// `WalkGrid::cut_steep_climbs`), in [`grid_key_with_links`] only for a body that asks for it.
 pub const STEEP_WALK_BASE_ALGO: u32 = 1;
@@ -261,6 +264,10 @@ pub fn grid_key_with_links(
     // The room to walk off is a switch too.
     if body.drop_room {
         digest.u32(DROP_ROOM_ALGO);
+    }
+    // So is the run-ups' place in the build.
+    if body.run_ups_after_erosion {
+        digest.u32(RUN_UPS_AFTER_EROSION_ALGO);
     }
     // The walks up off steep ground from where the climb began too.
     if body.steep_walk_base {
