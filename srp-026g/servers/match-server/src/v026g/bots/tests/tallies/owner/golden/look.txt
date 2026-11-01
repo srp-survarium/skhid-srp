@@ -5,6 +5,7 @@ owner-test look (A229: the view while walking a play; bands up to [15.0, 45.0, 9
   Cut: walking 821 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 1, 1], fired 2, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 1] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
   Heal: walking 0 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 1, 2, 1], fired 2, died within 1 s 1; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 0] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
   Trade: walking 600 ticks, in a held lane [0, 0, 0, 0]; first hits [0, 0, 0, 3], fired 0, died within 1 s 0; by the human [0, 0, 0, 0], died within 1 s 0; walking by what it knew of him his_lane [0, 0, 0, 0] (0), where_he_was [0, 0, 0, 0] (0), nothing [0, 0, 0, 1] (0); in his held lane [0, 0, 0, 0], died within 1 s 0
+  walk watch (threat.walk_watch) steps by team ["lane", "known", "crossing", "carrying", "nothing"]: [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
 {
   "look": {
     "Collect": {
@@ -366,6 +367,22 @@ owner-test look (A229: the view while walking a play; bands up to [15.0, 45.0, 9
           "died_1s": 0
         }
       }
+    }
+  },
+  "walk_watch": {
+    "team0": {
+      "carrying": 0,
+      "crossing": 0,
+      "known": 0,
+      "lane": 0,
+      "nothing": 0
+    },
+    "team1": {
+      "carrying": 0,
+      "crossing": 0,
+      "known": 0,
+      "lane": 0,
+      "nothing": 0
     }
   }
 }
