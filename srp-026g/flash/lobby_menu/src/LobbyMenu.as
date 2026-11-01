@@ -3469,8 +3469,20 @@ package
             if(!id)
             {
                new_data = this.inventory_list.createItem(dict_id);
-               new_data.value = count;
-               new_data.count = count;
+               if(ProfileSlot.isPocket(targetSlot))
+               {
+                  // A buy dropped on a pocket: the stack holds what is owned and what is bought (the
+                  // ammo window's units wanted in all: the server buys what is beyond the stack,
+                  // move_items), the pocket as many of them as it takes; the rest stays in the
+                  // inventory (docs/notes/items.md §8).
+                  new_data.count = uint(relocate_object.condition_or_stack) + count;
+                  new_data.value = int(Math.min(new_data.count,value.quick_slot_item_size == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize));
+               }
+               else
+               {
+                  new_data.value = count;
+                  new_data.count = count;
+               }
                new_data.slotId = targetSlot;
                trace("createNewData::",dict_id,"inv::",count,"|",new_data.count);
             }

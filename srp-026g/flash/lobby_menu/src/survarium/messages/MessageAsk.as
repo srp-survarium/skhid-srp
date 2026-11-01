@@ -18,6 +18,7 @@ package survarium.messages
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
    import survarium.constants.MoneyType;
+   import survarium.constants.ProfileSlot;
    import survarium.constants.QuickSlotSize;
    
    public class MessageAsk extends MessageAccept
@@ -324,7 +325,13 @@ package survarium.messages
          var fullPocket:Boolean = _data.quick_slot_item_size == QuickSlotSize.WHOLE;
          if(_data.targetSlot && _data.targetSlot != ItemPlace.INVENTORY)
          {
-            if(_data.targetSlot < ItemPlace.INVENTORY)
+            if(_data.price != undefined && _data.sell == undefined && ProfileSlot.isPocket(_data.targetSlot))
+            {
+               // a buy dropped on a pocket: what the pocket does not take stays in the inventory
+               // (LobbyMenu.relocate_to_paperdoll), so the pocket's size does not cap it
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot);
+            }
+            else if(_data.targetSlot < ItemPlace.INVENTORY)
             {
                _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,fullPocket ? 1 : int(PlayerInfo.pocketSize));
             }

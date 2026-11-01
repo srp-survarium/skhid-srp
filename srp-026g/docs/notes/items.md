@@ -314,12 +314,23 @@ bonuses per round".
   stack of the data. They give their bonus while carried (`data.md`), so they start at one, as
   before. Nor ammo (one clip; it has Autobuy), items that are no stack, sales, relocations.
 - **The count:** 30 (`CONSUMABLE_START_COUNT`), or the dialog's own most when less: what the money
-  buys, a pocket's size for a drop on a pocket (the dialog never offered more there), 100 at most.
-  No money: the slider at 0 and Buy off, as before. The data has no per-item stack cap.
+  buys, 100 at most. No money: the slider at 0 and Buy off, as before. The data has no per-item
+  stack cap.
+- **A drop on a pocket** starts at 30 too (the owner on #1003: "i'd say it should be 30 there
+  too"): a buy is no longer capped by the pocket's size. You own all you buy; the pocket carries
+  what it takes (its size, one for an item that fills a whole pocket), the rest stays in the
+  inventory. The lobby sends it as the ammo window does (`46 00`, `apply_profile_items`): the units
+  in the pocket (`count`) and the units owned after the buy (`count_in_inventory`: owned + bought,
+  `LobbyMenu.relocate_to_paperdoll`); the server buys what is beyond the stack (`move_items`,
+  `top_up`) and puts `count` in the pocket. Before, the lobby sent the bought units as both, so a
+  drop of N with N or more owned already bought nothing. Moving owned units into a pocket (the
+  relocate dialog) keeps the pocket's size as its most.
 - **Price:** the dialog's own total, count x price (30 medkits at 20: 600 silver). No consumable is
   premium; one still locked at its seller, offered for gold (`getItemLockedCost`), counts the same
   way in gold.
 - **Server:** unchanged. A buy needs a count of at least 1 and the money; it has no default count.
+  It never knew a pocket's size (gear and skills set it in the exe). Test:
+  `a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory`.
 - `try_buy_item` now gives the dialog the item's category (`_obj.category`; it gave the sellers
   under that name, which nothing read).
 - **Check:** `scripts/consumables-buy-30/check.sh <lobby_menu.swf>` (Ruffle; fails on the movie

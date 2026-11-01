@@ -3,7 +3,7 @@
 # buys when less (docs/notes/items.md §8), in Ruffle (CPU only: lavapipe on its own virtual X
 # display, never the GPU). ConsumablesBuyHarness.as makes each buy with the lobby movie's own root
 # (try_buy_item) and reads the game's own buy dialog (MessageAsk): medkits, a grenade and a trap
-# start at 30 (12 with money for 12, 0 with none), a drop on a pocket at the pocket's size; a booster,
+# start at 30 (12 with money for 12, 0 with none), a drop on a pocket too (no pocket cap); a booster,
 # ammo and a helmet as before.
 # Screenshot into the work dir: dialog-30.png (the medkit's dialog at 30).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, the shot,

@@ -15,7 +15,8 @@ package
    // a drop on a pocket), then the dialog's slider and total are read.
    // - a medkit, a grenade, a trap with money for 30 or more: 30, the total 30 x the price;
    // - a medkit with money for 12: 12; with none: the slider at 0 and Buy off, as before;
-   // - a medkit dropped on a pocket: the pocket's size (the most the dialog offers there);
+   // - a medkit dropped on a pocket: 30 too (12 with money for 12): the pocket takes its size, the
+   //   rest stays in the inventory (LobbyMenu.relocate_to_paperdoll; not checked here);
    // - a booster (fills a whole pocket), ammo (one clip), a helmet (no slider): as before.
    // Prints "BUY30 ..." lines, "BUY30 SHOT dialog-30" while the medkit's dialog at 30 is shown for
    // a screenshot, and ends with "BUY30 RESULT pass" or "BUY30 RESULT fail: ...".
@@ -189,7 +190,8 @@ package
             {what:"the menu's Buy, a grenade",money:plenty,dictId:GRENADE,target:inventory,count:1,price:30,seller:1,count_want:30,total_want:900},
             {what:"the menu's Buy, a trap",money:plenty,dictId:TRAP,target:inventory,count:1,price:20,seller:1,count_want:30,total_want:600},
             // a shop stack dropped on a pocket (ItemPaperDollSlot: count -1)
-            {what:"a medkit dropped on a pocket",money:plenty,dictId:MEDKIT,target:pocket,count:-1,price:MEDKIT_COST,seller:1,count_want:POCKET_SIZE,total_want:POCKET_SIZE * MEDKIT_COST},
+            {what:"a medkit dropped on a pocket",money:plenty,dictId:MEDKIT,target:pocket,count:-1,price:MEDKIT_COST,seller:1,count_want:30,total_want:30 * MEDKIT_COST},
+            {what:"a medkit dropped on a pocket, money for 12",money:12 * MEDKIT_COST,dictId:MEDKIT,target:pocket,count:-1,price:MEDKIT_COST,seller:1,count_want:12,total_want:12 * MEDKIT_COST},
             // as before: one step
             {what:"the menu's Buy, a booster",money:plenty,dictId:BOOSTER,target:inventory,count:1,price:1500,seller:1,count_want:1,total_want:1500},
             {what:"the menu's Buy, ammo",money:plenty,dictId:AMMO,target:inventory,count:1,price:60,seller:1,count_want:AMMO_CLIP,total_want:60},
@@ -227,6 +229,8 @@ package
             trace("BUY30 " + c.what + ": no buy dialog");
             return;
          }
+         // set up now if a slow frame has not drawn it yet (UIComponent.validateNow runs configUI once)
+         ask.validateNow();
          // Ruffle leaves the caret after the stepper's text, which NumericStepperSrv.updateLabel takes
          // for a selection and keeps the text, and refuses the stepper's null side label (Scaleform
          // takes it): the count is drawn again with neither
