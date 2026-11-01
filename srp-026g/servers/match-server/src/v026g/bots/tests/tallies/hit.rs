@@ -18,6 +18,9 @@ pub(crate) struct HitFollow {
     pub(crate) hit_back: Option<u32>,
     pub(crate) died: bool,
     pub(crate) killed_him: bool,
+    /// [A227] Ms from the hit to its look on a hit marker's direction (`aim.combat.hit_bearing`), and how far that direction
+    /// was off the way to him then, degrees.
+    pub(crate) marked: Option<(u32, f32)>,
 }
 
 /// The real-map bench's hits taken (audit issue 8, `hit_bearing`): each
@@ -91,6 +94,7 @@ impl HitTally {
                 hit_back: None,
                 died: false,
                 killed_him: false,
+                marked: None,
             });
         }
         for place in 0..n {
@@ -112,6 +116,13 @@ impl HitTally {
                         .is_some_and(|b| b.reflex.target() == Some(follow.shooter))
                 {
                     follow.targeted = Some(since);
+                }
+                if follow.marked.is_none()
+                    && let Some(toward) = bots.bots[place].as_ref().and_then(|b| b.reflex.marker(tick))
+                {
+                    use super::kin::{wrap, yaw_of};
+                    let truth = yaw_of([to.x - body.feet.x, to.z - body.feet.z]);
+                    follow.marked = Some((since, wrap(toward - truth).abs().to_degrees()));
                 }
             } else {
                 follow.died = true;
@@ -175,7 +186,8 @@ impl HitTally {
         events.line(serde_json::json!({
             "t": f.t0,
             "hit": [place, f.shooter, f.sensed, f.off_deg.round(), (f.distance * 10.0).round() / 10.0,
-                f.faced, f.targeted, f.hit_back, f.died, f.killed_him],
+                f.faced, f.targeted, f.hit_back, f.died, f.killed_him,
+                f.marked.map(|(ms, off)| [f64::from(ms), f64::from(off.round())])],
         }));
         let row = &mut self.counts[usize::from(f.sensed)];
         row[0] += 1;

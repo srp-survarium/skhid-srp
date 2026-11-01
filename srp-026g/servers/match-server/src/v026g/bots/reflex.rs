@@ -3868,10 +3868,10 @@ impl Reflex {
         self.hit_note.take()
     }
 
-    /// [A227] Whether its look is on a hit marker's direction at `now` (a threat the marker made, under way).
+    /// [A227] The hit marker's direction its look is on at `now` (a threat the marker made, under way).
     #[cfg(test)]
-    pub fn bearing_look(&self, now: u32) -> bool {
-        self.threat.is_some_and(|t| t.bearing.is_some() && now < t.until)
+    pub fn marker(&self, now: u32) -> Option<f32> {
+        self.threat.filter(|t| now < t.until).and_then(|t| t.bearing)
     }
 
     /// At a think, with the view alone: the target and the turn to a sound
