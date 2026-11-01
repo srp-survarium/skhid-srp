@@ -1,6 +1,6 @@
-# The House, the upper floor of STK2's Bar building (pack lobby-stk2-house@1, projects/lobby_scene/stk2_house): where things are,
+# The Bar, the upper floor of STK2's Bar building (pack lobby-stk2-bar-hall@1, projects/lobby_scene/stk2_bar_hall): where things are,
 # in the lobby's world (metres, y up; the default camera looks along +z). Made by resource-porter's build-stk2-lobby-026
-# (ports/stk2-house-lobby-to-026g.json), which bakes the STK2 scene into this frame.
+# (ports/stk2-bar-hall-lobby-to-026g.json), which bakes the STK2 scene into this frame.
 # yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
 # One row a line, tabs between: <key> <x> <y> <z> <yaw> <what>
 character	0.000	0.000	0.000	-	the lobby character's spot (the exe's: the origin, facing -z), on the open floor between the tables and the annex by the stairs, the hall before the camera (+z); STK2 (94.300, 0.221, -0.500)
@@ -12,4 +12,5 @@ net	0.000	2.340	0.000	-	the camouflage net under the ceiling (y 3.7), its lowest
 bar_cabinet	3.180	0.000	7.550	-	the bar cabinet with bottles on top, at the kitchen corner
 cooker	3.440	0.000	11.990	-	the kitchen corner's gas cooker under its hood, the hall's far end
 figure_spot	-2.790	0.000	5.220	-	where the video's figure in an exoskeleton stands (dima_test's test_object/test_character, its model in no archive); nothing there
-door	1.750	0.000	-4.630	-	the copy of the brown door closing the annex's north doorway (to the roof landing), behind the camera
+door	1.750	0.000	-4.630	-	the copy of a closed grey door shutting the annex's north doorway (to the roof landing), behind the camera
+trees	0.000	-1.721	0.000	-	the ground the 42 trees outside stand on (1.7 m below the floor, out of the strip windows' sight): rows 3.5..5, 8..11 and 15..21 m out from the long walls (lobby x 5.8 and -5.6)
