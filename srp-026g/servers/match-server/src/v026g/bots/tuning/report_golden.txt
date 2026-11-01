@@ -4,7 +4,7 @@ switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_apart_mates crossfire_point cut_given_crowd held_in_pass hold_to_arrival
 switches ON cover: spot_cost=0.5
 switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk landing_cancel_drops lip_guard_full sprint_gaps sprint_through unclear_aim zone_lines
-switches ON grid: client_numbers crouch_floors exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
+switches ON grid: client_numbers crouch_floors drop_room exact_erosion floor_paths gap_links honest_drops landing_carry walk_off_lips
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape live_zones price_way_out run_out zone_intensity
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
@@ -23,7 +23,7 @@ switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift floor_height_clear press_in_reach sprint_turns straight_jumps
-switches OFF grid: capsule_steps drop_room keep_last_resorts
+switches OFF grid: capsule_steps keep_last_resorts run_ups_after_erosion
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease apart_tie lane
