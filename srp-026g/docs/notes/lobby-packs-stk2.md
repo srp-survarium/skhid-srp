@@ -50,7 +50,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@8)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@9)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -109,7 +109,7 @@ crates, beds and lockers, and the vaults beside it.
   the vault above it; the lights at the pendants (the store room's and STK2's under the corridor
   pendant) cast none now, and the light reaches the vault as a hanging lamp's does. The room
   probe's ambient 0.45 (0.3) lifts the dark parts; the warm colour kept.
-- The merged model is `level/stk2_bunker/main_v<version>` (`main_v8`), a new folder with each
+- The merged model is `level/stk2_bunker/main_v<version>` (`main_v9`), a new folder with each
   version: its surfaces are numbered by material, and a resources.db patch only adds files, so a
   surface folder of an earlier version left in the same model failed all its materials (seen with
   @6's files over @5's: "material not loaded: nomaterial", the shelter untextured).
@@ -119,6 +119,34 @@ crates, beds and lockers, and the vaults beside it.
   store-room fill `point_light(5)`, which stands right beside the shelf. STK2 lit with it as a soft
   bounce; 0.26 drew the post's shadow hard and black. No light of the bunker casts a shadow now;
   the main lights are 18 % lower (the store room's lamps 1.97), the ambient and the bulbs' glow kept.
+- The vault (@9, the owner, 2026-11-01: "this is roof being a bit strange": over the pendant
+  the vault darker in a blotch, its edge speckled): the shell's vaults are `test_object/p_brick`
+  (plaster over brick), and over most of the store room's vault, 6 to 18 mm in front of it, STK2 laid
+  `tiled/wall/stucco_alpha_01`, a dirty-plaster overlay: a darker, greener plaster on a 2048 px
+  alpha mask that is a speckled oval (binary at full size, 61 % opaque), alpha-tested (STK2's
+  `alpha_ref` 0.95, the 0.26g template's 0.25: either way the edge is the mask's speckle). Not a
+  depth fight (1 cm at 3 m is far above the depth step) and not the lights: the blotch is the
+  overlay's own texture and the speckle its mask. Left out (the manifest's `materials`, hidden);
+  the vault is the plaster of p_brick, as round the overlay. Other alpha instances whose own
+  `alpha_ref` differs from the templates' 0.25 (`decals/listja` 0.6, the ventilation motor 0.5,
+  `decal_for_floor` 0.15): out of the lobby's view, not carried.
+- The doorway up to the corridor (@9, the owner: "see this green thing there and also strangely
+  stretched surface"; the store room's doorway with the steps, by the fuse boxes, lobby x 9.2):
+  - the green: STK2's `nature/moss/moss` on the sill (0.27 x 0.83 m, 295 triangles), its
+    `moss_m` a saturated moss photo with no alpha (a 24-bit TGA, DXT1) on the alpha-tested
+    two-sided template, so a solid bright green strip. Left out (the slice's `exclude`);
+  - the stretch: faces STK2 left unmapped in the shell, their corners at one uv or on one line
+    (`(0, 1) (0, 1) (1, 1)`), so one row of texels runs across them: that sill's riser, a floor
+    strip by the west arch (1.2 x 0.4 m, by the character), a sill in the east vault, the
+    ventilation shaft's ceiling (93 triangles, 1.6 m2, all in `bomb_shelter.model`'s
+    `crete_floor_clean` and `p_brick` but a sliver of the ventilation hatch). build-stk2-lobby-026
+    now gives each such face corners of its own, projected along the axis it faces at its
+    surface's median texel density, tangents along the projection;
+  - the dark beyond it: no light in that corridor. Its plafond (0.26's fixture where STK2 hung a
+    cage) glows but STK2 put no light there; the nearest were the store room's lamp 5.3 m away
+    behind the wall and STK2's light under the corridor's pendant, 6.6 m along with a 5 m range.
+    A dim warm light under the plafond now (`corridor_glow`, as the vault glows: 1.15, 4.5 m).
+    Not a cut: the box keeps the corridor.
 - The camera: boxes over the floor and around the props the eye got into (@2), and one
   across the front arch to the next vault (@3: at yaw 0, 4.6 m the eye went through it
   into the dark).
