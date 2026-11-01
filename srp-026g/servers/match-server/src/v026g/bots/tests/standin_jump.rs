@@ -191,6 +191,56 @@ pub(crate) fn past_edge(grid: &mapdata::WalkGrid, walls: &mapdata::RayTree, node
     None
 }
 
+/// Whether the stand-in's jump is steered in the air by the keys held (`SRP_BENCH_STAND_IN_AIR`, off unless `on`): the client's
+/// controller adds its air control ([`air_control`]) to each airborne tick's move; off, the jump goes only the way of the keys at
+/// the press (A211: a side key at the press costs the bench's jump, and live it does not).
+pub(crate) fn stand_in_air_control() -> bool {
+    if let Some(on) = AIR_FORCED.with(std::cell::Cell::get) {
+        return on;
+    }
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_AIR").is_ok_and(|v| v == "on"))
+}
+
+thread_local! {
+    /// A test's word on [`stand_in_air_control`], for its own thread.
+    static AIR_FORCED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test puts [`stand_in_air_control`] on or off for its own thread (`None`: as the run says).
+pub(crate) fn force_air_control(on: Option<bool>) {
+    AIR_FORCED.with(|f| f.set(on));
+}
+
+/// The client's air control, m/s: `air_control_speed` (player +0x304, 1.0 in `default.player`), the length of
+/// [`air_control`]'s vector.
+pub(crate) const AIR_CONTROL_MS: f32 = 1.0;
+
+/// The air control of a body in a jump with `keys` held now, facing `yaw`: m/s on the ground's axes. The client's
+/// `get_air_control_vector` 0x2D7990 (a switch over the move direction, table 0x2D7B68; its constants read from the exe: 0xA70884
+/// 1.0, 0xA0D984 0.0, 0xA2D778 -1.0; PROVEN) gives [`AIR_CONTROL_MS`] along the keys' way, the diagonals normalised, and none with
+/// no key or with forward alone in a sprint jump (its forward case is 0 for the jump codes 2-4; the diagonals have no such case).
+/// `player_step` 0x7BFC5 adds it to the root motion's speed (the walk vector times 1 / dt, 0x7BF36) each tick of a jump (LIKELY).
+pub(crate) fn air_control(keys: u32, yaw: f32, sprint: bool) -> [f32; 2] {
+    let held = |bit| f32::from(u8::from(keys & bit != 0));
+    let ahead = held(key::FORWARD) - held(key::BACK);
+    let left = held(key::LEFT) - held(key::RIGHT);
+    if (ahead == 0.0 && left == 0.0) || (sprint && ahead > 0.0 && left == 0.0) {
+        return [0.0, 0.0];
+    }
+    let len = ahead.hypot(left);
+    let dir = to_world([ahead / len, left / len], yaw);
+    [dir[0] * AIR_CONTROL_MS, dir[1] * AIR_CONTROL_MS]
+}
+
+/// What [`stand_in_air_control`] did: airborne ticks steered, airborne ticks with no air control (no key, or forward alone in a
+/// sprint jump), jumps come down, and of them those the air control moved 0.25 m or more.
+static AIR_STEERS: [std::sync::atomic::AtomicU64; 4] = [const { std::sync::atomic::AtomicU64::new(0) }; 4];
+
+pub(crate) fn air_steer_stats() -> Vec<u64> {
+    AIR_STEERS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
 /// Whether a jump's walk before it leaves the floor is held by the walls and the ledge as the walking body is (`SRP_BENCH_STAND_IN_JUMP_WALL`,
 /// off unless `on`, and only with `SRP_BENCH_STAND_IN_CORNER=on`): the client's capsule is held at a wall whatever the keys, so a body
 /// that presses jump at the wall it is held by does not walk through it in the jump's first moments (A199).
@@ -486,8 +536,8 @@ pub(crate) const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
 /// (at the walk cap), in the air after it, held by any face in its way
 /// (it rises with the clip and catches up once clear: the chase rule,
 /// FINDINGS §5). It lands on the highest floor under it once on the way
-/// down, or falls after the clip. No air control, no stamina (GUESS: the
-/// air control's scale was not read).
+/// down, or falls after the clip. No stamina; the air control only with
+/// [`stand_in_air_control`] (on the clip, not in the fall after it).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Flight {
     /// The press, ms; the feet then; the ground way (unit, or none).
@@ -501,6 +551,8 @@ pub(crate) struct Flight {
     pub(crate) base: Option<f32>,
     /// After the clip, falling at this speed, m/s.
     pub(crate) fall: Option<f32>,
+    /// How far the air control has moved the body off the clip's way so far, m ([`stand_in_air_control`]).
+    pub(crate) air: [f32; 2],
 }
 
 impl Flight {
@@ -649,6 +701,13 @@ pub(crate) fn fly(
     };
     let ms = tick.saturating_sub(f.at) as f32;
     let landed = |body: &mut Body, f: &Flight, n: NodeId, feet: Vec3, fall_v: Option<f32>| {
+        if stand_in_air_control() {
+            use std::sync::atomic::Ordering::Relaxed;
+            AIR_STEERS[2].fetch_add(1, Relaxed);
+            if f.air[0].hypot(f.air[1]) >= 0.25 {
+                AIR_STEERS[3].fetch_add(1, Relaxed);
+            }
+        }
         body.node = Some(n);
         body.feet = feet;
         body.flight = None;
@@ -680,7 +739,14 @@ pub(crate) fn fly(
         }
     }
     let (ahead, rise, airborne, over) = f.root(ms);
-    let target = (f.from.x + f.dir[0] * ahead, f.from.z + f.dir[1] * ahead);
+    let mut target = (f.from.x + f.dir[0] * ahead, f.from.z + f.dir[1] * ahead);
+    // Off the floor, the keys held now steer it ([`air_control`]).
+    if airborne && stand_in_air_control() {
+        let steer = air_control(body.keys, body.yaw, f.sprint());
+        AIR_STEERS[usize::from(steer == [0.0, 0.0])].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        f.air = [f.air[0] + steer[0] * TICK_S, f.air[1] + steer[1] * TICK_S];
+        target = (target.0 + f.air[0], target.1 + f.air[1]);
+    }
     if !airborne {
         // On the floor before the jump event: toward the root at the walk
         // cap at most, no step over the client's.
@@ -818,6 +884,7 @@ pub(crate) fn honest_jump_in(
         prepare,
         base: None,
         fall: None,
+        air: [0.0; 2],
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
@@ -860,6 +927,40 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     // Back and to the side: that way.
     let (to, _) = honest_jump(&grid, &walls, body, key::LEFT | key::JUMP, 0.0);
     assert!((to.z - from.z - 2.67).abs() < 0.15 || (from.z - to.z - 2.67).abs() < 0.15, "{to:?}");
+}
+
+/// The air control ([`air_control`], the client's `get_air_control_vector`): 1.0 m/s along the keys, the diagonals normalised,
+/// none with no key or with forward alone in a sprint jump (back still steers). With [`stand_in_air_control`] on, a short jump
+/// pressed forward and steered to the side in the air comes down its airborne time (0.2-0.8 s of the clip) x 1.0 m/s to that
+/// side and as far ahead; off, on its way.
+#[test]
+fn the_air_control_steers_a_jump_by_the_keys_held_in_the_air() {
+    let yaw = 0.3;
+    let forward = air_control(key::FORWARD, yaw, false);
+    assert!((forward[0].hypot(forward[1]) - AIR_CONTROL_MS).abs() < 1e-5, "{forward:?}");
+    assert_eq!(air_control(key::FORWARD, yaw, true), [0.0, 0.0]);
+    assert_eq!(air_control(key::FORWARD | key::BACK, yaw, false), [0.0, 0.0]);
+    let back = air_control(key::BACK, yaw, true);
+    assert!((back[0] + forward[0]).abs() < 1e-5 && (back[1] + forward[1]).abs() < 1e-5, "{back:?}");
+    let diagonal = air_control(key::FORWARD | key::LEFT, yaw, true);
+    assert!((diagonal[0].hypot(diagonal[1]) - AIR_CONTROL_MS).abs() < 1e-5, "{diagonal:?}");
+
+    let triangles = ledge_triangles(0.9, mapdata::WalkerBehaviour::BySlope);
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let from = Vec3::new(2.0, 0.0, 5.0);
+    let mut body = honest_body(&grid, from);
+    body.keys = key::LEFT;
+    let land = |on| {
+        force_air_control(Some(on));
+        let (to, _) = honest_jump(&grid, &walls, body.clone(), key::FORWARD | key::JUMP, 0.0);
+        force_air_control(None);
+        to
+    };
+    let (off, on) = (land(false), land(true));
+    assert!((off.z - from.z).abs() < 0.05, "{off:?}");
+    let aside = (on.z - from.z).abs();
+    assert!((0.5..0.8).contains(&aside) && (on.x - off.x).abs() < 0.05, "{on:?} {off:?}");
 }
 
 /// From a standstill at its face, a forward jump gets up a 0.9 m ledge

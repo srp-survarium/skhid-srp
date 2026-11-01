@@ -13,7 +13,8 @@
 //! - K3: trades refused, PairUp teammates refused and join / wait spots out of sight found, Crossfire spots left
 //!   out.
 //! - No feeding (`threat.concede`, `concede.rs`), by team: deaths recorded on a shooter's area (lone tries, job
-//!   roles), failed retries by kind, areas conceded (and again), opened by the shooter's death, jobs refused (conceded,
+//!   roles), failed retries by kind, areas conceded (and again), opened or kept by the shooter's death and taken up when
+//!   he was sensed back (conceded or tried again), jobs refused (conceded,
 //!   like the last try), plays refused or weighed for a target in a conceded area and those taken anyway, and item
 //!   15's waits.
 //!
