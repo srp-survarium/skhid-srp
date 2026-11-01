@@ -129,7 +129,8 @@ impl Topic for LookCounts {
         if rec.alive && !at.prev.alive {
             self.hit_this_life[place] = false;
         }
-        if !rec.alive || !run.is_bot.get(place).copied().unwrap_or(false) {
+        // The stand-in human is a bot place: his own walks are not a bot's.
+        if !rec.alive || !run.is_bot.get(place).copied().unwrap_or(false) || self.human == Some(place) {
             return;
         }
         if let Some(hit) = self.open[place].as_mut()
@@ -155,7 +156,11 @@ impl Topic for LookCounts {
             let (Some(v), Some(s)) = (game.bodies.get(victim), game.bodies.get(shooter)) else {
                 continue;
             };
-            if v.team == s.team || !run.is_bot.get(victim).copied().unwrap_or(false) || self.hit_this_life.get(victim).copied().unwrap_or(true) {
+            if v.team == s.team
+                || !run.is_bot.get(victim).copied().unwrap_or(false)
+                || self.human == Some(victim)
+                || self.hit_this_life.get(victim).copied().unwrap_or(true)
+            {
                 continue;
             }
             let (Some(vr), Some(sr)) = (run.recs[victim].last(), run.recs[shooter].last()) else {

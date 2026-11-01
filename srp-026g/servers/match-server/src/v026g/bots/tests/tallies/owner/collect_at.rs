@@ -77,6 +77,10 @@ impl Topic for CollectAtCounts {
             let Some((battery, read_at)) = self.collecting.get_mut(victim).and_then(Option::take) else {
                 continue;
             };
+            // The stand-in human is a bot place: his own collects are not a bot's.
+            if self.human == Some(victim) {
+                continue;
+            }
             if t.saturating_sub(read_at) > RECENT_MS {
                 continue;
             }
