@@ -1225,8 +1225,9 @@ impl Game {
                     } else {
                         to
                     };
+                    // The rise a walk climbs is the grid's (with `capsule_steps`, the capsule's edge step).
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        let slid = slide_supported(grid, node, body.feet, target, grid.body().step, body::SUPPORT_M);
+                        let slid = slide_supported(grid, node, body.feet, target, grid.body().walk_climb(), body::SUPPORT_M);
                         // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
                         let walls = self.walls.as_deref().filter(|_| stand_in_fall());
                         match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
@@ -1234,7 +1235,7 @@ impl Game {
                             None => slid,
                         }
                     } else {
-                        slide_capped(grid, node, body.feet, target, grid.body().step)
+                        slide_capped(grid, node, body.feet, target, grid.body().walk_climb())
                     };
                     // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
                     let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;

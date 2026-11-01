@@ -669,7 +669,7 @@ pub(crate) fn fly(
         if len > 1e-6 {
             let k = (WALK_CAP * TICK_S / len).min(1.0);
             let to = Vec3::new(body.feet.x + dx * k, body.feet.y, body.feet.z + dz * k);
-            let (n, feet, _) = super::body::slide_capped(grid, node, body.feet, to, grid.body().step);
+            let (n, feet, _) = super::body::slide_capped(grid, node, body.feet, to, grid.body().walk_climb());
             body.node = Some(n);
             body.feet = feet;
         }
