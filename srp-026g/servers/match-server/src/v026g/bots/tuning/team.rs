@@ -757,6 +757,8 @@ pub struct ThinkTuning {
     /// (a lockout lasts as long as the sprint keys are held), stops sprinting early enough to arrive at a jump with the
     /// bar to pay it (the sprint to it, the run-up and the jump), and presses no jump the bar cannot pay. Off: the sprint and the jumps as before; the reckoning is counted.
     pub stamina: bool,
+    /// The rates the bar is reckoned at ([`StaminaRates`]).
+    pub stamina_rates: StaminaRates,
     /// A body that landed from a fall of 6 m or more cannot move for about 8 s (the J0 worlds, `stuck::HARD_FALL_M`):
     /// the stuck watch keeps quiet that long, as it cannot tell it from a wall. Off: the watch backs the body off and sidesteps, and cuts its play ("stuck twice there").
     pub fall_lock: bool,
@@ -777,9 +779,24 @@ impl Default for ThinkTuning {
             door_centres: false,
             wall_clear_corners: false,
             stamina: true,
+            stamina_rates: StaminaRates::Light,
             fall_lock: true,
         }
     }
+}
+
+/// The rates the bot reckons its stamina bar at (`stamina::Rates`): a heavy kit's bar empties up to 2.5 times as fast
+/// as the light kit's, so at the light rates a sprint that is long for the kit runs its real bar to 0 with the reckoning
+/// still over the reserve (A207: the stand-in's lockouts rose 41 to 198 with the sprint on short legs). The bar is the
+/// player's HUD, so the bot knowing its kit's is no cheat.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StaminaRates {
+    /// As it was: every kit at the light kit's (spend 5 a second, regain 10, a jump 10).
+    #[default]
+    Light,
+    /// Each life at its kit's: the weight's cost against the kit's capacity and the skills (`stamina::Rates::of_kit`).
+    Kit,
 }
 
 /// A personality (play 14): weights per play family and motor habits.
