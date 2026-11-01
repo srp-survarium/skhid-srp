@@ -55,6 +55,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'rifle-scopes'))
+import pbr_026  # noqa: E402
 import render_icon  # noqa: E402
 import scopes_lib as lib  # noqa: E402
 
@@ -70,7 +71,7 @@ rs = _load('rifle_scopes_make_pack', HERE.parent / 'rifle-scopes' / 'make_pack.p
 survey = _load('scope_fits_survey', HERE / 'survey.py')
 
 PACK_ID = 'scope-fits'
-VERSION = '1'
+VERSION = '2'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -125,6 +126,26 @@ def translation(model, module_dir):
     for ts in (found[False], found[True]):
         if ts and np.abs(np.array(ts) - ts[0]).max() <= BBOX_TOLERANCE:
             return np.array(ts[0])
+    return None
+
+
+EYE_AXIS = 0.0002
+
+
+def reticle_offset(weapon_model, aimed_model, shift, level=False):
+    """(x, y) of an aimed model's reticle (its red dot, else its grid) from the weapon model's eye, in
+    the locators' frame (the aimed model drawn at scope_point turned half about Y); None where it has
+    no reticle, or (with `level`) the model's eye is turned (the view tilted off that line)."""
+    locs = survey.locators(weapon_model)
+    sp, aim = locs['scope_point'][0], locs['aim'][0]
+    rot = locs['aim'][1] or [0.0, 0.0, 0.0]
+    if sp is None or aim is None or (level and max(abs(x) for x in rot) > 1e-6):
+        return None
+    names = lib.surfaces(aimed_model)
+    for surface in (lib.REDDOT, lib.DOT, 'collimator_glowing_dot_green_s', lib.GRID):
+        if surface in names:
+            c = lib.bbox_centre(aimed_model, surface) + shift
+            return (sp + c * np.array([-1.0, 1.0, -1.0]) - aim)[:2]
     return None
 
 
@@ -209,7 +230,10 @@ def references(args, work, donor, optics, fits, variants, weapons, roots):
             e = eye[0]
             rank = (bool(rails), PREFERRED.index(v['weapon']) if v['weapon'] in PREFERRED else len(PREFERRED), v['name'])
             rec = {'idle': idle, 'aim': aim, 'own': own, 'aim_own': [s for s in lib.surfaces(aim) if s not in rails],
-                   't': t, 'd': e - t, 'e': e, 'kind': v['kind'], 'leaves': v['leaves'], 'variant': v}
+                   't': t, 'd': e - t, 'e': e, 'kind': v['kind'], 'leaves': v['leaves'], 'variant': v,
+                   'off': reticle_offset(roots.model(v['change'] or weapons[v['weapon']][1]), aim, np.zeros(3))}
+            if rec['off'] is None:
+                continue
             if best is None or rank < best[0]:
                 best = (rank, rec)
         if best is None:
@@ -243,7 +267,8 @@ def new_reference(args, work, mdir, variants):
                renames, aim)
     stock = lib.leaves(Path(args.live) / f'gameplay/items/scopes/{STOCK_WALTHER}.options')
     return {'idle': idle, 'aim': aim, 'own': lib.surfaces(idle), 'aim_own': lib.surfaces(aim), 't': np.zeros(3),
-            'd': np.array([eye[0], eye[1], 0.0]), 'e': None, 'kind': 'C', 'leaves': stock, 'variant': None}
+            'd': np.array([eye[0], eye[1], 0.0]), 'e': None, 'kind': 'C', 'leaves': stock, 'variant': None,
+            'off': np.zeros(2)}
 
 
 def template_for(ref, kind, needs_model, variants, name):
@@ -362,7 +387,7 @@ def build(args, work):
     live_variants = {v['name']: v for v in lib.variants(args.live, lib.Modules(args.donor))}
     renames = {r[2]: 'weapons/loc2/' + r[3][len('loc2:'):] for r in survey.rows('modules.tsv')
                if r[1] == 'rail' and r[3].startswith('loc2:')}
-    files, entries, compat, report, icons = {}, [], [], [], []
+    files, entries, compat, report, icons, axis = {}, [], [], [], [], []
     eyes = {}  # gun -> [(model reference, its directory)]: the models with a moved eye made here
     next_id = FIRST_VARIANT
     placeholders = []
@@ -466,6 +491,13 @@ def build(args, work):
             path = f'gameplay/items/scopes/{vname}.options'
             files[path] = variant_config(template, source, name, gun, dict_id, vname, change, scope_fov, icon)
             check_variant(files[path], name, gun, dict_id, vname, change, kind)
+            # the eye on the scope's axis: the reticle before the weapon model's eye as before the reference's
+            eye_model = work / 'models' / (change + '.skinned_model') if change and (work / 'models' / (change + '.skinned_model')).exists() \
+                else roots.model(change or base_model)
+            off = reticle_offset(eye_model, aim_out, np.zeros(3), level=True)
+            if off is None or np.abs(off - ref['off']).max() > EYE_AXIS:
+                sys.exit(f'{vname}: its reticle is {off} from the eye, the reference\'s {ref["off"]}')
+            axis.append(f'{vname}\t{off[0] * 1000:+.2f}\t{off[1] * 1000:+.2f}\t{ref["off"][0] * 1000:+.2f}\t{ref["off"][1] * 1000:+.2f}')
             entries.append({'base_cost': 0, 'cfg_name': path, 'dict_id': dict_id, 'is_premium': False,
                             'is_stack': False, 'item_category': CATEGORY, 'name': vname})
             compat.append((gun, name))
@@ -474,6 +506,9 @@ def build(args, work):
         if new_id != '-':
             icons.append(shop_item(args, files, entries, name, int(new_id), int(price), icon, scope_fov, first,
                                    ref['leaves'], ref['idle']))
+    (HERE / 'eyes.tsv').write_text('# made by make_pack.py: each variant\'s reticle (red dot, else grid) from its weapon model\'s eye, '
+                                   'mm (x, y), and its reference\'s: equal within EYE_AXIS\n# variant\tx\ty\treference x\treference y\n'
+                                   + '\n'.join(axis) + '\n', encoding='utf-8')
     write_pack(args, files, entries, report, icons)
     write_edit_list(args.live, compat, weapons, placeholders, roots)
 
@@ -560,6 +595,8 @@ def write_pack(args, files, entries, report, icons):
         rel = str(p.relative_to(args.donor))
         if p.is_file() and (rel.startswith('material_instances/') or rel.startswith('textures/')):
             files[rel] = p.read_bytes()
+    # the rails' 0.69d0 textures as 0.26g draws a 0.69d0 weapon's (the rifle scopes' pbr_026.py)
+    files.update(pbr_026.convert({k: v for k, v in files.items() if k.startswith('textures/')}))
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     if icons:

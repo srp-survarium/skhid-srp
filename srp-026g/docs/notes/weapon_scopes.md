@@ -325,3 +325,10 @@ make_pack.py, review.py).
   sheet (`review.py`) of each gun with a collimator and a scope, outside and aimed: optics on their
   rails, reticles centred, red dots in the windows. The pack is made from the weapon packs' files
   (`guns.sha256`): a new version of a weapon pack means survey.py and make_pack.py again.
+- **@2 (2026-11-01, after the owner's game):** made on the final weapon packs (weapons-031@7, weapons-046@6,
+  weapons-069@9): @1's model copies were of older gun models. The rails' 0.69d0 textures are converted as the
+  rifle scopes' @4 converts the optics' (`../rifle-scopes/pbr_026.py`): taken as they were, metal drew as a black
+  mirror. Every variant's reticle (red dot, else grid) is checked against its weapon model's eye: before it as
+  before its reference's, within 0.2 mm, and the eye unturned (`eyes.tsv`; the SCAR-H's Walther: 0.00 mm). The
+  camouflage bake reaches only the weapon model's own surfaces (the game's log names surfaces 0..n-1 of the
+  variant's gun model), not the scope's.
