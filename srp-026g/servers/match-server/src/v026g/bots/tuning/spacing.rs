@@ -61,7 +61,8 @@ pub struct SpacingTuning {
     /// A212 (the owner: bots stand inside each other, "before release"): at a match's opening a team's bodies leave adjacent spawn points together and close up on the way out,
     /// 83 % of the overlap in a life's first 20 s; in 55 % of it the bot behind walks on into a teammate ahead of it, and the side step is refused in 57 % (no clear ground that side;
     /// `traces-20261028/fx-zones-a212.md`). With a queue a bot with a teammate just ahead on its way gives way (`bots/apart.rs` [`apart::queue`]): it drops its sprint inside
-    /// `gap_m` and lets go of forward inside `stop_m` (Reynolds' "queuing at a doorway"). Off: nothing keeps a gap along the path.
+    /// `gap_m` and lets go of forward inside `stop_m` (Reynolds' "queuing at a doorway"). Off: nothing keeps a gap along the path. On by default (#956's by-side gate, 192
+    /// pairs: the young 1 m overlap -44 % z -12.5, the 4v4 opening 26.4 -> 11.4 per 1,000 pair-seconds against the live humans' 12.7, score +0.9 % z +0.6, no guard failed).
     pub queue: Option<QueueTuning>,
 }
 
@@ -115,7 +116,7 @@ impl Default for SpacingTuning {
             apart_ease: false,
             apart_tie: false,
             lane: None,
-            queue: None,
+            queue: Some(QueueTuning::default()),
         }
     }
 }
