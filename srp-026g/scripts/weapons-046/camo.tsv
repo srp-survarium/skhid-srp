@@ -1,0 +1,30 @@
+# The 0.46c2 guns' textures that get an _aoac (../weapon-camo/weapon_camo.py, its guns.tsv format:
+# texture, donors (none: no premium copies), the model surfaces whose UVs use it). Made from the pack's
+# models (surfaces of sights, barrels, muzzle devices and rounds left out, as guns.tsv leaves them).
+weapons/smg/mp5a1/mp5a1		weapons/smg/mp5a1/mp5a1:mp5a1_s,weapons/smg/mp5a1/mp5a1:handguard_mp5a1_s
+weapons/sniper/svu_a/svu_a_magazine		weapons/sniper/svu_a/svu_a:svu_a_magazine_s
+weapons/sniper/svu_a/svu_a_handguard		weapons/sniper/svu_a/svu_a:svu_a_handguard_s
+weapons/sniper/svu_a/svu_a_grip		weapons/sniper/svu_a/svu_a:svu_a_grip_s
+weapons/sniper/svu_a/svu_a_base		weapons/sniper/svu_a/svu_a:svu_a_base_s
+weapons/assault/enfield_l85a2/enfield_l85a2_part2		weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_part2_s
+weapons/assault/enfield_l85a2/enfield_l85a2_part1		weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_part1_s
+weapons/assault/enfield_l85a2/enfield_l85a2_mag		weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_mag_s
+weapons/assault/enfield_l85a2/enfield_l85a2_handguard		weapons/assault/enfield_l85a2/enfield_l85a2:handguard_enfield_l85a2_handguard_s
+weapons/lmg/fort_401/fort_401_part2		weapons/lmg/fort_401/fort_401:fort_401_part2_s
+weapons/lmg/fort_401/fort_401_part1		weapons/lmg/fort_401/fort_401:fort_401_part1_s
+weapons/lmg/fort_401/fort_401_mag		weapons/lmg/fort_401/fort_401:fort_401_mag_s
+weapons/lmg/fort_401/fort_401_buttstock		weapons/lmg/fort_401/fort_401:fort_401_buttstock_s
+weapons/shotguns/jackhammer/jackhammer		weapons/shotguns/jackhammer/jackhammer:jackhammer_s
+weapons/shotguns/jackhammer/jackhammer_magazin		weapons/shotguns/jackhammer/jackhammer:jackhammer_magazin_s
+weapons/pistols/cz_75b/cz_75b		weapons/pistols/cz_75b:cz_75b_s
+weapons/pistols/mp_443/mp_443		weapons/pistols/mp_443:mp_443_s
+weapons/pistols/beretta_93r/beretta_93r		weapons/pistols/beretta_93r:beretta_93r_s
+weapons/pistols/glock_17/glock_17_frame		weapons/pistols/glock_17/glock_17:glock_17_frame_s
+weapons/pistols/glock_17/glock_17_frame_daily_quest		weapons/pistols/glock_17/glock_17:frame_glock_17_frame_s
+weapons/pistols/glock_17/glock_17_bolt_daily_quest		weapons/pistols/glock_17/glock_17:bolt_glock_17_bolt_s
+weapons/pistols/glock_17/glock_17_mag		weapons/pistols/glock_17/glock_17:mag_glock_17_mag_s
+weapons/pistols/colt_m1911/colt_m1911_usm		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_usm_s
+weapons/pistols/colt_m1911/colt_m1911_stock		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_stock_s
+weapons/pistols/colt_m1911/colt_m1911_mag		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_mag_s
+weapons/pistols/colt_m1911/colt_m1911_frame		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_frame_s
+weapons/pistols/colt_m1911/colt_m1911_bolt		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_bolt_s
