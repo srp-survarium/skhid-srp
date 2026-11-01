@@ -213,6 +213,8 @@ st_ammo_762x39_m_name	7.62х39 RPD
 st_ammo_762x39_name	7.62x39
 st_ammo_762x51_M59_description	An armor-piercing modification of the military 7.62x51 M61 rifle cartridge. The bullet is equipped with a jacketed steel core.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO rifle cartridge in a belt of 100 for machine guns.
+st_ammo_762x51_belt_name	7.62x51, belt
 st_ammo_762x51_description	A popular army cartridge with the full metal jacket bullet. Designed for use in sniper and civil weapons. 
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Found in warehouses, this ammo is one of the oldest rifle bullets of our time. Its age and storage conditions made it less effective.
@@ -2168,8 +2170,6 @@ st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vik
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
-st_srp_ammo_762x51_belt_description	NATO rifle cartridge in a belt of 100 for machine guns.
-st_srp_ammo_762x51_belt_name	7.62x51, belt
 st_srp_attachments	Attachments
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair

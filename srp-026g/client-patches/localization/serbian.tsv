@@ -213,6 +213,8 @@ st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
 st_ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 M61, sa obloženim čeličnim jezgrom.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO puščani metak u redeniku od 100 metaka za mitraljeze.
+st_ammo_762x51_belt_name	7,62x51, redenik
 st_ammo_762x51_description	Rasprostranjeni vojni metak sa potpuno obloženim zrnom, namenjen snajperskom i civilnom oružju.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Jedan od najstarijih puščanih metaka, pronađen u skladištima. Starost i uslovi čuvanja smanjili su njegovu efikasnost.
@@ -2168,8 +2170,6 @@ st_sr3m_bundle_descr	<white>Paket sadrži:\n- Unapređeni SR-3M Vihr.\n- 2000 me
 st_sr3m_bundle_name	Paket SR-3M Vihr
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
-st_srp_ammo_762x51_belt_description	NATO puščani metak u redeniku od 100 metaka za mitraljeze.
-st_srp_ammo_762x51_belt_name	7,62x51, redenik
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan

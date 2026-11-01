@@ -213,6 +213,8 @@ st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
 st_ammo_762x51_M59_description	Sotilaskäyttöön tarkoitetun 7.62x51 M61 -patruunan panssarinläpäisevä versio. Luodissa on vaipallinen teräsydin.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	Naton kiväärinpatruuna 100 patruunan vyössä konekivääreihin.
+st_ammo_762x51_belt_name	7,62x51, vyö
 st_ammo_762x51_description	Yleinen sotilaspatruuna täysvaippaluodilla. Tarkoitettu tarkkuus- ja siviiliaseisiin. 
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Varastoista löytynyt patruuna on yksi aikamme vanhimmista kiväärinpatruunoista. Ikä ja varastointi ovat heikentäneet sen tehoa.
@@ -2168,8 +2170,6 @@ st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruun
 st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
-st_srp_ammo_762x51_belt_description	Naton kiväärinpatruuna 100 patruunan vyössä konekivääreihin.
-st_srp_ammo_762x51_belt_name	7,62x51, vyö
 st_srp_attachments	Lisävarusteet
 st_srp_crosshair_dynamic	Dynaaminen tähtäin
 st_srp_crosshair_hidden	Piilotettu tähtäin

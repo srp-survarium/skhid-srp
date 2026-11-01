@@ -213,6 +213,8 @@ st_ammo_762x39_m_name	7.62х39 RPD
 st_ammo_762x39_name	7.62x39
 st_ammo_762x51_M59_description	Przeciwpancerna modyfikacja pocisku 7.62. Kula ma stalowy rdzeń.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	Nabój karabinowy NATO w taśmie po 100 sztuk do karabinów maszynowych.
+st_ammo_762x51_belt_name	7,62x51, taśma
 st_ammo_762x51_description	Popularny nabój wojskowy z pełnopłaszczowym pociskiem. Stworzony z myślą o broni snajperskiej i cywilnej.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Ten znaleziony w magazynie pocisk to jeden z najstarszych nabojów karabinowych naszych czasów. Wiek i warunki przechowywania wpłynęły negatywnie na jego efektywność.
@@ -2168,8 +2170,6 @@ st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "
 st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
-st_srp_ammo_762x51_belt_description	Nabój karabinowy NATO w taśmie po 100 sztuk do karabinów maszynowych.
-st_srp_ammo_762x51_belt_name	7,62x51, taśma
 st_srp_attachments	Dodatki
 st_srp_crosshair_dynamic	Celownik dynamiczny
 st_srp_crosshair_hidden	Celownik ukryty

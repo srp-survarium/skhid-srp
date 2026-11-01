@@ -9,7 +9,7 @@ balances "around the current balance".
 | H&K MP5 | `mp5a1` | 2270 | SMG, 15 (Vityaz) | 9x19 (53, 71, 368) |
 | SVU | `svu_a` | 2271 | sniper, 13 (SVD) | 7.62x54 7N1 (148) |
 | L85A2 | `l85a2` | 2272 | assault, 8 (M4A1) | 5.56x45 (2201) |
-| Fort-401 | `fort_401` | 2273 | machine gun, 16 (PKP) | 7.62x51 (51, 52) |
+| Fort-401 | `fort_401` | 2273 | machine gun, 16 (PKP) | 7.62x51 belt of 100 (2275) |
 | Pancor Jackhammer | `jackhammer` | 2274 | shotgun, 14 (Saiga-12K) | 12/70 (2205, 72) |
 | CZ 75 | `cz_75` | 2280 | pistol, 17 (Fort 17) | 9x19 (53, 71, 368) |
 | MP-443 Grach | `mp443` | 2281 | pistol, 17 (Fort 17) | 9x19 |
@@ -33,7 +33,11 @@ balances "around the current balance".
 - **Fire modes** are the donor's: the L85A2 auto, single and burst of 3; the Jackhammer automatic only
   (0.46c2's, on the Saiga's `wpn_asgn`); the Beretta 93R bursts of 3 and single shots; the Glock 17
   automatic and single. The SVU is `wpn_cara` in 0.46c2: here the SVD's `wpn_aslt`, single fire.
-- **Ammo** is live ammo only; the Fort-401 takes the rifle 7.62x51 (no MG belt item).
+- **Ammo** is live ammo, but for the Fort-401: a default kit holds 3 bags, so a 100-round box fed the
+  rifle 7.62x51 (10 a unit) starts short and never reloads. It takes `ammo_7.62x51_belt` (2275): the
+  live 7.62x51's config in a belt of 100, 2 bags, 2.5 kg, level 14, as the PKP's 7N13 belt (2204):
+  dictionary category 21, 300 a belt (srp 150), sold by Edge at rank 9 (the Fort-401's seller). The
+  other guns' units fill a kit: 9x19 and .45 come in 50, buckshot 20, slugs 15, 5.56 30, 7N1 10.
 - **Models as 0.46c2 shows them.** A few 0.46c2 guns carry parts as default attachments (static models
   at a locator): the MP5's forend, the L85A2's carry-handle sight, forend and flash hider, the
   Fort-401's sight and muzzle brake, the SVU's muzzle brake, and the Glock 17's frame, slide, barrel,

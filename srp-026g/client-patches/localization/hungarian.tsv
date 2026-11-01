@@ -213,6 +213,8 @@ st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
 st_ammo_762x51_M59_description	A katonai 7.62x51 M61 puskalőszer páncéltörő változata. A lövedék köpenyezett acélmaggal rendelkezik.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO puskalőszer 100 töltényes hevederben, géppuskákhoz.
+st_ammo_762x51_belt_name	7,62x51, heveder
 st_ammo_762x51_description	Elterjedt katonai lőszer teljes köpenyes lövedékkel. Mesterlövész- és civil fegyverekhez készült. 
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Raktárakból előkerült lőszer, korunk egyik legrégebbi puskalőszere. Kora és tárolási körülményei csökkentették a hatékonyságát.
@@ -2168,8 +2170,6 @@ st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 20
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
-st_srp_ammo_762x51_belt_description	NATO puskalőszer 100 töltényes hevederben, géppuskákhoz.
-st_srp_ammo_762x51_belt_name	7,62x51, heveder
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt

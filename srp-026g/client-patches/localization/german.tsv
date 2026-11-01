@@ -213,6 +213,8 @@ st_ammo_762x39_m_name	7.62x39 PRD
 st_ammo_762x39_name	7.62x39 
 st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalibers 7.62 . Kugel ist mit dem Stahlkern ausgestattet.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO-Gewehrpatrone im 100-Schuss-Gurt für Maschinengewehre.
+st_ammo_762x51_belt_name	7,62x51, Gurt
 st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Gefunden im Lagerhaus ist diese Patrone eine der ältesten Gewehrpatronen der Gegenwart. Das Alter und die Bedingungen der Aufbewahrung haben diese Patrone weniger wirksam gemacht
@@ -2168,8 +2170,6 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
-st_srp_ammo_762x51_belt_description	NATO-Gewehrpatrone im 100-Schuss-Gurt für Maschinengewehre.
-st_srp_ammo_762x51_belt_name	7,62x51, Gurt
 st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
