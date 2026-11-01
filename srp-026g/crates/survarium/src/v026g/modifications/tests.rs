@@ -261,6 +261,16 @@ fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
         cosmetic_slots(&rifle, "wpn_aslt", "drp_camo"),
         [WEAPON_CAMO_SLOT]
     );
+    // A muzzle device (the weapon kit's slot 4) goes on a weapon with a data
+    // table alone; whether it fits that weapon is the dictionary's
+    // (upgrade_slots_in).
+    assert_eq!(
+        cosmetic_slots(&rifle, "wpn_aslt", MUZZLE_KIND),
+        [crate::v026g::weapon_kit::MUZZLE_SLOT]
+    );
+    let plain = ItemMods { camo: false, ..rifle };
+    assert!(cosmetic_slots(&plain, "wpn_aslt", MUZZLE_KIND).is_empty());
+    assert!(cosmetic_slots(&rifle, "helmet", MUZZLE_KIND).is_empty());
     // The window's four slots are apart, logical slots of the weapon kit,
     // and go to the client in at most three records (super::weapon_kit).
     let mut slots = vec![SCOPE_SLOT, WEAPON_CAMO_SLOT];

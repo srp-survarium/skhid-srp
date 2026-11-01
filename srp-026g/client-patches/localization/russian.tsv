@@ -2458,6 +2458,78 @@ st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_name	Дульный тормоз AEK-919K, M12x1L
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_name	Дульный тормоз AWS "Rapira", M24x1.5
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Пламегаситель CNC Warrior ROFH, M14x1L
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Пламегаситель CNC Warrior ROFH, M16x1L
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M14x1L, на зажиме
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Время прицеливания +3 %.
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M30x1, на зажиме
+st_srp_muzzle_custom_02_m14x1l_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_custom_02_m14x1l_firearrestor_name	Пламегаситель Custom 02, M14x1L
+st_srp_muzzle_custom_02_m24x15_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_custom_02_m24x15_firearrestor_name	Пламегаситель Custom 02, M24x1.5
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 03, M14x1L, на зажиме
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_name	Пламегаситель Custom 04, 1/2"x28, на зажиме
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_name	Пламегаситель Custom 04, 5/8"x24, на зажиме
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 04, M14x1L, на зажиме
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульный тормоз Diamondhead T-Brake, 1/2"x28
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Дульный тормоз Diamondhead T-Brake, M14x1L
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Дульный тормоз Grizzly Defcon 1, 1/2"x28, на зажиме
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульный тормоз Grizzly Defcon 1, M16x1L, на зажиме
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Время прицеливания +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульный тормоз Grizzly Defcon 1, M30x1, на зажиме
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Только внешний вид.
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульный тормоз Guns.ru Custom, M22x0.75
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Только внешний вид.
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульный тормоз Hartman "Kochevnik", M22x0.75
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Дульный тормоз Lantac Dragon, 1/2"x28
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Дульный тормоз Lantac Dragon, 5/8"x24
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Дульный тормоз Lantac Dragon, M14x1L
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Пламегаситель Manticore NightBrake, 1/2"x28
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Пламегаситель Manticore NightBrake, 5/8"x24
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Пламегаситель Manticore NightBrake, M12x1L
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Пламегаситель Manticore NightBrake, M14x1L
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Только внешний вид.
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульный тормоз Red Heat Ilgynag K01, M22x0.75
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_name	Пламегаситель Red Heat Krymsk-2, M24x1.5
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульный тормоз Red Heat Shturm, M14x1L
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульный тормоз Red Heat Shturm, M24x1.5
+st_srp_muzzle_slot	Дульное устройство
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Пламегаситель Spikes Dynacomp, M24x1.5
+st_srp_muzzle_stock	Стандарт. дульное устр.
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Скрывает вспышку выстрела. Время прицеливания +3 %.
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Пламегаситель Taktika Tula 419, M22x0.75
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Скрывает вспышку выстрела.
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Пламегаситель Venom Antidote, M14x1L
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-2, M24x1.5
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Отдача -4 %, время прицеливания +3 %.
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-3, M24x1.5
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту

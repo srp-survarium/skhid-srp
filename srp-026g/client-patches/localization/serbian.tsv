@@ -2458,6 +2458,78 @@ st_srp_mode_chargers	Zaštitni uređaj: punjači
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Timska eliminacija
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_name	Usna kočnica AEK-919K, M12x1L
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_name	Usna kočnica AWS "Rapira", M24x1.5
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Skrivač plamena CNC Warrior ROFH, M14x1L
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Skrivač plamena CNC Warrior ROFH, M16x1L
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Usna kočnica Custom 01, M14x1L, sa obujmicom
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Vreme nišanjenja +3 %.
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Usna kočnica Custom 01, M30x1, sa obujmicom
+st_srp_muzzle_custom_02_m14x1l_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_custom_02_m14x1l_firearrestor_name	Skrivač plamena Custom 02, M14x1L
+st_srp_muzzle_custom_02_m24x15_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_custom_02_m24x15_firearrestor_name	Skrivač plamena Custom 02, M24x1.5
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Skrivač plamena Custom 03, M14x1L, sa obujmicom
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_name	Skrivač plamena Custom 04, 1/2"x28, sa obujmicom
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_name	Skrivač plamena Custom 04, 5/8"x24, sa obujmicom
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Skrivač plamena Custom 04, M14x1L, sa obujmicom
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Usna kočnica Diamondhead T-Brake, 1/2"x28
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Usna kočnica Diamondhead T-Brake, M14x1L
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Usna kočnica Grizzly Defcon 1, 1/2"x28, sa obujmicom
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Usna kočnica Grizzly Defcon 1, M16x1L, sa obujmicom
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Vreme nišanjenja +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Usna kočnica Grizzly Defcon 1, M30x1, sa obujmicom
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Samo izgled.
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Usna kočnica Guns.ru Custom, M22x0.75
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Samo izgled.
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Usna kočnica Hartman "Kochevnik", M22x0.75
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Usna kočnica Lantac Dragon, 1/2"x28
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Usna kočnica Lantac Dragon, 5/8"x24
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Usna kočnica Lantac Dragon, M14x1L
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Skrivač plamena Manticore NightBrake, 1/2"x28
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Skrivač plamena Manticore NightBrake, 5/8"x24
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Skrivač plamena Manticore NightBrake, M12x1L
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Skrivač plamena Manticore NightBrake, M14x1L
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Samo izgled.
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Usna kočnica Red Heat Ilgynag K01, M22x0.75
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_name	Skrivač plamena Red Heat Krymsk-2, M24x1.5
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Usna kočnica Red Heat Shturm, M14x1L
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Usna kočnica Red Heat Shturm, M24x1.5
+st_srp_muzzle_slot	Uređaj na ustima cevi
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Skrivač plamena Spikes Dynacomp, M24x1.5
+st_srp_muzzle_stock	Fabrički uređaj
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Skriva bljesak pucnja. Vreme nišanjenja +3 %.
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Skrivač plamena Taktika Tula 419, M22x0.75
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Skriva bljesak pucnja.
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Skrivač plamena Venom Antidote, M14x1L
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Usna kočnica Zenit DTK-2, M24x1.5
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Trzaj -4 %, vreme nišanjenja +3 %.
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Usna kočnica Zenit DTK-3, M24x1.5
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut

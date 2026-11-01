@@ -622,6 +622,9 @@ pub fn upgrade_slots_in(
         return &[];
     }
     let host_kind = item_params(host_dict_id).map_or("", |params| params.kind);
+    if upgrade.kind == MUZZLE_KIND && !Dictionary::shared().compatible(host_dict_id, upgrade_dict_id) {
+        return &[];
+    }
     cosmetic_slots(host, host_kind, upgrade.kind)
 }
 
@@ -629,7 +632,8 @@ pub fn upgrade_slots_in(
 /// of type `host_kind`: a camouflage (`*_camo`) into [`CAMO_SLOT`] of one
 /// with `camo_available` ([`WEAPON_CAMO_SLOT`] on a weapon, [`camo_slot`]),
 /// a decal (`*_decl`) into the [`DECAL_SLOTS`] of one with
-/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon).
+/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon), a muzzle device
+/// ([`MUZZLE_KIND`]) into a weapon's muzzle slot.
 pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &'static [u8] {
     if upgrade_kind.ends_with("_camo") && host.camo {
         if camo_slot(host_kind) == WEAPON_CAMO_SLOT {
@@ -643,10 +647,23 @@ pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &
         } else {
             &DECAL_SLOTS
         }
+    } else if upgrade_kind == MUZZLE_KIND && host.camo && is_weapon_kind(host_kind) {
+        &[super::weapon_kit::MUZZLE_SLOT]
     } else {
         &[]
     }
 }
+
+/// [srp] The `type` of a muzzle device (a flash hider or a brake, 0.69d0's,
+/// the pack muzzle-devices: `docs/notes/muzzle-devices.md`): it goes into a
+/// weapon's muzzle slot ([`super::weapon_kit::MUZZLE_SLOT`]) on a weapon whose
+/// config has a `data` table (the weapon camouflage's edit list gives every
+/// weapon that takes upgrades one; the device's modification adds
+/// `data/srp_muzzle_model` there, which client patch 90 draws at the
+/// weapon's `muzzle_point`) and that an `items_compatibility` row pairs with
+/// it (0.69d0's fits, [`upgrade_slots_in`]). Sold by seller 0 at no rank, at
+/// its `base_cost` (`prices::sellers_of_in`).
+pub const MUZZLE_KIND: &str = "srp_muzl";
 
 /// The dict id an upgrade record of `upgrade_dict_id` on `host_dict_id`
 /// holds: for a scope item, the variant made for that weapon (the client

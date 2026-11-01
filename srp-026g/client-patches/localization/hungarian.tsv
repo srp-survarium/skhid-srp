@@ -2458,6 +2458,78 @@ st_srp_mode_chargers	Védelmi berendezés: töltők
 st_srp_mode_protective_device	Védelmi berendezés
 st_srp_mode_research	Kutatás
 st_srp_mode_team_deathmatch	Csapatos deathmatch
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K csőszájfék, M12x1L
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_name	AWS "Rapira" csőszájfék, M24x1.5
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	CNC Warrior ROFH lángrejtő, M14x1L
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	CNC Warrior ROFH lángrejtő, M16x1L
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 csőszájfék, M14x1L, bilincses
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Célzási idő +3 %.
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 csőszájfék, M30x1, bilincses
+st_srp_muzzle_custom_02_m14x1l_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 lángrejtő, M14x1L
+st_srp_muzzle_custom_02_m24x15_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 lángrejtő, M24x1.5
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 lángrejtő, M14x1L, bilincses
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 lángrejtő, 1/2"x28, bilincses
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 lángrejtő, 5/8"x24, bilincses
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 lángrejtő, M14x1L, bilincses
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Diamondhead T-Brake csőszájfék, 1/2"x28
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Diamondhead T-Brake csőszájfék, M14x1L
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Grizzly Defcon 1 csőszájfék, 1/2"x28, bilincses
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Grizzly Defcon 1 csőszájfék, M16x1L, bilincses
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Célzási idő +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Grizzly Defcon 1 csőszájfék, M30x1, bilincses
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Csak megjelenés.
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru Custom csőszájfék, M22x0.75
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Csak megjelenés.
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Hartman "Kochevnik" csőszájfék, M22x0.75
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Lantac Dragon csőszájfék, 1/2"x28
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Lantac Dragon csőszájfék, 5/8"x24
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Lantac Dragon csőszájfék, M14x1L
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Manticore NightBrake lángrejtő, 1/2"x28
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Manticore NightBrake lángrejtő, 5/8"x24
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Manticore NightBrake lángrejtő, M12x1L
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Manticore NightBrake lángrejtő, M14x1L
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Csak megjelenés.
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Red Heat Ilgynag K01 csőszájfék, M22x0.75
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_name	Red Heat Krymsk-2 lángrejtő, M24x1.5
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Red Heat Shturm csőszájfék, M14x1L
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Red Heat Shturm csőszájfék, M24x1.5
+st_srp_muzzle_slot	Csőszájeszköz
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Spikes Dynacomp lángrejtő, M24x1.5
+st_srp_muzzle_stock	Alap csőszájeszköz
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Elrejti a torkolattüzet. Célzási idő +3 %.
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Taktika Tula 419 lángrejtő, M22x0.75
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Elrejti a torkolattüzet.
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Venom Antidote lángrejtő, M14x1L
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 csőszájfék, M24x1.5
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Visszarúgás -4 %, célzási idő +3 %.
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Zenit DTK-3 csőszájfék, M24x1.5
 st_srp_optics	Távcsövek
 st_srp_options_hud	HUD:
 st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva

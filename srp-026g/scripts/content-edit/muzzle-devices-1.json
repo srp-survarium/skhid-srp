@@ -1,0 +1,533 @@
+{
+ "_about": "Muzzle devices (srp-026g/docs/notes/muzzle-devices.md; made by scripts/muzzle-devices/make_pack.sh from resource-porter's port-muzzles): each gun whose mesh had a built-in device (now cut out of it, pack muzzle-devices) gets that device back as its stock device, data/srp_muzzle_stock_model (a static model at the gun's muzzle_point) and data/srp_muzzle_stock_fire_mm (where its shot's flash goes); client patch 90 draws it while the weapon kit names no device.",
+ "add_value": [
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_a545.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/a_545"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_a545.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 91
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74m.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/ak_74m"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74m.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 81
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/ak_74n"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 81
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/ak_74n_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 81
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/akmn"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 22
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/akmn_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 22
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium_2.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/akmn_premium_2"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium_2.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 22
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ash_12.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/ash_12"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ash_12.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 94
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_fnc.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/fn_fnc"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_fnc.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 91
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_p90.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/fn_p90"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_p90.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 55
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_hk416.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/hk416"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_hk416.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 44
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_m4a1.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/m4a1"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_m4a1.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 44
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_msbs_carbine.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/msbs_carbine"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_msbs_carbine.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 52
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pkp_pecheneg.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/pkp_pecheneg"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pkp_pecheneg.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 43
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pp2000.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/pp2000"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pp2000.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 37
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rpk.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/rpk"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rpk.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 40
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_socom16.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/socom16"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_socom16.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 32
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr3m.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/sr3m"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr3m.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 42
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr3m_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/sr3m_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr3m_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 42
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sv_98.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/sv_98"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sv_98.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 62
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_svd.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/svd"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_svd.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 82
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_valmet.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/valmet"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_valmet.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 49
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/vepr"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 81
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_12.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/vepr_12"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_12.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 75
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/vepr_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 81
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/vityaz"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 40
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/vityaz_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 40
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/ak_74u"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 76
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/ak_74u_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 76
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/mp7"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 44
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/saiga_12"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 25
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12_premium.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/saiga_12_premium"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12_premium.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 25
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr2m.options"
+   ],
+   "key": "srp_muzzle_stock_model",
+   "table": "data",
+   "value": "weapons/v069d/muzzle_stock/sr2m"
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr2m.options"
+   ],
+   "key": "srp_muzzle_stock_fire_mm",
+   "table": "data",
+   "value": 23
+  }
+ ]
+}

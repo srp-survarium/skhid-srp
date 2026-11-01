@@ -2458,6 +2458,78 @@ st_srp_mode_chargers	Ochranné zařízení: nabíječky
 st_srp_mode_protective_device	Ochranné zařízení
 st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_aek919k_m12x1l_muzzlebrake_name	Úsťová brzda AEK-919K, M12x1L
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_aws_rapira_m24x15_muzzlebrake_name	Úsťová brzda AWS "Rapira", M24x1.5
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Tlumič plamene CNC Warrior ROFH, M14x1L
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Tlumič plamene CNC Warrior ROFH, M16x1L
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M14x1L, upínací
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Doba míření +3 %.
+st_srp_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M30x1, upínací
+st_srp_muzzle_custom_02_m14x1l_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_custom_02_m14x1l_firearrestor_name	Tlumič plamene Custom 02, M14x1L
+st_srp_muzzle_custom_02_m24x15_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_custom_02_m24x15_firearrestor_name	Tlumič plamene Custom 02, M24x1.5
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Tlumič plamene Custom 03, M14x1L, upínací
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_custom_04_i05x28_clamp_firearrestor_name	Tlumič plamene Custom 04, 1/2"x28, upínací
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_custom_04_i06x24_clamp_firearrestor_name	Tlumič plamene Custom 04, 5/8"x24, upínací
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Tlumič plamene Custom 04, M14x1L, upínací
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Úsťová brzda Diamondhead T-Brake, 1/2"x28
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Úsťová brzda Diamondhead T-Brake, M14x1L
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Úsťová brzda Grizzly Defcon 1, 1/2"x28, upínací
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Úsťová brzda Grizzly Defcon 1, M16x1L, upínací
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Doba míření +3 %.
+st_srp_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Úsťová brzda Grizzly Defcon 1, M30x1, upínací
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Jen vzhled.
+st_srp_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Úsťová brzda Guns.ru Custom, M22x0.75
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Jen vzhled.
+st_srp_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Úsťová brzda Hartman "Kochevnik", M22x0.75
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Úsťová brzda Lantac Dragon, 1/2"x28
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Úsťová brzda Lantac Dragon, 5/8"x24
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Úsťová brzda Lantac Dragon, M14x1L
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Tlumič plamene Manticore NightBrake, 1/2"x28
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Tlumič plamene Manticore NightBrake, 5/8"x24
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Tlumič plamene Manticore NightBrake, M12x1L
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Tlumič plamene Manticore NightBrake, M14x1L
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Jen vzhled.
+st_srp_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Úsťová brzda Red Heat Ilgynag K01, M22x0.75
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_redheat_krymske2_m24x15_firearrestor_name	Tlumič plamene Red Heat Krymsk-2, M24x1.5
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Úsťová brzda Red Heat Shturm, M14x1L
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Úsťová brzda Red Heat Shturm, M24x1.5
+st_srp_muzzle_slot	Úsťové zařízení
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Tlumič plamene Spikes Dynacomp, M24x1.5
+st_srp_muzzle_stock	Základní úsťové zařízení
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Skrývá záblesk výstřelu. Doba míření +3 %.
+st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Tlumič plamene Taktika Tula 419, M22x0.75
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Skrývá záblesk výstřelu.
+st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Tlumič plamene Venom Antidote, M14x1L
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-2, M24x1.5
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Zpětný ráz -4 %, doba míření +3 %.
+st_srp_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-3, M24x1.5
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu

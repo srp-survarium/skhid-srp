@@ -490,8 +490,10 @@ pub fn sellers_of(dictionary: &Dictionary, item: &Item, params: &ItemParams) -> 
     sellers_of_in(dictionary, ScopeFits::shared(), item, params)
 }
 
-/// [`sellers_of`] with `scopes`: a scope item of a pair with a price is
-/// sold by seller 0 at level 0; no other category-22 item is.
+/// [`sellers_of`] with `scopes`: a scope item of a pair with a price, and a
+/// muzzle device with a price ([`super::modifications::MUZZLE_KIND`], the
+/// weapon kit's), are sold by seller 0 at level 0; no other category-22 item
+/// is.
 pub fn sellers_of_in(
     dictionary: &Dictionary,
     scopes: &ScopeFits,
@@ -505,7 +507,8 @@ pub fn sellers_of_in(
         return camo_shop(&item.cfg_name).map_or_else(Vec::new, |faction| vec![(faction, 0)]);
     }
     if item.category == SCOPE_CATEGORY {
-        return if item.base_cost != 0 && scopes.is_scope(item.dict_id) {
+        let device = params.kind == super::modifications::MUZZLE_KIND;
+        return if item.base_cost != 0 && (scopes.is_scope(item.dict_id) || device) {
             vec![(0, 0)]
         } else {
             Vec::new()
@@ -1432,6 +1435,42 @@ mod tests {
             let dict_id = dictionary.item_named(name).unwrap().dict_id;
             assert!(!sold.contains(&dict_id), "{name}");
         }
+    }
+
+    #[test]
+    fn muzzle_devices_with_a_price_are_sold_to_everyone() {
+        use super::super::item_params::item_params;
+        use super::super::modifications::MUZZLE_KIND;
+        let dictionary = Dictionary::shared();
+        // a device as its item and type (the pack muzzle-devices' first)
+        let camo = dictionary
+            .items
+            .iter()
+            .find(|item| item_params(item.dict_id).is_some_and(|p| p.kind.ends_with("_camo")))
+            .unwrap();
+        let params = ItemParams {
+            dict_id: 2601,
+            kind: MUZZLE_KIND,
+            ..*item_params(camo.dict_id).unwrap()
+        };
+        let mut device = Item {
+            dict_id: 2601,
+            name: "srp_muzzle_aek919k_m12x1l_muzzlebrake".to_owned(),
+            category: SCOPE_CATEGORY,
+            is_stack: false,
+            is_premium: false,
+            base_cost: 6_000,
+            cfg_name: "gameplay/items/attachments/muzzle/srp_muzzle_aek919k_m12x1l_muzzlebrake.options".to_owned(),
+        };
+        let fits = ScopeFits::shared();
+        assert_eq!(sellers_of_in(dictionary, fits, &device, &params), [(0, 0)]);
+        assert_eq!(shop_cost(&device), 6_000);
+        // without a price, or of another type, not sold
+        device.base_cost = 0;
+        assert!(sellers_of_in(dictionary, fits, &device, &params).is_empty());
+        device.base_cost = 6_000;
+        let other = ItemParams { kind: "", ..params };
+        assert!(sellers_of_in(dictionary, fits, &device, &other).is_empty());
     }
 
     #[test]
