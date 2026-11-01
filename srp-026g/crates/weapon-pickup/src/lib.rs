@@ -179,8 +179,8 @@ impl Drop {
     }
 }
 
-/// The gun a living player holds instead of its own `own` slot's: the
-/// spare of `donor`'s `kit`, its `slot`'s gun.
+/// The gun a living player holds instead of its own `own` slot's: the gun
+/// `donor` dropped, its `kit`'s `slot` gun.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Borrow {
     pub donor: Place,
@@ -320,7 +320,7 @@ pub enum Refusal {
     TwoDoubleHanded,
 }
 
-/// A pickup every client plays: `picker`'s held slot takes `target`'s spare.
+/// A pickup every client plays: `picker`'s held slot takes `target`'s drop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Take {
     pub borrow: Borrow,

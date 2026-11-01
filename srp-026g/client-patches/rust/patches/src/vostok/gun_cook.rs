@@ -25,98 +25,9 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use weapon_pickup::{Kit, WeaponSlot};
 
-use super::log::Piece::{self, Dec, Hex, Text};
 use super::world::{read, Player};
 use super::{clock, Lock, Thread};
 use crate::raw;
-
-// ---- the diagnostic log (83c: where a frozen game stopped) -------------------------------------
-
-/// This thread's id (kernel32's GetCurrentThreadId): every line of patch 85
-/// names it.
-pub fn thread_id() -> u32 {
-    // SAFETY: the exe's import, no arguments, no state.
-    unsafe { raw::engine_get_current_thread_id() }
-}
-
-/// A line `pid P tid T pickup: ...` of `srp_patches.log` (written and the
-/// file closed at once: nothing is buffered in the process).
-pub fn line(rest: &[Piece<'_>]) {
-    let mut pieces = [Text(""); 34];
-    let head = [Text("pid "), Dec(process_id()), Text(" tid "), Dec(thread_id()), Text(" pickup: ")];
-    let mut at = 0;
-    for piece in head.iter().chain(rest) {
-        if let Some(slot) = pieces.get_mut(at) {
-            *slot = *piece;
-            at += 1;
-        }
-    }
-    super::log::line(&pieces[..at]);
-}
-
-/// Whether a lock's taking and release are logged.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Trace {
-    /// Always (the death, the cook's issue and completion, the frees).
-    Always,
-    /// While the trace budget lasts (the paths run every frame).
-    Budget,
-    /// Never (the per-tick record writers of every player).
-    Off,
-}
-
-/// Traced lock uses left: armed by each cook asked for and each completion,
-/// spent by the per-frame paths ([`Trace::Budget`]), about 6 s of frames.
-static BUDGET: AtomicU32 = AtomicU32::new(0);
-const BUDGET_USES: u32 = 6_000;
-
-/// Arms the per-frame trace again.
-pub fn trace_more() {
-    BUDGET.store(BUDGET_USES, Ordering::Release);
-}
-
-/// Whether a `trace` line is written now (a budgeted one spends a use).
-pub fn tracing(trace: Trace) -> bool {
-    match trace {
-        Trace::Always => true,
-        Trace::Off => false,
-        Trace::Budget => BUDGET.fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1)).is_ok(),
-    }
-}
-
-/// A line `trace: ...` when `trace` says so.
-pub fn trace(trace: Trace, rest: &[Piece<'_>]) {
-    if tracing(trace) {
-        trace_line(rest);
-    }
-}
-
-fn trace_line(rest: &[Piece<'_>]) {
-    let mut pieces = [Text(""); 30];
-    let mut at = 0;
-    for piece in [Text("trace: ")].iter().chain(rest) {
-        if let Some(slot) = pieces.get_mut(at) {
-            *slot = *piece;
-            at += 1;
-        }
-    }
-    line(&pieces[..at]);
-}
-
-/// `lock.with(thread, f)` with a line before the taking and after the
-/// release when `trace` says so (`name` the lock, `at` the caller).
-pub fn traced<T, R>(trace: Trace, name: &str, at: &str, lock: &Lock<T>, thread: &Thread,
-                    f: impl FnOnce(&mut T) -> R) -> R {
-    let on = tracing(trace);
-    if on {
-        trace_line(&[Text("lock "), Text(name), Text(" in "), Text(at), Text(": taking")]);
-    }
-    let out = lock.with(thread, f);
-    if on {
-        trace_line(&[Text("lock "), Text(name), Text(" in "), Text(at), Text(": released")]);
-    }
-    out
-}
 
 /// Why a gun was not cooked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -249,9 +160,7 @@ fn release(inventory: raw::Inventory) {
     unsafe {
         let references = inventory.references();
         if AtomicU32::from_ptr(references).fetch_sub(1, Ordering::AcqRel) == 1 {
-            trace_line(&[Text("inventory "), Hex(inventory.address()), Text(": the last reference, native release (0x0E0210) called")]);
             raw::engine_release_inventory(Some(inventory), references);
-            trace_line(&[Text("inventory "), Hex(inventory.address()), Text(": native release returned")]);
         }
     }
 }
@@ -295,8 +204,8 @@ pub struct CookId {
     generation: u32,
 }
 
-/// A cooked gun's inventory as a value (the log's, the later stages'
-/// lookup): compared, never read through here.
+/// A cooked gun's inventory as a value (the log's): compared, never read
+/// through here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InventoryId(pub u32);
 
@@ -329,8 +238,7 @@ impl Drop for Gun {
         // is dropped inside a hook, on the game's thread.
         let thread = unsafe { Thread::new() };
         let id = self.id;
-        trace_line(&[Text("a cook given back: ticket "), Dec(u32::from(id.index)), Text(" generation "), Dec(id.generation)]);
-        let freed = traced(Trace::Always, "TABLE", "Gun::drop", &TABLE, &thread, |table| {
+        let freed = TABLE.with(&thread, |table| {
             let ticket = &mut table.tickets[usize::from(id.index)];
             match core::mem::replace(ticket, Ticket::Free) {
                 Ticket::Waiting { generation, recipe, profile, .. } if generation == id.generation => {
@@ -346,16 +254,13 @@ impl Drop for Gun {
             }
         });
         // Released outside the lock: the inventory's own teardown.
-        let made = freed.is_some();
         drop(freed);
-        trace_line(&[Text("a cook given back: ticket "), Dec(u32::from(id.index)),
-                     Text(if made { ": its inventory and profile released" } else { ": nothing made to release" })]);
     }
 }
 
 /// Where the cook `id` is.
 pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
-    traced(Trace::Budget, "TABLE", "cooked", &TABLE, thread, |table| match &table.tickets[usize::from(id.index)] {
+    TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
         Ticket::Waiting { generation, since, .. } if *generation == id.generation => Cooked::Cooking { since: *since },
         Ticket::Made { generation, spare, since, at } if *generation == id.generation => {
             Cooked::Made { inventory: InventoryId(spare.inventory.address()), since: *since, at: *at }
@@ -370,7 +275,7 @@ pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
 /// The cooked inventory of the made cook `id` (the install's, while its
 /// ticket holds it).
 pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::Inventory> {
-    traced(Trace::Budget, "TABLE", "inventory", &TABLE, thread, |table| match &table.tickets[usize::from(id.index)] {
+    TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
         Ticket::Made { generation, spare, .. } if *generation == id.generation => Some(spare.inventory),
         _ => None,
     })
@@ -446,12 +351,9 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
     let allocator = allocator().ok_or(Refusal::NoAllocator)?;
     // SAFETY: the live player and the match objects it names, on its thread.
     let found = unsafe { match_of(player.this) }.ok_or(Refusal::NoContext)?;
-    trace_line(&[Text("issue: kit "), Dec(u32::from(kit.get())), Text(" slot "), Dec(u32::from(slot.slot())),
-                 Text(", the profile copy from "), Hex(found.profile.address())]);
     // SAFETY: the player's live profile.
     let profile = unsafe { ProfileCopy::new(found.profile, kit, slot) }?;
     let recipe = Recipe::new()?;
-    trace_line(&[Text("issue: profile copy "), Hex(profile.0.address()), Text(", recipe "), Hex(recipe.0.address())]);
     // SAFETY: our recipe, 1Ch bytes: its fields as the player cook fills
     // them (0x20284C..0x2028A6), the profile ours, the stage's flag 0 (a match).
     unsafe {
@@ -466,7 +368,7 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
     }
     let recipe_at = recipe.0.address();
     let since = clock::counter(thread);
-    let id = traced(Trace::Always, "TABLE", "start", &TABLE, thread, |table| {
+    let id = TABLE.with(thread, |table| {
         let Some(index) = table.tickets.iter().position(|t| matches!(t, Ticket::Free)) else {
             return Err((recipe, profile));
         };
@@ -500,11 +402,8 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
         let callback = raw::engine_bind_member_callback(Some(callback.handle()), member, 0, u32::from(id.index) + 1, 0);
         let mut user = v.address() as usize as *mut c_void;
         let callback = callback.map_or(core::ptr::null_mut(), |c| c.address() as usize as *mut c_void);
-        trace_line(&[Text("issue: ticket "), Dec(u32::from(id.index)), Text(" generation "), Dec(id.generation),
-                     Text(", query_resources (0x0E5B60) called, callback "), Hex(callback as usize as u32)]);
         raw::engine_query_resources(q.address() as usize as *const c_void, 1, callback, allocator,
             (&mut user as *mut *mut c_void).cast(), core::ptr::null_mut(), 1);
-        trace_line(&[Text("issue: ticket "), Dec(u32::from(id.index)), Text(": query_resources returned")]);
     }
     Ok(Gun { id })
 }
@@ -514,10 +413,8 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
 /// this thread made, ours and the game's. Call it holding no lock: the
 /// callbacks reach our hooks.
 pub fn dispatch_callbacks(_: &Thread) {
-    trace(Trace::Budget, &[Text("dispatch_callbacks (0x0E5AB0) called")]);
     // SAFETY: the game's own function, no arguments, on the game's thread.
     unsafe { raw::engine_dispatch_callbacks() };
-    trace(Trace::Budget, &[Text("dispatch_callbacks returned")]);
 }
 
 /// The member the boost callback calls (thiscall: ECX the object, the
@@ -548,25 +445,19 @@ extern "C" fn cooked_shim(ticket: u32, result: Option<raw::QueriesResult>) {
     // SAFETY: only cooked_entry calls this, from the boost invoker 0x202300
     // run by dispatch_callbacks on the game's thread that queried.
     let thread = unsafe { Thread::new() };
-    trace_more();
-    trace_line(&[Text("completion: entered for ticket "), Dec(ticket.wrapping_sub(1)), Text(", result "),
-                 Hex(result.map_or(0, |r| r.address()))]);
     // SAFETY: the live queries_result, alive through the callback; one
     // result asked, its count checked before it is read.
     let made = result.and_then(|result| unsafe {
-        let count = read(result.count());
-        trace_line(&[Text("completion: result count "), Dec(count)]);
-        if count != 1 {
+        if read(result.count()) != 1 {
             return None;
         }
         let inventory = result.results().at(0).inventory()?;
         AtomicU32::from_ptr(inventory.references()).fetch_add(1, Ordering::AcqRel);
         Some(inventory)
     });
-    trace_line(&[Text("completion: inventory "), Hex(made.map_or(0, |i| i.address()))]);
     let at = clock::counter(&thread);
     let index = ticket.wrapping_sub(1) as usize;
-    let (pieces, leftover) = traced(Trace::Always, "TABLE", "completion", &TABLE, &thread, |table| {
+    let (pieces, leftover) = TABLE.with(&thread, |table| {
         let Some(slot) = table.tickets.get_mut(index) else { return ((None, None), made) };
         match core::mem::replace(slot, Ticket::Free) {
             Ticket::Waiting { generation, recipe, profile, since } => match made {
@@ -587,14 +478,9 @@ extern "C" fn cooked_shim(ticket: u32, result: Option<raw::QueriesResult>) {
         }
     });
     if let Some(inventory) = leftover {
-        trace_line(&[Text("completion: no ticket wants it, released")]);
         release(inventory);
     }
-    let (recipe, profile) = (pieces.0.is_some(), pieces.1.is_some());
-    trace_line(&[Text("completion: freeing"), Text(if recipe { " the recipe" } else { "" }),
-                 Text(if profile { " the profile copy" } else { "" })]);
     drop(pieces);
-    trace_line(&[Text("completion: left")]);
 }
 
 /// The process's address space in use, MiB (GlobalMemoryStatusEx: total

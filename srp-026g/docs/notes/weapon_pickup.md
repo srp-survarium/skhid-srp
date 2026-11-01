@@ -192,9 +192,8 @@ cooked gun).
   remove(1) (the body left the world: `Origin::Death.gone`), or after its
   give-back when that came later (a holder's respawn long after the body
   went), so a rollback that takes it again finds it and cooks nothing.
-- **For stage 2b**: `borrowing(thread, player)`, `instance(thread, place,
-  died)`; the death's body (player object and life) kept with the place's
-  record (below).
+- **For stage 2b**: `borrowing(thread, player)`; the death's body (player
+  object and life) kept with the place's record (below).
 - **Checked**: `check_weapon_pickup_026g.py` (Unicorn, the built exe, the
   game's own set_item, remove_item and set_owner; the switch's calls and
   the byte writer recorded): the records written at a death and read back;
@@ -395,9 +394,11 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   base_player::remove(1) (`pickup.remove`: the body and its gun left the
   world, typically the respawn 8 s after the death); any gun of a donor player at its destruction
   (`player.destroy` 0x1F2100: it leaves; every player at the match's
-  teardown); a gun the later stages give back (`give_back`: its holder died
-  or left). A holder's inventory keeps its own native reference.
-- **The wait** (`weapon_pickup::wait`, for the pickup's tick): when the cook
+  teardown). A gun lent to a holder is never freed; given back (its holder
+  died or left) it is kept again, its 3 s counted from the later of the
+  body's removal and the give-back. A holder's inventory keeps its own
+  native reference.
+- **The wait** (`wait_for`, for the pickup's tick and a loaded record): when the cook
   is not in, the game's `dispatch_callbacks` (0xE5AB0) runs until it is,
   query_resources_and_wait's loop (0xE5C20); at most 2 s, then refused
   (logged). The callbacks it runs are those of every query the logic thread
@@ -413,23 +414,16 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   wait while it is marked does not dispatch and refuses (logged). A true
   deferral would need the late join's C completion to look at it: not done.
 - **A loaded world** (a late join, a resync): the record names donor place,
-  kit and slot; `weapon_pickup::need(donor player, kit, slot)` finds a gun of
-  that source or cooks one (origin "a loaded world's") and waits the same
+  kit and slot; `need_cook(donor player, kit, slot)` finds a gun of that
+  source nobody holds or cooks one (origin "a loaded world's") and waits the same
   way. The record's reader is inside `base_player::deserialize` of the 0xE8
   load (network_client::process_dynamic_match_info 0x27C0xx ->
   game_world_core::deserialize 0x2D0B70), a network handler outside any
   tick; the game itself dispatches from a network handler
   (process_static_match_info 0x27BEE7 loops on 0xE5AB0). No new
   reentrancy: the same callbacks as the game's own loop, with the late
-  join's guarded as above. A loaded world's gun is freed by `give_back` or
-  its donor's destruction.
-- **The interface for the later stages** (`weapon_pickup.rs`):
-  `instance(place, died) -> Cooking | Ready(inventory) | Failed |
-  Missing` (by the death's time, which the record carries; stage 2a);
-  `need(donor, kit, slot) -> Result<inventory, Refused>`;
-  `give_back(Source { place, kit, slot })` (a gun nobody holds). The wait
-  is inside the pickup and the record's reader (stage 2a). A refusal is a
-  refused pickup (logged), never a crash.
+  join's guarded as above. A loaded world's gun nobody holds is freed at
+  the next frame, or at its donor's destruction.
 - **The log** (`srp_patches.log`, each line with the process id): `pickup:
   asked for the gun of place P kit K slot S (death at T ms): address space A
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
@@ -442,8 +436,8 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   the game's invoker, the body's end (remove(1)) and 3 s, an empty result, a donor destroyed
   while its gun cooks; every allocation freed once. `check_artefact_carry_026g.py`
   and `check_ragdoll_026g.py` (the composed handlers), `check_engine_026g.py`,
-  cargo test and clippy of `client-patches/rust`. The wait is not run (no
-  caller yet). No new site (player_cook.query removed).
+  cargo test and clippy of `client-patches/rust`. No new site
+  (player_cook.query removed).
 
 What a cooked gun holds and shares (from the spike's reading of the cooks):
 
@@ -452,7 +446,7 @@ What a cooked gun holds and shares (from the spike's reading of the cooks):
 From the cooks' constructors in the exe (each cook: +8 its class, +0Ch its
 reuse policy; 1 is looked up by name in the resource registry,
 `query_result::consider_with_name_registry` 0x108A00; 0 is made anew for each
-query, `check_pickup_cooks.py` runs that gate):
+query):
 
 - **Made per cooked gun:** the inventory (41h, inventory_cook 0x2C716A), each
   weapon (46h, weapon_core_cook 0x30A7FA), its state objects (12Ch..141h),
@@ -472,60 +466,17 @@ query, `check_pickup_cooks.py` runs that gate):
 - **Expected:** a cooked gun costs the per-instance objects (weapon, states, pose,
   ammo) and not the mesh or textures. The cook's log measures it.
 
-## 83b's freeze and 83c's trace (2026-10-31)
+## 83b's and 83c's freeze (2026-10-31, fixed in 83f)
 
 The test builds keep the name they had while this was patch 83 (main took 83 for the HUD options in
-rev40; the pickup is now patch 85): 83b, 83c, 83d. The first game test of 83b (one client, Player vs Bots, rev40 data) froze. What the logs show:
-
-- the death of place 10 at 53700 ms (about 05:41:03.75Z): `asked for the gun of place 10 kit 0
-  slot 7`, the last line of srp_patches.log (06:41:04.76 local); no `cook of ... made`, no panic
-  line (a panic logs before its `ud2`);
-- the client's last message to the server 05:41:07.25Z (the match packet log); the game log's
-  5 s line stops at 06:41:06.9; 60 s later the server ends the match (no world uploaded);
-- 19.6 min later the game log's `single_size_buffer_allocator<704> - out of memory!` asserts: that
-  pool is the network match client's packets, not items (`allocate` 0x279E10, `malloc_impl`
-  0x279D80; built by `match_client_impl::match_client_impl` 0x385910 at this+0B0000h over the
-  object's own 0xB0000-byte arena, ctor 0x279C40: 1024 packets). The network thread kept receiving
-  and nothing took the packets: a symptom of the frozen game, not its cause.
-
-So the game stopped about 3.5 s after the cook was asked, about when the spike's cooks completed
-(1.9 to 2.4 s).
-
-Static review of the cook's path (threads, locks, waits):
-
-- The death hook (0x1F28E0 from base_player::tick) runs on the logic thread
-  (`engine_world::logic` 0x1A390 -> logic_tick 0x1A030). The query is that thread's; its
-  completion runs in that thread's `logic_dispatch_callbacks` 0x19FF0 (resources::dispatch_callbacks
-  0xE5AB0 -> resources_manager::dispatch_callbacks 0x102370 -> the boost invoker 0x202300 ->
-  `cooked_entry`), at the start of the next logic tick: the same thread, never inside a tick.
-- `start` holds no lock across `query_resources` (the ticket is Waiting before the query; a
-  completion inside the call finds it), and `died` is called holding none. The completion takes
-  TABLE alone; the cache's readers take CACHE then TABLE (`log_finished`); nothing takes TABLE then
-  CACHE. No closure of patch 85 calls the game while it holds a lock. No lock is re-taken on its
-  own thread (that panics, and logs).
-- The wait (`wait_for`, 2 s) runs only for a pickup command: none was sent.
-- What can still stop the game silently: the logic thread waits for the renderer (logic frame
-  > renderer frame + 1: a loop of dispatches and Sleep(1), 0x1A2B0..0x1A35F), so a render thread
-  that stops stops the logic thread too. On the render side, patch 85 runs `ragdoll_gun` (carry.weapon,
-  every frame of a dead body: RECORDS, HOLDERS, SEEN, and `drawn_gun`'s raw pointer chain), and
-  patch 78 holds HIDDEN across the native visibility change (on_weapon, on_weapon_hide).
-  No deadlock of ours is found; the trace says where it stops.
-
-83c changes nothing but the log (srp_patches.log, each line written and the file closed at once,
-so a frozen game loses nothing written). Every line of patch 85 is `pid P tid T pickup: ...`
-(GetCurrentThreadId). Lines:
-
-- always: the death hook (entry, `done`); the issue (the profile copy, recipe, `query_resources`
-  called / returned); the completion (entered, result count, the inventory, TABLE taken and
-  released, freeing, left); a cook given back (Gun::drop), the native inventory release before
-  and after; `restoring` before a restore; each free of the cache (`freeing the cook of`,
-  `freed`); the locks of the death, the issue, the completion and the stores (RECORDS, CACHE,
-  HOLDERS, TABLE: `trace: lock X in f: taking` / `released`).
-- while a budget lasts (6000 traced uses, armed at each ask and each completion: about 6 s of
-  frames): after_move, the cache's per-frame locks, `cooked`, `dispatch_callbacks` in a wait,
-  ragdoll_gun (drawn_gun before/after, SEEN), a dead body's HIDDEN in on_weapon, the prompt's
-  steps (offer, handedness, ray_test, gun_name).
-- never: the record's per-tick writers (pickup.save/load, every player, every tick).
+rev40; the pickup is now patch 85). 83b and 83c froze about 0.2 s after a death whose cook was in
+flight: 83c's per-step trace (removed in 83f) ended each time at `ragdoll_gun: place N, drawn_gun
+reading`, on the draw path (`carry.weapon`), which walked the dead body's own gun model chain
+(weapon+1810h -> +108h -> +0 -> +62B4h -> +108h) every frame while the body went to ragdoll. 83f
+reads the box once from the cooked gun on the logic thread (above) and takes only the site's
+transform there. (The 704-byte allocator's out of memory 19.6 min later in 83b's log is the network
+match client's packet pool, `match_client_impl` 0x385910, filling while the game was frozen: a
+symptom.)
 
 A frozen game's backtrace (winedbg) shows arena addresses (the `.srpx` arena at 0xA42D000). The
 block is the one of `arena_026g.lock.json` whose `va`/`size` hold it; the lock keeps only global
@@ -539,213 +490,3 @@ symbols, so for the function link the arena again (the same sources give the sam
 
 (SRP_026G_EXE set; the names are Rust's v0 mangling: `rustfilt` or `c++filt` reads them.) The
 exe's own addresses: `tools/re-kit/v026g/lookup.py`.
-
-## Codex's research (evidence; its code is removed)
-
-The Unicorn checks named here are in `tools/re-kit/v026g/`.
-
-## Proven native ammo behavior
-
-`tools/re-kit/v026g/check_weapon_pickup.py <original survarium.exe>` runs
-the original x86 routines under Unicorn, with synthetic weapons/inventories.
-The routines below run unmodified; no ammo or resupply callback is stubbed.
-
-There are two different bases. An inventory slot contains `inventory_item*`.
-For a weapon this is **active_object + 0x10**. `weapon_core` functions generally
-take the active-object base, but the item virtual death callback takes the item
-subobject. Do not reuse offsets without adjusting that base.
-
-Relative to the active-object base:
-
-| Offset | Meaning | Evidence |
-|---|---|---|
-| +538 | retained ammunition stack pointer | load/unload below |
-| +5AC | array of inventory slot indices for compatible ammo | initialize 2E2A99..2E2ABA; crate routines |
-| +5B0 | count of compatible ammo slots | 2E41E5 |
-| +5B1 | selected ammo ordinal | 2E2AA3; 2FDCFB |
-| +5E4 | magazine capacity, u8 | load_magazine 2E1830 |
-| +5E5 | loaded magazine rounds, u8 | load_magazine; serialize 2E31BD |
-| +5E9 | double_handed, bool | config loader 30AB8D..30ABC0 |
-| +5F0 | weapon uses a chamber | 2E2858; serialize 2E3209 |
-| +5F1 | chambered round | unload_ammo; serialize 2E3226 |
-| +5F4 | load on initialize | 2E2B71..2E2B81 |
-| +5F5 | automatic reload flag | initialize 2E2A81; death below |
-
-`load_magazine` (2E17D0, ESI = active object) moves
-`min(capacity - loaded, stack)` rounds from the retained ammo item into the
-magazine and marks its inventory weight dirty. `unload_ammo` (2E18E0,
-EAX = active object) returns both the magazine and chamber to that stack.
-The stack count is u16 at item+260; its inventory pointer is item+250.
-
-The native harness also executes the original `double_handed` lookup branch
-with absent/false/true config values, proving the field's base and offset.
-The containing loader is named descriptively in the re-kit at 30AB40:
-stack arguments retained config resource / weapon base, `ret 8`.
-
-The initialize section 2E2A99..2E2B88 can bind a dedicated external ammo cell
-using an encoded inventory-relative slot (the existing artefact scheme).
-The harness runs both positive and wrapped-negative offsets and proves that
-loaded rounds, chamber and reserve survive unchanged when +5F4 is clear,
-including an empty magazine. This is a candidate way to isolate borrowed
-ammo from the recipient's original calibre. It is **not yet installed**:
-the allocation must have a native lifetime owner, reserve counts must enter
-snapshots, weight must include it, and crates must refill it explicitly.
-The normal crate cannot infer its supply allowance from an external slot.
-
-Native item-slot ownership and weapon-user ownership are separate:
-243590 sets item+250/+254 only. Client `weapon::set_user` 2445E0 calls
-2E2990 to update the user and dependent pointers; it assumes a non-null
-client player at its own +F4E3 read. The normal switch at 2D76D0..2D772F
-deactivates the old held object, sets the new user, initializes, then activates
-the new weapon. A transfer should follow that path with autoload disabled,
-not independently overwrite just player+128 or item+250.
-The original `weapon_core::deactivate` with argument one clears its user
-at 2E2EE0 after clearing animation callbacks/state. The client wrapper 244860
-also stops/releases its +80Ch effect object. Do not replace that native
-deactivation with an isolated user-pointer store. The client initialize
-wrapper 2449E0 calls core initialize and clears +181Eh.
-
-The native creation path now has owned profile templates and verified
-non-reusing inventory/weapon/ammo cooks. The normal inventory cook creates weapon
-resources and binds compatible ammo (2C7250/2C75B0).
-There is a synchronous resource-query wrapper at E5C20: it copies the query
-parameters, wraps the callback, submits at 101F30, then dispatches resource
-callbacks until completion. That observation does not establish that it is
-safe to call from a simulation hook. Capturing the live context, choosing the
-preparation point and a match-owned instance bank remain unimplemented.
-Installation/restoration now has the owner above but is not wired into gameplay.
-Do not substitute a byte copy of a live weapon:
-it contains intrusive references, animation state and internal pointers.
-
-## Weapon-slot eligibility
-
-The data already defines weapon handedness: `ItemParams::double_handed`
-(`crates/survarium/src/v026g/item_params.rs`, parsed from the item's config),
-also consumed by the HUD/lobby `ItemFactory`. Skill modifier 25 is
-`use_two_double_handed_weapons`; modifier 64 is `disable_second_weapon`
-(`crates/survarium/src/v026g/skills.rs`). Read the effective modifiers rather
-than assuming a particular learned skill node or the weapon's slot number.
-
-Owner-approved replacement rule: replace the held weapon when the
-resulting pair is legal. Without the dual-primary modifier, a rifle pickup
-while holding a pistol beside another rifle requires switching to that rifle
-first. With the modifier, either held rifle (or the held pistol) can be
-replaced. `disable_second_weapon` must not be bypassed by pickup either.
-The shared Rust rules implement this policy; the native pickup hook is still pending.
-
-The death callback 2E3390 receives **ECX = item subobject**. Its store at
-2E3407 to `[esi+5E5]` clears active-object+5F5, not the magazine. Loaded ammo
-is still available to capture at death. The focused harness proves loaded
-rounds and chamber survive the no-player branch; the player-present branch
-has additional animation callbacks and still needs a lifecycle fixture.
-
-## Crate path and the profile mismatch
-
-Labels and ABIs are now in the re-kit. The descriptive names were assigned
-from these bodies, not recovered from an original 0.26g PDB.
-
-- `resupply_zone_core::can_use` (2F8080) compares zone+54 with the player's
-  profile team at +45EC; team 2 permits both. It then calls check_resupply.
-- `use_hint` (2F80C0) uses the same team check and maps availability to
-  `st_use_resupply_zone`, `st_resupply_check_empty_inventory`, or
-  `st_resupply_check_full_ammo`.
-- `update_use` (2F8120) requires the selected zone and the player's Use bit
-  (input mask+330, bit 21); after zone+50 milliseconds it calls vtable+48.
-- `finish_use` (2F81A0) gets the player through its holder, then calls
-  `inventory::resupply_from_profile` (2FDC10) with inventory, profile and kit.
-- `inventory::check_resupply` (2FDF50) returns 0 available, 1 empty storage,
-  2 full. Its args are AL kit, stack inventory/profile.
-
-The native refill walks the **profile's slot descriptors**, not a weapon's
-calibre. It counts the rounds already in each weapon's magazine and chamber
-against the configured total carried allowance, adds reserve rounds up to
-that allowance, and subtracts those rounds from the corresponding profile
-item's storage. It does not fill the magazine directly.
-
-The harness verifies ordinary and chambered weapons, exhausted storage,
-repeated full-crate use, and a deliberately different profile item in the
-ammo slot. That last case still fills the current ammo object while consuming
-the unrelated profile item's storage. Therefore merely swapping the weapon
-and its ammo stack is insufficient and would charge the wrong ammunition.
-Borrowed weapon supplies need an explicit simulation-owned mapping/restock
-path, with the native interaction's team and hold-duration behavior retained.
-
-## Snapshot constraints
-
-`inventory::serialize` 2FE360 and `deserialize` 2FE550 iterate the existing
-slots without encoding arbitrary replacement weapon identities. The reader
-2FE7B0..2FE7D4 invokes each **currently installed** item's deserializer. The
-artifact slots have a separate identity mapping; weapon slots do not.
-
-A pickup implementation must restore the weapon/ammo ownership mapping
-**before** those readers run, and must keep an object alive independently of
-the donor's respawn/profile setup. A raw pointer swap alone satisfies neither
-condition. Any extension must also reach the server's snapshot parser and
-replay format; an un-hashed local static cannot own this state.
-
-The mapping must actually be restored earlier than the inventory call:
-`base_player::deserialize` first reads held and pending active-object IDs
-at 2DB626 and 2DB796, resolves them through core+18B4Ch, and writes player
-+128h/+12Ch. Only afterward does 2DB7D8 call inventory::deserialize.
-An ID byte of FFh means null. Restoring only at the inventory reader leaves
-the already decoded held/pending pointers on the wrong weapon.
-
-There are two native stages, so extending only the byte-stream reader is
-insufficient. `game_world_core::serialize` (2D2570) captures live state into a
-history record after `clear_buffers` at 2D257E. The record's wire writer is
-`game_state_history_item::serialize` (324BE0), also called by the CRC routine
-at 3251D7. The wire reader (324D80) clears its record at 324D90, then fills it.
-Rollback applies a record through `game_world_core::deserialize` (2D2770),
-without necessarily going through the wire reader again. Extra pickup state
-must be owned by the history record across all these paths, included in its
-wire bytes/hash, and cleared/released with the record; a current-world-only
-side table cannot restore an older tick.
-
-The record constructor is 324510 (ESI input, EAX result, ret 0), destructor
-324910 (stack record, ret 4). Pool checkout calls construction at 2D3FEF;
-pool return calls destruction at 2D4034. The in-place rebuild at 3252A7/3252AC
-destroys and constructs the **same address**, then captures live state at
-3252B3. Debug comparison also constructs/destroys a temporary record at
-2D2446/2D254D. Therefore an address-keyed extension must release/reset on
-native lifecycle events, not assume that an address identifies one snapshot.
-`check_pickup_history.py` executes original construction, clear and destruction
-through three same-address generations, verifies the self-relative section
-buffers, player-buffer clearing, stack cleanup and allocation guards. Its
-cases use inline buffers and empty animation references; heap-overflow and
-nonempty reference teardown are not covered.
-
-The fixture also demonstrates that `clear_buffers` preserves the cached CRC
-flag at C0BB8 and value at C0BB4: calling native hash afterward returns the
-cached value without serializing. Any extension mutation must invalidate
-that cache explicitly. The constructor resets it. The hash writer's fixed
-8000h-byte scratch buffer also needs a capacity audit before appending the
-full extension (templates and displaced state can exceed the ammo payload).
-
-The apply routine reconciles roster membership, then at 2D2A88 selects the
-snapshot's kit in its roster slot and at 2D2AA0 calls that player's virtual
-deserializer. Restoration must detach old borrowed mappings before native
-roster/kit cleanup, then attach the decoded mapping before the player reader
-resolves held/pending IDs. Native weapon decoding at 2E3513..2E3536 resolves
-its selected ammo ordinal through weapon+5AC and inventory+10C, so the private
-ammo cells must already be bound there too. These are inspected ordering
-constraints, not installed hooks or proof of snapshot lifecycle completion.
-
-The live installation sequence cannot be reused verbatim for this restore.
-At 2DB62B the native reader saves the old held pointer, then resolves the new
-one; when they differ, 2DB662..2DB67B deactivates the old object and calls the
-new object's set-user. Prewriting held to the replacement would suppress
-that transition. The snapshot attachment transaction above establishes
-slot/registry/ammo bindings while preserving the old held pointer until the
-native decoder performs its own transition.
-
-`check_pickup_registry.py` executes the original weapon binder 2E30F0
-(ECX = item subobject, stack core). It appends active-object pointers via
-2D4540 to the core's fixed-capacity registry, writes core into active+4 and
-active+258h, and writes the byte ID at active+Ch. The fixture then runs both
-original ID-decoding slices, showing repeated original/replacement mapping
-restoration with stable IDs and a negative control for restoring too late.
-No transfer hook is installed by this fixture; the coordinated native
-transaction above still needs match and snapshot integration.
-Appending a new ID for every pickup is not a viable solution:
-the native registry is capacity bounded and IDs are bytes.
-

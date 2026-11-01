@@ -1087,7 +1087,7 @@ va	name	source	ret_cleanup	result
 0x002849f0	survarium::lobby_character::update	manual	12	gives its player (+D2B8h) the upgrade mode (+F49Ch) and the decal transform (+F4A0h), updates it (0x2DA9A0) and draws it (call 0x2474A0 at 0x284A7E, return 0x284A83)
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
 0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
-0x00284dc0	survarium::player_profile::copy_body	manual	8	EAX: destination; copies only the 45FCh body, preserving destination inline-vector storage; check_pickup_profile.py
+0x00284dc0	survarium::player_profile::copy_body	manual	8	EAX: destination; copies only the 45FCh body, preserving destination inline-vector storage; run under Unicorn (2026-10)
 0x00284ea0	survarium::player_profile::copy_kit	manual	4	
 0x00284f20	survarium::lobby_character::on_player_ready	manual	4	the new player at +D2B8h; +D2C4h (the player query) back to -1 (0x284F86); setup_profile again when +D2C8h was set
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
@@ -2026,9 +2026,9 @@ va	name	source	ret_cleanup	result
 0x00102cd0	vostok::resources::find_cook_by_class	manual	0	EAX: registered cook or null; native pickup-cook harness exercises lookup
 0x00108a00	vostok::resources::query_result::consider_with_name_registry	manual	8	EAX: 1 when cook reuse policy is not 1; skips name lookup; native pickup-cook harness verifies both branches
 0x002f7c50	survarium::player_profile::construct_body	manual	0	EAX: this; constructs the 45FCh profile body including three kits and 69 inline item descriptors; descriptive label
-0x0031f2e0	survarium::register_inventory_item_cook	manual	0	EAX: cook 2261A60h; class 48h, reuse policy zero; check_pickup_cooks.py executes registration setup
+0x0031f2e0	survarium::register_inventory_item_cook	manual	0	EAX: cook 2261A60h; class 48h, reuse policy zero; registration setup run under Unicorn (2026-10)
 0x0031f660	survarium::inventory_item_cook::create_from_config	manual	8	Publishes fresh inventory item; ammo branch 31F7B7 allocates 2C0h bytes, constructs inventory_item and ammo_data, sets vtable A1C9BCh
-0x002e30f0	survarium::weapon_core::bind_to_game_core	manual	4	Appends active-object pointer to core+18B4Ch registry; writes active+4 and active+258 core, active+Ch byte ID; check_pickup_registry.py
+0x002e30f0	survarium::weapon_core::bind_to_game_core	manual	4	Appends active-object pointer to core+18B4Ch registry; writes active+4 and active+258 core, active+Ch byte ID; run under Unicorn (2026-10)
 0x002d4540	vostok::buffer_vector<survarium::active_object *>::push_back	manual	4	Writes one pointer at end then advances end by 4; asserts end below capacity before write
 0x002e2db0	survarium::weapon_core::deactivate	manual	4	Unsubscribes animation callbacks, finalizes state, and when clear_user is set clears active+8 at 2E2EE0; tail-calls weapon state deactivation at vtable+0Ch
 0x00244860	survarium::weapon::deactivate	manual	4	Calls weapon_core deactivation with the same flag, then stops/releases client effect object +80Ch and clears +810h
@@ -2077,10 +2077,10 @@ va	name	source	ret_cleanup	result
 0x002058a0	survarium::player_cook::extract_creation_data	manual	0	Descriptive label: validates variant type via205BA0; copies exactly18h fromvariant+8 toEDI at205925..20593D; AL1 success, AL0 mismatch; no retained ownership
 0x00074950	vostok::physics::bullet_physics_world::bullet_physics_world	manual	4	EAX this/result, 60h object; vtable9E2EBC; map cook allocates at2CC2D2 then constructs at2CC2DE; pointer passed into player creation data and inventory recipe+0C; nearby diagnostics name bullet_physics_world.cpp
 0x002c6f90	survarium::inventory_cook::append_item_query	manual	0	Descriptive label: inventory recipe inEAX, slot plus request/user/variant vectors on stack; empty indexFFFF returns; config data.type2 ->class49 and physics/world pointers,5 ->class4D,9 ->class4B,other ->class48; caller cleans16 bytes
-0x002cbbe0	survarium::pvp_match_core_cook::destroy_resource	manual	4	Descriptive cook label: wrapper+19238 scene cleanup, wrapper virtual destructor, then physics at+130 virtual+0C finalize, virtual+0 destroy and allocator free; check_pickup_context.py executes order with endpoint stubs
-0x002cbc60	survarium::pvp_match_core_cook::on_subresources_loaded	manual	44	Descriptive callback label: ECX cook; query result plus eight map words, physics pointer and config pointer; assembles19 constructor arguments; physics becomes constructor arg8, options arg4; check_pickup_context.py
+0x002cbbe0	survarium::pvp_match_core_cook::destroy_resource	manual	4	Descriptive cook label: wrapper+19238 scene cleanup, wrapper virtual destructor, then physics at+130 virtual+0C finalize, virtual+0 destroy and allocator free; the order run under Unicorn with endpoint stubs (2026-10)
+0x002cbc60	survarium::pvp_match_core_cook::on_subresources_loaded	manual	44	Descriptive callback label: ECX cook; query result plus eight map words, physics pointer and config pointer; assembles19 constructor arguments; physics becomes constructor arg8, options arg4; run under Unicorn (2026-10)
 0x002cc270	survarium::pvp_match_core_cook::translate_query	manual	4	Descriptive cook label: builds bullet physics world, submits scene/players; bound callback2CC9D0/2CCCD0 passes physics as callback stack+28; native player recipe flag set0 at2CC6F5
-0x002d55b0	survarium::pvp_match_core::pvp_match_core	manual	76	EAX wrapper; constructor arg4 match options stored+124 at2D563B, arg8 physics stored+130 at2D567B, embedded core at+1F8; original field writes checked by check_pickup_context.py
+0x002d55b0	survarium::pvp_match_core::pvp_match_core	manual	76	EAX wrapper; constructor arg4 match options stored+124 at2D563B, arg8 physics stored+130 at2D567B, embedded core at+1F8; original field writes checked under Unicorn (2026-10)
 0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	manual	0	void
 0x00426ae1	setlocale	manual	0	EAX: the locale's name, or 0 (MSVC CRT setlocale: SEH frame 0x42DA08, category above 5 refused with errno 22)
 0x000e3c10	vostok::core::preinitialize	manual		

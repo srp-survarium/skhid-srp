@@ -10,7 +10,6 @@ use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, 
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::world::Player;
-use crate::vostok::gun_cook::{traced, Trace};
 
 mod pose;
 
@@ -336,10 +335,7 @@ pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWe
         death_hands(&player, ctx.thread()) == Some(Hands::Artefact)
             || crate::weapon_pickup::ragdoll_gun(ctx, &player) == crate::weapon_pickup::RagdollGun::Hidden
     };
-    // Build 83c's trace: a dead body's gun (HIDDEN is held across the native visibility change).
-    let trace = if player.alive() { Trace::Off } else { Trace::Budget };
-    let hidden = traced(trace, "HIDDEN", "on_weapon", &HIDDEN, ctx.thread(),
-                        |weapons| native::weapon_visibility(ctx, hide, weapons));
+    let hidden = HIDDEN.with(ctx.thread(), |weapons| native::weapon_visibility(ctx, hide, weapons));
     if hidden { Flow::Exit(crate::vostok::ArtefactCarryOnWeaponExit::Skeleton) } else { Flow::Continue }
 }
 
