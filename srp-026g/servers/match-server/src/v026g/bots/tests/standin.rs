@@ -606,9 +606,8 @@ pub(crate) struct Game {
     pub(crate) camp_done: bool,
     /// How the camping ended: (began, ended, he died).
     pub(crate) camp_ended: Option<(u32, u32, bool)>,
-    /// A place whose every life starts on this point, not on a spawn point of its team: the stand-in camper on his spot
-    /// (`SRP_BENCH_CAMPER_START=spot`).
-    pub(crate) placed_start: Option<(Place, Vec3)>,
+    /// A place whose every life starts on a point of its own, not on a spawn point of its team ([`PlacedStart`]).
+    pub(crate) placed_start: Option<PlacedStart>,
     /// Batteries moved unseen (audit #7, `SRP_BENCH_NUDGE=<m>`): every
     /// [`NUDGE_EVERY_MS`] one lying battery, in turn, moves this far on its
     /// floor, as one an enemy took and dropped dead a step on (the owner's
@@ -694,7 +693,22 @@ pub(crate) fn soak_world_with(solids: &[mapdata::Triangle]) -> Arc<World> {
     })
 }
 
+/// A place whose every life starts on a point of its own, not on a spawn point of its team: the stand-in camper on his spot
+/// (`SRP_BENCH_CAMPER_START=spot`); and how long its next life waits after the respawn, ms: [A239b] his walk from a spawn to that
+/// point (`SRP_BENCH_CAMPER_ARRIVE=live`), else 0.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PlacedStart {
+    pub(crate) place: Place,
+    pub(crate) at: Vec3,
+    pub(crate) walk_ms: u32,
+}
+
 impl Game {
+    /// [A239b] The wait after the respawn of `place` for its walk to its own start point ([`PlacedStart`]), ms; 0 for any other.
+    pub(crate) fn placed_walk_ms(&self, place: Place) -> u32 {
+        self.placed_start.filter(|s| s.place == place).map_or(0, |s| s.walk_ms)
+    }
+
     /// The respawn delay after the death of `place`, ms: the mode's time times `1 + the radio's modifier` if the kit it died in carries
     /// the radio, the time itself if not.
     pub(crate) fn respawn_ms_of_body(&self, place: Place) -> u32 {
@@ -939,7 +953,7 @@ impl Game {
         // two check volumes meet no body, taken in the rule's random order; 1,809 live bodies in their first 3 s: median 0.01 m from a point, 8 of 1,801 on a
         // point another team-mate stood on, 0 of 790 pairs within 1 m). The bench does too (`SRP_BENCH_SPAWN_POINTS=random` keeps the old draw: a random point of the team with replacement and 2 m of jitter). The old draw is
         // not what puts bots on each other: the overlap in a life's first 10 s is the same with either (A175).
-        let (point, at) = if let Some((_, spot)) = self.placed_start.filter(|&(p, _)| p == place) {
+        let (point, at) = if let Some(PlacedStart { at: spot, .. }) = self.placed_start.filter(|s| s.place == place) {
             (spot, spot)
         } else if spawn_on_free_points() {
             let free: Vec<Vec3> = spawns
@@ -1163,7 +1177,7 @@ impl Game {
             if !self.bodies[place].alive {
                 let team = usize::from(self.bodies[place].team);
                 let may = self.tickets.is_none_or(|tickets| tickets[team] > 0);
-                let respawn = self.respawn_ms_of_body(place);
+                let respawn = self.respawn_ms_of_body(place) + self.placed_walk_ms(place);
                 if may && tick >= self.bodies[place].dead_at + respawn {
                     self.spawn(place);
                 }
@@ -2751,6 +2765,33 @@ fn a_body_without_the_radio_waits_the_whole_respawn_time() {
     game.bodies[0].heal.kit_next = 1;
     game.bodies[0].heal.spawn();
     assert_eq!(game.respawn_ms_of_body(0), 10_000, "died in kit 1, which has none");
+}
+
+/// [A239b] A place with its own start point comes back on it after the respawn and its walk, not at the respawn; another place
+/// waits the respawn alone.
+#[test]
+fn a_placed_start_waits_its_walk_after_the_respawn() {
+    let mut game = Game::new(soak_world(), &[0, 1], 1, None, None);
+    let at = game.bodies[1].feet;
+    game.placed_start = Some(PlacedStart { place: 0, at, walk_ms: 20_000 });
+    assert_eq!((game.placed_walk_ms(0), game.placed_walk_ms(1)), (20_000, 0));
+    let respawn = game.respawn_ms_of_body(0);
+    for body in &mut game.bodies {
+        body.alive = false;
+        body.dead_at = game.tick;
+    }
+    let died = game.tick;
+    while game.tick < died + respawn {
+        game.step();
+    }
+    assert!(!game.bodies[0].alive, "not at the respawn");
+    assert!(game.bodies[1].alive, "the other place at its respawn");
+    while game.tick < died + respawn + 20_000 {
+        assert!(!game.bodies[0].alive, "dead through his walk ({} ms after the respawn)", game.tick - died - respawn);
+        game.step();
+    }
+    assert!(game.bodies[0].alive, "back after the walk");
+    assert!(game.bodies[0].feet.distance_xz(at) < 3.0, "on his point");
 }
 
 /// The bots' profiles all carry the radio in every kit (today's decisions: set_radio_kits changes nothing for them).
