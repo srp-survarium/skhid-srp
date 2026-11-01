@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Popis zatím není k dispozici.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Sovětský náboj středního výkonu s ocelovým jádrem a nízkým zpětným rázem. Lehká střela má vysokou počáteční rychlost a plochou dráhu letu. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Pás se 100 náboji 5.56x45 pro FN Minimi. Zabírá dvě sumky na střelivo.
+st_ammo_556x45_belt_name	5.56x45 pás
 st_ammo_556x45_description	Náboj NATO středního výkonu, vyvinutý z amerického .223 Remington a standardizovaný v roce 1980. Lehká, rychlá střela s plochou dráhou letu a nízkým zpětným rázem.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Náboj vyvinutý FN Herstal kolem roku 1990 pro P90 a později pistoli Five-seveN. Lehká a rychlá střela určená k průniku neprůstřelnými vestami.
@@ -211,6 +213,8 @@ st_ammo_762x39_description	Náboj 7.62x39 vyvinutý v roce 1943, považovaný za
 st_ammo_762x39_m_description	Popis zatím není k dispozici.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	Puškové náboje 7.62x51 v zásobnících po 20 kusech pro FN SCAR-H a H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, zásobník na 20
 st_ammo_762x51_M59_description	Průbojná varianta vojenského puškového náboje 7.62x51 M61. Střela má ocelové jádro s pláštěm.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Rozšířený vojenský náboj s celoplášťovou střelou. Určený pro odstřelovačské i civilní zbraně. 
@@ -1171,6 +1175,8 @@ st_first_weapon_action	Zbraň 1
 st_fix	Opravit
 st_fn_fnc_description	Belgická útočná puška na náboje 5.56x45. Vyvinutá FN Herstal v 70. letech, zavedená v belgické armádě. Licenční verze slouží ve Švédsku a Indonésii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgický lehký kulomet na náboje 5.56x45. Družstvová zbraň FN Herstal ze 70. let, v americké armádě jako M249. Schránka na 100 nábojů. Jednotlivá i automatická střelba.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgická zbraň osobní obrany na náboje 5.7x28. FN Herstal ji kolem roku 1990 vyvinulo společně s vlastním nábojem. Bullpup se zásobníkem na 50 nábojů podél horní části. Používá ji policie a speciální síly mnoha zemí. Střílí jednotlivě i automaticky.
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrajinská samonabíjecí pistole na náboje 9x18. Výroba začala v roce 2004. Používala ji vnitřní vojska a některé speciální jednotky. Zásobník na 12 nábojů. 
@@ -1596,6 +1602,8 @@ st_options_video	Grafika
 st_options_voice	Hlas:
 st_options_volume	Hlasitost:
 st_other	Ostatní
+st_ots14_description	Ruská útočná puška typu bullpup na náboje 9x39. Postavená v CKIB SOO v 90. letech na základě AKS-74U pro speciální jednotky. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
+st_ots14_name	OC-14 "Groza"
 st_oust_commander	Změnit velitele
 st_overweight_penalty_description	Vliv hmotnosti na rychlost pohybu:
 st_overweight_penalty_name	Sběrač
@@ -1942,6 +1950,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze S má sklopnou pažbu. Schránkový zásobník na 5 nábojů. Jen jednotlivé rány.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Uložit heslo
+st_scar_h_description	Belgická bojová puška na náboje 7.62x51. Těžká verze SCAR od FN Herstal, zavedená u amerických speciálních sil v 00. letech. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Podomácku vyrobený kontejner na artefakty v podobě batohu. Užitečný při výpravách za artefakty.
 st_scav_back_1_name	Batoh s kontejnerem
 st_scav_boots_1_desc	Hrubé boty ze skládky nebo z mrtvoly. Chrání nohy před zraněním a na náročných cestách často zachrání situaci.
@@ -2820,6 +2830,8 @@ st_vepr_description	Popis zatím není k dispozici.
 st_vepr_name	Vepr
 st_vepr_premium_description	Ruská karabina řady Vepr na náboje 5.45x39. Molot ve Vjatských Poljanách ji vyrábí na zesíleném pouzdře kulometu RPK-74. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Chorvatská útočná puška typu bullpup na náboje 5.56x45. Vyrábí ji HS Produkt, chorvatská armáda ji používá od 10. let. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+st_vhs_2_name	VHS-2
 st_victory	Vítězství
 st_victory_screen_no_dropped_item	Na bojišti jsi nic nenašel.
 st_vityaz_bundle_descr	<white>Obsahuje:\n- Vylepšený PP-19-01 Vityaz.\n- 2000 nábojů 9x19 Parabellum.</white>

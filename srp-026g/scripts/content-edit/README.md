@@ -522,3 +522,9 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## weapon-camo-031-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The four configs of pack weapons-031 (the 0.31a2 guns, `../../docs/notes/weapons-031.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-031-camo (`../weapons-031/camo.tsv`), so no shared list or pack changes |

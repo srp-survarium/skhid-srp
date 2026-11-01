@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Opis još nije dostupan.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Sovjetski metak srednje snage sa čeličnim jezgrom i malim trzajem. Lako zrno i velika početna brzina daju ravnu putanju.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Redenik od 100 metaka 5,56x45 za FN Minimi. Zauzima dve torbice za municiju.
+st_ammo_556x45_belt_name	5,56x45 redenik
 st_ammo_556x45_description	NATO puščani metak srednje snage, izveden iz američkog .223 Remington i standardizovan 1980. Lako i brzo zrno ima ravnu putanju i mali trzaj.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Metak koji je FN Herstal razvio oko 1990. za P90, a kasnije i pištolj Five-seveN. Lako, brzo zrno namenjeno je probijanju pancira.
@@ -211,6 +213,8 @@ st_ammo_762x39_description	Metak 7,62x39, razvijen 1943. godine. Opisuje se kao 
 st_ammo_762x39_m_description	Opis još nije dostupan.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	Puščani meci 7,62x51 u okvirima od 20 metaka za FN SCAR-H i H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, okvir od 20
 st_ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 M61, sa obloženim čeličnim jezgrom.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Rasprostranjeni vojni metak sa potpuno obloženim zrnom, namenjen snajperskom i civilnom oružju.
@@ -1171,6 +1175,8 @@ st_first_weapon_action	Oružje 1
 st_fix	Popravi
 st_fn_fnc_description	Belgijska jurišna puška kalibra 5,56x45, razvijena u FN Herstalu sedamdesetih. Usvojila ju je belgijska vojska, a licencne verzije koriste Švedska i Indonezija. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgijski laki mitraljez kalibra 5,56x45, puškomitraljez fabrike FN Herstal iz 1970-ih, u vojsci SAD poznat kao M249. Kutija od 100 metaka. Pojedinačna i automatska paljba.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgijsko oružje za ličnu odbranu kalibra 5,7x28. FN Herstal ga je razvio oko 1990. zajedno sa namenskom municijom. Bulpap konstrukcija sa okvirom od 50 metaka iznad cevi. Koriste ga specijalne jedinice i policija. Pojedinačna i automatska paljba.
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrajinski poluautomatski pištolj kalibra 9x18, u proizvodnji od 2004. Koristile su ga unutrašnje i specijalne jedinice. Okvir prima 12 metaka.
@@ -1596,6 +1602,8 @@ st_options_video	Grafika
 st_options_voice	Glas:
 st_options_volume	Jačina zvuka:
 st_other	Ostalo
+st_ots14_description	Ruska bulpap jurišna puška kalibra 9x39, koju je CKIB SOO 1990-ih napravio na osnovi AKS-74U za specijalne jedinice. Okvir prima 20 metaka. Pojedinačna i automatska paljba.
+st_ots14_name	OC-14 "Groza"
 st_oust_commander	Promeni komandanta
 st_overweight_penalty_description	Uticaj težine na brzinu kretanja:
 st_overweight_penalty_name	Nosač
@@ -1942,6 +1950,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija S ima preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Sačuvaj lozinku
+st_scar_h_description	Belgijska borbena puška kalibra 7,62x51, teška verzija SCAR-a fabrike FN Herstal, koju su specijalne snage SAD usvojile 2000-ih. Okvir prima 20 metaka. Pojedinačna i automatska paljba.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Ručno izrađen kontejner za artefakte u obliku ranca. Koristan za odlazak u potragu za artefaktima.
 st_scav_back_1_name	Ranac sa kontejnerom
 st_scav_boots_1_desc	Grube čizme sa otpada ili skinute sa mrtvaca. Štite noge od povreda i često pomažu na teškim putovanjima.
@@ -2820,6 +2830,8 @@ st_vepr_description	Opis još nije dostupan.
 st_vepr_name	Vepr
 st_vepr_premium_description	Ruski karabin porodice Vepr, kalibra 5,45x39. Molot ga izrađuje na ojačanom sanduku mitraljeza RPK-74. Okvir prima 30 metaka. Pojedinačna i automatska paljba. Premijum verzija sa posebnom kamuflažom.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Hrvatska bulpap jurišna puška kalibra 5,56x45, proizvod HS Produkta, u hrvatskoj vojsci od 2010-ih. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
+st_vhs_2_name	VHS-2
 st_victory	Pobeda
 st_victory_screen_no_dropped_item	Niste pronašli ništa na bojištu.
 st_vityaz_bundle_descr	<white>Paket sadrži:\n- Unapređeni PP-19-01 Vitjaz.\n- 2000 metaka 9x19 Parabellum.</white>

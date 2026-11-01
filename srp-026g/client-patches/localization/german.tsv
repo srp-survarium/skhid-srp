@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Description is not ready!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Die sowjetische Zwischenpatrone mit Stahlkern und niedriger Impulsionstärke ausgestattet ist. Das Kleinkalibergeschoss mit der hohen Anfangsgeschwindigkeit gewährleistet hoche Ebenheit der Schussbahn.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Ein Gurt mit 100 Patronen 5,56x45 für das FN Minimi. Belegt zwei Munitionstaschen.
+st_ammo_556x45_belt_name	5,56x45 Gurt
 st_ammo_556x45_description	NATO-Mittelpatrone für Gewehre, aus der amerikanischen .223 Remington entwickelt und 1980 von der NATO standardisiert. Ein leichtes, schnelles Geschoss mit gestreckter Flugbahn und geringem Rückstoß.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Um 1990 von FN Herstal für die P90 und später die Pistole Five-seveN entwickelte Patrone. Ein leichtes, schnelles Geschoss, das Schutzwesten durchschlagen soll.
@@ -211,6 +213,8 @@ st_ammo_762x39_description	Die 7.62-mm Patrone des Musters von Jahr 1943, wird a
 st_ammo_762x39_m_description	Description is not ready!!!
 st_ammo_762x39_m_name	7.62x39 PRD
 st_ammo_762x39_name	7.62x39 
+st_ammo_762x51_20_description	Gewehrpatronen 7,62x51 in 20-Schuss-Magazinen für das FN SCAR-H und das H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, 20-Schuss-Magazin
 st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalibers 7.62 . Kugel ist mit dem Stahlkern ausgestattet.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
@@ -1171,6 +1175,8 @@ st_first_weapon_action	Waffe 1
 st_fix	Reparieren
 st_fn_fnc_description	Belgisches Sturmgewehr, Munition: 5,56x45. In den 1970er Jahren von FN Herstal entwickelt und von der belgischen Armee eingeführt; Lizenzversionen dienen in Schweden und Indonesien. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgisches leichtes Maschinengewehr, Munition: 5,56x45. Das Gruppen-MG von FN Herstal aus den 1970er Jahren, in den USA als M249 im Dienst. 100-Schuss-Kasten. Einzel- und Dauerfeuer.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgische Verteidigungswaffe (PDW), Munition: 5,7x28. Um 1990 von FN Herstal zusammen mit einer eigenen Patrone entwickelt; eine Bullpup-Waffe mit einem 50-Schuss-Magazin, das oben längs auf der Waffe liegt. Bei Spezialkräften und der Polizei vieler Länder im Einsatz. Einzel- und Dauerfeuer.
 st_fn_p90_name	FN P90
 st_fort_17_description	Die ukrainische Selbstladende Pistole mit dem Kaliber 9N...18. Die Serienfertigung ist in 2004 gestartet worden. Wurde von den Truppen des Innenministeriums und einigen Sondereinheiten verwendet.
@@ -1596,6 +1602,8 @@ st_options_video	Graphik:
 st_options_voice	Stimme:
 st_options_volume	Lautstärke:
 st_other	Andere
+st_ots14_description	Russisches Bullpup-Sturmgewehr, Munition: 9x39. In den 1990er Jahren vom ZKIB SOO auf Basis der AKS-74U für Spezialeinheiten gebaut. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_ots14_name	OZ-14 "Grosa"
 st_oust_commander	Kommandanten wechseln
 st_overweight_penalty_description	Einfluss des Gewichts auf die Bewegungs Geschwindigkeit
 st_overweight_penalty_name	Packer
@@ -1942,6 +1950,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Passwort Speichern
+st_scar_h_description	Belgisches Kampfgewehr, Munition: 7,62x51. Die schwere SCAR von FN Herstal, in den 2000er Jahren von US-Spezialkräften eingeführt. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Selbst gemachter Artefakten Container, eignet sich für Rücksäcke. Sehr nützlich wenn man Artefakten jagen geht.
 st_scav_back_1_name	Rücksack mit Container
 st_scav_boots_1_desc	Die einfachen Schuhe, die auf dem Müllhaufen gefunden oder von der Leiche abgezogen worden sind. Schützen die Beine vor den Wunden und den Beschädigungen, hilft mehrmals bei den komplizierten Übergängen .
@@ -2820,6 +2830,8 @@ st_vepr_description	Description is not ready!!!
 st_vepr_name	Wildschwein
 st_vepr_premium_description	Russischer Karabiner der Wepr-Familie, Munition: 5,45x39. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-74-Maschinengewehrs gebaut. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
 st_vepr_premium_name	Vepr "Der Wanderer"
+st_vhs_2_description	Kroatisches Bullpup-Sturmgewehr, Munition: 5,56x45. Von HS Produkt gebaut, seit den 2010er Jahren bei der kroatischen Armee. 30-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_vhs_2_name	VHS-2
 st_victory	Sieg
 st_victory_screen_no_dropped_item	Sie haben auf dem Schlachtfeld nichts gefunden.
 st_vityaz_bundle_descr	<white> Enthält folgende Verbesserungen:\n- verbessert PP-19-01 "Vityaz"\n- 2000 9x19 Parabellum Patrone\nAmmo </white>

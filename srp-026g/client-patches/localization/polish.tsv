@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	OPIS NIE JEST GOTOWY!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Radzieckiej konstrukcji nabój pośredni, z małokalibrowym pociskiem o stalowym rdzeniu. Duża prędkość wylotowa zapewnia niemalże płaską trajektorię lotu tego stosunkowo lekkiego pocisku.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Taśma na 100 nabojów 5,56x45 do FN Minimi. Zajmuje dwie ładownice.
+st_ammo_556x45_belt_name	5,56x45 taśma
 st_ammo_556x45_description	Pośredni nabój karabinowy NATO, opracowany na bazie amerykańskiego .223 Remington i znormalizowany przez NATO w 1980 r. Lekki, szybki pocisk o płaskim torze lotu i niewielkim odrzucie.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Nabój opracowany przez FN Herstal około 1990 r. dla P90, a później pistoletu Five-seveN. Lekki, szybki pocisk zaprojektowany do przebijania kamizelek kuloodpornych.
@@ -211,6 +213,8 @@ st_ammo_762x39_description	Nabój kalibru 7.62x39 zaprojektowany w 1943 r. Uważ
 st_ammo_762x39_m_description	OPIS NIE JEST GOTOWY!!!
 st_ammo_762x39_m_name	7.62х39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	Naboje karabinowe 7,62x51 w magazynkach na 20 nabojów do FN SCAR-H i H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, magazynek na 20
 st_ammo_762x51_M59_description	Przeciwpancerna modyfikacja pocisku 7.62. Kula ma stalowy rdzeń.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Popularny nabój wojskowy z pełnopłaszczowym pociskiem. Stworzony z myślą o broni snajperskiej i cywilnej.
@@ -1171,6 +1175,8 @@ st_first_weapon_action	Broń 1
 st_fix	Napraw
 st_fn_fnc_description	Belgijski karabinek automatyczny, amunicja: 5,56x45. Opracowany przez FN Herstal w latach 70. i przyjęty przez armię belgijską; wersje licencyjne służą w Szwecji i Indonezji. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgijski ręczny karabin maszynowy, amunicja: 5,56x45. Drużynowa broń FN Herstal z lat 70., w armii USA jako M249. Pudełko na 100 nabojów. Ogień pojedynczy i ciągły.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgijska broń osobista typu PDW, amunicja: 5,7x28. Opracowana przez FN Herstal około 1990 r. razem z własnym nabojem; układ bullpup i 50-nabojowy magazynek leżący wzdłuż górnej części broni. Używana przez jednostki specjalne i policję w wielu krajach. Posiada tryb ognia pojedynczego i ciągłego.
 st_fn_p90_name	FN P90
 st_fort_17_description	Pistolet samopowtarzalny ukraińskiej konstrukcji, amunicja: 9х18. Seryjną produkcję rozpoczęto w 2004 r. Używany był przez siły wewnętrzne i niektóre oddziały sił specjalnych. Wyposażony w 12-nabojowy magazynek.
@@ -1596,6 +1602,8 @@ st_options_video	Grafika
 st_options_voice	Głos:
 st_options_volume	Głośność:
 st_other	Inne
+st_ots14_description	Rosyjski karabinek automatyczny w układzie bullpup, amunicja: 9x39. Zbudowany w CKIB SOO w latach 90. na bazie AKS-74U dla jednostek specjalnych. Magazynek na 20 nabojów. Ogień pojedynczy i ciągły.
+st_ots14_name	OC-14 "Groza"
 st_oust_commander	Zmień dowódcę
 st_overweight_penalty_description	Wpływ wagi na prędkość poruszania się:
 st_overweight_penalty_name	Pakowacz
@@ -1942,6 +1950,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Rosyjska strzelba samopowtarzalna kalibru 12. Zbudowana w zakładach Iżmasz na bazie systemu Kałasznikowa w latach 90. do polowań i dla służb ochrony; wersja S ma składaną kolbę. Wyposażona w 5-nabojowy magazynek pudełkowy. Tylko ogień pojedynczy.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Zapisz hasło
+st_scar_h_description	Belgijski karabin automatyczny, amunicja: 7,62x51. Ciężka wersja SCAR firmy FN Herstal, przyjęta przez amerykańskie wojska specjalne w latach 2000. Magazynek na 20 nabojów. Ogień pojedynczy i ciągły.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Ręcznie wykonany pojemnik do przechowywania artefaktów zaprojektowany jako plecak. Przydatny podczas wyprawiania się na poszukiwanie artefaktów.
 st_scav_back_1_name	Plecak z pojemnikiem
 st_scav_boots_1_desc	Zwykłe buty znalezione w śmieciach lub zdjęte z jakiegoś trupa. Chronią nogi przed obrażeniami i urazami, co często może okazać się zbawienne podczas wymagających wypraw.
@@ -2820,6 +2830,8 @@ st_vepr_description	OPIS NIE JEST GOTOWY
 st_vepr_name	Wiepr
 st_vepr_premium_description	Rosyjski karabinek z rodziny Wepr, amunicja: 5,45x39. Produkowany przez zakłady Mołot w Wiatskich Polanach na wzmocnionej komorze zamkowej karabinu maszynowego RPK-74. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
 st_vepr_premium_name	Wepr Skitalec
+st_vhs_2_description	Chorwacki karabinek automatyczny w układzie bullpup, amunicja: 5,56x45. Produkcji HS Produkt, na uzbrojeniu Chorwacji od lat 2010. Magazynek na 30 nabojów. Ogień pojedynczy i ciągły.
+st_vhs_2_name	VHS-2
 st_victory	Zwycięstwo
 st_victory_screen_no_dropped_item	Na polu bitwy niczego nie znaleziono.
 st_vityaz_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony PP-19-01 "Witiaź".\n- 2000 nabojów 9x19 Parabellum.</white>

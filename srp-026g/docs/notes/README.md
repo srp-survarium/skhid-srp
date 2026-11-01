@@ -30,6 +30,7 @@ given), LIKELY or GUESS.
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
+| [weapons-031.md](weapons-031.md) | Weapons batch 1 from 0.31a2 (release 41): the OTs-14 "Groza", FN SCAR-H, VHS-2 and FN Minimi (2261-2264), their balance against live peers, how resource-porter's weapon port made them, their 0.69d muzzle points for the muzzle step |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |

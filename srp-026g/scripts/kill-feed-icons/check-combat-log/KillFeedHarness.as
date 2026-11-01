@@ -142,14 +142,16 @@ package
          }
       }
 
-      // A kill row for every weapon icon a config names (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
-      // ported weapons' 53 to 68) and one past them: icon i shows frame i + 1 of object_icon, from 53 to
-      // 68 the bitmap CombatLogWeapon<i> in its place (the clip hidden), past them the clip again; the
-      // weapon right after the killer, within the row, the victim after it.
+      // A kill row for every weapon icon a config may name (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
+      // ported weapons' from 53 on) up to 99: icon i shows frame i + 1 of object_icon, or past the clip's
+      // frames the bitmap CombatLogWeapon<i> in its place (the clip hidden) when the movie has that
+      // class, else the clip's last frame; the weapon right after the killer, within the row, the victim
+      // after it.
       private function weapons() : void
       {
          var bitmaps:int = 0;
-         for(var icon:int = 0; icon <= 69; icon++)
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         for(var icon:int = 0; icon <= 99; icon++)
          {
             var data:Object = row(1,0,0,0);
             data.object_icon = icon;
@@ -176,7 +178,7 @@ package
                   bitmaps++;
                }
             }
-            var want:String = icon >= 53 && icon <= 68 ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
+            var want:String = icon >= clip.totalFrames && domain.hasDefinition("CombatLogWeapon" + icon) ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
             if(shown.indexOf(want) != 0 || shown.indexOf(",",want.length) >= 0)
             {
                failures.push("icon " + icon + ": " + shown + " (want " + want + ")");
@@ -192,7 +194,7 @@ package
                trace("KF icon " + icon + ": " + shown);
             }
          }
-         trace("KF icons 0 to 69: " + bitmaps + " bitmaps");
+         trace("KF icons 0 to 99: " + bitmaps + " bitmaps");
       }
 
       private function finish(result:String) : void
