@@ -79,11 +79,14 @@ pub enum DrugStops {
     /// revision 40; kept to copy the old live bots.
     Unknown,
     /// A drug that a hit stopped is known stopped: it heals no more in the reckoning, and the item may be pressed
-    /// again at once. The press itself is as before (at once, the cover walk in its delay).
+    /// again at once. The press itself is as before (at once, the cover walk in its delay). The default.
     Known,
-    /// [`Self::Known`], and the press waits while hits land (the default): no drug is pressed within `quiet_ms` of
-    /// the last hit that took health, and the bot walks to cover meanwhile, as it does in a press's delay.
-    /// "Break the line of sight, then heal": a press under fire is a unit a hit in the next 2 s throws away.
+    /// [`Self::Known`], and the press waits while hits land: no drug is pressed within `quiet_ms` of the last hit
+    /// that took health, and the bot walks to cover meanwhile, as it does in a press's delay ("break the line of
+    /// sight, then heal": a press under fire is a unit a hit in the next 2 s throws away). Off: its by-side bench
+    /// against [`Self::Known`] (A217, 180 pairs, quiet 1.5 s) wasted fewer drugs in their delay (823 stops against
+    /// 1471) but scored less (score -2.4 %, z -2.0; delivered -5.6 %, z -2.3; deaths +2.1 %, z +1.7): the hold
+    /// keeps a hurt body unhealed for `quiet_ms` more and walks it off the fight at every think meanwhile.
     Wait {
         /// GUESS: 1.5 s, under the medkit's 2 s delay; the bot learns of a hit a world late.
         quiet_ms: u32,
@@ -153,7 +156,7 @@ impl Default for HealTuning {
             enemy_m: 10.0,
             cover_m: 4.0,
             cover_step_ms: 1_500,
-            drug_stops: DrugStops::Wait { quiet_ms: 1_500 },
+            drug_stops: DrugStops::Known,
         }
     }
 }

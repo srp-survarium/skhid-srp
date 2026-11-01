@@ -84,7 +84,6 @@
   },
   "heal": {
     "bandages": false,
-    "drug_stops": "known",
     "on": false
   },
   "kin": {

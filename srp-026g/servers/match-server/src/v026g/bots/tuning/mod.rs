@@ -660,6 +660,7 @@ mod tests {
             "/grid/client_numbers",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
+            "/heal/drug_stops",
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/pitch_scale",
@@ -710,8 +711,6 @@ mod tests {
         assert_eq!(off.unstick.progress_ms, None);
         assert_eq!(off.feel.carrier_jump_m, None);
         assert!(off.aim.combat.grenade_push_tracks);
-        // [A217] The habit off, the knowledge kept: a drug a bullet stopped is never believed working (patch 84).
-        assert_eq!(off.heal.drug_stops, DrugStops::Known);
         let off = serde_json::to_value(off).unwrap();
         for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
             assert_eq!(off.pointer(pointer), defaults.pointer(pointer), "{pointer}");
