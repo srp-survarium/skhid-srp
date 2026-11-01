@@ -2501,7 +2501,8 @@ check "--help is build-content's usage" has "$("$here/build-content" --help)" "u
 # file and in a new file (also when only one entry of a list is wrong, and
 # where the previous version already mixed types at that path), a colour
 # ramp's new key of another type than its keys, an allowlist row lets a new
-# key through but never a changed one, and a config walk refuses is reported.
+# key through but never a changed one, a widening row lets only its int key
+# become a float, and a config walk refuses is reported.
 python3 - "$here/content_type_check.py" "$here/../srp-026g/scripts/content-edit" "$T/tc.log" <<'EOF'
 import importlib.util, struct, sys, zlib
 ctc_path, ce_dir, logp = sys.argv[1:4]
@@ -2528,11 +2529,13 @@ def build(root, sort=True):  # ('named', [(name, node)]) | ('indexed', [node]) |
         elif kind == 'f3':
             while len(buf) % 8: buf.append(0)
             d = len(buf); buf.extend(struct.pack('<fff', *v)); REC.pack_into(buf, at, d, off, crc, 7, 3)
+        elif kind == 'i': REC.pack_into(buf, at, v, off, crc, 1, 4)
         else: REC.pack_into(buf, at, struct.unpack('<I', struct.pack('<f', v))[0], off, crc, 2, 4)
     write(0, None, root)
     return bytes(buf)
 vec, tab = ('f3', (1, 2, 3)), ('indexed', [('f', 1), ('f', 2), ('f', 3)])
 lvl = lambda *ps: build(('named', [('objects', ('indexed', [('named', [('position', p)]) for p in ps]))]))
+num = lambda v: build(('named', [('n', v)]))
 ramp = lambda n, last: build(('named', [('ramp', ('named', [(f'key{i}', vec if i < n - 1 else last) for i in range(n)]))]))
 corp = ctc.corpus_with(walk, {'other': lvl(vec, vec)})
 cases = [('identity', ctc.violations(walk, lvl(vec), lvl(vec), 'a', corp, {})),
@@ -2542,7 +2545,11 @@ cases = [('identity', ctc.violations(walk, lvl(vec), lvl(vec), 'a', corp, {})),
          ('changed_old_mixed', ctc.violations(walk, lvl(vec, tab, vec), lvl(tab, tab, vec), 'c', corp, {})),
          ('ramp_new_key_table', ctc.violations(walk, ramp(3, vec), ramp(4, tab), 'r', {}, {})),
          ('new_file_allowlisted', ctc.violations(walk, None, lvl(tab), 'b', corp, {('b', '/objects[]/position'): 'ok'})),
-         ('changed_allowlisted', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {('a', '/objects[]/position'): 'ok'}))]
+         ('changed_allowlisted', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {('a', '/objects[]/position'): 'ok'})),
+         ('int_widened', ctc.violations(walk, num(('i', 1)), num(('f', 0.4)), 'w', {}, {}, {('w', '/n'): 'ok'})),
+         ('int_not_widened', ctc.violations(walk, num(('i', 1)), num(('f', 0.4)), 'w', {}, {}, {('x', '/n'): 'ok'})),
+         ('float_to_int_widened', ctc.violations(walk, num(('f', 0.4)), num(('i', 1)), 'w', {}, {}, {('w', '/n'): 'ok'})),
+         ('vector_widened', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {}, {('a', '/objects[0]/position'): 'ok'}))]
 try:
     ctc.parse(walk, build(('named', [('a', vec), ('b', vec)]), sort=False))  # crc32 a > b
     unsorted = 'parsed'
@@ -2568,6 +2575,11 @@ check "type check: a colour ramp's new key of another type than the ramp's keys 
 check "type check: an allowlisted new key passes" test "$(tc new_file_allowlisted | cut -f1)" = 0
 check "type check: ... but an allowlist row never lets a key that exists change its type" \
     test "$(tc changed_allowlisted | cut -f1)" = 1
+check "type check: a widening row lets its int key become a float" test "$(tc int_widened | cut -f1)" = 0
+check "type check: ... only its own key (an int becoming a float elsewhere is refused)" \
+    test "$(tc int_not_widened | cut -f1)" = 1
+check "type check: ... never a float becoming an int" test "$(tc float_to_int_widened | cut -f1)" = 1
+check "type check: ... nor any other change of type" test "$(tc vector_widened | cut -f1)" = 1
 check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
     bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
 
