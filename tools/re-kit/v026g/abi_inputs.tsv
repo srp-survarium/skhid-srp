@@ -3237,6 +3237,9 @@ va	name	location	role	basis
 0x0032ff70	survarium::transition_helper::deserialize	EAX	reader	inferred
 0x003312f0	survarium::dispersion_calculator::serialize	stack+4	dispersion	inferred
 0x003312f0	survarium::dispersion_calculator::serialize	EAX	writer	inferred
+0x00334900	survarium::victory_item_event_manager::start_match	ESI	the manager (shared statistics+2760h); +0A38h the rule, +0A3Ch the options, +0A20h/+0A2Ch the two containers' positions written (0x33490E..0x334993)	observed
+0x00334900	survarium::victory_item_event_manager::start_match	EAX	the match's options (kept at +0A3Ch)	observed
+0x00334900	survarium::victory_item_event_manager::start_match	entry ESP+4	the battery rule (kept at +0A38h; its items +110h..+114h)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	ESI	the manager (shared statistics+2760h)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	EAX	the victory item	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+4	the player's place (byte)	observed

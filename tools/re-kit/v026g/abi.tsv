@@ -1411,6 +1411,7 @@ va	name	source	ret_cleanup	result
 0x00331480	survarium::character_dispersion_calculator::get_skill_influence	manual	4	XMM0: the stance's character_dispersion_skill_influence (table at [EDX+8]); its low-stamina one (+30h) when XMM0 in (stamina deficit) is over the threshold at 0xA0D984
 0x00331560	survarium::character_dispersion_calculator::get_target_koef	manual	8	XMM0: the stance's character_dispersion_params value (table at [EBX+4]; idle_dispersion +0, idle_aim_dispersion +4, crouch +18h/+1Ch, ...): aimed as is, from the hip through apply_modifier(index 38h dispersion_from_hip); at least low_stamina_dispersion (+30h) x stack+8 (stamina deficit)
 0x003317c0	survarium::character_dispersion_calculator::get_broken_hands_penalty	manual	4	XMM0: 0 with no broken hand, else injury_penalty_for_double_handed (+34h) / _for_one_handed (+38h), through apply_modifier(index 41h injury_penalty)
+0x00334900	survarium::victory_item_event_manager::start_match	manual	4	no result
 0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
 0x00334dc0	survarium::victory_item_event_manager::serialize	manual	4	
 0x00334fb0	survarium::victory_item_event_manager::deserialize	manual	4	
