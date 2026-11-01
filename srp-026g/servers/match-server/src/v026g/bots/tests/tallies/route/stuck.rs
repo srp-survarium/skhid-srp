@@ -6,9 +6,10 @@
 //! not) or `none`.
 //!
 //! And what the body did over the stuck watch's window before the note (A196 recheck, the level tail: 72 % of the level notes on the
-//! tip came on a route's first leg, 44 % within 2 s of a play switch or a replan), tick by tick ([`Window`]): out and back, held, or
-//! crept; whether the view turned [`TURNED_DEG`] or more in it; how old the route it walked was ([`Age`]); and the route's leg the
-//! note names. By the same judgement, so a kind of note that is mostly a false alarm shows as one.
+//! tip came on a route's first leg, 44 % within 2 s of a play switch or a replan), tick by tick ([`Window`]): out and back, held,
+//! crept, or moved; whether the view turned [`TURNED_DEG`] or more in it; how old the route it walked was at the note ([`Age`]: the
+//! recovery ends the route in the note's own tick, so the route seen up to the tick before); and the route's leg the note names. By
+//! the same judgement (which counts the recovery's own step back: a back-off moves the body about a metre).
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -25,6 +26,8 @@ const HORIZONTAL_M: f32 = 0.3;
 const WINDOW_MS: u32 = crate::v026g::bots::stuck::STUCK_AFTER_MS;
 /// A window's walk this long or more that ends within [`NET_M`] of its start is out and back, metres.
 const WALKED_M: f32 = 0.8;
+/// A window's walk this long or more (1 m/s over it) is a walk, not a creep, metres.
+const MOVED_M_WINDOW: f32 = 1.5;
 /// The watch's own "still" (`stuck::STUCK_MOVED_M`).
 const NET_M: f32 = crate::v026g::bots::stuck::STUCK_MOVED_M;
 /// The view turned this far in the window: the body turned (back) on its way, degrees.
@@ -39,8 +42,10 @@ enum Window {
     OutAndBack,
     /// It walked under [`NET_M`] in all.
     Held,
-    /// Neither: it crept, or got off the spot.
+    /// It walked under [`MOVED_M_WINDOW`] (under 1 m/s), not out and back: it crept.
     Crept,
+    /// It walked [`MOVED_M_WINDOW`] or more, not out and back: it walked (the watch's worlds, 1-2 s apart, saw it still).
+    Moved,
 }
 
 impl Window {
@@ -57,8 +62,10 @@ impl Window {
             Self::Held
         } else if walked >= WALKED_M && net < NET_M {
             Self::OutAndBack
-        } else {
+        } else if walked < MOVED_M_WINDOW {
             Self::Crept
+        } else {
+            Self::Moved
         };
         (window, turned)
     }
@@ -68,6 +75,7 @@ impl Window {
             Self::OutAndBack => "out_back",
             Self::Held => "held",
             Self::Crept => "crept",
+            Self::Moved => "moved",
         }
     }
 }
@@ -110,8 +118,13 @@ struct Pending {
     read: Option<Read>,
 }
 
-/// A route by what tells two apart (its length and its goal, bit for bit) and the time it was first seen.
-type Seen = ((u32, [u32; 3]), u32);
+/// A route by what tells two apart (its length and its goal, bit for bit), the time it was first seen and the last.
+#[derive(Clone, Copy)]
+struct Seen {
+    key: (u32, [u32; 3]),
+    since: u32,
+    last: u32,
+}
 
 #[derive(Default)]
 pub(super) struct Stuck {
@@ -153,11 +166,13 @@ impl RouteTopic for Stuck {
         }
         let bot = at.bots.bots[at.place].as_ref();
         let route = bot.and_then(|bot| bot.route.as_ref()).map(|(route, goal)| (route.length().to_bits(), goal.to_array().map(f32::to_bits)));
-        self.routes[at.place] = match (route, self.routes[at.place]) {
-            (Some(key), Some((seen, since))) if seen == key => Some((seen, since)),
-            (Some(key), _) => Some((key, at.time)),
-            (None, _) => None,
-        };
+        // A route gone keeps its record: the note's tick ends it.
+        if let Some(key) = route {
+            self.routes[at.place] = Some(match self.routes[at.place] {
+                Some(seen) if seen.key == key => Seen { last: at.time, ..seen },
+                _ => Seen { key, since: at.time, last: at.time },
+            });
+        }
         let mut done = Vec::new();
         for (i, p) in self.pending.iter_mut().enumerate().filter(|(_, p)| p.place == at.place) {
             if p.read.is_none() && at.time >= p.time {
@@ -180,7 +195,8 @@ impl RouteTopic for Stuck {
                     self.ticks[at.place].iter().filter(|t| t.0 + WINDOW_MS >= p.time && t.0 <= p.time).map(|t| (t.1, t.2)).collect();
                 let (window, turned) = Window::of(&window);
                 let age = match self.routes[at.place] {
-                    Some((_, since)) if p.time.saturating_sub(since) < NEW_ROUTE_MS => Age::New,
+                    Some(seen) if seen.last + 2 * TICK_MS < p.time => Age::None,
+                    Some(seen) if p.time.saturating_sub(seen.since) < NEW_ROUTE_MS => Age::New,
                     Some(_) => Age::Old,
                     None => Age::None,
                 };
@@ -218,8 +234,8 @@ impl RouteTopic for Stuck {
 mod tests {
     use super::*;
 
-    /// A window walked 1 m out and 1 m back is out and back; one that stayed is held; one that went 0.6 m on crept. A view that turned
-    /// round in it turned.
+    /// A window walked 1 m out and 1 m back is out and back; one that stayed is held; one that went 0.6 m on crept, 3 m on moved. A view
+    /// that turned round in it turned.
     #[test]
     fn a_window_is_out_and_back_held_or_crept() {
         let at = |x: f32, yaw: f32| (Vec3::new(x, 0.0, 0.0), yaw);
@@ -230,6 +246,8 @@ mod tests {
         assert_eq!(Window::of(&held), (Window::Held, false));
         let crept: Vec<(Vec3, f32)> = (0..=12).map(|k| at(0.05 * k as f32, 0.0)).collect();
         assert_eq!(Window::of(&crept), (Window::Crept, false));
+        let moved: Vec<(Vec3, f32)> = (0..=30).map(|k| at(0.1 * k as f32, 0.0)).collect();
+        assert_eq!(Window::of(&moved), (Window::Moved, false));
         assert_eq!(Window::of(&[]), (Window::Held, false));
     }
 }
