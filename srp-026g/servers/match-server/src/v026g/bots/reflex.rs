@@ -10274,6 +10274,7 @@ mod tests {
                 held: vec![HeldLine::for_test(3, 9, spot, victims, seen)],
                 jobs: Vec::new(),
                 sniper_regions: Vec::new(),
+                snipers: Vec::new(),
                 concede: Default::default(),
             });
             team
@@ -10338,6 +10339,7 @@ mod tests {
                 held: vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, distance)], Some(1_500))],
                 jobs: Vec::new(),
                 sniper_regions: Vec::new(),
+                snipers: Vec::new(),
                 concede: Default::default(),
             });
             let aim = AimTuning {
@@ -10382,6 +10384,7 @@ mod tests {
                 held: if held { vec![HeldLine::for_test(3, 9, spot, &[Vec3::new(40.0, 0.0, 22.0)], Some(1_500))] } else { Vec::new() },
                 jobs: Vec::new(),
                 sniper_regions: Vec::new(),
+                snipers: Vec::new(),
                 concede: Default::default(),
             });
             team
@@ -11024,9 +11027,10 @@ mod tests {
             line,
         };
         let on = SmokeTuning { wait_for_cloud: Some(WaitForCloud::default()), ..SmokeTuning::default() };
+        let off = SmokeTuning { wait_for_cloud: None, ..SmokeTuning::default() };
         let grenade = SmokeGrenade::RDG_M;
         let hold = Vec3::new(0.0, 0.0, 16.0);
-        assert_eq!(CloudWait::of(&SmokeTuning::default(), &grenade, line, Some(7), WaitsFor::Own(plan.for_use), hold), None, "off");
+        assert_eq!(CloudWait::of(&off, &grenade, line, Some(7), WaitsFor::Own(plan.for_use), hold), None, "off");
         let wait = CloudWait::of(&on, &grenade, line, Some(7), WaitsFor::Own(plan.for_use), hold).expect("on");
         assert_eq!(CloudWait::of(&on, &grenade, line, Some(7), WaitsFor::Mates, hold), None, "mates only with crossers");
         assert_eq!(wait.cap_ms, 4_000 + 1_240 + 500, "the fuse, the client's forming and the margin");
