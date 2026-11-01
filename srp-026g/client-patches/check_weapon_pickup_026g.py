@@ -374,6 +374,7 @@ def main():
 
     stage2(patched, original)
     second_pickup(patched)
+    crate_per_gun(patched)
     stage2b(patched)
 
 
@@ -700,6 +701,45 @@ def second_pickup(patched):
           "the own ones back")
 
 
+def crate_per_gun(patched):
+    """The owner's 83f41 case: the picker's slot-7 gun's ammunition 70 (50 a clip, a bag) has the kit's
+    100 rounds in slot 8 (2 bags); the borrowed gun binds three stacks of ammunition 7 (30 a clip, a
+    bag), placed in slots 8, 9 and 11, with 13 rounds in it. The game's rule: 2 bags of ammunition 7,
+    60 rounds, 13 in the gun: slot 8 gets 47, slots 9 and 11 nothing."""
+    r = Pick(patched)
+    r.setup()
+    extra = [r.stack(0), r.stack(0)]
+    for item, slot in zip(extra, (12, 19)):
+        r.word(r.cooked + 0x10C + 4 * slot, item)
+        r.word(item + 0x250, r.cooked)
+        r.word(item + 0x254, slot)
+    slots = r.read(r.new_gun + 0x5AC)
+    r.word(slots + 4, 12)
+    r.word(slots + 8, 19)
+    r.emu.mem_write(r.new_gun + 0x5B0, bytes([3, 0]))
+    for stack in (r.new_ammo, *extra):
+        r.ammo_config(stack, 7, 30, 1)
+    r.ammo_config(r.own_ammo, 70, 50, 1)
+    r.emu.mem_write(PROFILE + SLOTS + 4 * 8, struct.pack("<HH", 8, 100))
+    r.pick()
+    inv = r.inventory
+    assert [r.slot(inv, n) for n in (8, 9, 11)] == [r.new_ammo, *extra], [hex(r.slot(inv, n)) for n in (8, 9, 11)]
+    r.emu.mem_write(r.new_gun + 0x5E5, bytes([13]))
+    r.emu.mem_write(r.new_gun + 0x5F1, bytes([0]))
+    r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 0))
+    r.log.clear()
+    r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
+    counts = [struct.unpack("<H", r.read(x + 0x260, 2))[0] for x in (r.new_ammo, *extra)]
+    assert counts == [47, 0, 0], counts
+    crate = [l.split("place 3 crate: ", 1)[1] for l in r.log if "place 3 crate: " in l]
+    assert crate == ["the weapon slot's own ammo: slot 8, the kit's 100 of ammo 70 (clip 50/1) = 2 bags",
+                     "slot 8 ammo 7 0 -> 47; the weapon slot's 2 bags = 60 (clip 30/1) less 13",
+                     "slot 9 ammo 7 0 -> 0 (not the gun's loaded stack: left)",
+                     "slot 11 ammo 7 0 -> 0 (not the gun's loaded stack: left)"], crate
+    print("ok the owner's case: the weapon slot's 2 bags (100 rounds of ammunition 70, 50 a clip) are 60 rounds "
+          "of the borrowed ammunition 7 (30 a clip), 13 in the gun: slot 8 47, slots 9 and 11 nothing")
+
+
 def no_branch_into(original):
     """Nothing of the original exe branches into bytes 1.. of a new span (selftest's scan)."""
     import selftest_026g as test
@@ -799,8 +839,10 @@ def stage2(patched, original):
     assert r.slot(view, 10) == r.own_gun + 0x10 and r.slot(view, 8) == r.own_ammo and r.slot(view, 9) == 0
     assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 100 - 18) and r.read(r.inventory + 0x184, 1) == b"\1"
     assert r.read(PROFILE + ITEMS, 0xB4 * 69) == storage, "a storage charged"
-    assert any(l.endswith("pickup: place 3 crate: slot 8 ammo 2204 30 -> 82; the kit's 90 of ammo 217 (clip 30/1) "
-                          "= 3 bags = 100 (clip 100/2) less 18") for l in r.log), r.log
+    assert any(l.endswith("pickup: place 3 crate: the weapon slot's own ammo: slot 8, the kit's 90 of ammo 217 "
+                          "(clip 30/1) = 3 bags") for l in r.log), r.log
+    assert any(l.endswith("pickup: place 3 crate: slot 8 ammo 2204 30 -> 82; the weapon slot's 3 bags = 100 "
+                          "(clip 100/2) less 18") for l in r.log), r.log
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker})
     assert r.emu.reg_read(UC_X86_REG_ECX) == view, "full: check_resupply gets the view"
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 4))
@@ -814,27 +856,27 @@ def stage2(patched, original):
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
     assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 200 - 18)
-    # One bag (30 rounds) carries no belt by the game's rule: at least one clip, one belt, 100 less 18.
+    # One bag (30 rounds) carries no belt: nothing to refill (no minimum), the native check sees the own loadout.
     allowance(30)
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker}, stops=(CAN_USE_AFTER, CAN_USE_AVAILABLE))
-    assert r.stopped == CAN_USE_AVAILABLE, "30 of 82: available"
+    assert r.stopped == CAN_USE_AFTER and r.emu.reg_read(UC_X86_REG_ECX) == view
     r.log.clear()
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
-    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 100 - 18)
-    assert any(l.endswith("pickup: place 3 crate: slot 8 ammo 2204 30 -> 82; the kit's 30 of ammo 217 (clip 30/1) "
-                          "= 1 bags = 100 (clip 100/2) less 18") for l in r.log), r.log
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", CAPACITY)
+    assert any(l.endswith("pickup: place 3 crate: slot 8 ammo 2204 30 -> 30; the weapon slot's 1 bags = 0 "
+                          "(clip 100/2) less 18") for l in r.log), r.log
     # The same ammunition as the own (the borrowed stack's config 7N10 too): the own gun's own refill, 90 - 18.
     r.ammo_config(r.new_ammo, 217, 30, 1)
     allowance(90)
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
     assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 90 - 18)
-    # A slot the kit gives no allowance (a free slot, or one the other gun's calibre holds): one clip, 30 - 18.
+    # A weapon slot the kit gives no bags: nothing.
     allowance(0)
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 0))
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
-    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 30 - 18)
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 0)
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
     allowance(108)
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: PLAYER})
@@ -842,8 +884,8 @@ def stage2(patched, original):
     print("ok the crate, the native refill's rule in bags (resupply_from_profile: the kit's allowance for the slot, "
           "the magazine and chamber inside) with the borrowed ammunition's config: the own 7N10's 90 rounds in "
           "slot 8 are 3 bags, a PKP's 7N13 (100 a clip, 2 bags) gets 100 less 18 = 82 (available at can_use and "
-          "use_hint while below; both finish_use sites; logged with its inputs), 4 bags 182, 1 bag still one belt; "
-          "the same ammunition 72, a slot without an allowance one clip; no storage charged, never lowered; the native resupply and check_resupply get the view")
+          "use_hint while below; both finish_use sites; logged with its inputs), 4 bags 182, 1 bag none (no "
+          "minimum); the same ammunition 72, no bags nothing; no storage charged, never lowered; the native resupply and check_resupply get the view")
 
     # A loaded record without the borrow: restored before the native readers.
     assert r.load(r.picker, record()) == 12

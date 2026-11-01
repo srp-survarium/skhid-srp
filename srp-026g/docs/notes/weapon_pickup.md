@@ -23,21 +23,30 @@
   ones placed. A pickup is never refused for room.
 - The picker's own ammo crate refills the borrowed gun by the game's own
   refill rule (the owner, 2026-11-01), for free (nobody's storage is
-  charged), never lowered; its own guns as before. The game's rule: the
-  crate fills each ammunition slot to the kit's count for it, the
-  magazine and chamber of the gun that uses it inside; the lobby made that
-  count whole clips of the ammo bags the slot was given (`bags div
-  required_bags x clip_size` of the ammunition's config). A borrowed stack
-  in a slot gets the same bags in its own ammunition: the bags the kit's
-  count of the own ammunition there holds whole clips of (`count x
-  required_bags / clip_size`, rounded down: 91 rounds of 30-round clips
-  are 3 bags), in whole clips of the borrowed one, and always at least one
-  full clip of it (the owner, 2026-11-01), the magazine and chamber
-  inside. A PKP (7N13: 100 a clip, 2 bags a clip) for an AK whose slot
-  held 90 rounds of 7N10 (30 a clip, 1 bag; 3 bags): one belt, 100, so 60
-  in reserve with 40 in the belt; 4 bags two belts; 1 bag still one belt.
-  A slot the kit names no ammunition in (a free slot it was put in, or one
-  the other gun's calibre holds) gets one clip.
+  charged), never lowered; its own guns as before. No minimum: the extra
+  magazine is the pickup's alone. The game's rule (the lobby's
+  process_default_relocate_item 0x288D60, read below): a kit has `bags` =
+  `player.ammo_bags_count` of default.player (lobby+311Ch, 0x22112B) with
+  the kit's modifier 16 (`ammo_bags`, apply_kit_parameter 0x2F7660,
+  0x288E4B); a weapon put on gets one ammunition item it pairs with (the
+  owned one of the lowest entry+384h, at least a clip owned), `(its bags
+  div required_bags) x clip_size` rounds of it (capped by what is owned),
+  into one slot: slot 7's weapon slot 8, slot 10's slot 9; both weapons
+  with different ammunition split the bags, slot 7's `min(int(0.7 x bags
+  + 0.5), its clips owned)` (0x28A0B2..0x28A0CE), slot 10's the rest; one
+  weapon, or the same item for both, all of them in slot 8. The ammo
+  window lets the player share the bags otherwise; the kit keeps each
+  slot's rounds, and the crate (resupply_from_profile 0x2FDC10) fills each
+  slot to them, the magazine and chamber of its weapon inside. So the
+  bags of a weapon slot are those of its own gun's ammunition in the kit:
+  `rounds x required_bags / clip_size` (rounded down) of each slot its
+  own gun binds. The borrowed gun gets them in whole clips of its loaded
+  ammunition, its magazine and chamber inside, in its loaded stack; its
+  other stacks are not refilled. The owner's 83f41 test: the own slot-7
+  gun's ammunition 70 (50 a clip, a bag) had 100 rounds in slot 8, 2 bags
+  (int(0.7 x 3 + 0.5) = 2 of the default 3); the borrowed gun's
+  ammunition 7 (30 a clip, a bag) in slots 8, 9 and 11, 13 rounds in it:
+  2 bags are 60 rounds, slot 8 gets 47, slots 9 and 11 nothing.
 - On the picker's death the borrowed gun vanishes (not dropped again) and the
   next life has the original loadout.
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
@@ -72,8 +81,8 @@
   - a refused pickup changes nothing and is logged; the client cannot
     install a gun its cook failed to make (logged loudly: that client
     then differs);
-  - the crate's checks say "available" while a borrowed stack is below its
-    refill;
+  - the crate's checks say "available" while the borrowed gun's loaded
+    stack is below its refill;
   - a gun given back (its holder's death, respawn, destruction, a rollback)
     stays cooked until 3 s after its body left the world, or after the
     give-back when that is later (a rollback can take it again); a loaded world's gun is freed at the next frame.
@@ -178,20 +187,24 @@ cooked gun).
   profile names (what check_weapon_pickup.py proves check_resupply and
   resupply_from_profile read). `pickup.resupply` 0x2F81B8 and
   `pickup.client_resupply` 0x2954EF (before resupply_from_profile's
-  inventory): each borrowed stack to `weapon_pickup::crate_refill`: the
-  slot's allowance (profile +98h + kit x 704h + 4 x slot +2, none for an
-  item FFFFh or an allowance 0, as resupply_from_profile
-  0x2FDD56..0x2FDD71) in bags of the own ammunition parked from it, those
-  bags in whole clips of the borrowed ammunition, less the gun's magazine
-  and chamber for the selected stack, never lowered, free; each config's
-  `parameters/clip_size` and `parameters/required_bags` (integers; the
-  stack's dictionary entry +25Ch, its config +114h, the root +108h; the
-  lobby's process_default_relocate_item 0x289EB2..0x289EF3 reads the same);
-  the real inventory's weight marked, EAX the view (the native refill then
-  refills the own parked stacks, charging the own storage). Each stack
-  refilled is logged: `place P crate: slot S ammo A before -> after; the
-  kit's N of ammo O (clip C/B) = bags = total (clip C/B) less in-gun`, C
-  rounds a clip and B bags a clip.
+  inventory): the borrowed gun's loaded stack (its +538h) to
+  `weapon_pickup::crate_refill`: the weapon slot's bags, those of each
+  slot the parked own gun binds (its +5ACh, the picker's slot indices),
+  the kit's allowance there (profile +98h + kit x 704h + 4 x slot +2, none
+  for an item FFFFh or an allowance 0, as resupply_from_profile
+  0x2FDD56..0x2FDD71) in bags of the own ammunition (the own stack there,
+  parked where a borrowed one is), in whole clips of the borrowed
+  ammunition, less the gun's magazine and chamber, never lowered, free;
+  its other stacks left; each config's `parameters/clip_size` and
+  `parameters/required_bags` (integers; the stack's dictionary entry
+  +25Ch, its config +114h, the root +108h; the lobby's
+  process_default_relocate_item 0x289EB2..0x289EF3 reads the same); the
+  real inventory's weight marked, EAX the view (the native refill then
+  refills the own parked stacks, charging the own storage). Logged: `place
+  P crate: the weapon slot's own ammo: slot S, the kit's N of ammo O (clip
+  C/B) = bags` for each, then `place P crate: slot S ammo A before ->
+  after; the weapon slot's bags = total (clip C/B) less in-gun` for the
+  loaded stack and `(not the gun's loaded stack: left)` for the others.
 - **The cache**: a gun installed is lent (never freed by its body's end or
   its donor's destruction); kept, it is freed 3 s after its donor's
   remove(1) (the body left the world: `Origin::Death.gone`), or after its

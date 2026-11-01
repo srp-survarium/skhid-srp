@@ -742,9 +742,7 @@ pub fn on_client_resupply(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn resupply(ctx: &mut Context<'_>, site: Site) -> Flow<NoExit> {
     let Some((player, holder)) = holder_at(ctx, site) else { return Flow::Continue };
-    for stack in native::refill(&player, &holder.installed).iter().flatten() {
-        log_refill(&player, stack);
-    }
+    log_refill(&player, &native::refill(&player, &holder.installed));
     let Some(view) = native::crate_view(&player, &holder.installed, ctx.thread()) else { return Flow::Continue };
     native::hand_view(ctx, site, view);
     Flow::Skip
@@ -1178,28 +1176,31 @@ fn log_installed(player: &Player<'_>, magazine: Option<(u8, bool)>, installed: &
     }
 }
 
-/// A crate's refill of one borrowed stack: its slot, ammunition, count
-/// before and after, and the target's inputs (the kit's allowance for the
-/// slot in rounds of the own ammunition and the bags they take, the borrowed
-/// ammunition's clip and bags a clip, the magazine and chamber inside).
-fn log_refill(player: &Player<'_>, s: &native::StackRefill) {
-    let head = [Text("place "), Dec(u32::from(player.place())), Text(" crate: slot "), Dec(u32::from(s.slot)),
-                Text(" ammo "), Dec(u32::from(s.ammo.dict_id)), Text(" "), Dec(u32::from(s.before)), Text(" -> "),
-                Dec(u32::from(s.after()))];
-    let (Some(refill), Some(bags)) = (s.refill, s.ammo.bags) else {
-        return log_joined(&[&head, &[Text(" (its config has no clip_size and required_bags: left)")]]);
-    };
-    let in_gun = s.held.map_or(0, |(loaded, chamber)| u32::from(loaded) + u32::from(chamber));
-    let target = [Text(" = "), Dec(refill.bags), Text(" bags = "), Dec(u32::from(refill.total)), Text(" (clip "),
-                  Dec(bags.clip_size()), Text("/"), Dec(bags.required_bags()), Text(") less "), Dec(in_gun)];
-    match s.allowance {
-        Some((rounds, own)) => {
-            let (clip, required) = own.bags.map_or((0, 0), |b| (b.clip_size(), b.required_bags()));
-            let kit = [Text("; the kit's "), Dec(u32::from(rounds)), Text(" of ammo "), Dec(u32::from(own.dict_id)),
-                       Text(" (clip "), Dec(clip), Text("/"), Dec(required), Text(")")];
-            log_joined(&[&head, &kit, &target]);
+/// A crate's refill of the borrowed gun: a line for each own ammunition of
+/// its weapon slot in the kit (its bags), then one for each borrowed stack
+/// (its count before and after; the loaded one with the target's inputs:
+/// the bags, the rounds of its ammunition they carry, the magazine and
+/// chamber inside).
+fn log_refill(player: &Player<'_>, c: &native::Crate) {
+    let place = [Text("place "), Dec(u32::from(player.place())), Text(" crate: ")];
+    for o in c.own.iter().flatten() {
+        let (clip, required, bags) = o.ammo.bags.map_or((0, 0, 0), |b| (b.clip_size(), b.required_bags(), b.bags(o.rounds)));
+        log_joined(&[&place, &[Text("the weapon slot's own ammo: slot "), Dec(u32::from(o.slot)), Text(", the kit's "),
+                               Dec(u32::from(o.rounds)), Text(" of ammo "), Dec(u32::from(o.ammo.dict_id)),
+                               Text(" (clip "), Dec(clip), Text("/"), Dec(required), Text(") = "), Dec(bags),
+                               Text(" bags")]]);
+    }
+    for s in c.stacks.iter().flatten() {
+        let head = [Text("slot "), Dec(u32::from(s.slot)), Text(" ammo "), Dec(u32::from(s.ammo.dict_id)), Text(" "),
+                    Dec(u32::from(s.before)), Text(" -> "), Dec(u32::from(s.after()))];
+        match (s.refill, s.ammo.bags, s.held) {
+            (Some(refill), Some(bags), Some((loaded, chamber))) => log_joined(&[&place, &head, &[
+                Text("; the weapon slot's "), Dec(refill.bags), Text(" bags = "), Dec(u32::from(refill.total)),
+                Text(" (clip "), Dec(bags.clip_size()), Text("/"), Dec(bags.required_bags()), Text(") less "),
+                Dec(u32::from(loaded) + u32::from(chamber))]]),
+            (_, None, Some(_)) => log_joined(&[&place, &head, &[Text(" (its config has no clip_size and required_bags: left)")]]),
+            _ => log_joined(&[&place, &head, &[Text(" (not the gun's loaded stack: left)")]]),
         }
-        None => log_joined(&[&head, &[Text("; no allowance in the kit")], &target]),
     }
 }
 
