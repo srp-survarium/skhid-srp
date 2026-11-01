@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # usage: make_pack.sh <resource-porter checkout> <donor.db> <work folder> <version> <camo version>
+#            [<pack id>@<version> ...]
 #
 # The content packs weapons-069@<version> (the 0.69d0 weapons, docs/notes/weapons-069.md) and
 # weapons-069-camo@<camo version> (their camouflage masks), into $SKHID_PACKS_DIR; prints each
 # pack.json's sha256 for release/content.tsv.
+#   0. the packs named after the versions (weapons-031@3 weapons-046@3: the other weapon batches,
+#      whose rows come before this one's) composed into one archive over that base, so the port
+#      reuses what they add (the MP5's sounds, weapons-046's, that the G3SG/1 plays) instead of
+#      adding it again;
 #   1. resource-porter's port-weapons-069d (its shared weapon core with 0.69d0 as the donor,
 #      docs/weapons-069d-026.md): the bundle of ports/weapons-069d.json and its sidecar, from
 #      <donor.db> (the 0.69d0 files, its scripts/weapons-069d-donor.py) over what packs are
@@ -18,8 +23,9 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
-(($# == 5)) || { sed -n '2,/^set/p' "$0" | sed '$d'; exit 2; }
+(($# >= 5)) || { sed -n '2,/^set/p' "$0" | sed '$d'; exit 2; }
 porter=$(cd "$1" && pwd) donor=$(realpath "$2") work=$3 version=$4 camo_version=$5
+shift 5
 : "${SKHID_STOCK_DB:?the stock resources.db}" "${SKHID_PACKS_DIR:?the packs folder}"
 pack=$SKHID_PACKS_DIR/weapons-069-$version camo=$SKHID_PACKS_DIR/weapons-069-camo-$camo_version
 [[ ! -e $work && ! -e $pack && ! -e $camo ]] || { echo "$work, $pack or $camo is already there" >&2; exit 1; }
@@ -34,6 +40,13 @@ while IFS=$'\t' read -r kind name _; do
 done <"$root/release/content.tsv"
 (cd "$porter" && cargo build -q --release --bin vostok-port)
 port=$porter/target/release/vostok-port
+if (($#)); then
+    over=()
+    for p in "$@"; do over+=(--pack "$SKHID_PACKS_DIR/${p%@*}-${p#*@}"); done
+    "$port" pack patch --base-db "$SKHID_STOCK_DB" "${bases[@]}" "${over[@]}" --out-dir "$work/over" \
+        --archive "$work/resources.db.patch_255" >/dev/null
+    layers+=(--target-patch "$work/resources.db.patch_255") bases+=(--base-patch "$work/resources.db.patch_255")
+fi
 "$port" port-weapons-069d --manifest "$porter/ports/weapons-069d.json" \
     --donor-spec "$porter/ports/donor-weapons-069d.json" --donor "$donor" \
     --target-db "$SKHID_STOCK_DB" "${layers[@]}" --output "$work/bundle" >"$work/port.log"

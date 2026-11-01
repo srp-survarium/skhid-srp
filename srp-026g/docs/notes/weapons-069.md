@@ -5,7 +5,9 @@ owner's weapon batches, 2026-11-01). Built by `scripts/weapons-069/make_pack.sh`
 resource-porter's shared weapon core, 0.69d0 as its donor (`port-weapons-069d`,
 `ports/weapons-069d.json` and its sidecar; `docs/weapons-069d-026.md`). The camouflage masks are
 pack weapons-069-camo (`camo.tsv`), the configs take the camouflage and decal by the edit list
-`weapon-camo-069-1.json`.
+`weapon-camo-069-1.json`. Built over weapons-031 and weapons-046 (`make_pack.sh ... 4 1 weapons-031@3
+weapons-046@3`): what they add is reused, not added again (the MP5's bolt sounds the G3SG/1 plays are
+weapons-046's), so their rows come before this one's.
 
 ## Owner rules
 
