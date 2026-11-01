@@ -85,6 +85,8 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(ShotOffsets::default()),
         Box::new(PitchBands::default()),
         Box::new(ShotBands::default()),
+        Box::new(FireGate::new(n)),
+        Box::new(SkillHits::new(n)),
         Box::new(ShotHeights::default()),
         Box::new(KickGap::default()),
         Box::new(HitShapes::default()),
