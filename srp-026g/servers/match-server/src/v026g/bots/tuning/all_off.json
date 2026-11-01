@@ -120,7 +120,8 @@
   "spacing": {
     "apart": false,
     "apart_tie": false,
-    "lane": null
+    "lane": null,
+    "queue": null
   },
   "sense": {
     "bush_notice": 0.0,

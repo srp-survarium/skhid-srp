@@ -209,6 +209,9 @@ struct TeamSpacing {
     lane_unsafe: [u64; 5],
     /// The young 1 m pair-seconds (A212).
     young: Young,
+    /// The living bot-seconds by what the queue did (`spacing.queue`, [`apart::QueueUse`]: idle, slowed with the sprint dropped, asked to slow with no sprint down, stopped,
+    /// yielded abreast, refused on a jump, refused while the fight holds the keys, refused escaping).
+    queue_seconds: [u64; 8],
     /// Spacing per number of living mates (1 to [`MATES_STRATA`], the last 9 and more).
     by_mates: [Stratum; MATES_STRATA],
     /// The living pairs and those within 1 m by the age of the younger body ([`AGE_EDGES_S`]): [pairs, within 1 m].
@@ -288,6 +291,8 @@ pub(super) struct SpacingCounts {
     /// Each bot's lane now: 0 the centre, 1 + the lane's use when over; and why its shifted point was unsafe, when it was.
     lane: Vec<u8>,
     lane_unsafe: Vec<Option<crate::v026g::bots::apart::Unsafe>>,
+    /// What the queue did on each bot's last tick.
+    queue: Vec<crate::v026g::bots::apart::QueueUse>,
     /// Where each body's life began (its feet at its first sample alive).
     spawned_at: Vec<Option<Vec3>>,
     /// The tick of each body's first move ([`FIRST_MOVE_M`]) in its life from the match's opening, and its team.
@@ -327,6 +332,7 @@ impl SpacingCounts {
             apart: vec![0; n],
             lane: vec![0; n],
             lane_unsafe: vec![None; n],
+            queue: vec![crate::v026g::bots::apart::QueueUse::Idle; n],
             spawned_at: vec![None; n],
             first_move: vec![None; n],
             team_of: vec![0; n],
@@ -361,6 +367,9 @@ impl Topic for SpacingCounts {
                 crate::v026g::bots::apart::Lane::Centre => 0,
                 crate::v026g::bots::apart::Lane::Over { .. } => 1 + b.bench_lane.code(),
             });
+        }
+        if let Some(queue) = self.queue.get_mut(place) {
+            *queue = bot.map_or(crate::v026g::bots::apart::QueueUse::Idle, |b| b.bench_queue);
         }
         if let Some(why) = self.lane_unsafe.get_mut(place) {
             *why = bot.and_then(|b| match (b.lane, b.bench_lane) {
@@ -488,6 +497,7 @@ impl Topic for SpacingCounts {
                 if let Some(why) = self.lane_unsafe[place] {
                     ts.lane_unsafe[why as usize] += 1;
                 }
+                ts.queue_seconds[self.queue[place] as usize] += 1;
             }
             ts.pack_samples[0] += 1;
             ts.pack_samples[1] += u64::from(pack_mask.count_ones() >= PACK);
@@ -719,6 +729,7 @@ impl SpacingCounts {
                 "young_pairs_by_kind_opening_mixed_respawn": c.young.kind_pairs,
                 "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": c.young.width_near,
                 "lane_unsafe_body_nofloor_body_edge_nofloor_edge_otherfloor": c.lane_unsafe,
+                "queue_seconds_idle_slowdropped_slownosprint_stop_yield_refjump_refheld_refescape": c.queue_seconds,
                 "young_1m_cause_target_goal_follow_still_file_other": c.young.cause,
                 "young_1m_kind_opening_mixed_respawn": c.young.kind,
                 "young_near_pairs_and_1m_by_spawn_m_lt3_6_13_25_up": c.young.spawn,

@@ -212,6 +212,100 @@ pub(super) fn ease(me: &PlaceView, view: &MatchView, within_m: f32) -> bool {
 /// A teammate moves along the bot's heading at over this, m/s, to be waited for.
 const EASE_MPS: f32 = 1.0;
 
+/// What the queue (A212, `spacing.queue`) asks of a walking bot this tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Give {
+    /// No teammate just ahead.
+    None,
+    /// A teammate ahead within `gap_m`: the sprint is dropped.
+    Slow,
+    /// Forward is let go of too: a teammate ahead within `stop_m`, or (`abreast`) one beside the bot within it, walking its way with neither ahead of the other, and this bot the
+    /// higher place (an order, so that the two never both wait).
+    Stop { abreast: bool },
+}
+
+impl Give {
+    fn rank(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Slow => 1,
+            Self::Stop { .. } => 2,
+        }
+    }
+}
+
+/// A body walks for the queue at this or more, m/s: a standing bot gives way to nobody, and a teammate standing ahead is not waited for (a post held in a corridor would hold the
+/// bot for good: the side step goes round him).
+const QUEUE_MPS: f32 = 1.0;
+/// Two bodies walk the same way when their directions are within 45 degrees.
+const ALIKE_COS: f32 = std::f32::consts::FRAC_1_SQRT_2;
+
+/// The queue's ask of `me` (A212, Reynolds' queuing): the nearest need among its living teammates on its floor within `gap_m`, led to its moment. A teammate ahead (within
+/// `cone_deg` of `me`'s way) that walks and is not coming at it is given way to ([`Give::Slow`], inside `stop_m` [`Give::Stop`]); when each has the other ahead (they cross), only
+/// the higher place gives way. A teammate beside it within `stop_m`, walking its way, neither ahead, is waited for by the higher place unless `stepped` (the side step of
+/// `spacing.apart` was taken this tick: the two part sideways).
+pub(super) fn queue(me: &PlaceView, view: &MatchView, gap_m: f32, stop_m: f32, cone_deg: f32, stepped: bool) -> Give {
+    let speed = me.velocity[0].hypot(me.velocity[1]);
+    if speed < QUEUE_MPS {
+        return Give::None;
+    }
+    let (ux, uz) = (me.velocity[0] / speed, me.velocity[1] / speed);
+    let cone = cone_deg.to_radians().cos();
+    let mut give = Give::None;
+    for mate in view.team(me.team) {
+        if mate.place == me.place || (mate.feet.y - me.feet.y).abs() >= SAME_FLOOR_M {
+            continue;
+        }
+        let mate_speed = mate.velocity[0].hypot(mate.velocity[1]);
+        if mate_speed < QUEUE_MPS {
+            continue;
+        }
+        let [mx, mz] = led(mate, me.known_at);
+        let (dx, dz) = (mx - me.feet.x, mz - me.feet.z);
+        let d = dx.hypot(dz);
+        if d >= gap_m {
+            continue;
+        }
+        let (vx, vz) = (mate.velocity[0] / mate_speed, mate.velocity[1] / mate_speed);
+        let mate_ahead = dx * ux + dz * uz > cone * d;
+        let me_ahead = -dx * vx - dz * vz > cone * d;
+        let along = vx * ux + vz * uz;
+        let ask = if mate_ahead && along >= 0.0 && (!me_ahead || me.place > mate.place) {
+            if d < stop_m { Give::Stop { abreast: false } } else { Give::Slow }
+        } else if !mate_ahead && !me_ahead && !stepped && d < stop_m && along > ALIKE_COS && me.place > mate.place {
+            Give::Stop { abreast: true }
+        } else {
+            Give::None
+        };
+        if ask.rank() > give.rank() {
+            give = ask;
+        }
+    }
+    give
+}
+
+/// What the queue did on a bot's tick, for the bench's counts by reason.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum QueueUse {
+    /// Nothing asked.
+    #[default]
+    Idle,
+    /// Slowed: the sprint was down and is dropped.
+    SlowDropped,
+    /// Asked to slow with no sprint down: nothing to drop.
+    SlowNoSprint,
+    /// Forward let go of behind a teammate within `stop_m`.
+    Stop,
+    /// Forward let go of beside a teammate (the abreast order).
+    Yield,
+    /// Asked, but on a jump of the route (lined up for it, or pressed): a sprint jump needs its run-up.
+    RefusedJump,
+    /// Asked, but the fight holds the keys (a hold, the reflex's strafe or fire, a use).
+    RefusedHeld,
+    /// Asked, but escaping (a grenade, a zone).
+    RefusedEscape,
+}
+
 /// Where `mate` is at `moment` (ms), from his fix, his velocity and the time his fix is for; at most [`LEAD_MAX_S`] either way.
 fn led(mate: &PlaceView, moment: u32) -> [f32; 2] {
     let dt = ((moment as f32 - mate.known_at as f32) / 1000.0).clamp(-LEAD_MAX_S, LEAD_MAX_S);
@@ -374,5 +468,46 @@ mod tests {
         let view = view_of(vec![walker.clone(), b.clone()]);
         assert_ne!(key_away(&walker, &view, 1.1).key, 0);
         assert_eq!(key_away(&b, &view, 1.1).key, 0);
+    }
+
+    /// The queue (A212): the bot behind a teammate walking its way drops its sprint inside 2 m and lets go of forward inside 1.1 m; the one ahead is asked nothing; a teammate
+    /// standing ahead, one coming at the bot, one farther than 2 m, an enemy or a standing bot asks nothing; two walking side by side wait in place order unless they stepped apart;
+    /// two crossing, each with the other ahead, only the higher place gives way.
+    #[test]
+    fn the_bot_behind_a_walking_teammate_gives_way_and_the_one_ahead_does_not() {
+        // Heading +z for everyone (velocity [0, 4]).
+        let behind = walking(0, 0.0, 0.0, 4.0);
+        let ahead_far = walking(1, 0.2, 1.6, 4.0);
+        let view = view_of(vec![behind.clone(), ahead_far.clone()]);
+        assert_eq!(queue(&behind, &view, 2.0, 1.1, 60.0, false), Give::Slow);
+        assert_eq!(queue(&ahead_far, &view, 2.0, 1.1, 60.0, false), Give::None);
+        let ahead_near = walking(1, 0.2, 0.8, 4.0);
+        let view = view_of(vec![behind.clone(), ahead_near]);
+        assert_eq!(queue(&behind, &view, 2.0, 1.1, 60.0, false), Give::Stop { abreast: false });
+        // Standing ahead, coming at it, out of reach, an enemy: nothing.
+        let view = view_of(vec![behind.clone(), at(1, 0, 0.0, 0.8)]);
+        assert_eq!(queue(&behind, &view, 2.0, 1.1, 60.0, false), Give::None);
+        let view = view_of(vec![behind.clone(), walking(1, 0.0, 0.8, -4.0)]);
+        assert_eq!(queue(&behind, &view, 2.0, 1.1, 60.0, false), Give::None);
+        let view = view_of(vec![behind.clone(), walking(1, 0.0, 2.5, 4.0)]);
+        assert_eq!(queue(&behind, &view, 2.0, 1.1, 60.0, false), Give::None);
+        let view = view_of(vec![behind.clone(), PlaceView { team: 1, ..walking(1, 0.0, 0.8, 4.0) }]);
+        assert_eq!(queue(&behind, &view, 2.0, 1.1, 60.0, false), Give::None);
+        let standing = at(0, 0, 0.0, 0.0);
+        let view = view_of(vec![standing.clone(), walking(1, 0.0, 0.8, 4.0)]);
+        assert_eq!(queue(&standing, &view, 2.0, 1.1, 60.0, false), Give::None);
+        // Abreast 0.8 m apart, both walking +z: the higher place waits, the lower walks on; a pair that stepped apart does not wait.
+        let (low, high) = (walking(0, 0.0, 0.0, 4.0), walking(1, 0.8, 0.0, 4.0));
+        let view = view_of(vec![low.clone(), high.clone()]);
+        assert_eq!(queue(&low, &view, 2.0, 1.1, 60.0, false), Give::None);
+        assert_eq!(queue(&high, &view, 2.0, 1.1, 60.0, false), Give::Stop { abreast: true });
+        assert_eq!(queue(&high, &view, 2.0, 1.1, 60.0, true), Give::None);
+        // Crossing: place 0 walks +z, place 1 walks +x from ahead and to its left, each with the other in its cone: only place 1 gives way.
+        let a = walking(0, 0.0, 0.0, 4.0);
+        let mut b = at(1, 0, -1.0, 1.2);
+        b.velocity = [4.0, 0.0];
+        let view = view_of(vec![a.clone(), b.clone()]);
+        assert_eq!(queue(&a, &view, 2.0, 1.1, 60.0, false), Give::None);
+        assert_ne!(queue(&b, &view, 2.0, 1.1, 60.0, false), Give::None);
     }
 }
