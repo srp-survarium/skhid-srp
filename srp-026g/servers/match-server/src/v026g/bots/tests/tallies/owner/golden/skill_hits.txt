@@ -34,6 +34,7 @@ owner-test skill hits: team 0 (skill 0.00): at the stand-in human rifles + SMGs 
           102
         ]
       },
+      "error": {},
       "skill": [
         0,
         0.0
@@ -73,6 +74,7 @@ owner-test skill hits: team 0 (skill 0.00): at the stand-in human rifles + SMGs 
     },
     "team1": {
       "cells": {},
+      "error": {},
       "skill": [
         0,
         0.0
