@@ -1903,6 +1903,7 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!("  {}", game.climbs.line());
             eprintln!("  {}", game.climbs.still.line());
+            eprintln!("  {}", game.slides.line());
             for line in game.climbs.lines() {
                 eprintln!("  {line}");
             }
