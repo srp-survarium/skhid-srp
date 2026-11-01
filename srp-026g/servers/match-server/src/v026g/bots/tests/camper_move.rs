@@ -270,21 +270,28 @@ pub(crate) const RETURN_P: f32 = 0.165;
 pub(crate) const RETURN_MEDIAN_S: f32 = 34.0;
 const RETURN_SPREAD: f32 = 1.6;
 
-/// The moving camper's numbers that a run may change (`SRP_BENCH_CAMPER_MOVE=1`).
+/// How the moving camper moves (`SRP_BENCH_CAMPER_MOVE`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct MoveOptions {
-    /// `SRP_BENCH_CAMPER_DWELL_S`: seconds he stays with fewer than two kills (a draw within 10 % of this).
-    pub(crate) dwell_s: f32,
+pub(crate) enum MoveOptions {
+    /// `1` (an-anticamper §8.4): route points 3-8 m from the spot, 2.5-3.5 m after a kill, and he leaves 3-5 s after a stay's
+    /// second kill or after the dwell (`SRP_BENCH_CAMPER_DWELL_S`: seconds he stays with fewer than two kills, a draw within 10 %).
+    Area { dwell_s: f32 },
+    /// `live` (A239, the camp spec of the live campers against the old bots, `traces-20261028/fx-threat-obj-camp-spec-note.md`): he
+    /// holds within [`LIVE_AREA_M`] of his spot (floors on its cover side, not only route points), steps 2-5 m after a kill
+    /// ([`LIVE_AFTER_KILL_M`]), and leaves a few seconds after a kill once a known enemy is within [`LIVE_LEAVE_ENEMY_M`] or after
+    /// [`LIVE_LEAVE_KILLS`] kills (no dwell clock: the live campers hold until the enemy comes); each life starts on his first spot.
+    Live,
 }
 
 impl MoveOptions {
-    /// Unset or `0` of the move flag: none (the camper stands); `1`: on. Any other value is refused, as is a dwell that is not a
-    /// number over zero.
+    /// Unset or `0` of the move flag: none (the camper stands); `1`: [`Self::Area`]; `live`: [`Self::Live`]. Any other value is
+    /// refused, as is a dwell that is not a number over zero.
     pub(crate) fn parse(flag: Option<&str>, dwell_s: Option<&str>) -> Result<Option<Self>, String> {
         match flag {
             None | Some("0") => return Ok(None),
+            Some("live") => return Ok(Some(Self::Live)),
             Some("1") => {}
-            Some(other) => return Err(format!("SRP_BENCH_CAMPER_MOVE={other:?}: 1 or unset")),
+            Some(other) => return Err(format!("SRP_BENCH_CAMPER_MOVE={other:?}: 1, live or unset")),
         }
         let dwell_s = match dwell_s {
             None => 22.5,
@@ -294,9 +301,31 @@ impl MoveOptions {
                 .filter(|s| s.is_finite() && *s > 0.0)
                 .ok_or_else(|| format!("SRP_BENCH_CAMPER_DWELL_S={text:?}: seconds over 0"))?,
         };
-        Ok(Some(Self { dwell_s }))
+        Ok(Some(Self::Area { dwell_s }))
+    }
+
+    /// The step after a kill, m.
+    fn after_kill_m(self) -> (f32, f32) {
+        match self {
+            Self::Area { .. } => AFTER_KILL_M,
+            Self::Live => LIVE_AFTER_KILL_M,
+        }
     }
 }
+
+/// [A239] The live camper's area: floors this far from his spot, m (the live campers hold within 1.6 m of their centre, p90 3.1 m,
+/// and move 2.0 m 5 s after a kill and 4.9 m 15 s after, against the old bots).
+const LIVE_AREA_M: (f32, f32) = (2.0, 5.0);
+/// [A239] The live camper's step after a kill, m.
+const LIVE_AFTER_KILL_M: (f32, f32) = (2.0, 5.0);
+/// [A239] The live camper leaves when, within [`LIVE_LEAVE_AFTER_MS`] of a kill, a known enemy is this near, m (the live campers
+/// left 3.7 s after their last kill with the nearest enemy 12 m off against the old bots, 21 m against humans: the spec's 12-20 m).
+const LIVE_LEAVE_ENEMY_M: f32 = 16.0;
+const LIVE_LEAVE_AFTER_MS: u32 = 15_000;
+/// [A239] ... a moment after that, ms: the leave decided, he goes.
+const LIVE_LEAVE_DELAY_MS: (f32, f32) = (1_000.0, 3_000.0);
+/// [A239] And after this many kills at a spot, 3-5 s after the last (the spec: 2-4 kills).
+const LIVE_LEAVE_KILLS: u32 = 4;
 
 /// The side of the next peek.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -335,8 +364,9 @@ enum Hold {
 /// Where he is in his life as a camper.
 #[derive(Clone, Debug)]
 enum Mode {
-    /// Holding a spot: the area (the spot first), the point he is at, his kills this stay and when to leave if nothing happens.
-    Stay { area: Vec<Vec3>, here: usize, kills: u32, leave_at: u32, hold: Hold },
+    /// Holding a spot: the area (the spot first), the point he is at, his kills this stay and the last one's time, and when to leave
+    /// (none: no clock, [`MoveOptions::Live`] until an enemy comes near after a kill).
+    Stay { area: Vec<Vec3>, here: usize, kills: u32, last_kill: Option<u32>, leave_at: Option<u32>, hold: Hold },
     /// Walking to a new spot, since this time.
     Leave { to: Vec3, since: u32 },
     /// Back from the dead, waiting where he spawned until this time to walk back to `to`.
@@ -356,7 +386,7 @@ enum Stance {
 #[derive(Clone, Debug)]
 pub(crate) struct CamperMotion {
     options: CamperOptions,
-    dwell_s: f32,
+    moving: MoveOptions,
     mode: Mode,
     stance: Stance,
     /// His kills and health at the last think.
@@ -385,6 +415,8 @@ pub(crate) struct MotionCounts {
     pub(crate) moved_on: u32,
     /// Walks given up as unreachable.
     pub(crate) gave_up: u32,
+    /// [A239] Leaves decided on an enemy near after a kill ([`MoveOptions::Live`]).
+    pub(crate) enemy_near: u32,
 }
 
 /// What a think of the camper knows.
@@ -414,7 +446,7 @@ impl CamperMotion {
         let Start { options, moving, seed, spot, area, now, me } = start;
         let mut rng = Rng::new(0xCA3E_0000 + me.place as u64 + (u64::from(seed) << 20));
         let area = if area.is_empty() { vec![spot] } else { area };
-        let leave_at = now + dwell_ms(moving.dwell_s, &mut rng);
+        let leave_at = first_leave(moving, now, &mut rng);
         let hold = Hold::Cover {
             peek_at: now + rng.range(PERIOD_MS.0, PERIOD_MS.1) as u32,
             side: PeekSide::Right,
@@ -422,8 +454,8 @@ impl CamperMotion {
         let next = now + rng.range(CROUCH_EVERY_MS.0, CROUCH_EVERY_MS.1) as u32;
         Self {
             options,
-            dwell_s: moving.dwell_s,
-            mode: Mode::Stay { area, here: 0, kills: 0, leave_at, hold },
+            moving,
+            mode: Mode::Stay { area, here: 0, kills: 0, last_kill: None, leave_at, hold },
             stance: Stance::Standing { next },
             kills: me.kills,
             health: me.health,
@@ -481,14 +513,22 @@ impl CamperMotion {
                 self.arrive(t, t.me.feet)
             }
             Mode::Leave { to, since } => Mode::Leave { to, since },
-            Mode::Stay { area, here, kills, leave_at, hold } => self.stay(t, area, here, kills, leave_at, hold, killed, hit),
+            Mode::Stay { area, here, kills, last_kill, leave_at, hold } => self.stay(t, Stayed { area, here, kills, last_kill, leave_at }, hold, killed, hit),
         };
         self.stance = self.next_stance(now);
         self.intent(t)
     }
 
-    /// A new life: back to the same spot after the death with the human's chance, else a new spot.
+    /// A new life: back to the same spot after the death with the human's chance, else a new spot; [`MoveOptions::Live`]: on his
+    /// first spot (where `SRP_BENCH_CAMPER_START=spot` puts him; else he walks there).
     fn respawned(&mut self, t: &Think<'_>, dead_ms: u32) {
+        if self.moving == MoveOptions::Live
+            && let Some((first, _)) = camper_spot_at(t.tactics, t.side, &self.options)
+        {
+            self.previous = None;
+            self.mode = Mode::Leave { to: first, since: t.now };
+            return;
+        }
         let spot = self.spot();
         let back = self.rng.range(0.0, 1.0) < RETURN_P;
         if back {
@@ -510,28 +550,39 @@ impl CamperMotion {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn stay(&mut self, t: &Think<'_>, area: Vec<Vec3>, mut here: usize, mut kills: u32, mut leave_at: u32, hold: Hold, killed: bool, hit: bool) -> Mode {
+    fn stay(&mut self, t: &Think<'_>, stayed: Stayed, hold: Hold, killed: bool, hit: bool) -> Mode {
         let now = t.now;
+        let Stayed { area, mut here, mut kills, mut last_kill, mut leave_at } = stayed;
         if killed {
             kills += 1;
-            // Two kills make it a hold; he goes when nothing new comes for a few seconds.
-            leave_at = now
-                + if kills >= 2 {
-                    rng_ms(&mut self.rng, 3_000.0, 5_000.0)
-                } else {
-                    dwell_ms(self.dwell_s, &mut self.rng)
-                };
+            last_kill = Some(now);
+            leave_at = match self.moving {
+                // Two kills make it a hold; he goes when nothing new comes for a few seconds.
+                MoveOptions::Area { dwell_s } => Some(
+                    now + if kills >= 2 { rng_ms(&mut self.rng, 3_000.0, 5_000.0) } else { dwell_ms(dwell_s, &mut self.rng) },
+                ),
+                MoveOptions::Live if kills >= LIVE_LEAVE_KILLS => Some(now + rng_ms(&mut self.rng, 3_000.0, 5_000.0)),
+                MoveOptions::Live => leave_at,
+            };
+        }
+        // [A239] The live camper goes a moment after an enemy comes near within a while of his last kill.
+        if self.moving == MoveOptions::Live
+            && leave_at.is_none()
+            && last_kill.is_some_and(|at| now.saturating_sub(at) <= LIVE_LEAVE_AFTER_MS)
+            && t.enemy.is_some_and(|e| e.distance_xz(t.me.feet) <= LIVE_LEAVE_ENEMY_M)
+        {
+            self.counts.enemy_near += 1;
+            leave_at = Some(now + rng_ms(&mut self.rng, LIVE_LEAVE_DELAY_MS.0, LIVE_LEAVE_DELAY_MS.1));
         }
         // The cause of a move, if any: a kill moves him first.
         let cause = if killed {
-            Some((AFTER_KILL_M, true))
+            Some((self.moving.after_kill_m(), true))
         } else if hit {
             Some((AFTER_HIT_M, false))
         } else {
             None
         };
-        if now >= leave_at {
+        if leave_at.is_some_and(|at| now >= at) {
             return match self.next_spot(t, area[0]) {
                 Some(to) => {
                     self.counts.leaves += 1;
@@ -540,9 +591,9 @@ impl CamperMotion {
                 }
                 // No other spot: he stays and the clock restarts.
                 None => {
-                    let leave_at = now + dwell_ms(self.dwell_s, &mut self.rng);
+                    let leave_at = first_leave(self.moving, now, &mut self.rng);
                     let hold = self.cover(now, PeekSide::Right);
-                    Mode::Stay { area, here, kills, leave_at, hold }
+                    Mode::Stay { area, here, kills, last_kill, leave_at, hold }
                 }
             };
         }
@@ -582,7 +633,7 @@ impl CamperMotion {
             }
             Hold::Cover { peek_at, side } => Hold::Cover { peek_at, side },
         };
-        Mode::Stay { area, here, kills, leave_at, hold }
+        Mode::Stay { area, here, kills, last_kill, leave_at, hold }
     }
 
     fn next_stance(&mut self, now: u32) -> Stance {
@@ -621,10 +672,10 @@ impl CamperMotion {
 
     /// At the new spot: its area, a new stay.
     fn arrive(&mut self, t: &Think<'_>, spot: Vec3) -> Mode {
-        let area = plan_area(t.tactics, t.side, spot, self.options.crouch);
-        let leave_at = t.now + dwell_ms(self.dwell_s, &mut self.rng);
+        let area = area_of(self.moving, t.tactics, t.side, spot, self.options.crouch);
+        let leave_at = first_leave(self.moving, t.now, &mut self.rng);
         let hold = self.cover(t.now, PeekSide::Right);
-        Mode::Stay { area, here: 0, kills: 0, leave_at, hold }
+        Mode::Stay { area, here: 0, kills: 0, last_kill: None, leave_at, hold }
     }
 
     fn intent(&self, t: &Think<'_>) -> Intent {
@@ -662,6 +713,71 @@ impl CamperMotion {
 
 fn rng_ms(rng: &mut Rng, low: f32, high: f32) -> u32 {
     rng.range(low, high) as u32
+}
+
+/// A stay's state that one think carries on (its [`Hold`] apart).
+struct Stayed {
+    area: Vec<Vec3>,
+    here: usize,
+    kills: u32,
+    last_kill: Option<u32>,
+    leave_at: Option<u32>,
+}
+
+/// When a new stay ends with nothing happening: after the dwell ([`MoveOptions::Area`]); never ([`MoveOptions::Live`]: he goes
+/// when an enemy comes near after a kill, or after [`LIVE_LEAVE_KILLS`]).
+fn first_leave(moving: MoveOptions, now: u32, rng: &mut Rng) -> Option<u32> {
+    match moving {
+        MoveOptions::Area { dwell_s } => Some(now + dwell_ms(dwell_s, rng)),
+        MoveOptions::Live => None,
+    }
+}
+
+/// The area of a camper of `moving` at `spot`: [`plan_area`]'s route points, or [`live_area`]'s floors.
+pub(crate) fn area_of(moving: MoveOptions, tactics: &Tactics, side: i32, spot: Vec3, crouched: bool) -> Vec<Vec3> {
+    match moving {
+        MoveOptions::Area { .. } => plan_area(tactics, side, spot, crouched),
+        MoveOptions::Live => live_area(tactics, side, spot, crouched),
+    }
+}
+
+/// [A239] The live camper's area at `spot`: the spot, then walkable floors of its storey [`LIVE_AREA_M`] from it (twelve bearings at
+/// the band's two ends), those the other side's route points see from the fewest places (cover side) first, kept 1.5 m apart, at
+/// most [`AREA_POINTS`]. Route points alone left most spots without a point 2-5 m off.
+pub(crate) fn live_area(tactics: &Tactics, side: i32, spot: Vec3, crouched: bool) -> Vec<Vec3> {
+    let grid = &tactics.world.grid;
+    let theirs: Vec<Vec3> = tactics.routes_of(1 - side).flat_map(|r| r.points.iter().copied()).filter(|p| p.is_finite()).collect();
+    let sight = &tactics.world.sight;
+    let standing = super::super::view::still_eye(Vec3::ZERO, false);
+    let seen_from = |p: Vec3| {
+        theirs
+            .iter()
+            .filter(|q| q.distance_xz(p) <= CAMPER_SEES_M)
+            .filter(|&&q| super::super::aimpoint::shows(q + standing, p, crouched, sight, || true))
+            .count()
+    };
+    let mut near: Vec<(usize, Vec3)> = Vec::new();
+    for k in 0..12 {
+        let angle = k as f32 * std::f32::consts::TAU / 12.0;
+        for r in [LIVE_AREA_M.0, LIVE_AREA_M.1] {
+            let probe = Vec3::new(spot.x + r * angle.cos(), spot.y + 1.0, spot.z + r * angle.sin());
+            let Some(node) = grid.locate(probe, 1.5) else {
+                continue;
+            };
+            let p = grid.position(node);
+            if tactics.walkable(node)
+                && (p.y - spot.y).abs() < 1.0
+                && (LIVE_AREA_M.0 - 0.5..=LIVE_AREA_M.1 + 0.5).contains(&p.distance_xz(spot))
+                && !near.iter().any(|(_, q)| q.distance_xz(p) < 1.5)
+            {
+                near.push((seen_from(p), p));
+            }
+        }
+    }
+    near.sort_by_key(|(seen, _)| *seen);
+    let mut area = vec![spot];
+    area.extend(near.into_iter().take(AREA_POINTS).map(|(_, p)| p));
+    area
 }
 
 /// The dwell of a stay with fewer than two kills, ms: a draw within 10 % of `dwell_s`.
@@ -951,7 +1067,7 @@ impl BenchCamper {
                             moving,
                             seed: self.seed,
                             spot: at,
-                            area: plan_area(tactics, side, at, self.options.crouch),
+                            area: area_of(moving, tactics, side, at, self.options.crouch),
                             now,
                             me,
                         })),
@@ -1060,7 +1176,7 @@ mod tests {
 
     fn options() -> CamperOptions {
         CamperOptions {
-            moving: Some(MoveOptions { dwell_s: 22.5 }),
+            moving: Some(MoveOptions::Area { dwell_s: 22.5 }),
             ..CamperOptions::OFF
         }
     }
@@ -1169,15 +1285,63 @@ mod tests {
     #[test]
     fn the_dwell_setting_holds_after_a_first_kill() {
         let tactics = tactics();
-        let quick = CamperOptions { moving: Some(MoveOptions { dwell_s: 8.0 }), ..CamperOptions::OFF };
+        let quick = CamperOptions { moving: Some(MoveOptions::Area { dwell_s: 8.0 }), ..CamperOptions::OFF };
         let mut m = motion_with(quick, 1);
         // One kill at 1 s; with an 8 s dwell he is gone by 10 s (0.9 x 8 s after the kill at most 8.8 s).
         run(&mut m, &tactics, 0, 11_000, None, |now| u32::from(now >= 1_000));
         assert_eq!(m.counts.leaves, 1, "{:?}", m.mode);
-        let slow = CamperOptions { moving: Some(MoveOptions { dwell_s: 60.0 }), ..CamperOptions::OFF };
+        let slow = CamperOptions { moving: Some(MoveOptions::Area { dwell_s: 60.0 }), ..CamperOptions::OFF };
         let mut s = motion_with(slow, 1);
         run(&mut s, &tactics, 0, 40_000, None, |now| u32::from(now >= 1_000));
         assert_eq!(s.counts.leaves, 0, "a first kill does not shorten a 60 s dwell");
+    }
+
+    /// [A239] The live camper has no dwell clock: quiet, he holds a minute; a kill moves him 2-5 m; an enemy within 16 m within
+    /// 15 s of a kill makes him leave a moment later; with no enemy near, a kill does not; four kills do.
+    #[test]
+    fn the_live_camper_holds_until_an_enemy_comes_near_after_a_kill() {
+        let tactics = tactics();
+        let live = CamperOptions { moving: Some(MoveOptions::Live), ..CamperOptions::OFF };
+        let mut idle = motion_with(live, 1);
+        run(&mut idle, &tactics, 0, 60_000, None, |_| 0);
+        assert_eq!(idle.counts.leaves, 0, "no dwell: {:?}", idle.counts);
+        // A kill at 1 s, an enemy 30 m off: he steps 2-5 m and stays.
+        let mut far = motion_with(live, 1);
+        let from = here(&far);
+        run(&mut far, &tactics, 0, 20_000, Some(Vec3::new(30.0, 0.0, 0.0)), |now| u32::from(now >= 1_000));
+        assert_eq!((far.counts.after_kill, far.counts.leaves), (1, 0), "{:?}", far.counts);
+        let moved = here(&far).distance_xz(from);
+        assert!((1.9..=5.1).contains(&moved), "{moved}");
+        // The same kill with an enemy 10 m off: gone within 3 s of it.
+        let mut near = motion_with(live, 1);
+        run(&mut near, &tactics, 0, 4_200, Some(Vec3::new(10.0, 0.0, 0.0)), |now| u32::from(now >= 1_000));
+        assert_eq!((near.counts.enemy_near, near.counts.leaves), (1, 1), "{:?}", near.counts);
+        // An enemy near with no kill in the last 15 s: he holds.
+        let mut calm = motion_with(live, 1);
+        run(&mut calm, &tactics, 0, 10_000, Some(Vec3::new(10.0, 0.0, 0.0)), |_| 0);
+        assert_eq!(calm.counts.leaves, 0, "{:?}", calm.counts);
+        // Four kills, no enemy near: gone 3-5 s after the fourth.
+        let mut busy = motion_with(live, 1);
+        run(&mut busy, &tactics, 0, 9_100, Some(Vec3::new(40.0, 0.0, 0.0)), |now| (now / 1_000).min(4));
+        assert_eq!(busy.counts.leaves, 1, "{:?}", busy.counts);
+    }
+
+    /// [A239] The live camper's area: his spot, then floors of its storey 2-5 m off, cover side first; each life he goes back to
+    /// his first spot.
+    #[test]
+    fn the_live_area_is_floors_two_to_five_metres_off_and_each_life_starts_on_the_first_spot() {
+        let tactics = tactics();
+        let spot = Vec3::new(35.0, 0.0, 33.0);
+        let area = live_area(&tactics, 0, spot, false);
+        assert_eq!(area[0], spot);
+        assert!(area.len() > 1, "the soak field's floor round the spot: {area:?}");
+        assert!(area[1..].iter().all(|p| (1.5..=5.5).contains(&p.distance_xz(spot))), "{area:?}");
+        let live = CamperOptions { moving: Some(MoveOptions::Live), ..CamperOptions::OFF };
+        let (first, _) = camper_spot_at(&tactics, 0, &live).expect("a spot");
+        let mut m = motion_with(live, 1);
+        // A new life far from it: he heads for the first spot.
+        m.step(&Think { now: 1_000, me: &me_at(Vec3::new(5.0, 0.0, 10.0), 0, 1.0, 900), enemy: None, tactics: &tactics, side: 0 });
+        assert!(matches!(m.mode, Mode::Leave { to, .. } if to == first), "{:?}", m.mode);
     }
 
     /// He walks to his new spot, stops inside the arrival radius the motor is asked for, and a point he cannot reach is given up.
@@ -1385,7 +1549,8 @@ mod tests {
         assert!(CamperStart::parse(Some("spots")).is_err());
         assert_eq!(MoveOptions::parse(None, None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("0"), None), Ok(None));
-        assert_eq!(MoveOptions::parse(Some("1"), Some("30")), Ok(Some(MoveOptions { dwell_s: 30.0 })));
+        assert_eq!(MoveOptions::parse(Some("1"), Some("30")), Ok(Some(MoveOptions::Area { dwell_s: 30.0 })));
+        assert_eq!(MoveOptions::parse(Some("live"), None), Ok(Some(MoveOptions::Live)));
         assert!(MoveOptions::parse(Some("yes"), None).is_err());
         assert!(MoveOptions::parse(Some("1"), Some("abc")).is_err());
         assert!(MoveOptions::parse(Some("1"), Some("-3")).is_err());
