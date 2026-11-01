@@ -18,7 +18,7 @@ use crate::v026g::bots::tuning::WalkWatch;
 const WALKING_MPS: f32 = 0.5;
 
 /// What a walk watched, or why it kept its route's view.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Watched {
     /// The spot of a held lane of the team the bot stands in, ahead.
     Lane(Vec3),
