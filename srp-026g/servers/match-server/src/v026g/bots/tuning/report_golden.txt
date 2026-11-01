@@ -35,7 +35,7 @@ switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0}
 switch values feel: drop_truth=links past_drop=window
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
-switch values heal: drug_stops={"wait":{"quiet_ms":1500}}
+switch values heal: drug_stops=known
 switch values kin: edge=client fix_floor=under_in_jump jump_snap=by_keys margin_edge=lattice pitch_scale=client walk_off_landing=link
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
