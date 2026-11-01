@@ -365,4 +365,5 @@ make_pack.py, review.py).
     3-7 (a part 1.5 cm before its eyepiece). Eight of patch 19's CompM4 and Kobra variants (on the A-91,
     SR-3M, AS Val, Vepr, RPD, UMP-45, Rem 870) have their window shut from the eye: their optic's own body is on
     that line, so the check judges nothing there (`occlusion-live.tsv`). Not changed here: a later revision.
-  - Made on weapons-046@8 (its pistols' configs differ from @6; the models are the same).
+  - Made on weapons-046@8 and weapons-069@10 (the pistols' and the KS-23M's configs differ from @6 and @9; the models
+    are the same).
