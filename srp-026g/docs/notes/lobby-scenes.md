@@ -52,11 +52,9 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   `lobby.md` 2.16) and closes the window; Esc and the button close it too. What it shows the exe
   tells it (`root.srp_lobby_state(pick, shown)`), at its first frame and at each change.
   The pictures are the lobbies' stock views without anyone in them (camp @12, bunker @8,
-  hangar @8, the classic): 560 x 380, twice the card, JPEG at q90 as the game's map renders are
-  (`flash/lobby_menu/bitmaps/SrpLobby*.jpg`, 255 KB the first four), cut from 2560 x 1440 captures
-  of the diagnostics sweep's `empty`. The House's and the Shooting Range's
-  (`SrpLobbyHouse.jpg`, `SrpLobbyRange.jpg`) are placeholders ("PLACEHOLDER ... capture pending")
-  until their packs are live and captured the same way.
+  hangar @8, the classic, blockpost @4, bar @4): 560 x 380, twice the card, JPEG at q90 as the
+  game's map renders are (`flash/lobby_menu/bitmaps/SrpLobby*.jpg`, 403 KB the six), cut from
+  2560 x 1440 captures of the diagnostics sweep's `empty`.
 - **srp keeps each online account's pick** (in memory, `Player::lobby_pick`; none before one) and
   sends it back in `0xA1`: two bytes after the squad (after the id alone for none), the receiver's
   own pick and its commander's (0 none; no squad, none). A pick changed is `squads_dirty`: every
