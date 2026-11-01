@@ -540,6 +540,29 @@ pub struct ThreatTuning {
     /// design-p1c §1, items 13, 14, 16, 18 ([`Breach`], `breach.rs`): the group push on a held spot whose Flank failed or
     /// found no flank spot. OFF by default until its by-side bench.
     pub breach: Option<Breach>,
+    /// design-p1c §6, two campers covering one lane ([`PairTarget`]): of two holds whose lanes cover common ground, a job
+    /// opens only on the one with more kills. `None` (off): each hold gets its own job, up to `threat::JOBS_MAX`. OFF by
+    /// default: the bench has one stand-in camper, so no by-side bench of a pair yet.
+    pub pair_target: Option<PairTarget>,
+}
+
+/// design-p1c §6 (`traces-20261028/fx-threat-obj-two-campers-note.md`): a team that beats two campers covering one lane takes
+/// them one at a time (live, 373 pairs: the first falls a median 33 s after the pair's first kill, the second 43 s after him),
+/// and the one taken first is the one who had killed more when the pair formed (161 of 255, 63 %; the nearer 55 %, the one
+/// who began first 55 %). So of two holds whose lanes cover common ground, the job (K2) opens on the one with more kills
+/// (ties: sensed latest, then the lower id); the other has none while both hold, unless one runs on it already. Their lanes
+/// stay costed (K1), and a role's spot stays out of every held line, so nobody crosses ground both see.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PairTarget {
+    /// The lanes are walked in steps this long for a point the other covers, m. GUESS.
+    pub step_m: f32,
+}
+
+impl Default for PairTarget {
+    fn default() -> Self {
+        Self { step_m: 5.0 }
+    }
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -656,6 +679,7 @@ impl Default for ThreatTuning {
             sniper_memory: Some(SniperMemory::default()),
             concede: None,
             breach: None,
+            pair_target: None,
         }
     }
 }
