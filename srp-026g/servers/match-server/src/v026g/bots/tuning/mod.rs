@@ -115,6 +115,7 @@ pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use hazard::RouteCrossing;
 pub use hazard::ZonePools;
+pub use heal::DrugStops;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
 pub use kit::KitTuning;
@@ -687,8 +688,10 @@ mod tests {
             "/aim/friends/spread_source",
             "/cover/pierce",
             "/grid/client_numbers",
+            "/grid/drop_room",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
+            "/heal/drug_stops",
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/pitch_scale",

@@ -769,7 +769,13 @@ pub struct CombatTuning {
     /// least `fire_within_min_deg` and at most the aim's
     /// `fire_within_deg`; 0: off (the flat `fire_within_deg`). Off: at 3 it
     /// raised the hit rate 1.6 points alone but with `aim_in_first` cost
-    /// 11.5 kills a seed on the bench.
+    /// 11.5 kills a seed on the bench. Why (A228, by side against the tip,
+    /// tier 9-10, 8 seeds: wins -24 %, hits dealt -5 %): the error's floor
+    /// is drawn anew every tick and the view carries the last tick's draw,
+    /// so a bound under the floor's tick-to-tick spread refuses shots by
+    /// the draw, not by where they go (the shots it let go hit no better
+    /// at any view offset); it cut 15 % of the shots in bursts and 25 % of
+    /// those at 40-65 m.
     pub fire_body_share: f32,
     pub fire_within_min_deg: f32,
     /// Standing to aim at a seen target, the legs step side to side: runs
@@ -971,6 +977,14 @@ pub struct CombatTuning {
     pub hit_aim_deg: f32,
     /// A seen enemy within this of the marker's direction is the shooter.
     pub hit_match_deg: f32,
+    /// [A227b] With `hit_bearing`, the marker is taken from the shot that meets the bot, not from the health its next world
+    /// shows (a median 0.95-1.2 s later on the bench: the clients upload a world every 2 s, `game/driven.rs`), as a player's
+    /// HUD shows it at the hit ([`HitAtShot`]). OFF (none) by default: a shot whose line meets the bot is not a hit (the spread is
+    /// the clients'), so of the 318 marks it took against the stand-in human 70 were confirmed by a health drop within 3 s and
+    /// 209 never were, where the HUD shows hits only; by side (288 matches with the stand-in human, 192 with the stand-in
+    /// camper) the outcomes were level (score +0.2 % z +0.1, -0.1 % z -0.0) and the hits from a shooter not sensed faced
+    /// within 1 s 50 vs 58 % and 53 vs 52 % (`traces-20261028/a227-hit-bearing.md`).
+    pub hit_at_shot: Option<HitAtShot>,
     /// With `hit_cover`, it takes cover from the marker's direction: a
     /// spot whose rays from the standing eyes along it (and the marker's
     /// error either side) meet the world within `hit_cover_m`, metres.
@@ -1024,6 +1038,43 @@ pub struct CombatTuning {
     /// Mosin bot backed off a carrier at 9-23 m, and he walked home).
     pub band_hold_on_carrier: bool,
 }
+
+/// [A227b] The hit marker from the shot ([`CombatTuning::hit_at_shot`]). The client's HUD marker
+/// (`game_world_ui::on_hit_from_pos`, 0x2372F0, called from `on_world_event` 0x23B5F0 for a hit event whose receiver is the
+/// local player, PROVEN) draws the exact direction from the view to where the hit came from, at the hit, in the client's own
+/// simulation. The match server sees no hit until a client uploads a world, so the bot's earliest equal is the relayed shot
+/// (`view::held_sounds`) whose line meets its body: an enemy it does not sense, his view within `line_m` across of its feet,
+/// nothing in the way by its sight data.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HitAtShot {
+    /// The shooter's view line passes this near the bot's feet, across, on the ground plane, metres (the body's 0.38 m
+    /// radius and a little of the shot's spread).
+    pub line_m: f32,
+    /// The marker is taken this long after the shot, ms: the bullet's way and the relay to a client (about 100 ms), then a
+    /// human's turn to a cue seen (about 250 ms, Game AI Pro ch. 5 "Agent Reaction Time").
+    pub delay_ms: u32,
+}
+
+impl Default for HitAtShot {
+    fn default() -> Self {
+        Self { line_m: 0.6, delay_ms: 350 }
+    }
+}
+
+/// [A227b] A hit marker taken from a shot ([`CombatTuning::hit_at_shot`]): none; due at `shows`, along `toward` (the shot's
+/// direction with the marker's error drawn); shown at `at` (a health drop within [`SHOT_MARK_CONFIRM_MS`] confirms it).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum ShotMark {
+    #[default]
+    None,
+    Due { shows: u32, toward: f32 },
+    Shown { at: u32 },
+}
+
+/// [A227b] A marker taken from a shot is confirmed by a health drop this soon after it (the bench's count only): a world
+/// shows it within 2 s and its think within one more.
+const SHOT_MARK_CONFIRM_MS: u32 = 3_000;
 
 /// A row of an automatic weapon's bursts: up to `up_to_m` (the first row
 /// whose distance the target is within), a tap (`FireTuning::tap_ms`) with
@@ -1489,6 +1540,7 @@ impl Default for CombatTuning {
             hit_shot_ms: 3_000,
             hit_aim_deg: 8.0,
             hit_match_deg: 15.0,
+            hit_at_shot: None,
             hit_cover: true,
             hit_cover_m: 30.0,
             hit_cover_reach: true,
@@ -2771,6 +2823,94 @@ struct Threat {
     bearing: Option<f32>,
 }
 
+/// [A227] The bench's counts of the hit marker ([`CombatTuning::hit_bearing`]), by team: what a hit with no shooter sensed
+/// led to, so that a by-side bench shows which of its steps the outcome follows. Nothing live.
+pub mod hit_marks {
+    /// One count of a team.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Mark {
+        /// A hit with no shooter sensed (with the switch on or off: the hits the marker is for) ...
+        Unsensed,
+        /// ... of them taken while carrying.
+        UnsensedCarrying,
+        /// The marker's direction turned to (a threat set) ...
+        Marked,
+        /// ... while carrying.
+        MarkedCarrying,
+        /// Not turned to: a seen target kept (`hit_bearing_with_target` off); no shot of an enemy aimed at it found.
+        KeptTarget,
+        NoShooter,
+        /// Ticks of the look along a marker's direction: the view turned with the legs going, standing, or the look given
+        /// way to a carry or a use (`Override::glance`).
+        LookWalking,
+        LookStanding,
+        LookYielded,
+        /// The cover sought from a marker's direction: declined by a carrier (or `hit_cover` off), a spot taken, none found.
+        CoverDeclined,
+        CoverBegan,
+        CoverNoSpot,
+        /// A glance along a teammate's marker callout (`know::ShotFrom`).
+        CalloutGlance,
+        /// [A227b] A shot that meets the bot from an enemy it does not sense (`hit_at_shot`): the marker due ...
+        ShotDue,
+        /// ... of them from outside its view (the out-of-view shots A222 found live) ...
+        ShotDueOutOfView,
+        /// ... the marker taken when due, not taken (a threat held the look, a seen target kept) ...
+        ShotShown,
+        ShotNotShown,
+        /// ... and a taken one that a health drop confirmed within `SHOT_MARK_CONFIRM_MS`, or not.
+        ShotConfirmed,
+        ShotUnconfirmed,
+    }
+
+    /// The marks in order, and their names in the tally.
+    pub const MARKS: [(Mark, &str); 19] = [
+        (Mark::Unsensed, "unsensed_hits"),
+        (Mark::UnsensedCarrying, "unsensed_hits_carrying"),
+        (Mark::Marked, "marked"),
+        (Mark::MarkedCarrying, "marked_carrying"),
+        (Mark::KeptTarget, "kept_target"),
+        (Mark::NoShooter, "no_shooter"),
+        (Mark::LookWalking, "look_ticks_walking"),
+        (Mark::LookStanding, "look_ticks_standing"),
+        (Mark::LookYielded, "look_ticks_yielded"),
+        (Mark::CoverDeclined, "cover_declined"),
+        (Mark::CoverBegan, "cover_began"),
+        (Mark::CoverNoSpot, "cover_no_spot"),
+        (Mark::CalloutGlance, "callout_glances"),
+        (Mark::ShotDue, "shot_due"),
+        (Mark::ShotDueOutOfView, "shot_due_out_of_view"),
+        (Mark::ShotShown, "shot_shown"),
+        (Mark::ShotNotShown, "shot_not_shown"),
+        (Mark::ShotConfirmed, "shot_confirmed"),
+        (Mark::ShotUnconfirmed, "shot_unconfirmed"),
+    ];
+
+    #[cfg(test)]
+    thread_local! {
+        static MARKED: std::cell::Cell<[[u64; MARKS.len()]; 2]> = const { std::cell::Cell::new([[0; MARKS.len()]; 2]) };
+    }
+
+    /// Team `team`'s `mark` happened once.
+    #[cfg(test)]
+    pub fn add(team: u8, mark: Mark) {
+        MARKED.with(|cell| {
+            let mut all = cell.get();
+            all[usize::from(team & 1)][mark as usize] += 1;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn add(_: u8, _: Mark) {}
+
+    /// The marks so far, by team and [`MARKS`] order.
+    #[cfg(test)]
+    pub fn counted() -> [[u64; MARKS.len()]; 2] {
+        MARKED.with(|cell| cell.get())
+    }
+}
+
 /// [friends] A shot fired or held near a teammate is traced at most this
 /// often, ms ...
 pub const FRIEND_NOTE_MS: u32 = 100;
@@ -2920,6 +3060,18 @@ pub struct ReloadNote {
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
 
+/// [measure] A bot's own numbers at a shot (A228, the fire gate): when (ms), its target's distance (m), how far its view was from
+/// where it meant to aim (the gate's test, `off_by`: his chest moved by its aim error), the gate's bound that tick, and its aim
+/// error's size (the larger of its two angles), degrees. What the shot's view was off his chest is the bench's; these split it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FireAim {
+    pub at: u32,
+    pub distance: f32,
+    pub off_deg: f32,
+    pub within_deg: f32,
+    pub error_deg: f32,
+}
+
 /// Fire at a target this lately is still going, ms: a spray at the smoke he went into may go on
 /// (`SmokeTuning::spray_ms`). GUESS: longer than the pause between two bursts of the best players (`aim.pause_ms`).
 const SPRAY_FIRING_MS: u32 = 400;
@@ -3026,6 +3178,9 @@ pub struct Reflex {
     /// Hit with no shooter sensed: where it stood and the marker's
     /// direction, for its team's callout ([`Self::take_hit_note`]).
     hit_note: Option<(Vec3, f32)>,
+    /// [A227b] The marker taken from a shot, and the time up to which the shots were read ([`Self::marks_from_shots`]).
+    shot_mark: ShotMark,
+    shots_read_to: u32,
     /// [threat.concede, item 15] Its last hit from a shooter it sensed ([`Self::last_hit`]).
     last_hit: Option<super::concede::Hit>,
     /// Outranged by the target (play 11's band); the next hide from it
@@ -3036,6 +3191,8 @@ pub struct Reflex {
     first_shot_at: u32,
     /// The last tick it fired, and at whom: a spray into smoke is only fire already going ([`SPRAY_FIRING_MS`]).
     last_fire: Option<(Place, u32)>,
+    /// [measure] Its own numbers at its last shot ([`FireAim`], A228).
+    fire_aim: Option<FireAim>,
     /// The aim's last fresh look found its target behind smoke; the aim sprays at the last point seen now (each
     /// a note when it begins); the notes not yet taken.
     smoke_lost: bool,
@@ -3100,6 +3257,11 @@ pub struct Reflex {
     /// The bench's counts: heal presses made, cover walks begun.
     pub heal_presses: u32,
     pub heal_walks: u32,
+    /// [A217] A press held while hits land (`DrugStops::Wait`): until when (none: no hold under way).
+    heal_hold: Option<u32>,
+    /// [A217] The bench's counts: holds begun, and presses made at the end of a hold.
+    pub heal_holds: u32,
+    pub heal_held_presses: u32,
     thrown: u8,
     next_grenade_roll: u32,
     /// The fragmentation grenades the kit holds now, where known (`Throws::frags_left`, set each poll); none where not.
@@ -3561,6 +3723,11 @@ impl Reflex {
         self.reload_note
     }
 
+    /// [measure] Its own numbers at its last shot, if any (A228).
+    pub fn fire_aim(&self) -> Option<FireAim> {
+        self.fire_aim
+    }
+
     /// [measure] The end of the last round-by-round reload's loop, if any: the
     /// rounds the client put in, of those it was to.
     pub fn loop_end(&self) -> Option<LoopEnd> {
@@ -3796,6 +3963,12 @@ impl Reflex {
         self.hit_note.take()
     }
 
+    /// [A227] The hit marker's direction its look is on at `now` (a threat the marker made, under way).
+    #[cfg(test)]
+    pub fn marker(&self, now: u32) -> Option<f32> {
+        self.threat.filter(|t| now < t.until).and_then(|t| t.bearing)
+    }
+
     /// At a think, with the view alone: the target and the turn to a sound
     /// (the first form; [`Self::think_with`] does everything).
     pub fn think(
@@ -3838,6 +4011,11 @@ impl Reflex {
             let own = if self.hands().pistol_out { Some(WeaponKind::Pistol) } else { sit.weapon };
             own.map(|kind| c.band(kind).1 + c.band_slack_m)
         }).flatten();
+        if c.hit_bearing
+            && let Some(at_shot) = c.hit_at_shot
+        {
+            self.marks_from_shots(me, sit, memory, now, hit, (c, at_shot), rng);
+        }
         self.threats(me, sit.view, memory, now, hit, c, rng);
         self.choose(me, Some(sit.view), memory, now, aim, skill, rng);
         self.glances(me, sit, memory, now, c);
@@ -4582,6 +4760,99 @@ impl Reflex {
         }
     }
 
+    /// [A227b] The hit marker from a shot ([`CombatTuning::hit_at_shot`]): each new shot of an enemy it does not sense
+    /// (neither seen nor heard, as [`Self::threats`] has it) whose view line passes within `line_m` of its feet, with nothing
+    /// in the way by its sight data, makes the marker due `delay_ms` after the shot, along the shot's direction with the
+    /// marker's error drawn. Due, it is taken as a hit's marker is ([`Self::threats`]): unless a threat holds the look or a
+    /// seen target is kept (`hit_bearing_with_target` off). A health drop within [`SHOT_MARK_CONFIRM_MS`] of a taken one
+    /// confirms it (counted).
+    #[allow(clippy::too_many_arguments)]
+    fn marks_from_shots(
+        &mut self,
+        me: &PlaceView,
+        sit: &Situation,
+        memory: &Memory,
+        now: u32,
+        hit: bool,
+        (c, at_shot): (&CombatTuning, HitAtShot),
+        rng: &mut Rng,
+    ) {
+        use hit_marks::Mark;
+        let view = sit.view;
+        self.shot_mark = match self.shot_mark {
+            ShotMark::Shown { at } if hit && now <= at + SHOT_MARK_CONFIRM_MS => {
+                hit_marks::add(me.team, Mark::ShotConfirmed);
+                ShotMark::None
+            }
+            ShotMark::Shown { at } if now > at + SHOT_MARK_CONFIRM_MS => {
+                hit_marks::add(me.team, Mark::ShotUnconfirmed);
+                ShotMark::None
+            }
+            kept => kept,
+        };
+        let read_to = self.shots_read_to;
+        for sound in &view.sounds {
+            if sound.kind != SoundKind::Shot || sound.time <= read_to || sound.time > now || sound.time + c.threat_shot_ms < now {
+                continue;
+            }
+            self.shots_read_to = self.shots_read_to.max(sound.time);
+            if !matches!(self.shot_mark, ShotMark::None) {
+                continue;
+            }
+            let Some(shooter) = view.place(sound.from).filter(|p| p.team != me.team && p.alive) else {
+                continue;
+            };
+            let sensed = memory.seen(sound.from, now, view.clock).is_some()
+                || memory
+                    .tracks()
+                    .iter()
+                    .any(|t| t.who == sound.from && t.source == Source::Heard && t.time + c.threat_shot_ms >= now);
+            if sensed {
+                continue;
+            }
+            // His view line meets the body: ahead of him, within `line_m` across.
+            let (dx, dz) = (me.feet.x - sound.at.x, me.feet.z - sound.at.z);
+            let [fx, fz] = forward(shooter.yaw);
+            let ahead = dx * fx + dz * fz;
+            let across = (dx * fz - dz * fx).abs();
+            if ahead <= 1.0 || across > at_shot.line_m {
+                continue;
+            }
+            if sit.tactics.is_some_and(|tactics| !super::rays::visible(&tactics.world.sight, shooter.eye(), me.chest())) {
+                continue;
+            }
+            let error = c.hit_bearing_error_deg.to_radians();
+            let toward = wrap(bearing(me.feet, sound.at) + rng.range(-error, error));
+            hit_marks::add(me.team, Mark::ShotDue);
+            if !super::sense::in_view(me.feet, me.yaw, sound.at, c.threat_off_deg * 2.0) {
+                hit_marks::add(me.team, Mark::ShotDueOutOfView);
+            }
+            self.shot_mark = ShotMark::Due { shows: sound.time + at_shot.delay_ms, toward };
+        }
+        if let ShotMark::Due { shows, toward } = self.shot_mark
+            && now >= shows
+        {
+            let target_seen = self.target.and_then(|target| memory.seen(target, now, view.clock)).is_some();
+            let look_free = self.threat.is_none_or(|t| now >= t.until) && now >= self.next_threat;
+            self.shot_mark = if look_free && (c.hit_bearing_with_target || !target_seen) {
+                self.threat = Some(Threat {
+                    at: along(me.feet, toward, c.hit_look_m),
+                    error_m: 0.0,
+                    until: now + c.threat_ms,
+                    hit: true,
+                    bearing: Some(toward),
+                });
+                self.next_threat = now + c.threat_ms + c.threat_again_ms;
+                self.hit_note = Some((me.feet, toward));
+                hit_marks::add(me.team, Mark::ShotShown);
+                ShotMark::Shown { at: now }
+            } else {
+                hit_marks::add(me.team, Mark::ShotNotShown);
+                ShotMark::None
+            };
+        }
+    }
+
     /// The threat to turn to at this think (`CombatTuning::threat_*`): hit,
     /// the nearest enemy it sensed firing lately unless that is the target
     /// it sees; not hit, a shot heard near from outside its view and nearer
@@ -4668,6 +4939,14 @@ impl Reflex {
         // Hit, and no shooter sensed at all: the HUD's hit marker gives
         // the direction alone.
         if hit {
+            use hit_marks::Mark;
+            let carrying = me.carrying.is_some();
+            if shooters.is_empty() {
+                hit_marks::add(me.team, Mark::Unsensed);
+                if carrying {
+                    hit_marks::add(me.team, Mark::UnsensedCarrying);
+                }
+            }
             if shooters.is_empty()
                 && c.hit_bearing
                 && (c.hit_bearing_with_target || target_at.is_none())
@@ -4682,6 +4961,13 @@ impl Reflex {
                 });
                 self.next_threat = now + c.threat_ms + c.threat_again_ms;
                 self.hit_note = Some((me.feet, toward));
+                hit_marks::add(me.team, Mark::Marked);
+                if carrying {
+                    hit_marks::add(me.team, Mark::MarkedCarrying);
+                }
+            } else if shooters.is_empty() && c.hit_bearing {
+                let kept = !(c.hit_bearing_with_target || target_at.is_none());
+                hit_marks::add(me.team, if kept { Mark::KeptTarget } else { Mark::NoShooter });
             }
             return;
         }
@@ -4827,6 +5113,7 @@ impl Reflex {
             if outside(at) {
                 self.glance = Some((at, now + c.glance_ms));
                 self.next_told = now + c.glance_told_every_ms;
+                hit_marks::add(me.team, hit_marks::Mark::CalloutGlance);
                 return;
             }
         }
@@ -5071,6 +5358,7 @@ impl Reflex {
         {
             // A carrier keeps its way home.
             if sit.view.objective().is_actor(me) || !c.hit_cover {
+                hit_marks::add(me.team, hit_marks::Mark::CoverDeclined);
                 return Sought::Declined;
             }
             let spread = c.hit_bearing_error_deg.to_radians();
@@ -5099,8 +5387,10 @@ impl Reflex {
                 .into_iter()
                 .find(|spot| covered(spot.at));
             let Some(spot) = spot else {
+                hit_marks::add(me.team, hit_marks::Mark::CoverNoSpot);
                 return Sought::NoSpot;
             };
+            hit_marks::add(me.team, hit_marks::Mark::CoverBegan);
             self.cover = Cover::Hiding {
                 at: spot.at,
                 enemy: threat.at,
@@ -6307,10 +6597,23 @@ impl Reflex {
     /// the next think ([`Self::heal_cover`]).
     fn heal_press(&mut self, over: &mut Override, me: &PlaceView, now: u32) {
         let Some(wish) = self.heal_wish.take() else {
+            self.heal_hold = None;
             return;
         };
         if me.carrying.is_some() || self.throw.is_some() {
             return;
+        }
+        // [A217] Hits land: no press, the cover walk now (a hit in the item's delay would throw the unit away).
+        if let Some(until) = wish.wait_until {
+            if self.heal_hold.is_none() {
+                self.heal_holds += 1;
+            }
+            self.heal_hold = Some(until);
+            self.heal_walk = Some((wish, now));
+            return;
+        }
+        if self.heal_hold.take().is_some() {
+            self.heal_held_presses += 1;
         }
         over.keys |= wish.key;
         self.heal_presses += 1;
@@ -6879,6 +7182,13 @@ impl Reflex {
         }
         if fire {
             self.last_fire = Some((track.who(), now));
+            self.fire_aim = Some(FireAim {
+                at: now,
+                distance,
+                off_deg: off.to_degrees(),
+                within_deg,
+                error_deg: error.0.abs().max(error.1.abs()).to_degrees(),
+            });
             #[cfg(test)]
             if spraying {
                 super::smoke::tally::add(me.team, super::smoke::tally::Event::Spray);
@@ -12925,6 +13235,59 @@ mod tests {
         }
     }
 
+    /// [A227b] With `hit_at_shot`, a shot from behind whose line meets the bot marks it `delay_ms` after the shot, before
+    /// any health drop, along the shot's direction (within the marker's error); a health drop then confirms it. A shot whose
+    /// line passes 3 m beside it marks nothing, and with the switch off the marker waits for the health drop.
+    #[test]
+    fn with_hit_at_shot_a_shot_that_meets_it_marks_it_before_the_health_drop() {
+        use hit_marks::Mark;
+        let start = Vec3::new(0.0, 0.0, 0.0);
+        let shooter_at = Vec3::new(0.0, 0.0, -40.0);
+        let away = bearing(start, Vec3::new(0.0, 0.0, 40.0));
+        let truth = bearing(start, shooter_at);
+        let on = AimTuning {
+            combat: CombatTuning { hit_bearing: true, hit_at_shot: Some(HitAtShot::default()), ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        let off = AimTuning { combat: CombatTuning { hit_bearing: true, ..CombatTuning::default() }, ..AimTuning::default() };
+        let delay = HitAtShot::default().delay_ms;
+        let count = |mark: Mark| hit_marks::counted()[0][mark as usize];
+        // (the tuning, the shooter's aim point): whether the marker was taken before the health drop.
+        let run = |aim: &AimTuning, aim_at: Vec3| {
+            let mut me = body(0, 0, start, away);
+            let mut view = view_of(vec![me.clone(), body(1, 1, shooter_at, bearing(shooter_at, aim_at))]);
+            let memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(70);
+            reflex.think_with(&me, &Situation::of(&view), &memory, 1_000, aim, 0.5, &mut rng);
+            view.sounds = vec![shot(1, shooter_at, 1_100)];
+            reflex.think_with(&me, &Situation::of(&view), &memory, 1_100 + delay - 50, aim, 0.5, &mut rng);
+            assert!(reflex.take_hit_note().is_none(), "not before the delay");
+            reflex.think_with(&me, &Situation::of(&view), &memory, 1_100 + delay, aim, 0.5, &mut rng);
+            let note = reflex.take_hit_note();
+            if let Some((_, toward)) = note {
+                assert!(wrap(toward - truth).abs() <= aim.combat.hit_bearing_error_deg.to_radians() + 1e-4, "{toward} {truth}");
+                let o = reflex.tick(&me, &view, &memory, 1_100 + delay, true, aim, 0.5, &mut rng);
+                let look = o.look_at.expect("looks along the marker");
+                assert!(wrap(bearing(start, look) - toward).abs() < 1e-3);
+                assert!(!o.fire);
+            }
+            // The world's health drop a second later.
+            me.health = 0.7;
+            reflex.think_with(&me, &Situation::of(&view), &memory, 2_300, aim, 0.5, &mut rng);
+            note.is_some()
+        };
+        let (due, out_of_view, shown, confirmed) =
+            (count(Mark::ShotDue), count(Mark::ShotDueOutOfView), count(Mark::ShotShown), count(Mark::ShotConfirmed));
+        assert!(run(&on, start), "a shot that meets it marks it at the shot");
+        assert_eq!(count(Mark::ShotDue) - due, 1);
+        assert_eq!(count(Mark::ShotDueOutOfView) - out_of_view, 1, "from behind");
+        assert_eq!(count(Mark::ShotShown) - shown, 1);
+        assert_eq!(count(Mark::ShotConfirmed) - confirmed, 1, "the health drop confirms it");
+        assert!(!run(&on, Vec3::new(3.0, 0.0, 0.0)), "a line 3 m beside it marks nothing");
+        assert!(!run(&off, start), "off: the marker waits for the health drop");
+    }
+
     /// Seen afterwards near the marker's direction, the shooter is taken
     /// as the target (if in range).
     #[test]
@@ -13747,6 +14110,7 @@ mod tests {
             key: key::QUICK[0],
             reach_m,
             enemy_m: 10.0,
+            wait_until: None,
         }
     }
 
@@ -13784,6 +14148,23 @@ mod tests {
             assert_eq!(a.keys & !key::QUICK[0], b.keys, "no other key changes");
             assert_eq!((a.fire, a.legs, a.look_at), (b.fire, b.legs, b.look_at));
         }
+    }
+
+    /// [A217] A wish held while hits land presses no key and counts one hold however many ticks it lasts; the press
+    /// that ends it counts as a held press.
+    #[test]
+    fn a_held_heal_wish_presses_nothing_until_it_is_quiet() {
+        let enemy_at = Vec3::new(55.0, 0.0, 30.0);
+        let aim = AimTuning::default();
+        let (mut reflex, me, view, memory, mut rng) = heal_duel(enemy_at, false);
+        let held = HealWish { wait_until: Some(1_500), ..wish(7.0) };
+        let mut keys = Vec::new();
+        for (now, wished) in [(1_350, held), (1_400, held), (1_500, wish(7.0)), (1_550, wish(7.0))] {
+            reflex.set_heal((now != 1_550).then_some(wished));
+            keys.push(reflex.tick(&me, &view, &memory, now, true, &aim, 0.5, &mut rng).keys & key::QUICK[0]);
+        }
+        assert_eq!(keys, [0, 0, key::QUICK[0], 0]);
+        assert_eq!((reflex.heal_holds, reflex.heal_held_presses, reflex.heal_presses), (1, 1, 1));
     }
 
     #[test]
