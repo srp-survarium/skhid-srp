@@ -102,8 +102,9 @@ one crate, `client-patches/rust/patches`, in three layers:
 
 link_026g.py enforces the layering on every build (and the self-test
 repeats it): in the crate's own sources no game address, no hand-made
-binding (`GameFn`, `Import`, `transmute`, an `extern` block), and a patch
-module forbids `unsafe` and never names `raw`. A new game function is a new
+binding (`GameFn`, `Import`, `transmute`, an `extern` block), a patch
+module forbids `unsafe` and neither it nor its own modules name `raw`, and
+each shared crate the patches depend on forbids `unsafe`. A new game function is a new
 row of `engine_026g.tsv`, never a binding written by hand.
 
 ## 2. One crate, i686 everywhere
@@ -151,10 +152,11 @@ NH3API's HiHook/LoHook applied at build time:
 | `code` | hand-written NASM with a byte limit, where nothing above fits | -- |
 | `entry` | a Rust handler our own NASM calls (cdecl; a site row with VA `-`, its arguments the frame at ESP in `holds`), installed nowhere: the build writes its address where our code calls it | `&mut Context`, returning `Flow::Continue` |
 
-**`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
-`al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
-(`xmm_f32`/`set_xmm_f32`, f64), the x87 top (`set_st0`), the stack and typed
-frame locals. **`Flow`**: `Continue` (apply the context's writes, then replay
+**`Context` (`lohook`)**: the machine at the site, opaque to a patch. Its
+registers and flags (`reg`/`set_reg`/`set_reg8`/`set_flag`) are
+`pub(in crate::vostok)`: a site's vostok view (`vostok::draw`,
+`vostok::keyboard`, ..) turns them into typed methods, so a patch cannot
+write EBP or ESI. **`Flow`**: `Continue` (apply the context's writes, then replay
 the overwritten bytes), `Skip`, or `Exit(E)` -- a generated enum of the
 hook's named exits, so a continuation is never return-address arithmetic in
 Rust. An exit is a jump inside the host function or a `host_return { pop,

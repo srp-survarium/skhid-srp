@@ -128,7 +128,7 @@ impl<'t> LobbyCamera<'t> {
     }
 
     /// The lobby menu the camera is its (the ctor's), when it has one.
-    pub fn menu(&self) -> Option<raw::LobbyMenu> {
+    pub(in crate::vostok) fn menu(&self) -> Option<raw::LobbyMenu> {
         // SAFETY: the ticker's own field, the camera's menu (made before it, alive while it is).
         unsafe { self.ticker.menu() }
     }

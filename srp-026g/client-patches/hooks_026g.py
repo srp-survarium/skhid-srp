@@ -889,9 +889,13 @@ def check_layers():
     """The three layers (rust_patches.md): in the crate's own sources
     (rust/patches/src/**, not the generated `raw` includes) no game address,
     no hand-made binding (`GameFn`, `Import`, `transmute`, an `extern`
-    block); and a patch module (src/<patch>.rs) forbids `unsafe` and never
-    names `raw`. Raises Bad on a breach."""
+    block); a patch module (src/<patch>.rs) forbids `unsafe`, it and its own
+    modules (src/<patch>/**) never name `raw`; and each shared crate the
+    patches depend on forbids `unsafe`. Raises Bad on a breach."""
     patches = {p.stem for p in TOML_DIR.glob("*.toml")}
+    for dep in re.findall(r'\{\s*path\s*=\s*"([^"]+)"', (TOML_DIR.parent / "Cargo.toml").read_text()):
+        if "#![forbid(unsafe_code)]" not in strip_rust((TOML_DIR.parent / dep / "src" / "lib.rs").read_text()):
+            raise Bad(f"{dep}: a crate the patches use must have `#![forbid(unsafe_code)]`")
     for path in sorted(TOML_DIR.rglob("*.rs")):
         where = path.relative_to(TOML_DIR.parent)
         # the game's build drops `#[cfg(test)]` (it is only the host tests);
@@ -908,8 +912,9 @@ def check_layers():
         if hit:
             raise Bad(f"{where}: `{hit.group(0).strip()}` is a hand-made binding; a game function is a row of "
                       "engine_026g.tsv (the `raw` layer), never written by hand")
-        if path.parent == TOML_DIR and path.stem in patches:
-            if "#![forbid(unsafe_code)]" not in code:
+        own = path.relative_to(TOML_DIR).parts
+        if (own[0] if len(own) > 1 else path.stem) in patches:
+            if len(own) == 1 and "#![forbid(unsafe_code)]" not in code:
                 raise Bad(f"{where}: a patch module must have `#![forbid(unsafe_code)]`")
             if re.search(r"\braw\b", code):
                 raise Bad(f"{where}: a patch module uses `vostok` alone, never `raw`")

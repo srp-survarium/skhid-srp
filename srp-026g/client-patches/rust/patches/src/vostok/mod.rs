@@ -82,7 +82,7 @@ mod generated {
 
 pub use cell::GameCell;
 pub use sync::Lock;
-pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
+pub use context::{Context, Exit, Flow, NoExit, Ret};
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
