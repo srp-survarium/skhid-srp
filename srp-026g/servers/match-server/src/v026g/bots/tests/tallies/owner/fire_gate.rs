@@ -31,13 +31,18 @@ const TTFS_BINS_MS: [u32; 8] = [250, 500, 750, 1_000, 1_500, 2_000, 3_000, 5_000
 
 const CELLS: usize = OFF_LABELS.len() * 2 * BAND_LABELS.len() * 2;
 
-/// An engagement under way: its target, since when, and its first shot at him.
+/// An engagement under way: its target, since when, its first shot at him, and since when the input has had no target, while
+/// that is a moment (within [`LOST_MS`]: the reflex's own "lost a moment", `reflex::LOST_MS`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Engagement {
     target: Place,
     since: u32,
     first_shot: Option<u32>,
+    lost_since: Option<u32>,
 }
+
+/// A target dropped for at most this long keeps its engagement, ms.
+const LOST_MS: u32 = crate::v026g::bots::reflex::LOST_MS;
 
 /// How an engagement ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -203,14 +208,24 @@ impl Topic for FireGate {
                 self.close(killed, team_of(killed), if lost { End::Lost } else { End::None }, camper);
             }
         }
-        // Each bot's target as its input was made: a new one opens an engagement.
+        // Each bot's target as its input was made: the same keeps its engagement (also after a moment with none), another opens one;
+        // none for longer than a moment ends it.
         for (place, body) in game.bodies.iter().enumerate().take(self.engaged.len()) {
+            let team = usize::from(body.team).min(1);
             let target = body
                 .target
                 .filter(|&t| bot(place) && body.alive && game.bodies.get(t).is_some_and(|b| b.alive && b.team != body.team));
-            if self.engaged[place].map(|e| e.target) != target {
-                self.close(place, usize::from(body.team).min(1), End::None, camper);
-                self.engaged[place] = target.map(|target| Engagement { target, since: tick, first_shot: None });
+            match (self.engaged[place], target) {
+                (Some(e), Some(t)) if e.target == t => self.engaged[place] = Some(Engagement { lost_since: None, ..e }),
+                (Some(e), None) if body.alive => match e.lost_since {
+                    None => self.engaged[place] = Some(Engagement { lost_since: Some(tick), ..e }),
+                    Some(at) if tick.saturating_sub(at) * TICK_MS > LOST_MS => self.close(place, team, End::None, camper),
+                    Some(_) => {}
+                },
+                (_, target) => {
+                    self.close(place, team, End::None, camper);
+                    self.engaged[place] = target.map(|target| Engagement { target, since: tick, first_shot: None, lost_since: None });
+                }
             }
         }
     }
@@ -244,10 +259,10 @@ impl Topic for FireGate {
                     format!("{} {}/{} {:.1} %", OFF_LABELS[o], c[1], c[0], rate(c))
                 })
                 .collect();
-            let first = sum(&|i| (i / 2 / BAND_LABELS.len()) % 2 == 0);
-            let burst = sum(&|i| (i / 2 / BAND_LABELS.len()) % 2 == 1);
-            let calm = sum(&|i| i % 2 == 0);
-            let fire = sum(&|i| i % 2 == 1);
+            let first = sum(&|i| (i / 2 / BAND_LABELS.len()).is_multiple_of(2));
+            let burst = sum(&|i| !(i / 2 / BAND_LABELS.len()).is_multiple_of(2));
+            let calm = sum(&|i| i.is_multiple_of(2));
+            let fire = sum(&|i| !i.is_multiple_of(2));
             text.push(format!(
                 "team {team}: view off (chest half-widths) {}; first {}/{} {:.1} %, burst {}/{} {:.1} %; calm {}/{} {:.1} %, under fire {}/{} {:.1} %; duels {}; vs the stand-in camper: shots {}/{} {:.1} %, duels {}",
                 per_off.join(", "),
@@ -292,9 +307,9 @@ mod tests {
     #[test]
     fn an_engagement_ends_won_lost_or_none_with_its_time_to_the_first_shot() {
         let mut gate = FireGate::new(4);
-        gate.engaged[0] = Some(Engagement { target: 2, since: 10, first_shot: Some(15) });
+        gate.engaged[0] = Some(Engagement { target: 2, since: 10, first_shot: Some(15), lost_since: None });
         gate.close(0, 0, End::Won, Some(2));
-        gate.engaged[1] = Some(Engagement { target: 3, since: 10, first_shot: None });
+        gate.engaged[1] = Some(Engagement { target: 3, since: 10, first_shot: None, lost_since: None });
         gate.close(1, 0, End::Lost, Some(2));
         gate.close(1, 0, End::None, Some(2));
         let team = &gate.teams[0];
