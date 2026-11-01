@@ -35,6 +35,8 @@ pub const AT_COVER_M: f32 = 1.5;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BreachRules {
     pub gather_ms: u32,
+    /// A crosser's walk to its gather point, m at most.
+    pub walk_max_m: f32,
     pub go_ms: u32,
     pub hold_ms: u32,
     pub trade_ms: u32,
@@ -351,6 +353,8 @@ pub enum NoPlan {
     NoPair,
     /// A pair, but one of them has no gather point out of his sight and out of the lanes.
     NoGather,
+    /// Gather points, but a crosser's walk to its own is over [`BreachRules::walk_max_m`].
+    TooFar,
 }
 
 /// The cover and gather points of a Breach on `line` for crossers standing at `feet` (§1, item 18): cover points in the
@@ -358,7 +362,7 @@ pub enum NoPlan {
 /// goals out of the spawn areas; two of them [`BreachRules::apart_m`] apart and [`BreachRules::bearing_min_deg`] apart in
 /// bearing from his spot, the pair with the shortest walk for the crossers; a gather point for each in the gather band round
 /// its cover point, out of his sight (no bullet line from his spot) and out of the lanes, the nearest walk from the crosser
-/// ([`walk_m`]; a point no walk reaches is none).
+/// ([`walk_m`]; a point no walk reaches is none), that walk within [`BreachRules::walk_max_m`] (else [`NoPlan::TooFar`]).
 #[allow(clippy::too_many_arguments)]
 pub fn plan(
     tactics: &Tactics,
@@ -409,7 +413,8 @@ pub fn plan(
     if pairs.is_empty() {
         return Err(NoPlan::NoPair);
     }
-    // The best pair whose cover points both have a gather point.
+    // The best pair whose cover points both have a gather point within the crosser's walk.
+    let mut far = false;
     for (_, cover) in pairs.into_iter().take(4) {
         let mut plans = [Plan { gather: cover[0], cover: cover[0], walk_m: 0.0 }; CROSSERS];
         let mut all = true;
@@ -428,8 +433,9 @@ pub fn plan(
                 .filter_map(|p| walk_m(tactics, feet[k], p).map(|walk| (p, walk)))
                 .min_by(|a, b| a.1.total_cmp(&b.1));
             match gather {
-                Some((gather, walk_m)) => plans[k] = Plan { gather, cover: cover[k], walk_m },
-                None => {
+                Some((gather, walk_m)) if walk_m <= rules.walk_max_m => plans[k] = Plan { gather, cover: cover[k], walk_m },
+                found => {
+                    far |= found.is_some();
                     all = false;
                     break;
                 }
@@ -439,7 +445,7 @@ pub fn plan(
             return Ok(plans);
         }
     }
-    Err(NoPlan::NoGather)
+    Err(if far { NoPlan::TooFar } else { NoPlan::NoGather })
 }
 
 /// The walk from `from` to `to`, m: the regions' way between their floors ([`Tactics::walk_estimate`]), at least the straight
@@ -726,7 +732,7 @@ pub mod tally {
     use super::{Event, NoPlan, NotOpened, Step};
     use crate::v026g::bots::concede::{Abort, Failed};
 
-    pub const NAMES: [&str; 26] = [
+    pub const NAMES: [&str; 28] = [
         "due",
         "opened",
         "opened_with_pinner",
@@ -734,6 +740,7 @@ pub mod tally {
         "no_cover",
         "no_pair",
         "no_gather",
+        "too_far",
         "no_crossers",
         "cap",
         "conceded",
@@ -751,16 +758,17 @@ pub mod tally {
         "failed_holder_down",
         "failed_untraded",
         "failed_gather_timeout",
-        "failed_aborted",
+        "failed_objective_worse",
+        "failed_no_crossers",
         "failed_time",
     ];
-    pub const PINNER_LOST: usize = 26;
-    pub const CROSSER_DOWNS: usize = 27;
+    pub const PINNER_LOST: usize = NAMES.len();
+    pub const CROSSER_DOWNS: usize = NAMES.len() + 1;
     /// Thinks an objective player waited out of a held lane for the team's Breach (§13, §14).
-    pub const OBJECTIVE_WAITS: usize = 28;
+    pub const OBJECTIVE_WAITS: usize = NAMES.len() + 2;
     /// Frags a Breach's bots let go at a held spot while in the job (A170's held-spot rule: the Breach has no throw of its own).
-    pub const FRAGS_AT_SPOT: usize = 29;
-    pub const ALL: usize = 30;
+    pub const FRAGS_AT_SPOT: usize = NAMES.len() + 3;
+    pub const ALL: usize = NAMES.len() + 4;
 
     // A match runs on one thread: its counts are the thread's (the topic reads the difference from its start).
     thread_local! {
@@ -827,6 +835,7 @@ pub mod tally {
                 NotOpened::Plan(NoPlan::NoCover) => "no_cover",
                 NotOpened::Plan(NoPlan::NoPair) => "no_pair",
                 NotOpened::Plan(NoPlan::NoGather) => "no_gather",
+                NotOpened::Plan(NoPlan::TooFar) => "too_far",
                 NotOpened::NoCrossers => "no_crossers",
                 NotOpened::Cap => "cap",
                 NotOpened::Conceded => "conceded",
@@ -857,7 +866,8 @@ pub mod tally {
                         Failed::HolderDown { .. } => "failed_holder_down",
                         Failed::Untraded => "failed_untraded",
                         Failed::GatherTimedOut => "failed_gather_timeout",
-                        Failed::Aborted(Abort::ObjectiveWorse | Abort::NoCrossers) => "failed_aborted",
+                        Failed::Aborted(Abort::ObjectiveWorse) => "failed_objective_worse",
+                        Failed::Aborted(Abort::NoCrossers) => "failed_no_crossers",
                         Failed::Time => "failed_time",
                     }),
                     _ => {}
@@ -873,6 +883,7 @@ mod tests {
 
     const RULES: BreachRules = BreachRules {
         gather_ms: 8_000,
+        walk_max_m: 1_000.0,
         go_ms: 6_000,
         hold_ms: 10_000,
         trade_ms: 5_000,
@@ -1089,13 +1100,14 @@ mod tests {
                 let at = tactics.world.grid.position(node);
                 let held = HeldLine::for_test(1, 9, at, &[at + Vec3::new(0.0, 0.0, 30.0)], Some(0));
                 let feet = [at + Vec3::new(30.0, 0.0, 0.0), at + Vec3::new(-30.0, 0.0, 0.0)];
+                let again = rng.clone();
                 if let Ok(plans) = plan(&tactics, &held, std::slice::from_ref(&held), feet, None, 0, &RULES, &mut rng) {
-                    found = Some((held, plans));
+                    found = Some((held, plans, again));
                     break 'search;
                 }
             }
         }
-        let (held, plans) = found.expect("a spot of the field with a plan");
+        let (held, plans, mut again) = found.expect("a spot of the field with a plan");
         let [a, b] = [plans[0].cover, plans[1].cover];
         assert!((RULES.apart_m.0..=RULES.apart_m.1).contains(&a.distance_xz(b)), "{plans:?}");
         for p in plans {
@@ -1107,6 +1119,9 @@ mod tests {
         for (p, f) in plans.iter().zip(feet_of(&held)) {
             assert!(p.walk_m >= f.distance_xz(p.gather) - 1e-3, "{p:?}");
         }
+        // The same spot with the crossers' walk capped under theirs: too far, not "no gather".
+        let near = BreachRules { walk_max_m: 1.0, ..RULES };
+        assert_eq!(plan(&tactics, &held, std::slice::from_ref(&held), feet_of(&held), None, 0, &near, &mut again), Err(NoPlan::TooFar));
     }
 
     fn feet_of(held: &HeldLine) -> [Vec3; CROSSERS] {

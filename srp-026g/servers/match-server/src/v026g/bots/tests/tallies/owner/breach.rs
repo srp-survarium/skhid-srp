@@ -61,7 +61,7 @@ impl BreachCounts {
             let went = get("went");
             let traded = get("traded");
             text.push(format!(
-                "team {team}: due {}, opened {} (pinner {}, objective {}), refused no cover {} / no pair {} / no gather {} / no crossers {} / cap {} / conceded {} / like the last {}; went {} (gather wait mean {:.1} s), held {}, first deaths {} traded {} (mean {:.1} s); ended his death by the job {} / by another {} / unheld {}; failed holder down {} / untraded {} / gather timeout {} / aborted {} / time {}; pinners lost {}, crossers down {}; objective player waits (thinks) {}; frags at the spot by its bots {}",
+                "team {team}: due {}, opened {} (pinner {}, objective {}), refused no cover {} / no pair {} / no gather {} / too far {} / no crossers {} / cap {} / conceded {} / like the last {}; went {} (gather wait mean {:.1} s), held {}, first deaths {} traded {} (mean {:.1} s); ended his death by the job {} / by another {} / unheld {}; failed holder down {} / untraded {} / gather timeout {} / objective worse {} / no crossers {} / time {}; pinners lost {}, crossers down {}; objective player waits (thinks) {}; frags at the spot by its bots {}",
                 get("due"),
                 get("opened"),
                 get("opened_with_pinner"),
@@ -69,6 +69,7 @@ impl BreachCounts {
                 get("no_cover"),
                 get("no_pair"),
                 get("no_gather"),
+                get("too_far"),
                 get("no_crossers"),
                 get("cap"),
                 get("conceded"),
@@ -85,7 +86,8 @@ impl BreachCounts {
                 get("failed_holder_down"),
                 get("failed_untraded"),
                 get("failed_gather_timeout"),
-                get("failed_aborted"),
+                get("failed_objective_worse"),
+                get("failed_no_crossers"),
                 get("failed_time"),
                 n(tally::PINNER_LOST),
                 n(tally::CROSSER_DOWNS),

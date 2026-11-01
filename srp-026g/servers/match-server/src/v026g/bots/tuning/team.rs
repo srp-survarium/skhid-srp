@@ -170,9 +170,14 @@ impl Concede {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Breach {
-    /// The crossers wait for each other this long at most, s: the camper's median life after his last kill (8 s); a
-    /// group not there by then fails (`GatherTimedOut`), it does not trickle.
+    /// The crossers wait for each other this long at most after the longer walk to the gather points at the walk cap, s:
+    /// the camper's median life after his last kill (8 s); a group not there by then fails (`GatherTimedOut`), it does not
+    /// trickle.
     pub gather_s: f32,
+    /// A crosser walks this far to its gather point at most, m; a farther mate is no crosser. Humans' comers stood within
+    /// 35 m of his spot at his death and made their last 8 m inside the 30 s before (the note's comer rule); the first
+    /// bench's crossers walked 13-127 m (median ~55) and half the Breaches lost one on the way. GUESS from that window.
+    pub walk_max_m: f32,
     /// The walk from the gather points to the cover points, s at most (half of the humans' 2+ comers go within 5 s of
     /// each other).
     pub go_s: f32,
@@ -199,6 +204,7 @@ impl Default for Breach {
     fn default() -> Self {
         Self {
             gather_s: 8.0,
+            walk_max_m: 40.0,
             go_s: 6.0,
             hold_s: 10.0,
             trade_s: 5.0,
@@ -220,6 +226,7 @@ impl Breach {
         let band = |lo: f32, hi: f32| (lo.max(0.0), hi.max(lo.max(0.0)));
         crate::v026g::bots::breach::BreachRules {
             gather_ms: ms(self.gather_s),
+            walk_max_m: self.walk_max_m.max(0.0),
             go_ms: ms(self.go_s),
             hold_ms: ms(self.hold_s),
             trade_ms: ms(self.trade_s),
