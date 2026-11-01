@@ -7,6 +7,8 @@ section .text
 global engine_cfg_child
 global engine_cfg_has
 global engine_malloc
+global engine_allocated_size
+global engine_dump_statistics
 global engine_match_rule_base
 global engine_write_u8
 global engine_write_u16
@@ -109,6 +111,21 @@ global engine_query_one
 global engine_release_emitter
 global engine_set_listener
 global engine_medkit_set_active
+global engine_profile_destroy
+global engine_release_inventory
+global engine_global_memory_status_ex
+global engine_allocate_recipe
+global engine_get_current_process_id
+global engine_bind_member_callback
+global engine_inventory_variant_type
+global engine_dispatch_callbacks
+global engine_inventory_set
+global engine_release_inventory_item
+global engine_forget_active_object
+global engine_weapon_set_user
+global engine_weapon_initialize
+global engine_weapon_activate
+global engine_weapon_deactivate
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -136,6 +153,12 @@ engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_in
 engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
 engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 engine_gfx_set_member equ 0x7c6a20   ; 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
+engine_global_memory_status_ex equ 0x870164   ; the IAT slot 0x870164 (an import, stdcall)
+engine_get_current_process_id equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
+engine_weapon_set_user equ 0x2445e0   ; 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
+engine_weapon_initialize equ 0x2449e0   ; 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly
+engine_weapon_activate equ 0x244610   ; 0x244610 survarium::weapon::activate: weapon ECX, flag ESP+4; pops 4; thiscall, called directly
+engine_weapon_deactivate equ 0x244860   ; 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -180,6 +203,37 @@ engine_malloc:
     mov esi, [esp + 24]   ; allocator
     mov eax, [esp + 28]   ; size
     call 0xe4f90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_allocated_size:
+    ; 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; allocator
+    call 0xe5270
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_dump_statistics:
+    ; 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; flag -> 4
+    call 0xe1370
+    add esp, 4                  ; the caller's part of the stack
     pop edi
     pop esi
     pop ebx
@@ -1479,6 +1533,150 @@ engine_medkit_set_active:
     push dword [esp + 24]   ; medkit -> 4
     mov eax, [esp + 32]   ; active
     call 0x33d390
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_profile_destroy:
+    ; 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; profile
+    call 0x26f3b0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_inventory:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_allocate_recipe:
+    ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; where -> 4
+    mov esi, [esp + 24]   ; allocator
+    mov eax, [esp + 28]   ; size
+    call 0xe4f90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_bind_member_callback:
+    ; 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; padding -> 16
+    push dword [esp + 36]   ; object -> 12
+    push dword [esp + 36]   ; adjustment -> 8
+    push dword [esp + 36]   ; member -> 4
+    mov edi, [esp + 36]   ; callback
+    call 0x27d280
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_variant_type:
+    ; 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0x205c60
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_dispatch_callbacks:
+    ; 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0xe5ab0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_inventory_set:
+    ; 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; item -> 4
+    mov esi, [esp + 24]   ; inventory
+    mov edi, [esp + 28]   ; slot
+    call 0x2fc620
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_inventory_item:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_forget_active_object:
+    ; 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; animation
+    mov edx, [esp + 24]   ; object
+    call 0x3919e0
     pop edi
     pop esi
     pop ebx

@@ -436,9 +436,11 @@ def negative(original, tools=None):
     # The checked-in thunks against rows that say otherwise: the entry check
     # sees it.
     moved = located(0xE4F90, {"ESI": "EAX", "EAX": "ESI"})
+    # Every row of malloc's VA follows the moved rows (engine_allocate_recipe is a typed one).
+    follows_malloc = [dict(row, arguments="EAX:allocator ESI:size ESP+4:description")
+                      if row["va"].lower() in ("0xe4f90", "0x0e4f90") else row for row in spec]
     out.append(("the built library against re-kit rows with malloc's allocator in EAX and size in ESI",
-                failed(run_checks(original, None, arguments("engine_malloc", "EAX:allocator ESI:size ESP+4:description"),
-                                  abi, moved, behave=False))))
+                failed(run_checks(original, None, follows_malloc, abi, moved, behave=False))))
     return out
 
 

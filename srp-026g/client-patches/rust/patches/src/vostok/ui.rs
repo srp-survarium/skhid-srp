@@ -92,6 +92,34 @@ impl<'t> GameWorldUi<'t> {
         // SAFETY: as hud_movie.
         unsafe { movie_of(self.this.icons_movie()) }
     }
+
+    /// A dictionary text of the running language (text_translator::
+    /// translate_text 0x1FF0F0 of the ui's game; the key itself when the
+    /// dictionary has none) into `out`; empty without a game.
+    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
+        out[0] = 0;
+        // SAFETY: the ui's world and its game, alive for the hook;
+        // translate_text copies a text shorter than 200h bytes with its zero
+        // into `out` (0x1FF15D) and leaves it alone otherwise.
+        unsafe {
+            if let Some(game) = self.this.world().and_then(|world| world.game()) {
+                raw::engine_translate_text(Some(game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr());
+            }
+        }
+        out[0x1FF] = 0;
+        CStr::from_bytes_until_nul(out).unwrap_or(c"")
+    }
+
+    /// The match's places' count (the match options of the ui's game's
+    /// network client): what the match server checks a pickup's place against.
+    pub fn places(&self) -> Option<u8> {
+        // SAFETY: the ui's world, its game and the game's client, alive for
+        // the hook; match_options is the client's own.
+        unsafe {
+            let client = self.this.world()?.game()?.network_client()?;
+            Some(raw::engine_match_options(Some(client))?.places().read_volatile())
+        }
+    }
 }
 
 /// The movie a holder shows (its view's, as the game reads it, 0x2384EE).
@@ -216,7 +244,7 @@ impl Movie<'_> {
 
     /// Invokes the movie's `method` with these strings (UTF-8, as the
     /// dictionaries are), at most [`MAX_STRINGS`]; whether the movie took it.
-    pub(super) fn invoke_strings(&self, method: &CStr, values: &[&CStr]) -> bool {
+    pub fn invoke_strings(&self, method: &CStr, values: &[&CStr]) -> bool {
         let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_STRINGS];
         let count = values.len().min(MAX_STRINGS);
         for (room, text) in arguments.iter_mut().zip(&values[..count]) {

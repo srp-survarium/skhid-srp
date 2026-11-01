@@ -3299,6 +3299,7 @@ impl Game {
         let id = self.id;
         let late_inputs = self.settings.late_inputs;
         let reach = self.late_relay_reach(index);
+        let places = u8::try_from(self.players()).unwrap_or(u8::MAX);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -3334,7 +3335,13 @@ impl Game {
             let oldest = clock.saturating_sub(INPUT_MAX_AGE_MS);
             peer.inputs_seen.retain(|seen| *seen >= oldest);
         }
-        if !input.rotation_is_sane() {
+        // Client patch 85: a pickup naming no other place of the match. The
+        // client never sends one (`weapon_pickup::sane`, its twin).
+        let pickup_sane = u8::try_from(index)
+            .ok()
+            .and_then(weapon_pickup::Place::new)
+            .is_some_and(|sender| weapon_pickup::sane(input.actions, sender, places));
+        if !input.rotation_is_sane() || !pickup_sane {
             // Relayed, it would be in every client's world for good
             // (`PlayerInput::rotation_is_sane`). Its owner drops it as it
             // drops a late one; a copy of it is known by its time and goes
@@ -3347,8 +3354,8 @@ impl Game {
             );
             if peer.inputs_refused <= REFUSED_LOGGED {
                 log::warn!(
-                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation no client \
-                     makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
+                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation or a pickup no \
+                     client makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
                     input.rotation,
                     input.actions
                 );

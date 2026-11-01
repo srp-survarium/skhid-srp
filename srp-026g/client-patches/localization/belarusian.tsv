@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	Нямецкі каліматарны п
 st_walther_competition2_collimator_name	Каліматар Competition II
 st_wasted	Расход
 st_weapon_aim_action	Прыцэльванне (утрым.)
+st_weapon_already_taken	Ужо падабрана
+st_weapon_cannot_carry	Нельга несці другую вінтоўку
+st_weapon_cannot_pick_up	Гэта нельга падабраць
 st_weapon_could_not_be_used	Раненне рук! Немагчыма выкарыстоўваць зброю
 st_weapon_fire_action	Стральба
+st_weapon_no_gun_in_hands	Вазьміце зброю ў рукі, каб абмяняць
+st_weapon_one_gun_only	Можна несці толькі адну зброю
+st_weapon_pick_up	Падабраць %1$s ({USE})
 st_weapon_reload_action	Перазарадка
+st_weapon_switching	Пачакайце змены зброі
 st_wear	Надзець
 st_weight_booster_description	Пратэін, які змяшчае неабходныя рэчывы для росту мышцаў і павышэння сілы. Аднак без фізічнай нагрузкі ўжываць яго бессэнсоўна.
 st_weight_booster_name	Пратэін "Анамальная сіла"
