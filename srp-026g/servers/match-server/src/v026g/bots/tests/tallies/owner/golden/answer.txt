@@ -1,4 +1,4 @@
-owner-test answer: the play held 0 bot-ticks in 0 starts (team 0 0 / team 1 0); snipers killed 0 (team 0's 0 / team 1's 0), by an answerer 0 (team 0's 0 / team 1's 0); answerers who died 0 (0 to a sniper)
+owner-test answer: the play held 0 bot-ticks in 0 starts (team 0 0 / team 1 0); snipers killed 0 (team 0's 0 / team 1's 0), by an answerer 0 (team 0's 0 / team 1's 0); answerers who died 0 (0 to a sniper); runs 0: at the spot 0, fired at him 0, hit him 0, killed him 0
 {
   "answer": {
     "by_team": {
@@ -21,6 +21,8 @@ owner-test answer: the play held 0 bot-ticks in 0 starts (team 0 0 / team 1 0); 
     }
   },
   "answer_ends": {},
+  "answer_run_ends": {},
+  "answer_runs": [],
   "answer_starts": 0,
   "answer_ticks": 0
 }
