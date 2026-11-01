@@ -29,12 +29,15 @@
   count whole clips of the ammo bags the slot was given (`bags div
   required_bags x clip_size` of the ammunition's config). A borrowed stack
   in a slot gets the same bags in its own ammunition: the bags the kit's
-  count of the own ammunition there takes (`ceil(count x required_bags /
-  clip_size)`), in whole clips of the borrowed one. A PKP (7N13: 100 a
-  clip, 2 bags a clip) for an AK whose slot held 90 rounds of 7N10 (30 a
-  clip, 1 bag; 3 bags): one belt, 100, so 60 in reserve with 40 in the
-  belt; 4 bags two belts; 1 bag none. A slot the kit names no ammunition
-  in (a free slot it was put in) is not refilled, as the game's.
+  count of the own ammunition there holds whole clips of (`count x
+  required_bags / clip_size`, rounded down: 91 rounds of 30-round clips
+  are 3 bags), in whole clips of the borrowed one, and always at least one
+  full clip of it (the owner, 2026-11-01), the magazine and chamber
+  inside. A PKP (7N13: 100 a clip, 2 bags a clip) for an AK whose slot
+  held 90 rounds of 7N10 (30 a clip, 1 bag; 3 bags): one belt, 100, so 60
+  in reserve with 40 in the belt; 4 bags two belts; 1 bag still one belt.
+  A slot the kit names no ammunition in (a free slot it was put in, or one
+  the other gun's calibre holds) gets one clip.
 - On the picker's death the borrowed gun vanishes (not dropped again) and the
   next life has the original loadout.
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
