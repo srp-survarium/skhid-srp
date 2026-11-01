@@ -96,6 +96,10 @@ fn setup() {
     }
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
+        // An opt-in live-content run must exercise the same dictionary as srp.
+        if std::env::var_os(survarium::v026g::game_data::GAME_DATA_ENV).is_some() {
+            survarium::v026g::game_data::init().expect("configured game data");
+        }
         // Before any server thread: the match server would keep the
         // uploaded worlds under `logs/snapshots` of the crate.
         // SAFETY: the tests of this file all come through here first, and
@@ -1242,8 +1246,6 @@ impl BotRun {
 
     /// With `drive`: the bot sends the inputs of its script (`srp::drive`).
     fn start_with(stack: &Stack, name: &str, once: bool, drive: bool) -> Self {
-        let lines = Arc::new(Mutex::new(Vec::new()));
-        let stop = Arc::new(AtomicBool::new(false));
         let config = srp::bot::Config {
             server: stack.login_addr.to_string(),
             name: name.to_owned(),
@@ -1252,7 +1254,14 @@ impl BotRun {
             kit: None,
             drive,
             revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+            room: None,
         };
+        Self::configs(vec![config])
+    }
+
+    fn configs(configs: Vec<srp::bot::Config>) -> Self {
+        let lines = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(AtomicBool::new(false));
         let print: srp::bot::Print = {
             let lines = lines.clone();
             Arc::new(move |line: &str| {
@@ -1264,7 +1273,7 @@ impl BotRun {
         };
         let thread = {
             let stop = stop.clone();
-            std::thread::spawn(move || srp::bot::run(vec![config], print, &stop))
+            std::thread::spawn(move || srp::bot::run(configs, print, &stop))
         };
         Self {
             lines,
@@ -1836,4 +1845,136 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         !stack.registry.is_open(match_id) && stack.store.match_count() == 0
     });
     stack.stop();
+}
+
+#[test]
+fn nineteen_stationary_accounts_join_one_private_room_and_fill_both_teams() {
+    use survarium::v026g::lobby::rooms::{self, ROOM_PIN_BASE, ROOM_START, ROOM_STATE, RoomSpec};
+    let names = srp::bot::names("Spawn01", 19);
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let dir = temp_dir("spawn-inspection");
+    let stack = start_with_bots(&dir, &refs);
+    let mut owner = Game::signed_in(&stack, "SpawnOwner", "local-owner-password");
+    until(&mut [&mut owner], SOON, "owner signed in", |g| {
+        in_lobby(g[0])
+    });
+    owner.ask(request::ranking(ROOM_PIN_BASE + 1234, 1));
+    owner.ask(request::ranking(
+        rooms::create_start(RoomSpec {
+            size: 10,
+            max_level: 0,
+            wait: 30,
+            pin: true,
+            min_side: 1,
+        }),
+        1,
+    ));
+    let state = |game: &Game, members: Option<usize>| {
+        game.find(|message| match message {
+            Decoded::EloList(rows) if rows.first().is_some_and(|r| r.1 == ROOM_STATE) => {
+                let fields: Vec<&str> = rows[0].0.split(';').collect();
+                (fields.get(1) == Some(&"R")
+                    && members
+                        .is_none_or(|n| fields.get(11).and_then(|s| s.parse().ok()) == Some(n)))
+                .then(|| fields[2].parse::<u32>().ok())
+                .flatten()
+            }
+            _ => None,
+        })
+    };
+    until(&mut [&mut owner], SOON, "private room created", |g| {
+        state(g[0], None).is_some()
+    });
+    let key = state(&owner, None).unwrap();
+    let refused = BotRun::configs(vec![srp::bot::Config {
+        server: stack.login_addr.to_string(), name: names[0].clone(),
+        password: "local-spawn-password".to_owned(), once: false, kit: None, drive: false,
+        revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+        room: srp::bot::RoomTarget::new(key, Some(4321)),
+    }]);
+    until(&mut [&mut owner], SOON, "wrong PIN reported", |_| refused.finished());
+    assert!(refused.said("wrong room PIN").is_some());
+    drop(refused);
+    let configs = names
+        .iter()
+        .map(|name| srp::bot::Config {
+            server: stack.login_addr.to_string(),
+            name: name.clone(),
+            password: "local-spawn-password".to_owned(),
+            once: false,
+            kit: None,
+            drive: false,
+            revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+            room: srp::bot::RoomTarget::new(key, Some(1234)),
+        })
+        .collect();
+    let bots = BotRun::configs(configs);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while state(&owner, Some(20)).is_none() {
+        assert!(Instant::now() < deadline, "19 accounts did not join: {:?}", bots.lines());
+        owner.ask(request::ranking(ROOM_STATE, 1));
+        run_for(&mut [&mut owner], Duration::from_millis(100));
+    }
+    assert_eq!(
+        stack.registry.match_count(),
+        0,
+        "private room waits for owner Start"
+    );
+    owner.ask(request::ranking(ROOM_START, 1));
+    until(&mut [&mut owner], SOON, "owner sent to match", |g| {
+        g[0].has(|m| matches!(m, Decoded::ConnectToMatch { .. }))
+    });
+    owner.connect_to_match_of(stack.match_addr, 20);
+    until(&mut [&mut owner], SOON, "all profiles", |g| {
+        g[0].of_match().model.options.is_some()
+    });
+    let options = owner.of_match().model.options.as_ref().unwrap();
+    assert_eq!(options.players.len(), 20);
+    for team in [0, 1] {
+        assert_eq!(
+            options.players.iter().filter(|p| p.team == team).count(),
+            10
+        );
+    }
+    owner.of_match_mut().ready();
+    until(
+        &mut [&mut owner],
+        Duration::from_secs(30),
+        "20 entered players",
+        |g| g[0].of_match().model.is_synced() && g[0].of_match().entered().len() == 20,
+    );
+    run_for(&mut [&mut owner], Duration::from_secs(2));
+    let own = owner.of_match().model.local_index.unwrap();
+    for place in 0..20 {
+        if place != own {
+            assert!(
+                owner.of_match().relays_of(place).is_empty(),
+                "stationary bot sent an input"
+            );
+        }
+    }
+    assert!(
+        bots.lines().iter().all(|line| !line.contains("WARNING")),
+        "{:?}",
+        bots.lines()
+    );
+    owner.assert_clean();
+    drop(bots);
+    stack.stop();
+}
+
+#[test]
+fn bot_cli_reads_the_explicit_server_data_before_connecting() {
+    use survarium::v026g::game_data::{GameData, GAME_DATA_ENV};
+    let path = std::env::var_os(GAME_DATA_ENV).map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resources/game-026g/server-game-data.db"),
+        PathBuf::from,
+    );
+    let data = GameData::open(&path).unwrap();
+    let dictionary = Dictionary::parse(data.file(survarium::v026g::dictionary::PATH).unwrap()).unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_srp-bot"))
+        .env(GAME_DATA_ENV, &path).arg("--check-data").output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8(output.stdout).unwrap(),
+        format!("game data loaded: {} items, {} maps\n", dictionary.items.len(), dictionary.maps.len()));
 }
