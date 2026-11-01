@@ -79,15 +79,15 @@ pub(crate) fn model_on() -> bool {
     })
 }
 
-/// [A217] Whether the stand-in's drugs are revision 40's (`SRP_BENCH_DRUGS`, default `rev40`, the live game): a bullet
+/// [A217] Whether the stand-in's drugs are revision 40's (`SRP_BENCH_STAND_IN_DRUGS`, default `rev40`, the live game): a bullet
 /// that took health stops them ([`stop_on_bullet`]) and the Medikit takes pain ([`Model::since_rev40`]). `rev39` puts
 /// back the drugs of before (an identity run of the bots on the old game).
 pub(crate) fn rev40() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
-    *ON.get_or_init(|| match bench_settings().var("SRP_BENCH_DRUGS").as_deref() {
+    *ON.get_or_init(|| match bench_settings().var("SRP_BENCH_STAND_IN_DRUGS").as_deref() {
         Ok("rev39") => false,
         Ok("rev40") | Err(_) => true,
-        Ok(other) => panic!("SRP_BENCH_DRUGS={other}: rev40 or rev39"),
+        Ok(other) => panic!("SRP_BENCH_STAND_IN_DRUGS={other}: rev40 or rev39"),
     })
 }
 
