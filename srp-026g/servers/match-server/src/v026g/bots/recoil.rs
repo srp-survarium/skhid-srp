@@ -154,9 +154,30 @@ pub fn kick_of(item: &str) -> &'static Kick {
     kick_in(kicks(), item)
 }
 
+/// The weapons taken in hand that have no kick of their own and took [`DEFAULT_KICK`]'s, each once
+/// ([`Recoil::in_hand`]).
+static NO_KICK: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+
+/// `item` has no kick of its own: said in the log the first time, so a weapon the data lacks is never silent.
+fn no_kick(item: &'static str) {
+    let mut seen = NO_KICK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !seen.contains(&item) {
+        seen.push(item);
+        log::warn!("bots: the weapon {item} has no kick in the game data; it kicks as the {DEFAULT_KICK}");
+    }
+}
+
+/// The weapons taken in hand so far that had no kick of their own.
+pub fn weapons_without_kick() -> Vec<&'static str> {
+    NO_KICK.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+}
+
 /// One weapon's kick as the client keeps it (0x331FF0's fields).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Recoil {
+    /// The weapon in hand the model is for: the kick's own item, or one the
+    /// data has no kick for, which kicks as [`DEFAULT_KICK`] ([`Self::in_hand`]).
+    held: &'static str,
     kick: &'static Kick,
     /// The side and the vertical kick, pitch units.
     at: [f32; 2],
@@ -181,7 +202,24 @@ impl Default for Recoil {
 impl Recoil {
     /// The weapon of `kick` just taken in hand.
     pub fn new(kick: &'static Kick) -> Self {
+        Self::of(kick.item, kick)
+    }
+
+    /// The weapon item `item` just taken in hand: its own kick, or
+    /// [`DEFAULT_KICK`]'s for one the data has none for ([`kick_of`]; logged
+    /// once). The model stays `item`'s ([`Self::held`]), so the weapon in hand
+    /// keeps it from tick to tick either way.
+    pub fn in_hand(item: &'static str) -> Self {
+        let kick = kick_of(item);
+        if kick.item != item {
+            no_kick(item);
+        }
+        Self::of(item, kick)
+    }
+
+    fn of(held: &'static str, kick: &'static Kick) -> Self {
         Self {
+            held,
             kick,
             at: [0.0; 2],
             speed: [0.0; 2],
@@ -190,6 +228,11 @@ impl Recoil {
             last_shot: None,
             ticked: None,
         }
+    }
+
+    /// The weapon in hand the model is for.
+    pub fn held(&self) -> &'static str {
+        self.held
     }
 
     pub fn kick(&self) -> &'static Kick {
@@ -216,7 +259,7 @@ impl Recoil {
     pub fn reset(&mut self) {
         *self = Self {
             ticked: self.ticked,
-            ..Self::new(self.kick)
+            ..Self::of(self.held, self.kick)
         };
     }
 
