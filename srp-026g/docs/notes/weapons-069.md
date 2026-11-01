@@ -7,7 +7,7 @@ resource-porter's shared weapon core, 0.69d0 as its donor (`port-weapons-069d`,
 pack weapons-069-camo (`camo.tsv`; `parts.tsv` leaves the cartridges and the KS-23M's loose shell
 plain, and `--bare-masks` still gives each a mask, so no surface of a camouflaged gun fails to load
 its `_aoac`), the configs take the camouflage and decal by the edit list `weapon-camo-069-1.json`.
-Built over weapons-031 and weapons-046 (`make_pack.sh ... 6 2 weapons-031@5 weapons-046@3`): what
+Built over weapons-031 and weapons-046 (`make_pack.sh ... 7 2 weapons-031@5 weapons-046@5`): what
 they add is reused, not added again (the MP5's bolt sounds the G3SG/1 plays are weapons-046's, the
 G3SG/1's 7.62x51 in clips of 20 weapons-031's), so their rows come before this one's.
 
