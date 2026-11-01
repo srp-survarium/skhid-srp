@@ -50,18 +50,33 @@ A default kit has three ammo bags.
   4's H&K G3SG/1 has the same need and takes it too (the coordinator, 2026-11-01; id, cell and icon
   were batch 4's), so it is sold by Renaissance (rank 10, the SCAR-H's) and the Black Market (rank 5,
   the G3SG/1's). The SCAR-H still takes the shared 7.62x51 and AP.
+- The cards: a new round on a native round's config shows its own bullets in a pack (prop 16) and
+  weight (prop 15), written by the port from its `clip_size` and `clip_weight` (the belt 100 / 1.0,
+  the clip 20 / 0.5).
+- With the default three bags, the Minimi gets one belt and no reserve (100 rounds take 2 bags), the
+  same as the live PKP: accepted (the coordinator, 2026-11-01).
 - `prices.rs`: their sellers (EXCEPTIONS), `AMMO_PRICES` and `UNRELEASED` rows.
 
 ## Fixed after the first in-game look (2026-11-01)
 
 - **Muzzle flashes:** the SCAR-H and VHS-2 named 0.31a2's `fx/weapons/m4a1`, in no 0.26g archive:
   the lobby crashed drawing them (exe+0x352308 after the cook of 'fx/weapons/m4a1' failed). They take
-  `fx/weapons/ak_74` (the M4A1's, HK416's and AK-12's), the Groza the Val's `fx/weapons/9x39` (the
-  UZI's flash it had was barely visible). The port now refuses a config naming a resource no archive
-  has (resource-porter `resources.rs`).
+  `fx/weapons/ak_74` (the M4A1's, HK416's and AK-12's), and so does the Groza (the UZI's flash it
+  had was barely visible; the Val's `fx/weapons/9x39` is a suppressed puff, the Groza is not
+  suppressed). The port now refuses a config naming a resource no archive has (resource-porter
+  `resources.rs`).
 - **Groza's sights:** it took the Val's `aim_offset` (0.028) from its template; the donor has none,
-  and the ring sat about 3 cm (50 px) under the screen's centre. Without it, as the donor (the port
-  now leaves a template's aim offset out when the donor has none). To look at again in game.
+  so the port leaves it out. That moved the view only about 5 px: the cause is the model. The
+  camera sits at the `aim` locator (a render from it matches the game's view) and looks along
+  the gun. The rear sight is a solid plate with a notch on top (the ring on it is a boss, not a
+  hole), and the front post sits beyond it. 0.31a2's locator (0, 0.0868, 0.178) is at the post
+  tip's height, but the notch's floor is 2 mm lower (0.0849, 11 cm ahead of the eye). So the post
+  stood high above the notch, with the notch and ring well under the centre. The line over
+  the notch's floor to the post tip rises 0.7 degrees. The locator now sits on it at (0, 0.0836,
+  0.178) and is turned up by `locators[0].rotation` x = -0.0123 rad (the natives turn theirs the
+  same way: A-545 0.026, Vityaz 0.008). This is set in the port manifest's `file_values`. In game,
+  +0.0123 turned the view down: the notch sat 14 px above the centre and hid the post. -0.0123 is
+  the fix, and its in-game look is still to be done (game runs paused, 2026-11-01).
 
 ## Balance
 
