@@ -147,6 +147,13 @@ pub(super) struct GridCounts {
     carry_ticks: u32,
     carry_lip_ticks: u32,
     carry_guard: [u32; 3],
+    /// Sprint next to lips and drops (the motor cluster's check that a lip's, a drop's and a jump's release of the sprint still win
+    /// over a sprint through a turn): bot ticks alive on a lip's floors, those with the sprint held, ticks on a drop's take-off floor
+    /// with the sprint held, and the falls off the route whose take-off tick held the sprint.
+    lip_ticks: u32,
+    lip_sprint_ticks: u32,
+    drop_sprint_ticks: u32,
+    falls_sprinting: u32,
     /// Drops of 4 m or more in a second: with an unplanned fall (by link), and the rest.
     drops4_unplanned: BTreeMap<&'static str, u32>,
     drops4_rest: u32,
@@ -244,6 +251,18 @@ impl Topic for GridCounts {
             *self.falls.entry(class.key()).or_default() += 1;
             let shared = self.route_drops[place].iter().any(|landing| landing.distance_xz(at.rec.feet) <= SHARED_LANDING_M);
             self.planned_late += u32::from(class.planned && !shared);
+            self.falls_sprinting += u32::from(!class.planned && at.prev.keys & key::SPRINT != 0);
+        }
+        if at.rec.alive
+            && let Some(node) = grid.locate(at.rec.feet, 1.0)
+        {
+            let sprint = at.rec.keys & key::SPRINT != 0;
+            if grid.is_lip(node) || grid.near_lip(node) {
+                self.lip_ticks += 1;
+                self.lip_sprint_ticks += u32::from(sprint);
+            }
+            self.drop_sprint_ticks +=
+                u32::from(sprint && grid.links(node).any(|(_, kind)| matches!(kind, LinkKind::Drop | LinkKind::GapDrop)));
         }
         if at.rec.alive && at.rec.carrying {
             self.carry_ticks += 1;
@@ -338,6 +357,10 @@ impl Topic for GridCounts {
             "grid_carry_ticks": self.carry_ticks,
             "grid_carry_lip_ticks": self.carry_lip_ticks,
             "grid_carry_guard_ticks": self.carry_guard,
+            "grid_lip_ticks": self.lip_ticks,
+            "grid_lip_sprint_ticks": self.lip_sprint_ticks,
+            "grid_drop_sprint_ticks": self.drop_sprint_ticks,
+            "grid_falls_unplanned_sprinting": self.falls_sprinting,
             "grid_drops4_unplanned": self.drops4_unplanned,
             "grid_drops4_rest": self.drops4_rest,
             "grid_route_jump_presses_step": presses[0],
@@ -362,7 +385,7 @@ impl Topic for GridCounts {
             "grid_zone_walk_ticks": self.walk_ticks,
         });
         let text = format!(
-            "owner-test grid: falls off the route {unplanned} (from a flagged floor {}, an unflagged one {}; by class {:?}), planned {planned} ({} only within {PLANNED_LANDING_M} m); lip guard on walk-off take-offs {} ticks, other lips {}; drops of 4 m or more in a second: off the route {drops4_unplanned} {:?}, the rest {}; route jump presses by rise: step {}, standing {}, capped band {}, sprint {}, over a gap {}; links: jump {} standing {} capped {} sprint, {} walk rises of 0.6 m to the step, {} gap jumps, {} walk-offs ({} take-offs are lips); zone lines: {} entries {} exits, {} ticks; zone floors: {} bot-ticks ({} standing still, {} stands of 2 s or more {:?}); carriers: {} ticks, {} on lip floors, lip guard safe / swapped / braked {:?}",
+            "owner-test grid: falls off the route {unplanned} (from a flagged floor {}, an unflagged one {}; by class {:?}), planned {planned} ({} only within {PLANNED_LANDING_M} m); lip guard on walk-off take-offs {} ticks, other lips {}; drops of 4 m or more in a second: off the route {drops4_unplanned} {:?}, the rest {}; route jump presses by rise: step {}, standing {}, capped band {}, sprint {}, over a gap {}; links: jump {} standing {} capped {} sprint, {} walk rises of 0.6 m to the step, {} gap jumps, {} walk-offs ({} take-offs are lips); zone lines: {} entries {} exits, {} ticks; zone floors: {} bot-ticks ({} standing still, {} stands of 2 s or more {:?}); carriers: {} ticks, {} on lip floors, lip guard safe / swapped / braked {:?}; sprint: {} of {} lip-floor ticks, {} on drop take-offs, {} falls off the route sprinting",
             self.fall_total("unplanned", "flagged"),
             self.fall_total("unplanned", "unflagged"),
             self.falls,
@@ -393,6 +416,10 @@ impl Topic for GridCounts {
             self.carry_ticks,
             self.carry_lip_ticks,
             self.carry_guard,
+            self.lip_sprint_ticks,
+            self.lip_ticks,
+            self.drop_sprint_ticks,
+            self.falls_sprinting,
         );
         vec![("grid", Part::new(json, text))]
     }
