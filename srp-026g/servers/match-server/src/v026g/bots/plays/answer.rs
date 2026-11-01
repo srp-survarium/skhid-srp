@@ -32,9 +32,10 @@ use crate::v026g::bots::view;
 pub const NUMBERS: &[(&str, f32)] = &[
     // Sensed by the team's own senses this recently, seconds.
     ("recent_s", 10.0),
-    // Else the team's remembered spot of him, its last sense this recent, seconds: the play's own runtime (a walk of 20-40 m
-    // and a peek); the memory keeps a live sniper on his area 6 times in 10 at 30 s, 3 at a minute (A199 §3.6).
-    ("remembered_s", 45.0),
+    // Else the team's remembered spot of him, its last sense this recent, seconds: at most `fairness::UNSEEN_MS`, as every
+    // decision about an enemy (BENCH-DECISIONS §2D). 45 s (the play's own runtime) made its reads of him stale: the by-side
+    // bench's stale reads +10.1 % z +4.2, their share 5.19 vs 5.01 % (h2h-fix1-93b76905, seeds 1-8).
+    ("remembered_s", 15.0),
     // The bot's own reach (band top and slack) at least this, metres: a rifle's, a sniper's.
     ("reach_min_m", 45.0),
     // Only a sniper this near the bot is answered, metres.
@@ -462,11 +463,11 @@ mod tests {
         use crate::v026g::bots::threat::{HeldLane, Picture};
         let mut s = sniper();
         let sensed = s.view.clock;
-        s.view.clock += 20_000;
+        s.view.clock += 12_000;
         let held = HeldLane { at: Vec3::new(85.0, 0.0, 30.0), shooter: 1, reach_m: 98.0, sensed: Some(sensed), area_m: 10.0 };
         s.team.threat = std::sync::Arc::new(Picture { snipers: vec![held], ..Picture::default() });
         assert_eq!(answers(&s).len(), 2, "remembered by the team");
-        s.view.clock = sensed + 46_000;
+        s.view.clock = sensed + 16_000;
         assert!(answers(&s).is_empty(), "the team's last sense of him is past remembered_s");
     }
 
