@@ -142,6 +142,7 @@ macro_rules! packages {
 }
 
 packages! {
+    capsule,
     cover,
     fights,
     gear,
