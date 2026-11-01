@@ -464,9 +464,25 @@ impl BodyTrack {
             }
             way
         });
-        let node = grid.and_then(|grid| match kin.fix_floor {
-            FixFloor::Nearest => grid.locate(feet, LOCATE_M),
-            FixFloor::Under => grid.locate_within(feet, LOCATE_M, FIX_ABOVE_M).or_else(|| grid.locate(feet, LOCATE_M)),
+        let node = grid.and_then(|grid| {
+            let nearest = || grid.locate(feet, LOCATE_M);
+            let under = || grid.locate_within(feet, LOCATE_M, FIX_ABOVE_M).or_else(nearest);
+            match kin.fix_floor {
+                FixFloor::Nearest => nearest(),
+                FixFloor::Under => under(),
+                FixFloor::UnderInJump => {
+                    // Its own jump in the air at the world's tick: a decided tick within the jump's air time with the key held.
+                    let jumping = self
+                        .ticks
+                        .iter()
+                        .any(|tick| tick.time <= fix.time && tick.time + JUMP_AIR_MS >= fix.time && tick.keys & key::JUMP != 0);
+                    #[cfg(test)]
+                    if nearest() != under() {
+                        counts::fix_floor(jumping);
+                    }
+                    if jumping { under() } else { nearest() }
+                }
+            }
         });
         // The world has its own tick's keys (PROVEN, `kin`); its velocity
         // is its speed along the way the keys before were taking it.
@@ -836,6 +852,23 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         .filter(|(_, kind)| !kind.is_leap())
         .map(|(next, _)| next)
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
+}
+
+/// The bench's counts of [`FixFloor::UnderInJump`] (all matches of the run): the worlds whose nearest floor and floor under the
+/// feet differ, put on the nearest (no jump of its own in the air) and on the floor under the feet (its jump in the air).
+#[cfg(test)]
+pub mod counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static FIX_FLOORS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn fix_floor(jumping: bool) {
+        FIX_FLOORS[usize::from(jumping)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn fix_floors() -> [u64; 2] {
+        std::array::from_fn(|k| FIX_FLOORS[k].load(Ordering::Relaxed))
+    }
 }
 
 #[cfg(test)]
@@ -1294,6 +1327,35 @@ pub(super) mod tests {
         let (nearest, under) = (on(FixFloor::Nearest), on(FixFloor::Under));
         assert!(nearest.0 > 1.2, "the nearest floor is the top over the face: {nearest:?}");
         assert!(under.0 < 0.1 && under.1.x < 10.0, "the floor under the feet, at the face: {under:?}");
+    }
+
+    /// [`FixFloor::UnderInJump`]: the same world of the body between the floor and the top over the face is put on the floor under
+    /// it when the body's own jump is in the air (its key held at a decided tick within [`JUMP_AIR_MS`]), and on the nearest, the
+    /// top, when it is not (a body coming down from a top it walked off); a jump held longer ago than the air time is no jump.
+    #[test]
+    fn a_world_in_its_own_jump_takes_the_floor_under_it_and_one_without_the_nearest() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 1.3));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(1.3));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let (yaw, feet) = (-std::f32::consts::FRAC_PI_2, Vec3::new(9.8, 0.7, 5.0));
+        let kin = Kinematics { blend_ticks: 1, fix_floor: FixFloor::UnderInJump, ..Kinematics::default() };
+        // The floor the world at 1,000 ms is put on, the jump key held at the tick `jump_at` if any.
+        let floor_with = |jump_at: Option<u32>| {
+            let mut track = BodyTrack::default();
+            for time in (0..=1_000).step_by(50) {
+                let keys = if Some(time) == jump_at { key::FORWARD | key::JUMP } else { key::FORWARD };
+                track.decided(time, keys, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            track.fixed(fix(1_000, feet, yaw), &kin, Some(&grid));
+            grid.position(track.estimate().unwrap().node.unwrap()).y
+        };
+        assert!(floor_with(Some(600)) < 0.1, "its own jump 400 ms before: the floor under it");
+        assert!(floor_with(None) > 1.2, "no jump: the nearest, the top over the face");
+        assert!(floor_with(Some(100)) > 1.2, "a jump 900 ms before is over");
     }
 
     /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of

@@ -191,6 +191,23 @@ pub(crate) fn past_edge(grid: &mapdata::WalkGrid, walls: &mapdata::RayTree, node
     None
 }
 
+/// Whether a jump's walk before it leaves the floor is held by the walls and the ledge as the walking body is (`SRP_BENCH_STAND_IN_JUMP_WALL`,
+/// off unless `on`, and only with `SRP_BENCH_STAND_IN_CORNER=on`): the client's capsule is held at a wall whatever the keys, so a body
+/// that presses jump at the wall it is held by does not walk through it in the jump's first moments (A199).
+pub(crate) fn stand_in_jump_wall() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_JUMP_WALL").is_ok_and(|v| v == "on"))
+}
+
+/// What a jump's walk on the floor needs of the capsule rule ([`stand_in_jump_wall`], [`super::standin_capsule`]): the walls' sections, whether
+/// the rule holds the body (else it only counts the moves it would hold), and the counts of walk ticks and held ones.
+pub(crate) struct JumpWall<'a> {
+    pub(crate) sections: &'a super::standin_capsule::Sections,
+    pub(crate) hold: bool,
+    pub(crate) ticks: &'a mut u32,
+    pub(crate) held: &'a mut u32,
+}
+
 /// The floor a body held at a face (on `node`, at `feet`, walking toward `to`) is lifted up: the jump link ahead
 /// ([`jumped_to`]) when its rise is the lift's at most ([`LIFT_MAX_RISE_M`]) and its top deep enough ([`LIFT_TOP_M`]).
 pub(crate) fn lift_to(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
@@ -615,9 +632,12 @@ pub(crate) const LETHAL_FALL_DAMAGE: f32 = 0.6;
 
 /// One tick of `body`'s jump ([`Flight`]) at `tick`; the landing when it
 /// came down.
+///
+/// `wall` is the capsule rule for the walk before the jump's first airborne moment ([`stand_in_jump_wall`]).
 pub(crate) fn fly(
     grid: &mapdata::WalkGrid,
     walls: &mapdata::RayTree,
+    mut wall: Option<JumpWall>,
     body: &mut Body,
     place: Place,
     tick: u32,
@@ -669,7 +689,26 @@ pub(crate) fn fly(
         if len > 1e-6 {
             let k = (WALK_CAP * TICK_S / len).min(1.0);
             let to = Vec3::new(body.feet.x + dx * k, body.feet.y, body.feet.z + dz * k);
-            let (n, feet, _) = super::body::slide_capped(grid, node, body.feet, to, grid.body().walk_climb());
+            let mut target = to;
+            if let Some(wall) = wall.as_mut() {
+                let mut segs = Vec::new();
+                let mv = (to.x - body.feet.x, to.z - body.feet.z);
+                let reach = mv.0.hypot(mv.1) + super::standin_capsule::RADIUS_M + 0.6;
+                wall.sections.near((body.feet.x, body.feet.z), body.feet.y, body.keys & key::CROUCH != 0, reach, &mut segs);
+                let held = super::standin_capsule::client_move(&segs, (body.feet.x, body.feet.z), mv, super::standin_capsule::RADIUS_M);
+                *wall.ticks += 1;
+                if (held.to.0 - to.x).hypot(held.to.1 - to.z) > 0.01 {
+                    *wall.held += 1;
+                    if wall.hold {
+                        target = Vec3::new(held.to.0, to.y, held.to.1);
+                    }
+                }
+            }
+            let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
+                super::body::slide_supported(grid, node, body.feet, target, grid.body().walk_climb(), super::body::SUPPORT_M)
+            } else {
+                super::body::slide_capped(grid, node, body.feet, target, grid.body().walk_climb())
+            };
             body.node = Some(n);
             body.feet = feet;
         }
@@ -679,7 +718,18 @@ pub(crate) fn fly(
     let base = *f.base.get_or_insert(body.feet.y);
     let y = base + rise;
     let was = body.feet.y;
-    let (x, z) = air_move(walls, grid.body().radius, body.feet, target, y);
+    let (mut x, mut z) = air_move(walls, grid.body().radius, body.feet, target, y);
+    // The capsule rule in the air too (A199): the root's step of the first airborne tick is 0.75 m, which the three rays above can pass
+    // through a thin wall; the client's capsule is swept along it.
+    if let Some(w) = wall.as_ref().filter(|w| w.hold) {
+        let mut segs = Vec::new();
+        let mv = (x - body.feet.x, z - body.feet.z);
+        let reach = mv.0.hypot(mv.1) + super::standin_capsule::RADIUS_M + 0.6;
+        // Cut at the floor it left: the sections' heights are above a body standing, and the capsule has the whole of its length in the air.
+        w.sections.near((body.feet.x, body.feet.z), base.min(y), false, reach, &mut segs);
+        let held = super::standin_capsule::client_move(&segs, (body.feet.x, body.feet.z), mv, super::standin_capsule::RADIUS_M);
+        (x, z) = held.to;
+    }
     body.feet = Vec3::new(x, y, z);
     if (f.descending(ms) || over)
         && let Some((n, feet)) = air_floor(grid, body.feet, was.max(y) + 0.05)
@@ -735,6 +785,18 @@ pub(crate) fn honest_body(grid: &mapdata::WalkGrid, at: Vec3) -> Body {
 pub(crate) fn honest_jump(
     grid: &mapdata::WalkGrid,
     walls: &mapdata::RayTree,
+    body: Body,
+    keys: u32,
+    speed: f32,
+) -> (Vec3, f32) {
+    honest_jump_in(grid, walls, None, body, keys, speed)
+}
+
+/// [`honest_jump`] with the walk before the jump held by the capsule rule (`wall`: its sections).
+pub(crate) fn honest_jump_in(
+    grid: &mapdata::WalkGrid,
+    walls: &mapdata::RayTree,
+    wall: Option<&super::standin_capsule::Sections>,
     mut body: Body,
     keys: u32,
     speed: f32,
@@ -759,7 +821,9 @@ pub(crate) fn honest_jump(
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
-        let landing = fly(grid, walls, &mut body, 0, start + k * TICK_MS);
+        let (mut ticks, mut held) = (0, 0);
+        let wall = wall.map(|sections| JumpWall { sections, hold: true, ticks: &mut ticks, held: &mut held });
+        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS);
         top = top.max(body.feet.y - base);
         if let Some(landing) = landing {
             assert_eq!(landing.to, body.feet);
