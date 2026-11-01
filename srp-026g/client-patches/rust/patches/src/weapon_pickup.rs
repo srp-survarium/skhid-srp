@@ -197,7 +197,7 @@ impl Why {
         match self {
             Why::NoPlace => "the player has no place, world or profile",
             Why::Rule(R::Dead) => "the picker is dead",
-            Why::Rule(R::Borrowing) => "the picker already holds a borrowed gun",
+            Why::Rule(R::Borrowing) => "the picker borrows a gun and holds its other one",
             Why::Rule(R::NoGunInHands) => "no gun of its own in its hands",
             Why::Rule(R::NotAvailable) => "no drop to take (none, taken, its body gone, or its own)",
             Why::Rule(R::SecondWeaponDisabled) => "its kit carries one gun only, in slot 7 (modifier 64)",
@@ -473,7 +473,15 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Taken, Wh
     let incoming = native::handedness(thread, cook, slot).ok_or(Why::Install(native::Refusal::NoCookedGun))?;
     let take = weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming).map_err(Why::Rule)?;
     let magazine = donor.filter(|d| d.kit() == Some(kit)).and_then(|d| d.magazine(slot));
-    let installed = native::install(player, own, cook, slot, Mode::Switch(magazine)).map_err(Why::Install)?;
+    // Over a borrowed gun in hands: that one goes (restored to its cooked
+    // inventory), the own gun and ammunition stay parked under the new one.
+    let replaced = holder_of(thread, player.id());
+    let mode = replaced.as_ref().map_or(Mode::Switch(magazine), |h| Mode::Replace(magazine, &h.installed));
+    let installed = native::install(player, own, cook, slot, mode).map_err(Why::Install)?;
+    if let Some(old) = replaced {
+        keep(thread, old.installed.cook(), Ms(player.time()));
+        log_borrow("gave back, replaced", player, old.borrow, "");
+    }
     let borrow = take.borrow;
     if !set_holder(thread, player.id(), Some(Holder { player: player.id(), borrow, installed })) {
         log(&[Text("NO ROOM to remember a borrow (it will not be restored)")]);

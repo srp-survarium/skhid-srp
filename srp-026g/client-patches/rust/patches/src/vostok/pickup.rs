@@ -121,11 +121,15 @@ impl Installed {
 
 /// How an install treats the held object.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
+pub enum Mode<'a> {
     /// The pickup: the switch replayed, the magazine and reserve granted
     /// ([`Ammo::grant`]) from the donor's gun's magazine and chamber (a full
     /// magazine when its gun is not there).
     Switch(Option<(u8, bool)>),
+    /// A pickup over a borrowed gun held (its install): that one restored
+    /// first (the own gun and ammunition back, to be parked again), then
+    /// the pickup's switch from it.
+    Replace(Option<(u8, bool)>, &'a Installed),
     /// A loaded world's record (a rollback, a late join): the native reader
     /// switches the held object; the snapshot gives the magazine and reserve.
     Load,
@@ -342,7 +346,7 @@ unsafe fn set(inventory: raw::Inventory, slot: u8, item: raw::Item) {
 
 /// Installs the cooked gun of `cook` (its `slot`) in place of `player`'s own
 /// gun of `own`. Refused before any write when anything is not as expected.
-pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, mode: Mode)
+pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, mode: Mode<'_>)
                -> Result<Installed, Refusal> {
     let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: the live player (its hook's), its inventory and world core;
@@ -350,13 +354,28 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
     // as weapons only after their vtables say so; every slot index below 23.
     unsafe {
         let p = player.this;
+        let held = p.held_item().filter(|&h| p.pending_item() == Some(h));
+        // Over a borrowed gun: every check of the new gun that the restore
+        // does not change, before the restore's first write.
+        if let Mode::Replace(_, old) = mode {
+            if old.own != own || held.map(|h| h.address()) != Some(old.gun) {
+                return Err(Refusal::NotInHands);
+            }
+            let (_, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
+            let b = binding(gun.weapon()).ok_or(Refusal::BadAmmo)?;
+            if b.indices[..usize::from(b.count)].iter()
+                .any(|&from| from >= SLOTS || cooked.slots().at(from as usize).item().is_none()) {
+                return Err(Refusal::BadAmmo);
+            }
+            restore(player, old)?;
+        }
         let (inventory, core) = (p.inventory().ok_or(Refusal::NoPlayerState)?, p.world_core().ok_or(Refusal::NoPlayerState)?);
         let own_item = inventory.slots().at(usize::from(own.slot())).item().ok_or(Refusal::NotInHands)?;
         let own_gun = own_item.active_object();
         if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
             return Err(Refusal::NotInHands);
         }
-        if matches!(mode, Mode::Switch(_)) && (p.held_item() != Some(own_gun) || p.pending_item() != Some(own_gun)) {
+        if matches!(mode, Mode::Switch(_)) && held != Some(own_gun) {
             return Err(Refusal::NotInHands);
         }
         let (gun_item, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
@@ -442,9 +461,11 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
         }
         objects.at(usize::from(id)).set_item(Some(gun));
         match mode {
-            Mode::Switch(ammo) => {
-                raw::engine_weapon_deactivate(Some(own_gun), 1);
-                raw::engine_forget_active_object(p.animation().cast(), Some(own_gun));
+            Mode::Switch(ammo) | Mode::Replace(ammo, _) => {
+                // The gun in hands: the own one, or the borrowed one replaced.
+                let outgoing = held.unwrap_or(own_gun);
+                raw::engine_weapon_deactivate(Some(outgoing), 1);
+                raw::engine_forget_active_object(p.animation().cast(), Some(outgoing));
                 p.set_held_item(Some(gun));
                 p.set_pending_item(Some(gun));
                 raw::engine_weapon_set_user(Some(gun), Some(p));

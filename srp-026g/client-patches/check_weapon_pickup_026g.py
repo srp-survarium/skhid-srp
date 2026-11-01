@@ -373,6 +373,7 @@ def main():
     print("ok the donor destroyed while its gun cooks: the completion gives the gun, recipe and profile back")
 
     stage2(patched, original)
+    second_pickup(patched)
     stage2b(patched)
 
 
@@ -656,6 +657,49 @@ class Pick(Run):
         assert self.read(self.registry + 4 * GUN_ID) == own
 
 
+def second_pickup(patched):
+    """A pickup while holding a borrowed gun: a second donor (place 6) dies; the picker takes its gun
+    over the borrowed one, which goes back to its cooked inventory with its ammunition; the own gun
+    and ammunition stay parked (now in the second cooked inventory) and come back at the removal."""
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    r.installed()
+    first_gun, first_ammo, first = r.new_gun, r.new_ammo, r.cooked
+    # The same player object as the donor at place 6, a new life, dying with its gun in slot 10.
+    r.emu.mem_write(PLAYER + 0x114, bytes([6, KIT]))
+    r.word(PLAYER + 0x328, SPAWNED + 20_000)
+    r.word(PLAYER + 0x324, DIED + 2_000)
+    r.roster = {6: PLAYER, 3: r.picker}
+    r.death()
+    (q,) = r.queries
+    second, gun, ammo = r.blk(0x200), r.gun(), r.stack(240)
+    r.ammo_config(ammo, 2204, 100, 2)
+    for item, slot in ((gun + 0x10, 10), (ammo, 11)):
+        r.word(second + 0x10C + 4 * slot, item)
+        r.word(item + 0x250, second)
+        r.word(item + 0x254, slot)
+    r.complete(q, second)
+    r.log.clear()
+    r.pick(target=6, now=DIED + 2_500)
+    inv, own = r.inventory, r.own_gun
+    assert r.slot(inv, 10) == gun + 0x10 and r.slot(inv, 8) == ammo, [hex(r.slot(inv, n)) for n in (8, 10)]
+    assert r.slot(second, 10) == own + 0x10 and r.slot(second, 11) == r.own_ammo, "the own gun and ammo parked"
+    assert r.slot(first, 10) == first_gun + 0x10 and r.slot(first, 11) == first_ammo, "the first borrow given back"
+    assert r.read(r.registry + 4 * GUN_ID) == gun and r.read(r.picker + 0x128) == gun
+    assert r.native[0] == ("deactivate", first_gun, 1) and r.native[1][::2] == ("forget", first_gun), r.native
+    assert r.save(r.picker) == record(borrow=(6, KIT, 1, 1))
+    assert any("gave back, replaced: the gun of place 5" in l for l in r.log), r.log
+    # Its death: the respawn's removal puts the own gun and ammunition back.
+    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    assert r.slot(inv, 10) == own + 0x10 and r.slot(inv, 8) == r.own_ammo
+    assert r.slot(second, 10) == gun + 0x10 and r.slot(second, 11) == ammo
+    assert r.read(r.registry + 4 * GUN_ID) == own and r.save(r.picker) == record()
+    print("ok a pickup over a borrowed gun: the borrowed gun and its ammunition back in their cooked inventory "
+          "(switched from it), the new one in its place, the own gun and ammunition parked; the removal puts "
+          "the own ones back")
+
+
 def no_branch_into(original):
     """Nothing of the original exe branches into bytes 1.. of a new span (selftest's scan)."""
     import selftest_026g as test
@@ -732,9 +776,9 @@ def stage2(patched, original):
           "logged: the donor's magazine and chamber, the stack placed (slot, ammunition, count) and the own one parked")
 
     r.pick()
-    assert any("refused, the picker already holds a borrowed gun" in l for l in r.log)
+    assert any("refused, no drop to take" in l for l in r.log)
     r.installed()
-    print("ok a second command: refused (it borrows already)")
+    print("ok a second command for the same drop: refused (taken)")
 
     # The crate, the native refill's rule in bags with real configs: the picker's own 5.45x39 7N10
     # (217: 30 a clip, a bag a clip) has the kit's allowance of 90 rounds in slot 8, 3 bags; the

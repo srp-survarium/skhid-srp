@@ -307,7 +307,8 @@ pub struct Picker {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
     Dead,
-    /// It already holds a borrowed gun.
+    /// It borrows a gun and holds its other one (a borrowed gun is replaced
+    /// only from its hands: one borrow at a time).
     Borrowing,
     /// No gun of its two in its hands.
     NoGunInHands,
@@ -327,8 +328,9 @@ pub struct Take {
 }
 
 /// The rule of a pickup command (the owner's, `weapon_pickup.md`): a living
-/// picker with one of its guns in hands and no borrowed one, an available
-/// drop of another place; the held gun is replaced (never the other slot's)
+/// picker with one of its guns in hands (its borrowed one, when it borrows:
+/// the new gun replaces it), an available drop of another place; the held
+/// gun is replaced (never the other slot's)
 /// by any gun the carry rule allows beside the other slot's: with
 /// [`CarryRule::OneWeapon`] only a gun held in slot 7 with slot 10 empty,
 /// with [`CarryRule::OneDoubleHanded`] no double-handed gun beside another.
@@ -339,10 +341,10 @@ pub fn decide(picker: Picker, target: Place, drop: Drop,
     if !picker.alive {
         return Err(Refusal::Dead);
     }
-    if picker.borrow.is_some() {
+    let own = picker.held.ok_or(Refusal::NoGunInHands)?;
+    if picker.borrow.is_some_and(|b| b.own != own) {
         return Err(Refusal::Borrowing);
     }
-    let own = picker.held.ok_or(Refusal::NoGunInHands)?;
     if target == picker.place {
         return Err(Refusal::NotAvailable);
     }
@@ -538,8 +540,12 @@ mod tests {
         assert_eq!(decide(picker, me, drop, rifle), Err(Refusal::NotAvailable));
         assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, rifle), Err(Refusal::Dead));
         assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, rifle), Err(Refusal::NoGunInHands));
-        assert_eq!(decide(Picker { borrow: Some(take.borrow), ..picker }, donor, drop, rifle),
-                   Err(Refusal::Borrowing));
+        // Holding a borrowed gun: the new one replaces it, in the same slot.
+        let borrowing = Picker { borrow: Some(take.borrow), ..picker };
+        let other = Place::new(7).unwrap();
+        assert_eq!(decide(borrowing, other, drop, rifle).unwrap().borrow.own, WeaponSlot::Second);
+        assert_eq!(decide(Picker { held: Some(WeaponSlot::First), ..borrowing }, other, drop, rifle),
+                   Err(Refusal::Borrowing), "its other gun in hands");
     }
 
     #[test]

@@ -46,8 +46,13 @@
   slot 7 (a gun held in slot 10 is not replaced), and without
   `use_two_double_handed_weapons` (modifier 25) a double-handed gun is
   refused while the other slot holds one. Handedness is the item's
-  `double_handed` (weapon+5E9h). My picks: a player holds at most one
-  borrowed gun; nothing in hands but a gun of its two: no pickup.
+  `double_handed` (weapon+5E9h). A pickup while holding a borrowed gun
+  replaces it (the owner, 2026-11-01): the borrowed gun and its ammunition
+  go, the new one comes in with its own, the player's own gun and ammunition
+  stay parked and come back at its death or respawn; the carry rules hold.
+  My picks: a player holds at most one borrowed gun (holding its other gun
+  while it borrows: no pickup); nothing in hands but a gun of its two: no
+  pickup.
 - Synced: only each player's record (its drop: open with its kit and slot,
   or taken; and the gun it borrows), 12 bytes at the start of its
   state. The command rides in the input (patch 78's bit 29 with a pattern of
