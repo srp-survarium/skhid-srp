@@ -73,7 +73,9 @@ pub struct QueueTuning {
     /// A teammate this near ahead on the bot's way, or nearer, is given way to by dropping the sprint, m (live players walking the same way keep 1 m or more across or
     /// 2 m or more along in 92 % of the pairs within 16 m, `A175/human_file.txt`).
     pub gap_m: Metres,
-    /// … and this near, by letting go of forward for the tick, m (the step apart's reach, `apart_m`).
+    /// … and this near, by letting go of forward for the tick, m. 1.5: a released run coasts about 0.26 s of its speed (motor.rs
+    /// `LANDING_COAST_S`, the J0 client rows), so a stop at 1.1 m (the step apart's reach) came to rest inside 1 m of a mate. 1.5 against
+    /// 1.1 by side (192 pairs, seeds 29-36): the young 1 m overlap -32 % z -8.2, all 1 m -31 % z -5.2, score -0.1 % z -0.1, no guard flagged.
     pub stop_m: Metres,
     /// Ahead: within this of the bot's way, degrees.
     pub cone_deg: Positive,
@@ -81,7 +83,7 @@ pub struct QueueTuning {
 
 impl Default for QueueTuning {
     fn default() -> Self {
-        Self { gap_m: Metres::of(2.0), stop_m: Metres::of(1.1), cone_deg: Positive::of(60.0) }
+        Self { gap_m: Metres::of(2.0), stop_m: Metres::of(1.5), cone_deg: Positive::of(60.0) }
     }
 }
 
