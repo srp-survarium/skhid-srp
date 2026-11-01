@@ -213,12 +213,12 @@ st_ammo_762x39_description	Náboj 7.62x39 vyvinutý v roce 1943, považovaný za
 st_ammo_762x39_m_description	Popis zatím není k dispozici.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	Puškové náboje 7.62x51 v zásobnících po 20 kusech pro FN SCAR-H a H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, zásobník na 20
 st_ammo_762x51_M59_description	Průbojná varianta vojenského puškového náboje 7.62x51 M61. Střela má ocelové jádro s pláštěm.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Rozšířený vojenský náboj s celoplášťovou střelou. Určený pro odstřelovačské i civilní zbraně. 
 st_ammo_762x51_name	7.62x51
-st_ammo_762x51_scar_description	Náboje 7.62x51 v zásobnících po 20 kusech pro FN SCAR-H.
-st_ammo_762x51_scar_name	7.62x51 SCAR-H
 st_ammo_762x54R_old_description	Náboj nalezený ve skladech patří k nejstarším dosud používaným puškovým nábojům. Stáří a skladování snížily jeho účinnost.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Sovětský jednotný náboj nahrazující zastaralý 7.62mm náboj. Běžné střelivo za dobrou cenu, se slušnou průbojností proti nekovovým překážkám.

@@ -213,12 +213,12 @@ st_ammo_762x39_description	Metak 7,62x39, razvijen 1943. godine. Opisuje se kao 
 st_ammo_762x39_m_description	Opis još nije dostupan.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	Puščani meci 7,62x51 u okvirima od 20 metaka za FN SCAR-H i H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, okvir od 20
 st_ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 M61, sa obloženim čeličnim jezgrom.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Rasprostranjeni vojni metak sa potpuno obloženim zrnom, namenjen snajperskom i civilnom oružju.
 st_ammo_762x51_name	7.62x51
-st_ammo_762x51_scar_description	Meci 7,62x51 u okvirima od 20 metaka za FN SCAR-H.
-st_ammo_762x51_scar_name	7,62x51 SCAR-H
 st_ammo_762x54R_old_description	Jedan od najstarijih puščanih metaka, pronađen u skladištima. Starost i uslovi čuvanja smanjili su njegovu efikasnost.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Sovjetski metak napravljen kao zamena za zastareli 7,62 mm. Povoljan je i dobro probija nemetalne površine.

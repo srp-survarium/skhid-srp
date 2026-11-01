@@ -213,12 +213,12 @@ st_ammo_762x39_description	Az 1943-ban tervezett 7.62x39 lőszert a világ háro
 st_ammo_762x39_m_description	A leírás még nem érhető el.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	7.62x51 puskalőszer 20 lőszeres tárakban az FN SCAR-H-hoz és a H&K G3SG/1-hez.
+st_ammo_762x51_20_name	7.62x51, 20 lőszeres tár
 st_ammo_762x51_M59_description	A katonai 7.62x51 M61 puskalőszer páncéltörő változata. A lövedék köpenyezett acélmaggal rendelkezik.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Elterjedt katonai lőszer teljes köpenyes lövedékkel. Mesterlövész- és civil fegyverekhez készült. 
 st_ammo_762x51_name	7.62x51
-st_ammo_762x51_scar_description	7.62x51 lőszer 20 lőszeres tárakban az FN SCAR-H-hoz.
-st_ammo_762x51_scar_name	7.62x51 SCAR-H
 st_ammo_762x54R_old_description	Raktárakból előkerült lőszer, korunk egyik legrégebbi puskalőszere. Kora és tárolási körülményei csökkentették a hatékonyságát.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Szovjet egybeszerelt lőszer az elavult 7.62 mm-es leváltására. Kedvező árú alaplőszer, nemfémes felületeken megfelelő átütőerővel.

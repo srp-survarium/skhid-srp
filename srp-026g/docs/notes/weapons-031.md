@@ -1,6 +1,6 @@
 # Weapons batch 1: OTs-14, SCAR-H, VHS-2, Minimi (0.31a2)
 
-Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@4` (its row in
+Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@5` (its row in
 `release/content.tsv`). The owner's scope (2026-11-01): four batches of ported weapons, this one
 from 0.31a2; no premium or skin copies; machine-gun ammunition is the rifle round (no belt items);
 stats are the donor's own, scaled by a peer both builds ship, and the guns sit in our live balance
@@ -11,7 +11,7 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
 | | dict id | config | lobby cell | kill feed icon | ammo |
 |---|---|---|---|---|---|
 | OTs-14 "Groza" | 2261 | `wpn_ots14` | [6, 5] | 72 | 9x39 PAB-9, SP-5, SP-6 (300, 301, 302) |
-| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | 7.62x51 SCAR-H (2266), 7.62x51, 7.62x51 AP (51, 52) |
+| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | 7.62x51 in clips of 20 (2254), 7.62x51, 7.62x51 AP (51, 52) |
 | VHS-2 | 2263 | `wpn_vhs_2` | [4, 5] | 70 | 5.56x45 (2201) |
 | FN Minimi | 2264 | `wpn_fn_minimi` | [8, 5] | 74 | 5.56x45 belt (2265) |
 
@@ -43,10 +43,13 @@ A default kit has three ammo bags.
   200 a belt (2 a round, as the 5.56), srp 100; Renaissance, rank 9 (no rank needed for ammo).
 - **FN SCAR-H:** the 7.62x51 is 10 rounds a bag (the battle and sniper rounds: 7.62x51, 7.62x54R,
   12.7), so a kit held 30, 1.5 of its 20-round magazines, where the SOCOM 16 (10 rounds) gets 3. A
-  10-round bag is right for the SOCOM 16 and the Remington 700, so it stays; the SCAR-H gets its own
-  7.62x51 in 20-round magazines (2266, `ammo_7.62x51_scar`, as 0.69d's own `ammo_7.62x51_scar`): 20
-  a bag, 60 rounds a kit, 3 magazines; the 7.62x51's ballistics and icon, 300 a clip (15 a round, as
-  the 7.62x51), srp 150; Renaissance, rank 10. It still takes the shared 7.62x51 and AP.
+  10-round bag is right for the SOCOM 16 and the Remington 700, so it stays; the SCAR-H takes the
+  7.62x51 in clips of 20 (2254, `ammo_7.62x51_20`, as 0.69d gave the SCAR-H its own round): 20 a bag,
+  60 rounds a kit, 3 magazines; the 7.62x51's ballistics, 300 a clip (15 a round, as the 7.62x51),
+  srp 150; icon `LobbyMenu_AmmoIcons` [21, 4]. One round for the 20-round 7.62x51 magazines: batch
+  4's H&K G3SG/1 has the same need and takes it too (the coordinator, 2026-11-01; id, cell and icon
+  were batch 4's), so it is sold by Renaissance (rank 10, the SCAR-H's) and the Black Market (rank 5,
+  the G3SG/1's). The SCAR-H still takes the shared 7.62x51 and AP.
 - `prices.rs`: their sellers (EXCEPTIONS), `AMMO_PRICES` and `UNRELEASED` rows.
 
 ## Fixed after the first in-game look (2026-11-01)
@@ -105,7 +108,7 @@ resource-porter's weapon port (branch `feat/weapons-port`, `docs/weapons-026.md`
 vostok-port port-weapons --manifest ports/weapons-031a2-batch1.json --donor v031a2.split \
   --target-db <stock resources.db> --target-patch <every listed patch> --output <bundle>
 vostok-port pack from-bundle --base-db <stock> --base-patch <every listed patch> \
-  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-4 --id weapons-031 --version 4
+  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-5 --id weapons-031 --version 5
 ```
 
 - The art is 0.31a2's: meshes (0.31's statistics chunk 110 dropped), textures, sounds as they are;

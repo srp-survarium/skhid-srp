@@ -213,12 +213,12 @@ st_ammo_762x39_description	Die 7.62-mm Patrone des Musters von Jahr 1943, wird a
 st_ammo_762x39_m_description	Description is not ready!!!
 st_ammo_762x39_m_name	7.62x39 PRD
 st_ammo_762x39_name	7.62x39 
+st_ammo_762x51_20_description	Gewehrpatronen 7,62x51 in 20-Schuss-Magazinen für das FN SCAR-H und das H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, 20-Schuss-Magazin
 st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalibers 7.62 . Kugel ist mit dem Stahlkern ausgestattet.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
 st_ammo_762x51_name	7.62x51
-st_ammo_762x51_scar_description	Patronen 7,62x51 in 20-Schuss-Magazinen für das FN SCAR-H.
-st_ammo_762x51_scar_name	7,62x51 SCAR-H
 st_ammo_762x54R_old_description	Gefunden im Lagerhaus ist diese Patrone eine der ältesten Gewehrpatronen der Gegenwart. Das Alter und die Bedingungen der Aufbewahrung haben diese Patrone weniger wirksam gemacht
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Sowjetische Einheitspatronen sind geschaffen, um veraltete 7,62 mm Patronen zu ersetzen. Standard-Kugeln mit einer guten Tiefenwirkung gegen nicht-metallische Hindernisse.
