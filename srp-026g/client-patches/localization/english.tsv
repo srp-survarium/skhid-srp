@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	German red dot collimator sight made by 
 st_walther_competition2_collimator_name	Competition II collimator
 st_wasted	Consumption
 st_weapon_aim_action	Aim (hold)
+st_weapon_already_taken	Already taken
+st_weapon_cannot_carry	Can't carry a second rifle
+st_weapon_cannot_pick_up	Can't pick this up
 st_weapon_could_not_be_used	Arms wounded! Unable to use weapons
 st_weapon_fire_action	Shoot
+st_weapon_no_gun_in_hands	Hold a gun to swap it
+st_weapon_one_gun_only	You can carry one gun only
+st_weapon_pick_up	Pick up %1$s ({USE})
 st_weapon_reload_action	Reload
+st_weapon_switching	Wait for the weapon switch
 st_wear	Apply
 st_weight_booster_description	Protein containing essential nutrients for muscle growth and strength improvement. However using it without physical exertion is ineffective.
 st_weight_booster_name	Anomalous Force Protein

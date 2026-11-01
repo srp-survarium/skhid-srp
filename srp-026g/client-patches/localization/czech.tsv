@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	Německý kolimátor Walther s červený
 st_walther_competition2_collimator_name	Kolimátor Competition II
 st_wasted	Spotřeba
 st_weapon_aim_action	Míření (držet)
+st_weapon_already_taken	Už sebráno
+st_weapon_cannot_carry	Druhou pušku neuneseš
+st_weapon_cannot_pick_up	Tohle nelze sebrat
 st_weapon_could_not_be_used	Ruce zraněny! Nelze používat zbraně
 st_weapon_fire_action	Střílet
+st_weapon_no_gun_in_hands	Vezmi zbraň do ruky a vyměň ji
+st_weapon_one_gun_only	Uneseš jen jednu zbraň
+st_weapon_pick_up	Sebrat %1$s ({USE})
 st_weapon_reload_action	Přebít
+st_weapon_switching	Počkej na výměnu zbraně
 st_wear	Nasadit
 st_weight_booster_description	Protein s nezbytnými živinami pro růst svalů a síly. Bez fyzické námahy ale neúčinkuje.
 st_weight_booster_name	Protein Anomální síla

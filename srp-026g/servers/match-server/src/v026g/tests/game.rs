@@ -2356,6 +2356,7 @@ fn what_each_player_has_left_comes_with_the_result() {
     let state = |alive: bool, condition: u32| PlayerState {
         current_index: 0,
         target_index: 0,
+        pickup: weapon_pickup::Record::EMPTY,
         items: vec![condition],
         alive,
         has_to_die: false,
