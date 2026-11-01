@@ -303,6 +303,8 @@ st_base_trap_description	Běžná lovecká past se silnou pružinou. Při sklapn
 st_base_trap_name	Past
 st_benelli_description	Italská samonabíjecí brokovnice ráže 12. Benelli ji vyvinulo koncem 90. let s plynovým mechanismem. Americká námořní pěchota ji přijala jako M1014. Trubicový zásobník pod hlavní. Pouze jednotlivé rány.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italská samočinná pistole, náboj: 9x19. Jednotlivé rány nebo dávky po třech; sklopná přední rukojeť.
+st_beretta93r_name	Beretta 93R
 st_best	Nejlepší
 st_best_explorer	PRŮZKUMNÍK
 st_best_explorer_artefacts	Artefakty:
@@ -841,6 +843,8 @@ st_clan_window_label	Registrace klanu
 st_clear	Vymazat
 st_close	Zavřít
 st_collect_statistics_option	Povolit sběr statistik
+st_colt_m1911_description	Americká pistole, náboj: .45 ACP. Sedm desetiletí služební pistole americké armády.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Dosáhl jsi denního limitu pochval.
 st_compliment_count_per_user_owerflow	Stejného hráče nemůžeš pochválit dvakrát za den!
 st_compliment_player	Pochválit
@@ -865,6 +869,8 @@ st_crouch_action	Přikrčení (držet)
 st_crouch_toggle_action	Přikrčit se
 st_ct_max_members_count_error	Nelze přidat další hráče. Klanový tým už je plný.
 st_current_value	\nAktuální hodnota:
+st_cz_75_description	Česká samonabíjecí pistole, náboj: 9x19. Jedna z nejkopírovanějších pistolí studené války.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Hraj každý den a za <highlight>první tři</highlight> výhry získáš <highlight>x2</highlight> zkušenosti i pověst.
 st_daily_bonus_hint	Zobrazit uvítací obrazovku
 st_daily_bonus_label	Vítej zpátky
@@ -1175,6 +1181,8 @@ st_fn_p90_description	Belgická zbraň osobní obrany na náboje 5.7x28. FN Hers
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrajinská samonabíjecí pistole na náboje 9x18. Výroba začala v roce 2004. Používala ji vnitřní vojska a některé speciální jednotky. Zásobník na 12 nábojů. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrajinský lehký kulomet, náboj: 7,62x51. Licenční Negev z Vinnycji, plněný ze schránky na 100 nábojů.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Těžké obrněné boty v barvách Svobody, nošené k těžké zbroji.
 st_freedom_026_boots_name	Boty Svobody
@@ -1197,6 +1205,8 @@ st_fullscreen_option	Celá obrazovka
 st_general_volume_option	Celková
 st_generic_money_name	Rubly
 st_geometry_quality_option	Kvalita geometrie
+st_glock_17_description	Rakouská pistole s polymerovým rámem, náboj: 9x19. Tato je upravena pro samočinnou palbu.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Znalostní báze se otevře v novém okně prohlížeče.
 st_go_to_online_store_message	Online obchod se otevře v prohlížeči. Pokračovat?
 st_go_to_video_tutorial_message	Videonávod se otevře v prohlížeči. Pokračovat?
@@ -1324,6 +1334,8 @@ st_izh27_description	Popis zatím není k dispozici.
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Ruská kozlice ráže 12, vyráběná Iževským mechanickým závodem pod značkou Baikal. Jedna z nejrozšířenějších loveckých a sportovních dvouhlavňových brokovnic. Dvě hlavně, každá na jednu ránu. Lze střílet zvlášť nebo oběma naráz. Prémiová verze se zvláštní kamufláží.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	Americká automatická brokovnice, náboj: 12/70. Bullpup s bubnem na 10 nábojů, střílí jen dávkami.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Skok
 st_kedr_description	Sovětský samopal na náboje 9x18 PM. Navrhl ho Jevgenij Dragunov začátkem 70. let, sériová výroba ale začala až v 90. letech pro ruské ministerstvo vnitra a policii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1361,8 @@ st_knw_synergy_desc	Síla artefaktů roste s jejich počtem.
 st_knw_synergy_name	Synergie
 st_kriss_vector_description	Americký samopal na náboje .45 ACP. KRISS ho uvedl v 00. letech. Systém zpětného rázu vede závěr dolů a omezuje zdvih ústí. Tato verze má kolimátor Walther Competition II. Zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Britská útočná puška typu bullpup, náboj: 5,56x45. Standardní puška britské armády.
+st_l85a2_name	L85A2
 st_label_invites	Pozvánky
 st_label_leave_queue_btn	Opustit frontu
 st_label_quenue	Čekání na hráče:
@@ -1511,6 +1525,10 @@ st_movement_speed_when_aiming_description	Rychlost pohybu při míření:
 st_movement_speed_when_aiming_name	Bojový postoj
 st_mp153_description	Ruská samonabíjecí brokovnice na náboje 12x70. Nízká cena a spolehlivost jí zajistily oblibu mezi lovci a sportovními střelci. Trubicový zásobník pod hlavní na 4 náboje.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Ruská armádní pistole, náboj: 9x19. Zavedena v roce 2003 jako náhrada Makarova.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	Německý samopal, náboj: 9x19. Klasika policie a speciálních jednotek, s válečkovým závěrem.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polská modulární karabina na náboje 5.56x45. Vyvinutá v 10. letech varšavskou vojenskou technickou univerzitou a zbrojovkou v Radomi. Polská armáda ji přijala jako Grot. Zaměřovač EOTech 552, zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Chvění mířidel
@@ -2745,6 +2763,8 @@ st_sv_98_description	Popis zatím není k dispozici.
 st_sv_98_name	SV-98
 st_svd_description	Samonabíjecí odstřelovačská puška Dragunov na náboje 7.62x54. Po léta hlavní odstřelovačská puška sovětské armády. Zásobník na 5 nábojů. 
 st_svd_name	SVD
+st_svu_a_description	Ruská odstřelovačská puška typu bullpup, náboj: 7,62x54R. Zkrácená SVD pro boj zblízka, samonabíjecí.
+st_svu_a_name	SVU
 st_swear_clan_string	Text obsahuje vulgarity
 st_swearing_claim	Vulgární jazyk
 st_team_already_has_commander	Klanový tým už má velitele.

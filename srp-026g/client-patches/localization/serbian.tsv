@@ -303,6 +303,8 @@ st_base_trap_description	Obična lovačka zamka sa snažnom oprugom. Može da sl
 st_base_trap_name	Zamka
 st_benelli_description	Italijanska poluautomatska sačmarica kalibra 12. Benelli ju je razvio krajem devedesetih sa gasnim pogonom, a američki marinci usvojili kao M1014. Puni se iz cevastog magacina ispod cevi. Samo pojedinačna paljba.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italijanski automatski pištolj, municija: 9x19. Pojedinačna paljba ili rafali od tri metka; preklopni prednji rukohvat.
+st_beretta93r_name	Beretta 93R
 st_best	Najbolji
 st_best_explorer	ISTRAŽIVAČ
 st_best_explorer_artefacts	Artefakti:
@@ -841,6 +843,8 @@ st_clan_window_label	Registracija klana
 st_clear	Očisti
 st_close	Zatvori
 st_collect_statistics_option	Omogući prikupljanje statistike
+st_colt_m1911_description	Američki pištolj, municija: .45 ACP. Službeni pištolj američke vojske sedam decenija.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Dostigli ste dnevno ograničenje broja pohvala.
 st_compliment_count_per_user_owerflow	Istog igrača ne možete pohvaliti dvaput dnevno!
 st_compliment_player	Pohvali
@@ -865,6 +869,8 @@ st_crouch_action	Čučni (drži)
 st_crouch_toggle_action	Čučni
 st_ct_max_members_count_error	Tim klana već ima najveći broj igrača.
 st_current_value	\nTrenutna vrednost:
+st_cz_75_description	Češki poluautomatski pištolj, municija: 9x19. Jedan od najkopiranijih pištolja Hladnog rata.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Igrajte svakog dana i osvojite <highlight>x2</highlight> iskustvo i ugled za <highlight>prve tri</highlight> pobede.
 st_daily_bonus_hint	Prikaži ekran dobrodošlice
 st_daily_bonus_label	Dobro došli nazad
@@ -1175,6 +1181,8 @@ st_fn_p90_description	Belgijsko oružje za ličnu odbranu kalibra 5,7x28. FN Her
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrajinski poluautomatski pištolj kalibra 9x18, u proizvodnji od 2004. Koristile su ga unutrašnje i specijalne jedinice. Okvir prima 12 metaka.
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrajinski puškomitraljez, municija: 7,62x51. Negev izrađen po licenci u Vinici, sa kutijom od 100 metaka.
+st_fort_401_name	Fort-401
 st_fov_option	Vidno polje
 st_freedom_026_boots_desc	Teške oklopljene čizme u bojama Slobode, za nošenje uz teški oklop.
 st_freedom_026_boots_name	Čizme Slobode
@@ -1197,6 +1205,8 @@ st_fullscreen_option	Ceo ekran
 st_general_volume_option	Glavna jačina zvuka
 st_generic_money_name	Rublje
 st_geometry_quality_option	Kvalitet geometrije
+st_glock_17_description	Austrijski pištolj sa polimernim ramom, municija: 9x19. Ovaj je prerađen za automatsku paljbu.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Baza znanja će se otvoriti u novom prozoru pregledača.
 st_go_to_online_store_message	Internet prodavnica će se otvoriti u pregledaču. Nastaviti?
 st_go_to_video_tutorial_message	Video-uputstvo će se otvoriti u pregledaču. Nastaviti?
@@ -1324,6 +1334,8 @@ st_izh27_description	Opis još nije dostupan.
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Ruska sačmarica kalibra 12 sa vertikalno postavljenim cevima. Proizvodi je Iževski mehanički zavod pod imenom Bajkal. Dve cevi sa po jednim patronom mogu opaliti zasebno ili zajedno. Premijum verzija sa posebnom kamuflažom.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	Američka automatska sačmarica, municija: 12/70. Bulpap sa dobošem od 10 metaka, puca samo rafalno.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Skoči
 st_kedr_description	Sovjetski automat kalibra 9x18 PM, koji je Jevgenij Dragunov osmislio početkom sedamdesetih. Serijska proizvodnja počela je devedesetih za rusko Ministarstvo unutrašnjih poslova i policiju. Okvir prima 30 metaka. Pojedinačna i automatska paljba.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1361,8 @@ st_knw_synergy_desc	Snaga artefakata raste sa njihovim brojem.
 st_knw_synergy_name	Sinergija
 st_kriss_vector_description	Američki automat kalibra .45 ACP, uveden tokom 2000-ih. Sistem trzaja usmerava zatvarač nadole i smanjuje podizanje cevi. Ima nišan Walther Competition II i okvir za 30 metaka. Podržava pojedinačnu, rafalnu i automatsku paljbu.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Britanska jurišna puška bulpap konstrukcije, municija: 5,56x45. Standardna puška britanske vojske.
+st_l85a2_name	L85A2
 st_label_invites	Pozivi
 st_label_leave_queue_btn	Napusti red
 st_label_quenue	Čekanje igrača:
@@ -1511,6 +1525,10 @@ st_movement_speed_when_aiming_description	Brzina kretanja tokom nišanjenja:
 st_movement_speed_when_aiming_name	Borbeni stav
 st_mp153_description	Ruska poluautomatska sačmarica kalibra 12x70. Niska cena i pouzdanost učinile su je popularnom za lov i sport. Cevasti magacin ispod cevi prima 4 patrona.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Ruski vojni pištolj, municija: 9x19. Uveden 2003. godine kao zamena za Makarov.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	Nemački automat, municija: 9x19. Klasik policije i specijalnih jedinica, sa zatvaračem na valjke.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Poljski modularni karabin kalibra 5,56x45. Razvili su ga Vojnotehnički univerzitet u Varšavi i fabrika oružja u Radomu tokom 2010-ih. Vojska ga je usvojila kao Grot. Ima EOTech 552 i okvir za 30 metaka. Pojedinačna, rafalna i automatska paljba.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Ljuljanje nišana
@@ -2745,6 +2763,8 @@ st_sv_98_description	Opis još nije dostupan.
 st_sv_98_name	SV-98
 st_svd_description	Poluautomatska snajperska puška Dragunov kalibra 7,62x54. Godinama glavno snajpersko oružje sovjetske vojske. Okvir prima 5 metaka.
 st_svd_name	SVD
+st_svu_a_description	Ruska snajperska puška bulpap konstrukcije, municija: 7,62x54R. Skraćena SVD za borbu na blizinu, poluautomatska.
+st_svu_a_name	SVU
 st_swear_clan_string	Tekst sadrži nepristojne reči.
 st_swearing_claim	Nepristojan govor
 st_team_already_has_commander	Tim klana već ima komandanta.

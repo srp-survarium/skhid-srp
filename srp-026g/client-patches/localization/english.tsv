@@ -303,6 +303,8 @@ st_base_trap_description	A common hunter's trap with a strong spring. When activ
 st_base_trap_name	Trap
 st_benelli_description	Italian self-loading shotgun, 12 gauge. Developed by Benelli in the late 1990s with a gas-operated action and adopted by the US Marine Corps as the M1014. Loaded from a tube magazine under the barrel. Single shots only.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italian machine pistol, ammo: 9x19. Single shots or three-round bursts; folding foregrip.
+st_beretta93r_name	Beretta 93R
 st_best	Best
 st_best_explorer	EXPLORER
 st_best_explorer_artefacts	Artifacts:
@@ -841,6 +843,8 @@ st_clan_window_label	Clan registration
 st_clear	Clear
 st_close	Close
 st_collect_statistics_option	Enable statistics collection
+st_colt_m1911_description	American pistol, ammo: .45 ACP. The US Army's service pistol for seven decades.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	You've used the maximum number of praises for one day.
 st_compliment_count_per_user_owerflow	You can't compliment a user twice a day!
 st_compliment_player	Praise
@@ -865,6 +869,8 @@ st_crouch_action	Crouch (hold)
 st_crouch_toggle_action	Crouch
 st_ct_max_members_count_error	Error adding new players. The clan team already has the maximum number of players.
 st_current_value	\nCurrent value:
+st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
@@ -1175,6 +1181,8 @@ st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed b
 st_fn_p90_name	FN P90
 st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrainian light machine gun, ammo: 7.62x51. A Negev made under licence in Vinnytsia, fed from a 100-round box.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Heavy armoured boots in Freedom colours, worn with heavy armour.
 st_freedom_026_boots_name	Freedom boots
@@ -1197,6 +1205,8 @@ st_fullscreen_option	Full screen mode
 st_general_volume_option	Master
 st_generic_money_name	Rubles
 st_geometry_quality_option	Geometry quality
+st_glock_17_description	Austrian polymer-framed pistol, ammo: 9x19. This one is converted to fully automatic fire.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	The knowledge base will open in new browser window.
 st_go_to_online_store_message	Online store will open in a browser window. Continue?
 st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
@@ -1324,6 +1334,8 @@ st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Russian over-and-under shotgun, 12 gauge. Made by the Izhevsk Mechanical Plant under the Baikal name, one of the most widespread hunting and sporting double-barrel guns. Two barrels, one shot each. Fires one barrel at a time or both at once. Premium version in a special camouflage finish.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	American automatic shotgun, ammo: 12/70. A bullpup with a 10-round rotary cylinder; fully automatic only.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Jump
 st_kedr_description	Soviet submachine gun, ammo: 9x18 PM. Designed by Yevgeny Dragunov in the early 1970s; series production started only in the 1990s, for the Russian Interior Ministry and the police. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1361,8 @@ st_knw_synergy_desc	The power of artifacts grows in proportion to their amount.
 st_knw_synergy_name	Synergy
 st_kriss_vector_description	American submachine gun, ammo: .45 ACP. Introduced by KRISS in the 2000s; its recoil system moves the bolt downwards, which keeps the muzzle from climbing. This one carries a Walther Competition II collimator sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	British bullpup assault rifle, ammo: 5.56x45. The standard rifle of the British Army.
+st_l85a2_name	L85A2
 st_label_invites	Invites
 st_label_leave_queue_btn	Leave the queue
 st_label_quenue	Awaiting players:
@@ -1511,6 +1525,10 @@ st_movement_speed_when_aiming_description	The speed of movement while aiming:
 st_movement_speed_when_aiming_name	Battle stance
 st_mp153_description	Russian smooth-bore semi-automatic shotgun, ammo: 12x70. Owing to low price and good reliability, the weapon got widely accepted as a hunting and sports rifle. Equipped with underbarrel tube magazine of 4 rounds.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Russian army pistol, ammo: 9x19. Adopted in 2003 to replace the Makarov.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	German submachine gun, ammo: 9x19. The classic of police and special forces, with a roller-delayed bolt.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polish modular carbine, ammo: 5.56x45. Developed in the 2010s by the Military University of Technology in Warsaw and the Fabryka Broni in Radom; adopted by the Polish army as the Grot. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Sight sway
@@ -2745,6 +2763,8 @@ st_sv_98_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sv_98_name	SV-98
 st_svd_description	Dragunov self-loading sniper rifle, ammo: 7.62х54. For years it was the main sniper rifle of the USSR army. Ammo clip supply: 5 rounds of shots. 
 st_svd_name	SVD
+st_svu_a_description	Russian bullpup marksman rifle, ammo: 7.62x54R. A shortened SVD for close quarters, self-loading.
+st_svu_a_name	SVU
 st_swear_clan_string	The line contains profanity
 st_swearing_claim	Obscene language
 st_team_already_has_commander	The clan team already has a leader.

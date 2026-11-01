@@ -303,6 +303,8 @@ st_base_trap_description	Standardowa myśliwska pułapka z mocną sprężyną. J
 st_base_trap_name	Pułapka
 st_benelli_description	Włoska strzelba samopowtarzalna kalibru 12. Opracowana przez firmę Benelli pod koniec lat 90., z automatyką gazową, przyjęta przez Korpus Piechoty Morskiej USA jako M1014. Ładowana do magazynka rurowego pod lufą. Tylko ogień pojedynczy.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Włoski pistolet maszynowy, amunicja: 9x19. Ogień pojedynczy lub serie po trzy; składany chwyt przedni.
+st_beretta93r_name	Beretta 93R
 st_best	Najlepszy
 st_best_explorer	ODKRYWCA
 st_best_explorer_artefacts	Artefakty:
@@ -841,6 +843,8 @@ st_clan_window_label	Rejestracja klanu
 st_clear	Wyczyść
 st_close	Zamknij
 st_collect_statistics_option	Zezwól na zbieranie statystyk
+st_colt_m1911_description	Amerykański pistolet, amunicja: .45 ACP. Przez siedem dekad pistolet służbowy armii USA.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Wykorzystano maksymalną liczbę pochwał przyznaną na jeden dzień.
 st_compliment_count_per_user_owerflow	Nie możesz dwukrotnie pochwalić tego samego użytkownika w ciągu jednego dnia!
 st_compliment_player	Pochwal
@@ -865,6 +869,8 @@ st_crouch_action	Kucanie (przytrzymaj)
 st_crouch_toggle_action	Kucanie
 st_ct_max_members_count_error	Błąd dodawania. Drużyna klanu osiągnęła już maksymalną liczbę graczy.
 st_current_value	\nBieżąca wartość:
+st_cz_75_description	Czeski pistolet samopowtarzalny, amunicja: 9x19. Jeden z najczęściej kopiowanych pistoletów zimnej wojny.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Graj każdego dnia i otrzymaj <highlight>x2</highlight> więcej doświadczenia i reputacji za <highlight>pierwsze trzy</highlight> zwycięstwa.
 st_daily_bonus_hint	Wyświetl ekran powitalny
 st_daily_bonus_label	Witaj z powrotem
@@ -1175,6 +1181,8 @@ st_fn_p90_description	Belgijska broń osobista typu PDW, amunicja: 5,7x28. Oprac
 st_fn_p90_name	FN P90
 st_fort_17_description	Pistolet samopowtarzalny ukraińskiej konstrukcji, amunicja: 9х18. Seryjną produkcję rozpoczęto w 2004 r. Używany był przez siły wewnętrzne i niektóre oddziały sił specjalnych. Wyposażony w 12-nabojowy magazynek.
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukraiński ręczny karabin maszynowy, amunicja: 7,62x51. Licencyjny Negev z Winnicy, zasilany z pudełka na 100 nabojów.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Ciężkie opancerzone buty w barwach Swobody, noszone do ciężkiego pancerza.
 st_freedom_026_boots_name	Buty Swobody
@@ -1197,6 +1205,8 @@ st_fullscreen_option	Pełny ekran
 st_general_volume_option	Ogólny
 st_generic_money_name	Monety
 st_geometry_quality_option	Jakość geometrii
+st_glock_17_description	Austriacki pistolet z polimerowym szkieletem, amunicja: 9x19. Ten przerobiono do ognia ciągłego.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Baza wiedzy otworzy się w nowym oknie przeglądarki.
 st_go_to_online_store_message	Sklep online zostanie otwarty w oknie przeglądarki. Kontynuować?
 st_go_to_video_tutorial_message	Trening wideo zostanie otwarty w oknie przeglądarki. Kontynuować?
@@ -1324,6 +1334,8 @@ st_izh27_description	OPIS NIE JEST GOTOWY!!!
 st_izh27_name	MR-27M "Lancaster"
 st_izh27_premium_2_description	Rosyjska dwulufowa strzelba z lufami w układzie pionowym, kaliber 12. Produkowana przez Iżewskie Zakłady Mechaniczne pod marką Bajkał, jedna z najpopularniejszych dubeltówek myśliwskich i sportowych. Dwie lufy, po jednym naboju. Strzela z jednej lufy lub z obu naraz. Wersja premium w specjalnym malowaniu kamuflażowym.
 st_izh27_premium_2_name	MP-27 "Błyskawica"
+st_jackhammer_description	Amerykańska strzelba automatyczna, amunicja: 12/70. Bullpup z bębnem na 10 nabojów, strzela tylko seriami.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Skok
 st_kedr_description	Radziecki pistolet maszynowy, amunicja: 9x18 PM. Zaprojektowany przez Jewgienija Dragunowa na początku lat 70., produkowany seryjnie dopiero od lat 90. dla rosyjskiego MSW i policji. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
 st_kedr_name	PP-91 Kedr
@@ -1349,6 +1361,8 @@ st_knw_synergy_desc	Moc artefaktów rośnie proporcjonalnie z posiadaną ich ilo
 st_knw_synergy_name	Synergia
 st_kriss_vector_description	Amerykański pistolet maszynowy, amunicja: .45 ACP. Przedstawiony przez firmę KRISS w latach 2000.; jego system tłumienia odrzutu kieruje zamek w dół, co ogranicza podrzut lufy. Ten egzemplarz ma celownik kolimatorowy Walther Competition II. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego, seriami i ciągłego.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Brytyjski karabinek szturmowy w układzie bullpup, amunicja: 5,56x45. Standardowy karabin armii brytyjskiej.
+st_l85a2_name	L85A2
 st_label_invites	Zaproszenia
 st_label_leave_queue_btn	Opuść kolejkę
 st_label_quenue	Oczekiwanie na graczy:
@@ -1511,6 +1525,10 @@ st_movement_speed_when_aiming_description	Prędkość poruszania się podczas ce
 st_movement_speed_when_aiming_name	Pozycja bojowa
 st_mp153_description	Samopowtarzalna strzelba gładkolufowa rosyjskiej konstrukcji, amunicja: 12x70.  Dzięki przystępnej cenie i przyzwoitej niezawodności znalazła szerokie zastosowanie jako strzelba myśliwska i sportowa. Wyposażona w 4-nabojowy magazynek rurowy.
 st_mp153_name	MP-153 "Bajkał"
+st_mp443_description	Rosyjski pistolet wojskowy, amunicja: 9x19. Przyjęty w 2003 roku w miejsce Makarowa.
+st_mp443_name	MP-443 Gracz
+st_mp5a1_description	Niemiecki pistolet maszynowy, amunicja: 9x19. Klasyka policji i jednostek specjalnych, z zamkiem rolkowym.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polski modułowy karabinek, amunicja: 5,56x45. Opracowany w latach 2010. przez Wojskową Akademię Techniczną w Warszawie i Fabrykę Broni w Radomiu; przyjęty na uzbrojenie Wojska Polskiego jako Grot. Ten egzemplarz ma celownik holograficzny EOTech 552. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego, seriami i ciągłego.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Kołysanie celownika
@@ -2745,6 +2763,8 @@ st_sv_98_description	OPIS NIE JEST GOTOWY!!!
 st_sv_98_name	SW-98
 st_svd_description	Samopowtarzalny karabin wyborowy Dragunowa, amunicja: 7.62х54. Przez lata stanowił podstawowe uzbrojenie strzelców wyborowych armii ZSSR. Wyposażony w 5-nabojowy magazynek.
 st_svd_name	SWD
+st_svu_a_description	Rosyjski karabin wyborowy w układzie bullpup, amunicja: 7,62x54R. Skrócony SWD do walki z bliska, samopowtarzalny.
+st_svu_a_name	SWU
 st_swear_clan_string	Linia zawiera wulgaryzmy
 st_swearing_claim	Wulgarny język
 st_team_already_has_commander	Drużyna klanu posiada już dowódcę.

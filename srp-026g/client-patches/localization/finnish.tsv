@@ -303,6 +303,8 @@ st_base_trap_description	Tavallinen metsästysrauta vahvalla jousella. Lauetessa
 st_base_trap_name	Ansa
 st_benelli_description	Italialainen itselataava 12 kaliiperin haulikko. Benellin kaasutoiminen malli 1990-luvun lopulta, Yhdysvaltain merijalkaväen käytössä nimellä M1014. Putkilipas piipun alla. Vain kertatuli.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italialainen sarjatulipistooli, ammus: 9x19. Kertatulta tai kolmen laukauksen sarjoja; taittuva etukahva.
+st_beretta93r_name	Beretta 93R
 st_best	Paras
 st_best_explorer	TUTKIJA
 st_best_explorer_artefacts	Artefaktit:
@@ -841,6 +843,8 @@ st_clan_window_label	Klaanin rekisteröinti
 st_clear	Tyhjennä
 st_close	Sulje
 st_collect_statistics_option	Salli tilastojen kerääminen
+st_colt_m1911_description	Amerikkalainen pistooli, ammus: .45 ACP. Yhdysvaltain armeijan virka-ase seitsemän vuosikymmenen ajan.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Päivittäinen kehujen raja on täynnä.
 st_compliment_count_per_user_owerflow	Et voi kehua samaa pelaajaa kahdesti päivässä!
 st_compliment_player	Kehu
@@ -865,6 +869,8 @@ st_crouch_action	Kyykisty (pidä)
 st_crouch_toggle_action	Kyykisty
 st_ct_max_members_count_error	Pelaajien lisääminen epäonnistui. Klaanijoukkue on jo täynnä.
 st_current_value	\nNykyinen arvo:
+st_cz_75_description	Tšekkiläinen itselataava pistooli, ammus: 9x19. Yksi kylmän sodan kopioiduimmista pistooleista.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Pelaa päivittäin ja saat <highlight>kolmesta ensimmäisestä</highlight> voitosta <highlight>x2</highlight> kokemusta ja mainetta.
 st_daily_bonus_hint	Näytä tervetuloruutu
 st_daily_bonus_label	Tervetuloa takaisin
@@ -1175,6 +1181,8 @@ st_fn_p90_description	Belgialainen lähisuojeluase, kaliiperi 5.7x28. FN Herstal
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrainalainen itselataava pistooli, kaliiperi 9x18. Tuotanto alkoi vuonna 2004. Sisäisten joukkojen ja eräiden erikoisyksiköiden käytössä. 12 patruunan lipas. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrainalainen kevyt konekivääri, ammus: 7,62x51. Vinnytsjassa lisenssillä valmistettu Negev, 100 patruunan laatikko.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Raskaat panssaroidut saappaat Vapauden väreissä, raskaan panssarin kanssa käytettäväksi.
 st_freedom_026_boots_name	Vapauden saappaat
@@ -1197,6 +1205,8 @@ st_fullscreen_option	Koko näyttö
 st_general_volume_option	Yleinen
 st_generic_money_name	Ruplat
 st_geometry_quality_option	Geometrian laatu
+st_glock_17_description	Itävaltalainen polymeerirunkoinen pistooli, ammus: 9x19. Tämä on muutettu sarjatulelle.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Tietopankki avautuu uuteen selainikkunaan.
 st_go_to_online_store_message	Verkkokauppa avautuu selaimeen. Jatketaanko?
 st_go_to_video_tutorial_message	Video-opas avautuu selaimeen. Jatketaanko?
@@ -1324,6 +1334,8 @@ st_izh27_description	Kuvausta ei vielä ole.
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Venäläinen päällekkäispiippuinen 12 kaliiperin haulikko. Iževskin tehtaan Baikal-malli, yksi yleisimmistä metsästys- ja urheilukaksipiippuisista. Kaksi piippua, yksi laukaus kummassakin. Piiput voi laukaista erikseen tai yhdessä. Premium-versio erikoismaastokuvioinnilla.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	Amerikkalainen automaattihaulikko, ammus: 12/70. Bullpup 10 patruunan rullalippaalla, vain sarjatuli.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Hyppy
 st_kedr_description	Neuvostoliittolainen konepistooli, kaliiperi 9x18 PM. Jevgeni Dragunovin suunnittelema 1970-luvun alussa. Sarjatuotanto alkoi vasta 1990-luvulla Venäjän sisäministeriölle ja poliisille. 30 patruunan lipas. Kerta- ja sarjatuli.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1361,8 @@ st_knw_synergy_desc	Artefaktien voima kasvaa niiden määrän mukana.
 st_knw_synergy_name	Synergia
 st_kriss_vector_description	Amerikkalainen konepistooli, kaliiperi .45 ACP. KRISSin 2000-luvun malli. Rekyylijärjestelmä siirtää lukkoa alaspäin ja hillitsee piipun nousua. Walther Competition II -tähtäin, 30 patruunan lipas. Kerta-, purske- ja sarjatuli.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Brittiläinen bullpup-rynnäkkökivääri, ammus: 5,56x45. Britannian armeijan vakiokivääri.
+st_l85a2_name	L85A2
 st_label_invites	Kutsut
 st_label_leave_queue_btn	Poistu jonosta
 st_label_quenue	Odotetaan pelaajia:
@@ -1511,6 +1525,10 @@ st_movement_speed_when_aiming_description	Liikenopeus tähdätessä:
 st_movement_speed_when_aiming_name	Taisteluasento
 st_mp153_description	Venäläinen itselataava sileäpiippuinen haulikko, kaliiperi 12x70. Edullisuus ja luotettavuus tekivät siitä suositun metsästys- ja urheiluaseen. Piipun alla 4 patruunan putkilipas.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Venäläinen armeijan pistooli, ammus: 9x19. Otettiin käyttöön vuonna 2003 Makarovin tilalle.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	Saksalainen konepistooli, ammus: 9x19. Poliisin ja erikoisjoukkojen klassikko rullahidasteisella lukolla.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Puolalainen modulaarinen karbiini, kaliiperi 5.56x45. Varsovan sotilasteknisen yliopiston ja Radomin asetehtaan 2010-luvun kehitystyö. Puolan armeijan käytössä nimellä Grot. EOTech 552 -tähtäin ja 30 patruunan lipas. Kerta-, purske- ja sarjatuli.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Tähtäimen heilunta
@@ -2745,6 +2763,8 @@ st_sv_98_description	Kuvausta ei vielä ole.
 st_sv_98_name	SV-98
 st_svd_description	Itselataava Dragunov-tarkkuuskivääri, kaliiperi 7.62x54. Neuvostoarmeijan päätarkkuuskivääri vuosien ajan. 5 patruunan lipas. 
 st_svd_name	SVD
+st_svu_a_description	Venäläinen bullpup-tarkkuuskivääri, ammus: 7,62x54R. Lähitaisteluun lyhennetty SVD, puoliautomaattinen.
+st_svu_a_name	SVU
 st_swear_clan_string	Tekstissä on kirosanoja
 st_swearing_claim	Kiroilu
 st_team_already_has_commander	Klaanijoukkueella on jo johtaja.
