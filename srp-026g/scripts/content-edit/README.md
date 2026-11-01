@@ -528,3 +528,27 @@ before they can ship on top of this list.
 | change | why |
 |---|---|
 | `melee/data/k_damage` 2 -> 1.5 (a float) on the 21 weapons patch 19 added from 0.29a3 (AEK-919K, FNC, P90, HK416, Kedr, KRISS, M4A1, the three MP7s, MSBS, both Neosteads, PKP, Saiga-12K and its premium, SOK-94, Valmet, Vepr-12 and its premium, vz. 58) | every native weapon has 1.5; patch 19's port wrote the natives' 1.5 into the donor's integer field, rounded to 2, so these guns hit a third harder with the butt (the owner, 2026-11-01: fix to 1.5); found by resource-porter's re-port of patch 19 (`ports/weapons-029a3-patch19.known.tsv`) |
+
+## recoil-hk416-m4a1-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| HK416 and M4A1 (`wpn_hk416`, `wpn_m4a1`, the 0.29a3 ports of base patch 19): `recoil/recoil_power` 0.88 -> 0.55; `min_top_recoil` / `max_top_recoil` 1.98 / 2.2 -> 1.7 / 1.9 (HK416) and 1.5 / 1.5 (M4A1, the AK-12's) (floats kept); the card's props 146 and 147 to match | the owner: the AK-12 (top 1.5, power 0.5, 650 rounds a minute) feels fine, the HK416 doesn't; bring both nearer the AK-12, keep them distinct. A shot adds `T / 63.735 x (1 - max(y, 0)^p)` to the kick (on_shot 0x331C50), so a lower power saturates sooner and a burst climbs less |
+
+Side ranges (1.5-2 both sides), shake and PID gains unchanged. A 1 s burst with the client's model
+(as `srp-026g/scripts/wiki/recoil.js`: 50 ms ticks, each rifle's own rate of fire, aimed, no pull-down;
+60 degrees of view a unit of kick), mean of 500 runs:
+
+| weapon | rpm | shots in 1 s | top | power | climb at 0.5 s | peak climb |
+|---|---|---|---|---|---|---|
+| AK-12 (unchanged) | 650 | 11 | 1.5 | 0.5 | 3.0° | 5.05° |
+| HK416 before / after | 850 | 15 | 1.98-2.2 / 1.7-1.9 | 0.88 / 0.55 | 4.8° / 3.7° | 8.2° / 6.2° |
+| M4A1 before / after | 750 | 13 | 1.98-2.2 / 1.5-1.5 | 0.88 / 0.55 | 6.2° / 4.1° | 9.3° / 6.1° |
+
+The M4A1 takes the AK-12's top kick (the owner: "make the M4A1 like the AK-12"). With the HK416's
+1.7-1.9 it peaked at 7.1°, 40 % above the AK-12: with the same values it climbs more than the HK416,
+though it fires slower. A shot is taken at the first tick after its time, its ramp is cut short by
+the next shot's and the PID runs in the ticks between; with its 70.6 ms interval against the 50 ms
+ticks the HK416 keeps about two thirds of each kick and spends 0.34 s of the second under the PID,
+the M4A1 (80 ms) about three quarters and 0.26 s. Side drift stays about 0.03° either way. The
+simulation changes (the `next` row of `simulation_changes.tsv`).
