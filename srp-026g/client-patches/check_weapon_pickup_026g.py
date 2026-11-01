@@ -429,7 +429,7 @@ def record(drop=None, slot7=None, slot10=None, pending=None):
     (taken ms, the recipe's place, kit, slot bit); the pickup waiting for its switch (its weapon slot 7
     or 10, its pick, the donor's (magazine, chamber) or None)."""
     out = bytearray(RECORD)
-    out[0] = 3
+    out[0] = 4
     if drop == "taken":
         out[1] = 2
     elif drop:
@@ -450,7 +450,10 @@ def record(drop=None, slot7=None, slot10=None, pending=None):
     return bytes(out)
 
 
-RECORD = 20
+RECORD = 48
+# The record's synced part; the rest (20..48) is the own kit each pick parks, the server's (save() keeps it in
+# `parked`).
+SYNCED = 20
 
 
 class Pick(Run):
@@ -745,9 +748,12 @@ class Pick(Run):
         return self.read(p + 0x330)
 
     def save(self, player):
+        """The record written: its synced part (the parked own kit after it zeroed, kept in `parked`)."""
         self.written = bytearray()
         self.lohook(SAVE_SITE, SAVE_AFTER, {UC_X86_REG_EBX: player, UC_X86_REG_ESI: 0x5A5A0000})
-        return bytes(self.written)
+        assert len(self.written) == RECORD, len(self.written)
+        self.parked = bytes(self.written[SYNCED:])
+        return bytes(self.written[:SYNCED]) + bytes(RECORD - SYNCED)
 
     def load(self, player, data, size=None):
         bytes_at, reader = self.blk(0x40), self.blk(12)
@@ -1251,7 +1257,7 @@ def holster(patched):
     assert r.read(r.picker + 0x128) == r.own_gun and r.read(r.picker + 0x12C) == r.own_gun
     assert r.read(r.registry + 4 * PENDING_ID) == 0 and r.read(r.new_gun + 0xC, 1)[0] == 0
     assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
-    assert r.save(r.picker)[12:] == bytes(8) and r.save(PLAYER) == record(("open", KIT, 1))
+    assert r.save(r.picker)[12:SYNCED] == bytes(8) and r.save(PLAYER) == record(("open", KIT, 1))
     assert any("CANCELLED the switch to: slot 10's picked gun" in l and "(its death)" in l for l in r.log), r.log
     r.in_hands()
     print("ok the picker's death while holstering cancels: the own gun stays in hands, the reserved id emptied, "
@@ -1582,6 +1588,10 @@ def stage2(patched, original):
     assert took == ["place 3 pickup: the donor's magazine 17, chamber 1",
                     f"place 3 pickup: slot 8 ammo 2204 x {CAPACITY} (cooked slot 11); own ammo 217 x 90 parked"], took
     assert r.save(r.picker) == record(slot10=PICKED)
+    # The own kit slot 10's pick parks, for the server: the own gun's magazine (12) and the own 5.45
+    # (90 rounds) parked from slot 8; slot 7 picks nothing.
+    assert r.parked[14:] == bytes([1, 12, 8, 90, 0]) + bytes(9), r.parked.hex()
+    assert r.parked[:14] == bytes(14)
     assert r.save(PLAYER) == record("taken")
     print("ok the pickup at set_input's apply point (carry.filter): the slots swapped by the game's set_item, the "
           "ammunition into the own gun's slot (8, the own stack parked in the cooked inventory) and rebound, the gun bound (core, registry id and entry, bullet "

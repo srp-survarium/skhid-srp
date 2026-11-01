@@ -396,8 +396,13 @@ fn unpick(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, how: Unpick, w
 /// `pickup.save` (base_player::serialize's start): the player's record.
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, Site::Save) {
-        let record = located(&player)
-            .map_or(Record::EMPTY, |(world, place)| placed_at(ctx.thread(), world, place).0);
+        let thread = ctx.thread();
+        let mut record = located(&player)
+            .map_or(Record::EMPTY, |(world, place)| placed_at(thread, world, place).0);
+        // What each pick keeps hidden of the own kit, as installed here.
+        record.parked = SLOTS.map(|slot| record.pick(slot)
+            .and_then(|_| held(thread, player.id(), slot))
+            .and_then(|(_, _, installed)| native::parked(&player, &installed)));
         native::write_record(ctx, &record.encode());
     }
     Flow::Continue

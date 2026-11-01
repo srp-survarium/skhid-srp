@@ -32,7 +32,8 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Refill, WeaponSlot, PLACES};
+pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Parked, ParkedStack, Place, Refill, WeaponSlot,
+                        PLACES};
 
 use super::config::{ConfigError, ConfigValue};
 
@@ -628,6 +629,8 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
             .filter(|&slot| AMMO.iter().any(|&a| u32::from(a) == slot))
             .filter(|&slot| !other.is_some_and(|o| o.indices[..usize::from(o.count)].contains(&slot)))
             .map(|slot| slot as u8)
+            // At most the record's parked stacks (the server's count of the own use).
+            .take(Parked::STACKS)
             .chain(AMMO.into_iter().filter(|&slot| inventory.slots().at(usize::from(slot)).item().is_none()));
         for slot in candidates {
             if targets_len < MOVES && !targets[..targets_len].contains(&slot) {
@@ -873,6 +876,32 @@ unsafe fn grant(w: raw::Weapon, ammo: Ammo) {
             }
         }
         *inventory.weight_dirty() = 1;
+    }
+}
+
+/// What `installed` keeps hidden of the own kit, for the record (the
+/// server's count of the own ammunition used): the own gun's magazine and
+/// each own stack parked from a slot, its rounds. None when it cannot be
+/// read as installed.
+pub fn parked(player: &Player<'_>, installed: &Installed) -> Option<Parked> {
+    let cooked = gun_cook::inventory(player.thread, installed.cook)?;
+    // SAFETY: the made cooked inventory; every item compared with what the
+    // install recorded before it is read.
+    unsafe {
+        let own_item = cooked.slots().at(usize::from(installed.slot.slot())).item()?;
+        let own_gun = own_item.active_object();
+        if own_gun.address() != installed.own_gun || read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
+            return None;
+        }
+        let mut stacks = [None; Parked::STACKS];
+        let mut n = 0;
+        for m in installed.moved.iter().flatten() {
+            let Some(displaced) = m.displaced else { continue };
+            let stack = cooked.slots().at(usize::from(m.from)).item().filter(|i| i.address() == displaced)?;
+            *stacks.get_mut(n)? = Some(ParkedStack::new(m.to, read(stack.count()))?);
+            n += 1;
+        }
+        Some(Parked { magazine: read(own_gun.weapon().loaded()), stacks })
     }
 }
 
