@@ -357,7 +357,7 @@ fn the_match_level_multiplies_the_rewards() {
 
 /// A player of team 0 with premium, a quest faction and the counters of a
 /// results screen: `kills`, `assists` and an other score of `brought`
-/// hundredths of a battery × 10.
+/// hundredths of event 6 (a battery's delivery share and progress) × 5.
 fn screen_match(
     level: u16,
     kills: u16,
@@ -399,10 +399,10 @@ fn screen_match(
 /// the premium block and the totals come out.
 #[test]
 fn the_second_screen_comes_out() {
-    // The other score, 59: five and nine tenths batteries brought (matched
-    // as two artefacts and five and a half batteries while an artefact
-    // weighed 2).
-    let (store, result) = screen_match(15, 19, 8, 590);
+    // The other score, 59: 1180 hundredths of event 6 at its weight 5
+    // (matched as two artefacts and five and a half batteries while an
+    // artefact weighed 2).
+    let (store, result) = screen_match(15, 19, 8, 1180);
     assert_eq!(result.players[0].score, 289);
     let report = Results::new()
         .settle(&result, &store, &terms(), &mut Rng::new(1))
@@ -449,10 +449,10 @@ fn the_second_screen_comes_out() {
 /// more, and half of the rows.
 #[test]
 fn the_first_screen_comes_out_but_for_its_kills() {
-    // The other score, 33: three and three tenths batteries brought
+    // The other score, 33: 660 hundredths of event 6 at its weight 5
     // (matched as four artefacts and two and a half batteries while an
     // artefact weighed 2).
-    let (store, result) = screen_match(1, 17, 4, 330);
+    let (store, result) = screen_match(1, 17, 4, 660);
     assert_eq!(result.players[0].score, 223);
     // Her first victory of the day.
     store.get(10).unwrap().locked().extras.bonus = Default::default();
