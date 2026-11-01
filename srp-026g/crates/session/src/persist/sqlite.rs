@@ -10,7 +10,7 @@ use survarium::dictionary::PROFILE_SLOTS;
 use survarium::v021d::account::{Account as GameAccount, Item, Profile};
 use survarium::v021d::quests::QuestInstance;
 
-use crate::{Ban, IpBan, Net};
+use crate::{Ban, ChatBan, ChatBanEnd, IpBan, Net};
 
 use super::{
     AccountRecord, AccountRepository, BACKUPS_KEPT, Loaded, PersistError, StoredSession,
@@ -180,6 +180,12 @@ pub(super) const MIGRATIONS: &[&str] = &[
     "ALTER TABLE sessions ADD COLUMN client_revision INTEGER NOT NULL DEFAULT 0;",
     // 5: existing ignores remain hidden; new mutes can show a placeholder.
     "ALTER TABLE ignored ADD COLUMN mode INTEGER NOT NULL DEFAULT 1 CHECK (mode IN (1, 2));",
+    // 6: the admin's chat mute (admin-chat-mute.md). chat_ban_reason NULL:
+    // none; else chat_ban_until NULL means for good.
+    "
+    ALTER TABLE accounts ADD COLUMN chat_ban_reason TEXT;
+    ALTER TABLE accounts ADD COLUMN chat_ban_until  INTEGER;
+    ",
 ];
 
 /// The child tables of an account, children of children first.
@@ -293,6 +299,18 @@ fn backup(connection: &Connection, dir: &Path) {
     prune_backups(dir, BACKUPS_KEPT);
 }
 
+/// The chat mute of the columns `chat_ban_reason`, `chat_ban_until`
+/// (migration 6): none without a reason.
+fn chat_ban(reason: Option<String>, until: Option<i64>) -> Option<ChatBan> {
+    Some(ChatBan {
+        reason: reason?,
+        ends: match until {
+            Some(at) => ChatBanEnd::At(at.max(0) as u64),
+            None => ChatBanEnd::Never,
+        },
+    })
+}
+
 fn meta_next_account_id(connection: &Connection) -> Result<u32, PersistError> {
     let next: Option<i64> = connection
         .query_row(
@@ -313,7 +331,8 @@ impl AccountRepository for SqliteRepository {
                 "SELECT id, login, password_hash, name, game_name, generic_money,
                         premium_money, premium_until, rating, rating_before,
                         next_item_id, next_quest_instance, active_profile,
-                        banned, banned_until, ban_reason, last_ip
+                        banned, banned_until, ban_reason, last_ip,
+                        chat_ban_reason, chat_ban_until
                  FROM accounts ORDER BY id",
             )?;
             let rows = statement.query_map([], |row| {
@@ -356,6 +375,7 @@ impl AccountRepository for SqliteRepository {
                     last_ip: row
                         .get::<_, Option<String>>(16)?
                         .and_then(|ip| ip.parse().ok()),
+                    chat_ban: chat_ban(row.get(17)?, row.get(18)?),
                 })
             })?;
             for row in rows {
@@ -678,6 +698,7 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
         active_profile,
         notices,
         ban,
+        chat_ban,
         last_ip,
     } = record;
     let GameAccount {
@@ -701,9 +722,10 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
         "INSERT INTO accounts (id, login, password_hash, name, game_name, generic_money,
                                premium_money, premium_until, rating, rating_before,
                                next_item_id, next_quest_instance, active_profile,
-                               banned, banned_until, ban_reason, last_ip)
+                               banned, banned_until, ban_reason, last_ip,
+                               chat_ban_reason, chat_ban_until)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-                 ?14, ?15, ?16, ?17)
+                 ?14, ?15, ?16, ?17, ?18, ?19)
          ON CONFLICT (id) DO UPDATE SET
              login = excluded.login, password_hash = excluded.password_hash,
              name = excluded.name, game_name = excluded.game_name,
@@ -713,7 +735,9 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
              next_quest_instance = excluded.next_quest_instance,
              active_profile = excluded.active_profile,
              banned = excluded.banned, banned_until = excluded.banned_until,
-             ban_reason = excluded.ban_reason, last_ip = excluded.last_ip",
+             ban_reason = excluded.ban_reason, last_ip = excluded.last_ip,
+             chat_ban_reason = excluded.chat_ban_reason,
+             chat_ban_until = excluded.chat_ban_until",
         params![
             id,
             login,
@@ -734,6 +758,11 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
                 .map(|until| until.min(i64::MAX as u64) as i64),
             ban.as_ref().map_or("", |ban| ban.reason.as_str()),
             last_ip.map(|ip| ip.to_string()),
+            chat_ban.as_ref().map(|ban| ban.reason.as_str()),
+            chat_ban.as_ref().and_then(|ban| match ban.ends {
+                ChatBanEnd::At(at) => Some(at.min(i64::MAX as u64) as i64),
+                ChatBanEnd::Never => None,
+            }),
         ],
     )?;
     for table in CHILD_TABLES {

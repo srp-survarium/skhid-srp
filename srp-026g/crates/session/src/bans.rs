@@ -5,6 +5,10 @@
 //! address is told so before the password: no account can sign in, or be
 //! registered, from it. Banning ends the sessions it covers at once and
 //! closes their lobby and chat connections.
+//!
+//! A chat ban ([`ChatBan`], `docs/notes/admin-chat-mute.md`) is the admin's
+//! mute of an account's chat: it signs in and plays as before, but nobody
+//! gets its chat lines; it gets [`ChatBan::notice`] back instead.
 
 use std::fmt;
 use std::net::IpAddr;
@@ -81,6 +85,47 @@ impl Ban {
     }
 }
 
+/// When the admin's chat mute of an account ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChatBanEnd {
+    /// At these Unix seconds.
+    At(u64),
+    Never,
+}
+
+/// The admin's chat mute of an account: until when, and why. The reason is
+/// the player's to read: it is in [`Self::notice`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChatBan {
+    pub ends: ChatBanEnd,
+    pub reason: String,
+}
+
+impl ChatBan {
+    /// Whether it still holds at `now` (Unix seconds).
+    pub fn holds(&self, now: u64) -> bool {
+        match self.ends {
+            ChatBanEnd::At(at) => now < at,
+            ChatBanEnd::Never => true,
+        }
+    }
+
+    /// The line its player gets back, as said by itself, instead of each
+    /// line it sends: `muted for <reason>`, or `muted until <date> <time>
+    /// UTC: <reason>`.
+    pub fn notice(&self) -> String {
+        match self.ends {
+            ChatBanEnd::Never => format!("muted for {}", self.reason),
+            ChatBanEnd::At(at) => format!(
+                "muted until {} {} UTC: {}",
+                crate::utc::date(at),
+                crate::utc::clock(at),
+                self.reason
+            ),
+        }
+    }
+}
+
 /// A ban of an address or a range.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IpBan {
@@ -111,6 +156,23 @@ mod tests {
             Net::single("::ffff:10.0.0.1".parse().unwrap()).to_string(),
             "10.0.0.1"
         );
+    }
+
+    #[test]
+    fn a_chat_ban_holds_until_its_end_and_says_so() {
+        // 2026-10-18 12:34 UTC.
+        let timed = ChatBan {
+            ends: ChatBanEnd::At(1_792_326_840),
+            reason: "spam".into(),
+        };
+        assert!(timed.holds(1_792_326_839) && !timed.holds(1_792_326_840));
+        assert_eq!(timed.notice(), "muted until 2026-10-18 12:34 UTC: spam");
+        let for_good = ChatBan {
+            ends: ChatBanEnd::Never,
+            reason: "insults".into(),
+        };
+        assert!(for_good.holds(u64::MAX));
+        assert_eq!(for_good.notice(), "muted for insults");
     }
 
     #[test]

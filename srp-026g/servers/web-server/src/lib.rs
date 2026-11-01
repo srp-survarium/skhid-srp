@@ -67,8 +67,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use session::utc::{clock as clock_utc, date as date_utc};
 use session::v026g::replays::{Refused, Replays};
-use session::{Ban, LockExt, Net, SessionStore};
+use session::{Ban, ChatBanEnd, LockExt, Net, SessionStore};
 
 /// What the home page tells a new player, fixed at start-up.
 struct Connect {
@@ -1055,7 +1056,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text" | "mute") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1101,6 +1102,7 @@ impl Web {
             "account" => self.admin_account_026g(request, peer),
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
+            "mute" => self.admin_chat_mute(request, peer),
             _ if g26 => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
@@ -1789,7 +1791,7 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
@@ -2245,18 +2247,20 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     )
 }
 
-/// The 0.26g admin's own tabs and panels: the account, an item, the text.
+/// The 0.26g admin's own tabs and panels: the account, an item, the text,
+/// the chat mute.
 fn admin_extras_026g(
     lang: Lang,
     view: &AdminView,
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}",
+        "{}{}{}{}{}",
         tab("account", lang.tr("Account", "Акаунт")),
         tab("item", lang.tr("Give item", "Видати предмет")),
         tab("items", lang.tr("Take items", "Забрати предмети")),
         tab("text", lang.tr("Text", "Текст")),
+        tab("mute", lang.tr("Mute chat", "Вимкнути чат")),
     );
     let standing = match &view.admin_text {
         Some((first, second)) => format!(
@@ -2290,7 +2294,7 @@ fn admin_extras_026g(
          <label for=l1>{}</label><input id=l1 name=line1 maxlength={max}>\
          <label for=l2>{}</label><input id=l2 name=line2 maxlength={max}>\
          <small>{}</small><br>\
-         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}",
+         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
         lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
         lang.tr("Set the level (0 to 50)", "Встановити рівень (0–50)"),
@@ -2321,14 +2325,9 @@ fn admin_extras_026g(
         lang.tr("Show", "Показати"),
         lang.tr("Clear", "Прибрати"),
         moderation::items_panel(lang, view),
+        moderation::mute_panel(lang),
     );
     (tabs, panels)
-}
-
-/// `HH:MM` (UTC) of a Unix time.
-fn clock_utc(at: u64) -> String {
-    let seconds = at % 86_400;
-    format!("{:02}:{:02}", seconds / 3600, seconds / 60 % 60)
 }
 
 /// What is planned, as a line for the admin and the home page.
@@ -2363,7 +2362,7 @@ fn maintenance_line(lang: Lang, store: &SessionStore) -> String {
     format!("<p class=note>{}</p>", escape(&text))
 }
 
-/// The bans in force, as two tables.
+/// The bans in force, as tables: accounts, addresses, chat mutes.
 fn bans_table(lang: Lang, store: &SessionStore) -> String {
     let (accounts, nets) = store.bans();
     let until = |ban: &Ban| match ban.until {
@@ -2413,6 +2412,31 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
                 ban.net,
                 until(&ban.ban),
                 escape(&ban.ban.reason),
+            );
+        }
+        html += "</table>";
+    }
+    let muted = store.chat_bans();
+    html += &format!("<h2>{}</h2>", lang.tr("Chat mutes", "Вимкнені чати"));
+    if muted.is_empty() {
+        html += &none;
+    } else {
+        html += &format!(
+            "<table><tr><th>{}</th><th>{}</th><th>{}</th></tr>",
+            lang.tr("Account", "Акаунт"),
+            lang.tr("Until", "Доки"),
+            lang.tr("Reason", "Причина"),
+        );
+        for (_, login, name, ban) in &muted {
+            let until = match ban.ends {
+                ChatBanEnd::At(at) => format!("{} {} UTC", date_utc(at), clock_utc(at)),
+                ChatBanEnd::Never => lang.tr("for good", "назавжди"),
+            };
+            html += &format!(
+                "<tr><td>{}<br><small>{}</small></td><td>{until}</td><td>{}</td></tr>",
+                escape(name),
+                escape(login),
+                escape(&ban.reason),
             );
         }
         html += "</table>";
