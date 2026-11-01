@@ -254,6 +254,20 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
   scope's aimed view on a few weapons (the reticle centred, the dot in the window, the zoom), the
   outside look on the AKs' side rail and the M4's carry handle, the Leupold 3-7's eyepiece far back
   on the AKs, the icons, the CompM4 at x2.
+- **In the game (2026-11-01, @1, headless, a local server on the release-41 build):** the shop lists the seven
+  with their icons and prices, the CompM4 reads x2 and zooms x2; NcSTAR 4, XPS2, CompM4 on the M4A1, TA01 and
+  aperture on the HK416: dot and reticle at the screen's centre; zooms x6 : x4 : x3 : x2 as set. Three faults,
+  fixed in @2:
+  - the AK-74M's TA01 and Leupold 3-7 reticles 10 and 16 px above the centre: their weapon model's aim locator
+    is turned 0.004 rad about x, which tilts the view off the bore the eyepiece is set along. A scope's
+    variant now sets the model again with that locator unturned (`<model>_n_scope`); a collimator's eye copy
+    always was unturned. Patch 19's own scope variants on such weapons (the AK-74M's ACOG TA31 among them)
+    keep the tilt: not this pack's;
+  - the NcSTAR 4 on the M4A1 under its carry handle: its eye matched the stock model's, which was taken;
+    the mount variants set a flat-top model. A model the mount variant does not set, or with a turned aim
+    locator, is no longer a candidate;
+  - the aperture sight's body garbled: its material is made on the Leupold Mk4's template (the Leupold 3-7's,
+    which drew right), not the ELCAN's.
 
 ## 7. Scope fits for the release-41 guns, and the Walther Competition II (2026-11-01)
 

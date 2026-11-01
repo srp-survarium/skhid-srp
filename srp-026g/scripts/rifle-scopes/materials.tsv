@@ -10,6 +10,6 @@ collimators/ncstar_4_collimator	material_instances/weapons/loc2/eotech_552.mater
 collimators/eotech_xps2_collimator	material_instances/weapons/loc2/eotech_552.material
 collimators/belomo_pk01_collimator	material_instances/weapons/loc2/aimpoint_comp_m4.material
 collimators/hensoldt_rsas_collimator	material_instances/weapons/loc2/aimpoint_comp_m4.material
-scopes/aperture_scope	material_instances/weapons/loc2/elcan_spectordr.material
-scopes/aperture_scope_rubber	material_instances/weapons/loc2/elcan_spectordr.material
+scopes/aperture_scope	material_instances/weapons/loc2/leupold_mk4.material
+scopes/aperture_scope_rubber	material_instances/weapons/loc2/leupold_mk4.material
 scopes/leupold_3_7x4x8_scope	material_instances/weapons/loc2/leupold_mk4.material
