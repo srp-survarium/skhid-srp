@@ -18,8 +18,9 @@
 //! - every check is made before the first write: a refusal changes nothing.
 //! - the crate: [`crate_view`], a copy of the inventory with the own gun and
 //!   the own parked stacks in their places, what the native resupply reads;
-//!   [`refill`] and [`reserve_low`] the borrowed stacks (to the picker's
-//!   allowance for their slots).
+//!   [`refill`] and [`reserve_low`] the borrowed stacks (the native refill's
+//!   rule, in bags: the slot's allowance for the picker's own ammunition as
+//!   rounds of the borrowed one).
 //!
 //! Every reference count change is the native set_item's/remove_item's; a
 //! moved item is held by one more reference across the move.
@@ -27,7 +28,9 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, CarryRule, Handedness, WeaponSlot};
+pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Refill, WeaponSlot};
+
+use super::config::{ConfigError, ConfigValue};
 
 use super::gun_cook::{self, CookId};
 use super::world::{read, Player};
@@ -584,61 +587,136 @@ fn world_of(saved: u32, core: raw::CoreWorld) -> Option<raw::CoreWorld> {
     (saved == core.address()).then_some(core)
 }
 
-/// Each borrowed stack in the picker's inventory and the reserve the crate
-/// refills it to ([`weapon_pickup::crate_reserve`]: the picker's profile's
-/// allowance for that slot, less the gun's magazine and chamber when it is
-/// the gun's selected stack).
+/// An ammunition's id and its config in bags, as the lobby reads them
+/// (0x289EB2..0x289EF3: its dictionary entry's config,
+/// parameters/clip_size and parameters/required_bags, integers).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AmmoKind {
+    pub dict_id: u16,
+    /// None: the config has no usable clip_size and required_bags.
+    pub bags: Option<AmmoBags>,
+}
+
+/// `stack`'s [`AmmoKind`]; None without a dictionary entry or config.
+///
+/// # Safety
+/// `stack` is a live inventory item.
+unsafe fn ammo_kind(stack: raw::Item) -> Option<AmmoKind> {
+    unsafe {
+        let entry = stack.entry()?;
+        let parameters = || -> Result<AmmoBags, ConfigError> {
+            let root = entry.config().and_then(|c| c.root()).ok_or(ConfigError::Missing)?;
+            let parameters = ConfigValue::read(root)?.table()?.required(c"parameters")?.table()?;
+            let integer = |key: &CStr| parameters.required(key).and_then(ConfigValue::integer);
+            AmmoBags::parse(integer(c"clip_size")?, integer(c"required_bags")?).ok_or(ConfigError::WrongType)
+        };
+        Some(AmmoKind { dict_id: read(entry.dict_id()), bags: parameters().ok() })
+    }
+}
+
+/// One borrowed stack at the crate: its slot, its ammunition, its count, the
+/// slot's allowance in the picker's kit (the rounds and the kind of its own
+/// ammunition there, which the native refill fills it to), the gun's
+/// magazine and chamber when it is the gun's selected stack, and the
+/// refill (none: its ammunition's config has no bags).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StackRefill {
+    pub slot: u8,
+    pub ammo: AmmoKind,
+    pub before: u16,
+    pub allowance: Option<(u16, AmmoKind)>,
+    pub held: Option<(u8, bool)>,
+    pub refill: Option<Refill>,
+}
+
+impl StackRefill {
+    /// The count the crate leaves the stack at.
+    pub fn after(&self) -> u16 {
+        self.refill.map_or(self.before, |r| r.target)
+    }
+}
+
+/// The borrowed stacks the crate refills, each in a slot of `MOVES`.
+pub type StackRefills = [Option<StackRefill>; MOVES];
+
+/// Each borrowed stack in the picker's inventory and what the crate refills
+/// it to ([`weapon_pickup::crate_refill`]): the native refill's rule
+/// (resupply_from_profile 0x2FDD50..0x2FDE8A: a slot the kit names an item
+/// with an allowance in, filled to it, the magazine and chamber of the gun
+/// whose selected stack it is inside it) with the borrowed ammunition's own
+/// config: the bags the allowance takes of the own ammunition parked from
+/// that slot, in rounds of the borrowed one.
 ///
 /// # Safety
 /// `player` is live.
-unsafe fn borrowed_stacks(player: &Player<'_>, installed: &Installed, mut each: impl FnMut(raw::Item, u16)) {
+unsafe fn borrowed_stacks(player: &Player<'_>, installed: &Installed) -> StackRefills {
+    let mut out = [None; MOVES];
+    let cooked = gun_cook::inventory(player.thread, installed.cook);
     unsafe {
         let p = player.this;
-        let (Some(inventory), Some(profile)) = (p.inventory(), p.profile()) else { return };
+        let (Some(inventory), Some(profile)) = (p.inventory(), p.profile()) else { return out };
         let kit = read(p.kit());
         if kit >= 3 {
-            return;
+            return out;
         }
-        let Some(item) = inventory.slots().at(usize::from(installed.own.slot())).item() else { return };
+        let Some(item) = inventory.slots().at(usize::from(installed.own.slot())).item() else { return out };
         let gun = item.active_object();
         if gun.address() != installed.gun {
-            return;
+            return out;
         }
         let w = gun.weapon();
         let retained = w.retained_ammo();
         let magazine = (read(w.loaded()), read(w.has_chamber()) != 0 && read(w.chamber()) != 0);
-        for m in installed.moved.iter().flatten() {
+        for (room, m) in out.iter_mut().zip(installed.moved.iter()) {
+            let Some(m) = m else { continue };
             let Some(stack) = inventory.slots().at(usize::from(m.to)).item() else { continue };
             if stack.address() != m.item {
                 continue;
             }
-            // The native refill's: none for a slot the profile names no item in.
+            let Some(ammo) = ammo_kind(stack) else { continue };
+            // The native refill's: none for a slot the kit names no item in
+            // or gives no allowance; the own stack parked from it says what.
             let word = profile.kit_slots().at(usize::from(kit)).slots().at(usize::from(m.to));
-            let allowance = if read(word.item()) == NO_ITEM { 0 } else { read(word.allowance()) };
+            let own = cooked.and_then(|c| c.slots().at(usize::from(m.from)).item())
+                .filter(|own| Some(own.address()) == m.displaced)
+                .and_then(|own| ammo_kind(own));
+            let allowance = (read(word.item()) != NO_ITEM && read(word.allowance()) > 0)
+                .then(|| own.map(|own| (read(word.allowance()), own))).flatten();
             let held = (retained == Some(stack)).then_some(magazine);
-            each(stack, weapon_pickup::crate_reserve(allowance, read(stack.count()), held));
+            let before = read(stack.count());
+            let refill = ammo.bags.map(|bags| {
+                let slot = allowance.and_then(|(rounds, own)| own.bags.map(|b| (rounds, b)));
+                weapon_pickup::crate_refill(slot, bags, before, held)
+            });
+            *room = Some(StackRefill { slot: m.to, ammo, before, allowance, held, refill });
         }
     }
+    out
 }
 
 /// Whether a borrowed stack is below what the crate refills it to.
 pub fn reserve_low(player: &Player<'_>, installed: &Installed) -> bool {
-    let mut low = false;
     // SAFETY: the live player.
-    unsafe { borrowed_stacks(player, installed, |stack, target| low |= read(stack.count()) < target) };
-    low
+    unsafe { borrowed_stacks(player, installed) }.iter().flatten().any(|s| s.after() > s.before)
 }
 
 /// The crate's use: each borrowed stack to what [`borrowed_stacks`] says,
 /// free (nobody's storage), and the real inventory's weight marked to be
-/// summed again (the native resupply marks its view's).
-pub fn refill(player: &Player<'_>, installed: &Installed) {
-    // SAFETY: the live player's inventory and its borrowed stacks.
+/// summed again (the native resupply marks its view's). What it did, for
+/// the log.
+pub fn refill(player: &Player<'_>, installed: &Installed) -> StackRefills {
+    // SAFETY: the live player's inventory and its borrowed stacks (each
+    // compared with what the install placed in its slot).
     unsafe {
-        borrowed_stacks(player, installed, |stack, target| *stack.count() = target);
-        if let Some(inventory) = player.this.inventory() {
-            *inventory.weight_dirty() = 1;
+        let stacks = borrowed_stacks(player, installed);
+        let Some(inventory) = player.this.inventory() else { return stacks };
+        for s in stacks.iter().flatten() {
+            if let Some(stack) = inventory.slots().at(usize::from(s.slot)).item() {
+                *stack.count() = s.after();
+            }
         }
+        *inventory.weight_dirty() = 1;
+        stacks
     }
 }
 

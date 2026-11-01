@@ -380,14 +380,78 @@ impl Ammo {
     }
 }
 
-/// The crate's refill of a borrowed stack, for free (the owner, 2026-10-31:
-/// "it refills it up to your ammo slots"): as the native refill does for
-/// one's own ammo, the slot's `allowance` less what the gun holds of it
-/// (its magazine and chamber, when the stack is the gun's selected one),
-/// never below what the stack has.
-pub fn crate_reserve(allowance: u16, stack: u16, magazine: Option<(u8, bool)>) -> u16 {
+/// An ammunition's config as the game counts it in ammo bags (its
+/// `parameters/clip_size` and `parameters/required_bags`, both above 0):
+/// a clip of `clip_size` rounds takes `required_bags` bags (the lobby's
+/// clips a bag is `1 / required_bags`, ItemFactory). Most ammo takes one bag
+/// a clip; the machine guns' belts two (the PKP's 7N13: 100 rounds, 2 bags).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AmmoBags {
+    clip_size: u32,
+    required_bags: u32,
+}
+
+impl AmmoBags {
+    /// None for a config the bag count cannot use (no clip, no bags).
+    pub const fn parse(clip_size: u32, required_bags: u32) -> Option<AmmoBags> {
+        if clip_size == 0 || required_bags == 0 {
+            return None;
+        }
+        Some(AmmoBags { clip_size, required_bags })
+    }
+
+    pub const fn clip_size(self) -> u32 {
+        self.clip_size
+    }
+
+    pub const fn required_bags(self) -> u32 {
+        self.required_bags
+    }
+
+    /// The bags `rounds` of it take: the lobby's count of a slot
+    /// (AmmoShareElement.getCount, `ceil(rounds / clip_size / clips_in_bag)`).
+    pub const fn bags(self, rounds: u16) -> u32 {
+        (rounds as u32 * self.required_bags).div_ceil(self.clip_size)
+    }
+
+    /// The most rounds of it `bags` bags carry: whole clips, `bags div
+    /// required_bags` of them (the lobby's fill of an ammo slot, 0x28A035:
+    /// div required_bags, imul clip_size; AmmoShareElement's max
+    /// `int(int(bags * clips_in_bag) * clip_size)`).
+    pub const fn rounds(self, bags: u32) -> u32 {
+        bags / self.required_bags * self.clip_size
+    }
+}
+
+/// What a crate's use fills a borrowed stack to, with its inputs (logged).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Refill {
+    /// The bags the picker's kit gives the slot (0: the kit names no ammo
+    /// with an allowance there, and the native refill skips the slot).
+    pub bags: u32,
+    /// The rounds of the borrowed ammunition those bags carry, its gun's
+    /// magazine and chamber included.
+    pub total: u16,
+    /// The stack's count after the refill.
+    pub target: u16,
+}
+
+/// The crate's refill of a borrowed stack, for free (the owner: the game's
+/// own refill rule). The native refill (resupply_from_profile 0x2FDC10)
+/// fills each ammunition slot to its kit's allowance (the profile's rounds
+/// for the slot, which the lobby set as whole clips of the bags it gave the
+/// slot), counting the magazine and chamber of the gun whose selected stack
+/// it is. A borrowed stack is in a slot whose allowance is rounds of the
+/// picker's own ammunition (`own`): it gets the rounds of the borrowed
+/// ammunition the same bags carry, its gun's `magazine` (and chamber, when
+/// it is the gun's selected stack) inside them; never below what it has.
+/// `slot` is None when the kit names no ammunition with an allowance there.
+pub fn crate_refill(slot: Option<(u16, AmmoBags)>, borrowed: AmmoBags, stack: u16,
+                    magazine: Option<(u8, bool)>) -> Refill {
+    let bags = slot.map_or(0, |(allowance, own)| own.bags(allowance));
+    let total = u16::try_from(borrowed.rounds(bags)).unwrap_or(u16::MAX);
     let held = magazine.map_or(0, |(loaded, chamber)| u16::from(loaded) + u16::from(chamber));
-    stack.max(allowance.saturating_sub(held))
+    Refill { bags, total, target: stack.max(total.saturating_sub(held)) }
 }
 
 #[cfg(test)]
@@ -506,9 +570,31 @@ mod tests {
     fn the_ammunition_granted_and_refilled() {
         assert_eq!(Ammo::grant(30, 12, true), Ammo { loaded: 12, chamber: true, reserve: 30 });
         assert_eq!(Ammo::grant(8, 9, false).loaded, 8);
-        assert_eq!(crate_reserve(120, 10, Some((25, true))), 94);
-        assert_eq!(crate_reserve(120, 10, None), 120);
-        assert_eq!(crate_reserve(30, 50, Some((30, false))), 50, "never below what it has");
-        assert_eq!(crate_reserve(0, 5, None), 5, "a slot without an allowance");
+    }
+
+    #[test]
+    fn the_crate_refills_a_borrowed_stack_as_the_game_fills_its_bags() {
+        // The configs of 0.26g and the rev 40 content: 5.45x39 7N10 (30 a
+        // clip, a bag), 7.62x54R (10, a bag), 9x18 (50, a bag), the PKP's
+        // 7.62x54 7N13 (100, two bags).
+        let (ak, mosin, pm) = (AmmoBags::parse(30, 1).unwrap(), AmmoBags::parse(10, 1).unwrap(),
+                               AmmoBags::parse(50, 1).unwrap());
+        let pkp = AmmoBags::parse(100, 2).unwrap();
+        assert_eq!((AmmoBags::parse(0, 1), AmmoBags::parse(30, 0)), (None, None));
+        assert_eq!((ak.bags(90), ak.bags(100), ak.bags(0), pkp.bags(100), pkp.bags(101)), (3, 4, 0, 2, 3));
+        assert_eq!((pkp.rounds(3), pkp.rounds(4), pkp.rounds(1), ak.rounds(3)), (100, 200, 0, 90));
+        // An AK's three bags (90 rounds) for a PKP: one belt, its 40 in the
+        // magazine inside it.
+        assert_eq!(crate_refill(Some((90, ak)), pkp, 0, Some((40, false))),
+                   Refill { bags: 3, total: 100, target: 60 });
+        // The same ammunition: the own gun's own refill (90 less 25 and the chamber).
+        assert_eq!(crate_refill(Some((90, ak)), ak, 10, Some((25, true))),
+                   Refill { bags: 3, total: 90, target: 64 });
+        assert_eq!(crate_refill(Some((40, mosin)), pkp, 30, None), Refill { bags: 4, total: 200, target: 200 },
+                   "a stack not the selected one: no magazine inside");
+        assert_eq!(crate_refill(Some((50, pm)), pkp, 7, Some((0, false))), Refill { bags: 1, total: 0, target: 7 },
+                   "one bag carries no belt");
+        assert_eq!(crate_refill(Some((90, ak)), ak, 95, Some((30, false))).target, 95, "never below what it has");
+        assert_eq!(crate_refill(None, ak, 5, None), Refill { bags: 0, total: 0, target: 5 }, "no allowance");
     }
 }

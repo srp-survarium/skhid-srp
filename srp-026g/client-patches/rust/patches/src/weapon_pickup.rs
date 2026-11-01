@@ -757,7 +757,9 @@ pub fn on_client_resupply(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn resupply(ctx: &mut Context<'_>, site: Site) -> Flow<NoExit> {
     let Some((player, holder)) = holder_at(ctx, site) else { return Flow::Continue };
-    native::refill(&player, &holder.installed);
+    for stack in native::refill(&player, &holder.installed).iter().flatten() {
+        log_refill(&player, stack);
+    }
     let Some(view) = native::crate_view(&player, &holder.installed, ctx.thread()) else { return Flow::Continue };
     native::hand_view(ctx, site, view);
     Flow::Skip
@@ -1040,6 +1042,44 @@ fn log_borrow(what: &str, player: &Player<'_>, borrow: Borrow, why: &str) {
           Text(" slot "), Dec(u32::from(borrow.slot.slot())), Text(" in place of its slot "),
           Dec(u32::from(borrow.own.slot())), Text(if why.is_empty() { "" } else { " (" }), Text(why),
           Text(if why.is_empty() { "" } else { ")" })]);
+}
+
+/// `pieces` as one line (the first 29: the line's room).
+fn log_joined(parts: &[&[Piece<'_>]]) {
+    let mut pieces = [Text(""); 29];
+    let mut at = 0;
+    for piece in parts.iter().flat_map(|part| part.iter()) {
+        if let Some(slot) = pieces.get_mut(at) {
+            *slot = *piece;
+            at += 1;
+        }
+    }
+    log(&pieces[..at]);
+}
+
+/// A crate's refill of one borrowed stack: its slot, ammunition, count
+/// before and after, and the target's inputs (the kit's allowance for the
+/// slot in rounds of the own ammunition and the bags they take, the borrowed
+/// ammunition's clip and bags a clip, the magazine and chamber inside).
+fn log_refill(player: &Player<'_>, s: &native::StackRefill) {
+    let head = [Text("place "), Dec(u32::from(player.place())), Text(" crate: slot "), Dec(u32::from(s.slot)),
+                Text(" ammo "), Dec(u32::from(s.ammo.dict_id)), Text(" "), Dec(u32::from(s.before)), Text(" -> "),
+                Dec(u32::from(s.after()))];
+    let (Some(refill), Some(bags)) = (s.refill, s.ammo.bags) else {
+        return log_joined(&[&head, &[Text(" (its config has no clip_size and required_bags: left)")]]);
+    };
+    let in_gun = s.held.map_or(0, |(loaded, chamber)| u32::from(loaded) + u32::from(chamber));
+    let target = [Text(" = "), Dec(refill.bags), Text(" bags = "), Dec(u32::from(refill.total)), Text(" (clip "),
+                  Dec(bags.clip_size()), Text("/"), Dec(bags.required_bags()), Text(") less "), Dec(in_gun)];
+    match s.allowance {
+        Some((rounds, own)) => {
+            let (clip, required) = own.bags.map_or((0, 0), |b| (b.clip_size(), b.required_bags()));
+            let kit = [Text("; the kit's "), Dec(u32::from(rounds)), Text(" of ammo "), Dec(u32::from(own.dict_id)),
+                       Text(" (clip "), Dec(clip), Text("/"), Dec(required), Text(")")];
+            log_joined(&[&head, &kit, &target]);
+        }
+        None => log_joined(&[&head, &[Text("; no allowance in the kit")], &target]),
+    }
 }
 
 fn log_source(what: &str, source: Source, origin: Origin, rest: &[Piece<'_>]) {

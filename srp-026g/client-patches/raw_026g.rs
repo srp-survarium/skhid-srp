@@ -1575,6 +1575,15 @@ impl ItemEntry {
     pub unsafe fn set_config(self, value: Option<ItemConfig>) {
         unsafe { self.0.byte_add(0x114).cast::<Option<ItemConfig>>().write_volatile(value) }
     }
+
+    /// +0x0 (u16): its dictionary id (item_by_id 0x1F00D4 compares it; the lobby's relocate 0x289DD4 looks a profile item's +4h up by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dict_id(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
+    }
 }
 
 /// A survarium::bullet (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

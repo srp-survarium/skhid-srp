@@ -21,10 +21,20 @@
   stacks there are kept aside and come back with the own gun); more
   stacks than those slots: free ammunition slots, then the gun binds the
   ones placed. A pickup is never refused for room.
-- The picker's own ammo crate "refills it up to your ammo slots": each
-  borrowed stack to the picker's allowance for its slot, less the gun's
-  magazine and chamber for the selected one, never lowered, for free
-  (nobody's storage is charged); its own guns as before.
+- The picker's own ammo crate refills the borrowed gun by the game's own
+  refill rule (the owner, 2026-11-01), for free (nobody's storage is
+  charged), never lowered; its own guns as before. The game's rule: the
+  crate fills each ammunition slot to the kit's count for it, the
+  magazine and chamber of the gun that uses it inside; the lobby made that
+  count whole clips of the ammo bags the slot was given (`bags div
+  required_bags x clip_size` of the ammunition's config). A borrowed stack
+  in a slot gets the same bags in its own ammunition: the bags the kit's
+  count of the own ammunition there takes (`ceil(count x required_bags /
+  clip_size)`), in whole clips of the borrowed one. A PKP (7N13: 100 a
+  clip, 2 bags a clip) for an AK whose slot held 90 rounds of 7N10 (30 a
+  clip, 1 bag; 3 bags): one belt, 100, so 60 in reserve with 40 in the
+  belt; 4 bags two belts; 1 bag none. A slot the kit names no ammunition
+  in (a free slot it was put in) is not refilled, as the game's.
 - On the picker's death the borrowed gun vanishes (not dropped again) and the
   next life has the original loadout.
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
@@ -158,12 +168,20 @@ cooked gun).
   profile names (what check_weapon_pickup.py proves check_resupply and
   resupply_from_profile read). `pickup.resupply` 0x2F81B8 and
   `pickup.client_resupply` 0x2954EF (before resupply_from_profile's
-  inventory): each borrowed stack to `crate_reserve`: the picker's
-  allowance for its slot (profile +98h + kit x 704h + 4 x slot +2, none for
-  an item FFFFh, as resupply_from_profile 0x2FDD56..0x2FDD71) less the
-  gun's magazine and chamber for the selected stack, never lowered, free;
+  inventory): each borrowed stack to `weapon_pickup::crate_refill`: the
+  slot's allowance (profile +98h + kit x 704h + 4 x slot +2, none for an
+  item FFFFh or an allowance 0, as resupply_from_profile
+  0x2FDD56..0x2FDD71) in bags of the own ammunition parked from it, those
+  bags in whole clips of the borrowed ammunition, less the gun's magazine
+  and chamber for the selected stack, never lowered, free; each config's
+  `parameters/clip_size` and `parameters/required_bags` (integers; the
+  stack's dictionary entry +25Ch, its config +114h, the root +108h; the
+  lobby's process_default_relocate_item 0x289EB2..0x289EF3 reads the same);
   the real inventory's weight marked, EAX the view (the native refill then
-  refills the own parked stacks, charging the own storage).
+  refills the own parked stacks, charging the own storage). Each stack
+  refilled is logged: `place P crate: slot S ammo A before -> after; the
+  kit's N of ammo O (clip C/B) = bags = total (clip C/B) less in-gun`, C
+  rounds a clip and B bags a clip.
 - **The cache**: a gun installed is lent (never freed by its body's end or
   its donor's destruction); kept, it is freed 3 s after its donor's
   remove(1) (the body left the world: `Origin::Death.gone`), so a rollback
@@ -181,8 +199,10 @@ cooked gun).
   after the death with the body there taken; the pickup's slots (the
   borrowed stack in the own gun's slot 8, the own stack parked), owners,
   references, bindings, switch calls, magazine and reserve; the crate's
-  view, its "available" exits and its refill (108 - 18 = 90, no storage
-  charged, never lowered) at both finish_use sites; a loaded record without
+  view, its "available" exits and its refill with real configs (90 rounds
+  of 7N10 in the slot, 3 bags: a PKP's 7N13 100 - 18 = 82; 4 bags 182; 1
+  bag none; the same ammunition 72; no storage charged, never lowered, the
+  line logged) at both finish_use sites; a loaded record without
   and with the borrow; remove(0) and remove(1) (the own ammunition back);
   a record that does not decode; a lent gun kept past its body's end and
   freed 3 s after once given back; no branch into the new spans.

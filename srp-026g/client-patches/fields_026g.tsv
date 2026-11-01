@@ -447,6 +447,7 @@ survarium::inventory	size	0x188	size	what resupply_from_profile and check_resupp
 survarium::remove_frame	unload	0x4	u8	base_player::remove's flag (low byte): 1 the death/respawn removal (deactivate, unload_to_profile), 0 a snapshot's same-kit removal
 survarium::item_entry	config	0x114	ptr<survarium::item_config>	its config holder (fill_items_dictionary_impl 0x286486: [entry+114h]+108h the root it asks ui_desc of, 0x2864B0)
 survarium::item_config	root	0x108	ptr<vostok::engine_cfg>	the item config's root table (0x286492; ui_desc/text_descriptions/name the name key 0x2865C9..0x2865E9, translated 0x2865F9)
+survarium::item_entry	dict_id	0x0	u16	its dictionary id (item_by_id 0x1F00D4 compares it; the lobby's relocate 0x289DD4 looks a profile item's +4h up by it)
 vostok::render::model_instance	skeleton	0x0	obj<vostok::render::skeleton_render_model_instance>	only for a client weapon's model (weapon+1810h), a skeleton_render_model_instance
 vostok::render::skeleton_render_model_instance	resource	0x62B4	ptr<vostok::render::skeleton_render_model>	the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
 vostok::render::skeleton_render_model	bounds	0x108	f32	the authored model box, 6 f32: min xyz, max xyz (update_render_matrices 0x15A5B0 copies it to the instance's +62B8h turned by Y(pi): [-maxx, miny, -maxz, -minx, maxy, -minz])

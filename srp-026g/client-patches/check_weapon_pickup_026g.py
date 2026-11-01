@@ -406,6 +406,7 @@ SET_OWNER = 0x243590                        # inventory_item::set_owner: the ite
 CHORD = 1 << 29
 PATTERNS = [v for v in range(64) if bin(v).count("1") >= 2][:20]
 GUN_ID, BULLETS, CAPACITY = 4, 0xB0B0, 30
+CFG_CHILD, CFG_HAS = 0xF6B10, 0xF6C00
 
 
 def command(target):
@@ -432,7 +433,8 @@ class Pick(Run):
     """The match of stage 1 plus a picker (place 3, kit 0) holding its own gun in slot 10, a
     cooked inventory with the donor's gun in slot 10 and its ammunition in slot 11, the core's
     registry; the game's inventory set_item 0x2FC620, remove_item 0x2FC680 and set_owner
-    0x243590 run as they are; the weapon's switch calls are recorded."""
+    0x243590 run as they are; the weapon's switch calls are recorded; the binary config's
+    child and has (0xF6B10, 0xF6C00) answer from `cfg`, (table, key) -> node."""
 
     def __init__(self, data):
         super().__init__(data)
@@ -441,6 +443,9 @@ class Pick(Run):
         self.next, self.written, self.native = PICK, bytearray(), []
         for at in (WRITE_U8, DEACTIVATE, FORGET, SET_USER, INITIALIZE, ACTIVATE, ACTIVE_PLAYER):
             emu.hook_add(UC_HOOK_CODE, self.natives, begin=at, end=at)
+        self.cfg = {}
+        for at in (CFG_CHILD, CFG_HAS):
+            emu.hook_add(UC_HOOK_CODE, self.configs, begin=at, end=at)
         self.bare_ret = self.blk(16)
         emu.mem_write(self.bare_ret, b"\xC3")
         self.item_vtable = self.blk(0x40)
@@ -479,6 +484,37 @@ class Pick(Run):
             name = {DEACTIVATE: "deactivate", SET_USER: "set_user", ACTIVATE: "activate"}[address]
             self.native.append((name, ecx, arg(1)))
             self.ret(4)
+
+    def configs(self, emu, address, *_):
+        """EAX the table, EDI (child) or ESI (has) the key."""
+        key = self.text(emu.reg_read(UC_X86_REG_EDI if address == CFG_CHILD else UC_X86_REG_ESI))
+        child = self.cfg.get((emu.reg_read(UC_X86_REG_EAX), key))
+        self.ret(0, child if address == CFG_CHILD else (1 if child else 0))
+
+    def node(self, kind, data=0):
+        """A binary config node: +0 its data, +14h its type (1 integer, 3 table, 5 text)."""
+        at = self.blk(0x18)
+        self.word(at, data)
+        self.emu.mem_write(at + 0x14, struct.pack("<H", kind))
+        return at
+
+    def entry(self, item):
+        """`item`'s dictionary entry and its config's root table (entry +114h -> +108h)."""
+        entry, holder, root = self.blk(0x3A0), self.blk(0x110), self.node(3)
+        self.word(item + 0x25C, entry)
+        self.word(entry + 0x114, holder)
+        self.word(holder + 0x108, root)
+        return entry, root
+
+    def ammo_config(self, item, dict_id, clip_size, required_bags):
+        """An ammunition's entry (its dict id) and config: parameters/clip_size and
+        parameters/required_bags, integers, as the item configs have them."""
+        entry, root = self.entry(item)
+        self.emu.mem_write(entry, struct.pack("<H", dict_id))
+        parameters = self.node(3)
+        self.cfg.update({(root, b"parameters"): parameters,
+                         (parameters, b"clip_size"): self.node(1, clip_size),
+                         (parameters, b"required_bags"): self.node(1, required_bags)})
 
     def gun(self, double_handed=1, ammo_slot=11, loaded=0, chamber=0):
         """A client weapon (active object, its inventory item +10h): one bound ammunition slot."""
@@ -705,35 +741,66 @@ def stage2(patched, original):
     r.installed()
     print("ok a second command: refused (it borrows already)")
 
-    # The crate: each borrowed stack refilled to the picker's allowance for its slot (kit 0 slot 8:
-    # 108) less the magazine and chamber (17 + 1), for free; the own parked stack in the view.
+    # The crate, the native refill's rule in bags with real configs: the picker's own 5.45x39 7N10
+    # (217: 30 a clip, a bag a clip) has the kit's allowance of 90 rounds in slot 8, 3 bags; the
+    # borrowed PKP's 7.62x54 7N13 (2204: 100 a clip, 2 bags a clip) gets what 3 bags carry of it,
+    # one belt of 100, the gun's magazine and chamber (17 + 1) inside: 82, for free.
+    r.ammo_config(r.own_ammo, 217, 30, 1)
+    r.ammo_config(r.new_ammo, 2204, 100, 2)
+    allowance = lambda rounds: r.emu.mem_write(PROFILE + SLOTS + 4 * 8, struct.pack("<HH", 8, rounds))
+    allowance(90)
     storage = r.read(PROFILE + ITEMS, 0xB4 * 69)
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker}, stops=(CAN_USE_AFTER, CAN_USE_AVAILABLE))
-    assert r.stopped == CAN_USE_AVAILABLE, "30 of 90: available"
+    assert r.stopped == CAN_USE_AVAILABLE, "30 of 82: available"
     r.lohook(HINT, HINT_AFTER, {UC_X86_REG_EAX: r.picker}, stops=(HINT_AFTER, HINT_AVAILABLE))
     assert r.stopped == HINT_AVAILABLE
     r.emu.mem_write(r.inventory + 0x184, b"\0")
+    r.log.clear()
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
     view = r.emu.reg_read(UC_X86_REG_EAX)
     assert view not in (r.inventory, hide.GAME[UC_X86_REG_EAX])
     assert r.slot(view, 10) == r.own_gun + 0x10 and r.slot(view, 8) == r.own_ammo and r.slot(view, 9) == 0
-    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 108 - 18) and r.read(r.inventory + 0x184, 1) == b"\1"
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 100 - 18) and r.read(r.inventory + 0x184, 1) == b"\1"
     assert r.read(PROFILE + ITEMS, 0xB4 * 69) == storage, "a storage charged"
+    assert any(l.endswith("pickup: place 3 crate: slot 8 ammo 2204 30 -> 82; the kit's 90 of ammo 217 (clip 30/1) "
+                          "= 3 bags = 100 (clip 100/2) less 18") for l in r.log), r.log
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker})
     assert r.emu.reg_read(UC_X86_REG_ECX) == view, "full: check_resupply gets the view"
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 4))
     r.lohook(CLIENT_RESUPPLY, CLIENT_RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
-    assert r.emu.reg_read(UC_X86_REG_EAX) == view and r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 90)
+    assert r.emu.reg_read(UC_X86_REG_EAX) == view and r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 82)
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", 95))
     r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
     assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 95), "never below what it has"
+    # Four bags (120 rounds of 7N10): two belts, 200 less 18.
+    allowance(120)
     r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
+    r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 200 - 18)
+    # One bag (30 rounds) carries no belt: nothing to refill, the native check sees the own loadout.
+    allowance(30)
+    r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
+    r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: r.picker}, stops=(CAN_USE_AFTER, CAN_USE_AVAILABLE))
+    assert r.stopped == CAN_USE_AFTER and r.emu.reg_read(UC_X86_REG_ECX) == view
+    r.log.clear()
+    r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", CAPACITY)
+    assert any(l.endswith("pickup: place 3 crate: slot 8 ammo 2204 30 -> 30; the kit's 30 of ammo 217 (clip 30/1) "
+                          "= 1 bags = 0 (clip 100/2) less 18") for l in r.log), r.log
+    # The same ammunition as the own (the borrowed stack's config 7N10 too): the own gun's own refill, 90 - 18.
+    r.ammo_config(r.new_ammo, 217, 30, 1)
+    allowance(90)
+    r.lohook(RESUPPLY, RESUPPLY_AFTER, {UC_X86_REG_EAX: r.picker})
+    assert r.read(r.new_ammo + 0x260, 2) == struct.pack("<H", 90 - 18)
+    r.emu.mem_write(r.new_ammo + 0x260, struct.pack("<H", CAPACITY))
+    allowance(108)
     r.lohook(CAN_USE, CAN_USE_AFTER, {UC_X86_REG_EAX: PLAYER})
     assert r.emu.reg_read(UC_X86_REG_ECX) == INVENTORY, "a player without a borrow: the native inventory"
-    print("ok the crate: a borrowed stack below the picker's allowance for its slot (108) less the magazine and "
-          "chamber (18) is available (can_use, use_hint); its use refills it to 90, charging no storage, never "
-          "lowering it, and the native resupply and check_resupply get the view (the own gun in slot 10, the own "
-          "parked stack in slot 8; both finish_use sites)")
+    print("ok the crate, the native refill's rule in bags (resupply_from_profile: the kit's allowance for the slot, "
+          "the magazine and chamber inside) with the borrowed ammunition's config: the own 7N10's 90 rounds in "
+          "slot 8 are 3 bags, a PKP's 7N13 (100 a clip, 2 bags) gets 100 less 18 = 82 (available at can_use and "
+          "use_hint while below; both finish_use sites; logged with its inputs), 4 bags 182, 1 bag none; the same "
+          "ammunition 72; no storage charged, never lowered; the native resupply and check_resupply get the view")
 
     # A loaded record without the borrow: restored before the native readers.
     assert r.load(r.picker, record()) == 12
@@ -802,7 +869,7 @@ def stage2(patched, original):
 WEAPON_DRAW, WEAPON_DRAWN, WEAPON_SKIPPED = 0x2477C8, 0x2477CE, 0x2477DF
 ICONS_SITE, ICONS_AFTER = 0x23AA10, 0x23AA16
 BUILDER_END, BUILDER_AFTER = 0x2421B0, 0x2421B5
-RAY_TEST, REMOVE_MODEL, CFG_CHILD, CFG_HAS, TRANSLATE = 0x75E20, 0x21F40, 0xF6B10, 0xF6C00, 0x1FF0F0
+RAY_TEST, REMOVE_MODEL, TRANSLATE = 0x75E20, 0x21F40, 0x1FF0F0
 USE = 1 << 21
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 NAME_KEY, NAME = b"st_wpn_svd_name", "SVD"
@@ -818,7 +885,7 @@ class Prompt(Pick):
     def __init__(self, data):
         super().__init__(data)
         self.wall, self.removed = False, []
-        for at in (RAY_TEST, REMOVE_MODEL, CFG_CHILD, CFG_HAS, TRANSLATE):
+        for at in (RAY_TEST, REMOVE_MODEL, TRANSLATE):
             self.emu.hook_add(UC_HOOK_CODE, self.fixtures, begin=at, end=at)
 
     def fixtures(self, emu, address, *_):
@@ -833,10 +900,6 @@ class Prompt(Pick):
             emu.mem_write(instance + 0x10D, b"\0")
             self.removed.append(instance)
             self.ret(8)
-        elif address in (CFG_CHILD, CFG_HAS):       # EAX the table, EDI (child) or ESI (has) the key
-            key = self.text(emu.reg_read(UC_X86_REG_EDI if address == CFG_CHILD else UC_X86_REG_ESI))
-            child = self.cfg.get((emu.reg_read(UC_X86_REG_EAX), key))
-            self.ret(0, child if address == CFG_CHILD else (1 if child else 0))
         else:                                       # ECX translator, key, out; ret 8
             assert emu.reg_read(UC_X86_REG_ECX) == GAME + 0x52A8
             if self.text(arg(1)) == NAME_KEY:
@@ -877,8 +940,8 @@ class Prompt(Pick):
         self.emu.mem_write(text, NAME_KEY + b"\0")
         self.word(nodes[3], text)
         self.emu.mem_write(nodes[3] + 0x14, struct.pack("<H", 5))
-        self.cfg = {(nodes[0], b"ui_desc"): nodes[1], (nodes[1], b"text_descriptions"): nodes[2],
-                    (nodes[2], b"name"): nodes[3]}
+        self.cfg.update({(nodes[0], b"ui_desc"): nodes[1], (nodes[1], b"text_descriptions"): nodes[2],
+                         (nodes[2], b"name"): nodes[3]})
         # The hud: [esp+4] the ui; its world, its movie.
         self.ui = self.blk(0x20)
         self.word(self.ui + 0x18, WORLD)
