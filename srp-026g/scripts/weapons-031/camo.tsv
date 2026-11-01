@@ -19,3 +19,7 @@ weapons/fn_minimi/fn_minimi_mag		weapons/fn_minimi/fn_minimi:kolya_lp_magsg
 weapons/fn_minimi/fn_minimi_receiver01		weapons/fn_minimi/fn_minimi:kolya_lp_receiver01sg
 weapons/fn_minimi/fn_minimi_receiver02		weapons/fn_minimi/fn_minimi:kolya_lp_receiver02sg
 weapons/fn_minimi/fn_minimi_stock		weapons/fn_minimi/fn_minimi:kolya_lp_stocksg
+# The sights get a mask that paints nothing (parts.tsv: no part), so a camouflaged gun's bake finds every
+# surface's _aoac and the sights stay bare.
+weapons/scar-h/scar-h_sight		weapons/scar_h/scar_h:scar_h_sightsg
+weapons/vhs_2/vhs_2_sights		weapons/vhs_2/vhs_2:vhs_2_sights_s

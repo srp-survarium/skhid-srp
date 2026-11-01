@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Opis još nije dostupan.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Sovjetski metak srednje snage sa čeličnim jezgrom i malim trzajem. Lako zrno i velika početna brzina daju ravnu putanju.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Redenik od 100 metaka 5,56x45 za FN Minimi. Zauzima dve torbice za municiju.
+st_ammo_556x45_belt_name	5,56x45 redenik
 st_ammo_556x45_description	NATO puščani metak srednje snage, izveden iz američkog .223 Remington i standardizovan 1980. Lako i brzo zrno ima ravnu putanju i mali trzaj.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Metak koji je FN Herstal razvio oko 1990. za P90, a kasnije i pištolj Five-seveN. Lako, brzo zrno namenjeno je probijanju pancira.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Rasprostranjeni vojni metak sa potpuno obloženim zrnom, namenjen snajperskom i civilnom oružju.
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	Meci 7,62x51 u okvirima od 20 metaka za FN SCAR-H.
+st_ammo_762x51_scar_name	7,62x51 SCAR-H
 st_ammo_762x54R_old_description	Jedan od najstarijih puščanih metaka, pronađen u skladištima. Starost i uslovi čuvanja smanjili su njegovu efikasnost.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Sovjetski metak napravljen kao zamena za zastareli 7,62 mm. Povoljan je i dobro probija nemetalne površine.

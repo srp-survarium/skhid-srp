@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	A Soviet low-impulse interim bullet equipped with steel core. The lightweight bullet has a high initial velocity which ensures a flat trajectory. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	A belt of 100 5.56x45 rounds for the FN Minimi. Takes two ammo bags.
+st_ammo_556x45_belt_name	5.56x45 belt
 st_ammo_556x45_description	NATO intermediate rifle cartridge, developed from the American .223 Remington and standardised by NATO in 1980. A light, fast bullet with a flat trajectory and low recoil.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Cartridge developed by FN Herstal around 1990 for the P90 and later the Five-seveN pistol. A light, fast bullet designed to penetrate body armour.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	An armor-piercing modification of the military 7.
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	A popular army cartridge with the full metal jacket bullet. Designed for use in sniper and civil weapons. 
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	7.62x51 rounds in 20-round magazines for the FN SCAR-H.
+st_ammo_762x51_scar_name	7.62x51 SCAR-H
 st_ammo_762x54R_old_description	Found in warehouses, this ammo is one of the oldest rifle bullets of our time. Its age and storage conditions made it less effective.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Soviet unitary bullet created to replace the dated 7.62mm one. A standard bullet at a good price and decent penetration against non-metal surfaces.

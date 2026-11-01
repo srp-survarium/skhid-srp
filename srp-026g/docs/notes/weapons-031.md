@@ -1,6 +1,6 @@
 # Weapons batch 1: OTs-14, SCAR-H, VHS-2, Minimi (0.31a2)
 
-Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@3` (its row in
+Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@4` (its row in
 `release/content.tsv`). The owner's scope (2026-11-01): four batches of ported weapons, this one
 from 0.31a2; no premium or skin copies; machine-gun ammunition is the rifle round (no belt items);
 stats are the donor's own, scaled by a peer both builds ship, and the guns sit in our live balance
@@ -11,15 +11,16 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
 | | dict id | config | lobby cell | kill feed icon | ammo |
 |---|---|---|---|---|---|
 | OTs-14 "Groza" | 2261 | `wpn_ots14` | [6, 5] | 72 | 9x39 PAB-9, SP-5, SP-6 (300, 301, 302) |
-| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | 7.62x51, 7.62x51 AP (51, 52) |
+| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | 7.62x51 SCAR-H (2266), 7.62x51, 7.62x51 AP (51, 52) |
 | VHS-2 | 2263 | `wpn_vhs_2` | [4, 5] | 70 | 5.56x45 (2201) |
-| FN Minimi | 2264 | `wpn_fn_minimi` | [8, 5] | 74 | 5.56x45 (2201) |
+| FN Minimi | 2264 | `wpn_fn_minimi` | [8, 5] | 74 | 5.56x45 belt (2265) |
 
 - Configs at `gameplay/items/weapons/wpn_<name>.options`, so the edit lists' `wpn_*` globs (weapon
   details, movement, kill feed icon in the lobby) cover them. The batch's own edit list `weapon-camo-031-1`
   gives them a camouflage and a decal (as weapon-camo-1 and weapon-decals-1 the live guns), and its
-  own pack `weapons-031-camo@1` their 18 `_aoac` masks (`scripts/weapons-031/camo.tsv`, the
-  suggested parts, sights bare): no shared list or pack changes, as batch 2's `weapons-046-camo`.
+  own pack `weapons-031-camo@2` their 20 `_aoac` masks (`scripts/weapons-031/camo.tsv`, the
+  suggested parts; the SCAR-H's and VHS-2's sights a mask that paints nothing, `--bare-masks`, so
+  no surface of a camouflaged gun fails to load its mask): no shared list or pack changes, as batch 2's `weapons-046-camo`.
 - Lobby cell `[row, col]` of `LobbyMenu_WeaponIcons`: the donor's own cell (free in 0.26g); the
   donor's icon (a cell and its 8-pixel gap, 171x91) scaled into a 0.26g cell.
 - Kill feed icon: the donor's number; the hud's `CombatLogWeapon<icon>` is 0.31a2's
@@ -32,6 +33,32 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
   the live guns have from `weapon-balance-1` (a record of patch 21, so a new pack carries its own).
 - Sellers and ranks: srp's rule (`prices.rs`): Renaissance (the donor's faction) at rank
   `item_level - 5`; `base_cost` is the price; `drop_weight` the drops.
+
+## Ammunition
+
+A default kit has three ammo bags.
+- **FN Minimi:** the 5.56x45 is 30 rounds a bag, so a kit held 90, under its 100-round box: it
+  spawned 90/0 and never reloaded. It takes its own 5.56x45 belt (2265, `ammo_5.56x45_belt`):
+  100 rounds in 2 bags, as the PKP's 7.62x54 7N13 and the RPD's 7.62x39 belts; the 5.56's ballistics,
+  200 a belt (2 a round, as the 5.56), srp 100; Renaissance, rank 9 (no rank needed for ammo).
+- **FN SCAR-H:** the 7.62x51 is 10 rounds a bag (the battle and sniper rounds: 7.62x51, 7.62x54R,
+  12.7), so a kit held 30, 1.5 of its 20-round magazines, where the SOCOM 16 (10 rounds) gets 3. A
+  10-round bag is right for the SOCOM 16 and the Remington 700, so it stays; the SCAR-H gets its own
+  7.62x51 in 20-round magazines (2266, `ammo_7.62x51_scar`, as 0.69d's own `ammo_7.62x51_scar`): 20
+  a bag, 60 rounds a kit, 3 magazines; the 7.62x51's ballistics and icon, 300 a clip (15 a round, as
+  the 7.62x51), srp 150; Renaissance, rank 10. It still takes the shared 7.62x51 and AP.
+- `prices.rs`: their sellers (EXCEPTIONS), `AMMO_PRICES` and `UNRELEASED` rows.
+
+## Fixed after the first in-game look (2026-11-01)
+
+- **Muzzle flashes:** the SCAR-H and VHS-2 named 0.31a2's `fx/weapons/m4a1`, in no 0.26g archive:
+  the lobby crashed drawing them (exe+0x352308 after the cook of 'fx/weapons/m4a1' failed). They take
+  `fx/weapons/ak_74` (the M4A1's, HK416's and AK-12's), the Groza the Val's `fx/weapons/9x39` (the
+  UZI's flash it had was barely visible). The port now refuses a config naming a resource no archive
+  has (resource-porter `resources.rs`).
+- **Groza's sights:** it took the Val's `aim_offset` (0.028) from its template; the donor has none,
+  and the ring sat about 3 cm (50 px) under the screen's centre. Without it, as the donor (the port
+  now leaves a template's aim offset out when the donor has none). To look at again in game.
 
 ## Balance
 
@@ -78,7 +105,7 @@ resource-porter's weapon port (branch `feat/weapons-port`, `docs/weapons-026.md`
 vostok-port port-weapons --manifest ports/weapons-031a2-batch1.json --donor v031a2.split \
   --target-db <stock resources.db> --target-patch <every listed patch> --output <bundle>
 vostok-port pack from-bundle --base-db <stock> --base-patch <every listed patch> \
-  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-3 --id weapons-031 --version 3
+  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-4 --id weapons-031 --version 4
 ```
 
 - The art is 0.31a2's: meshes (0.31's statistics chunk 110 dropped), textures, sounds as they are;

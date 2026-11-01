@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	A leírás még nem érhető el.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Kis impulzusú szovjet köztes lőszer acélmaggal. A könnyű lövedék nagy kezdősebessége lapos röppályát biztosít. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	100 darab 5.56x45 lőszer hevederben az FN Minimihez. Két lőszertáskát foglal.
+st_ammo_556x45_belt_name	5.56x45 heveder
 st_ammo_556x45_description	NATO köztes lőszer, az amerikai .223 Remington alapján, 1980-ban szabványosítva. Könnyű, gyors lövedék lapos röppályával és kis visszarúgással.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Az FN Herstal 1990 körül fejlesztette a P90-hez, később a Five-seveN pisztolyhoz is. Könnyű, gyors lövedék testpáncél átütésére.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	A katonai 7.62x51 M61 puskalőszer páncéltörő
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Elterjedt katonai lőszer teljes köpenyes lövedékkel. Mesterlövész- és civil fegyverekhez készült. 
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	7.62x51 lőszer 20 lőszeres tárakban az FN SCAR-H-hoz.
+st_ammo_762x51_scar_name	7.62x51 SCAR-H
 st_ammo_762x54R_old_description	Raktárakból előkerült lőszer, korunk egyik legrégebbi puskalőszere. Kora és tárolási körülményei csökkentették a hatékonyságát.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Szovjet egybeszerelt lőszer az elavult 7.62 mm-es leváltására. Kedvező árú alaplőszer, nemfémes felületeken megfelelő átütőerővel.

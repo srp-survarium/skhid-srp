@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Popis zatím není k dispozici.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Sovětský náboj středního výkonu s ocelovým jádrem a nízkým zpětným rázem. Lehká střela má vysokou počáteční rychlost a plochou dráhu letu. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Pás se 100 náboji 5.56x45 pro FN Minimi. Zabírá dvě sumky na střelivo.
+st_ammo_556x45_belt_name	5.56x45 pás
 st_ammo_556x45_description	Náboj NATO středního výkonu, vyvinutý z amerického .223 Remington a standardizovaný v roce 1980. Lehká, rychlá střela s plochou dráhou letu a nízkým zpětným rázem.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Náboj vyvinutý FN Herstal kolem roku 1990 pro P90 a později pistoli Five-seveN. Lehká a rychlá střela určená k průniku neprůstřelnými vestami.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	Průbojná varianta vojenského puškového nábo
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Rozšířený vojenský náboj s celoplášťovou střelou. Určený pro odstřelovačské i civilní zbraně. 
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	Náboje 7.62x51 v zásobnících po 20 kusech pro FN SCAR-H.
+st_ammo_762x51_scar_name	7.62x51 SCAR-H
 st_ammo_762x54R_old_description	Náboj nalezený ve skladech patří k nejstarším dosud používaným puškovým nábojům. Stáří a skladování snížily jeho účinnost.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Sovětský jednotný náboj nahrazující zastaralý 7.62mm náboj. Běžné střelivo za dobrou cenu, se slušnou průbojností proti nekovovým překážkám.

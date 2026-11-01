@@ -4,6 +4,7 @@
 usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder | ->
            [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
            [--picker <page.html> [--camos <camouflage item folder>]] [--pack <id>@<version>]
+           [--bare-masks]
 
 <game folder>   the players' game files at their game paths or flattened as dbgrab writes them
                 (models__weapons__uzi.skinned_model__settings): the stock resources.db with every
@@ -21,6 +22,9 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
                 pack.json, an add_file for each _aoac the game folder does not have, a replace_file
                 (its sha256) for one it has; the name is the folder's under $SKHID_PACKS_DIR
                 (<id>-<version>) and the manifest's row (<id>@<version>, the sha256 of pack.json)
+--bare-masks    a texture with nothing painted still gets an _aoac, one that paints nothing (G 1, B 0.5,
+                R 1: the bake gives the plain texture back), so every surface of a camouflaged weapon
+                finds its mask and none fails to load (the weapon packs' sights: weapons-031)
 --camos         the camouflage items' configs (gameplay/items/upgrades/camouflages, as dbgrab writes
                 them): the picker offers each item's camouflage (textures from the game folder)
 
@@ -503,6 +507,9 @@ def main():
     opt = lambda name: args[args.index(name) + 1] if name in args else None
     only, camo_path, previews, picker = opt('--only'), opt('--camo'), opt('--previews'), opt('--picker')
     camos_dir, pack = opt('--camos'), opt('--pack')
+    bare_masks = '--bare-masks' in args
+    if bare_masks:
+        args.remove('--bare-masks')
     for name in ('--only', '--camo', '--previews', '--picker', '--camos', '--pack'):
         if name in args:
             i = args.index(name)
@@ -548,9 +555,11 @@ def main():
             models = list(dict.fromkeys(s.split(':')[0] for s in surfaces))
             entries.append(picker_entry(texture, base, first, labels, island_points(labels), suggested, chosen,
                                         texture in parts, models))
-        if not mask.any():
+        if not mask.any() and not bare_masks:
             print('  nothing painted: no _aoac')
             continue
+        if not mask.any():
+            print('  nothing painted: a bare _aoac (--bare-masks)')
         blob = dds_dxt1(a)
         for name in [texture] + premiums if out != '-' else []:
             dst = os.path.join(out, *(['files'] if pack else []), 'textures', *('%s_aoac' % name).split('/'))

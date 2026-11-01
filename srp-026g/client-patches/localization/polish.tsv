@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	OPIS NIE JEST GOTOWY!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Radzieckiej konstrukcji nabój pośredni, z małokalibrowym pociskiem o stalowym rdzeniu. Duża prędkość wylotowa zapewnia niemalże płaską trajektorię lotu tego stosunkowo lekkiego pocisku.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Taśma na 100 nabojów 5,56x45 do FN Minimi. Zajmuje dwie ładownice.
+st_ammo_556x45_belt_name	5,56x45 taśma
 st_ammo_556x45_description	Pośredni nabój karabinowy NATO, opracowany na bazie amerykańskiego .223 Remington i znormalizowany przez NATO w 1980 r. Lekki, szybki pocisk o płaskim torze lotu i niewielkim odrzucie.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Nabój opracowany przez FN Herstal około 1990 r. dla P90, a później pistoletu Five-seveN. Lekki, szybki pocisk zaprojektowany do przebijania kamizelek kuloodpornych.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	Przeciwpancerna modyfikacja pocisku 7.62. Kula ma
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Popularny nabój wojskowy z pełnopłaszczowym pociskiem. Stworzony z myślą o broni snajperskiej i cywilnej.
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	Naboje 7,62x51 w magazynkach na 20 nabojów do FN SCAR-H.
+st_ammo_762x51_scar_name	7,62x51 SCAR-H
 st_ammo_762x54R_old_description	Ten znaleziony w magazynie pocisk to jeden z najstarszych nabojów karabinowych naszych czasów. Wiek i warunki przechowywania wpłynęły negatywnie na jego efektywność.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Zespolona amunicja radziecka, która zastąpiła przestarzałe naboje kalibru 7.62 mm. Standardowe naboje z przyzwoitą penetracją niemetalowych powierzchni.

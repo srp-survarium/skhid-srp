@@ -300,6 +300,12 @@ pub const EXCEPTIONS: &[(&str, &[(u8, u8)])] = {
         // 12x70 smallshot: the Vepr-12 (Renaissance) and Saiga-12K (Edge),
         // rank 7 each.
         ("ammo_12mm_buck2", &[(REN, 7), (EDGE, 7)]),
+        // --- Ammo of weapons batch 1 (pack weapons-031, docs/notes/weapons-031.md):
+        // sold by Renaissance, which sells the guns that fire it, at their ranks.
+        // The FN Minimi's 5.56x45 belt of 100 (rank 9).
+        ("ammo_5.56x45_belt", &[(REN, 9)]),
+        // The FN SCAR-H's 7.62x51 in 20-round magazines (rank 10).
+        ("ammo_7.62x51_scar", &[(REN, 10)]),
         // --- Drugs, the trap, grenades (the four faction pages and
         // `Items` W:9996; PROVEN) ---
         ("bandages", &[(SCAV, 1)]),
@@ -373,6 +379,10 @@ pub const AMMO_PRICES: &[(&str, u32, u32)] = &[
     ("ammo_7.62x54_7n13", 300, 150),
     // Half is 12.5.
     ("ammo_12mm_buck2", 25, 10),
+    // The Minimi's belt of 100 5.56x45: the 5.56's price a round (2).
+    ("ammo_5.56x45_belt", 200, 100),
+    // The SCAR-H's clip of 20 7.62x51: the 7.62x51's price a round (15).
+    ("ammo_7.62x51_scar", 300, 150),
 ];
 
 /// Items the tables of this module name that come with a game patch not
@@ -387,6 +397,9 @@ pub const UNRELEASED: &[&str] = &[
     "ammo_5.7x28",
     "ammo_7.62x54_7n13",
     "ammo_12mm_buck2",
+    // Weapons batch 1's rounds (pack weapons-031).
+    "ammo_5.56x45_belt",
+    "ammo_7.62x51_scar",
     // The STK2 Novice's cap (resource-porter pack novice-6).
     "novice_026_helmet",
     // The STK2 outfits (packs stk2-bandit, stk2-novice, stk2-loner).

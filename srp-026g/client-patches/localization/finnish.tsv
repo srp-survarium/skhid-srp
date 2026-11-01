@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Kuvausta ei vielä ole.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Neuvostoliittolainen välikaliiperin patruuna, jossa on teräsydin ja pieni rekyyli. Kevyen luodin suuri lähtönopeus tuottaa laakean lentoradan. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	100 patruunan 5.56x45-vyö FN Minimille. Vie kaksi patruunataskua.
+st_ammo_556x45_belt_name	5.56x45 vyö
 st_ammo_556x45_description	NATOn välikaliiperin patruuna, kehitetty amerikkalaisesta .223 Remingtonista ja standardoitu vuonna 1980. Kevyt ja nopea luoti, laakea lentorata ja pieni rekyyli.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	FN Herstalin noin vuonna 1990 P90:lle ja myöhemmin Five-seveN-pistoolille kehittämä patruuna. Kevyt, nopea luoti suojaliivien läpäisyyn.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	Sotilaskäyttöön tarkoitetun 7.62x51 M61 -patru
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Yleinen sotilaspatruuna täysvaippaluodilla. Tarkoitettu tarkkuus- ja siviiliaseisiin. 
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	7.62x51-patruunoita 20 patruunan lippaissa FN SCAR-H:lle.
+st_ammo_762x51_scar_name	7.62x51 SCAR-H
 st_ammo_762x54R_old_description	Varastoista löytynyt patruuna on yksi aikamme vanhimmista kiväärinpatruunoista. Ikä ja varastointi ovat heikentäneet sen tehoa.
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Neuvostoliittolainen yhtenäispatruuna vanhentuneen 7.62 mm:n tilalle. Edullinen peruspatruuna, joka läpäisee hyvin muita kuin metallipintoja.

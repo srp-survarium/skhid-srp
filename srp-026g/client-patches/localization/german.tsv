@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Description is not ready!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Die sowjetische Zwischenpatrone mit Stahlkern und niedriger Impulsionstärke ausgestattet ist. Das Kleinkalibergeschoss mit der hohen Anfangsgeschwindigkeit gewährleistet hoche Ebenheit der Schussbahn.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Ein Gurt mit 100 Patronen 5,56x45 für das FN Minimi. Belegt zwei Munitionstaschen.
+st_ammo_556x45_belt_name	5,56x45 Gurt
 st_ammo_556x45_description	NATO-Mittelpatrone für Gewehre, aus der amerikanischen .223 Remington entwickelt und 1980 von der NATO standardisiert. Ein leichtes, schnelles Geschoss mit gestreckter Flugbahn und geringem Rückstoß.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Um 1990 von FN Herstal für die P90 und später die Pistole Five-seveN entwickelte Patrone. Ein leichtes, schnelles Geschoss, das Schutzwesten durchschlagen soll.
@@ -215,6 +217,8 @@ st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalib
 st_ammo_762x51_M59_name	7.62x51 M59
 st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
 st_ammo_762x51_name	7.62x51
+st_ammo_762x51_scar_description	Patronen 7,62x51 in 20-Schuss-Magazinen für das FN SCAR-H.
+st_ammo_762x51_scar_name	7,62x51 SCAR-H
 st_ammo_762x54R_old_description	Gefunden im Lagerhaus ist diese Patrone eine der ältesten Gewehrpatronen der Gegenwart. Das Alter und die Bedingungen der Aufbewahrung haben diese Patrone weniger wirksam gemacht
 st_ammo_762x54R_old_name	7.62x54R
 st_ammo_9x18_description	Sowjetische Einheitspatronen sind geschaffen, um veraltete 7,62 mm Patronen zu ersetzen. Standard-Kugeln mit einer guten Tiefenwirkung gegen nicht-metallische Hindernisse.
