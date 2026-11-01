@@ -411,6 +411,14 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+91. every full build: a held weapon shown while its player aims keeps its
+    body (patch 91, WEAPON_SHOW): weapon::on_show's `jz near 0x243EC7` at
+    0x243E32 is `jmp 0x243EC7` / nop (the idle sight and the body always),
+    the aimed branch and the body's test on +181Dh as the original's,
+    weapon::draw's scope test and add_aimed_rifle_scope_to_scene as the
+    original's, no write of +181Eh in on_show, draw or the scope's add and
+    remove, no relocation under the six bytes, nothing aims inside them;
+    cert-only keeps the original. check_weapon_show_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -830,6 +838,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     # Patch 43 gives back what that default withheld (test_tab_self).
     ranges.append((P.file_offset(P.TAB_SELF[0]), len(P.TAB_SELF[1])))
     rewritten.append((P.TAB_SELF[0], P.TAB_SELF[0] + len(P.TAB_SELF[1])))
+    # Patch 91: on_show's aimed branch's six bytes (test_weapon_show).
+    ranges.append((P.file_offset(P.WEAPON_SHOW[0]), len(P.WEAPON_SHOW[1])))
+    rewritten.append((P.WEAPON_SHOW[0], P.WEAPON_SHOW[0] + len(P.WEAPON_SHOW[1])))
     # Patch 52: the Stage focus getter's 46 bytes (test_stage_focus).
     ranges.append((P.file_offset(P.STAGE_FOCUS[0]), len(P.STAGE_FOCUS[1])))
     rewritten.append((P.STAGE_FOCUS[0], P.STAGE_FOCUS[0] + len(P.STAGE_FOCUS[1])))
@@ -1169,12 +1180,16 @@ def test_start_up_folder(original, image, mode):
               "original's")
         check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[1])) == P.STAGE_FOCUS[1],
               "cert-only: the Stage focus getter (patch 52) is the original's")
+        check(image.read(P.WEAPON_SHOW[0], len(P.WEAPON_SHOW[1])) == P.WEAPON_SHOW[1],
+              "cert-only: weapon::on_show (patch 91) is the original's")
         return
     check(image.read(P.TAB_SELF[0], len(P.TAB_SELF[2])) == P.TAB_SELF[2],
           f"{P.TAB_SELF[0]:#x}: patch 43's `jmp short` with the journal off by default: on_activate gives the hud "
           "its player's name (test_tab_self)")
     check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[2])) == P.STAGE_FOCUS[2],
           f"{P.STAGE_FOCUS[0]:#x}: patch 52's tests in the Stage focus getter (test_stage_focus)")
+    check(image.read(P.WEAPON_SHOW[0], len(P.WEAPON_SHOW[2])) == P.WEAPON_SHOW[2],
+          f"{P.WEAPON_SHOW[0]:#x}: patch 91's `jmp` in weapon::on_show (test_weapon_show)")
     # mounter::finish from the read of the mount's root to its `ret 0Ch`.
     start, end = 0x46B04, 0x46B3D
     tail = ["mov eax,[eax+0x34]", "test eax,eax", "jnz 0x46b0f", "xor ecx,ecx", "jmp short 0x46b12",
@@ -2043,15 +2058,20 @@ def test_upgrade_preview(original, image, before):
                       0x0E4F90, 0x420789, 0x111ED0, 0x111860, stash_find}
           and all(t in starts for t in targets - outside)
           and all(code_va + at in starts and image.read(code_va + at, 1) == b"\xE9" for at in P.UPGRADE_PREVIEW_ENTRIES)
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
-          and image.read(code_va, len(code)) == code
+          and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
+          == [f"call [dword {code_va + P.UPGRADE_PREVIEW_KIT_APPLY:#x}]"]
+          and image.read(code_va, len(code)) == P.with_kit_apply(code, P.arena())
+          and image.read(code_va + P.UPGRADE_PREVIEW_KIT_APPLY, 4)
+          == struct.pack("<I", P.arena_target(P.arena(), P.WEAPON_KIT_PREVIEW_APPLY))
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
           "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
-          "call outside itself, and every branch inside it lands on an instruction")
+          "call outside itself, and every branch inside it lands on an instruction; its one indirect call is "
+          f"apply's through its kit_apply dword (+{P.UPGRADE_PREVIEW_KIT_APPLY:#x}), which the build filled with "
+          "patch 68's weapon_kit_preview_apply")
 
 
 def test_research(original, image, before):
@@ -4024,6 +4044,70 @@ def test_language(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_weapon_kit(original, image, before):
+    """Check 68: a weapon's upgrades in at most three records, the weapon kit
+    (patch 68, the Rust patch `weapon_kit`, weapon_kit.toml: one code hook and
+    three lohooks; ../docs/notes/weapon-kit.md). check_weapon_kit_026g.py runs
+    each from the game's code on made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    loop = {a: t for a, _, t in ndisasm(stock.read(0x2F1771, 0x8E0), 0x2F1771)}
+    check(rows(0x2F1771, 0xB) == ["call 0x2f2060", "mov ecx,[ebp+0x38]", "mov eax,[ebp+0x44]"]
+          and loop.get(0x2F1799) == "mov eax,[ebp+0x40]" and loop.get(0x2F18D0) == "mov eax,[ebp+0x40]"
+          and [a for a, t in loop.items() if "[ebp+0x40]" in t] == [0x2F1799, 0x2F18D0, 0x2F1F1F, 0x2F1F29]
+          and loop.get(0x2F1F1F) == "mov [ebp+0x40],ebx"
+          and rows(0x2F2041, 0x12) == ["lea esp,[ebp-0xa0]", "pop edi", "pop esi", "pop ebx", "add ebp,byte +0x74",
+                                       "mov esp,ebp", "pop ebp", "ret 0x4"],
+          "translate_query reads [ebp+40h] (the item's records) at 0x2F1799 and 0x2F18D0 alone after its call "
+          "of 0x2F2060 (0x2F1771) (0x2F1F1F writes the local anew, for its own use), and its epilogue takes esp "
+          "from ebp (0x2F2041): the room below its frame goes with it")
+    check(rows(0x2882E3, 6) == ["mov ecx,[esp+0x48]", "mov eax,[ecx]"]
+          and rows(0x2882D6, 0xD) == ["mov edx,[ecx]", "mov edx,[edx+0x14]", "push dword 0xa023dc", "push eax",
+                                      "call edx"]
+          and rows(0x2885C9, 0xA) == ["call 0x28b0f0", "mov al,[ebp-0x5]", "inc al"]
+          and stock.read(0x8FC288 + 0x14, 4) == struct.pack("<I", 0x7C6A20)
+          and original.count(struct.pack("<I", 0x8FC288)) == 1,
+          "the upgrades to Flash set an object's `param` through its interface's vtable +14h (0x2882D6) and go "
+          "on at 0x2882E3; setup_inventory_data pushes a record's pair at 0x2885C9; the AS3 object interface's "
+          "vtable 0x8FC288 (written once, the AS3 movie root's 0x7AB0CB) holds SetMember 0x7C6A20 at +14h")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "weapon_kit"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted((h["site_name"], h["kind"]) for h in hooks)
+          == [("weapon_kit.attached_pair", "lohook"), ("weapon_kit.flash_upgrade", "lohook"),
+              ("weapon_kit.preview_apply", "entry"), ("weapon_kit.query_records", "lohook"),
+              ("weapon_kit.query_room", "code")],
+          "weapon_kit.toml's hooks: the code hook query_room, the lohooks query_records, flash_upgrade and "
+          "attached_pair, and the entry preview_apply (patch 48's call, check 48)")
+    for h in (h for h in hooks if h["kind"] != "entry"):
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+    entry = linked.symbols[P.WEAPON_KIT_PREVIEW_APPLY]
+    listing = [t for _, _, t in ndisasm(image.read(entry, 0x50), entry)]
+    shim = linked.symbols["hook_weapon_kit_on_preview_apply"]
+    calls = [i for i, t in enumerate(listing) if t.startswith("call ")]
+    aligned = [i for i, t in enumerate(listing) if t == "and esp,byte -0x10"]
+    check(calls and listing[calls[0]] == f"call {shim:#x}" and aligned and aligned[-1] < calls[0]
+          and listing[0] == "lea esp,[esp-0x4]" and "ret" in listing,
+          f"patch 48's call goes to the generated entry {P.WEAPON_KIT_PREVIEW_APPLY} ({entry:#x}), which aligns "
+          "the stack to 16 before it calls the Rust shim and returns with `ret`")
+    room = linked.symbols["weapon_kit_query_room"]
+    cave = [t for _, _, t in ndisasm(image.read(room, 16), room)]
+    check(cave == ["call 0x2f2060", "sub esp,0xa0", "jmp 0x2f1776"],
+          "the code hook's cave makes the site's call, takes A0h (the room, survarium::weapon_kit_room) and goes "
+          "on at 0x2F1776")
+
+
 def test_lobby_scene(original, image, before):
     """Check 81: the lobby's scene is the player's pick (the lobby window's;
     the squad commander's in a squad, 0xA1's srp bytes), the pick kept in
@@ -5366,6 +5450,68 @@ def test_tab_self(original, image, before):
           "aims at the second byte" + "".join(f", {h:#x}" for h in found + under))
 
 
+def test_weapon_show(original, image, before):
+    """Check 91: a held weapon shown while its player aims keeps its body
+    (patch 91, WEAPON_SHOW): weapon::on_show always takes its idle branch
+    (the idle sight and the body), and the next weapon::draw aims.
+    check_weapon_show_026g.py runs it. Every full build, as patch 43."""
+    stock = Image(original)
+    rows = lambda blob, at, size: [text for _, _, text in ndisasm(blob.read(at, size), at)]
+    va, old, new = P.WEAPON_SHOW
+    check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+          f"{va:#x}: the original's `{old.hex()}` (jz near), `{new.hex()}` (jmp, nop) here and in the build without "
+          "the late join")
+    head = ["cmp byte [esi+0x181e],0x0"]
+    aimed = ["mov eax,esi", "call 0x243940", "test al,al", "jz near 0x243ec7"]
+    check(rows(stock, 0x243E2B, 0x1C) == head + ["jz near 0x243ec7"] + aimed,
+          "the original: on_show takes its aimed branch when +181Eh is set and 0x243940 (the local player's, in "
+          "first person) says so")
+    check(rows(image, 0x243E2B, 0x1C) == head + ["jmp 0x243ec7", "nop"] + aimed,
+          "here `jmp 0x243ec7`: the idle branch always; the aimed branch's bytes stay, unreached")
+    branch = rows(stock, 0x243E47, 0x243EC7 - 0x243E47)
+    idle = rows(stock, 0x243EC7, 0x243F3C - 0x243EC7)
+    check(branch[:12] == ["mov edx,[esi+0x180c]", "lea eax,[esi+0x9bc]", "push eax", "push eax", "mov eax,[edi+0x10c]",
+                          "lea ecx,[esp+0x14]", "push ecx", "mov ecx,[edx+0x9c]", "mov edx,[ecx+0x5360]",
+                          "mov ecx,[edx+0x200064]", "add eax,0x108", "push ecx"]
+          and branch[12] == "call 0x21cd0" and branch[-2:] == ["mov byte [esi+0x181d],0x1", "jmp short 0x243efd"]
+          and "mov eax,[edi+0x108]" in idle and idle[idle.index("cmp byte [esi+0x181d],0x0") + 1] == "jnz 0x243f3c"
+          and "mov eax,[esi+0x1810]" in idle and idle[-1] == "call 0x21cd0",
+          "the aimed branch adds the optic's aimed model (+10Ch) and sets +181Dh; the idle one adds the idle model "
+          "(+108h); then the body (+1810h) is added only while +181Dh is 0 (0x243EFD)")
+    # draw's scope: the local player's in first person with +181Eh and not
+    # +181Dh aims (add_aimed_rifle_scope_to_scene); +181Dh without +181Eh
+    # (or not in first person) goes back (remove_aimed_rifle_scope_from_scene).
+    check(rows(stock, 0x244F80, 0x244FBF - 0x244F80) == [
+              "mov eax,ebx", "call 0x243940", "test al,al", "jz 0x244fad", "mov al,[ebx+0x181e]", "test al,al",
+              "jz 0x244fad", "cmp byte [ebx+0x181d],0x0", "jnz 0x244fa9", "lea edi,[esp+0x10]", "call 0x244b60",
+              "jmp short 0x244fbf", "test al,al", "jnz 0x244fbf", "cmp byte [ebx+0x181d],0x0", "jz 0x244fbf",
+              "lea edi,[esp+0x10]", "call 0x244c50"],
+          "weapon::draw (0x244F80) aims when the weapon is the local player's in first person, +181Eh is set and "
+          "+181Dh is not, and goes back when +181Dh is set otherwise")
+    add = rows(stock, 0x244B60, 0x244C48 - 0x244B60)
+    check(add.count("call 0x21f40") == 2 and add.count("call 0x21cd0") == 1
+          and add.index("mov eax,[eax+0x108]") < add.index("call 0x21f40") < add.index("call 0x21cd0")
+          and add[add.index("cmp byte [eax+0x11c],0x0") + 1:add.index("cmp byte [eax+0x11c],0x0") + 5]
+          == ["jz 0x244c3f", "mov eax,esi", "call 0x243940", "test al,al"]
+          and "mov eax,[esi+0x1810]" in add and add[-3:] == ["mov byte [esi+0x181d],0x1", "pop ecx", "ret"],
+          "add_aimed_rifle_scope_to_scene (0x244B60) takes the idle model out, adds the aimed one, takes the body "
+          "out only for hide_weapon_on_aim (+11Ch) in first person, and sets +181Dh")
+    # Nothing on_show, draw or the two scope functions run writes +181Eh.
+    writes = [r for at, size in ((0x243DD0, 0x243F94 - 0x243DD0), (0x244B60, 0x244D35 - 0x244B60),
+                                 (0x244E10, 0x245241 - 0x244E10)) for r in rows(image, at, size)
+              if "+0x181e]" in r.split(",")[0] and not r.startswith(("cmp ", "test "))]
+    # weapon::deserialize's three writes, read the same way (the filter sees a write).
+    known = [r for r in rows(stock, 0x244A40, 0x244AA4 - 0x244A40)
+             if "+0x181e]" in r.split(",")[0] and not r.startswith(("cmp ", "test "))]
+    check(not writes and known == ["mov [edi+0x181e],dl", "mov [edi+0x181e],al", "mov [edi+0x181e],al"],
+          "on_show, draw and the scope's add and remove never write +181Eh (the world's; weapon::deserialize "
+          "0x244A40 writes it three times)")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    found = aimed_inside(original, va, len(old), 0x82)
+    check(not under and not found, "no base relocation under the six bytes and nothing aims inside them"
+          + "".join(f", {h:#x}" for h in found + under))
+
+
 def test_replay_link(original, image, before):
     """"Watch replay" (patch revision 14, REPLAY_LINK_HOOK): the lobby's
     video_tutorial_link_clicked opened its link buffer with ShellExecuteA;
@@ -6575,7 +6721,8 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
-    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) \
+        + P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -6765,6 +6912,7 @@ def test_late_join(original, without, server, source):
     test_blackout(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
+    test_weapon_show(original, image, before)
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
@@ -6775,6 +6923,7 @@ def test_late_join(original, without, server, source):
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)
     test_language(original, image, before)
+    test_weapon_kit(original, image, before)
     test_lobby_scene(original, image, before)
     test_weapon_flight(original, image, before)
     test_stage_focus(original, image, before)

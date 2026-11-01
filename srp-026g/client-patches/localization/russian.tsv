@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Живокост активирован! Все кр
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
 st_login_button_label	Войти
-st_login_default_text	E-mail
+st_login_default_text	Никнейм
 st_login_eula_label	Лицензионное соглашение\n с конечным пользователем игры «Survarium»
 st_login_menu_accept	Принять
 st_login_menu_cancel	Отмена
 st_login_menu_status_access_level_restriction	Уровень доступа недостаточен для входа.
 st_login_menu_status_connecting	Авторизация...
 st_login_menu_status_error_connection	Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Неправильный email или пароль
+st_login_menu_status_invalid_user_or_password	Неправильный никнейм или пароль
 st_login_menu_status_invalid_version	Вы используете устаревшую версию игры.
 st_login_menu_status_sign_in_already_online	Пользователь уже в игре
 st_login_menu_status_sign_in_attempt_interval_violated	Превышено допустимое количество попыток входа. Попробуйте еще раз через 10 секунд.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
 st_srp_scope_slot	Прицел
+st_srp_shop_not_owned	Скрыть имеющиеся
+st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s

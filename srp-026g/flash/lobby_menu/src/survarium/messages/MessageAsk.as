@@ -15,8 +15,10 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
    import survarium.constants.MoneyType;
+   import survarium.constants.ProfileSlot;
    import survarium.constants.QuickSlotSize;
    
    public class MessageAsk extends MessageAccept
@@ -24,6 +26,13 @@ package survarium.messages
       
       // The most steps the count slider offers.
       private static const MAX_STEPS:int = 100;
+      
+      // The count a buy of a consumable starts at (startCount). The owner, 2026-11-01: "when buying
+      // consumables, it should always try to buy at least 30 if enough money (this is for new
+      // players who might buy less and not understand why they no longer have consumables in the
+      // game)"; "this shouldn't take into account energy drinks and similar items which give
+      // passive bonuses per round".
+      private static const CONSUMABLE_START_COUNT:int = 30;
       
       protected var _money_type:Boolean = false;
       
@@ -316,7 +325,13 @@ package survarium.messages
          var fullPocket:Boolean = _data.quick_slot_item_size == QuickSlotSize.WHOLE;
          if(_data.targetSlot && _data.targetSlot != ItemPlace.INVENTORY)
          {
-            if(_data.targetSlot < ItemPlace.INVENTORY)
+            if(_data.price != undefined && _data.sell == undefined && ProfileSlot.isPocket(_data.targetSlot))
+            {
+               // a buy dropped on a pocket: what the pocket does not take stays in the inventory
+               // (LobbyMenu.relocate_to_paperdoll), so the pocket's size does not cap it
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot);
+            }
+            else if(_data.targetSlot < ItemPlace.INVENTORY)
             {
                _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,fullPocket ? 1 : int(PlayerInfo.pocketSize));
             }
@@ -352,7 +367,7 @@ package survarium.messages
          }
          else if(!_data.originData)
          {
-            this.setSliderProp(_maxpos,this._step);
+            this.setSliderProp(_maxpos,this._step,this.startCount(_maxpos));
          }
          else
          {
@@ -380,6 +395,21 @@ package survarium.messages
                btnAccept.enabled = _money_tot >= 1 * this._price || this._money_type == MoneyType.PREMIUM;
             }
          }
+      }
+      
+      // Where a buy's slider starts, up to max: a consumable a match uses up (a drug, a trap, a
+      // grenade: the pockets' categories) at CONSUMABLE_START_COUNT, or max when less; 0 (one step,
+      // setSliderProp) for anything else: ammo, a booster (it fills a whole pocket and works while
+      // carried, items.md §8), an item no stack, a relocation (no price).
+      private function startCount(max:Number) : uint
+      {
+         var category:* = _data.category;
+         var consumable:Boolean = category == ItemCategory.MEDKITS || category == ItemCategory.BOOBY_TRAPS || category == ItemCategory.GRENADES;
+         if(_data.price == undefined || !_data.is_stack || !consumable || _data.quick_slot_item_size == QuickSlotSize.WHOLE)
+         {
+            return 0;
+         }
+         return uint(Math.min(CONSUMABLE_START_COUNT,max));
       }
       
       protected function changeMoneyType(event:ButtonEvent = null) : void

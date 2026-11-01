@@ -80,8 +80,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   the room for its next vote. This replaces the rule of 2026-10-20 (#254: who came by Play
   left after its match). A room with no members or queue is gone.
 - **Lost (game crashed, killed, link silent; or started anew):** the place is kept for about 90 s (the link's
-  30 s + the session's 60 s), the member shown grey (`away`); Play within it goes back to the
-  same seat, state kept (Play stays usable while their row says they play the match). After
+  30 s + the session's 60 s), the member shown grey (`away`); within it the room's own way in
+  goes back to the same seat, state kept, as Play does (Play stays usable while their row says
+  they play the match): see Late joins. After
   it the place is lost: they may join again as a new member. A game quit from its menu leaves
   the room at once.
   - **Started anew** (the owner's of 2026-10-20: "i was in that weird state where the game was
@@ -90,10 +91,15 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     until its new game is told the room: its movie asks where it is (at once, again every 2 s
     until answered, then every 5 s outside a room), or it presses Play or Join match. Then it
     plays as any member; one who comes while the match is played sees the room 15 s first. A
-    seat it had in the room's match stays its own: Play goes back to it. A new game not told
-    within 90 s of its sign-in loses the place.
+    seat it had in the room's match stays its own: it goes back to it after the 15 s, or at
+    once by Join match or Play. A new game not told within 90 s of its sign-in loses the place.
 - **Leave match (its own word, 0xE0; the owner's of 2026-10-19):** takes the player out of
-  its room as Leave does (not kicked; it may join again). Joining again while that match is
+  its room as Leave does (not kicked; it may join again). It is the only way to leave a match
+  on purpose (the owner's of 2026-11-01: "someone can leave on purpose only through leave
+  match button in menu", "and that should just kick the player out of the room"): its seat
+  is given up at once, so the room's 15 s never take it back, whichever of its words, the
+  lobby's or the match's, comes first. Any other way back to the lobby (a crash, a game
+  started anew, a dropped link) keeps the member and its seat (Late joins). Joining again while that match is
   played puts it into the same match as a late join (15 s or "Join match") as a new place,
   fresh (new index, zero stats), never its old one; only an account's latest place in a match
   counts (results, rewards, ratings, quests, map plays), the place it left for nothing.
@@ -206,6 +212,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   owner's of 2026-10-19: players, then the previous team, then the balance; after a 4 v 8
   by strength), from its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
   left of it; one who comes later waits in the same room and plays its next match.
+  - **One with a seat in the match** (its game started anew, or back from the match it
+    closed; the owner's of 2026-11-01: "player should just be able to rejoin through the
+    room"): the same 15 s and Join match take it back to its own seat, as Play does, whatever
+    the match takes now (none of the reasons below holds it). Live, rev40: such a member saw
+    no Join match, only the late-join hint, and got in by Play alone.
 - **A side's places in a match being played** (the owner's of 2026-10-31: "we never fully
   delete players"): the side the joiner goes to must stay within the room's size counting
   its players in the match **and** the places kept for players who are not in it now (a game
@@ -269,6 +280,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - The window, closed and opened again, shows My room.
 - **Kit presets** (the owner's of 2026-10-23): a join from the list or Play may first offer one of
   the player's kit presets, "Enter anyway" / "Exit" or "Switch and enter" (it makes that preset active) ([presets.md](presets.md)).
+  A full room's Queue offers what its Join would, "Queue" in place of "Enter anyway"
+  (the owner's of 2026-11-01).
   Play that would queue offers the other bracket's room with a place in the same way, with
   "Queue" for its first button (the owner's of 2026-10-30; presets.md, "Play that would queue").
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen

@@ -428,6 +428,74 @@ fn a_game_started_anew_goes_back_to_its_seat_in_the_rooms_match_by_play() {
     assert_eq!(back, match_id);
 }
 
+/// The owner's of 2026-11-01 ("you can leave the game, then enter, and you
+/// will be in room, but you wouldn't be able to enter (however, you can
+/// through pressing PLAY)"; live, rev40: one relaunched in its room's match
+/// tried other rooms for a minute, then pressed Play): a member seated in
+/// its room's match whose game is started anew, once told its room, is
+/// offered Join match with the seconds, as any member who comes during the
+/// match, and Join match takes it back to its seat, whatever the match
+/// takes now.
+#[test]
+fn a_game_started_anew_goes_back_to_its_seat_by_the_rooms_join_match() {
+    let mut world = World::new();
+    let (_, ticket, _, players) = room_match_of_four(&mut world);
+    let again = restart_game(&mut world, players[1]);
+    // The match takes no newcomer now: its own seat is not a new place.
+    world
+        .host
+        .closed
+        .locked()
+        .insert(ticket, session::matchmaking_policy::Closed::Joining);
+    let told = state(&mut world, again);
+    assert_eq!(join_row(&told), Some("J;15"), "{told:?}");
+    world.ask(again, request::ranking(ROOM_JOIN_MATCH, 1));
+    let (back, _) = sent_to_match(&world.take(again)).expect("back to its seat");
+    assert_eq!(back, ticket);
+}
+
+/// The same member that waits goes back to its seat when its 15 s are over,
+/// as any member who comes during the match goes in.
+#[test]
+fn a_game_started_anew_goes_back_to_its_seat_after_the_rooms_wait() {
+    let mut world = World::new();
+    let (_, ticket, _, players) = room_match_of_four(&mut world);
+    let again = restart_game(&mut world, players[1]);
+    state(&mut world, again);
+    world.advance(Duration::from_secs(10));
+    assert!(
+        sent_to_match(&world.take(again)).is_none(),
+        "the room first"
+    );
+    world.advance(Duration::from_secs(6));
+    let (back, _) = sent_to_match(&world.take(again)).expect("back to its seat");
+    assert_eq!(back, ticket);
+}
+
+/// The owner's of 2026-11-01 ("someone can leave on purpose only through
+/// leave match button in menu", "and that should just kick the player out of
+/// the room"): the in-game menu's Leave match (0xE0) gives the seat up and
+/// takes the member out of its room, so the room's 15 s never take it back,
+/// even when its client's word to the lobby comes before the match server's.
+#[test]
+fn one_who_leaves_by_the_menu_is_out_of_the_room_and_never_taken_back() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    let bob = players[1];
+    let account = world.ids[bob].0;
+    world.host.admitting.locked().insert(ticket);
+    // Back in the lobby first, a tick, then the match server's 0xE0.
+    world.ask(bob, request::leave(1, true));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.store.matchmaking().leave_match(account), Some(id));
+    world.advance(Duration::from_secs(20));
+    assert!(sent_to_match(&world.take(bob)).is_none(), "not taken back");
+    assert_eq!(world.core.rooms.key_of(account), None);
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(!room.members.contains(&account));
+    assert_eq!(state(&mut world, bob), ["S1;N;0;0;0"]);
+}
+
 /// A member is offered the open room of the lowest max level that takes it,
 /// lower than its own room's, and one click (a Join) moves it there; none
 /// over its equipment, none with a PIN, none in its own room, none out of a
@@ -1564,7 +1632,7 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
                 running
                     .seats
                     .push((9000 + u32::from(team) * 100 + n as u32, team));
-                running.strengths.push(0);
+                running.strengths.push(session::Strength::ZERO);
                 running.names.push(String::new());
             }
         }
@@ -1618,7 +1686,7 @@ fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
         let running = world.core.matches.get_mut(&id).unwrap();
         for n in running.seats.len()..20 {
             running.seats.push((9000 + n as u32, (n % 2) as u8));
-            running.strengths.push(0);
+            running.strengths.push(session::Strength::ZERO);
             running.names.push(String::new());
         }
     }
@@ -1665,6 +1733,39 @@ fn a_member_waiting_while_a_maintenance_is_near_is_told_so() {
         .set_maintenance(Some(session::v026g::quests::now() + 20 * 60));
     let state = state(&mut world, erin);
     assert_eq!(join_row(&state), Some("J;-1;5"), "{state:?}");
+}
+
+#[test]
+fn a_late_joiner_of_higher_gear_raises_the_matchs_equipment_level() {
+    // The owner's of 2026-11-01 (`docs/notes/kd-balance.md`): the match's
+    // level is the highest gear level of its players; a late joiner keeps
+    // it, or raises it with higher gear, and is counted at the level then.
+    let mut world = World::new();
+    let (key, ticket, _, players) = room_match_of_four(&mut world);
+    let at_start = matchmaking::gear_level(&world.account(players[0]), quests::now());
+    assert_eq!(world.results.match_gear(ticket), Some(at_start));
+    let erin = world.connect("Erin");
+    let raised = at_start + 3;
+    with_gear(&mut world, erin, raised);
+    world.host.admitting.locked().insert(ticket);
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    world.take(erin);
+    world.advance(Duration::from_secs(16));
+    assert_eq!(
+        sent_to_match(&world.take(erin)).map(|(id, _)| id),
+        Some(ticket)
+    );
+    assert_eq!(world.results.match_gear(ticket), Some(raised));
+    let running = world
+        .core
+        .matches
+        .values()
+        .find(|running| running.ticket.match_id == ticket)
+        .unwrap();
+    assert_eq!(
+        running.strengths.last().copied(),
+        Some(world.account(erin).level_stats.kd_at(raised))
+    );
 }
 
 /// Live, 2026-10-19 (room 2168): a member that went into its room's match

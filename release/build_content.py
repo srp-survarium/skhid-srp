@@ -23,7 +23,9 @@ Every Flash tree of srp-026g/flash needs a movie row and every edit list of cont
 Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
 them players do not have so: what the next patch carries; absent when there is none) and
 files.tsv (`<status> <path> <why> <live in>`, a line a file). Prints each file and why, and the
-checks; exits 1 on any problem (nothing in patch/ then).
+checks; exits 1 on any problem (nothing in patch/ then). A live file of no base row that no row
+makes is a problem, unless an earlier version of a pack row added it (<packs>/<id>-<n>, n below
+the row's version, adds the path with the live bytes): printed as left from it, not packed.
 """
 import argparse
 import fnmatch
@@ -258,6 +260,42 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
         world.put(file.relative_to(out).as_posix(), file.read_bytes(), reason)
 
 
+def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
+    """{path: '<id>@<n>'} of the live files `paths` (no base row's, made by no row) that an earlier
+    version of a composed pack left: its folder <packs>/<id>-<n>, n below the row's version, adds the
+    path (add_file, not over a base file) and its files/<path> is the live file byte for byte, so it is
+    what that version shipped. Nothing refers to it: a pack's new version puts what it changes at new
+    paths (a patch only adds files), so it stays as it is, not packed."""
+    paths = [p for p in paths if p not in base_files]
+    if not paths or not packs_dir:
+        return {}
+    added = {}                                    # path: [('<id>@<n>', its file)], highest n first
+    for kind, name, source, _, at in rows:
+        ident, _, version = name.partition('@')
+        if kind != 'pack' or not SHA.match(source) or not version.isdigit():
+            continue
+        numbers = (f.name[len(ident) + 1:] for f in Path(packs_dir).glob(f'{ident}-*'))
+        for n in sorted((int(n) for n in numbers if n.isdigit() and int(n) < int(version)), reverse=True):
+            manifest = Path(packs_dir) / f'{ident}-{n}' / 'pack.json'
+            if not manifest.is_file():
+                raise Problem(f'{at}: pack {name}: {manifest.parent}, an earlier version, has no pack.json')
+            spec = json.loads(manifest.read_text())
+            if (spec.get('id'), str(spec.get('version'))) != (ident, str(n)):
+                raise Problem(f'{at}: pack {name}: {manifest} says {spec.get("id")}@{spec.get("version")}')
+            for op in spec.get('operations', []):
+                if op.get('op') == 'add_file':
+                    added.setdefault(op['path'], []).append((f'{ident}@{n}', manifest.parent / 'files' / op['path']))
+    wanted = [p for p in paths if p in added]
+    got = game.get(live, wanted)
+    left = {}
+    for path in wanted:
+        for version, file in added[path]:
+            if file.is_file() and file.read_bytes() == got[path]:
+                left[path] = version
+                break
+    return left
+
+
 def edit_paths(edits, known):
     """The game paths an edit list reads: its `file`s, its `files` lists and what its `files` globs match."""
     paths = set()
@@ -422,10 +460,14 @@ def main():
         compared = game.compare(live, folder) if world.bytes else {}
         problems = []
         live_files = game.files(live)
-        for path, name in sorted(live_files.items()):
-            if name not in base_names and path not in world.bytes:
-                problems.append(f'{path}: live from {name}, which is no base row, and made by no row of the '
-                                'manifest: what made it? (a patch put together by hand, or a row taken out)')
+        unmade = sorted(p for p, name in live_files.items() if name not in base_names and p not in world.bytes)
+        left = left_by_earlier_packs(rows, args.packs, unmade, base_files, live, game)
+        for path in unmade:
+            if path not in left:
+                problems.append(f'{path}: live from {live_files[path]}, which is no base row, and made by no row '
+                                'of the manifest nor left by an earlier version of a pack row (<packs>/<id>-<n>): '
+                                'what made it? (a patch put together by hand, a row taken out, or an earlier '
+                                'pack\'s folder missing)')
         changed = sorted(p for p, (status, _) in compared.items() if status != 'same')
         lines = []
         print()
@@ -439,6 +481,12 @@ def main():
             print(f'  {word:9} {path}: {why}; {where}')
             lines.append(f'{status}\t{path}\t{why}\t{name or "-"}\n')
         (work / 'files.tsv').write_text(''.join(lines))
+        if left:
+            print()
+            print(f'left from earlier versions of the packs ({len(left)}): live, no longer made, nothing refers '
+                  'to them; not packed:')
+            for path in sorted(left):
+                print(f'  left      {path}: pack {left[path]}; live in {live_files[path]}')
         if problems:
             print()
             for problem in problems:

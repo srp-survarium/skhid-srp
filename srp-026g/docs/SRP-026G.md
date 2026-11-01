@@ -206,10 +206,7 @@ that rule is mended when the accounts load, and never plays.
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_BALANCE_PLAYER` | 12 | What a player counts for by being there when the sides are made, in gear levels: with an odd count the side with a player more has this much more, so the stronger players are the side of fewer. 0: only the strengths are made even (`matchmaking.md` §8) |
-| `SRP_BALANCE_PLAYER_LEVEL` | 1.5 | What a level of the account counts for, in gear levels |
-| `SRP_BALANCE_RATING` | 4 | What a point of the balance rating counts for, fully trusted, in gear levels |
-| `SRP_BALANCE_TRUST_MATCHES` | 5 | The matches after which a balance rating counts for half; one of no match counts for nothing |
+| `SRP_BALANCE_PLAYER_KD` | 1 | What a player counts for by being there when the sides are made, in K/Ds, beside its K/D at the match's equipment level: with an odd count the side with a player more has this much more, so the stronger players are the side of fewer. 0: only the K/Ds are made even (`notes/kd-balance.md`). `SRP_BALANCE_PLAYER`, `_PLAYER_LEVEL`, `_RATING` and `_TRUST_MATCHES` (in gear levels, before 2026-11-01) are no longer read |
 | `SRP_BALANCE_RATED_PLAYERS` | 4 | The fewest players a match must have had in it to move the balance rating, 1 to 20: the players who were in it for half of the longest stay or more. With 4, one against one and two against one move none; 1: every match does (`matchmaking.md` §8.3). The ranking's rating and the pay do not depend on it |
 | `SRP_BALANCE_BATTERY_LEAD` | 0.55 | In a match being played (modes 2, 3): what a battery of lead counts for, in players, for the side that leads. Used where a player who comes into a room while its match is played goes, and in the log's prediction (`matchmaking.md` §9) |
 | `SRP_BALANCE_TICKET_LEAD` | 0.2 | The same for a ticket of lead in a Team Deathmatch, or a point in Research |

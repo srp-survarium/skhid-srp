@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění v
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
 st_login_button_label	Přihlásit
-st_login_default_text	E-mail
+st_login_default_text	Přezdívka
 st_login_eula_label	Licenční smlouva
 st_login_menu_accept	Přijmout
 st_login_menu_cancel	Zrušit
 st_login_menu_status_access_level_restriction	Nemáš dostatečné oprávnění ke vstupu.
 st_login_menu_status_connecting	Přihlašování…
 st_login_menu_status_error_connection	Server Skhid není dostupný. Povol hru ve firewallu (Skhid-network-setup.cmd). V Rusku použij VPN a přidej do ní soubory .exe hry (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Nesprávný e-mail nebo heslo
+st_login_menu_status_invalid_user_or_password	Nesprávná přezdívka nebo heslo
 st_login_menu_status_invalid_version	Používáš zastaralou verzi hry.
 st_login_menu_status_sign_in_already_online	 Uživatel už je ve hře
 st_login_menu_status_sign_in_attempt_interval_violated	Příliš mnoho pokusů o přihlášení. Zkus to za 10 sekund.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
 st_srp_scope_slot	Optika
+st_srp_shop_not_owned	Skrýt vlastněné
+st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost
 st_srp_speed_title	Rychlost pohybu: %1$s

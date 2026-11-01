@@ -62,5 +62,11 @@ package survarium.constants
       {
          super();
       }
+
+      // A pocket: quick slots 13..18.
+      public static function isPocket(slot:int) : Boolean
+      {
+         return slot >= QUICK_1 && slot <= QUICK_6;
+      }
    }
 }
