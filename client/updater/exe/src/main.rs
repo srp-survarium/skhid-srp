@@ -575,10 +575,22 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                 min_revision: None,
                 online: false,
             });
+            // The original game from the addresses built into this updater
+            // (a provider that blocks the server need not block them).
             if !game::present(layout) {
-                return Done::Failed(format!(
-                    "The original game is not installed and the update server cannot be reached. {message}"
-                ));
+                log!(
+                    "the original game is missing and the update server cannot be reached: the \
+                     addresses built in"
+                );
+                match game::ensure(session, layout, None) {
+                    Ok(_) => {}
+                    Err(None) => return Done::Stopped,
+                    Err(Some(why)) => {
+                        return Done::Failed(format!(
+                            "The original game is not installed and the update server cannot be reached. {message} {why}"
+                        ));
+                    }
+                }
             }
             // No answer. What is installed and whole may still be played,
             // and so may files this updater never installed (copied by
@@ -610,7 +622,7 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
         log!("the original game is missing and so is its extractor: the Skhid files first");
         false
     } else {
-        match game::ensure(session, layout) {
+        match game::ensure(session, layout, Some(server)) {
             Ok(added) => added,
             Err(None) => return Done::Stopped,
             Err(Some(message)) => return Done::Failed(message),
@@ -630,7 +642,7 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
         if game_after {
             // The Skhid files are the server's and the extractor is not
             // among them: this says so.
-            return match game::ensure(session, layout) {
+            return match game::ensure(session, layout, Some(server)) {
                 Ok(_) => Done::Installed { restart: false },
                 Err(None) => Done::Stopped,
                 Err(Some(message)) => Done::Failed(message),
@@ -760,7 +772,7 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     // The game that waited for its extractor. When the launcher or this
     // program was replaced, the start that follows goes on with it.
     if game_after && !outcome.restart {
-        match game::ensure(session, layout) {
+        match game::ensure(session, layout, Some(server)) {
             Ok(_) => {}
             Err(None) => return Done::Stopped,
             Err(Some(message)) => return Done::Failed(message),
@@ -1026,7 +1038,13 @@ fn run() -> u32 {
             (exit::FAILED, false)
         }
         Done::Failed(message) => {
-            session.fail(&message);
+            // The whole reason in the log; the launcher's line has the log's
+            // name and where to send it after its start.
+            let reported = text::reported(&message);
+            log!("FAILED: {message}");
+            log!("the player is told: {reported}");
+            session.state(state::ERROR);
+            session.tell(&reported);
             (exit::FAILED, false)
         }
         Done::Behind(message) => {

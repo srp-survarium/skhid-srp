@@ -1,17 +1,27 @@
 //! First installation of the original game, before applying the Skhid ZIP.
+//!
+//! Its archive's addresses are the server's (`GET /game`: the release's,
+//! then the mirrors srp is given), or, when the server cannot be reached or
+//! offers none, the ones built into this updater at release time. They are
+//! tried in their order (`client/updater/README.md`, "Mirrors"): any
+//! failure moves on to the next, which goes on from the bytes already on
+//! disk; the pinned size and SHA-256 decide.
 use crate::{
     Session,
     http::{self, HttpError},
     install::Layout,
     log::log,
-    win,
+    text, win,
 };
 use alloc::{format, string::String, vec::Vec};
 use updater_logic::{
+    download,
     game::{self, Pin},
+    patches::{self as list, Address, Download},
     pipe::{ToLauncher, state, step},
-    url,
+    url::Url,
 };
+use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
 
 pub fn present(layout: &Layout) -> bool {
     ["resources.db", "binaries\\x86\\survarium.exe"]
@@ -103,15 +113,57 @@ fn io_error(action: &str, code: win::Code) -> Option<String> {
     Some(format!("Cannot {action}: {}.", win::error_text(code)))
 }
 
-/// A mirror override supplies only a URL, never a hash or a way to skip it.
-fn address(layout: &Layout, name: &str, default: &str) -> Result<String, Option<String>> {
-    let path = format!("{}\\{name}", layout.exe_dir);
-    match win::read_file(&path, 4096) {
-        Ok(bytes) => String::from_utf8(bytes)
-            .map(|s| s.trim().into())
-            .map_err(|_| Some(format!("{name} must contain a UTF-8 HTTPS download URL."))),
-        Err(code) if win::is_missing(code) => Ok(default.into()),
-        Err(code) => Err(io_error(&format!("read {name}"), code)),
+/// What the log calls the archive's download (`download::line`), as
+/// Skhid-without-updater.bat does.
+const LABEL: &str = "skhid-game";
+/// What a failed write of the download is, to tell it from the network's.
+const WRITE_STEP: &str = "write the download";
+
+/// The archive's addresses built into this updater at release time
+/// (`SKHID_BUILTIN_GAME`, the `/game` of the release's list, which
+/// `release/build-zip` passes to the build): those of the pinned archive.
+fn built_in() -> Option<Download> {
+    option_env!("SKHID_BUILTIN_GAME")
+        .and_then(|text| list::parse_game(text.as_bytes()).ok())
+        .filter(|offered| game::ARCHIVE.matches(offered.size, offered.sha256))
+}
+
+/// Where the archive is, in the order its addresses are tried: the
+/// server's `GET /game` when it offers the pinned archive (a server that
+/// answers always wins), else the addresses built in.
+fn addresses(session: &mut Session, server: Option<&Url>) -> Result<Vec<Address>, Option<String>> {
+    let mut why = String::from("the update server cannot be reached.");
+    if let Some(server) = server {
+        why = match http::get(server, "/game", 64 * 1024, &mut |_, _| session.pump()) {
+            Ok(body) => match list::parse_game(&body) {
+                Ok(offered) if game::ARCHIVE.matches(offered.size, offered.sha256) => {
+                    log!(
+                        "game: {} offers {} address(es) of the archive",
+                        server.host,
+                        offered.addresses.len()
+                    );
+                    return Ok(offered.addresses);
+                }
+                Ok(_) => format!(
+                    "{} offers another archive than the one this updater installs.",
+                    server.host
+                ),
+                Err(error) => format!("{}'s /game cannot be used ({error:?}).", server.host),
+            },
+            Err(HttpError::Stopped) => return Err(None),
+            Err(error) => text::http(server, "/game", &error),
+        };
+        log!("game: {why}");
+    }
+    match built_in() {
+        Some(offered) => {
+            log!(
+                "game: the {} address(es) built into this updater are used",
+                offered.addresses.len()
+            );
+            Ok(offered.addresses)
+        }
+        None => Err(Some(text::game_no_address(&why))),
     }
 }
 
@@ -141,41 +193,162 @@ fn check(
 
 /// Returns a read lock only after hashing the bytes actually on disk. The lock
 /// stays alive until the extractor exits, preventing replacement after checking.
+///
+/// The addresses are tried in their order, each once a run; any failure
+/// moves on to the next, which goes on from the bytes on disk (they are
+/// the same file at every address). A download left by a run that stopped
+/// is gone on from the same way. One line of the log a try and a failure.
 fn fetch(
     session: &mut Session,
-    address: &str,
+    addresses: &[Address],
     path: &str,
     pin: Pin,
 ) -> Result<win::LockedFile, Option<String>> {
-    let url = url::download(address)
-        .ok_or_else(|| Some("The game download URL is invalid. Use a direct HTTPS URL.".into()))?;
     if let Some(file) = check(path, pin, session)? {
         log!("reusing verified download: {path}");
         return Ok(file);
     }
-    let result = (|| {
+    let count = addresses.len();
+    let mut failed: Vec<(String, String)> = Vec::new();
+    for (at, address) in addresses.iter().enumerate() {
+        if !session.pump() {
+            return Err(None);
+        }
+        let host = address.url.host.as_str();
+        // A whole file that is here failed its check: it is no part.
+        let mut have = win::file_size(path).unwrap_or(0);
+        if have >= pin.size {
+            let _ = win::delete(path);
+            have = 0;
+        }
+        log!(
+            "{}",
+            download::line(
+                LABEL,
+                "try",
+                host,
+                &format!(
+                    "address {} of {count}, {}, from byte {have}",
+                    at + 1,
+                    address.text
+                )
+            )
+        );
         session.begin_progress();
         session.state(state::DOWNLOADING);
-        let output = win::DownloadFile::create(path)
-            .map_err(|code| io_error("save the game download", code))?;
-        http::get_stream(&url, "", pin.size,
-            &mut |chunk| output.write(chunk).map_err(|code| HttpError::Network("write download", code)),
-            &mut |done, _| session.progress(done, pin.size),
-        ).map_err(|error| match error {
-            HttpError::Stopped => None,
-            _ => Some(format!("The game download failed. {} No downloaded game file was installed. Retry or use another direct HTTPS mirror.", crate::text::http(&url, "", &error))),
-        })?;
-        output
-            .flush()
-            .map_err(|code| io_error("flush the download to disk", code))?;
-        drop(output);
-        check(path, pin, session)?.ok_or_else(|| Some(format!(
-            "Download rejected: size or SHA-256 mismatch. Expected {} bytes and SHA-256 {}. Nothing from this download was extracted or run.", pin.size, pin.sha256)))
-    })();
-    if result.is_err() {
+        // Too slow is a failure only while another address remains.
+        let slow = if at + 1 < count {
+            http::Slow::Leave
+        } else {
+            http::Slow::Wait
+        };
+        let (result, received) = get(session, address, path, have, pin, slow)?;
+        let why = match result {
+            Ok(()) => match win::file_size(path).unwrap_or(0) {
+                size if size != pin.size => format!("cut short at byte {size} of {}", pin.size),
+                _ => match check(path, pin, session)? {
+                    Some(file) => {
+                        log!(
+                            "{}",
+                            download::line(
+                                LABEL,
+                                "ok",
+                                host,
+                                &format!("{} bytes, SHA-256 verified", pin.size)
+                            )
+                        );
+                        return Ok(file);
+                    }
+                    None => {
+                        let _ = win::delete(path);
+                        format!("wrong SHA-256 (not {})", pin.sha256)
+                    }
+                },
+            },
+            Err(error) => text::reason(&error),
+        };
+        log!(
+            "{}",
+            download::line(
+                LABEL,
+                "failed",
+                host,
+                &format!("{why} ({received} bytes received)")
+            )
+        );
+        failed.push((host.into(), why));
+    }
+    // Bytes got stay for the next start; no byte, no file.
+    if win::file_size(path).is_ok_and(|size| size == 0) {
         let _ = win::delete(path);
     }
-    result
+    Err(Some(text::game_download_failed(&download::failures(
+        &failed,
+    ))))
+}
+
+/// One try of one address: its bytes into `path` from byte `from` on, or
+/// from 0 when it gives the whole file again. What it answered and the
+/// bytes received of it; `Err` for a failure here (the disk), not of the
+/// address, and when told to stop (the bytes stay for the next run).
+fn get(
+    session: &mut Session,
+    address: &Address,
+    path: &str,
+    from: u64,
+    pin: Pin,
+    slow: http::Slow,
+) -> Result<(Result<(), HttpError>, u64), Option<String>> {
+    let opened = if from == 0 {
+        win::File::create(path)
+    } else {
+        win::File::exclusive(path).and_then(|file| file.seek(from).map(|()| file))
+    };
+    // `None` only between the old file closed and the new one made.
+    let mut file = Some(opened.map_err(|code| io_error("save the game download", code))?);
+    let mut written = from;
+    let mut received = 0_u64;
+    let result = http::get_file(
+        &address.url,
+        from,
+        pin.size,
+        slow,
+        &mut |to| log!("{LABEL}: {} redirects to {to}", address.text),
+        &mut |at, chunk| {
+            if at != written {
+                // A 200 to a request from a byte on: the whole file again
+                // (the old one closed first: it is open to this alone).
+                file = None;
+                file = Some(
+                    win::File::create(path).map_err(|code| HttpError::Network(WRITE_STEP, code))?,
+                );
+                written = at;
+            }
+            let Some(out) = &file else {
+                return Err(HttpError::Network(WRITE_STEP, ERROR_INVALID_HANDLE));
+            };
+            out.write(chunk)
+                .map_err(|code| HttpError::Network(WRITE_STEP, code))?;
+            written += chunk.len() as u64;
+            received += chunk.len() as u64;
+            Ok(())
+        },
+        &mut |done, _| session.progress(done, pin.size),
+    );
+    let flushed = file.as_ref().map_or(Ok(()), win::File::flush);
+    drop(file);
+    match result {
+        Err(HttpError::Stopped) => return Err(None),
+        Err(HttpError::Network(WRITE_STEP, code)) => {
+            return Err(io_error("save the game download", code));
+        }
+        _ => {}
+    }
+    flushed.map_err(|code| io_error("flush the download to disk", code))?;
+    if let Err(HttpError::Html(_, read)) = result {
+        received = read;
+    }
+    Ok((result, received))
 }
 
 fn extracted(stage: &str, name: &str) -> String {
@@ -203,7 +376,14 @@ fn clean_stage(stage: &str) {
 
 /// Installs only missing original files. Every extraction and check finishes
 /// before promotion; failed promotions undo only files added by this attempt.
-pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<String>> {
+///
+/// `server`: the update server, when it answered this run; else the
+/// archive's addresses built into this updater are used.
+pub fn ensure(
+    session: &mut Session,
+    layout: &Layout,
+    server: Option<&Url>,
+) -> Result<bool, Option<String>> {
     if present(layout) {
         return Ok(false);
     }
@@ -236,8 +416,8 @@ pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<Str
             "The game installation needs {needed} bytes of free space; this disk has {free}."
         )));
     }
-    let game_url = address(layout, "updater_skhid.game-url", game::GAME_URL)?;
-    let archive = fetch(session, &game_url, &archive_path, game::ARCHIVE)?;
+    let addresses = addresses(session, server)?;
+    let archive = fetch(session, &addresses, &archive_path, game::ARCHIVE)?;
     let stage = win::staging_dir(&layout.game_dir)
         .map_err(|code| io_error("create an extraction folder", code))?;
     let result = (|| {
@@ -324,7 +504,8 @@ pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<Str
     drop(extractor);
     drop(archive);
     // Retain the verified download on extraction failure for a retry; it is
-    // always rehashed next time. Successful installs need no archive cache.
+    // always rehashed next time. (A download that failed stays too: the
+    // next try goes on from its bytes.) Successful installs need no archive cache.
     // The extractor is a file of the Skhid archive and stays.
     if result.is_ok() {
         let _ = win::delete(&archive_path);

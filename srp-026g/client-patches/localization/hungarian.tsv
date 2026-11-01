@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyul
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
 st_login_button_label	Belépés
-st_login_default_text	E-mail
+st_login_default_text	Becenév
 st_login_eula_label	Licencszerződés
 st_login_menu_accept	Elfogadás
 st_login_menu_cancel	Mégse
 st_login_menu_status_access_level_restriction	Nincs megfelelő hozzáférésed a belépéshez.
 st_login_menu_status_connecting	Bejelentkezés…
 st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Engedélyezd a játékot a tűzfalon (Skhid-network-setup.cmd). Oroszországban használj VPN-t, és add hozzá a játék .exe fájljait (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Hibás e-mail vagy jelszó
+st_login_menu_status_invalid_user_or_password	Hibás becenév vagy jelszó
 st_login_menu_status_invalid_version	Elavult játékverziót használsz.
 st_login_menu_status_sign_in_already_online	 A felhasználó már játékban van
 st_login_menu_status_sign_in_attempt_interval_violated	Túl sok bejelentkezési kísérlet. Próbáld újra 10 másodperc múlva.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a 
 st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
 st_srp_scope_slot	Irányzék
+st_srp_shop_not_owned	Meglévők elrejtése
+st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s

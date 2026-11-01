@@ -760,21 +760,33 @@ impl Core<'_> {
             }
             return;
         }
-        // A player with a place in a match (it closed the match early, or
-        // signed in again) goes back to it, as in 0.21d.
-        let player = session::Player {
-            session_id: who.session_id,
-            account_id: who.account_id,
-            profile_id: kit_id,
-        };
-        if self.store.matchmaking().back_to_seat(player) {
-            if let Some(player) = self.player_mut(who.addr) {
-                player.queued_since = Some(now);
-            }
-            self.queue_status(who.addr, now);
+        if self.back_to_seat(who.addr, now) {
             return;
         }
         self.room_play(who, now);
+    }
+
+    /// A player with a place in a match (it closed the match early, or
+    /// signed in again) goes back to it, as in 0.21d: by Play, and by its
+    /// room's Join match or turn (`rooms::room_late_join`). False: it has
+    /// no place in a match.
+    pub(super) fn back_to_seat(&mut self, addr: SocketAddr, now: Instant) -> bool {
+        let Some(player) = self.player(addr) else {
+            return false;
+        };
+        let player = session::Player {
+            session_id: player.session_id,
+            account_id: player.account_id,
+            profile_id: player.account.locked().active_kit,
+        };
+        if !self.store.matchmaking().back_to_seat(player) {
+            return false;
+        }
+        if let Some(player) = self.player_mut(addr) {
+            player.queued_since = Some(now);
+        }
+        self.queue_status(addr, now);
+        true
     }
 
     /// `31 <order> <left match>`: the player stopped waiting (a clan
@@ -1504,8 +1516,9 @@ mod tests {
 
     /// A scope on a weapon reaches the match as its record: the owned scope
     /// item's id and the variant made for the weapon (whose modification
-    /// the client applies, `survarium::v026g::scopes`), in slot 3; the
-    /// client's reader of the static info takes it as it is.
+    /// the client applies, `survarium::v026g::scopes`), in slot 3, the
+    /// weapon kit's mark in its value; the client's reader of the static
+    /// info takes it as it is.
     #[test]
     fn a_scope_on_a_weapon_reaches_the_match_as_its_variant() {
         use session::v026g::account::Upgrade as Record;
@@ -1543,17 +1556,124 @@ mod tests {
             .iter()
             .find(|item| item.instance_id == weapon)
             .expect("the worn weapon");
+        // A weapon's records are the weapon kit's (client patch 68): the
+        // scope alone is a kit of its own, its value marked.
         assert_eq!(
             item.upgrades,
             [Upgrade {
                 id: scope,
                 unknown_4: 362,
-                unknown_8: 0,
+                unknown_8: u64::from(survarium::v026g::weapon_kit::KIT_MAGIC) << 56 | 3 << 48,
                 param: 3,
             }]
         );
         // The scope item itself is in no kit: not in the match.
         assert!(profile.items.iter().all(|item| item.instance_id != scope));
+        let options = MatchOptions {
+            players: vec![profile.clone()],
+            map_id: maps::playable().next().unwrap().id,
+            match_id: 0x1234,
+            match_level: 1,
+            score_weights: SCORE_WEIGHTS,
+            blackout: false,
+        };
+        let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
+        let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
+        assert_eq!(read.players[0].items, profile.items);
+    }
+
+    /// A weapon's four upgrades (two decals, a camouflage, a scope; an
+    /// account saved before the weapon kit holds them so, in their logical
+    /// slots) reach the match as three records, the decals and the kit
+    /// (client patch 68): the static info a client can hold (three records
+    /// an item, the client's), read back as it was written; a late join's
+    /// and a replay's static info is this same message.
+    #[test]
+    fn a_weapons_four_upgrades_reach_the_match_in_three_records() {
+        use session::v026g::account::Upgrade as Record;
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::lobby::FULL_CONDITION;
+        use survarium::v026g::match_msgs::static_info::{
+            MatchOptions, SCORE_WEIGHTS, StaticInfo, parse_payload,
+        };
+        use survarium::v026g::weapon_kit::{self, KIT_MAGIC};
+
+        let dictionary = Dictionary::shared();
+        let mut account = Account::new("Alice");
+        let weapon = [7, 10]
+            .into_iter()
+            .find_map(|slot| account.kits[0].slots[slot])
+            .expect("a new account's weapon")
+            .item_id;
+        let named = |name: &str| dictionary.item_named(name).unwrap().dict_id;
+        let decal_dicts: Vec<u16> = dictionary
+            .items
+            .iter()
+            .filter(|item| item.category == 26)
+            .take(2)
+            .map(|item| item.dict_id)
+            .collect();
+        let camo = account.add_item(named("camo_city"), FULL_CONDITION);
+        let scope = account.add_item(69, FULL_CONDITION);
+        let first = account.add_item(decal_dicts[0], FULL_CONDITION);
+        let second = account.add_item(decal_dicts[1], FULL_CONDITION);
+        let logical = vec![
+            Record {
+                id: scope,
+                a: 362,
+                value: 0,
+                param: 3,
+            },
+            Record {
+                id: camo,
+                a: named("camo_city").into(),
+                value: 0,
+                param: 2,
+            },
+            Record {
+                id: second,
+                a: decal_dicts[1].into(),
+                value: 0x22,
+                param: 1,
+            },
+            Record {
+                id: first,
+                a: decal_dicts[0].into(),
+                value: 0x11,
+                param: 0,
+            },
+        ];
+        account.item_mut(weapon).unwrap().upgrades = logical;
+
+        let profile = match_profile(&account, 0, 0, 0);
+        let item = profile
+            .items
+            .iter()
+            .find(|item| item.instance_id == weapon)
+            .expect("the worn weapon");
+        let kit = u64::from(KIT_MAGIC) << 56 | 3 << 48 | u64::from(named("camo_city"));
+        assert_eq!(
+            item.upgrades
+                .iter()
+                .map(|u| (u.id, u.unknown_4, u.unknown_8, u.param))
+                .collect::<Vec<_>>(),
+            [
+                (first, u32::from(decal_dicts[0]), 0x11, 0),
+                (second, u32::from(decal_dicts[1]), 0x22, 1),
+                (scope, 362, kit, 3)
+            ]
+        );
+        let as_lobby: Vec<survarium::v026g::lobby::Upgrade> = item
+            .upgrades
+            .iter()
+            .map(|u| survarium::v026g::lobby::Upgrade {
+                id: u.id,
+                a: u.unknown_4,
+                value: u.unknown_8,
+                param: u.param,
+            })
+            .collect();
+        assert_eq!(weapon_kit::unpack(&as_lobby).map(|logical| logical.len()), Ok(4));
         let options = MatchOptions {
             players: vec![profile.clone()],
             map_id: maps::playable().next().unwrap().id,

@@ -1,5 +1,5 @@
 {
- "_about": "Weapon decals (2026-10-21, srp-026g/docs/notes/weapon-camo.md, client patch 47): on top of weapon-camo-1 (which gives the same 83 weapon configs their data table), each gets parameters/decal_available (the lobby shows one decal slot for it, the server lets a decal into slot 0 (the client keeps three upgrades an item)) and an empty data/decals table, where a decal upgrade appends {texture, its place}; a modifier at a path the config lacks is skipped. Apply to weapon-camo-1's output.",
+ "_about": "Weapon decals (2026-10-21, srp-026g/docs/notes/weapon-camo.md, client patch 47): on top of weapon-camo-1 (which gives the same 83 weapon configs their data table), each gets parameters/decal_available (the lobby shows two decal slots for it, the server lets a decal into slots 0 and 1: client patch 68's weapon kit, docs/notes/weapon-kit.md) and an empty data/decals table, where a decal upgrade appends {texture, its place}; a modifier at a path the config lacks is skipped. Apply to weapon-camo-1's output.",
  "add_value": [
   {
    "files": [

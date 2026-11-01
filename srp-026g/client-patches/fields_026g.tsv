@@ -211,6 +211,9 @@ survarium::weapon_hide_frame	was_visible	0x4	u8	weapon on_hide entry boolean; fa
 survarium::weapon	optics	0x1808	ptr<survarium::weapon_optics>	optional optics object, mt_draw 0x244F66
 survarium::weapon_optics	model	0x108	ptr<survarium::scene_model>	normal optics model holder, 0x244FF7
 survarium::weapon_optics	aim_model	0x10C	ptr<survarium::scene_model>	aimed optics model holder, 0x244FE1
+survarium::weapon_optics	hide_weapon_on_aim	0x11C	u8	the config's hide_weapon_on_aim (rifle_scope ctor 0x2996C0, ESP+10h): aimed, the weapon's body is out of the scene and the hands hidden (add_aimed_rifle_scope_to_scene 0x244BCF); 0, the gun stays drawn under the aimed optic
+survarium::weapon	scope_in_scene	0x181D	u8	the optic's aimed model is in the scene (and, for hide_weapon_on_aim, the body out): set by add_aimed_rifle_scope_to_scene 0x244C3F (and the stock on_show's aimed branch 0x243EBE), cleared by remove_aimed_rifle_scope_from_scene 0x244D2C and on_hide 0x2440C0; drawing only, not in the world
+survarium::weapon	scope_view	0x181E	u8	the scope's view is on: weapon::tick sets it at the aim's progress (+5FCh) past the optic's change_scope_factor (+110h, 0x244B26) and clears it (0x244B54); in the world (serialize 0x244A14, deserialize 0x244A6C) and its hash: a patch never writes it
 survarium::artefact_client	world	0xC	ptr<survarium::game_world>	client game world, common callback prefix
 survarium::artefact_client	cached_state	0x10	u32	presentation owner state, common callback prefix
 survarium::artefact_client	model	0x14	ptr<survarium::scene_model>	model holder, common callback prefix
@@ -354,6 +357,52 @@ survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard'
 vostok::mutable_buffer	begin	0x4	ptr<u8>	a growable buffer of bytes {allocator, begin, capacity, size} (mutable_buffer::resize 0x7AB30 reads +8h, writes +0Ch; with a null allocator reallocate 0x7AB70 asserts): the first byte
 vostok::mutable_buffer	size	0xC	u32	the bytes used, from begin
 survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+survarium::translate_query_frame	upgrades	0x40	ptr<survarium::upgrade_records>	item_config_cook::translate_query's [ebp+40h]: the item's upgrades' buffer_vector (0x2F2060 copies the query's +10h there), read at 0x2F1799 (the records' count) and 0x2F18D0 (each record) only
+survarium::translate_query_frame	dictionary	0x44	ptr<survarium::items_dictionary>	[ebp+44h]: the items dictionary each record's dict id is looked up in (0x2F18E0, item_by_id 0x1F0090; a null entry is read at 0x2F18ED)
+survarium::items_dictionary	entries	0x130	ptr<survarium::item_entry>	the entries, 3A0h bytes each (item_by_id 0x1F0090; +0 the u16 dict id, 0x1F00D4)
+survarium::upgrade_records	begin	0x0	ptr<survarium::upgrade_record>	an item's upgrade records: a buffer_vector {begin, end, capacity end} (the item record's +60h, its three records inline after it; the reader 0x1F13D0 sizes it at 0x1F147F)
+survarium::upgrade_records	end	0x4	ptr<survarium::upgrade_record>	past the last record (count = (end - begin) / 18h, translate_query 0x2F1799)
+survarium::upgrade_records	capacity	0x8	ptr<survarium::upgrade_record>	past the room (the item record's inline three: +6Ch..+B4h)
+survarium::upgrade_records	size	0xC	size	a buffer_vector's three pointers
+survarium::upgrade_record	id	0x0	u32	an upgrade record (18h bytes, the lobby's and a match's alike): the upgrade's item id
+survarium::upgrade_record	dict	0x4	u32	its dict id (translate_query 0x2F18D8: its item's parameters.modification)
+survarium::upgrade_record	value_low	0x8	u32	its value's low half (a modification's <low_param>, 0x2F1938)
+survarium::upgrade_record	value_high	0xC	u32	its value's high half (<high_param>, 0x2F193B)
+survarium::upgrade_record	slot	0x10	u8	its slot
+survarium::upgrade_record	size	0x18	size	18h bytes, the next one after it
+survarium::weapon_kit_room	records	0x0	obj<survarium::upgrade_record>	patch 68's room on translate_query's stack (weapon_kit.query_room's sub esp): six records (weapon-kit's EXPANDED)
+survarium::weapon_kit_room	list	0x90	obj<survarium::upgrade_records>	their buffer_vector, which [ebp+40h] is pointed at
+survarium::item_record	id	0x0	u32	an inventory item record (B4h bytes, built at 0x2F7C10; the lobby's inventory, a profile's items): its item id
+survarium::item_record	dict	0x4	u16	its dict id
+survarium::item_record	upgrades	0x60	obj<survarium::upgrade_records>	its upgrade records' buffer_vector, the records inline at +6Ch (three at most: the assert at 0x1F1655)
+survarium::item_record	size	0xB4	size	B4h bytes (setup_inventory_data 0x2885E1: add ebx,0B4h)
+survarium::item_records	begin	0x0	ptr<survarium::item_record>	the lobby's inventory: a vector of item records (lc+1EA978h, setup_inventory_data 0x288547)
+survarium::setup_inventory_frame	inventory	-0x14	ptr<survarium::item_records>	setup_inventory_data's [ebp-14h]: the inventory's vector (0x288573)
+survarium::setup_inventory_frame	inventory_end	-0xC	ptr<survarium::item_record>	[ebp-0Ch]: the inventory's end (0x288553; the item loop's bound, 0x2885E7)
+survarium::setup_inventory_frame	host	-0x18	u32	[ebp-18h]: the item's id (0x2885AC), every pair's host
+survarium::setup_inventory_frame	index	-0x5	u8	[ebp-5]: the record's index in the item's records (0x2885AF, 0x2885CE)
+survarium::setup_inventory_frame	pairs	-0x28	obj<survarium::attached_pairs>	[ebp-28h]: the {item id, host id} pairs (0x28857F: an alloca of 50h bytes an inventory item, ten pairs)
+survarium::attached_pairs	begin	0x0	ptr<survarium::attached_pair>	the pairs' vector {begin, end, capacity end} (pushed by 0x28B0F0: esi the vector, a fatal assert when end reaches capacity, 0x28B0F4)
+survarium::attached_pairs	end	0x4	ptr<survarium::attached_pair>	past the last pair
+survarium::attached_pairs	capacity	0x8	ptr<survarium::attached_pair>	past the room
+survarium::attached_pairs	size	0xC	size	three pointers
+survarium::attached_pair	item	0x0	u32	a cosmetic's item id
+survarium::attached_pair	host	0x4	u32	the item it is attached to (is_attached_to, 0x288672 -> 0x287E30)
+survarium::attached_pair	size	0x8	size	8 bytes
+survarium::upgrades_flash_frame	object	0x30	obj<scaleform::gfx_value>	the upgrades to Flash's [esp+30h] at weapon_kit.flash_upgrade: the record's object (its `id` and `param` set, 0x288240..0x2882E1)
+survarium::upgrades_flash_frame	index	0x80	u8	[esp+80h]: the record's index in the item's records
+scaleform::gfx_value	interface	0x0	ptr<scaleform::gfx_object_interface>	its object interface (Scaleform::GFx::Value::pObjectInterface; the movie root's +1Ch, an AS3 movie's 0x7AB0D5)
+scaleform::gfx_value	object	0x8	ptr<scaleform::gfx_object>	an object's data (SetMember's first argument, 0x2882C6)
+scaleform::gfx_object	vtable	0x0	u32	a Scaleform object a value names (an AS3 one: Scaleform::GFx::AS3::Object); only passed back to its interface
+scaleform::gfx_object_interface	vtable	0x0	u32	its vtable: AS3_OBJECT_INTERFACE for an AS3 movie's (the AS3 movie root writes it at 0x7AB0CB; AS2's 0x8CE2A8 at 0x6A3448)
+survarium::image	as3_object_interface	0x8FC288	u32	Scaleform's AS3 Value::ObjectInterface vtable (the AS3 movie root's ctor 0x7AB0CB; slot 5 +14h SetMember 0x7C6A20, slot 15 +3Ch PushBack 0x798410)
+survarium::preview_change	upgrade	0x0	u32	patch 48's queued change of the window's weapon (its state +64h, 0Ch each): the upgrade's item id
+survarium::preview_change	dict	0x4	u32	the dict id its record holds
+survarium::preview_change	slot	0x8	u32	the slot it goes into, or 0FFh: taken off
+survarium::preview_change	size	0xC	size	0Ch bytes
+survarium::preview_apply_frame	item	0x4	ptr<survarium::item_record>	weapon_kit.preview_apply's first argument (by the site's ESP, the return address at +0): patch 48's scratch record of the window's weapon (its edi)
+survarium::preview_apply_frame	changes	0x8	ptr<survarium::preview_change>	its second: the queue, patch 48's state +64h
+survarium::preview_apply_frame	count	0xC	u32	its third: the queued changes (patch 48's state +4, at most five)
 survarium::game	sound_world	0x5350	ptr<vostok::sound::sound_world>	the sound world (play_ui_sound 0x1EDC54, object_sound::insert 0x294951, game_world::clear_resources 0x1F9684)
 vostok::sound::sound_world	logic_user	0xB0	ptr<vostok::sound::world_user>	the logic world user: get_logic_world_user is vtable 0x9E0C60 slot 2, 0x9F7E0 (mov eax,[ecx+0B0h]), which every game sound call asks (0x1EDC7E, 0x294975)
 vostok::sound::sound_scene	references	0xD0	u32	its resource count, atomic (lock xadd at 0x220B55 and 0x11554)
@@ -455,3 +504,15 @@ survarium::item_entry	dict_id	0x0	u16	its dictionary id (item_by_id 0x1F00D4 com
 vostok::render::model_instance	skeleton	0x0	obj<vostok::render::skeleton_instance>	only for a client weapon's model (weapon+1810h, set by load_weapon 0x243A9A at the weapon's cook, 0x24B0DC): a skeleton instance
 vostok::render::skeleton_render_model	bounds	0x108	f32	the authored model box, 6 f32: min xyz, max xyz (update_render_matrices 0x15A5B0 copies it to the instance's +62B8h turned by Y(pi): [-maxx, miny, -maxz, -minx, maxy, -minz])
 survarium::kit_slot	allowance	0x2	u16	the rounds the slot is refilled to (resupply_from_profile 0x2FDC10: kit descriptor +42h + 4 x slot, from profile +98h + kit x 704h): allowance less the stack, the magazine and the chamber of the gun bound to it
+survarium::shared_statistics	victory_items	0x2760	obj<survarium::victory_item_event_manager>	the batteries' records (shared_statistics::on_victory_item_event 0x2F55D6: lea esi,[eax+2760h] for on_event 0x334AC0)
+survarium::victory_item_event_manager	records	0x20	obj<survarium::victory_item_status>	battery i's record at +20h + i x 100h, i its index in the rule's items (on_event 0x334B0E..0x334B1C; ten of them, the clear 0x3348A0)
+survarium::victory_item_event_manager	container_0	0xA20	f32	team 0's container's position, 3 f32 (start_match 0x334948 from the container whose team +158h is 0)
+survarium::victory_item_event_manager	container_1	0xA2C	f32	team 1's container's position, 3 f32 (start_match 0x334988)
+survarium::victory_item_event_manager	rule	0xA38	ptr<survarium::gather_victory_items_rule_core>	the battery rule, set by start_match (0x33490E); 0 in a mode without batteries (the clear 0x3348E5; serialize writes nothing then, 0x334DD0)
+survarium::victory_item_event_manager	options	0xA3C	ptr<survarium::match_options>	the match's options (start_match 0x334914): a place's team at +45ECh + place x 45FCh (on_event 0x334AD9..0x334AE3)
+survarium::victory_item_status	progress_0	0xFE	u8	patch 92's: how near team 0's container the battery has come this life (0 untouched, else 10 m steps + 1); unused by the game, which writes +F0h..+FDh only
+survarium::victory_item_status	progress_1	0xFF	u8	patch 92's: the same for team 1's container
+survarium::victory_item_status	size	0x100	size	a battery's record (on_event 0x334B11: shl ecx,8)
+survarium::gather_victory_items_rule_core	items_begin	0x110	ptr<survarium::inventory_slot>	its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
+survarium::gather_victory_items_rule_core	items_end	0x114	ptr<survarium::inventory_slot>	the vector's end (0x313D70)
+survarium::match_place	team	0x45EC	u32	the place's team, 0 or 1 (on_event 0x334AE3, is_solo_delivery 0x334D28)

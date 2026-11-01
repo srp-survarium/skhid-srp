@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätz
 st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
 st_lightning_quality_option	Beleuchtung Qualität
 st_login_button_label	Betreten 
-st_login_default_text	E-mail
+st_login_default_text	Spitzname
 st_login_eula_label	Lizenzvereinbarung
 st_login_menu_accept	Akzeptieren
 st_login_menu_cancel	Abrechnen
 st_login_menu_status_access_level_restriction	Niveau des Zuganges ist dem Eingang ungenügend.
 st_login_menu_status_connecting	Autorisierung
 st_login_menu_status_error_connection	Der Skhid-Server ist nicht erreichbar. Erlaube das Spiel in deiner Firewall (Skhid-network-setup.cmd). In Russland nutze ein VPN und füge die .exe-Dateien des Spiels hinzu (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Ungültige E-mail oder Passwort
+st_login_menu_status_invalid_user_or_password	Ungültiger Spitzname oder Passwort
 st_login_menu_status_invalid_version	Sie verwenden eine veraltete Version des Spiels.
 st_login_menu_status_sign_in_already_online	Der Benutzer ist schon im Spiel
 st_login_menu_status_sign_in_attempt_interval_violated	Die maximale Anzahl der Anmelde Versuche ist zu ende. Versuchen Sie es erneut nach 10 Sekunden.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
 st_srp_scope_slot	Optik
+st_srp_shop_not_owned	Besitz ausblenden
+st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s

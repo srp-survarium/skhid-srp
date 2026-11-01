@@ -437,7 +437,8 @@ def site_holds(kinds_, path=None):
                 raise Refused(f"sites_026g.tsv: {row['site']}: holds {token!r}: name=REGISTER:kind, a kind of "
                               "fields_026g.tsv, or name=REGISTER:u32 (not ESP), each name once")
             holds.append((match.group(1), match.group(2), None if value else module_of(match.group(3))))
-        out.append((row["site"].strip(), number(row["va"]), row["what"].strip(), holds))
+        out.append((row["site"].strip(), None if row["va"].strip() == "-" else number(row["va"]),
+                    row["what"].strip(), holds))
     return out
 
 
@@ -748,7 +749,7 @@ def raw_text(fs, fields_, sites=None):
               "", "/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles.",
               "#[allow(dead_code)]", "pub mod site {", "    #[allow(unused_imports)]", "    use super::*;"]
     for site, va, what, regs in holds:
-        lines += ["", f"    /// {site} ({va:#x}): {what}", f"    pub mod {site.replace('.', '_')} {{",
+        lines += ["", f"    /// {site} ({'our entry' if va is None else f'{va:#x}'}): {what}", f"    pub mod {site.replace('.', '_')} {{",
                   "        #[allow(unused_imports)]", "        use super::*;"]
         for name, location, module in regs:
             if module is None:

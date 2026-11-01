@@ -29,10 +29,14 @@ struct game_project_resource;
 struct game_scene;
 struct game_world_ui;
 struct gfx_movie;
+struct gfx_object;
+struct gfx_object_interface;
 struct gfx_value;
 struct inventory;
 struct inventory_recipe;
 struct item;
+struct item_entry;
+struct items_dictionary;
 struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
@@ -130,7 +134,7 @@ void engine_setup_profile(const void *profile, void *character, unsigned int kit
 void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id);
 
 /* 0x1f0090 survarium::items_dictionary::item_by_id: dictionary EAX, id ESP+4; pops 4; EAX */
-void *engine_item_by_id(void *dictionary, unsigned int id);
+struct item_entry *engine_item_by_id(struct items_dictionary *dictionary, unsigned int id);
 
 /* 0x284d10 survarium::player_profile::operator=: destination ESI, source EDI; pops 0; EAX */
 struct player_profile *engine_profile_assign(struct player_profile *destination, const struct player_profile *source);
@@ -374,6 +378,9 @@ void engine_comment_about_user(struct lobby_client *lobby_client, const char *ni
 
 /* 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly */
 void __attribute__((thiscall)) engine_close_current_match(struct network_client *client, unsigned int reason);
+
+/* 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display);
 
 /* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
 void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind);

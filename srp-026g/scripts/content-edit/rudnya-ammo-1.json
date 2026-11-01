@@ -1,5 +1,5 @@
 {
- "_about": "Rudnya (v0.69) ammo only at the bases (the owner, 2026-10-31: \"remove ammo boxes not on bases in 0.69\"). All four projects of pack rudnya-069d@3 (day_2, day_3, day_4, day_5). Removed: the two mid-map ammo boxes, by the decent house (32.0, 23.8, -48.6) and by the church (-47.9, 23.1, 12.8): each its two resupply_zone (team 0 and team 1), its decal and its collision_geometry (client_objects), its two stacked item/quest/container_closed models (render_visuals) and their four collision_objects (collision and walker_collision). Kept: the two base boxes, logic/resupply/team1 (64.5, 18.7, 24.6; team 0 spawns about (68, 40)) and logic/resupply/team2 (-26.6, 22.6, -106.4; team 1 spawns about (-39, -88)). Changes the simulation (simulation_changes.tsv).",
+ "_about": "Rudnya (v0.69) ammo only at the bases (the owner, 2026-10-31: \"remove ammo boxes not on bases in 0.69\"; revision 40). All four projects of pack rudnya-069d@3 (day_2, day_3, day_4, day_5). Removed: the two mid-map ammo boxes, by the decent house (32.0, 23.8, -48.6) and by the church (-47.9, 23.1, 12.8): each its two resupply_zone (team 0 and team 1), its decal and its collision_geometry (client_objects), its two stacked item/quest/container_closed models (render_visuals) and their four collision_objects (collision and walker_collision). Kept: the two base boxes, logic/resupply/team1 (64.5, 18.7, 24.6; team 0's nearest spawn 2-13 m, team 1's 135-160 m) and logic/resupply/team2 (-26.6, 22.6, -106.4; team 1's nearest spawn 6-17 m, team 0's 148-172 m), each refilling only the team whose base it is (the owner, 2026-11-01: \"there should only be 2 crates and the team should only be able to refill ammo on the closest crate\"): each box had a resupply_zone for each team, so both teams refilled at both; removed the other team's, logic/resupply/team1/resupply_zone_team1 (team 1) and logic/resupply/team2/resupply_zone (team 0); their shared collision_geometry stays. Changes the simulation (simulation_changes.tsv).",
  "remove_entry": [
   {
    "file": "projects/v069d_level_01/day_2/client_project",
@@ -831,6 +831,70 @@
      21.769,
      12.934
     ]
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team1/resupply_zone_team1"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team2/resupply_zone"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team1/resupply_zone_team1"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team2/resupply_zone"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team1/resupply_zone_team1"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team2/resupply_zone"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team1/resupply_zone_team1"
+   }
+  },
+  {
+   "file": "projects/v069d_level_01/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "resupply_zone",
+    "full_name": "logic/resupply/team2/resupply_zone"
    }
   }
  ]

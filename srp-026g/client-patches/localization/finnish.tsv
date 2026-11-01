@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Ritarinkannus aktivoitu! Kaikki vakavat vammat paran
 st_lifebone_pickup_hint	Ritarinkannus-artefakti. Nopeuttaa terveyden palautumista. 
 st_lightning_quality_option	Valaistuksen laatu
 st_login_button_label	Kirjaudu
-st_login_default_text	Sähköposti
+st_login_default_text	Nimimerkki
 st_login_eula_label	Lisenssisopimus
 st_login_menu_accept	Hyväksy
 st_login_menu_cancel	Peruuta
 st_login_menu_status_access_level_restriction	Käyttöoikeutesi eivät riitä kirjautumiseen.
 st_login_menu_status_connecting	Kirjaudutaan…
 st_login_menu_status_error_connection	Skhid-palvelimeen ei saada yhteyttä. Salli peli palomuurissa (Skhid-network-setup.cmd). Venäjällä käytä VPN:ää ja lisää pelin .exe-tiedostot siihen (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Virheellinen sähköposti tai salasana
+st_login_menu_status_invalid_user_or_password	Virheellinen nimimerkki tai salasana
 st_login_menu_status_invalid_version	Käytät vanhentunutta peliversiota.
 st_login_menu_status_sign_in_already_online	 Käyttäjä on jo pelissä
 st_login_menu_status_sign_in_attempt_interval_violated	Liian monta kirjautumisyritystä. Yritä uudelleen 10 sekunnin kuluttua.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
 st_srp_scope_slot	Tähtäin
+st_srp_shop_not_owned	Piilota omistetut
+st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s

@@ -882,6 +882,201 @@ artefact_score_on_transfer_replay:
     db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
     jmp 0x31c816
 
+; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
+global battery_progress_on_carrier_tick
+extern hook_battery_progress_on_carrier_tick
+battery_progress_on_carrier_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_carrier_tick
+    mov edx, battery_progress_on_carrier_tick_replay
+    cmp eax, 0
+    je battery_progress_on_carrier_tick_go
+    mov edx, 0x2daad8
+    cmp eax, 1
+    je battery_progress_on_carrier_tick_go
+    ud2
+battery_progress_on_carrier_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_carrier_tick_replay:
+    db 0x8b, 0x4c, 0x24, 0x10, 0x57
+    jmp 0x2daad8
+
+; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
+global battery_progress_on_match_start
+extern hook_battery_progress_on_match_start
+battery_progress_on_match_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_match_start
+    mov edx, battery_progress_on_match_start_replay
+    cmp eax, 0
+    je battery_progress_on_match_start_go
+    mov edx, 0x33499f
+    cmp eax, 1
+    je battery_progress_on_match_start_go
+    ud2
+battery_progress_on_match_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_match_start_replay:
+    db 0x8b, 0x86, 0x38, 0x0a, 0x00, 0x00
+    jmp 0x33499f
+
+; 0x334cea victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record: lohook -> battery_progress_on_delivered
+global battery_progress_on_delivered
+extern hook_battery_progress_on_delivered
+battery_progress_on_delivered:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_delivered
+    mov edx, battery_progress_on_delivered_replay
+    cmp eax, 0
+    je battery_progress_on_delivered_go
+    mov edx, 0x334cf0
+    cmp eax, 1
+    je battery_progress_on_delivered_go
+    ud2
+battery_progress_on_delivered_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_delivered_replay:
+    db 0x89, 0x83, 0xf8, 0x00, 0x00, 0x00
+    jmp 0x334cf0
+
+; 0x334f66 victory_item_event_manager::serialize after a record's first_finder (0x334F61), before the next battery (mov eax,[esp+24h] / mov eax,[eax+0A38h]): ESI the record, EDI the writer: lohook -> battery_progress_on_save
+global battery_progress_on_save
+extern hook_battery_progress_on_save
+battery_progress_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_save
+    mov edx, battery_progress_on_save_replay
+    cmp eax, 0
+    je battery_progress_on_save_go
+    mov edx, 0x334f70
+    cmp eax, 1
+    je battery_progress_on_save_go
+    ud2
+battery_progress_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_save_replay:
+    db 0x8b, 0x44, 0x24, 0x24, 0x8b, 0x80, 0x38, 0x0a, 0x00, 0x00
+    jmp 0x334f70
+
+; 0x3350d0 victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader: lohook -> battery_progress_on_load
+global battery_progress_on_load
+extern hook_battery_progress_on_load
+battery_progress_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_load
+    mov edx, battery_progress_on_load_replay
+    cmp eax, 0
+    je battery_progress_on_load_go
+    mov edx, 0x3350d6
+    cmp eax, 1
+    je battery_progress_on_load_go
+    ud2
+battery_progress_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_load_replay:
+    db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
+    jmp 0x3350d6
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info_chain
@@ -2806,6 +3001,155 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
+global weapon_kit_on_query
+extern hook_weapon_kit_on_query
+weapon_kit_on_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_query
+    mov edx, weapon_kit_on_query_replay
+    cmp eax, 0
+    je weapon_kit_on_query_go
+    mov edx, 0x2f177c
+    cmp eax, 1
+    je weapon_kit_on_query_go
+    ud2
+weapon_kit_on_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_kit_on_query_replay:
+    db 0x8b, 0x4d, 0x38, 0x8b, 0x45, 0x44
+    jmp 0x2f177c
+
+; 0x2882e3 the lobby's upgrades to Flash (0x288180, a record's object at a time, 0x2881E0..0x28834D) after the object's `param` (SetMember at 0x2882E1; mov ecx,[esp+48h] / mov eax,[ecx] before its PushBack): ESI the item record, [esp+80h] the record's index, [esp+30h] the object: lohook -> weapon_kit_on_flash_upgrade
+global weapon_kit_on_flash_upgrade
+extern hook_weapon_kit_on_flash_upgrade
+weapon_kit_on_flash_upgrade:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_flash_upgrade
+    mov edx, weapon_kit_on_flash_upgrade_replay
+    cmp eax, 0
+    je weapon_kit_on_flash_upgrade_go
+    mov edx, 0x2882e9
+    cmp eax, 1
+    je weapon_kit_on_flash_upgrade_go
+    ud2
+weapon_kit_on_flash_upgrade_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_kit_on_flash_upgrade_replay:
+    db 0x8b, 0x4c, 0x24, 0x48, 0x8b, 0x01
+    jmp 0x2882e9
+
+; 0x2885ce setup_inventory_data (0x288520) after it pushed a record's {item id, host id} pair (0x28B0F0 at 0x2885C9; mov al,[ebp-5] / inc al): EBX the host item, [ebp-5] the record's index, [ebp-28h] the pairs each item's is_attached_to is read from (0x288672): lohook -> weapon_kit_on_attached_pair
+global weapon_kit_on_attached_pair
+extern hook_weapon_kit_on_attached_pair
+weapon_kit_on_attached_pair:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_attached_pair
+    mov edx, weapon_kit_on_attached_pair_replay
+    cmp eax, 0
+    je weapon_kit_on_attached_pair_go
+    mov edx, 0x2885d3
+    cmp eax, 1
+    je weapon_kit_on_attached_pair_go
+    ud2
+weapon_kit_on_attached_pair_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_kit_on_attached_pair_replay:
+    db 0x8a, 0x45, 0xfb, 0xfe, 0xc0
+    jmp 0x2885d3
+
+; weapon_kit.preview_apply patch 48's apply (upgrade_preview_026g.asm), through the dword +23h of its code the build writes: cdecl, the item record, its queue of changes, their count; the caller keeps every register (pushad) and pops the three: entry -> weapon_kit_on_preview_apply
+global weapon_kit_on_preview_apply
+extern hook_weapon_kit_on_preview_apply
+weapon_kit_on_preview_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_preview_apply
+    cmp eax, 0
+    je weapon_kit_on_preview_apply_go
+    ud2
+weapon_kit_on_preview_apply_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x202dd0 player_cook::on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): a player's subresource batch is in and the player is about to be made (a match's kit players, a late joiner's, the lobby's character): lohook -> weapon_pickup_on_player_made
 global weapon_pickup_on_player_made

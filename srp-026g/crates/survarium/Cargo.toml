@@ -13,6 +13,9 @@ artefact-carry = { path = "../artefact-carry" }
 # Client patch 85 starts each player's state with its pickup record
 # (`v026g::match_msgs::players::FIELDS_AT`).
 weapon-pickup = { path = "../weapon-pickup" }
+# A weapon's upgrades packed as the client reads them (`v026g::weapon_kit`;
+# the client's arena builds the same crate, patch 68).
+weapon-kit = { workspace = true }
 binary-config-parser = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }

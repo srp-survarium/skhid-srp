@@ -3009,23 +3009,27 @@ fn a_private_rooms_match_takes_no_drop_card() {
 }
 
 /// A report kept before rooms with a PIN paid nothing has no `private`:
-/// it is read as a match that paid.
+/// it is read as a match that paid. One kept before matches against bots
+/// were marked has no `vs_bots`: it is read as PvP.
 #[test]
 fn a_report_kept_without_the_private_mark_is_not_private() {
     let players = alice_and_bob();
     let store = accounts(&players);
     let mut private = result(players);
     private.private = true;
+    private.vs_bots = true;
     let report = Results::new()
         .settle(&private, &store, &terms(), &mut Rng::new(3))
         .unwrap();
     let mut body = serde_json::to_value(&*report).unwrap();
     body.as_object_mut().unwrap().remove("private").unwrap();
+    body.as_object_mut().unwrap().remove("vs_bots").unwrap();
     let rows = vec![(report_key(MATCH), body.to_string())];
     let [kept] = &kept_reports(&rows)[..] else {
         panic!("one report kept");
     };
     assert!(!kept.private);
+    assert!(!kept.vs_bots);
     assert_eq!(kept.match_id, MATCH);
 }
 
@@ -3849,4 +3853,87 @@ fn pve_rewards_stop_at_level_seven_including_the_money_rate_and_premium() {
     // PvP retains its normal level scaling; lower PvE levels stay lower.
     assert!(settle(15, false).players[0].reward.money > settle(7, false).players[0].reward.money);
     assert!(settle(3, true).players[0].reward.money < seven.players[0].reward.money);
+}
+
+#[test]
+fn pve_drops_stop_at_level_seven() {
+    let players = alice_and_bob();
+    let settle = |level, vs_bots, seed| {
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        Results::new()
+            .settle(&outcome, &accounts(&players), &terms(), &mut Rng::new(seed))
+            .unwrap()
+            .players[0]
+            .reward
+            .drop
+    };
+    // The highest item level the generic table's row of match level 7 gives.
+    let row = &Drops::shared().generic.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
+    let top = row.iter().rposition(|&weight| weight > 0).unwrap() as u8;
+    let level_of = |drop: Option<Dropped>| {
+        drop.filter(|drop| is_gear(drop.dict_id))
+            .map(|drop| item_params(drop.dict_id).unwrap().item_level)
+    };
+    let (mut pve_gear, mut pvp_above) = (0, 0);
+    for seed in 1..=300 {
+        let at_seven = settle(7, true, seed);
+        assert_eq!(settle(15, true, seed), at_seven, "seed {seed}");
+        if let Some(level) = level_of(at_seven) {
+            pve_gear += 1;
+            assert!(level <= top, "seed {seed}: level {level} over {top}");
+        }
+        // PvP rolls at its own level.
+        pvp_above += u32::from(level_of(settle(15, false, seed)).is_some_and(|level| level > top));
+    }
+    assert!(
+        pve_gear > 30 && pvp_above > 30,
+        "{pve_gear} PvE gear, {pvp_above} PvP above {top}, row {row:?}"
+    );
+}
+
+#[test]
+fn a_drop_card_on_a_pve_match_rolls_at_level_seven() {
+    let card = Dictionary::shared().item_named(DROP_CARD).unwrap().dict_id;
+    let players = alice_and_bob();
+    // Alice's card on the screen of a match of `level`: the level it rolled
+    // at and what it gave.
+    let use_card = |level, vs_bots, seed| {
+        let store = accounts(&players);
+        let item_id = store.get(10).unwrap().locked().add_item(card, 3);
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        let results = Results::new();
+        results
+            .settle(&outcome, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        let alice = store.get(10).unwrap();
+        let mut alice = alice.locked();
+        let (rolled_at, used) = results
+            .use_drop_card(MATCH, 10, &mut alice, item_id, &mut Rng::new(seed))
+            .unwrap();
+        (rolled_at, used.unwrap().dropped)
+    };
+    let row = &Drops::shared().drop_card.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
+    let top = row.iter().rposition(|&weight| weight > 0).unwrap() as u8;
+    let level_of = |dropped: Dropped| {
+        is_gear(dropped.dict_id).then(|| item_params(dropped.dict_id).unwrap().item_level)
+    };
+    let mut pvp_above = 0;
+    for seed in 1..=100 {
+        let (at, at_seven) = use_card(7, true, seed);
+        assert_eq!(at, 7);
+        assert_eq!(use_card(15, true, seed), (7, at_seven), "seed {seed}");
+        assert!(
+            level_of(at_seven).is_none_or(|level| level <= top),
+            "seed {seed}"
+        );
+        // PvP rolls at its own level.
+        let (at, pvp) = use_card(15, false, seed);
+        assert_eq!(at, 15);
+        pvp_above += u32::from(level_of(pvp).is_some_and(|level| level > top));
+    }
+    assert!(pvp_above > 10, "{pvp_above} PvP cards above {top}");
 }
