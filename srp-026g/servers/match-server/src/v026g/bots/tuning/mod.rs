@@ -202,8 +202,9 @@ impl Tuning {
     }
 
     /// The tuning with every option that the defaults have on put back off (`all_off.json`): the bots as they were
-    /// before the owner's set shipped. The switch report is against it ([`Tuning::switch_report`]), the tests of what
-    /// an option changes start from it, and its JSON is the bench's OFF arm.
+    /// before the owner's set shipped, except where the old value is wrong by the client or the game (the pitch unit, the
+    /// use ray, the zones' pools: A223), which keeps the default. The switch report is against it
+    /// ([`Tuning::switch_report`]), the tests of what an option changes start from it, and its JSON is the bench's OFF arm.
     pub fn all_off() -> Self {
         Self::parse(include_str!("all_off.json")).expect("all_off.json is a valid patch")
     }
@@ -623,8 +624,8 @@ mod tests {
     }
 
     /// `all_off.json` is the patch that puts every option the defaults have on back off (the bench's OFF arm,
-    /// `SRP_BENCH_TUNING`): each of its values differs from the default it patches, so none is stale, and the
-    /// tuning it makes is a valid one with the options off.
+    /// `SRP_BENCH_TUNING`): each of its values differs from the default it patches, so none is stale, the tuning it
+    /// makes is a valid one with the options off, and it never brings back a value wrong by the game (`KEPT_RIGHT`).
     #[test]
     fn the_all_off_patch_switches_off_what_the_defaults_have_on() {
         let patch: serde_json::Value = serde_json::from_str(include_str!("all_off.json")).unwrap();
@@ -642,6 +643,33 @@ mod tests {
         let mut changes = Vec::new();
         leaves(&patch, String::new(), &mut changes);
         assert!(changes.len() > 60, "{}", changes.len());
+        // Switches whose old value is wrong by the client or the game, read in the exe or the data or measured (A223, the
+        // owner: "All that is wrong for sure shouldnt be returned even if we testing all-off"): the patch never names them, so
+        // the all-off arm keeps the default. Each field's doc gives its proof. An old value that is only weaker (a habit, a
+        // guard, less information) is no bug and stays in the patch.
+        const KEPT_RIGHT: &[&str] = &[
+            "/aim/combat/grenade_kit_cap",
+            "/aim/combat/hit_cover_reach",
+            "/aim/combat/live_eye",
+            "/aim/combat/mirror_gated",
+            "/aim/friends/spread_source",
+            "/cover/pierce",
+            "/grid/client_numbers",
+            "/hazard/zone_intensity",
+            "/hazard/zone_pools",
+            "/kin/fix_floor",
+            "/kin/jump_snap",
+            "/kin/pitch_scale",
+            "/sense/ranges",
+            "/sense/shots",
+            "/sense/sprint_body_mps",
+            "/sense/use_ray_m",
+            "/think/stamina_rates",
+        ];
+        for pointer in KEPT_RIGHT {
+            assert!(defaults.pointer(pointer).is_some(), "{pointer} is no switch of the tuning");
+            assert!(patch.pointer(pointer).is_none(), "{pointer}'s old value is wrong by the game: the all-off arm keeps the default");
+        }
         // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
         // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
         const OFF_BY_DEFAULT: &[&str] = &["/kin/margin_edge", "/feel/past_drop", "/feel/sprint_turns", "/spacing/apart_tie", "/spacing/lane"];
@@ -664,8 +692,11 @@ mod tests {
         assert_eq!(off.number(PlayKind::Buddy, "respawn_rule"), 0.0);
         assert_eq!(off.unstick.progress_ms, None);
         assert_eq!(off.feel.carrier_jump_m, None);
-        assert_eq!(off.sense.ranges, HearingRanges::Flat);
         assert!(off.aim.combat.grenade_push_tracks);
+        let off = serde_json::to_value(off).unwrap();
+        for pointer in KEPT_RIGHT {
+            assert_eq!(off.pointer(pointer), defaults.pointer(pointer), "{pointer}");
+        }
     }
 
     #[test]

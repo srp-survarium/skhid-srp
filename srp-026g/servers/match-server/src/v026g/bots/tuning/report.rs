@@ -218,8 +218,8 @@ mod tests {
                 "heal": {"on": true},
                 "unstick": {"suicide_after_ms": 60000},
                 "feel": {"lip_guard_ticks": 2},
-                "hazard": {"zone_pools": "routed"},
-                "sense": {"shots": {"by_weapon": {"unknown_m": 150.0}}},
+                "hazard": {"route_crossing": "total"},
+                "traps": {"on_the_pass": {"gain": 1.0, "route_ahead_m": 12.0}},
             }),
         )
         .unwrap();
@@ -229,8 +229,8 @@ mod tests {
         assert!(line("switches ON heal:").contains("interrupt on"), "{lines:?}");
         assert!(line("switches ON unstick:").contains("suicide_after_ms=60000"), "{lines:?}");
         assert!(line("switches OFF heal:").contains("bandages"), "{lines:?}");
-        assert!(line("switch values hazard:").contains("zone_pools=routed"), "{lines:?}");
-        assert!(line("switch values sense:").contains("shots={\"by_weapon\""), "{lines:?}");
+        assert!(line("switch values hazard:").contains("route_crossing=total"), "{lines:?}");
+        assert!(line("switch values traps:").contains("on_the_pass={\"gain\""), "{lines:?}");
         assert!(line("changed numbers feel:").contains("lip_guard_ticks=2 (default 0)"), "{lines:?}");
     }
 

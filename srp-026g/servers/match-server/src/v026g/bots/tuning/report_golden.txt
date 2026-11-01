@@ -11,7 +11,7 @@ switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
 switches ON pace: calm_sprint ring_death_spots ring_radar
 switches ON perch: on
-switches ON sense: sight_refresh sprint_body_mps=4.6
+switches ON sense: sight_refresh
 switches ON smoke: anti_sniper cross_lane forming_client react_watch sight spot_rules throw_keeps_route
 switches ON spacing: apart apart_follow buddy
 switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
@@ -32,13 +32,12 @@ switches OFF threat: answer_sniper breach concede job_out_of_all_lines job_spot_
 switches OFF traps: at_cleared at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
-switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0} pierce={"max_share":0.5,"pierce":0.3125}
+switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0}
 switch values feel: drop_truth=links past_drop=window
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: edge=client fix_floor=under_in_jump jump_snap=by_keys margin_edge=lattice pitch_scale=client walk_off_landing=link
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
-switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
 switch values smoke: wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
 switch values spacing: callouts=seen_and_heard queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
 switch values think: search_queue=fair stamina_rates=kit
@@ -50,5 +49,5 @@ changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
 changed numbers grid: jump_cap_m=0.998 (default 1.05)
 changed numbers plays: buddy.numbers.respawn_rule=1 (default 0) roam.numbers.fresh_claims=1 (default 0) roam.numbers.join_ahead=1 (default 0) roam.numbers.leader_eases=1 (default 0)
-changed numbers sense: bush_notice=0.5 (default 0) grass_notice=0.1 (default 0) use_ray_m=1.8 (default 2)
+changed numbers sense: bush_notice=0.5 (default 0) grass_notice=0.1 (default 0)
 changed numbers traps: chance=0.7 (default 0.35) enemy_near_m=20 (default 50) enemy_quiet_s=2 (default 4) min_score=0.05 (default 0.2) ring_m=1.3 (default 0)

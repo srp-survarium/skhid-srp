@@ -14,7 +14,6 @@
       "grenade_friend_m": 6.0,
       "grenade_held_reach": false,
       "grenade_held_recheck": false,
-      "grenade_kit_cap": false,
       "grenade_land_m": 12.0,
       "grenade_lead_s": 4.0,
       "grenade_push_tracks": true,
@@ -23,16 +22,11 @@
       "grenade_track_chance": 0.08,
       "grenade_tracks": false,
       "grenade_wall_m": 18.0,
-      "hit_cover_reach": false,
-      "mirror_gated": false,
       "settle": "off",
       "worth": {
         "hurt_from": "body"
       },
       "zoom_error": "off"
-    },
-    "friends": {
-      "spread_source": "constants"
     }
   },
   "avoid": {
@@ -52,7 +46,6 @@
   },
   "cover": {
     "hold_exposure": null,
-    "pierce": null,
     "spot_cost": null
   },
   "feel": {
@@ -75,7 +68,6 @@
     "zone_lines": false
   },
   "grid": {
-    "client_numbers": false,
     "crouch_floors": false,
     "exact_erosion": false,
     "floor_paths": false,
@@ -93,9 +85,7 @@
     "live_zones": false,
     "price_way_out": false,
     "route_crossing": "off",
-    "run_out": false,
-    "zone_intensity": false,
-    "zone_pools": "raw"
+    "run_out": false
   },
   "heal": {
     "bandages": false,
@@ -103,10 +93,7 @@
   },
   "kin": {
     "edge": "lattice",
-    "fix_floor": "nearest",
-    "jump_snap": "any",
-    "margin_edge": "lattice",
-    "pitch_scale": "radian"
+    "margin_edge": "lattice"
   },
   "kit": {
     "frags": "off",
@@ -128,11 +115,7 @@
   "sense": {
     "bush_notice": 0.0,
     "grass_notice": 0.0,
-    "ranges": "flat",
-    "shots": "flat",
-    "sight_refresh": false,
-    "sprint_body_mps": null,
-    "use_ray_m": 2.0
+    "sight_refresh": false
   },
   "smoke": {
     "anti_sniper": false,
@@ -167,7 +150,6 @@
     "search_queue": "first_come",
     "shut_in_gate": false,
     "stamina": false,
-    "stamina_rates": "light",
     "stranded_start": false
   },
   "traps": {

@@ -127,13 +127,14 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
         i + 1 < sent.len() && sent[i + 1].1 & key == 0,
         "let go the next input"
     );
-    // The view was steep near the press (the body's pitch; a look down is
-    // negative, and the stand-in's body is a few inputs behind the bot's).
+    // The view was steep near the press (the body's pitch as an elevation, radians, by the tuning's
+    // scale; a look down is negative, and the stand-in's body is a few inputs behind the bot's).
+    let scale = Tuning::all_off().kin.pitch_scale;
     let steepest = sent[i.saturating_sub(12)..=(i + 4).min(sent.len() - 1)]
         .iter()
-        .map(|s| s.2)
+        .map(|s| crate::v026g::bots::pitch::Pitch::new(s.2).elevation(scale))
         .fold(0.0_f32, f32::min);
-    assert!(steepest <= -0.9, "pitch {steepest}");
+    assert!(steepest <= -0.9, "elevation {steepest}");
     let bot = bots.bots[0].as_ref().unwrap();
     assert_eq!(bot.features.traps.habit.placed_this_life(), 1);
     assert_eq!(bots.place_counts().placed, 1);

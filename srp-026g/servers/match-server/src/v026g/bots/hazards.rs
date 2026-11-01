@@ -1123,8 +1123,9 @@ mod tests {
             panic!("on by default");
         };
         assert_eq!(band_permille, (1000.0 * 0.2 * (2.0f32 / std::f32::consts::PI).sqrt() / 0.62).round() as u16);
+        // The all-off arm keeps the zone's curve (`zone_intensity`, PROVEN: A223), not the margin's full hit.
         let off = super::super::tuning::Tuning::all_off().hazard;
-        assert_eq!(HurtTest::of(&off, 0.38), HurtTest::MARGIN);
+        assert_eq!(HurtTest::of(&off, 0.38), HurtTest { by_intensity: true, ..HurtTest::MARGIN });
     }
 
     #[test]
