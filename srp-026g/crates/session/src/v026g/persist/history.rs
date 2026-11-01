@@ -5,6 +5,7 @@
 //! written. [`MatchHistory`] reads them for the site, on a connection of its
 //! own: only public matches are ever read back.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -84,6 +85,9 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_player_totals_score ON g26_player_totals (score);
     CREATE INDEX g26_player_totals_headshots ON g26_player_totals (headshots);
     CREATE INDEX g26_player_totals_batteries ON g26_player_totals (batteries);
+    -- A match counts once for a clan, however many of its members played:
+    -- a win if one of them was on the winning team; score, kills and the
+    -- counters are the members' rows added up.
     CREATE TABLE g26_clan_totals (
         clan_id       INTEGER PRIMARY KEY,
         matches       INTEGER NOT NULL,
@@ -429,6 +433,8 @@ pub(super) fn record(
         ],
     )?;
     let match_id = transaction.last_insert_rowid();
+    // Each clan's line of a public match: one match, whoever of it played.
+    let mut clans: BTreeMap<u32, Totals> = BTreeMap::new();
     for player in &record.players {
         let line = &player.line;
         let counters = &line.counters;
@@ -457,47 +463,80 @@ pub(super) fn record(
             ],
         )?;
         if record.kind == MatchKind::Public {
-            let won = info.winner.team() == Some(line.team);
+            let own = Totals::of_match(line, info.winner.team() == Some(line.team));
             add_totals(
                 &transaction,
                 "g26_player_totals",
                 "account_id",
                 player.account_id,
-                line,
-                won,
+                &own,
             )?;
             if let Some(clan_id) = player.clan_id {
-                add_totals(
-                    &transaction,
-                    "g26_clan_totals",
-                    "clan_id",
-                    clan_id,
-                    line,
-                    won,
-                )?;
+                clans
+                    .entry(clan_id)
+                    .and_modify(|clan| *clan = clan.with_member(&own))
+                    .or_insert(own);
             }
         }
+    }
+    for (clan_id, totals) in &clans {
+        add_totals(&transaction, "g26_clan_totals", "clan_id", *clan_id, totals)?;
     }
     transaction.commit()?;
     Ok(())
 }
 
+impl Totals {
+    /// A player's line of one match: one match, a win if its team won.
+    fn of_match(line: &PlayerLine, won: bool) -> Self {
+        Self {
+            matches: 1,
+            wins: u64::from(won),
+            score: line.score,
+            kills: line.kills,
+            deaths: line.deaths,
+            counters: line.counters,
+        }
+    }
+
+    /// A clan's one match with another member's line of it added: still
+    /// one match, a win if any member's team won, the rest added up.
+    fn with_member(&self, member: &Self) -> Self {
+        let (own, more) = (&self.counters, &member.counters);
+        Self {
+            matches: 1,
+            wins: self.wins.max(member.wins),
+            score: self.score + member.score,
+            kills: self.kills + member.kills,
+            deaths: self.deaths + member.deaths,
+            counters: Counters {
+                assists: own.assists + more.assists,
+                headshots: own.headshots + more.headshots,
+                grenade_kills: own.grenade_kills + more.grenade_kills,
+                melee_kills: own.melee_kills + more.melee_kills,
+                batteries: own.batteries + more.batteries,
+                capture_hundredths: own.capture_hundredths + more.capture_hundredths,
+            },
+        }
+    }
+}
+
+/// Adds one match's `totals` to the row of `id` in `table`.
 fn add_totals(
     transaction: &Transaction,
     table: &str,
     key: &str,
     id: u32,
-    line: &PlayerLine,
-    won: bool,
+    totals: &Totals,
 ) -> Result<(), PersistError> {
-    let counters = &line.counters;
+    let counters = &totals.counters;
     transaction.execute(
         &format!(
             "INSERT INTO {table} ({key}, matches, wins, score, kills, deaths, assists, headshots,
                  grenade_kills, melee_kills, batteries, captures)
-             VALUES (?1, 1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT({key}) DO UPDATE SET
-                 matches = matches + 1, wins = wins + excluded.wins,
+                 matches = matches + excluded.matches, wins = wins + excluded.wins,
                  score = score + excluded.score, kills = kills + excluded.kills,
                  deaths = deaths + excluded.deaths, assists = assists + excluded.assists,
                  headshots = headshots + excluded.headshots,
@@ -508,10 +547,11 @@ fn add_totals(
         ),
         params![
             id,
-            u8::from(won),
-            line.score as i64,
-            line.kills as i64,
-            line.deaths as i64,
+            totals.matches as i64,
+            totals.wins as i64,
+            totals.score as i64,
+            totals.kills as i64,
+            totals.deaths as i64,
             counters.assists as i64,
             counters.headshots as i64,
             counters.grenade_kills as i64,
@@ -1328,6 +1368,122 @@ mod tests {
             assert_eq!(card.members[0].totals.kills, 14);
         }
         assert!(history.clan(ClanKey::Id(8)).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_match_counts_once_for_a_clan_however_many_members_played() {
+        let dir = TempDir::new("clan-once");
+        let (mut repository, history) = repository(&dir);
+        // Carol (12) and Dave (13) join Alice in clan 7.
+        repository.save(12, &Account::new("Carol")).unwrap();
+        repository.save(13, &Account::new("Dave")).unwrap();
+        let member = |account_id| Member {
+            account_id,
+            rank: 0,
+            status: status::ACCEPTED,
+        };
+        repository
+            .save_clan(&Clan {
+                id: 7,
+                name: "Skhid".to_owned(),
+                tag: "SKH".to_owned(),
+                registered: true,
+                leader: 10,
+                ranks: Vec::new(),
+                members: vec![member(10), member(12), member(13)],
+                daily_message: String::new(),
+                experience: 0,
+                money: 0,
+            })
+            .unwrap();
+        let of_clan = |account_id, line| PlayerRecord {
+            account_id,
+            clan_id: Some(7),
+            line,
+        };
+        let with = |winner, players: Vec<PlayerRecord>| {
+            let mut played = record(MatchKind::Public, 100);
+            played.info.winner = winner;
+            played.players = players;
+            played
+        };
+        let bob = |team| PlayerRecord {
+            account_id: 11,
+            clan_id: None,
+            line: line(team, 1, 100, 6, 14),
+        };
+        for played in [
+            // Three members on the winning team: one match, one win.
+            with(
+                Winner::FirstTeam,
+                vec![
+                    of_clan(10, line(0, 1, 300, 14, 6)),
+                    of_clan(12, line(0, 2, 200, 8, 5)),
+                    of_clan(13, line(0, 3, 100, 3, 7)),
+                    bob(1),
+                ],
+            ),
+            // Members on both teams: one match, a win (one of them won).
+            with(
+                Winner::SecondTeam,
+                vec![
+                    of_clan(10, line(0, 1, 300, 10, 4)),
+                    of_clan(12, line(1, 1, 250, 9, 9)),
+                ],
+            ),
+            // Two members, both on the losing team: one match, no win.
+            with(
+                Winner::FirstTeam,
+                vec![
+                    bob(0),
+                    of_clan(10, line(1, 1, 50, 1, 10)),
+                    of_clan(13, line(1, 2, 40, 2, 11)),
+                ],
+            ),
+            // A draw: one match, no win.
+            with(Winner::Draw, vec![of_clan(12, line(0, 1, 10, 0, 0))]),
+            // Not public: never counted.
+            MatchRecord {
+                kind: MatchKind::Private,
+                ..with(Winner::FirstTeam, vec![of_clan(10, line(0, 1, 999, 99, 0))])
+            },
+        ] {
+            repository.record_match(&played).unwrap();
+        }
+
+        let totals = history.clan(ClanKey::Id(7)).unwrap().unwrap().clan.totals;
+        assert_eq!(
+            totals,
+            Totals {
+                matches: 4,
+                wins: 2,
+                score: 300 + 200 + 100 + 300 + 250 + 50 + 40 + 10,
+                kills: 14 + 8 + 3 + 10 + 9 + 1 + 2,
+                deaths: 6 + 5 + 7 + 4 + 9 + 10 + 11,
+                counters: Counters {
+                    assists: 8,
+                    headshots: 16,
+                    grenade_kills: 0,
+                    melee_kills: 0,
+                    batteries: 8,
+                    capture_hundredths: 400,
+                },
+            }
+        );
+        // The list of clans and the clan's matches agree with the card.
+        assert_eq!(
+            history.clans(TotalsKey::Matches, 10).unwrap()[0].totals,
+            totals
+        );
+        let listed = history.matches(None, 50, Some(7)).unwrap();
+        assert_eq!(listed.len() as u64, totals.matches);
+        let ids: Vec<u64> = listed.iter().map(|summary| summary.id).collect();
+        assert_eq!(ids, [4, 3, 2, 1]);
+        // Each member keeps its own matches.
+        let matches_of = |id| history.player(id).unwrap().unwrap().totals;
+        assert_eq!((matches_of(10).matches, matches_of(10).wins), (3, 1));
+        assert_eq!((matches_of(12).matches, matches_of(12).wins), (3, 2));
+        assert_eq!((matches_of(13).matches, matches_of(13).wins), (2, 1));
     }
 
     #[test]

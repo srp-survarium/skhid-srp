@@ -25,8 +25,11 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
   its team by score (from 1), rating after the match, clan at the time, score, kills, deaths and
   the counters below.
-- `g26_player_totals`, `g26_clan_totals`: the public matches added up, at record time. A clan's
-  totals are its members' rows while they were in it (a match with three members counts three).
+- `g26_player_totals`, `g26_clan_totals`: the public matches added up, at record time. A public
+  match counts once for a clan if at least one member played in it (its clan at the time), and is a
+  win if at least one of them was on the winning team (members on both teams: a win). Score,
+  kills, deaths and the counters are its members' rows added up, so a clan's `score_avg` is its
+  members' score per match together, and its matches are exactly those `matches?clan=` lists.
 - Counters (game events, `docs/notes/results.md` §9 and `snapshot_rules.md` §3.1): assists (1),
   headshots (15), grenade kills (25), melee kills (13), batteries put into a container (20), and in
   Research the captures (6, a share of a capture in hundredths, served as a number with two
