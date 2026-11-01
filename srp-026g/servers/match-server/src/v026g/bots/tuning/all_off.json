@@ -105,6 +105,7 @@
     "edge": "lattice",
     "fix_floor": "nearest",
     "jump_snap": "any",
+    "margin_edge": "lattice",
     "pitch_scale": "radian"
   },
   "kit": {

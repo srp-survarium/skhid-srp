@@ -181,6 +181,8 @@ impl BotNow {
             stepped: 0,
             apart: 0,
             guard: 0,
+            watch: LipWatchKind::Watching,
+            guard_why: 0,
         }
     }
 }

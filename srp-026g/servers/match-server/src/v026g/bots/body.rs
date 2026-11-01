@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, Edge, FIX_ABOVE_M, FixFloor, JumpSnap, Kinematics, TICK_S, to_world, wrap};
+use super::kin::{Blend, Edge, FIX_ABOVE_M, FixFloor, JumpSnap, Kinematics, MarginEdge, TICK_S, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -160,7 +160,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
             return false;
         }
         // The body is not exactly where it is reckoned (a world's lateness, a ping's jitter): the same stop
-        // from [`RECKONING_M`] further on along its way must not fall either.
+        // from [`RECKONING_M`] further on along its way must not fall either ([`MarginEdge`]: at the lattice's edge, or the body's).
         let speed = at.velocity[0].hypot(at.velocity[1]);
         if speed > 0.3
             && let Some(node) = at.node
@@ -170,7 +170,11 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
                 at.feet.y,
                 at.feet.z + at.velocity[1] / speed * RECKONING_M,
             );
-            if falls(slide(grid, node, at.feet, to).1) {
+            let (_, margin, _) = match kin.margin_edge {
+                MarginEdge::Lattice => slide(grid, node, at.feet, to),
+                MarginEdge::Body => slide_edge(kin, grid, node, at.feet, to),
+            };
+            if falls(margin) {
                 return false;
             }
         }
@@ -581,10 +585,7 @@ fn advance(
         );
         match (grid, at.node) {
             (Some(grid), Some(node)) => {
-                let (mut node, mut feet, mut stopped) = match kin.edge {
-                    Edge::Lattice => slide(grid, node, at.feet, to),
-                    Edge::Client => slide_supported(grid, node, at.feet, to, f32::INFINITY, SUPPORT_M),
-                };
+                let (mut node, mut feet, mut stopped) = slide_edge(kin, grid, node, at.feet, to);
                 if at.time + step * TICK_MS <= at.air_until
                     && feet.distance_xz(to) > 1e-3
                     && let Some(up) = jumped_to(grid, node, feet, to)
@@ -616,6 +617,14 @@ fn advance(
     at.keys = tick.keys;
     at.time = tick.time;
     at
+}
+
+/// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, or the client's held to [`SUPPORT_M`].
+fn slide_edge(kin: &Kinematics, grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3) -> (NodeId, Vec3, bool) {
+    match kin.edge {
+        Edge::Lattice => slide(grid, node, from, to),
+        Edge::Client => slide_supported(grid, node, from, to, f32::INFINITY, SUPPORT_M),
+    }
 }
 
 /// A move from `from` (on `node`) toward `to` over the grid, in steps of
