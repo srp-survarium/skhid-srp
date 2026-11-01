@@ -1085,6 +1085,7 @@ pub(super) fn decide(
             set_aside: &bot.features.memory.set_aside,
             failed_stands: &bot.features.memory.failed_stands,
             dry: bot.reflex.dry(),
+            hit: bot.reflex.last_hit(),
             ammo: bot.ammo(),
             crossing: walks_crossing(bot),
             held_choke: bot.held_choke,

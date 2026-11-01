@@ -134,6 +134,7 @@ pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
+pub use team::Concede;
 pub use team::GangRule;
 pub use team::GangUp;
 pub use team::ModTuning;
