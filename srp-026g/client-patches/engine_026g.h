@@ -397,9 +397,6 @@ void engine_set_listener(struct sound_scene *scene, const float *position, const
 /* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
 void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
 
-/* 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly */
-void __attribute__((thiscall)) engine_player_insert(struct player *player, unsigned int link);
-
 /* 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0 */
 void engine_profile_destroy(struct player_profile *profile);
 

@@ -239,8 +239,6 @@ unsafe extern "thiscall" {
     pub fn engine_close_current_match(client: *mut c_void, reason: u32);
     /// 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
     pub fn engine_gfx_set_member(interface: *mut c_void, target: *mut c_void, name: *const u8, value: *const c_void, display: u32) -> u8;
-    /// 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
-    pub fn engine_player_insert(player: *mut c_void, link: u32);
     /// 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
     pub fn engine_weapon_set_user(weapon: *mut c_void, player: *mut c_void);
     /// 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly

@@ -245,8 +245,6 @@ unsafe extern "thiscall" {
     pub fn engine_close_current_match(client: Option<NetworkClient>, reason: u32);
     /// 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
     pub fn engine_gfx_set_member(interface: Option<GfxObjectInterface>, target: Option<GfxObject>, name: *const u8, value: Option<GfxValue>, display: u32) -> u8;
-    /// 0x1f2720 survarium::player::insert: player ECX, link ESP+4; pops 4; thiscall, called directly
-    pub fn engine_player_insert(player: Option<Player>, link: u32);
     /// 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
     pub fn engine_weapon_set_user(weapon: Option<Item>, player: Option<Player>);
     /// 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly
@@ -11963,21 +11961,6 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn hit(machine: &impl Machine) -> Option<HitInfo> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitInfo)
-        }
-    }
-
-    /// late_join.world_loaded (0x27c116): network_client::process_dynamic_match_info (0xE8) after game_world_core::deserialize 0x2D0B70, where its two branches (compressed 0x27C0D9, raw 0x27C111) join: mov eax,[edi+4] / test eax,eax; EDI the client (mov edi,ecx at 0x27BFFB)
-    pub mod late_join_world_loaded {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EDI: a survarium::network_client (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
         }
     }
 
