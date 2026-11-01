@@ -129,8 +129,8 @@ pub const CAPSULE_STEPS_ALGO: u32 = 1;
 pub const DROP_ROOM_ALGO: u32 = 1;
 /// The same for the floors reached by a slip off a walk-off's take-off ([`Body::slip_landings`], `WalkGrid::slip_landings`), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own: a key with only this flag is not one with only
-/// another flag whose value is 1.
-pub const SLIP_LANDINGS_ALGO: u32 = 0x5119_0001;
+/// another flag whose value is 1. 2: a slip comes down only on a floor open above the take-off (A247).
+pub const SLIP_LANDINGS_ALGO: u32 = 0x5119_0002;
 /// The same for the sprint jumps' run-ups asked after the erosion ([`Body::run_ups_after_erosion`], `WalkGrid::drop_short_run_ups`),
 /// in [`grid_key_with_links`] only for a body that asks for it.
 pub const RUN_UPS_AFTER_EROSION_ALGO: u32 = 1;
