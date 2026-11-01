@@ -1,6 +1,5 @@
 package survarium.controls
 {
-   import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextFieldAutoSize;
@@ -21,7 +20,7 @@ package survarium.controls
       // The label as long as its text, on one line, in every state: the symbol's fixed width cut
       // longer ones ("Automatikus vásá…"). Each state's frame may hold a text field of its own, so it
       // is sized again at every state change. For a box whose row has room to its right (Autobuy, the
-      // shop's "Not owned"); a new text says RESIZE, for what is placed after it.
+      // shop's "Hide owned").
       public function fitLabel() : void
       {
          _labelFits = true;
@@ -32,16 +31,6 @@ package survarium.controls
       {
          super.updateAfterStateChange();
          this.sizeLabel();
-      }
-
-      override protected function updateText() : void
-      {
-         super.updateText();
-         if(this._labelFits)
-         {
-            this.sizeLabel();
-            dispatchEvent(new Event(Event.RESIZE));
-         }
       }
 
       private function sizeLabel() : void

@@ -12,7 +12,7 @@ package
    import flash.system.LoaderContext;
    import flash.utils.getQualifiedClassName;
 
-   // The shop's owned mark and its "Not owned" check box (docs/notes/shop-owned-mark.md) with the
+   // The shop's owned mark and its "Hide owned" check box (docs/notes/shop-owned-mark.md) with the
    // lobby movie's own inventory list and shop.
    // The mark: a shop entry of an item the account owns has it, the others not.
    // - owned: the rifle, the medkit (a stack of 3), a scope in the stash, a scope worn on the rifle
@@ -21,9 +21,10 @@ package
    // - a bundle whose id is the rifle's dictionary id: no mark (a bundle's id is not an item's);
    // - the helmet bought (the account comes again, as the server sends it after a buy): marked;
    // - the rifle sold: unmarked; the scope it wore stays owned, marked.
-   // The box (the character panel's Autobuy box, CheckBoxSharedPD): off at first, labelled; on, the
-   // owned items' entries leave the list and the others stay; with the upgrades tab chosen too; the
-   // decal bought while it is on leaves the list; off, every entry is back.
+   // The box (the character panel's Autobuy box, CheckBoxSharedPD): off at first, labelled, left of
+   // Buy on its row (a Russian label too); on, the owned items' entries leave the list and the others
+   // stay; with the upgrades tab chosen too; the decal bought while it is on leaves the list; off,
+   // every entry is back.
    // Prints "SHOPMARK ..." lines; "SHOPMARK SHOT <name>" when the list is drawn for a screenshot
    // (held a while); ends with "SHOPMARK RESULT pass" or "SHOPMARK RESULT fail: ...".
    public class ShopOwnedHarness extends Sprite
@@ -73,8 +74,6 @@ package
 
       private var wait:int = 0;
 
-      // The search box's place with the English label (centred in its row).
-      private var centred:Number = -1;
 
       public function ShopOwnedHarness()
       {
@@ -128,7 +127,7 @@ package
             shop.setupShopItems([offer(RIFLE),offer(MEDKIT),offer(HELMET),offer(BANDAGE),offer(SCOPE),offer(SCOPE_WORN),offer(CAMO),offer(DECAL)]);
             at = "the lobby";
             lobby = new MovieClip();
-            // The whole window on the 720-high stage (the screenshots show the search row too).
+            // The whole window on the 720-high stage (the screenshots show the Buy row too).
             lobby.scaleX = lobby.scaleY = 0.78;
             addChild(lobby);
             domain.getDefinition("survarium.controls.SrvContextMenu").registerStage(stage,lobby);
@@ -151,7 +150,7 @@ package
             profile.paperDoll.ammoControl.registerInventory(inventory);
             inventory.item_control = card;
             // The texts come after the movie is built, as the game sends them (set_localization_data).
-            texts("Not owned");
+            texts("Hide owned");
             addEventListener(Event.ENTER_FRAME,this.tick);
          }
          catch(err:Error)
@@ -221,7 +220,6 @@ package
                   // Ruffle draws the code-made CLIK parts only at their next change (no RENDER event,
                   // which Scaleform sends): drawn now for the screenshot.
                   toggle().validateNow();
-                  searchBox().validateNow();
                   trace("SHOPMARK the shop's rows: " + names());
                   expect(RIFLE,true,"the owned rifle");
                   expect(MEDKIT,true,"the owned medkits (a stack)");
@@ -232,8 +230,8 @@ package
                   expect(BANDAGE,false,"the bandages, an empty stack");
                   expect(DECAL,false,"the decal not owned");
                   require(bundleRow() != null && !marked(bundleRow()),"the bundle whose id is the rifle's has no mark");
-                  require(toggle() != null && toggle().visible && !toggle().selected && toggle().label == "Not owned","the shop shows the not-owned box, off, labelled");
-                  require(labelEnd() < searchX(),"the box's label ends before the search box (" + labelEnd() + " < " + searchX() + ")");
+                  require(toggle() != null && toggle().visible && !toggle().selected && toggle().label == "Hide owned","the shop shows the hide-owned box, off, labelled");
+                  inBuyRow("the box");
                   shot("before");
                   break;
                case 2:
@@ -290,13 +288,13 @@ package
                   listed([DECAL,SCOPE,SCOPE_WORN,CAMO],[],"the toggle off, the upgrades tab");
                   expect(DECAL,true,"the decal just bought");
                   expect(SCOPE,true,"the scope in the stash, the upgrades tab");
-                  centred = searchX();
                   // A longer language's label (Russian); the window's title as the shop gives it.
-                  texts("Не купленные");
+                  texts("Скрыть имеющиеся");
                   inventory.toggleShopMode(true);
                   break;
                case 12:
-                  require(labelEnd() < searchX() && searchX() > centred,"a longer label moves the search box right (" + labelEnd() + " < " + searchX() + ", centred at " + centred + ")");
+                  toggle().validateNow();
+                  inBuyRow("the box with the Russian label");
                   shot("long-label");
                   break;
                default:
@@ -387,29 +385,18 @@ package
          box.dispatchEvent(new (C("scaleform.clik.events.ButtonEvent"))("buttonClick"));
       }
 
-      // Where the box's label ends and the search box begins, in the list's units.
-      private function labelEnd() : Number
+      // The box in the Buy button's row: at the window's margin (the compare box's), on Buy's middle,
+      // its label ending before Buy.
+      private function inBuyRow(what:String) : void
       {
          var box:* = toggle();
-         return Math.ceil(box.x + box.textField.x + box.textField.textWidth);
-      }
-
-      private function searchX() : Number
-      {
-         return searchBox().x;
-      }
-
-      private function searchBox() : *
-      {
-         for(var i:int = 0; i < inventory.numChildren; i++)
-         {
-            var child:* = inventory.getChildAt(i);
-            if(getQualifiedClassName(child) == "TextInputFriendName")
-            {
-               return child;
-            }
-         }
-         throw new Error("no search box");
+         var panel:* = inventory.itemControlPanel;
+         var buy:* = panel.btnSellBig;
+         var labelEnd:Number = Math.ceil(box.x + box.textField.x + box.textField.textWidth);
+         var buyLeft:Number = panel.x + buy.x;
+         var middle:Number = box.y + box.height / 2;
+         var buyMiddle:Number = panel.y + buy.y + buy.height / 2;
+         require(box.x == inventory.checkboxCompareItems.x && Math.abs(middle - buyMiddle) <= 1 && labelEnd < buyLeft,what + " sits left of Buy, on its row (x " + box.x + ", middle " + middle + " / " + buyMiddle + ", label to " + labelEnd + " < " + buyLeft + ")");
       }
 
       private function place(name:String) : int

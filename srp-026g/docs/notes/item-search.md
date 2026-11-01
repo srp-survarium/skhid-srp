@@ -31,8 +31,7 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - while another text box (the chat, a rename) has the keys. The keys then belong to that box.
 - **Where it sits:**
   - in its own row under the item grid, just above the item panel's buttons (Buy, Sell);
-  - centred on the list (in the shop, right of the "Not owned" box's label when a language's is
-    longer: shop-owned-mark.md);
+  - centred on the list;
   - the grid is 40 px shorter for that row, and the fade at its foot moves up with it.
 - **What it looks like:**
   - the friends window's name box, 1.25 times as wide and 4 px taller with a 4 px bigger font

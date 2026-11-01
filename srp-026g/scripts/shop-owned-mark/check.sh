@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: the shop's owned mark and its "Not owned" check box
+# check.sh <lobby_menu.swf> [work dir]: the shop's owned mark and its "Hide owned" check box
 # (docs/notes/shop-owned-mark.md), in Ruffle (CPU only: lavapipe on its own virtual X display, never
 # the GPU). ShopOwnedHarness.as makes the lobby movie's own inventory list and shop: the entries of
 # owned items (a weapon, a stack, a scope loose or worn on a weapon, a camouflage) have the mark, the
 # others (an item not owned, an empty stack, a bundle whose id is an owned item's) not; a bought item
 # gets it, a sold one loses it; the box on leaves the owned entries out (the upgrades tab too, and an
-# item bought while it is on), and off brings them back; a longer label moves the search box right.
+# item bought while it is on), and off brings them back; the box sits left of Buy, a
+# Russian label too.
 # Screenshots into the work dir: before.png (the owned entries marked, the box off), bought.png (the
 # helmet bought too), not-owned.png (the box on: the owned entries gone), upgrades.png (the box on,
-# the upgrades tab), long-label.png (the Russian label).
+# the upgrades tab), long-label.png (the Russian label left of Buy).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, the shots,
 # Ruffle's log). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md),
 # or SRP_AS_TOOLS.
