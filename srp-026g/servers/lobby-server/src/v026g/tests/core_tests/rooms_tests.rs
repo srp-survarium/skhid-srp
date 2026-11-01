@@ -472,6 +472,30 @@ fn a_game_started_anew_goes_back_to_its_seat_after_the_rooms_wait() {
     assert_eq!(back, ticket);
 }
 
+/// The owner's of 2026-11-01 ("someone can leave on purpose only through
+/// leave match button in menu", "and that should just kick the player out of
+/// the room"): the in-game menu's Leave match (0xE0) gives the seat up and
+/// takes the member out of its room, so the room's 15 s never take it back,
+/// even when its client's word to the lobby comes before the match server's.
+#[test]
+fn one_who_leaves_by_the_menu_is_out_of_the_room_and_never_taken_back() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    let bob = players[1];
+    let account = world.ids[bob].0;
+    world.host.admitting.locked().insert(ticket);
+    // Back in the lobby first, a tick, then the match server's 0xE0.
+    world.ask(bob, request::leave(1, true));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.store.matchmaking().leave_match(account), Some(id));
+    world.advance(Duration::from_secs(20));
+    assert!(sent_to_match(&world.take(bob)).is_none(), "not taken back");
+    assert_eq!(world.core.rooms.key_of(account), None);
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(!room.members.contains(&account));
+    assert_eq!(state(&mut world, bob), ["S1;N;0;0;0"]);
+}
+
 /// A member is offered the open room of the lowest max level that takes it,
 /// lower than its own room's, and one click (a Join) moves it there; none
 /// over its equipment, none with a PIN, none in its own room, none out of a

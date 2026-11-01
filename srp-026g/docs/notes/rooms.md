@@ -94,7 +94,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     seat it had in the room's match stays its own: it goes back to it after the 15 s, or at
     once by Join match or Play. A new game not told within 90 s of its sign-in loses the place.
 - **Leave match (its own word, 0xE0; the owner's of 2026-10-19):** takes the player out of
-  its room as Leave does (not kicked; it may join again). Joining again while that match is
+  its room as Leave does (not kicked; it may join again). It is the only way to leave a match
+  on purpose (the owner's of 2026-11-01: "someone can leave on purpose only through leave
+  match button in menu", "and that should just kick the player out of the room"): its seat
+  is given up at once, so the room's 15 s never take it back, whichever of its words, the
+  lobby's or the match's, comes first. Any other way back to the lobby (a crash, a game
+  started anew, a dropped link) keeps the member and its seat (Late joins). Joining again while that match is
   played puts it into the same match as a late join (15 s or "Join match") as a new place,
   fresh (new index, zero stats), never its old one; only an account's latest place in a match
   counts (results, rewards, ratings, quests, map plays), the place it left for nothing.
