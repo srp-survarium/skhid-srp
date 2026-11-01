@@ -66,6 +66,13 @@ older file under the same name, the port moves 0.69d0's to a name of its own (th
   Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
   start and the Mauser's aimed shots are 0.69d0-only and left out. The Mauser's empty reload
   plays the slide at its fifth event (sound 6: 0.69d0's clip leaves its events' indices at 255).
+- The KS-23M's fire sounds are four (the live Remington 870's), not 0.69d0's eight: its fire
+  state lists them twice (unsuppressed, then a suppressed half that repeats them). Every entry of
+  an item config counts against the 16 KB stack arena the client rebuilds an upgraded item in,
+  which nothing bounds (`create_binary_config_buffer`, exe 0x358AA0); at 587 entries the
+  camouflaged KS-23M overflowed it and crashed every match at load (play41c, 2026-11-01). srp's
+  game-data check refuses an item config over 565 entries, the largest stock one's
+  (`tables::MAX_CONFIG_ENTRIES`).
 - A donor state keeps 0.69d0's type as 0.26g numbers it: the two-clip reload (tactical and empty)
   of the FAMAS, G3SG/1, Mauser and drum is 0.26g's 314; the Mauser's two-clip idle and fire 313
   and 315.

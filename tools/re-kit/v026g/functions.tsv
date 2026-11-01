@@ -1842,6 +1842,8 @@ va	status	ref_021d	name
 0x002debc0	observed		survarium::weapon_breath_vibration_parameters::load
 0x002f1430	observed		survarium::item_config_cook::find_modifier_target
 0x00358010	observed		vostok::configs::apply_multiplicative_modifiers
+0x00358a10	observed		vostok::configs::free_memory
+0x00358aa0	observed		vostok::configs::create_binary_config_buffer
 0x0028cab0	verified		survarium::lobby_menu::go_to_knowledge_base
 0x00285540	verified		survarium::simple_game_project::insert_static
 0x002855b0	verified		survarium::simple_game_project::remove_static

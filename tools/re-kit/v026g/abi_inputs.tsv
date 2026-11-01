@@ -4990,3 +4990,5 @@ va	name	location	role	basis
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	entry ESP+4	sort_by_size_predicate (empty)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+8	the light_props filled (+7Ch shadow_map_size_index u32, the map 1024, 512, 256 texels for 0, 1, 2 in 0.10b's index_to_shadow_size, not read in 0.26g; +84h shadow_transparency, a float, an int config converted)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+0Ch	the light's config table (has_key 0xF6C00 / child 0xF6B10 per field)	observed
+0x00358a10	vostok::configs::free_memory	entry ESP+4	the item vector to free (its children recursively)	observed
+0x00358a10	vostok::configs::free_memory	entry ESP+8	the allocator (its vtable+18h frees); create_binary_config_buffer's 16 KB stack arena, which nothing bounds	observed
