@@ -1,6 +1,6 @@
 # Weapons batch 1: OTs-14, SCAR-H, VHS-2, Minimi (0.31a2)
 
-Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@2` (its row in
+Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@3` (its row in
 `release/content.tsv`). The owner's scope (2026-11-01): four batches of ported weapons, this one
 from 0.31a2; no premium or skin copies; machine-gun ammunition is the rifle round (no belt items);
 stats are the donor's own, scaled by a peer both builds ship, and the guns sit in our live balance
@@ -28,6 +28,8 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
   class name (batch 2's lookup, #948), so a batch adds bitmaps and classes and edits no list.
 - Ids, cells and icons were claimed beside the other batches' (dict 2261-2264).
 - Texts: `st_<name>_name` and `_description` in the ten localization tables.
+- The card: the stock rifles' eight rows and the magazine (prop 134, after the rate of fire), which
+  the live guns have from `weapon-balance-1` (a record of patch 21, so a new pack carries its own).
 - Sellers and ranks: srp's rule (`prices.rs`): Renaissance (the donor's faction) at rank
   `item_level - 5`; `base_cost` is the price; `drop_weight` the drops.
 
@@ -76,7 +78,7 @@ resource-porter's weapon port (branch `feat/weapons-port`, `docs/weapons-026.md`
 vostok-port port-weapons --manifest ports/weapons-031a2-batch1.json --donor v031a2.split \
   --target-db <stock resources.db> --target-patch <every listed patch> --output <bundle>
 vostok-port pack from-bundle --base-db <stock> --base-patch <every listed patch> \
-  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-2 --id weapons-031 --version 2
+  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-3 --id weapons-031 --version 3
 ```
 
 - The art is 0.31a2's: meshes (0.31's statistics chunk 110 dropped), textures, sounds as they are;
