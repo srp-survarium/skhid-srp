@@ -48,6 +48,7 @@ import json
 import shutil
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -491,6 +492,22 @@ def level_eye(model):
     path.write_bytes(bytes(buf))
 
 
+def remove_key(buf, table, key):
+    """The child `key` of the named table `table` taken out: the later children's records move down one
+    place (the table stays in name-CRC order), its count drops by one."""
+    ce = rs.ce
+    off = ce.find(buf, table)
+    kids = ce.children(buf, off)
+    crc = zlib.crc32(key.encode()) & 0xffffffff
+    hit = [i for i, c in enumerate(kids) if ce.rec(buf, c)[2] == crc]
+    if len(hit) != 1:
+        sys.exit(f'{table}: {len(hit)} children named {key}, not 1')
+    for dst, src in zip(kids[hit[0]:], kids[hit[0] + 1:]):
+        buf[dst:dst + 24] = buf[src:src + 24]
+    d, i, c, t, cnt = ce.rec(buf, off)
+    ce.REC.pack_into(buf, off, d, i, c, t, cnt - 1)
+
+
 def leave_out(model, surfaces):
     """A copied model without `surfaces`: out of its LOD lists and its render folder."""
     if not surfaces:
@@ -504,10 +521,12 @@ def leave_out(model, surfaces):
             sys.exit(f'{model}: no surface {s}')
         for lst in lists:
             rs.ce.remove_item(buf, lst.lstrip('/'), s)
+        remove_key(buf, 'material_settings', s)
         shutil.rmtree(model / 'render' / s)
     path.write_bytes(bytes(buf))
     left = lib.leaves(path)
-    if any(v in surfaces for k, v in left.items() if k.startswith('/lod_hierrarchy/')):
+    if any(v in surfaces for k, v in left.items() if k.startswith('/lod_hierrarchy/')) or \
+            any(k.startswith(f'/material_settings/{x}/') for k in left for x in surfaces):
         sys.exit(f'{model}: a surface left out is still listed')
 
 
