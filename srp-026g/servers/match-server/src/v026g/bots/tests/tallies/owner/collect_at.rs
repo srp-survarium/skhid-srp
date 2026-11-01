@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::v026g::bots::plays::{PlayKind, TargetRef};
+use crate::v026g::bots::tests::Lying;
 use crate::v026g::bots::threat::HeldLine;
 
 /// A collector this near its battery died at it, m.
