@@ -111,6 +111,12 @@ separator".
   armour's window opens on its own: scopes (22); camouflages and decals (25, 26).
 - **Changes.** Each slot sends its change when it is made, on either page; Confirm closes the
   window. A turn changes nothing on the account.
+- **Double click** (the owner, 2026-11-01: "I would expect the camo to equip, just like it works
+  with double clicking weapons in inventory"). With the window open, a double click on an owned
+  camouflage, decal or scope in the inventory puts it where a drop would: into the slot of its
+  kind the page shows, a decal into the first empty decal slot, over the first when both are full.
+  Nothing when the page shows no slot for it or the window already holds it; armour's window the
+  same. With the window closed, as before: nothing (a cosmetic has no slot on the character).
 - **The hint** under the weapon: the scope's on Attachments, armour's (with the decal editor's
   line) on Appearance.
 - **Armour** keeps its window: no arrows, its title, its slots where the movie has them.

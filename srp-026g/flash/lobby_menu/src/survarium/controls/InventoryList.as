@@ -2911,6 +2911,12 @@ package survarium.controls
          var _relocateArray:Array;
          if(itemAvailable)
          {
+            // the upgrade window open: a camouflage, a decal or a scope goes into its slot there,
+            // as a drop on it would
+            if(UpgradeWindow.attach(item))
+            {
+               return;
+            }
             if((item) && item.usable)
             {
                this.useElement();

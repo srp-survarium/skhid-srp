@@ -24,6 +24,10 @@ package
    //   records as they come;
    // - the preview: a drop on a slot shown at once (the slot's handleDropEvent, the window's
    //   onItemDropped): a decal into the second slot, a camouflage beside the kit's scope;
+   // - a double click on an inventory item (InventoryList.onItemDoubleClick, UpgradeWindow.attach):
+   //   a camouflage into the camouflage slot, a decal into the first free decal slot, over the first
+   //   when both are full, a scope into the scope slot, the item already held left as it is, nothing
+   //   the page does not show; armour's camouflage and decal; with the window closed, nothing;
    // - the texts: each language's title, page names, slot labels, hints and button fitting.
    // Prints "WEAPONKIT ..." lines and ends with "WEAPONKIT RESULT pass" or "... fail: ...".
    public class WeaponKitHarness extends Sprite
@@ -38,6 +42,8 @@ package
       private static const DECAL_A:int = 9020;
 
       private static const DECAL_B:int = 9021;
+
+      private static const DECAL_C:int = 9022;
 
       // a shop scope (ItemDictId.SHOP_SCOPE_FIRST..LAST)
       private static const SCOPE:int = 2150;
@@ -56,6 +62,8 @@ package
       private static const DECAL_A_ID:int = 21;
 
       private static const DECAL_B_ID:int = 22;
+
+      private static const DECAL_C_ID:int = 23;
 
       private static const SCOPE_ID:int = 31;
 
@@ -146,7 +154,7 @@ package
             }
             at = "the items";
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("weapon-kit-check");
-            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0)]);
+            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(DECAL_C,Category.DECALS,"Decal C",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0)]);
             // the scopes the rifles take (ItemFactory gives the movie its pairs so)
             Window.addCompatibility(RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,SCOPE);
@@ -154,7 +162,7 @@ package
             at = "the shop";
             var shop:* = new (C("survarium.controls.GangShop"))();
             shop.registerItemDescriptor(descriptor);
-            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,SCOPE,CAMO,CAMO_OTHER].map(function(dictId:int, i:int, a:Array):Object
+            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,DECAL_C,SCOPE,CAMO,CAMO_OTHER].map(function(dictId:int, i:int, a:Array):Object
             {
                return {dictId:dictId,faction_id:0,level:0,cost:100,condition_or_stack:10000};
             }));
@@ -251,7 +259,7 @@ package
                   });
                   inventory.setupShopItems(offers);
                   inventory.setupBundleData([]);
-                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER)]);
+                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(DECAL_C_ID,DECAL_C),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER)]);
                   require(inventory.getInventoryItemOf(CAMO).itemId == CAMO_LOW_ID,"getInventoryItemOf gives the lowest item of a dict id (" + inventory.getInventoryItemOf(CAMO).itemId + ")");
                   require(inventory.getInventoryItemOf(4242) == null,"getInventoryItemOf gives null for a dict id not owned");
                   // armour first, before any weapon: the movie's window
@@ -303,8 +311,57 @@ package
                case 9:
                   drop(window.decalSlot2,CAMO_OTHER_ID);
                   expect("a camouflage dropped beside the kit's scope",[0,0,CAMO_OTHER_ID,SCOPE_ID]);
+                  // double clicks: an empty weapon on Appearance
+                  open(RIFLE_ID,[]);
+                  turnPage();
                   break;
                case 10:
+                  doubleClick(CAMO_OTHER_ID,true);
+                  expect("a camouflage double-clicked: the camouflage slot",[0,0,CAMO_OTHER_ID,0]);
+                  doubleClick(DECAL_A_ID,true);
+                  expect("a decal double-clicked: the first decal slot",[DECAL_A_ID,0,CAMO_OTHER_ID,0]);
+                  doubleClick(DECAL_A_ID,false);
+                  expect("the decal held double-clicked again: left as it is",[DECAL_A_ID,0,CAMO_OTHER_ID,0]);
+                  doubleClick(DECAL_B_ID,true);
+                  expect("a second decal double-clicked: the second decal slot",[DECAL_A_ID,DECAL_B_ID,CAMO_OTHER_ID,0]);
+                  doubleClick(DECAL_C_ID,true);
+                  expect("a decal double-clicked with both full: over the first",[DECAL_C_ID,DECAL_B_ID,CAMO_OTHER_ID,0]);
+                  doubleClick(CAMO_LOW_ID,true);
+                  expect("another camouflage double-clicked: over the camouflage",[DECAL_C_ID,DECAL_B_ID,CAMO_LOW_ID,0]);
+                  doubleClick(SCOPE_ID,false);
+                  expect("a scope double-clicked on Appearance: nothing",[DECAL_C_ID,DECAL_B_ID,CAMO_LOW_ID,0]);
+                  // the first decal slot free, the second full
+                  open(RIFLE_ID,[{id:DECAL_A_ID,param:1}]);
+                  turnPage();
+                  break;
+               case 11:
+                  doubleClick(DECAL_B_ID,true);
+                  expect("a decal double-clicked, the second slot full: the first",[DECAL_B_ID,DECAL_A_ID,0,0]);
+                  // Attachments: the scope
+                  open(RIFLE_ID,[]);
+                  break;
+               case 12:
+                  doubleClick(CAMO_OTHER_ID,false);
+                  expect("a camouflage double-clicked on Attachments: nothing",[0,0,0,0]);
+                  doubleClick(SCOPE_ID,true);
+                  expect("a scope double-clicked on Attachments: the scope slot",[0,0,0,SCOPE_ID]);
+                  // armour: its camouflage and decals
+                  open(ARMOUR_ID,[{id:DECAL_A_ID,param:0}]);
+                  break;
+               case 13:
+                  doubleClick(CAMO_OTHER_ID,true);
+                  expect("armour: a camouflage double-clicked",[DECAL_A_ID,0,0,CAMO_OTHER_ID]);
+                  doubleClick(DECAL_B_ID,true);
+                  expect("armour: a decal double-clicked, the first full: the second",[DECAL_A_ID,DECAL_B_ID,0,CAMO_OTHER_ID]);
+                  doubleClick(DECAL_C_ID,true);
+                  expect("armour: a decal double-clicked with both full: over the first",[DECAL_C_ID,DECAL_B_ID,0,CAMO_OTHER_ID]);
+                  // the window closed: nothing
+                  window.closePopup();
+                  window.visible = false;
+                  doubleClick(CAMO_OTHER_ID,false);
+                  doubleClick(DECAL_A_ID,false);
+                  break;
+               case 14:
                   // every language: each window's texts in their fields
                   texts(WeaponKitText.LANGUAGES[language]);
                   if(++language < WeaponKitText.LANGUAGES.length)
@@ -322,6 +379,27 @@ package
             removeEventListener(Event.ENTER_FRAME,this.tick);
             finish("fail: step " + (step - 1) + ": " + err + " " + err.getStackTrace());
          }
+      }
+
+      // A double click on an owned item of the inventory's list, as its tile list dispatches it
+      // (CoreList: itemDoubleClick with the row's item); `taken` whether the window took it (the
+      // game sent relocate_upgrade_item).
+      private function doubleClick(itemId:int, taken:Boolean) : void
+      {
+         var ListEvent:Class = C("scaleform.clik.events.ListEvent");
+         var item:* = inventory.getInventoryItem(itemId);
+         var before:String = slots().map(function(s:*, i:int, a:Array):String
+         {
+            return s.data ? String(s.data.itemId) : "0";
+         }).join(",");
+         inventory.itemsTileList.dispatchEvent(new ListEvent(ListEvent.ITEM_DOUBLE_CLICK,false,true,-1,-1,-1,null,item));
+         var after:String = slots().map(function(s:*, i:int, a:Array):String
+         {
+            return s.data ? String(s.data.itemId) : "0";
+         }).join(",");
+         var changed:Boolean = before != after;
+         trace("WEAPONKIT double click on " + item.name + " (" + itemId + "): " + (changed ? "taken" : "nothing"));
+         require(changed == taken,"a double click on " + item.name + (taken ? " goes into a slot" : " changes no slot"));
       }
 
       // The weapon kit's record as patch 68 gives it the movie.
