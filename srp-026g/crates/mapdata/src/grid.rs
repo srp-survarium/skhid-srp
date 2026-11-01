@@ -177,10 +177,13 @@ pub struct Body {
     /// behind them, 290 of them jumps the erosion made (A236). A build input: in the key when set.
     pub run_ups_after_erosion: bool,
     /// Whether a walk up off a perched steep floor (steeper than [`Body::min_ground_normal_y`] by its neighbours, not a `walk` face, its
-    /// cell's centre over ground more than 0.3 m lower: the top of something in a corner of the cell) is measured from the walkable
-    /// ground its climb began on, whatever the floor it reaches, and a drop's or jump's landing on steep ground gives it no
-    /// base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not rest on such ground: it slides back to where it
-    /// stood. Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
+    /// cell's centre over ground more than 0.3 m lower: the top of something in a corner of the cell) is measured from where the body
+    /// stands, whatever the floor it reaches: the walkable ground its climb began on, or the ground under the floor if that is higher,
+    /// and a drop's or jump's landing on it gives it no base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not
+    /// rest on such ground: it slides back to where it stood. Floors that are not perched are as without it (measured from no base at
+    /// all, a perched floor come to by a walk down or a landing, and a landing on a steep slope with no base, left pits: a floor
+    /// reached with every walk out cut, School 12 floors and Mamayev Kurgan day 4 23; A248).
+    /// Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
     /// top a step over it however far over the ground it stands on that is: Mamayev Kurgan day 4's boulder floor (-2.90, 29.58,
     /// 105.38), 63 degrees by its neighbours, its base reset by a drop, walks 0.58-0.76 m onto the top; a live bot walked onto the
     /// boulder (29.33), held forward toward the top for 5 s with no jump and sank to 29.00, 0.9-1.2 m under the top, the height of the
@@ -1439,8 +1442,12 @@ impl WalkGrid {
         for a in 0..n {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                // With `steep_walk_base` a landing on steep ground is no base: the body slides off it.
-                if b != NONE && wide.kinds[a][d] != LinkKind::Walk && !(self.body.steep_walk_base && steep_floor[b as usize]) {
+                // With `steep_walk_base` a landing on a perched steep floor is no base: the body slides off it onto the ground
+                // under it (a landing on a steep slope's own cell stays one: a body that walked up the slope stands there too).
+                if b != NONE
+                    && wide.kinds[a][d] != LinkKind::Walk
+                    && !(self.body.steep_walk_base && steep_floor[b as usize] && perched(b as usize).is_some())
+                {
                     base[b as usize] = self.height[b as usize];
                 }
             }
