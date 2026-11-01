@@ -10,9 +10,9 @@
 //! - each frame's player icons update (`player_icons.update_start`): the hud
 //!   movie and the player icons movie are told the forced interface
 //!   (`root.force_interface_hidden`: the hud keeps the pre-match countdown and
-//!   its Tab view, HUD.as; the icons hide the match's objects' markers) and
-//!   the icons Tab's state (`root.force_interface_tab`: the players' markers
-//!   while Tab is held), once for each change of a movie or of the state;
+//!   its Tab view, HUD.as; the icons hide the match's objects' markers and
+//!   keep the players', the teammates' as in a plain match), once for each
+//!   change of a movie or of the state;
 //! - the game world's keys (`keyboard.tab_state`): Tab's state, and in a
 //!   Blackout match the key goes on as with Tab up (no Tab list: the kits'
 //!   keys 1 to 3 of patch 58 come after the game's Tab test);
@@ -55,14 +55,14 @@ pub const ACTS: ActionMask = ActionMask::JUMP
     .union(ActionMask::GRENADE)
     .union(ActionMask::MELEE);
 
-/// What a movie was last told: which movie (0 none) and the state.
+/// What a movie was last told: which movie (0 none) and the forced state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Told {
     movie: usize,
-    state: u8,
+    forced: bool,
 }
 
-const NONE_TOLD: Told = Told { movie: 0, state: 0 };
+const NONE_TOLD: Told = Told { movie: 0, forced: false };
 
 /// The options last read (a match's or a replay's) are a Blackout match's.
 static BLACKOUT: GameCell<bool> = GameCell::new(false);
@@ -162,12 +162,13 @@ pub fn on_replay_options(ctx: &mut Context) -> Flow<NoExit> {
     options_read(ctx.thread(), OptionsRead::at_replay(ctx))
 }
 
-/// `movie` told `state` (by `tell`, which says whether the movie took it)
-/// when it is another movie or another state than `cell` last told.
-fn tell(thread: &Thread, cell: &GameCell<Told>, movie: Option<Movie>, state: u8, tell: impl Fn(&Movie) -> bool) {
+/// `movie` told `root.force_interface_hidden(forced)` when it is another
+/// movie or another state than `cell` last told, and again while the movie
+/// does not take it.
+fn tell(thread: &Thread, cell: &GameCell<Told>, movie: Option<Movie>, forced: bool) {
     let Some(movie) = movie else { return };
-    let now = Told { movie: movie.id(), state };
-    if cell.get(thread) != now && tell(&movie) {
+    let now = Told { movie: movie.id(), forced };
+    if cell.get(thread) != now && movie.invoke_bool(c"root.force_interface_hidden", forced) {
         cell.set(thread, now);
     }
 }
@@ -178,13 +179,9 @@ pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
     let Some(ui) = GameWorldUi::at_update_icons(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let forced = BLACKOUT.get(thread);
-    let tab = TAB.get(thread).down();
-    tell(thread, &HUD_TOLD, ui.hud_movie(), u8::from(forced), |movie| {
-        movie.invoke_bool(c"root.force_interface_hidden", forced)
-    });
-    tell(thread, &ICONS_TOLD, ui.icons_movie(), u8::from(forced) | u8::from(tab) << 1, |movie| {
-        movie.invoke_bool(c"root.force_interface_hidden", forced) && movie.invoke_bool(c"root.force_interface_tab", tab)
-    });
+    for (cell, movie) in [(&HUD_TOLD, ui.hud_movie()), (&ICONS_TOLD, ui.icons_movie())] {
+        tell(thread, cell, movie, forced);
+    }
     Flow::Continue
 }
 

@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Congrats! You are a Black Market Fighter now!
 st_blackmarket_level_unlock_3	Congratulations! You are a Black Market Foreman now!
 st_blackmarket_level_unlock_4	Congrats! You've been promoted to the Black Market Centurion now!
 st_blackmarket_level_unlock_5	Congratulations! You are a Black Market Elite now!
+st_blackmarket_medkit_description	Fully heals body, head and pain. Does not treat arms and legs.
+st_blackmarket_medkit_name	Black Market Medkit
 st_blackmarket_meele_kill_descr	When you can't do the job cleanly - be prepared to get your hands dirty. That's what differs us from the rest. Prove that you're one of us - work with your hands.
 st_blackmarket_meele_kill_name	Dirty work
 st_blackmarket_meele_kill_obj	Kill enemies using melee:
@@ -1375,6 +1377,7 @@ st_level_10_name	Vostok Radar Station (v0.21)
 st_level_11_name	Mamayev Kurgan (v0.21)
 st_level_12_name	Chemical Plant (v0.11)
 st_level_13_name	Vostok Radar Station (v0.11)
+st_level_14_name	Rudnya (v0.69)
 st_lifebone_activation_hint	Larkspur activated! All the critical wounds cured! Health restored!
 st_lifebone_pickup_hint	Larkspur artifact. Increases health regeneration. 
 st_lightning_quality_option	Lighting quality
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Undo skills?
 st_messages_censor_option	Enable message censorship
 st_messages_only_from_friends_option	Accept private messages from friends only
 st_microphone_sensitivity_option	Microphone sensitivity
+st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 50% of pain.
+st_military_medkit_name	Military Medkit
 st_minimap	Minimap
 st_minimap_bottom	Lower left corner
 st_minimap_off	Hidden minimap
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Win a match with batteries brought:
 st_scavengers_win_x_games_descr	We live in a cruel world. The Winner takes everything while the loser is forced to be content with leftovers. Remember, the winning team receives the greater reward.
 st_scavengers_win_x_games_name	Taste of victory
 st_scavengers_win_x_games_obj	Win matches:
+st_science_medkit_description	Fully heals arms, legs, body and head. Restores 50% of pain. Cures intoxication and radiation sickness.
+st_science_medkit_name	Science Medkit
 st_scientists_faction	Institute
 st_search_label	Search
 st_search_range	Match level
@@ -2431,6 +2438,11 @@ st_srp_loadout_sell_many	Used in %1$s. Sell anyway?
 st_srp_loadout_sell_one	Used in Loadout %1$s. Sell anyway?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	can't play
+st_srp_lobby_basement	Basement
+st_srp_lobby_bunker	Bunker
+st_srp_lobby_hangar	Hangar
+st_srp_lobby_room	Room
+st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Account created on first sign-in
 st_srp_map_chemical_plant	Chemical Plant
 st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
@@ -2439,6 +2451,7 @@ st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamayev Kurgan
 st_srp_map_mamayev_kurgan_v021	Mamayev Kurgan (v0.21)
 st_srp_map_rudnya	Rudnya
+st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	School
 st_srp_map_tarakanovsky_fort	Tarakanovsky Fort
 st_srp_map_vector	Vector Laboratory
@@ -2455,7 +2468,6 @@ st_srp_matches_in_match	You are already in a match
 st_srp_matches_in_squad	Leave your squad first
 st_srp_matches_joining	joining…
 st_srp_matches_maintenance	Ends after maintenance starts
-st_srp_matches_mode_protective_device	Protective device
 st_srp_matches_no_answer	No answer, try again
 st_srp_matches_no_late_join	Match takes no new players
 st_srp_matches_no_place	No free place in this match
@@ -2466,6 +2478,7 @@ st_srp_matches_played_before	You already played in this match
 st_srp_matches_queued	Leave the search first
 st_srp_matches_starting	starting
 st_srp_matches_title	Matches
+st_srp_matches_versus	v
 st_srp_matches_waiting	waiting
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
@@ -2474,6 +2487,7 @@ st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
 st_srp_pvb_busy	%1$s (busy)
@@ -2531,6 +2545,7 @@ st_srp_rooms_code_12	Your equipment is above the max level.
 st_srp_rooms_code_13	Your kit could not play (no weapon or too little ammo): you were taken out of the room.
 st_srp_rooms_code_14	The loadout could not be chosen.
 st_srp_rooms_code_16	Press Play to enter a public room.
+st_srp_rooms_code_17	Your squad leader chooses the room.
 st_srp_rooms_code_2	That room is gone.
 st_srp_rooms_code_3	Wrong PIN.
 st_srp_rooms_code_4	That room is full.
@@ -2618,6 +2633,7 @@ st_srp_rooms_waiting	Waiting for players
 st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
+st_srp_scope_slot	Optics
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s
@@ -2705,6 +2721,34 @@ st_stats_saved	Saved:
 st_stats_silent_kills	Silent kills:
 st_stats_stolen_victory_items	Batteries stolen:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Worn-out sneakers, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Sneakers
+st_stk2_bandit_026_legs_desc	Striped track pants, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Track pants
+st_stk2_bandit_026_torso_desc	A black leather bomber jacket over a T-shirt, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Leather bomber jacket
+st_stk2_loner_026_boots_desc	A loner's laced leather boots, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Loner's boots
+st_stk2_loner_026_hand_desc	A loner's fingerless gloves, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Loner's fingerless gloves
+st_stk2_loner_026_legs_desc	Camouflage pants with knee pads, a holster and pouches, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Loner's camo pants
+st_stk2_loner_026_torso_desc	A hooded jacket under a load-bearing vest with pouches, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Loner's jacket with vest
+st_stk2_novice_026_back_desc	A novice stalker's one-strap canvas backpack, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Novice's backpack
+st_stk2_novice_026_boots_desc	A novice stalker's leather boots, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Novice's boots
+st_stk2_novice_026_hand_desc	A novice stalker's fingerless gloves, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Novice's fingerless gloves
+st_stk2_novice_026_hood_desc	A novice stalker's canvas hood, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Novice's hood
+st_stk2_novice_026_legs_desc	A novice stalker's worn jeans, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Novice's jeans
+st_stk2_novice_026_torso_desc	A novice stalker's field jacket with a canteen and a knife on the belt, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Novice's field jacket
+st_stk2_novice_026_torso_v2_desc	A novice stalker's field jacket with two pouches on the belt, from the cancelled S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Novice's field jacket with pouches
 st_storage	Storage
 st_string_pattern_error	The name contains invalid characters or it's too long/short
 st_support	Support

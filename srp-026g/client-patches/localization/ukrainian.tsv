@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Вітаємо! Ви тепер боєць Чор�
 st_blackmarket_level_unlock_3	Вітаємо! Ви тепер десятник Чорного ринку!
 st_blackmarket_level_unlock_4	Вітаємо! Ви тепер сотник Чорного ринку!
 st_blackmarket_level_unlock_5	Вітаємо! Ви тепер еліта Чорного ринку!
+st_blackmarket_medkit_description	Повністю лікує тіло, голову та біль. Не лікує руки і ноги.
+st_blackmarket_medkit_name	Аптечка Чорного Ринку
 st_blackmarket_meele_kill_descr	Ми готові забруднити руки, якщо цього вимагає завдання, і саме цим ми відрізняємося від інших. Доведи, що ти один із нас – попрацюй руками.
 st_blackmarket_meele_kill_name	Брудна робота
 st_blackmarket_meele_kill_obj	Убити суперників у ближньому бою:
@@ -1375,6 +1377,7 @@ st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаїв курган (v0.21)
 st_level_12_name	Хімзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
+st_level_14_name	Рудня (v0.69)
 st_lifebone_activation_hint	Живокіст активовано! Всі критичні ушкодження вилікувано! Здоров'я відновлено!
 st_lifebone_pickup_hint	Артефакт Живокіст. Прискорює регенерацію здоров'я.
 st_lightning_quality_option	Якість освітлення
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Скинути навички?
 st_messages_censor_option	Цензура повідомлень
 st_messages_only_from_friends_option	Отримувати приватні повідомлення лише від друзів
 st_microphone_sensitivity_option	Чутливість мікрофона
+st_military_medkit_description	Повністю лікує руки і ноги. Відновлює 60% здоров'я тіла та голови і 50% болю.
+st_military_medkit_name	Військова аптечка
 st_minimap	Мінімапа
 st_minimap_bottom	Нижній лівий кут
 st_minimap_off	Прихована мінімапа
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Виграти бій із рахунком прин
 st_scavengers_win_x_games_descr	Ми живемо в жорстокому світі. Переможець отримує все, а переможений вимушений удовольнятися крихтами. Запам'ятай: переможна команда одержує більшу винагороду.
 st_scavengers_win_x_games_name	Смак перемоги
 st_scavengers_win_x_games_obj	Виграти боїв:
+st_science_medkit_description	Повністю лікує руки, ноги, тіло та голову. Відновлює 50% болю. Виліковує отруєння і променеву хворобу.
+st_science_medkit_name	Наукова аптечка
 st_scientists_faction	Інститут
 st_search_label	Пошук
 st_search_range	Рівень матчу
@@ -2431,6 +2438,11 @@ st_srp_loadout_sell_many	Використовується в комплекта�
 st_srp_loadout_sell_one	Використовується в комплекті %1$s. Продати?
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для бою
+st_srp_lobby_basement	Підвал
+st_srp_lobby_bunker	Бункер
+st_srp_lobby_hangar	Ангар
+st_srp_lobby_room	Кімната
+st_srp_lobby_title	Лобі
 st_srp_login_account_hint	Акаунт створюється під час першого входу
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
@@ -2439,6 +2451,7 @@ st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаїв курган
 st_srp_map_mamayev_kurgan_v021	Мамаїв курган (v0.21)
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
 st_srp_map_tarakanovsky_fort	Тараканівський форт
 st_srp_map_vector	Лабораторія "Вектор"
@@ -2455,7 +2468,6 @@ st_srp_matches_in_match	Ви вже в матчі
 st_srp_matches_in_squad	Спершу залиште загін
 st_srp_matches_joining	приєднання…
 st_srp_matches_maintenance	Завершиться після початку обслуговування
-st_srp_matches_mode_protective_device	Захисний пристрій
 st_srp_matches_no_answer	Немає відповіді, спробуйте ще
 st_srp_matches_no_late_join	Матч не приймає нових гравців
 st_srp_matches_no_place	У матчі немає вільних місць
@@ -2466,6 +2478,7 @@ st_srp_matches_played_before	Ви вже грали в цьому матчі
 st_srp_matches_queued	Спершу скасуйте пошук
 st_srp_matches_starting	старт
 st_srp_matches_title	Матчі
+st_srp_matches_versus	на
 st_srp_matches_waiting	очікування
 st_srp_mode_blackout	Захисний пристрій: блекаут
 st_srp_mode_chargers	Захисний пристрій: зарядники
@@ -2474,6 +2487,7 @@ st_srp_mode_research	Дослідження
 st_srp_mode_team_deathmatch	Командний бій
 st_srp_optics	Оптика
 st_srp_options_hud	Інтерфейс бою:
+st_srp_play_in_squad	У загоні
 st_srp_pvb_at_limit	Уже йде найбільше матчів з ботами одночасно, спробуйте за хвилину
 st_srp_pvb_at_limit_count	Уже йде найбільше матчів з ботами одночасно (%1$s/%2$s), спробуйте за хвилину
 st_srp_pvb_busy	%1$s (зайнято)
@@ -2531,6 +2545,7 @@ st_srp_rooms_code_12	Ваше спорядження вище макс. рівн
 st_srp_rooms_code_13	Ваш комплект не міг грати (немає зброї або мало набоїв): вас вивели з кімнати.
 st_srp_rooms_code_14	Не вдалося обрати комплект.
 st_srp_rooms_code_16	Натисніть «Грати», щоб увійти у відкриту кімнату.
+st_srp_rooms_code_17	Кімнату обирає командир загону.
 st_srp_rooms_code_2	Цієї кімнати вже немає.
 st_srp_rooms_code_3	Невірний PIN.
 st_srp_rooms_code_4	Кімната заповнена.
@@ -2618,6 +2633,7 @@ st_srp_rooms_waiting	Чекаємо гравців
 st_srp_rooms_waiting_owner	Чекаємо, поки творець почне.
 st_srp_rooms_waiting_short	Очікування
 st_srp_scope_screen_hint	Перетягніть приціл з вашого інвентарю у слот модифікації зброї
+st_srp_scope_slot	Приціл
 st_srp_skills	Навички
 st_srp_speed_label	Швидкість
 st_srp_speed_title	Швидкість руху: %1$s
@@ -2705,6 +2721,34 @@ st_stats_saved	Врятовано:
 st_stats_silent_kills	Непомітних убивств:
 st_stats_stolen_victory_items	Викрадено батарей:
 st_status_str	Статус:
+st_stk2_bandit_026_boots_desc	Поношені кросівки, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Кросівки
+st_stk2_bandit_026_legs_desc	Спортивні штани з лампасами, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Спортивні штани
+st_stk2_bandit_026_torso_desc	Чорний шкіряний бомбер поверх футболки, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Шкіряний бомбер
+st_stk2_loner_026_boots_desc	Шкіряні черевики одинака на шнурівці, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Черевики одинака
+st_stk2_loner_026_hand_desc	Безпалі рукавиці одинака, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Безпалі рукавиці одинака
+st_stk2_loner_026_legs_desc	Камуфляжні штани з наколінниками, кобурою та підсумками, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Камуфляжні штани одинака
+st_stk2_loner_026_torso_desc	Куртка з каптуром під розвантажувальним жилетом із підсумками, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Куртка одинака з розвантаженням
+st_stk2_novice_026_back_desc	Брезентовий рюкзак сталкера-новачка на одній лямці, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Рюкзак новачка
+st_stk2_novice_026_boots_desc	Шкіряні черевики сталкера-новачка, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Черевики новачка
+st_stk2_novice_026_hand_desc	Безпалі рукавиці сталкера-новачка, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Безпалі рукавиці новачка
+st_stk2_novice_026_hood_desc	Брезентовий каптур сталкера-новачка, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Каптур новачка
+st_stk2_novice_026_legs_desc	Поношені джинси сталкера-новачка, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Джинси новачка
+st_stk2_novice_026_torso_desc	Польова куртка сталкера-новачка з флягою та ножем на ремені, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Польова куртка новачка
+st_stk2_novice_026_torso_v2_desc	Польова куртка сталкера-новачка з двома підсумками на ремені, зі скасованого S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Польова куртка новачка з підсумками
 st_storage	Сховище
 st_string_pattern_error	Ім'я містить некоректні символи або довжину
 st_support	Підтримка

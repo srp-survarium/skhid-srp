@@ -446,7 +446,7 @@ Score, quest progress, kit usage and rating use the ordinary counters. This sepa
 initial implementation's unintended reduction of score and combat quest counters. The existing
 battery cap's handling of battery quests is unchanged. The silver floor still uses the lower
 median of human finishers' **post-cap** base pay; its score eligibility uses the ordinary score.
-See `kill_cap.md`, `research_mode.md` and `farm_cap_audit.md` for thresholds and audit limitations.
+See `kill_cap.md` and `research_mode.md` for thresholds.
 
 ## 16. PvE reward ceiling (owner's choice, 2026-10-28)
 

@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Gratulujeme! Teď jsi bojovník Černého trhu!
 st_blackmarket_level_unlock_3	Gratulujeme! Teď jsi desátník Černého trhu!
 st_blackmarket_level_unlock_4	Gratulujeme! Byl jsi povýšen na setníka Černého trhu!
 st_blackmarket_level_unlock_5	Gratulujeme! Teď patříš k elitě Černého trhu!
+st_blackmarket_medkit_description	Zcela vyléčí trup a hlavu a odstraní bolest. Neléčí ruce a nohy.
+st_blackmarket_medkit_name	Lékárnička Černého trhu
 st_blackmarket_meele_kill_descr	Když to nejde čistě, připrav se ušpinit si ruce. Tím se lišíme od ostatních. Dokaž, že k nám patříš. Pusť se do toho vlastníma rukama.
 st_blackmarket_meele_kill_name	Špinavá práce
 st_blackmarket_meele_kill_obj	Zabij nepřátele zblízka:
@@ -1375,6 +1377,7 @@ st_level_10_name	Radarová stanice Vostok (v0.21)
 st_level_11_name	Mamajova mohyla (v0.21)
 st_level_12_name	Chemička (v0.11)
 st_level_13_name	Radarová stanice Vostok (v0.11)
+st_level_14_name	Rudňa (v0.69)
 st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Resetovat dovednosti?
 st_messages_censor_option	Zapnout filtr vulgarit
 st_messages_only_from_friends_option	Soukromé zprávy jen od přátel
 st_microphone_sensitivity_option	Citlivost mikrofonu
+st_military_medkit_description	Zcela vyléčí ruce a nohy. Obnoví 60% zdraví trupu a hlavy a zmírní bolest o 50%.
+st_military_medkit_name	Vojenská lékárnička
 st_minimap	Minimapa
 st_minimap_bottom	Levý dolní roh
 st_minimap_off	Skrytá minimapa
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Vyhraj zápas s počtem donesených baterií:
 st_scavengers_win_x_games_descr	Žijeme v krutém světě. Vítěz bere všechno, poraženému zbývají drobky. Pamatuj, vítězný tým získá větší odměnu.
 st_scavengers_win_x_games_name	Chuť vítězství
 st_scavengers_win_x_games_obj	Vyhraj zápasy:
+st_science_medkit_description	Zcela vyléčí ruce, nohy, trup a hlavu. Zmírní bolest o 50%. Vyléčí otravu a nemoc z ozáření.
+st_science_medkit_name	Vědecká lékárnička
 st_scientists_faction	Institut
 st_search_label	Hledat
 st_search_range	Úroveň zápasu
@@ -2431,6 +2438,11 @@ st_srp_loadout_sell_many	Použito v: %1$s. Přesto prodat?
 st_srp_loadout_sell_one	Používá se ve výbavě %1$s. Přesto prodat?
 st_srp_loadout_title	Výbava
 st_srp_loadout_unfit	nelze hrát
+st_srp_lobby_basement	Sklep
+st_srp_lobby_bunker	Bunkr
+st_srp_lobby_hangar	Hangár
+st_srp_lobby_room	Pokoj
+st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Účet se vytvoří při prvním přihlášení
 st_srp_map_chemical_plant	Chemička
 st_srp_map_chemical_plant_v011	Chemička (v0.11)
@@ -2439,6 +2451,7 @@ st_srp_map_london	Londýn
 st_srp_map_mamayev_kurgan	Mamajova mohyla
 st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
 st_srp_map_rudnya	Rudňa
+st_srp_map_rudnya_v069	Rudňa (v0.69)
 st_srp_map_school	Škola
 st_srp_map_tarakanovsky_fort	Tarakanovská pevnost
 st_srp_map_vector	Laboratoř Vektor
@@ -2455,7 +2468,6 @@ st_srp_matches_in_match	Už jsi v zápase
 st_srp_matches_in_squad	Nejdřív opusť četu
 st_srp_matches_joining	připojování…
 st_srp_matches_maintenance	Skončí až po začátku údržby
-st_srp_matches_mode_protective_device	Ochranné zařízení
 st_srp_matches_no_answer	Žádná odpověď, zkus to znovu
 st_srp_matches_no_late_join	Zápas nepřijímá další hráče
 st_srp_matches_no_place	V tomto zápase není volné místo
@@ -2466,6 +2478,7 @@ st_srp_matches_played_before	V tomto zápase už jsi hrál
 st_srp_matches_queued	Nejdřív zruš hledání
 st_srp_matches_starting	začíná
 st_srp_matches_title	Zápasy
+st_srp_matches_versus	na
 st_srp_matches_waiting	čekání
 st_srp_mode_blackout	Ochranné zařízení: výpadek
 st_srp_mode_chargers	Ochranné zařízení: nabíječky
@@ -2474,6 +2487,7 @@ st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	V četě
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
 st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu
 st_srp_pvb_busy	%1$s (obsazeno)
@@ -2531,6 +2545,7 @@ st_srp_rooms_code_12	Vybavení přesahuje maximální úroveň.
 st_srp_rooms_code_13	Výbava nebyla připravená (chyběla zbraň nebo munice), proto jsi byl odebrán z místnosti.
 st_srp_rooms_code_14	Výbavu se nepodařilo vybrat.
 st_srp_rooms_code_16	Do veřejné místnosti vstoupíš tlačítkem Hrát.
+st_srp_rooms_code_17	Místnost vybírá velitel čety.
 st_srp_rooms_code_2	Tato místnost už neexistuje.
 st_srp_rooms_code_3	Nesprávný PIN.
 st_srp_rooms_code_4	Tato místnost je plná.
@@ -2618,6 +2633,7 @@ st_srp_rooms_waiting	Čekání na hráče
 st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
+st_srp_scope_slot	Optika
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost
 st_srp_speed_title	Rychlost pohybu: %1$s
@@ -2705,6 +2721,34 @@ st_stats_saved	Zachráněno:
 st_stats_silent_kills	Tichá zabití:
 st_stats_stolen_victory_items	Ukradené baterie:
 st_status_str	Stav:
+st_stk2_bandit_026_boots_desc	Obnošené tenisky ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Tenisky
+st_stk2_bandit_026_legs_desc	Pruhované tepláky ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Tepláky
+st_stk2_bandit_026_torso_desc	Černá kožená bunda bomber přes tričko ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Kožená bunda bomber
+st_stk2_loner_026_boots_desc	Šněrovací kožené boty samotáře ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Samotářovy boty
+st_stk2_loner_026_hand_desc	Rukavice bez prstů samotáře ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Samotářovy rukavice bez prstů
+st_stk2_loner_026_legs_desc	Maskáčové kalhoty s chrániči kolen, pouzdrem na pistoli a sumkami ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Samotářovy maskáčové kalhoty
+st_stk2_loner_026_torso_desc	Bunda s kapucí pod nosnou vestou s pouzdry ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Samotářova bunda s vestou
+st_stk2_novice_026_back_desc	Plátěný batoh začínajícího stalkera na jednom popruhu ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Nováčkův batoh
+st_stk2_novice_026_boots_desc	Kožené boty začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Nováčkovy boty
+st_stk2_novice_026_hand_desc	Rukavice bez prstů začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Nováčkovy rukavice bez prstů
+st_stk2_novice_026_hood_desc	Plátěná kapuce začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Nováčkova kapuce
+st_stk2_novice_026_legs_desc	Obnošené džíny začínajícího stalkera ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Nováčkovy džíny
+st_stk2_novice_026_torso_desc	Polní bunda začínajícího stalkera s čutorou a nožem na opasku ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Nováčkova polní bunda
+st_stk2_novice_026_torso_v2_desc	Polní bunda začínajícího stalkera se dvěma pouzdry na opasku ze zrušeného S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Nováčkova polní bunda s pouzdry
 st_storage	Sklad
 st_string_pattern_error	Jméno obsahuje neplatné znaky nebo je příliš dlouhé či krátké
 st_support	Podpora

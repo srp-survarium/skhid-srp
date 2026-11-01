@@ -1,9 +1,9 @@
 ; A weapon wears the camouflage its item holds (build 2777, patch 44,
 ; client_patch.md section 3.41), and its decals (patch 47, section 3.44). Code
 ; of its own section `.srpw`, after the late join's state page; patch_026g.py
-; checks the entries. DECALS is weapon_decals_026g.asm (`.srpw`+1000h), which
+; checks the entries. DECALS is weapon_decals_026g.asm (`.srpw`+1200h), which
 ; says what a surface is painted with: lookup (+0) and fill (+5).
-;   nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B200 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
 ;
 ; The stock game bakes a camouflage only onto the character's parts: the
 ; profile's visual (0x204560) fills a camouflage_decal_cook_parameters (P)

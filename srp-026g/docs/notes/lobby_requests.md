@@ -260,7 +260,7 @@ Layout: `u8 op`, `u8` (skipped, unused), then `string text`. The string goes int
 | `4A` | silently ignored (as 0.21d `0x2A`) |
 | other | logs `Unknown (operation denied) type received %d` |
 
-**PROVEN (2026-10-13), a text that is no key:** `text_translator::translate_text` 0x1FF0F0 asks the localization for the key (0xF6C00) and, when there is none, goes on with the text it was given (`mov [esp+10h],esi`, 0x1FF124): a sentence sent as the text of `84` is shown as it is. The text must stay under 0x200 bytes (the length check at 0x1FF15D; the wire's 255 is well under it). Used until 2026-10-15 by the patch revision check at Play (client_patch.md §6), whose default text was the game's own key `st_login_menu_status_invalid_version` ("You're using an outdated version of the game.", in all six languages); that check now refuses at the sign-in. Still used by `SRP_SQUADS_OFF_TEXT`. Not yet seen in a real game with a sentence.
+**PROVEN (2026-10-13), a text that is no key:** `text_translator::translate_text` 0x1FF0F0 asks the localization for the key (0xF6C00) and, when there is none, goes on with the text it was given (`mov [esp+10h],esi`, 0x1FF124): a sentence sent as the text of `84` is shown as it is. The text must stay under 0x200 bytes (the length check at 0x1FF15D; the wire's 255 is well under it). Used until 2026-10-15 by the patch revision check at Play (client_patch.md §6), whose default text was the game's own key `st_login_menu_status_invalid_version` ("You're using an outdated version of the game.", in all six languages); that check now refuses at the sign-in. Was used by `SRP_SQUADS_OFF_TEXT` until 2026-10-31 (squads are always on since). Not yet seen in a real game with a sentence.
 
 ---
 

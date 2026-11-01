@@ -187,6 +187,45 @@ extern engine_translate_text
 ; the IAT slot 0x87027c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_user_default_lcid
+; void engine_lobby_query_resources(struct lobby_menu *menu)
+; 0x21e450 survarium::lobby_menu::query_resources: menu EAX; pops 0
+extern engine_lobby_query_resources
+; void engine_lobby_query_players_range(struct lobby_client *client, unsigned int start, unsigned int count)
+; 0x270070 survarium::lobby_client::query_elo_players: client EAX, start ESP+4, count ESP+8; pops 8
+extern engine_lobby_query_players_range
+; void engine_project_remove(struct simple_game_project *project)
+; 0x2855b0 survarium::simple_game_project::remove_static: project ESI; pops 0
+extern engine_project_remove
+; void engine_project_insert(struct simple_game_project *project)
+; 0x285540 survarium::simple_game_project::insert_static: project EAX; pops 0
+extern engine_project_insert
+; void engine_project_on_inserted(struct simple_game_project *project)
+; 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_project_on_inserted
+; void engine_collision_insert(struct static_collision *collision, struct bullet_physics_world *world)
+; 0x2f8850 survarium::static_collision::insert: collision ECX, world ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_collision_insert
+; void engine_collision_remove(struct static_collision *collision, struct bullet_physics_world *world)
+; 0x2f8970 survarium::static_collision::remove: collision ECX, world ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_collision_remove
+; void engine_effects_stop(struct game_effect_list *effects)
+; 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
+extern engine_effects_stop
+; void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener)
+; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+extern engine_effect_play
+; struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second)
+; virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
+extern engine_emitter_emit
+; void engine_emitter_destroy(struct pure_game_effect_emitter *emitter, struct game_effect *effect)
+; virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
+extern engine_emitter_destroy
+; void engine_release_resource(struct game_project_resource *resource, unsigned int *count)
+; 0xe0210 vostok::render::render_model_instance::destroy: resource ECX, count EAX; pops 0
+extern engine_release_resource
 ; void engine_visual_insert(struct render_visual *visual, struct game_scene *scene)
 ; 0x285fa0 survarium::render_visual::insert: visual ECX, scene ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
@@ -233,6 +272,19 @@ extern engine_release_item
 ; void engine_release_model(struct scene_model *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_model
+; void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)
+; 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
+extern engine_lobby_camera_ray
+; unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+; the IAT slot 0x870064 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_read_file
+; void engine_lobby_character_setup_profile(const struct player_profile *profile, struct lobby_character *character, unsigned int kit)
+; 0x284b10 survarium::lobby_character::setup_profile: profile EAX, character ESP+4, kit ESP+8; pops 8
+extern engine_lobby_character_setup_profile
+; void engine_lobby_character_release_player(struct lobby_character *character, unsigned int byte)
+; 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
+extern engine_lobby_character_release_player
 ; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
 ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
 extern engine_explosion_reach
@@ -242,6 +294,30 @@ extern engine_show_cursor
 ; void engine_send_important(struct messaging_client *messaging, const char *target, unsigned int type, const char *text)
 ; 0x26afb0 survarium::messaging_client::send_important_message: messaging ESP+4, target ESP+8, type ESP+12, text EDX; pops 12
 extern engine_send_important
+; struct sound_instance_proxy **engine_emit_hud_sound(struct sound_emitter *emitter, struct sound_scene **scene, struct world_user *user, struct sound_instance_proxy **out)
+; 0x65630 vostok::sound::sound_emitter::emit_hud_sound: emitter ESI, scene EAX, user ECX, out EDI; pops 0; EAX
+extern engine_emit_hud_sound
+; void engine_play_voice(struct sound_instance_proxy *proxy, unsigned int mode, const void *producer, const void *receiver)
+; 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_play_voice
+; void engine_free_voice(struct sound_instance_proxy *proxy)
+; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_free_voice
+; void engine_bind_query_callback(struct query_function *boost, const void *f, unsigned int value)
+; 0x176d0 boost::function1<void,vostok::resources::queries_result &>::assign_to<bind_t<void(*)(queries_result &,void *),list2<arg<1>,value<void *> > > >: boost ESI, f ESP+4, value ESP+8; pops 8
+extern engine_bind_query_callback
+; unsigned int engine_scene_params_type(void)
+; 0x630f0 vostok::type_to_int<vostok::sound::sound_scene_creation_params>: no arguments; pops 0; EAX
+extern engine_scene_params_type
+; void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene)
+; 0x59fb0 vostok::sound::sound_world::add_scene_to_active: world ECX, scene EAX; pops 0
+extern engine_add_active_scene
+; void engine_store_first_resource(struct queries_result *result, void *value)
+; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_store_first_resource
 ; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
 ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
 extern engine_comment_about_user
@@ -249,3 +325,18 @@ extern engine_comment_about_user
 ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_close_current_match
+; void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind)
+; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+extern engine_cc_float
+; void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag)
+; 0xe5b60 vostok::resources::query_resources: requests EAX, count ECX, callback ESP+4, allocator ESP+8, user ESP+12, parent ESP+16, flag ESP+20; pops 0
+extern engine_query_one
+; void engine_release_emitter(struct sound_emitter **pointer)
+; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+extern engine_release_emitter
+; void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top)
+; 0x587d0 vostok::sound::sound_scene::set_listener_properties: scene ESI, position EAX, front ESP+4, top ESP+8; pops 8
+extern engine_set_listener
+; void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)
+; 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
+extern engine_medkit_set_active

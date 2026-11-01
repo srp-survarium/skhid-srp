@@ -150,28 +150,12 @@ pub fn server_length(id: u8) -> Option<Length> {
     })
 }
 
-/// The bytes of a player mask for a roster of `roster` places:
-/// `(roster - 1) / 8 + 1` (0x279610).
-pub fn mask_bytes(roster: u8) -> usize {
-    (usize::from(roster).max(1) - 1) / 8 + 1
-}
+pub use udp_transport::table::mask_bytes;
 
-/// The length of a 0xED / 0xEE payload that starts `bytes`, as the client's
-/// length getter works it out (0x27975B): it wants `head + mask + 16` bytes
-/// there (two players' inputs) before it looks, then takes
-/// `head + mask + 8 × popcount(mask)`. `None`: the client would drop the
-/// whole datagram.
+/// The length of a 0xED / 0xEE payload that starts `bytes` for a roster of
+/// `roster` places (`udp_transport::table::player_inputs_len`).
 pub fn player_inputs_len(head: usize, roster: u8, bytes: &[u8]) -> Option<usize> {
-    let mask_len = mask_bytes(roster);
-    if bytes.len() < head + mask_len + 16 {
-        return None;
-    }
-    let players: u32 = bytes[head..head + mask_len]
-        .iter()
-        .map(|byte| byte.count_ones())
-        .sum();
-    let len = head + mask_len + 8 * players as usize;
-    (len <= bytes.len()).then_some(len)
+    udp_transport::table::player_inputs_len(head, mask_bytes(roster), bytes)
 }
 
 /// The signed distance from `b` to `a` in 8-bit sequence arithmetic
@@ -1148,16 +1132,6 @@ mod tests {
         let mut short = vec![0, 0b111];
         short.extend([0; 16]);
         assert_eq!(player_inputs_len(1, 4, &short), None);
-    }
-
-    #[test]
-    fn mask_bytes_follow_the_roster() {
-        assert_eq!(mask_bytes(1), 1);
-        assert_eq!(mask_bytes(8), 1);
-        assert_eq!(mask_bytes(9), 2);
-        assert_eq!(mask_bytes(16), 2);
-        assert_eq!(mask_bytes(17), 3);
-        assert_eq!(mask_bytes(20), 3);
     }
 
     #[test]

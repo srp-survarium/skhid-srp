@@ -353,6 +353,8 @@ st_blackmarket_level_unlock_2	Wir gratulieren! Sie sind jetzt ein Kämpfer des s
 st_blackmarket_level_unlock_3	Wir gratulieren! Sie sind jetzt Aufseher des schwarzen Marktes!
 st_blackmarket_level_unlock_4	Wir gratulieren! Sie sind jetzt Zenturio des schwarzen Marktes!
 st_blackmarket_level_unlock_5	Wir gratulieren! Sie sind jetzt Elite des schwarzen Marktes.
+st_blackmarket_medkit_description	Heilt Körper, Kopf und Schmerz vollständig. Behandelt keine Arme und Beine.
+st_blackmarket_medkit_name	Schwarzmarkt-Kit
 st_blackmarket_meele_kill_descr	Wenn du schafst die Arbeit sauber zu machen - sei bereit, die Hände zu beschmutzen. Gerade dadurch unterscheiden wir uns von anderen. Beweise, dass du bist einer von uns - arbeite mit den Händen.
 st_blackmarket_meele_kill_name	schmutzige Arbeit
 st_blackmarket_meele_kill_obj	Gegner im Nahkampf töten:
@@ -880,7 +882,7 @@ st_decorations_options	Dekorationen Qualität
 st_default_profile_name1	Profil 1
 st_default_profile_name2	Profil 2
 st_default_profile_name3	Profil 3
-st_default_scope_name	Standardzielfernrohr
+st_default_scope_name	Standardoptik
 st_defeat	Verlust 
 st_defuse_trap	Entschärfen ({USE})
 st_disband_clan_message	Sind Sie sicher, dass Sie den Klan aufläsen wollen?
@@ -1375,6 +1377,7 @@ st_level_10_name	RS Vostok (v0.21)
 st_level_11_name	Mamaew kurgan (v0.21)
 st_level_12_name	Chemiebetrieb (v0.11)
 st_level_13_name	RS Vostok (v0.11)
+st_level_14_name	Rudnya (v0.69)
 st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!
 st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
 st_lightning_quality_option	Beleuchtung Qualität
@@ -1454,6 +1457,8 @@ st_message_reroll_text	Die Fertigkeiten rücksetzen?
 st_messages_censor_option	Die Zensur der Mitteilungen aufzunehmen. 
 st_messages_only_from_friends_option	Die persönlichen Mitteilungen nur von Freunden zu nehmen
 st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
+st_military_medkit_description	Heilt Arme und Beine vollständig. Stellt 60% von Körper und Kopf und 50% von Schmerz wieder her.
+st_military_medkit_name	Armee-Kit
 st_minimap	Minikarte
 st_minimap_bottom	untere linke Winkel
 st_minimap_off	Versteckte Minikarte
@@ -2025,6 +2030,8 @@ st_scavengers_win_score_obj	Das Feld zu behaupten mit der Anzahl der gebrachten 
 st_scavengers_win_x_games_descr	Wir leben in der grausamen Welt. Dem Sieger fällt alles zu, und den Verlierern ist erzwungen, sich nur mit den Knirpsen zu begnügen. Merke dir, die in den Kampf siegende Mannschaft bekommt die großere Belohnung.
 st_scavengers_win_x_games_name	Sieg Geschmack
 st_scavengers_win_x_games_obj	Kämpfe zu gewinnen:
+st_science_medkit_description	Heilt Arme, Beine, Körper und Kopf vollständig. Stellt 50% von Schmerz wieder her. Heilt Vergiftungen und Strahlenkrankheit.
+st_science_medkit_name	Wissenschafts-Kit
 st_scientists_faction	Institut
 st_search_label	Such
 st_search_range	Match Level
@@ -2431,6 +2438,11 @@ st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	nicht spielbar
+st_srp_lobby_basement	Keller
+st_srp_lobby_bunker	Bunker
+st_srp_lobby_hangar	Hangar
+st_srp_lobby_room	Zimmer
+st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto wird beim ersten Login erstellt
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
@@ -2439,6 +2451,7 @@ st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
 st_srp_map_rudnya	Rudnya
+st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Schule
 st_srp_map_tarakanovsky_fort	Tarakanowski Fort
 st_srp_map_vector	Labor Vektor
@@ -2455,7 +2468,6 @@ st_srp_matches_in_match	Du bist bereits in einem Match
 st_srp_matches_in_squad	Verlasse zuerst deine Abteilung
 st_srp_matches_joining	Beitritt…
 st_srp_matches_maintenance	Endet nach Beginn der Wartung
-st_srp_matches_mode_protective_device	Laden der Schutzeinrichtung
 st_srp_matches_no_answer	Keine Antwort, erneut versuchen
 st_srp_matches_no_late_join	Match nimmt keine neuen Spieler auf
 st_srp_matches_no_place	Kein freier Platz im Match
@@ -2466,6 +2478,7 @@ st_srp_matches_played_before	Du hast in diesem Match schon gespielt
 st_srp_matches_queued	Brich zuerst die Suche ab
 st_srp_matches_starting	Start
 st_srp_matches_title	Matches
+st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
@@ -2474,6 +2487,7 @@ st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
+st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
 st_srp_pvb_busy	%1$s (belegt)
@@ -2531,6 +2545,7 @@ st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
 st_srp_rooms_code_13	Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.
 st_srp_rooms_code_14	Das Loadout ließ sich nicht wählen.
 st_srp_rooms_code_16	Drücke Spielen, um einem öffentlichen Raum beizutreten.
+st_srp_rooms_code_17	Den Raum wählt der Anführer deiner Abteilung.
 st_srp_rooms_code_2	Diesen Raum gibt es nicht mehr.
 st_srp_rooms_code_3	Falsche PIN.
 st_srp_rooms_code_4	Der Raum ist voll.
@@ -2618,6 +2633,7 @@ st_srp_rooms_waiting	Warten auf Spieler
 st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_scope_slot	Optik
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
@@ -2705,6 +2721,34 @@ st_stats_saved	Es ist gerettet:
 st_stats_silent_kills	unmerklichen Totschläge:
 st_stats_stolen_victory_items	Batterien gestohlen:
 st_status_str	Status:
+st_stk2_bandit_026_boots_desc	Abgetragene Turnschuhe, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_boots_name	Turnschuhe
+st_stk2_bandit_026_legs_desc	Trainingshose mit Streifen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_legs_name	Trainingshose
+st_stk2_bandit_026_torso_desc	Eine schwarze Lederbomberjacke über einem T-Shirt, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_bandit_026_torso_name	Lederbomberjacke
+st_stk2_loner_026_boots_desc	Geschnürte Lederstiefel eines Einzelgängers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_boots_name	Stiefel des Einzelgängers
+st_stk2_loner_026_hand_desc	Fingerlose Handschuhe eines Einzelgängers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_hand_name	Fingerlose Handschuhe des Einzelgängers
+st_stk2_loner_026_legs_desc	Tarnhose mit Knieschonern, Holster und Taschen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_legs_name	Tarnhose des Einzelgängers
+st_stk2_loner_026_torso_desc	Kapuzenjacke unter einer Tragweste mit Taschen, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_loner_026_torso_name	Jacke des Einzelgängers mit Weste
+st_stk2_novice_026_back_desc	Einriemiger Segeltuchrucksack eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_back_name	Rucksack des Neulings
+st_stk2_novice_026_boots_desc	Lederstiefel eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_boots_name	Stiefel des Neulings
+st_stk2_novice_026_hand_desc	Fingerlose Handschuhe eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hand_name	Fingerlose Handschuhe des Neulings
+st_stk2_novice_026_hood_desc	Segeltuchkapuze eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_hood_name	Kapuze des Neulings
+st_stk2_novice_026_legs_desc	Abgetragene Jeans eines Neulings-Stalkers, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_legs_name	Jeans des Neulings
+st_stk2_novice_026_torso_desc	Feldjacke eines Neulings-Stalkers mit Feldflasche und Messer am Gürtel, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_name	Feldjacke des Neulings
+st_stk2_novice_026_torso_v2_desc	Feldjacke eines Neulings-Stalkers mit zwei Taschen am Gürtel, aus dem eingestellten S.T.A.L.K.E.R. 2.
+st_stk2_novice_026_torso_v2_name	Feldjacke des Neulings mit Taschen
 st_storage	Lager
 st_string_pattern_error	Der Name enthält unkorrekte Symbole oder ist zu lang
 st_support	Support:

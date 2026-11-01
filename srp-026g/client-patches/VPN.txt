@@ -11,10 +11,9 @@ game\binaries\x86\ of the game:
 
 If nothing connects (in Russia too), allow the game in your firewall: run
 Skhid-network-setup.cmd (beside Skhid.bat). It adds Windows Firewall rules
-that let these three programs out and, if you say yes, a Microsoft Defender
-exclusion of their folder, game\binaries\x86 (our patched files can be
-flagged by mistake). It turns nothing off. It asks for administrator
-rights: answer Yes when Windows asks. Its messages are in Russian.
+that let these three programs out. It turns nothing off. It asks for
+administrator rights: answer Yes when Windows asks. Its messages are in
+Russian.
 Skhid-network-setup.cmd --undo removes what it added.
 
 HAPP (Windows)
@@ -68,9 +67,7 @@ SKHID - НЕТ СВЯЗИ С СЕРВЕРОМ?
 Если ничего не подключается (и в России тоже), разрешите игру в
 брандмауэре: запустите Skhid-network-setup.cmd (рядом со Skhid.bat). Он добавляет
 правила брандмауэра Windows, разрешающие этим трём программам исходящие
-соединения, и, если вы согласитесь, исключение Microsoft Defender для их
-папки, game\binaries\x86 (наши изменённые файлы могут ошибочно считаться
-угрозой). Он ничего не отключает. Ему нужны права администратора: когда
+соединения. Он ничего не отключает. Ему нужны права администратора: когда
 Windows спросит, нажмите «Да».
 Skhid-network-setup.cmd --undo удаляет то, что он добавил.
 

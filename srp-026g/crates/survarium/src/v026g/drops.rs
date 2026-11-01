@@ -21,7 +21,9 @@
 //! 2. The items of the category with `drop_weight` above 0 [LIKELY: the
 //!    cosmetics that can drop are the ones of type `drp_camo` / `drp_decl`,
 //!    and exactly those have a drop weight; premium copies of weapons have
-//!    0].
+//!    0]. A camouflage or decal ([`COSMETIC_CATEGORIES`]) the player
+//!    already has is left out, unless the player has every one of the
+//!    category [srp's choice, the owner's of 2026-10-31].
 //! 3. Unless the category is in `item_level_independent_categories`: an
 //!    item level from the row of the match's level (21 rows, as the 21 match
 //!    levels of `match_levels_dict`; 16 columns, item levels 0..=15), and
@@ -74,6 +76,9 @@ pub const NOTHING: u8 = 0;
 /// How often a category and level are rolled again when the category has no
 /// item of the level, before the nearest level is taken.
 pub const TRIES: usize = 32;
+
+/// Camouflages and decals: a roll gives none the player already has.
+pub const COSMETIC_CATEGORIES: [u8; 2] = [25, 26];
 
 /// One row of `item_category_probabilities`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -341,10 +346,12 @@ fn dropped(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng:
 
 /// One roll of `table` for a match of `match_level` (0..=20), with
 /// `bonus_percent` more chance of an item
-/// ([`PlaytimeDependence::bonus_percent`], or 0). `None` is no drop.
+/// ([`PlaytimeDependence::bonus_percent`], or 0), for a player who has the
+/// items `owned` (dictionary ids). `None` is no drop.
 pub fn roll(
     table: &DropTable,
     dictionary: &Dictionary,
+    owned: &[u16],
     match_level: u8,
     bonus_percent: u32,
     rng: &mut Rng,
@@ -369,11 +376,16 @@ pub fn roll(
     let pick = |nearest: bool, rng: &mut Rng| {
         let category = group.categories[rng.below(group.categories.len() as u32) as usize];
         let level = rng.pick(row).unwrap_or(0) as u8;
-        let candidates = if nearest {
+        let mut candidates = if nearest {
             table.nearest_candidates(dictionary, category, level)
         } else {
             table.candidates(dictionary, category, level)
         };
+        if COSMETIC_CATEGORIES.contains(&category)
+            && candidates.iter().any(|p| !owned.contains(&p.dict_id))
+        {
+            candidates.retain(|p| !owned.contains(&p.dict_id));
+        }
         let item_weights: Vec<u32> = candidates.iter().map(|p| p.drop_weight).collect();
         rng.pick(&item_weights).map(|index| candidates[index])
     };
@@ -575,7 +587,7 @@ mod tests {
         let mut rng = Rng::new(7);
         let (mut drops, mut gear, mut money) = (0u32, 0u32, 0u32);
         for _ in 0..10_000 {
-            let Some(drop) = roll(generic, dictionary, 5, 0, &mut rng) else {
+            let Some(drop) = roll(generic, dictionary, &[], 5, 0, &mut rng) else {
                 continue;
             };
             drops += 1;
@@ -618,7 +630,7 @@ mod tests {
         // The first game of a play period: twice the chance.
         let mut drops = 0;
         for _ in 0..10_000 {
-            drops += u32::from(roll(generic, dictionary, 5, 100, &mut rng).is_some());
+            drops += u32::from(roll(generic, dictionary, &[], 5, 100, &mut rng).is_some());
         }
         assert!(
             (7800..8200).contains(&drops),
@@ -633,7 +645,7 @@ mod tests {
         let mut rng = Rng::new(11);
         for _ in 0..500 {
             // A new player: a weapon or armour of level 1 or 2, best rarity.
-            let drop = roll(&drops.new_player, dictionary, 0, 0, &mut rng).unwrap();
+            let drop = roll(&drops.new_player, dictionary, &[], 0, 0, &mut rng).unwrap();
             let item = dictionary.item(drop.dict_id).unwrap();
             assert!(matches!(item.category, 1..=8 | 13..=17), "{}", item.name);
             assert!(!item.is_stack);
@@ -642,11 +654,11 @@ mod tests {
             assert_eq!(drop.rarity, 3);
 
             // The daily bonus: 50 gold.
-            let drop = roll(&drops.daily_bonus, dictionary, 9, 0, &mut rng).unwrap();
+            let drop = roll(&drops.daily_bonus, dictionary, &[], 9, 0, &mut rng).unwrap();
             assert_eq!((drop.dict_id, drop.count, drop.rarity), (215, 50, 4));
 
             // A drop card: a cosmetic, armour or a weapon.
-            let drop = roll(&drops.drop_card, dictionary, 20, 0, &mut rng).unwrap();
+            let drop = roll(&drops.drop_card, dictionary, &[], 20, 0, &mut rng).unwrap();
             let item = dictionary.item(drop.dict_id).unwrap();
             assert!(
                 matches!(item.category, 1..=8 | 13..=17 | 25 | 26),
@@ -654,6 +666,35 @@ mod tests {
                 item.name
             );
         }
+    }
+
+    #[test]
+    fn a_cosmetic_the_player_has_drops_only_once_it_has_them_all() {
+        let dictionary = Dictionary::shared();
+        let mut table = Drops::shared().drop_card.clone();
+        table.categories = vec![CategoryGroup {
+            weight: 1,
+            categories: COSMETIC_CATEGORIES.to_vec(),
+        }];
+        let cosmetics: Vec<u16> = COSMETIC_CATEGORIES
+            .iter()
+            .flat_map(|&category| table.candidates(dictionary, category, 0))
+            .map(|params| params.dict_id)
+            .collect();
+        let (missing, owned) = cosmetics.split_last().unwrap();
+        let mut rng = Rng::new(5);
+        let mut gave_missing = 0;
+        for _ in 0..300 {
+            // Every decal and camouflage but one: the one missing, or (when
+            // the category picked is the other) any of that category.
+            let drop = roll(&table, dictionary, owned, 20, 0, &mut rng).unwrap();
+            assert!(cosmetics.contains(&drop.dict_id));
+            gave_missing += u32::from(drop.dict_id == *missing);
+            // Every one: they drop again.
+            let drop = roll(&table, dictionary, &cosmetics, 20, 0, &mut rng).unwrap();
+            assert!(cosmetics.contains(&drop.dict_id));
+        }
+        assert!(gave_missing > 100, "{gave_missing}");
     }
 
     #[test]
@@ -668,10 +709,72 @@ mod tests {
         }];
         let mut rng = Rng::new(3);
         for _ in 0..300 {
-            let drop = roll(&table, dictionary, 5, 0, &mut rng).unwrap();
+            let drop = roll(&table, dictionary, &[], 5, 0, &mut rng).unwrap();
             let params = item_params(drop.dict_id).unwrap();
             assert_eq!(drop.count % params.clip_size, 0);
             assert!((60..=150).contains(&drop.count));
+        }
+    }
+
+    /// The STK2 outfits' 14 items on game data with their packs
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// stk2-bandit, stk2-novice and stk2-loner): no faction, sold by seller 0
+    /// at no rank at its own price, as the Novice's knit cap (the owner,
+    /// 2026-10-31), and dropped: each at the
+    /// owner's level and in the generic table's pool of its category at that
+    /// level, by its own drop weight (`armour::tests` holds it to its level's
+    /// range). It makes that data the process's:
+    /// run it alone.
+    #[test]
+    #[ignore = "needs game data with the STK2 outfits' packs (SRP_GAME_DATA); run alone"]
+    fn the_stk2_outfits_drop_and_are_sold_to_everyone() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let generic = &Drops::shared().generic;
+        // (item, the owner's level, the stock piece its config copies)
+        let items: [(&str, u8, &str); 14] = [
+            ("stk2_bandit_026_torso", 6, "torso/edge_torso_1"),
+            ("stk2_bandit_026_legs", 6, "legs/edge_legs_1"),
+            ("stk2_bandit_026_boots", 6, "boots/edge_boots_1"),
+            ("stk2_novice_026_hood", 4, "helmet/scavenger_helmet_5"),
+            ("stk2_novice_026_torso", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_torso_v2", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_back", 4, "back/bm_back_1"),
+            ("stk2_novice_026_legs", 4, "legs/scavenger_legs_3"),
+            ("stk2_novice_026_boots", 4, "boots/scavenger_boots_3"),
+            ("stk2_novice_026_hand", 4, "gloves/eq046_blackmarket_gloves_5"),
+            ("stk2_loner_026_torso", 6, "torso/renesanse_torso_8"),
+            ("stk2_loner_026_legs", 6, "legs/renesanse_legs_8"),
+            ("stk2_loner_026_boots", 6, "boots/renesanse_boots_1"),
+            ("stk2_loner_026_hand", 6, "gloves/scavenger_gloves_5"),
+        ];
+        for (name, level, donor) in items {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            let cfg = format!("gameplay/items/armour/{donor}.options");
+            let template = dictionary.items.iter().find(|i| i.cfg_name == cfg).unwrap();
+            let template = item_params(template.dict_id).unwrap();
+            assert_eq!(params.faction, 0, "{name}");
+            assert_eq!(params.item_level, level, "{name}");
+            // Its own drop weight (armour::tests checks it against its
+            // level's), in the same pool as its template's.
+            assert_eq!(params.kind, template.kind, "{name}");
+            assert!(params.drop_weight > 0, "{name}");
+            // Sold as the Novice's knit cap (the owner, 2026-10-31): by
+            // seller 0 at no rank, at its own price.
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            assert!(
+                prices::price_list().iter().any(|r| r.dict_id == item.dict_id
+                    && r.faction_id == 0
+                    && r.level == 0
+                    && r.cost == item.base_cost),
+                "{name}"
+            );
+            assert!(!generic.level_independent.contains(&item.category), "{name}");
+            let pool = generic.candidates(dictionary, item.category, level);
+            assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");
         }
     }
 }

@@ -755,10 +755,6 @@ impl Replays {
         self
     }
 
-    pub fn oldest_revision(&self) -> u8 {
-        self.oldest
-    }
-
     pub fn settings(&self) -> Option<&ReplaySettings> {
         self.settings.as_ref()
     }

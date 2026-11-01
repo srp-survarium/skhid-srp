@@ -37,7 +37,7 @@ use udp_transport::wire;
 
 use super::record::{self, ACCEPTED_INPUT, ACCEPTED_PROFILE, IN, NOTE, OUT, Record, RecordRef};
 use super::sur::{
-    self, Coding, Event, InputValue, KeyFrame, MAX_KEY_FRAMES, MAX_PLAYERS, Parts, TICK_MS, Writer,
+    self, Coding, Event, InputValue, KeyFrame, MAX_KEY_FRAMES, MAX_PLAYERS, Parts, Writer,
 };
 
 /// An event the clock puts this far ahead of the recording is dropped: the
@@ -1182,11 +1182,6 @@ fn keep_input(
         Some(known) if *known == value => report.input_copies += 1,
         Some(_) => report.input_conflicts += 1,
     }
-}
-
-/// The start of the tick a time is in; here for the CLI's summary.
-pub fn tick_of(time: u32) -> u32 {
-    time / TICK_MS
 }
 
 #[cfg(test)]

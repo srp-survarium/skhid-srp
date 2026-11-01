@@ -23,6 +23,9 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   the build adds it as a DefineBitsLossless2 of a new character id before the code, bound
   to `<class>` by a SymbolClass after it; `<class>` is a `BitmapData` of the tree, as the
   original's own bitmaps are (the hud's `hudItems`), made with `new <class>()`.
+  A picture (a render, a capture) is `bitmaps/<class>.jpg` instead, a baseline JPEG: the
+  build adds the file whole as a DefineBitsJPEG2, as compact as the game's own map renders
+  (JPEG, DefineBits); a progressive JPEG is refused (Flash does not read it).
 - **Tables.** Data the movie's code reads, which other tools read too (the
   lobby's shop filters, which the wiki's icons take), is a table
   `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
