@@ -4715,6 +4715,8 @@ va	name	location	role	basis
 0x002f7660	survarium::player_profile::apply_kit_parameter	entry ESP+12	dictionary	observed
 0x00331840	survarium::weapon_recoil_parameters::load	ESI	recoil config node	observed
 0x00331840	survarium::weapon_recoil_parameters::load	entry ESP+4	output parameter block	observed
+0x00331c50	survarium::weapon_recoil_calculator::on_shot	EDI	recoil object (weapon_core+468h; [EDI] the weapon, its recoil parameters at +430h)	observed
+0x00331c50	survarium::weapon_recoil_calculator::on_shot	EAX	stored at recoil object +8	observed
 0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+4	output parameter block	observed
 0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+8	dispersion config node	observed
 0x002debc0	survarium::weapon_breath_vibration_parameters::load	ESI	breath_vibration config node	observed
