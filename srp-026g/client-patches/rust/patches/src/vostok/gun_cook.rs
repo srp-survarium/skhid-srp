@@ -173,7 +173,7 @@ impl Drop for ProfileCopy {
 
 /// A cooked inventory of ours: one reference to it and the profile it was
 /// cooked from, released on drop (the inventory first).
-struct Spare {
+struct CookedInventory {
     inventory: raw::Inventory,
     _profile: ProfileCopy,
 }
@@ -190,7 +190,7 @@ fn release(inventory: raw::Inventory) {
     }
 }
 
-impl Drop for Spare {
+impl Drop for CookedInventory {
     fn drop(&mut self) {
         release(self.inventory);
     }
@@ -203,7 +203,7 @@ enum Ticket {
     Waiting { generation: u32, recipe: Recipe, profile: ProfileCopy, since: u64 },
     /// Its [`Gun`] was dropped while in flight: the completion frees all.
     Abandoned { recipe: Recipe, profile: ProfileCopy },
-    Made { generation: u32, spare: Spare, since: u64, at: u64 },
+    Made { generation: u32, cooked: CookedInventory, since: u64, at: u64 },
     Failed { generation: u32, since: u64, at: u64 },
 }
 
@@ -270,7 +270,7 @@ impl Drop for Gun {
                     *ticket = Ticket::Abandoned { recipe, profile };
                     None
                 }
-                Ticket::Made { generation, spare, .. } if generation == id.generation => Some(spare),
+                Ticket::Made { generation, cooked, .. } if generation == id.generation => Some(cooked),
                 Ticket::Failed { generation, .. } if generation == id.generation => None,
                 other => {
                     *ticket = other;
@@ -287,8 +287,8 @@ impl Drop for Gun {
 pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
     TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
         Ticket::Waiting { generation, since, .. } if *generation == id.generation => Cooked::Cooking { since: *since },
-        Ticket::Made { generation, spare, since, at } if *generation == id.generation => {
-            Cooked::Made { inventory: InventoryId(spare.inventory.address()), since: *since, at: *at }
+        Ticket::Made { generation, cooked, since, at } if *generation == id.generation => {
+            Cooked::Made { inventory: InventoryId(cooked.inventory.address()), since: *since, at: *at }
         }
         Ticket::Failed { generation, since, at } if *generation == id.generation => {
             Cooked::Failed { since: *since, at: *at }
@@ -301,7 +301,7 @@ pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
 /// ticket holds it).
 pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::Inventory> {
     TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
-        Ticket::Made { generation, spare, .. } if *generation == id.generation => Some(spare.inventory),
+        Ticket::Made { generation, cooked, .. } if *generation == id.generation => Some(cooked.inventory),
         _ => None,
     })
 }
@@ -487,7 +487,7 @@ extern "C" fn cooked_shim(ticket: u32, result: Option<raw::QueriesResult>) {
         match core::mem::replace(slot, Ticket::Free) {
             Ticket::Waiting { generation, recipe, profile, since } => match made {
                 Some(inventory) => {
-                    *slot = Ticket::Made { generation, spare: Spare { inventory, _profile: profile }, since, at };
+                    *slot = Ticket::Made { generation, cooked: CookedInventory { inventory, _profile: profile }, since, at };
                     ((Some(recipe), None), None)
                 }
                 None => {

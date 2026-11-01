@@ -1,6 +1,6 @@
 # Patch 85, dropped-weapon pickup (docs/notes/weapon_pickup.md): one gun
-# cooked at each death that dropped one (vostok::gun_cook), kept by donor
-# life; the record in each player state, the pickup, its restore and the
+# cooked at each death that dropped one (vostok::gun_cook), kept and
+# re-used (a copy once registered or in hands until its holder's end); the record in each player state, the pickup, its restore and the
 # crate (vostok::pickup). The death is artefact_carry's carry.client_death,
 # the input's apply point its carry.filter and the frame's step ragdoll's
 # game_world.after_move: their handlers call weapon_pickup::died / on_filter
@@ -55,8 +55,8 @@ site = "pickup.client_resupply"
 handler = "on_client_resupply"
 
 # the game's weapon switch: a pickup waits for it (the picked gun the
-# pending object, under its own registry id), cancelled when the pending
-# object changes; at the switch the gun takes the slot
+# pending object, under its own registry id; another pending object is put
+# back, only the picker's death cancels); at the switch the gun takes the slot
 [[hook]]
 site = "pickup.tick_active"
 handler = "on_tick_active"

@@ -24,8 +24,8 @@ on a made-up player, game world, game, network client, match and profile:
   inventory kept (one reference more), the recipe freed; the frame's step
   (game_world.after_move 0x1F7C3C, ragdoll's handler composing
   weapon_pickup::after_move) logs it made; kept while the body is in the world,
-  3 s after base_player::remove(1) takes it out the gun is given back (0x0E0210 at its last reference), the profile copy
-  destroyed and freed;
+  never registered nor in hands, given back at the frame after base_player::remove(1) takes it out (0x0E0210
+  at its last reference), the profile copy destroyed and freed;
 - an empty result: FAILED, the recipe and the profile given back;
 - the donor destroyed (player.destroy 0x1F2100) while the cook runs: the cook
   is abandoned and its completion gives everything back; destroyed after it
