@@ -71,8 +71,10 @@ pub struct GridTuning {
     /// height over it, within the radius less half a cell of the way down. The links check the landing's ceiling only; a wall
     /// past the edge, between the floors a drop spans, holds the body at the edge (A206, the offered maps: 4,350 links cut; their
     /// take-off cells had a live stuck note 1.75 times as often as the others, live bodies walked off 4 of them, at one spot of
-    /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
-    /// map's (see `gap_links`).
+    /// Tarakanovsky Fort, and no live body stood on the floors only they led to). On by default (A206's bench, both teams with it
+    /// against both without, 192 pairs: stuck cases -46 %, stuck seconds -56 %, falls off the route -10 %). The old value is wrong
+    /// by the client (a walk-off its capsule cannot make: live bodies walked off none of the 1,567 cut walk-off gap drops), so the
+    /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub drop_room: bool,
 }
 
@@ -90,7 +92,7 @@ impl Default for GridTuning {
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
-            drop_room: false,
+            drop_room: true,
         }
     }
 }
