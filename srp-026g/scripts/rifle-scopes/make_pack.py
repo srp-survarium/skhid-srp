@@ -30,7 +30,9 @@ survey.py):
   (with or without a weapon model change) by content_edit.py's edits, read back; its dictionary row.
 For each scope: its shop item (dict ids of scopes.tsv: 2113..2119) made from the CompM4's (a
 collimator) or the TA31's (a scope), its price (base_cost: seller 0 sells it), its texts
-(texts.tsv) and its icon (render_icon.py, in column 4 of the consumables atlas).
+(texts.tsv) and its icon (in column 4 of the consumables atlas: 0.69d0's own picture of the optic,
+the donor's icons/<module>.png, framed as the stock icons by render_icon.py). Before it writes the pack,
+check_textures(): every texture the pack's models draw is shipped and is a DDS 0.26g reads.
 The edit list: an items_compatibility row for each weapon and scope it fits (the lobby movie's
 scope pairs) and the CompM4 at x2 (data/fov_factor 0.8 -> 0.5 on its item and every variant of it).
 The texts players see, and the CompM4's name with x2, are in client-patches/localization/*.tsv
@@ -55,7 +57,7 @@ import scopes_lib as lib  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '4'
+VERSION = '5'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -102,15 +104,19 @@ def read_texts():
 
 
 def compose(port, parts, materials, out):
-    args = [str(port), 'compose-model', '--output', str(out)]
-    for model, t, chosen in parts:
-        spec = f'{model}=%.6f,%.6f,%.6f' % tuple(t)
-        if chosen:
-            spec += ':' + ','.join(chosen)
-        args += ['--part', spec]
-    for frm, to in materials.items():
-        args += ['--material', f'{frm}={to}']
-    subprocess.run(args, check=True, capture_output=True)
+    """One model of the parts' surfaces (compose-model), each part's meshes in 0.26g's layout
+    (scopes_lib.static_026: a 0.69d0 module's basis made 0.26g's words; the rifle scopes @1..@4 kept
+    0.69d0's, and the optics drew nearly black)."""
+    with tempfile.TemporaryDirectory() as layout:
+        args = [str(port), 'compose-model', '--output', str(out)]
+        for model, t, chosen in parts:
+            spec = f'{lib.model_026(model, layout)}=%.6f,%.6f,%.6f' % tuple(t)
+            if chosen:
+                spec += ':' + ','.join(chosen)
+            args += ['--part', spec]
+        for frm, to in materials.items():
+            args += ['--material', f'{frm}={to}']
+        subprocess.run(args, check=True, capture_output=True)
 
 
 def material_renames():
@@ -427,7 +433,9 @@ def build(args, work):
         row, col = scope['icon']
         source = f'icons/{ICON_ATLAS}/r{row:02}c{col:02}.png'
         (args.out / source).parent.mkdir(parents=True, exist_ok=True)
-        render_icon.icon(idle_src, [args.donor, args.live]).save(args.out / source)
+        picture = args.donor / 'icons' / f'{scope["module_name"]}.png'
+        render_icon.icon(idle_src, [args.donor, args.live], picture=picture if picture.exists() else None,
+                         renames=renames).save(args.out / source)
         icons.append({'row': row, 'col': col, 'source': source})
     # the donor's materials and textures the pack needs
     for p in sorted(args.donor.rglob('*')):
@@ -436,6 +444,7 @@ def build(args, work):
             files[rel] = p.read_bytes()
     # their textures as 0.26g draws a 0.69d0 weapon's (@4; pbr_026.py)
     files.update(pbr_026.convert({k: v for k, v in files.items() if k.startswith('textures/')}))
+    check_textures(files, args.live)
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     keys = sorted({f'st_{s["name"]}_{k}' for s in lib.scopes() for k in ('name', 'description')})
@@ -465,6 +474,61 @@ def build(args, work):
     digest = sha256((args.out / 'pack.json').read_bytes())
     print(f'{args.out}: {len(files)} files, {len(entries)} items, pack.json sha256 {digest}')
     print(f'manifest row: pack\t{PACK_ID}@{VERSION}\t{digest}\t{pack["description"]}')
+
+
+SLOTS = (('texture_diffuse', 'use_tdiffuse', 1), ('texture_normal', 'use_nmap', 0),
+         ('texture_roughness', 'use_troughness', 0), ('texture_fresnel', 'use_tfresnel', 0))
+
+
+def check_textures(files, live):
+    """Every model of the pack draws: each surface's material is in the pack or the players' files
+    (--live's paths.txt), and each texture a g-buffer material of the pack or of --live binds (its
+    use_ switch on) is too; a texture of the pack is a DDS 0.26g reads (DXT1 or DXT5, its mips and
+    the sRGB byte: 1 for a diffuse, else 0; a normal map DXT5). Stops the build, listing each one
+    that is not (the owner, 2026-11-01: "some scopes are completely untextured")."""
+    have = set((Path(live) / 'paths.txt').read_text(encoding='utf-8').split())
+    problems, seen = [], set()
+
+    def material_leaves(name):
+        """The material's values; None when only its name is known (in the players' files); False
+        when it is nowhere."""
+        path = f'material_instances/{name}.material'
+        if path in files:
+            return lib.leaves_of(files[path])
+        if (Path(live) / path).exists():
+            return lib.leaves(Path(live) / path)
+        return None if path in have else False
+    for path in sorted(files):
+        if not path.endswith('/settings') or '/models/' not in '/' + path:
+            continue
+        for key, name in lib.leaves_of(files[path]).items():
+            if not key.endswith('/material_name') or name in seen:
+                continue
+            seen.add(name)
+            leaves = material_leaves(name)
+            if leaves is False:
+                problems.append(f'{path}: material {name} is in neither the pack nor the players\' files')
+                continue
+            if leaves is None or '/material/g_stage/effect/effect_id' not in leaves:
+                continue
+            for slot, switch, srgb in SLOTS:
+                if not leaves.get(f'/material/g_stage/effect/{switch}/value'):
+                    continue
+                texture = leaves.get(f'/material/g_stage/effect/{slot}/value', '')
+                dds = f'textures/{texture}.dds'
+                if dds in files:
+                    try:
+                        made = pbr_026.Dds(files[dds])
+                    except ValueError as e:
+                        problems.append(f'{name}: {slot} {dds}: {e}')
+                        continue
+                    if made.srgb != srgb or (slot == 'texture_normal') != (bytes(files[dds][84:88]) == b'DXT5'):
+                        problems.append(f'{name}: {slot} {dds}: sRGB byte {made.srgb}, {bytes(files[dds][84:88])!r}')
+                elif not texture or dds not in have:
+                    problems.append(f'{name}: {slot} {texture!r} is in neither the pack nor the players\' files')
+    if problems:
+        sys.exit('textures:\n  ' + '\n  '.join(problems))
+    print(f'textures: the {len(seen)} materials the pack\'s models draw have their textures')
 
 
 def write_edit_list(live, compat, weapons):

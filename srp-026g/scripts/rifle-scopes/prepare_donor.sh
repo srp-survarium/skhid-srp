@@ -10,9 +10,10 @@
 # scopes.tsv: its model and aimed model (models/weapons/modules/<module>{,_aim}.model: the meshes as
 # they are, the configs written again in 0.26g's layout, widen_config.rs); the model of each
 # module of references.tsv (the optics of ours whose placement make_pack.py measures); each material of
-# materials.tsv that is made again, on its template, given the donor's textures slot for slot
+# materials.tsv that is made again: its template with the donor's textures slot for slot
 # (retexture.py), with the textures it names that the 0.26g archives lack (the .dds as they are, their .options widened). make_pack.py checks every file
-# against donor.sha256.
+# against donor.sha256. And each optic's 0.69d0 shop icon, icons/<module>.png (its module's
+# ui_desc.icon_renderer <n>: flash_movies/textures/ui_icons/modules/module_renderer_<n>.png).
 set -euo pipefail
 split=$1 target=$2 porter=$3 have=$4 out=$5
 here=$(cd "$(dirname "$0")" && pwd)
@@ -63,13 +64,10 @@ done
 grep -v '^#' "$here/materials.tsv" | while IFS=$'\t' read -r name how; do
     [[ $how == loc2:* ]] && continue
     material=material_instances/weapons/modules/$name.material
-    rm -rf "$work/material"
-    "$port" build-material-patch --source-db "$split" --target-db "$target" \
-        --material "$material=$how" --output "$work/material" >/dev/null
     mkdir -p "$out/$(dirname "$material")"
-    cp "$work/material/overlay/$material" "$out/$material"
+    "$port" extract --db "$target" --path "$how" --output "$work/template" >/dev/null
     "$port" dump-db-config --db "$split" --path "$material" --leaves > "$work/leaves"
-    nix shell nixpkgs#python3 -c python3 -I "$here/retexture.py" "$out/$material" "$work/leaves" >&2
+    nix shell nixpkgs#python3 -c python3 -I "$here/retexture.py" "$work/template" "$work/leaves" "$out/$material"
     "$port" dump-config --file "$out/$material" --leaves | grep 'texture[a-z_]*\.value	string:"[^"]' | cut -f2 \
         | sed 's/^string:"//; s/"$//' | sort -u | while read -r texture; do
         [[ -e $out/textures/$texture.dds ]] && continue
@@ -80,5 +78,14 @@ grep -v '^#' "$here/materials.tsv" | while IFS=$'\t' read -r name how; do
         "$port" extract --db "$split" --path "textures/$texture.options" --output "$work/raw" >/dev/null
         "$widen" "$work/raw" "$out/textures/$texture.options"
     done
+done
+# each optic's shop icon as 0.69d0 draws it (its module's ui_desc.icon_renderer in gameplay/game.options)
+"$port" dump-db-config --db "$split" --path gameplay/game.options --leaves > "$work/game"
+grep -v '^#' "$here/scopes.tsv" | cut -f3 | while read -r module; do
+    n=$(grep -F "weapon_modules.$(basename "$module").ui_desc.icon_renderer	" "$work/game" | cut -f2 | sed 's/^i32://')
+    [[ -n $n ]] || { echo "$module: no icon_renderer in game.options" >&2; exit 1; }
+    mkdir -p "$out/icons"
+    "$port" extract --db "$split" --path "flash_movies/textures/ui_icons/modules/module_renderer_$n.png" \
+        --output "$out/icons/$(basename "$module").png" >/dev/null
 done
 (cd "$out" && find . -type f | sed 's|^\./||' | sort | xargs sha256sum)

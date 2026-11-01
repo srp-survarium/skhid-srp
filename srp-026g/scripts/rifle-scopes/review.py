@@ -6,8 +6,8 @@ zoom: a collimator with its weapon, a scope's aimed model alone, as hide_weapon_
 
 usage: python3 -I review.py --pack <make_pack.py's folder> --live <folder> --donor <folder> --out <png>
 
-An approximation for review, not the game's renderer: the weapon untextured grey, the optics
-with their diffuse textures; the red dot and reticle dots red, the reticle grid and the eyepiece's
+An approximation for review: the weapon untextured grey, the optics with their materials as
+render_icon.py shades them; the red dot and reticle dots red, the reticle grid and the eyepiece's
 background black, the lenses left out; a vertical field of view of BASE_FOV degrees times the
 scope's fov_factor over the weapon's aim_zoom_factor; a collimator's view clipped NEAR_COLLIMATOR
 metres in front of the eye (the weapon's own rear sight is in front of the camera there), its red
@@ -33,28 +33,21 @@ AIM = (320, 200)
 
 
 def coloured(model, roots, offset, flip, skip=('scope_lense',)):
-    items = ri.parts(model, roots, offset=offset, flip=flip, skip=skip)
-    settings = lib.leaves(model / 'settings')
-    names = [s for s in lib.surfaces(model) if not any(s.startswith(k) for k in skip)]
-    out = []
-    for (p, uv, ix, tex), s in zip(items, names):
-        material = settings.get(f'/material_settings/{s}/material_name', '')
+    """The model's Surfaces with its materials, the dots red and the grid and eyepiece background
+    black (flat colours: the game draws them in its forward pass)."""
+    def flat(material):
         if 'glowing_dot' in material or 'reddot' in material:
-            tex = np.array([[[255.0, 20.0, 20.0]]]) * 3
-        elif 'aimgrid' in material or 'aim_background' in material:
-            tex = np.zeros((1, 1, 3))
-        out.append((p, uv, ix, tex))
-    return out
+            return ri.Material(albedo=(1.0, 0.02, 0.02), gloss=0.0, f0=0.0)
+        if 'aimgrid' in material or 'aim_background' in material:
+            return ri.Material(albedo=(0.0, 0.0, 0.0), gloss=0.0, f0=0.0)
+        return None
+    return ri.parts(model, roots, offset=offset, flip=flip, skip=skip, materials=flat)
 
 
 def weapon_parts(model_dir):
-    out = []
-    for s in lib.surfaces(model_dir):
-        f = model_dir / 'render' / s / 'converted_model'
-        if f.exists():
-            p, uv, ix = ri.mesh(f.read_bytes())
-            out.append((p, uv, ix, np.full((1, 1, 3), 150.0)))
-    return out
+    """The weapon's meshes, flat grey."""
+    grey = ri.Material(albedo=(0.3, 0.3, 0.3), gloss=0.2, f0=0.05)
+    return ri.parts(model_dir, [], materials=lambda name: grey)
 
 
 def main():
@@ -93,8 +86,9 @@ def main():
             idle = files / 'models/weapons/attach/fit4' / f'{name}.model'
             aimed = files / 'models/weapons/attach/fit4' / f'{name}_aim.model'
             gun = weapon_parts(wdir)
-            outside = ri.orthographic(gun + coloured(idle, roots, sp, True), VIEW, yaw=-90 + 20, pitch=12,
-                                      margin=0.04, background=(70, 80, 95))
+            outside = ri.render(gun + coloured(idle, roots, sp, True), VIEW, -90 + 20, 12,
+                                frame=(VIEW[0] * 0.04, VIEW[1] * 0.04, VIEW[0] * 0.96, VIEW[1] * 0.96),
+                                background=(70, 80, 95))
             optic = coloured(aimed, roots, sp, True, skip=('scope_lense',))
             items = optic + (gun if scope['kind'] == 'C' else [])
             fov = BASE_FOV * scope['fov'] / float(zoom or 1.0)
