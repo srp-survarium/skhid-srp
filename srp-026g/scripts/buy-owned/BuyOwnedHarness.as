@@ -12,11 +12,14 @@ package
    // Every way the lobby buys, with the lobby movie's own root (its try_buy_item, which they all
    // reach: GangShop.buyFunction, MainScene.buyFunction), inventory list, item card and shop
    // (docs/notes/items.md §6). An item owned already, not a stack, is asked about first (the box
-   // "apply", already_in_inventory); anything else opens the buy dialog ("ask") at once:
-   // - the right-click menu's Buy on an owned camouflage's row and on an owned scope's row (the
-   //   list shows the owned row in place of the shop's entry);
-   // - the item card's Buy on the owned scope (the list's double click and Buy button too) and
-   //   on the shop's entry of the owned camouflage;
+   // "apply", already_in_inventory), but for Buy from the right-click menu of an item the player
+   // owns; anything else opens the buy dialog ("ask") at once:
+   // - not asked: the right-click menu's Buy on an owned camouflage's row, on an owned scope's
+   //   row (the inventory tab lists the owned row in place of the shop's entry) and on the kit's
+   //   helmet;
+   // - asked: the item card's Buy on the owned scope (the list's double click too) and on the
+   //   shop's entry of the owned camouflage; the right-click menu's Buy on the shop tab's entry of
+   //   the owned scope;
    // - (not here: the craft and attachment windows' menus' Buy, InventoryList.buyFromCraftMenu. It
    //   makes the card's call with the item's own place, INVENTORY for an owned one, but with no
    //   seller, so try_buy_item asks GangShop.getItemSeller, which reads ItemData.seller: Scaleform
@@ -262,6 +265,25 @@ package
          inventory.showContextMenu(renderer);
       }
 
+      private function Slot(name:String) : int
+      {
+         return domain.getDefinition("survarium.constants.ProfileSlot")[name];
+      }
+
+      // A right click on a kit slot, as Scaleform sends it (LocalPaperDoll opens the list's menu for
+      // the slot's item), as the inventory-menu check gives it.
+      private function kitClick(slotId:int) : void
+      {
+         var slot:* = lobby.player_profile.paperDoll.getSlotAt(slotId);
+         if(slot == null || slot.data == null)
+         {
+            throw new Error("no kit item in slot " + slotId);
+         }
+         var e:* = new (C("scaleform.gfx.MouseEventEx"))("click");
+         e.buttonIdx = 1;
+         slot.dispatchEvent(e);
+      }
+
       // Buy in the open right-click menu.
       private function chooseBuy() : void
       {
@@ -318,12 +340,17 @@ package
                   inventory.setupInventoryData([owned(OWNED_CAMO,CAMO),owned(OWNED_HELMET,HELMET),owned(OWNED_SCOPE,SCOPE)]);
                   break;
                case 1:
-                  expect("the menu's Buy, the owned camouflage's row","apply",function():void
+                  // the kit: the owned helmet on its head
+                  lobby.player_profile.paperDoll.setSlotsRestrictions([{slot_id:Slot("HEAD"),category_id:domain.getDefinition("survarium.constants.ItemCategory").HELMETS}]);
+                  lobby.player_profile.fillProfileItems({profileId:1,items:[{itemId:OWNED_HELMET,slotId:Slot("HEAD"),condition_or_stack:10000}]});
+                  break;
+               case 2:
+                  expect("the menu's Buy, the owned camouflage's row","ask",function():void
                   {
                      rightClick(ownedRow(OWNED_CAMO));
                      chooseBuy();
                   });
-                  expect("the menu's Buy, the owned scope's row","apply",function():void
+                  expect("the menu's Buy, the owned scope's row","ask",function():void
                   {
                      rightClick(ownedRow(OWNED_SCOPE));
                      chooseBuy();
@@ -339,16 +366,28 @@ package
                   expect("a shop helmet dropped on the head slot, a helmet owned","apply",function():void
                   {
                      var entry:* = shopEntry(HELMET);
-                     domain.getDefinition("MainScene").buyFunction(1,entry.itemId,HELMET,entry.descriptor,domain.getDefinition("survarium.constants.ProfileSlot").HEAD,entry.count,entry.cost,entry.factionId);
+                     domain.getDefinition("MainScene").buyFunction(1,entry.itemId,HELMET,entry.descriptor,Slot("HEAD"),entry.count,entry.cost,entry.factionId);
                   });
-                  // the shop tab: the shop's entries of what is not owned, and the bundle
+                  // last: the kit's menu shows its item's group of the list
+                  expect("the menu's Buy, the kit's helmet","ask",function():void
+                  {
+                     kitClick(Slot("HEAD"));
+                     chooseBuy();
+                  });
+                  // the shop tab, every group: the shop's entries (the owned items' too), the bundle
                   inventory.toggleShopMode(true);
+                  inventory.inventoryTabPage.selectedIndex = 0;
                   break;
-               case 2:
+               case 3:
                   trace("BUYOWNED the shop tab's rows: " + rows().map(function(r:*, i:int, a:Array):String
                   {
                      return r.data.name + "@" + r.data.descriptor;
                   }).join(", "));
+                  expect("the menu's Buy, the shop's entry of the owned scope","apply",function():void
+                  {
+                     rightClick(shopRow(SCOPE));
+                     chooseBuy();
+                  });
                   expect("the menu's Buy, a camouflage not owned","ask",function():void
                   {
                      rightClick(shopRow(OTHER_CAMO));

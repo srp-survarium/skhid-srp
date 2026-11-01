@@ -167,12 +167,27 @@ package survarium.controls
       {
       }
       
+      // The card's Buy (its button, the list's double click): an item owned already is asked about
+      // first (LobbyMenu.try_buy_item).
       public function onBtnClick1() : void
+      {
+         this.buy(false);
+      }
+
+      // Buy chosen from the right-click menu of an item the player owns (an inventory row, a kit
+      // slot): the player's own wish for another, so no "already purchased" question (the owner,
+      // 2026-11-01; docs/notes/items.md §6).
+      public function buyFromOwnMenu() : void
+      {
+         this.buy(true);
+      }
+
+      private function buy(ownItemMenu:Boolean) : void
       {
          var item:Object;
          var profile:IPlayerProfile;
          var price:int;
-         trace("IemCard::onBtnClick1",this._data);
+         trace("IemCard::buy",this._data,ownItemMenu);
          if(this._data)
          {
             item = this._data;
@@ -180,7 +195,7 @@ package survarium.controls
             price = item.category == ItemCategory.BUNDLE ? (item.cost) : (GangShop.getInstance().getItemPrice(item.dictId));
             // No seller: the exe fills in the first price record's (lobby_requests.md, 47 00). It
             // read item.seller, which ItemData does not have: Scaleform gave undefined, so 0.
-            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,Faction.NONE,!item.isStack ? this.onItemBuyAccept : null);
+            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,Faction.NONE,!item.isStack ? this.onItemBuyAccept : null,ownItemMenu);
          }
       }
       

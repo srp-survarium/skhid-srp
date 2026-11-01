@@ -275,27 +275,25 @@ camouflage.
 
 **Buying an item owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I don't
 get warning that it was already bought"; "it shouldn't just be camo, it should also be scopes and
-other things", "some already have warning, some don't"):
+other things"; "in shop it shouldn't, it should only skip from rmb on item in your inventory, since
+there it is a voluntary action"):
 
 - Every buy in the lobby goes through `LobbyMenu.try_buy_item` (`GangShop.buyFunction`,
   `MainScene.buyFunction`). An item owned already that is no stack is asked about there first,
   with the stock box "This item is already purchased by you. Would you like to buy anyway?"
-  (`st_already_in_inventory`): OK opens the buy dialog, Cancel buys nothing. A bundle is never
-  asked about (its id is no item's). Stacks (ammo, medkits) add to theirs and are not asked about.
-- The buys, by what calls `try_buy_item`:
-  - the item card's Buy (`ItemCard.onBtnClick1`): its button, the list's double click and the
-    right-click menu's Buy (rows and kit slots);
-  - the craft and attachment windows' menus' Buy (`InventoryList.buyFromCraftMenu`);
-  - a shop item dropped on the character (`ItemPaperDollSlot`);
-  - Buy maps on the results screen (`LobbyMenu.onBuyMaps`).
+  (`st_already_in_inventory`): OK opens the buy dialog, Cancel buys nothing.
+- Not asked: Buy chosen from the right-click menu of an item the player owns, an inventory row or
+  a kit slot (`ItemCard.buyFromOwnMenu`, `try_buy_item`'s `ownItemMenu`): the player's own wish
+  for another, a stock copy of a modified item too (`buy-modified.md`).
+- Asked: everything else. The shop tab (card Buy, double click, right-click Buy on an entry,
+  a drop on the character), the card's Buy or a double click on an owned row, and the craft and
+  attachment windows' Buy (`InventoryList.buyFromCraftMenu`).
+- Never asked: a bundle (its id is no item's) and a stack (ammo, medkits add to theirs).
 - What lacked the box until 2026-11-01:
-  - a buy from an owned item's row (the item's place is INVENTORY, not SHOP): the inventory tab's
-    rows, a kit slot's menu and the craft and attachment windows. The stock movie asked there;
-    revision 25 stopped it (the owner, 2026-10-20, `buy-modified.md`), and 2026-11-01 brings it
-    back;
   - a camouflage, from anywhere: the stock movie left camouflages out (LIKELY: a copy was worn by
-    one item then).
-- The shop tab's entries of other kinds (a helmet, a scope, a decal) had the box already.
+    one item then);
+  - the card's Buy, a double click and the windows' Buy on an owned row: revision 25 asked only for
+    a buy from a shop entry (`sourceSlot == SHOP`).
 - `ItemCard.acceptAction`, a second buy with its own check that nothing called, is gone.
 - A second camouflage or decal is of no use: one copy is worn on any number of items (above).
   Weapons take the same category 25 items (`weapon-camo.md`).

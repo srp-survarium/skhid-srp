@@ -1990,7 +1990,15 @@ package survarium.controls
          {
             this.setPrimaryItem(item);
          }
-         this._item_control.onBtnClick1();
+         // an owned item's own menu: no "already purchased" question; a shop entry's: the card's Buy
+         if(item.descriptor <= ItemPlace.INVENTORY)
+         {
+            this._item_control.buyFromOwnMenu();
+         }
+         else
+         {
+            this._item_control.onBtnClick1();
+         }
       }
 
       // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
