@@ -414,15 +414,14 @@ def command(target):
 
 
 def record(drop=None, borrow=None):
-    """weapon_pickup::Record::encode: drop ('open', kit, slot, died) / 'taken'; borrow (donor, kit, slot, own)."""
+    """weapon_pickup::Record::encode: drop ('open', kit, slot) / 'taken'; borrow (donor, kit, slot, own)."""
     out = bytearray(12)
     out[0] = 1
     if drop == "taken":
         out[1] = 2
     elif drop:
-        _, kit, slot, died = drop
+        _, kit, slot = drop
         out[1], out[2], out[3] = 1, kit, slot
-        out[4:8] = struct.pack("<I", died)
     if borrow:
         donor, kit, slot, own = borrow
         out[8:12] = bytes([1, donor, kit | slot << 4, own])
@@ -687,9 +686,9 @@ def stage2(patched, original):
 
     r = Pick(patched)
     r.setup()
-    assert r.save(PLAYER) == record(("open", KIT, 1, DIED)), r.written.hex()
+    assert r.save(PLAYER) == record(("open", KIT, 1)), r.written.hex()
     assert r.save(r.picker) == record()
-    print("ok the donor's death opens its drop (kit 1, slot 10, its time) in its record; the picker's is empty; "
+    print("ok the donor's death opens its drop (kit 1, slot 10) in its record; the picker's is empty; "
           "each written by the native byte writer at base_player::serialize's start")
 
     # The carry rules: any gun for the held one, as the skill modifiers allow.
@@ -1035,6 +1034,13 @@ def stage2b(patched):
     assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], "60 s after the death, the body still there"
     g.remove(PLAYER, DIED + 61_000)
     assert g.hud() == [("",)] and g.hud() == [] and g.build(USE) == USE, "its body out of the world"
+    g = Prompt(patched)
+    g.setup()
+    g.word(PLAYER + 0x324, DIED + 50)
+    g.death()
+    assert g.queries == [], "the same life's death again: no second cook"
+    assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], sights(g)
+    print("ok a rollback replays the death at another time: its gun (cooked at the first) is still offered")
     g = Prompt(patched)
     g.setup()
     g.eye([0., -1., 0.], [0.09, 2.0, 1.2])

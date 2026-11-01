@@ -414,9 +414,8 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
     log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
           Text(" at "), Dec(player.time()), Text(" ms")]);
     let held = if holder_traced(Trace::Always, thread, player.id()).is_some() { None } else { gun_cook::held_gun(player) };
-    let died = Ms(player.time());
     let drop = match (held, player.kit()) {
-        (Some(slot), Some(kit)) => DropState::Open { kit, slot, died },
+        (Some(slot), Some(kit)) => DropState::Open { kit, slot },
         _ => DropState::None,
     };
     if let Some((world, place)) = located(player) {
@@ -432,7 +431,7 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
         cache.iter().flatten().any(|e| e.source.place == place && matches!(e.origin, Origin::Death { spawned: s, .. } if s == spawned))
     });
     if !known {
-        ask(player, thread, Source { place, kit, slot }, Origin::Death { spawned, died, gone: None });
+        ask(player, thread, Source { place, kit, slot }, Origin::Death { spawned, died: Ms(player.time()), gone: None });
     }
     log(&[Text("death hook: place "), Dec(u32::from(place.get())), Text(" done")]);
 }
@@ -469,11 +468,11 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<Taken, Wh
     // The rule without the gun first (a pistol refuses least): no cook is
     // waited for a refusal.
     weapon_pickup::decide(picker, target, theirs.drop, |_, _| Handedness::One).map_err(Why::Rule)?;
-    let DropState::Open { kit, slot, died } = theirs.drop else { return Err(Why::Rule(weapon_pickup::Refusal::NotAvailable)) };
+    let DropState::Open { kit, slot } = theirs.drop else { return Err(Why::Rule(weapon_pickup::Refusal::NotAvailable)) };
     let own = picker.held.ok_or(Why::Rule(weapon_pickup::Refusal::NoGunInHands))?;
     let source = Source { place: target, kit, slot };
     let donor = peer(player, target);
-    let cook = match death_cook(thread, source, died) {
+    let cook = match kept_cook(thread, source) {
         Some(id) => wait_for(thread, id, source).map_err(Why::Gun)?,
         // A death this client did not see (it joined after): cooked now.
         None => need_cook(thread, donor.as_ref().ok_or(Why::NoDonor)?, kit, slot).map_err(Why::Gun)?,
@@ -535,13 +534,12 @@ fn ask(player: &Player<'_>, thread: &Thread, source: Source, origin: Origin) -> 
     kept.then_some(id)
 }
 
-/// The cook of `source`'s death at `died`, if this client saw it and nobody holds it.
-fn death_cook(thread: &Thread, source: Source, died: Ms) -> Option<CookId> {
-    traced(Trace::Budget, "CACHE", "death_cook", &CACHE, thread, |cache| {
-        cache.iter().flatten()
-            .find(|e| e.source == source && e.using == Use::Kept
-                  && matches!(e.origin, Origin::Death { died: d, .. } if d == died))
-            .map(|e| e.gun.id())
+/// A cook of `source`'s gun nobody holds, if this client has one: the same
+/// gun whichever of its deaths it was cooked at (a rollback replays a death
+/// at another time).
+fn kept_cook(thread: &Thread, source: Source) -> Option<CookId> {
+    traced(Trace::Budget, "CACHE", "kept_cook", &CACHE, thread, |cache| {
+        cache.iter().flatten().find(|e| e.source == source && e.using == Use::Kept).map(|e| e.gun.id())
     })
 }
 
@@ -567,10 +565,7 @@ pub fn instance(thread: &Thread, place: Place, died: Ms) -> Instance {
 fn need_cook(thread: &Thread, donor: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<CookId, Refused> {
     let place = Place::new(donor.place()).ok_or(Refused::Missing)?;
     let source = Source { place, kit, slot };
-    let known = traced(Trace::Always, "CACHE", "need_cook", &CACHE, thread, |cache| {
-        cache.iter().flatten().find(|e| e.source == source && e.using == Use::Kept).map(|e| e.gun.id())
-    });
-    let id = match known {
+    let id = match kept_cook(thread, source) {
         Some(id) => id,
         None => ask(donor, thread, source, Origin::Loaded).ok_or(Refused::NotAsked(Refusal::NoTicket))?,
     };
@@ -1019,12 +1014,12 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target:
         return Err(Sight::NotItsBody);
     }
     // Open until the body leaves the world (the record ends it there).
-    let (kit, slot, died) = match theirs.drop {
-        DropState::Open { kit, slot, died } => (kit, slot, died),
+    let (kit, slot) = match theirs.drop {
+        DropState::Open { kit, slot } => (kit, slot),
         DropState::Taken => return Err(Sight::Taken),
         DropState::None => return Err(Sight::NoDrop),
     };
-    let cook = death_cook(thread, Source { place: target, kit, slot }, died).ok_or(Sight::CookNotReady)?;
+    let cook = kept_cook(thread, Source { place: target, kit, slot }).ok_or(Sight::CookNotReady)?;
     if !matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }) {
         return Err(Sight::CookNotReady);
     }

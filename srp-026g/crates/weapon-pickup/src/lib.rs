@@ -162,8 +162,8 @@ pub fn sane(actions: u32, sender: Place, places: u8) -> bool {
 pub enum Drop {
     /// No drop: not dead holding a gun of its two, or its body gone.
     None,
-    /// Died holding `slot`'s gun of `kit` at `died` (the death's key).
-    Open { kit: Kit, slot: WeaponSlot, died: Ms },
+    /// Died holding `slot`'s gun of `kit`.
+    Open { kit: Kit, slot: WeaponSlot },
     /// That gun was taken (once only).
     Taken,
 }
@@ -173,7 +173,7 @@ impl Drop {
     /// its own gun).
     pub fn available(self) -> Option<(Kit, WeaponSlot)> {
         match self {
-            Drop::Open { kit, slot, .. } => Some((kit, slot)),
+            Drop::Open { kit, slot } => Some((kit, slot)),
             _ => None,
         }
     }
@@ -207,11 +207,10 @@ impl Record {
         out[0] = Self::VERSION;
         match self.drop {
             Drop::None => {}
-            Drop::Open { kit, slot, died } => {
+            Drop::Open { kit, slot } => {
                 out[1] = 1;
                 out[2] = kit.0;
                 out[3] = slot.bit();
-                out[4..8].copy_from_slice(&died.0.to_le_bytes());
             }
             Drop::Taken => out[1] = 2,
         }
@@ -233,11 +232,7 @@ impl Record {
         let bit = |b: u8| (b <= 1).then(|| WeaponSlot::from_bit(b));
         let drop = match bytes[1] {
             0 if bytes[2..8] == [0; 6] => Drop::None,
-            1 => Drop::Open {
-                kit: Kit::new(bytes[2])?,
-                slot: bit(bytes[3])?,
-                died: Ms(u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]])),
-            },
+            1 if bytes[4..8] == [0; 4] => Drop::Open { kit: Kit::new(bytes[2])?, slot: bit(bytes[3])? },
             2 if bytes[2..8] == [0; 6] => Drop::Taken,
             _ => return None,
         };
@@ -492,7 +487,7 @@ mod tests {
 
     #[test]
     fn a_drop_is_open_until_it_ends() {
-        let drop = Drop::Open { kit: Kit::new(1).unwrap(), slot: WeaponSlot::Second, died: Ms(u32::MAX - 1000) };
+        let drop = Drop::Open { kit: Kit::new(1).unwrap(), slot: WeaponSlot::Second };
         assert_eq!(drop.available(), Some((Kit::new(1).unwrap(), WeaponSlot::Second)));
         assert_eq!(Drop::Taken.available(), None);
         assert_eq!(Drop::None.available(), None);
@@ -506,8 +501,7 @@ mod tests {
         let cases = [
             Record::EMPTY,
             Record { drop: Drop::Taken, borrow: Some(borrow) },
-            Record { drop: Drop::Open { kit: Kit::new(0).unwrap(), slot: WeaponSlot::First, died: Ms(123_456) },
-                     borrow: None },
+            Record { drop: Drop::Open { kit: Kit::new(0).unwrap(), slot: WeaponSlot::First }, borrow: None },
         ];
         for record in cases {
             assert_eq!(Record::decode(record.encode()), Some(record));
@@ -518,6 +512,9 @@ mod tests {
             bad[at] = value;
             assert_eq!(Record::decode(bad), None, "byte {at} = {value}");
         }
+        let mut padded = cases[2].encode();
+        padded[5] = 1;
+        assert_eq!(Record::decode(padded), None, "an open drop's padding");
     }
 
     #[test]
@@ -527,7 +524,7 @@ mod tests {
                               rule: CarryRule::OneDoubleHanded, borrow: None };
         let donor = Place::new(4).unwrap();
         let kit = Kit::new(2).unwrap();
-        let drop = Drop::Open { kit, slot: WeaponSlot::First, died: Ms(1_000) };
+        let drop = Drop::Open { kit, slot: WeaponSlot::First };
         let rifle = |_, _| Handedness::Two;
         let take = decide(picker, donor, drop, rifle).unwrap();
         assert_eq!(take.borrow, Borrow { donor, kit, slot: WeaponSlot::First, own: WeaponSlot::Second });
@@ -545,7 +542,7 @@ mod tests {
         let picker = Picker { place: Place::new(1).unwrap(), alive: true, held: Some(WeaponSlot::Second),
                               other: Some(Handedness::One), rule: CarryRule::OneDoubleHanded, borrow: None };
         let (donor, kit) = (Place::new(4).unwrap(), Kit::new(0).unwrap());
-        let drop = Drop::Open { kit, slot: WeaponSlot::First, died: Ms(1_000) };
+        let drop = Drop::Open { kit, slot: WeaponSlot::First };
         let (rifle, pistol) = (|_, _| Handedness::Two, |_, _| Handedness::One);
         // Any gun for any gun: a rifle for the held pistol beside a pistol.
         assert_eq!(decide(picker, donor, drop, rifle).unwrap().borrow.own, WeaponSlot::Second);

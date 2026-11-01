@@ -45,8 +45,8 @@
   refused while the other slot holds one. Handedness is the item's
   `double_handed` (weapon+5E9h). My picks: a player holds at most one
   borrowed gun; nothing in hands but a gun of its two: no pickup.
-- Synced: only each player's record (its drop: open with its kit, slot and
-  death time, or taken; and the gun it borrows), 12 bytes at the start of its
+- Synced: only each player's record (its drop: open with its kit and slot,
+  or taken; and the gun it borrows), 12 bytes at the start of its
   state. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
@@ -103,8 +103,8 @@ cooked gun).
   native byte writer (0x1F3DE0), `pickup.load` 0x2DB4CF reads it (the
   reader's begin/cursor/size); a record that does not decode (bad bytes, a
   short state) is logged and read as empty. Kept by place of the match
-  (its world core): the death sets the place's drop (open with kit, slot
-  and the tick's +324h when it held one of its own two guns; none when it
+  (its world core): the death sets the place's drop (open with kit and
+  slot when it held one of its own two guns; none when it
   held a borrowed gun, which vanishes, or anything else), a pickup the
   picker's borrow and the donor's drop taken, base_player::remove(1) the
   whole record empty (the drop ends with the body, the borrow with the
@@ -116,8 +116,10 @@ cooked gun).
   (`weapon_pickup::decide`: alive, no borrow, its own gun held and pending
   in slot 7 or 10, another place's open drop, the carry rule: the other
   slot's gun's +5E9h and the kit's modifiers 64 and 25 through
-  apply_modifier 0x2D5AE0) first without the gun's handedness; the gun of
-  that death from the cache, or (a death this client did not see) cooked
+  apply_modifier 0x2D5AE0) first without the gun's handedness; the gun from
+  the cache (a cook of that place, kit and slot nobody holds, whatever its
+  death's time: a rollback replays a death at another time), or (a death
+  this client did not see) cooked
   from the donor's profile, waited for if not in; the rule again with the
   cooked gun's +5E9h; then the install:
   - every check before the first write: the own gun a client weapon in its
