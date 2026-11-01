@@ -7,6 +7,11 @@
 //! The memory is kept per shooter area ([`AreaId`]), not per spot id: it survives the spot's clear (a teammate's look
 //! deletes the spot) and its recentre. An area is found from a spot within [`AREA_M`] of its latest centre.
 //!
+//! His death ([`SpotEvent::Succeeded`]) opens his areas, or, with [`ConcedeRules::keep_ms`], keeps their tries for that
+//! long ([`SpotState::Down`]): a camper killed at his spot is back there within 180 s in 69 % of the live PvB runs (median
+//! 41 s after his death) and kills from it again in 53 % (`traces-20261028/fx-threat-obj-same-spot-note.md`). While he is
+//! down anything is offered; the team sensing him back in it, or a failure on it, takes up the tries where they were.
+//!
 //! One state per area ([`SpotState`]), one transition ([`step`]) over the events ([`SpotEvent`]), total. With the switch
 //! off (`ThreatTuning::concede` is `None`) nothing is recorded and every try is offered.
 
@@ -79,6 +84,18 @@ pub enum SpotState {
     Tried { fails: u8, last: Try },
     /// Conceded until `until`; the try that conceded it.
     Conceded { until: u32, last: Try },
+    /// Its shooter died ([`ConcedeRules::keep_ms`]): anything is offered while he is down, and until `until` the tries are
+    /// kept, `fails` as counted (a conceded area's: the rules' `fails`), to take up when he is back ([`SpotEvent::Returned`])
+    /// or a try fails on it again. Open after `until`.
+    Down { fails: u8, last: Try, until: u32 },
+}
+
+/// `state` at `now`: a concede that is over, or tries kept past their time, read open.
+fn settled(state: SpotState, now: u32) -> SpotState {
+    match state {
+        SpotState::Conceded { until, .. } | SpotState::Down { until, .. } if now >= until => SpotState::Open,
+        s => s,
+    }
 }
 
 /// What happened on an area.
@@ -89,8 +106,10 @@ pub enum SpotEvent {
     /// A death to him before his spot was a hold (how the team found him, not a try on him): it counts toward no concede,
     /// but it is the last try, so the next must differ from it (`camper-decision-map.md` §2).
     Found { from: Vec3 },
-    /// Its shooter was killed: the area is open again.
+    /// Its shooter was killed: the area is open again, or [`SpotState::Down`] with [`ConcedeRules::keep_ms`].
     Succeeded,
+    /// Its shooter, down, was sensed back in it: the tries kept are taken up (conceded again from now if they had conceded it).
+    Returned,
 }
 
 /// The rules, parsed once from `ThreatTuning::concede`.
@@ -104,6 +123,8 @@ pub struct ConcedeRules {
     pub retry_deg: f32,
     /// A retry this long after the last try differs, ms.
     pub retry_ms: u32,
+    /// His death keeps his areas' tries this long, ms ([`SpotState::Down`]); none: it opens them.
+    pub keep_ms: Option<u32>,
 }
 
 /// What the plays read of the team's memory of tries (`threat::Picture::concede`, `camper-decision-map.md`): the held
@@ -153,6 +174,11 @@ pub enum Change {
     ConcededAgain,
     /// Opened by a success.
     Opened,
+    /// Its tries kept by its shooter's death ([`SpotState::Down`]).
+    Downed,
+    /// Its shooter sensed back in it: conceded again, or tried again.
+    BackConceded,
+    BackTried,
 }
 
 /// What the no-feeding rules did, counted by team for the bench's tally (`tests/tallies/owner/threat_answer.rs`, its
@@ -168,10 +194,14 @@ pub enum Tally {
     /// A retry that failed (a failure on an area already tried), by the kind of the failed try.
     RetryPeek,
     RetryJob,
-    /// An area conceded; conceded again while conceded; opened by its shooter's death.
+    /// An area conceded; conceded again while conceded; opened by its shooter's death; its tries kept by his death; he was
+    /// sensed back in it, and it was conceded again or tried again.
     Conceded,
     ConcededAgain,
     Opened,
+    Downed,
+    BackConceded,
+    BackTried,
     /// A held spot given no job (spot-ticks): its area conceded; tried, and a new job would be like the last try.
     JobRefusedConceded,
     JobRefusedLike,
@@ -193,7 +223,7 @@ pub enum Tally {
 }
 
 /// The [`Tally`]s, in order, and their names in the tally.
-pub const TALLIES: [(Tally, &str); 19] = [
+pub const TALLIES: [(Tally, &str); 22] = [
     (Tally::DeathBeforeHold, "deaths_before_hold"),
     (Tally::DeathPeek, "deaths_peek"),
     (Tally::DeathJob, "deaths_job"),
@@ -202,6 +232,9 @@ pub const TALLIES: [(Tally, &str); 19] = [
     (Tally::Conceded, "conceded"),
     (Tally::ConcededAgain, "conceded_again"),
     (Tally::Opened, "opened_by_his_death"),
+    (Tally::Downed, "kept_by_his_death"),
+    (Tally::BackConceded, "conceded_on_his_return"),
+    (Tally::BackTried, "tried_on_his_return"),
     (Tally::JobRefusedConceded, "job_refused_conceded"),
     (Tally::JobRefusedLike, "job_refused_like_last"),
     (Tally::PlayRefused, "play_refused"),
@@ -285,21 +318,38 @@ pub fn differs(last: &Try, next: &Try, rules: &ConcedeRules) -> bool {
 }
 
 /// The one transition: an area's state after `event` at `now` (its centre `at`, for a failure's bearing). A conceded
-/// area whose time is over is open before the event is applied.
+/// area whose time is over, or tries kept past theirs, are open before the event is applied ([`settled`]).
 pub fn step(state: SpotState, at: Vec3, event: SpotEvent, now: u32, rules: &ConcedeRules) -> SpotState {
-    let state = match state {
-        SpotState::Conceded { until, .. } if now >= until => SpotState::Open,
-        s => s,
-    };
+    let state = settled(state, now);
     let (kind, from, add) = match event {
-        SpotEvent::Succeeded => return SpotState::Open,
+        SpotEvent::Succeeded => {
+            let Some(keep) = rules.keep_ms else {
+                return SpotState::Open;
+            };
+            let until = now.saturating_add(keep);
+            return match state {
+                SpotState::Open => SpotState::Open,
+                SpotState::Tried { fails, last } | SpotState::Down { fails, last, .. } => SpotState::Down { fails, last, until },
+                SpotState::Conceded { last, .. } => SpotState::Down { fails: rules.fails, last, until },
+            };
+        }
+        SpotEvent::Returned => {
+            return match state {
+                SpotState::Down { fails, last, .. } if fails >= rules.fails => {
+                    SpotState::Conceded { until: now.saturating_add(rules.concede_ms), last }
+                }
+                SpotState::Down { fails, last, .. } => SpotState::Tried { fails, last },
+                s => s,
+            };
+        }
         SpotEvent::Found { from } => (TryKind::Peek, from, 0),
         SpotEvent::Failed { kind, from, why } => (kind, from, u8::from(why.counts())),
     };
     let last = Try { kind, bearing: bearing(at, from), at: now };
     let fails = match state {
         SpotState::Open => add,
-        SpotState::Tried { fails, .. } => fails.saturating_add(add),
+        // A failure while he was down takes his kept tries up: a death on his return counts on them.
+        SpotState::Tried { fails, .. } | SpotState::Down { fails, .. } => fails.saturating_add(add),
         // A failure while conceded (a lone bot's own try): a death concedes it again from now; else it stays as it was, with
         // this try the last.
         SpotState::Conceded { until, .. } if add == 0 => return SpotState::Conceded { until, last },
@@ -316,8 +366,8 @@ pub fn step(state: SpotState, at: Vec3, event: SpotEvent, now: u32, rules: &Conc
 /// `ThreatSpots::died`), his spot a hold already (`camper-decision-map.md` §2: the deaths that make the hold are how the
 /// team finds him, `facts.rs` counts them apart): a failed try on his area, the one record of a death. A bot that held a
 /// role of a job on his spot failed that job ([`Failed::HolderDown`]); any other failed what it was doing, `play` (the
-/// answer play on him, else a lone peek: [`Failed::Untraded`], his death opens the area again, so a death traded before
-/// he kills again is undone).
+/// answer play on him, else a lone peek: [`Failed::Untraded`]; without [`ConcedeRules::keep_ms`] his death opens the area
+/// again, so a death traded before he kills again is undone).
 #[allow(clippy::too_many_arguments)]
 pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shooter: Place, at: Vec3, play: TryKind, now: u32, rules: &ConcedeRules) {
     let role = threat.jobs.iter().filter(|j| j.shooter == shooter).find_map(|j| j.role_of(victim));
@@ -368,10 +418,24 @@ pub fn like_last(picture: &Picture, to: Vec3, feet: Vec3, kind: TryKind, now: u3
     })
 }
 
-/// Enemy `shooter` died at `now`: team `team`'s areas of his are open again.
+/// Enemy `shooter` died at `now`: team `team`'s areas of his are open again, or keep their tries ([`SpotState::Down`]).
 pub fn shooter_died(threat: &mut TeamThreat, team: u8, shooter: Place, now: u32, rules: &ConcedeRules) {
-    for _ in 0..threat.spot_memory.shooter_died(shooter, now, rules) {
-        tally(team, Tally::Opened);
+    for change in threat.spot_memory.shooter_died(shooter, now, rules) {
+        match change {
+            Change::Opened => tally(team, Tally::Opened),
+            Change::Downed => tally(team, Tally::Downed),
+            _ => {}
+        }
+    }
+}
+
+/// Team `team` sensed enemy `shooter` at `at` at `now` (its own senses, as K1's `ThreatSpots::shooter_sensed`): an area of
+/// his that keeps its tries since his death, with `at` in it, takes them up ([`SpotEvent::Returned`]).
+pub fn shooter_sensed(threat: &mut TeamThreat, team: u8, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) {
+    match threat.spot_memory.shooter_sensed(shooter, at, now, rules) {
+        Change::BackConceded => tally(team, Tally::BackConceded),
+        Change::BackTried => tally(team, Tally::BackTried),
+        _ => {}
     }
 }
 
@@ -444,28 +508,43 @@ impl SpotMemory {
         let Some(a) = self.areas.iter_mut().find(|a| a.id == area) else {
             return Change::None;
         };
-        let was = match a.state {
-            SpotState::Conceded { until, .. } if now >= until => SpotState::Open,
-            s => s,
-        };
+        let was = settled(a.state, now);
         a.state = step(a.state, a.at, event, now, rules);
         a.touched = now;
+        let back = event == SpotEvent::Returned;
         match (was, a.state) {
-            (SpotState::Open, SpotState::Open) => Change::None,
+            (SpotState::Open, SpotState::Open) | (SpotState::Down { .. }, SpotState::Down { .. }) => Change::None,
             (_, SpotState::Open) => Change::Opened,
+            (_, SpotState::Down { .. }) => Change::Downed,
+            (SpotState::Down { .. }, SpotState::Conceded { .. }) if back => Change::BackConceded,
+            (SpotState::Down { .. }, SpotState::Tried { .. }) if back => Change::BackTried,
             (SpotState::Conceded { until: before, .. }, SpotState::Conceded { until, .. }) if until != before => Change::ConcededAgain,
             // A try while conceded that cost no life: the last try only.
             (SpotState::Conceded { .. }, _) => Change::None,
             (_, SpotState::Conceded { .. }) => Change::Conceded,
             (SpotState::Open, SpotState::Tried { .. }) => Change::Tried,
-            (SpotState::Tried { .. }, SpotState::Tried { .. }) => Change::Retried,
+            (SpotState::Tried { .. } | SpotState::Down { .. }, SpotState::Tried { .. }) => Change::Retried,
         }
     }
 
-    /// Shooter `shooter` died at `now`: each area of his is open again (a death of his traded or ended the try).
-    pub fn shooter_died(&mut self, shooter: Place, now: u32, rules: &ConcedeRules) -> usize {
+    /// Shooter `shooter` died at `now`: each area of his is open again (a death of his traded or ended the try), or keeps
+    /// its tries ([`ConcedeRules::keep_ms`]); what each changed.
+    pub fn shooter_died(&mut self, shooter: Place, now: u32, rules: &ConcedeRules) -> Vec<Change> {
         let ids: Vec<AreaId> = self.areas.iter().filter(|a| a.shooter == Some(shooter)).map(|a| a.id).collect();
-        ids.into_iter().filter(|&id| self.apply(id, SpotEvent::Succeeded, now, rules) == Change::Opened).count()
+        ids.into_iter().map(|id| self.apply(id, SpotEvent::Succeeded, now, rules)).collect()
+    }
+
+    /// Shooter `shooter` was sensed at `at` at `now`: the area of his that keeps its tries since his death and holds `at`
+    /// takes them up ([`SpotEvent::Returned`]); what it changed.
+    pub fn shooter_sensed(&mut self, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) -> Change {
+        let back = self
+            .areas
+            .iter()
+            .filter(|a| a.shooter == Some(shooter) && matches!(settled(a.state, now), SpotState::Down { .. }))
+            .filter(|a| a.at.distance_xz(at) <= AREA_M)
+            .min_by(|a, b| a.at.distance_xz(at).total_cmp(&b.at.distance_xz(at)))
+            .map(|a| a.id);
+        back.map_or(Change::None, |id| self.apply(id, SpotEvent::Returned, now, rules))
     }
 
     /// A job's failure on `area`, its bot (or the try's) approaching from `from`.
@@ -473,13 +552,9 @@ impl SpotMemory {
         self.apply(area, SpotEvent::Failed { kind: TryKind::Job(kind), from, why }, now, rules)
     }
 
-    /// The state of `area` at `now` (a concede that is over reads open).
+    /// The state of `area` at `now` (a concede that is over, or tries kept past their time, read open).
     pub fn state(&self, area: AreaId, now: u32) -> SpotState {
-        match self.get(area).map(|a| a.state) {
-            Some(SpotState::Conceded { until, .. }) if now >= until => SpotState::Open,
-            Some(s) => s,
-            None => SpotState::Open,
-        }
+        self.get(area).map_or(SpotState::Open, |a| settled(a.state, now))
     }
 
     /// Whether `area` is conceded at `now`.
@@ -491,22 +566,24 @@ impl SpotMemory {
     pub fn last_try(&self, area: AreaId) -> Option<(TryKind, f32, u32)> {
         match self.get(area)?.state {
             SpotState::Open => None,
-            SpotState::Tried { last, .. } | SpotState::Conceded { last, .. } => Some((last.kind, last.bearing, last.at)),
+            SpotState::Tried { last, .. } | SpotState::Conceded { last, .. } | SpotState::Down { last, .. } => {
+                Some((last.kind, last.bearing, last.at))
+            }
         }
     }
 
-    /// What may be tried on `area` at `now`.
+    /// What may be tried on `area` at `now` (anything while its shooter is down).
     pub fn offers(&self, area: AreaId, now: u32) -> Offer {
         match self.state(area, now) {
-            SpotState::Open => Offer::Any,
+            SpotState::Open | SpotState::Down { .. } => Offer::Any,
             SpotState::Tried { last, .. } => Offer::NotLike(last),
             SpotState::Conceded { .. } => Offer::None,
         }
     }
 
-    /// The areas open and untouched for [`FORGET_MS`] are forgotten.
+    /// The areas open (or whose kept tries are over) and untouched for [`FORGET_MS`] are forgotten.
     pub fn forget_old(&mut self, now: u32) {
-        self.areas.retain(|a| !(matches!(a.state, SpotState::Open) && now.saturating_sub(a.touched) >= FORGET_MS));
+        self.areas.retain(|a| !(matches!(settled(a.state, now), SpotState::Open) && now.saturating_sub(a.touched) >= FORGET_MS));
     }
 
     /// The bench's: areas conceded at `now`.
@@ -519,7 +596,9 @@ impl SpotMemory {
 mod tests {
     use super::*;
 
-    const RULES: ConcedeRules = ConcedeRules { fails: 2, concede_ms: 100_000, retry_deg: 45.0, retry_ms: 30_000 };
+    const RULES: ConcedeRules = ConcedeRules { fails: 2, concede_ms: 100_000, retry_deg: 45.0, retry_ms: 30_000, keep_ms: None };
+    /// His death keeps the tries for 120 s.
+    const KEEP: ConcedeRules = ConcedeRules { keep_ms: Some(120_000), ..RULES };
     const SPOT: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 
     fn fail(from: Vec3) -> SpotEvent {
@@ -543,8 +622,9 @@ mod tests {
             SpotState::Open,
             step(SpotState::Open, SPOT, fail(Vec3::new(1.0, 0.0, 0.0)), 0, &RULES),
             SpotState::Conceded { until: 50_000, last: Try { kind: TryKind::Peek, bearing: 0.0, at: 0 } },
+            SpotState::Down { fails: 1, last: Try { kind: TryKind::Peek, bearing: 0.0, at: 0 }, until: 50_000 },
         ] {
-            assert_eq!(step(s, SPOT, SpotEvent::Succeeded, 1_000, &RULES), SpotState::Open);
+            assert_eq!(step(s, SPOT, SpotEvent::Succeeded, 1_000, &RULES), SpotState::Open, "without keep_ms");
         }
     }
 
@@ -653,6 +733,49 @@ mod tests {
         // At him: from where the bot stands, in the lane (like) or off it by 90 deg (not).
         assert!(like_last(&picture, Vec3::new(1.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 30.0), TryKind::Peek, 20_000, &RULES));
         assert!(!like_last(&picture, Vec3::new(1.0, 0.0, 1.0), Vec3::new(30.0, 0.0, 0.0), TryKind::Peek, 20_000, &RULES));
+    }
+
+    #[test]
+    fn his_death_keeps_the_tries_and_his_return_takes_them_up() {
+        let last = Try { kind: TryKind::Peek, bearing: 0.0, at: 0 };
+        let conceded = SpotState::Conceded { until: 50_000, last };
+        // Down: anything offered; a concede kept at the rules' fails, a tried area at its own.
+        let down = step(conceded, SPOT, SpotEvent::Succeeded, 10_000, &KEEP);
+        assert_eq!(down, SpotState::Down { fails: 2, last, until: 130_000 });
+        assert_eq!(step(SpotState::Tried { fails: 1, last }, SPOT, SpotEvent::Succeeded, 10_000, &KEEP), SpotState::Down { fails: 1, last, until: 130_000 });
+        assert_eq!(step(SpotState::Open, SPOT, SpotEvent::Succeeded, 10_000, &KEEP), SpotState::Open);
+        // Sensed back in it 40 s later: conceded again from then.
+        assert_eq!(step(down, SPOT, SpotEvent::Returned, 50_000, &KEEP), SpotState::Conceded { until: 150_000, last });
+        // Or a death before his spot is held again: conceded again, that death the last try.
+        assert!(matches!(step(down, SPOT, SpotEvent::Found { from: Vec3::new(0.0, 0.0, 20.0) }, 50_000, &KEEP), SpotState::Conceded { until: 150_000, .. }));
+        // A tried area: taken up as it was, the next counted death concedes.
+        let once = SpotState::Down { fails: 1, last, until: 130_000 };
+        assert_eq!(step(once, SPOT, SpotEvent::Returned, 50_000, &KEEP), SpotState::Tried { fails: 1, last });
+        assert!(matches!(step(once, SPOT, fail(Vec3::new(10.0, 0.0, 0.0)), 50_000, &KEEP), SpotState::Conceded { .. }));
+        // Kept no longer than 120 s; a return of nobody's area changes nothing.
+        assert_eq!(step(down, SPOT, SpotEvent::Returned, 130_000, &KEEP), SpotState::Open);
+        assert!(matches!(step(down, SPOT, fail(Vec3::new(10.0, 0.0, 0.0)), 130_000, &KEEP), SpotState::Tried { fails: 1, .. }));
+        assert_eq!(step(SpotState::Tried { fails: 1, last }, SPOT, SpotEvent::Returned, 1_000, &KEEP), SpotState::Tried { fails: 1, last });
+    }
+
+    #[test]
+    fn a_shooter_sensed_back_in_his_kept_area_concedes_it_again() {
+        let mut threat = TeamThreat::default();
+        died(&mut threat, 1, 3, Vec3::new(20.0, 0.0, 0.0), 7, SPOT, TryKind::Peek, 1_000, &KEEP);
+        died(&mut threat, 1, 4, Vec3::new(0.0, 0.0, 20.0), 7, SPOT, TryKind::Peek, 5_000, &KEEP);
+        let area = threat.spot_memory.area_at(SPOT).expect("kept");
+        shooter_died(&mut threat, 1, 7, 7_000, &KEEP);
+        assert_eq!(threat.spot_memory.offers(area, 7_000), Offer::Any, "he is down");
+        let m = &mut threat.spot_memory;
+        assert_eq!(m.shooter_sensed(8, SPOT, 40_000, &KEEP), Change::None, "another enemy there");
+        assert_eq!(m.shooter_sensed(7, Vec3::new(30.0, 0.0, 0.0), 40_000, &KEEP), Change::None, "he is elsewhere");
+        assert_eq!(m.shooter_sensed(7, Vec3::new(3.0, 0.0, 0.0), 48_000, &KEEP), Change::BackConceded);
+        assert_eq!(m.offers(area, 48_000), Offer::None);
+        assert_eq!(m.shooter_sensed(7, SPOT, 49_000, &KEEP), Change::None, "taken up once");
+        // His next death keeps them again; nobody sees him for 120 s: open.
+        assert_eq!(m.shooter_died(7, 60_000, &KEEP), vec![Change::Downed]);
+        assert_eq!(m.state(area, 180_000), SpotState::Open);
+        assert_eq!(m.shooter_sensed(7, SPOT, 180_000, &KEEP), Change::None);
     }
 
     #[test]
