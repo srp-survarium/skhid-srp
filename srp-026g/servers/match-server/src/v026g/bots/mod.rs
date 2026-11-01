@@ -306,9 +306,12 @@ pub struct Bot {
     pub(crate) bench_apart: u8,
     /// The line the bot walks (`spacing.lane`, A175): the route's own, or one beside it.
     pub(crate) lane: apart::Lane,
-    /// What the lane did to the steering point in the last walk tick: [`apart::LaneUse`] as a number.
+    /// What the lane did to the steering point in the last walk tick.
     #[cfg(test)]
-    pub(crate) bench_lane: u8,
+    pub(crate) bench_lane: apart::LaneUse,
+    /// What the queue (`spacing.queue`, A212) did on the last drive tick.
+    #[cfg(test)]
+    pub(crate) bench_queue: apart::QueueUse,
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
@@ -505,7 +508,9 @@ impl Bot {
             bench_apart: 0,
             lane: apart::Lane::Centre,
             #[cfg(test)]
-            bench_lane: 0,
+            bench_lane: apart::LaneUse::Idle,
+            #[cfg(test)]
+            bench_queue: apart::QueueUse::Idle,
             #[cfg(test)]
             bench_guard: 0,
             #[cfg(test)]
