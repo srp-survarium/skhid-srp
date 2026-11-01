@@ -1522,10 +1522,17 @@ impl Motor {
             self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
         };
         // The legs that may run, with `sprint_turns` on: by the turn ahead, not the straight way's length. At an edge the
-        // old rule decides: a long straight to start, let go before a corner.
+        // old rule decides: a long straight to start, let go before a corner. So it does within `sprint_from_m` of a jump: the
+        // jump's line-up and run-up are walked into as before (a sprint jump's press is timed on the run-up's speed; reached at
+        // a sprint, it came a tick early and failed at every try).
+        let near_jump = route.next_jump(s).is_some_and(|(_, to)| to < self.feel.sprint_from_m);
         let turns = match (self.sprint_turns_for(pose.gait), pose.floor) {
             (Some(_), Floor::Edge) => {
                 sprint_turns::at_edge(self.sprinting);
+                None
+            }
+            (Some(_), Floor::Open) if near_jump => {
+                sprint_turns::near_jump(self.sprinting);
                 None
             }
             (turns, _) => turns,
@@ -2817,7 +2824,7 @@ pub mod sprint_turns {
 
     use super::Feel;
 
-    static COUNTS: [AtomicU64; 16] = [const { AtomicU64::new(0) }; 16];
+    static COUNTS: [AtomicU64; 18] = [const { AtomicU64::new(0) }; 18];
 
     /// Why a sprint held under the rule was let go of.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2885,11 +2892,20 @@ pub mod sprint_turns {
         }
     }
 
+    /// A tick of the legs it is for within [`super::Feel::sprint_from_m`] of a jump, left to the old rule, with a sprint on at
+    /// its start or not.
+    pub fn near_jump(sprinting: bool) {
+        add(16);
+        if sprinting {
+            add(17);
+        }
+    }
+
     /// Walking ticks, sprinting, sprinting under the old start, sprinting under the old release; let go of standing, at a
     /// sharp turn, before the end, off the way; no room before a sharp turn, before the end; held by the rule and let go of
     /// the same tick for a low passage, a jump, the bar, a planned drop ([`Overrule`]); ticks at an edge left to the old
-    /// rule, of them with a sprint on.
-    pub fn counts() -> [u64; 16] {
+    /// rule, of them with a sprint on; the same within the old rule's straight of a jump.
+    pub fn counts() -> [u64; 18] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -5398,17 +5414,20 @@ mod tests {
     }
 
     /// Out of a blast (register #30) the sprint is taken on a 6 m route, facing the way, with no 10 m straight stretch and no
-    /// facing time to wait for; the same route at a walk, or a run (`Gait::Run`), is not sprinted before its end.
+    /// facing time to wait for; the same route at a walk is not sprinted before its end, nor a run (`Gait::Run`) under the old
+    /// rule; a run with `feel.sprint_turns` (the default) sprints it.
     #[test]
     fn an_escape_sprints_on_a_short_route_and_a_walk_does_not() {
-        let sprinted = |gait: Gait| {
+        let sprinted = |gait: Gait, feel: Feel| {
             let mut route = route(&[(0.0, 0.0), (6.0, 0.0)]);
-            let (decisions, _) = walk_as(&mut route, Vec3::new(0.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 80, gait);
+            let (decisions, _) = walk_feel(feel, &mut route, Vec3::new(0.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 80, (gait, Floor::Open), &mut Vec::new());
             decisions.iter().filter(|d| d.keys & key::SPRINT != 0).count()
         };
-        assert!(sprinted(Gait::Escape) >= 5, "an escape sprints: {}", sprinted(Gait::Escape));
-        assert_eq!(sprinted(Gait::Walk), 0);
-        assert_eq!(sprinted(Gait::Run), 0, "a run needs the long straight too");
+        let old = Feel { sprint_turns: None, ..Feel::default() };
+        assert!(sprinted(Gait::Escape, old.clone()) >= 5, "an escape sprints: {}", sprinted(Gait::Escape, old.clone()));
+        assert_eq!(sprinted(Gait::Walk, Feel::default()), 0);
+        assert_eq!(sprinted(Gait::Run, old), 0, "a run needs the long straight under the old rule");
+        assert!(sprinted(Gait::Run, Feel::default()) > 0, "with sprint_turns a run sprints the short leg");
     }
 
     /// An escape is the legs running: the sprint into a walking jump is kept as for `Gait::Run`.
@@ -5463,7 +5482,7 @@ mod tests {
             assert!(sprinted_near(&on, Gait::Run, &points, after, 1.0).0 >= 1, "{deg}: through the turn");
             assert_eq!(near(&on, Gait::Walk), 0, "{deg}: a walk");
             assert_eq!(near(&run_only, Gait::Cruise), 0, "{deg}: the switch for the run only");
-            assert_eq!(near(&Feel::default(), Gait::Run), 0, "{deg}: the old rule");
+            assert_eq!(near(&Feel { sprint_turns: None, ..Feel::default() }, Gait::Run), 0, "{deg}: the old rule");
         }
     }
 
