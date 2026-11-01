@@ -2560,6 +2560,31 @@ manifest "movie|m|-" "edit|e1.json|-"
 expect_refused "build-content: a movie's original in no base archive" "neither the stock resources.db nor a base row" "$bc" 42 --out "$T/work/c42k"
 manifest "base|resources.db.patch_40|$sha40" "edit|e1.json|-"
 expect_refused "build-content: a Flash tree without a row" "srp-026g/flash/m has no movie row" "$bc" 42 --out "$T/work/c42l"
+
+# A pack's new version that no longer makes a file its live, earlier version
+# added: left as players have it, listed, not packed; unless that version's
+# folder does not add it so (what made it?) or has no pack.json.
+printf '{"id": "hat", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/hat.txt"}]}\n' >"$T/packs/hat-1/pack.json"
+mkdir -p "$T/packs/hat-2/files/gameplay/items"
+echo "pack scarf" >"$T/packs/hat-2/files/gameplay/items/scarf.txt"
+printf '{"id": "hat", "version": "2", "operations": [{"op": "add_file", "path": "gameplay/items/scarf.txt"}]}\n' >"$T/packs/hat-2/pack.json"
+pbc=(env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc")
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$(sha256sum <"$T/packs/hat-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
+out=$("${pbc[@]}" 42 --out "$T/work/c42p" 2>&1) || fail "build-content with hat@1: $out"
+cp "$T/work/c42p/resources.db.patch_42" "$T/patches/"
+list_row_of "$T/patches/resources.db.patch_42" >>"$T/content-list.tsv"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@2|$(sha256sum <"$T/packs/hat-2/pack.json" | cut -c1-64)" "edit|e1.json|-"
+out=$("${pbc[@]}" 43 --out "$T/work/c43" 2>&1) || fail "build-content with hat@2: $out"
+check "build-content: a file of a pack's live, earlier version: left, said, not packed" bash -c \
+    "grep -q 'left      gameplay/items/hat.txt: pack hat@1; live in resources.db.patch_42' <<<\"\$1\" && grep -q 'NEW       gameplay/items/scarf.txt: pack hat@2' <<<\"\$1\" && grep -q 'the next patch: 1 file(s)' <<<\"\$1\"" _ "$out"
+echo "another hat" >"$T/packs/hat-1/files/gameplay/items/hat.txt"
+expect_refused "build-content: ... not when the earlier version's folder adds other bytes" \
+    "gameplay/items/hat.txt: live from resources.db.patch_42, which is no base row" "${pbc[@]}" 43 --out "$T/work/c43b"
+echo "pack item" >"$T/packs/hat-1/files/gameplay/items/hat.txt"
+mv "$T/packs/hat-1/pack.json" "$T/hat-1.json"
+expect_refused "build-content: ... nor without the earlier version's pack.json" "hat-1, an earlier version, has no pack.json" \
+    "${pbc[@]}" 43 --out "$T/work/c43c"
+mv "$T/hat-1.json" "$T/packs/hat-1/pack.json"
 check "--help is build-content's usage" has "$("$here/build-content" --help)" "usage: release/build-content"
 
 # The value-type check (content_type_check.py), on real binary configs, value
