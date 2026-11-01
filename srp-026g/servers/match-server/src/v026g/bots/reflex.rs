@@ -7118,7 +7118,7 @@ impl Reflex {
                 expected_deg,
                 distance,
                 c.body_half_m,
-                mix((c.settle_k_low, c.settle_k), skill),
+                mix((c.settle_k_low, c.settle_k), skill) * aim.class_factor(skill, class),
                 now.saturating_sub(self.since),
                 c.settle_max_wait_ms,
             );

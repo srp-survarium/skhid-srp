@@ -81,7 +81,14 @@ impl AimTuning {
     /// An aim angle (`range`: at skill 0, at skill 1) at `skill` with a gun of
     /// `class`: the curve's mix times the class's factor.
     pub fn angle(&self, range: (f32, f32), skill: f32, class: WeaponClass) -> f32 {
-        self.skill_curve.mix(range, skill) * self.skill_curve.mix(self.class_aim.of(class), skill)
+        self.skill_curve.mix(range, skill) * self.class_factor(skill, class)
+    }
+
+    /// The class's factor at `skill` ([`ClassAim`], mixed by the curve). It also scales a scoped gun's settle bound
+    /// (`CombatTuning::settle_k`): the shot waits until the error it expects fits that bound, so a factor on the angles
+    /// alone would only lengthen the wait; on both, it is the error at the shot that the factor scales, for every class.
+    pub fn class_factor(&self, skill: f32, class: WeaponClass) -> f32 {
+        self.skill_curve.mix(self.class_aim.of(class), skill)
     }
 }
 
