@@ -5290,6 +5290,96 @@ impl Weapon {
         unsafe { self.0.byte_add(0x5a0).cast::<Option<BulletManager>>().write_volatile(value) }
     }
 
+    /// +0x5a4 (u32): m_last_tick_time_in_ms, -1 at every spawn (patch_026g.py KIT_STATE_TICK_FIELD; serialized 0x2E3130)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn last_tick(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5a4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5a8 (u32): m_ammo_switch_time_in_ms, -1 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ammo_switch_time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5a8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5b2 (u8): m_next_ammo_id, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next_ammo(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5b2).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5bc (u32): the spread's minstd_rand (constructor 0x2DF429 stores 1; client_patch.md 3.18, set at each spawn from place, kit, slot and time)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn random_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5bc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5e6 (u8): m_fire_queue_type, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fire_queue(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5e6).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5e8 (u8): m_aimed, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn aimed(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5e8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5ec (u32): 6 at a spawn into another kit (KIT_STATE_FIELDS; serialized as a byte)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state_5ec(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5ec).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5f5 (u8): m_need_to_auto_reload, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn auto_reload(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5f5).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5fc (f32): the recoil's four floats (+5FCh..+608h, serialized by 0x32FEE0), 0.0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn recoil(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x5fc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x60c (u32): -1 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state_60c(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x60c).cast::<u32>().as_ptr() }
+    }
+
     /// +0x5ac (ptr<survarium::ammo_slot>): its compatible ammunition's inventory slot indices (cook 0x2C7855..0x2C79E5; initialize 2E2A99)
     ///
     /// # Safety

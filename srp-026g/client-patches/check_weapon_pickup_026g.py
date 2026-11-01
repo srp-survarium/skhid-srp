@@ -390,6 +390,7 @@ def main():
     late_join(patched)
     late_join_after_player_made(patched)
     parked_from_the_record(patched)
+    a_new_life(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1144,6 +1145,38 @@ def parked_from_the_record(patched):
     print("ok the parked block is the record's: a late joiner installs the pick over its own full kit and saves "
           "the 48 bytes it loaded (magazine 9, slot 8 x 40), its hidden own kit set from them; a rollback's load "
           "over a changed hidden kit saves the loaded bytes too")
+
+
+def a_new_life(patched):
+    """A picked gun starts its pick as a spawn starts a kit's weapons, whatever the copy did before: a kept copy
+    re-used (its seed, last tick, recoil, aim and fire mode from its last holder) and a fresh cook in another game
+    give the same bytes +5A4h..+60Fh at the switch; the seed is the spawn hook's of the picker's place, kit, the
+    slot and the switch's time, not the constructor's 1 (the live 0x1c0ebd31: 1 against 0x442aa381)."""
+    def picked(dirty):
+        r = Pick(patched)
+        r.setup()
+        if dirty:
+            g = r.new_gun
+            r.word(g + 0x5BC, 0x442AA381)
+            r.word(g + 0x5A4, 123_450)
+            r.word(g + 0x5A8, 77)
+            r.emu.mem_write(g + 0x5E6, bytes([2, 0, 1]))
+            r.emu.mem_write(g + 0x5FC, struct.pack("<4f", 0.5, -0.25, 1.0, 2.0))
+            r.word(g + 0x60C, 5)
+            r.emu.mem_write(g + 0x5F5, b"\1")
+        r.pick()
+        r.installed()
+        return r.read(r.new_gun + 0x5A4, 0x6C), r
+    fresh, r = picked(False)
+    reused, _ = picked(True)
+    assert fresh == reused, ("the same pick from a fresh and a re-used copy", fresh.hex(), reused.hex())
+    seed = struct.unpack_from("<I", fresh, 0x5BC - 0x5A4)[0]
+    key = ((3 << 16 | 0 << 8 | 10) * 0x85EBCA6B) & 0xFFFFFFFF
+    h = key ^ ((r.read(r.picker + 0x324) * 0x9E3779B1) & 0xFFFFFFFF)
+    assert seed == (h ^ h >> 15) % 0x7FFFFFFE + 1 and seed != 1, hex(seed)
+    assert struct.unpack_from("<I", fresh, 0) == (0xFFFFFFFF,), "the last tick of a spawn"
+    print("ok a picked gun starts a new life at its switch: a re-used copy (seed 0x442aa381, last tick, recoil, aim, "
+          "fire mode left) and a fresh cook give the same +5A4h..+60Fh; the seed the spawn hook's (%#x)" % seed)
 
 
 def crate_per_gun(patched):

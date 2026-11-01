@@ -210,6 +210,17 @@ pub struct Pending {
     pub magazine: Option<(u8, bool)>,
 }
 
+/// A weapon's random state (weapon+5BCh, the spread's minstd_rand) as the
+/// spawn hook sets a spawned kit's (patch_026g.py `weapon_random_hook`,
+/// client_patch.md 3.18): of the place, the kit, the inventory slot and the
+/// time, in 1..2^31-2. A picked gun takes it at its switch (the switch's
+/// time), so a re-used copy and a fresh one start alike in every game.
+pub const fn spawn_seed(place: u8, kit: u8, slot: u8, time: u32) -> u32 {
+    let key = ((place as u32) << 16 | (kit as u32) << 8 | slot as u32).wrapping_mul(0x85EB_CA6B);
+    let h = key ^ time.wrapping_mul(0x9E37_79B1);
+    (h ^ h >> 15) % 0x7FFF_FFFE + 1
+}
+
 /// The ammunition slots a weapon binds (cook 0x2C7855..0x2C79E5): where an
 /// own stack can be parked from.
 pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
@@ -647,6 +658,18 @@ mod tests {
         assert!(!sane(encode(0x1, me), me, 10));
         assert!(sane(CHORD | 0x4000, me, 10), "a carry command");
         assert!(sane(0x1, me, 10));
+    }
+
+    #[test]
+    fn the_seed_is_the_spawn_hooks() {
+        // late_join_026g.asm's weapon_random_hook: place 3, kit 0, slot 10 at 14 350 ms.
+        let key = ((3u32 << 16) | 10).wrapping_mul(0x85EB_CA6B);
+        let h = key ^ 14_350u32.wrapping_mul(0x9E37_79B1);
+        assert_eq!(spawn_seed(3, 0, 10, 14_350), (h ^ (h >> 15)) % 0x7FFF_FFFE + 1);
+        for time in [0, 50, u32::MAX] {
+            let seed = spawn_seed(19, 2, 7, time);
+            assert!((1..=0x7FFF_FFFE).contains(&seed), "never 0 nor 2^31-1");
+        }
     }
 
     #[test]

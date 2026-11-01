@@ -733,11 +733,17 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
         }
         match mode {
             Mode::Switch(ammo, _) | Mode::Replace(ammo, _, _) => {
+                // A fresh life's state, whatever this copy did before (a kept
+                // copy re-used here, a fresh cook in another game: the live
+                // 0x1c0ebd31 had seed 1 against a kept copy's): as a spawn's.
+                let (place, kit, time) = (read(p.place()), read(p.kit()), read(p.time()));
+                new_life(w);
                 // The rest of the switch tick_active_object is at
                 // (0x2D76F0..0x2D7722); the gun in hands was put away first.
                 p.set_held_item(Some(gun));
                 raw::engine_weapon_set_user(Some(gun), Some(p));
                 raw::engine_weapon_initialize(Some(gun));
+                seed(w, place, kit, own.slot(), time);
                 let capacity = read(w.capacity());
                 let (loaded, chamber) = ammo.unwrap_or((capacity, false));
                 grant(w, Ammo::grant(capacity, loaded, chamber));
@@ -887,6 +893,40 @@ unsafe fn binding(w: raw::Weapon) -> Option<Binding> {
         }
         Some(Binding { indices, count, selected })
     }
+}
+
+/// A picked gun's state as a spawn into another kit leaves a weapon's
+/// (patch_026g.py's kit_state_hook: `KIT_STATE_FIELDS` and +5A4h, before
+/// the initialize), so that every game's copy, re-used or fresh, starts the
+/// pick alike. The magazine and chamber are granted after.
+///
+/// # Safety
+/// `w` is a live weapon.
+unsafe fn new_life(w: raw::Weapon) {
+    unsafe {
+        *w.last_tick() = u32::MAX;
+        *w.ammo_switch_time() = u32::MAX;
+        *w.ammo_selected() = 0;
+        *w.next_ammo() = 0;
+        *w.loaded() = 0;
+        *w.fire_queue() = 0;
+        *w.aimed() = 0;
+        *w.state_5ec() = 6;
+        *w.chamber() = 0;
+        *w.auto_reload() = 0;
+        super::world::write_floats::<4>(w.recoil(), [0.0; 4]);
+        *w.state_60c() = u32::MAX;
+    }
+}
+
+/// A picked gun's random state as the spawn's weapon_random_hook sets a
+/// spawned kit's (after the initialize): from the picker's place, kit, the
+/// weapon slot and the switch's time, in 1..2^31-2.
+///
+/// # Safety
+/// `w` is a live weapon.
+unsafe fn seed(w: raw::Weapon, place: u8, kit: u8, slot: u8, time: u32) {
+    unsafe { *w.random_state() = weapon_pickup::spawn_seed(place, kit, slot, time) };
 }
 
 /// The granted magazine (and chamber) and reserve: the retained stack holds
