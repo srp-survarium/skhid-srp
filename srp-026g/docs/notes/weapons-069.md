@@ -1,8 +1,11 @@
-# The 0.69d0 weapons (pack weapons-069)
+# The 0.69d0 weapons (packs weapons-069, weapons-069-camo)
 
 Six guns only retail 0.69d0 has, and the KS-23M's ammo, for release 41 (batch 4 of the
-owner's weapon batches, 2026-11-01). Built by `scripts/weapons-069/make_pack.sh` from
-resource-porter's `build-weapons-069d` (its `docs/weapons-069d-026.md`: the converter).
+owner's weapon batches, 2026-11-01). Built by `scripts/weapons-069/make_pack.sh` with
+resource-porter's shared weapon core, 0.69d0 as its donor (`port-weapons-069d`,
+`ports/weapons-069d.json` and its sidecar; `docs/weapons-069d-026.md`). The camouflage masks are
+pack weapons-069-camo (`camo.tsv`), the configs take the camouflage and decal by the edit list
+`weapon-camo-069-1.json`.
 
 ## Owner rules
 
@@ -42,6 +45,9 @@ resource-porter's `build-weapons-069d` (its `docs/weapons-069d-026.md`: the conv
 - FAMAS: the live Ash-12 rig and clips (0.69d0 plays them too) but its own reload; the M4A1's
   firing sound.
 - PPSH-41 "Drum": the live PPSh's rig and clips but the drum's own reload.
+- A donor state keeps 0.69d0's type as 0.26g numbers it: the two-clip reload (tactical and empty)
+  of the FAMAS, G3SG/1, Mauser and drum is 0.26g's 314; the Mauser's two-clip idle and fire 313
+  and 315.
 - G3SG/1, Mauser, KS-23M: their own 0.69d0 rigs and clips. The KS-23M is a pump as the
   Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
   start and the Mauser's aimed shots are 0.69d0-only and left out.
@@ -117,10 +123,13 @@ For the weapon kit (muzzle devices at `muzzle_point`; `barrel_point` is the bare
 | PPSH-41 "Drum" | fire_point | offset | 0.0003, 0.0408, -0.5656 | (no muzzle slot) |
 | PPSH-41 "Drum" | scope_picatinnyrail_point | offset | 0.0007, 0.0598, -0.3754 | |
 
+## The card
+
+Damage, pierce, aim, stopping power, spread, fall-off start, rate, magazine (prop 134) and weight,
+as the core writes every ported gun's.
+
 ## Not in this pack
 
 - Scope fit variants (`fitn_*`): no scope takes these guns yet.
-- The weapon kit's records (#893, not merged): the configs carry the camouflage and decal data
-  of `weapon-camo-1` and `weapon-decals-1` themselves (`camo_available`, `decal_available`,
-  `data`); the camouflage masks paint each texture's large parts (weapon_camo.py's suggestion,
-  no premium to read them from), not yet picked by the owner.
+- The weapon kit's records (#893, not merged). The camouflage masks paint each texture's large
+  parts (weapon_camo.py's suggestion, no premium to read them from), not yet picked by the owner.
