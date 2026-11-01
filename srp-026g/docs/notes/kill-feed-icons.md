@@ -77,18 +77,21 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
     `bitmaps/`, made by `scripts/kill-feed-icons/make_weapon_icons.py`): 53 to 63 the bitmaps of
     0.28d0's clip's frames 54 to 64, as they are (its frames 1 to 53 are 0.26g's bit for bit), 64 to
     68 0.31a2's kill log icons `icon_65.png` to `icon_69.png` (0.28d0's clip ends at 63; 0.31a2 loads
-    its icons from textures);
+    its icons from textures); weapons batch 1 (`weapons-031.md`) adds 70, 71, 72 and 74, 0.31a2's
+    `icon_71.png` to `icon_75.png` of its guns;
   - `CombatLogItem`: a kill row whose icon is past the clip's frames shows that bitmap in the clip's
     place (the clip hidden), centred where the clip's frames centre theirs (12.5 px down it), never
-    above it; the icons after it and the victim follow it as they follow the clip; an icon past 68
-    shows the clip's last frame, as before;
+    above it; the icons after it and the victim follow it as they follow the clip; an icon past the
+    clip with no bitmap shows the clip's last frame, as before. The bitmaps are a map by icon
+    (`MORE_WEAPONS`), so the ported weapons' numbers need not be contiguous;
   - `content-edit/kill-feed-weapons-1.json`: the 21 configs take their builds' icons again (the
     premium Saiga and Vepr-12, the Neostead's second config and the MP7 Special their weapon's); the
     M4A1 21, the clip's own M4.
   - The premium copies of stock weapons (base patch 19's `_premium`, `_premium_2`, `_camo`) keep
     their plain weapon's icon, as in those builds.
 - **Checked:** `scripts/kill-feed-icons/check-combat-log/check.sh` also adds a kill row for every
-  icon 0 to 69 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden)
+  icon 0 to 99 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden
+  when the hud defines that class)
   and where (after the killer, within the row, before the victim).
 - **Release:** the hud movie and the edit list together; the movie alone shows the stand-ins as
   before, the edit list alone the clip's last frame (the VSSK) for icons 53 to 68.
@@ -100,7 +103,7 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **The images:** `scripts/kill-feed-icons/make_lobby_weapon_icons.py` takes them from the hud: the
   bitmap of each frame of the weapon icon clip (sprite 698, `object_icon` of `CombatLogItem`; each
   frame one shape filled 1:1 with its icon's bitmap, read from the shape's fill styles, exported by
-  FFDec as it is) for icons 0 to 52, and the hud's own `CombatLogWeapon53..68` for 53 to 68; icon 17
+  FFDec as it is) for icons 0 to 52, and the hud's own `CombatLogWeapon<icon>` past them; icon 17
   has none (an empty frame). It writes `flash/lobby_menu/bitmaps/KillFeedWeapon<icon>.png`, their
   classes, and `survarium/player/KillFeedIcons.as` (the index). Rerun it when the hud's icons change.
 - **The number:** `content-edit/weapon-kill-icon-ui-1.json` copies each weapon's

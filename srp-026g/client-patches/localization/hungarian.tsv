@@ -1171,6 +1171,8 @@ st_first_weapon_action	1. fegyver
 st_fix	Javítás
 st_fn_fnc_description	Belga gépkarabély, 5.56x45 lőszerrel. Az FN Herstal fejlesztette az 1970-es években, a belga hadsereg rendszeresítette. Licencelt változatai Svédországban és Indonéziában szolgálnak. 30 lőszeres tár, egyes és sorozatlövés.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belga golyószóró, 5.56x45 lőszerrel. Az FN Herstal 1970-es évekbeli rajgéppuskája, az amerikai hadseregben M249 néven. 100 lőszeres doboz, egyes és sorozatlövés.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belga önvédelmi fegyver, 5.7x28 lőszerrel. Az FN Herstal 1990 körül fejlesztette saját lőszerével együtt. Bullpup kialakítás, felül hosszirányban fekvő 50 lőszeres tár. Sok ország rendőrsége és különleges egysége használja. Egyes és sorozatlövés.
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrán öntöltő pisztoly, 9x18 lőszerrel. Gyártása 2004-ben indult. A belügyi csapatok és egyes különleges egységek használták. 12 lőszeres tár. 
@@ -1596,6 +1598,8 @@ st_options_video	Grafika
 st_options_voice	Beszéd:
 st_options_volume	Hangerő:
 st_other	Egyéb
+st_ots14_description	Orosz bullpup gépkarabély, 9x39 lőszerrel. A CKIB SOO építette az 1990-es években az AKSZ-74U alapján különleges egységeknek. 20 lőszeres tár, egyes és sorozatlövés.
+st_ots14_name	OC-14 "Groza"
 st_oust_commander	Parancsnok cseréje
 st_overweight_penalty_description	Súly hatása a mozgási sebességre:
 st_overweight_penalty_name	Gyűjtögető
@@ -1942,6 +1946,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. Az S változat behajtható tusú. 5 lőszeres szekrénytár, csak egyes lövés.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Jelszó mentése
+st_scar_h_description	Belga harci puska, 7.62x51 lőszerrel. Az FN Herstal nehéz SCAR-ja, az amerikai különleges erők a 2000-es években rendszeresítették. 20 lőszeres tár, egyes és sorozatlövés.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Házilag készített artefaktumtároló hátizsák formájában. Hasznos felszerelés artefaktumvadászathoz.
 st_scav_back_1_name	Hátizsák tárolóval
 st_scav_boots_1_desc	Durva csizma egy szemétdombról vagy holttestről. Védi a lábat a sérülésektől, nehéz utakon gyakran életmentő.
@@ -2820,6 +2826,8 @@ st_vepr_description	A leírás még nem érhető el.
 st_vepr_name	Vepr
 st_vepr_premium_description	Orosz Vepr-karabély, 5.45x39 lőszerrel. A vjatszkije poljani Molot gyár az RPK-74 megerősített tokjára építi. 30 lőszeres tár, egyes és sorozatlövés. Prémium változat különleges álcafestéssel.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Horvát bullpup gépkarabély, 5.56x45 lőszerrel. A HS Produkt gyártja, a horvát hadsereg a 2010-es évek óta használja. 30 lőszeres tár, egyes és sorozatlövés.
+st_vhs_2_name	VHS-2
 st_victory	Győzelem
 st_victory_screen_no_dropped_item	Nem találtál semmit a csatatéren.
 st_vityaz_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett PP-19-01 Vityaz.\n- 2000 darab 9x19 Parabellum lőszer.</white>

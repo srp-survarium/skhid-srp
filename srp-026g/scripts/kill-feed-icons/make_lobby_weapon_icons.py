@@ -12,7 +12,7 @@ usage: python3 -I make_lobby_weapon_icons.py (--hud <hud.swf> | --patches <folde
 --java         the java that runs it (tools.json's; default: java on PATH)
 --check        write nothing: compare what it would write with the lobby's files (pixels and text),
                exit 1 on any difference (scripts/weight-ui/check_ui.sh runs it)
---hud-bitmaps  srp-026g/flash/hud/bitmaps: CombatLogWeapon53..68.png, the icons past the clip's frames
+--hud-bitmaps  srp-026g/flash/hud/bitmaps: CombatLogWeapon<icon>.png, the icons past the clip's frames
 --lobby        srp-026g/flash/lobby_menu: writes bitmaps/KillFeedWeapon<icon>.png, a class a bitmap
                (src/KillFeedWeapon<icon>.as) and src/survarium/player/KillFeedIcons.as, their index
 
@@ -41,7 +41,6 @@ import swf  # noqa: E402
 HUD_SHA256 = 'b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80'
 CLIP = 698
 DEFINE_SPRITE, PLACE_OBJECT2, SHOW_FRAME, DEFINE_SHAPE = 39, 26, 1, 2
-MORE = range(53, 69)
 
 
 class Bits:
@@ -204,7 +203,9 @@ def write(args, data, lobby):
         written = {}
         for icon, bitmap in icons.items():
             written[icon] = save(Image.open(exported[bitmap]), bitmaps / f'KillFeedWeapon{icon}.png')
-    for icon in MORE:
+    # Past the clip's frames: every CombatLogWeapon<icon> the hud has.
+    more = sorted(int(p.stem[len('CombatLogWeapon'):]) for p in args.hud_bitmaps.glob('CombatLogWeapon*.png'))
+    for icon in more:
         written[icon] = save(Image.open(args.hud_bitmaps / f'CombatLogWeapon{icon}.png'), bitmaps / f'KillFeedWeapon{icon}.png')
     src = lobby / 'src'
     for icon, (w, h) in sorted(written.items()):

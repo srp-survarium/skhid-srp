@@ -1,0 +1,109 @@
+# Weapons batch 1: OTs-14, SCAR-H, VHS-2, Minimi (0.31a2)
+
+Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031` (its row in
+`release/content.tsv`). The owner's scope (2026-11-01): four batches of ported weapons, this one
+from 0.31a2; no premium or skin copies; machine-gun ammunition is the rifle round (no belt items);
+stats are the donor's own, scaled by a peer both builds ship, and the guns sit in our live balance.
+
+## The guns
+
+| | dict id | config | lobby cell | kill feed icon | ammo |
+|---|---|---|---|---|---|
+| OTs-14 "Groza" | 2261 | `wpn_ots14` | [6, 5] | 72 | 9x39 PAB-9, SP-5, SP-6 (300, 301, 302) |
+| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | 7.62x51, 7.62x51 AP (51, 52) |
+| VHS-2 | 2263 | `wpn_vhs_2` | [4, 5] | 70 | 5.56x45 (2201) |
+| FN Minimi | 2264 | `wpn_fn_minimi` | [8, 5] | 74 | 5.56x45 (2201) |
+
+- Configs at `gameplay/items/weapons/wpn_<name>.options`, so the edit lists' `wpn_*` globs (weapon
+  details, movement, kill feed icon in the lobby) cover them; `weapon-camo-1` and `weapon-decals-1`
+  list them by name, and `weapon-camo@3` has their `_aoac` masks (`scripts/weapon-camo/guns.tsv`).
+- Lobby cell `[row, col]` of `LobbyMenu_WeaponIcons`: the donor's own cell (free in 0.26g); the
+  donor's icon (a cell and its 8-pixel gap, 171x91) scaled into a 0.26g cell.
+- Kill feed icon: the donor's number; the hud's `CombatLogWeapon<icon>` is 0.31a2's
+  `icon_<icon + 1>.png` (`scripts/kill-feed-icons/make_weapon_icons.py`), the lobby's
+  `KillFeedWeapon<icon>` made from it (`make_lobby_weapon_icons.py`). The hud's extra icons are a
+  map by number (`CombatLogItem.MORE_WEAPONS`), so the batches' icons need not be contiguous.
+- Ids, cells and icons were claimed beside the other batches' (dict 2261-2264).
+- Texts: `st_<name>_name` and `_description` in the ten localization tables.
+- Sellers and ranks: srp's rule (`prices.rs`): Renaissance (the donor's faction) at rank
+  `item_level - 5`; `base_cost` is the price; `drop_weight` the drops.
+
+## Balance
+
+Each gun's values are its 0.31a2 config's times the live peer's over the peer's in 0.31a2
+(resource-porter `scripts/weapons/peer_scale.py`), so it differs from the peer as it did in its
+build. Recoil kicks scale in min/max pairs; durability, repair and melee are 0.26g's own. The
+balance is the manifest's `set` (resource-porter `ports/weapons-031a2-batch1.json`).
+
+| | damage | pierce | rpm | mag | level | faction (rank) | price |
+|---|---|---|---|---|---|---|---|
+| **OTs-14 "Groza"** | 0.50 | 0.30 | 700 | 20 | 13 | Renaissance (8) | 80,000 |
+| AS "Val" (peer) | 0.50 | 0.30 | 800 | 20 | 13 | Renaissance (8) | 76,000 |
+| 9A-91 | 0.50 | 0.30 | 700 | 20 | 13 | Renaissance (8) | 84,000 |
+| **FN SCAR-H** | 0.59 | 0.50 | 625 | 20 | 15 | Renaissance (10) | 125,000 |
+| M4A1 (peer) | 0.50 | 0.32 | 750 | 30 | 12 | Black Market (5) | 75,000 |
+| SOCOM 16 (7.62x51) | 0.60 | 0.40 | 300 | 10 | 15 | none | 75,000 |
+| AK-12 | 0.50 | 0.40 | 650 | 30 | 15 | Renaissance (10) | 115,000 |
+| **VHS-2** | 0.50 | 0.34 | 850 | 30 | 14 | Renaissance (9) | 115,000 |
+| M4A1 (peer) | 0.50 | 0.32 | 750 | 30 | 12 | Black Market (5) | 75,000 |
+| HK416 | 0.55 | 0.34 | 850 | 30 | 14 | Black Market (5) | 120,000 |
+| **FN Minimi** | 0.41 | 0.36 | 800 | 100 | 14 | Renaissance (9) | 120,000 |
+| PKP "Pecheneg" (peer) | 0.45 | 0.45 | 650 | 100 | 15 | Renaissance (10) | 125,000 |
+| RPK | 0.50 | 0.30 | 600 | 45 | 11 | Edge (6) | 69,300 |
+
+- **Groza:** the Val's damage and pierce (the same 9x39 in both builds), 100 rpm slower, a faster
+  aim (0.2 s) and a tighter spread (0.2); the Val's level and drops (30), priced between the Val and
+  the 9A-91.
+- **SCAR-H:** the heavy round: damage as the SOCOM 16 on the same 7.62x51 (0.6), pierce 0.5 (the
+  SVD's), automatic at 625 with 20 rounds; the donor put it two levels over its M4A1, so the top
+  level (15) beside the AK-12 and the PKP, drops 40 as the level-15 rifles.
+- **VHS-2:** a 5.56 rifle at the HK416's rate and pierce with less damage (0.5 against 0.55) and a
+  tighter spread (0.1 against 0.15): the HK416's level (14), just under its price; drops 60.
+- **Minimi:** the light machine gun of the 5.56: more rounds a minute than the PKP (800 against 650),
+  less damage and pierce, a faster reload (8 s against 10), the PKP's slowdown (-5 % movement); one
+  level under the PKP; drops 60 as the PKP.
+- Reload 3.17 s (Groza), 3.5 s (SCAR-H), 3.0 s (VHS-2), 8 s (Minimi); weights 2.7, 3.7, 3.3, 6.5 kg
+  (the donor's: the peers weigh the same in both builds).
+
+## How it was made
+
+resource-porter's weapon port (branch `feat/weapons-port`, `docs/weapons-026.md`):
+
+```sh
+vostok-port port-weapons --manifest ports/weapons-031a2-batch1.json --donor v031a2.split \
+  --target-db <stock resources.db> --target-patch <every listed patch> --output <bundle>
+vostok-port pack from-bundle --base-db <stock> --base-patch <every listed patch> \
+  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-1 --id weapons-031 --version 1
+```
+
+- The art is 0.31a2's: meshes (0.31's statistics chunk 110 dropped), textures, sounds as they are;
+  clips with their event headers widened from 12 to 16 bytes; materials and sound options on
+  native keys; the firing sounds' reverb layer an outdoor collection, as patch 19's weapons.
+- The configs are the donor's on a native template (Val, AK-12, AK-12, RPD): 0.31's state types
+  mapped to 0.26g's (reload 313 is 314, grenade 315 is 316, melee 320 is 321), the grenade, melee
+  and recoil parts that play 0.31's shared `weapons/base` clips the template's (0.26g's
+  `weapons/ak`), 0.26g's melee and durability.
+- The same tool, run on the 0.29a3 donor, gives patch 19's 33 weapons: no unexplained difference
+  (`vostok-port compare-weapons`; resource-porter `ports/weapons-029a3-patch19.known.tsv` says why
+  each one differs and which side is right).
+
+## For the muzzle step
+
+The guns' muzzle as retail 0.69d0 places devices (`muzzle-devices-problems`): its `muzzle_point`
+(model space, metres) and whether our 0.31a2 mesh has the device built in (its triangles are what
+the 0.69d0 base mesh lacks, matched against 0.69d0's default module).
+
+| | 0.69d `muzzle_point` | built-in device in our mesh |
+|---|---|---|
+| OTs-14 | (0, 0.0041, -0.0930) | none: 0.69d's muzzle slot (`groza_lock_muzzle`) has no default device; the mesh's extra parts are 0.69d's handguard module |
+| SCAR-H | (0, 0.0671, -0.5691) | yes: `scarh_i05x28_muzzlebrake` (458 vertices, 6.9 cm); also the sights modules |
+| VHS-2 | (0, 0.0147, -0.3225) | yes: `vhs2_i05x28_muzzlebrake` (192 vertices, 5.2 cm); also the sights modules |
+| FN Minimi | (0, 0.0507, -0.5143) | yes: `fn_m249minimi_i05x28_muzzlebrake` (204 vertices, 8.1 cm), all of the extra vertices |
+
+## Not in this batch
+
+- Scope fit variants (`fitn_*`, `weapon_scopes.md`): a variant needs a scoped copy of the gun's
+  model placed by its rail; none of the four has a variant yet, so they take no scope. The
+  attachments track (scopes, muzzle devices, grips) places modules at the gun's locators.
+- The weapon kit (#893): when it merges, the configs take its kit data as the live guns do.
+- Not seen in a game yet: first and third person, reload, fire, the lobby icon and kill feed.

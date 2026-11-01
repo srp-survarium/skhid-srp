@@ -1171,6 +1171,8 @@ st_first_weapon_action	Weapon 1
 st_fix	Fix
 st_fn_fnc_description	Belgian assault rifle, ammo: 5.56x45. Developed by FN Herstal in the 1970s and adopted by the Belgian army; licence versions serve in Sweden and Indonesia. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgian light machine gun, ammo: 5.56x45. FN Herstal's squad automatic weapon of the 1970s, in US service as the M249. Box of 100 rounds. Single and automatic fire.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed by FN Herstal around 1990 together with its own cartridge; a bullpup with a 50-round magazine lying along the top of the weapon. Used by special forces and police in many countries. Supports single and automatic fire.
 st_fn_p90_name	FN P90
 st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
@@ -1596,6 +1598,8 @@ st_options_video	Graphics
 st_options_voice	Voice:
 st_options_volume	Volume:
 st_other	Other
+st_ots14_description	Russian bullpup assault rifle, ammo: 9x39. Built by TsKIB SOO in the 1990s on the AKS-74U for special units. Magazine of 20 rounds. Single and automatic fire.
+st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Change commander
 st_overweight_penalty_description	The influence of weight on movement speed:
 st_overweight_penalty_name	Packrat
@@ -1942,6 +1946,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a 5-round box magazine. Single shots only.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Save password
+st_scar_h_description	Belgian battle rifle, ammo: 7.62x51. The heavy SCAR of FN Herstal, adopted by US special forces in the 2000s. Magazine of 20 rounds. Single and automatic fire.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	A hand-made container for artifact storage, designed as backpack. A useful item when going out to hunt artifacts.
 st_scav_back_1_name	Backpack with container
 st_scav_boots_1_desc	Crude boots found at trash dump or removed from a dead body. Protect the legs from injuries and damage, frequently save the day at challenging trips.
@@ -2820,6 +2826,8 @@ st_vepr_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_vepr_name	Vepr
 st_vepr_premium_description	Russian carbine of the Vepr family, ammo: 5.45x39. Made by the Molot plant in Vyatskiye Polyany on the reinforced receiver of the RPK-74 machine gun. Equipped with a 30-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Croatian bullpup assault rifle, ammo: 5.56x45. Made by HS Produkt, in Croatian service since the 2010s. Magazine of 30 rounds. Single and automatic fire.
+st_vhs_2_name	VHS-2
 st_victory	Victory
 st_victory_screen_no_dropped_item	You haven't found anything on the battlefield.
 st_vityaz_bundle_descr	<white>Contains the following items:\n- Improved PP-19-01 "Vityaz".\n- 2000 rounds of 9x19 Parabellum ammo.</white>

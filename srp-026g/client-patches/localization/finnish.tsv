@@ -1171,6 +1171,8 @@ st_first_weapon_action	Ase 1
 st_fix	Korjaa
 st_fn_fnc_description	Belgialainen rynnäkkökivääri, kaliiperi 5.56x45. FN Herstalin 1970-luvun kehitystyö, Belgian armeijan käytössä. Lisenssiversioita Ruotsissa ja Indonesiassa. 30 patruunan lipas. Kerta- ja sarjatuli.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgialainen kevyt konekivääri, kaliiperi 5.56x45. FN Herstalin 1970-luvun ryhmäase, Yhdysvalloissa nimellä M249. 100 patruunan laatikko. Kerta- ja sarjatuli.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgialainen lähisuojeluase, kaliiperi 5.7x28. FN Herstalin noin vuonna 1990 oman patruunansa kanssa kehittämä bullpup-ase. Päällä pitkittäin sijaitseva 50 patruunan lipas. Monien maiden erikoisjoukkojen ja poliisin käytössä. Kerta- ja sarjatuli.
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrainalainen itselataava pistooli, kaliiperi 9x18. Tuotanto alkoi vuonna 2004. Sisäisten joukkojen ja eräiden erikoisyksiköiden käytössä. 12 patruunan lipas. 
@@ -1596,6 +1598,8 @@ st_options_video	Grafiikka
 st_options_voice	Puhe:
 st_options_volume	Äänenvoimakkuus:
 st_other	Muut
+st_ots14_description	Venäläinen bullpup-rynnäkkökivääri, kaliiperi 9x39. TsKIB SOO:n 1990-luvulla AKS-74U:n pohjalta erikoisjoukoille rakentama. 20 patruunan lipas. Kerta- ja sarjatuli.
+st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Vaihda komentaja
 st_overweight_penalty_description	Painon vaikutus liikenopeuteen:
 st_overweight_penalty_name	Hamstraaja
@@ -1942,6 +1946,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Venäläinen itselataava 12 kaliiperin haulikko. Ižmašin 1990-luvun Kalašnikov-pohjainen malli metsästykseen ja turvallisuuspalveluille. S-versiossa taittoperä. 5 patruunan laatikkolipas. Vain kertatuli.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Tallenna salasana
+st_scar_h_description	Belgialainen taistelukivääri, kaliiperi 7.62x51. FN Herstalin raskas SCAR, Yhdysvaltain erikoisjoukkojen käytössä 2000-luvulta. 20 patruunan lipas. Kerta- ja sarjatuli.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Repun muotoinen kotitekoinen artefaktisäiliö. Hyödyllinen artefaktimetsällä.
 st_scav_back_1_name	Reppu säiliöllä
 st_scav_boots_1_desc	Karkeat saappaat kaatopaikalta tai ruumiilta. Suojaavat jalkoja vammoilta ja pelastavat usein päivän vaikeilla retkillä.
@@ -2820,6 +2826,8 @@ st_vepr_description	Kuvausta ei vielä ole.
 st_vepr_name	Vepr
 st_vepr_premium_description	Venäläinen Vepr-karbiini, kaliiperi 5.45x39. Molotin tehdas Vjatskije Poljanyssa valmistaa sitä RPK-74:n vahvistetulle rungolle. 30 patruunan lipas. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Kroatialainen bullpup-rynnäkkökivääri, kaliiperi 5.56x45. HS Produktin valmistama, Kroatian armeijan käytössä 2010-luvulta. 30 patruunan lipas. Kerta- ja sarjatuli.
+st_vhs_2_name	VHS-2
 st_victory	Voitto
 st_victory_screen_no_dropped_item	Et löytänyt mitään taistelukentältä.
 st_vityaz_bundle_descr	<white>Sisältö:\n- Parannettu PP-19-01 Vitjaz.\n- 2000 patruunaa 9x19 Parabellum.</white>

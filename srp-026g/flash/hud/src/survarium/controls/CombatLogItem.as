@@ -36,10 +36,10 @@ package survarium.controls
       
       // A weapon's icon is its config's ui_desc/combat_log_icon: frame (icon + 1) of object_icon, whose
       // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53
-      // (0.27d0 to 0.31a2 alike): those icons are these bitmaps, icon 53 first, shown in the frame's place.
-      private static const MORE_WEAPONS:Array = [CombatLogWeapon53,CombatLogWeapon54,CombatLogWeapon55,CombatLogWeapon56,CombatLogWeapon57,CombatLogWeapon58,CombatLogWeapon59,CombatLogWeapon60,CombatLogWeapon61,CombatLogWeapon62,CombatLogWeapon63,CombatLogWeapon64,CombatLogWeapon65,CombatLogWeapon66,CombatLogWeapon67,CombatLogWeapon68];
+      // (0.27d0 to 0.31a2 alike): those icons are these bitmaps, by icon, shown in the frame's place.
+      private static const MORE_WEAPONS:Object = {53:CombatLogWeapon53,54:CombatLogWeapon54,55:CombatLogWeapon55,56:CombatLogWeapon56,57:CombatLogWeapon57,58:CombatLogWeapon58,59:CombatLogWeapon59,60:CombatLogWeapon60,61:CombatLogWeapon61,62:CombatLogWeapon62,63:CombatLogWeapon63,64:CombatLogWeapon64,65:CombatLogWeapon65,66:CombatLogWeapon66,67:CombatLogWeapon67,68:CombatLogWeapon68,70:CombatLogWeapon70,71:CombatLogWeapon71,72:CombatLogWeapon72,74:CombatLogWeapon74};
       
-      private static var _moreWeapons:Array = [];
+      private static var _moreWeapons:Object = {};
       
       private var _weaponIcon:Bitmap = new Bitmap(null,PixelSnapping.ALWAYS);
       
@@ -81,7 +81,7 @@ package survarium.controls
             this.object_icon.gotoAndStop(data.object_icon + 1);
             if(_action_id == CombatAction.KILL)
             {
-               weapon = moreWeapon(data.object_icon - this.object_icon.totalFrames);
+               weapon = moreWeapon(data.object_icon);
             }
             this.object_icon.visible = weapon == null;
          }
@@ -103,18 +103,18 @@ package survarium.controls
          this.makeLayout();
       }
       
-      // The bitmap of icon (53 + i), made once; null past the last.
-      private static function moreWeapon(i:int) : BitmapData
+      // The bitmap of `icon`, made once; null for an icon of the clip's or one with no bitmap.
+      private static function moreWeapon(icon:int) : BitmapData
       {
-         if(i < 0 || i >= MORE_WEAPONS.length)
+         if(!(icon in MORE_WEAPONS))
          {
             return null;
          }
-         if(!_moreWeapons[i])
+         if(!_moreWeapons[icon])
          {
-            _moreWeapons[i] = new MORE_WEAPONS[i]();
+            _moreWeapons[icon] = new MORE_WEAPONS[icon]();
          }
-         return _moreWeapons[i];
+         return _moreWeapons[icon];
       }
       
       // What shows the weapon: object_icon, or the bitmap in its place; null on a suicide row.
