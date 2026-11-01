@@ -78,6 +78,12 @@ A default kit has three ammo bags.
   +0.0123 turned the view down: the notch sat 14 px above the centre and hid the post. -0.0123 is
   the fix, and its in-game look is still to be done (game runs paused, 2026-11-01).
 
+- **Screen shake (@7):** `peer_scale.py` had scaled the shake keys too, by the M4A1, whose shake
+  0.31a2 cut to 0.2/0.4 against our 0.8/1.0. That gave the SCAR-H 2.4/3.0 (3 times any live gun)
+  and the VHS-2 0.6/1.2. Shake is now never scaled. The port takes the template's, which is the
+  class's live value (resource-porter `config::SHAKE_PATHS`), so all four guns have the live
+  automatics' 0.8/1.0 x8.
+
 ## Balance
 
 Each gun's values are its 0.31a2 config's times the live peer's over the peer's in 0.31a2
