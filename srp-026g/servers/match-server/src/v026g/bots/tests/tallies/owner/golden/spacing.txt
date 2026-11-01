@@ -40,11 +40,11 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         "advance_moved_sum": 0.0,
         "advance_seconds": 0,
         "all_1m_by_width_m_lt15_25_4_75_open_noheading": [
+          0,
+          0,
+          0,
+          0,
           4,
-          0,
-          0,
-          0,
-          0,
           1
         ],
         "by_life": [
@@ -407,6 +407,16 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
+        "queue_seconds_idle_slowdropped_slownosprint_stop_yield_refjump_refheld_refescape": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "samples": 360,
         "young_1m_ahead_one_both_neither_nowalk": [
           1,
@@ -424,11 +434,11 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0
         ],
         "young_1m_by_width_m_lt15_25_4_75_open_noheading": [
+          0,
+          0,
+          0,
+          0,
           4,
-          0,
-          0,
-          0,
-          0,
           1
         ],
         "young_1m_cause_target_goal_follow_still_file_other": [
@@ -483,11 +493,11 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           80
         ],
         "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": [
-          8,
           0,
           0,
-          1,
           0,
+          0,
+          9,
           1
         ]
       },
@@ -864,6 +874,16 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
+        "queue_seconds_idle_slowdropped_slownosprint_stop_yield_refjump_refheld_refescape": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
         "samples": 360,
         "young_1m_ahead_one_both_neither_nowalk": [
           0,
@@ -940,11 +960,11 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0
         ],
         "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": [
-          14,
-          6,
-          5,
-          4,
           0,
+          0,
+          0,
+          20,
+          9,
           0
         ]
       }
