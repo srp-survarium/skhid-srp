@@ -4081,6 +4081,67 @@ def test_weapon_kit(original, image, before):
           "on at 0x2F1776")
 
 
+# Patch 90's sites: the instructions each lohook's span replays (ndisasm's).
+MUZZLE_SITES = {
+    0x24AAB4: ["lea esi,[eax*8+0x0]"],
+    0x24ABF9: ["mov ecx,[ebp-0x10]", "movzx ecx,word [ecx+0x16]"],
+    0x24B0E1: ["mov ecx,[esp+0x48]", "mov edx,[esp+0x44]"],
+    0x244E99: ["mov eax,[ebx+0x180c]"],
+    0x245017: ["mov esi,[ebp+0x14]", "test esi,esi"],
+    0x245353: ["mov ebx,[ebx+0x1808]"],
+    0x244017: ["mov edi,[esi+0x1808]"],
+    0x24B190: ["push ebx", "push esi", "push edi", "mov edi,[esp+0x10]"],
+}
+
+
+def test_muzzle(original, image, before):
+    """Check 90: a weapon's muzzle device (patch 90, the Rust patch `muzzle`,
+    muzzle.toml: eight lohooks; ../docs/notes/weapon-kit.md, "The muzzle
+    device"). check_muzzle_026g.py runs each from the game's code on made-up
+    objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    for va, want in MUZZLE_SITES.items():
+        check(rows(va, 16)[:len(want)] == want, f"{va:#x}: {' / '.join(want)} in the original (the span replayed)")
+    cook = {a: t for a, _, t in ndisasm(stock.read(0x24AAB4, 0x200), 0x24AAB4)}
+    draw = {a: t for a, _, t in ndisasm(stock.read(0x244E61, 0x40), 0x244E61)}
+    check(cook.get(0x24AABD) == "call 0x424ca0" and cook.get(0x24AC95) == "call 0xe5b60"
+          and cook.get(0x24ABEE) == "call 0x5fcb0" and cook.get(0x24AC2B) == "call 0x24a780"
+          and draw.get(0x244E61) == "call 0x243bc0" and draw.get(0x244E68) == "lea edi,[ebx+0x620]"
+          and rows(0x244F5F, 7) == ["mov esi,ebx", "call 0x244570"]
+          and rows(0x24B0DC, 5) == ["call 0x243a30"]
+          and stock.read(0xA04C20, 8) == struct.pack("<II", 0x24B190, 0x24A920)
+          and stock.read(0x9F0F24 + 0x24, 4) == struct.pack("<I", 0x15A9C0)
+          and stock.read(0x9F0F90 + 0x28, 4) == struct.pack("<I", 0x1585B0),
+          "the cook sizes its requests' alloca (0x424CA0) after 0x24AAB4, pushes its last request at 0x24ABEE "
+          "(0x5FCB0), makes the weapon at 0x24AC2B and queries at 0x24AC95; draw's barrel_point frame "
+          "(0x243BC0, +620h at 0x244E68) is read by update_pfx_transform at 0x244F61 after muzzle.locate; the "
+          "callback's load_weapon at 0x24B0DC; the weapon cook's vtable holds delete_resource and "
+          "on_weapon_config_loaded (0xA04C20); a skeleton instance's get_locator (+24h, 0x15A9C0) goes to "
+          "skeleton_render_model's render_model::get_locator 0x1585B0 (+28h of 0x9F0F90)")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "muzzle"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted((h["site_name"], h["kind"]) for h in hooks)
+          == sorted((f"muzzle.{n}", "lohook") for n in ("request_room", "request", "loaded", "locate", "draw",
+                                                       "culled", "hidden", "release")),
+          "muzzle.toml's hooks: the eight lohooks request_room, request, loaded, locate, draw, culled, hidden and "
+          "release")
+    for h in hooks:
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -6664,6 +6725,7 @@ def test_late_join(original, without, server, source):
     test_lamps(original, image, before)
     test_language(original, image, before)
     test_weapon_kit(original, image, before)
+    test_muzzle(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

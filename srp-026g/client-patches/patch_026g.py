@@ -550,6 +550,16 @@ Patches:
   kit_grip; setup_inventory_data (0x2885CE) marks the items a kit names as
   attached; patch 48's apply calls weapon_kit_preview_apply through its
   dword +23h, which the build writes. Nothing a match computes changes;
+- a weapon's muzzle device (patch 90, with the late join;
+  docs/notes/weapon-kit.md, "The muzzle device"): the Rust patch muzzle
+  (muzzle.toml, eight lohooks). The cook asks for the model its config's
+  data names (srp_muzzle_model, else srp_muzzle_stock_model) last
+  (0x24AAB4, 0x24ABF9), its callback keeps it with the weapon model's
+  muzzle_point (0x24B0E1); weapon::draw puts it at calculate_locator's frame
+  of that locator and the shot's flash (+620h) at its fire point (0x244E99),
+  in the scene while the weapon's model is (0x245017; out at 0x245353
+  culled, 0x244017 hidden); delete_resource gives it back (0x24B190).
+  Nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:

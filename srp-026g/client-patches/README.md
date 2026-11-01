@@ -3827,3 +3827,34 @@ are. The lobby's weapon window has two decal slots. Nothing a match
 computes changes (weapon-kit.md, "The simulation").
 `check_weapon_kit_026g.py` runs the four sites and patch 48's apply beside
 the original exe; selftest check 68 reads the sites.
+
+## The muzzle device (patch 90, unreleased)
+
+A weapon draws a muzzle device, a static model, at its model's
+`muzzle_point` locator (`../docs/notes/weapon-kit.md`, "The muzzle device").
+The weapon config names it in `data`: `srp_muzzle_model` and
+`srp_muzzle_fire_mm` (the device the kit names, slot 4: its modification
+adds both), else `srp_muzzle_stock_model` and `srp_muzzle_stock_fire_mm`
+(the gun's own, cut out of its mesh); neither, or half a pair: nothing
+changes. The Rust `muzzle` module, eight lohooks:
+- `muzzle.request_room` (0x24AAB4, before on_weapon_config_loaded sizes its
+  requests' alloca) and `muzzle.request` (0x24ABF9, after its last push):
+  the device's model asked for last, class 15;
+- `muzzle.loaded` (0x24B0E1, the callback after load_weapon): that result
+  retained, with the weapon model's `muzzle_point` (render_model::get_locator
+  0x1585B0 of the skeleton instance's original model); none without it
+  (logged once);
+- `muzzle.locate` (0x244E99, weapon::draw after its locators): the device's
+  frame by calculate_locator 0x243BC0 (unrotated: 0.69d0's modules are
+  authored in the gun mesh's axes, which calculate_locator's R_y(pi) gives),
+  and +620h (barrel_point's frame, the shot effects' and
+  update_pfx_transform's) that frame moved to the fire point;
+- `muzzle.draw` (0x245017): the device in the scene exactly while the
+  weapon's model is (the aimed scope takes both out); `muzzle.culled`
+  (0x245353) and `muzzle.hidden` (0x244017): out;
+- `muzzle.release` (0x24B190, weapon_cook::delete_resource): out of the
+  scene, its reference given back, once.
+Artefact carry hides and restores the device with the gun (its fourth
+model). Nothing a match computes changes here (+620h is drawn only); a
+device's stats are its modification's. `check_muzzle_026g.py` runs every
+site beside the original exe; selftest check 90 reads the sites.

@@ -2674,3 +2674,45 @@ The rules and the layout: `weapon-kit.md`. PROVEN in the code, run with Unicorn
   `weapon_kit.preview_apply` there (`weapon_kit_on_preview_apply`, kind `entry`: the stack aligned
   to 16 before Rust, which a hand-made export skipped: #893's review, movaps at [esp+10h] on the
   game's 4-aligned stack; the arena is linked before `.srpw` is made).
+
+
+### The muzzle device (patch 90)
+
+The rules and the content: `weapon-kit.md`, "The muzzle device". PROVEN in the code, run with
+Unicorn (`check_muzzle_026g.py`); not run in a game.
+
+- **The cook:** weapon_cook::on_weapon_config_loaded (0x24A920; its argument's +12Ch the config's
+  resource, retained into [ebp+8], EBX its root from 0x24A97F) pushes its sub-resource requests
+  {path, class} into a buffer_vector at [ebp-40h] whose alloca is exactly the count at 0x24AAB4
+  (`lea esi,[eax*8+0]`, 0x424CA0 at 0x24AABD): the scope's config (4Dh, when `addons` names one),
+  the model (10h), the preview animations (31h), the shells' and the shots' particles (3Dh), the
+  last push at 0x24ABEE; weapon_cook 0x24A780 makes the weapon (0x24AC2B), query_resources 0x24AC95.
+  `muzzle.request_room` adds one to EAX; `muzzle.request` (0x24ABF9, `mov ecx,[ebp-10h] / movzx
+  ecx,word [ecx+16h]`) writes {path, 15} at the vector's end when there is room and keeps {root,
+  index} for the callback.
+- **The callback:** on_weapon_subresources_ready (0x24ACF0, `ret 14h`: the results, the config's
+  resource, the weapon, two more) reads the results in the requests' order (count +38h, 2E0h each
+  from +50h, the resource +0DCh) and calls load_weapon 0x243A30 at 0x24B0DC, which sets the model
+  (+1810h) and reads barrel_point, scope_point and a third through the model instance's vtable +24h
+  (0x243AC0). `muzzle.loaded` (0x24B0E1, `mov ecx,[esp+48h] / mov edx,[esp+44h]`, EDI the weapon)
+  takes the kept index's result when the count is index + 1. A skeleton model instance's vtable
+  is 0x9F0F24 (0x15A111); its +24h, get_locator 0x15A9C0, tail-jumps through the original model
+  (+62B4h)'s vtable +28h, skeleton_render_model's (0x9F0F90, constructor 0x159EA0)
+  render_model::get_locator 0x1585B0 (thiscall: the name, a 64h-byte out; the name inline at +0,
+  the matrix +20h, the bone +60h; `ret 8`, AL): engine row `engine_model_locator`.
+- **The frame:** calculate_locator 0x243BC0 (EDI the out; the locator, the world, the bones, a
+  matrix applied first; `ret 10h`; engine row `engine_calculate_locator`) is extra . R_y(pi)
+  (0xA262768, made once from 0x9CC970's pi) . the locator's matrix . bones[its bone] . world, the
+  bone skipped for FFFFh (0x243C01). weapon::draw (0x244E10; [ebp+8] the world, [ebp+0Ch] the
+  bones) writes barrel_point's at +620h (0x244E68) and the scope's at +660h, then updates the model
+  (0x244F3A), update_pfx_transform (0x244F61) moves the running shot effects to +620h and the shot
+  effect (0x24413E) plays there: the client's visual weapon only. `muzzle.locate` (0x244E99, `mov
+  eax,[ebx+180Ch]`) is between.
+- **The scene:** the weapon's model is in the scene by its render instance's +10Dh; draw adds or
+  removes it with the aimed scope (0x244B60, 0x244C50, +181Dh) before 0x245017, where every path
+  joins (`muzzle.draw`, `mov esi,[ebp+14h] / test esi,esi`). on_culled_player_draw (0x245250) puts
+  the model at the player's root (`muzzle.culled` at 0x245353, `mov ebx,[ebx+1808h]`); on_hide
+  (0x243FA0) removes it at 0x244012 (`muzzle.hidden` at 0x244017, `mov edi,[esi+1808h]`, both
+  paths).
+- **The release:** weapon_cook's vtable 0xA04C20 holds delete_resource 0x24B190 (`ret 4`; [esp+4]
+  the weapon's +10h, or 0) and on_weapon_config_loaded beside it.
