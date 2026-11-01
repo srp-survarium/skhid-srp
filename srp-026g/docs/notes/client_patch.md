@@ -2688,7 +2688,7 @@ from a spent one by the timers set_active(0) leaves, and sends phase 3
 `tactical_reload` (Rust, `vostok::reload`; the rules: `tactical-reload.md`) times
 the two clips of state type 314, `pistol_weapon_core_reload_state`, apart. PROVEN
 in the code, both sites run with Unicorn from the game's own functions
-(`check_tactical_reload_026g.py`); not run in a game until the in-game check.
+(`check_tactical_reload_026g.py`); run in a game (headless, 2026-11-01, a PvB match): the Valmet (3 s tactical, 4 s empty) filled its magazine 3.1 s after R with 25 rounds left and 4.1 s after its last round, 30 and 30 rounds taken from the reserve (no +1); the Remington 870 and the Mosin reloaded shell by shell as before.
 
 - **The state** (0x16C bytes, its sound handler's own members from +170h; the
   cook allocates 1B0h, 0x24E110): +120h the weapon, +130h the clip array being
