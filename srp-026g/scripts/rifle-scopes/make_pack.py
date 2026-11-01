@@ -49,12 +49,13 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pbr_026  # noqa: E402
 import render_icon  # noqa: E402
 import scopes_lib as lib  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '3'
+VERSION = '4'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -433,6 +434,8 @@ def build(args, work):
         rel = str(p.relative_to(args.donor))
         if p.is_file() and (rel.startswith('material_instances/') or rel.startswith('textures/')):
             files[rel] = p.read_bytes()
+    # their textures as 0.26g draws a 0.69d0 weapon's (@4; pbr_026.py)
+    files.update(pbr_026.convert({k: v for k, v in files.items() if k.startswith('textures/')}))
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     keys = sorted({f'st_{s["name"]}_{k}' for s in lib.scopes() for k in ('name', 'description')})

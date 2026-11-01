@@ -272,6 +272,13 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
     (0.69d0 repeats the texture; 0.26g clamps a weapon's, smearing the edge's texels over those faces). The made
     models' triangles wholly past an edge are moved back by whole textures (`wrap_uv`; a surface with a triangle
     across an edge, our eyepiece's tiled background, is left as it is).
+  - @4, the owner's game (2026-11-01): the new optics' bodies drew nearly black with light streaks, metal as a
+    mirror of its surroundings. 0.69d0's metalness-workflow maps had gone into 0.26g's slots as they are:
+    metalness 1.0 as a Fresnel of 1.0, smoothness as gloss, bare metal bright in the albedo. They are converted
+    as resource-porter converts a 0.69d0 weapon's (`pbr_026.py`): the diffuse `0.514 * (albedo * (1 - 0.8 *
+    metalness)) ^ 0.75`, the gloss 0.36 x smoothness and the Fresnel 0.162 x metalness^0.388 in the DXT
+    endpoints, the normal map as it is. The camouflage bake does not reach a scope: it bakes only the weapon
+    model's own surfaces (the game's log: `srpw1_..._<model>_<0..n-1>`, n the weapon's surface count).
 
 ## 7. Scope fits for the release-41 guns, and the Walther Competition II (2026-11-01)
 
