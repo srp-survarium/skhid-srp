@@ -9,7 +9,8 @@
 //!   bearing to that line's spot (the nearest such line), in bands (15, 45, 90 degrees), and the ticks it walked in all;
 //! - **the first enemy hit of a life**, by play and by shooter (the stand-in human or a bot): the victim's view off the
 //!   shooter at that hit (bands as above), whether it pressed fire before it died or 5 s passed, and whether it died within
-//!   1 s of the hit (A222's window).
+//!   1 s of the hit (A222's window); apart, the victims that walked at the hit, and those that stood in a held lane of
+//!   their team whose shooter is the one who hit them (the hits a watch of the known lanes could have met).
 //!
 //! The angles are on the ground (yaw only). Nothing decides by these counts.
 
@@ -38,6 +39,11 @@ fn off_deg(yaw: f32, from: Vec3, to: Vec3) -> f32 {
     d.abs().to_degrees()
 }
 
+/// A walk: a step with a goal to walk to, over [`WALK_MPS`], neither the aim nor the fire key down.
+fn walks(rec: &Rec) -> bool {
+    rec.travel && rec.speed > WALK_MPS && rec.keys & (key::AIM | key::FIRE) == 0
+}
+
 /// The band of the view off the spot of the nearest held line that covers `feet`, if one does.
 fn lane_band(held: &[HeldLine], feet: Vec3, yaw: f32) -> Option<usize> {
     held.iter()
@@ -54,6 +60,10 @@ struct FirstHit {
     by_human: bool,
     band: usize,
     fired: bool,
+    /// The victim walked at the hit (as the walking count's ticks).
+    walking: bool,
+    /// The victim stood in a held lane of its team whose shooter is the one who hit it: the team knew where he shoots from.
+    in_his_lane: bool,
 }
 
 /// Counts by play name.
@@ -68,6 +78,11 @@ struct ByPlay {
     quick_deaths: u64,
     human_first_hits: [u64; BANDS_DEG.len() + 1],
     human_quick_deaths: u64,
+    /// The first hits on a walking victim, and on one in its shooter's held lane: by band, died within [`QUICK_MS`].
+    walking_first_hits: [u64; BANDS_DEG.len() + 1],
+    walking_quick_deaths: u64,
+    lane_first_hits: [u64; BANDS_DEG.len() + 1],
+    lane_quick_deaths: u64,
 }
 
 #[derive(Default)]
@@ -106,6 +121,14 @@ impl LookCounts {
             counts.human_first_hits[hit.band] += 1;
             counts.human_quick_deaths += u64::from(quick);
         }
+        if hit.walking {
+            counts.walking_first_hits[hit.band] += 1;
+            counts.walking_quick_deaths += u64::from(quick);
+        }
+        if hit.in_his_lane {
+            counts.lane_first_hits[hit.band] += 1;
+            counts.lane_quick_deaths += u64::from(quick);
+        }
     }
 }
 
@@ -138,8 +161,7 @@ impl Topic for LookCounts {
         {
             hit.fired = true;
         }
-        let walking = rec.travel && rec.speed > WALK_MPS && rec.keys & (key::AIM | key::FIRE) == 0;
-        if !walking {
+        if !walks(rec) {
             return;
         }
         let team = usize::from(at.game.bodies[place].team).min(1);
@@ -168,12 +190,15 @@ impl Topic for LookCounts {
             };
             self.hit_this_life[victim] = true;
             let fired = vr.keys & key::FIRE != 0;
+            let held = &self.held[usize::from(v.team).min(1)];
             self.open[victim] = Some(FirstHit {
                 at: t,
                 play: vr.play,
                 by_human: self.human == Some(shooter),
                 band: band(off_deg(vr.yaw, vr.feet, sr.feet)),
                 fired,
+                walking: walks(vr),
+                in_his_lane: held.iter().any(|l| l.shooter == shooter && l.covers(vr.feet)),
             });
         }
         self.hits_seen = run.hits.len();
@@ -200,7 +225,8 @@ impl Topic for LookCounts {
         let mut lines = vec![format!(
             "owner-test look (A229: the view while walking a play; bands up to {BANDS_DEG:?} deg, then past): by play, walking ticks, \
              of them in a held lane of the team by the view off its spot; first enemy hits of a life by the view off the shooter, \
-             fired before death or 5 s, died within 1 s (the stand-in human's apart)"
+             fired before death or 5 s, died within 1 s (the stand-in human's apart, the walking victims' apart, and those in their \
+             shooter's held lane apart)"
         )];
         for (play, c) in &self.by_play {
             let play = name(*play);
@@ -214,11 +240,26 @@ impl Topic for LookCounts {
                     "first_hit_died_1s": c.quick_deaths,
                     "human_first_hits_by_band": c.human_first_hits,
                     "human_first_hit_died_1s": c.human_quick_deaths,
+                    "walking_first_hits_by_band": c.walking_first_hits,
+                    "walking_first_hit_died_1s": c.walking_quick_deaths,
+                    "lane_first_hits_by_band": c.lane_first_hits,
+                    "lane_first_hit_died_1s": c.lane_quick_deaths,
                 }),
             );
             lines.push(format!(
-                "  {play}: walking {} ticks, in a held lane {:?}; first hits {:?}, fired {}, died within 1 s {}; by the human {:?}, died within 1 s {}",
-                c.walk_ticks, c.lane_ticks, c.first_hits, c.fired, c.quick_deaths, c.human_first_hits, c.human_quick_deaths
+                "  {play}: walking {} ticks, in a held lane {:?}; first hits {:?}, fired {}, died within 1 s {}; by the human {:?}, died within 1 s {}; \
+                 walking {:?}, died within 1 s {}; in his held lane {:?}, died within 1 s {}",
+                c.walk_ticks,
+                c.lane_ticks,
+                c.first_hits,
+                c.fired,
+                c.quick_deaths,
+                c.human_first_hits,
+                c.human_quick_deaths,
+                c.walking_first_hits,
+                c.walking_quick_deaths,
+                c.lane_first_hits,
+                c.lane_quick_deaths
             ));
         }
         vec![("look", Part::new(serde_json::json!({ "look": json }), lines.join("\n")))]
