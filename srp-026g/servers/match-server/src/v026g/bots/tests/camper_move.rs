@@ -121,14 +121,19 @@ impl CamperStart {
 /// (median 15.9 m): a live camper does not wait for an empty spot, so his walk, not an empty spot, is what the stand-in lacked.
 const LIVE_WALK_S: [(f32, f32); 5] = [(0.1, 11.9), (0.25, 18.6), (0.5, 28.8), (0.75, 38.5), (0.9, 53.2)];
 
-/// [A239b] A walk of [`LIVE_WALK_S`] at the share `u` in [0, 1], ms: linear between its quantiles, the ends held under the first
-/// and over the last (the longest walks are runs that met fights on the way).
+/// [A239b] A walk of [`LIVE_WALK_S`] at the share `u` in [0, 1], ms (the longest walks are runs that met fights on the way).
 pub(crate) fn live_walk_ms(u: f32) -> u32 {
-    let (first, last) = (LIVE_WALK_S[0], LIVE_WALK_S[LIVE_WALK_S.len() - 1]);
+    from_quantiles_ms(&LIVE_WALK_S, u)
+}
+
+/// The value of a table of (share, seconds) quantiles at the share `u` in [0, 1], ms: linear between them, the ends held under the
+/// first and over the last.
+fn from_quantiles_ms(quantiles: &[(f32, f32)], u: f32) -> u32 {
+    let (first, last) = (quantiles[0], quantiles[quantiles.len() - 1]);
     let s = if u <= first.0 {
         first.1
     } else {
-        LIVE_WALK_S
+        quantiles
             .windows(2)
             .find(|w| u <= w[1].0)
             .map_or(last.1, |w| w[0].1 + (u - w[0].0) / (w[1].0 - w[0].0) * (w[1].1 - w[0].1))
@@ -326,18 +331,40 @@ pub(crate) enum MoveOptions {
     /// holds within [`LIVE_AREA_M`] of his spot (floors on its cover side, not only route points), steps 2-5 m after a kill
     /// ([`LIVE_AFTER_KILL_M`]), and leaves a few seconds after a kill once a known enemy is within [`LIVE_LEAVE_ENEMY_M`] or after
     /// [`LIVE_LEAVE_KILLS`] kills (no dwell clock: the live campers hold until the enemy comes); each life starts on his first spot.
-    Live,
+    /// How he leaves and where his next life starts: [`LiveLeave`].
+    Live(LiveLeave),
+}
+
+/// [A239c] How the live camper ([`MoveOptions::Live`]) leaves his spot, and where his next life starts (`SRP_BENCH_CAMPER_LEAVE`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum LiveLeave {
+    /// A239: a moment after a known enemy comes within [`LIVE_LEAVE_ENEMY_M`] in the [`LIVE_LEAVE_AFTER_MS`] after a kill, or 3-5 s
+    /// after [`LIVE_LEAVE_KILLS`] kills; after a death back to the spot he died at about half the time ([`LIVE_SAME_P`] +
+    /// [`LIVE_NEAR_P`], 6+ player matches). He was cleared in 59-60 % of his lives with a kill, the live runs in 15 %.
+    #[default]
+    NearEnemy,
+    /// A239c, as the live runs against the old bots: after each kill he leaves with the runs' chance for its rank
+    /// ([`LIVE_LEAVE_AFTER_KILL_P`]), a live while after it ([`LIVE_LEAVE_DELAY_S`]); an enemy near after a kill still sends him
+    /// (as [`Self::NearEnemy`]); no leave on a kill count; after a death back to the spot he died at with [`LIVE_BACK_P`].
+    PerKill,
 }
 
 impl MoveOptions {
-    /// Unset or `0` of the move flag: none (the camper stands); `1`: [`Self::Area`]; `live`: [`Self::Live`]. Any other value is
-    /// refused, as is a dwell that is not a number over zero.
-    pub(crate) fn parse(flag: Option<&str>, dwell_s: Option<&str>) -> Result<Option<Self>, String> {
-        match flag {
-            None | Some("0") => return Ok(None),
-            Some("live") => return Ok(Some(Self::Live)),
-            Some("1") => {}
-            Some(other) => return Err(format!("SRP_BENCH_CAMPER_MOVE={other:?}: 1, live or unset")),
+    /// Unset or `0` of the move flag: none (the camper stands); `1`: [`Self::Area`]; `live`: [`Self::Live`], its leave rule from
+    /// `leave` (`SRP_BENCH_CAMPER_LEAVE`: unset or `enemy` [`LiveLeave::NearEnemy`], `live` [`LiveLeave::PerKill`], with `live`
+    /// only). Any other value is refused, as is a dwell that is not a number over zero.
+    pub(crate) fn parse(flag: Option<&str>, dwell_s: Option<&str>, leave: Option<&str>) -> Result<Option<Self>, String> {
+        let leave = match leave {
+            None | Some("enemy") => LiveLeave::NearEnemy,
+            Some("live") => LiveLeave::PerKill,
+            Some(other) => return Err(format!("SRP_BENCH_CAMPER_LEAVE={other:?}: enemy or live")),
+        };
+        match (flag, leave) {
+            (Some("live"), leave) => return Ok(Some(Self::Live(leave))),
+            (_, LiveLeave::PerKill) => return Err("SRP_BENCH_CAMPER_LEAVE=live: only with SRP_BENCH_CAMPER_MOVE=live".to_string()),
+            (None | Some("0"), LiveLeave::NearEnemy) => return Ok(None),
+            (Some("1"), LiveLeave::NearEnemy) => {}
+            (Some(other), LiveLeave::NearEnemy) => return Err(format!("SRP_BENCH_CAMPER_MOVE={other:?}: 1, live or unset")),
         }
         let dwell_s = match dwell_s {
             None => 22.5,
@@ -354,7 +381,7 @@ impl MoveOptions {
     fn after_kill_m(self) -> (f32, f32) {
         match self {
             Self::Area { .. } => AFTER_KILL_M,
-            Self::Live => LIVE_AFTER_KILL_M,
+            Self::Live(_) => LIVE_AFTER_KILL_M,
         }
     }
 }
@@ -372,6 +399,19 @@ const LIVE_LEAVE_AFTER_MS: u32 = 15_000;
 const LIVE_LEAVE_DELAY_MS: (f32, f32) = (1_000.0, 3_000.0);
 /// [A239] And after this many kills at a spot, 3-5 s after the last (the spec: 2-4 kills).
 const LIVE_LEAVE_KILLS: u32 = 4;
+/// [A239c] The live runs' share that left the spot after their k-th kill, of the runs that reached it (k = 1-6, the last for 6
+/// and over): humans against the old bots, 7,612 runs (one life, kills within 120 s and 10 m of his first spot; `camp_leave.py` on
+/// the `camp_arrive.py` rows of fx-fights' A199 tables, the 1,050 recordings of 2026-10-26..31): 2,881 of 7,612 after the first,
+/// 1,403 of 4,259, 713 of 2,599, 399 of 1,732, 241 of 1,229, 154 of 921. About 5 % at each rank died there (the bots' doing, not
+/// his). The nearest other enemy at the kill before a leave was 15.4 m (median), before another kill 12.7 m: the leave is his
+/// rhythm, not the enemy's coming.
+const LIVE_LEAVE_AFTER_KILL_P: [f32; 6] = [0.38, 0.33, 0.27, 0.23, 0.20, 0.17];
+/// [A239c] From that kill to his leaving 10 m of the spot, s, at the quantiles 0.1, 0.25, 0.5, 0.75 and 0.9 (6,312 runs that left).
+/// The stand-in's leave begins at the draw and takes a second or two to be 10 m off: LIKELY up to 2 s later than live.
+const LIVE_LEAVE_DELAY_S: [(f32, f32); 5] = [(0.1, 1.3), (0.25, 2.6), (0.5, 3.9), (0.75, 6.3), (0.9, 9.8)];
+/// [A239c] After a death at his spot, a live camper against the old bots started his next run back within 10 m of it in 140 of
+/// 1,030 (`camp_leave.py`); those that did killed 4.69 a run, those elsewhere 2.21.
+const LIVE_BACK_P: f32 = 0.14;
 
 /// The side of the next peek.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -469,6 +509,8 @@ pub(crate) struct MotionCounts {
     pub(crate) enemy_near: u32,
     /// [A239] Lives started on another spot than the one he died at ([`CamperMotion::start_after_death`]).
     pub(crate) life_starts_elsewhere: u32,
+    /// [A239c] Leaves decided by the draw after a kill ([`LiveLeave::PerKill`]).
+    pub(crate) leaves_by_kill: u32,
 }
 
 /// What a think of the camper knows.
@@ -577,7 +619,7 @@ impl CamperMotion {
     /// spot chosen for it while he was dead ([`Self::start_after_death`]; `SRP_BENCH_CAMPER_START=spot` puts him there, else he
     /// walks there), his first spot if none was.
     fn respawned(&mut self, t: &Think<'_>, dead_ms: u32) {
-        if self.moving == MoveOptions::Live
+        if matches!(self.moving, MoveOptions::Live(_))
             && let Some(to) = self.life_start.take().or_else(|| camper_spot_at(t.tactics, t.side, &self.options).map(|(at, _)| at))
         {
             self.mode = Mode::Leave { to, since: t.now };
@@ -615,12 +657,23 @@ impl CamperMotion {
                 MoveOptions::Area { dwell_s } => Some(
                     now + if kills >= 2 { rng_ms(&mut self.rng, 3_000.0, 5_000.0) } else { dwell_ms(dwell_s, &mut self.rng) },
                 ),
-                MoveOptions::Live if kills >= LIVE_LEAVE_KILLS => Some(now + rng_ms(&mut self.rng, 3_000.0, 5_000.0)),
-                MoveOptions::Live => leave_at,
+                MoveOptions::Live(LiveLeave::NearEnemy) if kills >= LIVE_LEAVE_KILLS => Some(now + rng_ms(&mut self.rng, 3_000.0, 5_000.0)),
+                MoveOptions::Live(LiveLeave::NearEnemy) => leave_at,
+                // [A239c] After each kill he leaves with the live runs' chance for its rank, a live while later; a kill that comes
+                // first draws again (the run went on).
+                MoveOptions::Live(LiveLeave::PerKill) => {
+                    let p = LIVE_LEAVE_AFTER_KILL_P[(kills as usize).clamp(1, LIVE_LEAVE_AFTER_KILL_P.len()) - 1];
+                    if self.rng.range(0.0, 1.0) < p {
+                        self.counts.leaves_by_kill += 1;
+                        Some(now + from_quantiles_ms(&LIVE_LEAVE_DELAY_S, self.rng.range(0.0, 1.0)))
+                    } else {
+                        None
+                    }
+                }
             };
         }
         // [A239] The live camper goes a moment after an enemy comes near within a while of his last kill.
-        if self.moving == MoveOptions::Live
+        if matches!(self.moving, MoveOptions::Live(_))
             && leave_at.is_none()
             && last_kill.is_some_and(|at| now.saturating_sub(at) <= LIVE_LEAVE_AFTER_MS)
             && t.enemy.is_some_and(|e| e.distance_xz(t.me.feet) <= LIVE_LEAVE_ENEMY_M)
@@ -736,12 +789,19 @@ impl CamperMotion {
     /// off. With `SRP_BENCH_CAMPER_START=spot` every life began on his first spot, where the bots had just killed him: he was
     /// cleared there in 70 % of his lives (camp-live-move-replica-70ad999e).
     pub(crate) fn start_after_death(&mut self, tactics: &Tactics, side: i32, dead_life: u32) -> Option<Vec3> {
-        if self.moving != MoveOptions::Live || self.chosen_after == Some(dead_life) {
+        let MoveOptions::Live(leave) = self.moving else {
+            return None;
+        };
+        if self.chosen_after == Some(dead_life) {
             return None;
         }
         self.chosen_after = Some(dead_life);
         let last = self.spot();
-        let to = if self.rng.range(0.0, 1.0) < LIVE_SAME_P + LIVE_NEAR_P {
+        let back_p = match leave {
+            LiveLeave::NearEnemy => LIVE_SAME_P + LIVE_NEAR_P,
+            LiveLeave::PerKill => LIVE_BACK_P,
+        };
+        let to = if self.rng.range(0.0, 1.0) < back_p {
             last
         } else {
             let next = self.next_spot_in(tactics, side, last).unwrap_or(last);
@@ -812,7 +872,7 @@ struct Stayed {
 fn first_leave(moving: MoveOptions, now: u32, rng: &mut Rng) -> Option<u32> {
     match moving {
         MoveOptions::Area { dwell_s } => Some(now + dwell_ms(dwell_s, rng)),
-        MoveOptions::Live => None,
+        MoveOptions::Live(_) => None,
     }
 }
 
@@ -820,7 +880,7 @@ fn first_leave(moving: MoveOptions, now: u32, rng: &mut Rng) -> Option<u32> {
 pub(crate) fn area_of(moving: MoveOptions, tactics: &Tactics, side: i32, spot: Vec3, crouched: bool) -> Vec<Vec3> {
     match moving {
         MoveOptions::Area { .. } => plan_area(tactics, side, spot, crouched),
-        MoveOptions::Live => live_area(tactics, side, spot, crouched),
+        MoveOptions::Live(_) => live_area(tactics, side, spot, crouched),
     }
 }
 
@@ -1433,7 +1493,7 @@ mod tests {
     #[test]
     fn the_live_camper_holds_until_an_enemy_comes_near_after_a_kill() {
         let tactics = tactics();
-        let live = CamperOptions { moving: Some(MoveOptions::Live), ..CamperOptions::OFF };
+        let live = CamperOptions { moving: Some(MoveOptions::Live(LiveLeave::NearEnemy)), ..CamperOptions::OFF };
         let mut idle = motion_with(live, 1);
         run(&mut idle, &tactics, 0, 60_000, None, |_| 0);
         assert_eq!(idle.counts.leaves, 0, "no dwell: {:?}", idle.counts);
@@ -1458,6 +1518,57 @@ mod tests {
         assert_eq!(busy.counts.leaves, 1, "{:?}", busy.counts);
     }
 
+    /// [A239c] The live runs' leave rule: quiet, he holds; after a kill he leaves with the runs' chance for its rank, a live while
+    /// later (about 38 % of first kills, gone within 9.8 s of it, none sent by an enemy 40 m off); after a fourth kill with the
+    /// fourth's chance (23 %), not always as the near-enemy rule; an enemy 10 m off after a kill still sends him.
+    #[test]
+    fn the_live_runs_rule_leaves_after_a_kill_with_the_runs_chance_for_its_rank() {
+        let tactics = tactics();
+        let per_kill = CamperOptions { moving: Some(MoveOptions::Live(LiveLeave::PerKill)), ..CamperOptions::OFF };
+        let far = Some(Vec3::new(40.0, 0.0, 0.0));
+        let mut idle = motion_with(per_kill, 1);
+        run(&mut idle, &tactics, 0, 60_000, None, |_| 0);
+        assert_eq!(idle.counts.leaves, 0, "no dwell: {:?}", idle.counts);
+        let mut left = 0;
+        for seed in 0..300 {
+            let mut m = motion_with(per_kill, seed);
+            run(&mut m, &tactics, 0, 11_000, far, |now| u32::from(now >= 1_000));
+            assert_eq!((m.counts.leaves, m.counts.enemy_near), (m.counts.leaves_by_kill, 0), "seed {seed}: {:?}", m.counts);
+            left += m.counts.leaves;
+        }
+        assert!((85..=145).contains(&left), "{left} of 300 first kills (live 38 %)");
+        // Four kills a second apart (no decided leave comes before the next kill: the shortest wait is 1.3 s), then quiet.
+        let mut stayed = 0;
+        for seed in 0..100 {
+            let mut m = motion_with(per_kill, seed);
+            run(&mut m, &tactics, 0, 15_000, far, |now| (now / 1_000).min(4));
+            stayed += u32::from(m.counts.leaves == 0);
+        }
+        assert!((60..=92).contains(&stayed), "{stayed} of 100 held after a fourth kill (live 77 %)");
+        let mut near = motion_with(per_kill, 1);
+        run(&mut near, &tactics, 0, 4_200, Some(Vec3::new(10.0, 0.0, 0.0)), |now| u32::from(now >= 1_000));
+        assert_eq!(near.counts.leaves, 1, "{:?}", near.counts);
+    }
+
+    /// [A239c] With the live runs' rule his next life goes back to the spot he died at with the live chance against the old bots
+    /// (14 %), else to another 25 m or more off.
+    #[test]
+    fn the_live_runs_rule_seldom_starts_a_life_back_on_the_spot_he_died_at() {
+        let tactics = tactics();
+        let per_kill = CamperOptions { moving: Some(MoveOptions::Live(LiveLeave::PerKill)), ..CamperOptions::OFF };
+        let mut back = 0;
+        for seed in 0..300 {
+            let mut m = motion_with(per_kill, seed);
+            let at = m.start_after_death(&tactics, 0, 0).expect("a start");
+            if at == m.spot() {
+                back += 1;
+            } else {
+                assert!(at.distance_xz(m.spot()) >= LEAVE_MIN_M, "{at:?}");
+            }
+        }
+        assert!((25..=62).contains(&back), "{back} of 300 back (live 14 %)");
+    }
+
     /// [A239] The live camper's area: his spot, then floors of its storey 2-5 m off, cover side first; each life he goes back to
     /// his first spot.
     #[test]
@@ -1468,7 +1579,7 @@ mod tests {
         assert_eq!(area[0], spot);
         assert!(area.len() > 1, "the soak field's floor round the spot: {area:?}");
         assert!(area[1..].iter().all(|p| (1.5..=5.5).contains(&p.distance_xz(spot))), "{area:?}");
-        let live = CamperOptions { moving: Some(MoveOptions::Live), ..CamperOptions::OFF };
+        let live = CamperOptions { moving: Some(MoveOptions::Live(LiveLeave::NearEnemy)), ..CamperOptions::OFF };
         let (first, _) = camper_spot_at(&tactics, 0, &live).expect("a spot");
         let mut m = motion_with(live, 1);
         // A new life far from it: he heads for the first spot.
@@ -1481,7 +1592,7 @@ mod tests {
     #[test]
     fn the_live_camper_chooses_his_next_lifes_spot_once_per_death() {
         let tactics = tactics();
-        let live = CamperOptions { moving: Some(MoveOptions::Live), ..CamperOptions::OFF };
+        let live = CamperOptions { moving: Some(MoveOptions::Live(LiveLeave::NearEnemy)), ..CamperOptions::OFF };
         let mut m = motion_with(live, 1);
         let first = m.start_after_death(&tactics, 0, 0).expect("a start");
         assert_eq!(m.start_after_death(&tactics, 0, 0), None, "once per death");
@@ -1710,13 +1821,18 @@ mod tests {
         assert!(CamperStart::parse(None, Some("live")).is_err(), "a walk from a spawn is his own");
         assert!(CamperStart::parse(Some("spawn"), Some("live")).is_err());
         assert!(CamperStart::parse(Some("spot"), Some("walk")).is_err());
-        assert_eq!(MoveOptions::parse(None, None), Ok(None));
-        assert_eq!(MoveOptions::parse(Some("0"), None), Ok(None));
-        assert_eq!(MoveOptions::parse(Some("1"), Some("30")), Ok(Some(MoveOptions::Area { dwell_s: 30.0 })));
-        assert_eq!(MoveOptions::parse(Some("live"), None), Ok(Some(MoveOptions::Live)));
-        assert!(MoveOptions::parse(Some("yes"), None).is_err());
-        assert!(MoveOptions::parse(Some("1"), Some("abc")).is_err());
-        assert!(MoveOptions::parse(Some("1"), Some("-3")).is_err());
+        assert_eq!(MoveOptions::parse(None, None, None), Ok(None));
+        assert_eq!(MoveOptions::parse(Some("0"), None, None), Ok(None));
+        assert_eq!(MoveOptions::parse(Some("1"), Some("30"), None), Ok(Some(MoveOptions::Area { dwell_s: 30.0 })));
+        assert_eq!(MoveOptions::parse(Some("live"), None, None), Ok(Some(MoveOptions::Live(LiveLeave::NearEnemy))));
+        assert_eq!(MoveOptions::parse(Some("live"), None, Some("enemy")), Ok(Some(MoveOptions::Live(LiveLeave::NearEnemy))));
+        assert_eq!(MoveOptions::parse(Some("live"), None, Some("live")), Ok(Some(MoveOptions::Live(LiveLeave::PerKill))));
+        assert!(MoveOptions::parse(Some("yes"), None, None).is_err());
+        assert!(MoveOptions::parse(Some("1"), Some("abc"), None).is_err());
+        assert!(MoveOptions::parse(Some("1"), Some("-3"), None).is_err());
+        assert!(MoveOptions::parse(None, None, Some("live")).is_err(), "a leave rule of the live camper alone");
+        assert!(MoveOptions::parse(Some("1"), None, Some("live")).is_err());
+        assert!(MoveOptions::parse(Some("live"), None, Some("often")).is_err());
     }
 
     /// [A239b] A live walk follows the live quantiles, held at their ends; it is drawn once per death, about the live median, and only
