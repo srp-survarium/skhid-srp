@@ -253,8 +253,9 @@ pub struct Feel {
     /// any leg with room before a sharp turn or the route's end, kept through the turns under [`SprintTurns::sharp_deg`]
     /// and let go of [`SprintTurns::release_m`] before a sharper one. Live humans sprint 59 % of their calm ticks with under
     /// 3.5 m of straight way ahead and 57 % before a turn of 60-90 degrees within 3 m; the live bots 4 % and 2 %
-    /// (`a199-sprint`). None: [`Feel::sprint_from_m`] of straight way to start and [`Feel::sprint_until_m`] before every
-    /// corner over [`Feel::corner`], as before.
+    /// (`a199-sprint`). On by default (A207's by-side bench: the bench bots' 4-8 % sprint under 3.5 m of straight way became 20-25 %,
+    /// outcomes not worse, with `think.stamina_rates` kit). None: [`Feel::sprint_from_m`] of straight way to start and
+    /// [`Feel::sprint_until_m`] before every corner over [`Feel::corner`], as before.
     pub sprint_turns: Option<SprintTurns>,
 }
 
@@ -357,7 +358,7 @@ impl Default for Feel {
             sprint_through: true,
             straight_jumps: false,
             press_in_reach: false,
-            sprint_turns: None,
+            sprint_turns: Some(SprintTurns::default()),
         }
     }
 }
