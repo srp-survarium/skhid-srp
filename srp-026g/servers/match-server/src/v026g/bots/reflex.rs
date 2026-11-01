@@ -2920,6 +2920,18 @@ pub struct ReloadNote {
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
 
+/// [measure] A bot's own numbers at a shot (A228, the fire gate): when (ms), its target's distance (m), how far its view was from
+/// where it meant to aim (the gate's test, `off_by`: his chest moved by its aim error), the gate's bound that tick, and its aim
+/// error's size (the larger of its two angles), degrees. What the shot's view was off his chest is the bench's; these split it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FireAim {
+    pub at: u32,
+    pub distance: f32,
+    pub off_deg: f32,
+    pub within_deg: f32,
+    pub error_deg: f32,
+}
+
 /// Fire at a target this lately is still going, ms: a spray at the smoke he went into may go on
 /// (`SmokeTuning::spray_ms`). GUESS: longer than the pause between two bursts of the best players (`aim.pause_ms`).
 const SPRAY_FIRING_MS: u32 = 400;
@@ -3036,6 +3048,8 @@ pub struct Reflex {
     first_shot_at: u32,
     /// The last tick it fired, and at whom: a spray into smoke is only fire already going ([`SPRAY_FIRING_MS`]).
     last_fire: Option<(Place, u32)>,
+    /// [measure] Its own numbers at its last shot ([`FireAim`], A228).
+    fire_aim: Option<FireAim>,
     /// The aim's last fresh look found its target behind smoke; the aim sprays at the last point seen now (each
     /// a note when it begins); the notes not yet taken.
     smoke_lost: bool,
@@ -3559,6 +3573,11 @@ impl Reflex {
     /// [measure] The last reload started, if any.
     pub fn reload_note(&self) -> Option<ReloadNote> {
         self.reload_note
+    }
+
+    /// [measure] Its own numbers at its last shot, if any (A228).
+    pub fn fire_aim(&self) -> Option<FireAim> {
+        self.fire_aim
     }
 
     /// [measure] The end of the last round-by-round reload's loop, if any: the
@@ -6877,6 +6896,13 @@ impl Reflex {
         }
         if fire {
             self.last_fire = Some((track.who(), now));
+            self.fire_aim = Some(FireAim {
+                at: now,
+                distance,
+                off_deg: off.to_degrees(),
+                within_deg,
+                error_deg: error.0.abs().max(error.1.abs()).to_degrees(),
+            });
             #[cfg(test)]
             if spraying {
                 super::smoke::tally::add(me.team, super::smoke::tally::Event::Spray);

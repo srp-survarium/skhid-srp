@@ -9,9 +9,13 @@
 //! Key of the `owner` object `fire_gate`: `"team<t>"` -> `cells` (`"<off>:<first|burst>:<band>:<calm|under_fire>"` -> `[shots,
 //! hits]`, only cells with a shot), `ttfs_bins` (engagements with a shot, by the time to the first, bins of [`TTFS_BINS_MS`]),
 //! `duels` (`won`, `lost`, `none`: engagements by their end, `won_ttfs` / `lost_ttfs`: `[engagements with a shot, ms summed]`);
-//! `vs_camper`: the same `duels` for the engagements on the stand-in camper, and `shots` (`[shots, hits]`) at him.
+//! `vs_camper`: the same `duels` for the engagements on the stand-in camper, and `shots` (`[shots, hits]`) at him; `split`: the shots
+//! the bot's own numbers at the shot came with (`reflex::FireAim`, within [`AIM_MATCH_MS`]), by its aim error (`error_bins`) and by
+//! how far its view was from where it meant to aim (`slack_bins`: what the gate let through), both in his chest's half-widths,
+//! `[shots, hits]`, and the gate's bound summed (`bound_sum`, half-widths).
 
 use super::*;
+use crate::v026g::bots::reflex::FireAim;
 
 /// His chest's half-width, metres (the gate's `CombatTuning::body_half_m`).
 const HALF_M: f32 = 0.25;
@@ -30,6 +34,8 @@ const UNDER_FIRE_MS: u32 = 1_000;
 const TTFS_BINS_MS: [u32; 8] = [250, 500, 750, 1_000, 1_500, 2_000, 3_000, 5_000];
 
 const CELLS: usize = OFF_LABELS.len() * 2 * BAND_LABELS.len() * 2;
+/// A shot takes the bot's numbers of its last shot when they are this near in time, ms (a tick and the bench's slack).
+const AIM_MATCH_MS: u32 = 100;
 
 /// An engagement under way: its target, since when, its first shot at him, and since when the input has had no target, while
 /// that is a moment (within [`LOST_MS`]: the reflex's own "lost a moment", `reflex::LOST_MS`).
@@ -61,6 +67,32 @@ struct TeamCounts {
     /// The engagements on the stand-in camper, and the shots at him (shots, hits).
     camper: Duels,
     camper_shots: [u32; 2],
+    split: Split,
+}
+
+/// The shots with the bot's own numbers: by its aim error and by the gate's slack (half-widths bins of [`OFF_EDGES`]), shots and hits;
+/// the gate's bound summed (half-widths).
+#[derive(Clone, Copy, Default)]
+struct Split {
+    error: [[u32; 2]; OFF_LABELS.len()],
+    slack: [[u32; 2]; OFF_LABELS.len()],
+    bound_sum: f64,
+}
+
+impl Split {
+    fn add(&mut self, aim: FireAim, half_deg: f32, hit: bool) {
+        let bin = |halves: f32| OFF_EDGES.iter().position(|&edge| halves <= edge).unwrap_or(OFF_EDGES.len());
+        for (cells, deg) in [(&mut self.error, aim.error_deg), (&mut self.slack, aim.off_deg)] {
+            let cell = &mut cells[bin(deg / half_deg)];
+            cell[0] += 1;
+            cell[1] += u32::from(hit);
+        }
+        self.bound_sum += f64::from(aim.within_deg / half_deg);
+    }
+
+    fn shots(&self) -> u32 {
+        self.error.iter().map(|c| c[0]).sum()
+    }
 }
 
 /// Engagements by their end (won, lost, none), and the time to the first shot of those won and lost (with a shot, ms summed).
@@ -106,6 +138,8 @@ pub(super) struct FireGate {
     engaged: Vec<Option<Engagement>>,
     last_shot: Vec<Option<u32>>,
     shot_at: Vec<Option<u32>>,
+    /// By place: the bot's own numbers at its last shot ([`Topic::read`]).
+    aims: Vec<Option<FireAim>>,
     /// The run's kills read so far.
     kills_read: usize,
 }
@@ -113,7 +147,14 @@ pub(super) struct FireGate {
 impl FireGate {
     pub(super) fn new(n: usize) -> Self {
         let team = || TeamCounts { cells: vec![[0; 2]; CELLS], ..TeamCounts::default() };
-        Self { teams: [team(), team()], engaged: vec![None; n], last_shot: vec![None; n], shot_at: vec![None; n], kills_read: 0 }
+        Self {
+            teams: [team(), team()],
+            engaged: vec![None; n],
+            last_shot: vec![None; n],
+            shot_at: vec![None; n],
+            aims: vec![None; n],
+            kills_read: 0,
+        }
     }
 
     /// A shot's cell: the view's offset bin, first or in a burst, the distance band, under fire or not.
@@ -156,6 +197,13 @@ impl Topic for FireGate {
         self
     }
 
+    /// Each bot's own numbers at its last shot (read after the game step, before [`Topic::begin`] takes the step's shots).
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(slot) = self.aims.get_mut(place) {
+            *slot = bot.and_then(|bot| bot.reflex.fire_aim());
+        }
+    }
+
     /// The tick's shots and kills, and each body's target. `game.tick` and the facts' ticks are the match time in ms.
     fn begin(&mut self, run: &Run, game: &mut Game) {
         let tick = game.tick;
@@ -188,6 +236,9 @@ impl Topic for FireGate {
             if camper == Some(target) {
                 counts.camper_shots[0] += 1;
                 counts.camper_shots[1] += hit;
+            }
+            if let Some(aim) = self.aims[s].filter(|aim| aim.at.abs_diff(fact.tick) <= AIM_MATCH_MS) {
+                counts.split.add(aim, half_deg, hit == 1);
             }
             if let Some(e) = self.engaged[s].as_mut().filter(|e| e.target == target && e.first_shot.is_none()) {
                 e.first_shot = Some(tick);
@@ -246,6 +297,7 @@ impl Topic for FireGate {
                 serde_json::json!({
                     "cells": cells, "ttfs_bins": counts.ttfs, "duels": counts.duels.json(),
                     "vs_camper": { "duels": counts.camper.json(), "shots": counts.camper_shots },
+                    "split": { "error_bins": counts.split.error, "slack_bins": counts.split.slack, "bound_sum": counts.split.bound_sum },
                 }),
             );
             // The line: shots and hit rate by the view's offset bin, first shots and bursts, calm and under fire; the duels.
@@ -263,8 +315,19 @@ impl Topic for FireGate {
             let burst = sum(&|i| !(i / 2 / BAND_LABELS.len()).is_multiple_of(2));
             let calm = sum(&|i| i.is_multiple_of(2));
             let fire = sum(&|i| !i.is_multiple_of(2));
+            let bins = |cells: &[[u32; 2]; OFF_LABELS.len()]| {
+                cells.iter().zip(OFF_LABELS).map(|(c, l)| format!("{l} {}/{} {:.1} %", c[1], c[0], rate(*c))).collect::<Vec<_>>().join(", ")
+            };
+            let split = counts.split;
+            let split_text = format!(
+                "of {} shots with the bot's numbers: its aim error {}; its view off where it meant (the gate's slack) {}; mean bound {:.1}",
+                split.shots(),
+                bins(&split.error),
+                bins(&split.slack),
+                if split.shots() == 0 { 0.0 } else { split.bound_sum / f64::from(split.shots()) },
+            );
             text.push(format!(
-                "team {team}: view off (chest half-widths) {}; first {}/{} {:.1} %, burst {}/{} {:.1} %; calm {}/{} {:.1} %, under fire {}/{} {:.1} %; duels {}; vs the stand-in camper: shots {}/{} {:.1} %, duels {}",
+                "team {team}: view off (chest half-widths) {}; first {}/{} {:.1} %, burst {}/{} {:.1} %; calm {}/{} {:.1} %, under fire {}/{} {:.1} %; duels {}; vs the stand-in camper: shots {}/{} {:.1} %, duels {}; {}",
                 per_off.join(", "),
                 first[1],
                 first[0],
@@ -283,6 +346,7 @@ impl Topic for FireGate {
                 counts.camper_shots[0],
                 rate(counts.camper_shots),
                 counts.camper.text(),
+                split_text,
             ));
         }
         vec![("fire_gate", Part::new(serde_json::json!({ "fire_gate": json }), format!("owner-test fire gate: {}", text.join("; "))))]
@@ -319,5 +383,17 @@ mod tests {
         assert_eq!(team.duels.lost_ttfs, [0, 0]);
         // Only the engagement on the stand-in camper (place 2) counts apart.
         assert_eq!(team.camper.ends, [1, 0, 0]);
+    }
+
+    #[test]
+    fn a_shot_with_the_bots_numbers_splits_into_its_aim_error_and_the_gates_slack() {
+        let mut split = Split::default();
+        // At 20 m a half-width is about 0.72 deg: an error of 2 deg is 1-3 half-widths, a slack of 3 deg 3-10.
+        let half = HALF_M.atan2(20.0).to_degrees();
+        split.add(FireAim { at: 0, distance: 20.0, off_deg: 3.0, within_deg: 4.0, error_deg: 2.0 }, half, true);
+        assert_eq!(split.error[1], [1, 1]);
+        assert_eq!(split.slack[2], [1, 1]);
+        assert_eq!(split.shots(), 1);
+        assert!((split.bound_sum - f64::from(4.0 / half)).abs() < 1e-6);
     }
 }
