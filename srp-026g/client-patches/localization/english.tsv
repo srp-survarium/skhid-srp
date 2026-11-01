@@ -2427,6 +2427,8 @@ st_srp_loadout_unfit	can't play
 st_srp_lobby_basement	Basement
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
+st_srp_lobby_house	House
+st_srp_lobby_range	Shooting Range
 st_srp_lobby_room	Room
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Account created on first sign-in

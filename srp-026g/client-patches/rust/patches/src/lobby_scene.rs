@@ -1,8 +1,8 @@
 //! Patch 81: the lobby's scene is the one the player picks in the lobby
 //! window (docs/notes/lobby-scenes.md): the Room (the 0.69d camp, the
-//! default), the Basement (the classic), the Bunker (S.T.A.L.K.E.R. 2) or
-//! the Hangar (0.46c2). In a squad the lobby is its commander's pick. The
-//! four lobbies ship with the game: a project that fails to load is a bug,
+//! default), the Basement (the classic), the Bunker (S.T.A.L.K.E.R. 2), the
+//! Hangar (0.46c2), the House or the Shooting Range (S.T.A.L.K.E.R. 2). In a
+//! squad the lobby is its commander's pick. The six lobbies ship with the game: a project that fails to load is a bug,
 //! logged, never a state of the game's.
 //!
 //! The pick is kept in user.cfg as the console variable `srp_lobby`
@@ -60,6 +60,10 @@ pub enum Lobby {
     Stk2Bunker,
     /// The Hangar: the 0.46c2 hangar.
     Hangar046,
+    /// The House: the S.T.A.L.K.E.R. 2 (2012) blockpost's guard hut.
+    Stk2Blockpost,
+    /// The Shooting Range: the S.T.A.L.K.E.R. 2 (2012) bar's shooting gallery.
+    Stk2Bar,
 }
 
 /// srp's start of a lobby pick (`3B`; its `lobby_pick::LOBBY_PICK_BASE`,
@@ -68,8 +72,9 @@ pub enum Lobby {
 pub const PICK_BASE: u32 = 2095 * 1000 * 1000;
 
 impl Lobby {
-    /// In the window's order (and the ids' 1 to 4).
-    pub const ALL: [Lobby; 4] = [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046];
+    /// In the window's order (and the ids' 1 to 6).
+    pub const ALL: [Lobby; 6] =
+        [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046, Lobby::Stk2Blockpost, Lobby::Stk2Bar];
 
     /// Its id: user.cfg's `srp_lobby`, the lobby window's card, srp's
     /// `3B` start (`2 095 000 000 + id`) and `0xA1`'s bytes (0 none).
@@ -79,6 +84,8 @@ impl Lobby {
             Lobby::Classic => 2,
             Lobby::Stk2Bunker => 3,
             Lobby::Hangar046 => 4,
+            Lobby::Stk2Blockpost => 5,
+            Lobby::Stk2Bar => 6,
         }
     }
 
@@ -102,6 +109,8 @@ impl Lobby {
             Lobby::Classic => b"2",
             Lobby::Stk2Bunker => b"3",
             Lobby::Hangar046 => b"4",
+            Lobby::Stk2Blockpost => b"5",
+            Lobby::Stk2Bar => b"6",
         }
     }
 
@@ -118,6 +127,8 @@ impl Lobby {
             Lobby::Stk2Bunker => c"lobby_scene/stk2_bunker",
             Lobby::Hangar046 => c"lobby_scene/hangar_046",
             Lobby::Camp069 => c"lobby_scene/camp_069",
+            Lobby::Stk2Blockpost => c"lobby_scene/stk2_blockpost",
+            Lobby::Stk2Bar => c"lobby_scene/stk2_bar",
         }
     }
 
@@ -130,6 +141,8 @@ impl Lobby {
             Lobby::Stk2Bunker => c"resources/projects/lobby_scene/stk2_bunker/client_project",
             Lobby::Hangar046 => c"resources/projects/lobby_scene/hangar_046/client_project",
             Lobby::Camp069 => c"resources/projects/lobby_scene/camp_069/client_project",
+            Lobby::Stk2Blockpost => c"resources/projects/lobby_scene/stk2_blockpost/client_project",
+            Lobby::Stk2Bar => c"resources/projects/lobby_scene/stk2_bar/client_project",
         }
     }
 
@@ -140,6 +153,8 @@ impl Lobby {
             Lobby::Classic => "day",
             Lobby::Stk2Bunker => "stk2_bunker",
             Lobby::Hangar046 => "hangar_046",
+            Lobby::Stk2Blockpost => "stk2_blockpost",
+            Lobby::Stk2Bar => "stk2_bar",
         }
     }
 }
@@ -714,8 +729,8 @@ mod tests {
             assert_eq!(id, lobby.name());
             assert_eq!(lobby.config().to_str().unwrap(), format!("resources/projects/lobby_scene/{id}/client_project"));
         }
-        assert_eq!(Lobby::ALL.map(Lobby::id), [1, 2, 3, 4]);
-        for other in [&b""[..], b"0", b"5", b"12", b" 1", b"a"] {
+        assert_eq!(Lobby::ALL.map(Lobby::id), [1, 2, 3, 4, 5, 6]);
+        for other in [&b""[..], b"0", b"7", b"12", b" 1", b"a"] {
             assert_eq!(Lobby::parse(other), Lobby::Camp069, "{other:?}");
         }
         assert_eq!(Lobby::of_id(0), None);

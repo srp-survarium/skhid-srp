@@ -2427,6 +2427,8 @@ st_srp_loadout_unfit	ei pelikelpoinen
 st_srp_lobby_basement	Kellari
 st_srp_lobby_bunker	Bunkkeri
 st_srp_lobby_hangar	Halli
+st_srp_lobby_house	Talo
+st_srp_lobby_range	Ampumarata
 st_srp_lobby_room	Huone
 st_srp_lobby_title	Aula
 st_srp_login_account_hint	Tili luodaan ensimmäisellä kirjautumisella

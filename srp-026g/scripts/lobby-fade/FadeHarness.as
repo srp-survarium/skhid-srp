@@ -20,7 +20,7 @@ package
    // - whole with the loading spinner (1000, 1): black where no panel is, the spinner on it, the
    //   panel drawn over it; a second call: one black, still the first child;
    // - gone (0, 0): off the display list;
-   // - the lobby window (srp_lobby_window, its button's toggle): four cards, the state the exe
+   // - the lobby window (srp_lobby_window, its button's toggle): six cards, the state the exe
    //   tells (srp_lobby_state: the pick 3 marked), opened and closed, then left open (check.sh's
    //   window.png); the player panel with the lobby button in the premium button's place (none
    //   left there), drawn at the top left.
@@ -144,8 +144,8 @@ package
          else
          {
             trace("FADE window: " + int(w.width) + " x " + int(w.height) + " at " + int(w.x) + "," + int(w.y));
-            // two by two of vote-sized cards (280 x 190)
-            if(w.width < 2 * 280 || w.height < 2 * 190)
+            // three by two of vote-sized cards (280 x 190)
+            if(w.width < 3 * 280 || w.height < 2 * 190)
                failures.push("the lobby window too small: " + w.width + " x " + w.height);
             lobby.srp_lobby_window();
             if(w.parent != null)

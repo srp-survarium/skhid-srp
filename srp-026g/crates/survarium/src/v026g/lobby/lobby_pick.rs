@@ -20,18 +20,31 @@ pub enum LobbyPick {
     Bunker,
     /// `lobby_scene/hangar_046`.
     Hangar,
+    /// `lobby_scene/stk2_blockpost`.
+    House,
+    /// `lobby_scene/stk2_bar`.
+    Range,
 }
 
 impl LobbyPick {
-    pub const ALL: [LobbyPick; 4] = [LobbyPick::Room, LobbyPick::Basement, LobbyPick::Bunker, LobbyPick::Hangar];
+    pub const ALL: [LobbyPick; 6] = [
+        LobbyPick::Room,
+        LobbyPick::Basement,
+        LobbyPick::Bunker,
+        LobbyPick::Hangar,
+        LobbyPick::House,
+        LobbyPick::Range,
+    ];
 
-    /// Its id on the wire (1 to 4; 0 is none in `0xA1`).
+    /// Its id on the wire (1 to 6; 0 is none in `0xA1`).
     pub fn id(self) -> u8 {
         match self {
             LobbyPick::Room => 1,
             LobbyPick::Basement => 2,
             LobbyPick::Bunker => 3,
             LobbyPick::Hangar => 4,
+            LobbyPick::House => 5,
+            LobbyPick::Range => 6,
         }
     }
 
@@ -61,7 +74,8 @@ mod tests {
             assert_eq!(LobbyPick::of_start(LOBBY_PICK_BASE + u32::from(pick.id())), Some(pick));
             assert_eq!(LobbyPick::of_id(pick.id()), Some(pick));
         }
-        for start in [LOBBY_PICK_BASE, LOBBY_PICK_BASE + 5, LOBBY_PICK_BASE - 1] {
+        assert_eq!(LobbyPick::ALL.map(LobbyPick::id), [1, 2, 3, 4, 5, 6]);
+        for start in [LOBBY_PICK_BASE, LOBBY_PICK_BASE + 7, LOBBY_PICK_BASE - 1] {
             assert_eq!(LobbyPick::of_start(start), None);
         }
         assert_eq!(LobbyPick::of_id(0), None);

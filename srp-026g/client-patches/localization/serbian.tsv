@@ -2427,6 +2427,8 @@ st_srp_loadout_unfit	nije spreman
 st_srp_lobby_basement	Podrum
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
+st_srp_lobby_house	Kuća
+st_srp_lobby_range	Streljana
 st_srp_lobby_room	Soba
 st_srp_lobby_title	Lobi
 st_srp_login_account_hint	Nalog se pravi pri prvoj prijavi
