@@ -105,6 +105,7 @@ owner-test threat answer: K1 routes checked 0 exposed 0; searches round the lane
   "k1_round": 0,
   "k1_search_floors": 0,
   "k1_too_long": 0,
+  "pair_left_out": 0,
   "pair_up_join_hidden": 0,
   "pair_up_join_none": 0,
   "pair_up_mate_refused": 0,

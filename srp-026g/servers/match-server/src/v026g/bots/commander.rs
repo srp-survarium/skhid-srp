@@ -311,6 +311,10 @@ fn threat_tick(
                 }
             });
         }
+        // [threat.pair_target] Two holds covering one lane: a job on the one with more kills only (design-p1c §6).
+        if let Some(pair) = tuning.threat.pair_target {
+            holds = threat::one_of_each_pair(holds, &threat.jobs, pair.step_m);
+        }
         let areas = objective.home_spots(&tactics.world.map);
         // [threat.breach] The bots in a Breach are not the Flank jobs' to give roles to, and the cap counts them.
         let breach_rules = tuning.threat.breach.map(|b| b.rules());
