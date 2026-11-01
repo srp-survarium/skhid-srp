@@ -736,6 +736,7 @@ fn joins_preserve_living_dead_and_respawned_player_snapshots() {
         let head = PlayerState {
             current_index: 0,
             target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
             items: vec![990_000],
             alive,
             has_to_die: false,

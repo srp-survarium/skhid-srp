@@ -405,6 +405,7 @@ mod tests {
         PlayerState {
             current_index: 0,
             target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
             items: (0..items as u32).map(|item| 1000 + item).collect(),
             alive,
             has_to_die: false,

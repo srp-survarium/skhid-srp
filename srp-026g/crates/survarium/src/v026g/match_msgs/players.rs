@@ -168,6 +168,8 @@ pub struct PlayerState {
     /// owner's kit index too].
     pub current_index: u8,
     pub target_index: u8,
+    /// Client patch 85's record: the player's drop and the gun it borrows.
+    pub pickup: weapon_pickup::Record,
     /// One for each item of the profile, in the static info's order:
     /// `amount_in_storage` of a stack item (what was not handed out to a
     /// slot), the `condition` of any other.
@@ -201,7 +203,7 @@ impl PlayerState {
     /// pickup record is none.
     pub fn read(state: &[u8], items: usize) -> Option<Self> {
         let head = state.get(..Self::head_len(items))?;
-        weapon_pickup::Record::decode(head[2..FIELDS_AT].try_into().ok()?)?;
+        let pickup = weapon_pickup::Record::decode(head[2..FIELDS_AT].try_into().ok()?)?;
         let u32_at =
             |at: usize| u32::from_le_bytes([head[at], head[at + 1], head[at + 2], head[at + 3]]);
         let fixed = FIELDS_AT + 4 * items;
@@ -214,6 +216,7 @@ impl PlayerState {
         Some(Self {
             current_index: head[0],
             target_index: head[1],
+            pickup,
             items: (0..items).map(|item| u32_at(FIELDS_AT + 4 * item)).collect(),
             alive: flag(fixed)?,
             has_to_die: flag(fixed + 1)?,
@@ -266,7 +269,9 @@ pub struct Supplies {
     pub kit: u8,
     /// Whether the kit's items were found in the inventory: with `false`
     /// every `in_hand`, `condition` and `magazine` is `None` and says
-    /// nothing (a dead player's inventory, or a layout read wrong).
+    /// nothing (a dead player's inventory, or a layout read wrong). Never
+    /// for a player holding a borrowed gun (client patch 85): its own
+    /// ammunition there is parked out of the inventory, not used.
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
     pub items: Vec<ItemLeft>,
@@ -297,7 +302,8 @@ impl Supplies {
             })
             .collect();
         let mut inventory_read = false;
-        if let Some(kit) = profile.kits.get(usize::from(head.current_index)) {
+        let kit = profile.kits.get(usize::from(head.current_index));
+        if let Some(kit) = kit.filter(|_| head.pickup.borrow.is_none()) {
             let state = block.state;
             let mut at = PlayerState::head_len(items.len());
             // Items come by ascending slot (0x2FE50A..0x2FE53B), each with
@@ -452,12 +458,11 @@ pub fn animation_bytes(tree: &[bool], times: &[u32], floats: &[f32]) -> Vec<u8> 
     out.finish()
 }
 
-/// A player state for tests and tools: the head (an empty pickup record),
-/// `inventory` after it.
+/// A player state for tests and tools: the head, `inventory` after it.
 pub fn state_bytes(head: &PlayerState, inventory: &[u8]) -> Vec<u8> {
     let flag = |set: bool| if set { 0xFF } else { 0 };
     let mut out = vec![head.current_index, head.target_index];
-    out.extend(weapon_pickup::Record::EMPTY.encode());
+    out.extend(head.pickup.encode());
     for item in &head.items {
         out.extend(item.to_le_bytes());
     }
@@ -609,6 +614,7 @@ mod tests {
         PlayerState {
             current_index: 0,
             target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
             // The condition, 180 rounds and 4 grenades in store.
             items: vec![990_000, 180, 4],
             alive,
@@ -738,6 +744,24 @@ mod tests {
         };
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
         assert!(!supplies.inventory_read);
+        assert!(supplies.items.iter().all(|item| item.in_hand.is_none()));
+        // Holding a borrowed gun (patch 85): its own ammunition is parked
+        // out of the inventory, which is not read (nothing used is guessed).
+        let borrow = weapon_pickup::Borrow {
+            donor: weapon_pickup::Place::new(2).unwrap(),
+            kit: weapon_pickup::Kit::new(1).unwrap(),
+            slot: weapon_pickup::WeaponSlot::Second,
+            own: weapon_pickup::WeaponSlot::First,
+        };
+        let pickup = weapon_pickup::Record { drop: weapon_pickup::Drop::None, borrow: Some(borrow) };
+        let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory());
+        let block = PlayerBlock {
+            place: 4,
+            state: &state,
+            animation: None,
+        };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert!(supplies.alive && !supplies.inventory_read);
         assert!(supplies.items.iter().all(|item| item.in_hand.is_none()));
         // A state too short for the profile is not read at all.
         let block = PlayerBlock {
