@@ -54,6 +54,17 @@ balances "around the current balance".
   `CombatLogWeapon<icon>` by name, so a ported weapon adds a bitmap, no list.
 - **Lobby icons:** 0.46c2's diagonal renders turned level and mirrored (0.26g draws a gun muzzle
   right), in a sixth column of the weapon atlas (cells 1 to 10).
+- **Clips on their own skeleton.** The lobby holds a gun with `preview_item`, now the gun's own idle
+  (the template's was another gun's: the PKP's on the Fort-401, the PM's on the pistols, which
+  crashed the lobby in bone_matrices_computer at every sign-in). The port refuses a config whose clip
+  animates bones of another skeleton (a state's item clips and `preview_item` on the gun's, every
+  other clip on the player's), and any resource key naming nothing.
+- **Sights by the model's own `aim` locator:** 0.46c2 has no `aim_offset`, and the template's
+  (the SVD's -0.11, the PKP's 0.12, the pistols' -0.1) put the SVU's sight 30 px and the Fort-401's
+  post 17 px low: the port leaves it out, as for 0.31a2.
+- **Rarity:** the Glock 17's `base_rarity_level` is 0 (0.46c2's daily-quest Glock had 3, a gold name).
+- **Decals:** the same default as the live pistols (`weapon-decals-1`: an empty `data/decals`; the
+  size is client patch 44's, 6 cm to start, one for every weapon), so the pistols' look large.
 
 ## Stats
 
@@ -111,6 +122,6 @@ barrel's end (where 0.69d0 mounts a device), `fire_point` the end of the muzzle 
 
 - Premium and skin copies (the owner: none).
 - Scope variants (`fitn_*`): the guns aim with their iron sights. The SVU's template is the SVD; it does
-  not take the SVD's PSO-1 (placed for the SVD's mount).
+  not take the SVD's PSO-1 (placed for the SVD's mount), and its lobby icon has 0.46c2's PSO-1 erased.
 - The weapon kit (#893, not merged): when it is, these configs take its data as the live guns do.
 - Muzzle devices (the muzzle step, above).
