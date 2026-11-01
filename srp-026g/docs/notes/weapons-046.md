@@ -50,8 +50,10 @@ balances "around the current balance".
   suggests: there is no premium copy to learn the painted parts from, so the picker
   (`scripts/weapon-camo`) chooses others when the owner wants.
 - **Kill feed:** the guns' own kill-log icons (0.46c2's 75, 77 to 80, 82 to 84; the Glock's 95 from
-  0.69d0, as 0.46c2 gave it the APS's), in the hud and the lobby's tooltips; the hud finds each
-  `CombatLogWeapon<icon>` by name, so a ported weapon adds a bitmap, no list.
+  0.69d0, as 0.46c2 gave it the APS's; the Colt M1911's 99, drawn from its lobby cell, as no build has
+  one: 0.46c2 gives it the PM's 16, 0.69d0 the CZ 75's 82), in the hud and the lobby's tooltips; the
+  hud finds each `CombatLogWeapon<icon>` by name, so a ported weapon adds a bitmap, no list. The port
+  refuses two guns on one new icon, and a gun's own image on a live gun's number.
 - **Lobby icons:** 0.46c2's diagonal renders turned level and mirrored (0.26g draws a gun muzzle
   right), in a sixth column of the weapon atlas (cells 1 to 10).
 - **Clips on their own skeleton.** The lobby holds a gun with `preview_item`, now the gun's own idle

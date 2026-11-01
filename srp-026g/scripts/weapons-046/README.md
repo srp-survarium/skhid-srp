@@ -8,7 +8,7 @@ resource-porter's weapon core (`port-weapons`, branch `feat/weapons-046c2`) from
 |---|---|
 | `camo.tsv` | the guns' textures that get an `_aoac` (the camouflage masks, `../weapon-camo/guns.tsv`'s format), for the pack `weapons-046-camo` |
 | `parts.tsv` | the textures whose mask paints nothing (sights, barrels, muzzle brakes, rounds); the others are suggested |
-| `../kill-feed-icons/make_weapon_icons_046.py` | the hud's kill-feed icons 75, 77-80, 82-84 (0.46c2's) and 95 (0.69d0's, the Glock 17) |
+| `../kill-feed-icons/make_weapon_icons_046.py` | the hud's kill-feed icons 75, 77-80, 82-84 (0.46c2's), 95 (0.69d0's, the Glock 17) and 99 (the Colt M1911's, drawn from its lobby cell) |
 
 ## Rebuild
 
@@ -29,7 +29,7 @@ python3 -I srp-026g/scripts/weapon-camo/weapon_camo.py srp-026g/scripts/weapons-
   --bare-masks   # (#949's weapon_camo.py) every surface gets an _aoac, the parts.tsv ones bare
 # 3. the kill-feed icons, then the lobby's copies of them
 python3 -I srp-026g/scripts/kill-feed-icons/make_weapon_icons_046.py --log-046c2 <0.46c2 log icons> \
-  --log-069d0 <0.69d0 log icons> --out srp-026g/flash/hud
+  --log-069d0 <0.69d0 log icons> --cells $SKHID_PACKS_DIR/weapons-046-<n>/icons --out srp-026g/flash/hud
 python3 -I srp-026g/scripts/kill-feed-icons/make_lobby_weapon_icons.py --patches ~/.cache/skhid-release/patches \
   --ffdec <ffdec.jar> --hud-bitmaps srp-026g/flash/hud/bitmaps --lobby srp-026g/flash/lobby_menu
 ```
