@@ -1966,6 +1966,14 @@ const LIP_GLIDE_MPS: f32 = 0.5;
 /// [`Feel::lip_guard_full`]: a bot the guard gave up is watched again when it has moved this far from where it was given up (m).
 const LIP_RESUME_M: f32 = 0.5;
 
+#[cfg(test)]
+thread_local! {
+    /// The bench's reason for the lip guard's last verdict that the keys fall (`Bot::bench_guard_why`): 1 the walk from the reckoned
+    /// feet falls, 2 only the same walk a reckoning's error to a side falls ([`Feel::lip_guard_full`]'s sides), plus 2 when the lip
+    /// was seen only on the floors about the reckoned feet (3, 4).
+    static GUARD_WHY: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
+
 /// The lip guard's watch over its own hold on a bot: a guard that keeps changing a bot's keys has stopped its
 /// walk, not saved it (a bot braked at a rim it must turn at, again and again). The score rises with each
 /// tick the keys are changed and falls with each that they are not; past [`LIP_GIVE_UP`] the guard leaves
@@ -2130,9 +2138,13 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
             LipGuard::Safe
         } else {
             #[cfg(test)]
-            if full && body::stays_up(&at, keys, turn, &stop) {
+            let sides_only = full && body::stays_up(&at, keys, turn, &stop);
+            #[cfg(test)]
+            if sides_only {
                 motor::counts::lip_gap(4);
             }
+            #[cfg(test)]
+            GUARD_WHY.set(1 + u8::from(sides_only) + 2 * u8::from(about));
             let brake = (speed > 0.5).then(|| {
                 let relative = kin::wrap(kin::yaw_of([-me.velocity[0], -me.velocity[1]]) - (me.yaw + turn));
                 (keys & !MOVE) | motor::keys_toward(relative)
@@ -2220,6 +2232,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             LipGuard::Swapped(_) => 2,
             LipGuard::Braked(_) | LipGuard::Doomed => 3,
         };
+        bot.bench_guard_why = if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed) { GUARD_WHY.get() } else { 0 };
         if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) && bot.bench_guard_dbg < 6 && std::env::var_os("SRP_GUARD_DEBUG").is_some() {
             bot.bench_guard_dbg += 1;
             let route = bot.route.as_ref().map(|(r, goal)| (r.length(), r.points().len(), goal.to_array()));

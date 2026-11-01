@@ -292,8 +292,9 @@ fn runs(symbols: impl Iterator<Item = char>) -> String {
 }
 
 /// The `STUCKEP` line of a stuck episode (`SRP_BENCH_STUCK_EPISODES`): `recs` from 3 s before its start (`before` of them) to
-/// its end. The lip guard's verdict (`Bot::bench_guard`), its watch (w watching, o off, g given up) and the walk (`Bot::bench_walk`)
-/// as runs, before and in the episode; the share of ticks with a move key and with a route; the median speed.
+/// its end. The lip guard's verdict (`Bot::bench_guard`), its watch (w watching, o off, g given up), why it said the keys fall (- not,
+/// p the walk, s only a side's, a and b the same seen only about the feet) and the walk (`Bot::bench_walk`) as runs, before and in the
+/// episode; the share of ticks with a move key and with a route; the median speed.
 fn episode_line(place: Place, team: u8, e: &Episode, recs: &[Rec], before: usize, lip: bool, end: &str) -> String {
     let (pre, during) = recs.split_at(before.min(recs.len()));
     let digit = |n: u8| char::from_digit(u32::from(n.min(9)), 10).unwrap_or('?');
@@ -302,7 +303,7 @@ fn episode_line(place: Place, team: u8, e: &Episode, recs: &[Rec], before: usize
     speeds.sort_by(f32::total_cmp);
     let median = speeds.get(speeds.len() / 2).copied().unwrap_or(0.0);
     format!(
-        "STUCKEP place={place} team={team} t0={:.1} t1={:.1} at={:.2},{:.2},{:.2} lip={} end={end} kind={} cause={} move={:.2} route={:.2} mps={median:.2} pre_guard=[{}] guard=[{}] watch=[{}] walk=[{}]",
+        "STUCKEP place={place} team={team} t0={:.1} t1={:.1} at={:.2},{:.2},{:.2} lip={} end={end} kind={} cause={} move={:.2} route={:.2} mps={median:.2} pre_guard=[{}] guard=[{}] watch=[{}] why=[{}] walk=[{}]",
         e.t0,
         e.t1,
         e.at.x,
@@ -316,6 +317,7 @@ fn episode_line(place: Place, team: u8, e: &Episode, recs: &[Rec], before: usize
         runs(pre.iter().map(|r| digit(r.guard))),
         runs(during.iter().map(|r| digit(r.guard))),
         runs(during.iter().map(|r| r.watch.letter())),
+        runs(during.iter().map(|r| ['-', 'p', 's', 'a', 'b'].get(usize::from(r.guard_why)).copied().unwrap_or('?'))),
         runs(during.iter().map(|r| digit(r.walk))),
     )
 }

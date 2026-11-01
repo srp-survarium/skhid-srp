@@ -311,6 +311,9 @@ pub struct Bot {
     /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
     #[cfg(test)]
     pub(crate) bench_guard: u8,
+    /// Why that verdict said the keys fall (`drive::GUARD_WHY`): 0 not, 1 the walk, 2 only a side's, plus 2 seen only about the feet.
+    #[cfg(test)]
+    pub(crate) bench_guard_why: u8,
     #[cfg(test)]
     pub(crate) bench_guard_dbg: u8,
     /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
@@ -504,6 +507,8 @@ impl Bot {
             bench_lane: 0,
             #[cfg(test)]
             bench_guard: 0,
+            #[cfg(test)]
+            bench_guard_why: 0,
             #[cfg(test)]
             bench_guard_dbg: 0,
             #[cfg(test)]

@@ -177,6 +177,8 @@ struct Rec {
     /// The lip guard of the bot's last motor tick (`Bot::bench_guard`) and its watch ([`LipWatchKind`]): the stuck episodes' print.
     guard: u8,
     watch: LipWatchKind,
+    /// Why the guard said the keys fall (`Bot::bench_guard_why`).
+    guard_why: u8,
 }
 
 /// [`crate::v026g::bots::drive::LipWatch`] without its data, for the record.
