@@ -58,12 +58,21 @@
   the picked gun takes the slot (a normal gun there: switching, the hud,
   weight and reload are the game's). Holding a picked gun: it is let go
   and the new one takes the slot; the own gun stays hidden. Both slots may
-  hold picked guns. On the picker's death or respawn each slot gets its own
-  gun and ammunition back and the picked guns go (not dropped again). A
+  hold picked guns. On the picker's respawn (base_player::remove(1)) each
+  slot gets its own gun and ammunition back and the picked guns go. A
   stack both own guns share (one calibre) stays with the gun that still
   binds it and is hidden with whichever own gun goes last; each slot's
   restore gives back what its own pickup hid. No donor is tracked: a drop
   is its body's, and a picked gun is the picker's.
+- A player who dies holding a picked gun drops that gun (the owner,
+  2026-11-02): its drop is a copy of the pick's recipe (the place, kit and
+  slot it was first cooked from, which the dead player's record keeps until
+  its respawn; `Record::drop_recipe`), a kept idle copy of that recipe
+  re-used, else cooked from the recipe's place. Its body draws the gun in
+  its hands, the prompt's box is the copy's (the same gun), and it is taken
+  as any drop: A's gun goes from B's body to C, or back to A (A's own gun
+  then hidden as for any pickup). Dying holding its own gun: its own gun
+  drops, as before.
 - The carry rule, exactly (the owner, 2026-11-01): two pistols yes; two
   two-handed guns only with the terminator skill
   (`use_two_double_handed_weapons`); `disable_second_weapon` keeps guns to
@@ -92,9 +101,11 @@
   `double_handed` (weapon+5E9h). Nothing in hands but a gun of its two
   slots: no pickup.
 - Synced: only each player's record (its drop: open with its kit and slot,
-  or taken; for each weapon slot the gun picked into it: the pickup's tick
-  and the recipe, the profile kit slot it was cooked from, read only to
-  cook it anew on a client without it; the pickup waiting for its switch;
+  or taken, its kit and slot kept for a cancelled pickup to open it again;
+  for each weapon slot the gun picked into it: the pickup's tick and the
+  recipe, the profile kit slot it was cooked from, read only to
+  cook it anew on a client without it; the pickup waiting for its switch,
+  with the place whose drop it was taken from;
   each pick's own gun's wear at the swap), 28 bytes at the start of its
   state; nothing else of the own kit a pick sets aside. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
@@ -117,9 +128,9 @@
     stack is below its refill;
   - a picked gun let go (its picker's death, respawn, destruction, another
     pickup into its slot) stays cooked (keep and reuse, below: a rollback
-    can take it back, its donor's next drop re-uses it); a rollback undoing
-    a pickup puts its gun back in its body's drop; an untaken drop's gun is
-    freed at the frame after its body left the world.
+    can take it back, the next drop of its recipe re-uses it); a rollback
+    undoing a pickup puts its gun back in its body's drop; an untaken
+    drop's gun is freed at the frame after its body left the world.
 - My picks for stage 2b (the same rule):
   - the prompt shows only when the pickup would be taken now (the drop open,
     its gun made on this client, the picker alive with a gun of its own in
@@ -134,8 +145,8 @@
     a pickup another client sends;
   - Use's press sent as a pickup stays the pickup's until Use is let go (the
     crate or a battery under the body is not used by the same press);
-  - the gun of a drop taken is hidden on its donor's ragdoll, and so is a
-    picked gun in its dead holder's hands (it vanishes);
+  - the gun of a drop taken is hidden on its body's ragdoll; a picked gun
+    in its dead holder's hands is drawn there (it is that body's drop);
   - a gun whose config has no name shows the text without one.
 - Status (2026-10-31): the shared rules (`crates/weapon-pickup`), the
   server's check and record shift, the instance (a gun cooked at each
@@ -475,8 +486,12 @@ cooked gun).
   player lives). A copy that was ever registered or in hands is never freed
   mid-match: only when its last holder is destroyed (its departure, the
   match's end). An idle one (let go, or back in a drop whose body left) is
-  the drop's gun of its donor's next death with the same kit and slot (no
-  cook; the switch grants that death's magazine and the reserve). A copy
+  the drop's gun of the next death that drops its recipe, cooked from the
+  same player (no cook; the switch grants that death's magazine and the
+  reserve): its donor's next death with the same kit and slot, or the death
+  of a player holding a pick of it. One it held last that lies in another
+  body's drop when its holder leaves is that drop's (its body's player its
+  holder now), not freed. A copy
   never registered nor in hands (an untaken drop) is freed at the frame
   after its body left the world. No timed free remains.
 - **A bullet's record after a swap** (the 85a crash, 2026-11-01, proven
@@ -679,7 +694,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   at the same tick; artefact_carry's handler calls `weapon_pickup::died`
   first; a client's players have only this death, 0x1F28E0 inlines the
   base's 0x2D77C0), when the held active object (+128h) is a client weapon
-  (vtable 0xA04174) whose inventory item (+10h) is in slot 7 or 10: one
+  (vtable 0xA04174) whose inventory item (+10h) is in slot 7 or 10, a copy
+  of the record's recipe for that slot (`Record::drop_recipe`: the gun
+  picked into it, else its own), cooked from the recipe's place: one
   query (`query_resources` 0xE5B60) of one request, the player cook's own
   {"inventory" 0x9FD55C, 41h}, its user data an inventory variant (vtable
   0x9FD808, type 0x205C60) and a recipe as the player cook fills it
@@ -774,7 +791,11 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   profile code, match_options, boost binder and invoker: the query and its
   recipe and profile copy, a replayed death, no gun, the completion through
   the game's invoker, the body's end (remove(1)) and the next frame, an empty result, a donor destroyed
-  while its gun cooks; every allocation freed once. `check_artefact_carry_026g.py`
+  while its gun cooks; every allocation freed once; a dead holder's picked
+  gun dropped (`death_drop`: its copy of the pick's recipe, the ragdoll
+  and the box, C taking it, the slot-7 variant, an own gun unchanged, a
+  late joiner, and the owner's A -> B -> A -> C chain with rollbacks and
+  late joiners, two copies in all). `check_artefact_carry_026g.py`
   and `check_ragdoll_026g.py` (the composed handlers), `check_engine_026g.py`,
   cargo test and clippy of `client-patches/rust`. No new site
   (player_cook.query removed).
