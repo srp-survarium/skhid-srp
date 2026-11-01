@@ -268,3 +268,7 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
     locator, is no longer a candidate;
   - the aperture sight's body garbled: its material is made on the Leupold Mk4's template (the Leupold 3-7's,
     which drew right), not the ELCAN's.
+  - @3, the aperture sight's body still garbled with @2's material: its mesh runs its texture coordinates to u = 1.91
+    (0.69d0 repeats the texture; 0.26g clamps a weapon's, smearing the edge's texels over those faces). The made
+    models' triangles wholly past an edge are moved back by whole textures (`wrap_uv`; a surface with a triangle
+    across an edge, our eyepiece's tiled background, is left as it is).
