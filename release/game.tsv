@@ -10,4 +10,4 @@
 # release: release/add-mirror survarium-026g.7z <url> (srp's mirrors.tsv).
 # One line, tabs between:
 # name	sha256	size	urls
-survarium-026g.7z	7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028	2906544103	http://2.28.121.133:8090/survarium-026g.7z https://archive.org/download/vostok_engine_v0.26g0_build_2777_internal_id_1104_jan_14_2015/survarium_full_026g0.7z https://drive.usercontent.google.com/download?id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK&export=download&confirm=t
+survarium-026g.7z	7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028	2906544103	https://drive.usercontent.google.com/download?id=1_2Jj0nx7zzi7sYEzk-SdU4hWFRCITHxH&export=download&confirm=t https://drive.usercontent.google.com/download?id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK&export=download&confirm=t http://2.28.121.133:8090/survarium-026g.7z https://archive.org/download/vostok_engine_v0.26g0_build_2777_internal_id_1104_jan_14_2015/survarium_full_026g0.7z
