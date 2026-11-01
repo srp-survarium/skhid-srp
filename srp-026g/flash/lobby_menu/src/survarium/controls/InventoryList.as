@@ -1611,6 +1611,22 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
+      // The first item of the inventory of a dictionary id, or null (the weapon kit names its
+      // attachments by dictionary id: UpgradeWindow.kitUpgrades).
+      public function getInventoryItemOf(dictId:int) : ItemData
+      {
+         var item:ItemData = null;
+         var found:ItemData = null;
+         for each(item in this._inventoryItemsDict)
+         {
+            if(Boolean(item) && int(item.dictId) == dictId && (found == null || item.itemId < found.itemId))
+            {
+               found = item;
+            }
+         }
+         return found;
+      }
+
       // The dictionary ids of the weapons in the chosen kit's two weapon slots.
       public function kitWeaponDicts() : Array
       {

@@ -3132,6 +3132,13 @@ va	status	ref_021d	name
 0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription
 0x0026afb0	inferred-medium		survarium::messaging_client::send_important_message
 0x0021bd80	inferred-medium		survarium::network_client::messaging_client
+0x002f1750	inferred-high		survarium::item_config_cook::translate_query
+0x002f2060	inferred-medium		survarium::item_config_query::get_item
+0x001f13d0	inferred-medium		survarium::inventory_item_descr::deserialize_body
+0x001f1610	inferred-medium		vostok::buffer_vector<survarium::upgrade>::resize
+0x003584e0	inferred-medium		survarium::item_config_cook::substitute_upgrade_params
+0x00288180	inferred-medium		survarium::lobby_menu::fill_item_upgrades
+0x0028b0f0	inferred-medium		vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back
 0x0034f940	inferred-medium		vostok::render::load_props_impl
 0x001d1c60	inferred-high		vostok::render::sky_dome_geometry::sky_dome_geometry
 0x001d2150	inferred-high		vostok::render::sky_dome_geometry::draw

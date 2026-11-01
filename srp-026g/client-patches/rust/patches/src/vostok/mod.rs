@@ -52,6 +52,7 @@ pub mod settings;
 mod sync;
 pub mod trace;
 pub mod types;
+mod upgrades;
 pub mod world;
 mod world_load;
 mod ui;
@@ -90,6 +91,7 @@ pub use hud_input::{Hud, HudCall, HudView};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
 pub use world_load::WorldLoad;
+pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 

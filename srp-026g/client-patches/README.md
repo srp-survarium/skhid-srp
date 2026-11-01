@@ -3915,6 +3915,33 @@ goes to `srp_patches.log`, and the exit `refused` is the handler's epilogue
 runs both loads beside the original exe; `--drift` the client build against
 the server build on kept worlds.
 
+## The weapon kit (patch 68, unreleased)
+
+A weapon holds up to six upgrades (two decals, camouflage, scope, and later
+a muzzle device and a grip) in the client's three upgrade records
+(`../docs/notes/weapon-kit.md`): srp sends the decals as records of their
+own and one kit record in slot 3 that holds the first of scope,
+camouflage, muzzle and grip and names the others by dict id. The encoding
+is the crate `../crates/weapon-kit` (no_std, no alloc), which the servers
+link and `rust/patches` builds in. The Rust `weapon_kit` module:
+- `weapon_kit.query_room` (0x2F1771, a `code` hook, weapon_kit_026g.asm):
+  translate_query's call of 0x2F2060, then A0h of room below its frame;
+- `weapon_kit.query_records` (0x2F1776, a lohook): for a kit, the cook's
+  records ([ebp+40h]) are the records (the kit's own valued 0) and one for
+  each dict id it names, in that room;
+- `weapon_kit.flash_upgrade` (0x2882E3): a kit's object gets `kit_own`,
+  `kit_camo`, `kit_muzzle`, `kit_grip` (the AS3 interface's SetMember
+  0x7C6A20), which the lobby movie's `UpgradeWindow.kitUpgrades` reads;
+- `weapon_kit.attached_pair` (0x2885CE): the dict ids a kit names mark the
+  inventory's items as attached to the weapon;
+- patch 48's apply calls the entry `weapon_kit.preview_apply` (generated,
+  the stack aligned to 16) through its dword +23h, which the build writes.
+
+A malformed kit is refused: the item is built from its records as they
+are. The lobby's weapon window has two decal slots. Nothing a match
+computes changes (weapon-kit.md, "The simulation").
+`check_weapon_kit_026g.py` runs the four sites and patch 48's apply beside
+the original exe; selftest check 68 reads the sites.
 ## Music (patch 88, unreleased)
 
 The main theme on the login screen, the lobby theme in the lobby, and the map's theme from its

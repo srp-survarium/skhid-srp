@@ -4966,6 +4966,17 @@ va	name	location	role	basis
 0x00274470	survarium::lobby_client::comment_about_user	entry ESP+8	NUL-terminated nickname	observed
 0x00274470	survarium::lobby_client::comment_about_user	entry ESP+12	kind low byte; no clamping (2744D8)	observed
 0x00274470	survarium::lobby_client::comment_about_user	entry ESP+16	subtype/mode low byte; no clamping (2744F4)	observed
+0x002f2060	survarium::item_config_query::get_item	ESI	the query's holder ([translate_query's [ebp+7Ch]]+108h): +8 dict id, +0Ch modifications*, +10h upgrades* (the item record's +14h and +60h buffer_vectors), +14h the items dictionary, +2Ch its thread	observed
+0x002f2060	survarium::item_config_query::get_item	EDI	where the four dwords go (translate_query's ebp+38h)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	EDI	the buffer_vector (begin, end, capacity end)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	ECX	the new count	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	ECX	the object interface (a GFx value's +0)	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+4	the target, the object's own (the GFx value's +8)	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+8	the member's name, a C string	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+12	the value to set (a GFx value: +4 its type, 4 uint; +8 what it holds)	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+16	1 for a display object ((type & 8Fh) == 0Ah, 0x2882B3)	observed
+0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	EDI	the pair	observed
+0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	ESI	the vector {begin, end, capacity}	observed
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	ESI	the scene: +2FAh set (the listener's position is set), the three vectors stored as atomic half3 at +120h, +128h, +130h; the game calls it from its own thread every frame for its scenes (game_world 0x1F7653, lobby_menu 0x21D689, 0x220D9D). Without it a scene's tick (0x57B80) never calls notify_listener 0x5C280 (0x57C9C), the only path to create_sound_voice 0x59E70 (via 0x5C7A0): its sounds get no voice	observed
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	EAX	the listener's position (float3)	observed
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	entry ESP+4	its front (float3; the lobby's +2Ch)	observed

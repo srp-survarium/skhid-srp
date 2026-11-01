@@ -2829,3 +2829,31 @@ with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a ga
   closed.
 - **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
   `engine_close_current_match`) with reason 2, as match.md section 25 has it.
+
+### The weapon kit (patch 68)
+
+The rules and the layout: `weapon-kit.md`. PROVEN in the code, run with Unicorn
+(`check_weapon_kit_026g.py`); not run in a game.
+
+- **The cook:** item_config_cook::translate_query (0x2F1750) reads [ebp+40h] (the item's upgrade
+  records' buffer_vector, which 0x2F2060 copies from the query at 0x2F1771) at 0x2F1799 and
+  0x2F18D0 only, until 0x2F1F1F writes the local anew; its epilogue is `lea esp,[ebp-0A0h]`
+  (0x2F2041). The code hook `weapon_kit.query_room` makes the call and takes A0h below the frame;
+  the lohook `weapon_kit.query_records` (0x2F1776, `mov ecx,[ebp+38h] / mov eax,[ebp+44h]`, AL
+  0x2F2060's answer) fills that room and points [ebp+40h] at it.
+- **The upgrades to Flash:** 0x288180, after an object's `param` (SetMember through the
+  interface's vtable +14h at 0x2882D8), at 0x2882E3 (`mov ecx,[esp+48h] / mov eax,[ecx]`, before
+  the PushBack): ESI the item record, [esp+80h] the record's index, [esp+30h] the GFx object. The
+  AS3 object interface's vtable is 0x8FC288 (the AS3 movie root writes it at 0x7AB0CB; AS2's
+  0x8CE2A8 at 0x6A3448), slot 5 SetMember 0x7C6A20 (its profiler scope "ObjectInterface::SetMember",
+  0x8CF12C); engine row `engine_gfx_set_member`, thiscall, `ret 10h`, AL.
+- **The attached marks:** setup_inventory_data (0x288520), after its pair push (0x28B0F0 at
+  0x2885C9: edi the pair, esi the vector; an assert when the vector is full) at 0x2885CE
+  (`mov al,[ebp-5] / inc al`): EBX the host, [ebp-5] the record index, [ebp-28h] the pairs (50h
+  bytes an inventory item), [ebp-14h] the inventory's vector, [ebp-0Ch] its end, [ebp-18h] the
+  host's id.
+- **The preview:** patch 48's `apply` calls the dword at +23h of upgrade_preview_026g.asm when not
+  0 (cdecl: the record, the queue, its count); the build writes the generated entry of the site
+  `weapon_kit.preview_apply` there (`weapon_kit_on_preview_apply`, kind `entry`: the stack aligned
+  to 16 before Rust, which a hand-made export skipped: #893's review, movaps at [esp+10h] on the
+  game's 4-aligned stack; the arena is linked before `.srpw` is made).

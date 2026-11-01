@@ -1912,6 +1912,7 @@ va	status	ref_021d	name
 0x0005b390	reviewed	0x0004163b	vostok::sound::sound_instance_proxy_internal::free_object
 0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
 0x00274470	reviewed		survarium::lobby_client::comment_about_user
+0x007c6a20	observed		Scaleform::GFx::AS3ValueObjectInterface::SetMember
 0x000587d0	reviewed		vostok::sound::sound_scene::set_listener_properties
 0x00304370	reviewed	0x001e8da3	survarium::hit_type
 0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>

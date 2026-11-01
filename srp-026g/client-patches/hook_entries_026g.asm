@@ -3002,6 +3002,155 @@ text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
 
+; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
+global weapon_kit_on_query
+extern hook_weapon_kit_on_query
+weapon_kit_on_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_query
+    mov edx, weapon_kit_on_query_replay
+    cmp eax, 0
+    je weapon_kit_on_query_go
+    mov edx, 0x2f177c
+    cmp eax, 1
+    je weapon_kit_on_query_go
+    ud2
+weapon_kit_on_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_kit_on_query_replay:
+    db 0x8b, 0x4d, 0x38, 0x8b, 0x45, 0x44
+    jmp 0x2f177c
+
+; 0x2882e3 the lobby's upgrades to Flash (0x288180, a record's object at a time, 0x2881E0..0x28834D) after the object's `param` (SetMember at 0x2882E1; mov ecx,[esp+48h] / mov eax,[ecx] before its PushBack): ESI the item record, [esp+80h] the record's index, [esp+30h] the object: lohook -> weapon_kit_on_flash_upgrade
+global weapon_kit_on_flash_upgrade
+extern hook_weapon_kit_on_flash_upgrade
+weapon_kit_on_flash_upgrade:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_flash_upgrade
+    mov edx, weapon_kit_on_flash_upgrade_replay
+    cmp eax, 0
+    je weapon_kit_on_flash_upgrade_go
+    mov edx, 0x2882e9
+    cmp eax, 1
+    je weapon_kit_on_flash_upgrade_go
+    ud2
+weapon_kit_on_flash_upgrade_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_kit_on_flash_upgrade_replay:
+    db 0x8b, 0x4c, 0x24, 0x48, 0x8b, 0x01
+    jmp 0x2882e9
+
+; 0x2885ce setup_inventory_data (0x288520) after it pushed a record's {item id, host id} pair (0x28B0F0 at 0x2885C9; mov al,[ebp-5] / inc al): EBX the host item, [ebp-5] the record's index, [ebp-28h] the pairs each item's is_attached_to is read from (0x288672): lohook -> weapon_kit_on_attached_pair
+global weapon_kit_on_attached_pair
+extern hook_weapon_kit_on_attached_pair
+weapon_kit_on_attached_pair:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_attached_pair
+    mov edx, weapon_kit_on_attached_pair_replay
+    cmp eax, 0
+    je weapon_kit_on_attached_pair_go
+    mov edx, 0x2885d3
+    cmp eax, 1
+    je weapon_kit_on_attached_pair_go
+    ud2
+weapon_kit_on_attached_pair_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_kit_on_attached_pair_replay:
+    db 0x8a, 0x45, 0xfb, 0xfe, 0xc0
+    jmp 0x2885d3
+
+; weapon_kit.preview_apply patch 48's apply (upgrade_preview_026g.asm), through the dword +23h of its code the build writes: cdecl, the item record, its queue of changes, their count; the caller keeps every register (pushad) and pops the three: entry -> weapon_kit_on_preview_apply
+global weapon_kit_on_preview_apply
+extern hook_weapon_kit_on_preview_apply
+weapon_kit_on_preview_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_kit_on_preview_apply
+    cmp eax, 0
+    je weapon_kit_on_preview_apply_go
+    ud2
+weapon_kit_on_preview_apply_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked

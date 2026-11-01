@@ -16,7 +16,7 @@ engine_artefact_effect	0x313350	ESP+4:artefact ESP+8:time	void engine_artefact_e
 engine_apply_modifier	0x2d5ae0	EAX:modifiers ESI:index ESP+4:value ESP+8:weight	float engine_apply_modifier(const struct player_params_modifiers_container *modifiers, unsigned int index, float value, float weight)	thunk	
 engine_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_setup_profile(const void *profile, void *character, unsigned int kit)	thunk	
 engine_find_item_by_id	0x277aa0	ECX:begin EDI:end ESP+4:id	void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id)	thunk	
-engine_item_by_id	0x1f0090	EAX:dictionary ESP+4:id	void *engine_item_by_id(void *dictionary, unsigned int id)	thunk	
+engine_item_by_id	0x1f0090	EAX:dictionary ESP+4:id	struct item_entry *engine_item_by_id(struct items_dictionary *dictionary, unsigned int id)	thunk	
 engine_profile_assign	0x284d10	ESI:destination EDI:source	void *engine_profile_assign(void *destination, const void *source)	thunk	
 engine_profile_construct	0x2f73f0	ECX:this	void *engine_profile_construct(void *profile)	thunk	
 engine_allocation_name	0x420789	ECX:object	const void *engine_allocation_name(const void *where)	thunk	
@@ -98,6 +98,7 @@ engine_add_active_scene	0x059fb0	ECX:world EAX:scene	void engine_add_active_scen
 engine_store_first_resource	0x014730	ESP+4:result ESP+8:value	void engine_store_first_resource(struct queries_result *result, void *value)	cdecl	result: QueryResults, tag: QueryTag ->
 engine_comment_about_user	0x274470	ESP+4:lobby_client ESP+8:nickname ESP+12:kind ESP+16:mode	void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)	thunk	
 engine_close_current_match	0x27a790	ECX:network_client ESP+4:reason	void engine_close_current_match(struct network_client *client, unsigned int reason)	thiscall	
+engine_gfx_set_member	0x7c6a20	ECX:interface ESP+4:target ESP+8:name ESP+12:value ESP+16:display	unsigned char engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display)	thiscall	
 engine_cc_float	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_float(struct cc_float *object, const char *name, float *value, unsigned int saved, unsigned int kind)	thunk	
 engine_query_one	0x0e5b60	EAX:requests ECX:count ESP+4:callback ESP+8:allocator ESP+12:user ESP+16:parent ESP+20:flag	void engine_query_one(const struct resource_request *requests, unsigned int count, const struct query_function *callback, struct game_allocator *allocator, struct query_user_data *user, const void *parent, unsigned int flag)	thunk	
 engine_release_emitter	0x011540	ECX:pointer	void engine_release_emitter(struct sound_emitter **pointer)	thunk	

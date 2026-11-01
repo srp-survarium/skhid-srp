@@ -539,6 +539,17 @@ Patches:
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
+- a weapon's upgrades in at most three upgrade records, the weapon kit
+  (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
+  weapon_kit over the crate srp-026g/crates/weapon-kit (weapon_kit.toml).
+  translate_query's call of 0x2F2060 (0x2F1771) goes to the code hook
+  weapon_kit_026g.asm, which makes it and takes room below the cook's frame;
+  at 0x2F1776 a weapon whose records hold a kit is cooked from the records
+  and one for each dict id the kit names, in that room; the lobby's upgrades
+  to Flash (0x2882E3) give a kit's object kit_own, kit_camo, kit_muzzle and
+  kit_grip; setup_inventory_data (0x2885CE) marks the items a kit names as
+  attached; patch 48's apply calls weapon_kit_preview_apply through its
+  dword +23h, which the build writes. Nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1939,6 +1950,11 @@ UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
 UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
+# a dword after the entries: patch 68's entry weapon_kit.preview_apply (the Rust
+# patch weapon_kit, a generated entry that aligns the stack), which the build writes once the arena
+# is linked (0 in the file and without an arena: patch 48's own apply)
+UPGRADE_PREVIEW_KIT_APPLY = 0x23
+WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_on_preview_apply"   # the generated entry of weapon_kit.preview_apply
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
@@ -2253,6 +2269,10 @@ def weapon_camo_va(late_join):
 SLOT, ENTRY, CALLEE, INLINE, ABI, JUMP = "slot", "entry", "callee", "inline", "abi", "jump"
 INSTALLS = {
     0x23B207: (CALLEE, "update_ui's update_player_icons, then the units' markers: icons", None, None),
+    # the weapon kit, patch 68 (the Rust patch weapon_kit's one code hook)
+    0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
+                     "ebp+38h): weapon_kit_query_room, which calls it, takes the kit's room below the frame and "
+                     "goes on at 0x2F1776 (the lohook weapon_kit.query_records)", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -3597,6 +3617,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
         upgrade_preview = open(upgrade_preview_bin(), "rb").read()
+        # `.srpx`, the arena, linked here: patch 48's kit_apply takes patch
+        # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
+        linked = arena(arena_blocks) if arena_blocks != () else None
+        upgrade_preview = with_kit_apply(upgrade_preview, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
@@ -3661,10 +3685,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
-            # `.srpx`, the arena: its blocks linked from their sources
-            # (link_026g.py), each hook's target taken from the link by
-            # its symbol.
-            linked = arena(arena_blocks) if arena_blocks != () else None
+            # `.srpx`, the arena (linked above, with patch 48's code): each
+            # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
@@ -3743,6 +3765,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
+                     "a weapon's upgrades (two decals, camouflage, scope) in at most three records (the weapon kit), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -3913,6 +3936,18 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def with_kit_apply(code, linked):
+    """upgrade_preview_026g.section.bin (`code`) with its kit_apply dword
+    (UPGRADE_PREVIEW_KIT_APPLY, zeros in the file) holding patch 68's
+    weapon_kit_preview_apply of the arena `linked`; as it is without one."""
+    if code[UPGRADE_PREVIEW_KIT_APPLY:UPGRADE_PREVIEW_KIT_APPLY + 4] != bytes(4):
+        sys.exit("upgrade_preview_026g.section.bin: its kit_apply dword (+23h) is not the zeros the build fills")
+    if linked is None or WEAPON_KIT_PREVIEW_APPLY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, WEAPON_KIT_PREVIEW_APPLY))
+    return code[:UPGRADE_PREVIEW_KIT_APPLY] + target + code[UPGRADE_PREVIEW_KIT_APPLY + 4:]
 
 
 def artefacts_backs(linked):

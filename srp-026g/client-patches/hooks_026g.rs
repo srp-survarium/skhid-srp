@@ -1637,6 +1637,66 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_kit (patch 68) ----
+
+/// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_kit_on_query(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_kit_on_query` calls this, from the game's jump at 0x2f1776,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_kit::on_query(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_kit (patch 68) ----
+
+/// The entry `weapon_kit_on_flash_upgrade` (0x2882e3, the lobby's upgrades to Flash (0x288180, a record's object at a time, 0x2881E0..0x28834D) after the object's `param` (SetMember at 0x2882E1; mov ecx,[esp+48h] / mov eax,[ecx] before its PushBack): ESI the item record, [esp+80h] the record's index, [esp+30h] the object) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_kit_on_flash_upgrade(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_kit_on_flash_upgrade` calls this, from the game's jump at 0x2882e3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_kit::on_flash_upgrade(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_kit (patch 68) ----
+
+/// The entry `weapon_kit_on_attached_pair` (0x2885ce, setup_inventory_data (0x288520) after it pushed a record's {item id, host id} pair (0x28B0F0 at 0x2885C9; mov al,[ebp-5] / inc al): EBX the host item, [ebp-5] the record's index, [ebp-28h] the pairs each item's is_attached_to is read from (0x288672)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_kit_on_attached_pair(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_kit_on_attached_pair` calls this, from the game's jump at 0x2885ce,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_kit::on_attached_pair(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_kit (patch 68) ----
+
+/// The entry `weapon_kit_on_preview_apply` (weapon_kit.preview_apply, patch 48's apply (upgrade_preview_026g.asm), through the dword +23h of its code the build writes: cdecl, the item record, its queue of changes, their count; the caller keeps every register (pushad) and pops the three) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_kit_on_preview_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_kit_on_preview_apply` calls this, from our own code's call (weapon_kit.preview_apply),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_kit::on_preview_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code
