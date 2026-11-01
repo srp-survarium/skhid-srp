@@ -44,9 +44,38 @@ pub(crate) enum CamperAt {
     Battery,
     /// Within [`AT_NEAR_M`] of his own team's container.
     Container,
-    /// Within [`AT_NEAR_M`] of the other team's spawn, the point they are seen from in the narrowest sector: a spawn exit that
-    /// cannot be flanked, where every sight on him comes from one way.
+    /// [`EXIT_MIN_M`] to [`EXIT_MAX_M`] from the other team's nearest spawn, the point they are seen from in the narrowest sector: a spawn
+    /// exit that cannot be flanked, where every sight on him comes from one way. Outside their spawn area: no route enters it (`Tactics`'s
+    /// spawn rule), so a spot within 25 m was reached in 9 of 211 lives (A212 §2, `wsl-out/batteries/sb-base-efdd5d69-20261101`).
     Exit,
+}
+
+/// The nearest a spawn exit spot ([`CamperAt::Exit`]) lies to the other team's spawns, m: their spawn area, which no route enters.
+const EXIT_MIN_M: f32 = crate::v026g::bots::tactics::SPAWN_AREA_M;
+
+/// The farthest, m: where the live spawn campers stood (A199 runs, the camper's spot to the victim's spawn place over 2,935 spawn kills of
+/// humans: median 35 m, p25 24, p75 46; 3,611 of the old live bots' campers: median 34 m, p75 40).
+const EXIT_MAX_M: f32 = 45.0;
+
+/// Where each life of the stand-in camper starts (`SRP_BENCH_CAMPER_START`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum CamperStart {
+    /// On a spawn point of his team, as every body: he walks to his spot.
+    #[default]
+    Spawn,
+    /// On his spot ([`camper_spot_at`]): a bench of what his victims do (a spawn exit held, §2), not of his walk across the map.
+    Spot,
+}
+
+impl CamperStart {
+    /// Unset: [`Self::Spawn`]; `spawn`, `spot`; anything else is refused.
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("spawn") => Ok(Self::Spawn),
+            Some("spot") => Ok(Self::Spot),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_START={other:?}: spawn or spot")),
+        }
+    }
 }
 
 impl CamperAt {
@@ -62,7 +91,7 @@ impl CamperAt {
     }
 }
 
-/// How near a battery, a container or a spawn the spot of [`CamperAt`] lies, m (an-anticamper §8.1's definition).
+/// How near a battery or a container the spot of [`CamperAt`] lies, m (an-anticamper §8.1's definition).
 const AT_NEAR_M: f32 = 25.0;
 
 /// The candidates a camper of `options` may hold: the spots of [`CamperAt`] over [`camper_candidates`], in the order he takes
@@ -100,7 +129,13 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
     };
     let near: Vec<Candidate> = candidates
         .into_iter()
-        .filter(|c| c.sees > 0 && anchors.iter().any(|a| a.distance_xz(c.at) <= AT_NEAR_M))
+        .filter(|c| {
+            c.sees > 0
+                && match options.at {
+                    CamperAt::Exit => in_exit_band(&anchors, c.at),
+                    _ => anchors.iter().any(|a| a.distance_xz(c.at) <= AT_NEAR_M),
+                }
+        })
         .collect();
     if options.at != CamperAt::Exit {
         return Pool::ByRule(near);
@@ -123,6 +158,12 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
         .collect();
     ranked.sort_by(|(a, ca), (b, cb)| a.total_cmp(b).then(cb.sees.cmp(&ca.sees)));
     Pool::Ranked(ranked.into_iter().map(|(_, c)| c).collect())
+}
+
+/// Whether `at` lies [`EXIT_MIN_M`] to [`EXIT_MAX_M`] from the nearest of the other team's `spawns`.
+fn in_exit_band(spawns: &[Vec3], at: Vec3) -> bool {
+    let nearest = spawns.iter().map(|s| s.distance_xz(at)).fold(f32::INFINITY, f32::min);
+    (EXIT_MIN_M..=EXIT_MAX_M).contains(&nearest)
 }
 
 /// The camper's first spot by [`CamperAt`] over [`camper_candidates`]; none if no route point of his side that sees the other
@@ -631,8 +672,159 @@ pub(crate) enum CamperState {
     NoSpot,
     /// Holds one spot all match, as the old stand-in did.
     Still { at: Vec3, sees: u32 },
+    /// Holds a spot standing, and after each death goes where a live camper goes ([`ReturnRule::Live`], [`LiveReturn`]); the spot
+    /// he began at and how many route points it sees.
+    Returning { start: Vec3, sees: u32, live: Box<LiveReturn> },
     /// Works an area, peeks, steps off, leaves and returns ([`CamperMotion`]); the spot he began at and how many route points it sees.
     Moving { start: Vec3, sees: u32, motion: Box<CamperMotion> },
+}
+
+/// [`ReturnRule::Live`] After a death the live camper of 6+ player matches is back within 1 m of the point he held (where a
+/// trap on it would catch him) within 120 s in this share of cases: 230 of 1,070 cleared campers of 2+ kills (A145 payoff,
+/// `fx-gear-trap-payoff.md`, PROVEN count, LIKELY place: reckoned tracks, 5 s worlds) ...
+pub(crate) const LIVE_SAME_P: f32 = 0.215;
+/// ... and within 10 m of it, but not within 1 m, in this share: 308 of 1,070 (in all 537 of 1,070 within 10 m).
+pub(crate) const LIVE_NEAR_P: f32 = 0.288;
+/// The median time from his death to that return, ms: back on the point P25 33 / P50 46 / P75 77 s; within 10 m 27 / 40 / 65 s.
+/// A wait is drawn log-uniform within a factor of [`LIVE_SPREAD`] either way of its median (quartiles at its square root, 1.5).
+const LIVE_SAME_MS: f32 = 46_000.0;
+const LIVE_NEAR_MS: f32 = 40_000.0;
+const LIVE_SPREAD: f32 = 2.3;
+
+/// [`ReturnRule::Live`] The standing camper's lives: he holds a point standing; after each death he goes back to the very point
+/// with [`LIVE_SAME_P`], to a point of its area 3-8 m off ([`plan_area`]) with [`LIVE_NEAR_P`], each after a wait drawn about the
+/// live median during which he plays as any bot (a live camper fights on meanwhile), else at once to another spot of his
+/// scenario, [`LEAVE_MIN_M`] (anchored: [`ANCHORED_MIN_M`]) or more away. The old stand-in went back to the very point at once
+/// in every life, which makes a trap on it catch him each time.
+#[derive(Clone, Debug)]
+pub(crate) struct LiveReturn {
+    hold: StillHold,
+    /// The life he is in (`PlaceView::spawned`), and the time of the last think of it.
+    life: u32,
+    last_think: u32,
+    rng: Rng,
+    pub(crate) counts: ReturnCounts,
+}
+
+/// Where the live-return camper is in a life.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum StillHold {
+    /// Holds this point, standing.
+    Holding { at: Vec3 },
+    /// Back from the dead: plays as any bot until `until`, then holds `to`.
+    Waiting { until: u32, to: Vec3 },
+}
+
+/// What his deaths led to: back to the very point, to a point near it, to another spot; and the draws of a near point or another
+/// spot that found none and went back to the very point.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ReturnCounts {
+    pub(crate) same: u32,
+    pub(crate) near: u32,
+    pub(crate) elsewhere: u32,
+    pub(crate) none_other: u32,
+}
+
+/// Where a death sends him ([`after_death`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Back {
+    Same,
+    Near,
+    Elsewhere,
+}
+
+/// The live draw: `u` uniform in [0, 1).
+pub(crate) fn after_death(u: f32) -> Back {
+    if u < LIVE_SAME_P {
+        Back::Same
+    } else if u < LIVE_SAME_P + LIVE_NEAR_P {
+        Back::Near
+    } else {
+        Back::Elsewhere
+    }
+}
+
+/// Where he may go after a death from the point he held: the other points of its area ([`plan_area`]) and another spot of his
+/// scenario ([`other_spot`]).
+pub(crate) struct Elsewhere {
+    pub(crate) near: Vec<Vec3>,
+    pub(crate) other: Option<Vec3>,
+}
+
+impl LiveReturn {
+    fn new(at: Vec3, seed: u32, me: &PlaceView, now: u32) -> Self {
+        Self {
+            hold: StillHold::Holding { at },
+            life: me.spawned,
+            last_think: now,
+            rng: Rng::new(0xCA3E_8000 + me.place as u64 + (u64::from(seed) << 20)),
+            counts: ReturnCounts::default(),
+        }
+    }
+
+    /// One think at `now` of the body `me`: the point he holds now, or none while he waits (he plays as any bot). The transition
+    /// over (hold, a new life, the wait over); `elsewhere` is asked only on a new life.
+    fn step(&mut self, now: u32, me: &PlaceView, elsewhere: &dyn Fn(Vec3) -> Elsewhere) -> Option<Vec3> {
+        let away = now.saturating_sub(self.last_think);
+        self.last_think = now;
+        if me.spawned != self.life {
+            self.life = me.spawned;
+            self.hold = self.respawned(now, away, elsewhere);
+        }
+        self.hold = match self.hold {
+            StillHold::Waiting { until, to } if now >= until => StillHold::Holding { at: to },
+            hold => hold,
+        };
+        match self.hold {
+            StillHold::Holding { at } => Some(at),
+            StillHold::Waiting { .. } => None,
+        }
+    }
+
+    /// A new life at `now`, `dead_ms` after the last think of the old one: where to, and when.
+    fn respawned(&mut self, now: u32, dead_ms: u32, elsewhere: &dyn Fn(Vec3) -> Elsewhere) -> StillHold {
+        let at = match self.hold {
+            StillHold::Holding { at } | StillHold::Waiting { to: at, .. } => at,
+        };
+        let back = after_death(self.rng.range(0.0, 1.0));
+        let wait = |rng: &mut Rng, median_ms: f32| {
+            let total = median_ms * LIVE_SPREAD.powf(rng.range(-1.0, 1.0));
+            now + (total as u32).saturating_sub(dead_ms)
+        };
+        let to = match back {
+            Back::Same => Some(at),
+            Back::Near => {
+                let near = elsewhere(at).near;
+                (!near.is_empty()).then(|| near[(self.rng.range(0.0, near.len() as f32) as usize).min(near.len() - 1)])
+            }
+            Back::Elsewhere => elsewhere(at).other,
+        };
+        match (back, to) {
+            (Back::Same, _) => {
+                self.counts.same += 1;
+                StillHold::Waiting { until: wait(&mut self.rng, LIVE_SAME_MS), to: at }
+            }
+            (Back::Near, Some(to)) => {
+                self.counts.near += 1;
+                StillHold::Waiting { until: wait(&mut self.rng, LIVE_NEAR_MS), to }
+            }
+            (Back::Elsewhere, Some(to)) => {
+                self.counts.elsewhere += 1;
+                StillHold::Holding { at: to }
+            }
+            // No other point for his scenario: back to the very point, at once.
+            (_, None) => {
+                self.counts.none_other += 1;
+                StillHold::Holding { at }
+            }
+        }
+    }
+}
+
+/// Another spot of his scenario than `from`: the best by the rule, far enough from it.
+fn other_spot(tactics: &Tactics, side: i32, options: &CamperOptions, from: Vec3) -> Option<Vec3> {
+    let far = if options.at == CamperAt::Free { LEAVE_MIN_M } else { ANCHORED_MIN_M };
+    camper_pool(tactics, side, options).pick(options.rule, |c| c.at.distance_xz(from) >= far).map(|(at, _)| at)
 }
 
 /// The stand-in camper of a run (`SRP_BENCH_CAMPER=<place>`, `campers.md` K1 §4): that place's bot goes to a spot and holds it,
@@ -667,7 +859,7 @@ impl BenchCamper {
         match &self.state {
             CamperState::Seeking | CamperState::NoSpot => None,
             CamperState::Still { at, sees } => Some((*at, *sees)),
-            CamperState::Moving { start, sees, .. } => Some((*start, *sees)),
+            CamperState::Returning { start, sees, .. } | CamperState::Moving { start, sees, .. } => Some((*start, *sees)),
         }
     }
 
@@ -680,6 +872,7 @@ impl BenchCamper {
         };
         let counts = match &self.state {
             CamperState::Moving { motion, .. } => format!(" moves {:?}", motion.counts),
+            CamperState::Returning { live, .. } => format!(" returns {:?}", live.counts),
             _ => String::new(),
         };
         format!("camper: place {} spot {spot}{counts}", self.place)
@@ -698,9 +891,10 @@ impl BenchCamper {
         {
             self.state = match camper_spot_at(tactics, side, &self.options) {
                 None => CamperState::NoSpot,
-                Some((at, sees)) => match self.options.moving {
-                    None => CamperState::Still { at, sees },
-                    Some(moving) => CamperState::Moving {
+                Some((at, sees)) => match (self.options.moving, self.options.returns) {
+                    (None, ReturnRule::Always) => CamperState::Still { at, sees },
+                    (None, ReturnRule::Live) => CamperState::Returning { start: at, sees, live: Box::new(LiveReturn::new(at, self.seed, me, now)) },
+                    (Some(moving), _) => CamperState::Moving {
                         start: at,
                         sees,
                         motion: Box::new(CamperMotion::new(Start {
@@ -729,6 +923,29 @@ impl BenchCamper {
                     ..Intent::stay()
                 };
                 (me.feet.distance_xz(*at) <= CAMPER_WITHIN_M).then_some(*at)
+            }
+            CamperState::Returning { live, .. } => {
+                let Some(side) = bot.side else {
+                    return false;
+                };
+                let options = self.options;
+                let elsewhere = |at: Vec3| Elsewhere {
+                    near: plan_area(tactics, side, at, options.crouch).get(1..).map(<[Vec3]>::to_vec).unwrap_or_default(),
+                    other: other_spot(tactics, side, &options, at),
+                };
+                let Some(at) = live.step(now, me, &elsewhere) else {
+                    // Waiting to go back: he plays as any bot meanwhile, his legs his play's.
+                    bot.control = Driver::Own;
+                    return false;
+                };
+                bot.control = Driver::BenchCamper;
+                bot.intent = Intent {
+                    go: Go::To { at, within_m: CAMPER_WITHIN_M },
+                    pace: Pace::Run,
+                    crouch: self.options.crouch && me.feet.distance_xz(at) <= CAMPER_WITHIN_M,
+                    ..Intent::stay()
+                };
+                (me.feet.distance_xz(at) <= CAMPER_WITHIN_M).then_some(at)
             }
             CamperState::Moving { motion, .. } => {
                 let Some(side) = bot.side else {
@@ -966,6 +1183,55 @@ mod tests {
         assert!((26.0..=42.0).contains(&median), "{median}");
     }
 
+    /// [`ReturnRule::Live`] After a death the standing camper goes back to the very point about 21.5 % of the time, a median of
+    /// about 46 s after the death, to a point 3-8 m off about 29 %, about 40 s after, and to another spot 25 m or more away at
+    /// once otherwise; he plays as any bot while he waits; the first life holds his first spot.
+    #[test]
+    fn the_live_returning_camper_goes_back_at_the_live_rates() {
+        // His area's other points 4-5 m off and another spot 40 m off.
+        let spot = Vec3::new(0.0, 0.0, 0.0);
+        let elsewhere = |_: Vec3| Elsewhere { near: vec![Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0)], other: Some(Vec3::new(40.0, 0.0, 0.0)) };
+        let step = |live: &mut LiveReturn, now: u32, life: u32| live.step(now, &me_at(spot, 0, 1.0, life), &elsewhere);
+        let (mut same, mut near, mut other, mut waits_same, mut waits_near) = (0u32, 0u32, 0u32, Vec::new(), Vec::new());
+        for seed in 0..1_000u32 {
+            let me = me_at(spot, 0, 1.0, 0);
+            let mut live = LiveReturn::new(spot, seed, &me, 0);
+            assert_eq!(step(&mut live, 1_000, 0), Some(spot), "the first life holds its spot");
+            // Dead from 3 s, a new life at 11 s.
+            assert_eq!(step(&mut live, 3_000, 0), Some(spot));
+            let asked = step(&mut live, 11_000, 7);
+            match live.hold {
+                StillHold::Waiting { until, to } if to == spot => {
+                    assert_eq!(asked, None, "he plays while he waits");
+                    same += 1;
+                    waits_same.push((until - 11_000 + 8_000) as f32 / 1_000.0);
+                    assert_eq!(step(&mut live, until, 7), Some(spot));
+                }
+                StillHold::Waiting { until, to } => {
+                    assert!((3.9..=5.1).contains(&to.distance_xz(spot)), "{to:?}");
+                    near += 1;
+                    waits_near.push((until - 11_000 + 8_000) as f32 / 1_000.0);
+                }
+                StillHold::Holding { at } => {
+                    assert!(at.distance_xz(spot) >= LEAVE_MIN_M, "{at:?}");
+                    assert_eq!(asked, Some(at));
+                    other += 1;
+                }
+            }
+        }
+        assert_eq!(same + near + other, 1_000);
+        let share = |n: u32| n as f32 / 1_000.0;
+        assert!((0.17..=0.26).contains(&share(same)), "same {same}, near {near}, other {other}");
+        assert!((0.24..=0.34).contains(&share(near)), "same {same}, near {near}, other {other}");
+        let median = |mut w: Vec<f32>| {
+            w.sort_by(f32::total_cmp);
+            w[w.len() / 2]
+        };
+        assert!((38.0..=55.0).contains(&median(waits_same.clone())), "{:?}", median(waits_same));
+        assert!((33.0..=48.0).contains(&median(waits_near.clone())), "{:?}", median(waits_near));
+        assert_eq!((after_death(0.0), after_death(0.3), after_death(0.99)), (Back::Same, Back::Near, Back::Elsewhere));
+    }
+
     /// A sector is 360 less the widest gap, round the circle's seam too.
     #[test]
     fn the_sector_the_other_side_is_seen_in_is_the_narrowest_arc() {
@@ -981,12 +1247,18 @@ mod tests {
         let tactics = tactics();
         let free = CamperOptions::OFF;
         assert_eq!(camper_spot_at(&tactics, 0, &free), camper_spot_by(&tactics, 0, SpotRule::Most, false));
-        // The soak field has no battery spawners, containers or spawns on the other side: nothing is near.
-        for at in [CamperAt::Battery, CamperAt::Container, CamperAt::Exit] {
+        // The soak field has no battery spawners or containers: nothing is near.
+        for at in [CamperAt::Battery, CamperAt::Container] {
             let options = CamperOptions { at, ..CamperOptions::OFF };
             assert_eq!(camper_spot_at(&tactics, 0, &options), None, "{at:?}");
             assert_eq!(camper_pool(&tactics, 0, &options).pick(options.rule, |_| true), None, "{at:?}");
         }
+        // Its other side's spawns (75, 10) and (75, 20) have no route point of side 0 within 20 m, some 20-45 m off: the exit is one of them.
+        let options = CamperOptions { at: CamperAt::Exit, ..CamperOptions::OFF };
+        let theirs: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| s.team == 1).map(|s| s.position).collect();
+        let (at, _) = camper_spot_at(&tactics, 0, &options).expect("an exit spot 20-45 m from their spawns");
+        assert!(in_exit_band(&theirs, at), "{at:?}");
+        assert_eq!(camper_pool(&tactics, 0, &options).pick(options.rule, |_| true).map(|(p, _)| p), Some(at));
     }
 
     /// The next spot is drawn from the scenario's set and the hidden rule's: a pool that holds only some candidates never gives
@@ -1007,12 +1279,27 @@ mod tests {
         assert_eq!(ranked.pick(SpotRule::Most, |c| c.at.x > 30.0).map(|(at, _)| at.x), Some(40.0));
     }
 
+    /// A spawn exit spot lies outside the other team's spawn area and no farther than the live spawn campers stood, by the nearest of
+    /// their spawns.
+    #[test]
+    fn a_spawn_exit_spot_lies_twenty_to_forty_five_metres_from_their_nearest_spawn() {
+        let spawns = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(100.0, 0.0, 0.0)];
+        assert!(!in_exit_band(&spawns, Vec3::new(10.0, 0.0, 0.0)), "inside their spawn area");
+        assert!(in_exit_band(&spawns, Vec3::new(0.0, 5.0, 30.0)));
+        assert!(!in_exit_band(&spawns, Vec3::new(0.0, 0.0, 50.0)), "farther than the live campers");
+        assert!(!in_exit_band(&spawns, Vec3::new(85.0, 0.0, 0.0)), "the other spawn is 15 m off");
+        assert!(!in_exit_band(&[], Vec3::ZERO), "no spawn of theirs: no exit");
+    }
+
     /// An unknown value is refused, not read as the default.
     #[test]
     fn unknown_settings_are_refused() {
         assert_eq!(CamperAt::parse(None), Ok(CamperAt::Free));
         assert_eq!(CamperAt::parse(Some("exit")), Ok(CamperAt::Exit));
         assert!(CamperAt::parse(Some("exits")).is_err());
+        assert_eq!(CamperStart::parse(None), Ok(CamperStart::Spawn));
+        assert_eq!(CamperStart::parse(Some("spot")), Ok(CamperStart::Spot));
+        assert!(CamperStart::parse(Some("spots")).is_err());
         assert_eq!(MoveOptions::parse(None, None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("0"), None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("1"), Some("30")), Ok(Some(MoveOptions { dwell_s: 30.0 })));

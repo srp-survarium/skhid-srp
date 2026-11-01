@@ -604,6 +604,9 @@ pub(crate) struct Game {
     pub(crate) camp_done: bool,
     /// How the camping ended: (began, ended, he died).
     pub(crate) camp_ended: Option<(u32, u32, bool)>,
+    /// A place whose every life starts on this point, not on a spawn point of its team: the stand-in camper on his spot
+    /// (`SRP_BENCH_CAMPER_START=spot`).
+    pub(crate) placed_start: Option<(Place, Vec3)>,
     /// Batteries moved unseen (audit #7, `SRP_BENCH_NUDGE=<m>`): every
     /// [`NUDGE_EVERY_MS`] one lying battery, in turn, moves this far on its
     /// floor, as one an enemy took and dropped dead a step on (the owner's
@@ -888,6 +891,7 @@ impl Game {
             camper: None,
             camp_done: false,
             camp_ended: None,
+            placed_start: None,
             nudge: None,
             nudged: 0,
             shot_facts: Vec::new(),
@@ -926,7 +930,9 @@ impl Game {
         // two check volumes meet no body, taken in the rule's random order; 1,809 live bodies in their first 3 s: median 0.01 m from a point, 8 of 1,801 on a
         // point another team-mate stood on, 0 of 790 pairs within 1 m). The bench does too (`SRP_BENCH_SPAWN_POINTS=random` keeps the old draw: a random point of the team with replacement and 2 m of jitter). The old draw is
         // not what puts bots on each other: the overlap in a life's first 10 s is the same with either (A175).
-        let (point, at) = if spawn_on_free_points() {
+        let (point, at) = if let Some((_, spot)) = self.placed_start.filter(|&(p, _)| p == place) {
+            (spot, spot)
+        } else if spawn_on_free_points() {
             let free: Vec<Vec3> = spawns
                 .iter()
                 .copied()

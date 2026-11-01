@@ -374,10 +374,13 @@ pub enum Count {
     /// spot's centre while its target is not that spot: the by-point lookup
     /// took it for a job's pin (`job_line_by_id` off), the id does not.
     CrossfireChokeOnSpot,
+    /// design-p1c §6 (`threat.pair_target`): a hold given no job at a tick because a hold covering common ground with it
+    /// ranks above it (spot-ticks).
+    PairLeftOut,
 }
 
 /// The [`Count`]s, in order, and their names in the tally.
-pub const COUNTS: [(Count, &str); 23] = [
+pub const COUNTS: [(Count, &str); 24] = [
     (Count::ReplanAsked, "replan_asked"),
     (Count::ReplanClear, "replan_clear"),
     (Count::Recast, "recast"),
@@ -401,11 +404,12 @@ pub const COUNTS: [(Count, &str); 23] = [
     (Count::PairUpWaitHidden, "pair_up_wait_hidden"),
     (Count::CrossfireSpotRefused, "crossfire_spot_refused"),
     (Count::CrossfireChokeOnSpot, "crossfire_choke_on_spot"),
+    (Count::PairLeftOut, "pair_left_out"),
 ];
 
 #[cfg(test)]
 thread_local! {
-    static COUNTED: std::cell::Cell<[u64; 23]> = const { std::cell::Cell::new([0; 23]) };
+    static COUNTED: std::cell::Cell<[u64; COUNTS.len()]> = const { std::cell::Cell::new([0; COUNTS.len()]) };
     static JOB_COUNTED: std::cell::Cell<[[u64; JOB_TALLIES.len()]; 2]> = const { std::cell::Cell::new([[0; JOB_TALLIES.len()]; 2]) };
     static JOB_LIVES: std::cell::RefCell<Vec<(u8, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -430,10 +434,12 @@ pub enum JobTally {
     GivenUnsensed,
     /// [threat.concede] Ended: its spot's area was conceded (`concede.rs`).
     EndConceded,
+    /// [threat.breach] Ended: a Breach took its spot over.
+    EndBreached,
 }
 
 /// The [`JobTally`]s, in order, and their names in the tally.
-pub const JOB_TALLIES: [(JobTally, &str); 12] = [
+pub const JOB_TALLIES: [(JobTally, &str); 13] = [
     (JobTally::EndShooterDied, "ended_shooter_died"),
     (JobTally::EndUnseen, "ended_unseen"),
     (JobTally::EndFaded, "ended_faded"),
@@ -446,6 +452,7 @@ pub const JOB_TALLIES: [(JobTally, &str); 12] = [
     (JobTally::DownUnknown, "down_by_unknown"),
     (JobTally::GivenUnsensed, "given_unsensed"),
     (JobTally::EndConceded, "ended_conceded"),
+    (JobTally::EndBreached, "ended_breached"),
 ];
 
 impl JobTally {
@@ -460,6 +467,7 @@ impl JobTally {
             JobEnd::Time => JobTally::EndTime,
             JobEnd::Nobody => JobTally::EndNobody,
             JobEnd::Conceded => JobTally::EndConceded,
+            JobEnd::Breached => JobTally::EndBreached,
         }
     }
 }
@@ -518,7 +526,7 @@ pub fn count(c: Count) {
 
 /// The [`Count`]s so far, by [`COUNTS`] order.
 #[cfg(test)]
-pub fn counted() -> [u64; 23] {
+pub fn counted() -> [u64; COUNTS.len()] {
     COUNTED.with(|cell| cell.get())
 }
 
@@ -555,6 +563,7 @@ fn role_name(role: Role) -> &'static str {
     match role {
         Role::Flanker => "flanker",
         Role::Pinner => "pinner",
+        Role::Crosser => "crosser",
     }
 }
 
@@ -1852,6 +1861,20 @@ impl HeldLine {
     pub fn covers(&self, p: Vec3) -> bool {
         p.distance_xz(self.at) <= self.reach_m && self.lanes.iter().any(|&(from, b)| in_lane(&[b], from, p))
     }
+
+    /// design-p1c §6: whether a point of his lanes, walked from where each is seen in `step_m` steps to his reach, is ground
+    /// `other` covers too ([`Self::covers`]): two holders who see one lane.
+    pub fn shares_ground(&self, other: &HeldLine, step_m: f32) -> bool {
+        let step = step_m.max(1.0);
+        let steps = (self.reach_m / step).ceil() as usize;
+        self.lanes.iter().any(|&(from, b)| {
+            (1..=steps).any(|i| {
+                let d = i as f32 * step;
+                let p = Vec3::new(from.x + b.sin() * d, from.y, from.z + b.cos() * d);
+                p.distance_xz(self.at) <= self.reach_m && other.covers(p)
+            })
+        })
+    }
 }
 
 /// A role of the team job on a held spot (K2).
@@ -1861,6 +1884,9 @@ pub enum Role {
     Flanker,
     /// Holds him from the edge of his reach, out of his lanes (Crossfire).
     Pinner,
+    /// One of a Breach's two crossers (`breach.rs`): gathers out of his lanes, goes on one tick to a cover point that sees his
+    /// spot. A Flank job has none.
+    Crosser,
 }
 
 /// A role's bot and when it was given the role.
@@ -1908,13 +1934,16 @@ impl Job {
         match role {
             Role::Flanker => self.flanker,
             Role::Pinner => self.pinner,
+            Role::Crosser => None,
         }
     }
 
-    fn holder_mut(&mut self, role: Role) -> &mut Option<Holder> {
+    /// The slot of `role`; a Flank job has no crosser's.
+    fn holder_mut(&mut self, role: Role) -> Option<&mut Option<Holder>> {
         match role {
-            Role::Flanker => &mut self.flanker,
-            Role::Pinner => &mut self.pinner,
+            Role::Flanker => Some(&mut self.flanker),
+            Role::Pinner => Some(&mut self.pinner),
+            Role::Crosser => None,
         }
     }
 }
@@ -1957,6 +1986,8 @@ pub struct JobTeam<'a> {
     pub mates: &'a [Mate],
     pub size: usize,
     pub objective_areas: &'a [Vec3],
+    /// [threat.breach] The team's bots holding a Breach's roles off the objective (`breach.rs`): the cap counts them too.
+    pub breach_roles: usize,
 }
 
 /// Why a role went ([`JobEvent::Passed`]).
@@ -1998,6 +2029,8 @@ pub enum JobEnd {
     Nobody,
     /// [threat.concede] Its spot's area was conceded: the team's tries on it failed (`concede.rs`, design-p1c §3).
     Conceded,
+    /// [threat.breach] A Breach opened on its spot (its flank failed or found no flank spot): the Breach is the try now.
+    Breached,
 }
 
 impl std::fmt::Display for JobEnd {
@@ -2011,6 +2044,7 @@ impl std::fmt::Display for JobEnd {
             JobEnd::Time => write!(f, "ran its time"),
             JobEnd::Nobody => write!(f, "no bot free to hold it"),
             JobEnd::Conceded => write!(f, "its area is conceded"),
+            JobEnd::Breached => write!(f, "a Breach took it over"),
         }
     }
 }
@@ -2106,6 +2140,29 @@ pub fn holds(held: &[HeldLine], min_kills: u32) -> Vec<HeldLine> {
     held.iter().filter(|l| l.kills >= min_kills as usize).cloned().collect()
 }
 
+/// design-p1c §6 (`threat.pair_target`, `fx-threat-obj-two-campers-note.md`): the holds a job may open on when two campers
+/// cover one lane. Of two holds of two shooters that cover common ground ([`HeldLine::shares_ground`]), only the one that
+/// ranks first keeps its offer: more kills, then sensed latest, then the lower id (live humans take the one who had killed
+/// more first, 161 of 255 pairs). A hold whose job runs keeps it. The holds left out are counted ([`Count::PairLeftOut`]).
+pub fn one_of_each_pair(holds: Vec<HeldLine>, jobs: &[Job], step_m: f32) -> Vec<HeldLine> {
+    let rank = |l: &HeldLine| (l.kills, l.seen, std::cmp::Reverse(l.id));
+    let left_out: Vec<u32> = holds
+        .iter()
+        .filter(|l| {
+            !jobs.iter().any(|j| j.spot == l.id)
+                && holds.iter().any(|o| {
+                    o.shooter != l.shooter && rank(o) > rank(l) && (o.shares_ground(l, step_m) || l.shares_ground(o, step_m))
+                })
+        })
+        .map(|l| l.id)
+        .collect();
+    if left_out.is_empty() {
+        return holds;
+    }
+    count_n(Count::PairLeftOut, left_out.len() as u64);
+    holds.into_iter().filter(|l| !left_out.contains(&l.id)).collect()
+}
+
 /// The team's jobs at `now` (K2), and what changed:
 /// - a job ends when its spot is no longer held (`unheld` says why), when a
 ///   holder goes down (missing from `mates`: no refill of a dead holder in
@@ -2178,13 +2235,16 @@ pub fn jobs_tick(
                 None
             };
             if let Some(why) = why {
-                *j.holder_mut(role) = None;
+                if let Some(slot) = j.holder_mut(role) {
+                    *slot = None;
+                }
                 j.passed.push(h.place);
                 events.push(JobEvent::Passed { spot, role, place: h.place, why });
             }
         }
     }
-    let share = team.size.div_ceil(JOB_SHARE);
+    // The cap's bots off the objective, less those the team's Breaches hold.
+    let share = team.size.div_ceil(JOB_SHARE).saturating_sub(team.breach_roles);
     let staff = StaffRules { mates, lanes, share, now };
     if opening == Opening::ThenDropped {
         open_then_drop(jobs, rested, held, team, &staff, &mut events);
@@ -2327,7 +2387,9 @@ impl StaffRules<'_> {
                 .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
                 .map(|m| m.place);
             if let Some(place) = pick {
-                *jobs[i].holder_mut(role) = Some(Holder { place, since: self.now });
+                if let Some(slot) = jobs[i].holder_mut(role) {
+                    *slot = Some(Holder { place, since: self.now });
+                }
                 events.push(JobEvent::Given { spot: line.id, role, place });
             }
         }
@@ -2462,6 +2524,11 @@ pub struct TeamThreat {
     pub deaths: Vec<Death>,
     /// [threat.concede] The team's tries on each shooter's area (`concede.rs`).
     pub spot_memory: super::concede::SpotMemory,
+    /// [threat.breach] The team's Breaches (`breach.rs`), and the held spots whose Flank failed, due one.
+    pub breaches: Vec<super::breach::Breach>,
+    pub breach_due: Vec<super::breach::Due>,
+    /// [threat.breach] The enemies the team killed of the last [`DEATH_KEPT_MS`] and its killers (the kill feed's).
+    pub kills: Vec<super::breach::Kill>,
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -2931,7 +2998,7 @@ mod tests {
         let held = [a, b, c];
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas };
+        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0 };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
         jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(12, &[]), &unheld, 1_000);
         let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
@@ -2963,13 +3030,38 @@ mod tests {
     }
 
     #[test]
+    fn of_two_holds_covering_one_lane_only_the_one_with_more_kills_is_offered() {
+        // Two shooters 20 m apart who both see the ground round (10, 0, 30); a third whose lanes run the other way.
+        let target = Vec3::new(10.0, 0.0, 30.0);
+        let toward = |from: Vec3, n: usize| vec![bearing(from, target); n];
+        let a = HeldLine { shooter: 7, ..line(1, at(0.0), &toward(at(0.0), 3)) };
+        let b = HeldLine { shooter: 8, ..line(2, at(20.0), &toward(at(20.0), 2)) };
+        let back = Vec3::new(0.0, 0.0, -60.0);
+        let far = HeldLine { shooter: 9, ..line(3, back, &[bearing(back, Vec3::new(0.0, 0.0, -100.0))]) };
+        assert!(a.shares_ground(&b, 5.0) && b.shares_ground(&a, 5.0));
+        assert!(!a.shares_ground(&far, 5.0) && !far.shares_ground(&a, 5.0));
+        let ids = |holds: Vec<HeldLine>| holds.iter().map(|l| l.id).collect::<Vec<_>>();
+        let before = counted()[Count::PairLeftOut as usize];
+        assert_eq!(ids(one_of_each_pair(vec![b.clone(), a.clone(), far.clone()], &[], 5.0)), [1, 3], "b has fewer kills");
+        assert_eq!(counted()[Count::PairLeftOut as usize] - before, 1);
+        // Equal kills: the one sensed latest. A hold whose job runs keeps it.
+        let b3 = HeldLine { kills: 3, seen: Some(5_000), ..b.clone() };
+        assert_eq!(ids(one_of_each_pair(vec![a.clone(), b3.clone()], &[], 5.0)), [2]);
+        let job = Job { spot: 1, objective: false, shooter: 7, since: 0, flanker: None, pinner: None, passed: Vec::new() };
+        assert_eq!(ids(one_of_each_pair(vec![a.clone(), b3], &[job], 5.0)), [1, 2]);
+        // One shooter's two spots are no pair: he has one job already.
+        let moved = HeldLine { shooter: 7, ..b };
+        assert_eq!(ids(one_of_each_pair(vec![a, moved], &[], 5.0)), [1, 2]);
+    }
+
+    #[test]
     fn a_spot_no_bot_can_take_keeps_no_slot_from_one_that_can() {
         // Lanes along +x; the team's bots stand at x = -20, out of them, near the spots at the origin.
         let lane = |at: Vec3| [bearing(at, at + Vec3::new(30.0, 0.0, 0.0)), bearing(at, at + Vec3::new(30.0, 0.0, 1.0))];
         let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
         let far = Vec3::new(0.0, 0.0, 500.0);
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
-        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[] };
+        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0 };
         let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
         // A far spot first in the list: both slots still go to the spots the bots can reach.
         let held = [spot(2, far, 8), spot(3, at(0.0), 9), spot(4, Vec3::new(0.0, 0.0, 30.0), 10)];
@@ -2999,7 +3091,7 @@ mod tests {
         let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
         let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None };
         let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
-        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[] };
+        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0 };
         let (holds, lanes) = ([hold.clone()], [hold, one]);
         assert!(lanes[1].covers(mates[0].feet), "the test's bot stands in the one-kill line");
         assert!(!lanes.iter().any(|l| l.covers(mates[1].feet) || l.covers(mates[2].feet)), "the others in none");
@@ -3026,7 +3118,7 @@ mod tests {
         ];
         let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
         let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
-            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[] }, &unheld, now)
+            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0 }, &unheld, now)
         };
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);

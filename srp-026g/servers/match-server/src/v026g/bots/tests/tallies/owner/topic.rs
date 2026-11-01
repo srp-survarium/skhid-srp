@@ -103,6 +103,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(LiveListCounts::default()),
         Box::new(SearchQueueCounts::default()),
         Box::new(ThreatAnswerCounts::default()),
+        Box::new(BreachCounts::default()),
         Box::new(WorthCounts::default()),
         Box::new(GridCounts::new(n)),
         Box::new(ThroughCounts::default()),
@@ -180,6 +181,8 @@ impl BotNow {
             stepped: 0,
             apart: 0,
             guard: 0,
+            watch: LipWatchKind::Watching,
+            guard_why: 0,
         }
     }
 }

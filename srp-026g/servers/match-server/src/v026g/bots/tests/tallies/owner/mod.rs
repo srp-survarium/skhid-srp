@@ -46,6 +46,7 @@ use crate::v026g::bots::Bot;
 use crate::v026g::drive::key;
 
 mod answer;
+mod breach;
 mod campers;
 mod crouch;
 mod damage_zones;
@@ -139,6 +140,7 @@ use steals::StealCounts;
 use stock::*;
 use team_kills::*;
 use threat_answer::*;
+use breach::*;
 use through::*;
 use topic::*;
 use worth::*;
@@ -181,6 +183,37 @@ struct Rec {
     stepped: u8,
     apart: u8,
     guard: u8,
+    /// The lip guard's watch ([`LipWatchKind`]) and why it said the keys fall (`Bot::bench_guard_why`): the stuck episodes' print.
+    watch: LipWatchKind,
+    guard_why: u8,
+}
+
+/// [`crate::v026g::bots::drive::LipWatch`] without its data, for the record.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum LipWatchKind {
+    #[default]
+    Watching,
+    Off,
+    GaveUp,
+}
+
+impl LipWatchKind {
+    fn of(watch: &crate::v026g::bots::drive::LipWatch) -> Self {
+        use crate::v026g::bots::drive::LipWatch;
+        match watch {
+            LipWatch::Watching(_) => Self::Watching,
+            LipWatch::Off(_) => Self::Off,
+            LipWatch::GaveUp { .. } => Self::GaveUp,
+        }
+    }
+
+    fn letter(self) -> char {
+        match self {
+            Self::Watching => 'w',
+            Self::Off => 'o',
+            Self::GaveUp => 'g',
+        }
+    }
 }
 
 /// The owner counts: the run's record ([`Run`]) and the topics that count from it ([`Topic`], [`topics`]).

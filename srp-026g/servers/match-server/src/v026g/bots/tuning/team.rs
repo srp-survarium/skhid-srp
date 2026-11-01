@@ -202,6 +202,82 @@ impl Concede {
     }
 }
 
+/// design-p1c §1, items 13, 14, 16, 18 (`breach.rs`): when a held spot's Flank failed or found no flank spot, two crossers
+/// gather out of his lanes and out of his sight, go on one tick to two cover points that see his spot from two bearings out
+/// of his lanes, and the second trades the first; a pinner holds him meanwhile when one is free. The numbers are the live
+/// humans' (`fx-gear-breach-human-note.md`: 478 campers ended by the victims' team in 402 recordings of 12+ players; counts
+/// PROVEN, timings LIKELY to the worlds' 5 s).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Breach {
+    /// The crossers wait for each other this long at most after the longer walk to the gather points at the walk cap, s:
+    /// the camper's median life after his last kill (8 s); a group not there by then fails (`GatherTimedOut`), it does not
+    /// trickle.
+    pub gather_s: f32,
+    /// A crosser walks this far to its gather point at most, m; a farther mate is no crosser. Humans' comers stood within
+    /// 35 m of his spot at his death and made their last 8 m inside the 30 s before (the note's comer rule); the first
+    /// bench's crossers walked 13-127 m (median ~55) and half the Breaches lost one on the way. GUESS from that window.
+    pub walk_max_m: f32,
+    /// The walk from the gather points to the cover points, s at most (half of the humans' 2+ comers go within 5 s of
+    /// each other).
+    pub go_s: f32,
+    /// At the cover points the job holds this long for him, s, then ends (`Time`). GUESS.
+    pub hold_s: f32,
+    /// A crosser's death is traded when he dies within this, s (humans' median 4 s, the stat tools' 5 s window).
+    pub trade_s: f32,
+    /// The two cover points lie this far apart, m at least and at most (humans' nearest pair at his death: P25 7 m,
+    /// median 12 m).
+    pub apart_min_m: f32,
+    pub apart_max_m: f32,
+    /// Seen from his spot, the cover points' bearings differ by this at least, degrees (84 % of humans' pushes came from
+    /// two or more 45-degree sectors, median spread 68 degrees).
+    pub bearing_min_deg: f32,
+    /// The cover points lie this far from his spot, m (the killer of a camper stood P25 9.6 / median 18.7 m off).
+    pub cover_min_m: f32,
+    pub cover_max_m: f32,
+    /// A gather point lies this far from its cover point, m, out of his lanes and out of his sight. GUESS.
+    pub gather_min_m: f32,
+    pub gather_max_m: f32,
+}
+
+impl Default for Breach {
+    fn default() -> Self {
+        Self {
+            gather_s: 8.0,
+            walk_max_m: 40.0,
+            go_s: 6.0,
+            hold_s: 10.0,
+            trade_s: 5.0,
+            apart_min_m: 6.0,
+            apart_max_m: 12.0,
+            bearing_min_deg: 30.0,
+            cover_min_m: 8.0,
+            cover_max_m: 22.0,
+            gather_min_m: 5.0,
+            gather_max_m: 15.0,
+        }
+    }
+}
+
+impl Breach {
+    /// The rules, parsed once (`breach::BreachRules`).
+    pub fn rules(&self) -> crate::v026g::bots::breach::BreachRules {
+        let ms = |s: f32| (s.max(0.0) * 1000.0) as u32;
+        let band = |lo: f32, hi: f32| (lo.max(0.0), hi.max(lo.max(0.0)));
+        crate::v026g::bots::breach::BreachRules {
+            gather_ms: ms(self.gather_s),
+            walk_max_m: self.walk_max_m.max(0.0),
+            go_ms: ms(self.go_s),
+            hold_ms: ms(self.hold_s),
+            trade_ms: ms(self.trade_s),
+            apart_m: band(self.apart_min_m, self.apart_max_m),
+            bearing_min_deg: self.bearing_min_deg.clamp(0.0, 180.0),
+            cover_m: band(self.cover_min_m, self.cover_max_m),
+            gather_m: band(self.gather_min_m, self.gather_max_m),
+        }
+    }
+}
+
 /// The gang-up cap (PR C item 20, `team::gang_factor`): a play aimed at an enemy that teammates' plays are already
 /// aimed at is scored lower when the commander hands the plays out, so the third bot takes its next best. The trade
 /// partner never counts and the first `free` mates are free (a pair on one enemy stays); the next ones pile.
@@ -461,6 +537,32 @@ pub struct ThreatTuning {
     /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. OFF by
     /// default: not built into the jobs yet (the memory and its rules only).
     pub concede: Option<Concede>,
+    /// design-p1c §1, items 13, 14, 16, 18 ([`Breach`], `breach.rs`): the group push on a held spot whose Flank failed or
+    /// found no flank spot. OFF by default until its by-side bench.
+    pub breach: Option<Breach>,
+    /// design-p1c §6, two campers covering one lane ([`PairTarget`]): of two holds whose lanes cover common ground, a job
+    /// opens only on the one with more kills. `None` (off): each hold gets its own job, up to `threat::JOBS_MAX`. OFF by
+    /// default: the bench has one stand-in camper, so no by-side bench of a pair yet.
+    pub pair_target: Option<PairTarget>,
+}
+
+/// design-p1c §6 (`traces-20261028/fx-threat-obj-two-campers-note.md`): a team that beats two campers covering one lane takes
+/// them one at a time (live, 373 pairs: the first falls a median 33 s after the pair's first kill, the second 43 s after him),
+/// and the one taken first is the one who had killed more when the pair formed (161 of 255, 63 %; the nearer 55 %, the one
+/// who began first 55 %). So of two holds whose lanes cover common ground, the job (K2) opens on the one with more kills
+/// (ties: sensed latest, then the lower id); the other has none while both hold, unless one runs on it already. Their lanes
+/// stay costed (K1), and a role's spot stays out of every held line, so nobody crosses ground both see.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PairTarget {
+    /// The lanes are walked in steps this long for a point the other covers, m. GUESS.
+    pub step_m: f32,
+}
+
+impl Default for PairTarget {
+    fn default() -> Self {
+        Self { step_m: 5.0 }
+    }
 }
 
 /// How a bot commits to a play it has started (the commander's keep rule,
@@ -576,6 +678,8 @@ impl Default for ThreatTuning {
             sniper_lanes: false,
             sniper_memory: Some(SniperMemory::default()),
             concede: None,
+            breach: None,
+            pair_target: None,
         }
     }
 }
