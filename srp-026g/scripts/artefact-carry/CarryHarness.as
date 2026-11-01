@@ -43,7 +43,7 @@ package {
     hud.show_context(true);
     if(!prompt.visible || prompt.contextText.text != "Native collection") throw new Error("native show did not retain text");
     hud.hide_context();
-    // Patch 83: the dropped gun's prompt names the gun; the next offer has no name.
+    // Patch 85: the dropped gun's prompt names the gun; the next offer has no name.
     hud.show_artefact_offer("st_weapon_pick_up","SVD");
     if(!prompt.visible || prompt.contextText.text != "Pick up SVD (E)" || prompt.currentFrame != 1) throw new Error("weapon pickup prompt wrong: " + prompt.contextText.text);
     hud.show_artefact_offer("st_artefact_take_teammate");

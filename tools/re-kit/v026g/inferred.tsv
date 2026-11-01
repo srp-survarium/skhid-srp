@@ -1027,6 +1027,7 @@ va	status	ref_021d	name
 0x001ea790	inferred-high	0x001522c8	survarium::game::on_ui_sounds_cfg_loaded
 0x001ea9f0	inferred-medium	0x001524b9	survarium::game::on_base_resources_created
 0x001ebfc0	inferred-medium	0x001531cb	survarium::game::create_network_client
+0x001ec0f0	inferred-high		survarium::game::create_lobby_menu
 0x001ec170	inferred-medium	0x001532bd	survarium::game::query_base_resources
 0x001ec220	inferred-high	0x00153332	survarium::game::enable
 0x001ec380	inferred-high	0x00153409	survarium::game::load_cc_script
@@ -1235,6 +1236,7 @@ va	status	ref_021d	name
 0x0021c5e0	inferred-medium	0x0016e42f	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf4<void,survarium::network_client,enum vostok::connection_error_types_enum,enum vostok::handshaking_error_types_enum,enum vostok::socket_error_types_enum,unsigned int>,boost::_bi::list5<boost::_bi::value<survarium::network_client *>,boost::arg<1>,boost::arg<2>,boost::arg<3>,boost::arg<4> > > >::manage
 0x0021c910	inferred-medium	0x0016e8d5	survarium::base_game_scene::add_decal
 0x0021c980	inferred-medium	0x0016e93d	survarium::lobby_menu::lobby_menu
+0x0021d080	inferred-high		survarium::lobby_menu::clear_resources
 0x0021df00	inferred-high		survarium::lobby_menu::update_player_region
 0x0021e450	inferred-high		survarium::lobby_menu::query_resources
 0x0021e840	inferred-medium	0x0016fe18	vostok::detail::concrete_type_helper<void *>::copy_helper
@@ -1256,7 +1258,6 @@ va	status	ref_021d	name
 0x00220b20	inferred-medium	0x0017276b	survarium::lobby_menu::on_render_scenes_ready
 0x00221e80	inferred-medium	0x00174409	survarium::lobby_menu::fill_profiles
 0x00222330	inferred-medium	0x001745c0	survarium::lobby_menu::on_profile_changed
-0x00222fe0	inferred-medium	0x00174caf	survarium::lobby_menu::on_squad_member_profile_arrived
 0x00223190	inferred-medium	0x00174d56	survarium::lobby_menu::on_price_items_arrived
 0x00223460	inferred-medium	0x00174e9e	survarium::lobby_menu::fill_reputation_levels
 0x00224420	inferred-medium	0x00175809	survarium::lobby_menu::fill_character_data
@@ -1272,6 +1273,7 @@ va	status	ref_021d	name
 0x0022b0f0	inferred-medium	0x00179270	survarium::animated_model_instance_cook::translate_request_path
 0x0022b4e0	inferred-medium	0x0017964c	vostok::detail::concrete_type_helper<vostok::physics::world *>::copy_helper
 0x0022b590	inferred-medium	0x001796a2	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<survarium::animated_model_instance_cook *>,boost::arg<1> > > >::manager
+0x0022b790	inferred-medium		survarium::project_cooker_simple::translate_query
 0x0022c010	inferred-medium	0x00179cf0	survarium::project_cooker_simple::create_game_objects
 0x0022f960	inferred-medium	0x0017c62b	vostok::memory::new_array_helper<survarium::static_collision>::call<vostok::memory::doug_lea_allocator>
 0x0022fa00	inferred-medium	0x0017c677	vostok::memory::new_array_helper<survarium::render_visual>::call<vostok::memory::doug_lea_allocator>
@@ -1301,8 +1303,6 @@ va	status	ref_021d	name
 0x002383b0	inferred-medium		survarium::game_world_ui::show_profiles_selector
 0x00238530	inferred-high	0x00182654	survarium::game_world_ui::update_minimap_objects
 0x002392b0	inferred-high	0x001829c4	survarium::game_world_ui::initialize_minimap
-0x00239420	inferred-high	0x00182a9c	survarium::game_world_ui::update_minimap_players
-0x00239a30	inferred-medium	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
 0x00239bf0	inferred-high	0x00182edb	survarium::game_world_ui::reset_map_rotatable
 0x00239c60	inferred-high	0x00182f36	survarium::game_world_ui::show_quick_slots
 0x00239cc0	inferred-medium	0x00182f7c	survarium::game_world_ui::create_slot_value
@@ -1326,7 +1326,6 @@ va	status	ref_021d	name
 0x0023c2e0	inferred-high	0x001840e5	survarium::game_world_ui::remove_effect
 0x0023c340	inferred-high	0x0018412b	survarium::game_world_ui::set_stamina
 0x0023c930	inferred-medium	0x00184300	survarium::game_world_ui::set_quests_progress
-0x0023daa0	inferred-medium	0x0017e2ec	survarium::base_game_scene::base_game_scene
 0x0023db80	inferred-medium	0x0017e3a3	survarium::base_game_scene::`scalar deleting destructor'
 0x0023dba0	inferred-medium	0x0017e3bf	survarium::base_game_scene::~base_game_scene
 0x0023ddb0	inferred-medium	0x0017e5ad	survarium::base_game_scene::on_deactivate
@@ -1342,7 +1341,6 @@ va	status	ref_021d	name
 0x00242950	inferred-medium	0x0018457c	survarium::base_network_client::base_network_client
 0x00242d50	inferred-medium		survarium::base_network_client::spectate_next_player
 0x00242f00	inferred-medium		survarium::base_network_client::spectate_previous_player
-0x002431e0	inferred-medium	0x00193035	survarium::camera_director::camera_director
 0x00243770	inferred-medium	0x00184a1e	survarium::weapon::`scalar deleting destructor'
 0x00243790	inferred-medium	0x00184a3c	survarium::weapon::~weapon
 0x002443d0	inferred-medium	0x0018511b	survarium::weapon::play_weapon_fire_pfx
@@ -1637,9 +1635,7 @@ va	status	ref_021d	name
 0x0026fab0	inferred-medium		survarium::lobby_client::sign_in_on_message_received
 0x0026fc60	inferred-medium		survarium::lobby_client::find_inventory_item
 0x0026fe20	inferred-medium	0x0019d532	survarium::lobby_client::query_info_from_server
-0x0026fe70	inferred-medium	0x0019d603	survarium::lobby_client::query_squad_member_contents
 0x0026ff00	inferred-medium	0x0019d672	survarium::lobby_client::query_player_match_stats
-0x00270070	inferred-medium	0x0019d75f	survarium::lobby_client::query_elo_players
 0x00270260	inferred-medium		survarium::lobby_client::process_own_account
 0x00270320	inferred-medium		survarium::lobby_client::copy_account_items
 0x00270390	inferred-high		survarium::inventory_item_descr::operator=
@@ -1656,10 +1652,6 @@ va	status	ref_021d	name
 0x00271a30	inferred-medium	0x0019e81f	survarium::lobby_client::read_player_match_stats
 0x00271ae0	inferred-medium		survarium::lobby_client::read_drop
 0x00271fd0	inferred-medium		survarium::lobby_client::read_clan_info
-0x00274580	inferred-medium	0x0019eca1	survarium::lobby_client::destroy_squad
-0x002745d0	inferred-medium	0x0019ed0a	survarium::lobby_client::add_squad_member
-0x00274660	inferred-medium	0x0019ed8a	survarium::lobby_client::drop_squad_member
-0x002746d0	inferred-medium	0x0019ee04	survarium::lobby_client::leave_squad
 0x00274a00	inferred-medium		survarium::lobby_client::on_message_received
 0x00275220	inferred-medium		survarium::lobby_client::process_detach_upgrade
 0x00275520	inferred-medium		survarium::lobby_client::process_succeeded_inventory_action
@@ -1682,7 +1674,6 @@ va	status	ref_021d	name
 0x0027a170	inferred-medium	0x001a12dd	survarium::match_client::`scalar deleting destructor'
 0x0027a2c0	inferred-high	0x001a13db	survarium::match_client::send_queued_packets
 0x0027a970	inferred-medium	0x001a256a	survarium::force_hash_mismatch
-0x0027a980	inferred-medium	0x001a2572	survarium::network_client::get_player
 0x0027a9c0	inferred-medium	0x001a259b	survarium::network_client::get_active_player
 0x0027aa20	inferred-medium	0x001a25cc	survarium::network_client::on_match_ready
 0x0027aed0	inferred-medium	0x001a27c4	survarium::network_client::query_players
@@ -1721,7 +1712,6 @@ va	status	ref_021d	name
 0x00284f20	inferred-medium	0x001a4a3c	survarium::lobby_character::on_player_ready
 0x00285180	inferred-medium	0x001a4bc5	vostok::detail::concrete_type_helper<survarium::player_initial_info>::copy_helper
 0x002852a0	inferred-medium	0x001a4d1e	survarium::simple_game_project::`scalar deleting destructor'
-0x00285750	inferred-medium		survarium::simple_game_project::set_game_world_core
 0x00286410	inferred-medium		survarium::fill_items_dictionary_impl
 0x00287cc0	inferred-medium		survarium::lobby_menu::update_inventory_item
 0x00288520	inferred-medium	0x00173dd2	survarium::lobby_menu::fill_inventory_contents
@@ -2221,12 +2211,9 @@ va	status	ref_021d	name
 0x003219a0	inferred-medium	0x001fe299	survarium::bullet_manager::bullet_manager
 0x00321af0	inferred-medium	0x001fe3c7	survarium::bullet_manager::free_bullet
 0x00321d10	inferred-high	0x001fe601	survarium::bullet_manager::tick
-0x00321fa0	inferred-medium	0x001fe7c2	survarium::bullet_manager::add_decal
 0x00322100	inferred-medium	0x001fe889	survarium::bullet_manager::add_decal_impl
 0x00322140	inferred-high	0x001fe8c2	survarium::bullet_manager::add_decal_impl
-0x003222f0	inferred-medium	0x001fe96f	survarium::bullet_manager::play_sound
 0x003223d0	inferred-medium	0x001fe9fe	survarium::bullet_manager::play_sound_impl
-0x003223e0	inferred-high	0x001fea08	survarium::bullet_manager::play_particle
 0x003225c0	inferred-medium	0x001feb71	survarium::bullet_manager::play_particle_impl
 0x003225d0	inferred-medium	0x001feb80	survarium::bullet_manager::update_tracer
 0x003226c0	inferred-medium	0x001fec28	survarium::bullet_manager::update_tracer_impl
@@ -3097,7 +3084,6 @@ va	status	ref_021d	name
 0x003b8d00	inferred-medium		vostok::input::platform::keyboard::is_key_down
 0x003b9af0	inferred-medium		vostok::input::platform::keyboard::process
 0x00301cb0	inferred-medium		survarium::victory_item_core::activate_physics
-0x00306d50	inferred-medium		survarium::game_material_manager::material_pair
 0x00332440	inferred-medium		survarium::ammo_data::load
 0x00018bd0	observed		vostok::engine::engine_world::get_user_data_directory
 0x0032e3e0	inferred-medium		survarium::bullet::apply_hit_impulse
@@ -3128,10 +3114,29 @@ va	status	ref_021d	name
 0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
 0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
 0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
+0x00299d40	inferred-medium		survarium::post_process_game_effect_emitter::emit
+0x0029a220	inferred-medium		survarium::particle_game_effect_emitter::emit
+0x0029a320	inferred-medium		survarium::particle_game_effect_emitter::destroy
+0x0029a580	inferred-medium		survarium::sound_game_effect_emitter::emit
+0x002efeb0	inferred-high		survarium::composite_game_effect_emitter::emit
+0x002f0130	inferred-high		survarium::composite_game_effect_emitter::destroy
+0x002f08d0	inferred-medium		survarium::random_permutation_game_effect_emitter::destroy
+0x00333010	inferred-high		survarium::reinforcement_storm_game_effect_emitter::emit
+0x00333220	inferred-medium		survarium::client_effect_wrapper_game_effect_emitter::emit
+0x00333360	inferred-high		survarium::hit_player_game_effect_emitter::emit
+0x002f8720	inferred-medium		survarium::simple_game_project::on_inserted
+0x002f8850	inferred-high		survarium::static_collision::insert
+0x002f8970	inferred-high		survarium::static_collision::remove
+0x002de7f0	inferred-medium		survarium::game_effect_player::stop
+0x002de090	inferred-medium		survarium::game_effect_player::play
 0x0026dac0	inferred-medium		survarium::base_game_statistics_handler::on_artefact_taken
 0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
+0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription
+0x0026afb0	inferred-medium		survarium::messaging_client::send_important_message
+0x0021bd80	inferred-medium		survarium::network_client::messaging_client
+0x0034f940	inferred-medium		vostok::render::load_props_impl
 0x001e8b50	inferred-medium		survarium::initialize_allocators
 0x00279d80	inferred-high		vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::malloc_impl
 0x00279c40	inferred-high		vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator

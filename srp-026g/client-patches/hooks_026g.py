@@ -85,10 +85,33 @@ TYPES = {
         "null": "{a}",
     },
 }
+# A query's callback (`callback` kind, handed to the game at run time): the
+# results the game passes and the word the patch bound to its query.
+TYPES["QueryResults"] = {
+    "raw": "Option<QueriesResult>",
+    "binding": "let {n} = unsafe {{ QueryResults::from_raw(&thread, {a}) }};",
+    "orig_type": "&QueryResults", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
+TYPES["QueryTag"] = {
+    "raw": "*mut c_void",
+    "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
+    "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
+# Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
+# the public views borrow the generated hook's thread.
+for _view in ("RenderVisual", "GameScene", "ObjectLight"):
+    TYPES[_view] = {
+        "raw": f"Option<{_view}>", "fallible": True,
+        "build": f"{_view}::from_raw(&thread, {{a}})",
+        "orig_type": f"&mut {_view}", "orig_raw": "Some({n}.raw())",
+        "pass": "&mut {n}", "null": "{a}",
+    }
+
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
 # and how that Vostok value `{v}` becomes the shim's u32 (EAX).
 RESULTS = {
+    None: {"raw": (None,), "type": "()", "from_raw": "{x}", "to_u32": "{{ {v}; 0 }}"},
     "bool": {"raw": ("AL", "EAX"), "type": "bool", "from_raw": "{x} != 0", "to_u32": "u32::from({v})"},
     "u32": {"raw": ("EAX",), "type": "u32", "from_raw": "{x}", "to_u32": "{v}"},
 }
@@ -258,7 +281,7 @@ def convention_hook(patch, row, sites, functions, kind, exe=None):
         raise Bad(f"{name}: a thiscall {kind} takes `this` as its first argument")
     macro = "RUST_THISCALL" if convention == "thiscall" else "RUST_CDECL"
     h.update(original=struct.pack("<I", f["va"]), convention=convention, entry_macro=(macro, nargs),
-             install=(kind, None), orig_kind="direct", this=convention == "thiscall")
+             install=(kind, None), orig_kind="direct", this=convention == "thiscall", proof=row.get("proof"))
     return h
 
 
@@ -293,6 +316,20 @@ def splice_hook(patch, row, sites, functions, exe=None):
 _DEFAULT_EXE = []
 
 
+def original_reader(data):
+    """Bounded VA reader for both native instructions and read-only tables."""
+    import patch_026g
+    sections = list(patch_026g.Headers(data).sections(data))
+    def read(va, count):
+        rva = va - patch_026g.IMAGE_BASE
+        for _, start, _, raw, size, _ in sections:
+            offset = rva - start
+            if offset >= 0 and count >= 0 and offset + count <= size:
+                return data[raw + offset:raw + offset + count]
+        raise Bad(f"{va:#x}: {count} bytes outside the original exe's backed sections")
+    return read
+
+
 def default_exe():
     """A reader of the original exe the environment names (SRP_026G_EXE, or
     `--exe`), its sha256 checked; None without one."""
@@ -305,7 +342,7 @@ def default_exe():
             data = open(path, "rb").read()
             if hashlib.sha256(data).hexdigest() != patch_026g.EXE_SHA256:
                 raise Bad(f"{path}: not the original 0.26g exe (sha256)")
-            reader = lambda va, n: data[patch_026g.file_offset(va):patch_026g.file_offset(va) + n]
+            reader = original_reader(data)
         _DEFAULT_EXE.append(reader)
     return _DEFAULT_EXE[0]
 
@@ -335,7 +372,7 @@ def lohook_hook(patch, row, sites, exe=None):
     _branch_free(span, f"{name} lohook at {site['va']:#x}")
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
             "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
-            "exits": site["exits"], "install": ("lohook", 0xE9),
+            "exits": site["exits"], "order": row.get("order"), "install": ("lohook", 0xE9),
             "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
 
 
@@ -412,6 +449,28 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     entries = [h["entry"] for h in out]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
+    # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
+    # mixed kinds and implicit order remain errors. One machine save/replay
+    # wraps the chain; the first non-Continue result ends it.
+    grouped = {}
+    for h in out:
+        grouped.setdefault(h["site"], []).append(h)
+    out = []
+    for group in grouped.values():
+        if len(group) == 1:
+            out.extend(group)
+            continue
+        orders = [h.get("order") for h in group]
+        if (any(h["kind"] != "lohook" for h in group)
+                or any(type(order) is not int for order in orders)
+                or len(set(orders)) != len(orders)):
+            raise Bad("shared hook site needs lohooks with distinct explicit orders")
+        first = group[0]
+        if any((h["site_name"], h["original"], h["exits"]) !=
+               (first["site_name"], first["original"], first["exits"]) for h in group):
+            raise Bad("shared lohooks must name the same site, span and exits")
+        chain = sorted(group, key=lambda h: h["order"])
+        out.append({**chain[0], "shim": chain[0]["shim"] + "_chain", "chain": chain})
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
@@ -422,7 +481,82 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     return out
 
 
-def rs_text(hs):
+def runtime_vtables(tomls=None, hs=None, fields=None):
+    """Copies declared by name, with their layout from the raw field table.
+
+    The source is an image obj<methods> row. That kind gives its byte size
+    and RTTI locator at -4. A declared vtable hook must belong to exactly one
+    copy owned by that patch; its callee supplies the slot's checked ABI.
+    """
+    tomls = read_tomls() if tomls is None else tomls
+    if hs is None:
+        sites = read_sites()
+        only_vtables = [{**p, "hook": [r for r in p.get("hook", ()) if sites[r["site"]]["kind"] == "vtable"]} for p in tomls]
+        hs = hooks(tomls=only_vtables)
+    fields = engine_026g.fields() if fields is None else fields
+    kinds = engine_026g.kinds(fields)
+    images = {f["field"]: f for f in fields if f["module"] == "image"}
+    tables, claimed, symbols = [], set(), set()
+    for patch in tomls:
+        for declaration in patch.get("vtable", ()):
+            name, source = declaration.get("name"), declaration.get("source")
+            image = images.get(source)
+            if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", name) or not image or image["of"] != "obj":
+                raise Bad(f"{patch['name']}: vtable needs a name and a typed image source")
+            layout = kinds[engine_026g.module_of(image["target"])]
+            size = layout["size"]["offset"] if layout["size"] else 0
+            if size <= 0 or size % 4 or size > 1024 or not any(
+                    f["field"] == "rtti" and f["offset"] == -4 and f["type"] == "u32" for f in layout["fields"]):
+                raise Bad(f"{patch['name']}: vtable source {source} needs whole slots and its RTTI at -4")
+            start = image["offset"]
+            slots = { (h["site"] - start) // 4: h for h in hs
+                      if h["kind"] == "vtable" and h["patch"] == patch["name"]
+                      and start <= h["site"] < start + size and (h["site"] - start) % 4 == 0 }
+            if not slots:
+                raise Bad(f"{patch['name']}: vtable {name} replaces no slots")
+            for h in slots.values():
+                if h["entry"] in claimed:
+                    raise Bad(f"{patch['name']}: vtable slot {h['site_name']} belongs to several copies")
+                if not h.get("proof") or not declaration.get("check"):
+                    raise Bad(f"{patch['name']}: vtable slots need their native dispatch check and proof labels")
+                claimed.add(h["entry"])
+            symbol = f"{patch['name']}_{name}_vtable"
+            if symbol in symbols:
+                raise Bad(f"duplicate vtable symbol {symbol}")
+            symbols.add(symbol)
+            tables.append(dict(symbol=symbol, source=start, count=size // 4, slots=slots,
+                               check=declaration["check"], patch=patch["name"], layout=layout["type"]))
+    for h in hs:
+        if h["kind"] == "vtable" and h["entry"] not in claimed:
+            raise Bad(f"{h['patch']}: vtable hook {h['site_name']} has no runtime copy")
+    return tables
+
+
+def vtable_words(table, exe=None):
+    exe = exe or default_exe()
+    if exe is None:
+        raise Bad(f"{table['symbol']}: runtime vtable needs the original exe")
+    size = (table["count"] + 1) * 4
+    data = bytes(exe(table["source"] - 4, size))
+    if len(data) != size:
+        raise Bad(f"{table['symbol']}: truncated native vtable")
+    words = list(struct.unpack(f"<{table['count'] + 1}I", data))
+    for index, hook in table["slots"].items():
+        if words[index + 1] != hook["target"]:
+            raise Bad(f"{table['symbol']}: slot {index} does not name its declared native callee")
+        words[index + 1] = hook["entry"]
+    return words
+
+
+def installed_vtables(tomls=None, hs=None, fields=None):
+    """The same generated copies feed the whole-client ABI/dispatch audit."""
+    return tuple((f"{t['patch']} runtime vtable", "patches.code", t["symbol"], t["source"],
+                  t["count"], len(t["slots"]),
+                  {i: (t["check"], h["proof"]) for i, h in t["slots"].items()})
+                 for t in runtime_vtables(tomls, hs, fields))
+
+
+def rs_text(hs, tables=()):
     originals = {}
     lines = [f"// The Rust hooks' glue ({GENERATED}).",
              "//",
@@ -431,7 +565,7 @@ def rs_text(hs):
              "// which the generated NASM entry (hook_entries_026g.asm) calls with the",
              "// site's arguments. The shim builds the typed arguments and calls the",
              "// patch's function (rust_patches.md)."]
-    for h in hs:
+    for h in [member for h in hs for member in h.get("chain", [h])]:
         if h["kind"] == "code":
             continue                                   # raw NASM, no shim or Original
         if h["kind"] == "lohook":
@@ -460,6 +594,37 @@ def rs_text(hs):
             ]
             continue
         result = RESULTS[h["returns"]]
+        if h["kind"] == "callback":
+            # A callback the patch hands the game: no Original to call (the
+            # callee only names the convention), so the handler gets the typed
+            # arguments alone; the marker type names the entry's convention.
+            lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
+            if h["orig"] not in originals:
+                originals[h["orig"]] = ("callback",)
+                lines += [f"/// The convention of {h['function']} ({h['target']:#x}), a callback's: a marker for",
+                          "/// the callback entries made in it (no function of the game is called through it).",
+                          f"pub struct {h['orig']};", ""]
+            elif originals[h["orig"]] != ("callback",):
+                raise Bad(f"{h['orig']}: a callback's marker and an Original have the same generated name")
+            lines += [
+                f"/// The entry `{h['entry']}` (a callback in {h['function']}'s convention, {h['what']})",
+                f"/// calls this with its {len(h['args'])} arguments, typed by the row (the `raw` layer's).",
+                "///",
+                "/// # Safety",
+                f"/// Called only by the entry `{h['entry']}`.",
+                "#[unsafe(no_mangle)]",
+                f"pub unsafe extern \"C\" fn {h['shim']}({', '.join(f'a{i}: {t}' for i, t in enumerate(h['raw_params']))}) -> u32 {{",
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, when the game calls the callback",
+                f"    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.",
+                "    let thread = unsafe { Thread::new() };",
+            ]
+            for i, (n, v) in enumerate(h["args"]):
+                if TYPES[v].get("fallible"):
+                    raise Bad(f"{h['patch']}: a callback's {v} must be a binding, not fallible (no Original to fall back on)")
+                lines.append("    " + TYPES[v]["binding"].format(n=n, a=f"a{i}"))
+            passed = ", ".join(TYPES[v]["pass"].format(n=n) for n, v in h["args"])
+            lines += ["    " + result["to_u32"].format(v=f"crate::{h['patch']}::{h['handler']}({passed})"), "}"]
+            continue
         # the function to call: itself (`call`, convention entries) or the
         # splice trampoline (its start now jumps to us, so calling it would
         # recurse); the trampoline runs the relocated prologue and the rest.
@@ -491,7 +656,7 @@ def rs_text(hs):
                 "",
                 f"impl {h['orig']} {{",
                 "    /// The game's own function, with these typed arguments.",
-                f"    pub fn call(&self, {orig_params}) -> {result['type']} {{",
+                f"    pub fn call(&self, {orig_params})" + ("" if result["type"] == "()" else f" -> {result['type']}") + " {",
                 f"        // SAFETY: {h['function']} at its own site; the arguments are the hook's,",
                 "        // typed by the row (engine_026g.tsv).",
                 f"        unsafe {{ {orig_body} }}",
@@ -532,10 +697,36 @@ def rs_text(hs):
             "    " + result["to_u32"].format(v=call),
             "}",
         ]
+    for h in hs:
+        if "chain" not in h:
+            continue
+        lines += ["", "#[unsafe(no_mangle)]",
+                  f'pub extern "C" fn {h["shim"]}(frame: &mut Frame) -> u32 {{']
+        for member in h["chain"]:
+            lines += [f"    let flow = {member['shim']}(frame);", "    if flow != 0 { return flow; }"]
+        lines += ["    0", "}"]
+    for h in hs:
+        if h["kind"] != "callback":
+            continue
+        lines += ["", f'unsafe extern "C" {{ fn {h["entry"]}(); }}',
+                  f"/// The entry `{h['entry']}`, in {h['function']}'s convention ({h['what']}): a",
+                  "/// callback the patch hands the game (no site is rewritten).",
+                  f"pub fn {h['entry']}_entry() -> super::hook::CallbackEntry<{h['orig']}> {{",
+                  "    // SAFETY: the generated entry lives for the executable's lifetime and takes the",
+                  f"    // arguments of {h['function']}, whose `Original` names the entry's type.",
+                  f"    unsafe {{ super::hook::CallbackEntry::from_entry({h['entry']} as *const () as *const c_void) }}",
+                  "}"]
+    for table in tables:
+        symbol, count = table["symbol"], table["count"]
+        lines += ["", f'unsafe extern "C" {{ static {symbol}: [u32; {count + 1}]; }}',
+                  f"pub fn {symbol}_handle() -> super::project::NativeVtable<raw::{table['layout']}> {{",
+                  "    // SAFETY: the generated immutable table lives for the executable's lifetime.",
+                  f"    unsafe {{ super::project::NativeVtable::from_address(core::ptr::addr_of!({symbol}).cast::<u32>().add(1) as usize as u32) }}",
+                  "}"]
     return "\n".join(lines) + "\n"
 
 
-def asm_text(hs):
+def asm_text(hs, tables=(), exe=None):
     lines = [f"; The Rust hooks' NASM entries ({GENERATED}).",
              "; Each entry (RUST_CALL, rust_hook_026g.inc) presents a site's arguments to",
              "; its shim and cleans up as the game's function did. The arena's block",
@@ -560,12 +751,16 @@ def asm_text(hs):
             prologue, past = h["trampoline"]
             lines += [f"global {h['entry']}_tramp", f"{h['entry']}_tramp:",
                       "    db " + ", ".join(f"0x{b:02x}" for b in prologue), f"    jmp {past:#x}"]
+    for table in tables:
+        lines += ["", "section .rodata", "align 4", f"global {table['symbol']}", f"{table['symbol']}:"]
+        lines += [f"    dd {word if isinstance(word, str) else hex(word)}" for word in vtable_words(table, exe)]
     return "\n".join(lines) + "\n"
 
 
 def outputs(tomls=None, functions=None, sites=None, exe=None):
     hs = hooks(tomls, functions, sites, exe)
-    return {RS: rs_text(hs).encode(), ASM: asm_text(hs).encode()}
+    tables = runtime_vtables(tomls, hs)
+    return {RS: rs_text(hs, tables).encode(), ASM: asm_text(hs, tables, exe).encode()}
 
 
 def installs(exe=None, tomls=None, functions=None, sites=None):
@@ -574,11 +769,17 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
     bytes are derived (a `call rel32` to the callee), so the exe is not
     needed for one; a span hook (splice, lohook, code) reads its bytes from
     `exe`. patch_026g.py's apply() checks every write against the exe. A
-    pointer, vtable or callback hook is installed by a pointer write or at
-    run time, not here; it is refused until patch_026g.py integrates it."""
+    Runtime vtable slots belong to generated copies, validated here and in
+    the whole-client ABI audit. Other pointer installs remain unsupported."""
     out = []
-    for h in hooks(tomls, functions, sites, exe):
+    hs = hooks(tomls, functions, sites, exe)
+    tables = runtime_vtables(tomls, hs)
+    for table in tables:
+        vtable_words(table, exe)
+    for h in hs:
         how, opcode = h["install"]
+        if how in ("vtable", "callback"):
+            continue  # a runtime copy (audited above) or a callback handed at run time: no write
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
@@ -613,7 +814,7 @@ def install_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"]) for patch in tomls for row in patch.get("hook", ())
-            if row.get("site") in sites]
+            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback")]
 
 
 def stale():

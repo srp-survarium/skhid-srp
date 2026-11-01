@@ -10,7 +10,7 @@ workspace = true
 # Client patch 78 ends each player's state with the carry's snapshot
 # (`v026g::match_msgs::motion`).
 artefact-carry = { path = "../artefact-carry" }
-# Client patch 83 starts each player's state with its pickup record
+# Client patch 85 starts each player's state with its pickup record
 # (`v026g::match_msgs::players::FIELDS_AT`).
 weapon-pickup = { path = "../weapon-pickup" }
 binary-config-parser = { workspace = true }
@@ -22,6 +22,8 @@ lzma-rust2 = { workspace = true }
 # The lobby's results types are kept in srp's database as JSON
 # (`session::v026g::rewards`).
 serde = { workspace = true }
+# The ED/EE mask and length, as the transport works them out (`v026g::match_msgs`).
+udp-transport = { workspace = true }
 
 
 [features]

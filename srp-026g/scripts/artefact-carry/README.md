@@ -1,10 +1,11 @@
 # Artefact carry assets and HUD check
 
-The source is `../content-edit/artefact-carry-pose-1.json`. The content
-manifest builds raise, hold and lower clips from the pinned stock battery
-idle clip. `compile_pose.py` generates the runtime arm/finger curves from
-that same source; `preview.py` draws an offline joint preview, not a game
-screenshot.
+The source is `pose.json`: each arm and finger bone's lowered and raised
+(open palm) rotation over the pinned stock battery idle clip. No clip is
+shipped; `compile_pose.py` generates the runtime arm/finger curves
+(`client-patches/rust/patches/src/artefact_carry/curves.rs`) from it, and the
+exe blends them and adds the hand's breathing (`pose.rs`). `preview.py` draws
+an offline joint preview, not a game screenshot.
 
 ```sh
 python scripts/artefact-carry/compile_pose.py --clip battery_idle.b-spline --names battery_idle.bones_names

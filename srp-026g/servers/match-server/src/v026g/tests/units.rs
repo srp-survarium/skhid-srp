@@ -3,7 +3,6 @@
 use crate::v026g::{
     CreateError, LateInputs, MatchRegistry, Seat, parse_late_inputs, parse_number,
     parse_snapshot_dir,
-    parse_switch,
 };
 
 use super::{MAP_BATTERIES, MAP_TDM, session_of, setup};
@@ -155,10 +154,6 @@ fn the_settings_and_their_defaults() {
     assert_eq!(parse_number("X", None, 10), 10);
     assert_eq!(parse_number("X", Some(" 120 "), 10), 120);
     assert_eq!(parse_number("X", Some("long"), 10), 10);
-    assert!(parse_switch("X", None, true));
-    assert!(!parse_switch("X", Some("off"), true));
-    assert!(parse_switch("X", Some("ON"), false));
-    assert!(parse_switch("X", Some("maybe"), true));
     assert_eq!(
         parse_snapshot_dir(None),
         Some(std::path::PathBuf::from("logs/snapshots"))

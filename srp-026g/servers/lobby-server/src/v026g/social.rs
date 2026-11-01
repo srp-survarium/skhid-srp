@@ -9,7 +9,8 @@
 //!   sent to the same match (and team); squad to the squad; srp's room
 //!   channel (10) to the room's members (`room_chat`). Who that is
 //!   the server knows itself, so the channel id a client sends is not
-//!   trusted. A player who ignores the sender is not sent the line. A
+//!   trusted. Hidden senders produce no line; placeholder mutes receive
+//!   only the sender's name and `<muted>`, never the original body. A
 //!   player may send [`CHAT_BURST`] lines at once and one a second after
 //!   [choice: 0.21d had no limit; one flooding client must not fill the
 //!   others' links].
@@ -39,9 +40,15 @@
 //!   `ignored`: kept in `srp.db` as for 0.21d). The client never asks for
 //!   them: they are pushed at sign-in and after each change (`A3 07`,
 //!   `A3 08`), and the friends' statuses when one changes (`A3 09`, with
-//!   exactly the friends of the last `A3 07`). The old `u8 result`
-//!   answers are gone: the client would read them as a search list.
-//! - **Squads** are the store's (`session::Squads`), formed as in 0.21d:
+//!   exactly the friends of the last `A3 07`). `A3 08` lists every muted
+//!   player; a `<muted>` one's id is marked (`lobby::SHOWN_MUTED`), so the
+//!   client's own filter passes its `<muted>` lines (chat-mute.md). The old `u8 result`
+//!   answers are gone: the client would read them as a search list. A
+//!   player may send [`FRIEND_REQUEST_BURST`] friend requests at once and
+//!   one every [`FRIEND_REQUEST_EVERY`] after (the client keeps the same
+//!   allowance: exe patch 86's Tab list menu, `docs/notes/tab-cursor-friends.md`).
+//! - **Squads** are the store's (`session::Squads`), of two at most
+//!   (`docs/notes/squads.md`), formed as in 0.21d:
 //!   invite (`4D` type 2); the invited client's "membership accepted"
 //!   back (`4D` type 3) and then its answer (`50`), in that order
 //!   (`important_message_read` 0x28C5E0: the `4D` sender at 0x28C698, the
@@ -61,7 +68,7 @@ use session::v026g::{Account, quests, wire};
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
 use survarium::v026g::lobby::{
-    self, Friend, KIT_READY, ServerMessage, SquadMember, WireError, channel, important, sender,
+    self, Friend, KIT_READY, LobbyPick, ServerMessage, SquadMember, SquadPicks, WireError, channel, important, sender,
 };
 
 use super::core::{Core, Who};
@@ -81,6 +88,40 @@ use super::core::{Core, Who};
 /// notice; there the limit only stops a script.
 pub(super) const CHAT_BURST: f32 = 10.0;
 const CHAT_PER_SECOND: f32 = 1.0;
+/// Friend requests a player may send at once, and the time that earns one
+/// more [choice, docs/notes/tab-cursor-friends.md: a few at once in the
+/// lobby's search, no stream of requests]. Exe patch 86 (`tab_cursor.rs`,
+/// the Tab list's menu) keeps the same allowance on the client.
+pub(super) const FRIEND_REQUEST_BURST: u32 = 5;
+pub(super) const FRIEND_REQUEST_EVERY: Duration = Duration::from_secs(10);
+
+/// What a player may still send of friend requests, and when that was
+/// counted: [`FRIEND_REQUEST_BURST`] at first, one more each
+/// [`FRIEND_REQUEST_EVERY`], never more than the burst.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FriendRequestAllowance {
+    saved: Duration,
+    at: Instant,
+}
+
+impl FriendRequestAllowance {
+    pub(super) fn new(now: Instant) -> Self {
+        Self { saved: FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST, at: now }
+    }
+
+    /// One request now, if the allowance has one.
+    pub(super) fn take(&mut self, now: Instant) -> bool {
+        let earned = now.saturating_duration_since(self.at);
+        self.saved = (self.saved + earned).min(FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST);
+        self.at = now;
+        if self.saved < FRIEND_REQUEST_EVERY {
+            return false;
+        }
+        self.saved -= FRIEND_REQUEST_EVERY;
+        true
+    }
+}
+
 /// `st_player_not_found`, "Player not found.": in every language of the
 /// 0.26g localization and referred to by nothing in the client (exe or
 /// lobby SWF), so a text the server sent. [LIKELY for a name the messaging
@@ -152,6 +193,58 @@ impl Core<'_> {
         self.store
             .account(account_id)
             .is_some_and(|account| account.locked().ignored.contains(&sender))
+    }
+
+    /// Apply the recipient's policy before constructing a packet. Placeholder
+    /// recipients never receive the original text, on any chat channel.
+    pub(super) fn chat_body<'a>(
+        &self,
+        recipient: u32,
+        sender: u32,
+        body: &'a str,
+    ) -> Option<&'a str> {
+        let mode = self
+            .store
+            .account(recipient)
+            .and_then(|account| account.locked().ignored.mode(sender));
+        match mode {
+            None => Some(body),
+            Some(lobby::ChatMuteMode::Hidden) => None,
+            Some(lobby::ChatMuteMode::Placeholder) => Some(lobby::MUTED_CHAT_TEXT),
+        }
+    }
+
+    pub(super) fn set_chat_mute(
+        &mut self,
+        who: &Who,
+        name: &str,
+        mode: Option<lobby::ChatMuteMode>,
+        now: Instant,
+    ) {
+        if name == who.name {
+            return;
+        }
+        let Some(target) = self.account_named(name, who.account_id) else {
+            // From a match (the Tab list's menu: a bot's place has no
+            // account) the lobby's message box would come up only back in
+            // the lobby, for a player long gone: none.
+            if self.player(who.addr).is_some_and(|player| player.in_match.is_none()) {
+                self.player_not_found(who, name, now);
+            }
+            return;
+        };
+        if let Some(account) = self.store.account(who.account_id) {
+            let mut account = account.locked();
+            if mode.is_none()
+                || account.ignored.contains(&target)
+                || account.ignored.len() < MAX_LISTED
+            {
+                account.ignored.set(target, mode);
+                self.store.mark_dirty(who.account_id);
+            }
+        }
+        // Both menus offer the choices by the mode this list gives them.
+        self.push_ignored(who);
     }
 
     /// Tell the player that `name` is no player it can reach: the game's
@@ -260,21 +353,22 @@ impl Core<'_> {
             return;
         }
         let tag = self.clan_tag_of(who.account_id);
-        let line = lobby::chat_text(
-            sender::ACCOUNT,
-            who.account_id,
-            &who.name,
-            &tag,
-            channel,
-            body,
-        );
         let mut reached = 0;
         for (addr, account_id) in recipients {
-            // Its client would drop the line itself.
-            if self.ignores(account_id, who.account_id) {
+            let Some(body) = self.chat_body(account_id, who.account_id, body) else {
                 continue;
-            }
-            self.send(addr, line.clone());
+            };
+            self.send(
+                addr,
+                lobby::chat_text(
+                    sender::ACCOUNT,
+                    who.account_id,
+                    &who.name,
+                    &tag,
+                    channel,
+                    body,
+                ),
+            );
             reached += 1;
         }
         log::info!(
@@ -358,8 +452,10 @@ impl Core<'_> {
 
     /// `4D`: an important message for another player.
     /// - A friend request goes to the named player, who answers it with
-    ///   `50` (now, or when it signs in). A name that is no account is
-    ///   answered with "Player not found." ([`Core::player_not_found`]).
+    ///   `50` (now, or when it signs in), within the sender's
+    ///   [`FriendRequestAllowance`] (one over it is dropped). A name that
+    ///   is no account is answered with "Player not found."
+    ///   ([`Core::player_not_found`]), except to a player in a match.
     ///   One to a friend, or to a player who ignores the sender, is
     ///   dropped in silence: the game has no text for either, and an
     ///   ignore is not given away.
@@ -388,9 +484,22 @@ impl Core<'_> {
         };
         match kind {
             important::FRIEND_REQUEST => {
+                let Some(player) = self.player_mut(who.addr) else {
+                    return;
+                };
+                if !player.friend_requests.take(now) {
+                    log::info!("{}: too many friend requests; one to {target_name} dropped", who.name);
+                    return;
+                }
+                let in_match = player.in_match.is_some();
                 let Some(target) = target else {
                     log::info!("{}: no player {target_name} to befriend", who.name);
-                    self.player_not_found(who, target_name, now);
+                    // From a match (the Tab list's menu: a bot's place has no
+                    // account) the lobby's message box would come up only
+                    // back in the lobby, for a player long gone: none.
+                    if !in_match {
+                        self.player_not_found(who, target_name, now);
+                    }
                     return;
                 };
                 let already = self
@@ -401,18 +510,6 @@ impl Core<'_> {
                     return;
                 }
                 self.request(request(target));
-            }
-            important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED if !self.settings.squads => {
-                // The invite is the player's own act: it is told. The
-                // acceptance (type 3) is its client's.
-                log::info!(
-                    "{}: squad message {kind} to {target_name} refused: squads are off",
-                    who.name
-                );
-                if kind == important::SQUAD_INVITE {
-                    let text = self.settings.squads_off_text.clone();
-                    self.deny(who.addr, id::PROFILE, &text);
-                }
             }
             important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED => {
                 let target = target.filter(|target| self.by_account.contains_key(target));
@@ -435,7 +532,15 @@ impl Core<'_> {
                     );
                     return;
                 }
-                if kind == important::SQUAD_INVITE {
+                // A squad of two takes nobody more (the owner's of
+                // 2026-10-31): the invite goes nowhere. The movie offers
+                // none then; the game has no text for it (§9.2).
+                if kind == important::SQUAD_INVITE && self.store.squads().is_full(who.account_id) {
+                    log::info!(
+                        "{}: squad invite to {target_name} not sent: its squad is full",
+                        who.name
+                    );
+                } else if kind == important::SQUAD_INVITE {
                     self.request(request(target));
                 } else if self.store.squads().has_accepted(target, who.account_id) {
                     // The inviter's client answers it by itself and adds
@@ -588,16 +693,17 @@ impl Core<'_> {
         }
     }
 
-    /// `A3 08`: the whole ignore list.
+    /// `A3 08`: every muted player, a `<muted>` one's id marked
+    /// (`lobby::SHOWN_MUTED`) so that its lines pass the client's filter.
     pub(super) fn push_ignored(&mut self, who: &Who) {
         let ids = self
             .store
             .account(who.account_id)
             .map(|account| account.locked().ignored.clone())
             .unwrap_or_default();
-        let ignored: Vec<(u32, String)> = ids
-            .iter()
-            .filter_map(|&account_id| Some((account_id, self.name_of(account_id)?)))
+        let ignored: Vec<(u32, String, lobby::ChatMuteMode)> = ids
+            .entries()
+            .filter_map(|(account_id, mode)| Some((account_id, self.name_of(account_id)?, mode)))
             .collect();
         self.send_made(who.addr, lobby::ignore_list(&ignored));
     }
@@ -642,8 +748,10 @@ impl Core<'_> {
                 return;
             }
             let mut account = account.locked();
-            if !account.ignored.contains(&target) && account.ignored.len() < MAX_LISTED {
-                account.ignored.push(target);
+            if account.ignored.contains(&target) || account.ignored.len() < MAX_LISTED {
+                account
+                    .ignored
+                    .set(target, Some(lobby::ChatMuteMode::Hidden));
                 self.store.mark_dirty(me);
             }
         };
@@ -673,7 +781,7 @@ impl Core<'_> {
                 }
             }
             FriendshipAction::StopIgnoring { account_id: target } => {
-                account.locked().ignored.retain(|id| id != target);
+                account.locked().ignored.set(*target, None);
                 self.store.mark_dirty(me);
                 self.push_ignored(who);
             }
@@ -710,11 +818,6 @@ impl Core<'_> {
         let me = who.account_id;
         let result = match message {
             ClientMessage::DisbandSquad => squads.disband(me),
-            // Squads are off (`SRP_SQUADS`): nobody is added, whatever a
-            // client says of an invite.
-            ClientMessage::AddSquadMember { .. } if !self.settings.squads => {
-                Err(SquadError::NotInvited)
-            }
             ClientMessage::AddSquadMember { name } => match self.account_named(name, me) {
                 Some(member) => squads.add(me, member).map(drop),
                 None => Err(SquadError::NotInvited),
@@ -767,10 +870,27 @@ impl Core<'_> {
         self.send_made(who.addr, message);
     }
 
+    /// The lobby pick of a signed-in account (none offline or not picked).
+    fn lobby_pick_of(&self, account_id: u32) -> Option<LobbyPick> {
+        self.player(*self.by_account.get(&account_id)?)?.lobby_pick
+    }
+
+    /// `3B` at a lobby pick's start: kept; every squad is sent again where it
+    /// changed (the picker's own `0xA1`, its squad's when it commands one).
+    pub(super) fn lobby_pick(&mut self, who: &Who, pick: LobbyPick) {
+        if let Some(player) = self.player_mut(who.addr)
+            && player.lobby_pick != Some(pick)
+        {
+            player.lobby_pick = Some(pick);
+            self.squads_dirty = true;
+        }
+    }
+
     /// The squad info for one member's client.
     fn squad_message(&self, me: u32, squad: Option<&Squad>) -> Result<ServerMessage, WireError> {
+        let own = self.lobby_pick_of(me);
         let Some(squad) = squad else {
-            return lobby::squad_info(0, &[], 0, false, 0);
+            return lobby::squad_info(0, &[], 0, false, 0, SquadPicks { own, commander: None });
         };
         let members: Vec<SquadMember> = squad
             .members
@@ -800,17 +920,19 @@ impl Core<'_> {
                     kit_revision,
                     name,
                     online: self.by_account.contains_key(&member),
-                    ready: squad.is_ready(member),
+                    ready: self.squad_ready(member),
                 }
             })
             .collect();
-        // The commander is the first member.
+        // The commander is the first member; its pick is every member's lobby.
+        let commander = self.lobby_pick_of(squad.commander());
         lobby::squad_info(
             squad.id,
             &members,
             0,
             squad.commander() == me,
             squad.revision,
+            SquadPicks { own, commander },
         )
     }
 

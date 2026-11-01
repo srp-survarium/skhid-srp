@@ -1,4 +1,4 @@
-//! Dropped-weapon pickup's shared rules (client patch 83,
+//! Dropped-weapon pickup's shared rules (client patch 85,
 //! `docs/notes/weapon_pickup.md`): pure Rust, no engine pointers, used by the
 //! client patch and the match server alike.
 //!

@@ -1,7 +1,7 @@
 //! Where a player is and how he moves, from his state in a world
 //! (`docs/notes/player_bots.md` §4).
 //!
-//! The state starts with the two kit indices and client patch 83's pickup
+//! The state starts with the two kit indices and client patch 85's pickup
 //! record ([`FIELDS_AT`]); `base_player::serialize` 0x2DAF60 ends it with:
 //!
 //! ```text

@@ -72,22 +72,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   with a seat in a match goes back to it.
 - **Members:** stay in their room from match to match until they press Leave, the owner
   kicks them (only in a room with a PIN; they may not come back), the room is disbanded,
-  or their game is gone for good. Except who came by Play:
-- **Who came by Play leaves after its match** (the owner's of 2026-10-20: "people who pressed
-  Play, rather than entering a room, leave it after the match ends; then next time they'd have
-  a chance to land at their level; whoever explicitly entered a room stays in it"; "this is a
-  good idea to get people to not have to click the yellow button"):
-  - By Play: Play put it into an open room, or made a new room for it (its maker too: it
-    pressed Play, it made no room). Chosen: a room made by hand (its maker), Join from the
-    list (PIN too), its queue, "Switch room".
-  - When the room's match ends, each member by Play who played it leaves the room, as by
-    Leave (not kicked, no penalty; it may join again): it sees its results, then the lobby,
-    and its next Play takes the room nearest its level again. Chosen members stay.
-  - One by Play that did not play the match (it came too late to go in) stays, plays the next
-    one and leaves after it: Play is for a match, not for a trip back to the lobby.
-  - Joining the room (back after it left, or from inside it) makes one by Play a chosen
-    member. A match called off before its countdown was not played: nobody leaves.
-  - A room with no members or queue is gone.
+  or their game is gone for good.
+- **However they came in, members are alike** (the owner's of 2026-10-31: who came by Play
+  stays in the room after the match, "like we did at the beginning", "then there is a single
+  pass in code"): Play only picks, makes or queues for the room (above); after that a member
+  by Play is a member as one that joined. When the room's match ends every member is back in
+  the room for its next vote. This replaces the rule of 2026-10-20 (#254: who came by Play
+  left after its match). A room with no members or queue is gone.
 - **Lost (game crashed, killed, link silent; or started anew):** the place is kept for about 90 s (the link's
   30 s + the session's 60 s), the member shown grey (`away`); Play within it goes back to the
   same seat, state kept (Play stays usable while their row says they play the match). After
@@ -108,14 +99,14 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   counts (results, rewards, ratings, quests, map plays), the place it left for nothing.
 - **After a match (the owner's of 2026-10-20):** the results screen opens over the room's
   window: closing the results shows the room, not the lobby. A player in no room sees the
-  lobby after them, as before; so does one by Play that left with the match's end. The
-  movie still has the room of its last state when the results come, and opens the window
-  under them (`LobbyMenu.showRoomUnderResults`); `RoomsWindow.matchOver` asks the state at
-  once. An answer of no room while the results are up leaves the window under them as it
-  is (the results stay open until the player closes them: hiding the window would change
-  the top menu's tab, which closes them; the owner's of 2026-10-21, "it shouldn't have
-  open-reopen flicker"); it is hidden as they close (`RoomsWindow.resultsClosed`), so
-  the lobby shows.
+  lobby after them, as before. The movie has the room of its last state when the results
+  come, and opens the window under them (`LobbyMenu.showRoomUnderResults`).
+- **The results stay until the player closes them:** any change of the top menu's tab closes
+  them (the game's rule, `LobbyMenu.closeVS`), so while they are up the rooms window opens,
+  hides and draws under them without touching the tab (`RoomsWindow.show`), and the tab
+  follows it as they close (`RoomsWindow.resultsClosed`). Live 2026-10-30: one let in from a
+  room's queue as that room's match ended (and its results sent) had them closed by the
+  window opening (`scripts/results-stay/check.sh`).
 - **Before each match:** once the minimum of players who can play is in, a vote on 3 cards
   (map + weather + mode) for the room's time to start: 15 s and the owner's wait together,
   10 s more after a match (players come back from results first), always whole, a full
@@ -194,13 +185,19 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   sends map 0), the map's render keeps its place empty and "Map chosen by vote" takes the map's
   line; its members are always in two columns.
 - **The room's own view** (the owner's of 2026-10-29): a vote card's mode tag is as wide as its
-  name; no hint line beside "Vote for the next map"; while its match is played, the bar says
+  name; no hint line beside "Vote for the next map", and none in the bar while it votes (the
+  owner's of 2026-10-30: there only a kit or gear warning); while its match is played, the bar says
   the map and mode it is played on (the state's `L` row) under the join hint.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over an open room's max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
 - **Sides:** drawn at the start, as even as can be (every split by the same count), squads
-  together; a room of one squad plays it on both sides.
+  together. A squad alone is no match (the owner's of 2026-10-31: a pair is never played
+  against itself): an open room whose only members who can play are one squad waits, as
+  with one player, until a third can play (`squads.md`).
+- **Squads** (of two, the owner's of 2026-10-31): Play and Join take the mate along, a room
+  with one place queues the pair, the late join keeps it on one side, and the room's lists
+  mark each pair: `squads.md`.
 - **Late joins:** a member who comes during the room's match (by Play, Join, its queue or a
   switch) sees the room first: who is in it and at what levels, to switch or make its own;
   it goes into the match 15 s later, or at once with "Join match". It goes in on the
@@ -209,6 +206,16 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   owner's of 2026-10-19: players, then the previous team, then the balance; after a 4 v 8
   by strength), from its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
   left of it; one who comes later waits in the same room and plays its next match.
+- **A side's places in a match being played** (the owner's of 2026-10-31: "we never fully
+  delete players"): the side the joiner goes to must stay within the room's size counting
+  its players in the match **and** the places kept for players who are not in it now (a game
+  that broke: its seat is kept and Play takes it back there, `Matchmaking::held_places`)
+  while they are still members of the room; once the room lets them go (their game gone past
+  its ~90 s, or Leave) their place is free. A place given up (left by its own word, a
+  failed join) does not count. The side with fewer players full that way, the other one; both full: it waits
+  ("The match is full."). The roster's 20 places, never used twice, are the match server's
+  own limit ("player limit"). Until then a joiner could fill a side a player came back to,
+  past the room's size.
 - **A late join that fails** (its game did not come, left, or did not catch up; the match
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed
@@ -262,6 +269,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - The window, closed and opened again, shows My room.
 - **Kit presets** (the owner's of 2026-10-23): a join from the list or Play may first offer one of
   the player's kit presets, "Enter anyway" / "Exit" or "Switch and enter" (it makes that preset active) ([presets.md](presets.md)).
+  Play that would queue offers the other bracket's room with a place in the same way, with
+  "Queue" for its first button (the owner's of 2026-10-30; presets.md, "Play that would queue").
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).
@@ -358,6 +367,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   gives nothing, so account ids cannot be walked for anyone's kits. A place of the room's
   window from an older list (a member came or went since) gives nothing. The window's title is
   the whole name (from the room's member rows), not the state's cut one.
+- **Player actions in rooms and rankings:** the same menu also offers Add/Remove friend,
+  the two chat mute entries ([chat-mute.md](chat-mute.md)), Send message, and Invite to squad
+  when the local player leads a squad with space and the target is not already in it. Your own
+  entry only offers information. The room UI harness checks the menu.
 - **Deferred:**
   - **The list's counts** (the owner's of 2026-10-18: after rooms are solid): "Full · N in
     queue" on a full room, and totals in the list's header ("12 rooms · 87 players · 9

@@ -82,7 +82,7 @@
   ragdoll's gun, the prompt and the input builder's encoding (stage 2b) are
   built and checked under Unicorn; not run in a game yet.
 
-## How a pickup is installed (patch 83, stage 2a, built, not run in a game)
+## How a pickup is installed (patch 85, stage 2a, built, not run in a game)
 
 `rust/patches/src/weapon_pickup.rs` (the records, the decision, the log)
 over `vostok/pickup.rs` (the native moves) and `vostok/gun_cook.rs` (the
@@ -196,7 +196,7 @@ cooked gun).
   whose wait was refused (a late joiner whose players were made this
   frame), refuses a pickup the others accept and then differs.
 
-## How the local client offers and sends a pickup (patch 83, stage 2b, built, not run in a game)
+## How the local client offers and sends a pickup (patch 85, stage 2b, built, not run in a game)
 
 `rust/patches/src/weapon_pickup.rs` (`ragdoll_gun`, `aim`, `on_input_end`)
 over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
@@ -303,7 +303,7 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   +108h (6 f32, turned by Y(pi)); hide a taken one there as patch 78 hides a
   carrier's gun.
 
-## The instance: one gun cooked at each death (patch 83, stage 1, built, not run in a game)
+## The instance: one gun cooked at each death (patch 85, stage 1, built, not run in a game)
 
 The owner's pick (2026-10-31): one cooked gun per death; no hold of the
 simulation ("don't overcomplicate": the cook takes milliseconds, walking to
@@ -430,7 +430,8 @@ query, `check_pickup_cooks.py` runs that gate):
 
 ## 83b's freeze and 83c's trace (2026-10-31)
 
-The first game test of 83b (one client, Player vs Bots, rev40 data) froze. What the logs show:
+The test builds keep the name they had while this was patch 83 (main took 83 for the HUD options in
+rev40; the pickup is now patch 85): 83b, 83c, 83d. The first game test of 83b (one client, Player vs Bots, rev40 data) froze. What the logs show:
 
 - the death of place 10 at 53700 ms (about 05:41:03.75Z): `asked for the gun of place 10 kit 0
   slot 7`, the last line of srp_patches.log (06:41:04.76 local); no `cook of ... made`, no panic
@@ -456,18 +457,18 @@ Static review of the cook's path (threads, locks, waits):
 - `start` holds no lock across `query_resources` (the ticket is Waiting before the query; a
   completion inside the call finds it), and `died` is called holding none. The completion takes
   TABLE alone; the cache's readers take CACHE then TABLE (`log_finished`); nothing takes TABLE then
-  CACHE. No closure of patch 83 calls the game while it holds a lock. No lock is re-taken on its
+  CACHE. No closure of patch 85 calls the game while it holds a lock. No lock is re-taken on its
   own thread (that panics, and logs).
 - The wait (`wait_for`, 2 s) runs only for a pickup command: none was sent.
 - What can still stop the game silently: the logic thread waits for the renderer (logic frame
   > renderer frame + 1: a loop of dispatches and Sleep(1), 0x1A2B0..0x1A35F), so a render thread
-  that stops stops the logic thread too. On the render side, patch 83 runs `ragdoll_gun` (carry.weapon,
+  that stops stops the logic thread too. On the render side, patch 85 runs `ragdoll_gun` (carry.weapon,
   every frame of a dead body: RECORDS, HOLDERS, SEEN, and `drawn_gun`'s raw pointer chain), and
   patch 78 holds HIDDEN across the native visibility change (on_weapon, on_weapon_hide).
   No deadlock of ours is found; the trace says where it stops.
 
 83c changes nothing but the log (srp_patches.log, each line written and the file closed at once,
-so a frozen game loses nothing written). Every line of patch 83 is `pid P tid T pickup: ...`
+so a frozen game loses nothing written). Every line of patch 85 is `pid P tid T pickup: ...`
 (GetCurrentThreadId). Lines:
 
 - always: the death hook (entry, `done`); the issue (the profile copy, recipe, `query_resources`

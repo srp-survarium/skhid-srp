@@ -54,7 +54,7 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         (-mt_allocator: the global multithreaded arena, 376 MiB by
         default, which map loading ran out of in upstream's live runs;
         -minimum_resources_memory_size: the resources arenas' floor.
-        Two different arenas: docs/notes/README.md.)
+        Two different arenas: docs/SRP-026G.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
     <output>/game/binaries/x86/play_skhid.sh
@@ -87,6 +87,11 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/Skhid.bat
         the one file a player starts: it starts launcher_skhid.exe, and
         says where the files belong when it is not found.
+    <output>/Skhid-without-updater.bat
+        for a player whose antivirus deletes updater_skhid.exe: installs and
+        updates the game and the Skhid files with curl, tar, PowerShell and
+        7zr.exe, without the launcher and the updater, and starts the game
+        (Skhid-without-updater.bat here).
     <output>/Skhid.sh
         the same for Linux (Skhid.sh beside this script): `bash Skhid.sh`
         runs play_skhid.sh from wherever it is called, with its arguments.
@@ -95,11 +100,14 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         programs to put in a VPN's split tunnelling, how in the usual VPN
         programs, the hosts and ports (English and Russian; VPN.txt here).
     <output>/Skhid-network-setup.cmd
-        Windows Firewall outbound allow rules for the three programs and,
-        asked, a Microsoft Defender exclusion of game\binaries\x86; --undo removes
-        them, --dry-run prints the commands. It asks Windows for
+        Windows Firewall outbound allow rules for the three programs; --undo
+        removes them, --dry-run prints the commands. It asks Windows for
         administrator rights itself (the UAC prompt) and says everything in
         Russian (Skhid-network-setup.cmd here).
+    <output>/Skhid-defender-setup.cmd
+        a Microsoft Defender exclusion of game\binaries\x86, with --undo and
+        --dry-run, the rights and the Russian the same way
+        (Skhid-defender-setup.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
 
@@ -157,6 +165,9 @@ EXE_DIR = os.path.join("binaries", "x86")
 EXE_DIR_WINDOWS = "binaries\\x86"
 # The one file a player starts: beside the `game` folder.
 STARTER = "Skhid.bat"
+# The same without the launcher and the updater, for a player whose
+# antivirus deletes updater_skhid.exe: it installs and updates by itself.
+WITHOUT_UPDATER = "Skhid-without-updater.bat"
 CERT_REL = os.path.join("resources", "ssl", "survarium_login_server.crt")
 LINUX_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid.sh")
 # The same for Linux, run as `bash Skhid.sh` beside the `game` folder.
@@ -165,6 +176,9 @@ LINUX_STARTER = "Skhid.sh"
 # tunnelling, and the firewall rules (beside Skhid.bat).
 VPN_HELP = "VPN.txt"
 NETWORK_SETUP = "Skhid-network-setup.cmd"
+# For a player whose antivirus takes the game's files for a threat: the
+# Defender exclusion of game\binaries\x86 (beside Skhid.bat).
+DEFENDER_SETUP = "Skhid-defender-setup.cmd"
 # What a Linux unpacker makes executable.
 SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
 
@@ -326,13 +340,13 @@ def vpn_help():
     return b"\xef\xbb\xbf" + crlf(Path(HERE, VPN_HELP).read_bytes().removeprefix(b"\xef\xbb\xbf"))
 
 
-def network_setup():
-    """`Skhid-network-setup.cmd`: kept in UTF-8, shipped in code page 866
-    (DOS Cyrillic) with CRLF line ends. cmd reads each line of a script in
-    the console's code page at the time; the script switches it to 866
-    (`chcp 866`) before its first Russian line, so everything above that
-    line is ASCII."""
-    text = Path(HERE, NETWORK_SETUP).read_bytes().decode("utf-8")
+def russian_script(name):
+    """`Skhid-network-setup.cmd` or `Skhid-defender-setup.cmd`: kept in
+    UTF-8, shipped in code page 866 (DOS Cyrillic) with CRLF line ends. cmd
+    reads each line of a script in the console's code page at the time; the
+    script switches it to 866 (`chcp 866`) before its first Russian line, so
+    everything above that line is ASCII."""
+    text = Path(HERE, name).read_bytes().decode("utf-8")
     script = crlf(text.encode("cp866"))
     switch = script.index(b"\r\nchcp 866 >nul 2>&1\r\n")
     script[:switch].decode("ascii")
@@ -381,6 +395,10 @@ def readme(server, description, files, embedded=False, site=None):
             "   which is in this archive.",
             "   If Windows warns about an unknown publisher, let it run:",
             "   these files are not signed.",
+            f"   If Microsoft Defender blocks or deletes the game's files, run {DEFENDER_SETUP}",
+            "   (in Russian): it excludes game\\binaries\\x86 from its scans.",
+            "   If your antivirus deletes updater_skhid.exe, start",
+            f"   {WITHOUT_UPDATER} instead: it installs and updates the game itself.",
             "   Linux: install Wine and Winetricks, open a terminal in that folder and",
             f"   run bash {LINUX_STARTER} (the game) or bash {LINUX_STARTER} launcher (the launcher,",
             "   which downloads a missing game and looks for updates first). For a new",
@@ -399,6 +417,8 @@ def readme(server, description, files, embedded=False, site=None):
             "",
             "WHAT THE ARCHIVE ADDS",
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",
+            f"{WITHOUT_UPDATER} beside it: installs, updates and starts the game without",
+            "the launcher and the updater.",
             f"{LINUX_STARTER} beside it, for Linux: it runs play_skhid.sh, nothing else.",
             "In game\\binaries\\x86: survarium_skhid.exe (the game for this server),",
             "launcher_skhid.exe, updater_skhid.exe with updater_skhid.url, the folder",
@@ -572,10 +592,12 @@ def main():
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
             (STARTER, starter()),
+            (WITHOUT_UPDATER, crlf(Path(HERE, WITHOUT_UPDATER).read_bytes())),
             # Windows checkouts may use CRLF; Bash needs LF.
             (LINUX_STARTER, Path(HERE, LINUX_STARTER).read_bytes().replace(b"\r\n", b"\n")),
             (VPN_HELP, vpn_help()),
-            (NETWORK_SETUP, network_setup()),
+            (NETWORK_SETUP, russian_script(NETWORK_SETUP)),
+            (DEFENDER_SETUP, russian_script(DEFENDER_SETUP)),
         ]
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
                   for name, data in sorted(launcher_pages.pages(site).items())]

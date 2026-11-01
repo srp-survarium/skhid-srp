@@ -26,6 +26,9 @@ package survarium.controls
 
       // This owner combines native inventory descriptions with native effect
       // snapshots. Neither callback can erase the other's presentation state.
+      // Phases: 0 none, 1 waiting (the use time), 2 active, 3 stopped by a
+      // bullet (patch 84; the hook sends it for a second of game time).
+      public static const ACTIVITY_INTERRUPTED:uint = 3;
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
 
@@ -46,7 +49,8 @@ package survarium.controls
          for(var key:String in nativeSlot) result[key] = nativeSlot[key];
          var activity:Object = _activities[uint(nativeSlot.slot_id)];
          // An exhausted stack still owns its ongoing native effect. Keep its
-         // gray icon and native radial sweep during activation, then seconds only.
+         // gray icon and native radial sweep during activation, then seconds only;
+         // a stopped one keeps its icon, red, while the hook says so.
          if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
          {
             result.enabled = true;
@@ -66,16 +70,42 @@ package survarium.controls
       
       protected var otherRows:uint = 22;
       
-      protected const hudIcons:Array = [17,18,19,20,21,22,13,42,67,74,14,15,9,23,12,49,50,16,10,11,51,52,53,-1,-1,-1,-1,-1,110,113];
-      
+      // An item's quick-slot icon is the cell of hudItems whose index its icon id (ui_desc/icon:
+      // (column - 1) x 22 + row - 1) has in hudIcons; an id not there shows none. 0.26g's items fill
+      // cells 0 to 29 (6 to 9 its oxygen tanks, 28 and 29 the exoskeletons' backs). The id does not
+      // say which lobby atlas the cell is of (the drugs' consumables, the tanks' backs): an item's
+      // cell must give an id no other quick-slot item's gives.
+      protected static const NATIVE_HUD_ICONS:Array = [17,18,19,20,21,22,13,42,67,74,14,15,9,23,12,49,50,16,10,11,51,52,53,-1,-1,-1,-1,-1,110,113];
+
+      // srp's items with a quick slot (its packs' oxygen tanks and drugs): their icon id and their
+      // bitmap of bitmaps/, drawn in hudItems' free cells from SRP_FIRST_CELL, in this order.
+      public static const SRP_HUD_ICONS:Array = [
+         {icon:302, bitmap:HudItemDoubleCylinder},     // 931 Double cylinder (equipment-029), icon 17, 14
+         {icon:59, bitmap:HudItemMilitaryMedkit},      // 390 Military Medkit (medicines), icon 16, 3
+         {icon:60, bitmap:HudItemBlackMarketMedkit},   // 1196 Black Market Medkit (medicines), icon 17, 3
+         {icon:61, bitmap:HudItemScienceMedkit}        // 391 Science Medkit (medicines), icon 18, 3
+      ];
+
+      public static const SRP_FIRST_CELL:uint = NATIVE_HUD_ICONS.length;
+
+      protected const hudIcons:Array = NATIVE_HUD_ICONS.concat(SRP_HUD_ICONS.map(function(entry:Object, index:int, all:Array):int
+      {
+         return entry.icon;
+      }));
+
       public function QuickSlots()
       {
          super();
       }
-      
+
       public function registerIconContainer(link:IconContainer) : void
       {
          _iconContainer = link;
+         for(var i:uint = 0; i < SRP_HUD_ICONS.length; i++)
+         {
+            var bitmap:Class = SRP_HUD_ICONS[i].bitmap;
+            link.setIcon(SRP_FIRST_CELL + i,new bitmap());
+         }
       }
       
       public function setGrayIcons(value:Dictionary) : void

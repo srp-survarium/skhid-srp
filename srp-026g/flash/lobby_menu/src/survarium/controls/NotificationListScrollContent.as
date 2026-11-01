@@ -105,6 +105,10 @@ package survarium.controls
       public static var replayHolder:NotificationListScrollContent;
       
       public var matchCalback:Function;
+
+      // The lobby's root, told by it: History is on the transient layer while open
+      // (docs/notes/transient-windows.md), so its parent is not the lobby then.
+      public var lobby:Object;
       
       public var layoutData:LayoutData;
       
@@ -469,7 +473,7 @@ package survarium.controls
          this._rpPopupWait = false;
          try
          {
-            lobby = parent;
+            lobby = this.lobby;
             if(!lobby || !("notificationListTemp" in lobby))
             {
                return;
@@ -1324,7 +1328,7 @@ package survarium.controls
          }
          try
          {
-            lobby = parent;
+            lobby = this.lobby;
             if(!stage || !lobby || !lobby["bottom_panel"] || !(lobby["add_notification"] is Function))
             {
                return;

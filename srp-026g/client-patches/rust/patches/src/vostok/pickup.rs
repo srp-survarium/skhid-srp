@@ -1,4 +1,4 @@
-//! A borrowed gun's install and restore (patch 83's engine side,
+//! A borrowed gun's install and restore (patch 85's engine side,
 //! docs/notes/weapon_pickup.md "How a pickup is installed"): the native
 //! moves only, no policy.
 //!
@@ -754,7 +754,7 @@ impl NameKey {
 /// `table` is a live config value.
 unsafe fn child(table: raw::EngineCfg, key: &CStr) -> Option<raw::EngineCfg> {
     unsafe {
-        if read(table.kind()) != CFG_TABLE || raw::engine_cfg_has(Some(table), key.as_ptr().cast()) & 0xFF == 0 {
+        if read(table.node_type()) != CFG_TABLE || raw::engine_cfg_has(Some(table), key.as_ptr().cast()) & 0xFF == 0 {
             return None;
         }
         raw::engine_cfg_child(Some(table), key.as_ptr().cast())
@@ -773,10 +773,10 @@ pub fn gun_name(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<NameK
         let (item, _) = cooked_gun(inventory, slot)?;
         let root = item.entry()?.config()?.root()?;
         let name = child(child(child(root, c"ui_desc")?, c"text_descriptions")?, c"name")?;
-        if read(name.kind()) != CFG_STRING {
+        if read(name.node_type()) != CFG_STRING {
             return None;
         }
-        let text = super::language::c_string(name.text(), NAME_KEY)?;
+        let text = super::ui::c_string(name.text(), NAME_KEY)?;
         let mut out = [0u8; NAME_KEY];
         out[..text.to_bytes().len()].copy_from_slice(text.to_bytes());
         Some(NameKey(out))

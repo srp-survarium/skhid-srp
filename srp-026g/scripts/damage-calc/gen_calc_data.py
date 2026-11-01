@@ -247,7 +247,8 @@ for file in files("gameplay__items__artefacts__"):
 # Drugs: protection while active (0x33db30: D = 0 below threshold, else
 # (D - threshold) * hit_coeff on that pool and type), healing, injuries cleared.
 drugs = {}
-for file in files("gameplay__items__drugs__"):
+# The medicines are made whole at gameplay/items/medicines/ (docs/notes/medicines.md).
+for file in files("gameplay__items__drugs__") + files("gameplay__items__medicines__"):
     cfg = load(file)
     d = cfg["data"]
     drugs[key_of(file)] = {

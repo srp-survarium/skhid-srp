@@ -67,6 +67,8 @@ package survarium.controls
       
       public static const MATCHES_WORD_NONE:String = "st_srp_matches_none";
       
+      public static const MATCHES_WORD_VERSUS:String = "st_srp_matches_versus";
+      
       public static const MATCHES_WORD_WAITING:String = "st_srp_matches_waiting";
       
       public static const MATCHES_WORD_STARTING:String = "st_srp_matches_starting";
@@ -95,14 +97,6 @@ package survarium.controls
          "11":"st_srp_matches_played_before",
          "12":"st_srp_matches_maintenance",
          "13":"st_srp_matches_queued"
-      };
-      
-      // The modes' names by GameMode (the maps': RoomsText.levelKey)
-      public static const MATCHES_MODES:Object = {
-         "2":"st_srp_matches_mode_protective_device",
-         "3":"st_srp_matches_mode_protective_device",
-         "4":"st_srp_mode_team_deathmatch",
-         "5":"st_srp_mode_research"
       };
       
       // meaning unknown: the movie drops a match key above it
@@ -1465,7 +1459,7 @@ package survarium.controls
          var word:String = "";
          var wordColour:uint = 8356742;
          var score:String = String(row.score);
-         var label:String = this.matchesName(BottomPanel.MATCHES_MODES[String(int(row.mode))] as String,int(row.mode)) + "  ·  " + String(row.team0) + " v " + String(row.team1);
+         var label:String = RoomsText.modeName(int(row.mode)) + "  ·  " + String(row.team0) + " " + this.matchesText(BottomPanel.MATCHES_WORD_VERSUS) + " " + String(row.team1);
          this.matchesPut(rec.map,this.matchesName(RoomsText.levelKey(int(row.level)),int(row.level)),13421772);
          this.matchesPut(rec.label,label,6973545);
          if(score.length == 6)

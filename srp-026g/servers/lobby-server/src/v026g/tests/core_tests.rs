@@ -1161,12 +1161,10 @@ fn a_finished_match_brings_its_players_back_to_the_lobby() {
     assert_eq!(world.store.match_count(), 0);
     assert!(world.core.matches.is_empty());
 
-    // Both came by Play: out of their room after its match (the owner's of
-    // 2026-10-20), and Play again makes the next one.
-    assert!(world.core.rooms.is_empty());
-    world.ask(alice, request::play(1));
-    world.ask(bob, request::play(1));
-    world.advance(PLAY_TO_MATCH);
+    // Both came by Play and are in their room still (the owner's of
+    // 2026-10-31): its next vote makes the next match.
+    assert_eq!(world.core.rooms.len(), 1);
+    world.advance(PLAY_TO_MATCH + Duration::from_secs(15));
     let again = sent_to_match(&world.take(alice)).expect("a second match").0;
     assert_ne!(again, match_id);
 
@@ -1277,6 +1275,60 @@ fn chat_reaches_who_it_is_for() {
     world.advance(Duration::from_secs(3));
     world.ask(carol, request::chat(2, "", channel::GENERAL, "sorry"));
     assert_eq!(lines(&world.take(alice)).len(), 1);
+    world.assert_clean();
+}
+
+#[test]
+fn player_menu_mute_by_name_and_unmute_filter_incoming_chat() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    for client in [alice, bob, carol] {
+        world.ask(client, request::subscribe());
+        world.take(client);
+    }
+    let lines = |decoded: Vec<Decoded>| {
+        decoded
+            .into_iter()
+            .filter(|message| matches!(message, Decoded::ChatText { .. }))
+            .count()
+    };
+    // add_ignore_name is what the room/ranking menu sends: action 4, string.
+    world.ask(bob, (0x4E, vec![4, 5, b'A', b'l', b'i', b'c', b'e']));
+    let alice_id = world.ids[alice].0;
+    assert!(matches!(
+        &world.take(bob)[..],
+        [Decoded::Friendship(FriendshipPush::Ignored(ignored))]
+            if ignored[..] == [(alice_id, "Alice".to_owned())]
+    ));
+    world.ask(alice, request::chat(2, "", channel::GENERAL, "muted"));
+    world.ask(
+        alice,
+        request::chat(0, "Bob", channel::PRIVATE, "also muted"),
+    );
+    assert_eq!(lines(world.take(bob)), 0);
+    assert_eq!(lines(world.take(carol)), 1);
+    world.ask(
+        carol,
+        request::chat(2, "", channel::GENERAL, "still visible"),
+    );
+    assert_eq!(lines(world.take(bob)), 1);
+
+    // remove_ignored takes the account id from the pushed list, not the row id.
+    let mut unmute = vec![5];
+    unmute.extend(alice_id.to_le_bytes());
+    world.ask(bob, (0x4E, unmute));
+    assert!(matches!(
+        &world.take(bob)[..],
+        [Decoded::Friendship(FriendshipPush::Ignored(ignored))] if ignored.is_empty()
+    ));
+    world.ask(alice, request::chat(2, "", channel::GENERAL, "unmuted"));
+    world.ask(
+        alice,
+        request::chat(0, "Bob", channel::PRIVATE, "private too"),
+    );
+    assert_eq!(lines(world.take(bob)), 2);
     world.assert_clean();
 }
 
@@ -1434,6 +1486,41 @@ fn a_friend_request_waits_for_a_player_who_is_away() {
     world.assert_clean();
 }
 
+/// A friend request is sent within the sender's allowance: five at once,
+/// then one more every ten seconds (the Tab list's menu keeps the same on
+/// the client, exe patch 86); one over it is dropped.
+#[test]
+fn friend_requests_come_five_at_once_then_one_every_ten_seconds() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let names = ["Bob", "Carol", "Dave", "Erin", "Frank", "Grace"];
+    let others: Vec<usize> = names.iter().map(|name| world.connect(name)).collect();
+    world.take(alice);
+    for &other in &others {
+        world.take(other);
+    }
+    let asked = |world: &mut World, other: usize| {
+        world.take(other).iter().any(|message| {
+            matches!(message, Decoded::Important { kind: 0, sender_name, .. } if sender_name == "Alice")
+        })
+    };
+    for (name, &other) in names.iter().zip(&others).take(5) {
+        world.ask(alice, request::important(name, 0, ""));
+        assert!(asked(&mut world, other), "{name}");
+    }
+    let grace = others[5];
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(!asked(&mut world, grace), "the sixth at once");
+    // (the asks themselves took a little of the test's time)
+    world.advance(Duration::from_secs(5));
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(!asked(&mut world, grace), "five seconds after");
+    world.advance(Duration::from_secs(5));
+    world.ask(alice, request::important("Grace", 0, ""));
+    assert!(asked(&mut world, grace), "ten seconds after");
+    world.assert_clean();
+}
+
 /// Alice invites Bob into her squad, as the clients do it.
 fn form_squad(world: &mut World, alice: usize, bob: usize) {
     world.take(alice);
@@ -1567,6 +1654,40 @@ fn a_squad_invite_that_waits_is_sent_again() {
 }
 
 #[test]
+fn a_squad_info_carries_the_lobby_picks() {
+    use survarium::v026g::lobby::lobby_pick::LOBBY_PICK_BASE;
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let picks = |decoded: &[Decoded]| {
+        decoded.iter().rev().find_map(|message| match message {
+            Decoded::SquadInfo { squad_id, picks, .. } => Some((*squad_id != 0, *picks)),
+            _ => None,
+        })
+    };
+    let pick = |world: &mut World, who, id: u32| world.ask(who, request::ranking(LOBBY_PICK_BASE + id, 1));
+    // Out of a squad: the own pick alone, sent back at once; nothing answered else.
+    world.take(alice);
+    pick(&mut world, alice, 4);
+    assert_eq!(picks(&world.take(alice)), Some((false, [4, 0])));
+    pick(&mut world, bob, 3);
+    form_squad(&mut world, alice, bob);
+    // In it: each its own and the commander's (Alice's).
+    assert_eq!(picks(&world.take(alice)), Some((true, [4, 4])));
+    assert_eq!(picks(&world.take(bob)), Some((true, [3, 4])));
+    // The commander's change reaches every member; a member's own changes its own byte only.
+    pick(&mut world, alice, 2);
+    assert_eq!(picks(&world.take(bob)), Some((true, [3, 2])));
+    world.take(alice);
+    pick(&mut world, bob, 1);
+    assert_eq!(picks(&world.take(bob)), Some((true, [1, 2])));
+    assert_eq!(picks(&world.take(alice)), None, "the commander's squad info is as it was");
+    // A start past the picks is no pick.
+    pick(&mut world, bob, 5);
+    assert_eq!(picks(&world.take(bob)), None);
+}
+
+#[test]
 fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     let mut world = World::new();
     let alice = world.connect("Alice");
@@ -1612,9 +1733,11 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
                 member.ready
             ))
             .collect::<Vec<_>>(),
+        // Both free in the lobby (no room, a kit that plays): ready, so that
+        // the commander's Play takes the other along.
         [
-            (alice_id, "Alice", true, false),
-            (bob_id, "Bob", true, false)
+            (alice_id, "Alice", true, true),
+            (bob_id, "Bob", true, true)
         ]
     );
     // Her own entry has her own kit's id; Bob's an id that is none of
@@ -1665,9 +1788,9 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
         Decoded::ChatText { channel: channel::SQUAD, body, .. } if body == "ready?"
     )));
 
-    // Bob's Play makes a room, Alice's goes into it, and Carol's too: the
-    // one open room. When its match
-    // starts the squad is on one team, Carol on the other.
+    // Bob's Play makes a room and takes Alice along (Alice's Play then
+    // finds her in it), and Carol's goes into it too: the one open room.
+    // When its match starts the squad is on one team, Carol on the other.
     for client in [bob, alice, carol] {
         world.ask(client, request::play(1));
     }
@@ -2629,6 +2752,7 @@ fn the_operators_text_reaches_everyone_and_who_signs_in_later() {
 
 mod away_tests;
 mod balance_tests;
+mod chat_mute_tests;
 mod clan_tests;
 mod feedback_tests;
 mod gear_tests;

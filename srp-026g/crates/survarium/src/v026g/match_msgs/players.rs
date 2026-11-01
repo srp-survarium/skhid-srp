@@ -18,7 +18,7 @@
 //! lands on the sections of every snapshot kept (1222 of them).
 //!
 //! Of the state, the head is fixed (PROVEN): which of the player's objects
-//! it is, client patch 83's pickup record ([`FIELDS_AT`]), one u32 for
+//! it is, client patch 85's pickup record ([`FIELDS_AT`]), one u32 for
 //! every item of the profile (what is left in store of
 //! a stack item, the condition of another), whether the player is alive.
 //! The inventory further on has variable parts that were not all traced
@@ -185,7 +185,7 @@ pub struct PlayerState {
 }
 
 /// Where the native fields start: after the two kit indices, client patch
-/// 83 (`weapon_pickup`, written at base_player::serialize's start 0x2DAF70,
+/// 85 (`weapon_pickup`, written at base_player::serialize's start 0x2DAF70,
 /// read at 0x2DB4CF) puts the player's pickup record
 /// (`weapon_pickup::Record`: its drop and its borrowed gun).
 pub const FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
@@ -647,7 +647,7 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
-                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 83's record, empty
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record, empty
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store

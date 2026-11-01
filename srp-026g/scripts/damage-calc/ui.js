@@ -696,7 +696,7 @@ function drawHealing() {
     const cures = (lark.active.remove_affects || []).length;
     rows.push([named(`${nm(lark)}, ${T("activated", "активований")}`, "artefact_lifebone"), T(`at once, every ${lark.cooldown_s} s`, `одразу, раз на ${lark.cooldown_s} с`), dash, dash, dash, dash, cures ? fixed : dash]);
   }
-  for (const key of ["medkit", "bandages"]) {
+  for (const key of ["medkit", "military_medkit", "blackmarket_medkit", "science_medkit", "bandages"]) {
     const d = DATA.drugs && DATA.drugs[key]; if (!d) continue;
     const heal = d.heal_per_s || {};
     const cell = ([p]) => {

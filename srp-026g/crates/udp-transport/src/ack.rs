@@ -26,7 +26,7 @@ pub const MAX_TAIL: usize = 17;
 /// The most tail bytes taken from a datagram: one more, 127 ack bits. The
 /// client's own reader (0x3FA157..0x3FA1C3) has no limit but the
 /// datagram's length, and another server's datagrams with 18 were taken
-/// by real clients (upstream_compare.md topic 1).
+/// by real clients.
 pub const MAX_TAIL_READ: usize = 18;
 
 /// A decoded ack field.

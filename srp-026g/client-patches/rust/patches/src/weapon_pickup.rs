@@ -1,4 +1,4 @@
-//! Patch 83, dropped-weapon pickup (docs/notes/weapon_pickup.md).
+//! Patch 85, dropped-weapon pickup (docs/notes/weapon_pickup.md).
 //!
 //! Stage 1, the instance: at a death on every client (the same tick
 //! everywhere), when the dead player held one of its two own guns, that gun

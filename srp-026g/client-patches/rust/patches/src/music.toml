@@ -1,0 +1,61 @@
+# Patch 88: the music (docs/notes/music.md). Only the decisions: which sites,
+# and the handlers. The sites (their VAs, kinds, spans and registers) are
+# sites_026g.tsv's; the logic is music.rs.
+name = "music"
+patch = 88
+
+# game::on_configs_loaded's start, before user.cfg runs: s_music_volume
+# registered, so the stock Settings' Music slider and user.cfg have it
+# (after patch 79's language, order 1, patch 83's settings, order 2, and patch 81's
+# srp_lobby, order 3)
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 4
+
+# every frame (the game's thread): the bus asked for, the deadline, a fade done
+[[hook]]
+site = "game.tick"
+handler = "on_frame"
+
+# the login screen: the main theme
+[[hook]]
+site = "login_menu.activated"
+handler = "on_login"
+
+# the lobby: the lobby theme
+[[hook]]
+site = "lobby_menu.activated"
+handler = "on_lobby"
+
+# a match's loading: its mode's loading_music
+[[hook]]
+site = "level_loading.ui"
+handler = "on_loading"
+
+# a replay's options read: no theme in a replay (after patches 65, 86 and 83)
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay"
+order = 3
+
+# the match-start announcement: the map's theme stops 15 s later
+[[hook]]
+site = "game_world_ui.welcome"
+handler = "on_announced"
+
+# the game unloads its screens: the music stops (before patch 81's lobby scene, order 2)
+[[hook]]
+site = "game.clear_resources"
+handler = "on_unload"
+order = 1
+
+# the sound thread's tick: the bus kept active, its fade stepped
+[[hook]]
+site = "sound_world.tick"
+handler = "on_sound_tick"
+
+# a query's callback: the bus's scene or a track's sound
+[[hook]]
+site = "resources.query_done"
+handler = "on_query_done"

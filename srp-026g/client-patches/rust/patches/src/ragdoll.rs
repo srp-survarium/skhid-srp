@@ -409,7 +409,7 @@ pub fn on_killed(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// The step: once a frame on the logic thread, after the simulation's move.
 pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    // patch 83's frame step (one detour at this address)
+    // patch 85's frame step (one detour at this address)
     crate::weapon_pickup::after_move(ctx);
     let thread = ctx.thread();
     let client = GameWorld::at_after_move(ctx).and_then(|world| world.network_client());

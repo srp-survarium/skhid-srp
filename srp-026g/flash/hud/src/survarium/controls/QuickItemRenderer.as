@@ -400,10 +400,19 @@ package survarium.controls
          if(_content)
          {
             // Medical icons are mostly white already. Desaturation alone is
-            // invisible; dim the icon itself while the native delay is pending.
+            // invisible; dim the icon itself while the native delay is pending,
+            // and tint it red while a drug a bullet stopped is shown (patch 84).
             // This dynamic child is not controlled by the renderer's timeline.
-            var shade:Number = _data && _data.activityPhase == 1 ? 0.5 : 1;
-            _content.transform.colorTransform = new ColorTransform(shade,shade,shade);
+            var phase:uint = _data ? uint(_data.activityPhase) : 0;
+            if(phase == QuickSlots.ACTIVITY_INTERRUPTED)
+            {
+               _content.transform.colorTransform = new ColorTransform(1,0.3,0.3);
+            }
+            else
+            {
+               var shade:Number = phase == 1 ? 0.5 : 1;
+               _content.transform.colorTransform = new ColorTransform(shade,shade,shade);
+            }
          }
       }
       

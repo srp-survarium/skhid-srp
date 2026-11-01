@@ -1826,11 +1826,11 @@ def test_weapon_table(original, image, before):
           "from there, the match's 0x1F7DCE and the match's draw task (its address at 0x1F7CC6) alone; its "
           "[ebp-0E8h] is the decal pose's transform alone")
     texts = [t for _, _, t in ndisasm(code, table_va)]
-    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc14944c00"))], table_va)   # to `fields`
+    listing = ndisasm(code[:code.index(struct.pack("<4f", -0.5, 0.5, -0.5, 0.0))].rstrip(b"\0"), table_va)   # to its data (`flip_half`)
     targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}
-    check(outside == {0x2845C0, 0x2844D0} and all(t in starts for t in targets - outside)
+    check(outside == {0x2845C0, 0x2844D0, 0xF6C00, 0xF6B10} and all(t in starts for t in targets - outside)
           and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * len(P.WEAPON_TABLE_ENTRIES)
           and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)] == ["call [eax+0x24]"]
           and not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)]
@@ -1839,9 +1839,18 @@ def test_weapon_table(original, image, before):
           == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
           f"the weapon table at {table_va:#x} (.srpw+{P.WEAPON_TABLE_OFFSET:#x}) is weapon_table_026g.section.bin "
           f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with six "
-          "`jmp near`, jumps only to the camera's setter and its collision ray outside itself and calls only the lobby menu's "
-          "vtable+24h (is_mouse_over_ui), every branch inside it lands on an instruction, and no operand is an "
-          "absolute address")
+          "`jmp near`, jumps only to the camera's setter and its collision ray outside itself and calls only the "
+          "config's key check and lookup (the lobby's spot) and the lobby menu's vtable+24h (is_mouse_over_ui), "
+          "every branch inside it lands on an instruction, and no operand is an absolute address")
+    scene = [t for _, _, t in ndisasm(source.read(0x221975, 0x2F), 0x221975)]
+    check(rows(source, 0x220E01, 6) == ["mov [ebx+0x114],eax"]
+          and scene[:5] == ["mov eax,[ebx+0x114]", "mov ecx,[eax+0x17c]", "mov eax,[ecx+0x108]", "mov edi,0x9fb600",
+                            "call 0xf6b10"]
+          and scene[7:10] == ["mov eax,[eax]", "movq xmm0,[eax]", "mov edx,[eax+0x8]"]
+          and source.read(0x9FB600, 7) == b"camera\0",
+          "the lobby's spot: on_render_scenes_ready keeps the scene's project at lobby menu+114h (0x220E01) and "
+          "reads its config as [[project+17Ch]+108h] -> camera -> position, a float3 whose value's +0 points to "
+          "its three floats (0x221975..0x2219A1): what patch 45 reads srp_lobby/weapon by")
     mouse = {a: t for a, _, t in ndisasm(source.read(0x283D79, 0x13), 0x283D79)}
     check(mouse.get(0x283D7F) == "call eax" and mouse.get(0x283D88) == "test al,al"
           and mouse.get(0x283D8A) == "jz 0x283dbe"
@@ -2145,10 +2154,13 @@ def instruction(image, va):
         except ValueError:
             return None
         rows = ndisasm(window, va)
+        # an instruction's length is the next one's distance: ndisasm prints
+        # the bytes of a long one (10 or more) on a second, `-` line, which
+        # ndisasm() leaves out
         for (at, code_hex, text), following in zip(rows, rows[1:] + [None]):
-            if following is None or at + len(code_hex) // 2 > va + len(window) - 16:
+            if following is None or following[0] > va + len(window) - 16:
                 break
-            cache.setdefault(at, (len(code_hex) // 2, text))
+            cache.setdefault(at, (following[0] - at, text))
         if va not in cache and rows:
             cache[va] = (len(rows[0][1]) // 2, rows[0][2])
     return cache.get(va)
@@ -4012,6 +4024,164 @@ def test_language(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_lobby_scene(original, image, before):
+    """Check 81: the lobby's scene is the player's pick (the lobby window's;
+    the squad commander's in a squad, 0xA1's srp bytes), the pick kept in
+    user.cfg, a change swapped behind a fade at once (patch 81, the Rust
+    patch `lobby_scene`, nine lohooks of lobby_scene.toml: configs.start in a
+    chain after patch 79's and 83's, lobby_camera.view after patch 45's flight and
+    the diagnostics' sweep; ../docs/notes/lobby-scenes.md).
+    check_lobby_scene_026g.py runs each from the game's code on made-up
+    objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    text_at = lambda at: bytes(original[stock.offset(at):original.index(b"\0", stock.offset(at))])
+    check(rows(0x21E5A2, 0xE) == ["mov dword [ebp-0x68],0x9ffd98", "mov dword [ebp-0x64],0x40"]
+          and text_at(0x9FFD98) == b"lobby_scene/day"
+          and rows(0x21E569, 3) == ["mov [ebp-0x34],edx"] and rows(0x21E54A, 6) == ["lea edx,[ebp-0xe0]"]
+          and rows(0x21E5CC, 10) == ["movq [eax+0x8],xmm0", "call 0x21e860"]
+          and rows(0x21E5E7, 11) == ["lea ecx,[esi+0x8]", "lea eax,[ebp-0x80]", "call 0xe5b60"]
+          and rows(0x21CDBB, 7) == ["mov eax,ebx", "call 0x21e450"],
+          "lobby_menu::query_resources (0x21E450, its one call in the lobby menu's ctor 0x21CDBD) asks its "
+          "fourth request {\"lobby_scene/day\", 40h} at [ebp-68h] with the lobby menu's variant ([ebp-34h]) "
+          "among eight (0xE5B60 at 0x21E5ED); the list is whole at 0x21E5CC")
+    check(rows(0x220B20, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"]
+          and rows(0x220DA2, 6) == ["mov eax,[edi+0x9cc]"]
+          and rows(0x220E7A, 0xC) == ["mov eax,[ebx+0x114]", "mov ecx,[eax+0x1e4]"]
+          and rows(0x221E77, 3) == ["ret 0x4"],
+          "lobby_menu::on_render_scenes_ready (0x220B20, ECX the menu, [esp+4] the results) reads result 3's "
+          "resource at +9CCh unchecked and its project's track (+1E4h) unchecked; it returns at 0x221E77 (ret 4)")
+    check(rows(0x2747A8, 6) == ["mov [ebx+0x1eaaa4],ebp"]
+          and rows(0x2747BC, 0x14) == ["cmp dword [ebx+0x1eaaa4],byte +0x0", "mov byte [ebx+0x1eaaac],0x0",
+                                       "jz near 0x2748c2"]
+          and rows(0x2748B1, 0x11) == ["mov eax,[esi+0x4]", "mov ecx,[eax]", "add eax,byte +0x4", "mov [esi+0x4],eax",
+                                        "mov [ebx+0x1eaaa0],ecx"],
+          "read_squad_info (0x274720, 0xA1) keeps the squad id at the lobby client's +1EAAA4h (0x2747A8), "
+          "compares it with 0 and clears +1EAAACh (0x2747C3, both paths) and, for no squad, jumps over the "
+          "rest; a squad's path reads its revision last and keeps it (0x2748BC, the reader ESI past it)")
+    check(rows(0x1B14A6, 0xA) == ["cmp byte [dword 0xac914c],0x0", "lea ebx,[ebp+0x1]"]
+          and rows(0x1B14F2, 7) == ["mov byte [dword 0xac914c],0x0"]
+          and stock.read(0xAC914C, 1) == b"\x01",
+          "the eye adaptation's byte (0xAC914C, 1 in the image: the first frame): while set, "
+          "compute_per_pixel_eye_adaptated_luminance (0x1B1400) gives t_previous_luminance the frame's own "
+          "luminance (+275Ch, its t_current), then clears it (0x1B14F2): the reset patch 81 sets")
+    check(rows(0x2277E1, 6) == ["mov ecx,[edi+0x690]"] and rows(0x227801, 9) == ["mov edx,[ecx+0x108]", "mov ecx,[edx+0x4]"],
+          "fill_squad_info (EDI the lobby menu) invokes the lobby movie [[menu+690h]+108h]+4 (root.show_squad): "
+          "the movie srp_scene_fade and srp_lobby_state are invoked on")
+    check(rows(0x28C982, 0xD) == ["push edx", "mov edx,[ecx]", "mov eax,[edx+0x3c]", "call eax", "call 0x270070"]
+          and rows(0x270075, 0x9) == ["mov edi,eax", "add edi,byte +0x8", "push byte +0x3b", "mov eax,edi"]
+          and rows(0x2700F5, 3) == ["ret 0x8"],
+          "the movie's request_players_range (0x28C960) sends 3B through the lobby client's 0x270070 (EAX the "
+          "client, [esp+4] the start, [esp+8] the count; ret 8): the exe's own pick at the sign-in goes so")
+    vtable = lambda at, n: list(struct.unpack(f"<{n}I", stock.read(at, 4 * n)))
+    check(rows(0x21D2E0, 6) == rows(0x21D4A0, 6) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8"]
+          and vtable(0x9FFE74, 2) == [0x21D2E0, 0x21D4A0] and vtable(0x9FFE74 + 0x28, 1) == [0x21D080],
+          "the lobby menu's vtable (0x9FFE74) is on_activate (0x21D2E0), on_deactivate (0x21D4A0), ..., "
+          "clear_resources (+28h, 0x21D080); both start push ebp / mov ebp,esp / and esp,-8")
+    check(rows(0x1ED030, 0xA) == ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x535c]"]
+          and rows(0x1ED0B0, 0x11) == ["mov ecx,[esi+0x539c]", "cmp ecx,ebx", "jz 0x1ed0c1", "mov eax,[ecx]",
+                                        "mov edx,[eax+0x4]", "call edx"]
+          and vtable(0x9FAC8C + 0x10, 1) == [0x1ED030],
+          "game::clear_resources (the game's vtable 0x9FAC8C+10h, the game closing) starts push ebx / push esi / "
+          "mov esi,ecx / mov ecx,[esi+535Ch] and deactivates the active scene (+539Ch, its vtable+4) at 0x1ED0B0")
+    # the swap redoes these halves (vostok::lobby_menu::put_in)
+    check(rows(0x21D085, 6) == ["mov esi,[ebp+0x114]"] and rows(0x21D093, 5) == ["call 0x2855b0"]
+          and rows(0x21D0B1, 0xF) == ["mov edx,[edx+0x4]", "lea ecx,[eax+esi]", "mov eax,[ebp+0x3104]", "push eax",
+                                       "call edx"]
+          and rows(0x21D0C6, 0x11) == ["lea edi,[ebp+0x120]", "call 0x2de7f0", "mov [ebp+0x118],ebx"]
+          and rows(0x21D0F8, 8) == ["add ecx,byte +0x38", "call 0xe0210"]
+          and rows(0x220E4A, 0x1B) == ["mov ecx,[ebx+0x114]", "mov eax,[ecx]", "mov edx,[eax+0xc]", "call edx",
+                                        "lea esi,[ebx+0x118]", "lea edi,[esi+0x8]", "call 0x2de7f0"]
+          and rows(0x220E86, 5) == ["mov eax,[ecx]", "mov eax,[eax+0x20]"] and rows(0x220EA1, 5) == ["call 0x2de090"]
+          and rows(0x220EAE, 0x15) == ["add dword [eax+0x1c],byte -0x1", "jnz 0x220ec3", "mov eax,[esp+0x10]",
+                                        "mov ecx,[eax+0xc]", "mov edx,[ecx]", "push eax", "mov eax,[edx+0x1c]",
+                                        "call eax"]
+          and rows(0x22193E, 0xB) == ["mov eax,[ebx+0x114]", "call 0x285540"]
+          and rows(0x221961, 0xE) == ["mov edx,[edx]", "lea ecx,[eax+esi]", "mov eax,[ebx+0x3104]", "push eax",
+                                       "call edx"]
+          and vtable(0xA0A064 + 0xC, 1) == [0x2F8720] and vtable(0xA029A8, 2) == [0x2F8850, 0x2F8970],
+          "the project halves the swap redoes: clear_resources' (remove 0x2855B0, each static collision's "
+          "vtable+4 with the physics world +3104h, the track player's stop 0x2DE7F0 and +118h 0, the release "
+          "0xE0210) and on_render_scenes_ready's (the project's vtable+0Ch, simple_game_project's 0x2F8720; the "
+          "stop; the track's emitter's vtable+20h, play 0x2DE090, the effect's emitter's vtable+1Ch at 0; "
+          "insert 0x285540, each collision's vtable+0); static_collision's vtable 0xA029A8: insert 0x2F8850, "
+          "remove 0x2F8970")
+    import hooks_026g
+    every = hooks_026g.hooks()
+    members = [m for h in every for m in h.get("chain", [h])]
+    hooks = {h["site_name"]: h for h in members if h["patch"] == "lobby_scene"}
+    heads = {h["site_name"]: h for h in every if h.get("chain")}
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted(hooks) == ["configs.start", "game.clear_resources", "lobby_camera.view", "lobby_client.squad_id",
+                            "lobby_client.squad_read", "lobby_menu.activate", "lobby_menu.deactivate",
+                            "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
+          and all(h["kind"] == "lohook" for h in hooks.values())
+          and [m["patch"] for m in heads["configs.start"]["chain"]] == ["language", "hud_options", "lobby_scene", "music"]
+          and [m["patch"] for m in heads["game.clear_resources"]["chain"]] == ["music", "lobby_scene"]
+          and heads["configs.start"]["chain"][2]["shim"] == hooks["configs.start"]["shim"]
+          and [m["patch"] for m in heads["lobby_camera.view"]["chain"]] == ["weapon_flight", "camera_sweep", "lobby_scene"]
+          and heads["lobby_camera.view"]["chain"][-1]["shim"] == hooks["lobby_camera.view"]["shim"],
+          "lobby_scene.toml's nine hooks are lohooks; at configs.start in the chain after patch 79's and 83's handlers "
+          "and before 88's (one entry, language's, calls the shims); at game.clear_resources after patch 88's; at "
+          "lobby_camera.view the last of the chain after patch 45's flight and the diagnostics' sweep")
+    for site in ("lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.scene_request",
+                 "lobby_menu.scenes_ready",
+                 "lobby_menu.activate", "lobby_menu.deactivate", "game.clear_resources"):
+        # a shared site (game.clear_resources, with patch 88's music) jumps to its chain's one entry
+        h = heads.get(site, hooks[site])
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({site}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
+def test_weapon_flight(original, image, before):
+    """Check 45 (round 7): patch 45's camera flight, the Rust patch
+    `weapon_flight` (one lohook, weapon_flight.toml, at lobby_camera.view;
+    client_patch.md section 3.42): the lobby camera's tick with its yaw and
+    pitch final, the frame's time at ESP+10h, then the steps, the ray and the
+    eye; patch 45's state its interface (fields_026g.tsv's weapon_table, the
+    NASM's STATE). check_weapon_table_026g.py flies it with the game's tick."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x283FAD, 6) == ["movss dword [esp+0x10],xmm4"] and rows(0x2840EA, 0xF) == ["movss dword [ebx+0xb8],xmm0",
+                                                                                     "fld dword [ebx+0xb4]",
+                                                                                     "push ecx"]
+          and rows(0x284309, 5) == ["call 0x2844d0"] and rows(0x28430E, 8) == ["movss xmm1,dword [ebx+0xc0]"],
+          "lobby_camera::tick keeps the frame's time, at most 0.1 s, at [esp+10h] (0x283FAD); 0x2840F2 "
+          "loads the clamped yaw for rotY after the pitch's store; the ray at 0x284309, the last clamp after")
+    import hooks_026g
+    import engine_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "weapon_flight"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    late_join = open(P.late_join_bin(), "rb").read()
+    state = P.late_join_state_va(late_join) + P.WEAPON_TABLE_STATE_OFFSET
+    row = [x for x in engine_026g.fields() if x["module"] == "image" and x["field"] == "weapon_table"]
+    check(len(hooks) == 1 and hooks[0]["kind"] == "lohook" and hooks[0]["site_name"] == "lobby_camera.view"
+          and len(row) == 1 and row[0]["offset"] == state,
+          f"weapon_flight.toml's one hook is a lohook at lobby_camera.view; fields_026g.tsv's weapon_table is "
+          f"patch 45's STATE ({state:#x}, .srpd+{P.WEAPON_TABLE_STATE_OFFSET:#x})")
+    h = hooks[0]
+    va, old = h["site"], h["original"]
+    entry = linked.symbols[h["entry"]]
+    new = P.hook_bytes(entry, va, old, 0, 0xE9)
+    branches = [x for x in aimed_inside(original, va, len(old), 0x82) if starts_instruction(stock, x)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and block.va <= entry < block.va + block.size and not under and not branches,
+          f"{va:#x} (lobby_camera.view): {old.hex()} in the original and the build without the late join, "
+          f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -4485,7 +4655,7 @@ def test_hide_ui(original, image, before):
     check(not [f for f in found if (f[0], f[1]) not in allowed]
           and "Message.initStage(this._top_container);" in lobby and "MainScene.stage = this;" in lobby
           and "SrvContextMenu.registerStage(stage,this._layers);" in lobby
-          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._layers;" in lobby
+          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._transients;" in lobby
           and "_layer.addChild(_id);" in lobby_tree["survarium/controls/SrvContextMenu.as"]
           and "(layer ? layer : _stage).addChild(_dragCanvas);" in lobby_tree["scaleform/clik/managers/DragManager.as"]
           and "host.addChild(_defaultPopupCanvas);" in lobby_tree["scaleform/clik/managers/PopUpManager.as"]
@@ -4503,7 +4673,7 @@ def test_hide_ui(original, image, before):
           "the lobby's interface is its root: nothing of it is added to the stage (Message's container and "
           "MainScene.stage are inside the root); what the game put on the stage is in the root's last child, "
           "_stageLayer, at the stage's scale, made before anything else and kept last (addChild, addChildAt, "
-          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers; "
+          f"setChildIndex): {', '.join(layered)}, the right-click menu in _layers, CLIK's popup canvas in _transients; "
           "_overlay, above every modal: _corner, _cards (the item cards, no longer topmost), the drag canvas, the "
           "tooltips; no InterfaceHider, no timer")
     toggle = lobby[lobby.index("public function toggle_interface() : void"):]
@@ -4762,6 +4932,28 @@ def test_bake_cache(original, image, before):
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
+def test_lamps(original, image, before):
+    """The lamp's generated detours and its shared frame/ray chains."""
+    import hooks_026g
+    linked = P.arena()
+    stock = Image(original)
+    for hook in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
+        owners = [member["patch"] for member in hook.get("chain", [hook])]
+        if "lamps" not in owners or hook["kind"] != "lohook":
+            continue
+        va, old = hook["site"], hook["original"]
+        expected = P.hook_bytes(linked.symbols[hook["entry"]], va, old, 0, 0xE9)
+        check(before.read(va, len(old)) == old and image.read(va, len(old)) == expected,
+              f"lamp hook {hook['site_name']}: native without the arena, generated target with it")
+        hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+                if not va <= h < va + len(old) and starts_instruction(stock, h)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3
+                 and va - 4 < v < va + len(old)]
+        check(not hits and not under,
+              f"lamp hook {hook['site_name']}: no branch enters the displaced instructions or relocation overlaps them"
+              + "".join(f", {h:#x}" for h in hits + under))
+
+
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
     ../docs/notes/ragdoll.md). Static, on the bytes: the nine sites and what
@@ -4820,9 +5012,11 @@ def test_ragdoll(original, image, before):
     block = linked.blocks["patches.code"]
     data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
     sym = linked.symbols
-    hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
-    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
-                                  0x2477DF, 0x15A950, 0x2DA3DF],
+    declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
+                    if any(m["patch"] == "ragdoll" for m in h.get("chain", [h]))}
+    hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
+    check(len(hooks) == 9 and {h[0] for h in hooks} == {0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F,
+                                                       0x2477DF, 0x15A950, 0x2DA3DF},
           "the Rust patch ragdoll's nine lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
     check(rows(stock, 0x2477DF, 9) == ["mov ecx,[ebp-0x1c]", "mov edx,[ebx+0xf290]"]
           and rows(stock, 0x15A94D, 10) == ["mov edx,[ebp+0x14]", "cmp byte [edi+0x62d8],0x0"],
@@ -4847,14 +5041,18 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "patches.code")
-    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x30000,
+    # These blocks now contain every Rust patch's statics: the corpse pool,
+    # lamp bindings and carry snapshots/resource owners. Keep a shared
+    # 256 KiB budget (202,464 bytes with all three); test_arena separately
+    # enforces the whole arena's limit and exact linked layout.
+    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x40000,
           f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
           f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
     # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
     # called, its Flow taken), its replay the site's own bytes, then back
     for va, old, symbol, _ in hooks:
         texts = [text for _, _, text in ndisasm(image.read(sym[symbol], 0x60), sym[symbol])]
-        shim = sym["hook_" + symbol]
+        shim = sym[declarations[symbol]["shim"]]
         check(texts[:5] == ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
               and f"call {shim:#x}" in texts,
               f"{symbol}: the generated lohook entry (the flags, registers and fxsave kept, the shim {shim:#x} "
@@ -4864,8 +5062,8 @@ def test_ragdoll(original, image, before):
     texts = [text for _, _, text in ndisasm(code[:text_size], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    library = {sym[f["symbol"]] if f["call"] == "thunk" else f["va"] for f in engine_026g.every_function()
-               if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
+    library = {sym[f["symbol"]] if f["call"] in engine_026g.THUNKED else f["va"] for f in engine_026g.every_function()
+               if f["call"] != "import" and (f["symbol"] in sym or f["call"] not in engine_026g.THUNKED)}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
     # arena_rt exports weak intrinsics so multiple Rust arena crates share
@@ -4880,10 +5078,22 @@ def test_ragdoll(original, image, before):
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
-    inside = lambda a: any(d.va <= a < d.va + d.size for d in data)
+    # an `::image` row in our own `.srpd` is an older patch's state the crate shares (patch 45's
+    # weapon_table: its FLIGHT word, weapon_flight.rs's alone): a field of that row's kind
+    srpd = P.late_join_state_va(open(P.late_join_bin(), "rb").read())
+    shared = [(x["offset"], x["target"]) for x in engine_026g.fields() if x["module"] == "image"
+              and srpd <= x["offset"] < srpd + P.LATE_JOIN_STATE_SIZE]
+    shared_fields = {base + x["offset"] for base, kind in shared for x in engine_026g.fields() if x["kind"] == kind}
+    # the game's own data a patch sets on purpose, by its image row: patch 81's reset of the eye
+    # adaptation (stage_postprocess's byte, which the render thread reads and clears; lobby-scenes.md)
+    game_flags = {x["offset"]: f'{x["field"]}' for x in engine_026g.fields() if x["module"] == "image"
+                  and x["field"] in ("postprocess",)}
+    inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or a in shared_fields or a in game_flags
     check(all(inside(a) for a in absolute),
-          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state: nothing of the "
-          "game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
+          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state, or fields of "
+          f"an older patch's state it shares (`.srpd`: {', '.join(f'{b:#x} {k}' for b, k in shared)}), or a flag "
+          f"of the game's a patch sets on purpose ({', '.join(f'{a:#x} {n}' for a, n in game_flags.items())}): "
+          "nothing else of the game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
 def test_spot(original, image, before):
@@ -6240,7 +6450,7 @@ def test_hook_kinds(original):
     import io
     import unittest
     output = io.StringIO()
-    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "port.test_equiv_026g"])
+    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "test_runtime_hooks_026g", "port.test_equiv_026g"])
     result = unittest.TextTestRunner(stream=output).run(suite)
     check(result.wasSuccessful(), f"the hook generator and equivalence build paths: {result.testsRun} tests"
           + ("" if result.wasSuccessful() else "\n" + output.getvalue()))
@@ -6409,6 +6619,7 @@ def test_late_join(original, without, server, source):
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
     ranges.append((image.offset(P.MATCH_KEYS_POLL_SLOT[0]), 4))
+    ranges.append((image.offset(P.ARTEFACT_KEY_DEFAULT[0]), len(P.ARTEFACT_KEY_DEFAULT[2])))   # the artefact action's default key (ARTEFACT_KEY_DEFAULT)
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
@@ -6562,7 +6773,10 @@ def test_late_join(original, without, server, source):
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
+    test_lamps(original, image, before)
     test_language(original, image, before)
+    test_lobby_scene(original, image, before)
+    test_weapon_flight(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

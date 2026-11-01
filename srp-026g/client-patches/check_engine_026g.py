@@ -18,6 +18,13 @@ runs the same (test_engine). For every function of engine_026g.tsv:
   result marker in EAX (EDX, XMM0): the thunk must come back to its caller
   with the stack balanced, the four registers kept and the result where C
   takes it (EAX, AL widened, EDX:EAX, ST0);
+- every vtables.tsv row: the vtable holds that function at that slot;
+- a virtual function (`call` virtual: `[[this]+slot]`): each of its
+  vtables.tsv rows is the exe's (the vtable holds that function at that
+  slot) and each function's `ret`s pop what abi.tsv says; the thunk, called
+  with an object whose vtable is a made-up one, reaches that vtable's slot
+  with `this` in ECX and the rest as above, and with an object of each
+  listed vtable, the exe's own, reaches that vtable's function;
 - for the functions that run on made-up data (the config's child and has,
   the field writers, the statistics' listener, the pool lookup, the
   allocation's name): the real function runs, and
@@ -156,10 +163,13 @@ def exe_pops(original, va, cache={}):
     return cache[va]
 
 
-def at_entry(run, f, entry, pops):
-    """The thunk at `entry` called with markers, stopped at f's VA, the
-    return played with `pops`; [(ok, text)]."""
+def at_entry(run, f, entry, pops, target=None, this=None):
+    """The thunk at `entry` called with markers, stopped at f's VA (or
+    `target`: a virtual function's, `this` its object, the first
+    argument), the return played with `pops`; [(ok, text)]."""
     emu, seen = run.emu, []
+    target = f["va"] if target is None else target
+    given = [this if this is not None and i == 0 else marker(i) for i in range(len(f["params"]))]
 
     def real(run):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -170,24 +180,24 @@ def at_entry(run, f, entry, pops):
         emu.reg_write(UC_X86_REG_EDX, RESULT_HIGH)
         emu.reg_write(UC_X86_REG_XMM0, struct.unpack("<I", struct.pack("<f", 1.5))[0] | 0xFFFF << 64)
         run.ret(pops, RESULT)
-    run.hooks[f["va"]] = real
+    run.hooks[target] = real
     out = []
     try:
-        eax, moved, kept = run.cdecl(entry, [marker(i) for i in range(len(f["params"]))])
+        eax, moved, kept = run.cdecl(entry, given)
     except UcError as error:
         return [(False, f"{f['symbol']}: the thunk faulted ({error})")]
     finally:
-        del run.hooks[f["va"]]
+        del run.hooks[target]
     if len(seen) != 1:
-        return [(False, f"{f['symbol']}: reached {f['va']:#x} {len(seen)} times, not once")]
+        return [(False, f"{f['symbol']}: reached {target:#x} {len(seen)} times, not once")]
     regs, stack = seen[0]
     where = []
     for i, location in enumerate(f["args"]):
         got = regs[location] if location in REG else stack[int(location[4:]) // 4]
-        if got != marker(i):
+        if got != given[i]:
             where.append(f"{f['params'][i][1]} not in {location} ({got:#x})")
     out.append((not where and run.lo <= stack[0] < run.hi,
-                f"{f['symbol']}: at {f['va']:#x} each argument where the rows put it "
+                f"{f['symbol']}: at {target:#x} each argument where the rows put it "
                 f"({', '.join(f['args']) or 'none'}), called from the library" + (": " + "; ".join(where) if where else "")))
     result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF,
               "EDX:EAX": eax == RESULT and run.emu.reg_read(UC_X86_REG_EDX) == RESULT_HIGH,
@@ -195,6 +205,31 @@ def at_entry(run, f, entry, pops):
     out.append((moved == 4 and kept == KEPT and result,
                 f"{f['symbol']}: back with the stack balanced (esp +{moved}, the return address only), EBX ESI EDI "
                 f"EBP kept, the result {f['result'] or '(none)'} where C takes it (eax {eax:#x})"))
+    return out
+
+
+def virtual(run, original, f, entry):
+    """[(ok, text)] of a virtual function: its vtables.tsv rows against the
+    exe, each body's cleanup, the thunk through a made-up vtable and through
+    each listed one."""
+    base_class, slot, found = f["virtual"]
+    out = []
+    for vtable, va, cls in found:
+        held = run.read(vtable + slot)
+        pops = exe_pops(original, va)
+        out.append((held == va and pops == f["cleanup"],
+                    f"{f['symbol']}: {cls}'s vtable {vtable:#x}+{slot:#x} holds {held:#x} in the original exe "
+                    f"(vtables.tsv: {va:#x}), whose rets pop {pops} (abi.tsv: {f['cleanup']})"))
+    table, this = run.allocate(0x400), run.allocate(0x10)
+    stub = STUBS + 0x200
+    run.word(this, table)
+    run.word(table + slot, stub)
+    out += at_entry(run, f, entry, f["cleanup"], target=stub, this=this)
+    for vtable, va, cls in found:
+        run.word(this, vtable)
+        reached = at_entry(run, f, entry, f["cleanup"], target=va, this=this)
+        out.append((all(ok for ok, _ in reached), f"{f['symbol']}: an object of {cls} (vtable {vtable:#x}) reaches "
+                    f"{va:#x}" + "".join(f"; {text}" for ok, text in reached if not ok)))
     return out
 
 
@@ -289,19 +324,27 @@ def behaviour(run, entries):
     return out
 
 
-def run_checks(original, library=None, spec=None, abi=None, inputs=None, behave=True):
+def run_checks(original, library=None, spec=None, abi=None, inputs=None, behave=True, vtables=None):
     """[(ok, text)] of the library (its VA, bytes and symbols; the build's
     when None) against the rows (engine_026g.tsv, the re-kit's) and the
     original exe."""
     library = built() if library is None else library
     va, code, symbols = library
-    fs = engine.functions(spec, abi, inputs)
+    fs = engine.functions(spec, abi, inputs, vtables)
     out = [(all(va <= symbols.get(f["symbol"], -1) < va + len(code) for f in fs),
             f"each of the library's {len(fs)} functions is a symbol of its code")]
     if not out[0][0]:
         return out
     run = Run(original, library)
+    rows = engine.read_tsv(engine.REKIT / "vtables.tsv") if vtables is None else vtables
+    wrong = [f"{row['class']} {row['vtable']}+{row['slot']}: {run.read(engine.number(row['vtable']) + engine.number(row['slot'])):#x}"
+             for row in rows if run.read(engine.number(row["vtable"]) + engine.number(row["slot"])) != engine.number(row["va"])]
+    out.append((not wrong, f"every vtables.tsv row ({len(rows)}) is the original exe's: the vtable holds the function "
+                "at the slot" + "".join(f"; not {w}" for w in wrong)))
     for f in fs:
+        if f["call"] == "virtual":
+            out += virtual(run, original, f, symbols[f["symbol"]])
+            continue
         pops = exe_pops(original, f["va"])
         out.append((pops == f["cleanup"], f"{f['symbol']}: {f['va']:#x}'s rets pop {pops} in the original exe; "
                     f"abi.tsv says {f['cleanup']}"))
@@ -315,8 +358,8 @@ def negative(original, tools=None):
     """[(what, it was rejected)] of wrong spec rows (the generator must refuse
     them), wrong re-kit rows (the check must fail on the library made from
     them) and a wrong expectation (the check must fail on the built one)."""
-    spec, abi, inputs = (engine.read_tsv(path) for path in (engine.SPEC, engine.REKIT / "abi.tsv",
-                                                            engine.REKIT / "abi_inputs.tsv"))
+    spec, abi, inputs, vtables = (engine.read_tsv(path) for path in (
+        engine.SPEC, engine.REKIT / "abi.tsv", engine.REKIT / "abi_inputs.tsv", engine.REKIT / "vtables.tsv"))
 
     def library(spec=spec, abi=abi, inputs=inputs):
         return engine.assemble(engine.asm_text(engine.functions(spec, abi, inputs)), tools=tools)
@@ -324,9 +367,9 @@ def negative(original, tools=None):
     def failed(results):
         return any(not ok for ok, _ in results)
 
-    def refused(spec=spec, abi=abi, inputs=inputs):
+    def refused(spec=spec, abi=abi, inputs=inputs, vtables=vtables):
         try:
-            engine.functions(spec, abi, inputs)
+            engine.functions(spec, abi, inputs, vtables)
         except engine.Refused:
             return True
         return False
@@ -355,6 +398,22 @@ def negative(original, tools=None):
                          ("engine_movie_invoke", "ESP+4", "ESP+8"), ("engine_free", "ECX", "EAX"),
                          ("engine_profile_assign", "ESI", "EDI")):
         out.append((f"{symbol} with its {a} and {b} parameters swapped in engine_026g.tsv", refused(swapped(symbol, a, b))))
+    # A virtual row at another slot (the emitter's +1Ch, destroy: one stack
+    # argument) and one implementation's cleanup otherwise: refused.
+    out.append(("engine_emitter_emit at the emitter's slot +0x1c in engine_026g.tsv",
+                refused([dict(row, va="survarium::pure_game_effect_emitter+0x1c") if row["symbol"] == "engine_emitter_emit"
+                         else row for row in spec])))
+    out.append(("a virtual row of a class with no vtables.tsv row (survarium::game_effect+0x20)",
+                refused([dict(row, va="survarium::game_effect+0x20") if row["symbol"] == "engine_emitter_emit"
+                         else row for row in spec])))
+    out.append(("one emit (0x333010, reinforcement storm's) popping 8 in abi.tsv",
+                refused(abi=[dict(row, ret_cleanup="8") if int(row["va"], 16) == 0x333010 else row for row in abi])))
+    # A vtables.tsv row that is not the exe's: the hud's +20h said to be the
+    # sound emitter's emit. The generator follows it; the exe does not.
+    wrong_vtables = [dict(row, va="0x0029a580") if (row["vtable"], row["slot"]) == ("0x00a0bc7c", "0x20") else row
+                     for row in vtables]
+    out.append(("a vtables.tsv row saying the hud emitter's +0x20 is 0x29a580 (the sound emitter's)",
+                failed(run_checks(original, None, spec, abi, inputs, behave=False, vtables=wrong_vtables))))
     out.append(("an abi.tsv cleanup that is no number of bytes (0x10)",
                 refused(abi=[dict(row, ret_cleanup="0x10") if int(row["va"], 16) == 0x1F3DE0 else row
                              for row in abi])))
@@ -379,7 +438,7 @@ def negative(original, tools=None):
     moved = located(0xE4F90, {"ESI": "EAX", "EAX": "ESI"})
     # Every row of malloc's VA follows the moved rows (engine_allocate_recipe is a typed one).
     follows_malloc = [dict(row, arguments="EAX:allocator ESI:size ESP+4:description")
-                      if int(row["va"], 16) == 0xE4F90 else row for row in spec]
+                      if row["va"].lower() in ("0xe4f90", "0x0e4f90") else row for row in spec]
     out.append(("the built library against re-kit rows with malloc's allocator in EAX and size in ESI",
                 failed(run_checks(original, None, follows_malloc, abi, moved, behave=False))))
     return out

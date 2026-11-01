@@ -13,6 +13,7 @@ dependencies = [
  "artefact-carry",
  "ragdoll",
  "weapon-pickup",
+ "world-frame",
 ]
 
 [[package]]
@@ -21,4 +22,8 @@ version = "0.1.0"
 
 [[package]]
 name = "weapon-pickup"
+version = "0.1.0"
+
+[[package]]
+name = "world-frame"
 version = "0.1.0"

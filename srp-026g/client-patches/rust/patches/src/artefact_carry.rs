@@ -94,7 +94,7 @@ fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
 }
 
 /// The client player's death (the only one a client's players have: 0x1F28E0
-/// inlines the base's): patch 83 cooks the gun it held, then the carry's.
+/// inlines the base's): patch 85 cooks the gun it held, then the carry's.
 pub fn on_client_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Death) {
         crate::weapon_pickup::died(&player, ctx.thread());
@@ -132,7 +132,7 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     crate::vostok::carry_ground::load(ctx); Flow::Continue
 }
 
-/// After set_input's copy: patch 83 plays a pickup command from the raw
+/// After set_input's copy: patch 85 plays a pickup command from the raw
 /// actions first, then the carry filters them.
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Filter) {
@@ -206,7 +206,7 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let encoded = chord.step(actions, key.is_down());
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
-        // Patch 83: Use's press on a dropped gun is sent as its pickup.
+        // Patch 85: Use's press on a dropped gun is sent as its pickup.
         crate::weapon_pickup::on_input_end(&mut handler, ctx.thread());
     }
     Flow::Continue
@@ -214,7 +214,7 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_hud(ctx: &Context<'_>) {
     // Shown only when Use would take: otherwise the native hint stays.
-    // Patch 78's own targets first, then patch 83's dropped gun.
+    // Patch 78's own targets first, then patch 85's dropped gun.
     let local = native::local_player(ctx);
     let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
     let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
@@ -332,11 +332,11 @@ pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWe
     let hide = if player.alive() {
         machine(&player, ctx).presentation(player.carry_time()).hide_weapon
     } else {
-        // Patch 83: a taken drop's gun, and a borrowed gun, are hidden too.
+        // Patch 85: a taken drop's gun, and a borrowed gun, are hidden too.
         death_hands(&player, ctx.thread()) == Some(Hands::Artefact)
             || crate::weapon_pickup::ragdoll_gun(ctx, &player) == crate::weapon_pickup::RagdollGun::Hidden
     };
-    // Patch 83c's trace: a dead body's gun (HIDDEN is held across the native visibility change).
+    // Build 83c's trace: a dead body's gun (HIDDEN is held across the native visibility change).
     let trace = if player.alive() { Trace::Off } else { Trace::Budget };
     let hidden = traced(trace, "HIDDEN", "on_weapon", &HIDDEN, ctx.thread(),
                         |weapons| native::weapon_visibility(ctx, hide, weapons));

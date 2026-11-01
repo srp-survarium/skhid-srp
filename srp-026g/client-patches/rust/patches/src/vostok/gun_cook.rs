@@ -1,4 +1,4 @@
-//! One gun cooked alone (patch 83's engine side, docs/notes/weapon_pickup.md
+//! One gun cooked alone (patch 85's engine side, docs/notes/weapon_pickup.md
 //! "The instance"): an inventory (class 41h, the player cook's own request
 //! "inventory") cooked from a copy of a player's profile in which one kit
 //! keeps only one weapon slot and the ammunition slots. The inventory cook
@@ -32,7 +32,7 @@ use crate::raw;
 
 // ---- the diagnostic log (83c: where a frozen game stopped) -------------------------------------
 
-/// This thread's id (kernel32's GetCurrentThreadId): every line of patch 83
+/// This thread's id (kernel32's GetCurrentThreadId): every line of patch 85
 /// names it.
 pub fn thread_id() -> u32 {
     // SAFETY: the exe's import, no arguments, no state.
@@ -160,8 +160,8 @@ pub const TICKETS: usize = 48;
 fn allocator() -> Option<*mut c_void> {
     // SAFETY: an image VA (the global at 0x1F1D9C4), set before any resource
     // is queried; a cook runs only after.
-    let allocator = unsafe { raw::image::allocator().allocator() };
-    (!allocator.is_null()).then_some(allocator.cast())
+    let allocator = unsafe { raw::image::game_allocator().allocator() }?;
+    Some(allocator.address() as usize as *mut c_void)
 }
 
 /// Frees memory of the allocator's (its address), as the game does.
@@ -272,6 +272,14 @@ enum Ticket {
     Made { generation: u32, spare: Spare, since: u64, at: u64 },
     Failed { generation: u32, since: u64, at: u64 },
 }
+
+// SAFETY: a ticket's recipe, profile copy and cooked inventory are this
+// module's own (the game's allocator's memory, one inventory reference),
+// held by TABLE alone and never handed out; the lock gives them to one
+// thread at a time (the cook's issue, its completion on the callbacks'
+// thread, the frame's take), and the game's free and release take a call
+// from any of them.
+unsafe impl Send for Ticket {}
 
 struct Table {
     tickets: [Ticket; TICKETS],

@@ -32,7 +32,10 @@ global symbol of its own, which the link resolves for every caller):
                of an imported function, stdcall: kernel32's, or a
                delay-loaded one's slot, whose first call loads it; the
                symbol is the slot;
-               arguments "-", no re-kit row)
+               arguments "-", no re-kit row), "virtual" (a virtual
+               function, called through its object's vtable: va is
+               `<class>+<slot>`, the class whose virtual it is and the slot's
+               byte offset; a cdecl thunk, below, that calls `[[this]+slot]`)
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): each kind a handle `raw::<Kind>` (a
@@ -63,6 +66,13 @@ return, XMM0 moved to ST0 for a float).
 Anything else (an XMM or byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
+A virtual function's implementations are the re-kit's vtables.tsv rows of its
+class and slot (each vtable of a class derived from it, with the function
+its slot holds there): every implementation's rows must give the same
+locations and cleanup, which must be thiscall (`this` in ECX, the stack
+slots popped), and the row's arguments are checked against each as above.
+check_engine_026g.py proves each row's vtable slot against the exe.
+
 Each function is a thunk, the global symbol `engine_...`, that keeps EBX,
 ESI, EDI and EBP, puts the cdecl arguments where the row says, calls the real
 VA, pops what the real function leaves on the stack and returns the result in
@@ -87,7 +97,9 @@ FIELDS = HERE / "fields_026g.tsv"
 SITES = HERE / "sites_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
 RAW = HERE / "raw_026g.rs"
-CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import")
+CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "virtual")
+THUNKED = ("thunk", "virtual")                  # the calls made through a cdecl thunk of the library
+VIRTUAL = re.compile(r"((?:[a-z_][a-z0-9_]*::)+[a-z_][a-z0-9_]*)\+(0x[0-9A-Fa-f]+|[0-9][0-9A-Fa-f]*h)")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
 # "entry ESP+4", "stack+8", "ESP+0x10", "entry ESP+0Ch low byte", "low byte of entry ESP+8"
@@ -130,6 +142,24 @@ def location(text):
 def result_of(text):
     match = re.match(r"\s*(EDX:EAX|EAX|AL|XMM0)\b", text or "")
     return match.group(1) if match else None
+
+
+def implementations(text, vtables=None):
+    """(class, slot, [(vtable, va, class)]) of a virtual row's `va`
+    (`<class>+<slot>`): the re-kit's vtables.tsv rows of that slot whose
+    class is the class or derived from it (its `base`)."""
+    match = VIRTUAL.fullmatch(text.strip())
+    if not match:
+        raise Refused(f"a virtual function's va {text!r} is <class>+<slot> (survarium::x+0x20)")
+    base, slot = match.group(1), number(match.group(2))
+    if slot % 4 or slot >= 0x400:
+        raise Refused(f"{text}: a slot is a multiple of 4 under 0x400")
+    vtables = read_tsv(REKIT / "vtables.tsv") if vtables is None else vtables
+    found = [(number(row["vtable"]), number(row["va"]), row["class"].strip()) for row in vtables
+             if number(row["slot"]) == slot and base in (row["class"].strip(), row["base"].strip())]
+    if not found:
+        raise Refused(f"{text}: no vtables.tsv row of slot {slot:#x} for {base} or a class derived from it")
+    return base, slot, found
 
 
 def rows_of(va, abi=None, inputs=None):
@@ -212,13 +242,25 @@ def parse_vostok(text, name, params):
     return {"args": out, "result": result.strip() or None}
 
 
-def function(row, abi=None, inputs=None):
+def function(row, abi=None, inputs=None, vtables=None):
     """A spec row checked against the re-kit: {symbol, va, args: [location],
-    params, ret, cleanup, result, name, call, vostok}."""
-    va = number(row["va"])
+    params, ret, cleanup, result, name, call, vostok}; a virtual one's va is
+    None, its `virtual` (class, slot, [(vtable, va, class)])."""
     ret, name, params = parse_prototype(row["prototype"])
     vostok = parse_vostok(row.get("vostok"), name, params)
     call = (row.get("call") or "thunk").strip()
+    if call == "virtual":
+        base, slot, found = implementations(row["va"], vtables)
+        out = None
+        for _, va, _ in found:
+            one = function(dict(row, va=f"{va:#x}", call="thiscall"), abi, inputs)
+            if out is not None and (one["args"], one["cleanup"], one["result"]) != \
+                    (out["args"], out["cleanup"], out["result"]):
+                raise Refused(f"{name}: {base}+{slot:#x}'s implementations {out['va']:#x} and {va:#x} have other "
+                              "rows (each must take its arguments where the others do and pop what they pop)")
+            out = out or one
+        return dict(out, va=None, call="virtual", name=f"{base}+{slot:#x}", virtual=(base, slot, found))
+    va = number(row["va"])
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
     if call not in CALLS:
@@ -285,26 +327,27 @@ def describe_args(params, args):
     return ", ".join(f"{p[1]} {a}" for p, a in zip(params, args)) or "no arguments"
 
 
-def every_function(spec=None, abi=None, inputs=None):
+def every_function(spec=None, abi=None, inputs=None, vtables=None):
     """Every row of the spec, checked."""
     spec = read_tsv(SPEC) if spec is None else spec
     abi = read_tsv(REKIT / "abi.tsv") if abi is None else abi
     inputs = read_tsv(REKIT / "abi_inputs.tsv") if inputs is None else inputs
-    out = [function(row, abi, inputs) for row in spec]
+    vtables = read_tsv(REKIT / "vtables.tsv") if vtables is None else vtables
+    out = [function(row, abi, inputs, vtables) for row in spec]
     names = [f["symbol"] for f in out]
     if len(set(names)) != len(names):
         raise Refused("a symbol twice")
     return out
 
 
-def functions(spec=None, abi=None, inputs=None):
+def functions(spec=None, abi=None, inputs=None, vtables=None):
     """The rows called through a thunk (what check_engine_026g.py proves)."""
-    return [f for f in every_function(spec, abi, inputs) if f["call"] == "thunk"]
+    return [f for f in every_function(spec, abi, inputs, vtables) if f["call"] in THUNKED]
 
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
 # An `::image` row's VA: inside the exe's image (its data sections).
-IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA2B6000          # through .data (its zero-filled tail too)
+IMAGE_LOW, IMAGE_HIGH = 0x10000, 0xA429000          # through .data (its zero-filled tail too) and the patches' `.srpd` (patch 45's state: the NASM-Rust interface)
 KIND = r"[a-z][a-z0-9_]*(?:::[a-z][a-z0-9_]*)+"
 # a field's type: a plain value; `ptr<kind>` (a pointer to one, 0 none) or
 # `ptr<u8>` or `ptr<f32>` (to plain data: a C string, a buffer, matrices); `obj<kind>` (one inside the
@@ -415,6 +458,12 @@ def describe(f):
     if f["call"] == "import":
         return f"the IAT slot {f['va']:#x} (an import, stdcall)"
     where = describe_args(f["params"], f["args"])
+    if f["call"] == "virtual":
+        base, slot, found = f["virtual"]
+        bodies = sorted({va for _, va, _ in found})
+        return (f"virtual {base}+{slot:#x} ({len(found)} vtables of vtables.tsv: "
+                f"{', '.join(f'{va:#x}' for va in bodies)}): {where}; "
+                f"pops {f['cleanup']}" + (f"; {f['result']}" if f["result"] else ""))
     return (f"{f['va']:#x} {f['name'] or '(unnamed)'}: {where}; pops {f['cleanup']}"
             + (f"; {f['result']}" if f["result"] else "")
             + ("" if f["call"] == "thunk" else f"; {f['call']}, called directly"))
@@ -436,7 +485,11 @@ def thunk(f):
     for i, a in enumerate(f["args"]):
         if not a.startswith("ESP+"):
             lines.append(f"    mov {a.lower()}, [esp + {frame + 4 * i + pushed}]   ; {f['params'][i][1]}")
-    lines.append(f"    call {f['va']:#x}")
+    if f["call"] == "virtual":                       # thiscall: `this` in ECX, its vtable first
+        lines += ["    mov eax, [ecx]                   ; this's vtable",
+                  f"    call [eax + {f['virtual'][1]:#x}]"]
+    else:
+        lines.append(f"    call {f['va']:#x}")
     left = pushed - f["cleanup"]
     if left:
         lines.append(f"    add esp, {left}                  ; the caller's part of the stack")
@@ -452,7 +505,7 @@ def thunk(f):
 def asm_text(fs):
     """`fs`: every row; a thunk for each called through one, the address of
     each other (a direct function's VA, an import's IAT slot)."""
-    thunks = [f for f in fs if f["call"] == "thunk"]
+    thunks = [f for f in fs if f["call"] in THUNKED]
     lines = [f"; The engine-function library ({GENERATED}).",
              "; A thunk per function, each a global symbol: cdecl in, the engine's",
              "; registers and stack out (engine_026g.py). The arena's block engine.code.",
@@ -460,7 +513,7 @@ def asm_text(fs):
              "bits 32", "section .text"]
     lines += [f"global {f['symbol']}" for f in fs]
     for f in fs:
-        if f["call"] != "thunk":
+        if f["call"] not in THUNKED:
             lines.append(f"{f['symbol']} equ {f['va']:#x}   ; {describe(f)}")
     for i, f in enumerate(thunks):
         lines += [""] + (["    align 16, db 0xCC"] if i else []) + thunk(f)
@@ -497,7 +550,7 @@ def include_text(fs):
              "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
              "; each its address."]
     for f in fs:
-        how = {"thunk": [], "import": ["; `call [symbol]`: stdcall, it pops its arguments"]}.get(
+        how = {"thunk": [], "virtual": [], "import": ["; `call [symbol]`: stdcall, it pops its arguments"]}.get(
             f["call"], [f"; {f['call']}: push (and ECX for thiscall) as that convention says"])
         lines += [f"; {f['prototype']}", f"; {describe(f)}"] + how + [f"extern {f['symbol']}"]
     return "\n".join(lines) + "\n"
@@ -542,7 +595,7 @@ def rust_functions(fs, tags=()):
         ret = "" if return_kind(f["ret"]) is None else f" -> {raw_type(f['ret'], tags)}"
         return params, ret
     for abi in ("C", "stdcall", "cdecl", "thiscall"):
-        group = [f for f in fs if {"thunk": "C"}.get(f["call"], f["call"]) == abi]
+        group = [f for f in fs if {"thunk": "C", "virtual": "C"}.get(f["call"], f["call"]) == abi]
         if group:
             lines += ["", "#[allow(dead_code)]", f'unsafe extern "{abi}" {{']
             for f in group:
@@ -607,7 +660,7 @@ def raw_kind(k, kinds_):
             lines += doc + [f"    pub unsafe fn {x['field']}(self) -> {value} {{",
                             f"        unsafe {{ {place}.cast::<{value}>().read_volatile() }}", "    }"]
             # a kind we have room for (one we fill), or a game object's pointer a patch
-            # rebinds (patch 83's install): written as its handle, never a bare number
+            # rebinds (patch 85's install): written as its handle, never a bare number
             lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
                             f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
     size = k["size"]
@@ -729,9 +782,9 @@ def assemble(text, va=0x10000000, tools=None):
     return linked.va, linker.block_bytes(linked, "engine.code"), linked.symbols
 
 
-def outputs(spec=None, abi=None, inputs=None):
+def outputs(spec=None, abi=None, inputs=None, vtables=None):
     """{path: bytes} of the five files."""
-    fs = every_function(spec, abi, inputs)
+    fs = every_function(spec, abi, inputs, vtables)
     return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode(),
             RUST: rust_text(fs).encode(), RAW: raw_text(fs, fields()).encode()}
 

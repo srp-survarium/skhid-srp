@@ -49,8 +49,17 @@ pub mod consumable_activity;
 
 pub mod language;
 
+pub mod lobby_scene;
+pub mod weapon_flight;
+pub mod camera_sweep;
+pub mod lamps;
 pub mod artefact_score;
 
-pub mod late_join_insert;
+pub mod hud_options;
+pub mod tab_cursor;
+pub mod map_names;
+pub mod world_check;
+pub mod music;
+pub mod drug_interrupt;
 
 pub mod weapon_pickup;

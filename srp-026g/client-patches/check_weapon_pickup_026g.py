@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch 83 (weapon_pickup, stage 1: the instance; docs/notes/weapon_pickup.md):
+"""Patch 85 (weapon_pickup, stage 1: the instance; docs/notes/weapon_pickup.md):
 at a death that drops a gun, that gun alone is cooked and kept by donor life.
 
 Runs the installed Rust hooks of the patched exe with Unicorn, the game's own

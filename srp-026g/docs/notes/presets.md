@@ -164,7 +164,8 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   rows; the active row as the rooms list's selected room (gold-tinted, a gold bar at its left,
   white text); hover and press lighten a row and the title alike (`LocalPlayerProfile`'s
   `ROW_H`). A press on a row chooses it (one press to open, one to choose); a
-  press outside or Esc closes the list with no change. No step arrows: each step would choose a
+  press outside, Esc or a window opening closes the list with no change (a transient window:
+  `transient-windows.md`). No step arrows: each step would choose a
   preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
   is "Character"; while the kits are locked (a search, a match) it takes no press.
   - The movie asks for the list at its setup, on every account push, and every 2 s until the
@@ -194,6 +195,22 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     the room Play would take now. "Switch and enter" from Play chooses, then Play picks again by
     the new gear [choice]. Not the queue of a full room, "Switch room" (it already takes the
     gear), nor making a room.
+  - **Play that would queue** (the owner's of 2026-10-30: "I want exactly the same
+    recommendation when I join a room with lower/higher gear"): no room of its bracket takes
+    it now and Play would wait in a queue. Play then offers what a Join of the other bracket's
+    room with a place would (the room Play would take with that gear), when the loadout offered
+    is of that bracket:
+    - gear 11-15, a level-10 room with a place, a saved loadout of level 10 or less: Join's
+      "gear over the max" offer;
+    - gear 10 or less, a level-15 room with a place, a saved loadout of level 11-15: Join's
+      "room allows more" offer.
+    - The same popup and text as that Join. Its first button is "Queue": Play as before, into
+      the queue. "Switch and enter" chooses the loadout; Play then takes that room by the new
+      gear.
+    - Nothing is offered when the Join would offer nothing, or only a loadout of the player's
+      own bracket (a gear-5 player whose best loadout is level 9, say). Then Play queues as
+      before: Play does not put a level-10 player into a level-15 room as it is. Nothing is
+      offered when Play makes its bracket's first room either.
   - The server decides the popup (the movie asks before joining); it shows over the Rooms window
     (Play opens it), the view under it inactive until a button. "Switch and enter" is one server
     action: choose, then the join; a choice refused joins nothing (code 14).

@@ -37,7 +37,7 @@ use session::v026g::{Account, GameAccounts, bonus, premium, quests, tutorial};
 use session::{LockExt, SessionHold, SessionStore};
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::requests::{self, ClientMessage, ParseError};
-use survarium::v026g::lobby::{self, MINUTES_TO_MAINTENANCE, ServerMessage, WireError};
+use survarium::v026g::lobby::{self, LobbyPick, MINUTES_TO_MAINTENANCE, ServerMessage, WireError};
 use udp_transport::{Direction, Event, PacketLog, State, Table, Transport};
 
 use super::play::{MatchHost, Running};
@@ -81,6 +81,10 @@ pub(super) struct Player<'a> {
     /// A 0x82 waiting for the client state sent before it (by its serial)
     /// to be acked (see `play`).
     pub connect: Option<(Option<u64>, ServerMessage)>,
+    /// The lobby scene it picked (`3B` at `LOBBY_PICK_BASE`; the exe sends
+    /// the saved one at the sign-in), kept while it is signed in: its squad's
+    /// lobby when it commands one (`0xA1`'s srp bytes).
+    pub lobby_pick: Option<LobbyPick>,
     /// The squad info (0xA1 body) the client has, and its send.
     pub squad_sent: Option<Vec<u8>>,
     pub squad_serial: Option<u64>,
@@ -105,6 +109,8 @@ pub(super) struct Player<'a> {
     /// The name it was last told is no player's (`st_player_not_found`),
     /// and when: not said again for each line (`social`).
     pub not_found: Option<(String, Instant)>,
+    /// The friend requests it may still send (`social`).
+    pub friend_requests: super::social::FriendRequestAllowance,
     /// The room whose chat it hears: the room it was in when its movie put
     /// up its "Room Chat" tab, while it is in that room (`room_chat`).
     pub room_chat: Option<u32>,
@@ -672,6 +678,7 @@ impl<'a> Core<'a> {
             order_id: 0,
             in_match,
             connect: None,
+            lobby_pick: None,
             squad_sent: None,
             squad_serial: None,
             money_sent: balance,
@@ -683,6 +690,7 @@ impl<'a> Core<'a> {
             chat_allowance: super::social::CHAT_BURST,
             chat_at: now,
             not_found: None,
+            friend_requests: super::social::FriendRequestAllowance::new(now),
             room_chat: None,
         };
         let mut link = Link {

@@ -28,6 +28,7 @@ use survarium::dictionary::Dictionary;
 use survarium::v021d;
 
 pub mod bans;
+pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
 pub mod matchmaking_policy;
@@ -46,6 +47,26 @@ pub use matchmaking::{
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
+
+/// The `on`/`off` setting `name` of the environment ([`switch_value`]).
+pub fn switch(name: &str, default: bool) -> bool {
+    switch_value(name, std::env::var(name).ok().as_deref(), default)
+}
+
+/// An `on`/`off` setting (`1`/`0`, `yes`/`no`, `true`/`false`, any case):
+/// unset or empty is `default`, anything else an error in the log and `default`.
+pub fn switch_value(name: &str, value: Option<&str>, default: bool) -> bool {
+    let value = value.map(|value| value.trim().to_ascii_lowercase());
+    match value.as_deref() {
+        None | Some("") => default,
+        Some("on" | "1" | "true" | "yes") => true,
+        Some("off" | "0" | "false" | "no") => false,
+        Some(other) => {
+            log::error!("{name} is `{other}`; it must be `on` or `off`. Using {default}");
+            default
+        }
+    }
+}
 
 /// Locking that survives a panic. The servers share this state across
 /// threads, and a thread that panics while holding a lock poisons it; with
@@ -134,8 +155,8 @@ pub struct Account {
 
     /// The accounts on its friend list, in the order they were added.
     pub friends: Vec<u32>,
-    /// The accounts whose chat lines its client hides.
-    pub ignored: Vec<u32>,
+    /// Per-account chat mute policies (hide completely or replace the body).
+    pub ignored: chat_mutes::ChatMutes,
     /// The profile the client last chose (`29 04`); squad mates see it.
     pub active_profile: Option<u32>,
     /// Its Play, while it waits: a squad queues once every member has one.
@@ -220,7 +241,7 @@ impl Account {
             game: v021d::account::Account::new(&name, Dictionary::shared()),
             name,
             friends: Vec::new(),
-            ignored: Vec::new(),
+            ignored: chat_mutes::ChatMutes::default(),
             active_profile: None,
             play: None,
             notices: Vec::new(),
@@ -1841,6 +1862,13 @@ mod tests {
     }
 
     #[test]
+    fn a_switch_takes_on_and_off_and_keeps_its_default_otherwise() {
+        assert!(switch_value("X", None, true) && switch_value("X", Some(" ON "), false));
+        assert!(!switch_value("X", Some("off"), true) && switch_value("X", Some("maybe"), true));
+        assert!(!switch_value("X", Some(""), false));
+    }
+
+    #[test]
     fn same_client_resolves_to_same_account() {
         let store = SessionStore::new();
         let first = store.get_or_create_account(ip(127, 0, 0, 1), "a@b.c");
@@ -2672,11 +2700,7 @@ mod tests {
     fn a_game_gone_without_a_word_leaves_its_squad_and_the_queue() {
         let store = SessionStore::new();
         let ((a, sa), (b, sb)) = squad_of_two(&store);
-        let c = store.get_or_create_account(ip(127, 0, 0, 1), "charlie");
-        let sc = store.create_session(c);
-        store.squads().invite_accepted(a, c);
-        store.squads().add(a, c).unwrap();
-        let players: Vec<Player> = [(sa, a), (sb, b), (sc, c)]
+        let players: Vec<Player> = [(sa, a), (sb, b)]
             .into_iter()
             .map(|(session_id, account_id)| Player {
                 session_id,
@@ -2685,15 +2709,14 @@ mod tests {
             })
             .collect();
         store.matchmaking().queue(&players, true, Instant::now());
-        // Bravo and Charlie play on; Alpha's game is closed.
+        // Bravo plays on; Alpha's game is closed.
         let _b = store.hold(sb).unwrap();
-        let _c = store.hold(sc).unwrap();
         let soon = Instant::now() + GONE_AFTER / 2;
         assert!(store.drop_gone_players(soon).is_empty());
         let later = Instant::now() + GONE_AFTER + Duration::from_secs(1);
         assert_eq!(store.drop_gone_players(later), [sa]);
-        assert_eq!(store.squads().of(b).unwrap().members, [b, c]);
-        assert_eq!(store.squads().of(b).unwrap().commander(), b);
+        // A squad of one is none.
+        assert_eq!(store.squads().of(b), None);
         // The squad is out of the queue with it.
         assert_eq!(store.matchmaking().poll(sb, later), None);
         // Once.

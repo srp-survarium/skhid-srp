@@ -1,4 +1,4 @@
-# Patch 83, dropped-weapon pickup (docs/notes/weapon_pickup.md): one gun
+# Patch 85, dropped-weapon pickup (docs/notes/weapon_pickup.md): one gun
 # cooked at each death that dropped one (vostok::gun_cook), kept by donor
 # life; the record in each player state, the pickup, its restore and the
 # crate (vostok::pickup). The death is artefact_carry's carry.client_death,
@@ -9,7 +9,7 @@
 # on_input_end (one detour per address). The sites are sites_026g.tsv's; the
 # logic is weapon_pickup.rs.
 name = "weapon_pickup"
-patch = 83
+patch = 85
 
 # a player cook's batch is in: a late joiner's install may follow
 [[hook]]
