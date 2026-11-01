@@ -43,24 +43,37 @@ G3SG/1's 7.62x51 in clips of 20 weapons-031's), so their rows come before this o
 - Texts: `st_srp_weapon069_<name>_name/_desc` and `st_srp_ammo069_23mm_r_name/_desc` in the ten
   localization tables.
 
-## Rigs and clips
+## Rigs, clips and sounds
 
-- AKMSU: the live AK rig and the AKS-74U's clips and reload sounds; 0.69d0's AKM firing sound.
-- FAMAS: the live Ash-12 rig and clips (0.69d0 plays them too) but its own reload; the M4A1's
-  firing sound.
-- PPSH-41 "Drum": the live PPSh's rig and clips but the drum's own reload.
+The newest animations and sounds (the owner): every gun plays 0.69d0's own states, clips and sound
+mixes, but the FAMAS's idle and fire (the Ash-12's, which 0.69d0 plays too). Where 0.26g has an
+older file under the same name, the port moves 0.69d0's to a name of its own (the donor sidecar's
+`renames`, resource-porter's `donor_069d/renames.rs`), so the older one stays the live guns':
+
+- clips: 0.69d0's `ak/` (the AKMSU's) to `akmsu_069/`, its `ppsh/` (the Drum's) to `ppsh_drum/`;
+- sound mixes: `weapons/<name>` to `weapons/<name>_069` for akm_n, show_hide_aimed_states (draw
+  and holster), m4a1, vssk (the FAMAS's reload), socom16, mp5 and saiga_12 (the G3SG/1's),
+  rem_870 and remington_870 (the KS-23M's), ppsh (the Drum's and the Mauser's fire), fort_17
+  (the Mauser's reload), and the layers they share: benelli_m4, hk416, pp2000, vepr, vityaz.
+
+- AKMSU: 0.69d0's own AK rig, clips and hand points (its left hand on its own forend; the
+  AKS-74U's grip sat 3.6 cm behind it), its reload of eight sounds, the AKM firing mix.
+- FAMAS: the live Ash-12 rig and its idle and fire clips (0.69d0 plays them too), 0.69d0's draw,
+  holster (with their sound) and reload; the M4A1 firing mix.
+- PPSH-41 "Drum": 0.69d0's own PPSh rig, clips and hand points: the drum grip, the left wrist on
+  the drum's front (the live PPSh's points held the box magazine's place).
+- G3SG/1, Mauser, KS-23M: their own 0.69d0 rigs and clips. The KS-23M is a pump as the
+  Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
+  start and the Mauser's aimed shots are 0.69d0-only and left out. The Mauser's empty reload
+  plays the slide at its fifth event (sound 6: 0.69d0's clip leaves its events' indices at 255).
 - A donor state keeps 0.69d0's type as 0.26g numbers it: the two-clip reload (tactical and empty)
   of the FAMAS, G3SG/1, Mauser and drum is 0.26g's 314; the Mauser's two-clip idle and fire 313
   and 315.
-- G3SG/1, Mauser, KS-23M: their own 0.69d0 rigs and clips. The KS-23M is a pump as the
-  Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
-  start and the Mauser's aimed shots are 0.69d0-only and left out.
 - Sights: 0.69d0's aim locator, which 0.69d0 places at the eye; 0.69d0's configs carry
   `aim_offset` on no weapon, so a gun keeps its template's (the KS-23M the Remington 870's 0.03:
-  at 0 its aim sat at the receiver's top and the receiver filled the lower screen). The Mauser
-  sets 0 (its aim was within 2 px; the APS's -0.1 is the APS model's). The Drum's body is the
-  live PPSh's mesh: it takes the live PPSh's aim locator and offset (`live_sights`), whose
-  angle (0.015 rad of yaw) the live clips hold the sights at; 0.69d0's put them 6-7 px right.
+  at 0 its aim sat at the receiver's top and the receiver filled the lower screen; the Drum the
+  PPSh's 0.01, its aim at the live PPSh's height). The Mauser sets 0 (its aim was within 2 px;
+  the APS's -0.1 is the APS model's).
 
 ## Stats (live peers beside each)
 
