@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vik
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M. Provides high damage against non-armoured targets.
+st_srp_ammo069_23mm_r_name	23x75R, smallshot
 st_srp_attachments	Attachments
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	French bullpup assault rifle, ammo: 5.56x45. Supports single shot, three-round burst and automatic fire modes.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	German marksman rifle, ammo: 7.62x51. Supports single shot and three-round burst fire modes.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Russian pump-action carbine, ammo: 23x75R. Equipped with a 4-round tube magazine.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	German machine pistol, ammo: 7.62x25. Supports single shot and automatic fire modes.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Shpagin submachine gun with a 71-round drum magazine, ammo: 7.62x25. Supports single shot and automatic fire modes.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time

@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.
+st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
 st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Französisches Bullpup-Sturmgewehr, Munition: 5,56x45. Einzelfeuer, Dreischussfeuerstöße und Dauerfeuer.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Deutsches Präzisionsgewehr, Munition: 7,62x51. Einzelfeuer und Dreischussfeuerstöße.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Russischer Vorderschaftrepetierer, Munition: 23x75R. Röhrenmagazin für 4 Patronen.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Deutsche Maschinenpistole, Munition: 7,62x25. Einzel- und Dauerfeuer.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Schpagin-Maschinenpistole mit Trommelmagazin für 71 Patronen, Munition: 7,62x25. Einzel- und Dauerfeuer.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Trommel“
 st_srp_weapon_aim_zoom	Basis-Zielzoom
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit

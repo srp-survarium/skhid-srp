@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "
 st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
+st_srp_ammo069_23mm_r_desc	Nabój kalibru 23 mm nabity śrutem, do KS-23M. Zadaje poważne obrażenia nieopancerzonym celom.
+st_srp_ammo069_23mm_r_name	23x75R, Śrutowa
 st_srp_attachments	Dodatki
 st_srp_crosshair_dynamic	Celownik dynamiczny
 st_srp_crosshair_hidden	Celownik ukryty
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Skrócony AKMS ze składaną kolbą, amunicja: 7,62x39. Ogień pojedynczy i ciągły.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Francuski karabinek automatyczny w układzie bullpup, amunicja: 5,56x45. Ogień pojedynczy, seriami po trzy strzały i ciągły.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Niemiecki karabin wyborowy, amunicja: 7,62x51. Ogień pojedynczy i seriami po trzy strzały.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Rosyjski karabinek z zamkiem przesuwnym, amunicja: 23x75R. Magazynek rurowy na 4 naboje.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Niemiecki pistolet maszynowy, amunicja: 7,62x25. Ogień pojedynczy i ciągły.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Pistolet maszynowy Szpagina z magazynkiem bębnowym na 71 naboi, amunicja: 7,62x25. Ogień pojedynczy i ciągły.
+st_srp_weapon069_ppsh_drum_name	PPSz-41 „Bęben”
 st_srp_weapon_aim_zoom	Bazowe przybliżenie
 st_srp_weapon_chamber	Czas repetowania
 st_srp_weapon_draw_time	Czas wyciągnięcia

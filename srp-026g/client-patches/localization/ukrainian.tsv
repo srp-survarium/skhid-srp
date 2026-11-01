@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Містить наступні предмети:\n-
 st_sr3m_bundle_name	Набір СР-3М "Вихор"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	СР-3М "Вихор"
+st_srp_ammo069_23mm_r_desc	Набій калібру 23 мм, споряджений дробом, для КС-23М. Завдає високе пошкодження неброньованим цілям.
+st_srp_ammo069_23mm_r_name	23x75R, дріб
 st_srp_attachments	Обвіс
 st_srp_crosshair_dynamic	Динамічний приціл
 st_srp_crosshair_hidden	Прихований приціл
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Укорочений АКМС зі складаним прикладом під набій 7.62×39. Підтримує одиничний і автоматичний режими стрільби.
+st_srp_weapon069_akmsu_name	АКМСУ
+st_srp_weapon069_famas_desc	Французька штурмова гвинтівка схеми булл-пап під боєприпас 5.56х45. Підтримує одиничний режим, черги по три постріли й автоматичний режим стрільби.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Німецька марксманська гвинтівка під набій 7.62×51. Підтримує одиничний режим і черги по три постріли.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Російський помповий карабін під набій 23×75R. Обладнаний трубчастим магазином на 4 набої.
+st_srp_weapon069_ks_23m_name	КС-23М
+st_srp_weapon069_mauser_m712_desc	Німецький автоматичний пістолет під набій 7.62×25. Підтримує одиничний і автоматичний режими стрільби.
+st_srp_weapon069_mauser_m712_name	Маузер M.712
+st_srp_weapon069_ppsh_drum_desc	Пістолет-кулемет Шпагіна з дисковим магазином на 71 набій, набій 7.62×25. Підтримує одиничний і автоматичний режими стрільби.
+st_srp_weapon069_ppsh_drum_name	ППШ-41 «Диск»
 st_srp_weapon_aim_zoom	Базове збільшення
 st_srp_weapon_chamber	Досилання набою
 st_srp_weapon_draw_time	Час діставання

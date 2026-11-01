@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruun
 st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	23 mm:n haulipatruuna KS-23M:ään. Aiheuttaa suurta vahinkoa panssaroimattomiin kohteisiin.
+st_srp_ammo069_23mm_r_name	23x75R, haulit
 st_srp_attachments	Lisävarusteet
 st_srp_crosshair_dynamic	Dynaaminen tähtäin
 st_srp_crosshair_hidden	Piilotettu tähtäin
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Lyhennetty taittoperäinen AKMS, kaliiperi 7.62x39. Kerta- ja sarjatuli.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Ranskalainen bullpup-rynnäkkökivääri, kaliiperi 5.56x45. Kertatuli, kolmen laukauksen sarja ja sarjatuli.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Saksalainen tarkka-ampujakivääri, kaliiperi 7.62x51. Kertatuli ja kolmen laukauksen sarja.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Venäläinen pumppukarbiini, kaliiperi 23x75R. 4 patruunan putkilipas.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Saksalainen sarjatulipistooli, kaliiperi 7.62x25. Kerta- ja sarjatuli.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Špaginin konepistooli 71 patruunan rumpulippaalla, kaliiperi 7.62x25. Kerta- ja sarjatuli.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 ”Rumpu”
 st_srp_weapon_aim_zoom	Tähtäyksen perussuurennus
 st_srp_weapon_chamber	Latausliikkeen kesto
 st_srp_weapon_draw_time	Esillenottoaika
