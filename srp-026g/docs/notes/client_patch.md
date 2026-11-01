@@ -2846,98 +2846,67 @@ with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a ga
 - **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
   `engine_close_current_match`) with reason 2, as match.md section 25 has it.
 
-### Dropped-weapon pickup: the instance (patch 85, stage 1)
+### Dropped-weapon pickup (patch 85)
 
-At a death that drops a gun (the held client weapon in slot 7 or 10), on
-every client at the same tick, that gun alone is cooked: one query of the
-player cook's own inventory request (41h) from a copy of the player's profile
-whose kit keeps that weapon slot and the ammunition slots, its completion a
-boost member callback (0x27D280) to a naked thiscall entry of ours. The gun
-is kept by donor life (place + spawn time), a replayed death reuses it, and
-it is given back 3 s after its body leaves the world (base_player::remove(1)), at its donor's
-destruction (player::~player 0x1F2100) or by the later stages. A pickup whose
-gun is not in yet waits on dispatch_callbacks (0xE5AB0, as 0xE5C20 does),
-at most 2 s, refusing while a player cook has completed since the last frame
-(a late joiner's install must not run in a tick); a loaded world's borrowed
-gun is found or cooked and waited for the same way at its record's reader.
-`rust/patches/src/weapon_pickup.rs` over `vostok/gun_cook.rs`; the death is
-artefact_carry's `carry.client_death`, the frame's step ragdoll's
-`game_world.after_move` (their handlers call this patch's), its own hooks
-`player_cook.ready` and `player.destroy`. Every cook is logged to
-`srp_patches.log` (death-to-done ms, address space, waits). Nothing a match
-computes. `check_weapon_pickup_026g.py` runs the hooks with the game's own
-profile code, binder and invoker. The design, the evidence and the next
-stages: `docs/notes/weapon_pickup.md`.
+The spec, the design and its evidence in full: `weapon_pickup.md`. The
+addresses it rests on (Unicorn: `check_weapon_pickup_026g.py`):
 
-### Dropped-weapon pickup: the record, the pickup, the restore, the crate (patch 85, stage 2a)
-
-What a match computes, the same on every client, in replays, rollbacks and
-late joins. Each player state carries its 12-byte pickup record
-(`weapon_pickup::Record`: its drop, open with kit, slot and death time, or
-taken; the gun it borrows) after the two kit indices: written at
-`pickup.save` (0x2DAF70, base_player::serialize before its first field),
-read at `pickup.load` (0x2DB4CF, deserialize before its first read), kept
-by place; a record that does not decode is logged and read as empty. The
-server reads the native fields from `FIELDS_AT` (players.rs, motion.rs). At
-the input's apply point (artefact_carry's `carry.filter` calls
-`weapon_pickup::on_filter` with the raw actions first) a pickup command
-(patch 78's bit 29 with two or more quick bits) is decided by
-`weapon_pickup::decide` (the held gun replaced by any gun the carry rules
-allow after the kit's modifiers 64 and 25, read with apply_modifier
-0x2D5AE0, and the guns' double_handed +5E9h), the death's cooked gun found
-(or cooked and waited for) and installed by `vostok/pickup.rs`: the game's
-inventory::set_item (0x2FC620) swaps the held own gun with the cooked one,
-its ammunition goes into the swapped-out gun's ammunition slots (the own
-stacks parked in the cooked inventory until the restore), then free ones
-(remove_item 0x2FC680, set_item), and the gun's +5ACh is rebound to them, the gun is bound to the core (+4,
-+258h, the own gun's registry id +0Ch and core+18B4Ch's entry, the bullet
-manager +5A0h, no autoload +5F4h), the switch is replayed (deactivate(1),
-forget_active_object 0x3919E0, held = pending, set_user, initialize,
-activate(1)) with the donor's magazine and chamber and one magazine in
-reserve. base_player::remove(1) (`pickup.remove`, 0x2DA790), the player's
-destruction and a loaded record without the borrow put everything back
-before the native code runs (held left to remove / the reader), and
-remove(1) ends the place's drop (its body and gun leave the world there:
-the respawn tick, a departure); a loaded
-record naming a borrow that is not installed installs it without the
-switch (0x2DB62B switches the held object itself). The crate's checks and
-use (`pickup.can_use` 0x2F809C, `pickup.use_hint` 0x2F80E4,
-`pickup.resupply` 0x2F81B8, `pickup.client_resupply` 0x2954EF) hand the
-native resupply a 188h view with the own gun and the own parked stacks in
-their slots; each borrowed stack is refilled to the picker's allowance for
-its slot less the magazine and chamber, for free, and is "available" while
-below.
-Every refusal is logged to `srp_patches.log`. `check_weapon_pickup_026g.py`
-runs it on the game's own set_item, remove_item and set_owner. A row of
-`simulation_changes.tsv`. The prompt, the ragdoll's gun and the input
-builder's encoding are stage 2b: `docs/notes/weapon_pickup.md`.
-
-### Dropped-weapon pickup: the ragdoll's gun, the prompt, the command (patch 85, stage 2b)
-
-What this client draws and sends; nothing a match computes. At `carry.weapon`
-(0x2477C8; artefact_carry's on_weapon composes `weapon_pickup::ragdoll_gun`
-for a dead player) the gun of the place's open drop, on the body whose death
-this client saw, is kept by place: the site's transform (EAX) and its model's
-box (weapon+1810h -> its render instance, a skeleton_render_model_instance ->
-+62B4h its resource -> +108h, turned by Y(pi) as update_render_matrices
-0x15A5B0 turns it); a taken drop's gun and a borrowed gun on a dead holder
-are taken out of the scene as patch 78 takes a carrier's (the native draw
-skipped). At `player_icons.update_start` artefact_carry's on_hud, after its
-own targets, asks `weapon_pickup::aim`: the eye's (player+44Ch) 2.2 m segment
-entering a kept box padded by 5 cm, patch 78's ray (0x24, 2) clear up to it,
-the drop open (its body in the world), its gun made here and
-`weapon_pickup::decide` (the carry rules too) yes; the hud's `show_artefact_offer("st_weapon_pick_up", name)`
-with the gun's ui_desc/text_descriptions/name (its dictionary entry +114h ->
-+108h, as fill_items_dictionary_impl 0x286410 reads it) translated
-(0x1FF0F0). At `input_builder.end` (artefact_carry's on_input_end, after
-patch 78's chord step) Use's down edge while that gun is the prompt's becomes
-`weapon_pickup::encode` when `weapon_pickup::sane` passes it (the match's
-places from match_options +577B5h); the press stays the pickup's (no Use for
-the game) until Use is let go. The text: `st_weapon_pick_up` in the ten
-dictionaries, `scripts/content-edit/weapon-pickup-hint-1.json` (hud_strings)
-and the hud movie's `show_artefact_offer(key, value)`.
-`check_weapon_pickup_026g.py` runs the draw, the prompt, the command and the
-hiding; the carry Ruffle harness the named prompt.
+- **The copy:** at `carry.client_death` (0x1F28E0) one query (0xE5B60) of
+  the player cook's inventory request (41h, 0x9FD55C) from a profile copy
+  (0x2F73F0, operator= 0x284D10) keeping the weapon slot and the ammunition
+  slots; the completion a boost member callback (0x27D280, invoker
+  0x202300). Never freed mid-match once registered or in hands (a bullet
+  keeps raw pointers to its weapon item and ammo, +0Ch/+40h, 0x32BB27): only
+  at its last holder's destruction (`player.destroy` 0x1F2100); re-used for
+  its donor's next drop; an untaken one freed after base_player::remove(1)
+  (`pickup.remove` 0x2DA790).
+- **The record** (48 bytes, version 4) at `pickup.save` (0x2DAF70) and
+  `pickup.load` (0x2DB4CF), before the held (0x2DB626) and pending
+  (0x2DB796) ids and the inventory (0x2DB7D8): drop, picks, the pending
+  pickup, the parked own kit (the server's count of own ammunition).
+- **The registry** (core+18B4Ch, an inline buffer_vector of 255 at +18B58h;
+  appended by bind_to_game_core 0x2E30F0 and the victory items 0x313F50,
+  never erased, never saved or loaded): ids 195..254 reserved, three a
+  place (slot 7's pick, slot 10's, the pending gun).
+- **The command** at `carry.filter` (0x2D876F): the drop taken, the copy
+  registered and made the pending object (+12Ch), m_need_to_select_animations
+  (+33Eh) set as set_input does for changed actions (0x2D899D), so this
+  tick's tick_animations (0x2D8F42) runs select_animations and
+  tick_active_object (0x2D7650); fire (0x20) and reload (0x40) cleared from
+  the applied actions (+330h, read by the weapon at 0x2E0E87) until the swap,
+  after patch 78's filter.
+- **The holster:** `pickup.tick_active` (0x2D7650's entry) puts back another
+  pending object and the inventory's selected slot (+170h, inventory::action
+  0x2FCB18); `pickup.switch` (0x2D76D0, once the held gun is ready to be
+  deactivated) puts the gun in hands away as the native switch does
+  (deactivate(1) 0x244860, forget_active_object 0x3919E0) before any slot
+  moves, installs the copy (set_item 0x2FC620, remove_item 0x2FC680,
+  set_user 0x2445E0, initialize 0x2449E0, activate 0x244610) and exits to
+  0x2D7724. Never a forced swap: a gun put away before it is ready keeps
+  intervals forget_active_object does not drop, whose sound events
+  (0x297C50 -> 0x2981A0) read its cleared user (+8, 0x2E2EE0) at 0x298252.
+- **A loaded record:** a held pick it does not name is put away (deactivate,
+  forget) before its restore, so the reader (0x2DB662) and remove (0x2DA7FD)
+  find no held object; the reader rebuilds the animation player
+  (0x395B50) and activates the held object (0x2DB80D). A re-installed copy
+  that was in hands here gets no weapon call of ours.
+- **The crate:** `pickup.can_use` (0x2F809C), `pickup.use_hint` (0x2F80E4),
+  `pickup.resupply` (0x2F81B8), `pickup.client_resupply` (0x2954EF): the
+  native resupply (0x2FDC10) and check_resupply (0x2FDF50) see a 188h view
+  with the own kit; the borrowed loaded stack refilled by the bags rule.
+- **The bullets:** a record names its weapon by the shooter's slot (+254h,
+  0x32C0B5) and the ammo's ordinal (0x2E26B0); the loader takes the slot's
+  gun (0x32BDA1) and its ammo (0x2E2750). The quiet byte (+80h) is always
+  written and read (`bullet.save_quiet` 0x32C148, `bullet.load_quiet`
+  0x32BE12; natively only for multi-pellet ammo, so a rifle's record read
+  with a shotgun in the slot went out of step), an ordinal past the loading
+  gun's ammo is its none (`bullet.load_ordinal` 0x32BDBA).
+- **The local client:** the ragdoll's gun at `carry.weapon` (0x2477C8; the
+  copy's model box weapon+1810h -> +108h -> +0 -> +62B4h -> +108h, turned by
+  Y(pi)); the prompt at `player_icons.update_start` (0x23AA10; the eye
+  player+44Ch, a 2.2 m segment into the box padded by 15 cm, patch 78's ray
+  0x24/2), `show_artefact_offer` with the name translated (0x1FF0F0) or the
+  refusal's key; the command at `input_builder.end` (0x2421B0).
 
 ### The weapon kit (patch 68)
 

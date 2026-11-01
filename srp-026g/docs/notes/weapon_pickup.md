@@ -75,7 +75,7 @@
   its spot: once hidden, the empty spot shows nothing); anything else (a body that is not
   the drop's, no drop in its record) "Can't pick this up"
   (`st_weapon_cannot_pick_up`). A gun not made yet on this client is
-  offered all the same (the pickup waits for it). Not aimed at, out of
+  offered all the same (the pickup waits for it, at most 2 s). Not aimed at, out of
   reach or out of sight: no prompt, as for the crate and the artefacts. A
   dead player has no prompt.
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
@@ -89,8 +89,9 @@
 - Synced: only each player's record (its drop: open with its kit and slot,
   or taken; for each weapon slot the gun picked into it: the pickup's tick
   and the recipe, the profile kit slot it was cooked from, read only to
-  cook it anew on a client without it), 12 bytes at the start of its
-  state. The command rides in the input (patch 78's bit 29 with a pattern of
+  cook it anew on a client without it; the pickup waiting for its switch;
+  and, read by the server only, what each pick parks of the own kit), 48
+  bytes at the start of its state. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
 - My picks for stage 2a (the owner: "just don't overcomplicate the
@@ -110,9 +111,10 @@
   - the crate's checks say "available" while the borrowed gun's loaded
     stack is below its refill;
   - a picked gun let go (its picker's death, respawn, destruction, another
-    pickup into its slot) stays cooked 3 s (a rollback can take it back);
-    a rollback undoing a pickup puts its gun back in its body's drop; an
-    untaken drop's gun is freed 3 s after its body left the world.
+    pickup into its slot) stays cooked (keep and reuse, below: a rollback
+    can take it back, its donor's next drop re-uses it); a rollback undoing
+    a pickup puts its gun back in its body's drop; an untaken drop's gun is
+    freed at the frame after its body left the world.
 - My picks for stage 2b (the same rule):
   - the prompt shows only when the pickup would be taken now (the drop open,
     its gun made on this client, the picker alive with a gun of its own in
@@ -141,7 +143,8 @@
 The owner (2026-11-01): a pickup is a normal weapon switch, the gun in hands
 holstered and the new one drawn; committed at Use, the holster only its
 animation; weapon keys ignored until the swap; only the picker's death
-cancels; a switch that never comes is made at a deadline; never alive with
+cancels; a switch that never comes is asked for again each tick, never
+forced (the forced swap at a deadline crashed 83Lb41); never alive with
 nothing in hands.
 
 - **The registry** (core+18B4Ch, read in the exe, re-kit rows): an inline
@@ -274,10 +277,13 @@ cooked gun).
   held a picked gun, which vanishes, or anything else), a pickup the
   picker's slot's pick and the donor's drop taken, base_player::remove(1)
   the whole record empty (the drop ends with the body, the picks with the
-  life), the player's destruction the picks none. Its bytes: the version
-  (2), the drop (tag, kit << 2, slot << 4), then for slot 7 and slot 10 a
-  byte (0 none, else the recipe's place + 1, kit << 5, slot << 7) and the
-  pickup's tick (u32). The server reads the native
+  life), the player's destruction the picks none. Its bytes (48, version
+  4): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
+  slot 10 a byte (0 none, else the recipe's place + 1, kit << 5, slot << 7)
+  and the pickup's tick (u32); the pending pickup (8 bytes, "The switch"
+  above); for slot 7 and slot 10 the parked own kit (14 bytes: present,
+  the own gun's magazine, four stacks of slot and u16 rounds), which the
+  server counts a borrower's own ammunition by. The server reads the native
   fields from `FIELDS_AT = 2 + Record::BYTES`.
 - **The pickup**, at `carry.filter` (0x2D876F; artefact_carry's handler
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
@@ -414,7 +420,8 @@ cooked gun).
   line logged) at both finish_use sites; a loaded record without
   and with the borrow; remove(0) and remove(1) (the own ammunition back);
   a record that does not decode; a lent gun kept past its body's end and
-  freed 3 s after once given back; no branch into the new spans.
+  kept after it was given back until its holder's destruction; no branch
+  into the new spans.
   `check_artefact_carry_026g.py` (the composed filter), cargo test and
   clippy of `client-patches/rust`, `weapon-pickup`, `survarium`,
   `match-server`, `session`.
@@ -595,8 +602,8 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   (as RUST_THISCALL) and calls `cooked_shim`: one reference to the result's
   inventory kept (count 1 checked), the recipe freed. It runs where the game
   dispatches the querying thread's callbacks: between frames, or in a wait.
-- **The cache, by donor life**: place + spawn time (+328h). A rollback that
-  replays the death finds it and cooks nothing. Each entry owns a ticket of
+- **The cache, by donor body**: a death's copy is its body's drop; a
+  rollback that replays the death finds it and cooks nothing. Each entry owns a ticket of
   `gun_cook` (192): dropping it gives back the inventory and the profile copy;
   a cook still running is abandoned and its completion frees everything.
   Freed only as "The copies' lifetime" above says: an untaken drop's at the
@@ -640,7 +647,7 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its
   recipe and profile copy, a replayed death, no gun, the completion through
-  the game's invoker, the body's end (remove(1)) and 3 s, an empty result, a donor destroyed
+  the game's invoker, the body's end (remove(1)) and the next frame, an empty result, a donor destroyed
   while its gun cooks; every allocation freed once. `check_artefact_carry_026g.py`
   and `check_ragdoll_026g.py` (the composed handlers), `check_engine_026g.py`,
   cargo test and clippy of `client-patches/rust`. No new site
