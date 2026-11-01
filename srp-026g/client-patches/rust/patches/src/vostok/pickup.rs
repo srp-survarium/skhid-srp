@@ -943,6 +943,41 @@ pub fn parked(player: &Player<'_>, installed: &Installed) -> Option<Parked> {
     }
 }
 
+/// Makes what `installed` keeps hidden of the own kit what `parked` says (a
+/// loaded record's: the picker's real own magazine and stacks, which a
+/// client that loaded the record never had): the own gun's magazine and
+/// each parked own stack's count, in the order [`parked`] reads them. So
+/// the next save writes back exactly what was loaded, and the restore at
+/// base_player::remove(1) gives back the same own kit in every game. False
+/// when the hidden own kit is not what `parked` names (a stack missing or in
+/// another slot): what matches is written.
+pub fn apply_parked(player: &Player<'_>, installed: &Installed, parked: Parked) -> bool {
+    let Some(cooked) = gun_cook::inventory(player.thread, installed.cook) else { return false };
+    // SAFETY: the made cooked inventory; every item compared with what the
+    // install recorded before it is written.
+    unsafe {
+        let Some(own_item) = cooked.slots().at(usize::from(installed.slot.slot())).item() else { return false };
+        let own_gun = own_item.active_object();
+        if ItemId::of(own_gun) != installed.own_gun || read(own_gun.vtable()) != raw::image::WEAPON_VTABLE {
+            return false;
+        }
+        let w = own_gun.weapon();
+        *w.loaded() = parked.magazine.min(read(w.capacity()));
+        let mut all = parked.magazine <= read(w.capacity());
+        let mut stacks = parked.stacks.iter();
+        for m in installed.moved.iter().flatten() {
+            let Some(displaced) = m.displaced else { continue };
+            let want = stacks.next().copied().flatten();
+            let stack = cooked.slots().at(usize::from(m.from)).item().filter(|&i| ItemId::of(i) == displaced);
+            match (want, stack) {
+                (Some(want), Some(stack)) if want.slot() == m.to => *stack.count() = want.count(),
+                _ => all = false,
+            }
+        }
+        all && stacks.all(Option::is_none)
+    }
+}
+
 /// Puts `installed` back: the own gun in its slot and registry entry, the
 /// cooked gun and its ammunition back in the cooked inventory as cooked.
 /// The held object is left as it is (the caller's: remove deactivates it,

@@ -423,10 +423,16 @@ pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let thread = ctx.thread();
         let mut record = located(&player)
             .map_or(Record::EMPTY, |(world, place)| placed_at(thread, world, place).0);
-        // What each pick keeps hidden of the own kit, as installed here.
-        record.parked = SLOTS.map(|slot| record.pick(slot)
-            .and_then(|_| held(thread, player.id(), slot))
-            .and_then(|(_, _, installed)| native::parked(&player, &installed)));
+        // What each pick keeps hidden of the own kit, as installed here (a
+        // loaded record's made so, `reconcile`); a pick not installed here
+        // keeps the record's (the state then differs anyway, logged).
+        record.parked = SLOTS.map(|slot| {
+            let loaded = record.parked[usize::from(slot == WeaponSlot::Second)];
+            record.pick(slot).and_then(|_| match held(thread, player.id(), slot) {
+                Some((_, _, installed)) => native::parked(&player, &installed),
+                None => loaded,
+            })
+        });
         native::write_record(ctx, &record.encode());
     }
     Flow::Continue
@@ -494,6 +500,17 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
         match outcome {
             Ok(()) => log_pick("a loaded record: installed", player, slot, pick, ""),
             Err(why) => log_pick("a loaded record's pick NOT installed (the state will not match)", player, slot, pick, why.text()),
+        }
+    }
+    // The hidden own kit as the record has it (the picker's real one; a
+    // client that loaded the record installed it over its own objects):
+    // what each save writes back, and what the restore gives back.
+    for slot in SLOTS {
+        let (Some(parked), Some((_, pick, installed))) = (record.parked[usize::from(slot == WeaponSlot::Second)],
+                                                          held(thread, player.id(), slot)) else { continue };
+        if !native::apply_parked(player, &installed, parked) {
+            log_pick("a loaded record's hidden own kit NOT as its record (the state will not match)", player, slot,
+                     pick, "");
         }
     }
     let Some(pending) = record.pending.filter(|_| pending_differs) else { return };

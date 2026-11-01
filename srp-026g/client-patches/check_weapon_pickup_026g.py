@@ -389,6 +389,7 @@ def main():
     abc(patched)
     late_join(patched)
     late_join_after_player_made(patched)
+    parked_from_the_record(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1105,6 +1106,44 @@ def late_join_after_player_made(patched):
           "names that this client never cooked is cooked at the 0xE8 handler before the load, the reader installs "
           "it with no wait (fresh: set_user + initialize), the state saved is the record; a world naming only kept "
           "guns cooks nothing; the record read alone with the flag up still refuses (as before)")
+
+
+def parked_from_the_record(patched):
+    """The record's parked block (the picker's hidden own magazine and stacks, hashed with its state) is a
+    function of the record: a client that loads it (a late join) installs the pick over its own objects (here a
+    full magazine and stack of its own), takes the record's values into its hidden own kit and saves the same 48
+    bytes; a rollback's load over a hidden own kit that changed since saves the loaded bytes too. The live
+    0x1c0ebd31: joiners wrote zeros there and were dropped within seconds."""
+    r = Pick(patched)
+    r.setup()
+    r.emu.mem_write(r.own_gun + 0x5E5, bytes([9]))
+    r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 40))
+    r.pick()
+    r.installed()
+    r.save(r.picker)
+    full = bytes(r.written)
+    assert full[SYNCED + 14:SYNCED + 19] == bytes([1, 9, 8, 40, 0]), full[SYNCED:].hex()  # slot 10's block
+
+    j = Pick(patched)
+    j.setup()
+    j.emu.mem_write(j.own_gun + 0x5E5, bytes([30]))
+    j.emu.mem_write(j.own_ammo + 0x260, struct.pack("<H", 120))
+    j.load(j.picker, full)
+    assert j.slot(j.inventory, 10) == j.new_gun + 0x10, j.log
+    j.save(j.picker)
+    assert bytes(j.written) == full, ("a loading client saves what it loaded", bytes(j.written).hex(), full.hex())
+    assert j.read(j.own_gun + 0x5E5, 1)[0] == 9 and j.read(j.own_ammo + 0x260, 2) == struct.pack("<H", 40), \
+        "the hidden own kit is the record's (what the restore gives back)"
+    assert not any("NOT" in l for l in j.log), j.log
+
+    # A rollback's load (the pick stays installed) over a hidden own kit changed since: the loaded bytes again.
+    r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 75))
+    r.load(r.picker, full)
+    r.save(r.picker)
+    assert bytes(r.written) == full, ("a rollback saves what it loaded", bytes(r.written).hex(), full.hex())
+    print("ok the parked block is the record's: a late joiner installs the pick over its own full kit and saves "
+          "the 48 bytes it loaded (magazine 9, slot 8 x 40), its hidden own kit set from them; a rollback's load "
+          "over a changed hidden kit saves the loaded bytes too")
 
 
 def crate_per_gun(patched):
