@@ -4,7 +4,7 @@
 //! walk with `Look::Path` (the view along the route) and the reflex turns the view only to an enemy it senses, a sound, a
 //! smoke wait or a throw; nothing turns it along the held lanes the team knows (K1, `threat::Picture::held`). Two counts:
 //!
-//! - **walking in a held lane**, by play: a living bot that walks (a step with a goal to walk to, over 1 m/s, neither the aim
+//! - **walking in a held lane**, by play: a living bot that walks (a step with a goal to walk to, over 0.5 m/s, neither the aim
 //!   nor the fire key down) inside a held line of its own team (`HeldLine::covers`): the angle between its view and the
 //!   bearing to that line's spot (the nearest such line), in bands (15, 45, 90 degrees), and the ticks it walked in all;
 //! - **the first enemy hit of a life**, by play and by shooter (the stand-in human or a bot): the victim's view off the
@@ -19,8 +19,8 @@ use crate::v026g::bots::threat::HeldLine;
 
 /// The view bands, degrees: up to each, then past the last.
 const BANDS_DEG: [f32; 3] = [15.0, 45.0, 90.0];
-/// A walk is a step with a goal over this, m/s.
-const WALK_MPS: f32 = 1.0;
+/// A walk is a step with a goal over this, m/s (a body standing, or pressing into a wall, is under it).
+const WALK_MPS: f32 = 0.5;
 /// A first hit is followed this long for a shot of the victim's own, ms.
 const FOLLOW_MS: u32 = 5_000;
 /// A222's window: a death this soon after the first hit, ms.
@@ -36,6 +36,14 @@ fn off_deg(yaw: f32, from: Vec3, to: Vec3) -> f32 {
     let bearing = kin::yaw_of([to.x - from.x, to.z - from.z]);
     let d = (yaw - bearing + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
     d.abs().to_degrees()
+}
+
+/// The band of the view off the spot of the nearest held line that covers `feet`, if one does.
+fn lane_band(held: &[HeldLine], feet: Vec3, yaw: f32) -> Option<usize> {
+    held.iter()
+        .filter(|l| l.covers(feet))
+        .min_by(|a, b| a.at.distance_xz(feet).total_cmp(&b.at.distance_xz(feet)))
+        .map(|line| band(off_deg(yaw, feet, line.at)))
 }
 
 /// A first hit of a life, followed until the victim's death or [`FOLLOW_MS`].
@@ -134,14 +142,11 @@ impl Topic for LookCounts {
             return;
         }
         let team = usize::from(at.game.bodies[place].team).min(1);
-        let line = self.held[team]
-            .iter()
-            .filter(|l| l.covers(rec.feet))
-            .min_by(|a, b| a.at.distance_xz(rec.feet).total_cmp(&b.at.distance_xz(rec.feet)));
+        let lane = lane_band(&self.held[team], rec.feet, rec.yaw);
         let counts = self.by_play.entry(rec.play).or_default();
         counts.walk_ticks += 1;
-        if let Some(line) = line {
-            counts.lane_ticks[band(off_deg(rec.yaw, rec.feet, line.at))] += 1;
+        if let Some(lane) = lane {
+            counts.lane_ticks[lane] += 1;
         }
     }
 
@@ -228,5 +233,19 @@ mod tests {
         assert!((off_deg(yaw, at, Vec3::new(10.0, 0.0, 0.0)) - 90.0).abs() < 0.01);
         assert!((off_deg(yaw, at, Vec3::new(0.0, 0.0, -10.0)) - 180.0).abs() < 0.01, "behind");
         assert_eq!([band(10.0), band(15.0), band(30.0), band(90.0), band(91.0)], [0, 0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn a_walk_in_a_held_lane_is_banded_by_the_view_off_the_nearest_spot() {
+        // Two shooters at the ends of one lane along z: the walker at z 20 is in both, the one at z 30 nearer.
+        let near = HeldLine::for_test(1, 7, Vec3::new(0.0, 0.0, 30.0), &[Vec3::new(0.0, 0.0, 0.0)], None);
+        let far = HeldLine::for_test(2, 8, Vec3::new(0.0, 0.0, 0.0), &[Vec3::new(0.0, 0.0, 40.0)], None);
+        let held = [far, near];
+        let feet = Vec3::new(0.0, 0.0, 20.0);
+        assert_eq!(lane_band(&held, feet, kin::yaw_of([0.0, 1.0])), Some(0), "facing the nearer spot");
+        assert_eq!(lane_band(&held, feet, kin::yaw_of([1.0, 0.0])), Some(2), "side on");
+        assert_eq!(lane_band(&held, feet, kin::yaw_of([0.0, -1.0])), Some(3), "facing the farther one, the nearer behind");
+        assert_eq!(lane_band(&held, Vec3::new(30.0, 0.0, 20.0), 0.0), None, "out of every lane");
+        assert_eq!(lane_band(&[], feet, 0.0), None);
     }
 }

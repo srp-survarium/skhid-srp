@@ -21,6 +21,14 @@ const RECENT_MS: u32 = 1_000;
 /// by the stand-in human, by him with the battery in his held lane.
 const FIELDS: [&str; 6] = ["deaths", "at_battery", "in_team_lane", "in_killer_lane", "by_human", "by_human_in_his_lane"];
 
+/// The [`FIELDS`] of one collector's death at `feet`, its battery at `battery`, by `killer`, the team's held lines `held`.
+fn death_fields(held: &[HeldLine], killer: Place, human: Option<Place>, feet: Vec3, battery: Vec3) -> [bool; FIELDS.len()] {
+    let in_team_lane = held.iter().any(|l| l.covers(battery));
+    let in_killer_lane = held.iter().any(|l| l.shooter == killer && l.covers(battery));
+    let by_human = human == Some(killer);
+    [true, feet.distance_xz(battery) <= AT_M, in_team_lane, in_killer_lane, by_human, by_human && in_killer_lane]
+}
+
 #[derive(Default)]
 pub(super) struct CollectAtCounts {
     human: Option<Place>,
@@ -79,12 +87,8 @@ impl Topic for CollectAtCounts {
                 continue;
             };
             let feet = run.recs[victim].last().map_or(body.feet, |r| r.feet);
-            let held = &self.held[usize::from(body.team).min(1)];
-            let in_team_lane = held.iter().any(|l| l.covers(at));
-            let in_killer_lane = held.iter().any(|l| l.shooter == killer && l.covers(at));
-            let by_human = self.human == Some(killer);
+            let add = death_fields(&self.held[usize::from(body.team).min(1)], killer, self.human, feet, at);
             let c = self.by_battery.entry(battery).or_default();
-            let add = [true, feet.distance_xz(at) <= AT_M, in_team_lane, in_killer_lane, by_human, by_human && in_killer_lane];
             for (n, yes) in c.iter_mut().zip(add) {
                 *n += u64::from(yes);
             }
@@ -109,5 +113,24 @@ impl Topic for CollectAtCounts {
             FIELDS.iter().zip(total).map(|(name, n)| format!("{name} {n}")).collect::<Vec<_>>().join(", ")
         );
         vec![("collect_at", Part::new(serde_json::json!({ "collect_at": json }), text))]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_collectors_death_is_marked_by_the_lanes_its_battery_lay_in() {
+        // Shooter 7 (the stand-in human) holds a lane down z to the battery at z 10; shooter 8 holds one along x.
+        let battery = Vec3::new(0.0, 0.0, 10.0);
+        let his = HeldLine::for_test(1, 7, Vec3::new(0.0, 0.0, 40.0), &[Vec3::new(0.0, 0.0, 0.0)], None);
+        let other = HeldLine::for_test(2, 8, Vec3::new(40.0, 0.0, 40.0), &[Vec3::new(80.0, 0.0, 40.0)], None);
+        let held = [his, other];
+        let at = Vec3::new(1.0, 0.0, 12.0);
+        assert_eq!(death_fields(&held, 7, Some(7), at, battery), [true, true, true, true, true, true]);
+        assert_eq!(death_fields(&held, 8, Some(7), at, battery), [true, true, true, false, false, false], "a bot of his lane's side");
+        let on_the_way = Vec3::new(0.0, 0.0, 30.0);
+        assert_eq!(death_fields(&held[1..], 7, None, on_the_way, battery), [true, false, false, false, false, false]);
     }
 }
