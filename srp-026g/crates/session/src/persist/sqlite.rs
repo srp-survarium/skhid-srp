@@ -10,7 +10,7 @@ use survarium::dictionary::PROFILE_SLOTS;
 use survarium::v021d::account::{Account as GameAccount, Item, Profile};
 use survarium::v021d::quests::QuestInstance;
 
-use crate::{Ban, ChatBan, ChatBanEnd, IpBan, Net};
+use crate::{Ban, IpBan, Net};
 
 use super::{
     AccountRecord, AccountRepository, BACKUPS_KEPT, Loaded, PersistError, StoredSession,
@@ -301,13 +301,10 @@ fn backup(connection: &Connection, dir: &Path) {
 
 /// The chat mute of the columns `chat_ban_reason`, `chat_ban_until`
 /// (migration 6): none without a reason.
-fn chat_ban(reason: Option<String>, until: Option<i64>) -> Option<ChatBan> {
-    Some(ChatBan {
+fn chat_ban(reason: Option<String>, until: Option<i64>) -> Option<Ban> {
+    Some(Ban {
+        until: until.map(|until| until.max(0) as u64),
         reason: reason?,
-        ends: match until {
-            Some(at) => ChatBanEnd::At(at.max(0) as u64),
-            None => ChatBanEnd::Never,
-        },
     })
 }
 
@@ -759,10 +756,10 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
             ban.as_ref().map_or("", |ban| ban.reason.as_str()),
             last_ip.map(|ip| ip.to_string()),
             chat_ban.as_ref().map(|ban| ban.reason.as_str()),
-            chat_ban.as_ref().and_then(|ban| match ban.ends {
-                ChatBanEnd::At(at) => Some(at.min(i64::MAX as u64) as i64),
-                ChatBanEnd::Never => None,
-            }),
+            chat_ban
+                .as_ref()
+                .and_then(|ban| ban.until)
+                .map(|until| until.min(i64::MAX as u64) as i64),
         ],
     )?;
     for table in CHILD_TABLES {

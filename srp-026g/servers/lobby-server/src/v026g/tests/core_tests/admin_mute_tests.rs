@@ -4,7 +4,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use session::{ChatBan, ChatBanEnd};
+use session::Ban;
 use survarium::v026g::lobby::rooms::{ROOM_CHAT, ROOM_JOIN_BASE};
 
 use super::rooms_tests::{create, rows, spec};
@@ -39,10 +39,10 @@ fn unix_now() -> u64 {
         .as_secs()
 }
 
-fn mute(world: &World, index: usize, ends: ChatBanEnd) {
+fn mute(world: &World, index: usize, until: Option<u64>) {
     let account_id = world.ids[index].0;
-    let ban = ChatBan {
-        ends,
+    let ban = Ban {
+        until,
         reason: "spam".to_owned(),
     };
     assert!(world.store.mute_chat(account_id, ban));
@@ -84,7 +84,7 @@ fn a_muted_player_reaches_nobody_in_the_lobby_and_is_told_on_each_channel() {
     }
     world.take(carol);
 
-    mute(&world, alice, ChatBanEnd::Never);
+    mute(&world, alice, None);
     for (channel, receiver) in channels {
         world.ask(alice, request::chat(0, receiver, channel, "hello"));
         assert!(lines(world.take(bob)).is_empty(), "channel {channel}");
@@ -111,7 +111,7 @@ fn a_muted_player_reaches_nobody_in_the_lobby_and_is_told_on_each_channel() {
 
     // Timed: the notice says until when.
     let until = unix_now() + 3 * 3600;
-    mute(&world, alice, ChatBanEnd::At(until));
+    mute(&world, alice, Some(until));
     world.ask(alice, request::chat(0, "", channel::GENERAL, "hello"));
     let notice = format!(
         "muted until {} {} UTC: spam",
@@ -125,7 +125,7 @@ fn a_muted_player_reaches_nobody_in_the_lobby_and_is_told_on_each_channel() {
     assert!(lines(world.take(bob)).is_empty());
 
     // Run out: the lines go again, with no notice.
-    mute(&world, alice, ChatBanEnd::At(unix_now() - 1));
+    mute(&world, alice, Some(unix_now() - 1));
     world.ask(alice, request::chat(0, "", channel::GENERAL, "back"));
     assert_eq!(
         lines(world.take(bob)),
@@ -135,7 +135,7 @@ fn a_muted_player_reaches_nobody_in_the_lobby_and_is_told_on_each_channel() {
     world.take(carol);
 
     // Lifted: the same.
-    mute(&world, alice, ChatBanEnd::Never);
+    mute(&world, alice, None);
     assert!(world.store.unmute_chat(alice_id));
     assert!(!world.store.unmute_chat(alice_id));
     world.ask(alice, request::chat(0, "", channel::GENERAL, "again"));
@@ -164,7 +164,7 @@ fn a_muted_player_reaches_nobody_in_its_match_and_team_chat() {
         .collect();
     let (match_id, team) = states[0];
     assert!(states[1..].iter().any(|state| state.1 == team));
-    mute(&world, players[0], ChatBanEnd::Never);
+    mute(&world, players[0], None);
     for channel in [channel::MATCH, channel::TEAM_1 + team] {
         world.ask(players[0], request::chat(match_id, "", channel, "original"));
         for &other in &players[1..] {

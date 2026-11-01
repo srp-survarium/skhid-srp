@@ -69,7 +69,7 @@ use std::time::{Duration, Instant};
 
 use session::utc::{clock as clock_utc, date as date_utc};
 use session::v026g::replays::{Refused, Replays};
-use session::{Ban, ChatBanEnd, LockExt, Net, SessionStore};
+use session::{Ban, LockExt, Net, SessionStore};
 
 /// What the home page tells a new player, fixed at start-up.
 struct Connect {
@@ -1258,16 +1258,8 @@ impl Web {
         let lang = request.lang;
         let target = request.field("ban_user").trim();
         let hours = request.field("hours").trim();
-        let until = match hours.parse::<u64>() {
-            _ if hours.is_empty() => None,
-            Ok(0) => None,
-            Ok(hours) if hours <= MAX_BAN_HOURS => Some(unix_now() + hours * 3600),
-            _ => {
-                return lang.tr(
-                    &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
-                    &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
-                );
-            }
+        let Ok(until) = ban_until(hours, unix_now()) else {
+            return BadHours::text(lang);
         };
         let reason: String = request.field("reason").trim().chars().take(200).collect();
         let ban = Ban { until, reason };
@@ -2362,16 +2354,45 @@ fn maintenance_line(lang: Lang, store: &SessionStore) -> String {
     format!("<p class=note>{}</p>", escape(&text))
 }
 
+/// Hours the Ban and Mute chat tabs refuse ([`ban_until`]).
+struct BadHours;
+
+impl BadHours {
+    fn text(lang: Lang) -> String {
+        lang.tr(
+            &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
+            &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
+        )
+    }
+}
+
+/// When a ban or a chat mute of `hours` from `now` (Unix seconds) ends:
+/// empty or 0 is for good (`None`), else a whole number up to
+/// [`MAX_BAN_HOURS`].
+fn ban_until(hours: &str, now: u64) -> Result<Option<u64>, BadHours> {
+    let hours = hours.trim();
+    match hours.parse::<u64>() {
+        _ if hours.is_empty() => Ok(None),
+        Ok(0) => Ok(None),
+        Ok(hours) if hours <= MAX_BAN_HOURS => Ok(Some(now + hours * 3600)),
+        _ => Err(BadHours),
+    }
+}
+
+/// When a ban or a chat mute ends: `until <date> <time> UTC`, or `for good`.
+fn ban_end(lang: Lang, ban: &Ban) -> String {
+    match ban.until {
+        Some(at) => {
+            let at = format!("{} {}", date_utc(at), clock_utc(at));
+            lang.tr(&format!("until {at} UTC"), &format!("до {at} UTC"))
+        }
+        None => lang.tr("for good", "назавжди"),
+    }
+}
+
 /// The bans in force, as tables: accounts, addresses, chat mutes.
 fn bans_table(lang: Lang, store: &SessionStore) -> String {
     let (accounts, nets) = store.bans();
-    let until = |ban: &Ban| match ban.until {
-        Some(until) => {
-            let hours = until.saturating_sub(unix_now()).div_ceil(3600);
-            lang.tr(&format!("{hours} h left"), &format!("ще {hours} год"))
-        }
-        None => lang.tr("for good", "назавжди"),
-    };
     let none = format!("<p><small>{}</small></p>", lang.tr("None.", "Немає."));
     let mut html = format!("<h2>{}</h2>", lang.tr("Accounts", "Акаунти"));
     if accounts.is_empty() {
@@ -2389,7 +2410,7 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
                 "<tr><td>{}<br><small>{}</small></td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 escape(name),
                 escape(login),
-                until(ban),
+                ban_end(lang, ban),
                 escape(&ban.reason),
                 ip.map(|ip| ip.to_string()).unwrap_or_default(),
             );
@@ -2410,7 +2431,7 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
             html += &format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
                 ban.net,
-                until(&ban.ban),
+                ban_end(lang, &ban.ban),
                 escape(&ban.ban.reason),
             );
         }
@@ -2428,14 +2449,11 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
             lang.tr("Reason", "Причина"),
         );
         for (_, login, name, ban) in &muted {
-            let until = match ban.ends {
-                ChatBanEnd::At(at) => format!("{} {} UTC", date_utc(at), clock_utc(at)),
-                ChatBanEnd::Never => lang.tr("for good", "назавжди"),
-            };
             html += &format!(
-                "<tr><td>{}<br><small>{}</small></td><td>{until}</td><td>{}</td></tr>",
+                "<tr><td>{}<br><small>{}</small></td><td>{}</td><td>{}</td></tr>",
                 escape(name),
                 escape(login),
+                ban_end(lang, ban),
                 escape(&ban.reason),
             );
         }
@@ -2622,6 +2640,31 @@ mod tests {
         // A wrong token keeps nothing.
         let refused = web.admin(&post("/hidden", &[("token", "bad"), ("tab", "bans")]), "t");
         assert!(!refused.body.contains("value=\"bad\""));
+    }
+
+    #[test]
+    fn ban_and_mute_hours_are_for_good_or_a_whole_number_up_to_the_limit() {
+        let now = 1_000;
+        assert!(matches!(ban_until("", now), Ok(None)));
+        assert!(matches!(ban_until(" 0 ", now), Ok(None)));
+        assert!(matches!(ban_until(" 2 ", now), Ok(Some(8_200))));
+        let most = MAX_BAN_HOURS.to_string();
+        assert!(matches!(ban_until(&most, now), Ok(Some(at)) if at == now + MAX_BAN_HOURS * 3600));
+        let over = (MAX_BAN_HOURS + 1).to_string();
+        for hours in ["-1", "1.5", "soon", over.as_str()] {
+            assert!(ban_until(hours, now).is_err(), "{hours}");
+        }
+        // 2026-10-18 12:34 UTC.
+        let timed = Ban {
+            until: Some(1_792_326_840),
+            reason: String::new(),
+        };
+        assert_eq!(ban_end(Lang::En, &timed), "until 2026-10-18 12:34 UTC");
+        let for_good = Ban {
+            until: None,
+            reason: String::new(),
+        };
+        assert_eq!(ban_end(Lang::En, &for_good), "for good");
     }
 
     #[test]

@@ -6,9 +6,9 @@
 //! registered, from it. Banning ends the sessions it covers at once and
 //! closes their lobby and chat connections.
 //!
-//! A chat ban ([`ChatBan`], `docs/notes/admin-chat-mute.md`) is the admin's
-//! mute of an account's chat: it signs in and plays as before, but nobody
-//! gets its chat lines; it gets [`ChatBan::notice`] back instead.
+//! The admin's chat mute of an account (`docs/notes/admin-chat-mute.md`) is
+//! a [`Ban`] too: it signs in and plays as before, but nobody gets its chat
+//! lines; it gets [`Ban::chat_notice`] back instead.
 
 use std::fmt;
 use std::net::IpAddr;
@@ -74,7 +74,8 @@ impl fmt::Display for Net {
 pub struct Ban {
     /// Unix seconds it ends at; `None`: never.
     pub until: Option<u64>,
-    /// For the admin; never shown to the player.
+    /// For the admin; never shown to the player, but a chat mute's
+    /// ([`Self::chat_notice`]).
     pub reason: String,
 }
 
@@ -83,40 +84,14 @@ impl Ban {
     pub fn holds(&self, now: u64) -> bool {
         self.until.is_none_or(|until| now < until)
     }
-}
 
-/// When the admin's chat mute of an account ends.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChatBanEnd {
-    /// At these Unix seconds.
-    At(u64),
-    Never,
-}
-
-/// The admin's chat mute of an account: until when, and why. The reason is
-/// the player's to read: it is in [`Self::notice`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ChatBan {
-    pub ends: ChatBanEnd,
-    pub reason: String,
-}
-
-impl ChatBan {
-    /// Whether it still holds at `now` (Unix seconds).
-    pub fn holds(&self, now: u64) -> bool {
-        match self.ends {
-            ChatBanEnd::At(at) => now < at,
-            ChatBanEnd::Never => true,
-        }
-    }
-
-    /// The line its player gets back, as said by itself, instead of each
-    /// line it sends: `muted for <reason>`, or `muted until <date> <time>
-    /// UTC: <reason>`.
-    pub fn notice(&self) -> String {
-        match self.ends {
-            ChatBanEnd::Never => format!("muted for {}", self.reason),
-            ChatBanEnd::At(at) => format!(
+    /// As a chat mute, the line its player gets back instead of each line
+    /// it sends: `muted for <reason>`, or `muted until <date> <time> UTC:
+    /// <reason>`.
+    pub fn chat_notice(&self) -> String {
+        match self.until {
+            None => format!("muted for {}", self.reason),
+            Some(at) => format!(
                 "muted until {} {} UTC: {}",
                 crate::utc::date(at),
                 crate::utc::clock(at),
@@ -159,20 +134,21 @@ mod tests {
     }
 
     #[test]
-    fn a_chat_ban_holds_until_its_end_and_says_so() {
+    fn a_chat_mute_tells_its_player_why_and_until_when() {
         // 2026-10-18 12:34 UTC.
-        let timed = ChatBan {
-            ends: ChatBanEnd::At(1_792_326_840),
+        let timed = Ban {
+            until: Some(1_792_326_840),
             reason: "spam".into(),
         };
-        assert!(timed.holds(1_792_326_839) && !timed.holds(1_792_326_840));
-        assert_eq!(timed.notice(), "muted until 2026-10-18 12:34 UTC: spam");
-        let for_good = ChatBan {
-            ends: ChatBanEnd::Never,
+        assert_eq!(
+            timed.chat_notice(),
+            "muted until 2026-10-18 12:34 UTC: spam"
+        );
+        let for_good = Ban {
+            until: None,
             reason: "insults".into(),
         };
-        assert!(for_good.holds(u64::MAX));
-        assert_eq!(for_good.notice(), "muted for insults");
+        assert_eq!(for_good.chat_notice(), "muted for insults");
     }
 
     #[test]

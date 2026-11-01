@@ -33,7 +33,7 @@
 //!
 //! The Mute tab (`docs/notes/admin-chat-mute.md`) is one step: an account's
 //! chat muted for some hours or for good, with a reason its player is told,
-//! or lifted. The mute is the store's (`session::ChatBan`, kept with the
+//! or lifted. The mute is the store's (a `session::Ban`, kept with the
 //! account like a ban); each one is an audit row.
 
 use std::collections::HashMap;
@@ -44,13 +44,14 @@ use session::v026g::account::Account;
 use session::v026g::moderation::{
     self, AdminAction, MoneyChange, Pick, TakeRefused, Taking, plan_take, take, take_key,
 };
-use session::{ChatBan, ChatBanEnd, LockExt, ResetWrite};
+use session::{Ban, LockExt, ResetWrite};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::modifications::Modifications;
 
 use super::v026g::Game;
 use super::{
-    AdminView, Lang, MAX_BAN_HOURS, Request, Web, clock_utc, date_utc, delta, escape, unix_now,
+    AdminView, BadHours, Lang, Request, Web, ban_end, ban_until, clock_utc, date_utc, delta,
+    escape, unix_now,
 };
 
 /// The audit rows shown with an account.
@@ -642,12 +643,7 @@ impl Web {
             now,
         ) {
             Ok(ask) => ask,
-            Err(MuteRefused::Hours) => {
-                return lang.tr(
-                    &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
-                    &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
-                );
-            }
+            Err(MuteRefused::Hours) => return BadHours::text(lang),
             Err(MuteRefused::NoReason) => {
                 return lang.tr(
                     "A reason is required: the player is told it.",
@@ -665,8 +661,8 @@ impl Web {
         let (message, after, reason) = match ask {
             MuteAsk::Mute(ban) => {
                 let message = lang.tr(
-                    &format!("{name}'s chat muted {}.", how_long(lang, &ban.ends)),
-                    &format!("Чат {name} вимкнено {}.", how_long(lang, &ban.ends)),
+                    &format!("{name}'s chat muted {}.", ban_end(lang, &ban)),
+                    &format!("Чат {name} вимкнено {}.", ban_end(lang, &ban)),
                 );
                 let after = Some(ban.clone());
                 let reason = ban.reason.clone();
@@ -687,9 +683,9 @@ impl Web {
                 (message, None, String::new())
             }
         };
-        let state = |ban: &Option<ChatBan>| match ban {
+        let state = |ban: &Option<Ban>| match ban {
             None => "not muted".to_owned(),
-            Some(ban) => how_long(Lang::En, &ban.ends),
+            Some(ban) => ban_end(Lang::En, ban),
         };
         let action = AdminAction {
             at: now,
@@ -725,45 +721,28 @@ impl Web {
 /// What the Mute tab asks ([`mute_ask`]).
 #[derive(Debug, PartialEq, Eq)]
 enum MuteAsk {
-    Mute(ChatBan),
+    Mute(Ban),
     Unmute,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum MuteRefused {
-    /// Not a whole number of hours up to [`MAX_BAN_HOURS`].
+    /// Not hours a ban takes ([`ban_until`]).
     Hours,
     /// A mute needs a reason: its player is told it.
     NoReason,
 }
 
 /// The Mute tab's fields as what they ask, at `now` (Unix seconds): the
-/// Unmute button, or a mute of `hours` (empty or 0: for good) for
-/// `reason` ([`moderation::clean_reason`]).
+/// Unmute button, or a mute of `hours` ([`ban_until`]) for `reason`
+/// ([`moderation::clean_reason`]).
 fn mute_ask(unmute: bool, hours: &str, reason: &str, now: u64) -> Result<MuteAsk, MuteRefused> {
     if unmute {
         return Ok(MuteAsk::Unmute);
     }
-    let hours = hours.trim();
-    let ends = match hours.parse::<u64>() {
-        _ if hours.is_empty() => ChatBanEnd::Never,
-        Ok(0) => ChatBanEnd::Never,
-        Ok(hours) if hours <= MAX_BAN_HOURS => ChatBanEnd::At(now + hours * 3600),
-        _ => return Err(MuteRefused::Hours),
-    };
+    let until = ban_until(hours, now).map_err(|BadHours| MuteRefused::Hours)?;
     let reason = moderation::clean_reason(reason).ok_or(MuteRefused::NoReason)?;
-    Ok(MuteAsk::Mute(ChatBan { ends, reason }))
-}
-
-/// How long a mute holds, for the page and the audit trail.
-fn how_long(lang: Lang, ends: &ChatBanEnd) -> String {
-    match *ends {
-        ChatBanEnd::Never => lang.tr("for good", "назавжди"),
-        ChatBanEnd::At(at) => {
-            let at = format!("{} {}", date_utc(at), clock_utc(at));
-            lang.tr(&format!("until {at} UTC"), &format!("до {at} UTC"))
-        }
-    }
+    Ok(MuteAsk::Mute(Ban { until, reason }))
 }
 
 /// The Mute tab's panel.
@@ -1256,41 +1235,24 @@ mod tests {
     #[test]
     fn the_mute_tabs_fields_parse_to_what_they_ask() {
         let now = 1_000;
-        let mute = |ends, reason: &str| {
-            Ok(MuteAsk::Mute(ChatBan {
-                ends,
+        let mute = |until, reason: &str| {
+            Ok(MuteAsk::Mute(Ban {
+                until,
                 reason: reason.to_owned(),
             }))
         };
-        assert_eq!(
-            mute_ask(false, "", " spam ", now),
-            mute(ChatBanEnd::Never, "spam")
-        );
-        assert_eq!(
-            mute_ask(false, "0", "spam", now),
-            mute(ChatBanEnd::Never, "spam")
-        );
+        assert_eq!(mute_ask(false, "", " spam ", now), mute(None, "spam"));
         assert_eq!(
             mute_ask(false, " 2 ", "spam", now),
-            mute(ChatBanEnd::At(now + 7200), "spam")
+            mute(Some(now + 7200), "spam")
         );
         assert_eq!(
-            mute_ask(false, &MAX_BAN_HOURS.to_string(), "spam", now),
-            mute(ChatBanEnd::At(now + MAX_BAN_HOURS * 3600), "spam")
+            mute_ask(false, "soon", "spam", now),
+            Err(MuteRefused::Hours)
         );
-        for hours in ["-1", "1.5", "soon", &(MAX_BAN_HOURS + 1).to_string()] {
-            assert_eq!(
-                mute_ask(false, hours, "spam", now),
-                Err(MuteRefused::Hours),
-                "{hours}"
-            );
-        }
         assert_eq!(mute_ask(false, "2", "  ", now), Err(MuteRefused::NoReason));
         // Control characters go; the reason is one line.
-        assert_eq!(
-            mute_ask(false, "", "a\nb", now),
-            mute(ChatBanEnd::Never, "a b")
-        );
+        assert_eq!(mute_ask(false, "", "a\nb", now), mute(None, "a b"));
         // Unmute needs nothing else.
         assert_eq!(mute_ask(true, "soon", "", now), Ok(MuteAsk::Unmute));
     }

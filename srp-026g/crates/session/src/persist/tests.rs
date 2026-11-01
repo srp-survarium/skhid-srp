@@ -62,8 +62,8 @@ fn full_account(id: u32) -> Account {
         .set(13, Some(crate::chat_mutes::ChatMuteMode::Placeholder));
     account.active_profile = Some(2);
     account.notices = vec![(3, "#ru[1:2]".into()), (4, "quest done".into())];
-    account.chat_ban = Some(crate::ChatBan {
-        ends: crate::ChatBanEnd::At(1_900_000_000),
+    account.chat_ban = Some(crate::Ban {
+        until: Some(1_900_000_000),
         reason: "spam, Ш".into(),
     });
     let game = &mut account.game;
@@ -869,8 +869,8 @@ fn a_chat_mute_survives_a_restart_and_a_version_5_database_gains_it() {
     };
     let store = open();
     assert_eq!(store.account(4).unwrap().locked().chat_ban, None);
-    let ban = crate::ChatBan {
-        ends: crate::ChatBanEnd::Never,
+    let ban = crate::Ban {
+        until: None,
         reason: "spam".into(),
     };
     assert!(store.mute_chat(4, ban.clone()));
@@ -881,8 +881,8 @@ fn a_chat_mute_survives_a_restart_and_a_version_5_database_gains_it() {
     assert_eq!(store.chat_ban(4), Some(ban));
     assert_eq!(store.chat_bans().len(), 1);
     // One that ran out holds no more, and is no mute to lift.
-    let ran_out = crate::ChatBan {
-        ends: crate::ChatBanEnd::At(1),
+    let ran_out = crate::Ban {
+        until: Some(1),
         reason: "old".into(),
     };
     assert!(store.mute_chat(4, ran_out));
@@ -891,8 +891,8 @@ fn a_chat_mute_survives_a_restart_and_a_version_5_database_gains_it() {
     assert!(!store.unmute_chat(4));
     assert!(store.mute_chat(
         4,
-        crate::ChatBan {
-            ends: crate::ChatBanEnd::Never,
+        crate::Ban {
+            until: None,
             reason: "again".into(),
         }
     ));

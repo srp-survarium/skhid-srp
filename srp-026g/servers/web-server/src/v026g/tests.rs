@@ -1880,10 +1880,16 @@ fn the_admin_mutes_and_unmutes_a_chat_with_its_audit_rows() {
         ("mute_hours", "2"),
         ("mute_reason", "<spam>"),
     ]);
-    assert!(body.contains("loud's chat muted until"), "{body}");
+    // One POST, one line a script greps for.
     let ban = world.web.store.chat_ban(id).expect("muted");
     assert_eq!(ban.reason, "<spam>");
-    assert!(matches!(ban.ends, session::ChatBanEnd::At(_)));
+    let until = ban.until.expect("timed");
+    let said = format!(
+        "loud's chat muted until {} {} UTC.",
+        session::utc::date(until),
+        session::utc::clock(until)
+    );
+    assert!(body.contains(&said), "{body}");
     let actions = repository.all_admin_actions();
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].account_id, id);
@@ -1904,21 +1910,22 @@ fn the_admin_mutes_and_unmutes_a_chat_with_its_audit_rows() {
     );
 
     // For good replaces it.
-    world.admin(&[
+    let body = world.admin(&[
         ("tab", "mute"),
         ("mute_user", "loud"),
         ("mute_reason", "spam"),
     ]);
+    assert!(body.contains("loud's chat muted for good."), "{body}");
     assert_eq!(
-        world.web.store.chat_ban(id).map(|ban| ban.ends),
-        Some(session::ChatBanEnd::Never)
+        world.web.store.chat_ban(id).map(|ban| ban.until),
+        Some(None)
     );
 
     let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
-    assert!(body.contains("chat unmuted"), "{body}");
+    assert!(body.contains("loud's chat unmuted."), "{body}");
     assert!(world.web.store.chat_ban(id).is_none());
     let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
-    assert!(body.contains("was not muted"), "{body}");
+    assert!(body.contains("loud's chat was not muted."), "{body}");
     let actions = repository.all_admin_actions();
     assert_eq!(actions.len(), 3);
     assert!(actions.iter().any(|action| action.change == "chat unmuted"

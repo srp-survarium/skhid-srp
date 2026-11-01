@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
 
-use crate::{Account, Ban, ChatBan, IpBan, LockExt};
+use crate::{Account, Ban, IpBan, LockExt};
 
 mod sqlite;
 pub use sqlite::SqliteRepository;
@@ -76,7 +76,7 @@ pub struct AccountRecord {
     pub active_profile: Option<u32>,
     pub notices: Vec<(u8, String)>,
     pub ban: Option<Ban>,
-    pub chat_ban: Option<ChatBan>,
+    pub chat_ban: Option<Ban>,
     pub last_ip: Option<IpAddr>,
 }
 

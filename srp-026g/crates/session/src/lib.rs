@@ -39,7 +39,7 @@ mod squads;
 pub mod utc;
 // The 0.26g account model, beside the 0.21d one (`resources/notes/v026g/`).
 pub mod v026g;
-pub use bans::{Ban, ChatBan, ChatBanEnd, IpBan, Net};
+pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
     DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player,
     QueuePool, QueueState, Seat, Strength, fill_from_env, gather_window_from_env, quiet_from_env,
@@ -168,7 +168,7 @@ pub struct Account {
     pub ban: Option<Ban>,
     /// Whether, and how long, the admin muted its chat: nobody gets its
     /// lines (`docs/notes/admin-chat-mute.md`).
-    pub chat_ban: Option<ChatBan>,
+    pub chat_ban: Option<Ban>,
     /// Where it last signed in from: what banning its address bans.
     pub last_ip: Option<IpAddr>,
     /// When it last signed in (Unix seconds), since srp started: not kept,
@@ -262,7 +262,7 @@ impl Account {
     }
 
     /// Its chat ban, if it holds at `now` (Unix seconds).
-    pub fn chat_ban_at(&self, now: u64) -> Option<&ChatBan> {
+    pub fn chat_ban_at(&self, now: u64) -> Option<&Ban> {
         self.chat_ban.as_ref().filter(|ban| ban.holds(now))
     }
 }
@@ -1614,7 +1614,7 @@ impl SessionStore {
     /// Mute an account's chat (`docs/notes/admin-chat-mute.md`), replacing
     /// a mute it had: its next line reaches nobody. `false` for an unknown
     /// account.
-    pub fn mute_chat(&self, account_id: u32, ban: ChatBan) -> bool {
+    pub fn mute_chat(&self, account_id: u32, ban: Ban) -> bool {
         let Some(account) = self.account(account_id) else {
             return false;
         };
@@ -1638,14 +1638,14 @@ impl SessionStore {
     }
 
     /// The chat mute of an account, if one holds now: its lines reach
-    /// nobody, and it is told [`ChatBan::notice`].
-    pub fn chat_ban(&self, account_id: u32) -> Option<ChatBan> {
+    /// nobody, and it is told [`Ban::chat_notice`].
+    pub fn chat_ban(&self, account_id: u32) -> Option<Ban> {
         let account = self.account(account_id)?;
         account.locked().chat_ban_at(unix_now()).cloned()
     }
 
     /// The chat mutes in force: (id, user name, shown name, mute), by id.
-    pub fn chat_bans(&self) -> Vec<(u32, String, String, ChatBan)> {
+    pub fn chat_bans(&self) -> Vec<(u32, String, String, Ban)> {
         let now = unix_now();
         let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
         let mut muted: Vec<_> = accounts

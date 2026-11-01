@@ -321,7 +321,7 @@ impl Core<'_> {
                     &who.name,
                     &tag,
                     channel,
-                    &ban.notice(),
+                    &ban.chat_notice(),
                 ),
             );
             return;
