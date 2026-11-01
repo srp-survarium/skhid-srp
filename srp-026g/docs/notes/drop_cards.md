@@ -44,7 +44,9 @@ The rules the code and the tests follow. Code: `crates/session/src/v026g/rewards
   any screen shown in the last two hours); the account finished the match (its place in the
   report is `Standing::Finished`: in the match at its end); the account used no card for it
   yet; the item is a drop card of the account with a count above 0; the roll gives an item.
-  Then one roll of `drop_card_drop` at the match's level, at full condition, as before.
+  Then one roll of `drop_card_drop` at the match's level, at full condition, as before; a
+  camouflage or decal the account already has is not given unless it has them all
+  (`drops::COSMETIC_CATEGORIES`, the owner's of 2026-10-31; match drops too).
 - **A room with a PIN's match** (the owner's of 2026-10-20: it pays nothing,
   `rooms.md`): no card for it, refused for everyone and logged as "private match".
 - **A player who leaves early** (or whose game never got in) cannot use a card on that match:

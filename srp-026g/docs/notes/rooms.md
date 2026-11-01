@@ -192,7 +192,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   equipment is over an open room's max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
 - **Sides:** drawn at the start, as even as can be (every split by the same count), squads
-  together; a room of one squad plays it on both sides.
+  together. A squad alone is no match (the owner's of 2026-10-31: a pair is never played
+  against itself): an open room whose only members who can play are one squad waits, as
+  with one player, until a third can play (`squads.md`).
+- **Squads** (of two, the owner's of 2026-10-31): Play and Join take the mate along, a room
+  with one place queues the pair, the late join keeps it on one side, and the room's lists
+  mark each pair: `squads.md`.
 - **Late joins:** a member who comes during the room's match (by Play, Join, its queue or a
   switch) sees the room first: who is in it and at what levels, to switch or make its own;
   it goes into the match 15 s later, or at once with "Join match". It goes in on the
@@ -201,6 +206,16 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   owner's of 2026-10-19: players, then the previous team, then the balance; after a 4 v 8
   by strength), from its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
   left of it; one who comes later waits in the same room and plays its next match.
+- **A side's places in a match being played** (the owner's of 2026-10-31: "we never fully
+  delete players"): the side the joiner goes to must stay within the room's size counting
+  its players in the match **and** the places kept for players who are not in it now (a game
+  that broke: its seat is kept and Play takes it back there, `Matchmaking::held_places`)
+  while they are still members of the room; once the room lets them go (their game gone past
+  its ~90 s, or Leave) their place is free. A place given up (left by its own word, a
+  failed join) does not count. The side with fewer players full that way, the other one; both full: it waits
+  ("The match is full."). The roster's 20 places, never used twice, are the match server's
+  own limit ("player limit"). Until then a joiner could fill a side a player came back to,
+  past the room's size.
 - **A late join that fails** (its game did not come, left, or did not catch up; the match
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed

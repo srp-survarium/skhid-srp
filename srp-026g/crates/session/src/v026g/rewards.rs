@@ -2129,7 +2129,14 @@ impl<'a> Shared<'a> {
             let level = self.result.match_level.min(u16::from(u8::MAX)) as u8;
             let found = (rng.below(1 << 24) as f32 / (1 << 24) as f32) < chance;
             let rolled = if found {
-                drops::roll(table, Dictionary::shared(), level, CERTAIN_PERCENT, rng)
+                drops::roll(
+                    table,
+                    Dictionary::shared(),
+                    &account.owned_dict_ids(),
+                    level,
+                    CERTAIN_PERCENT,
+                    rng,
+                )
             } else {
                 None
             };
@@ -2401,7 +2408,8 @@ fn use_card(
     let level = match_level.min(u16::from(u8::MAX)) as u8;
     // Rolled before anything changes: a roll that gives nothing keeps the
     // card.
-    let rolled = drops::roll(table, dictionary, level, 0, rng).ok_or(DropCardRefusal::NoRoll)?;
+    let rolled = drops::roll(table, dictionary, &account.owned_dict_ids(), level, 0, rng)
+        .ok_or(DropCardRefusal::NoRoll)?;
     let (dropped, shown) = give_drop(account, &rolled, false, rng);
     let cards_left = match account
         .inventory

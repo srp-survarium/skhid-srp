@@ -1087,7 +1087,9 @@ fn important_messages() {
 #[test]
 fn squad_info_layout() {
     // No squad: only the id.
-    assert_bytes(&squad_info(0, &[], 0, false, 0).unwrap(), "A1 00000000");
+    let picks = SquadPicks { own: Some(LobbyPick::Hangar), commander: Some(LobbyPick::Bunker) };
+    // No squad: the id and srp's bytes, the own pick alone.
+    assert_bytes(&squad_info(0, &[], 0, false, 0, picks).unwrap(), "A1 00000000 04 00");
     let members = [
         SquadMember {
             account_id: 1,
@@ -1107,19 +1109,20 @@ fn squad_info_layout() {
         },
     ];
     assert_bytes(
-        &squad_info(0x55, &members, 0, true, 3).unwrap(),
+        &squad_info(0x55, &members, 0, true, 3, picks).unwrap(),
         "A1 55000000
          02                      members
          00                      commander index
          01000000 01000000 04000000 'Alice' 01 01
          02000000 02000080 09000000 'Bob' 01 00
          01                      i am the commander
-         03000000                revision",
+         03000000                revision
+         04 03                   srp's: the own pick, the commander's",
     );
     // Three slots; a commander among them.
     let four = vec![members[0].clone(); 4];
-    assert!(squad_info(1, &four, 0, false, 0).is_err());
-    assert!(squad_info(1, &members, 2, false, 0).is_err());
+    assert!(squad_info(1, &four, 0, false, 0, picks).is_err());
+    assert!(squad_info(1, &members, 2, false, 0, picks).is_err());
 }
 
 #[test]

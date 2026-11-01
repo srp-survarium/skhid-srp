@@ -40,10 +40,14 @@ pub mod inventory;
 mod keyboard;
 pub mod language;
 pub mod lobby;
+pub mod lobby_camera;
+pub mod lobby_menu;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod resources;
 mod rt;
+pub mod sound;
 pub mod settings;
 mod sync;
 pub mod trace;
@@ -69,6 +73,10 @@ mod generated {
     use crate::raw;
     #[allow(unused_imports)]
     use super::{RenderVisual, ObjectLight, GameScene};
+    #[allow(unused_imports)]
+    use super::resources::{QueryResults, QueryTag};
+    #[allow(unused_imports)]
+    use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
 
@@ -76,7 +84,7 @@ pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
-pub use hook::{Handle, Out, Regs, Thread};
+pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
@@ -87,7 +95,7 @@ pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, Preview
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
-mod consumable;
+pub mod consumable;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;
@@ -100,5 +108,6 @@ pub mod project;
 pub use project::{RenderVisual, ObjectLight, GameScene};
 
 pub mod history;
+pub mod drug;
 mod artefact;
 pub use artefact::{ArtefactPickup, ScoreEvent, Slots};

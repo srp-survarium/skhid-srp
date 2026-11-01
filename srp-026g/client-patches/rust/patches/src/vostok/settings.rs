@@ -98,6 +98,70 @@ impl Default for ConsoleBool {
     }
 }
 
+/// The console variable object, a cc_float (made as the game makes its own:
+/// cc_value<bool>::cc_value's base, then the cc_float's vtable and range, as
+/// s_general_volume's static initializer 0x84D440 has them), and its value.
+#[repr(C)]
+struct FloatStorage {
+    object: raw::CcFloatStorage,
+    value: f32,
+}
+
+/// A float console variable that the engine saves in user.cfg and sets from
+/// it (`<name> <value>`), within its range: a value out of it, or not a
+/// number, stores the least (the game's own setter 0xECB70). The stock
+/// Settings' sliders name theirs by name (options_item_float), so a stock
+/// slider whose variable the game lacks (`s_music_volume`) works once it is
+/// registered. Its default until the file says otherwise.
+pub struct ConsoleFloat {
+    storage: UnsafeCell<FloatStorage>,
+    range: (f32, f32),
+    registration: UnsafeCell<Registration>,
+}
+
+// SAFETY: as ConsoleBool's: the hooks and the console's reads and writes of
+// the value run on the game's one thread.
+unsafe impl Sync for ConsoleFloat {}
+
+impl ConsoleFloat {
+    /// `least..=most`, `default` within it.
+    pub const fn new(default: f32, least: f32, most: f32) -> ConsoleFloat {
+        ConsoleFloat {
+            storage: UnsafeCell::new(FloatStorage { object: raw::CcFloatStorage::zeroed(), value: default }),
+            range: (least, most),
+            registration: UnsafeCell::new(Registration::Unregistered),
+        }
+    }
+
+    /// Puts the variable in the engine's list once, saved in user.cfg, as
+    /// ConsoleBool::register; the cc_float's vtable and range written after
+    /// the base constructor.
+    pub fn register(&'static self, _: &Thread, name: &'static CStr) {
+        // SAFETY: on the game's thread; the object (a cc_float's size) and the
+        // value are this static's, never moved or freed; the name lives as
+        // long. The base constructor writes the list link, the name, the
+        // kind, saved and the value's address (+40h) and two bytes at +44h,
+        // which the range then overwrites.
+        unsafe {
+            if matches!(*self.registration.get(), Registration::Registered) {
+                return;
+            }
+            let storage = self.storage.get();
+            let object = (*storage).object.handle();
+            raw::engine_cc_float(Some(object), name.as_ptr().cast(), &raw mut (*storage).value, 1, USER_CFG);
+            *object.vtable() = raw::image::CC_FLOAT_VTABLE;
+            *object.least() = self.range.0;
+            *object.most() = self.range.1;
+            *self.registration.get() = Registration::Registered;
+        }
+    }
+
+    pub fn get(&self, _: &Thread) -> f32 {
+        // SAFETY: on the game's thread, the value's only user while it runs.
+        unsafe { (*self.storage.get()).value }
+    }
+}
+
 /// The Settings' call to the exe at `options.callback`: the movie's
 /// `ExternalInterface.call(method, ...)` at game_options::scaleform_callback's
 /// start (0x1FF5D0), before the options match the method's name.

@@ -20,6 +20,7 @@ elevation grid for every map.
 | level_09 | London | 0.1823 | 181-183 (skhid patch 14) |
 | v011e_level_03 | Vostok Radar Station (v0.11) | 0.1302 | 208, 209 (ported, patch 22) |
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
+| v069d_level_01 | Rudnya (v0.69) | 0.1693 | 204, 216, 217 (ported, patch 40) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -129,6 +130,8 @@ Always use `python3 -I`.
     PATCHES=$(for n in 12 14 17 19 20 21 22; do printf ' --patch %s' <patches>/resources.db.patch_$n; done)
     for k in level_09 v011e_level_03 v011e_level_04; do python3 -I extract_level.py $DBGRAB $DB $k/day_2 $W/lv/$k $PATCHES; done
     # their raw client_projects (day_2/3/4 as the patches give them) go to $W/db like the stock ones
+    # Rudnya (v0.69), from its pack (rudnya-069d) over the db; native Rudnya's frame, minimap and play area
+    python3 -I extract_level.py $DBGRAB $DB v069d_level_01/day_2 $W/lv/v069d_level_01 <packs>/rudnya-069d-3/files
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)

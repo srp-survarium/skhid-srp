@@ -899,6 +899,7 @@ va	status	ref_021d	name
 0x0021d9d0	reviewed	0x0016f29f	survarium::lobby_menu::on_operation_denied_received
 0x0021e170	reviewed	0x0016f821	survarium::lobby_menu::set_mouse_position
 0x0021e260	reviewed	0x0016f8d3	survarium::lobby_menu::demo_play
+0x0021e780	observed		survarium::lobby_menu::show_video_tutorial_link
 0x0021f3d0	reviewed	0x001704ef	survarium::login_menu::enable_button
 0x0021f430	reviewed	0x00170536	survarium::login_menu::update_online_queue
 0x002206d0	reviewed	0x001724e6	survarium::lobby_menu::show_match_making
@@ -911,11 +912,18 @@ va	status	ref_021d	name
 0x002274b0	reviewed	0x00177bbf	survarium::lobby_menu::set_player_elo_rating
 0x002277c0	reviewed	0x001780fe	survarium::lobby_menu::fill_squad_info
 0x00227d80	reviewed	0x001784a4	survarium::lobby_menu::set_player_premium_access_status
+0x0022a350	observed		survarium::lobby_menu::show_slide
+0x0022a930	observed		survarium::lobby_menu::set_tutorial_rewards
+0x0022ae00	observed		survarium::lobby_menu::show_tutorial_complete_message
+0x0022ae90	observed		survarium::lobby_menu::show_notes_tutorial_link
+0x0022af80	observed		survarium::lobby_menu::show_survival_notes
 0x00231b50	reviewed	0x0017d323	survarium::victory_item_cook::create_resource
 0x00231dc0	reviewed	0x0017d539	survarium::victory_item_cook::on_subresources_ready
 0x002326a0	reviewed	0x0017d8dc	survarium::victory_items_container_cook::allocate_resource
 0x002326d0	reviewed	0x0017d905	survarium::victory_items_container_cook::create_resource
 0x00232a50	reviewed	0x0017db94	survarium::victory_items_container_cook::on_locators_config_ready
+0x0023d2d0	observed		survarium::game_world_ui::show_tutorial_slide
+0x0023d3c0	observed		survarium::game_world_ui::set_tutorial_rewards
 0x0023dc00	reviewed	0x0017e421	survarium::base_game_scene::show_movie
 0x0023dc70	reviewed	0x0017e474	survarium::base_game_scene::hide_movie
 0x0023dd60	reviewed	0x0017e564	survarium::base_game_scene::on_activate
@@ -1876,10 +1884,34 @@ va	status	ref_021d	name
 0x00239420	observed	0x00182a9c	survarium::game_world_ui::update_minimap_players
 0x00239a30	observed	0x00182dc2	survarium::game_world_ui::update_minimap_local_player
 0x0027a980	observed	0x001a2572	survarium::network_client::get_player
+0x00222fe0	reviewed	0x00174caf	survarium::lobby_menu::on_squad_member_profile_arrived
+0x0026fe70	reviewed	0x0019d603	survarium::lobby_client::query_squad_member_contents
+0x00274580	reviewed	0x0019eca1	survarium::lobby_client::destroy_squad
+0x002745d0	reviewed	0x0019ed0a	survarium::lobby_client::add_squad_member
+0x00274660	reviewed	0x0019ed8a	survarium::lobby_client::drop_squad_member
+0x002746d0	reviewed	0x0019ee04	survarium::lobby_client::leave_squad
 0x0025b9b0	reviewed	0x001935c1	survarium::game_world::play_particle
 0x0025cb10	reviewed	0x0019400b	vostok::math::create_rotation
 0x00322ab0	reviewed	0x001fee95	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push
 0x00322b20	reviewed	0x001feedd	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop
+0x00270070	reviewed	0x0019d75f	survarium::lobby_client::query_elo_players
+0x00014730	reviewed		vostok::resources::store_first_unmanaged_resource
+0x00059fb0	reviewed		vostok::sound::sound_world::add_scene_to_active
+0x00059a60	reviewed	0x00040549	vostok::sound::sound_world::tick
+0x0005aba0	reviewed	0x000411e4	vostok::sound::sound_instance_proxy_internal::play
+0x00056800	reviewed	0x0003e13d	vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy>::dec
+0x000630f0	reviewed		vostok::type_to_int<vostok::sound::sound_scene_creation_params>
+0x00065630	reviewed		vostok::sound::sound_emitter::emit_hud_sound
+0x000176d0	reviewed		boost::function1<void,vostok::resources::queries_result &>::assign_to<boost::_bi::bind_t<void,void (__cdecl*)(vostok::resources::queries_result &,void *),boost::_bi::list2<boost::arg<1>,boost::_bi::value<void *> > > >
+0x001ec890	reviewed	0x001536f4	survarium::game::tick
+0x001ed030	reviewed	0x00153ec0	survarium::game::clear_resources
+0x0021eab0	reviewed	0x00170034	survarium::login_menu::on_activate
+0x00220400	reviewed	0x001723e0	survarium::lobby_menu::switch_to_level_loading
+0x0005b390	reviewed	0x0004163b	vostok::sound::sound_instance_proxy_internal::free_object
 0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
 0x00274470	reviewed		survarium::lobby_client::comment_about_user
 0x007c6a20	observed		Scaleform::GFx::AS3ValueObjectInterface::SetMember
+0x000587d0	reviewed		vostok::sound::sound_scene::set_listener_properties
+0x00304370	reviewed	0x001e8da3	survarium::hit_type
+0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x001b9460	reviewed	0x0012d125	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>

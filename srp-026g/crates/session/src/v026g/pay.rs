@@ -280,23 +280,7 @@ pub fn drop_condition() -> u32 {
 /// same patch note); on unless `off`, `0`, `no` or `false`. Read once.
 pub fn drop_defect() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| {
-        let value = std::env::var("SRP_DROP_DEFECT").unwrap_or_default();
-        !matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "off" | "0" | "no" | "false"
-        )
-    })
-}
-
-/// A switch that is off unless the operator turns it on (`on`, `1`, `yes`
-/// or `true`).
-fn off_unless_on(name: &str) -> bool {
-    let value = std::env::var(name).unwrap_or_default();
-    matches!(
-        value.trim().to_ascii_lowercase().as_str(),
-        "on" | "1" | "yes" | "true"
-    )
+    *ENABLED.get_or_init(|| crate::switch("SRP_DROP_DEFECT", true))
 }
 
 /// `SRP_ITEM_WEAR`: whether a match wears the weapons and armour of the
@@ -306,7 +290,7 @@ fn off_unless_on(name: &str) -> bool {
 /// game's own rule is `on`. Read once.
 pub fn item_wear() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| off_unless_on("SRP_ITEM_WEAR"))
+    *ENABLED.get_or_init(|| crate::switch("SRP_ITEM_WEAR", false))
 }
 
 /// `SRP_DROP_PLAYTIME_BONUS`: whether the first games of a play period
@@ -318,7 +302,7 @@ pub fn item_wear() -> bool {
 /// something, against the table's 40 %. Read once.
 pub fn drop_playtime_bonus() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| off_unless_on("SRP_DROP_PLAYTIME_BONUS"))
+    *ENABLED.get_or_init(|| crate::switch("SRP_DROP_PLAYTIME_BONUS", false))
 }
 
 #[cfg(test)]

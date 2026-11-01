@@ -126,11 +126,6 @@ impl Stuck {
             .map(|spot| spot.at)
     }
 
-    /// Whether there is any spot to keep clear of at `time`.
-    pub fn avoids_any(&self, time: u32) -> bool {
-        self.avoided(time).next().is_some()
-    }
-
     /// Whether `point` is near a spot to keep clear of.
     pub fn near_spot(&self, time: u32, point: Vec3) -> bool {
         self.avoided(time)

@@ -21,6 +21,7 @@ package
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFieldType;
+   import flash.text.TextFormat;
    import flash.ui.Keyboard;
    import flash.utils.Timer;
    import flash.utils.clearTimeout;
@@ -86,7 +87,6 @@ package
    import survarium.constants.Reward;
    import survarium.constants.SuperCategory;
    import survarium.constants.TeamSide;
-   import survarium.constants.TutorialHint;
    import survarium.constants.UiSound;
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
@@ -102,6 +102,7 @@ package
    import survarium.controls.NotificationListScrollContent;
    import survarium.controls.PlayerInfo;
    import survarium.controls.PlayerRanking;
+   import survarium.lobbypick.LobbyWindow;
    import survarium.controls.QuestWindow;
    import survarium.controls.SrvContextMenu;
    import survarium.controls.StatusPanel;
@@ -146,7 +147,6 @@ package
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
-   import survarium.tutorial.TextSlide;
    import survarium.upgrade.UpgradeWindow;
    
    public class LobbyMenu extends MovieClip
@@ -196,11 +196,6 @@ package
       // The server answers at once or never (no such place or member): an
       // ask with no answer by then is taken as unanswered.
       private static const PLAYER_INFO_WAIT_MS:int = 3000;
-
-      // show_survival_notes's index: which notes window opens.
-      private static const SURVIVAL_NOTES_BATTLE:int = 0;
-
-      private static const SURVIVAL_NOTES_ITEMS:int = 1;
 
       // set_admin_message's type: by the code, 0 shows the text as a warning (set_warning_text), any other
       // as an admin text; the exe never calls it.
@@ -354,9 +349,7 @@ package
       
       protected var _superWidth:uint = 1920;
       
-      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e];
-      
-      private var survivalVisible:Boolean = false;
+      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya];
       
       private var spriteHighlightContainer:MovieClip = new MovieClip();
       
@@ -365,26 +358,6 @@ package
       private var _removedIndex:uint = 0;
       
       private var _inventoryHighlight:Boolean = false;
-      
-      private var _tutorTextSlide:TextSlide;
-      
-      private var _tutorRewardsD:Object = new Object();
-      
-      private var _tutorRewards:Array;
-      
-      private var _tutorRewardsNicname:Array;
-      
-      private var _tutorRewardsItem:Array;
-      
-      private var _tutorRewardsBattle:Array;
-      
-      public var tutorSlide1:MovieClip;
-      
-      public var tutorBack:MovieClip = new BackBlack();
-      
-      private var _tutorialSliders:TutorialSliders;
-      
-      private var _tutorialIndex:int = TutorialHint.NOT_SHOWN;
       
       private var _pdTarget:MovieClip;
       
@@ -445,6 +418,17 @@ package
       protected var _isWheeled:Boolean = false;
       
       private var fadeBack:MovieClip = new FadeBackground();
+
+      // The black over the lobby's 3D scene while the exe puts another lobby in (srp_scene_fade),
+      // and the loading spinner on it.
+      private var _sceneFade:Sprite;
+
+      private var _sceneSpinner:MovieClip;
+
+      // The lobby window (the lobby button's) and what the exe last told it, [pick, shown].
+      private var _lobbyWindow:LobbyWindow;
+
+      private var _lobbyState:Array;
       
       protected var _tempIndex:uint = 0;
       
@@ -601,71 +585,9 @@ package
          return id;
       }
       
-      public function show_exit_tutorial_message() : void
-      {
-         var _obj:Object = new Object();
-         _obj.text = LocalizationData.getName("tutorial_exit_warning");
-         _obj.onYes = this.onSkipTutor;
-         Message.showMessage("apply",_obj,true);
-      }
-      
-      private function onSkipTutor(e:* = null) : void
-      {
-         trace("skip_tutorial");
-         ExternalInterface.call("skip_tutorial");
-      }
-      
+      // The tutorial's notes link: the exe hides it at each match's loading (0x220400).
       public function show_notes_tutorial_link(bool:Boolean, index:uint) : void
       {
-         trace("show_notes_tutorial_link",bool);
-         this.statusPanel.showNotesTutorial(bool,index);
-      }
-      
-      public function show_survival_notes(index:uint, showRewards:Boolean = true) : void
-      {
-         if(index == SURVIVAL_NOTES_BATTLE)
-         {
-            this.show_survival_notes_message(SURVIVAL_NOTES_BATTLE,"prepare_to_battle_notes","notes_battle",showRewards);
-         }
-         else if(index == SURVIVAL_NOTES_ITEMS)
-         {
-            this.show_survival_notes_message(SURVIVAL_NOTES_ITEMS,"items_notes","notes_items",showRewards);
-         }
-      }
-      
-      public function show_survival_items_notes() : void
-      {
-         this.show_survival_notes_message(SURVIVAL_NOTES_ITEMS,"items_notes","notes_items");
-      }
-      
-      public function show_survival_battle_notes() : void
-      {
-         this.show_survival_notes_message(SURVIVAL_NOTES_BATTLE,"prepare_to_battle_notes","notes_battle");
-      }
-      
-      private function show_survival_notes_message(index:uint, label:String, message:String, showRewards:Boolean = true) : void
-      {
-         if(this.survivalVisible)
-         {
-            return;
-         }
-         var rewards:Array = index == SURVIVAL_NOTES_BATTLE ? this._tutorRewardsBattle : this._tutorRewardsItem;
-         var messData:Object = {
-            index:index,
-            label:label,
-            rewards:rewards,
-            showRewards:showRewards
-         };
-         survivalVisible = true;
-         var mess:* = Message.showMessage(message,messData);
-         mess.addEventListener(Event.REMOVED_FROM_STAGE,this.onMessRemoved);
-      }
-      
-      private function onMessRemoved(e:Event) : void
-      {
-         trace("onMessRemoved");
-         removeEventListener(Event.REMOVED_FROM_STAGE,this.onMessRemoved);
-         survivalVisible = false;
       }
       
       public function setTDMEnabled(value:Boolean) : void
@@ -889,151 +811,15 @@ package
          InteractiveObjectEx.setTopmostLevel(target,value);
       }
       
+      // The exe's default state (0x2A4240) calls it at each sign-in: no slide is open, the sound stays.
       public function close_slide() : void
       {
          ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
-         this.onSlideClose(null);
       }
       
-      public function show_slide(text1:String, text2:String = "", closable:Boolean = true) : void
-      {
-         var rendererClass:Class;
-         if(this._tutorTextSlide == null)
-         {
-            rendererClass = getDefinitionByName("TutorialSlide") as Class;
-            _tutorTextSlide = new rendererClass();
-         }
-         this.tutorBack.alpha = 0.3;
-         this.tutorBack.width = MainScene.stageWidth;
-         this.tutorBack.height = MainScene.stageHeight;
-         addChild(this.tutorBack);
-         this._tutorTextSlide.closeBtn.visible = true;
-         this._tutorTextSlide.setText(text1,text2);
-         this._tutorTextSlide.x = (MainScene.stageWidth - this._tutorTextSlide.width) / 2;
-         this._tutorTextSlide.y = MainScene.stageHeight - this._tutorTextSlide.height - 80;
-         addChild(this._tutorTextSlide);
-         addChild(this.spriteHighlightContainer);
-         this.spriteHighlightContainer.mouseChildren = false;
-         this.spriteHighlightContainer.mouseEnabled = false;
-         this.spriteHighlightContainer.enabled = false;
-         this._tutorTextSlide.addEventListener(Event.CLOSE,this.onSlideClose);
-         FocusManager.setModalClip(this.spriteHighlightContainer);
-      }
-      
-      private function onSlideClose(e:Event) : void
-      {
-         if((this._tutorTextSlide))
-         {
-            this._tutorTextSlide.removeEventListener(Event.CLOSE,this.onSlideClose);
-            removeChild(this.tutorBack);
-            removeChild(this._tutorTextSlide);
-            _tutorTextSlide = null;
-            this.clean_highlight();
-         }
-      }
-      
+      // The exe gives the tutorial's awards at each 9D (0x283190); nothing shows them.
       public function set_tutorial_rewards(value:Array) : void
       {
-         trace("set_tutorial_rewards",value);
-         for(var i:uint = 0; i < value.length; i++)
-         {
-            var rewards:Array;
-            var rewardname:String;
-            trace("iterate::",i,value[i].name,value[i].reward);
-            if(value[i].reward == undefined)
-            {
-               _tutorRewards = value;
-               _tutorRewardsItem = value;
-               _tutorRewardsBattle = value;
-               this._itemFactory.fillRewardItems(this._tutorRewards);
-               this._tutorRewardsD["tutorial_completed"] = this._tutorRewards;
-               this._tutorRewardsD["survival_item_notes_completed"] = this._tutorRewards;
-               this._tutorRewardsD["survival_prepare_to_battle_notes_completed"] = this._tutorRewards;
-               return;
-            }
-            rewards = value[i].reward;
-            rewardname = value[i].name;
-            trace("rewardIS::",rewardname,rewards);
-            this._tutorRewardsD[rewardname] = rewards;
-            this._itemFactory.fillRewardItems(rewards);
-            if(rewardname == "tutorial_completed")
-            {
-               trace("_tutorRewardsUpdated",rewards);
-               _tutorRewards = rewards;
-               _tutorRewardsNicname = rewards.concat();
-               this._itemFactory.fillRewardItems(this._tutorRewardsNicname);
-            }
-            else if(rewardname == "survival_item_notes_completed")
-            {
-               trace("_tutorRewardsItemUpdated",rewards);
-               _tutorRewardsItem = rewards;
-            }
-            else if(rewardname == "survival_prepare_to_battle_notes_completed")
-            {
-               trace("_tutorRewardsBattleUpdated",rewards);
-               _tutorRewardsBattle = rewards;
-            }
-         }
-      }
-      
-      public function show_tutorial_complete_message() : void
-      {
-         trace("show_tutorial_complete_message");
-         var messageData:Object = {
-            label:LocalizationData.getName("tutorial_complete_label"),
-            reward_1:((this._tutorRewards) && (this._tutorRewards[0]) ? this._tutorRewards[0].data : null),
-            reward_2:((this._tutorRewards) && (this._tutorRewards[1]) ? this._tutorRewards[1].data : null),
-            reward_3:((this._tutorRewards) && (this._tutorRewards[2]) ? this._tutorRewards[2].data : null)
-         };
-         Message.showMessage("tutorial_complete",messageData,true);
-      }
-      
-      public function show_tutorial_complete_message2() : void
-      {
-         var messageData:Object = {
-            label:LocalizationData.getName("tutorial_complete_label2"),
-            reward_1:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[0]) ? this._tutorRewardsBattle[0].data : null),
-            reward_2:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[1]) ? this._tutorRewardsBattle[1].data : null),
-            reward_3:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[2]) ? this._tutorRewardsBattle[2].data : null)
-         };
-         Message.showMessage("tutorial_complete",messageData);
-      }
-      
-      public function show_tutorial_choose_name_message(textName:String = null) : void
-      {
-         var rendererClass:Class;
-         trace("show_tutorial_choose_name_message",textName);
-         if(this.tutorSlide1 == null)
-         {
-            rendererClass = getDefinitionByName("TutorSlide1") as Class;
-            tutorSlide1 = new rendererClass();
-         }
-         trace("show_tutorial_choose_name_message_rewards::",this._tutorRewards);
-         this.tutorSlide1.data = {
-            nickname:PlayerInfo.nickname,
-            reward_1:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[0]) ? this._tutorRewardsNicname[0].data : null),
-            reward_2:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[1]) ? this._tutorRewardsNicname[1].data : null),
-            reward_3:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[2]) ? this._tutorRewardsNicname[2].data : null)
-         };
-         this.tutorSlide1.x = (MainScene.stageWidth - this.tutorSlide1.width) / 2;
-         this.tutorSlide1.y = (MainScene.stageHeight - this.tutorSlide1.height) / 2;
-         this.tutorBack.alpha = 1;
-         this.tutorBack.width = MainScene.stageWidth;
-         this.tutorBack.height = MainScene.stageHeight;
-         addChild(this.tutorBack);
-         addChild(this.tutorSlide1);
-         this.tutorSlide1.addEventListener(Event.CLOSE,this.onTutotNameClose);
-      }
-      
-      private function onTutotNameClose(e:Event) : void
-      {
-         if((this.tutorSlide1))
-         {
-            this.tutorSlide1.removeEventListener(Event.CLOSE,this.onTutotNameClose);
-            removeChild(this.tutorBack);
-            removeChild(this.tutorSlide1);
-            tutorSlide1 = null;
-         }
       }
       
       public function show_video_tutorial_link(bool:Boolean) : void
@@ -1355,9 +1141,6 @@ package
          Message.registerMessage("exchange",SrvMessageExchangeSkinned);
          Message.registerMessage("craft",SrvMessageCraftItemSkinned);
          Message.registerMessage("rename",SrvMessageEnterName);
-         Message.registerMessage("tutorial_complete",MessageTutorialComplete);
-         Message.registerMessage("notes_items",SrvTutorialNotesItems);
-         Message.registerMessage("notes_battle",SrvTutorialNotesBattle);
          Message.registerBackground(BackBlack);
          Message.registerMessage("debug",MessageBox);
          Message.registerMessage("noclose",MessageNoClose);
@@ -1425,6 +1208,7 @@ package
          this.statusPanel.addEventListener(StatusPanel.SHOW_DAILY_MESSAGE,this.show_daily_reward_window_on_event);
          this.statusPanel.addEventListener(StatusPanel.MATCH_SETTINGS,this.onMatchSettigsToggle);
          this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);
+         this.statusPanel.addEventListener(StatusPanel.LOBBY_WINDOW,this.onLobbyWindow);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
@@ -1542,138 +1326,6 @@ package
       {
          value.inventoryList = this.inventory_list;
          Message.showMessage("player_info",value,true);
-      }
-      
-      private function show_tutorial(value:uint) : void
-      {
-         var posOfLine:int;
-         var posOfLineY:int;
-         var profileLock:Sprite;
-         var lock:Sprite;
-         var openTabButton:Button;
-         var emmoBtnY:int;
-         if((this._tutorialSliders) && (this._tutorialSliders.parent))
-         {
-            removeChild(this._tutorialSliders);
-         }
-         Modals.leave(this._tutorialSliders);
-         _tutorialSliders = new TutorialSliders();
-         if(value == TutorialHint.NONE)
-         {
-            if((this._tutorialSliders.parent))
-            {
-               removeChild(this._tutorialSliders);
-            }
-            lock = getChildByName("tutorialProfileLock") as Sprite;
-            if((lock))
-            {
-               removeChild(lock);
-            }
-            lock = getChildByName("tutorialInventoryLock") as Sprite;
-            if((lock))
-            {
-               removeChild(lock);
-            }
-            if(this._tutorialIndex == TutorialHint.EQUIP_ITEM)
-            {
-               this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
-               this.inventory_list.lockControls(false);
-            }
-            _tutorialIndex = TutorialHint.NOT_SHOWN;
-            return;
-         }
-         _tutorialIndex = value;
-         addChild(this._tutorialSliders);
-         var sliders:TutorialSliders = this._tutorialSliders;
-         Modals.open(sliders,Modals.LOBBY,function():void
-         {
-            show_tutorial(TutorialHint.NONE);
-         },function():Boolean
-         {
-            return sliders.parent != null;
-         });
-         this._tutorialSliders.background.width = MainScene.stageWidth;
-         this._tutorialSliders.background.height = MainScene.stageHeight;
-         this._tutorialSliders.textContainer.label.text = LocalizationData.getName("tutorial_slide_" + String(this._tutorialIndex) + "_label");
-         this._tutorialSliders.textContainer.textField.text = LocalizationData.getName("tutorial_slide_" + String(this._tutorialIndex) + "_text");
-         this._tutorialSliders.textContainer.x = (MainScene.stageWidth - 440) / 2;
-         this._tutorialSliders.textContainer.y = 162;
-         this._tutorialSliders.textContainer.gotoAndStop(value);
-         if(value == TutorialHint.OPEN_INVENTORY)
-         {
-            openTabButton = new SvButtonChrome();
-            this._tutorialSliders.textContainer.addChild(openTabButton);
-            openTabButton.x = (440 - openTabButton.width) / 2;
-            openTabButton.y = this._tutorialSliders.textContainer.textField.y + this._tutorialSliders.textContainer.textField.textHeight + 40;
-            openTabButton.label = LocalizationData.getName("tutorial_slide_1_button_label");
-            openTabButton.addEventListener(ButtonEvent.CLICK,this.tutorOpenInventory);
-         }
-         else if(value == TutorialHint.EQUIP_ITEM)
-         {
-            posOfLine = this._tutorialSliders.textContainer.x - this._tutorialSliders.textContainer.line.x;
-            this._tutorialSliders.textContainer.line.width = posOfLine - (this.player_profile.x + this.player_profile.width) - 20;
-            this.handleFrontInventory();
-            addChild(this.player_profile);
-            this.inventory_list.focusCategory(SuperCategory.WEAPONS);
-            this.inventory_list.lockControls(true);
-            profileLock = new ProfielLickMC();
-            profileLock.name = "tutorialProfileLock";
-            profileLock.x = this.player_profile.x;
-            profileLock.y = this.player_profile.y;
-            addChild(profileLock);
-            profileLock = new InventoryLickMC();
-            profileLock.name = "tutorialInventoryLock";
-            profileLock.x = this.inventory_list.x;
-            profileLock.y = this.inventory_list.y;
-            addChild(profileLock);
-            this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.onTutorilaPDItemDrop);
-         }
-         else if(value == TutorialHint.SHOW_AMMO)
-         {
-            posOfLine = this._tutorialSliders.textContainer.x - this._tutorialSliders.textContainer.line.x;
-            this._tutorialSliders.textContainer.line.width = posOfLine - (this.player_profile.x + this.player_profile.width) - 20;
-            posOfLineY = this._tutorialSliders.textContainer.y + this._tutorialSliders.textContainer.line2.y;
-            emmoBtnY = this.player_profile.y + this.player_profile.btnShowAmmo.y;
-            trace("tutor3::",posOfLineY,emmoBtnY);
-            this._tutorialSliders.textContainer.line2.height = emmoBtnY - posOfLineY;
-            this._tutorialSliders.textContainer.line.y = this._tutorialSliders.textContainer.line2.y + this._tutorialSliders.textContainer.line2.height;
-            addChild(this.player_profile);
-            this.player_profile.btnShowAmmo.addEventListener("CLICK",this.onTutorialShowAmmo);
-            profileLock = new ProfielLickMC2();
-            profileLock.name = "tutorialProfileLock";
-            profileLock.x = this.player_profile.x;
-            profileLock.y = this.player_profile.y;
-            addChild(profileLock);
-         }
-      }
-      
-      private function onTutorialShowAmmo(e:Event) : void
-      {
-         trace("onTutorilaPDItemDrop");
-         this.show_tutorial(TutorialHint.NONE);
-         this.player_profile.btnShowAmmo.addEventListener("CLICK",this.onTutorialShowAmmo);
-      }
-      
-      private function onTutorilaPDItemDrop(e:Event) : void
-      {
-         trace("onTutorilaPDItemDrop");
-         this.show_tutorial(TutorialHint.SHOW_AMMO);
-         this.player_profile.profileItems.removeEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.onTutorilaPDItemDrop);
-      }
-      
-      private function tutorOpenInventory(e:ButtonEvent) : void
-      {
-         ExternalInterface.call("totrile_slider_complete",this._tutorialIndex);
-         if(!this.inventory_list.visible)
-         {
-            this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
-            this.topMenu.selectActiveWindow(this.topMenu.INV_INDEX);
-            this.show_tutorial(TutorialHint.EQUIP_ITEM);
-         }
-         else
-         {
-            this.show_tutorial(TutorialHint.EQUIP_ITEM);
-         }
       }
       
       public function exit_decal_edit() : void
@@ -2137,14 +1789,7 @@ package
       public function handle_nickname_validation(result:Boolean, name:String = null, message:String = null) : void
       {
          trace("handle_nickname_validation",result,name,"message",message);
-         if((this.tutorSlide1))
-         {
-            this.tutorSlide1.handleNicknameValidation(result,name,message);
-         }
-         else
-         {
-            this.statusPanel.handleNicknameValidation(result,name,message);
-         }
+         this.statusPanel.handleNicknameValidation(result,name,message);
       }
       
       public function handle_daily_message_validation(result:Boolean, name:String = null, message:String = null) : void
@@ -2914,11 +2559,9 @@ package
       {
          PlayerInfo.premiumState = state;
          PlayerInfo.premiumLeft = label;
-         this.statusPanel.btn_premium.stateIndex = state;
-         this.statusPanel.btn_premium.label = label;
-         if(state != PremiumState.NONE && (this.statusPanel.btn_premium.discount))
+         if(state != PremiumState.NONE && (this.statusPanel.premiumDiscount))
          {
-            this.statusPanel.btn_premium.discount = 0;
+            this.statusPanel.premiumDiscount = 0;
             this.updatePremiumDiscountTime();
          }
          if(state != PremiumState.NONE && this.player_profile.buyPremium.visible == true)
@@ -3878,7 +3521,7 @@ package
             return false;
          }
          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
-         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
+         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage) && topMost != this._sceneFade)
          {
             return true;
          }
@@ -4149,7 +3792,7 @@ package
       
       public function has_active_message() : Boolean
       {
-         return Message.isAnyMessage() != -1 || MainScene.activePop != null || (this._tutorialSliders) && (this._tutorialSliders.parent);
+         return Message.isAnyMessage() != -1 || MainScene.activePop != null;
       }
       
       // The exe asks this on every key (0x26CB80) and, on Esc, calls close_active_window when it
@@ -5872,23 +5515,7 @@ package
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;
-         trace("onVsRemoved::_top_container::stage",this._tutorTextSlide);
          this.notificationListTemp.startTimer();
-         if(!this._tutorTextSlide || !this._tutorTextSlide.parent)
-         {
-            Message.showMessages();
-         }
-         else
-         {
-            trace("addCompleteListener");
-            stage.addEventListener(Events.TUTORIAL_COMPLETE,this.onTutorComplete);
-         }
-      }
-      
-      private function onTutorComplete(e:Event) : void
-      {
-         trace("onTutorComplete");
-         stage.removeEventListener(Events.TUTORIAL_COMPLETE,this.onTutorComplete);
          Message.showMessages();
       }
       
@@ -5940,6 +5567,123 @@ package
          }
       }
       
+      // The lobby's scene changing (exe patch 81, docs/notes/lobby-scenes.md): a black over the 3D
+      // scene, under every panel (the root's first child), while the exe puts another lobby in;
+      // perMille of black (0 gone), the exe stepping it a frame each; `loading`: the game's loading
+      // spinner on it. The interface stays; no click lands on the black (get_mouse_over leaves it
+      // out), and it is off the display list while there is none.
+      public function srp_scene_fade(perMille:uint, loading:uint) : void
+      {
+         if(this._sceneFade == null)
+         {
+            this._sceneFade = new Sprite();
+            this._sceneFade.graphics.beginFill(0,1);
+            this._sceneFade.graphics.drawRect(-4096,-4096,12288,12288);
+            this._sceneFade.graphics.endFill();
+            this._sceneFade.mouseEnabled = false;
+            this._sceneFade.mouseChildren = false;
+            this._sceneSpinner = new LoadingIndicator();
+            this._sceneSpinner.mouseEnabled = false;
+            this._sceneSpinner.scaleX = this._sceneSpinner.scaleY = 0.7;
+            this._sceneFade.addChild(this._sceneSpinner);
+         }
+         var fade:Sprite = this._sceneFade;
+         if(perMille == 0)
+         {
+            if(fade.parent != null)
+            {
+               fade.parent.removeChild(fade);
+            }
+            this._sceneSpinner.stop();
+            return;
+         }
+         fade.alpha = Math.min(perMille,1000) / 1000;
+         if(fade.parent != this)
+         {
+            addChildAt(fade,0);
+         }
+         // the middle of the screen in the root's units (the root is scaled to the screen)
+         if(stage != null)
+         {
+            this._sceneSpinner.x = stage.stageWidth / scaleX / 2;
+            this._sceneSpinner.y = stage.stageHeight / scaleY / 2;
+         }
+         var spin:Boolean = loading != 0;
+         if(spin != this._sceneSpinner.visible)
+         {
+            this._sceneSpinner.visible = spin;
+            if(spin)
+            {
+               this._sceneSpinner.gotoAndPlay(1);
+            }
+            else
+            {
+               this._sceneSpinner.stop();
+            }
+         }
+      }
+
+      // What the lobby window shows (exe patch 81): the player's pick and the lobby shown, told by
+      // the exe when one changes.
+      public function srp_lobby_state(pick:uint, shown:uint) : void
+      {
+         this._lobbyState = [pick,shown];
+         if(this._lobbyWindow != null)
+         {
+            this._lobbyWindow.state(pick,shown);
+         }
+      }
+
+      // The lobby button (StatusPanel.LOBBY_WINDOW): the lobby window opened, or closed again; the
+      // exe's diagnostics build opens it so too (srp_lobby_window).
+      public function srp_lobby_window() : void
+      {
+         this.onLobbyWindow(null);
+      }
+
+      private function onLobbyWindow(e:Event) : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this.closeLobbyWindow();
+            return;
+         }
+         if(this._lobbyWindow == null)
+         {
+            // the font of the bottom bar's tabs (the game's own), as the rooms window's
+            var tabClass:Class = getDefinitionByName("ButtonChatTabBottom") as Class;
+            var sample:* = new tabClass();
+            var tabText:TextField = sample["textField"] as TextField;
+            var format:TextFormat = tabText != null ? tabText.getTextFormat() : new TextFormat();
+            this._lobbyWindow = new LobbyWindow(format.font,format.bold);
+            this._lobbyWindow.onClose = this.closeLobbyWindow;
+            if(this._lobbyState != null)
+            {
+               this._lobbyWindow.state(this._lobbyState[0],this._lobbyState[1]);
+            }
+         }
+         var window:LobbyWindow = this._lobbyWindow;
+         if(stage != null)
+         {
+            window.x = int((stage.stageWidth / scaleX - window.width) / 2);
+            window.y = int((stage.stageHeight / scaleY - window.height) / 2);
+         }
+         addChild(window);
+         Modals.open(window,Modals.LOBBY,this.closeLobbyWindow,function():Boolean
+         {
+            return window.parent != null;
+         });
+      }
+
+      private function closeLobbyWindow() : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this._lobbyWindow.parent.removeChild(this._lobbyWindow);
+         }
+         Modals.leave(this._lobbyWindow);
+      }
+
       private function test_clan_mamngment() : void
       {
          var createPermission:Function = function(value:String = null):Object
@@ -6260,7 +6004,7 @@ package
             this._discountTimer.addEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
          }
          this.statusPanel.postRewardData = this._postRewardData;
-         this.statusPanel.btn_premium.discount = timeLeft;
+         this.statusPanel.premiumDiscount = timeLeft;
          this.add_notification(notif);
       }
       
@@ -6268,7 +6012,7 @@ package
       {
          var curTime:int;
          var delta:int;
-         if(this.statusPanel.btn_premium.discount > 0)
+         if(this.statusPanel.premiumDiscount > 0)
          {
             curTime = getTimer();
             delta = Math.round((curTime - this._postRewardData.startTime) / 1000);
@@ -6276,10 +6020,10 @@ package
             if(delta > 0)
             {
                this._postRewardData.startTime = curTime;
-               this.statusPanel.btn_premium.discount -= delta;
+               this.statusPanel.premiumDiscount = Math.max(this.statusPanel.premiumDiscount - delta,0);
             }
          }
-         if(this.statusPanel.btn_premium.discount <= 0)
+         if(this.statusPanel.premiumDiscount <= 0)
          {
             if((this._discountTimer))
             {
