@@ -191,15 +191,16 @@ pub(crate) fn past_edge(grid: &mapdata::WalkGrid, walls: &mapdata::RayTree, node
     None
 }
 
-/// Whether the stand-in's jump is steered in the air by the keys held (`SRP_BENCH_STAND_IN_AIR`, off unless `on`): the client's
+/// Whether the stand-in's jump is steered in the air by the keys held (`SRP_BENCH_STAND_IN_AIR`, on unless `off`): the client's
 /// controller adds its air control ([`air_control`]) to each airborne tick's move; off, the jump goes only the way of the keys at
-/// the press (A211: a side key at the press costs the bench's jump, and live it does not).
+/// the press, as the benches before #966 had it (with it on, A211's arms got up 46 % of their route jumps against 53 % off,
+/// toward the live 45 % at Vostok Radar Station).
 pub(crate) fn stand_in_air_control() -> bool {
     if let Some(on) = AIR_FORCED.with(std::cell::Cell::get) {
         return on;
     }
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_AIR").is_ok_and(|v| v == "on"))
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_AIR").map_or(true, |v| v != "off"))
 }
 
 thread_local! {
@@ -536,7 +537,7 @@ pub(crate) const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
 /// (at the walk cap), in the air after it, held by any face in its way
 /// (it rises with the clip and catches up once clear: the chase rule,
 /// FINDINGS §5). It lands on the highest floor under it once on the way
-/// down, or falls after the clip. No stamina; the air control only with
+/// down, or falls after the clip. No stamina; the air control with
 /// [`stand_in_air_control`] (on the clip, not in the fall after it).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Flight {

@@ -388,7 +388,7 @@ impl MoveCounts {
     /// in a second: a new spawn), the windows of each kind, merged when at
     /// most 2 s apart; each episode's cause. The bench has no start
     /// countdown, so nothing is left out at the start.
-    pub(crate) fn stuck_episodes(&self, run: &Run, place: Place, teams: &[u8], presses: &[Press]) -> (Vec<Episode>, u32) {
+    pub(crate) fn stuck_episodes(&self, run: &Run, place: Place, teams: &[u8], presses: &[Press], grid: &WalkGrid) -> (Vec<Episode>, u32) {
         let recs = &run.recs[place];
         let secs: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
         // Lives: runs of living samples.
@@ -604,7 +604,15 @@ impl MoveCounts {
             let route_jump = presses
                 .iter()
                 .any(|p| p.place == place && p.by == "route" && (p.t as f32) >= (t0 - 2.0) * 1000.0 && (p.t as f32) <= t1 * 1000.0);
-            let cause = if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
+            // On a pocket's floor (no walk back to the main area) half the episode or more: the pocket holds it, whoever stands by (two
+            // bots that fell into one pit read "teammate" before, A212 2026-11-01, Vector Laboratory).
+            let in_pocket = pts
+                .iter()
+                .filter(|&&k| grid.locate(recs[k].feet, 1.0).is_some_and(|n| grid.in_pocket(n)))
+                .count();
+            let cause = if 2 * in_pocket >= pts.len() {
+                "pocket"
+            } else if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
                 "no_route"
             } else if 2 * near(true) >= pts.len() {
                 "teammate"
@@ -878,7 +886,7 @@ impl MoveCounts {
         let mut stuck_end: BTreeMap<String, (u32, f32)> = BTreeMap::new();
         let grid = &game.world.grid;
         for place in (0..n).filter(|&p| run.is_bot[p]) {
-            let (eps, b) = self.stuck_episodes(run, place, &teams, presses);
+            let (eps, b) = self.stuck_episodes(run, place, &teams, presses, grid);
             blips += b;
             for e in eps {
                 pre.add(run, e.cause, place, e.k0);
@@ -1180,6 +1188,66 @@ fn plateau() -> Vec<mapdata::Triangle> {
         tris.extend(quad(v(10.0, 0.0, z), v(20.0, 0.0, z), v(20.0, 3.0, z), v(10.0, 3.0, z)));
     }
     tris
+}
+
+/// An 80 x 40 m field with a walled pit 3 m deep at x 52-60, z 30-36 and the spawns at (5, 10) and (75, 10); the grid is built with them
+/// (`WalkGrid::build_kept`: a pocket is reached from a spawn), so a body walks to the rim, drops in and has no walk out (as
+/// `plays::collect`'s `pit_world`).
+fn pit_world() -> std::sync::Arc<mapdata::World> {
+    use crate::v026g::bots::body::tests::floor;
+    use mapdata::{MapData, RayTree, Spawn, Triangle, WalkerBehaviour};
+    let y = -3.0;
+    let mut tris: Vec<Triangle> = Vec::new();
+    tris.extend(floor(0.0, 0.0, 52.0, 40.0, 0.0));
+    tris.extend(floor(60.0, 0.0, 80.0, 40.0, 0.0));
+    tris.extend(floor(52.0, 0.0, 60.0, 30.0, 0.0));
+    tris.extend(floor(52.0, 36.0, 60.0, 40.0, 0.0));
+    tris.extend(floor(52.0, 30.0, 60.0, 36.0, y));
+    let walker = WalkerBehaviour::BySlope;
+    for (a, b) in [((52.0, 30.0), (60.0, 30.0)), ((52.0, 36.0), (60.0, 36.0)), ((52.0, 30.0), (52.0, 36.0)), ((60.0, 30.0), (60.0, 36.0))] {
+        let (p, q) = (Vec3::new(a.0, y, a.1), Vec3::new(b.0, y, b.1));
+        let (r, s) = (Vec3::new(b.0, 0.0, b.1), Vec3::new(a.0, 0.0, a.1));
+        tris.push(Triangle { v: [p, q, r], walker });
+        tris.push(Triangle { v: [p, r, s], walker });
+    }
+    let spawns = [Vec3::new(5.0, 0.0, 10.0), Vec3::new(75.0, 0.0, 10.0)];
+    let grid = WalkGrid::build_kept(&tris, [0.0, 0.0, 80.0, 40.0], 0.25, mapdata::Body::default(), &spawns, &spawns);
+    let spawn = |team: i32, at: Vec3| Spawn { position: at, rotation: Vec3::ZERO, team, priority: 0, point_id: 0, layer: "default".into() };
+    let map = MapData { spawns: vec![spawn(0, spawns[0]), spawn(1, spawns[1])], ..MapData::default() };
+    let sight = RayTree::build(&tris);
+    std::sync::Arc::new(mapdata::World::assemble(map, grid.into(), sight.into()))
+}
+
+/// Two bots standing in a pit with a goal (they fell in together, A212: Vector Laboratory) are stuck on the pocket, not on each other:
+/// the pocket's floor is the cause whoever stands by.
+#[test]
+pub(crate) fn two_bots_stuck_in_a_pit_together_are_stuck_on_the_pocket() {
+    let world = pit_world();
+    let inside = world.grid.locate(Vec3::new(56.0, -3.0, 33.0), 1.0).expect("the pit's floor");
+    assert!(world.grid.in_pocket(inside), "the pit is a pocket");
+    let field = world.grid.locate(Vec3::new(56.0, 0.0, 20.0), 1.0).expect("the field");
+    assert!(!world.grid.in_pocket(field));
+    let mut game = Game::new(world, &[0, 0, 0], 1, None, None);
+    let mut tally = OwnerTally::new(3);
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
+    tally.run.is_bot = vec![true, true, true];
+    play(&mut game, &mut tally, 300, |_, game| {
+        // Bots 0 and 1 in the pit 0.6 m apart, bot 2 (near miss) as long on the open field with no mate near.
+        put(game, 0, 56.0, 33.0, 0);
+        put(game, 1, 56.6, 33.0, 0);
+        game.bodies[0].feet.y = -3.0;
+        game.bodies[1].feet.y = -3.0;
+        put(game, 2, 56.0, 20.0, 0);
+        let mut nows = vec![bot_now(); 3];
+        for now in nows.iter_mut() {
+            now.as_mut().unwrap().step = Some("Going".to_owned());
+        }
+        nows
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["stuck_by_cause"]["pocket"][0], 2, "{json}");
+    assert!(json["stuck_by_cause"].get("teammate").is_none(), "{json}");
+    assert_eq!(json["stuck_by_cause"]["stand"][0], 1, "{json}");
 }
 
 #[test]
