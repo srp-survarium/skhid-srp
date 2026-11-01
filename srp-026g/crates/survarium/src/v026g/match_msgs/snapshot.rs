@@ -459,6 +459,43 @@ pub struct VictoryItemStatus {
     /// the battery has come in its life, in 10 m steps: 0 not carried yet in
     /// the life, else the steps + 1. After `first_finder`.
     pub progress: [u8; 2],
+    /// Exe patch 92's: the steps each carrier (place x 3 + kit) has earned
+    /// toward its own team's container in the battery's life, held until
+    /// the battery is delivered there (then paid, 40 hundredths of event 6
+    /// a step). After `progress`: a u8 count, then each one's cell and
+    /// steps, the cells in rising order.
+    pub held: Vec<HeldSteps>,
+}
+
+/// Steps one carrier holds on a battery (exe patch 92).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeldSteps {
+    /// Its place x 3 + its kit, under 60.
+    pub cell: u8,
+    /// At least 1.
+    pub steps: u8,
+}
+
+impl HeldSteps {
+    const CELLS: u8 = (MAX_PLAYERS * KITS) as u8;
+
+    /// A battery's held steps: at most one a cell, the cells in rising
+    /// order, each with steps.
+    fn read_all(reader: &mut Reader) -> Option<Vec<HeldSteps>> {
+        let count = reader.u8()?;
+        if count > Self::CELLS {
+            return None;
+        }
+        let mut held: Vec<HeldSteps> = Vec::with_capacity(usize::from(count));
+        for _ in 0..count {
+            let one = HeldSteps { cell: reader.u8()?, steps: reader.u8()? };
+            if one.cell >= Self::CELLS || one.steps == 0 || held.last().is_some_and(|last| last.cell >= one.cell) {
+                return None;
+            }
+            held.push(one);
+        }
+        Some(held)
+    }
 }
 
 impl Default for VictoryItemStatus {
@@ -469,6 +506,7 @@ impl Default for VictoryItemStatus {
             owner_team: 0,
             first_finder: 0,
             progress: [0; 2],
+            held: Vec::new(),
         }
     }
 }
@@ -483,6 +521,7 @@ impl VictoryItemStatus {
         status.owner_team = reader.u8()?;
         status.first_finder = reader.u8()?;
         status.progress = [reader.u8()?, reader.u8()?];
+        status.held = HeldSteps::read_all(reader)?;
         Some(status)
     }
 
@@ -496,6 +535,10 @@ impl VictoryItemStatus {
         out.push(self.owner_team);
         out.push(self.first_finder);
         out.extend(self.progress);
+        out.push(self.held.len() as u8);
+        for one in &self.held {
+            out.extend([one.cell, one.steps]);
+        }
     }
 }
 
@@ -1728,11 +1771,12 @@ mod tests {
 
     /// A battery's record (snapshot_rules.md §3.2): carried 2.0 by player
     /// 1 with kit 0, nearest 1.0 and 3.0, team 1 owns it, player 0 found it,
-    /// 3 steps from team 0's container and untouched for team 1's.
+    /// 3 steps from team 0's container and untouched for team 1's; player 1
+    /// with kit 0 (cell 3) holds 2 steps, player 3 with kit 1 (cell 10) 5.
     fn battery_bytes() -> Vec<u8> {
         let mut bytes = vec![0x02, 0, 0, 0, 0x00, 0x00, 0x00, 0x40];
         bytes.extend([0; 8]);
-        bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0, 4, 0]);
+        bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0, 4, 0, 2, 3, 2, 10, 5]);
         bytes
     }
 
@@ -1741,8 +1785,8 @@ mod tests {
         let mut bytes = EMPTY_PLAYER.to_vec();
         bytes.extend(EMPTY_PLAYER);
         bytes.extend(battery_bytes());
-        // An untouched battery: three masks, two positions, four bytes.
-        bytes.extend([0; 24]);
+        // An untouched battery: three masks, two positions, five bytes.
+        bytes.extend([0; 25]);
         bytes.extend(TAIL);
         let statistics = Statistics::decode(&bytes, 2, 2).unwrap();
         let first = &statistics.victory_items[0];
@@ -1750,11 +1794,21 @@ mod tests {
         assert_eq!(first.nearest_positions, [1.0, 3.0]);
         assert_eq!((first.owner_team, first.first_finder), (1, 0));
         assert_eq!(first.progress, [4, 0]);
+        assert_eq!(first.held, [HeldSteps { cell: 3, steps: 2 }, HeldSteps { cell: 10, steps: 5 }]);
         assert_eq!(statistics.victory_items[1], VictoryItemStatus::default());
         assert_eq!(statistics.encode(), bytes);
         // Read with another battery count it does not fit.
         assert_eq!(Statistics::decode(&bytes, 2, 1), None);
         assert_eq!(Statistics::decode(&bytes, 2, 3), None);
+        // Held steps out of order, twice for a cell, of no steps or no
+        // cell are no battery record.
+        let held = EMPTY_PLAYER.len() * 2 + 8 + 8 + 8 + 4;
+        assert_eq!(bytes[held..held + 5], [2, 3, 2, 10, 5]);
+        for broken in [[2, 10, 5, 3, 2], [2, 3, 2, 3, 5], [2, 3, 0, 10, 5], [2, 3, 2, 60, 5]] {
+            let mut bytes = bytes.clone();
+            bytes[held..held + 5].copy_from_slice(&broken);
+            assert_eq!(Statistics::decode(&bytes, 2, 2), None, "{broken:?}");
+        }
         // A carrier outside the roster is no battery record.
         bytes[80] = 0x04;
         assert_eq!(Statistics::decode(&bytes, 2, 2), None);
