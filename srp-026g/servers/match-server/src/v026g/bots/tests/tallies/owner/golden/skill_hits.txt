@@ -1,0 +1,50 @@
+owner-test skill hits: team 0 (skill 0.00): at the stand-in human rifles + SMGs 0-65 m 0/0 0.0 % (0-20 0.0 %, 20-40 0.0 %, 40-65 0.0 %), others pistol 0/0, mg 0/0, shotgun 0/0, marksman 0/0, bolt 0/0; at the camper rifles + SMGs 0-65 m 0/0 0.0 % (0-20 0.0 %, 20-40 0.0 %, 40-65 0.0 %), others pistol 0/0, mg 0/0, shotgun 0/0, marksman 0/0, bolt 0/0; at bots rifles + SMGs 0-65 m 165/219 75.3 % (0-20 75.9 %, 20-40 76.1 %, 40-65 74.4 %), others pistol 0/0, mg 0/0, shotgun 0/0, marksman 0/0, bolt 0/0; team 1 (skill 0.00): at the stand-in human rifles + SMGs 0-65 m 0/0 0.0 % (0-20 0.0 %, 20-40 0.0 %, 40-65 0.0 %), others pistol 0/0, mg 0/0, shotgun 0/0, marksman 0/0, bolt 0/0; at the camper rifles + SMGs 0-65 m 0/0 0.0 % (0-20 0.0 %, 20-40 0.0 %, 40-65 0.0 %), others pistol 0/0, mg 0/0, shotgun 0/0, marksman 0/0, bolt 0/0; at bots rifles + SMGs 0-65 m 0/0 0.0 % (0-20 0.0 %, 20-40 0.0 %, 40-65 0.0 %), others pistol 0/0, mg 0/0, shotgun 0/0, marksman 0/0, bolt 0/0
+{
+  "skill_hits": {
+    "team0": {
+      "cells": {
+        "bot:smg:0-20": [
+          58,
+          44,
+          130,
+          87
+        ],
+        "bot:smg:20-40": [
+          71,
+          54,
+          161,
+          108
+        ],
+        "bot:smg:40-65": [
+          90,
+          67,
+          207,
+          135
+        ],
+        "bot:smg:65-80": [
+          55,
+          41,
+          127,
+          81
+        ],
+        "bot:smg:80-105": [
+          68,
+          51,
+          158,
+          102
+        ]
+      },
+      "skill": [
+        0,
+        0.0
+      ]
+    },
+    "team1": {
+      "cells": {},
+      "skill": [
+        0,
+        0.0
+      ]
+    }
+  }
+}
