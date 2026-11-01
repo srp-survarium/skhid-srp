@@ -220,6 +220,20 @@ pub(crate) fn reset_peak_memory() {
     let _ = std::fs::write("/proc/self/clear_refs", "5");
 }
 
+/// Prints `line` to stderr whole, for the lines the readers parse. `eprintln!` of a
+/// `serde_json::Value` makes one write per token (stderr is unbuffered), and libtest's
+/// "has been running for over 60 seconds" notice, printed to stdout by the harness's
+/// thread into the same log, lands between two of them. Here the line goes in one
+/// write, and stdout is held meanwhile, so the notice waits for the line's end.
+pub(crate) fn say_whole(line: &str) {
+    use std::io::Write;
+    let _notice_waits = std::io::stdout().lock();
+    let mut whole = String::with_capacity(line.len() + 1);
+    whole.push_str(line);
+    whole.push('\n');
+    std::io::stderr().lock().write_all(whole.as_bytes()).expect("stderr");
+}
+
 pub(crate) fn bench_tuning() -> Tuning {
     bench_tuning_of(false)
 }
@@ -1868,6 +1882,10 @@ pub(crate) fn real_bot_cost() {
                 pair_apart - pair_apart_settling
             );
             eprintln!("  route twins: {}", super::route_twins::line());
+            eprintln!("  {}", game.climbs.line());
+            for line in game.climbs.lines() {
+                eprintln!("  {line}");
+            }
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {} search_floors {} exposed_asked_m {:.1} exposed_kept_m {:.1}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
@@ -2048,8 +2066,8 @@ pub(crate) fn real_bot_cost() {
                 "stand_in": if game.honest { "honest" } else { "old" },
                 "owner": owner_sums,
             });
-            eprintln!("  sums: {sums}");
-            // The same JSON in a file of its own: the line above is cut by anything else printed at the same moment (libtest's
+            say_whole(&format!("  sums: {sums}"));
+            // The same JSON in a file of its own (logs from before `say_whole` have the line cut by libtest's
             // "has been running for over 60 seconds" when a cell is slow).
             if let Some(dir) = bench_settings().var_os("SRP_BENCH_SUMS_DIR") {
                 // `project` is `level_01/day_2`: the slash is a path separator.
@@ -2071,7 +2089,7 @@ pub(crate) fn real_bot_cost() {
                 );
             }
             let line = format!("{project} {per_team}v{per_team}: {}", decisions.line());
-            eprintln!("  {line}");
+            say_whole(&format!("  {line}"));
             if let Some(out) = bench_settings().var_os("SRP_DECISIONS_OUT") {
                 use std::io::Write;
                 let mut file = std::fs::OpenOptions::new()

@@ -89,6 +89,7 @@ mod standin;
 mod standin_aim;
 mod standin_body;
 mod standin_capsule;
+mod standin_climb;
 mod standin_damage;
 mod standin_fields;
 mod standin_grenade;

@@ -37,6 +37,7 @@ pub mod body;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
+pub mod concede;
 pub mod contact;
 pub mod control;
 pub mod crossing;

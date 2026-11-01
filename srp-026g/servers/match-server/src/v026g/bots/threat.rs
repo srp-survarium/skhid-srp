@@ -406,7 +406,7 @@ pub const COUNTS: [(Count, &str); 23] = [
 #[cfg(test)]
 thread_local! {
     static COUNTED: std::cell::Cell<[u64; 23]> = const { std::cell::Cell::new([0; 23]) };
-    static JOB_COUNTED: std::cell::Cell<[[u64; 11]; 2]> = const { std::cell::Cell::new([[0; 11]; 2]) };
+    static JOB_COUNTED: std::cell::Cell<[[u64; JOB_TALLIES.len()]; 2]> = const { std::cell::Cell::new([[0; JOB_TALLIES.len()]; 2]) };
     static JOB_LIVES: std::cell::RefCell<Vec<(u8, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
@@ -428,10 +428,12 @@ pub enum JobTally {
     DownByOther,
     DownUnknown,
     GivenUnsensed,
+    /// [threat.concede] Ended: its spot's area was conceded (`concede.rs`).
+    EndConceded,
 }
 
 /// The [`JobTally`]s, in order, and their names in the tally.
-pub const JOB_TALLIES: [(JobTally, &str); 11] = [
+pub const JOB_TALLIES: [(JobTally, &str); 12] = [
     (JobTally::EndShooterDied, "ended_shooter_died"),
     (JobTally::EndUnseen, "ended_unseen"),
     (JobTally::EndFaded, "ended_faded"),
@@ -443,6 +445,7 @@ pub const JOB_TALLIES: [(JobTally, &str); 11] = [
     (JobTally::DownByOther, "down_by_other"),
     (JobTally::DownUnknown, "down_by_unknown"),
     (JobTally::GivenUnsensed, "given_unsensed"),
+    (JobTally::EndConceded, "ended_conceded"),
 ];
 
 impl JobTally {
@@ -456,6 +459,7 @@ impl JobTally {
             JobEnd::HolderDown { .. } => JobTally::EndDown,
             JobEnd::Time => JobTally::EndTime,
             JobEnd::Nobody => JobTally::EndNobody,
+            JobEnd::Conceded => JobTally::EndConceded,
         }
     }
 }
@@ -484,7 +488,7 @@ pub fn job_life(_: u8, _: u32) {}
 
 /// The [`JobTally`]s so far, by team and [`JOB_TALLIES`] order.
 #[cfg(test)]
-pub fn job_tallied() -> [[u64; 11]; 2] {
+pub fn job_tallied() -> [[u64; JOB_TALLIES.len()]; 2] {
     JOB_COUNTED.with(|cell| cell.get())
 }
 
@@ -1986,6 +1990,8 @@ pub enum JobEnd {
     Time,
     /// No bot holds a role of it.
     Nobody,
+    /// [threat.concede] Its spot's area was conceded: the team's tries on it failed (`concede.rs`, design-p1c §3).
+    Conceded,
 }
 
 impl std::fmt::Display for JobEnd {
@@ -1998,6 +2004,7 @@ impl std::fmt::Display for JobEnd {
             JobEnd::HolderDown { role, place } => write!(f, "its {role:?} bot {place} went down"),
             JobEnd::Time => write!(f, "ran its time"),
             JobEnd::Nobody => write!(f, "no bot free to hold it"),
+            JobEnd::Conceded => write!(f, "its area is conceded"),
         }
     }
 }
@@ -2037,6 +2044,9 @@ pub struct Picture {
     /// [threat.answer_sniper, A210] The held sensed snipers' spots ([`ThreatSpots::sniper_spots`]), for play 28 once the
     /// bot's own sense of him is old; empty with the play off.
     pub snipers: Vec<HeldLane>,
+    /// [threat.concede] The held lines whose shooter's area the team has conceded or tried (`concede.rs`): the plays aimed
+    /// into a conceded one are refused, or weighed down for the objective; a try on a tried one differs from its last.
+    pub concede: super::concede::Offers,
 }
 
 impl Picture {
@@ -2048,6 +2058,18 @@ impl Picture {
     /// The held line covering `p`, if any.
     pub fn line_at(&self, p: Vec3) -> Option<&HeldLine> {
         self.held.iter().find(|l| l.covers(p))
+    }
+
+    /// [threat.concede] The conceded held line whose shooter's area `p` lies in (within [`AREA_M`] of its spot) or whose
+    /// lanes cover `p`, if any.
+    pub fn conceded_at(&self, p: Vec3) -> Option<&HeldLine> {
+        if self.concede.conceded.is_empty() {
+            return None;
+        }
+        self.held
+            .iter()
+            .filter(|l| self.concede.is_conceded(l.id))
+            .find(|l| l.at.distance_xz(p) <= AREA_M || l.covers(p))
     }
 
     /// The held line of spot `id`, if it is held.
@@ -2432,6 +2454,8 @@ pub struct TeamThreat {
     /// The team's deaths of the last [`DEATH_KEPT_MS`] and their killers
     /// (the kill feed's), for a job holder's end.
     pub deaths: Vec<Death>,
+    /// [threat.concede] The team's tries on each shooter's area (`concede.rs`).
+    pub spot_memory: super::concede::SpotMemory,
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -3058,6 +3082,7 @@ mod tests {
             }],
             sniper_regions: Vec::new(),
             snipers: Vec::new(),
+            concede: Default::default(),
         };
         assert!(matches!(picture.job_of(2), Some((_, Role::Flanker, l)) if l.id == 4));
         assert!(picture.job_of(3).is_none());
