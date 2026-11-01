@@ -1,19 +1,66 @@
-owner-test fire gate: team 0: view off (chest half-widths) on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; first 0/0 0.0 %, burst 0/0 0.0 %; calm 0/0 0.0 %, under fire 0/0 0.0 %; duels won 0 lost 1 none 1065, time to the first shot won 0 ms lost 0 ms; vs the stand-in camper: shots 0/0 0.0 %, duels won 0 lost 0 none 0, time to the first shot won 0 ms lost 0 ms; team 1: view off (chest half-widths) on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; first 0/0 0.0 %, burst 0/0 0.0 %; calm 0/0 0.0 %, under fire 0/0 0.0 %; duels won 4 lost 0 none 1107, time to the first shot won 0 ms lost 0 ms; vs the stand-in camper: shots 0/0 0.0 %, duels won 0 lost 0 none 0, time to the first shot won 0 ms lost 0 ms
+owner-test fire gate: team 0: view off (chest half-widths) on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; first 0/0 0.0 %, burst 0/0 0.0 %; calm 0/0 0.0 %, under fire 0/0 0.0 %; duels won 0 lost 2 none 11, time to the first shot won 0 ms lost 0 ms; vs the stand-in camper: shots 0/0 0.0 %, duels won 0 lost 0 none 0, time to the first shot won 0 ms lost 0 ms; of 0 shots with the bot's numbers: its aim error on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; its view off where it meant (the gate's slack) on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; mean bound 0.0; team 1: view off (chest half-widths) on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; first 0/0 0.0 %, burst 0/0 0.0 %; calm 0/0 0.0 %, under fire 0/0 0.0 %; duels won 4 lost 0 none 19, time to the first shot won 0 ms lost 0 ms; vs the stand-in camper: shots 0/0 0.0 %, duels won 0 lost 0 none 0, time to the first shot won 0 ms lost 0 ms; of 0 shots with the bot's numbers: its aim error on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; its view off where it meant (the gate's slack) on 0/0 0.0 %, 1-3 0/0 0.0 %, 3-10 0/0 0.0 %, 10-30 0/0 0.0 %, 30+ 0/0 0.0 %; mean bound 0.0
 {
   "fire_gate": {
     "team0": {
       "cells": {},
       "duels": {
-        "lost": 1,
+        "lost": 2,
         "lost_ttfs": [
           0,
           0
         ],
-        "none": 1065,
+        "none": 11,
         "won": 0,
         "won_ttfs": [
           0,
           0
+        ]
+      },
+      "split": {
+        "bound_sum": 0.0,
+        "error_bins": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "slack_bins": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
         ]
       },
       "ttfs_bins": [
@@ -55,11 +102,58 @@ owner-test fire gate: team 0: view off (chest half-widths) on 0/0 0.0 %, 1-3 0/0
           0,
           0
         ],
-        "none": 1107,
+        "none": 19,
         "won": 4,
         "won_ttfs": [
           0,
           0
+        ]
+      },
+      "split": {
+        "bound_sum": 0.0,
+        "error_bins": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "slack_bins": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
         ]
       },
       "ttfs_bins": [
