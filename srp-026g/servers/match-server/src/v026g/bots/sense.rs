@@ -909,8 +909,9 @@ mod tests {
         assert!(seen(&open, &off).is_empty());
     }
 
-    /// Audit issue 4: footsteps. An enemy walking upright behind within
-    /// `step_m` is heard; one crouched, one standing, one farther is not.
+    /// Audit issue 4: footsteps, by the flat ranges ([`HearingRanges::Flat`]; the
+    /// game's are below). An enemy walking upright behind within `step_m` is
+    /// heard; one crouched, one standing, one farther is not.
     #[test]
     fn a_walking_enemy_near_behind_is_heard_by_his_steps() {
         let me = place(0, 0, Vec3::ZERO, 0.0);
@@ -931,6 +932,7 @@ mod tests {
         );
         let tuning = SenseTuning {
             step_m: 8.0,
+            ranges: HearingRanges::Flat,
             ..off().sense
         };
         let percepts = sense(

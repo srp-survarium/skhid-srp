@@ -3388,6 +3388,7 @@ mod tests {
         };
         // Raw: the body pool, full: borne, and the infection pool is not looked at.
         let mut raw = acid(&["face"]);
+        raw.tuning.hazard.zone_pools = ZonePools::Raw;
         raw.battery(BatteryState::Free(at));
         raw.pools = Some(Pools {
             infection: 0.1,
@@ -3712,7 +3713,7 @@ mod tests {
         use crate::v026g::bots::hazards::{HurtFloors, HurtTest};
         let at = Vec3::new(25.0, 0.0, 32.0);
         let mut s = with_slab(2.0);
-        assert_eq!(s.cx(0).rules().hurt, HurtTest::MARGIN, "the all-off tuning prices by the margin");
+        assert_eq!(s.cx(0).rules().hurt.floors, HurtTest::MARGIN.floors, "the all-off tuning prices by the margin");
         s.battery(BatteryState::Free(at));
         let margin = s.cx(0).crossing(at).expect("a crossing");
         // The tuning's rule: the floor the take is made on, over the top, is a band, priced at the drift's share of the

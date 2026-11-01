@@ -343,6 +343,28 @@ fn pre_eye_pin_tuning() -> Tuning {
     // The owner's set of options (the defaults) postdates the pinned counts: it is off.
     let mut tuning = Tuning::all_off();
 
+    // A223: the switches whose old value is wrong by the game, which `all_off.json` no longer names; the pin has the old values.
+    {
+        use crate::v026g::bots::{friends::SpreadSource, kin, pitch::PitchScale, tuning};
+        let old = &mut tuning;
+        old.aim.combat.grenade_kit_cap = false;
+        old.aim.combat.hit_cover_reach = false;
+        old.aim.combat.mirror_gated = false;
+        old.aim.friends.spread_source = SpreadSource::Constants;
+        old.cover.pierce = None;
+        old.grid.client_numbers = false;
+        old.hazard.zone_intensity = false;
+        old.hazard.zone_pools = tuning::ZonePools::Raw;
+        old.kin.fix_floor = kin::FixFloor::Nearest;
+        old.kin.jump_snap = kin::JumpSnap::Any;
+        old.kin.pitch_scale = PitchScale::Radian;
+        old.sense.ranges = tuning::HearingRanges::Flat;
+        old.sense.shots = tuning::ShotRanges::Flat;
+        old.sense.sprint_body_mps = None;
+        old.sense.use_ray_m = 2.0;
+        old.think.stamina_rates = tuning::StaminaRates::Light;
+    }
+
     // #534: the eye is where the game's bullet starts.
     tuning.aim.combat.live_eye = false;
 
