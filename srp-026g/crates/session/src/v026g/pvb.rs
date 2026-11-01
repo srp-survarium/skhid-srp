@@ -19,6 +19,17 @@ pub const MAX_REWARD_LEVEL: u16 = 7;
 /// Highest drop-table level for PvE; equipment and bot difficulty still
 /// use their normal levels. Owner's choice, 2026-11-01.
 pub const MAX_DROP_LEVEL: u16 = 7;
+
+/// The match level a match's drops are rolled at: the end-of-match drop and
+/// a drop card used on its results screen. At most [`MAX_DROP_LEVEL`]
+/// against bots.
+pub fn drop_level(match_level: u16, vs_bots: bool) -> u16 {
+    if vs_bots {
+        match_level.min(MAX_DROP_LEVEL)
+    } else {
+        match_level
+    }
+}
 /// `SRP_PVB_PAY` when unset: half.
 pub const DEFAULT_PAY: f64 = 0.5;
 /// The most `SRP_PVB_MAX_MATCHES` may be.

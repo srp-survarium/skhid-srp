@@ -465,4 +465,5 @@ capped base rewards; a sole human already earns their own median and gets no flo
 **Drops (owner's choice, 2026-11-01).** The end-of-match drop of PvE is rolled the same way, at
 `min(actual match level, 7)` (`pvb::MAX_DROP_LEVEL`, `Shared::drop_level`): the generic table's row
 of match level 7, item levels 5 to 8 (10 / 50 / 30 / 10 %). PvP drops roll at the match's own level.
-A drop card used on a PvE match's results screen still rolls at the match's own level.
+A drop card used on a PvE match's results screen rolls at the same level (`pvb::drop_level`, the
+report's `vs_bots`; a report kept before it has none and is read as PvP).
