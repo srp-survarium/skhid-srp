@@ -2618,6 +2618,44 @@ places and kits out of range, the wrap), the game's own event 5 count on the
 same statistics (the same indexing), and take_artefact's own search to its
 two branches on the same layouts.
 
+### Battery progress (patch 92)
+
+`battery_progress` (Rust, `vostok::statistics`) pays a battery's carrier a point
+(10 hundredths of event 6) for each 10 m the battery comes nearer the carrier's
+team's container than it has been in its life (`battery_credit.md`). The game's
+own measure (`victory_item_event_manager` 0x334810: the projection on the line
+between the containers, `nearest_positions`, credited to `carried_distances` at
+events only) resets a team's nearest whenever the other team touches the
+battery, which two enemies passing it would farm, and the delivery shares
+depend on that reset; so the patch keeps its own nearest, in the record's
+unused +FEh/+FFh (a byte per team: 0 untouched in the life, else the steps + 1).
+
+- `battery.carrier_tick` 0x2DAAD3 (`base_player::tick` after the held object's
+  tick, `mov ecx,[esp+10h] / push edi`, 5 bytes): EBX the player. Its held
+  item [+128h] must be one of the rule's items ([manager+0A38h]+110h..+114h,
+  index i, record +20h + i x 100h); its team is the options' ([manager+0A3Ch]
+  + 45FCh x place + 45ECh), its place and kit [+114h]/[+115h]. Both teams'
+  bands (the 3D distance from the transform's position [+40Ch+30h] to
+  [manager+0A20h] and [+0A2Ch], over 10 m, at most 254) become the nearer of
+  the kept and the current; the steps the carrier's own team's band came
+  nearer are counted in its cell and told to the listener as patch 80 counts.
+  The first carry of a life sets both and pays nothing.
+- `battery.match_start` 0x334999 (start_match once the containers' positions
+  are kept, `mov eax,[esi+0A38h]`, 6 bytes; ESI the manager): the ten
+  records untouched. `battery.delivered` 0x334CEA (on_event's put-in after the
+  shares and the record's reset, `mov [ebx+0F8h],eax`, 6 bytes; EBX the
+  record): the record untouched.
+- `battery.save` 0x334F66 (serialize after a record's first_finder, 10 bytes;
+  ESI the record, EDI the writer) writes the two bytes with w<u8> 0x1F3DE0;
+  `battery.load` 0x3350D0 (deserialize after first_finder, 6 bytes; ESI the
+  record, EDX the reader) reads them within the reader's size, untouched
+  without them. The server's decoder (`VictoryItemStatus::progress`) reads them.
+
+Simulation: the count and the bytes are in the world's statistics, so every
+client of a match must run it. `check_battery_progress_026g.py` runs the five
+hooks in the patched exe on made-up objects, and the game's own serialize and
+deserialize of two records with the hooks inside.
+
 ### A bullet stops a drug (patch 84)
 
 `drug_interrupt` (Rust, `vostok::drug`) is a lohook at 0x2D9CB1 in

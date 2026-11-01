@@ -648,13 +648,15 @@ id and the shop's
 price and seller, so nothing else changes; the server gives a new item
 without modifications.
 
-A buy on an owned item is not asked "This item is already purchased by you.
-Would you like to buy anyway?" any more. `LobbyMenu.try_buy_item`, which
-every buy goes through, asked it for a non-stack item the account has unless
-the buy came from a bundle (`sourceSlot != 300`); it asks it now only for a
-buy from the shop's list (`sourceSlot == 200`). A buy on an owned item comes
-with that item's own slot (100 or less), the victory screen's treasure maps
-with 200 as before. Not in a release yet.
+From revision 25 to 2026-11-01 a buy on an owned item was not asked "This
+item is already purchased by you. Would you like to buy anyway?":
+`LobbyMenu.try_buy_item`, which every buy goes through, asked it only for a
+buy from the shop's list (`sourceSlot == 200`), not from an owned item's own
+slot (100 or less). Since 2026-11-01 (the owner: "it should only skip from rmb
+on item in your inventory, since there it is a voluntary action") it asks for
+every buy but a bundle's (`sourceSlot != 300`), camouflages included, except
+the right-click menu's Buy on an owned item (`ItemCard.buyFromOwnMenu`, the
+`ownItemMenu` argument; `docs/notes/items.md` §6).
 
 ## The craft window: Buy and Sell, Continue and Exit
 
@@ -3832,6 +3834,18 @@ counts one. srp weighs event 5 5 and event 16 10. A match's computation
 changes: every client of a match needs it. `check_artefact_score_026g.py`
 runs the hook from the game's site and compares it with the game's own count
 of event 5 and `take_artefact`'s own slot search.
+
+## Battery progress (patch 92, unreleased)
+
+A battery's carrier scores a point for each 10 m the battery comes nearer its team's container than
+it has been in its life, from the match's start or its last delivery, whoever carried it (the owner,
+2026-11-01; `docs/notes/battery_credit.md`). The Rust `battery_progress` hook in `base_player::tick`
+(0x2DAAD3) counts 10 hundredths of event 6 a step in the carrier's place and kit cell and tells the
+statistics' listener; each battery's record keeps the nearest steps per team in its unused
++FEh/+FFh, untouched again at start_match (0x334999) and at a put-in (0x334CEA), and saved after the
+record's own fields (0x334F66, 0x3350D0). A match's computation and the world's statistics change:
+every client of a match needs it, and the server reads two more bytes a battery.
+`check_battery_progress_026g.py` runs the hooks and the game's own serialize and deserialize.
 
 ## Names on the Tab map (patch 82, unreleased)
 

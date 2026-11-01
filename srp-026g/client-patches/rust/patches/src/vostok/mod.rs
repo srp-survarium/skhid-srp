@@ -110,4 +110,6 @@ pub use project::{RenderVisual, ObjectLight, GameScene};
 pub mod history;
 pub mod drug;
 mod artefact;
-pub use artefact::{ArtefactPickup, ScoreEvent, Slots};
+pub use artefact::{ArtefactPickup, Slots};
+pub mod statistics;
+pub use statistics::{Band, BatteryCarry, Progress, ScoreEvent, Team};

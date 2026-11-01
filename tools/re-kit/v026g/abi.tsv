@@ -1411,6 +1411,7 @@ va	name	source	ret_cleanup	result
 0x00331480	survarium::character_dispersion_calculator::get_skill_influence	manual	4	XMM0: the stance's character_dispersion_skill_influence (table at [EDX+8]); its low-stamina one (+30h) when XMM0 in (stamina deficit) is over the threshold at 0xA0D984
 0x00331560	survarium::character_dispersion_calculator::get_target_koef	manual	8	XMM0: the stance's character_dispersion_params value (table at [EBX+4]; idle_dispersion +0, idle_aim_dispersion +4, crouch +18h/+1Ch, ...): aimed as is, from the hip through apply_modifier(index 38h dispersion_from_hip); at least low_stamina_dispersion (+30h) x stack+8 (stamina deficit)
 0x003317c0	survarium::character_dispersion_calculator::get_broken_hands_penalty	manual	4	XMM0: 0 with no broken hand, else injury_penalty_for_double_handed (+34h) / _for_one_handed (+38h), through apply_modifier(index 41h injury_penalty)
+0x00334900	survarium::victory_item_event_manager::start_match	manual	4	no result
 0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
 0x00334dc0	survarium::victory_item_event_manager::serialize	manual	4	
 0x00334fb0	survarium::victory_item_event_manager::deserialize	manual	4	
@@ -2136,3 +2137,25 @@ va	name	source	ret_cleanup	result
 0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
 0x001b9390	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Sorts the visible probes by radius (+0x320) descending, from stage_visibility::execute_stage 0x1B6B54 (filter_and_sort_env_probes inlined); returns at once for 16 or fewer, leaving them to the final insertion sort.
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Stable for equal radii: probes of one radius keep the probe tree query order (frustum_culling), which changes from run to run (the probes reach the scene as their cubemaps load). render_environment_probes draws them in this order, each over the ones before.
+0x00118430	vostok::render::engine::world::add_model	manual	16	
+0x001184c0	vostok::render::engine::world::update_model	manual	12	
+0x00118540	vostok::render::engine::world::remove_model	manual	8	
+0x001bd7f0	vostok::render::fill_light	manual	0	void; the caller (0x1BDEA1) removes the two pushed arguments
+0x001c9e40	vostok::render::light::set_color_and_intensity	manual	4	void
+0x0034e020	vostok::render::environment_sun_direction	manual	0	EAX = the output pointer (ESI)
+0x001a8900	vostok::render::effect_compiler::set_constant_float4	manual	8	
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	manual	12	
+0x001acb30	vostok::render::reflection_surface_rejected	manual	0	AL = 1 when the surface is left out of local reflections, 0 when it takes part
+0x00162550	vostok::render::rt_index_to_name	manual	0	EAX = the target's constant name string ("$user$..."), jump table 0x16272C
+0x001d1c60	vostok::render::sky_dome_geometry::sky_dome_geometry	manual	4	EAX = the receiver
+0x001d2150	vostok::render::sky_dome_geometry::draw	manual	4	void
+0x003df370	vostok::render::parse_shader_resources	manual	16	void (0x3DF27C uses no result)
+0x003de820	vostok::render::res_xs_hw<vostok::render::vs_data>::create_hw_shader	manual	4	EAX = the HRESULT of ID3D11Device::CreateVertexShader
+0x00033970	vostok::render::update_skeleton_command::execute	manual	0	void
+0x00033920	vostok::render::update_skeleton_command::`scalar deleting destructor'	manual	4	EAX = the receiver
+0x00391af0	vostok::animation::animation_player::compute_bones_matrices	manual	20	void
+0x001f2640	survarium::player::first_third_person_animations_resolver	manual	4	EAX = the destination delegate
+0x00011140	boost::function_base::clear	manual	0	void
+0x000ddff0	vostok::command_line::key::initialize(pcstr)	manual	4	
+0x000de0c0	vostok::command_line::key_initializator::operator()	manual	4	
+0x000df020	vostok::command_line::iterate_keys<key_initializator>	manual	0	

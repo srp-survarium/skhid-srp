@@ -25,8 +25,9 @@ The owner's rule against farming battery events and how srp keeps it. Code:
     200 score + 40 per paid kill + 20 per assist. Kill invader (10) stays whole. See
     `research_mode.md`; these payment-only limits do not change the battery cap's quest policy.
   - 20 put in and 19 found (`VICTORY_ITEM_FOUND`, weight 2.5, the results' "items" title): at
-    most N each. 6 delivery share, 17 stolen delivery share, 18 rescued delivery share
-    (hundredths of a delivery, shared among the carriers by distance): at most N × 100 each.
+    most N each. 6 delivery share and progress (hundredths: the delivery share, shared among
+    the carriers by distance, plus 10 per new 10 m of a battery's progress): at most N × 300.
+    17 stolen delivery share, 18 rescued delivery share: at most N × 100 each.
     24 solo delivery and 26 own steal (weight 0, but quests 6 and 7 count them): at most N
     each.
   - A cut is shared among the kits by what each counted, and every kit that counted keeps at
@@ -42,4 +43,12 @@ The owner's rule against farming battery events and how srp keeps it. Code:
   - ping-pong: steals 1800 → 1000 and 1600 → 1000 hundredths, put-ins 23 → 10 and 18 → 10,
     quest events 24/26 19/18 → 10 and 17/16 → 10; scores 830 → 485 and 672 → 422.
 - **Release:** the match server only (srp). No client patch, no data.
+- **Points while carrying (the owner, 2026-11-01; exe patch 92):** "if it grew down, we can add a
+  few points too", and "if someone brought the battery further, we should make sure it is not
+  farmable". Each battery keeps, per team's container, the nearest it has come in its life (from
+  the match's start or its last delivery; whoever carried it, dropping or handing it over keeps
+  it), in 10 m steps from the carrier's position. Every simulation tick its carrier gets a point
+  (10 hundredths of event 6) for each step its own team's nearest comes nearer; the first carry of
+  a life only sets it. A typical delivery (about 70 m) adds 7 points to its 17.5 (share 10, put-in
+  5, found 2.5), a steal home about 10 to its 40. Event 6's cap is 300 a battery (a share and 200 m).
 - **Not touched:** what accounts earned before: the owner's decision.

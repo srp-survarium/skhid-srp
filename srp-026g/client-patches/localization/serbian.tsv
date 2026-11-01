@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su iz
 st_lifebone_pickup_hint	Artefakt Živokost. Ubrzava obnovu zdravlja.
 st_lightning_quality_option	Kvalitet osvetljenja
 st_login_button_label	Prijavi se
-st_login_default_text	E-pošta
+st_login_default_text	Nadimak
 st_login_eula_label	Ugovor o licenci
 st_login_menu_accept	Prihvati
 st_login_menu_cancel	Otkaži
 st_login_menu_status_access_level_restriction	Nemate dovoljan nivo pristupa za prijavu.
 st_login_menu_status_connecting	Prijavljivanje…
 st_login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Dozvolite igru u zaštitnom zidu (Skhid-network-setup.cmd). U Rusiji koristite VPN i dodajte .exe datoteke igre u njega (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Pogrešna adresa e-pošte ili lozinka.
+st_login_menu_status_invalid_user_or_password	Pogrešan nadimak ili lozinka.
 st_login_menu_status_invalid_version	Koristite zastarelu verziju igre.
 st_login_menu_status_sign_in_already_online	Korisnik je već u igri.
 st_login_menu_status_sign_in_attempt_interval_violated	Previše pokušaja prijave. Pokušajte ponovo za 10 sekundi.
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
 st_srp_scope_slot	Optika
+st_srp_shop_not_owned	Sakrij posedovano
+st_srp_shop_not_owned_hint	Prikaži samo predmete koje nemaš
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s

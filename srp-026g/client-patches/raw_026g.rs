@@ -5120,6 +5120,15 @@ impl SharedStatistics {
     pub unsafe fn listener(self) -> StatisticsListener {
         StatisticsListener(unsafe { self.0.byte_add(0x31a0) })
     }
+
+    /// +0x2760 (obj<survarium::victory_item_event_manager>): the batteries' records (shared_statistics::on_victory_item_event 0x2F55D6: lea esi,[eax+2760h] for on_event 0x334AC0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn victory_items(self) -> VictoryItemEventManager {
+        VictoryItemEventManager(unsafe { self.0.byte_add(0x2760) })
+    }
 }
 
 /// A survarium::player_shared_statistics (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -5923,6 +5932,15 @@ impl MatchPlace {
     #[inline(always)]
     pub unsafe fn name(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x45ec (u32): the place's team, 0 or 1 (on_event 0x334AE3, is_solo_delivery 0x334D28)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x45ec).cast::<u32>().as_ptr() }
     }
 
     /// 0x45fc bytes: a place's record: 45FCh bytes (imul esi,esi,45FCh at 0x234EEF)
@@ -7874,6 +7892,175 @@ impl HitInfo {
     }
 }
 
+/// A survarium::victory_item_event_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VictoryItemEventManager(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl VictoryItemEventManager {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x20 (obj<survarium::victory_item_status>): battery i's record at +20h + i x 100h, i its index in the rule's items (on_event 0x334B0E..0x334B1C; ten of them, the clear 0x3348A0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn records(self) -> VictoryItemStatus {
+        VictoryItemStatus(unsafe { self.0.byte_add(0x20) })
+    }
+
+    /// +0xa20 (f32): team 0's container's position, 3 f32 (start_match 0x334948 from the container whose team +158h is 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn container_0(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xa20).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xa2c (f32): team 1's container's position, 3 f32 (start_match 0x334988)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn container_1(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xa2c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xa38 (ptr<survarium::gather_victory_items_rule_core>): the battery rule, set by start_match (0x33490E); 0 in a mode without batteries (the clear 0x3348E5; serialize writes nothing then, 0x334DD0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rule(self) -> Option<GatherVictoryItemsRuleCore> {
+        unsafe { self.0.byte_add(0xa38).cast::<Option<GatherVictoryItemsRuleCore>>().read_volatile() }
+    }
+
+    /// +0xa3c (ptr<survarium::match_options>): the match's options (start_match 0x334914): a place's team at +45ECh + place x 45FCh (on_event 0x334AD9..0x334AE3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn options(self) -> Option<MatchOptions> {
+        unsafe { self.0.byte_add(0xa3c).cast::<Option<MatchOptions>>().read_volatile() }
+    }
+}
+
+/// A survarium::victory_item_status (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VictoryItemStatus(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl VictoryItemStatus {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xfe (u8): patch 92's: how near team 0's container the battery has come this life (0 untouched, else 10 m steps + 1); unused by the game, which writes +F0h..+FDh only
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn progress_0(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xfe).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xff (u8): patch 92's: the same for team 1's container
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn progress_1(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xff).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x100 bytes: a battery's record (on_event 0x334B11: shl ecx,8)
+    pub const SIZE: usize = 0x100;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::victory_item_statuss (0x100 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct VictoryItemStatusStorage([u8; 0x100]);
+
+#[allow(dead_code)]
+impl VictoryItemStatusStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x100])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> VictoryItemStatus {
+        VictoryItemStatus(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<VictoryItemStatus> {
+        (!rooms.is_empty()).then(|| VictoryItemStatus(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::gather_victory_items_rule_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GatherVictoryItemsRuleCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GatherVictoryItemsRuleCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x110 (ptr<survarium::inventory_slot>): its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn items_begin(self) -> Option<InventorySlot> {
+        unsafe { self.0.byte_add(0x110).cast::<Option<InventorySlot>>().read_volatile() }
+    }
+
+    /// +0x114 (ptr<survarium::inventory_slot>): the vector's end (0x313D70)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn items_end(self) -> Option<InventorySlot> {
+        unsafe { self.0.byte_add(0x114).cast::<Option<InventorySlot>>().read_volatile() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -9675,6 +9862,99 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn hit(machine: &impl Machine) -> Option<HitInfo> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitInfo)
+        }
+    }
+
+    /// battery.carrier_tick (0x2daad3): base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick
+    pub mod battery_carrier_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// battery.match_start (0x334999): victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set
+    pub mod battery_match_start {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::victory_item_event_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<VictoryItemEventManager> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(VictoryItemEventManager)
+        }
+    }
+
+    /// battery.delivered (0x334cea): victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record
+    pub mod battery_delivered {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::victory_item_status (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn record(machine: &impl Machine) -> Option<VictoryItemStatus> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(VictoryItemStatus)
+        }
+    }
+
+    /// battery.save (0x334f66): victory_item_event_manager::serialize after a record's first_finder (0x334F61), before the next battery (mov eax,[esp+24h] / mov eax,[eax+0A38h]): ESI the record, EDI the writer
+    pub mod battery_save {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::victory_item_status (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn record(machine: &impl Machine) -> Option<VictoryItemStatus> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(VictoryItemStatus)
+        }
+
+        /// EDI: a vostok::buffer_writer (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn writer(machine: &impl Machine) -> Option<BufferWriter> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferWriter)
+        }
+    }
+
+    /// battery.load (0x3350d0): victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader
+    pub mod battery_load {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::victory_item_status (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn record(machine: &impl Machine) -> Option<VictoryItemStatus> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(VictoryItemStatus)
+        }
+
+        /// EDX: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(BufferReader)
         }
     }
 }

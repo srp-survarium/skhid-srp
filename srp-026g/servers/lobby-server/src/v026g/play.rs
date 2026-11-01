@@ -760,21 +760,33 @@ impl Core<'_> {
             }
             return;
         }
-        // A player with a place in a match (it closed the match early, or
-        // signed in again) goes back to it, as in 0.21d.
-        let player = session::Player {
-            session_id: who.session_id,
-            account_id: who.account_id,
-            profile_id: kit_id,
-        };
-        if self.store.matchmaking().back_to_seat(player) {
-            if let Some(player) = self.player_mut(who.addr) {
-                player.queued_since = Some(now);
-            }
-            self.queue_status(who.addr, now);
+        if self.back_to_seat(who.addr, now) {
             return;
         }
         self.room_play(who, now);
+    }
+
+    /// A player with a place in a match (it closed the match early, or
+    /// signed in again) goes back to it, as in 0.21d: by Play, and by its
+    /// room's Join match or turn (`rooms::room_late_join`). False: it has
+    /// no place in a match.
+    pub(super) fn back_to_seat(&mut self, addr: SocketAddr, now: Instant) -> bool {
+        let Some(player) = self.player(addr) else {
+            return false;
+        };
+        let player = session::Player {
+            session_id: player.session_id,
+            account_id: player.account_id,
+            profile_id: player.account.locked().active_kit,
+        };
+        if !self.store.matchmaking().back_to_seat(player) {
+            return false;
+        }
+        if let Some(player) = self.player_mut(addr) {
+            player.queued_since = Some(now);
+        }
+        self.queue_status(addr, now);
+        true
     }
 
     /// `31 <order> <left match>`: the player stopped waiting (a clan

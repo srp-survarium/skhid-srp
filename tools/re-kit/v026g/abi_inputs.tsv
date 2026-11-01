@@ -54,7 +54,7 @@ va	name	location	role	basis
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+4	scene renderer receiver	inferred
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+8	scene-view handle reference	inferred
 0x00021b50	vostok::render::scene_renderer::set_projection_matrix	stack+12	projection matrix reference	inferred
-0x00022490	vostok::render::scene_renderer::update_skeleton	EDI	scene_renderer receiver	inferred
+0x00022490	vostok::render::scene_renderer::update_skeleton	EDI	scene_renderer receiver; builds an update_skeleton_command (constructor 0x33870 copies both matrix arrays) and queues it with owner_push_back 0x1F2C0	observed
 0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+4	the render instance's pointer (&[[player+F290h]+108h])	observed
 0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+8	the bones' matrices (model space, rows, v * M), copied to the command's +58h	observed
 0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+0xC	a second matrix array copied to +1458h (mt_draw passes the same array)	observed
@@ -1011,7 +1011,7 @@ va	name	location	role	basis
 0x0013bac0	vostok::render::renderer::setup_render_output_window	ECX	renderer receiver	inferred
 0x0013bac0	vostok::render::renderer::setup_render_output_window	stack+4	output-window resource passed by value	inferred
 0x0013bac0	vostok::render::renderer::setup_render_output_window	stack+8	normalized viewport rectangle reference	inferred
-0x0013bca0	vostok::render::renderer::execute_stages	EDI	renderer receiver	inferred
+0x0013bca0	vostok::render::renderer::execute_stages	EDI	renderer receiver; its 27-slot stage vector (+150h/+154h) runs in slot order, each non-null stage through vtable+4 (0x13BDA3..0x13BEBC)	observed
 0x0013bed0	vostok::render::renderer::fill_opaque_models	EAX	renderer receiver	inferred
 0x0013bf50	vostok::render::renderer::sort_models_by_distance	ECX	model pointer vector	inferred
 0x0013bf50	vostok::render::renderer::sort_models_by_distance	EAX	renderer receiver	inferred
@@ -1035,9 +1035,9 @@ va	name	location	role	basis
 0x0013ce00	vostok::render::renderer::render_stages	EAX	renderer receiver	inferred
 0x0013ced0	vostok::render::renderer::render_flash_ui	stack+4	renderer receiver	inferred
 0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	output-window pointer	inferred
-0x0013d010	vostok::render::renderer::render	stack+4	renderer receiver	inferred
-0x0013d010	vostok::render::renderer::render	stack+8	scene resource reference	inferred
-0x0013d010	vostok::render::renderer::render	stack+12	scene-view resource reference	inferred
+0x0013d010	vostok::render::renderer::render	stack+4	renderer receiver (EBX at 0x13D023); its float clock +2E4h is copied to context+4140h, the scene_time constant, at 0x13D249..0x13D257	observed
+0x0013d010	vostok::render::renderer::render	stack+8	scene resource reference, dereferenced at 0x13D0A9..0x13D0AC and stored to context+416Ch at 0x13D210	observed
+0x0013d010	vostok::render::renderer::render	stack+12	scene-view resource reference, dereferenced at 0x13D0AE..0x13D0B1, set by set_scene_view at 0x13D244	observed
 0x0013d010	vostok::render::renderer::render	stack+16	output-window resource reference	inferred
 0x0013d010	vostok::render::renderer::render	stack+20	normalized viewport rectangle reference	inferred
 0x0013d010	vostok::render::renderer::render	stack+24	scene-draw callback reference	inferred
@@ -1156,8 +1156,8 @@ va	name	location	role	basis
 0x0014faa0	vostok::render::scene::`scalar deleting destructor'	ECX	scene receiver	inferred
 0x0014faa0	vostok::render::scene::`scalar deleting destructor'	stack+4	deletion flags	inferred
 0x0014fac0	vostok::render::scene::~scene	ECX	scene receiver	inferred
-0x0014ff60	vostok::render::scene::remove_model	stack+4	scene receiver	inferred
-0x0014ff60	vostok::render::scene::remove_model	stack+8	owned model handle	inferred
+0x0014ff60	vostok::render::scene::remove_model	entry ESP+4	scene receiver; searches the model vector +9B358Ch/+9B3590h (0x14FF6C..0x14FF88)	observed
+0x0014ff60	vostok::render::scene::remove_model	entry ESP+8	the model pointer by value; erased from the vector (0x15019C..0x1501B4) and released (0x1501F2..0x150210)	observed
 0x00150270	vostok::render::scene::calculate_screen_factors	stack+4	scene receiver	inferred
 0x00150270	vostok::render::scene::calculate_screen_factors	stack+8	float4x4 pointer	inferred
 0x00150270	vostok::render::scene::calculate_screen_factors	stack+12	eye float3 pointer	inferred
@@ -1291,7 +1291,7 @@ va	name	location	role	basis
 0x0015a4c0	vostok::render::skeleton_render_model_instance::get_aabb	entry ESP+4	destination24-byte bounds buffer and returnedEAX	observed
 0x0015a4f0	vostok::render::skeleton_render_model_instance::update	ECX	skeleton instance receiver copiedESI	observed
 0x0015a520	vostok::render::skeleton_render_model_instance::set_constants	ECX	skeleton instance receiver	observed
-0x0015a520	vostok::render::skeleton_render_model_instance::set_constants	entry ESP+4 low byte	alternate/shadow matrix selector after savedEBX	observed
+0x0015a520	vostok::render::skeleton_render_model_instance::set_constants	entry ESP+4 low byte	alternate/shadow selector: 0 uploads the current (+229Ch) and previous (+290h) palettes to their hosts, 1 the alternate (+42A8h) to the current host	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+4	skeleton instance receiver copiedEDI	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+8	first matrix-array input	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+0xC	second matrix-array input retained across first multiply output push	observed
@@ -1705,7 +1705,7 @@ va	name	location	role	basis
 0x001a7950	vostok::render::stage_composition::render_models	stack+12	vectorB float3 pointer	inferred
 0x001a7950	vostok::render::stage_composition::render_models	stack+16	vectorB scale scalar	inferred
 0x001a7950	vostok::render::stage_composition::render_models	stack+20	additional shader scalar	inferred
-0x001a8170	vostok::render::stage_composition::execute	ECX	composition stage receiver	inferred
+0x001a8170	vostok::render::stage_composition::execute	ECX	composition stage receiver, copied to EBP at 0x1A8180	observed
 0x001aab30	vostok::render::stage_forward::stage_forward	ESI	stage receiver	inferred
 0x001aab30	vostok::render::stage_forward::stage_forward	EAX	renderer context	inferred
 0x001aab30	vostok::render::stage_forward::stage_forward	ECX	renderer	inferred
@@ -1717,7 +1717,7 @@ va	name	location	role	basis
 0x001ab340	vostok::render::stage_forward::render_forward_models	stack+4	forward stage receiver	inferred
 0x001ab340	vostok::render::stage_forward::render_forward_models	stack+8	material type selector	inferred
 0x001ab340	vostok::render::stage_forward::render_forward_models	stack+12	foreground classification byte	inferred
-0x001ab5a0	vostok::render::stage_forward::render_opaque_models	stack+4	forward stage receiver	inferred
+0x001ab5a0	vostok::render::stage_forward::render_opaque_models	stack+4	forward stage receiver; a material whose byte +0 is set and whose G-buffer effect +2Ch exists is drawn with technique 6, its emission (0x1AB6C1..0x1AB6E8)	observed
 0x001ab750	vostok::render::stage_forward::execute_foreground	ECX	forward stage receiver	inferred
 0x001ab900	vostok::render::stage_forward::execute	ECX	forward stage receiver	inferred
 0x001ac870	vostok::render::stage_screen_space_reflections::stage_screen_space_reflections	ESI	stage receiver	inferred
@@ -1761,7 +1761,7 @@ va	name	location	role	basis
 0x001b1e70	vostok::render::stage_postprocess::clear_surfaces	ECX	postprocess receiver	inferred
 0x001b1f80	vostok::render::stage_postprocess::process_color_grading_texture	stack+4	postprocess receiver	inferred
 0x001b1f80	vostok::render::stage_postprocess::process_color_grading_texture	stack+8	environment postprocess parameters	inferred
-0x001b2270	vostok::render::stage_postprocess::execute	ECX	postprocess receiver	inferred
+0x001b2270	vostok::render::stage_postprocess::execute	ECX	postprocess receiver, copied to EBP at 0x1B2280; renderer context at +4 (0x1B22CF)	observed
 0x001b6850	vostok::render::stage_visibility::stage_visibility	entry ESP+4	receiver copied to EBX	observed
 0x001b6850	vostok::render::stage_visibility::stage_visibility	EAX	base-context value stored receiver+4 before AL overwritten	observed
 0x001b6850	vostok::render::stage_visibility::stage_visibility	ECX	secondary context stored receiver+8	observed
@@ -1821,7 +1821,7 @@ va	name	location	role	basis
 0x001bd200	vostok::render::stage_screen_image::stage_screen_image	ECX	renderer owner pointer stored at stage+8	observed
 0x001bd320	vostok::render::stage_screen_image::execute	ECX	screen-image stage receiver	inferred
 0x001bd320	vostok::render::stage_screen_image::execute	stack+4	owned texture smart-pointer value	inferred
-0x001bde20	vostok::render::lights_db::add_light	ECX	lights_db receiver copied to EDI	inferred
+0x001bde20	vostok::render::lights_db::add_light	ECX	lights_db receiver (EDI): a vector of 8-byte (light pointer, id) records at +0/+4, kept sorted by id (binary search 0x1BDE48..0x1BDE7F); a type-4 light (the sun) is not inserted, its id goes to +2010h (0x1BDE30..0x1BDE45)	observed
 0x001bde20	vostok::render::lights_db::add_light	EAX	light ID copied to ESI	inferred
 0x001bde20	vostok::render::lights_db::add_light	stack+4	light_props pointer; type discriminator at+0x64	inferred
 0x001be3a0	vostok::math::float4x4::create_rotation_x	ESI	out matrix	observed
@@ -1950,7 +1950,7 @@ va	name	location	role	basis
 0x001cc980	vostok::render::grass_patch::render	stack+28	far distance float	inferred
 0x001cc980	vostok::render::grass_patch::render	stack+32	optional effect override pointer	inferred
 0x001ccd20	vostok::render::grass_patch::create_render_buffer	stack+4	grass patch receiver	inferred
-0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+4	vertex shader string	observed
+0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+4	vertex shader family string; the G-buffer compiler pushes vertex_base (0x9F26C4) and gbuffer_pass (0x9F8E70) at 0x1DE6DD..0x1DE6E7	observed
 0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+8	pixel shader string	observed
 0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+12	effect compiler object	observed
 0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+16	mutable shader configuration sixteen-byte record	observed
@@ -3237,6 +3237,9 @@ va	name	location	role	basis
 0x0032ff70	survarium::transition_helper::deserialize	EAX	reader	inferred
 0x003312f0	survarium::dispersion_calculator::serialize	stack+4	dispersion	inferred
 0x003312f0	survarium::dispersion_calculator::serialize	EAX	writer	inferred
+0x00334900	survarium::victory_item_event_manager::start_match	ESI	the manager (shared statistics+2760h); +0A38h the rule, +0A3Ch the options, +0A20h/+0A2Ch the two containers' positions written (0x33490E..0x334993)	observed
+0x00334900	survarium::victory_item_event_manager::start_match	EAX	the match's options (kept at +0A3Ch)	observed
+0x00334900	survarium::victory_item_event_manager::start_match	entry ESP+4	the battery rule (kept at +0A38h; its items +110h..+114h)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	ESI	the manager (shared statistics+2760h)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	EAX	the victory item	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+4	the player's place (byte)	observed
@@ -3740,7 +3743,7 @@ va	name	location	role	basis
 0x003c2b60	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::gs_data>	entry ESP+0xC	shader-source registry/container used for lookup and sentinel comparison	observed
 0x003c2b60	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::gs_data>	entry ESP+0x10..0x1F (16bytes inline)	key/permutation payload copied by twoMOVQ operations; exact semantic layout unknown	observed
 0x003c31d0	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::ps_data>	entry ESP+4	resource-manager receiver after11280byte probe allocation and four saved registers	observed
-0x003c31d0	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::ps_data>	entry ESP+8	shader key/name value; nullchecked and forwarded	observed
+0x003c31d0	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::ps_data>	entry ESP+8	the shader family name (gbuffer_pass, ...), NUL-terminated; interned at 0x3C34CD, its pooled header stored at hardware+5D10h at 0x3C34FC	observed
 0x003c31d0	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::ps_data>	entry ESP+0xC	shader-source registry/container used for lookup and sentinel comparison	observed
 0x003c31d0	vostok::render::resource_manager::create_xs_hw_impl<vostok::render::ps_data>	entry ESP+0x10..0x1F (16bytes inline)	key/permutation payload copied by twoMOVQ operations; exact semantic layout unknown	observed
 0x003c7980	vostok::render::render_target::~render_target	EAX	render-target receiver	observed
@@ -3973,8 +3976,8 @@ va	name	location	role	basis
 0x003d7c60	vostok::render::shader_constant_table::parse	entry ESP+0xC	opaque selector forwarded into constant-buffer resource creation; exact source enum/type unknown	observed
 0x003d7e30	vostok::render::shader_constant_table::compare	ESI	left constant-table pointer	observed
 0x003d7e30	vostok::render::shader_constant_table::compare	EDI	other constant-table pointer	observed
-0x003d7f40	vostok::render::shader_constant_table::apply_bindings	EAX	input binding vector; begin/end at+0/+4	inferred
-0x003d7f40	vostok::render::shader_constant_table::apply_bindings	stack+4	shader_constant_table receiver; entry range at+4/+8 modified through slots	inferred
+0x003d7f40	vostok::render::shader_constant_table::apply_bindings	EAX	input binding vector; begin/end at +0/+4 (0x3D7F42..0x3D7F46)	observed
+0x003d7f40	vostok::render::shader_constant_table::apply_bindings	stack+4	shader_constant_table receiver; records at +4/+8, 18h bytes each; writes each record's source pointer and size at +8/+0Ch (0x3D7FB0..0x3D7FB2)	observed
 0x003d8880	vostok::render::res_texture_list::res_texture_list	stack+4	res_texture_list construction storage	inferred
 0x003d8880	vostok::render::res_texture_list::res_texture_list	stack+8	vector of84-byte texture binding descriptors	inferred
 0x003d94f0	vostok::render::effect_compiler::effect_compiler	ESI	effect_compiler construction storage	inferred
@@ -4098,8 +4101,8 @@ va	name	location	role	basis
 0x003de8a0	vostok::render::res_xs_hw<vostok::render::vs_data>::create_hw_shader	ECX	VS hardware-shader receiver	inferred
 0x003deff0	vostok::render::res_xs_hw<vostok::render::gs_data>::create_hw_shader	EAX	compiled shader blob interface	inferred
 0x003deff0	vostok::render::res_xs_hw<vostok::render::gs_data>::create_hw_shader	ECX	GS hardware-shader receiver	inferred
-0x003df1b0	vostok::render::res_xs_hw<vostok::render::ps_data>::create_hw_shader	EAX	compiled shader blob interface	inferred
-0x003df1b0	vostok::render::res_xs_hw<vostok::render::ps_data>::create_hw_shader	ECX	PS hardware-shader receiver	inferred
+0x003df1b0	vostok::render::res_xs_hw<vostok::render::ps_data>::create_hw_shader	EAX	compiled ID3DBlob, copied to ESI at 0x3DF1B9; its pointer and size go to CreatePixelShader at 0x3DF20E	observed
+0x003df1b0	vostok::render::res_xs_hw<vostok::render::ps_data>::create_hw_shader	ECX	PS hardware owner, copied to EDI at 0x3DF1BE; the ID3D11PixelShader goes to +8	observed
 0x003df660	vostok::render::res_effect::res_effect	EAX	res_effect owner	observed
 0x003df800	vostok::render::effect_cook::on_binary_shaders	ECX	cook receiver/context forwarded into texture callback	observed
 0x003df800	vostok::render::effect_cook::on_binary_shaders	entry ESP+4	original query object	observed
@@ -5001,3 +5004,100 @@ va	name	location	role	basis
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	entry ESP+4	sort_by_size_predicate (empty)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+8	the light_props filled (+7Ch shadow_map_size_index u32, the map 1024, 512, 256 texels for 0, 1, 2 in 0.10b's index_to_shadow_size, not read in 0.26g; +84h shadow_transparency, a float, an int config converted)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+0Ch	the light's config table (has_key 0xF6C00 / child 0xF6B10 per field)	observed
+0x00118430	vostok::render::engine::world::add_model	entry ESP+4	pointer to the scene handle; its first DWORD is the scene	observed
+0x00118430	vostok::render::engine::world::add_model	entry ESP+8	pointer to the model handle; its first DWORD is the render model instance	observed
+0x001184c0	vostok::render::engine::world::update_model	entry ESP+4	pointer to the scene handle; its first DWORD is the scene	observed
+0x001184c0	vostok::render::engine::world::update_model	entry ESP+8	pointer to the model handle; its first DWORD is the render model instance	observed
+0x00118540	vostok::render::engine::world::remove_model	entry ESP+4	pointer to the scene handle; its first DWORD is the scene	observed
+0x00118540	vostok::render::engine::world::remove_model	entry ESP+8	pointer to the model handle; its first DWORD is the render model instance	observed
+0x00118430	vostok::render::engine::world::add_model	entry ESP+0xC	transform pair: the first matrix to virtual +5Ch, the second (+40h) to virtual +60h	observed
+0x001184c0	vostok::render::engine::world::update_model	entry ESP+0xC	transform pair: the first matrix to virtual +5Ch, the second (+40h) to virtual +60h	observed
+0x00118430	vostok::render::engine::world::add_model	entry ESP+0x10 low byte	nonzero: apply the transform pair before insertion	observed
+0x001189c0	vostok::render::engine::world::add_light	[entry ESP+4]+0x9B7670	the scene's light database, passed to lights_db::add_light at 0x1189D5	observed
+0x0014f200	vostok::render::scene::particle_engine::add_light	[ECX+8]+0x9B7670	the same scene light database (call at 0x14F254)	observed
+0x00162550	vostok::render::rt_index_to_name	EAX	render-target index, 0..75 (jump table at 0x162559)	observed
+0x0016ea30	vostok::render::static_render_surface::load	surface +48h	vertex stride 28, or 32 (with COLOR) when +48h is 4 (0x16EA91..0x16EABF); declarations 0x9CBFD0 / 0x9CC060; u16 indices; vertex/index counts to +10h/+14h, res_geometry to +4	observed
+0x0016f390	vostok::render::static_render_model_instance::get_surfaces	record+0x44; LOD code; category mask	the all-surfaces code AAh tests each record's +44h flags against the mask; an explicit LOD (0x16F4D5) tests bit 0 only, whatever the mask. Records: instance +298h, 64h bytes each, count byte +294h, all LODs	observed
+0x0015a450	vostok::render::skeleton_render_model_instance::get_surfaces	record+0x44	records at instance +62D4h (count byte +62D0h), 64h bytes each; the filtered path tests +44h against the mask (0x15A487); the constructor stores 3 (0x15A3B9)	observed
+0x00150560	vostok::render::scene::select_models	category mask (calls 0x1B790D, 0x17515E)	the camera passes mask 1 (0x1B78F2..0x1B7912), the sun shadow mask 2 (0x175140..0x175163); forwarded with filtering on to get_surfaces (virtual +58h) at 0x1506B1..0x1506D8	observed
+0x00162da0	vostok::render::renderer_context_targets::create_targets	0x1631B2..0x16331A	HDR format: device feature level (+124h) >= A000h gives 26 R11G11B10_FLOAT, else 10 RGBA16_FLOAT; used by 31 accum_diffuse, 34 accum_specular, 55/56 generic0/1. G-buffer: 10 normal format 34 R16G16_FLOAT, 13 albedo and 15 surface_parameters format 28 R8G8B8A8_UNORM	observed
+0x00162da0	vostok::render::renderer_context_targets::create_targets	0x163B49..0x163B7D	71 mie_scattering and 72 rayleigh_scattering: 256x128, format 10 RGBA16_FLOAT	observed
+0x00177a20	vostok::render::stage_gbuffer::execute	0x177BEE (EBX stage)	binds targets 10, 13, 15 (context+119Ch descriptors +6D8h/+8B8h/+9F8h) to RTV slots 0/1/2 and clears slot 3	observed
+0x00157730	vostok::render::register_samplers	0x1577DE..0x157860	s_base: filter 21 MIN_MAG_MIP_LINEAR, wrap U/V/W, mip bias and min LOD 0, max LOD FLT_MAX	observed
+0x00176bd0	vostok::render::stage_gbuffer::stage_gbuffer	receiver+0x64	technique base, 0 (0x176BFD); render_models adds the quality bit (0x1774B9)	observed
+0x001773c0	vostok::render::stage_gbuffer::render_models	stage+0x40	the smoothness_multiplier host (name 0x9F30D8): scene_view+2DCh when options [0x2260498]+E8h is 0, else 1.0 (0x177575..0x1775B7)	observed
+0x003d7230	vostok::render::res_effect::apply_pass	selected technique+8	always the first pass (0x3D724E..0x3D7251)	observed
+0x003d79d0	vostok::render::shader_constant_table::parse_constant_buffer	reflected variable desc+12 bit 1	the USED flag (0x3D7A68); an unused variable gets no record (0x3D7A70)	observed
+0x0034e020	vostok::render::environment_sun_direction	EAX	environment record (callers pass scene_view+118h): azimuth degrees +40h, altitude degrees +44h	observed
+0x0034e020	vostok::render::environment_sun_direction	ESI	output float3, normalized (cos az cos alt, -sin alt, sin az cos alt): the direction light travels; written at 0x34E0CD..0x34E0E5	observed
+0x001918c0	vostok::render::stage_lights::render_model_sun_lighting	stage+0x11C	sun_color host (0x9EFC64): scene_view+164h RGB times scene_view+160h intensity, no gamma or clamp (0x191FE3..0x192063)	observed
+0x001918c0	vostok::render::stage_lights::render_model_sun_lighting	stage+0x12C	light_direction host (0x9F2CC0): the 0x34E020 direction rotated into view space; the light position is that direction times -1000 with translation (0x19191F..0x1919DF)	observed
+0x001a4200	vostok::render::stage_atmosphere::execute	0x1A42B7..0x1A44F3	scattering update: only in mode 0 (stage+ACh, the constructor's second argument) with options [0x2260498]+115h set, and only when renderer bytes +18h/+19h are set or the targets' generation (+2F88h) differs from scene_view+1DE38h: technique 0, fill_surfaces 0x1A3690 into targets 72 and 71, generation stored. Mode 1 skips it	observed
+0x001a4200	vostok::render::stage_atmosphere::execute	0x1A458B..0x1A462A	dome draw: technique 1; stage+6Ch host gets the to-sun xyz (w 0 when environment byte +C8h is 0), stage+74h host gets (environment+100h, environment+E4h, 0, 0); the dome draws at 0x1A468B	observed
+0x001d1c60	vostok::render::sky_dome_geometry::sky_dome_geometry	entry ESP+4	receiver: declaration +0, vertex buffer +4, index buffer +8, stride 24 at +0Ch, index count 1260 at +10h	observed
+0x001d1c60	vostok::render::sky_dome_geometry::sky_dome_geometry	buffers built	256 vertices (float4 position, float2 UV) and 1260 u16 indices: two halves of 16 rings x 8; radius 10, polar i/15*100 degrees from +Y, azimuth j/7*pi in the first half and 2pi-j/7*pi in the second, UV (i/16+1/32, j/8+1/16) in both	observed
+0x001d2150	vostok::render::sky_dome_geometry::draw	entry ESP+4	dome receiver; triangle list from its declaration, buffers, stride and index count	observed
+0x001db810	vostok::render::effect_fstage_sky_materials::compile	config sky_color / sky_multiplier	RGB raised to 2.2 (pow 0x3A9B0) before the multiplier; alpha kept	observed
+0x001db810	vostok::render::effect_fstage_sky_materials::compile	config sky_fog_power / sky_fog_up_limit	used only when both keys exist; otherwise power 1 and limit 0.25	observed
+0x001db810	vostok::render::effect_fstage_sky_materials::compile	compiler+5033C state / +61F4C	unless +61F4Ch is set: no culling, no depth, all eight blend records RGB ZERO/SRC_COLOR, alpha ONE/ZERO	observed
+0x001bd7f0	vostok::render::fill_light	entry ESP+4	the light, copied to EBX at 0x1BD800	observed
+0x001bd7f0	vostok::render::fill_light	entry ESP+8	the light_props, copied to EDX at 0x1BD7FC	observed
+0x001bd7f0	vostok::render::fill_light	light fields written	umbra +220h, penumbra +23Ch, falloff power +24Ch (0x1BD897..0x1BD8A9), range +260h (0x1BDB34), attenuation power +25Ch (0x1BDB78), shadow transparency +264h from props+84h (0x1BDC9C), enabled +2A9h (0x1BDCA9), six face bytes +360h..+365h from props+88h (0x1BDD1C/0x1BDD2C); colour through 0x1C9E40	observed
+0x001c9e40	vostok::render::light::set_color_and_intensity	ESI	the light: linear RGB to +204h..+20Ch, intensity to +210h	observed
+0x001c9e40	vostok::render::light::set_color_and_intensity	EAX	packed colour; RGB bytes / 255, then pow 2.2; alpha unused	observed
+0x001c9e40	vostok::render::light::set_color_and_intensity	entry ESP+4	float intensity, stored apart at 0x1C9F2B	observed
+0x00193360	vostok::render::stage_lights::execute	light+0x2A9	enabled byte (0x193504); 0 skips render_light	observed
+0x001949b0	vostok::render::stage_lights::render_light	light+0x35C	type in the low nibble (0x1949DD..0x1949E3): 0 point, 1 spot (xform_calc jump table 0x1CBAB4); bit 5 casts shadows	observed
+0x001cafb0	vostok::render::light::xform_calc	light+0x260	point volume radius = range * 1.05 (0x1CB4BE, float 0xA2DA90); spot axial length = range (0x1CB589/0x1CB5B6)	observed
+0x001cafb0	vostok::render::light::xform_calc	light+0x23C	spot penumbra * 0.5 to the trig helper 0x8357C1 (0x1CB554); that factor times range is the cone's lateral scale (0x1CB57E)	observed
+0x001c9dc0	vostok::render::light::is_cast_shadows	EAX+0x35C, EAX+0x360..0x365	bit 5 = the author's shadow flag; a point light (low nibble 0) also needs one of its six face bytes set	observed
+0x001c9dc0	vostok::render::light::is_cast_shadows	EAX+0x271, EAX+0x26C, [0x2260498]+0x9C	byte +271h 0 with dword +26Ch 1 and option +9Ch 0 turns shadows off before the flag tests	observed
+0x00193630	vostok::render::stage_lights::render_shadowed_light	light+0x360+face	face bytes for faces 0..5 = +X,-X,+Y,-Y,+Z,-Z (basis table 0xA95070, stride 36), read at 0x193844, tested at 0x193A83 and 0x193F37	observed
+0x00193630	vostok::render::stage_lights::render_shadowed_light	light+0x264	bound as point shadow_transparency at 0x193F56; the shader saturates visibility + transparency	observed
+0x001949b0	vostok::render::stage_lights::render_light	light+0x264	bound as spot shadow_transparency at 0x194FAF	observed
+0x001a8900	vostok::render::effect_compiler::set_constant_float4	ECX	the float4 value (0x1A8903/0x1A8914)	observed
+0x001a8900	vostok::render::effect_compiler::set_constant_float4	entry ESP+4	compiler receiver (0x1A8959); binding vector +61C1Ch..+61C20h	observed
+0x001a8900	vostok::render::effect_compiler::set_constant_float4	entry ESP+8	constant name, interned at 0x1A893B	observed
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1E0D1E..0x1E0D71	solid_emission_color: RGB times the configured intensity, alpha kept	observed
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1E10FF..0x1E11EF	emissive_flickering_parameters default (0, 1, 0, 0) unless use_emissive_flickering (0x9F97A8); then, unless compiler+61F4Ch, set_alpha_blend(enable, RGB ONE/ONE ADD, alpha ONE/ZERO) for the emission technique	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	entry ESP+4	state descriptor; eight render-target blend records at +64h, 20h bytes each	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	entry ESP+8	blend enable, to +64h of every record	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	entry ESP+12	RGB source blend, to +68h	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	EDI	RGB destination blend, to +6Ch	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	ESI	RGB blend operation, to +70h	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	EDX	alpha source blend, to +74h	observed
+0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	ECX	alpha destination blend, to +78h; the alpha operation is ADD (1) at +7Ch	observed
+0x001363c0	vostok::render::material_effects_instance_cook::on_effect_ready	0x136B7C..0x136B8C	the effect id forward_default_simpe_water (0x9EEB44) sets material_effects byte +7 (has local reflections)	observed
+0x001acb30	vostok::render::reflection_surface_rejected	EDI	surface record; its material (surface +38h) needs byte +7 and an effect at +64h; options +12Dh with record +61h also leaves it out	observed
+0x001e5fe0	vostok::render::effect_fstage_simpe_water_materials::compile	0x1E6015	technique 0 uses forward_water (0x9F9F74), technique 1 forward_water_local_reflections (0x9F9F84)	observed
+0x001e5fe0	vostok::render::effect_fstage_simpe_water_materials::compile	0x1E63A9..0x1E645B	unless compiler+61F4Ch: blending off (set_alpha_blend enable 0) for both techniques, write masks kept, no depth writes; technique 0 depth-tested, technique 1 not	observed
+0x001ad3e0	vostok::render::stage_screen_space_reflections::execute	0x1AD534..0x1AD58F	copies target 55 generic0 into 56 generic1 (CopyResource at 0x1AD57D) before accumulation	observed
+0x003df370	vostok::render::parse_shader_resources	entry ESP+4	ID3D11ShaderReflection (GetDesc 0x3DF396, GetResourceBindingDesc 0x3DF3C3)	observed
+0x003df370	vostok::render::parse_shader_resources	entry ESP+8	sampler descriptor vector, pixel hardware +3ACh	observed
+0x003df370	vostok::render::parse_shader_resources	entry ESP+12	texture descriptor vector, pixel hardware +8F8h (54h-byte records: name inline at +0Ch, bind point +4Ch); dimension other than buffer (0x3DF4DE)	observed
+0x003df370	vostok::render::parse_shader_resources	entry ESP+16	buffer descriptor vector, pixel hardware +3304h; dimension 1 (0x3DF43A)	observed
+0x003de820	vostok::render::res_xs_hw<vostok::render::vs_data>::create_hw_shader	EAX	compiled ID3DBlob (GetBufferPointer/GetBufferSize at 0x3DE82C/0x3DE836)	observed
+0x003de820	vostok::render::res_xs_hw<vostok::render::vs_data>::create_hw_shader	ESI	VS hardware owner; signature +5D10h keeps the blob, family name +5D14h	observed
+0x003de820	vostok::render::res_xs_hw<vostok::render::vs_data>::create_hw_shader	entry ESP+4	ID3D11VertexShader** output, hardware+8 (0x3DE8C8..0x3DE8D0)	observed
+0x003bb0f0	vostok::render::device::create	flags (0x3BB11B..0x3BB289)	D3D11CreateDevice flags: bit 0 SINGLETHREADED when -st_device (key 0xAA58E4) is given, bit 1 DEBUG from the debug key (0xAA56B4); device +17Ch, immediate context +180h, feature level +124h	observed
+0x003bb380	vostok::render::device::destroy	global context 0x1E1B978	no receiver; calls ClearState (vtable+1B8h) before releasing the device and factory	observed
+0x001cd400	vostok::render::skeleton_mesh_gpu_skinning_4weights::load	declaration 0xA7A6D8 (0x1CD483)	stride 48: POSITION float3 @0, BLENDINDICES R8G8B8A8_UINT @12, BLENDWEIGHT float3 @16, NORMAL/TANGENT/BINORMAL R8G8B8A8_UNORM @28/32/36, TEXCOORD float2 @40; u16 indices	observed
+0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	instance+0x229C / +0x290 / +0x42A8	current, previous and alternate shader palettes; each entry transpose(inverse bind (original+140h) * pose); previous takes the old current, or the new one on the first update (+62D8h)	observed
+0x0015a100	vostok::render::skeleton_render_model_instance::skeleton_render_model_instance	instance+0x229C..0x22A8	current palette vector: begin/end start at the inline +22A8h, capacity +2000h bytes (0x15A134..0x15A14B); vtable 0x9F0F24	observed
+0x00033970	vostok::render::update_skeleton_command::execute	ECX	the command; passes model +2858h, the arrays +58h/+1458h and count +2860h to update_render_matrices 0x15A590 (0x33989)	observed
+0x00033920	vostok::render::update_skeleton_command::`scalar deleting destructor'	ECX	the command; releases the model reference +2858h	observed
+0x00033920	vostok::render::update_skeleton_command::`scalar deleting destructor'	entry ESP+4	flags; bit 0 frees the command (0x420F17)	observed
+0x00391af0	vostok::animation::animation_player::compute_bones_matrices	EAX	animation player; retains its tree +E100h, calls 0x39F750, releases it	observed
+0x00391af0	vostok::animation::animation_player::compute_bones_matrices	CL	bone mask (FFh from the prop caller 0x2928A7)	observed
+0x00391af0	vostok::animation::animation_player::compute_bones_matrices	entry ESP+4..+0x14	skeleton, output matrices (model space, rows), animated-object id, resource-selection delegate, scale-mode byte	observed
+0x0039f750	vostok::animation::mixing::n_ary_tree::compute_bones_matrices	states +10h, count +20h	state records B0h bytes: node +A8h (its object +30h), weight +68h, time +6Ch	observed
+0x003b2b40	vostok::animation::bone_matrices_computer::compute_bones_matrices	skeleton +110h	root bone record; 28-byte bone records: parent +4, children +8/+0Ch, mask +18h; the root itself is not output	observed
+0x001f2640	survarium::player::first_third_person_animations_resolver	EAX	the player: alive +33Ch, flags +F4E3h and input +F470h pick the first- or third-person resolver	observed
+0x001f2640	survarium::player::first_third_person_animations_resolver	entry ESP+4	32-byte delegate storage (0x24767F passes EBP-68h), returned in EAX	observed
+0x00011140	boost::function_base::clear	ESI	delegate storage; calls its manager with operation 2 and clears the first word	observed
+0x000ddff0	vostok::command_line::key::initialize(pcstr)	EAX	value string; null or empty sets key+224h to 2 (type_void)	observed
+0x000ddff0	vostok::command_line::key::initialize(pcstr)	entry ESP+4	the key	observed
+0x000de0c0	vostok::command_line::key_initializator::operator()	EDI	the key; its names at +210h/+214h	observed
+0x000de0c0	vostok::command_line::key_initializator::operator()	ESI	parsed key name	observed
+0x000de0c0	vostok::command_line::key_initializator::operator()	entry ESP+4	parsed value string	observed
+0x000df020	vostok::command_line::iterate_keys<key_initializator>	entry ESP+4	empty predicate storage (the caller passes a zero byte)	observed
