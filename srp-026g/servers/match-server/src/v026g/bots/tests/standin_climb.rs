@@ -7,9 +7,9 @@
 //! the rise it made (the floor left to the floor reached); a rise over what that way can make in the client is an *over-limit climb* and is
 //! kept as a line with where, when and how. Counting only: nothing here changes a decision of a bot or a move of a body.
 
-use std::collections::HashMap;
+use mapdata::Vec3;
 
-use mapdata::{NodeId, RayTree, Vec3};
+use super::standin_slide::Ground;
 
 /// The ways a body gains height, in the order of [`Climbs::counts`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,45 +79,48 @@ pub(crate) struct Climbs {
 /// not, and a walk tick never leaves the feet there, `step_down` 0x7e1b0).
 const STEEP_BANDS_DEG: [f32; 3] = [40.0, 45.0, 55.0];
 
-/// C14: the body-ticks a body stood still (no move key, under [`STILL_MS`]), and those on walker ground of each
-/// [`STEEP_BANDS_DEG`] band; from 45 degrees the client slides it down and the stand-in leaves it standing. Counting only.
+/// C14: the body-ticks a body stood still (no move key, under [`STILL_MS`]), and those on ground the client slides it off and the
+/// stand-in leaves it standing on (without `SRP_BENCH_STAND_IN_SLIDE`, [`super::standin_slide`]): by-slope faces of each
+/// [`STEEP_BANDS_DEG`] band (from 45 degrees slid), `dont_walk` faces (always slid); and `walk` faces of 45 degrees or more, which the
+/// client never slides (the down sweep takes their normal as up, 0x84420), kept to see how much a slope-only count would add. Counting
+/// only.
 #[derive(Default)]
 pub(crate) struct StillSteep {
     pub(crate) still_ticks: u64,
     pub(crate) by_band: [u64; 3],
-    /// The slope under each floor stood on, degrees (none: no walker face under it), once per floor.
-    slope_of: HashMap<NodeId, Option<f32>>,
+    pub(crate) dont_walk: u64,
+    pub(crate) walk_steep: u64,
 }
 
 /// A body moving slower than this stands still, m/s.
 pub(crate) const STILL_MS: f32 = 0.3;
 
 impl StillSteep {
-    /// A body stood still this tick on `node`, its feet at `feet`.
-    pub(crate) fn note(&mut self, node: NodeId, feet: Vec3, walker: &RayTree) {
+    /// A body stood still this tick on `ground` (none: no face under it).
+    pub(crate) fn note(&mut self, ground: Option<Ground>) {
         self.still_ticks += 1;
-        let deg = *self.slope_of.entry(node).or_insert_with(|| ground_slope_deg(walker, feet));
-        if let Some(band) = deg.and_then(|deg| STEEP_BANDS_DEG.iter().rposition(|&from| deg >= from)) {
-            self.by_band[band] += 1;
+        match ground {
+            Some(Ground::Slope(deg)) => {
+                if let Some(band) = STEEP_BANDS_DEG.iter().rposition(|&from| deg >= from) {
+                    self.by_band[band] += 1;
+                }
+            }
+            Some(Ground::DontWalk) => self.dont_walk += 1,
+            Some(Ground::Walk(deg)) if deg >= STEEP_BANDS_DEG[1] => self.walk_steep += 1,
+            Some(Ground::Walk(_)) | None => {}
         }
     }
 
+
     /// The counts for a cell's log.
     pub(crate) fn line(&self) -> String {
-        let slid = self.by_band[1] + self.by_band[2];
+        let slid = self.by_band[1] + self.by_band[2] + self.dont_walk;
         let share = if self.still_ticks == 0 { 0.0 } else { 100.0 * slid as f64 / self.still_ticks as f64 };
         format!(
-            "still_on_steep: still {} 40-45 {} 45-55 {} 55+ {} ({share:.2} % of still slid)",
-            self.still_ticks, self.by_band[0], self.by_band[1], self.by_band[2]
+            "still_on_steep: still {} 40-45 {} 45-55 {} 55+ {} dont_walk {} walk_45+ {} ({share:.2} % of still slid)",
+            self.still_ticks, self.by_band[0], self.by_band[1], self.by_band[2], self.dont_walk, self.walk_steep
         )
     }
-}
-
-/// The slope of the walker face under `feet`, degrees: the first face a ray down from 0.5 m over the feet meets within 1.5 m (a floor of
-/// the lattice on a slope stands over its face, by the capsule's rest: 0.36 m on a 59 degree plane).
-fn ground_slope_deg(walker: &RayTree, feet: Vec3) -> Option<f32> {
-    let hit = walker.ray_hit(feet + Vec3::new(0.0, 0.5, 0.0), Vec3::new(0.0, -1.0, 0.0), 1.5)?;
-    Some(hit.normal.y.abs().clamp(0.0, 1.0).acos().to_degrees())
 }
 
 impl Climbs {
@@ -188,27 +191,24 @@ mod tests {
     }
 
     #[test]
-    fn a_still_body_is_counted_by_the_slope_under_it_once_a_floor() {
-        // Flat ground over x 0..10, then planes rising along x: 48 degrees over x 20..30, 58 over x 40..50, 42 over x 70..80.
-        let tan = |deg: f32| deg.to_radians().tan();
-        let quad = |x0: f32, tan: f32| {
-            let p = |x: f32, z: f32| Vec3::new(x, (x - x0) * tan, z);
-            [[p(x0, 0.0), p(x0 + 10.0, 0.0), p(x0 + 10.0, 10.0)], [p(x0, 0.0), p(x0 + 10.0, 10.0), p(x0, 10.0)]]
-        };
-        let corners: Vec<[Vec3; 3]> =
-            [quad(0.0, 0.0), quad(20.0, tan(48.0)), quad(40.0, tan(58.0)), quad(70.0, tan(42.0))].into_iter().flatten().collect();
-        let walker = RayTree::from_corners(corners);
+    fn a_still_body_is_counted_by_its_grounds_class_and_slope() {
         let mut s = StillSteep::default();
-        s.note(1, Vec3::new(5.0, 0.0, 5.0), &walker);
-        s.note(2, Vec3::new(25.0, 5.0 * tan(48.0), 5.0), &walker);
-        s.note(2, Vec3::new(25.0, 5.0 * tan(48.0), 5.0), &walker);
-        s.note(3, Vec3::new(41.0, tan(58.0) + 0.36, 5.0), &walker);
-        s.note(4, Vec3::new(65.0, 0.0, 5.0), &walker);
-        s.note(5, Vec3::new(75.0, 5.0 * tan(42.0), 5.0), &walker);
-        assert_eq!(s.still_ticks, 6);
+        for ground in [
+            None,
+            Some(Ground::Walk(0.0)),
+            Some(Ground::Walk(60.0)),
+            Some(Ground::Slope(0.0)),
+            Some(Ground::Slope(42.0)),
+            Some(Ground::Slope(48.0)),
+            Some(Ground::Slope(48.0)),
+            Some(Ground::Slope(58.0)),
+            Some(Ground::DontWalk),
+        ] {
+            s.note(ground);
+        }
+        assert_eq!(s.still_ticks, 9);
         assert_eq!(s.by_band, [1, 2, 1]);
-        assert_eq!(s.slope_of.len(), 5);
-        assert!(s.line().contains("40-45 1 45-55 2 55+ 1 (50.00 % of still slid)"), "{}", s.line());
+        assert!(s.line().contains("40-45 1 45-55 2 55+ 1 dont_walk 1 walk_45+ 1 (44.44 % of still slid)"), "{}", s.line());
     }
 
     /// A ledge 3 m up from x 10, and a slab's face over it that the lattice does not know (x 10.6, 3.65 to 4.14 m, the proportions of the real

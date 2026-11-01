@@ -315,6 +315,8 @@ pub(crate) struct Body {
     /// The tick a sprint run came to the face of a jump link up and was held there ([`lift_to`]); the lift takes
     /// [`LIFT_HOLD_MS`] of it.
     pub(crate) lift_since: Option<(u32, Option<f32>)>,
+    /// The speed of the slide off steep ground it is on, m/s ([`standin_slide`], `SRP_BENCH_STAND_IN_SLIDE=on`); none: not sliding.
+    pub(crate) slide_mps: Option<f32>,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     pub(crate) legs: [f32; 2],
@@ -633,6 +635,8 @@ pub(crate) struct Game {
     pub(crate) walls: Option<Arc<mapdata::RayTree>>,
     /// The walls' horizontal cross-sections for the capsule rule ([`standin_capsule`]), built at the first move.
     pub(crate) sections: Option<Arc<standin_capsule::Sections>>,
+    /// The ground of the floors bodies stand on, by face material and slope ([`standin_slide::Grounds`]), built at the first need.
+    pub(crate) grounds: Option<standin_slide::Grounds>,
     pub(crate) landings: Vec<Landing>,
     /// The height the bodies gained, by way, against what the client's body can climb ([`standin_climb`]).
     pub(crate) climbs: standin_climb::Climbs,
@@ -794,6 +798,7 @@ impl Game {
             step_m: 0.0,
             step_vec: Vec3::ZERO,
             lift_since: None,
+            slide_mps: None,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
@@ -899,6 +904,7 @@ impl Game {
             honest: honest_stand_in(),
             walls: None,
             sections: None,
+            grounds: None,
             landings: Vec::new(),
             climbs: standin_climb::Climbs::default(),
             drug_log: Vec::new(),
@@ -1314,15 +1320,33 @@ impl Game {
                 body.step_m = body.feet.distance_xz(before);
                 body.step_vec = Vec3::new(body.feet.x - before.x, 0.0, body.feet.z - before.z);
                 body.moved += body.step_m;
-                // C14: a body standing still on a slope the client slides it off (counting only).
+                // C14: the ground the client slides a body off, counted when the body stands still, and slid down with
+                // `SRP_BENCH_STAND_IN_SLIDE=on` (the client's still test is on the body's speed: no move key and slower than STILL_MS).
                 let moving = body.keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0;
-                if !moving
-                    && body.flight.is_none()
+                let still = !moving && body.step_m / TICK_S < standin_climb::STILL_MS;
+                if body.flight.is_none()
                     && tick >= body.air_until
-                    && body.step_m / TICK_S < standin_climb::STILL_MS
-                    && let (Some(node), Some(walker)) = (body.node, self.walls.as_deref())
+                    && let (Some(node), Some(walls)) = (body.node, self.walls.as_ref())
                 {
-                    self.climbs.still.note(node, body.feet, walker);
+                    let walker = || self.world.map.walker_triangles();
+                    let ground = self
+                        .grounds
+                        .get_or_insert_with(|| standin_slide::Grounds::new(&walker(), walls.clone()))
+                        .at(node, body.feet);
+                    if still {
+                        self.climbs.still.note(ground);
+                    }
+                    body.slide_mps = match ground {
+                        Some(ground) if standin_slide::stand_in_slide() && ground.slides(still || body.slide_mps.is_some()) => {
+                            let speed = body.slide_mps.unwrap_or(0.0) + standin_slide::gain_mps(ground);
+                            standin_slide::slide_step(&self.world.grid, node, body.feet, speed).map(|(to, feet)| {
+                                body.node = Some(to);
+                                body.feet = feet;
+                                speed
+                            })
+                        }
+                        _ => None,
+                    };
                 }
                 if body.carrying.is_some() {
                     self.carry_m += body.step_m;
