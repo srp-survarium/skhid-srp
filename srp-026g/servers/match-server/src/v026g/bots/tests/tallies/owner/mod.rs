@@ -48,6 +48,7 @@ use crate::v026g::drive::key;
 mod answer;
 mod breach;
 mod campers;
+mod collect_at;
 mod crouch;
 mod damage_zones;
 mod feel;
@@ -64,6 +65,7 @@ mod hit_shapes;
 mod jumps;
 mod kick_gap;
 mod live_list;
+mod look;
 mod metrics;
 mod moving;
 mod outcomes;
@@ -100,6 +102,7 @@ mod worth;
 mod zone_deaths;
 
 use campers::*;
+use collect_at::*;
 use crouch::*;
 use damage_zones::*;
 use feel::*;
@@ -115,6 +118,7 @@ use hit_shapes::*;
 use jumps::*;
 use kick_gap::*;
 use live_list::*;
+use look::*;
 use metrics::*;
 use moving::*;
 use answer::*;
@@ -239,6 +243,8 @@ impl OwnerTally {
     /// The scoreboard's context line (`<project> NvN seed S`) and which places are the stand-in human and the stand-in camper.
     pub(crate) fn set_scoreboard(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
         self.topic::<Feel>().set_human(human, camper);
+        self.topic::<LookCounts>().set_human(human);
+        self.topic::<CollectAtCounts>().set_human(human);
         self.topic::<Scoreboard>().set_context(context, mode, human, camper);
     }
 

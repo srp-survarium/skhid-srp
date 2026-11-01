@@ -544,6 +544,49 @@ pub struct ThreatTuning {
     /// opens only on the one with more kills. `None` (off): each hold gets its own job, up to `threat::JOBS_MAX`. OFF by
     /// default: the bench has one stand-in camper, so no by-side bench of a pair yet.
     pub pair_target: Option<PairTarget>,
+    /// A229 ([`WalkWatch`], `plays/watch.rs`): a play's walk with a known threat ahead looks at it (the spot of a held lane
+    /// the bot stands in; with `known`, an enemy's last known place) instead of along the route. OFF by default: by side
+    /// against the stand-in human (128 pairs, 2026-11-01) kills +0.4 % (z +0.3) and deaths -0.4 % (z -0.3), but a watched
+    /// walk takes no sprint, so the objective plays lost theirs (Intercept sprinting -59 %, Escort -43 %): delivered -8 %
+    /// (z -2.4), enemy carriers killed -24 % (z -3.1), own carriers lost +32 % (z +3.1)
+    /// (`traces-20261028/fx-threat-obj-a229-a231-note.md` §6).
+    pub walk_watch: Option<WalkWatch>,
+}
+
+/// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
+/// team knows with the view where the route goes (bench, tip c31448aa: in a held lane of the team the view was on its spot
+/// 27 % of the walking ticks in batteries, 33 % in TDM, the spot behind 25 % / 15 %). A human clears the known angle as he
+/// walks toward it; Counter-Strike's bot looks at its path's encounter spots.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WalkWatch {
+    /// A threat this far off the walk's heading or less is ahead, degrees: a lane walked across, not toward its spot,
+    /// keeps the route's view and the sprint. GUESS.
+    pub ahead_deg: f32,
+    /// Also an enemy's last known place ([`WatchKnown`]); `None`: only the held lanes' spots.
+    pub known: Option<WatchKnown>,
+}
+
+impl Default for WalkWatch {
+    fn default() -> Self {
+        Self { ahead_deg: 60.0, known: Some(WatchKnown::default()) }
+    }
+}
+
+/// [`WalkWatch::known`]: the last place the bot's or its team's own senses gave an enemy (`Track::own`), ahead and near.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WatchKnown {
+    /// A place given within this is known, ms (as the detour count's `KNOWN_MS`). GUESS.
+    pub ms: u32,
+    /// At most this far, m: a rifle's fight range (A220: kills at about 15 m, A221 bands to 65 m). GUESS.
+    pub max_m: f32,
+}
+
+impl Default for WatchKnown {
+    fn default() -> Self {
+        Self { ms: 10_000, max_m: 60.0 }
+    }
 }
 
 /// design-p1c §6 (`traces-20261028/fx-threat-obj-two-campers-note.md`): a team that beats two campers covering one lane takes
@@ -680,6 +723,7 @@ impl Default for ThreatTuning {
             concede: None,
             breach: None,
             pair_target: None,
+            walk_watch: None,
         }
     }
 }
