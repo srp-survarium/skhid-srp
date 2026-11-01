@@ -2631,6 +2631,7 @@ def build(root, sort=True):  # ('named', [(name, node)]) | ('indexed', [node]) |
         elif kind == 'f3':
             while len(buf) % 8: buf.append(0)
             d = len(buf); buf.extend(struct.pack('<fff', *v)); REC.pack_into(buf, at, d, off, crc, 7, 3)
+        elif kind == 'i': REC.pack_into(buf, at, v & 0xffffffff, off, crc, 1, 4)
         else: REC.pack_into(buf, at, struct.unpack('<I', struct.pack('<f', v))[0], off, crc, 2, 4)
     write(0, None, root)
     return bytes(buf)
@@ -2646,6 +2647,11 @@ cases = [('identity', ctc.violations(walk, lvl(vec), lvl(vec), 'a', corp, {})),
          ('ramp_new_key_table', ctc.violations(walk, ramp(3, vec), ramp(4, tab), 'r', {}, {})),
          ('new_file_allowlisted', ctc.violations(walk, None, lvl(tab), 'b', corp, {('b', '/objects[]/position'): 'ok'})),
          ('changed_allowlisted', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {('a', '/objects[]/position'): 'ok'}))]
+num = lambda x: build(('named', [('k', ('f', x) if isinstance(x, float) else ('i', x))]))
+both = ctc.corpus_with(walk, {'n1': num(1.5), 'n2': num(2)})
+cases += [('number_where_both', ctc.violations(walk, num(2), num(1.5), 'n', both, {})),
+          ('number_where_float_only', ctc.violations(walk, num(2), num(1.5), 'n', ctc.corpus_with(walk, {'n1': num(1.5)}), {})),
+          ('vector_to_float_where_both', ctc.violations(walk, lvl(vec), lvl(('f', 1.0)), 'a', ctc.corpus_with(walk, {'x': lvl(vec), 'y': lvl(('f', 2.0))}), {}))]
 try:
     ctc.parse(walk, build(('named', [('a', vec), ('b', vec)]), sort=False))  # crc32 a > b
     unsorted = 'parsed'
@@ -2671,6 +2677,9 @@ check "type check: a colour ramp's new key of another type than the ramp's keys 
 check "type check: an allowlisted new key passes" test "$(tc new_file_allowlisted | cut -f1)" = 0
 check "type check: ... but an allowlist row never lets a key that exists change its type" \
     test "$(tc changed_allowlisted | cut -f1)" = 1
+check "type check: a number may turn float where the base configs have it int and float" test "$(tc number_where_both | cut -f1)" = 0
+check "type check: ... but not where they have it only one way" test "$(tc number_where_float_only | cut -f1)" = 1
+check "type check: ... and never a vector, even where the base mixes vectors and numbers" test "$(tc vector_to_float_where_both | cut -f1)" = 1
 check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
     bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
 

@@ -523,6 +523,12 @@ same content by `release/build-site`.
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
 
+## patch19-melee-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| `melee/data/k_damage` 2 -> 1.5 (a float) on the 21 weapons patch 19 added from 0.29a3 (AEK-919K, FNC, P90, HK416, Kedr, KRISS, M4A1, the three MP7s, MSBS, both Neosteads, PKP, Saiga-12K and its premium, SOK-94, Valmet, Vepr-12 and its premium, vz. 58) | every native weapon has 1.5; patch 19's port wrote the natives' 1.5 into the donor's integer field, rounded to 2, so these guns hit a third harder with the butt (the owner, 2026-11-01: fix to 1.5); found by resource-porter's re-port of patch 19 (`ports/weapons-029a3-patch19.known.tsv`) |
+
 ## recoil-hk416-m4a1-1.json (2026-11-01)
 
 | change | why |
