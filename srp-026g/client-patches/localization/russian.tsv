@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
-st_srp_weapon_shift_hint	Зажмите Shift: подробнее
+st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела

@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway
 st_srp_weapon_reload	Reload
-st_srp_weapon_shift_hint	Hold Shift for details
+st_srp_weapon_shift_hint	Shift: details · Alt: in a match
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
 st_srp_weapon_spread_per_shot	Spread added per shot

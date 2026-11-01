@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
 st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
-st_srp_weapon_shift_hint	Shift halten: Details
+st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss

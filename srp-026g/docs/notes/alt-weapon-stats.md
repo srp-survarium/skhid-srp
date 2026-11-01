@@ -8,11 +8,17 @@ whatever else too".
 - **Alt held** over a weapon's card in the lobby: its stats as they will be in a match, with
   everything that applies. **Released:** the weapon's own stats, as before.
 - **Each stat a modifier changes reads "original -> current"**: original is the weapon's own base
-  value, current the value with everything applied. A stat nothing changes shows its one value.
+  value, before its own rolls (the owner, on #1033); current the value with everything applied. A
+  stat nothing changes shows its one value.
 - **One line per stat**, in the card's own rows and bars; the arrow is plain `->` (no glyph risk).
+  Held Alt, a value too wide to sit beside its label (the recoil rows) takes the line under it: two
+  lines for that stat, accepted by the owner on #1033.
 - **Never "x -> x"**: a changed value is shown to the first decimal at which the two differ (aim time
   0.2 s with a -2 % roll: `0.2 -> 0.196s`, where the card's two decimals read 0.19).
 - **One short line says what is on:** "With kit and skills".
+- **The hint line names Alt** (the owner, on #1033): `st_srp_weapon_shift_hint`, one short line in
+  every language, "Shift: details · Alt: in a match" (the longer "Alt: with kit and skills" does not
+  fit the card's line in most languages; the line under the heading says it once Alt is held).
 - Real formulas only: each as the match's code applies it (below).
 
 ## What a match adds (my picks)
@@ -56,7 +62,8 @@ every site below (multiplicative indices; the additive list 0x927E08 has none of
 
 The weapon's own reload rolls (2040.., `parameters/reload_time` type 2) stay as the card already
 shows them (time x (1 - sum)); the match's cook gives `reload_time` x (1 + sum), a longer reload
-(LIKELY: the cooked config is the one 0x30B33E reads). Not changed here; the owner decides.
+(LIKELY: the cooked config is the one 0x30B33E reads). Not changed here: the owner gave it to its
+own fix (`fix/reload-rolls`).
 
 ## How
 

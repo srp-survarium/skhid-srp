@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimalna šteta
 st_srp_weapon_minimum_damage_from	Minimalna šteta od
 st_srp_weapon_recoil_heading	Trzaj, rasipanje i ljuljanje
 st_srp_weapon_reload	Punjenje
-st_srp_weapon_shift_hint	Držite Shift za detalje
+st_srp_weapon_shift_hint	Shift: više · Alt: u meču
 st_srp_weapon_spread_growth	Brzina rasta rasipanja
 st_srp_weapon_spread_max	Najveće dodatno rasipanje
 st_srp_weapon_spread_per_shot	Rasipanje po hicu

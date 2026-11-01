@@ -331,7 +331,7 @@ package {
      cards[0].itemCompare.dispatchEvent(new Event(Event.RESIZE));
      require(text(cards[0]).indexOf("Reload: 10s")>=0,"base reload");
      require(text(cards[0]).indexOf("Full damage up to: 30m")>=0 && text(cards[0]).indexOf("Minimum damage from: 50m")>=0 && text(cards[0]).indexOf("Minimum damage: 60%")>=0,"damage falloff endpoints and floor");
-     require(text(cards[0]).indexOf("Hold Shift")>=0,"discoverable expanded view");
+     require(text(cards[0]).indexOf(HarnessText.DATA.english.st_srp_weapon_shift_hint)>=0 && HarnessText.DATA.english.st_srp_weapon_shift_hint.indexOf("Alt")>=0,"discoverable expanded and Alt views");
      compactHeight=cards[0].height;Scene.isShift=true;
     }
     if(frame==45){
@@ -358,7 +358,7 @@ package {
     if(frame==55){neutral(cards[0]);neutral(cards[1]);Scene.isCtrl=false;}
     if(frame==65){require(color(cards[0],"Reload")==9834254,"release Ctrl restores comparisons");require(cards[0].itemCompare.diff_1.indicator.textFieldValue.textColor==8890390,"release Ctrl restores original comparison colors");Scene.isShift=false;}
     if(frame==75){require(Math.abs(cards[0].height-compactHeight)<1,"release Shift restores compact layout");Scene.isCtrl=true;}
-    if(frame==85){neutral(cards[0]);neutral(cards[1]);require(text(cards[0]).indexOf("Hold Shift")>=0,"Ctrl alone retains compact layout");Scene.isCtrl=false;}
+    if(frame==85){neutral(cards[0]);neutral(cards[1]);require(text(cards[0]).indexOf(HarnessText.DATA.english.st_srp_weapon_shift_hint)>=0,"Ctrl alone retains compact layout");Scene.isCtrl=false;}
     if(frame==95){require(color(cards[0],"Reload")==9834254,"release Ctrl alone restores comparisons");Scene.isCtrl=true;}
     if(frame==100){neutral(cards[0]);Scene.isShift=true;}
     if(frame==110){neutral(cards[0]);neutral(cards[1]);require(text(cards[0]).indexOf("Vertical recoil")>=0,"Shift expands while Ctrl remains neutral");Scene.isCtrl=false;}
