@@ -7,6 +7,7 @@ package survarium.controls
    import flash.display.PixelSnapping;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.utils.getDefinitionByName;
    import survarium.constants.Colors;
    import survarium.constants.CombatAction;
    
@@ -35,33 +36,9 @@ package survarium.controls
       private var _painIcon:Bitmap = new Bitmap(PAIN,PixelSnapping.ALWAYS);
       
       // A weapon's icon is its config's ui_desc/combat_log_icon: frame (icon + 1) of object_icon, whose
-      // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53
-      // (0.27d0 to 0.31a2 alike; 0.69d0's own numbers for its weapons): those icons are these bitmaps,
-      // by icon, shown in the frame's place. One a line.
-      private static const MORE_WEAPONS:Object = {
-         53:CombatLogWeapon53,
-         54:CombatLogWeapon54,
-         55:CombatLogWeapon55,
-         56:CombatLogWeapon56,
-         57:CombatLogWeapon57,
-         58:CombatLogWeapon58,
-         59:CombatLogWeapon59,
-         60:CombatLogWeapon60,
-         61:CombatLogWeapon61,
-         62:CombatLogWeapon62,
-         63:CombatLogWeapon63,
-         64:CombatLogWeapon64,
-         65:CombatLogWeapon65,
-         66:CombatLogWeapon66,
-         67:CombatLogWeapon67,
-         68:CombatLogWeapon68,
-         85:CombatLogWeapon85,
-         86:CombatLogWeapon86,
-         96:CombatLogWeapon96,
-         97:CombatLogWeapon97,
-         98:CombatLogWeapon98
-      };
-      
+      // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53:
+      // icon n past the clip is the bitmap class CombatLogWeapon<n> (bitmaps/, src/), when the movie has
+      // one, shown in the frame's place. A ported weapon's icon is one bitmap and its class, no list here.
       private static var _moreWeapons:Object = {};
       
       private var _weaponIcon:Bitmap = new Bitmap(null,PixelSnapping.ALWAYS);
@@ -126,16 +103,21 @@ package survarium.controls
          this.makeLayout();
       }
       
-      // The bitmap of an icon past the clip's frames, made once; null for one it has none of.
+      // The bitmap of icon `icon` (CombatLogWeapon<icon>), made once; null when the movie has none.
       private static function moreWeapon(icon:int) : BitmapData
       {
-         if(!(icon in MORE_WEAPONS))
+         if(!(icon in _moreWeapons))
          {
-            return null;
-         }
-         if(!_moreWeapons[icon])
-         {
-            _moreWeapons[icon] = new MORE_WEAPONS[icon]();
+            var made:BitmapData = null;
+            try
+            {
+               made = new (getDefinitionByName("CombatLogWeapon" + icon) as Class)() as BitmapData;
+            }
+            catch(error:Error)
+            {
+               made = null;
+            }
+            _moreWeapons[icon] = made;
          }
          return _moreWeapons[icon];
       }

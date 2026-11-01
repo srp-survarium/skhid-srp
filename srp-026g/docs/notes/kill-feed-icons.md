@@ -89,8 +89,8 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
     their plain weapon's icon, as in those builds.
 - **0.69d0's weapons (pack weapons-069, 2026-11-01):** their own numbers and 0.69d0's
   `icon_<icon + 1>.png` (85 KS-23M, 86 Mauser M.712, 96 AKMSU, 97 FAMAS, 98 H&K G3SG/1);
-  `CombatLogItem` keeps the bitmaps by icon (a map, one a line), so numbers past 68 need no
-  filler.
+  `CombatLogItem` finds `CombatLogWeapon<icon>` by name (as #948), so a batch adds only its
+  bitmaps and classes.
 - **Checked:** `scripts/kill-feed-icons/check-combat-log/check.sh` also adds a kill row for every
   icon 0 to 99 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden)
   and where (after the killer, within the row, before the victim).

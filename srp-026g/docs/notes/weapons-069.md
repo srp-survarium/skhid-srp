@@ -29,8 +29,8 @@ resource-porter's `build-weapons-069d` (its `docs/weapons-069d-026.md`: the conv
 | 23x75R, smallshot | 2253 | `ammo/ammo_23mm_r` | ammo [22, 4] | - |
 
 - Kill feed icons are 0.69d0's own numbers and images (`icon_<n + 1>.png`): hud bitmaps
-  `CombatLogWeapon85/86/96/97/98` (`CombatLogItem` maps an icon past the clip's frames to its
-  bitmap), and the lobby's `KillFeedWeapon<n>` from them (`make_lobby_weapon_icons.py`).
+  `CombatLogWeapon85/86/96/97/98` (`CombatLogItem` finds an icon past the clip's frames by its
+  class name), and the lobby's `KillFeedWeapon<n>` from them (`make_lobby_weapon_icons.py`).
 - Lobby icons are rendered from the converted meshes, exposed as the native rifles' icons; the
   23 mm round uses the 12x70 smallshot's icon, as 0.69d0 does.
 - Texts: `st_srp_weapon069_<name>_name/_desc` and `st_srp_ammo069_23mm_r_name/_desc` in the ten
@@ -59,7 +59,7 @@ owner's prices). Factions: 1 Scavengers, 2 Black Market, 3 Renaissance, 4 Fringe
 | **FAMAS** | 50 | 32 | 900 | 30 | 14 | 1 (5) | 100,000 |
 | H&K 416A5 | 55 | 34 | 850 | 30 | 14 | 2 (5) | 120,000 |
 | M4A1 | 50 | 32 | 750 | 30 | 12 | 2 (5) | 75,000 |
-| **G3SG/1** | 64 | 40 | 240 | 10 | 15 | 2 (5) | 80,000 |
+| **G3SG/1** | 64 | 40 | 240 | 20 | 15 | 2 (5) | 80,000 |
 | SOCOM 16 | 60 | 40 | 300 | 10 | 15 | - | 75,000 |
 | SVD | 100 | 50 | 250 | 5 | 15 | 3 (10) | 68,250 |
 | **Mauser M.712** | 35 | 25 | 580 | 10 | 6 | 3 (1) | 13,000 |
@@ -79,8 +79,8 @@ Why each sits there:
   0.69d0's 900 rpm and 3-round burst, a slower reload (4.0 s, 0.69d0's +33 % on the H&K); level 14
   beside the H&K, sold by the Scavengers (0.69d0's) beside the MSBS Radon.
 - G3SG/1: 7.62x51 semi-auto as the SOCOM 16 (the closest live gun), 0.69d0's +6 % damage, its
-  -20 % rate and burst of 3; the SOCOM's 10 rounds (0.69d0 gives both 20); 5.2 kg; level 15,
-  Black Market (0.69d0's).
+  -20 % rate and burst of 3; 20 rounds, the real gun's and 0.69d0's (the owner, 2026-11-01:
+  over the SOCOM's 10); 5.2 kg; level 15, Black Market (0.69d0's).
 - Mauser M.712: an automatic pistol as the APS (0.69d0: the same 0.42 damage), 7.62x25's pierce
   (the TT-33's), 0.69d0's +17 % rate and half the APS's magazine (10), 1.7 kg; the APS's level,
   sold by Renaissance (0.69d0's has no seller).

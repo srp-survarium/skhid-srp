@@ -142,16 +142,15 @@ package
          }
       }
 
-      // The icons past the clip's 53 frames that have a bitmap: the ported weapons' (CombatLogItem).
-      private static const MORE:Array = [53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,85,86,96,97,98];
-
-      // A kill row for every weapon icon a config names (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
-      // ported weapons' MORE) and every other up to 99: icon i shows frame i + 1 of object_icon, an icon
-      // of MORE the bitmap CombatLogWeapon<i> in its place (the clip hidden), any other past the clip its
-      // last frame; the weapon right after the killer, within the row, the victim after it.
+      // A kill row for every weapon icon a config may name (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
+      // ported weapons' from 53 on) up to 99: icon i shows frame i + 1 of object_icon, or past the clip's
+      // frames the bitmap CombatLogWeapon<i> in its place (the clip hidden) when the movie has that
+      // class, else the clip's last frame; the weapon right after the killer, within the row, the victim
+      // after it.
       private function weapons() : void
       {
          var bitmaps:int = 0;
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
          for(var icon:int = 0; icon <= 99; icon++)
          {
             var data:Object = row(1,0,0,0);
@@ -179,7 +178,7 @@ package
                   bitmaps++;
                }
             }
-            var want:String = MORE.indexOf(icon) >= 0 ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
+            var want:String = icon >= clip.totalFrames && domain.hasDefinition("CombatLogWeapon" + icon) ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
             if(shown.indexOf(want) != 0 || shown.indexOf(",",want.length) >= 0)
             {
                failures.push("icon " + icon + ": " + shown + " (want " + want + ")");
