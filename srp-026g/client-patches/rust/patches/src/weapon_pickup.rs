@@ -41,7 +41,7 @@
 //!   taken drop's gun and a picked gun hidden as patch 78 hides a carrier's;
 //! - the prompt, at artefact_carry's on_hud after patch 78's own targets
 //!   ([`aim`]): the gun the local player looks at (2.2 m, its box padded by
-//!   5 cm, in sight) that a pickup would take now, "Pick up <gun> (E)";
+//!   15 cm, in sight) that a pickup would take now, "Pick up <gun> (E)";
 //! - the command, at the input builder's end after patch 78's chord step
 //!   ([`on_input_end`]): Use's press on that gun sent as its pickup, if the
 //!   server's check passes it.
@@ -59,8 +59,8 @@ use weapon_pickup::{Drop as DropState, Handedness, Hands, Ms, Pending, Pick, Pic
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
-use crate::vostok::pickup::{self as native, GunBox, GunPose, Installed, Mode, NameKey, Registered, RegistryId, Role,
-                            Select, Site};
+use crate::vostok::pickup::{self as native, Failure, GunBox, GunPose, Installed, Mode, NameKey, Registered, RegistryId,
+                            Role, Select, Site};
 use crate::vostok::world::{GameWorld, Player, PlayerId};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread};
 use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
@@ -318,8 +318,11 @@ fn move_to(thread: &Thread, id: CookId, f: impl FnOnce(At) -> At) {
 /// Where a slot's picked gun goes when the slot gets its own gun back.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Unpick {
-    /// Let go (its picker's death, respawn, departure): freed after the margin.
+    /// Let go (its picker's destruction): freed after the margin.
     LetGo,
+    /// Let go at base_player::remove(1) (a respawn, a departure): put away
+    /// first (remove would deactivate it after its restore), freed after the margin.
+    Removed,
     /// Back in the drop it came from (a rollback undoing its pickup).
     Undo,
 }
@@ -327,6 +330,11 @@ enum Unpick {
 /// `player`'s slot `slot` gets its own gun back; its picked gun goes as `how` says.
 fn unpick(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, how: Unpick, why: &str) {
     let Some((id, pick, installed)) = held(thread, player.id(), slot) else { return };
+    if how != Unpick::LetGo {
+        // Undo and Removed: out of the hands and the animation player before
+        // it is moved (the native reader and remove then skip it).
+        native::put_away(player, &installed);
+    }
     let outcome = native::restore(player, &installed);
     let now = Ms(player.time());
     move_to(thread, id, |at| match at {
@@ -386,14 +394,21 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
     }
     let differs: [bool; 2] = SLOTS.map(|s| held(thread, player.id(), s).map(|h| h.1) != want[usize::from(s == WeaponSlot::Second)]);
     for (slot, _) in SLOTS.into_iter().zip(differs).filter(|&(_, d)| d) {
-        unpick(player, thread, slot, Unpick::Undo, "a loaded record without it");
+        let back_to_pending = held(thread, player.id(), slot)
+            .is_some_and(|h| record.pending.is_some_and(|p| p.slot == slot && p.pick == h.1));
+        unpick(player, thread, slot, Unpick::Undo, if back_to_pending {
+            "a loaded record from its holster: pending again below"
+        } else {
+            "a loaded record without it"
+        });
     }
     for (slot, _) in SLOTS.into_iter().zip(differs).filter(|&(_, d)| d) {
         let Some(pick) = want[usize::from(slot == WeaponSlot::Second)] else { continue };
         let outcome = (|| {
             let (id, from) = gun_for(player, thread, slot, pick)?;
             let at = RegistryId::reserved(Place::new(player.place()).ok_or(Why::NoPlace)?, Role::Picked(slot));
-            let installed = native::install(player, slot, id, pick.recipe.slot, at, Mode::Load).map_err(Why::Install)?;
+            let installed = native::install(player, slot, id, pick.recipe.slot, at, Mode::Load)
+                .map_err(|f| Why::Install(f.refusal()))?;
             move_to(thread, id, |_| At::Held { picker: player.id(), slot, pick, installed, from });
             Ok::<_, Why>(())
         })();
@@ -463,7 +478,7 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     cancel(&player, thread, Cancel::Removal);
     for slot in SLOTS {
-        unpick(&player, thread, slot, Unpick::LetGo, "its removal (a respawn or a departure)");
+        unpick(&player, thread, slot, Unpick::Removed, "its removal (a respawn or a departure)");
     }
     if let Some((world, place)) = located(&player) {
         let (record, _) = placed_at(thread, world, place);
@@ -570,6 +585,8 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     let ids = (RegistryId::reserved(place, Role::Picked(into)), RegistryId::reserved(place, Role::Pending));
     native::can_install(player, into, cook, slot, ids, replaced.as_ref()).map_err(Why::Install)?;
     let registered = native::register_pending(player, cook, slot, ids.1, Select::Now).map_err(Why::Install)?;
+    // As a weapon key: the switch is looked at this tick (the hide starts now).
+    player.select_animations_now();
     let pending = Pending { slot: into, pick: Pick { taken: Ms(player.time()), recipe }, magazine };
     move_to(thread, cook, |_| At::Pending { picker: player.id(), pending, registered, from });
     update_record(thread, world, place, |r| r.pending = Some(pending));
@@ -624,8 +641,10 @@ enum Path {
 }
 
 /// `player`'s pickup waiting for its switch installed now: Some(true)
-/// switched, Some(false) refused (cancelled: the held object stays, the
-/// pending one is it again), None no pickup waits.
+/// switched (or, refused after the gun in hands was put away, that gun drawn
+/// again: done either way), Some(false) refused before anything changed
+/// (cancelled: the held object stays, the pending one is it again; the
+/// native switch draws it), None no pickup waits.
 fn switch(player: &Player<'_>, thread: &Thread, path: Path) -> Option<bool> {
     let (cook, pending, registered, from) = pending_of(thread, player.id())?;
     let (world, place) = located(player)?;
@@ -637,9 +656,15 @@ fn switch(player: &Player<'_>, thread: &Thread, path: Path) -> Option<bool> {
     let id = RegistryId::reserved(place, Role::Picked(pending.slot));
     let installed = match native::install(player, pending.slot, cook, pending.pick.recipe.slot, id, mode) {
         Ok(installed) => installed,
-        Err(refusal) => {
+        Err(Failure::Refused(refusal)) => {
+            // Nothing changed: the native switch draws the gun in hands again.
             cancel(player, thread, Cancel::Refused(refusal));
             return Some(false);
+        }
+        Err(Failure::Redrawn(refusal)) => {
+            // Drawn again here: the native switch must not run.
+            cancel(player, thread, Cancel::Refused(refusal));
+            return Some(true);
         }
     };
     let now = Ms(player.time());
@@ -905,7 +930,7 @@ fn resupply(ctx: &mut Context<'_>, site: Site) -> Flow<NoExit> {
 /// The prompt's reach (patch 78's) and how much larger than the gun's model
 /// box its target is (metres).
 const REACH: f32 = 2.2;
-const PAD: f32 = 0.05;
+const PAD: f32 = 0.15;
 
 /// A drop's gun as its donor's ragdoll last drew it (by place).
 #[derive(Clone, Copy)]
@@ -979,7 +1004,7 @@ static AIMED: GameCell<Option<Aimed>> = GameCell::new(None);
 /// targets: `viewer` None when one of those is shown or there is no local
 /// player): the gun `viewer` looks at, its name key, when a pickup would
 /// take it now. The gun is a drop's on its donor's ragdoll as this client
-/// drew it: the eye's 2.2 m segment enters its model box (padded by 5 cm),
+/// drew it: the eye's 2.2 m segment enters its model box (padded by 15 cm),
 /// nothing of the level in between (patch 78's ray), the drop open (its body
 /// still in the world), its gun made on this client and the rule's
 /// (`weapon_pickup::decide`, the carry rules too) yes. Remembered for Use
@@ -1460,9 +1485,9 @@ mod tests {
         assert!((hit - (1.5 - PAD)).abs() < 1e-4, "{hit}");
         assert_eq!(enters(&gun, [0., 0.2, 0.], [0., 0., -1.], REACH, PAD), None, "behind");
         assert_eq!(enters(&gun, [0., 0.2, -1.], [0., 0., 1.], REACH, PAD), None, "beyond the reach");
-        // Just off its side: 5 cm of padding catches 9 cm off the centre.
-        assert!(enters(&gun, [0.09, 0.2, 0.], [0., 0., 1.], REACH, PAD).is_some());
-        assert_eq!(enters(&gun, [0.11, 0.2, 0.], [0., 0., 1.], REACH, PAD), None);
+        // Just off its side: 15 cm of padding catches 19 cm off the centre.
+        assert!(enters(&gun, [0.19, 0.2, 0.], [0., 0., 1.], REACH, PAD).is_some());
+        assert_eq!(enters(&gun, [0.21, 0.2, 0.], [0., 0., 1.], REACH, PAD), None);
         // Inside it: at once.
         assert_eq!(enters(&gun, [0., 0.2, 2.], [1., 0., 0.], REACH, PAD), Some(0.0));
     }

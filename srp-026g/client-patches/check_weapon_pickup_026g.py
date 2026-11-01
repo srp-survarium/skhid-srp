@@ -459,7 +459,7 @@ class Pick(Run):
         super().__init__(data)
         emu = self.emu
         emu.mem_map(PICK, 0x100000, UC_PROT_ALL)
-        self.next, self.written, self.native = PICK, bytearray(), []
+        self.next, self.written, self.native, self.put_away = PICK, bytearray(), [], []
         for at in (WRITE_U8, DEACTIVATE, FORGET, SET_USER, INITIALIZE, ACTIVATE, ACTIVE_PLAYER):
             emu.hook_add(UC_HOOK_CODE, self.natives, begin=at, end=at)
         self.cfg = {}
@@ -540,6 +540,9 @@ class Pick(Run):
         else:
             name = {DEACTIVATE: "deactivate", SET_USER: "set_user", ACTIVATE: "activate"}[address]
             self.native.append((name, ecx, arg(1)))
+            if address == DEACTIVATE:
+                # Where the gun is when it is put away: its owner inventory and slot (item +250h, +254h).
+                self.put_away.append((ecx, self.read(ecx + 0x10 + 0x250), self.read(ecx + 0x10 + 0x254)))
             self.ret(4)
 
     def configs(self, emu, address, *_):
@@ -765,6 +768,22 @@ class Pick(Run):
         held, pending = self.read(p + 0x128), self.read(p + 0x12C)
         assert held and self.read(held) == WEAPON_VTABLE, ("nothing in hands", hex(held))
         assert pending and self.read(pending) == WEAPON_VTABLE, ("no pending object", hex(pending))
+
+    def reader(self, held_id, player=None):
+        """What base_player::deserialize does after the record: held and pending from the state's ids
+        through the registry (0x2DB626, 0x2DB796)."""
+        p = player or self.picker
+        held = self.read(self.registry + 4 * held_id)
+        self.word(p + 0x128, held)
+        self.word(p + 0x12C, held)
+
+    def put_away_in_slot(self, gun, inventory=None, slot=10):
+        """The gun put away as the native switch does it (deactivate(1), then forget_active_object), while
+        it is still in the picker's slot: nothing of it left in the animation player when it is moved."""
+        p = self.picker
+        i = self.native.index(("deactivate", gun, 1))
+        assert self.native[i + 1] == ("forget", p + 0x750, gun), self.native
+        assert (gun, inventory or self.inventory, slot) in self.put_away, [tuple(map(hex, x)) for x in self.put_away]
 
     def tick(self, ready=True, now=None, player=None):
         """The game's tick_active_object of the picker as it is (its pending object not changed): the
@@ -1045,6 +1064,7 @@ def holster(patched):
     assert r.native == [("deactivate", r.own_gun, 1), ("forget", r.picker + 0x750, r.own_gun),
                         ("set_user", r.new_gun, r.picker), ("initialize", r.new_gun),
                         ("activate", r.new_gun, 1)], r.native
+    r.put_away_in_slot(r.own_gun)
     assert r.read(r.new_gun + 0x5E5, 1)[0] == 17 and r.read(r.new_gun + 0x5F1, 1)[0] == 1
     assert r.save(r.picker) == record(slot10=PICKED) and r.save(PLAYER) == record("taken")
     assert any("switched (the gun in hands holstered): slot 10's picked gun" in l for l in r.log), r.log
@@ -1052,6 +1072,33 @@ def holster(patched):
           f"({PENDING_ID}: the own gun keeps id {GUN_ID} and stays in its slot while it holsters); the game's "
           f"switch then installs it (id {PICK_ID}, the switch's calls, the donor's magazine); logged at the command "
           "and the switch; a gun in hands throughout")
+
+    # The hide starts on the command's tick, as a weapon key's: set_input sets m_need_to_select_animations
+    # (+33Eh) when the actions change (0x2D899D), and tick_animations then runs select_animations
+    # (0x2D8F42) and with it tick_active_object. The pickup's command is filtered out of the actions, so
+    # the command sets it itself. The game's own tick_animations head, run after the command, reaches
+    # select_animations; without a command it does not.
+    def tick_animations_selects(g):
+        anim_state = g.blk(0x400)
+        g.emu.mem_write(anim_state + 0x388, bytes([2]))       # no other reason to select
+        g.word(g.picker + 0x2E0, anim_state)
+        sp = hide.STACK + 0x9000
+        g.word(sp + 4, g.read(g.picker + 0x324))
+        g.word(sp + 8, g.read(g.picker + 0x324) + 50)
+        g.run(0x2D8EE0, (0x2D8F42, 0x2D8F4E), sp, {**hide.GAME, UC_X86_REG_EAX: g.picker})
+        return g.stopped == 0x2D8F42
+    k = Pick(patched)
+    k.setup()
+    k.emu.mem_write(k.picker + 0x33E, b"\0")
+    assert not tick_animations_selects(k), "no command: nothing to select"
+    k.emu.mem_write(k.picker + 0x33E, b"\0")
+    k.ready = False
+    k.pick(switch=False)
+    assert k.read(k.picker + 0x33E, 1) == b"\1", "the command asks for the animations to be selected"
+    assert tick_animations_selects(k), "this tick's tick_animations runs select_animations (the switch looked at)"
+    print("ok the hide starts on the command's tick, as a weapon key's: the command sets m_need_to_select_animations "
+          "(+33Eh, set_input's 0x2D899D for changed actions), and the game's tick_animations then reaches "
+          "select_animations (0x2D8F42) that same tick; without a command it does not")
 
     # A weapon key while holstering: ignored (pending and the selected slot put back).
     r = started()
@@ -1114,7 +1161,13 @@ def holster(patched):
     # After the switch, back into the window: the pick undone, the gun registered pending again.
     r.tick(now=taken + 600)
     r.installed()
+    r.native, r.put_away = [], []
     assert r.load(r.picker, record(pending=waiting)) == RECORD
+    assert r.native == [("deactivate", r.new_gun, 1), ("forget", r.picker + 0x750, r.new_gun)], r.native
+    r.put_away_in_slot(r.new_gun)
+    assert r.read(r.picker + 0x128) == 0, "put away: the reader has nothing to deactivate"
+    assert any("gave back to its drop: slot 10's picked gun" in l and "from its holster: pending again" in l
+               for l in r.log), r.log
     assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
     assert r.read(r.registry + 4 * PICK_ID) == 0 and r.read(r.registry + 4 * PENDING_ID) == r.new_gun
     assert r.read(r.new_gun + 0xC, 1)[0] == PENDING_ID
@@ -1169,6 +1222,61 @@ def holster(patched):
     r.in_hands()
     print("ok a pickup over a picked gun: both guns registered while it holsters (slot 10's id and the "
           "pending one), then the new one takes slot 10's id")
+
+    # The 83Lb41 crash's case: a pickup over a picked gun switched, then a rollback into its holster.
+    # The record names the first picked gun in slot 10 and the second pending. The second gun, in hands,
+    # is put away as the native switch does (deactivate, forget, in its slot) before it goes back to the
+    # pending role; the first is installed again; at the switch the first is put away in its slot before
+    # any slot moves. Every gun deactivated is forgotten by the animation player, and the picker always
+    # has a gun in hands.
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    first, first_cooked = r.new_gun, r.cooked
+    first_pick = PICKED
+    second_cooked, second, _ = r.new_life(6, SPAWNED + 20_000, DIED + 2_000)
+    later = DIED + 2_500
+    r.pick(target=6, now=later, switch=False)
+    r.tick(ready=False)
+    window_record = r.save(r.picker)
+    assert window_record == record(slot10=first_pick, pending=(10, (later, 6, KIT, 1), (17, 1))), window_record.hex()
+    r.native, r.put_away = [], []
+    r.tick(now=later + 1_600)
+    assert r.read(r.picker + 0x128) == second and r.read(r.registry + 4 * PICK_ID) == second
+    r.put_away_in_slot(first)
+    assert r.native.index(("deactivate", first, 1)) == 0, "the gun in hands put away before anything moves"
+    # The rollback to 40 ms before the switch.
+    r.native, r.put_away = [], []
+    r.log.clear()
+    assert r.load(r.picker, window_record) == RECORD
+    assert r.native[:2] == [("deactivate", second, 1), ("forget", r.picker + 0x750, second)], r.native
+    r.put_away_in_slot(second)
+    assert r.slot(r.inventory, 10) == first + 0x10 and r.slot(second_cooked, 10) == second + 0x10
+    assert r.slot(first_cooked, 10) == r.own_gun + 0x10, "the own gun hidden with the first picked gun again"
+    assert r.read(r.registry + 4 * PICK_ID) == first and r.read(first + 0xC, 1)[0] == PICK_ID
+    assert r.read(r.registry + 4 * PENDING_ID) == second and r.read(second + 0xC, 1)[0] == PENDING_ID
+    assert r.read(r.registry + 4 * GUN_ID) == r.own_gun
+    assert [l.split(" ms ", 1)[1].split(" (taken", 1)[0] for l in r.log if " ms " in l] == [
+        "gave back to its drop: slot 10's picked gun", "a loaded record: installed: slot 10's picked gun",
+        "a loaded record: registered: slot 10's pending gun"], r.log
+    assert r.save(r.picker) == window_record
+    r.reader(PICK_ID)
+    r.word(r.picker + 0x12C, r.read(r.registry + 4 * PENDING_ID))
+    r.in_hands()
+    # The switch again: the first gun put away in its slot first, then the second in its place.
+    r.native, r.put_away = [], []
+    r.tick(now=later + 1_650)
+    r.put_away_in_slot(first)
+    assert r.native.index(("deactivate", first, 1)) == 0
+    assert r.read(r.picker + 0x128) == second and r.read(r.registry + 4 * PICK_ID) == second
+    assert r.read(r.registry + 4 * PENDING_ID) == 0 and r.slot(first_cooked, 10) == first + 0x10
+    assert r.slot(second_cooked, 10) == r.own_gun + 0x10
+    assert r.save(r.picker) == record(slot10=(later, 6, KIT, 1))
+    r.in_hands()
+    print("ok the 83Lb41 crash's case, a rollback into the holster of a pickup over a picked gun: the gun in "
+          "hands put away as the native switch does (deactivate, forget, still in its slot) before it is "
+          "moved back to pending, the first picked gun installed again, the registry as the record says; "
+          "the switch again puts the first gun away in its slot before any move; a gun in hands throughout")
 
 
 def stage2(patched, original):
@@ -1311,16 +1419,21 @@ def stage2(patched, original):
 
     # A loaded record without the pick (a rollback undoing it): restored before the native readers,
     # the gun back in its body's drop.
+    r.put_away = []
     assert r.load(r.picker, record()) == RECORD
     r.restored()
-    assert r.read(r.picker + 0x128) == r.new_gun, "held left to the native reader"
-    assert r.native == []
+    assert r.native == [("deactivate", r.new_gun, 1), ("forget", r.picker + 0x750, r.new_gun)], r.native
+    r.put_away_in_slot(r.new_gun)
+    assert r.read(r.picker + 0x128) == 0 and r.read(r.picker + 0x12C) == 0, "the reader then has nothing to deactivate"
+    r.reader(GUN_ID)
     # ... and with it again: installed without the switch (the reader switches).
     assert r.load(r.picker, record(slot10=PICKED)) == RECORD
-    r.installed()
     assert r.native == [("set_user", r.new_gun, r.picker), ("initialize", r.new_gun)], r.native
-    print("ok a loaded record without the pick: the install restored (held left to the reader), the gun back "
-          "in its drop; with it: installed again from it, without the switch's calls")
+    r.reader(PICK_ID)
+    r.installed()
+    print("ok a loaded record without the pick: the held gun put away as the native switch does (deactivate, "
+          "forget, in its slot), then restored, the gun back in its drop; with it: installed again from it, "
+          "without the switch's calls")
 
     # The donor's body leaves the world (its respawn: base_player::remove(1)) while its gun is lent:
     # the drop ends, the lent gun stays.
@@ -1336,20 +1449,25 @@ def stage2(patched, original):
     # The removal: flag 0 (a snapshot's) leaves it, flag 1 (respawn, departure) restores.
     r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(0))
     r.installed()
+    r.native, r.put_away = [], []
     r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
     r.restored()
-    assert r.read(r.picker + 0x128) == r.new_gun, "held left for remove to deactivate"
+    r.put_away_in_slot(r.new_gun)
+    assert r.read(r.picker + 0x128) == 0, "put away: remove has nothing to deactivate"
     assert r.save(r.picker) == record(), "the borrow ends with the life"
-    print("ok base_player::remove: flag 0 leaves the borrow; flag 1 puts the own gun and its ammunition back first "
-          "(its unload charges the own profile), held left for remove to deactivate; the record borrows nothing")
+    print("ok base_player::remove: flag 0 leaves the borrow; flag 1 puts the gun away (deactivate, forget, in its "
+          "slot), then the own gun and its ammunition back (its unload charges the own profile); the record "
+          "borrows nothing")
 
     # A record that does not decode: logged, read as empty, the reader past it. The pick taken back
     # first from what the removal let go (10 s after the donor's body left the world).
     r.word(r.picker + 0x324, gone + 10_000)
     r.load(r.picker, record(slot10=PICKED))
+    r.reader(PICK_ID)
     r.installed()
     assert r.load(r.picker, b"\x07" + bytes(RECORD - 1)) == RECORD
     r.restored()
+    r.reader(GUN_ID)
     assert any("record of place 3 does not decode (read as empty): bad bytes" in l for l in r.log), r.log
     assert r.load(r.picker, bytes(RECORD), size=8) == 0
     assert any("the state is too short" in l for l in r.log)
@@ -1540,10 +1658,10 @@ def stage2b(patched):
     for case, change, sight, shown in (
             # Not aimed at: no prompt, as for the crate and the artefacts.
             ("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.]), "in reach, not aimed at its box", []),
-            ("15 cm beside the gun", lambda g: g.eye([0., 0., 1.], [0.15, 1.0, 0.]), "in reach, not aimed at its box", []),
-            ("at the body 40 cm below it", lambda g: g.eye([0., -0.371, 0.928], [0., 1.0, 0.]),
+            ("25 cm beside the gun", lambda g: g.eye([0., 0., 1.], [0.25, 1.0, 0.]), "in reach, not aimed at its box", []),
+            ("at the body 40 cm below it", lambda g: g.eye([0., 0., 1.], [0., 0.6, 0.]),
              "in reach, not aimed at its box", []),
-            ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9]), "out of reach (2.2 m)", []),
+            ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -2.1]), "out of reach (2.2 m)", []),
             ("a wall between", lambda g: setattr(g, "wall", True), "not offered, no line of sight (the level's ray)", []),
             # Aimed at but refused: the prompt always says why.
             ("a second double-handed gun", lambda g: g.second(double_handed=1),
@@ -1583,12 +1701,12 @@ def stage2b(patched):
     print("ok a rollback replays the death at another time: its gun (cooked at the first) is still offered")
     g = Prompt(patched)
     g.setup()
-    g.eye([0., -1., 0.], [0.09, 2.0, 1.2])
+    g.eye([0., -1., 0.], [0.19, 2.0, 1.2])
     g.draw()
-    assert g.hud() == [("st_weapon_pick_up", NAME)], "5 cm of padding"
-    print("ok the box is the gun's own (10 cm thick, 1 m long, at its transform; logged once a drop): no prompt 15 cm "
+    assert g.hud() == [("st_weapon_pick_up", NAME)], "15 cm of padding"
+    print("ok the box is the gun's own (10 cm thick, 1 m long, at its transform; logged once a drop): no prompt 25 cm "
           "beside it or at the body below it; no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
-          "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 5 cm; offered 60 s after the death while the body is there, "
+          "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 15 cm; offered 60 s after the death while the body is there, "
           "gone with base_player::remove(1) of the body (its pose forgotten); each drop's reason logged once a change (not aimed at, "
           "out of reach, no line of sight, the carry rule with both slots' handedness and the gun's, taken)")
 

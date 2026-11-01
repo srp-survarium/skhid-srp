@@ -120,7 +120,7 @@
     78's own targets (a teammate's offer, a ground artefact) come first; the
     nearest gun wins;
   - the target is the gun's model box as the renderer has it, padded by
-    5 cm, along the eye's 2.2 m segment; the level's ray (patch 78's) must
+    15 cm (the owner, 2026-11-01: "a bit bigger"; 5 cm before), along the eye's 2.2 m segment; the level's ray (patch 78's) must
     be clear up to it;
   - a client that did not see the death (a late joiner) shows no prompt
     for that drop (it has no body for it and no cooked gun); it still plays
@@ -167,21 +167,40 @@ nothing in hands.
   slot, the cooked binding, a replaced pick restorable); then the drop is
   taken, the gun registered under the pending id and made the pending
   object (+12Ch), the record's `pending` set (the weapon slot, the pick, the
-  donor's magazine and chamber, fixed now). Nothing of the slots moves. The
-  game's tick_active_object sees pending != held: the held gun plays its hide.
+  donor's magazine and chamber, fixed now), and m_need_to_select_animations
+  (+33Eh) set, as set_input does for changed actions (0x2D899D: a weapon
+  key's press). Nothing of the slots moves. That tick's tick_animations runs
+  select_animations (0x2D8F42) and tick_active_object: the held gun starts
+  its hide on the command's tick. (83Lb41 lacked the flag: the command is
+  filtered out of the actions, which so did not change, and the switch was
+  looked at only at the next animation event or a shot, about a second.)
 - **While holstering** (`pickup.tick_active` 0x2D7650, each tick): a pending
   object other than the gun (a weapon key: inventory::action 0x2FCAA0 ->
   set_target 0x2D8210, +170h the selected slot) is put back, with +170h, and
   logged; 3 s after the command (`SWITCH_DEADLINE_MS`, the player's
   simulation time: the same tick on every client) the install is made there
   and then. The donor's body leaving the world does not cancel it.
+- **Putting a gun away** (the 83Lb41 crash, 2026-11-01): an animation
+  interval's event reached a weapon_sound_effect (0x297C50 -> 0x2981A0) whose
+  weapon had no user: deactivate(1) clears +8 (0x2E2EE0) and the event read
+  user+116h (0x298252), in the player's tick_animations (0x2D8F7D, the
+  animation player). Our code deactivated guns out of the native order: the
+  switch restored a replaced pick and moved the slots before deactivate and
+  forget; a rollback's restore and base_player::remove(1)'s moved the held
+  pick out before the native reader or remove deactivated it, which never
+  forget it (0x2DB662, 0x2DA7FD), and the cache frees a let-go gun 3 s
+  later. Now every pick leaves the hands as the native switch takes a gun
+  out: deactivate(1) then forget_active_object (dropping its intervals by
+  pointer, 0x3A1BF0), in its slot, bound as it was, before anything moves;
+  for the reader and remove the held object is then none (they skip it).
 - **The switch** (`pickup.switch` 0x2D76D0, reached once the held gun is
-  ready to be deactivated): the install (the stage 2a moves; the gun under
+  ready to be deactivated): every check first, the gun in hands put away
+  (above), then the install (the stage 2a moves; the gun under
   the slot's reserved id, the pending id emptied; the switch's calls:
   deactivate, forget, held = gun, set_user, initialize, the magazine,
-  activate), exit to 0x2D7724 (the new held gun's update). A refusal there
-  (the slots changed under the holster) cancels and lets the native switch
-  run: it draws the held gun again.
+  activate), exit to 0x2D7724 (the new held gun's update). A refusal before
+  the put-away cancels and lets the native switch run: it draws the held
+  gun again; one after it draws the gun put away again itself.
 - **The cancel**: the picker's death (`died`), and its removal or
   destruction (cleanup): the gun unregistered (its id as cooked, the entry
   emptied, pending = held), back in its drop, the drop open again while its
@@ -373,7 +392,7 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
 - **The prompt** (artefact_carry's on_hud at `player_icons.update_start`,
   after patch 78's own targets): for each kept pose, the eye's (player+44Ch:
   position m[12..14], forward m[8..10]) 2.2 m segment into the box padded by
-  5 cm (the box's frame from the transform's rows, taken as orthogonal);
+  15 cm (the box's frame from the transform's rows, taken as orthogonal);
   the nearest whose drop a pickup would take now (the body still the
   drop's, the drop open, its cook made here, `decide` with the carry rules
   yes) and with patch 78's ray (group
@@ -419,7 +438,7 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   the scene and the prompt gone; no prompt looking away, beyond 2.2 m,
   behind a wall, a second double-handed gun, modifier 64 with the gun in
   slot 10 or a place the match lacks; offered 60 s after the death, gone
-  with the body's remove(1); the 5 cm padding. Unit tests of the segment test and the press.
+  with the body's remove(1); the 15 cm padding. Unit tests of the segment test and the press.
   `check_artefact_carry_026g.py`, `check_ragdoll_026g.py`,
   `check_blackout_026g.py` (the composed handlers),
   `check_localization_026g.py`, the carry Ruffle harness

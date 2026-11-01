@@ -3143,3 +3143,5 @@ va	status	ref_021d	name
 0x00019ff0	inferred-high		vostok::engine::engine_world::logic_dispatch_callbacks
 0x0001a390	inferred-high		vostok::engine::engine_world::logic
 0x0001a030	inferred-medium		vostok::engine::engine_world::logic_tick
+0x00297c50	inferred-medium		survarium::weapon_sound_effect::on_animation_event
+0x002981a0	inferred-medium		survarium::weapon_sound_effect::play_from_event

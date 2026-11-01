@@ -438,10 +438,94 @@ unsafe fn set(inventory: raw::Inventory, slot: u8, item: raw::Item) {
     unsafe { raw::engine_inventory_set(Some(inventory), u32::from(slot), &mut reference) };
 }
 
+/// Why an install did not happen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Failure {
+    /// Refused before anything was changed.
+    Refused(Refusal),
+    /// At the switch, after the gun in hands was put away: it was drawn
+    /// again (held, set_user, initialize, activate), the switch done by us.
+    Redrawn(Refusal),
+}
+
+impl Failure {
+    pub fn refusal(self) -> Refusal {
+        match self {
+            Failure::Refused(r) | Failure::Redrawn(r) => r,
+        }
+    }
+}
+
 /// Installs the cooked gun of `cook` (its `slot`) in place of `player`'s own
-/// gun of `own`. Refused before any write when anything is not as expected.
+/// gun of `own`. A loaded world's ([`Mode::Load`]) is refused before any
+/// write when anything is not as expected. At the switch every check is made
+/// first, then the gun in hands is put away exactly as the native switch
+/// does it (0x2D76D0..0x2D76EB: deactivate(1), then forget_active_object,
+/// the gun still in its slot, bound as it was), and only then are the slots
+/// moved: a gun the game deactivated keeps nothing in the player's animation
+/// player (its intervals' events would reach its sound effects with no
+/// user: the 83Lb41 crash).
 pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, id: RegistryId,
-               mode: Mode<'_>) -> Result<Installed, Refusal> {
+               mode: Mode<'_>) -> Result<Installed, Failure> {
+    let (registered, replacing) = match mode {
+        Mode::Load => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
+        Mode::Switch(_, r) => (r, None),
+        Mode::Replace(_, old, r) => (r, Some(old)),
+    };
+    checks(player, own, cook, slot, (id, registered.id), replacing).map_err(Failure::Refused)?;
+    // SAFETY: the live player; its held object a client weapon (checks).
+    let outgoing = unsafe { player.this.held_item() }.ok_or(Failure::Refused(Refusal::NotInHands))?;
+    if !player.pending_is(registered) {
+        return Err(Failure::Refused(Refusal::NotPending));
+    }
+    // SAFETY: the live player and its held weapon.
+    unsafe {
+        raw::engine_weapon_deactivate(Some(outgoing), 1);
+        raw::engine_forget_active_object(player.this.animation().cast(), Some(outgoing));
+    }
+    place(player, own, cook, slot, id, mode).map_err(|refusal| {
+        // Never nothing in hands: the gun put away is drawn again.
+        // SAFETY: the live player and the weapon it held.
+        unsafe {
+            let p = player.this;
+            p.set_held_item(Some(outgoing));
+            raw::engine_weapon_set_user(Some(outgoing), Some(p));
+            raw::engine_weapon_initialize(Some(outgoing));
+            raw::engine_weapon_activate(Some(outgoing), 1);
+        }
+        Failure::Redrawn(refusal)
+    })
+}
+
+/// The gun of `installed` out of `player`'s hands before its restore, as the
+/// native switch takes a gun out: when it is the held object, deactivate(1)
+/// and the held (and pending) object none, so the native reader and remove,
+/// which run after, have nothing of it to deactivate; its animations dropped
+/// from the player's animation player (forget_active_object) in any case,
+/// so no event of them reaches the gun once it is let go (and freed).
+pub fn put_away(player: &Player<'_>, installed: &Installed) {
+    // SAFETY: the live player, its inventory slot's item read as a weapon
+    // only when it is the installed gun.
+    unsafe {
+        let p = player.this;
+        let Some(gun) = p.inventory()
+            .and_then(|inventory| inventory.slots().at(usize::from(installed.own.slot())).item())
+            .map(|item| item.active_object())
+            .filter(|gun| gun.address() == installed.gun) else { return };
+        if p.held_item() == Some(gun) {
+            raw::engine_weapon_deactivate(Some(gun), 1);
+            p.set_held_item(None);
+            if p.pending_item() == Some(gun) {
+                p.set_pending_item(None);
+            }
+        }
+        raw::engine_forget_active_object(p.animation().cast(), Some(gun));
+    }
+}
+
+/// The slots moved and the gun bound ([`install`]'s writes), after its checks.
+fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, id: RegistryId,
+         mode: Mode<'_>) -> Result<Installed, Refusal> {
     let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: the live player (its hook's), its inventory and world core;
     // the made cooked inventory (its ticket holds a reference); items read
@@ -569,11 +653,8 @@ pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponS
         }
         match mode {
             Mode::Switch(ammo, _) | Mode::Replace(ammo, _, _) => {
-                // The switch tick_active_object is at (0x2D76D0..0x2D7722),
-                // from the gun in hands: the own one, or the borrowed one replaced.
-                let outgoing = held.unwrap_or(own_gun);
-                raw::engine_weapon_deactivate(Some(outgoing), 1);
-                raw::engine_forget_active_object(p.animation().cast(), Some(outgoing));
+                // The rest of the switch tick_active_object is at
+                // (0x2D76F0..0x2D7722); the gun in hands was put away first.
                 p.set_held_item(Some(gun));
                 raw::engine_weapon_set_user(Some(gun), Some(p));
                 raw::engine_weapon_initialize(Some(gun));
@@ -676,6 +757,20 @@ pub fn unregister_pending(player: &Player<'_>, registered: &Registered) {
 }
 
 impl Player<'_> {
+    /// What set_input does when the input's actions change, as a weapon key's
+    /// press does (0x2D8995..0x2D899D): m_need_to_select_animations (+33Eh)
+    /// set, so this tick's tick_animations (0x2D8EF1..0x2D8F42) runs
+    /// select_animations 0x2D9690 and with it tick_active_object 0x2D7650:
+    /// the held gun sees the new pending object now and starts its hide.
+    /// Without it (the pickup's command is filtered out of the actions, so
+    /// they do not change) nothing looked at the switch until the next
+    /// animation event or input change: the holster began about a second
+    /// late, or at a shot.
+    pub fn select_animations_now(&self) {
+        // SAFETY: the live player's own flag (a byte of its simulation state).
+        unsafe { *self.this.need_to_select_animations() = 1 };
+    }
+
     /// Whether its pending object is `registered`'s gun.
     pub fn pending_is(&self, registered: &Registered) -> bool {
         // SAFETY: the live player's pending object, compared only.
@@ -829,6 +924,17 @@ fn restorable(player: &Player<'_>, installed: &Installed) -> Result<Restorable, 
 /// `replacing` the borrowed gun held in the slot, if any.
 pub fn can_install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, ids: (RegistryId, RegistryId),
                    replacing: Option<&Installed>) -> Result<(), Refusal> {
+    // SAFETY: the live player's held and pending objects, compared only.
+    if unsafe { player.this.pending_item() != player.this.held_item() } {
+        return Err(Refusal::NotInHands);
+    }
+    checks(player, own, cook, slot, ids, replacing)
+}
+
+/// [`can_install`]'s checks but the pending object's: what the switch
+/// makes sure of again before it puts the gun in hands away.
+fn checks(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, ids: (RegistryId, RegistryId),
+          replacing: Option<&Installed>) -> Result<(), Refusal> {
     let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: as install, reads only.
     unsafe {
@@ -838,9 +944,6 @@ pub fn can_install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: Wea
         registry_or(core, ids.0, gun, replacing.map(|old| old.gun))?;
         registry(core, ids.1, gun)?;
         let held = p.held_item();
-        if p.pending_item() != held {
-            return Err(Refusal::NotInHands);
-        }
         let own_item = inventory.slots().at(usize::from(own.slot())).item().ok_or(Refusal::NotInHands)?;
         let own_gun = own_item.active_object();
         if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE || held != Some(own_gun) {
