@@ -113,6 +113,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
             patches: Vec::new(),
             min_patch_revision: 0,
             replays,
+            bots: None,
         }),
     }
 }

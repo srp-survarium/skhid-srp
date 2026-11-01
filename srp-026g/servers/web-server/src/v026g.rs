@@ -10,7 +10,9 @@
 //! - The admin's tabs: money and items taken away (`crate::moderation`: a
 //!   reason, a preview and a confirm), the account (premium time,
 //!   experience or level, reputation), an item by its `items_dict` id or
-//!   name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
+//!   name, the operator's text (`A5` / `A6`) for everyone in the lobby, and
+//!   the bots' tuning (`crate::bots`: the match server's knobs, from the
+//!   next match, audited, with a reset to the defaults).
 //!   Bans, maintenance and registration are the store's, which the 0.26g
 //!   login server and lobby read: they are the same code as for 0.21d.
 
@@ -120,6 +122,9 @@ pub struct Game {
     /// takes (`session::v026g::replays`); `None`: every such request is
     /// "not found".
     pub replays: Option<Arc<session::v026g::replays::Replays>>,
+    /// The admin's Bots tab: the bots' tuning of the match server (`crate::bots`); `None`: the tab says it is not
+    /// on this server.
+    pub bots: Option<Arc<dyn session::v026g::bot_desk::BotDesk>>,
 }
 
 /// The longest line of the operator's text: the client's buffers are 64

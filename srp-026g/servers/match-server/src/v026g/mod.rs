@@ -141,6 +141,7 @@ pub use registry::{
     static_id,
 };
 pub use replay::{replays_from_env, replays_of};
+pub use bots::tuning::LiveTuning;
 pub use bots::tuning::LoadedTuning;
 pub use server::{bot_tuning_from_env, run, run_on, run_on_with_replays};
 pub use survarium::v026g::match_msgs::static_info::MatchProfile;
@@ -261,8 +262,9 @@ pub(crate) struct Settings {
     pub pack: Duration,
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
-    /// `SRP_BOT_TUNING`: what every match's bots run on, parsed once when the server starts.
-    pub bot_tuning: bots::tuning::LoadedTuning,
+    /// `SRP_BOT_TUNING` and the admin page's changes: what each match's bots run on, taken when the match starts
+    /// ([`bots::tuning::LiveTuning::for_match`]); the maps are made with the tuning the server started on.
+    pub bot_tuning: Arc<bots::tuning::LiveTuning>,
     pub timing: Timing,
 }
 
@@ -279,7 +281,7 @@ impl Default for Settings {
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
-            bot_tuning: bots::tuning::LoadedTuning::default(),
+            bot_tuning: Arc::default(),
             timing: Timing::default(),
         }
     }
@@ -291,8 +293,8 @@ const SNAPSHOT_DIR: &str = "logs/snapshots";
 
 impl Settings {
     /// The environment's settings, with the bots' tuning parsed by the caller at the start
-    /// ([`bots::tuning::LoadedTuning::from_env`]).
-    pub fn from_env(bot_tuning: bots::tuning::LoadedTuning) -> Self {
+    /// ([`bots::tuning::LiveTuning::from_env`]).
+    pub fn from_env(bot_tuning: Arc<bots::tuning::LiveTuning>) -> Self {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
@@ -348,7 +350,7 @@ impl Settings {
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
-                bot_tuning.tuning(),
+                bot_tuning.at_start(),
             ),
             bot_tuning,
             timing: {

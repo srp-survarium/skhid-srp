@@ -1,8 +1,10 @@
 //! Every number the bots go by (`docs/notes/player_bots_research.md` B7):
 //! typed structs, a default for each, and an optional JSON file
-//! (`SRP_BOT_TUNING`) read once when the server starts ([`LoadedTuning`]): a
+//! (`SRP_BOT_TUNING`) read when the server starts ([`LoadedTuning`]): a
 //! file the server cannot use stops it at the start, with the reason, and
-//! never falls back to the defaults. Unknown fields are
+//! never falls back to the defaults. Before each match the file is read again,
+//! with the admin page's changes over it ([`LiveTuning`]): one refused then keeps
+//! the last good tuning. Unknown fields are
 //! refused and the values checked ([`Tuning::validate`]); each trace line
 //! names the tuning's hash ([`Tuning::hash`]), so a match can be replayed
 //! with what it ran on.
@@ -84,6 +86,7 @@ mod heal;
 mod kit;
 mod legacy;
 mod limits;
+mod live;
 mod motion;
 mod pace;
 mod play;
@@ -119,6 +122,7 @@ pub use kit::KitTuning;
 pub use limits::Metres;
 pub use limits::Positive;
 pub use limits::Span;
+pub use live::LiveTuning;
 pub use pace::PaceTuning;
 pub use pace::Reserve;
 pub use play::PlayTuning;
@@ -318,25 +322,27 @@ enum Source {
     File { path: PathBuf, sha: String },
 }
 
-/// The tuning every bot match of a server runs on, parsed once when the server starts. A match is never made on
-/// anything else: a file that is there but cannot be used (unreadable, not JSON, a name or a value refused) is an
-/// error at the start, never the defaults.
+/// The tuning a bot match runs on, and where it comes from. The server's is parsed when it starts: a file that is
+/// there but cannot be used (unreadable, not JSON, a name or a value refused) is an error at the start, never the
+/// defaults. Each match takes it from [`LiveTuning`], which reads the file again and adds the admin page's changes.
 #[derive(Clone, Debug)]
 pub struct LoadedTuning {
     source: Source,
+    /// The digest of the admin page's changes over the source ([`LiveTuning`]), when there are any.
+    changes: Option<String>,
     tuning: Arc<Tuning>,
 }
 
 impl Default for LoadedTuning {
     /// The defaults, as a server with no file runs.
     fn default() -> Self {
-        Self { source: Source::Defaults, tuning: Arc::new(Tuning::default()) }
+        Self { source: Source::Defaults, changes: None, tuning: Arc::new(Tuning::default()) }
     }
 }
 
 impl PartialEq for LoadedTuning {
     fn eq(&self, other: &Self) -> bool {
-        self.source == other.source && self.tuning.hash() == other.tuning.hash()
+        self.source == other.source && self.changes == other.changes && self.tuning.hash() == other.tuning.hash()
     }
 }
 
@@ -354,10 +360,16 @@ impl LoadedTuning {
     /// The defaults with the changes of the patch file at `path`; the error says which file and what is wrong with it.
     pub fn from_file(path: &Path) -> Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("SRP_BOT_TUNING {}: {e}", path.display()))?;
-        let text = std::str::from_utf8(&bytes).map_err(|e| format!("SRP_BOT_TUNING {}: not UTF-8: {e}", path.display()))?;
+        Self::from_bytes(path, &bytes)
+    }
+
+    /// The defaults with the changes of the patch `bytes`, read from the file at `path`.
+    fn from_bytes(path: &Path, bytes: &[u8]) -> Result<Self, String> {
+        let text = std::str::from_utf8(bytes).map_err(|e| format!("SRP_BOT_TUNING {}: not UTF-8: {e}", path.display()))?;
         let tuning = Tuning::parse(text).map_err(|e| format!("SRP_BOT_TUNING {}: {e}", path.display()))?;
         Ok(Self {
-            source: Source::File { path: path.to_owned(), sha: super::switch_log::bytes_sha(&bytes) },
+            source: Source::File { path: path.to_owned(), sha: super::switch_log::bytes_sha(bytes) },
+            changes: None,
             tuning: Arc::new(tuning),
         })
     }
@@ -366,11 +378,29 @@ impl LoadedTuning {
         &self.tuning
     }
 
-    /// The tuning part of a match's data line: the file (with its digest) or `tuning=defaults`.
-    pub fn data_line(&self) -> String {
+    /// The file it was read from, and the digest of its bytes.
+    fn file(&self) -> Option<(&Path, &str)> {
         match &self.source {
+            Source::Defaults => None,
+            Source::File { path, sha } => Some((path, sha)),
+        }
+    }
+
+    /// The same source with the admin page's changes (their digest) made into `tuning`.
+    fn changed(&self, changes: String, tuning: Tuning) -> Self {
+        Self { source: self.source.clone(), changes: Some(changes), tuning: Arc::new(tuning) }
+    }
+
+    /// The tuning part of a match's data line: the file (with its digest) or `tuning=defaults`, and the digest of the
+    /// admin page's changes when there are any.
+    pub fn data_line(&self) -> String {
+        let source = match &self.source {
             Source::Defaults => "tuning=defaults".to_owned(),
             Source::File { path, sha } => format!("tuning={} {sha}", path.display()),
+        };
+        match &self.changes {
+            Some(sha) => format!("{source} admin={sha}"),
+            None => source,
         }
     }
 }

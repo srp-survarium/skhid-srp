@@ -93,7 +93,9 @@ pub(super) struct Walkers {
 
 impl Walkers {
     /// With `SRP_MAPDATA_DIR` and a server's bot in the match; the map's
-    /// build starts now, with the tuning the server was started on.
+    /// build starts now, with the tuning the server was started on. The bots
+    /// run on the tuning taken now (`SRP_BOT_TUNING` read again, with the
+    /// admin page's changes: [`crate::v026g::bots::tuning::LiveTuning::for_match`]).
     pub(super) fn new(formed: &Formed, settings: &Settings) -> Option<Self> {
         let maps = settings.maps.clone()?;
         let driven: Vec<bool> = formed.places.iter().map(|place| place.driven).collect();
@@ -108,7 +110,8 @@ impl Walkers {
                 return None;
             }
         };
-        let tuning = settings.bot_tuning.tuning().clone();
+        let loaded = settings.bot_tuning.for_match();
+        let tuning = loaded.tuning().clone();
         let hash = tuning.hash();
         let trace = match std::env::var_os("SRP_BOT_TRACE_DIR").filter(|dir| !dir.is_empty()) {
             Some(dir) => {
@@ -129,7 +132,7 @@ impl Walkers {
         log::info!(
             "Match {id:#x}: {}",
             switch_log::data_files(
-                &settings.bot_tuning.data_line(),
+                &loaded.data_line(),
                 std::env::var_os("SRP_BOT_ROUTES").as_deref(),
                 std::env::var_os("SRP_BOT_FOLIAGE").as_deref(),
                 std::env::var_os("SRP_BOT_GRASS").as_deref(),
