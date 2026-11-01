@@ -1,0 +1,22 @@
+# made by survey.py: each scope we sell, the guns it fits besides the rifle scopes' (release 41's guns;
+# a new item of optics.tsv: our live weapons too)
+# scope	guns
+shop_scope_aimpoint_compm4	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_eotech_552	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_cobra_ekp_8	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 jackhammer famas g3sg1 ks_23m ppsh_drum
+shop_scope_docter	
+shop_scope_leupold_deltapoint	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer cz_75 mp443 beretta93r glock_17 colt_m1911 akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_ncstar_4	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer cz_75 mp443 beretta93r glock_17 colt_m1911 akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_eotech_xps2	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_belomo_pk01	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_hensoldt_rsas	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer cz_75 mp443 beretta93r glock_17 colt_m1911 akmsu famas g3sg1 ks_23m ppsh_drum
+shop_scope_walther_comp2	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 jackhammer akmsu famas g3sg1 ks_23m ppsh_drum a_545 ak_12 ak_12_premium ak_74m akmn akmn_premium akmn_premium_2 ash_12 benelli_m4 fn_fnc izh_27_lancaster_premium_2 m4a1 mp7 mp_153 neostead pp2000 rem_870 rpd socom16 spas_12 sr2m toz_122 toz_34 ump45 valmet vepr_12 vepr_12_premium
+shop_scope_acog_ta31	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 akmsu famas g3sg1
+shop_scope_acog_ta01	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 akmsu famas g3sg1
+shop_scope_aperture	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 akmsu famas g3sg1
+shop_scope_elcan_specterdr	scar_h vhs_2 fn_minimi mp5a1 svu_a l85a2 fort_401 famas g3sg1
+shop_scope_leupold_3_7	svu_a g3sg1
+shop_scope_leupold_mk4	scar_h vhs_2 svu_a l85a2 famas g3sg1
+shop_scope_1p69_hyperon	scar_h vhs_2 svu_a l85a2 famas g3sg1
+shop_scope_pso_1	svu_a
+shop_scope_pso_1_old	svu_a
