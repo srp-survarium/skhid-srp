@@ -270,6 +270,7 @@ impl EyeOff {
         super::standin_damage::force_by_data(Some(false));
         super::standin_stagger::force_model(Some(false));
         super::standin_jump::force_fall(Some(false));
+        super::standin_jump::force_air_control(Some(false));
         Self
     }
 }
@@ -281,6 +282,7 @@ impl Drop for EyeOff {
         super::standin_damage::force_by_data(None);
         super::standin_stagger::force_model(None);
         super::standin_jump::force_fall(None);
+        super::standin_jump::force_air_control(None);
     }
 }
 
