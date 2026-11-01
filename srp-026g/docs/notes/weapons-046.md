@@ -67,6 +67,12 @@ balances "around the current balance".
   `main_3rd_view_suppressed`, which 0.26g had not, and the CZ 75's shot (the Colt's too) plays the
   Beretta's shutter. The sound cook then read a null config (exe+0x62731) and every match with one of
   the four crashed at load. The pack ships 0.46c2's preset; the port carries a sound's preset or stops.
+- **Pistol hands are the live pistols'.** A hands_only clip is additive on the base pose of the
+  gun's `user_animations` file. 0.26g's pistol base (`pistols_new.user_animations`) is a rifle pose;
+  the live pistols' tt33 hands move the right hand and the Weapon bone into a pistol grip, 0.46c2's pm
+  hands (made for 0.46c2's pistol base) move them by nothing: the MP-443 showed no hands and its gun
+  at the rifle's place. The five pistols take the template's (Fort 17, APS) hands for show, fire,
+  reload, hide and idle; their own item clips stay. The long guns keep 0.46c2's hands (rifle base).
 - **Rarity:** the Glock 17's `base_rarity_level` is 0 (0.46c2's daily-quest Glock had 3, a gold name).
 - **Decals:** the same default as the live pistols (`weapon-decals-1`: an empty `data/decals`; the
   size is client patch 44's, 6 cm to start, one for every weapon), so the pistols' look large.
