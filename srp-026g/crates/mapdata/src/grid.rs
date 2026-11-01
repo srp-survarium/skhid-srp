@@ -154,6 +154,12 @@ pub struct Body {
     /// notes of those functions, not run in the client): Vostok Radar Station's 0.86-0.90 m edge at (8.41, -16.51), walked up
     /// with no jump by the live players (A198). Off: a rise over [`Body::step`] is a jump. A build input: in the key when set.
     pub capsule_steps: bool,
+    /// Whether a walk-off (a Drop link, a walk-off GapDrop) is kept only where the capsule walking off the edge has room: no wall
+    /// ([`Erosion::Exact`]'s walls) on the move's side of the take-off, between a step and the crouched height over the take-off,
+    /// within [`WalkGrid::walk_off_clearance`] of the way from the take-off's centre to the landing or [`WALK_OFF_REACH_M`] on
+    /// ([`WalkGrid::cut_blocked_walk_offs`]). A link checks only the landing's ceiling over the take-off; a rail or a parapet at the
+    /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
+    pub drop_room: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -200,6 +206,7 @@ impl Body {
             keep_last_resorts: true,
             crouch_only_floors: true,
             capsule_steps: false,
+            drop_room: false,
         }
     }
 }
@@ -262,6 +269,7 @@ impl Default for Body {
             keep_last_resorts: true,
             crouch_only_floors: true,
             capsule_steps: false,
+            drop_room: false,
         }
     }
 }
@@ -580,6 +588,10 @@ const STEEP: u8 = 1;
 /// and are stepped up; a climb up steep ground is cut past a step
 /// ([`WalkGrid::cut_steep_climbs`]).
 const STEEP_NORMAL_Y: f32 = 0.5;
+/// How far past its floor's centre the client's capsule walking off an edge is still held by it, metres ([`Body::drop_room`]): the
+/// hemisphere (r 0.38) stays on the edge until it no longer reaches it (`step_down` 0x7E1B0), and the live players stand up to
+/// 0.32 m past a lip floor's centre (the bots' `body::SUPPORT_M`, the same number).
+pub const WALK_OFF_REACH_M: f32 = 0.435;
 /// Two floors this near in height are level to each other (a walk across
 /// a slope), metres.
 const LEVEL_M: f32 = 0.05;
@@ -701,6 +713,8 @@ pub struct BuildStats {
     pub overshot_cut: usize,
     /// … and those kept because they are the only way to a floor or back from it.
     pub overshot_kept: usize,
+    /// The walk-offs taken away for a wall in the way of the capsule ([`Body::drop_room`]).
+    pub drops_blocked: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -861,13 +875,16 @@ impl WalkGrid {
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
         (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
-        let walls = (body.erosion == Erosion::Exact).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
-        stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref());
+        let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
+        stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact));
         wide.off = match links {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         drop(solids);
+        if let Some(walls) = walls.as_ref().filter(|_| body.drop_room) {
+            stats.drops_blocked = grid.cut_blocked_walk_offs(&mut wide, walls);
+        }
         if body.landing_carry {
             (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
         }
