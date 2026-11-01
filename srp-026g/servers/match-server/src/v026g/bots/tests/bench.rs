@@ -1074,6 +1074,20 @@ pub(crate) fn real_bot_cost() {
             {
                 bots.arm_camper_long(place, bench_tier());
             }
+            // `SRP_BENCH_CAMPER_START=spot`: each of his lives starts on his spot (the one his own think takes, `camper_spot_at`), and
+            // his map side is named for him: his first feet lie near the other team's spawns, which would name theirs (`Tactics::side_at`).
+            if let Some(place) = camper_place
+                && camper_options.start == CamperStart::Spot
+            {
+                let side = i32::from(game.bodies[place].team);
+                if let Some((at, _)) = bots.tactics.as_ref().and_then(|tactics| camper_move::camper_spot_at(tactics, side, &camper_options)) {
+                    game.placed_start = Some((place, at));
+                    game.spawn(place);
+                    if let Some(bot) = bots.bots[place].as_mut() {
+                        bot.side = Some(side);
+                    }
+                }
+            }
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
             // The zones' damage to the stand-in's bodies, with
