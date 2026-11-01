@@ -121,4 +121,5 @@ edit	medicines-1.json	-	the bandages' (66) and the Medikit's (67) dictionary row
 edit	rudnya-ammo-1.json	-	Rudnya (v0.69), all four modes: ammo only at the bases: the two mid-map ammo boxes, by the decent house and the church, removed with their models and collision; each base box refills only its own team (the other team's resupply zone removed)
 edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun> (E)", exe patch 85) in the existing collection widget; strings in the unified language catalog.
 edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
+edit	patch19-melee-1.json	-	the melee of patch 19's 21 0.29a3 weapons as every native weapon's: melee/data/k_damage 2 -> 1.5 (the owner, 2026-11-01; patch 19 had rounded the natives' 1.5 into an integer)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

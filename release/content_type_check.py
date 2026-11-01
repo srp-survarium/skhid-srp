@@ -192,11 +192,20 @@ def corpus_with(walk, previous):
     return out
 
 
+def number_either(was, now, known):
+    """An int that becomes a float or the reverse, at a structural path where 0.26g's own configs
+    already have both: the game's reader takes either for a number there (content_edit.set_number;
+    patch 19's weapons' melee/data/k_damage is an int where every native weapon's is a float). Never
+    a vector, a table or a string: only these two scalar types, and only where the base mixes them."""
+    return {was, now} == {T_INT, T_FLOAT} and {T_INT, T_FLOAT} <= known
+
+
 def violations(walk, old, new, path, corp, allowlist):
     """The type problems of one changed file (`new` its bytes, `old` its
     previous bytes or None), a list of strings; value by value:
     - a value at a path the previous version has (its own path, the entry's
-      index and object type kept) has the type it had there;
+      index and object type kept) has the type it had there, but for a number
+      that turns int or float where the corpus has both (number_either);
     - a value at a path new to the file, whose structural path 0.26g already
       uses (the corpus, and the file's own previous version), has one of the
       types used there, unless `allowlist` has (file, structural path): a
@@ -219,8 +228,9 @@ def violations(walk, old, new, path, corp, allowlist):
     for key in sorted(new_raw):
         structural, t = new_raw[key]
         if key in old_raw:
-            if old_raw[key][1] != t:
-                out.append(f"{path}: {key or '/'} was {type_name(old_raw[key][1])}, now {type_name(t)} "
+            was = old_raw[key][1]
+            if was != t and not number_either(was, t, corp.get(structural, set())):
+                out.append(f"{path}: {key or '/'} was {type_name(was)}, now {type_name(t)} "
                            f"(a key that exists keeps its value type)")
             continue
         known = corp.get(structural, set()) | own.get(structural, set())

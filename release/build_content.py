@@ -46,7 +46,8 @@ LOBBY = 'lobby_menu'
 # The value-type check's allowlist (content_type_check.py): a NEW key whose
 # type is not one 0.26g uses at that structural path, with the reason it is
 # right: {(game path, structural path): reason}. It never lets a key that
-# exists change its type. Empty: today's content needs none.
+# exists change its type (a number between int and float only where the base
+# configs have both there: content_type_check.number_either). Empty: today's content needs none.
 TYPE_ALLOWLIST = {}
 
 
