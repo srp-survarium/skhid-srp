@@ -28,7 +28,7 @@ switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease apart_tie lane
 switches OFF think: door_centres wall_clear_corners
-switches OFF threat: answer_sniper breach concede job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes
+switches OFF threat: answer_sniper breach concede job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes walk_watch
 switches OFF traps: at_cleared at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data

@@ -1110,6 +1110,8 @@ pub(super) fn decide(
     let (step, claim) = match step {
         Step::Continue(intent) => {
             let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.features.memory.apart, running.kind(), intent);
+            // [threat.walk_watch] A229: a walk with a known threat ahead looks at it.
+            let intent = plays::watch::walk_watch(&cx, intent);
             (Step::Continue(intent), Some(claim))
         }
         other => {

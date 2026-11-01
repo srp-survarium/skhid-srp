@@ -135,6 +135,10 @@ pub(super) struct LookCounts {
     hits_seen: usize,
     kills_seen: usize,
     by_play: BTreeMap<u16, ByPlay>,
+    /// [threat.walk_watch] The walk steps by what they watched (`plays::watch::tally`): the thread's counts when this match
+    /// began, and the match's since, by team.
+    watch_from: Option<[[u64; 5]; 2]>,
+    watch: [[u64; 5]; 2],
 }
 
 impl LookCounts {
@@ -264,6 +268,13 @@ impl Topic for LookCounts {
         for (t, victim) in deaths {
             self.close(victim, Some(t));
         }
+        let counted = crate::v026g::bots::plays::watch::tally::counted();
+        let from = *self.watch_from.get_or_insert(counted);
+        for (t, team) in self.watch.iter_mut().enumerate() {
+            for (k, n) in team.iter_mut().enumerate() {
+                *n = counted[t][k] - from[t][k];
+            }
+        }
         let now = game.tick;
         let stale: Vec<Place> =
             (0..self.open.len()).filter(|&p| self.open[p].is_some_and(|h| now.saturating_sub(h.at) > FOLLOW_MS)).collect();
@@ -331,7 +342,19 @@ impl Topic for LookCounts {
                 c.lane_quick_deaths
             ));
         }
-        vec![("look", Part::new(serde_json::json!({ "look": json }), lines.join("\n")))]
+        let kinds = crate::v026g::bots::plays::watch::tally::KINDS;
+        let by_team: serde_json::Map<String, serde_json::Value> = self
+            .watch
+            .iter()
+            .enumerate()
+            .map(|(t, n)| {
+                let counts: serde_json::Map<String, serde_json::Value> =
+                    kinds.iter().zip(n).map(|(k, n)| ((*k).to_owned(), serde_json::Value::from(*n))).collect();
+                (format!("team{t}"), serde_json::Value::Object(counts))
+            })
+            .collect();
+        lines.push(format!("  walk watch (threat.walk_watch) steps by team {kinds:?}: {:?}", self.watch));
+        vec![("look", Part::new(serde_json::json!({ "look": json, "walk_watch": by_team }), lines.join("\n")))]
     }
 }
 
