@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 náb
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.
+st_srp_ammo069_23mm_r_name	23x75R, broky
 st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač
 st_srp_crosshair_hidden	Skrytý zaměřovač
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Zkrácený AKMS se sklopnou pažbou na náboje 7.62x39. Střílí jednotlivě i automaticky.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Francouzská útočná puška bullpup na náboje 5.56x45. Střílí jednotlivě, dávkou po třech i automaticky.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Německá puška pro určeného střelce na náboje 7.62x51. Střílí jednotlivě a dávkou po třech.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Ruský opakovací karabinový brokovník na náboje 23x75R. Trubicový zásobník na 4 náboje.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Německá samočinná pistole na náboje 7.62x25. Střílí jednotlivě i automaticky.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Špaginův samopal s bubnovým zásobníkem na 71 nábojů, náboje 7.62x25. Střílí jednotlivě i automaticky.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Buben“
 st_srp_weapon_aim_zoom	Základní zvětšení
 st_srp_weapon_chamber	Nabití do komory
 st_srp_weapon_draw_time	Doba tasení

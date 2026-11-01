@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 20
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.
+st_srp_ammo069_23mm_r_name	23x75R, sörét
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Rövidített, behajtható tusás AKMS, 7.62x39 lőszerrel. Egyes és sorozatlövésre képes.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Francia bullpup gépkarabély, 5.56x45 lőszerrel. Egyes, hármas sorozat és sorozatlövésre képes.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Német mesterlövész-puska, 7.62x51 lőszerrel. Egyes és hármas sorozatlövésre képes.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Orosz pumpás karabély, 23x75R lőszerrel. 4 töltényes csőtárral.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Német gépipisztoly, 7.62x25 lőszerrel. Egyes és sorozatlövésre képes.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Spagin géppisztolya 71 lőszeres dobtárral, 7.62x25 lőszerrel. Egyes és sorozatlövésre képes.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Dob”
 st_srp_weapon_aim_zoom	Alap célzási nagyítás
 st_srp_weapon_chamber	Csőre töltési idő
 st_srp_weapon_draw_time	Elővételi idő

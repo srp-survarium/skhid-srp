@@ -87,8 +87,12 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
     M4A1 21, the clip's own M4.
   - The premium copies of stock weapons (base patch 19's `_premium`, `_premium_2`, `_camo`) keep
     their plain weapon's icon, as in those builds.
+- **0.69d0's weapons (pack weapons-069, 2026-11-01):** their own numbers and 0.69d0's
+  `icon_<icon + 1>.png` (85 KS-23M, 86 Mauser M.712, 96 AKMSU, 97 FAMAS, 98 H&K G3SG/1);
+  `CombatLogItem` keeps the bitmaps by icon (a map, one a line), so numbers past 68 need no
+  filler.
 - **Checked:** `scripts/kill-feed-icons/check-combat-log/check.sh` also adds a kill row for every
-  icon 0 to 69 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden)
+  icon 0 to 99 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden)
   and where (after the killer, within the row, before the victim).
 - **Release:** the hud movie and the edit list together; the movie alone shows the stand-ins as
   before, the edit list alone the clip's last frame (the VSSK) for icons 53 to 68.

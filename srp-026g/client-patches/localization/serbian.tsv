@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Paket sadrži:\n- Unapređeni SR-3M Vihr.\n- 2000 me
 st_sr3m_bundle_name	Paket SR-3M Vihr
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
+st_srp_ammo069_23mm_r_name	23x75R, sačma
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Skraćeni AKMS sa preklopnim kundakom, municija 7,62x39. Podržava pojedinačnu i automatsku paljbu.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Francuska jurišna puška bulpap konstrukcije, municija 5,56x45. Podržava pojedinačnu paljbu, rafal od tri metka i automatsku paljbu.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Nemačka puška za preciznu paljbu, municija 7,62x51. Podržava pojedinačnu paljbu i rafal od tri metka.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Ruski pumparica-karabin, municija 23x75R. Opremljen cevastim okvirom za 4 metka.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Nemački automatski pištolj, municija 7,62x25. Podržava pojedinačnu i automatsku paljbu.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Automat Špagin sa dobošastim okvirom za 71 metak, municija 7,62x25. Podržava pojedinačnu i automatsku paljbu.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Doboš“
 st_srp_weapon_aim_zoom	Osnovno uvećanje
 st_srp_weapon_chamber	Vreme repetiranja
 st_srp_weapon_draw_time	Vreme vađenja

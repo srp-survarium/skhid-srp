@@ -142,14 +142,17 @@ package
          }
       }
 
+      // The icons past the clip's 53 frames that have a bitmap: the ported weapons' (CombatLogItem).
+      private static const MORE:Array = [53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,85,86,96,97,98];
+
       // A kill row for every weapon icon a config names (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
-      // ported weapons' 53 to 68) and one past them: icon i shows frame i + 1 of object_icon, from 53 to
-      // 68 the bitmap CombatLogWeapon<i> in its place (the clip hidden), past them the clip again; the
-      // weapon right after the killer, within the row, the victim after it.
+      // ported weapons' MORE) and every other up to 99: icon i shows frame i + 1 of object_icon, an icon
+      // of MORE the bitmap CombatLogWeapon<i> in its place (the clip hidden), any other past the clip its
+      // last frame; the weapon right after the killer, within the row, the victim after it.
       private function weapons() : void
       {
          var bitmaps:int = 0;
-         for(var icon:int = 0; icon <= 69; icon++)
+         for(var icon:int = 0; icon <= 99; icon++)
          {
             var data:Object = row(1,0,0,0);
             data.object_icon = icon;
@@ -176,7 +179,7 @@ package
                   bitmaps++;
                }
             }
-            var want:String = icon >= 53 && icon <= 68 ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
+            var want:String = MORE.indexOf(icon) >= 0 ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
             if(shown.indexOf(want) != 0 || shown.indexOf(",",want.length) >= 0)
             {
                failures.push("icon " + icon + ": " + shown + " (want " + want + ")");
@@ -192,7 +195,7 @@ package
                trace("KF icon " + icon + ": " + shown);
             }
          }
-         trace("KF icons 0 to 69: " + bitmaps + " bitmaps");
+         trace("KF icons 0 to 99: " + bitmaps + " bitmaps");
       }
 
       private function finish(result:String) : void

@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Содержит следующие предметы
 st_sr3m_bundle_name	Набор СР-3М "Вихрь"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
+st_srp_ammo069_23mm_r_desc	Патрон калибра 23 мм, снаряженный дробью, для КС-23М. Наносит высокий урон по небронированным целям.
+st_srp_ammo069_23mm_r_name	23x75R, дробь
 st_srp_attachments	Обвес
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Укороченный АКМС со складным прикладом под патрон 7.62×39. Поддерживает одиночный и автоматический режим стрельбы.
+st_srp_weapon069_akmsu_name	АКМСУ
+st_srp_weapon069_famas_desc	Французская штурмовая винтовка схемы булл-пап под боеприпас 5.56х45. Поддерживает одиночный режим, очередь по три выстрела и автоматический режим стрельбы.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Немецкая марксманская винтовка под патрон 7.62×51. Поддерживает одиночный режим и очередь по три выстрела.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Российский помповый карабин под патрон 23×75R. Оснащен трубчатым магазином на 4 патрона.
+st_srp_weapon069_ks_23m_name	КС-23М
+st_srp_weapon069_mauser_m712_desc	Немецкий автоматический пистолет под патрон 7.62×25. Поддерживает одиночный и автоматический режим стрельбы.
+st_srp_weapon069_mauser_m712_name	Маузер M.712
+st_srp_weapon069_ppsh_drum_desc	Пистолет-пулемет Шпагина с дисковым магазином на 71 патрон, патрон 7.62×25. Поддерживает одиночный и автоматический режим стрельбы.
+st_srp_weapon069_ppsh_drum_name	ППШ-41 «Диск»
 st_srp_weapon_aim_zoom	Базовое увеличение
 st_srp_weapon_chamber	Досылка патрона
 st_srp_weapon_draw_time	Время доставания

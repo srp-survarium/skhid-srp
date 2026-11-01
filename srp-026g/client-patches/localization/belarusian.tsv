@@ -2150,6 +2150,8 @@ st_sr3m_bundle_descr	<white>Змяшчае наступныя прадметы:\
 st_sr3m_bundle_name	Набор СР-3М "Віхор"
 st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
+st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
+st_srp_ammo069_23mm_r_name	23x75R, шрот
 st_srp_attachments	Абвес
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
@@ -2629,6 +2631,18 @@ st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Укарочаны АКМС са складным прыкладам пад патрон 7.62×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weapon069_akmsu_name	АКМСУ
+st_srp_weapon069_famas_desc	Французская штурмавая вінтоўка схемы булпап пад боепрыпас 5.56х45. Падтрымлівае адзіночны рэжым, чэргі па тры стрэлы і аўтаматычны рэжым стральбы.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Нямецкая марксманская вінтоўка пад патрон 7.62×51. Падтрымлівае адзіночны рэжым і чэргі па тры стрэлы.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Расійскі помпавы карабін пад патрон 23×75R. Аснашчаны трубчастым магазінам на 4 патроны.
+st_srp_weapon069_ks_23m_name	КС-23М
+st_srp_weapon069_mauser_m712_desc	Нямецкі аўтаматычны пісталет пад патрон 7.62×25. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weapon069_mauser_m712_name	Маўзер M.712
+st_srp_weapon069_ppsh_drum_desc	Пісталет-кулямёт Шпагіна з дыскавым магазінам на 71 патрон, патрон 7.62×25. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weapon069_ppsh_drum_name	ППШ-41 «Дыск»
 st_srp_weapon_aim_zoom	Базавае павелічэнне
 st_srp_weapon_chamber	Дасыланне патрона
 st_srp_weapon_draw_time	Час даставання

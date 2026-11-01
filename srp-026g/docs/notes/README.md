@@ -30,6 +30,7 @@ given), LIKELY or GUESS.
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
+| [weapons-069.md](weapons-069.md) | The 0.69d0 weapons (pack weapons-069): AKMSU, FAMAS, H&K G3SG/1, Mauser M.712, KS-23M with its 23x75R smallshot, PPSH-41 "Drum"; ids, icons, rigs, stats beside their live peers, attach points for the weapon kit |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
