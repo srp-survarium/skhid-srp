@@ -1547,6 +1547,46 @@ impl Route {
         ((self.length() - s).max(0.0), None)
     }
 
+    /// From `s` on: the distance to the next corner whose turn through `merge_m` ([`Route::turn_through`]) is more than
+    /// `angle` radians, or that leads to a jump (or to the end), and that corner's waypoint index (`Feel::sprint_turns`).
+    pub fn sharp_ahead(&self, s: f32, angle: f32, merge_m: f32) -> (f32, Option<usize>) {
+        let first = self.along.partition_point(|&a| a <= s);
+        for k in first..self.points.len().saturating_sub(1) {
+            if self.points[k + 1].jump.is_some() || self.turn_through(k, merge_m) > angle {
+                return (self.along[k] - s, Some(k));
+            }
+        }
+        ((self.length() - s).max(0.0), None)
+    }
+
+    /// How far the way turns at waypoint `k`, radians: the most any leg starting within `merge_m` metres after it turns
+    /// from the leg into it, so corners that close together (a doorway's centre and the corner after it) are one turn.
+    /// [`Route::turn_at`] for the corner alone.
+    pub fn turn_through(&self, k: usize, merge_m: f32) -> f32 {
+        if k == 0 || k + 1 >= self.points.len() {
+            return 0.0;
+        }
+        let (a, b) = (self.points[k - 1].at, self.points[k].at);
+        let (ux, uz) = (b.x - a.x, b.z - a.z);
+        let nu = (ux * ux + uz * uz).sqrt();
+        if nu < 1e-4 {
+            return self.turn_at(k);
+        }
+        let mut most = 0.0f32;
+        for j in k..self.points.len() - 1 {
+            if j > k && self.along[j] - self.along[k] > merge_m {
+                break;
+            }
+            let (c, d) = (self.points[j].at, self.points[j + 1].at);
+            let (vx, vz) = (d.x - c.x, d.z - c.z);
+            let nv = (vx * vx + vz * vz).sqrt();
+            if nv >= 1e-4 {
+                most = most.max(((ux * vx + uz * vz) / (nu * nv)).clamp(-1.0, 1.0).acos());
+            }
+        }
+        most
+    }
+
     /// The body is looked for from segment `segment` again (never later than
     /// it was): a world showed it still under the jump that segment leads
     /// up, which the reckoning had it up ([`Route::progress`] never goes
