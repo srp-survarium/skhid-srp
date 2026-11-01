@@ -520,11 +520,16 @@ mod tests {
             let node = grid.locate(at, 0.05).expect("the take-off is a floor");
             grid.links(node).filter(|&(_, kind)| kind == LinkKind::Drop).count()
         };
-        let (beside, along) = (Vec3::new(5.125, 2.0, 5.125), Vec3::new(5.125, 2.0, 6.125));
+        // The drop straight off the edge past the bracket's side (the diagonal away from it stays).
+        let straight = |grid: &WalkGrid| {
+            let node = grid.locate(Vec3::new(5.125, 2.0, 5.125), 0.05).expect("the take-off is a floor");
+            grid.links(node).any(|(to, kind)| kind == LinkKind::Drop && grid.position(to).distance_xz(Vec3::new(4.625, 0.0, 5.125)) < 0.05)
+        };
+        let along = Vec3::new(5.125, 2.0, 6.125);
         let (plain, plain_stats) = build(false);
         let (room, room_stats) = build(true);
-        assert!(drops(&plain, beside) > 0, "a drop off the edge by the bracket without the switch");
-        assert_eq!(drops(&room, beside), 0, "none with it");
+        assert!(straight(&plain), "a drop off the edge by the bracket without the switch");
+        assert!(!straight(&room), "none with it");
         assert_eq!(drops(&room, along), drops(&plain, along), "the edge away from it keeps its drop");
         assert!(drops(&room, along) > 0);
         assert_eq!(plain_stats.drops_blocked, 0);
