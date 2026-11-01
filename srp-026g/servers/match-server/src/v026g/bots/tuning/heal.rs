@@ -84,8 +84,8 @@ pub enum DrugStops {
     /// [`Self::Known`], and the press waits while hits land: no drug is pressed within `quiet_ms` of the last hit
     /// that took health, and the bot walks to cover meanwhile, as it does in a press's delay ("break the line of
     /// sight, then heal": a press under fire is a unit a hit in the next 2 s throws away). Off: its by-side bench
-    /// against [`Self::Known`] (A217, 180 pairs, quiet 1.5 s) wasted fewer drugs in their delay (823 stops against
-    /// 1471) but scored less (score -2.4 %, z -2.0; delivered -5.6 %, z -2.3; deaths +2.1 %, z +1.7): the hold
+    /// against [`Self::Known`] (A217, 192 pairs, quiet 1.5 s) wasted fewer drugs in their delay (848 stops against
+    /// 1512) and gained nothing (score -1.8 %, z -1.5; delivered -4.0 %, z -1.6; deaths +1.6 %, z +1.4): the hold
     /// keeps a hurt body unhealed for `quiet_ms` more and walks it off the fight at every think meanwhile.
     Wait {
         /// GUESS: 1.5 s, under the medkit's 2 s delay; the bot learns of a hit a world late.

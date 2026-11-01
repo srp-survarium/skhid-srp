@@ -58,7 +58,7 @@
 //! nothing, in the active time what it healed stays, and the unit is spent. A
 //! drug a hit stopped is known stopped ([`Press::hit`]): the reckoning drops the
 //! rest of it and the item may be pressed again (`DrugStops::Known`, the
-//! default). `DrugStops::Wait` (off: its bench scored less) also holds the press
+//! default). `DrugStops::Wait` (off: its bench gained nothing) also holds the press
 //! within `quiet_ms` of the last hit that took health, the habit walking to
 //! cover first and pressing once it is quiet.
 //!
