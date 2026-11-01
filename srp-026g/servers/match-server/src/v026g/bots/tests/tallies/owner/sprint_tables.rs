@@ -12,6 +12,10 @@
 //! side), forward held, not crouched, no fire or aim from 2 s before to 2 s after; the sprint is the sprint key. The bench's
 //! paths are its own ticks, the live humans' were rebuilt from inputs between 5 s worlds (median 0.42 m): sharp turns
 //! read a little low there.
+//!
+//! With them, each team's stamina lockouts of the stand-in's bodies (the guard: more sprint spends more of the bar) and the
+//! bot's own reckoned bar at each (`bots::stamina::Reckoning`, `think.stamina_rates`): a lockout the bot reckoned at 0 it
+//! saw coming; one it reckoned over the reserve it did not.
 
 use super::*;
 use crate::v026g::bots::tests::standin_stamina;
@@ -29,17 +33,40 @@ const LEG_EDGES: [f32; 7] = [3.5, 6.0, 10.0, 15.0, 20.0, 30.0, 50.0];
 const LEG_NAMES: [&str; 8] = ["0_3.5", "3.5_6", "6_10", "10_15", "15_20", "20_30", "30_50", "50_up"];
 const TURN_EDGES: [f32; 4] = [30.0, 60.0, 90.0, 135.0];
 const TURN_NAMES: [&str; 5] = ["0_30", "30_60", "60_90", "90_135", "135_180"];
+/// The reckoned bar's bands at a lockout (lower edges of all but the first) and their names.
+const RECKONED_EDGES: [f32; 3] = [1.0, 10.0, 25.0];
+const RECKONED_NAMES: [&str; 4] = ["0_1", "1_10", "10_25", "25_up"];
 
-/// By team: the census ticks and the sprinted ones, by the straight way's band and by the turn's.
+/// By team: the census ticks and the sprinted ones, by the straight way's band and by the turn's; the stand-in's lockouts
+/// by the bot's reckoned bar at them.
 #[derive(Default)]
 pub(super) struct SprintTables {
     legs: [[[u64; 2]; 8]; 2],
     turns: [[[u64; 2]; 5]; 2],
+    reckoned: [[u64; 4]; 2],
+    /// By place: the stand-in body's lockouts so far.
+    lockouts_seen: Vec<u32>,
 }
 
 impl Topic for SprintTables {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    /// A body's lockout begun in the step: the bar its bot reckoned then.
+    fn bots(&mut self, bots: &Bots, game: &Game) {
+        self.lockouts_seen.resize(game.bodies.len(), 0);
+        for (place, body) in game.bodies.iter().enumerate() {
+            let lockouts = body.stamina.counts.lockouts;
+            if lockouts <= self.lockouts_seen[place] {
+                continue;
+            }
+            self.lockouts_seen[place] = lockouts;
+            if let Some(bot) = bots.bots.get(place).and_then(Option::as_ref) {
+                let band = RECKONED_EDGES.iter().take_while(|&&edge| bot.stamina.value() >= edge).count();
+                self.reckoned[usize::from(body.team.min(1))][band] += 1;
+            }
+        }
     }
 
     fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
@@ -93,6 +120,9 @@ impl SprintTables {
             let bar = standin_stamina::counts_of(game.bodies.iter().filter(|b| usize::from(b.team.min(1)) == team).map(|b| &b.stamina));
             json.insert(format!("sprint_t{team}_stamina_lockouts"), bar.lockouts.into());
             json.insert(format!("sprint_t{team}_stamina_low_ticks"), bar.low_ticks.into());
+            for (band, name) in RECKONED_NAMES.iter().enumerate() {
+                json.insert(format!("sprint_t{team}_lockout_reckoned_{name}"), self.reckoned[team][band].into());
+            }
             for (band, name) in LEG_NAMES.iter().enumerate() {
                 let [n, s] = self.legs[team][band];
                 json.insert(format!("sprint_legs_t{team}_{name}_ticks"), n.into());
@@ -111,10 +141,11 @@ impl SprintTables {
                     .join(", ")
             };
             text.push(format!(
-                "team {team}: by the straight way ahead (m) {}; by the turn within 3 m (deg) {}; stamina lockouts {}",
+                "team {team}: by the straight way ahead (m) {}; by the turn within 3 m (deg) {}; stamina lockouts {} (the bot's bar then {})",
                 shares(&self.legs[team], &LEG_NAMES),
                 shares(&self.turns[team], &TURN_NAMES),
-                bar.lockouts
+                bar.lockouts,
+                RECKONED_NAMES.iter().zip(self.reckoned[team]).map(|(name, n)| format!("{name} {n}")).collect::<Vec<_>>().join(", ")
             ));
         }
         Part::new(serde_json::Value::Object(json), format!("owner-test sprint tables: {}", text.join("; ")))

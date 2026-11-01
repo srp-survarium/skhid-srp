@@ -4714,7 +4714,7 @@ mod tests {
     /// without the gauge, or with the bar full, it goes on.
     #[test]
     fn the_sprint_is_let_go_of_by_the_reckoned_bar() {
-        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::stamina::{Gauge, Rates};
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
@@ -4731,7 +4731,7 @@ mod tests {
             motor.sprint_by_the_bar(&route, 0.0);
             motor.sprinting
         };
-        let bar = |value: f32, low: bool| Some(Gauge { value, low });
+        let bar = |value: f32, low: bool| Some(Gauge { value, low, rates: Rates::LIGHT });
         assert!(sprinting_after(None, false), "no gauge: as before");
         assert!(sprinting_after(bar(100.0, false), false), "a full bar pays the 20 m, the run-up and the jump");
         assert!(!sprinting_after(bar(30.0, false), false), "30 - 22 is under the jump and the margin");
@@ -4752,14 +4752,14 @@ mod tests {
     /// again before the bar is over stop + gap, and the draw is a life's own (two lives, two numbers; the same seed, the same).
     #[test]
     fn the_sprint_is_let_go_of_at_the_lifes_reserve_and_taken_up_over_its_gap() {
-        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::stamina::{Gauge, Rates};
         use crate::v026g::bots::tuning::Reserve;
         use crate::v026g::bots::tuning::Span;
         let route = Route::new(vec![
             Waypoint { at: Vec3::new(0.0, 0.0, 0.0), node: 0, jump: None, low: false },
             Waypoint { at: Vec3::new(60.0, 0.0, 0.0), node: 0, jump: None, low: false },
         ]);
-        let bar = |value: f32| Some(Gauge { value, low: false });
+        let bar = |value: f32| Some(Gauge { value, low: false, rates: Rates::LIGHT });
         let after = |reserve: Option<(f32, f32)>, value: f32, tired: bool| {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -4814,7 +4814,7 @@ mod tests {
     /// its run lets the sprint go.
     #[test]
     fn a_tired_body_walks_into_a_sprint_jump_and_a_gap_run_is_priced() {
-        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::stamina::{Gauge, Rates};
         let ledge = |tired_bar: f32| {
             let p = |x: f32, y: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, y, 0.0),
@@ -4824,7 +4824,7 @@ mod tests {
             };
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
-            motor.gauge = Some(Gauge { value: tired_bar, low: false });
+            motor.gauge = Some(Gauge { value: tired_bar, low: false, rates: Rates::LIGHT });
             motor.walking = true;
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.2, true), p(14.0, 1.2, false)]);
             let pose = Pose { feet: Vec3::new(6.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 4.0, ..Default::default() };
@@ -4844,7 +4844,7 @@ mod tests {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
             motor.sprinting = true;
-            motor.gauge = Some(Gauge { value: bar, low: false });
+            motor.gauge = Some(Gauge { value: bar, low: false, rates: Rates::LIGHT });
             motor.sprint_by_the_bar(&route, 19.5);
             motor.sprinting
         };

@@ -396,6 +396,9 @@ pub struct Bot {
     /// a spawn fills a life's rounds from it, and only the rounds fired
     /// are gone. Empty for a bot of no role.
     kits: Vec<(&'static guns::Arms, u32)>,
+    /// The stamina rates of each of its kits, by the same index (`stamina::Rates::of_kit`); empty for a bot of no role
+    /// (the light kit's then). A life's reckoning takes them with `think.stamina_rates` kit.
+    kit_rates: Vec<stamina::Rates>,
     /// The rounds this life started with (what its kit's storage gave).
     life_carried: u32,
     /// Its role, read from its gear (`Bots::new`'s `roles`).
@@ -555,6 +558,7 @@ impl Bot {
             zone_walk: None,
             zone_note: None,
             kits,
+            kit_rates: Vec::new(),
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
@@ -590,6 +594,15 @@ impl Bot {
             return;
         }
         self.kits = kits;
+        self.kit_rates = self.role.map_or_else(Vec::new, |role| {
+            let loadouts = survarium::v026g::loadouts::bot_kits(equipment, role);
+            let modifiers = survarium::v026g::bot_skills::bot_modifiers(&loadouts);
+            // The kits `kits_of` kept (those with arms), in its order.
+            (0..role.kit_roles().len())
+                .filter(|&k| guns::Arms::of_kit(equipment, role, k).is_some())
+                .map(|k| stamina::Rates::of_kit(loadouts[k], &modifiers))
+                .collect()
+        });
         self.kit = 0;
         self.kit_chosen = 0;
         // The traps its kit carries (none in the old pockets): the habit is told at the spawn.
@@ -1387,6 +1400,10 @@ impl Bots {
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            // The bar's rates of the kit this life is in (`think.stamina_rates`); the light kit's by default.
+            if self.tunings.of(bot.team).think.stamina_rates == tuning::StaminaRates::Kit {
+                bot.stamina.set_rates(bot.kit_rates.get(bot.kit).copied().unwrap_or(stamina::Rates::LIGHT));
+            }
             // The sprint's gate and this life's bar reserve (`pace.rs`).
             bot.pace.new_life();
             // Drawn from a stream of its own (the spawn's time and the place), so the bot's own random numbers, which every decision shares, are the same with or without the reserve.

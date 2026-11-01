@@ -164,6 +164,7 @@
     "search_queue": "first_come",
     "shut_in_gate": false,
     "stamina": false,
+    "stamina_rates": "light",
     "stranded_start": false
   },
   "traps": {
