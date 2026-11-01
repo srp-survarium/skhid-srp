@@ -964,16 +964,17 @@ pub(super) mod tests {
         tris.extend(floor(10.8, 0.0, 11.2, 4.0, 0.5));
         tris.extend(floor(11.6, 0.0, 20.0, 4.0, 2.0));
         let grid = WalkGrid::build_with_links(&tris, [0.0, -1.0, 21.0, 5.0], 0.25, Body::default(), mapdata::OffMeshLinks::Gaps);
-        let edge = grid.locate(Vec3::new(9.875, 4.0, 2.125), 0.2).expect("the lip's last floor");
         let ledge = |n: NodeId| (grid.position(n).y - 0.5).abs() < 0.05;
         let landing = |n: NodeId| (grid.position(n).y - 2.0).abs() < 0.05;
-        // The grid's way down is the walk-off onto the far floor; nothing links the ledge.
-        assert!(
-            grid.links(edge).any(|(to, kind)| kind == LinkKind::GapDrop && landing(to)),
-            "{:?}",
-            grid.links(edge).collect::<Vec<_>>()
-        );
-        assert!(!grid.links(edge).any(|(to, _)| ledge(to)));
+        // The grid's way down is the walk-off onto the far floor (one a metre of edge: from one of the lip's last floors);
+        // nothing links the ledge.
+        let edge = grid
+            .off_links()
+            .iter()
+            .find(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff && landing(l.to) && grid.position(l.from).y > 3.9)
+            .map(|l| l.from)
+            .unwrap_or_else(|| panic!("no walk-off from the lip: {:?}", grid.off_links()));
+        assert!(!(0..grid.len() as NodeId).any(|n| grid.links(n).any(|(to, _)| ledge(to) && !ledge(n))));
         // A slip east at 0.1 m/s a tick (0.005 m), from the floor's centre over its edge.
         let slip = |offs: WalkOffs| {
             let (mut node, mut feet) = (edge, grid.position(edge));
