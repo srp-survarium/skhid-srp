@@ -22,7 +22,7 @@
 #endif
 
 #if SHADOW_QUALITY <= 1
-#	define PCSS_BLOCKER_TAPS	8
+#	define PCSS_BLOCKER_TAPS	16
 #	define PCSS_FILTER_TAPS		8
 #elif SHADOW_QUALITY == 2
 #	define PCSS_BLOCKER_TAPS	16
@@ -70,15 +70,16 @@ float pcss_shadow( float4 projection, float2 pixel, float slope )
 
 	// 1. blockers: a blocker at a fifth of the receiver's distance sets the search radius
 	float search		= clamp( 2.0f*PCSS_LIGHT_RADIUS*p00/z_receiver, 1.5f*texel, max_radius );
-	float search_depth	= depth - ( search + 1.5f*texel )*depth_per_uv;
 	float blocker_sum	= 0.0f;
 	float blockers		= 0.0f;
 	[unroll]
 	for ( int i = 0; i < PCSS_BLOCKER_TAPS; i++ ) {
-		float2 uv		= tc + pcss_disc( i, PCSS_BLOCKER_TAPS, rotation )*search;
+		float2 tap		= pcss_disc( i, PCSS_BLOCKER_TAPS, rotation );
+		float2 uv		= tc + tap*search;
 		int2 texel_xy	= clamp( int2( uv*shadow_map_size ), 0, int( shadow_map_size ) - 1 );
 		float d			= shadowmap_texture.Load( int3( texel_xy, 0 ) ).r;
-		float is_blocker= d < search_depth ? 1.0f : 0.0f;
+		// each tap's own receiver-plane bias: a tap twice as far from the centre drops twice as far
+		float is_blocker= d < depth - ( length( tap )*search + 1.5f*texel )*depth_per_uv ? 1.0f : 0.0f;
 		blocker_sum		+= d*is_blocker;
 		blockers		+= is_blocker;
 	}
@@ -91,11 +92,12 @@ float pcss_shadow( float4 projection, float2 pixel, float slope )
 	float radius		= clamp( penumbra, texel, max_radius );
 
 	// 3. filter
-	float filter_depth	= depth - ( radius + 1.5f*texel )*depth_per_uv;
 	float lit			= 0.0f;
 	[unroll]
-	for ( int j = 0; j < PCSS_FILTER_TAPS; j++ )
-		lit				+= shadowmap_texture.SampleCmpLevelZero( s_shmap_local, tc + pcss_disc( j, PCSS_FILTER_TAPS, rotation )*radius, filter_depth ).r;
+	for ( int j = 0; j < PCSS_FILTER_TAPS; j++ ) {
+		float2 tap		= pcss_disc( j, PCSS_FILTER_TAPS, rotation );
+		lit				+= shadowmap_texture.SampleCmpLevelZero( s_shmap_local, tc + tap*radius, depth - ( length( tap )*radius + 1.5f*texel )*depth_per_uv ).r;
+	}
 	return				saturate( lit/PCSS_FILTER_TAPS + shadow_transparency );
 }
 

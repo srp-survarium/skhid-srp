@@ -965,22 +965,29 @@ each side's own. The character's idle pose differs between runs.
 
 Pairs (`srp-026g/docs/images/renderer-026g/`; left stock, right PCSS; `r_shadow_quality 1`):
 
-- `pcss-6cm-feet-scene.png`, `pcss-6cm-feet-lights.png`: the character's shadow on the floor.
-  Contact hardening works: sharp where the boots touch the floor, wider and softer along the
-  shadow away from them; the stock edge is one texel everywhere.
-- `pcss-6cm-crate-lights.png`: the crate and the window bars' shadows on the floor, softened by
-  their distance from what casts them.
+- `pcss-6cm-feet-scene.png`, `pcss-15cm-feet-lights.png`: the character's shadow on the floor.
+  Contact hardening: sharp where the boots touch the floor, wider and softer along the shadow away
+  from them (clearest with the 15 cm light); the stock edge is one texel everywhere.
+- `pcss-6cm-crate-lights.png`: the crate and the window bars' shadows on the floor.
 - `pcss-15cm-full-scene.png`, `pcss-15cm-full-lights.png`: the whole view with a 15 cm light.
-- `pcss-6cm-shelf-lights.png`: **the artifacts that remain**: the shelf's shadow on the brick
-  wall breaks into blotches, and under the bench the penumbra comes out in blocks. GUESS: the
-  stock normal offset (normalize(0.75 N + L) * 24 / 256 = up to 9 cm along the normal-mapped
-  normal) moves the receiver by different amounts on a bumpy wall, and the 8-tap blocker search
-  at quality 1 is too coarse at a contact; tried and not enough: a larger receiver-plane bias,
-  and the slope from the screen-derivative normal (worse: blocky in 2x2 quads).
+- `pcss-6cm-shelf-lights.png`: the shelf's shadow on the brick wall and the bench's on the floor.
+  The first version (`pcss-first-try-shelf-lights.png`) lost most of both and left blotches: its
+  receiver-plane bias (the full kernel radius times a slope clamped at tan = 10) pushed the
+  compared depth behind a blocker that sits a few cm from its receiver. The current version
+  biases each tap by its own distance from the centre and clamps the slope at tan = 2 (section
+  13): the bench shadow is back whole; the shelf's band is back, its far lower-left corner is
+  still lighter than stock.
 
-So PCSS works on the floor and the characters and is not ready for walls with relief or close
-contacts at quality 1. Next: the normal offset scaled down with the filter radius (or taken
-along the geometric normal), and 12..16 blocker taps at quality 1.
+Shadows lost or added against stock, OBSERVED (local-light diffuse in 8x8 blocks, the character
+masked out; % of blocks over 25 % brighter / darker):
+
+```
+                        shelf wall   under bench   whole view
+first try, 6 cm, q1      +46 / -0     +26 / -1      +5 / -2
+current,   6 cm, q1      +15 / -0      +5 / -3      +2 / -1
+current,  15 cm, q1      +19 / -0      +9 / -0      +3 / -2
+current,   6 cm, q2      +13 / -0      +1 / -0      +3 / -1   (against stock q2)
+```
 
 **Cost, OBSERVED** (GPU time of the 57 shadowed light draws of this frame, RenderDoc replay on an
 RTX 3060 Ti while a Blender render shared the GPU, so +-10 %; 1280x720; the 21 unshadowed light
@@ -988,16 +995,15 @@ draws stay at about 95 us):
 
 ```
 r_shadow_quality   stock     PCSS 6 cm        PCSS 15 cm
-       1           182 us    252 us (+70)     300 us (+118)
-       2           355 us    609 us (+254)    -
-whole frame (sum of draws): stock 2.25 ms (q1) / 2.49 ms (q2); PCSS 2.21..2.58 ms (q1) / 2.97 ms (q2)
+       1           182 us    346 us (+164)    347 us (+165)
+       2           355 us    577 us (+222)    -
+whole frame (sum of draws): stock 2.25 ms (q1) / 2.49 ms (q2); PCSS 2.27..2.33 ms (q1) / 2.79 ms (q2)
 ```
 
-At quality 1 PCSS costs less than the stock quality 2 filter. Frames per second were not
-measured: under the dummy display and the capture layer the frame rate is set by the CPU and the
-60 Hz mode, and the shadow cost (0.1..0.25 ms a frame here) is below what fps would show; the
-per-draw GPU time is the measure. A larger light costs more because fewer pixels find no
-blocker (the early out).
+PCSS at quality 1 (16 blocker loads + 8 compares) costs about what the stock quality 2 filter
+does (346 against 355 us). Frames per second were not measured: under the dummy display and the
+capture layer the frame rate is set by the CPU and the 60 Hz mode, and the shadow cost
+(0.1..0.25 ms a frame here) is below what fps would show; the per-draw GPU time is the measure.
 
 ## 12. Compiling replacement shaders
 
@@ -1071,13 +1077,17 @@ no shader; they are not a size and stay unused. PROVEN (the inputs), design (the
 1. blocker search   N_b point loads on a disc of radius
                     search = clamp(2 R P00 / z_r, 1.5 texels, 24 texels)
                     (the penumbra of a blocker at a fifth of the receiver's distance)
-                    keep depths < receiver depth; none -> lit (no filter taps)
+                    keep depths < the tap's biased receiver depth; none -> lit (no filter taps)
 2. penumbra         z_b = Qn / (Q - mean blocker depth)
                     w   = R (z_r - z_b) / z_b * P00 / (2 z_r)    in uv, clamped 1 .. 24 texels
 3. filter           N_f bilinear compare taps on a disc of radius w
                     s = saturate(mean + shadow_transparency)
-receiver-plane bias: both depths minus (radius + 1.5 texels) * Qn/z_r^2 * tan(angle(N, L))
-                    / (P00/(2 z_r)), tan clamped to 10 (N: the G-buffer normal)
+receiver-plane bias, per tap: depth minus (|tap| * radius + 1.5 texels) * Qn/z_r^2 *
+                    tan(angle(N, L)) / (P00/(2 z_r)), tan clamped to 2 (N: the G-buffer normal).
+                    A tap near the centre gets a small bias, one at the rim the full one; the
+                    clamp keeps a blocker a few cm from its receiver (a shelf on a wall) in front
+                    of the compared depth. (A clamp at 10 and the full radius for every tap lost
+                    those shadows: section 11.)
 disc: Vogel (golden angle); at r_shadow_quality 2 and 3 rotated per pixel by interleaved-gradient
       noise (fixed in screen space: a fine dither, no flicker), at 1 fixed (8 rotated taps read
       as grain; the screen-fixed pattern is only smoothed when the player picks TAA)
@@ -1093,14 +1103,16 @@ fetches 2x2 texels):
 ```
 quality   stock          PCSS                         PCSS, no blocker found
    0      4 compare      4 compare (stock, unchanged)  4
-   1      4 compare      8 loads + 8 compare  = 16     8
+   1      4 compare      16 loads + 8 compare = 24     16
    2      16 compare     16 loads + 16 compare = 32    16
    3      16 compare     16 loads + 32 compare = 48    16
-ALU slots (point, SSDO on), about: stock 146 / 181; PCSS 320 (q1), 470 (q2), 550 (q3)
+ALU slots (point, SSDO on): stock 146 / 181; PCSS 382 (q1), 595 (q2), 739 (q3)
 ```
 
-**Tested** in the Basement, section 11: contact hardening on the floor and the characters; blotches
-on a relief wall at a close contact and blocky penumbrae under a bench remain at quality 1.
+**Tested** in the Basement, section 11: contact hardening on the floor and the characters; the
+bench's shadow kept whole; the far corner of the shelf's shadow on the wall still lighter than
+stock (13..19 % of that wall's blocks). Next: the stock normal offset (up to 9 cm for a 256 map)
+scaled down where the penumbra is wide, which should give that corner back.
 
 **Limits.**
 - Point-light faces are rendered with exactly 90 degrees and no guard band, so a kernel that
