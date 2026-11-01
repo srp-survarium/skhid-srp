@@ -74,12 +74,13 @@ pub struct GridTuning {
     /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
     /// map's (see `gap_links`).
     pub drop_room: bool,
-    /// Whether the maps' walk grids measure a walk up from the ground a body stands on at its floor (`mapdata::Body::walk_from_support`):
-    /// the highest walker face under a capsule centred on the floor's cell, not the floor's height, which is the top of the solid
-    /// anywhere in the cell. Mamayev Kurgan day 4's boulder floor (-2.90, 29.58, 105.38) has ground 28.45 under its centre and a Walk
-    /// link 0.58-0.76 m onto the top; a live bot walked onto the boulder and held forward for 5 s with no jump, its feet sinking to 29.00,
-    /// 1.0-1.4 m under the top (A237, PROVEN). Off (the default) until its bench. A grid is the map's (see `gap_links`).
-    pub walk_from_support: bool,
+    /// Whether the maps' walk grids measure a walk up off steep ground (a by-slope floor over the clients' 55 degrees) from the walkable
+    /// ground its climb began on, whatever the floor it reaches, and give a landing on steep ground no base (`mapdata::Body::steep_walk_base`):
+    /// the client's body does not rest on such ground. Mamayev Kurgan day 4's boulder floor (-2.90, 29.58, 105.38), a drop's landing,
+    /// walks 0.58-0.76 m onto the top; a live bot walked onto the boulder and held forward for 5 s with no jump, its feet sinking to
+    /// 29.00, 0.9-1.2 m under the top, the walkable floors its climb began on (A237, PROVEN). Off (the default) until its bench. A grid
+    /// is the map's (see `gap_links`).
+    pub steep_walk_base: bool,
 }
 
 impl Default for GridTuning {
@@ -97,7 +98,7 @@ impl Default for GridTuning {
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
             drop_room: false,
-            walk_from_support: false,
+            steep_walk_base: false,
         }
     }
 }
@@ -123,7 +124,7 @@ impl GridTuning {
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
             drop_room: self.drop_room,
-            walk_from_support: self.walk_from_support,
+            steep_walk_base: self.steep_walk_base,
             ..body
         }
     }

@@ -75,7 +75,6 @@ use crate::library::WalkerBehaviour;
 use crate::math::Vec3;
 use crate::project::Triangle;
 use crate::resources::Error;
-use crate::sight::RayTree;
 
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
@@ -161,13 +160,15 @@ pub struct Body {
     /// ([`WalkGrid::cut_blocked_walk_offs`]). A link checks only the landing's ceiling over the take-off; a rail or a parapet at the
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
-    /// Whether a walk up is measured from the ground a body stands on at its floor, not from the floor's height
-    /// ([`WalkGrid::cut_unsupported_walks`]). A floor's height is the top of the solid in its cell, wherever in the cell that top is;
-    /// a rock's crest at a cell's corner gives a floor a body centred in the cell never stands at: Mamayev Kurgan day 4's boulder floor
-    /// (-2.90, 29.58, 105.38), ground 28.45 under its centre, from which a Walk link rises 0.58-0.76 m onto the top; a live bot walked
-    /// onto the boulder, held forward toward the top for 5 s with no jump and sank to 29.00 (A237, PROVEN: its inputs), 1.0-1.4 m
-    /// under the top. A build input: in the key when set.
-    pub walk_from_support: bool,
+    /// Whether a walk up off steep ground (a floor steeper than [`Body::min_ground_normal_y`], not a `walk` face) is measured from the
+    /// walkable ground its climb began on, whatever the floor it reaches, and a drop's or jump's landing on steep ground gives it no
+    /// base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not rest on such ground: it slides back to where it
+    /// stood. Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
+    /// top a step over it however far over the ground it stands on that is: Mamayev Kurgan day 4's boulder floor (-2.90, 29.58,
+    /// 105.38), 63 degrees by its neighbours, its base reset by a drop, walks 0.58-0.76 m onto the top; a live bot walked onto the
+    /// boulder (29.33), held forward toward the top for 5 s with no jump and sank to 29.00, 0.9-1.2 m under the top, the height of the
+    /// walkable floors the climb began on (29.03, 29.34; A237, PROVEN: its inputs). A build input: in the key when set.
+    pub steep_walk_base: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -215,7 +216,7 @@ impl Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
-            walk_from_support: false,
+            steep_walk_base: false,
         }
     }
 }
@@ -279,7 +280,7 @@ impl Default for Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
-            walk_from_support: false,
+            steep_walk_base: false,
         }
     }
 }
@@ -602,13 +603,6 @@ const STEEP_NORMAL_Y: f32 = 0.5;
 /// hemisphere (r 0.38) stays on the edge until it no longer reaches it (`step_down` 0x7E1B0), and the live players stand up to
 /// 0.32 m past a lip floor's centre (the bots' `body::SUPPORT_M`, the same number).
 pub const WALK_OFF_REACH_M: f32 = 0.435;
-/// Where a floor's support is read ([`WalkGrid::cut_unsupported_walks`]), around its cell's centre (xz, m): the centre and four points
-/// within the capsule's radius (the stand-in's slide reads its ground the same way, `standin_slide`).
-const SUPPORT_FOOTPRINT: [(f32, f32); 5] = [(0.0, 0.0), (0.3, 0.0), (-0.3, 0.0), (0.0, 0.3), (0.0, -0.3)];
-/// Over a floor by more than this, m, a face is beside a body standing there, not under it.
-const SUPPORT_OVER_M: f32 = 0.1;
-/// How far under a floor its support is looked for, m.
-const SUPPORT_UNDER_M: f32 = 1.5;
 /// Two floors this near in height are level to each other (a walk across
 /// a slope), metres.
 const LEVEL_M: f32 = 0.05;
@@ -732,8 +726,6 @@ pub struct BuildStats {
     pub overshot_kept: usize,
     /// The walk-offs taken away for a wall in the way of the capsule ([`Body::drop_room`]).
     pub drops_blocked: usize,
-    /// The walks up taken away for a rise over the walk climb from the ground under the floor ([`Body::walk_from_support`]).
-    pub unsupported_walks: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -893,10 +885,7 @@ impl WalkGrid {
         grid.drop_narrow_landings(&mut wide);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
         (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide);
-        let mut cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
-        if body.walk_from_support {
-            stats.unsupported_walks = grid.cut_unsupported_walks(&mut wide, &mut cut, triangles);
-        }
+        let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact));
         wide.off = match links {
@@ -1364,7 +1353,8 @@ impl WalkGrid {
         for a in 0..n {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] != LinkKind::Walk {
+                // With `steep_walk_base` a landing on steep ground is no base: the body slides off it.
+                if b != NONE && wide.kinds[a][d] != LinkKind::Walk && !(self.body.steep_walk_base && steep_floor[b as usize]) {
                     base[b as usize] = self.height[b as usize];
                 }
             }
@@ -1401,9 +1391,11 @@ impl WalkGrid {
                 }
                 let b = b as usize;
                 // Up onto walkable ground is a step; up onto steep ground
-                // only within a step of where the climb began.
+                // only within a step of where the climb began, and with
+                // `steep_walk_base` up off it too (the body stands where the
+                // climb began, not on the steep floor).
                 if on_steep(a, b)
-                    && steep_floor[b]
+                    && (steep_floor[b] || (self.body.steep_walk_base && steep_floor[a] && !forced[a]))
                     && self.height[b] > self.height[a] + LEVEL_M
                     && self.height[b] - base[a] > self.body.step
                 {
@@ -1425,51 +1417,6 @@ impl WalkGrid {
             }
         }
         cut
-    }
-
-    /// Cuts the walks up whose rise from the ground a body stands on at their floor is over [`Body::walk_climb`]
-    /// ([`Body::walk_from_support`]). That ground, the floor's support, is the highest walker face under a capsule centred on the
-    /// floor's cell ([`SUPPORT_FOOTPRINT`]) and not over the floor by more than [`SUPPORT_OVER_M`] (a face over it is beside the body:
-    /// the client's contact above the capsule's bottom is a side, `impassable_slope` 0x7DE10); `dont_walk` faces are never ground (the
-    /// down sweep's callback 0x84420). A floor with no face under its footprint keeps its walks. The cut directions are marked as a cut
-    /// climb's are: no wall there for [`Self::erode`].
-    ///
-    /// Returns how many walks were cut.
-    fn cut_unsupported_walks(&self, wide: &mut Wide, cut: &mut [u8], triangles: &[Triangle]) -> usize {
-        let ground = RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v));
-        let down = Vec3::new(0.0, -1.0, 0.0);
-        let climb = self.body.walk_climb();
-        let support = |a: usize| {
-            let at = self.position(a as NodeId);
-            SUPPORT_FOOTPRINT
-                .iter()
-                .filter_map(|&(dx, dz)| {
-                    let from = Vec3::new(at.x + dx, self.height[a] + SUPPORT_OVER_M, at.z + dz);
-                    ground.ray_cast(from, down, SUPPORT_OVER_M + SUPPORT_UNDER_M).map(|t| from.y - t)
-                })
-                .reduce(f32::max)
-        };
-        let mut n = 0;
-        for a in 0..self.height.len() {
-            // Every walk up: the support may lie far under the floor (a crest's cell over the ground), so no rise is too small to check.
-            let ups = (0..8).filter(|&d| {
-                let b = wide.links[a][d];
-                b != NONE && wide.kinds[a][d] == LinkKind::Walk && self.height[b as usize] > self.height[a] + LEVEL_M
-            });
-            let ups: Vec<usize> = ups.collect();
-            if ups.is_empty() {
-                continue;
-            }
-            let Some(under) = support(a) else { continue };
-            for d in ups {
-                if self.height[wide.links[a][d] as usize] - under > climb {
-                    wide.links[a][d] = NONE;
-                    cut[a] |= 1 << d;
-                    n += 1;
-                }
-            }
-        }
-        n
     }
 
     /// Removes floors within the body's radius of a wall, then compacts.
@@ -4874,26 +4821,31 @@ pub(crate) mod tests {
         assert!(!stairs.is_empty());
     }
 
-    /// [`Body::walk_from_support`]: a top 1.3 m up past a wall at x 5, and a crest 0.75 m high and 5 cm wide at the foot of the wall,
-    /// in the corner of a cell whose centre stands over the ground (Mamayev Kurgan day 4's boulder, A237). The cell's floor is the
-    /// crest's top, from which the top is a walk of 0.55 m; a body centred on that cell stands on the ground, 1.3 m under the top.
+    /// [`Body::steep_walk_base`]: ground at 0 to x 4, a 58° by-slope ramp up 0.6 m (x 4 to 4.375: floors, steep for the clients'
+    /// 55°), then a top 1.1 m up from x 4.375 (Mamayev Kurgan day 4's boulder under the top, A237). The ramp's floor is within a step
+    /// of the ground it was climbed from, and the top a walk of 0.7 m from it; a body on the ramp slides back to the ground, 1.1 m under
+    /// the top.
     #[test]
-    fn a_walk_up_from_a_crest_in_a_cells_corner_is_measured_from_the_ground_under_it() {
-        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
-        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 1.3));
-        tris.extend(wall_x(5.0, 0.0, 10.0, 1.3));
-        // The crest: a box x 4.95..5.0, z 2.0..2.05, 0.75 m high.
-        tris.extend(floor(4.95, 2.0, 5.0, 2.05, 0.75));
-        tris.extend(wall_x(4.95, 2.0, 2.05, 0.75));
-        let walked_up = |walk_from_support: bool| {
-            let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, Body { walk_from_support, ..Body::client() });
-            let from = grid.locate(Vec3::new(2.0, 0.0, 2.125), 0.5).unwrap();
-            let to = grid.locate(Vec3::new(7.0, 1.3, 2.125), 0.5).unwrap();
+    fn a_walk_up_off_steep_ground_is_measured_from_where_its_climb_began_with_steep_walk_base() {
+        let (rise, degrees) = (0.6f32, 58.0f32);
+        let run = rise / degrees.to_radians().tan();
+        let mut tris = floor(0.0, 0.0, 4.0, 10.0, 0.0).to_vec();
+        let (a, b) = (Vec3::new(4.0, 0.0, 0.0), Vec3::new(4.0 + run, rise, 0.0));
+        let (c, d) = (Vec3::new(4.0 + run, rise, 10.0), Vec3::new(4.0, 0.0, 10.0));
+        let walker = WalkerBehaviour::BySlope;
+        tris.push(Triangle { v: [a, b, c], walker });
+        tris.push(Triangle { v: [a, c, d], walker });
+        tris.extend(wall_x(4.0 + run, 0.0, 10.0, 1.1));
+        tris.extend(floor(4.0 + run, 0.0, 10.0, 10.0, 1.1));
+        let walked_up = |steep_walk_base: bool| {
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, Body { steep_walk_base, ..Body::client() });
+            let from = grid.locate(Vec3::new(2.0, 0.0, 5.125), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(7.0, 1.1, 5.125), 0.5).unwrap();
             grid.path(from, to)
                 .is_some_and(|p| p.nodes.windows(2).all(|w| grid.links(w[0]).any(|l| l == (w[1], LinkKind::Walk))))
         };
-        assert!(walked_up(false), "the crest's cell is a floor 0.75 m up, a walk of 0.55 m from the top");
-        assert!(!walked_up(true), "measured from the ground under the cell, the top is 1.3 m up: no walk");
+        assert!(walked_up(false), "off the ramp's floor the top is a walk of 0.7 m: the ramp was climbed within a step");
+        assert!(!walked_up(true), "measured from the ground the climb began on, the top is 1.1 m up: no walk");
     }
 
     /// The clients walk ground up to 55° (`startup.cfg` `cc_max_slope_angle_cos 0.57358`), not the exe's 50°: a plane of
