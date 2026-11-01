@@ -14,7 +14,10 @@
 #      every listed patch, mounted in order) and prints each one, why it is
 #      made (the rows) and whether players have it so already; a file a
 #      listed patch gives that is neither in a base row nor made by the
-#      manifest is a problem (what made it?), and nothing is written;
+#      manifest is a problem (what made it?), and nothing is written, but
+#      one an earlier version of a pack row added (its folder <id>-<n> in
+#      SKHID_PACKS_DIR, n below the row's: add_file, the live bytes) is
+#      listed as left from it, not packed;
 #   4. packs the files that differ into resources.db.patch_<revision>
 #      (release/build-patch), then builds the server game data of the stock
 #      db, the list's patches and it (srp-game-data build, the new patch at

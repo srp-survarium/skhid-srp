@@ -36,7 +36,8 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
 - The release builds the patch: `release/build-content <revision>` builds everything the manifest
   lists, compares it with what players have (the stock db and every listed patch), and packs only the
   files that differ, printing each one and why; anything live that the manifest does not make stops
-  it. Then `release/release.sh --resources <that patch>`.
+  it, save what an earlier version of a listed pack added and its new version no longer makes (left
+  as it is, listed). Then `release/release.sh --resources <that patch>`.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
 

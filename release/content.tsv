@@ -22,7 +22,10 @@
 #          With a base row's name as the source: a record, applied in that patch. Every edit list
 #          of content-edit has a row.
 # A new pack or edit list: a row at the end of its kind. A retune of an edit list or a movie
-# change: no row to add (the source changed). A pack's new version: its row's name and sha256.
+# change: no row to add (the source changed). A pack's new version: its row's name and sha256; the
+# files an earlier version added and it no longer makes stay live as they are (build-content lists
+# them as left, from that version's folder in $SKHID_PACKS_DIR, which it needs): what it changes goes
+# at new paths.
 base	resources.db.patch_12	2b771e4b2040707434bb17aa27b1965aacba2ca355eb38634f504b61d6c8fab3	revision 12: the menus' Skhid movies (main_menu, login_menu with the login hint, lobby_menu), the Duty exoskeleton and the Bandit balaclava (their first packs), their texts and dictionary rows
 base	resources.db.patch_14	60a69dcc6b661d09c3143fb74d6806f6f1ba6d465af3c29bfa669a58ce9a404c	revision 14: map level_09 (game modes, models, environment probes), the renderer's shaders, the hud and lobby movies with it
 base	resources.db.patch_17	807b0e784c679a41009940d56ee76919d2bb5f14559154b927faf43405624081	revision 17: the STK2 Duty and Freedom exoskeleton sets, the Bandit balaclava, Cologne pre-rain's probes, the Mosin clip fix, the SVD damage (packs below), the lobby movie with their icons

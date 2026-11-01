@@ -52,7 +52,8 @@ Ask, in this order:
    `SRP_GAME_DATA=<out>/server-game-data.db` (`scripts/wiki/README.md`): use
    a worktree or leave them out of a PR (release.sh rebuilds them). A live
    file the manifest does not make stops it (what made it?), nothing is
-   written. "nothing to ship" means no
+   written; one an earlier version of a pack row added, byte for byte
+   (`$SKHID_PACKS_DIR/<id>-<n>`), is listed as `left`, not packed. "nothing to ship" means no
    `--resources`. **Show the owner the file list** (and the lobby build's
    line: whether it is `RESULT_SHA256`, the movie last checked in the game);
    ship only movies the owner checked. Never put a patch folder together by
