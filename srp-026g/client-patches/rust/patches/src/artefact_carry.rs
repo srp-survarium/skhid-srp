@@ -212,7 +212,7 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_hud(ctx: &Context<'_>) {
-    // Shown only when Use would take: otherwise the native hint stays.
+    // Patch 78's: shown only when Use would take (otherwise the native hint stays).
     // Patch 78's own targets first, then patch 85's dropped gun.
     let local = native::local_player(ctx);
     let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
@@ -228,10 +228,12 @@ pub fn on_hud(ctx: &Context<'_>) {
         let mut text = [0u8; 0x200];
         let shown = match gun {
             _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
-            Some(name) => {
+            Some(crate::weapon_pickup::Prompt::Take(name)) => {
                 let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
                 movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
             }
+            // Why it cannot be taken (none is silent).
+            Some(crate::weapon_pickup::Prompt::Cannot(key)) => movie.invoke_text(c"root.show_artefact_offer", key),
             None => movie.invoke_text(c"root.show_artefact_offer", c""),
         };
         if shown { HINT.set(ctx.thread(), next); }

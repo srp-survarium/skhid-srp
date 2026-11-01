@@ -27,7 +27,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Refill, WeaponSlot};
+pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Refill, WeaponSlot};
 
 use super::config::{ConfigError, ConfigValue};
 
@@ -210,20 +210,22 @@ impl Player<'_> {
         unsafe { read(self.this.actions()) }
     }
 
-    /// The weapon slot whose own client weapon is in its hands: held and
-    /// pending (+128h, +12Ch, no switch under way) are one client weapon
-    /// whose inventory item is in slot 7 or 10.
-    pub fn gun_in_hands(&self) -> Option<WeaponSlot> {
+    /// What is in its hands: a switch under way (held +128h and pending
+    /// +12Ch differ), else the weapon slot whose client weapon is held (its
+    /// inventory item in slot 7 or 10), else no gun of its two.
+    pub fn hands(&self) -> Hands {
         // SAFETY: the live player, its held and pending objects, its inventory.
         unsafe {
-            let held = self.this.held_item()?;
-            if self.this.pending_item() != Some(held) || read(held.vtable()) != raw::image::WEAPON_VTABLE {
-                return None;
+            let held = self.this.held_item();
+            if self.this.pending_item() != held {
+                return Hands::Switching;
             }
+            let Some(held) = held.filter(|h| read(h.vtable()) == raw::image::WEAPON_VTABLE) else { return Hands::NoGun };
             let item = held.inventory_item();
-            let slots = self.this.inventory()?.slots();
+            let Some(slots) = self.this.inventory().map(|i| i.slots()) else { return Hands::NoGun };
             [WeaponSlot::First, WeaponSlot::Second].into_iter()
                 .find(|slot| slots.at(usize::from(slot.slot())).item() == Some(item))
+                .map_or(Hands::NoGun, Hands::Gun)
         }
     }
 

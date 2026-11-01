@@ -5182,3 +5182,4 @@ va	name	location	role	basis
 0x00385910	vostok::network::match_client_impl::match_client_impl	entry ESP+4	this: +0..+0AFFFFh the packet arena, +0B0000h its single_size_buffer_allocator<704> (1024 packets, ctor 0x279C40 at 0x385934)	observed
 0x00019ff0	vostok::engine::engine_world::logic_dispatch_callbacks	ECX	the engine world	observed
 0x0001a390	vostok::engine::engine_world::logic	ECX	the engine world (+2B8h render world, +2ECh logic frame, +2F8h destruction started)	observed
+0x00243dd0	survarium::weapon::on_show	entry ESP+4	was_visible: nonzero adds its models to the scene (weapon_core::activate passes its own argument, 1 at a switch)	observed

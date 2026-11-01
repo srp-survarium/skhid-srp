@@ -1297,33 +1297,49 @@ def stage2b(patched):
     r.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: r.picker, UC_X86_REG_EAX: r.picker + 0x32C})
     r.installed()
     assert not r.draw() and r.removed == [r.instance], "the taken gun is still drawn"
-    assert r.hud() == [("",)], "the prompt stays after the take"
+    assert r.hud() == [("st_weapon_already_taken",)], "the prompt says why after the take"
     assert sights(r)[-1] == "not offered, already taken", sights(r)
-    assert r.hud() == [] and r.build(USE) == USE
+    assert r.build(USE) == USE
     print("ok the command played (carry.filter): taken; its gun out of the scene on the ragdoll (native draw "
-          "skipped, as patch 78 hides a carrier's), the prompt gone, Use the game's again")
+          "skipped, as patch 78 hides a carrier's), the prompt says it is taken, Use the game's again")
 
     rule = "; held 10 two-handed, other %s, gun two-handed, rule %s"
-    for case, change, sight in (
-            ("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.]), "in reach, not aimed at its box"),
-            ("15 cm beside the gun", lambda g: g.eye([0., 0., 1.], [0.15, 1.0, 0.]), "in reach, not aimed at its box"),
+    def battery(g):
+        held = g.blk(0x40)
+        g.word(held, BATTERY_VTABLE)
+        g.word(g.picker + 0x128, held)
+        g.word(g.picker + 0x12C, held)
+    switching = lambda g: g.word(g.picker + 0x12C, g.blk(0x40))
+    for case, change, sight, shown in (
+            # Not aimed at: no prompt, as for the crate and the artefacts.
+            ("looking away", lambda g: g.eye([1., 0., 0.], [0., 1.0, 0.]), "in reach, not aimed at its box", []),
+            ("15 cm beside the gun", lambda g: g.eye([0., 0., 1.], [0.15, 1.0, 0.]), "in reach, not aimed at its box", []),
             ("at the body 40 cm below it", lambda g: g.eye([0., -0.371, 0.928], [0., 1.0, 0.]),
-             "in reach, not aimed at its box"),
-            ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9]), "out of reach (2.2 m)"),
-            ("a wall between", lambda g: setattr(g, "wall", True), "not offered, no line of sight (the level's ray)"),
+             "in reach, not aimed at its box", []),
+            ("beyond 2.2 m", lambda g: g.eye([0., 0., 1.], [0., 1.0, -1.9]), "out of reach (2.2 m)", []),
+            ("a wall between", lambda g: setattr(g, "wall", True), "not offered, no line of sight (the level's ray)", []),
+            # Aimed at but refused: the prompt always says why.
             ("a second double-handed gun", lambda g: g.second(double_handed=1),
-             "not offered, a second double-handed gun without modifier 25" + rule % ("two-handed", "1 two-handed")),
+             "not offered, a second double-handed gun without modifier 25" + rule % ("two-handed", "1 two-handed"),
+             [("st_weapon_cannot_carry",)]),
             ("modifier 64 with the gun in slot 10", lambda g: g.modifier(64, 1.0),
-             "not offered, its kit carries one gun only, in slot 7 (modifier 64)" + rule % ("none", "1 gun (mod 64)")),
-            ("the match has fewer places", lambda g: g.emu.mem_write(PLACES_AT, b"\x05"), "offered")):
+             "not offered, its kit carries one gun only, in slot 7 (modifier 64)" + rule % ("none", "1 gun (mod 64)"),
+             [("st_weapon_one_gun_only",)]),
+            ("a battery in hands", battery, "not offered, no gun of its two weapon slots in its hands",
+             [("st_weapon_no_gun_in_hands",)]),
+            ("a weapon switch under way", switching, "not offered, a weapon switch under way",
+             [("st_weapon_switching",)]),
+            ("the match has fewer places", lambda g: g.emu.mem_write(PLACES_AT, b"\x05"), "offered", [])):
         g = Prompt(patched)
         g.setup()
         if change:
             change(g)
         assert g.draw()
-        assert g.hud() == [], (case, g.invokes())
+        assert g.hud() == shown, (case, g.invokes())
         assert g.build(USE) == USE, case
-        assert sights(g) == [sight], (case, sights(g))
+        assert len(sights(g)) == 1 and sights(g)[0].startswith(sight), (case, sights(g))
+    print("ok aimed at but refused, the prompt says why: a second rifle, one gun only (modifier 64), no gun in "
+          "hands (a battery), a weapon switch under way, already taken; Use does nothing")
     g = Prompt(patched)
     g.setup()
     g.word(g.picker + 0x324, DIED + 60_000)

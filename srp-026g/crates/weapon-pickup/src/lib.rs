@@ -309,13 +309,23 @@ impl CarryRule {
     }
 }
 
+/// What a picker has in its hands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hands {
+    /// The gun of this weapon slot, settled.
+    Gun(WeaponSlot),
+    /// A switch under way (the held object is not the one to come).
+    Switching,
+    /// Nothing, or no gun of its two (a battery, an artefact, a grenade, a medkit).
+    NoGun,
+}
+
 /// What the picker is at the tick its command is played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Picker {
     pub place: Place,
     pub alive: bool,
-    /// The weapon slot whose gun is in its hands, if one of its two is.
-    pub held: Option<WeaponSlot>,
+    pub hands: Hands,
     /// The gun in its other weapon slot, if any.
     pub other: Option<Handedness>,
     pub rule: CarryRule,
@@ -327,6 +337,8 @@ pub enum Refusal {
     Dead,
     /// No gun of its two in its hands.
     NoGunInHands,
+    /// A weapon switch under way.
+    Switching,
     /// Its own place, or a drop not available (none, taken, its body gone).
     NotAvailable,
     /// `disable_second_weapon`: a gun held in slot 10, or one beside it.
@@ -350,7 +362,11 @@ pub fn decide(picker: Picker, target: Place, drop: Drop,
     if !picker.alive {
         return Err(Refusal::Dead);
     }
-    let own = picker.held.ok_or(Refusal::NoGunInHands)?;
+    let own = match picker.hands {
+        Hands::Gun(slot) => slot,
+        Hands::Switching => return Err(Refusal::Switching),
+        Hands::NoGun => return Err(Refusal::NoGunInHands),
+    };
     if target == picker.place {
         return Err(Refusal::NotAvailable);
     }
@@ -530,7 +546,7 @@ mod tests {
     #[test]
     fn a_pickup_takes_an_available_drop_once() {
         let me = Place::new(1).unwrap();
-        let picker = Picker { place: me, alive: true, held: Some(WeaponSlot::Second), other: None,
+        let picker = Picker { place: me, alive: true, hands: Hands::Gun(WeaponSlot::Second), other: None,
                               rule: CarryRule::OneDoubleHanded };
         let donor = Place::new(4).unwrap();
         let kit = Kit::new(2).unwrap();
@@ -541,12 +557,13 @@ mod tests {
         assert_eq!(decide(picker, donor, Drop::None, rifle), Err(Refusal::NotAvailable), "its body gone");
         assert_eq!(decide(picker, me, drop, rifle), Err(Refusal::NotAvailable));
         assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, rifle), Err(Refusal::Dead));
-        assert_eq!(decide(Picker { held: None, ..picker }, donor, drop, rifle), Err(Refusal::NoGunInHands));
+        assert_eq!(decide(Picker { hands: Hands::NoGun, ..picker }, donor, drop, rifle), Err(Refusal::NoGunInHands));
+        assert_eq!(decide(Picker { hands: Hands::Switching, ..picker }, donor, drop, rifle), Err(Refusal::Switching));
     }
 
     #[test]
     fn the_held_gun_is_replaced_as_the_carry_rules_allow() {
-        let picker = Picker { place: Place::new(1).unwrap(), alive: true, held: Some(WeaponSlot::Second),
+        let picker = Picker { place: Place::new(1).unwrap(), alive: true, hands: Hands::Gun(WeaponSlot::Second),
                               other: Some(Handedness::One), rule: CarryRule::OneDoubleHanded };
         let (donor, kit) = (Place::new(4).unwrap(), Kit::new(0).unwrap());
         let drop = Drop::Open { kit, slot: WeaponSlot::First };
@@ -561,8 +578,8 @@ mod tests {
         // Modifier 64: slot 7 alone.
         let one = Picker { rule: CarryRule::OneWeapon, other: None, ..picker };
         assert_eq!(decide(one, donor, drop, pistol), Err(Refusal::SecondWeaponDisabled));
-        assert!(decide(Picker { held: Some(WeaponSlot::First), ..one }, donor, drop, rifle).is_ok());
-        assert_eq!(decide(Picker { held: Some(WeaponSlot::First), other: Some(Handedness::One), ..one }, donor,
+        assert!(decide(Picker { hands: Hands::Gun(WeaponSlot::First), ..one }, donor, drop, rifle).is_ok());
+        assert_eq!(decide(Picker { hands: Hands::Gun(WeaponSlot::First), other: Some(Handedness::One), ..one }, donor,
                           drop, pistol), Err(Refusal::SecondWeaponDisabled));
         assert_eq!(CarryRule::from_modifiers(0.0, 0.0), CarryRule::OneDoubleHanded);
         assert_eq!(CarryRule::from_modifiers(0.0, 1.0), CarryRule::TwoDoubleHanded);

@@ -47,7 +47,9 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use weapon_pickup::{Drop as DropState, Handedness, Ms, Pick, Picker, Place, Recipe, Record, WeaponSlot, PLACES};
+use core::ffi::CStr;
+
+use weapon_pickup::{Drop as DropState, Handedness, Hands, Ms, Pick, Picker, Place, Recipe, Record, WeaponSlot, PLACES};
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
@@ -183,6 +185,7 @@ impl Why {
             Why::NoPlace => "the player has no place, world or profile",
             Why::Rule(R::Dead) => "the picker is dead",
             Why::Rule(R::NoGunInHands) => "no gun of its two weapon slots in its hands",
+            Why::Rule(R::Switching) => "a weapon switch under way",
             Why::Rule(R::NotAvailable) => "no drop to take (none, taken, its body gone, or its own)",
             Why::Rule(R::SecondWeaponDisabled) => "its kit carries one gun only, in slot 7 (modifier 64)",
             Why::Rule(R::TwoDoubleHanded) => "a second double-handed gun without modifier 25",
@@ -503,10 +506,12 @@ fn peer<'a>(player: &'a Player<'_>, place: Place) -> Option<Player<'a>> {
 /// What `player` is for the rule: alive, the slot of the gun in its hands,
 /// the other slot's gun, its kit's carry rule (None: no profile).
 fn picker_of(player: &Player<'_>, place: Place) -> Option<Picker> {
-    let held = player.gun_in_hands();
-    Some(Picker { place, alive: player.alive(), held,
-                  other: held.and_then(|slot| player.weapon_handedness(slot.other())),
-                  rule: player.carry_rule()? })
+    let hands = player.hands();
+    let other = match hands {
+        Hands::Gun(slot) => player.weapon_handedness(slot.other()),
+        Hands::Switching | Hands::NoGun => None,
+    };
+    Some(Picker { place, alive: player.alive(), hands, other, rule: player.carry_rule()? })
 }
 
 // ---- the cooked guns --------------------------------------------------------------------------
@@ -784,7 +789,7 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
 
 /// Whether `player` holds a picked gun in its hands (its ragdoll drops none).
 pub fn picked_in_hands(thread: &Thread, player: &Player<'_>) -> bool {
-    player.gun_in_hands().is_some_and(|slot| held(thread, player.id(), slot).is_some())
+    matches!(player.hands(), Hands::Gun(slot) if held(thread, player.id(), slot).is_some())
 }
 
 /// The pickup Use would send now: the place whose gun the local player
@@ -808,13 +813,47 @@ static AIMED: GameCell<Option<Aimed>> = GameCell::new(None);
 /// still in the world), its gun made on this client and the rule's
 /// (`weapon_pickup::decide`, the carry rules too) yes. Remembered for Use
 /// ([`on_input_end`]).
-pub fn aim(ctx: &Context<'_>, viewer: Option<&Player<'_>>) -> Option<NameKey> {
+pub fn aim(ctx: &Context<'_>, viewer: Option<&Player<'_>>) -> Option<Prompt> {
     let found = viewer.and_then(|viewer| aimed_at(ctx, viewer));
-    AIMED.set(ctx.thread(), found.map(|(aimed, _)| aimed));
-    found.map(|(_, name)| name)
+    AIMED.set(ctx.thread(), found.and_then(|(aimed, _)| aimed));
+    found.map(|(_, prompt)| prompt)
 }
 
-fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> {
+/// What the prompt shows for the gun aimed at (in reach and in sight).
+#[derive(Clone, Copy)]
+pub enum Prompt {
+    /// "Pick up <gun> (E)": Use takes it (its name once its cook is made
+    /// here; until then the pickup waits for it).
+    Take(NameKey),
+    /// Why a pickup cannot happen: a dictionary key (Use does nothing).
+    Cannot(&'static CStr),
+}
+
+/// The line for each refusal of the rule: none is silent.
+fn refusal_key(why: weapon_pickup::Refusal) -> &'static CStr {
+    use weapon_pickup::Refusal as R;
+    match why {
+        R::TwoDoubleHanded => c"st_weapon_cannot_carry",
+        R::SecondWeaponDisabled => c"st_weapon_one_gun_only",
+        R::NoGunInHands => c"st_weapon_no_gun_in_hands",
+        R::Switching => c"st_weapon_switching",
+        // A dead viewer has no prompt; the own place is never aimed at.
+        R::Dead | R::NotAvailable => c"st_weapon_cannot_pick_up",
+    }
+}
+
+/// The line for a gun aimed at that cannot be taken.
+fn cannot_key(why: Sight) -> &'static CStr {
+    match why {
+        Sight::Refused { why, .. } => refusal_key(why),
+        Sight::Taken => c"st_weapon_already_taken",
+        // Not a drop the prompt can name (and the untargeted ones, never here).
+        Sight::NotItsBody | Sight::NoDrop | Sight::NoPicker | Sight::OutOfReach | Sight::NotAimedAt
+        | Sight::Blocked | Sight::Offered => c"st_weapon_cannot_pick_up",
+    }
+}
+
+fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Prompt)> {
     let thread = ctx.thread();
     if !viewer.alive() || !viewer.inserted() {
         return None;
@@ -828,32 +867,40 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Aimed, NameKey)> 
     let physics = viewer.physics_world()?;
     let (eye, forward) = viewer.carry_eye();
     let forward = unit(forward)?;
-    let mut best: Option<(f32, Place, CookId, WeaponSlot)> = None;
+    // The nearest gun aimed at (in reach, in sight): taken, or why not.
+    let mut best: Option<(f32, Place, Offered)> = None;
     let mut sights = [None; PLACES as usize];
     for (n, seen) in seen.iter().enumerate() {
         let (Some(seen), Some(target)) = (seen, Place::new(n as u8)) else { continue };
         let sight = match enters(&seen.pose, eye, forward, REACH, PAD) {
             None if within(&seen.pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
             None => Err(Sight::OutOfReach),
-            Some(distance) => {
-                offer(thread, viewer, world, sender, target, seen.body).and_then(|(cook, slot)| {
-                    let blocked = distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some();
-                    if blocked { Err(Sight::Blocked) } else { Ok((distance, cook, slot)) }
-                })
+            Some(distance) if distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some() => {
+                Err(Sight::Blocked)
             }
+            Some(distance) => Ok((distance, offer(thread, viewer, world, sender, target, seen.body))),
         };
-        if let Ok((distance, cook, slot)) = sight
-            && !best.is_some_and(|(nearest, ..)| nearest <= distance) {
-            best = Some((distance, target, cook, slot));
-        }
-        sights[n] = Some((seen.body, sight.map(|_| ()).err().unwrap_or(Sight::Offered), seen.pose));
+        let logged = match sight {
+            Ok((distance, offered)) => {
+                if !best.is_some_and(|(nearest, ..)| nearest <= distance) {
+                    best = Some((distance, target, offered));
+                }
+                offered.err().unwrap_or(Sight::Offered)
+            }
+            Err(why) => why,
+        };
+        sights[n] = Some((seen.body, logged, seen.pose));
     }
     log_sights(thread, viewer, sights);
-    let (_, target, cook, slot) = best?;
+    let (_, target, offered) = best?;
+    let gun = match offered {
+        Ok(gun) => gun,
+        Err(why) => return Some((None, Prompt::Cannot(cannot_key(why)))),
+    };
     let places = GameWorldUi::at_update_icons(ctx)?.places()?;
     weapon_pickup::allowed(sender, target, places).then_some(())?;
-    let name = native::gun_name(thread, cook, slot).unwrap_or(NameKey::EMPTY);
-    Some((Aimed { target, sender, places }, name))
+    let name = gun.and_then(|(cook, slot)| native::gun_name(thread, cook, slot)).unwrap_or(NameKey::EMPTY);
+    Some((Some(Aimed { target, sender, places }), Prompt::Take(name)))
 }
 
 /// What the prompt makes of a drop's gun it sees on its ragdoll.
@@ -868,12 +915,8 @@ enum Sight {
     Taken,
     /// The place has no drop (its record's).
     NoDrop,
-    /// The gun of that death not made on this client (yet).
-    CookNotReady,
     /// The viewer has no place, profile or kit.
     NoPicker,
-    /// The cooked gun's handedness could not be read.
-    NoHandedness,
     /// The rule says no: the picker's held slot and its gun's handedness,
     /// the other slot's gun's, its kit's carry rule and the gun's handedness.
     Refused { why: weapon_pickup::Refusal, held: Option<(WeaponSlot, Option<Handedness>)>,
@@ -946,9 +989,7 @@ fn log_sight(viewer: &Player<'_>, target: u8, sight: Sight) {
         Sight::NotItsBody => "not offered, the body drawn is not its drop's",
         Sight::Taken => "not offered, already taken",
         Sight::NoDrop => "not offered, no drop in its record",
-        Sight::CookNotReady => "not offered, its gun not made on this client",
         Sight::NoPicker => "not offered, the viewer has no place, profile or kit",
-        Sight::NoHandedness => "not offered, the gun's handedness unread",
         Sight::Blocked => "not offered, no line of sight (the level's ray)",
         Sight::Offered => "offered",
         Sight::Refused { why, held, other, rule, incoming } => {
@@ -967,10 +1008,12 @@ fn log_sight(viewer: &Player<'_>, target: u8, sight: Sight) {
 }
 
 /// What a pickup of `target`'s drop by `viewer` would take now: its cook
-/// (made on this client) and the drop's slot; else why not (`body` not that
-/// drop's dead body, the drop not open, its gun not made, the rule).
-fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target: Place, body: Body)
-         -> Result<(CookId, WeaponSlot), Sight> {
+/// and the drop's slot once made here (None until then: offered all the
+/// same, the pickup waits for it); else why not (`body` not that drop's dead
+/// body, the drop not open, the rule).
+type Offered = Result<Option<(CookId, WeaponSlot)>, Sight>;
+
+fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target: Place, body: Body) -> Offered {
     let (theirs, last) = placed_at(thread, world, target);
     if last != Some(body) {
         return Err(Sight::NotItsBody);
@@ -981,17 +1024,18 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target:
         DropState::Taken => return Err(Sight::Taken),
         DropState::None => return Err(Sight::NoDrop),
     };
-    let (cook, _, _) = body_drop(thread, target).ok_or(Sight::CookNotReady)?;
-    if !matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }) {
-        return Err(Sight::CookNotReady);
-    }
+    let gun = body_drop(thread, target).map(|(cook, ..)| (cook, slot))
+        .filter(|&(cook, _)| matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }));
     let picker = picker_of(viewer, place).ok_or(Sight::NoPicker)?;
-    let incoming = native::handedness(thread, cook, slot);
-    let incoming = incoming.ok_or(Sight::NoHandedness)?;
+    // Not made yet: the rule as for a pistol (the pickup asks it again).
+    let incoming = gun.and_then(|(cook, slot)| native::handedness(thread, cook, slot)).unwrap_or(Handedness::One);
     weapon_pickup::decide(picker, target, theirs.drop, |_, _| incoming)
-        .map_err(|why| Sight::Refused { why, held: picker.held.map(|slot| (slot, viewer.weapon_handedness(slot))),
+        .map_err(|why| Sight::Refused { why, held: match picker.hands {
+                                            Hands::Gun(slot) => Some((slot, viewer.weapon_handedness(slot))),
+                                            Hands::Switching | Hands::NoGun => None,
+                                        },
                                         other: picker.other, rule: picker.rule, incoming })?;
-    Ok((cook, slot))
+    Ok(gun)
 }
 
 /// Whether the gun's box (padded by `pad`) is within `reach` of `eye`: its
@@ -1269,6 +1313,15 @@ mod tests {
 
     fn aimed(target: u8) -> Option<Aimed> {
         Some(Aimed { target: Place::new(target).unwrap(), sender: Place::new(3).unwrap(), places: 8 })
+    }
+
+    #[test]
+    fn no_refusal_is_silent() {
+        use weapon_pickup::Refusal as R;
+        for why in [R::Dead, R::NoGunInHands, R::Switching, R::NotAvailable, R::SecondWeaponDisabled, R::TwoDoubleHanded] {
+            assert!(refusal_key(why).to_bytes().starts_with(b"st_weapon_"), "{why:?}");
+        }
+        assert_eq!(cannot_key(Sight::Taken), c"st_weapon_already_taken");
     }
 
     #[test]

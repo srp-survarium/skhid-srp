@@ -63,6 +63,20 @@
   two-handed guns only with the terminator skill
   (`use_two_double_handed_weapons`); `disable_second_weapon` keeps guns to
   slot 7.
+- The hud always says why a gun aimed at (in reach, in sight) cannot be
+  taken (the owner, 2026-11-01), in the pickup prompt's place, Use doing
+  nothing: a second two-handed gun "Can't carry a second rifle"
+  (`st_weapon_cannot_carry`); `disable_second_weapon` "You can carry one
+  gun only" (`st_weapon_one_gun_only`); no gun of its two in hands (a
+  battery, an artefact, a grenade, a medkit, nothing) "Hold a gun to swap
+  it" (`st_weapon_no_gun_in_hands`); a weapon switch under way "Wait for
+  the weapon switch" (`st_weapon_switching`); taken already "Already
+  taken" (`st_weapon_already_taken`); anything else (a body that is not
+  the drop's, no drop in its record) "Can't pick this up"
+  (`st_weapon_cannot_pick_up`). A gun not made yet on this client is
+  offered all the same (the pickup waits for it). Not aimed at, out of
+  reach or out of sight: no prompt, as for the crate and the artefacts. A
+  dead player has no prompt.
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
   never the other slot's; any gun for any gun; the carry rules after the
   skill modifiers hold: `disable_second_weapon` (modifier 64) keeps guns to
