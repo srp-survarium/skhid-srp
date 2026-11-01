@@ -1898,6 +1898,12 @@ impl Job {
         }
     }
 
+    /// A job as the plays' tests read it (no bot let a role of it go).
+    #[cfg(test)]
+    pub fn of(spot: u32, shooter: Place, flanker: Option<Holder>, pinner: Option<Holder>) -> Self {
+        Self { spot, objective: false, shooter, since: 0, flanker, pinner, passed: Vec::new() }
+    }
+
     fn holder(&self, role: Role) -> Option<Holder> {
         match role {
             Role::Flanker => self.flanker,

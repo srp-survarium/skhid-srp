@@ -597,6 +597,9 @@ impl Bots {
             if let Some(a) = bot.assignment.as_ref()
                 && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
             {
+                if a.kind == plays::PlayKind::Answer {
+                    plays::answer::left_out(&cx, a.target);
+                }
                 let dist = match bot.intent.go {
                     Go::To { at, .. } => Some(me.feet.distance_xz(at)),
                     _ => None,
