@@ -75,6 +75,7 @@ use crate::library::WalkerBehaviour;
 use crate::math::Vec3;
 use crate::project::Triangle;
 use crate::resources::Error;
+use crate::sight::RayTree;
 
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
@@ -160,6 +161,23 @@ pub struct Body {
     /// ([`WalkGrid::cut_blocked_walk_offs`]). A link checks only the landing's ceiling over the take-off; a rail or a parapet at the
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
+    /// Whether the sprint jumps' run-ups ([`SPRINT_RUN_UP_M`] straight behind the take-off, `WalkGrid::drop_short_run_ups`) are
+    /// asked after the erosion, of the take-offs and floors it leaves, in metres (a floor along a diagonal is a cell's diagonal
+    /// on), not before it in cells with the radius the erosion takes. The erosion makes Jump links of its own (a
+    /// jump past a floor that went starts a cell back; a jump whose landing went lands further on) and takes floors off a run-up's
+    /// line: checked before it, 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m are left with less than 1.5 m straight
+    /// behind them, 290 of them jumps the erosion made (A236). A build input: in the key when set.
+    pub run_ups_after_erosion: bool,
+    /// Whether a walk up off a perched steep floor (steeper than [`Body::min_ground_normal_y`] by its neighbours, not a `walk` face, its
+    /// cell's centre over ground more than 0.3 m lower: the top of something in a corner of the cell) is measured from the walkable
+    /// ground its climb began on, whatever the floor it reaches, and a drop's or jump's landing on steep ground gives it no
+    /// base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not rest on such ground: it slides back to where it
+    /// stood. Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
+    /// top a step over it however far over the ground it stands on that is: Mamayev Kurgan day 4's boulder floor (-2.90, 29.58,
+    /// 105.38), 63 degrees by its neighbours, its base reset by a drop, walks 0.58-0.76 m onto the top; a live bot walked onto the
+    /// boulder (29.33), held forward toward the top for 5 s with no jump and sank to 29.00, 0.9-1.2 m under the top, the height of the
+    /// walkable floors the climb began on (29.03, 29.34; A237, PROVEN: its inputs). A build input: in the key when set.
+    pub steep_walk_base: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -207,6 +225,8 @@ impl Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
+            run_ups_after_erosion: false,
+            steep_walk_base: false,
         }
     }
 }
@@ -270,6 +290,8 @@ impl Default for Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
+            run_ups_after_erosion: false,
+            steep_walk_base: false,
         }
     }
 }
@@ -449,6 +471,30 @@ pub fn walking_press_lead(rise: f32, across: f32, run: f32) -> Option<f32> {
 /// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
 /// sprint from rest is at full speed by 2 m, and 1.5 m is the least tried; bot-side the motor wants 2 m).
 pub const SPRINT_RUN_UP_M: f32 = 1.5;
+
+/// How [`WalkGrid::drop_short_run_ups`] measures a sprint jump's run-up.
+#[derive(Clone, Copy, Debug)]
+enum RunUp {
+    /// So many floors back, along a side or a diagonal alike: before the erosion, the run and the body's radius the erosion
+    /// takes off the take-off's side.
+    Cells(usize),
+    /// So many metres back from the take-off the erosion leaves ([`Body::run_ups_after_erosion`]): a floor along a side is a
+    /// cell on, one along a diagonal a cell's diagonal.
+    Metres(f32),
+}
+
+impl RunUp {
+    /// The floors to walk back along direction `d` ([`DIRS`]: the sides first, then the diagonals).
+    fn cells(self, d: usize, cell: f32) -> usize {
+        match self {
+            Self::Cells(n) => n,
+            Self::Metres(m) => {
+                let step = if d < 4 { cell } else { cell * std::f32::consts::SQRT_2 };
+                (m / step).ceil() as usize
+            }
+        }
+    }
+}
 /// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
 /// GUESS, benched.
 pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
@@ -592,6 +638,12 @@ const STEEP_NORMAL_Y: f32 = 0.5;
 /// hemisphere (r 0.38) stays on the edge until it no longer reaches it (`step_down` 0x7E1B0), and the live players stand up to
 /// 0.32 m past a lip floor's centre (the bots' `body::SUPPORT_M`, the same number).
 pub const WALK_OFF_REACH_M: f32 = 0.435;
+/// [`Body::steep_walk_base`]: a floor whose cell's centre stands more than this over the ground under it is perched, m: Mamayev
+/// Kurgan day 4's boulder floor stands 1.13 m over the ground under its centre; a cell of a 59 degree slope 0.21 m (its height is the
+/// slope's top in the cell), a stair's tread 0.
+const PERCH_M: f32 = 0.3;
+/// How far under a floor [`PERCH_M`] looks for ground, m.
+const PERCH_LOOK_M: f32 = 1.5;
 /// Two floors this near in height are level to each other (a walk across
 /// a slope), metres.
 const LEVEL_M: f32 = 0.05;
@@ -873,10 +925,20 @@ impl WalkGrid {
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
-        (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide);
-        let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
+        if !body.run_ups_after_erosion {
+            let run = RunUp::Cells(((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize);
+            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, run);
+        }
+        // With `steep_walk_base`: the walker faces bodies stand on (a `dont_walk` face is never ground), to tell a perched floor.
+        let ground = body
+            .steep_walk_base
+            .then(|| RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v)));
+        let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face, ground.as_ref());
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact));
+        if body.run_ups_after_erosion {
+            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
+        }
         wide.off = match links {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
@@ -1239,17 +1301,15 @@ impl WalkGrid {
     }
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
-    /// [`SPRINT_RUN_UP_M`] behind their take-off: the floors walked back from it in the opposite direction, each a
+    /// [`SPRINT_RUN_UP_M`] behind their take-off (`run`): the floors walked back from it in the opposite direction, each a
     /// Walk link within a step of the one before (a sprint from rest is at speed by 2 m, 8e). The links of the capped band
     /// (rises from `max_jump` up to the exe body's top) are kept without a run-up: a cap does not cut what the base kept
     /// for an objective only they reach. Returns the links taken away and those of the band kept with none.
-    fn drop_short_run_ups(&self, wide: &mut Wide) -> (usize, usize) {
+    fn drop_short_run_ups(&self, wide: &mut Wide, run: RunUp) -> (usize, usize) {
         let (mut cut, mut kept) = (0, 0);
-        // Erosion takes the floors within the body's radius of the face off the take-off's side: the run is counted from
-        // before it.
-        let cells = ((SPRINT_RUN_UP_M + self.body.radius) / self.cell).ceil() as usize;
         for a in 0..self.height.len() {
             for d in 0..8 {
+                let cells = run.cells(d, self.cell);
                 let b = wide.links[a][d];
                 if b == NONE
                     || wide.kinds[a][d] != LinkKind::Jump
@@ -1296,7 +1356,17 @@ impl WalkGrid {
     ///
     /// Returns the directions cut, a bit each, by floor: no wall there for
     /// [`Self::erode`] (the slope goes on).
-    fn cut_steep_climbs(&self, wide: &mut Wide, forced: &[bool], steep_face: &[bool]) -> Vec<u8> {
+    fn cut_steep_climbs(&self, wide: &mut Wide, forced: &[bool], steep_face: &[bool], ground: Option<&RayTree>) -> Vec<u8> {
+        // With [`Body::steep_walk_base`]: whether a floor is perched, its height the top of something in a corner of its cell with
+        // the ground under its centre more than [`PERCH_M`] lower (or none within [`PERCH_LOOK_M`]): a body there stands on that
+        // ground. A stair's tread or a slope's cell is not (the ground under its centre is at most a slope's part of a cell lower).
+        let perched = |a: usize| {
+            ground.is_some_and(|ground| {
+                let at = self.position(a as NodeId);
+                let from = Vec3::new(at.x, self.height[a] + 0.05, at.z);
+                ground.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), 0.05 + PERCH_LOOK_M).is_none_or(|t| t - 0.05 > PERCH_M)
+            })
+        };
         let n = self.height.len();
         // The ground's slope at a floor, from its walk neighbours along x
         // and z (one side where the other has none).
@@ -1342,7 +1412,8 @@ impl WalkGrid {
         for a in 0..n {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] != LinkKind::Walk {
+                // With `steep_walk_base` a landing on steep ground is no base: the body slides off it.
+                if b != NONE && wide.kinds[a][d] != LinkKind::Walk && !(self.body.steep_walk_base && steep_floor[b as usize]) {
                     base[b as usize] = self.height[b as usize];
                 }
             }
@@ -1379,9 +1450,11 @@ impl WalkGrid {
                 }
                 let b = b as usize;
                 // Up onto walkable ground is a step; up onto steep ground
-                // only within a step of where the climb began.
+                // only within a step of where the climb began, and with
+                // `steep_walk_base` up off it too (the body stands where the
+                // climb began, not on the steep floor).
                 if on_steep(a, b)
-                    && steep_floor[b]
+                    && (steep_floor[b] || (self.body.steep_walk_base && steep_floor[a] && !forced[a] && perched(a)))
                     && self.height[b] > self.height[a] + LEVEL_M
                     && self.height[b] - base[a] > self.body.step
                 {
@@ -4807,6 +4880,35 @@ pub(crate) mod tests {
         assert!(!stairs.is_empty());
     }
 
+    /// [`Body::steep_walk_base`]: ground at 0 to x 4.25, a top 1.1 m up from x 4.25, and between them either a crest 0.5 m high and
+    /// 5 cm wide at the foot of the top's wall (in the corner of a cell whose centre stands over the ground: Mamayev Kurgan day 4's
+    /// boulder under the top, A237) or a stair's tread 0.5 m up across the whole cell. Either cell's floor is steep by its neighbours,
+    /// within a step of the ground and a walk of 0.6 m from the top. A body on the crest's cell stands on the ground, 1.1 m under the
+    /// top; one on the tread stands on it.
+    #[test]
+    fn a_walk_up_off_a_perched_steep_floor_is_measured_from_where_its_climb_began_with_steep_walk_base() {
+        let between = |crest: bool| {
+            let mut tris = floor(0.0, 0.0, 4.25, 10.0, 0.0).to_vec();
+            tris.extend(wall_x(4.25, 0.0, 10.0, 1.1));
+            tris.extend(floor(4.25, 0.0, 10.0, 10.0, 1.1));
+            let x0 = if crest { 4.2 } else { 4.0 };
+            tris.extend(floor(x0, 0.0, 4.25, 10.0, 0.5));
+            tris.extend(wall_x(x0, 0.0, 10.0, 0.5));
+            tris
+        };
+        let walked_up = |tris: &[Triangle], steep_walk_base: bool| {
+            let grid = WalkGrid::build(tris, [0.0, 0.0, 10.0, 10.0], 0.25, Body { steep_walk_base, ..Body::client() });
+            let from = grid.locate(Vec3::new(2.0, 0.0, 5.125), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(7.0, 1.1, 5.125), 0.5).unwrap();
+            grid.path(from, to)
+                .is_some_and(|p| p.nodes.windows(2).all(|w| grid.links(w[0]).any(|l| l == (w[1], LinkKind::Walk))))
+        };
+        let (crest, tread) = (between(true), between(false));
+        assert!(walked_up(&crest, false), "off the crest's cell the top is a walk of 0.6 m");
+        assert!(!walked_up(&crest, true), "the crest's cell is perched: from the ground the climb began on the top is 1.1 m up");
+        assert!(walked_up(&tread, false) && walked_up(&tread, true), "a tread is stood on: two steps of 0.5 and 0.6 m");
+    }
+
     /// The clients walk ground up to 55° (`startup.cfg` `cc_max_slope_angle_cos 0.57358`), not the exe's 50°: a plane of
     /// 53° up 1.4 m is a way for [`Body::client`] and none for [`Body::default`]; a plane of 58° is none for either, and no
     /// jump lands on it (the barrel pile of Chemical Plant, PROVEN: the owner walks up its 53.1° side, not its 58.0° side).
@@ -4859,6 +4961,57 @@ pub(crate) mod tests {
         assert!(!way(1.2, Body::client()), "no run of 1.5 m behind the take-off");
         assert_eq!(Body::default().jump_cap(), 1.05);
         assert_eq!(Body::client().jump_cap(), SPRINT_JUMP_LOW_M);
+    }
+
+    /// [`Body::run_ups_after_erosion`]: a pillar beside the run-up to a 1.2 m face. Its neighbour floors are there for the run-up
+    /// check before the erosion and go in it (and the erosion starts the jump a cell back): asked before it, the jumps beside the
+    /// pillar keep 0.5 m of run; asked after it, every sprint-band jump left has its 1.5 m.
+    #[test]
+    fn a_sprint_jumps_run_up_is_asked_of_the_floors_the_erosion_leaves() {
+        let short_of_run_ups = |body: Body| {
+            let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.0, 0.0, 12.0, 10.0, 1.2));
+            tris.extend(crate_box(3.5, 5.3, 4.0, 5.55, 2.0));
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body);
+            // The floors walked straight back from `a` against the way (di, dk), each a Walk link within a step, up to `cells`.
+            let run = |a: NodeId, di: f32, dk: f32, cells: usize| {
+                let (mut at, mut n) = (a, 0);
+                while n < cells {
+                    let p = grid.position(at);
+                    let back = grid.links(at).find(|&(c, kind)| {
+                        let q = grid.position(c);
+                        kind == LinkKind::Walk
+                            && (q.x - (p.x - di * 0.25)).abs() < 0.01
+                            && (q.z - (p.z - dk * 0.25)).abs() < 0.01
+                            && (q.y - p.y).abs() <= body.step
+                    });
+                    let Some((c, _)) = back else { break };
+                    at = c;
+                    n += 1;
+                }
+                n
+            };
+            let (mut jumps, mut short) = (0, 0);
+            for a in 0..grid.len() as NodeId {
+                for (b, kind) in grid.links(a) {
+                    let (pa, pb) = (grid.position(a), grid.position(b));
+                    if kind != LinkKind::Jump || pb.y - pa.y <= Body::default().max_jump {
+                        continue;
+                    }
+                    jumps += 1;
+                    let way = |d: f32| if d.abs() < 0.01 { 0.0 } else { d.signum() };
+                    let (di, dk) = (way(pb.x - pa.x), way(pb.z - pa.z));
+                    // 1.5 m: six cells along a side, five along a diagonal.
+                    let cells = if di != 0.0 && dk != 0.0 { 5 } else { 6 };
+                    short += usize::from(run(a, di, dk, cells) < cells);
+                }
+            }
+            (jumps, short)
+        };
+        let before = short_of_run_ups(Body::client());
+        let after = short_of_run_ups(Body { run_ups_after_erosion: true, ..Body::client() });
+        assert!(before.0 > 0 && before.1 > 0, "checked before the erosion, some keep no run: {before:?}");
+        assert!(after.0 > 0 && after.1 == 0, "checked after it, every one left has its run: {after:?}");
     }
 
     #[test]

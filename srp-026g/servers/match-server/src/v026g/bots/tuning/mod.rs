@@ -658,6 +658,7 @@ mod tests {
             "/aim/friends/spread_source",
             "/cover/pierce",
             "/grid/client_numbers",
+            "/grid/drop_room",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
             "/heal/drug_stops",
