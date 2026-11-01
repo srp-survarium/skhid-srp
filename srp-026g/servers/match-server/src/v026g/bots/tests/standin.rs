@@ -1228,7 +1228,7 @@ impl Game {
                             // The rise is from the floor the body left (the walk before the jump is the walk's), not from the press.
                             let from = Vec3::new(from.x, base.unwrap_or(from.y), from.z);
                             let way = if landing.sprint { standin_climb::Way::SprintJump } else { standin_climb::Way::ShortJump };
-                            self.climbs.note(way, tick, place, body.team, from, landing.to, "");
+                            self.climbs.note(way, tick, place, body.team, from, landing.to);
                         }
                         self.landings.push(landing);
                     }
@@ -1303,7 +1303,7 @@ impl Game {
                     });
                     if !blocked {
                         let way = if lifted { standin_climb::Way::Lift } else { standin_climb::Way::Walk };
-                        self.climbs.note(way, tick, place, body.team, body.feet, feet, "");
+                        self.climbs.note(way, tick, place, body.team, body.feet, feet);
                         body.node = Some(node);
                         body.feet = feet;
                         if let Some(stood) = standing.get_mut(place) {

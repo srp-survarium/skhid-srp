@@ -69,8 +69,8 @@ pub(crate) struct Climbs {
 }
 
 impl Climbs {
-    /// A body of `team` at `place` went from `from` to `to` by `way` at `tick`; `note` says how (the jump's clip, the keys).
-    pub(crate) fn note(&mut self, way: Way, tick: u32, place: usize, team: u8, from: Vec3, to: Vec3, note: &str) {
+    /// A body of `team` at `place` went from `from` to `to` by `way` at `tick`.
+    pub(crate) fn note(&mut self, way: Way, tick: u32, place: usize, team: u8, from: Vec3, to: Vec3) {
         let rise = to.y - from.y;
         if rise < MIN_RISE_M {
             return;
@@ -81,7 +81,7 @@ impl Climbs {
             self.over[i] += 1;
             if self.lines.len() < KEPT {
                 self.lines.push(format!(
-                    "climb_over: tick {tick} place {place} team {team} {} rise {rise:.2} limit {:.2} from ({:.2}, {:.2}, {:.2}) to ({:.2}, {:.2}, {:.2}) {note}",
+                    "climb_over: tick {tick} place {place} team {team} {} rise {rise:.2} limit {:.2} from ({:.2}, {:.2}, {:.2}) to ({:.2}, {:.2}, {:.2})",
                     way.name(),
                     way.limit_m(),
                     from.x,
@@ -124,10 +124,10 @@ mod tests {
     fn a_rise_over_the_ways_limit_is_kept_and_a_small_one_is_not_counted() {
         let mut c = Climbs::default();
         let at = |y| Vec3::new(1.0, y, 2.0);
-        c.note(Way::Walk, 100, 3, 1, at(0.0), at(0.2), "");
-        c.note(Way::Walk, 100, 3, 1, at(0.0), at(0.7), "");
-        c.note(Way::Lift, 100, 3, 1, at(0.0), at(1.14), "");
-        c.note(Way::SprintJump, 100, 3, 1, at(0.0), at(1.14), "");
+        c.note(Way::Walk, 100, 3, 1, at(0.0), at(0.2));
+        c.note(Way::Walk, 100, 3, 1, at(0.0), at(0.7));
+        c.note(Way::Lift, 100, 3, 1, at(0.0), at(1.14));
+        c.note(Way::SprintJump, 100, 3, 1, at(0.0), at(1.14));
         assert_eq!(c.made, [1, 1, 0, 1]);
         assert_eq!(c.over, [0, 1, 0, 0]);
         assert_eq!(c.lines().len(), 1);
