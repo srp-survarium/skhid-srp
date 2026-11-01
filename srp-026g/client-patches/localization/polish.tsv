@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
 st_srp_scope_slot	Optyka
+st_srp_shop_not_owned	Ukryj posiadane
+st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s

@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
 st_srp_scope_slot	Tähtäin
+st_srp_shop_not_owned	Piilota omistetut
+st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s

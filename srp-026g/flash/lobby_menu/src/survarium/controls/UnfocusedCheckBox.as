@@ -2,17 +2,46 @@ package survarium.controls
 {
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.text.TextFieldAutoSize;
    import survarium.buttons.ButtonClick;
    import survarium.constants.UiSound;
    
    public class UnfocusedCheckBox extends ButtonClick
    {
       
+      // fitLabel's: every state's label as long as its text.
+      private var _labelFits:Boolean = false;
+
       public function UnfocusedCheckBox()
       {
          super();
       }
-      
+
+      // The label as long as its text, on one line, in every state: the symbol's fixed width cut
+      // longer ones ("Automatikus vásá…"). Each state's frame may hold a text field of its own, so it
+      // is sized again at every state change. For a box whose row has room to its right (Autobuy, the
+      // shop's "Hide owned").
+      public function fitLabel() : void
+      {
+         _labelFits = true;
+         this.sizeLabel();
+      }
+
+      override protected function updateAfterStateChange() : void
+      {
+         super.updateAfterStateChange();
+         this.sizeLabel();
+      }
+
+      private function sizeLabel() : void
+      {
+         if(this._labelFits && textField != null)
+         {
+            textField.wordWrap = false;
+            textField.autoSize = TextFieldAutoSize.LEFT;
+         }
+      }
+
       override protected function configUI() : void
       {
          super.configUI();

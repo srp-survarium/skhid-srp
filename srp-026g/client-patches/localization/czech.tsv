@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
 st_srp_scope_slot	Optika
+st_srp_shop_not_owned	Skrýt vlastněné
+st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost
 st_srp_speed_title	Rychlost pohybu: %1$s

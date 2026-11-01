@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
 st_srp_scope_slot	Optika
+st_srp_shop_not_owned	Sakrij posedovano
+st_srp_shop_not_owned_hint	Prikaži samo predmete koje nemaš
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s

@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
 st_srp_scope_slot	Optics
+st_srp_shop_not_owned	Hide owned
+st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s

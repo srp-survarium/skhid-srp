@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
 st_srp_scope_slot	Optik
+st_srp_shop_not_owned	Besitz ausblenden
+st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s

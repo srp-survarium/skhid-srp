@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a 
 st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
 st_srp_scope_slot	Irányzék
+st_srp_shop_not_owned	Meglévők elrejtése
+st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s

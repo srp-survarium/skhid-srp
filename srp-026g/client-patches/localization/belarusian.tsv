@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік п�
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
 st_srp_scope_slot	Прыцэл
+st_srp_shop_not_owned	Схаваць наяўныя
+st_srp_shop_not_owned_hint	Паказваць толькі тое, чаго ў вас няма
 st_srp_skills	Навыкі
 st_srp_speed_label	Хуткасць
 st_srp_speed_title	Хуткасць руху: %1$s

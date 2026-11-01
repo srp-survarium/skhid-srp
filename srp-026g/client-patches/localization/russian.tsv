@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
 st_srp_scope_slot	Прицел
+st_srp_shop_not_owned	Скрыть имеющиеся
+st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
