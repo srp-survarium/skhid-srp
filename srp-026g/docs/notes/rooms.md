@@ -280,6 +280,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - The window, closed and opened again, shows My room.
 - **Kit presets** (the owner's of 2026-10-23): a join from the list or Play may first offer one of
   the player's kit presets, "Enter anyway" / "Exit" or "Switch and enter" (it makes that preset active) ([presets.md](presets.md)).
+  A full room's Queue offers what its Join would, "Queue" in place of "Enter anyway"
+  (the owner's of 2026-11-01).
   Play that would queue offers the other bracket's room with a place in the same way, with
   "Queue" for its first button (the owner's of 2026-10-30; presets.md, "Play that would queue").
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen

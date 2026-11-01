@@ -555,55 +555,7 @@ impl Core<'_> {
             RoomRequest::Join { key } => self.room_join(who, key, now),
             RoomRequest::Offer { key } => self.room_offer(who, key),
             RoomRequest::PresetJoin { preset, key } => self.room_preset_join(who, preset, key, now),
-            // A full room's queue (the owner's of 2026-10-17): from the lobby
-            // only, one at a time; a room with a place is joined at once.
-            // A squad mate free in the lobby waits with it (`room_mate`).
-            RoomRequest::Queue { key } => {
-                let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
-                let mate = self.room_mate(who.account_id);
-                let free = self.rooms.get(key).is_some_and(|room| {
-                    let comes = mate.is_some_and(|(mate, _)| !room.members.contains(&mate));
-                    let beside = self
-                        .store
-                        .squads()
-                        .mate_of(who.account_id)
-                        .filter(|mate| room.members.contains(mate));
-                    room.has_places(1 + usize::from(comes), beside)
-                });
-                if free && self.room_enter_fit(who).is_ok() {
-                    // Places for all: a join (`room_join` answers it).
-                    self.room_join(who, key, now);
-                    return;
-                }
-                let code = match self.room_enter_fit(who) {
-                    Err(code) => code,
-                    Ok(()) => {
-                        let before = self.rooms.queue_place(who.account_id);
-                        match self.room_enqueue_party(
-                            who,
-                            gear,
-                            mate,
-                            key,
-                            QueueChoice::Chosen,
-                            now,
-                        ) {
-                            Ok(place) => {
-                                // Queue stays lit while queued: a press again
-                                // is logged only when the place moved.
-                                if before != Some((key, place)) {
-                                    log::info!(
-                                        "{}: waits in room {key}'s queue, place {place}",
-                                        who.name
-                                    );
-                                }
-                                RoomCode::None
-                            }
-                            Err(refused) => code_of(refused),
-                        }
-                    }
-                };
-                self.send_room_state(who, code, now);
-            }
+            RoomRequest::Queue { key } => self.room_queue(who, key, now),
             RoomRequest::JoinMatch => {
                 // The member does not wait: into its room's match now.
                 self.room_join_at.insert(who.account_id, now);
@@ -676,6 +628,47 @@ impl Core<'_> {
             }
             Err(refused) => log::info!("{}: Start in a room: refused ({refused:?})", who.name),
         }
+    }
+
+    /// A full room's queue (the owner's of 2026-10-17): from the lobby
+    /// only, one at a time; a room with a place is joined at once
+    /// ([`Self::room_join`]). A squad mate free in the lobby waits with it
+    /// (`room_mate`). The state answers it.
+    fn room_queue(&mut self, who: &Who, key: u32, now: Instant) {
+        let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
+        let mate = self.room_mate(who.account_id);
+        let free = self.rooms.get(key).is_some_and(|room| {
+            let comes = mate.is_some_and(|(mate, _)| !room.members.contains(&mate));
+            let beside = self
+                .store
+                .squads()
+                .mate_of(who.account_id)
+                .filter(|mate| room.members.contains(mate));
+            room.has_places(1 + usize::from(comes), beside)
+        });
+        if free && self.room_enter_fit(who).is_ok() {
+            // Places for all: a join (`room_join` answers it).
+            self.room_join(who, key, now);
+            return;
+        }
+        let code = match self.room_enter_fit(who) {
+            Err(code) => code,
+            Ok(()) => {
+                let before = self.rooms.queue_place(who.account_id);
+                match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
+                    Ok(place) => {
+                        // Queue stays lit while queued: a press again
+                        // is logged only when the place moved.
+                        if before != Some((key, place)) {
+                            log::info!("{}: waits in room {key}'s queue, place {place}", who.name);
+                        }
+                        RoomCode::None
+                    }
+                    Err(refused) => code_of(refused),
+                }
+            }
+        };
+        self.send_room_state(who, code, now);
     }
 
     /// Join the room with that key, a commander's mate along (`room_mate`);
@@ -808,8 +801,9 @@ impl Core<'_> {
     }
 
     /// "Switch and enter": preset `preset` the active one (its kits put on),
-    /// then the join of the room with `key` (0: Play). A preset that could
-    /// not be chosen joins nothing (code 14).
+    /// then the room with `key` as its Queue takes it (a join with places,
+    /// else its queue: a Join's or a full room's Queue's offer), or Play
+    /// (`key` 0). A preset that could not be chosen joins nothing (code 14).
     fn room_preset_join(&mut self, who: &Who, preset: u8, key: u32, now: Instant) {
         // A soldier's join is its commander's: its loadout stays.
         if self.squad_soldier(who.account_id) {
@@ -822,7 +816,7 @@ impl Core<'_> {
                 if key == 0 {
                     self.room_play_pressed(who, now);
                 } else {
-                    self.room_join(who, key, now);
+                    self.room_queue(who, key, now);
                 }
             }
             Err(_) => self.send_room_state(who, RoomCode::PresetRefused, now),

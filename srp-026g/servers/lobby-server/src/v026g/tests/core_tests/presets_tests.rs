@@ -7,8 +7,8 @@
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::presets::{PRESET_CHOOSE_BASE, PRESETS_FIRST};
 use survarium::v026g::lobby::rooms::{
-    ROOM_JOIN_BASE, ROOM_MEMBERS_BASE, ROOM_OFFER_BASE, ROOM_PIN_BASE, ROOM_PLAY, ROOM_PRESET_BASE,
-    ROOM_QUEUE_BASE, ROOM_STATE, ROOMS_LIST, RoomSpec,
+    ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_MEMBERS_BASE, ROOM_OFFER_BASE, ROOM_PIN_BASE, ROOM_PLAY,
+    ROOM_PRESET_BASE, ROOM_QUEUE_BASE, ROOM_STATE, ROOMS_LIST, RoomSpec,
 };
 
 use super::pvb_tests::with_gear;
@@ -709,5 +709,66 @@ fn play_offers_no_other_bracket_where_join_would_not_take_it_there() {
     assert_eq!(
         rows(&mut world, sam, ROOM_OFFER_BASE, 1),
         ["S1;O;0;0;0;0;15;0;0"]
+    );
+}
+
+/// The owner's of 2026-11-01: a full room's Queue offers what a Join of
+/// that room would. A full level-15 room, a gear-10 player with a level-15
+/// loadout: Join's "higher" offer. "Queue" keeps the queue as it is;
+/// "Switch and enter" chooses the loadout, then queues (its place kept),
+/// and the player goes in with it when a place frees.
+#[test]
+fn a_full_rooms_queue_offers_a_preset_as_join_does() {
+    let mut world = World::new();
+    let high = full_room(&mut world, "High", 15);
+    let pat = world.connect("Pat");
+    two_presets(&mut world, pat, 10, 15);
+    assert_eq!(
+        rows(&mut world, pat, ROOM_OFFER_BASE + high, 1),
+        [format!("S1;O;{high};1;2;15;10;15;0")]
+    );
+    // "Queue": the queue, the kits as they are.
+    assert_eq!(
+        rows(&mut world, pat, ROOM_QUEUE_BASE + high, 1),
+        [format!("S1;N;0;{high};1")]
+    );
+    assert_eq!(gear(&world, pat), 10);
+    // "Switch and enter": preset 2 chosen, the same place in the queue.
+    let (lists, _) = asked(&mut world, pat, ROOM_PRESET_BASE + 100_000 + high);
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
+    assert_eq!(lists[1], [format!("S1;N;0;{high};1")]);
+    assert_eq!(gear(&world, pat), 15);
+    // Straight from the offer, not queued first: behind Pat.
+    let quin = world.connect("Quin");
+    two_presets(&mut world, quin, 10, 15);
+    let (lists, _) = asked(&mut world, quin, ROOM_PRESET_BASE + 100_000 + high);
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
+    assert_eq!(lists[1], [format!("S1;N;0;{high};2")]);
+    // A place frees: Pat goes in with the loadout chosen.
+    let first = world.core.rooms.get(high).unwrap().members[0];
+    let member = world.ids.iter().position(|id| id.0 == first).unwrap();
+    rows(&mut world, member, ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.core.rooms.key_of(world.ids[pat].0), Some(high));
+    assert_eq!(gear(&world, pat), 15);
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[quin].0),
+        Some((high, 1))
+    );
+}
+
+/// A full room's Queue offers nothing where a Join would offer nothing (no
+/// saved loadout above the gear): the queue as before.
+#[test]
+fn a_full_rooms_queue_offers_nothing_where_join_would_not() {
+    let mut world = World::new();
+    let high = full_room(&mut world, "High", 15);
+    let rae = world.connect("Rae");
+    two_presets(&mut world, rae, 10, 5);
+    let offer = rows(&mut world, rae, ROOM_OFFER_BASE + high, 1);
+    assert_eq!(offer[0].split(';').nth(3), Some("0"), "{offer:?}");
+    assert_eq!(
+        rows(&mut world, rae, ROOM_QUEUE_BASE + high, 1),
+        [format!("S1;N;0;{high};1")]
     );
 }
