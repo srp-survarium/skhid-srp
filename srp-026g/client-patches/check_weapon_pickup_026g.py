@@ -517,7 +517,7 @@ class Pick(Run):
 
     def gun(self, double_handed=1, ammo_slot=11, loaded=0, chamber=0):
         """A client weapon (active object, its inventory item +10h): one bound ammunition slot."""
-        gun = self.blk(0x700)
+        gun = self.blk(0x1820)
         self.word(gun, WEAPON_VTABLE)
         self.word(gun + 0x10, self.item_vtable)
         self.word(gun + 0x10 + 0xD0, 1)
@@ -917,17 +917,22 @@ class Prompt(Pick):
         self.emu.mem_write(PLACES_AT, b"\x08")
         self.word(p + 0x350, 0x5050)                    # its physics world
         self.eye([0., 0., 1.], [0., 1.0, 0.])
-        # The donor's gun on its ragdoll: 1 m along z, at (0, 1, 1); a skeleton model's instance.
+        # The donor's gun on its ragdoll at (0, 1, 1): its model's instance in the scene (what
+        # patch 78's hiding takes out), without its resource (replaced as the body went to ragdoll):
+        # the box is the cooked gun's, 1 m along z, read once when its cook is logged made.
         renderer, scene = 0x38000000, self.blk(0x100)
         self.emu.mem_map(renderer, 0x201000, UC_PROT_ALL)
         self.word(GAME + 0x5360, renderer)
         self.word(renderer + 0x200064, scene)
-        model, self.instance, resource = self.blk(0x120), self.blk(0x6300), self.blk(0x140)
+        model, self.instance = self.blk(0x120), self.blk(0x6300)
         self.word(WEAPON + 0x1810, model)
         self.word(WEAPON + 0x180C, WORLD)
         self.word(model + 0x108, self.instance)
         self.emu.mem_write(self.instance + 0x10D, b"\1")
-        self.word(self.instance + 0x62B4, resource)
+        cooked_model, cooked_instance, resource = self.blk(0x120), self.blk(0x6300), self.blk(0x140)
+        self.word(self.new_gun + 0x1810, cooked_model)
+        self.word(cooked_model + 0x108, cooked_instance)
+        self.word(cooked_instance + 0x62B4, resource)
         self.emu.mem_write(resource + 0x108, struct.pack("<6f", -0.05, -0.05, -0.5, 0.05, 0.05, 0.5))
         self.matrix = self.blk(64)
         at = list(IDENTITY)
@@ -952,6 +957,7 @@ class Prompt(Pick):
         self.word(self.ui + 0x18, WORLD)
         self.word(CLIENT + 4, p)
         self.handler = self.blk(0x400)
+        self.step(DIED + 100)
 
     def eye(self, forward, position):
         m = list(IDENTITY)
@@ -986,7 +992,8 @@ def stage2b(patched):
     assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
     assert r.hud() == [("st_weapon_pick_up", NAME)]
     assert sights(r) == ["offered"], "once per drop and reason"
-    print("ok the donor's gun drawn on its ragdoll (carry.weapon: the site's transform, its model's box): the "
+    print("ok the donor's gun drawn on its ragdoll (carry.weapon: the site's transform; the box its cooked gun's, "
+          "nothing of the body's model read): the "
           "picker looking at it within 2.2 m, in sight, is offered it: show_artefact_offer(\"st_weapon_pick_up\", "
           "the gun's ui_desc/text_descriptions/name translated)")
 

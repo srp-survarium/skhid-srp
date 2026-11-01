@@ -232,10 +232,15 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   as patch 78 hides a carrier's (out of the scene, the native draw skipped;
   native on_hide gets them back). For an open drop the gun's pose is kept by
   place (a Lock: mt_draw may run in tasks): the site's transform (EAX, row
-  vectors) and the box of its model (weapon+1810h -> +108h the render
-  reference -> +0 a skeleton_render_model_instance -> +62B4h its resource ->
-  +108h, 6 f32, turned by Y(pi): [-maxx, miny, -maxz] .. [-minx, maxy,
-  -minz]; refused when not finite, inverted or a side over 4 m).
+  vectors) and its cooked gun's model box. Nothing of the body's own
+  objects is read on the draw path (83b and 83c froze reading the body's
+  model chain there about 0.2 s after a death): the box is read once, on
+  the logic thread, when the cook is logged made (`after_move`), from the
+  cooked gun, whose model is the same resource (weapon+1810h, set by
+  load_weapon 0x243A9A at the weapon's cook, 0x24B0DC -> +108h the render
+  reference -> +0 its skeleton instance -> +62B4h its resource -> +108h, 6
+  f32, turned by Y(pi): [-maxx, miny, -maxz] .. [-minx, maxy, -minz];
+  refused when not finite, inverted or a side over 4 m).
 - **The prompt** (artefact_carry's on_hud at `player_icons.update_start`,
   after patch 78's own targets): for each kept pose, the eye's (player+44Ch:
   position m[12..14], forward m[8..10]) 2.2 m segment into the box padded by
@@ -334,9 +339,9 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   ({USE})` in the ten `localization/*.tsv` and an edit list for hud_strings;
   the gun's name from its dictionary entry (`ui_desc/text_descriptions/name`).
 - **The gun on the ragdoll**: `carry.weapon` (0x2477C8; EAX its world
-  transform) and the model box at weapon+1810h -> +108h -> +0 -> +62B4h ->
-  +108h (6 f32, turned by Y(pi)); hide a taken one there as patch 78 hides a
-  carrier's gun.
+  transform) and the cooked gun's model box (weapon+1810h -> +108h -> +0 ->
+  +62B4h -> +108h, 6 f32, turned by Y(pi)); hide a taken one there as patch
+  78 hides a carrier's gun.
 
 ## The instance: one gun cooked at each death (patch 85, stage 1, built, not run in a game)
 

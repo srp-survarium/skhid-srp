@@ -6119,13 +6119,13 @@ impl ModelInstance {
         StaticModelInstance(unsafe { self.0.byte_add(0x0) })
     }
 
-    /// +0x0 (obj<vostok::render::skeleton_render_model_instance>): only for a client weapon's model (weapon+1810h), a skeleton_render_model_instance
+    /// +0x0 (obj<vostok::render::skeleton_instance>): only for a client weapon's model (weapon+1810h, set by load_weapon 0x243A9A at the weapon's cook, 0x24B0DC): a skeleton instance
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn skeleton(self) -> SkeletonRenderModelInstance {
-        SkeletonRenderModelInstance(unsafe { self.0.byte_add(0x0) })
+    pub unsafe fn skeleton(self) -> SkeletonInstance {
+        SkeletonInstance(unsafe { self.0.byte_add(0x0) })
     }
 }
 
@@ -8810,39 +8810,6 @@ impl ItemConfig {
     #[inline(always)]
     pub unsafe fn set_root(self, value: Option<EngineCfg>) {
         unsafe { self.0.byte_add(0x108).cast::<Option<EngineCfg>>().write_volatile(value) }
-    }
-}
-
-/// A vostok::render::skeleton_render_model_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SkeletonRenderModelInstance(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl SkeletonRenderModelInstance {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-
-    /// +0x62b4 (ptr<vostok::render::skeleton_render_model>): the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn resource(self) -> Option<SkeletonRenderModel> {
-        unsafe { self.0.byte_add(0x62b4).cast::<Option<SkeletonRenderModel>>().read_volatile() }
-    }
-
-    /// +0x62b4 (ptr<vostok::render::skeleton_render_model>): the original resource (update_render_matrices 0x15A5AA; get_bind_pose 0x15A9D0)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_resource(self, value: Option<SkeletonRenderModel>) {
-        unsafe { self.0.byte_add(0x62b4).cast::<Option<SkeletonRenderModel>>().write_volatile(value) }
     }
 }
 

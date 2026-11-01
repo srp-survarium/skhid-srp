@@ -50,7 +50,7 @@ use weapon_pickup::{Borrow, Drop as DropState, Handedness, Kit, Ms, Picker, Plac
 
 use crate::vostok::gun_cook::{self, traced, CookId, Cooked, Gun, InventoryId, Refusal, Trace, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
-use crate::vostok::pickup::{self as native, GunPose, Installed, Mode, NameKey, Site};
+use crate::vostok::pickup::{self as native, GunBox, GunPose, Installed, Mode, NameKey, Site};
 use crate::vostok::world::{GameWorld, Player, PlayerId};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread};
 use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnUseHintExit};
@@ -90,8 +90,9 @@ pub struct Source {
 enum Report {
     /// Asked; the address space then (MiB).
     Asked { memory: Option<u32> },
-    /// Its outcome logged.
-    Logged,
+    /// Its outcome logged; the made gun's model box (read once here, on
+    /// the logic thread: what the ragdoll's gun is matched against).
+    Logged { model: Option<GunBox> },
 }
 
 /// Whether a cooked gun is installed in a player's hands.
@@ -543,6 +544,16 @@ fn kept_cook(thread: &Thread, source: Source) -> Option<CookId> {
     })
 }
 
+/// The model box of a made cook of `source`'s gun nobody holds.
+fn kept_box(thread: &Thread, source: Source) -> Option<GunBox> {
+    traced(Trace::Budget, "CACHE", "kept_box", &CACHE, thread, |cache| {
+        cache.iter().flatten().find_map(|e| match e.report {
+            Report::Logged { model } if e.source == source && e.using == Use::Kept => model,
+            _ => None,
+        })
+    })
+}
+
 /// The instance for the drop of `place`'s death at `died` (ready or not):
 /// what the local prompt (stage 2b) asks.
 pub fn instance(thread: &Thread, place: Place, died: Ms) -> Instance {
@@ -663,11 +674,13 @@ fn log_finished(thread: &Thread) {
                 if matches!(cooked, Cooked::Cooking { .. }) {
                     return None;
                 }
-                e.report = Report::Logged;
-                Some((e.source, e.origin, memory, cooked))
+                let model = matches!(cooked, Cooked::Made { .. })
+                    .then(|| native::gun_box(thread, e.gun.id(), e.source.slot)).flatten();
+                e.report = Report::Logged { model };
+                Some((e.source, e.origin, memory, cooked, model.is_some()))
             })
         });
-        let Some((source, origin, before, cooked)) = found else { break };
+        let Some((source, origin, before, cooked, boxed)) = found else { break };
         let after = gun_cook::memory(thread).map(|(used, _)| used);
         let (what, inventory, ms) = match cooked {
             Cooked::Made { inventory, since, at } => ("made", inventory.0, elapsed_ms(thread, since, at)),
@@ -678,7 +691,7 @@ fn log_finished(thread: &Thread) {
             Text(": "), Text(what), Text(", inventory "), Hex(inventory), Text(", "), Dec(ms),
             Text(" ms after it was asked for, address space "), Dec(before.unwrap_or(0)), Text(" -> "),
             Dec(after.unwrap_or(0)),
-            Text(" MiB")]);
+            Text(if boxed || !matches!(cooked, Cooked::Made { .. }) { " MiB" } else { " MiB, its model box UNREAD" })]);
     }
 }
 
@@ -802,7 +815,8 @@ pub enum RagdollGun {
 /// on_weapon; locks only, no GameCell: mt_draw may run in a task): a
 /// borrowed gun vanishes with its holder; the gun of a drop taken is hidden
 /// on its donor's ragdoll; the gun of an open drop is kept for the prompt
-/// (its transform and box), the body being that drop's death's.
+/// (the site's transform and its cooked gun's box), the body being that
+/// drop's death's. Nothing of the body's own objects is read.
 pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
     let thread = ctx.thread();
     if borrowing(thread, player) {
@@ -816,12 +830,8 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
     }
     match record.drop {
         DropState::Taken => RagdollGun::Hidden,
-        DropState::Open { .. } => {
-            gun_cook::trace(Trace::Budget, &[Text("ragdoll_gun: place "), Dec(u32::from(place.get())),
-                                             Text(", drawn_gun reading")]);
-            let pose = native::drawn_gun(ctx, player);
-            gun_cook::trace(Trace::Budget, &[Text("ragdoll_gun: drawn_gun read, "),
-                                             Text(if pose.is_some() { "a pose" } else { "none" })]);
+        DropState::Open { kit, slot } => {
+            let pose = kept_box(thread, Source { place, kit, slot }).and_then(|model| native::drawn_gun(ctx, model));
             traced(Trace::Budget, "SEEN", "ragdoll_gun", &SEEN, thread,
                    |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
             RagdollGun::Shown
@@ -1042,11 +1052,11 @@ fn within(pose: &GunPose, eye: [f32; 3], reach: f32, pad: f32) -> bool {
     let mut radius = 0.0f32;
     for axis in 0..3 {
         let row = [m[axis * 4], m[axis * 4 + 1], m[axis * 4 + 2]];
-        let middle = (pose.lo[axis] + pose.hi[axis]) * 0.5;
+        let middle = (pose.model.lo[axis] + pose.model.hi[axis]) * 0.5;
         for (c, r) in centre.iter_mut().zip(row) {
             *c += middle * r;
         }
-        let half = (pose.hi[axis] - pose.lo[axis]) * 0.5 * ragdoll::math::sqrt(dot(row, row)) + pad;
+        let half = (pose.model.hi[axis] - pose.model.lo[axis]) * 0.5 * ragdoll::math::sqrt(dot(row, row)) + pad;
         radius += half * half;
     }
     let d = [centre[0] - eye[0], centre[1] - eye[1], centre[2] - eye[2]];
@@ -1080,7 +1090,7 @@ fn enters(pose: &GunPose, eye: [f32; 3], forward: [f32; 3], reach: f32, pad: f32
         let origin = dot(offset, row) / squared;
         let step = dot(forward, row) / squared;
         let grow = pad / ragdoll::math::sqrt(squared);
-        let (lo, hi) = (pose.lo[axis] - grow, pose.hi[axis] + grow);
+        let (lo, hi) = (pose.model.lo[axis] - grow, pose.model.hi[axis] + grow);
         if step.abs() < 1e-9 {
             if origin < lo || origin > hi {
                 return None;
@@ -1263,7 +1273,7 @@ mod tests {
 
     fn pose(transform: [f32; 16]) -> GunPose {
         // A rifle 1 m long along its model's z, 10 cm thick.
-        GunPose::parse(transform, [-0.05, -0.05, -0.5, 0.05, 0.05, 0.5]).unwrap()
+        GunPose::at(transform, GunBox::parse([-0.05, -0.05, -0.5, 0.05, 0.05, 0.5]).unwrap()).unwrap()
     }
 
     #[test]
