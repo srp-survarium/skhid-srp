@@ -979,6 +979,25 @@ Pairs (`srp-026g/docs/images/renderer-026g/`; left stock, right PCSS; `r_shadow_
   9 cm towards the light: the bench shadow is back whole, the shelf's band is back; the far
   lower-left corner of the shelf's shadow is still lighter than stock.
 
+**The game's own final image** (`final/` beside those pairs; `final_ldr_no_ui`: textured,
+composed, post-processed and tone-mapped by the game, before the UI). Every panel is labelled with
+its frame's adapted luminance; within one lobby they differ by at most 1.5 %, an exposure change of
+0.3 % (the curve's (key/L)^0.2), so the panels are at the stock frame's exposure. Basement:
+stock | 6 | 15 | 30 cm (`basement-*.jpg`: full view, boots, shelf and bench, crates). The Bunker,
+the hybrid-baked pack with live shadowed lamps (`lobby_scene/stk2_bunker` @10h, its own test
+patch 41 with the shaders as patch 42): stock | 15 | 30 cm (`bunker-*.jpg`). A contact sheet per
+lobby. What they show:
+
+- Basement: the long shadows of the character and the crates widen and soften with the radius;
+  the shelf's shadow on the wall loses its far lower-left corner (all radii).
+- Bunker: the shelves' and crates' shadows on the back wall soften visibly at 15 and 30 cm. Two
+  new faults: the pool of a light right at the floor in front of the boots is cut by black,
+  shadow-map-texel steps (a receiver very close to the light: the widest kernel, clamped at the
+  map's edge), and the dark ellipse of the pendant's shade on the vault turns pale and blurred
+  (a 15 or 30 cm light inside a shade smaller than that; one radius for every light is wrong for
+  it: the per-light size).
+- Cost in the Bunker (25 shadowed draws): stock 96 us, PCSS 219 us (15 cm), 225 us (30 cm).
+
 Shadows lost or added against stock, OBSERVED (local-light diffuse in 8x8 blocks, the character
 masked out; % of blocks over 25 % brighter / darker):
 
