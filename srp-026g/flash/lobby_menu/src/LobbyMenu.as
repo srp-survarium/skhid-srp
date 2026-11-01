@@ -3330,7 +3330,7 @@ package
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
       }
       
-      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null) : Boolean
+      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null, ownItemMenu:Boolean = false) : Boolean
       {
          trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
          var _obj:Object = new Object();
@@ -3431,7 +3431,12 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != ItemCategory.CAMOUFLAGES && (sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid)))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction). An item owned already,
+         // not a stack, is asked first (the shop, the card's Buy, a drop, the craft and attachment
+         // windows), but for Buy from the right-click menu of an item the player owns (ownItemMenu:
+         // ItemCard.buyFromOwnMenu), a wish for another. A bundle's id is no item's
+         // (docs/notes/items.md §6).
+         if(!ownItemMenu && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;

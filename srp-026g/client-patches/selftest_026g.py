@@ -2058,15 +2058,20 @@ def test_upgrade_preview(original, image, before):
                       0x0E4F90, 0x420789, 0x111ED0, 0x111860, stash_find}
           and all(t in starts for t in targets - outside)
           and all(code_va + at in starts and image.read(code_va + at, 1) == b"\xE9" for at in P.UPGRADE_PREVIEW_ENTRIES)
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
-          and image.read(code_va, len(code)) == code
+          and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
+          == [f"call [dword {code_va + P.UPGRADE_PREVIEW_KIT_APPLY:#x}]"]
+          and image.read(code_va, len(code)) == P.with_kit_apply(code, P.arena())
+          and image.read(code_va + P.UPGRADE_PREVIEW_KIT_APPLY, 4)
+          == struct.pack("<I", P.arena_target(P.arena(), P.WEAPON_KIT_PREVIEW_APPLY))
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
           "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
-          "call outside itself, and every branch inside it lands on an instruction")
+          "call outside itself, and every branch inside it lands on an instruction; its one indirect call is "
+          f"apply's through its kit_apply dword (+{P.UPGRADE_PREVIEW_KIT_APPLY:#x}), which the build filled with "
+          "patch 68's weapon_kit_preview_apply")
 
 
 def test_research(original, image, before):
@@ -4037,6 +4042,70 @@ def test_language(original, image, before):
               and block.va <= entry < block.va + block.size and not under and not branches,
               f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
+def test_weapon_kit(original, image, before):
+    """Check 68: a weapon's upgrades in at most three records, the weapon kit
+    (patch 68, the Rust patch `weapon_kit`, weapon_kit.toml: one code hook and
+    three lohooks; ../docs/notes/weapon-kit.md). check_weapon_kit_026g.py runs
+    each from the game's code on made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    loop = {a: t for a, _, t in ndisasm(stock.read(0x2F1771, 0x8E0), 0x2F1771)}
+    check(rows(0x2F1771, 0xB) == ["call 0x2f2060", "mov ecx,[ebp+0x38]", "mov eax,[ebp+0x44]"]
+          and loop.get(0x2F1799) == "mov eax,[ebp+0x40]" and loop.get(0x2F18D0) == "mov eax,[ebp+0x40]"
+          and [a for a, t in loop.items() if "[ebp+0x40]" in t] == [0x2F1799, 0x2F18D0, 0x2F1F1F, 0x2F1F29]
+          and loop.get(0x2F1F1F) == "mov [ebp+0x40],ebx"
+          and rows(0x2F2041, 0x12) == ["lea esp,[ebp-0xa0]", "pop edi", "pop esi", "pop ebx", "add ebp,byte +0x74",
+                                       "mov esp,ebp", "pop ebp", "ret 0x4"],
+          "translate_query reads [ebp+40h] (the item's records) at 0x2F1799 and 0x2F18D0 alone after its call "
+          "of 0x2F2060 (0x2F1771) (0x2F1F1F writes the local anew, for its own use), and its epilogue takes esp "
+          "from ebp (0x2F2041): the room below its frame goes with it")
+    check(rows(0x2882E3, 6) == ["mov ecx,[esp+0x48]", "mov eax,[ecx]"]
+          and rows(0x2882D6, 0xD) == ["mov edx,[ecx]", "mov edx,[edx+0x14]", "push dword 0xa023dc", "push eax",
+                                      "call edx"]
+          and rows(0x2885C9, 0xA) == ["call 0x28b0f0", "mov al,[ebp-0x5]", "inc al"]
+          and stock.read(0x8FC288 + 0x14, 4) == struct.pack("<I", 0x7C6A20)
+          and original.count(struct.pack("<I", 0x8FC288)) == 1,
+          "the upgrades to Flash set an object's `param` through its interface's vtable +14h (0x2882D6) and go "
+          "on at 0x2882E3; setup_inventory_data pushes a record's pair at 0x2885C9; the AS3 object interface's "
+          "vtable 0x8FC288 (written once, the AS3 movie root's 0x7AB0CB) holds SetMember 0x7C6A20 at +14h")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "weapon_kit"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted((h["site_name"], h["kind"]) for h in hooks)
+          == [("weapon_kit.attached_pair", "lohook"), ("weapon_kit.flash_upgrade", "lohook"),
+              ("weapon_kit.preview_apply", "entry"), ("weapon_kit.query_records", "lohook"),
+              ("weapon_kit.query_room", "code")],
+          "weapon_kit.toml's hooks: the code hook query_room, the lohooks query_records, flash_upgrade and "
+          "attached_pair, and the entry preview_apply (patch 48's call, check 48)")
+    for h in (h for h in hooks if h["kind"] != "entry"):
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+    entry = linked.symbols[P.WEAPON_KIT_PREVIEW_APPLY]
+    listing = [t for _, _, t in ndisasm(image.read(entry, 0x50), entry)]
+    shim = linked.symbols["hook_weapon_kit_on_preview_apply"]
+    calls = [i for i, t in enumerate(listing) if t.startswith("call ")]
+    aligned = [i for i, t in enumerate(listing) if t == "and esp,byte -0x10"]
+    check(calls and listing[calls[0]] == f"call {shim:#x}" and aligned and aligned[-1] < calls[0]
+          and listing[0] == "lea esp,[esp-0x4]" and "ret" in listing,
+          f"patch 48's call goes to the generated entry {P.WEAPON_KIT_PREVIEW_APPLY} ({entry:#x}), which aligns "
+          "the stack to 16 before it calls the Rust shim and returns with `ret`")
+    room = linked.symbols["weapon_kit_query_room"]
+    cave = [t for _, _, t in ndisasm(image.read(room, 16), room)]
+    check(cave == ["call 0x2f2060", "sub esp,0xa0", "jmp 0x2f1776"],
+          "the code hook's cave makes the site's call, takes A0h (the room, survarium::weapon_kit_room) and goes "
+          "on at 0x2F1776")
 
 
 def test_lobby_scene(original, image, before):
@@ -6652,7 +6721,8 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
-    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) \
+        + P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -6853,6 +6923,7 @@ def test_late_join(original, without, server, source):
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)
     test_language(original, image, before)
+    test_weapon_kit(original, image, before)
     test_lobby_scene(original, image, before)
     test_weapon_flight(original, image, before)
     test_stage_focus(original, image, before)

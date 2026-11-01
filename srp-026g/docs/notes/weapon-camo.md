@@ -23,10 +23,11 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 - **Slot.** [srp] A weapon's camouflage is in upgrade slot 2: slot 3 holds its scope, 0 its decal
   (`WEAPON_CAMO_SLOT`, `modifications::camo_slot`). A scope and a camouflage are worn together.
   The client keeps a record in any slot.
-- **Three upgrades an item.** The client keeps at most three upgrade records on an item (an inline
-  array of the item record, `limits::UPGRADES`; a fourth is a fatal assert), so a weapon has three
-  slots: scope (3), camouflage (2), one decal (0). The owner, 2026-10-21: "let's remove one decal
-  instead for now"; a second decal needs an exe change of that array (not done).
+- **Three records, six upgrades.** The client keeps at most three upgrade records on an item (an
+  inline array of the item record, `limits::UPGRADES`; a fourth is a fatal assert). Since the
+  weapon kit (client patch 68, [weapon-kit.md](weapon-kit.md)) a weapon's upgrades are logical
+  slots on the server (decals 0 and 1, camouflage 2, scope 3, muzzle 4, grip 5) sent as the decals
+  and one kit record: a scoped weapon's camouflage travels named in the kit's value.
 - **Shared cosmetics.** As for armour (PR 149): one camouflage item on any number of items,
   weapons and armour mixed, each with its own record; sold, it comes off all.
 - **Tiling.** `data/camo_scale` of the weapon config (4.0 for all, the stock bakes' value): the
@@ -117,15 +118,15 @@ separator".
 ## Decals (patch 47)
 
 The owner (2026-10-21): "implement and allow put two decals on weapons"; then, the client holding
-three upgrades an item: "let's remove one decal instead for now". One decal a weapon.
+three upgrades an item: "let's remove one decal instead for now". Two again since the weapon kit
+(2026-10-25, [weapon-kit.md](weapon-kit.md)).
 
 - **Which weapons.** The same 83 configs (`scripts/content-edit/weapon-decals-1.json`, after
   weapon-camo-1): `parameters/decal_available` and an empty `data/decals`, as armour has.
-- **Which decals.** Any decal item (category 26); one, in the decal slot.
-- **Slots.** [srp] 0 (`WEAPON_DECAL_SLOTS`, `modifications::cosmetic_slots`; armour keeps 0 and
-  1): a weapon holds its scope in 3, its camouflage in 2, its decal in 0, all at once; the server
-  refuses a decal in slot 1 of a weapon. Patch 47 bakes up to two entries of `data/decals`; one
-  is all the slots give.
+- **Which decals.** Any decal item (category 26); two, in the decal slots.
+- **Slots.** [srp] 0 and 1 (`WEAPON_DECAL_SLOTS`, `modifications::cosmetic_slots`, as armour's):
+  a weapon holds its scope, its camouflage and two decals at once, the decals as records of their
+  own beside the kit (patch 68). Patch 47 bakes both entries of `data/decals`.
 - **Shared cosmetics.** As for armour: one decal item on any number of items, each with its own
   place.
 - **Placing one.** In the weapon's upgrade window (the weapon above the workbench, patch 45):
@@ -223,8 +224,4 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
 - One-donor masks look coarse: the AK-12, the Vepr-12 and the VSS / SR-3M textures; to look at
   every `guns.tsv` preview with the owner. If the 4.0 tiling looks too big on a weapon, give it
   its own `data/camo_scale`.
-- A second decal on scoped guns (the owner, 2026-10-21: "let's remove one decal instead for
-  now"): a weapon's upgrades live in the 3-entry inline array of the 0xB4 item record (scope,
-  camouflage, one decal), so a fourth needs an exe change to that array or a side table. Then
-  the server's `WEAPON_DECAL_SLOTS` and the lobby's `UpgradeWindow.WEAPON_DECALS` take slot 1;
-  patch 47 already bakes two entries of `data/decals`.
+- A second decal on scoped guns: done by the weapon kit (patch 68, [weapon-kit.md](weapon-kit.md)).

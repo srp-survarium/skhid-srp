@@ -215,6 +215,8 @@ unsafe extern "thiscall" {
     pub fn engine_free_voice(proxy: *mut c_void);
     /// 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
     pub fn engine_close_current_match(client: *mut c_void, reason: u32);
+    /// 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
+    pub fn engine_gfx_set_member(interface: *mut c_void, target: *mut c_void, name: *const u8, value: *const c_void, display: u32) -> u8;
 }
 
 #[allow(dead_code, non_upper_case_globals)]

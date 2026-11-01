@@ -270,10 +270,17 @@ package survarium.controls
       
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
-      
+
+      // The shop's "not owned" check box (makeOwnedToggle).
+      private var _ownedToggle:CheckBoxSharedPD;
+
+      // The lobby's inventory list (there is one), for the shop's tiles (owned).
+      private static var me:InventoryList;
+
       public function InventoryList()
       {
          super();
+         me = this;
          addEventListener(Event.ADDED_TO_STAGE,this.listenSearchKey);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OVER,this.newItemOver);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OUT,this.newItemOut);
@@ -340,6 +347,10 @@ package survarium.controls
       {
          isShop = value;
          label.text = LocalizationData.getName(this.isShop ? "shop" : "inventory_label");
+         if(this._ownedToggle != null)
+         {
+            this._ownedToggle.visible = value;
+         }
          this.shopTab.selectedIndex = this.isShop ? ShopFilter.SHOP : ShopFilter.INVENTORY;
          this.itemControlPanel.toggleShop(value);
       }
@@ -405,17 +416,28 @@ package survarium.controls
          }
       }
       
-      public function hasItem(value:int) : Boolean
+      // Whether the account owns an item of this dictionary id: any condition, a stack while it
+      // holds any (the buy's "already purchased"; the shop's owned mark, shop-owned-mark.md).
+      public function hasItem(dictId:int) : Boolean
       {
-         var l:int = (this._inventoryItems.length);
-         for(var i:uint = 0; i < l; i++)
+         if(this._inventoryItems == null)
          {
-            if(this._inventoryItems[i].dictId == value)
+            return false;
+         }
+         for each(var item:Object in this._inventoryItems)
+         {
+            if(item.dictId == dictId && (!item.isStack || item.value > 0))
             {
                return true;
             }
          }
          return false;
+      }
+
+      // ItemRendererInv: the lobby's inventory's hasItem (the shop's owned mark).
+      public static function owned(dictId:int) : Boolean
+      {
+         return me != null && me.hasItem(dictId);
       }
       
       public function selectItemDict(value:int, seller:int = Faction.ANY) : void
@@ -1589,6 +1611,22 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
+      // The first item of the inventory of a dictionary id, or null (the weapon kit names its
+      // attachments by dictionary id: UpgradeWindow.kitUpgrades).
+      public function getInventoryItemOf(dictId:int) : ItemData
+      {
+         var item:ItemData = null;
+         var found:ItemData = null;
+         for each(item in this._inventoryItemsDict)
+         {
+            if(Boolean(item) && int(item.dictId) == dictId && (found == null || item.itemId < found.itemId))
+            {
+               found = item;
+            }
+         }
+         return found;
+      }
+
       // The dictionary ids of the weapons in the chosen kit's two weapon slots.
       public function kitWeaponDicts() : Array
       {
@@ -1990,7 +2028,15 @@ package survarium.controls
          {
             this.setPrimaryItem(item);
          }
-         this._item_control.onBtnClick1();
+         // an owned item's own menu: no "already purchased" question; a shop entry's: the card's Buy
+         if(item.descriptor <= ItemPlace.INVENTORY)
+         {
+            this._item_control.buyFromOwnMenu();
+         }
+         else
+         {
+            this._item_control.onBtnClick1();
+         }
       }
 
       // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
@@ -2168,7 +2214,33 @@ package survarium.controls
          this.checkboxCompareItems.selected = true;
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
          this.makeSearch();
+         this.makeOwnedToggle();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
+      }
+
+      // The shop's "Hide owned" check box (shop-owned-mark.md): the character panel's Autobuy box
+      // (CheckBoxSharedPD), its label and tooltip as Autobuy's, in the shop's Buy button's row
+      // (btnSellBig) at its left, at the window's margin as the compare box below it; shown in the shop
+      // only. Off when the lobby opens.
+      private function makeOwnedToggle() : void
+      {
+         _ownedToggle = new CheckBoxSharedPD();
+         LocalizationData.addButton(this._ownedToggle,"st_srp_shop_not_owned");
+         this._ownedToggle.tooltipRendererName = "SrvProfileTipRendererStyled";
+         this._ownedToggle.fitLabel();
+         var buy:DisplayObject = this.itemControlPanel.btnSellBig;
+         this._ownedToggle.x = this.checkboxCompareItems.x;
+         this._ownedToggle.y = this.itemControlPanel.y + buy.y + Math.round((buy.height - this._ownedToggle.height) / 2);
+         this._ownedToggle.visible = this.isShop;
+         this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
+         addChild(this._ownedToggle);
+      }
+
+      // Whether the shop's list leaves out this entry: the box is on and the account owns the item
+      // (an entry of the shop's; a bundle never, as its mark).
+      private function hiddenAsOwned(item:ItemData) : Boolean
+      {
+         return this.isShop && this._ownedToggle != null && this._ownedToggle.selected && item.descriptor == ItemPlace.SHOP && this.hasItem(item.dictId);
       }
       
       private function onLocal(value:*) : void
@@ -2178,6 +2250,7 @@ package survarium.controls
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
+         this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,
@@ -2906,6 +2979,10 @@ package survarium.controls
             setChildIndex(this._searchBox,numChildren - 1);
             setChildIndex(this._searchIcon,numChildren - 1);
          }
+         if(this._ownedToggle != null)
+         {
+            setChildIndex(this._ownedToggle,numChildren - 1);
+         }
       }
       
       private function isUpgradeable(value:Object) : Boolean
@@ -3260,8 +3337,9 @@ package survarium.controls
          function checkBaseOptions(value:ItemData):Boolean
          {
             var isWeapon:Boolean = options.weapons == WeaponHands.ALL || ItemFactory.getCategory(value.category) != SuperCategory.WEAPONS || (value.oneHanded && options.weapons == WeaponHands.ONE_HANDED || value.oneHanded == false && options.weapons == WeaponHands.TWO_HANDED);
-            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value)));
+            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value);
          }
+         var leftOutAsOwned:Function = this.hiddenAsOwned;
          if((this._filterItems))
          {
             this.filterInventoryItems();
@@ -3573,8 +3651,8 @@ package survarium.controls
       }
       
       // As the item card's Buy: by the dictionary id, at the shop's price;
-      // the shop names the seller. A buy on an owned item is not asked
-      // whether the account wants another.
+      // the shop names the seller. An item owned already is asked about
+      // first, as every buy (LobbyMenu.try_buy_item).
       private function buyFromCraftMenu(item:Object) : void
       {
          var profile:* = parent != null ? parent["player_profile"] : null;
