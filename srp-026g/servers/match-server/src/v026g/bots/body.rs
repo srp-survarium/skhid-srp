@@ -994,7 +994,9 @@ pub(super) mod tests {
             node
         };
         assert!(landing(slip(WalkOffs::Landings)), "today: the walk-off's landing");
-        assert!(ledge(slip(WalkOffs::Under)), "by speed: the ledge under the edge");
+        let under = slip(WalkOffs::Under);
+        let ledges: Vec<Vec3> = (0..grid.len() as NodeId).filter(|&n| ledge(n)).map(|n| grid.position(n)).take(4).collect();
+        assert!(ledge(under), "by speed: the ledge under the edge, not {:?} (from {:?}; ledge floors {ledges:?})", grid.position(under), grid.position(edge));
         // The rule: under BySpeed a step slower than the walk's 3.0 m/s comes down under the edge; the default takes the link.
         assert_eq!(WalkOffs::of(WalkOffLanding::BySpeed, 0.1), WalkOffs::Under);
         assert_eq!(WalkOffs::of(WalkOffLanding::BySpeed, 3.0), WalkOffs::Landings);
