@@ -1,0 +1,20 @@
+{
+ "_about": "The live scope variants' reticles at the screen's centre (pack live-scope-eye; srp-026g/docs/notes/live-scope-eye.md): 15 variant configs name an aimed model on the tilted line of sight of their weapon model's turned aim locator. Made by scripts/live-scope-eye/make_pack.py.",
+ "replace_string": [
+  {"files": "gameplay/items/scopes/fit_ak_74m_acog_ta31.options", "from": "weapons/attach/fit2/fit_ak_74m_acog_ta31_aim", "to": "weapons/attach/fit6/fit_ak_74m_acog_ta31_aim_ak74m"},
+  {"files": "gameplay/items/scopes/fit_ak_74m_pso_1.options", "from": "weapons/attach/fit2/fit_ak_74m_pso_1_aim", "to": "weapons/attach/fit6/fit_ak_74m_pso_1_aim_ak74m"},
+  {"files": "gameplay/items/scopes/fit_ak_74n_acog_ta31.options", "from": "weapons/attach/fit2/fit_ak_74n_acog_ta31_aim", "to": "weapons/attach/fit6/fit_ak_74n_acog_ta31_aim_ak_74n"},
+  {"files": "gameplay/items/scopes/fit_ak_74n_elcan_specterdr.options", "from": "weapons/attach/fit2/fit_ak_74n_elcan_specterdr_aim", "to": "weapons/attach/fit6/fit_ak_74n_elcan_specterdr_aim_ak_74n"},
+  {"files": "gameplay/items/scopes/fit_ak_74n_pso_1.options", "from": "weapons/attach/fit2/fit_ak_74n_pso_1_aim", "to": "weapons/attach/fit6/fit_ak_74n_pso_1_aim_ak_74n"},
+  {"files": "gameplay/items/scopes/fit_akmn_acog_ta31.options", "from": "weapons/attach/fit2/fit_akmn_acog_ta31_aim", "to": "weapons/attach/fit6/fit_akmn_acog_ta31_aim_akmn"},
+  {"files": "gameplay/items/scopes/fit_akmn_pso_1.options", "from": "weapons/attach/fit2/fit_akmn_pso_1_aim", "to": "weapons/attach/fit6/fit_akmn_pso_1_aim_akmn"},
+  {"files": "gameplay/items/scopes/fit_ash_12_acog_ta31.options", "from": "weapons/attach/fit2/fit_ash_12_acog_ta31_aim", "to": "weapons/attach/fit6/fit_ash_12_acog_ta31_aim_ash_12"},
+  {"files": "gameplay/items/scopes/fit_ash_12_elcan_specterdr.options", "from": "weapons/attach/fit2/fit_ash_12_elcan_specterdr_aim", "to": "weapons/attach/fit6/fit_ash_12_elcan_specterdr_aim_ash_12"},
+  {"files": "gameplay/items/scopes/fitn_acog_ta31_akmn_premium_2.options", "from": "weapons/attach/fit3/fitn_acog_ta31_akmn_premium_2_aim", "to": "weapons/attach/fit6/fitn_acog_ta31_akmn_premium_2_aim_akmn_camo_st"},
+  {"files": "gameplay/items/scopes/fitn_acog_ta31_akmn_premium.options", "from": "weapons/attach/fit3/fitn_acog_ta31_akmn_premium_aim", "to": "weapons/attach/fit6/fitn_acog_ta31_akmn_premium_aim_akmn_camo"},
+  {"files": "gameplay/items/scopes/fitn_pso_1_akmn_premium_2.options", "from": "weapons/attach/fit3/fitn_pso_1_akmn_premium_2_aim", "to": "weapons/attach/fit6/fitn_pso_1_akmn_premium_2_aim_akmn_camo_st"},
+  {"files": "gameplay/items/scopes/fitn_pso_1_akmn_premium.options", "from": "weapons/attach/fit3/fitn_pso_1_akmn_premium_aim", "to": "weapons/attach/fit6/fitn_pso_1_akmn_premium_aim_akmn_camo"},
+  {"files": "gameplay/items/scopes/fitn_pso_1_saiga_12.options", "from": "weapons/attach/fit3/fitn_pso_1_saiga_12_aim", "to": "weapons/attach/fit6/fitn_pso_1_saiga_12_aim_saiga_12s_n_pso_1"},
+  {"files": "gameplay/items/scopes/fitn_pso_1_saiga_12_premium.options", "from": "weapons/attach/fit3/fitn_pso_1_saiga_12_premium_aim", "to": "weapons/attach/fit6/fitn_pso_1_saiga_12_premium_aim_saiga_12s_camo_n_pso_1"}
+ ]
+}

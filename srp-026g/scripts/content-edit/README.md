@@ -522,3 +522,11 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## live-scope-eye-1.json (2026-11-01)
+
+Made by `../live-scope-eye/make_pack.py` with the pack live-scope-eye; make it again, not this file.
+
+| change | why |
+|---|---|
+| `data/aimed_model` of 15 scope variants of patch 19 (`replace_string`): an aimed model of the pack, on the tilted line of sight | their weapon model's aim locator is turned, so the view is tilted and the reticle showed off the screen's centre (`../../docs/notes/live-scope-eye.md`) |
