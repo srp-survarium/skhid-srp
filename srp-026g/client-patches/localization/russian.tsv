@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	Немецкий коллиматорн�
 st_walther_competition2_collimator_name	Коллиматор Competition II
 st_wasted	Расход
 st_weapon_aim_action	Прицеливание (удерж.)
+st_weapon_already_taken	Уже подобрано
+st_weapon_cannot_carry	Нельзя нести вторую винтовку
+st_weapon_cannot_pick_up	Это нельзя подобрать
 st_weapon_could_not_be_used	Ранение рук! Невозможно использовать оружие
 st_weapon_fire_action	Стрельба
+st_weapon_no_gun_in_hands	Возьмите оружие в руки, чтобы обменять
+st_weapon_one_gun_only	Можно нести только одно оружие
+st_weapon_pick_up	Подобрать %1$s ({USE})
 st_weapon_reload_action	Перезарядка
+st_weapon_switching	Дождитесь смены оружия
 st_wear	Надеть
 st_weight_booster_description	Протеин, содержащий необходимые вещества для роста мышц и повышения силы. Однако без физической нагрузки употреблять бессмысленно.
 st_weight_booster_name	Протеин "Аномальная сила"

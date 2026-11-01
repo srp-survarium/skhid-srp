@@ -23,6 +23,8 @@ vostok = { workspace = true }
 # What a game could load of an uploaded world (`game.rs::uploaded`): the
 # check the game itself runs (exe patch 87), one crate for both.
 world-frame = { workspace = true }
+# Client patch 85's pickup command, checked as the clients check it.
+weapon-pickup = { path = "../../crates/weapon-pickup" }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]
