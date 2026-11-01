@@ -54,7 +54,7 @@ import scopes_lib as lib  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '2'
+VERSION = '3'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -154,6 +154,40 @@ def moved_eye(model, needed):
     if rotation is not None:
         set_float3(buf, f'locators[{i}]/rotation', [0.0, 0.0, 0.0])
     path.write_bytes(bytes(buf))
+
+
+def wrap_uv(model):
+    """Each triangle of a model's meshes with its texture coordinates in [0, 1]: a triangle wholly past
+    an edge is moved back by whole textures. 0.69d0 lets them run past (its aperture sight's body to
+    u = 1.91: the texture repeats); 0.26g clamps a weapon texture there, and drew the edge's texels
+    smeared over those faces (seen in the game, @2: the aperture sight's body garbled). A surface with a
+    triangle across an edge is left as it is."""
+    for f in sorted(Path(model).glob('render/*/converted_model')):
+        data = bytearray(f.read_bytes())
+        kind, size, n = struct.unpack_from('<3I', data, 0)
+        stride = (size - 4) // n
+        at = 12 + stride * n
+        _, _, count = struct.unpack_from('<3I', data, at)
+        tris = np.frombuffer(bytes(data), dtype='<u2', count=count, offset=at + 12).reshape(-1, 3)
+        raw = np.frombuffer(bytes(data), dtype=np.uint8, count=stride * n, offset=12).reshape(n, stride).copy()
+        uv = raw[:, 24:28].copy().view('<f2').reshape(n, 2).astype(np.float64)
+        if uv.min() >= -0.01 and uv.max() <= 1.01:
+            continue
+        shift = np.zeros((n, 2))
+        whole = True
+        for t in tris:
+            lo = np.floor(uv[t].mean(axis=0))
+            if (uv[t].min(axis=0) < lo - 0.01).any() or (uv[t].max(axis=0) > lo + 1.01).any() or \
+                    ((shift[t] != 0) & (shift[t] != lo)).any():
+                whole = False  # a surface laid across the edges on purpose (our eyepiece's tiled background)
+                break
+            shift[t] = lo
+        if not whole or not shift.any():
+            continue
+        uv -= shift
+        raw[:, 24:28] = uv.astype('<f2').view(np.uint8).reshape(n, 4)
+        data[12:12 + stride * n] = raw.tobytes()
+        f.write_bytes(bytes(data))
 
 
 def aim_turned(model):
@@ -284,6 +318,8 @@ def build(args, work):
                 aim_parts = [(ref_aim, np.zeros(3), [lib.BACKGROUND, lib.EYEPIECE_LENS]),
                              (aim_src, here - there, [lib.GRID, lib.REDDOT])]
             compose(args.compose, aim_parts, renames, aim_out)
+            wrap_uv(idle_out)
+            wrap_uv(aim_out)
             files.update(files_of(idle_out, work))
             files.update(files_of(aim_out, work))
             # the weapon's model: its eye at the optic's

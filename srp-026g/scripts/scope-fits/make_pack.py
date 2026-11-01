@@ -416,6 +416,8 @@ def build(args, work):
                 eye = e_gun
                 aim_parts = [(ref['aim'], eye - ref['e'], ref['aim_own'])]
             rs.compose(args.compose, aim_parts, renames, aim_out)
+            rs.wrap_uv(idle_out)  # the aperture sight's texture coordinates past 1 (the rifle scopes' @3)
+            rs.wrap_uv(aim_out)
             files.update(rs.files_of(idle_out, work))
             files.update(rs.files_of(aim_out, work))
             change = None
