@@ -54,7 +54,7 @@ mod stats;
 mod v026g;
 mod wiki;
 
-pub use patches::OfferedPatch;
+pub use patches::{Downloads, OfferedPatch};
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
 
 use std::collections::HashMap;
@@ -963,7 +963,12 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
-                    "/patches" => return patches::response(&game.patches),
+                    "/patches" => return patches::response(&game.downloads),
+                    "/game" => {
+                        if let Some(response) = patches::game_response(&game.downloads) {
+                            return response;
+                        }
+                    }
                     "/api/client-files" => {
                         return launcher::client_files(game.min_patch_revision);
                     }

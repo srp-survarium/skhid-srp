@@ -13,8 +13,9 @@
 //! srp-game-data get <layers> --out <folder> [--paths <file>] [<path>...]
 //! srp-game-data compare <layers> --dir <folder>
 //!
-//! <archives>: --dir <game folder> [--patch-url <base URL>]
+//! <archives>: --dir <game folder> [--patch-url <base URL>] [--game <row>]
 //!           | --db <resources.db> [--patch <file>[=<URL>[ <URL>]...]]... [--patch-url <base URL>]
+//!             [--game <row>]
 //! <layers>:   --db <resources.db> [--patch <resources.db.patch_<n>>]...
 //! ```
 //!
@@ -25,8 +26,8 @@ use std::process::ExitCode;
 
 use resources_db::Archive;
 use resources_db::server::{
-    Data, LAST_PATCH, PATCH_PREFIX, PatchFile, Provenance, RESOURCES_DB, archives_in, build,
-    patch_number, read, url_in,
+    Data, GameArchive, LAST_PATCH, PATCH_PREFIX, PatchFile, Provenance, RESOURCES_DB, archives_in,
+    build, patch_number, read, url_in,
 };
 
 const USAGE: &str = "usage:
@@ -39,8 +40,9 @@ const USAGE: &str = "usage:
   srp-game-data compare <layers> --dir <folder>
 
 <archives> is one of
-  --dir <game folder> [--patch-url <base URL>]
+  --dir <game folder> [--patch-url <base URL>] [--game <row>]
   --db <resources.db> [--patch <file>[=<URL>[ <URL>]...]]... [--patch-url <base URL>]
+       [--game <row>]
 
 --dir takes what the game mounts from that folder: resources.db, then every
 resources.db.patch_<n> there, n from 1 to 255 (a missing n is skipped, other
@@ -57,6 +59,11 @@ backslashes; at most 1024 bytes), none twice: <file>=<URL>, or
 no space; the url column of release/patches.tsv is the same), or
 --patch-url <base URL>, which gives a patch without any the URL
 <base URL>/<its file name>.
+
+--game names the game's archive the release pins, which the server offers
+the players' updater at /game: <row> is one argument, its name, sha256,
+size and URLs (1 to 8, as a patch's) one space apart, as its row of
+release/game.tsv. The data is not made of it.
 
 build writes the server's game data; info reads it and says what it was made
 of; check builds it again of the archives given and says whether <file> is
@@ -80,18 +87,27 @@ same bytes as the archives give there, other bytes, or a file they lack.
 build and pack never overwrite --out, nor get its folder.";
 
 /// The archives the options name: `resources.db`, its patches with their
-/// URLs; and `--out`.
-fn archives(options: &[String]) -> Result<(PathBuf, Vec<PatchFile>, Option<PathBuf>), String> {
+/// URLs; the game's archive; and `--out`.
+#[derive(Debug)]
+struct Archives {
+    db: PathBuf,
+    patches: Vec<PatchFile>,
+    game: Option<GameArchive>,
+    out: Option<PathBuf>,
+}
+
+fn archives(options: &[String]) -> Result<Archives, String> {
     let mut dir = None;
     let mut db = None;
     let mut base = None;
     let mut out = None;
+    let mut game = None;
     let mut patches: Vec<(PathBuf, Option<Vec<String>>)> = Vec::new();
     let mut rest = options.iter();
     while let Some(key) = rest.next() {
         if !matches!(
             key.as_str(),
-            "--dir" | "--db" | "--patch-url" | "--out" | "--patch"
+            "--dir" | "--db" | "--patch-url" | "--out" | "--patch" | "--game"
         ) {
             return Err(format!("unknown option {key}\n{USAGE}"));
         }
@@ -107,6 +123,7 @@ fn archives(options: &[String]) -> Result<(PathBuf, Vec<PatchFile>, Option<PathB
             "--db" => once(&mut db)?,
             "--patch-url" => once(&mut base)?,
             "--out" => once(&mut out)?,
+            "--game" => once(&mut game)?,
             // `<file>=<URL> <URL>...`: the URLs one space apart.
             "--patch" => patches.push(match value.split_once('=') {
                 Some((path, urls)) => (
@@ -146,7 +163,15 @@ fn archives(options: &[String]) -> Result<(PathBuf, Vec<PatchFile>, Option<PathB
             Ok(PatchFile { path, urls })
         })
         .collect::<Result<_, String>>()?;
-    Ok((db, patches, out.map(PathBuf::from)))
+    let game = game
+        .map(|row| GameArchive::parse_row(&row).map_err(|why| format!("--game: {why}")))
+        .transpose()?;
+    Ok(Archives {
+        db,
+        patches,
+        game,
+        out: out.map(PathBuf::from),
+    })
 }
 
 fn open(data: &Path) -> Result<Data, String> {
@@ -158,6 +183,16 @@ fn open(data: &Path) -> Result<Data, String> {
 fn print(provenance: &Provenance) {
     let db = &provenance.db;
     println!("  {} {} bytes sha256 {}", db.name, db.size, db.sha256);
+    if let Some(game) = &provenance.game {
+        let input = &game.input;
+        println!(
+            "  game {} {} bytes sha256 {} urls {}",
+            input.name,
+            input.size,
+            input.sha256,
+            game.urls.join(" ")
+        );
+    }
     for patch in &provenance.patches {
         let input = &patch.input;
         println!(
@@ -209,10 +244,15 @@ fn run(args: &[String]) -> Result<(), String> {
     let (command, options) = args.split_first().ok_or(USAGE)?;
     match command.as_str() {
         "build" => {
-            let (db, patches, out) = archives(options)?;
+            let Archives {
+                db,
+                patches,
+                game,
+                out,
+            } = archives(options)?;
             let out = out.ok_or_else(|| format!("build needs --out\n{USAGE}"))?;
             is_new(&out)?;
-            let built = build(&db, &patches).map_err(|e| e.to_string())?;
+            let built = build(&db, &patches, game.as_ref()).map_err(|e| e.to_string())?;
             let names = std::iter::once(&built.provenance.db)
                 .chain(built.provenance.patches.iter().map(|patch| &patch.input));
             for (input, given) in names.zip(&built.given) {
@@ -257,11 +297,11 @@ fn run(args: &[String]) -> Result<(), String> {
         "check" => {
             let (data, options) = options.split_first().ok_or(USAGE)?;
             let data = PathBuf::from(data);
-            let (db, patches, out) = archives(options)?;
-            if out.is_some() {
+            let archives = archives(options)?;
+            if archives.out.is_some() {
                 return Err(format!("check takes no --out\n{USAGE}"));
             }
-            check(&data, &db, &patches)
+            check(&data, &archives)
         }
         "pack" => pack(options),
         "files" => {
@@ -445,9 +485,10 @@ fn compare(options: &[String]) -> Result<Vec<String>, String> {
 
 /// `check <file> <archives>`: whether `data` is, byte for byte, what
 /// `build` makes of the archives now.
-fn check(data: &Path, db: &Path, patches: &[PatchFile]) -> Result<(), String> {
+fn check(data: &Path, archives: &Archives) -> Result<(), String> {
     let found = std::fs::read(data).map_err(|cause| format!("{}: {cause}", data.display()))?;
-    let built = build(db, patches).map_err(|e| e.to_string())?;
+    let built = build(&archives.db, &archives.patches, archives.game.as_ref())
+        .map_err(|e| e.to_string())?;
     if found == built.bytes {
         println!(
             "{}: the bytes these archives give, made of:",
