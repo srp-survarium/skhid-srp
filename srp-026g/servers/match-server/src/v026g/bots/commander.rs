@@ -16,7 +16,8 @@ pub(super) struct TeamState {
 /// [threat.breach] The team's Breaches at its commander tick (`breach.rs`): the due spots (its Flanks' failures) tried, the
 /// running ones stepped; a Flank job a Breach takes over ends (`JobEnd::Breached`); with the spot memory on
 /// (`threat.concede`), a spot it concedes or a try like the last is refused, and an end is recorded (his death by anyone opens
-/// the area, a failure counts); a note per event. `lines`: the holds (the spots a job opens on) and every held line. Returns
+/// the area, a failure counts); a note per event. `lines`: the holds (the spots a job opens on) and every held line; `in_fight`: its
+/// bots in a fight (no crossers). Returns
 /// the campers its jobs killed after their go (his place, his spot, the job's bots), for the trap on his death point.
 #[allow(clippy::too_many_arguments)]
 fn breach_tick(
@@ -29,6 +30,7 @@ fn breach_tick(
     rules: &breach::BreachRules,
     lines: (&[threat::HeldLine], &[threat::HeldLine]),
     mates: &[threat::Mate],
+    in_fight: &[Place],
     areas: &[Vec3],
     objective: objective::ObjectiveMap,
     side: Option<i32>,
@@ -62,7 +64,7 @@ fn breach_tick(
         breach::plan(tactics, line, held, feet, side, now, rules, &mut rng)
     };
     let points = objective.has_homes().then(|| [view.points[usize::from(team & 1)], view.points[usize::from(1 - (team & 1))]]);
-    let breach_team = breach::Team { mates, size: view.team(team).count(), objective_areas: areas, flank_jobs: &threat.jobs, kills: &threat.kills, points };
+    let breach_team = breach::Team { mates, size: view.team(team).count(), objective_areas: areas, flank_jobs: &threat.jobs, kills: &threat.kills, points, in_fight };
     let events = breach::tick(&mut threat.breaches, &mut threat.breach_due, holds, held, &breach_team, &may_try, &mut plan, now, rules);
     for event in events {
         #[cfg(test)]
@@ -392,7 +394,15 @@ fn threat_tick(
         }
         if let Some(rules) = breach_rules {
             let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
-            let killed = breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &areas, objective, side, notes);
+            // Its bots in a fight: a reflex target, or a bullet hit lately.
+            let in_fight: Vec<Place> = bots
+                .iter()
+                .flatten()
+                .filter(|b| b.team == team)
+                .filter(|b| b.reflex.target().is_some() || b.hurt.last_hit_ms.is_some_and(|at| now < at.saturating_add(breach::IN_FIGHT_MS)))
+                .map(|b| b.place)
+                .collect();
+            let killed = breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &in_fight, &areas, objective, side, notes);
             for (shooter, at, holders) in killed {
                 note_cleared(bots, &mut state.knowledge, view, tuning, team, (shooter, at), &holders, know::ClearedBy::Breach, now, notes);
             }

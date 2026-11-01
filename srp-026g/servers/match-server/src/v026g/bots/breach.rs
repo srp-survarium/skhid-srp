@@ -497,7 +497,14 @@ pub struct Team<'a> {
     pub kills: &'a [Kill],
     /// Its points and the enemy's in the battery modes ([`Breach::points_at_open`]).
     pub points: Option<[u32; 2]>,
+    /// Its bots in a fight now ([`IN_FIGHT_MS`]): none is made a crosser.
+    pub in_fight: &'a [Place],
 }
+
+/// A bot is in a fight while its reflex has a target, and this long after a bullet hit it, ms: a crosser picked in a fight died
+/// before the go 9 times in 25, one picked out of it 7 in 47 (traces d-g1, d-w1, dw-s2A/s3B/s4A, the 3 s before the pick; LIKELY,
+/// z ~2). GUESS: the traces' window.
+pub const IN_FIGHT_MS: u32 = 3_000;
 
 /// What a tick of the team's Breaches did, for the notes and the counts.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -571,7 +578,7 @@ pub const START_MS: u32 = super::threat::JOB_START_MS;
 
 /// The team's Breaches at `now`: each running one stepped by what the team sees (its bots in `team.mates`, the kill feed,
 /// the held lines `held`, the objective points), ended ones dropped; then a due spot (`due`, the Flank's failures) that is
-/// held, has no job of either kind and whose shooter has none, gets one when two free crossers stand out of every held line
+/// held, has no job of either kind and whose shooter has none, gets one when two free crossers out of a fight stand out of every held line
 /// within `threat::JOB_NEAR_M`, the team's cap allows its bots (off the objective; a spot covering an objective area is
 /// objective work, §13, and goes first), and `may_try` (the spot memory) lets it. `plan` finds its points.
 #[allow(clippy::too_many_arguments)]
@@ -670,7 +677,7 @@ pub fn tick(
         let mut free: Vec<&Mate> = team
             .mates
             .iter()
-            .filter(|m| m.free && !busy(m.place))
+            .filter(|m| m.free && !busy(m.place) && !team.in_fight.contains(&m.place))
             .filter(|m| m.feet.distance_xz(line.at) <= super::threat::JOB_NEAR_M)
             .filter(|m| !lanes.iter().any(|l| l.covers(m.feet)))
             .collect();
@@ -1006,7 +1013,7 @@ mod tests {
     }
 
     fn team<'a>(mates: &'a [Mate], kills: &'a [Kill]) -> Team<'a> {
-        Team { mates, size: 12, objective_areas: &[], flank_jobs: &[], kills, points: None }
+        Team { mates, size: 12, objective_areas: &[], flank_jobs: &[], kills, points: None, in_fight: &[] }
     }
 
     fn mate(place: Place, x: f32, z: f32, playing: Option<(Role, u32)>) -> Mate {
@@ -1066,7 +1073,7 @@ mod tests {
         let run = |mates: &[Mate], size, may: &MayTry, plan: &mut Planner| {
             let mut breaches = Vec::new();
             let mut due = vec![Due { spot: 4, until: 20_000 }];
-            let team = Team { mates, size, objective_areas: &[], flank_jobs: &[], kills: &[], points: None };
+            let team = Team { mates, size, objective_areas: &[], flank_jobs: &[], kills: &[], points: None, in_fight: &[] };
             tick(&mut breaches, &mut due, &held, &held, &team, may, plan, 1_000, &RULES)
         };
         assert_eq!(run(&one, 12, &ok, &mut plan), vec![Event::NotOpened { spot: 4, why: NotOpened::NoCrossers }]);
@@ -1081,6 +1088,20 @@ mod tests {
             run(&two, 12, &ok, &mut plan),
             vec![Event::Opened { spot: 4, pinner: false, objective: false, crossers: [(1, 0.0), (2, 0.0)], gather_ms: 8_000 }]
         );
+    }
+
+    /// [Breach] A bot in a fight is no crosser: with bot 1 of the three free ones fighting, 2 and 3 cross and no pinner is left.
+    #[test]
+    fn a_bot_in_a_fight_is_no_crosser() {
+        let held = [line()];
+        let mut breaches = Vec::new();
+        let mut due = vec![Due { spot: 4, until: 20_000 }];
+        let mates = [mate(1, 20.0, 20.0, None), mate(2, -20.0, 20.0, None), mate(3, 25.0, 0.0, None)];
+        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f, walk_m: 0.0 }));
+        let ok = |_: &HeldLine, _: Vec3| Ok(());
+        let fighting = Team { in_fight: &[1], ..team(&mates, &[]) };
+        let events = tick(&mut breaches, &mut due, &held, &held, &fighting, &ok, &mut plan, 1_000, &RULES);
+        assert_eq!(events, vec![Event::Opened { spot: 4, pinner: false, objective: false, crossers: [(2, 0.0), (3, 0.0)], gather_ms: 8_000 }]);
     }
 
     /// [Breach] On the soak field the plan finds two cover points the rules' distance and bearings apart that see his spot,
