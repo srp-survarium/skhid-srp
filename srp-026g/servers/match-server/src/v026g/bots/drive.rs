@@ -366,6 +366,7 @@ fn drive_tick_inner(
         sprint_block: sprint_block(bot, me, time, tuning.think.stamina),
         urgent: false,
         gait: motor::Gait::Walk,
+        floor: motor::Floor::Open,
     };
     if bot
         .jump_watch
