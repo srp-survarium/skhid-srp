@@ -2771,6 +2771,78 @@ struct Threat {
     bearing: Option<f32>,
 }
 
+/// [A227] The bench's counts of the hit marker ([`CombatTuning::hit_bearing`]), by team: what a hit with no shooter sensed
+/// led to, so that a by-side bench shows which of its steps the outcome follows. Nothing live.
+pub mod hit_marks {
+    /// One count of a team.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Mark {
+        /// A hit with no shooter sensed (with the switch on or off: the hits the marker is for) ...
+        Unsensed,
+        /// ... of them taken while carrying.
+        UnsensedCarrying,
+        /// The marker's direction turned to (a threat set) ...
+        Marked,
+        /// ... while carrying.
+        MarkedCarrying,
+        /// Not turned to: a seen target kept (`hit_bearing_with_target` off); no shot of an enemy aimed at it found.
+        KeptTarget,
+        NoShooter,
+        /// Ticks of the look along a marker's direction: the view turned with the legs going, standing, or the look given
+        /// way to a carry or a use (`Override::glance`).
+        LookWalking,
+        LookStanding,
+        LookYielded,
+        /// The cover sought from a marker's direction: declined by a carrier (or `hit_cover` off), a spot taken, none found.
+        CoverDeclined,
+        CoverBegan,
+        CoverNoSpot,
+        /// A glance along a teammate's marker callout (`know::ShotFrom`).
+        CalloutGlance,
+    }
+
+    /// The marks in order, and their names in the tally.
+    pub const MARKS: [(Mark, &str); 13] = [
+        (Mark::Unsensed, "unsensed_hits"),
+        (Mark::UnsensedCarrying, "unsensed_hits_carrying"),
+        (Mark::Marked, "marked"),
+        (Mark::MarkedCarrying, "marked_carrying"),
+        (Mark::KeptTarget, "kept_target"),
+        (Mark::NoShooter, "no_shooter"),
+        (Mark::LookWalking, "look_ticks_walking"),
+        (Mark::LookStanding, "look_ticks_standing"),
+        (Mark::LookYielded, "look_ticks_yielded"),
+        (Mark::CoverDeclined, "cover_declined"),
+        (Mark::CoverBegan, "cover_began"),
+        (Mark::CoverNoSpot, "cover_no_spot"),
+        (Mark::CalloutGlance, "callout_glances"),
+    ];
+
+    #[cfg(test)]
+    thread_local! {
+        static MARKED: std::cell::Cell<[[u64; MARKS.len()]; 2]> = const { std::cell::Cell::new([[0; MARKS.len()]; 2]) };
+    }
+
+    /// Team `team`'s `mark` happened once.
+    #[cfg(test)]
+    pub fn add(team: u8, mark: Mark) {
+        MARKED.with(|cell| {
+            let mut all = cell.get();
+            all[usize::from(team & 1)][mark as usize] += 1;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn add(_: u8, _: Mark) {}
+
+    /// The marks so far, by team and [`MARKS`] order.
+    #[cfg(test)]
+    pub fn counted() -> [[u64; MARKS.len()]; 2] {
+        MARKED.with(|cell| cell.get())
+    }
+}
+
 /// [friends] A shot fired or held near a teammate is traced at most this
 /// often, ms ...
 pub const FRIEND_NOTE_MS: u32 = 100;
@@ -3796,6 +3868,12 @@ impl Reflex {
         self.hit_note.take()
     }
 
+    /// [A227] Whether its look is on a hit marker's direction at `now` (a threat the marker made, under way).
+    #[cfg(test)]
+    pub fn bearing_look(&self, now: u32) -> bool {
+        self.threat.is_some_and(|t| t.bearing.is_some() && now < t.until)
+    }
+
     /// At a think, with the view alone: the target and the turn to a sound
     /// (the first form; [`Self::think_with`] does everything).
     pub fn think(
@@ -4666,6 +4744,14 @@ impl Reflex {
         // Hit, and no shooter sensed at all: the HUD's hit marker gives
         // the direction alone.
         if hit {
+            use hit_marks::Mark;
+            let carrying = me.carrying.is_some();
+            if shooters.is_empty() {
+                hit_marks::add(me.team, Mark::Unsensed);
+                if carrying {
+                    hit_marks::add(me.team, Mark::UnsensedCarrying);
+                }
+            }
             if shooters.is_empty()
                 && c.hit_bearing
                 && (c.hit_bearing_with_target || target_at.is_none())
@@ -4680,6 +4766,13 @@ impl Reflex {
                 });
                 self.next_threat = now + c.threat_ms + c.threat_again_ms;
                 self.hit_note = Some((me.feet, toward));
+                hit_marks::add(me.team, Mark::Marked);
+                if carrying {
+                    hit_marks::add(me.team, Mark::MarkedCarrying);
+                }
+            } else if shooters.is_empty() && c.hit_bearing {
+                let kept = !(c.hit_bearing_with_target || target_at.is_none());
+                hit_marks::add(me.team, if kept { Mark::KeptTarget } else { Mark::NoShooter });
             }
             return;
         }
@@ -4825,6 +4918,7 @@ impl Reflex {
             if outside(at) {
                 self.glance = Some((at, now + c.glance_ms));
                 self.next_told = now + c.glance_told_every_ms;
+                hit_marks::add(me.team, hit_marks::Mark::CalloutGlance);
                 return;
             }
         }
@@ -5069,6 +5163,7 @@ impl Reflex {
         {
             // A carrier keeps its way home.
             if sit.view.objective().is_actor(me) || !c.hit_cover {
+                hit_marks::add(me.team, hit_marks::Mark::CoverDeclined);
                 return Sought::Declined;
             }
             let spread = c.hit_bearing_error_deg.to_radians();
@@ -5097,8 +5192,10 @@ impl Reflex {
                 .into_iter()
                 .find(|spot| covered(spot.at));
             let Some(spot) = spot else {
+                hit_marks::add(me.team, hit_marks::Mark::CoverNoSpot);
                 return Sought::NoSpot;
             };
+            hit_marks::add(me.team, hit_marks::Mark::CoverBegan);
             self.cover = Cover::Hiding {
                 at: spot.at,
                 enemy: threat.at,
