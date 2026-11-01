@@ -241,7 +241,7 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
   optic's own is 0.69d0's made again on a loc2 template, given 0.69d0's textures slot for slot
   (albedo, normal, smoothness as roughness, metalness as fresnel; retexture.py).
 - **Shop**: items 2113..2119 by seller 0 at no rank at their base_cost (as every scope item with a
-  pair, `prices::sellers_of_in`); icons rendered from the models (render_icon.py) in column 4 of the
+  pair, `prices::sellers_of_in`); icons 0.69d0's own (framed by render_icon.py, @5) in column 4 of the
   consumables atlas (rows 13 to 19); names and short descriptions in the six languages of the pack
   (texts.tsv) and in all ten of `client-patches/localization/*.tsv`, which `localization-1.json`
   compiles last. The CompM4's name says x2 there.
@@ -279,3 +279,28 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
     metalness)) ^ 0.75`, the gloss 0.36 x smoothness and the Fresnel 0.162 x metalness^0.388 in the DXT
     endpoints, the normal map as it is. The camouflage bake does not reach a scope: it bakes only the weapon
     model's own surfaces (the game's log: `srpw1_..._<model>_<0..n-1>`, n the weapon's surface count).
+  - @5, the owner (2026-11-01): @4 still nearly black in the game, the icons flat black or grey. Causes, each
+    checked against 0.26g's own shaders (gbuffer_pass.ps, point_light_accumulator.ps, disassembled) and the
+    assets both builds ship:
+    - **the meshes**: 0.69d0 packs each vertex's normal, tangent and bitangent as a float
+      `(x << 16 | y << 8 | z) / 2^24`; 0.26g reads B8G8R8A8 words (normal alpha 127, the others 255). The
+      optics kept 0.69d0's floats, read as wrong vectors: the main cause of the black. `compose()` now makes
+      every part's meshes 0.26g's (`scopes_lib.static_026`, checked on the CompM4's mesh, which both builds
+      ship: the same bytes within 1);
+    - **the materials**: build-material-patch had carried constant_roughness_min/max 0.2/0.2 over the
+      templates' 0/1, so the gloss texture did nothing. A made material is now its template with only its four
+      textures changed (`retexture.py`);
+    - **the textures**: the endpoint curves left raw metalness in the blocks they collapsed (the aperture
+      sight's Fresnel map 40 %), gave no Fresnel where metalness is 0 (0.26g's maps: median 21/255) and a flat
+      diffuse. Now per pixel, encoded again: diffuse `0.76 * albedo * (1 - 0.5 * metalness)`, gloss
+      `0.36 * smoothness`, Fresnel `0.08 + 0.09 * sqrt(metalness)`, fitted on ten sets both builds ship
+      (`pbr_026.py`; resource-porter #35 the same for the 0.69d0 guns). The diffuse keeps its sRGB byte (0.26g
+      reads a texture as sRGB when the .dds's last byte is 1; @4's had lost it). The .options are not read by
+      the game;
+    - **the icons**: 0.69d0 ships its own picture of each optic (`module_renderer_<n>.png`, n the module's
+      `ui_desc.icon_renderer`), now framed as the stock icons (73 px tall from y 8, centred on x 88, a soft
+      glow; the shop's column 4, stock and ours: `docs/images/rifle-scopes-icons.png`). render_icon.py, for
+      an optic without one, shades with the textures as 0.26g does (the TA01's grey icon: its donor material
+      name was not renamed to loc2's acog; in the game it was textured);
+    - make_pack.py stops when a material of the pack's models names a texture neither shipped nor the
+      players', or not a DDS 0.26g reads.

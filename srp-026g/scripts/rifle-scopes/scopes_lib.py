@@ -1,6 +1,8 @@
 """What survey.py and make_pack.py share: the tables, reading configs and meshes, the optics'
 modules, our variants and each weapon's mount."""
 import glob
+import hashlib
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -38,8 +40,13 @@ def scopes():
 
 
 def leaves(path):
-    """A config's values by path ('/a/b[0]/c'): numbers, texts, float vectors as lists."""
-    buf = bytearray(Path(path).read_bytes())
+    """A config file's values by path ('/a/b[0]/c'): numbers, texts, float vectors as lists."""
+    return leaves_of(Path(path).read_bytes())
+
+
+def leaves_of(data):
+    """leaves() of a config's bytes."""
+    buf = bytearray(data)
     out = {}
     for p, t, v in ce.walk(buf):
         if t == ce.T_STR:
@@ -59,6 +66,57 @@ def positions(path):
     stride = (size - 4) // n if n else 28
     raw = np.frombuffer(data, dtype=np.uint8, count=stride * n, offset=12).reshape(n, stride)
     return raw[:, 0:12].copy().view('<f4').reshape(n, 3).astype(np.float64)
+
+
+def static_026(data):
+    """A static `converted_model` (28-byte vertices: float3 position, three basis words, half2 uv) in
+    0.26g's layout, whichever build wrote it. 0.26g reads each basis vector (normal, tangent along u,
+    bitangent along v) as a B8G8R8A8 word, a component `c` as the byte `127.5 * (c + 1)`, the normal's
+    alpha 127 and the others' 255 (every stock 0.26g scope). 0.69d0 writes the same three bytes as one
+    float, `(x << 16 | y << 8 | z) / 2^24`: 0.26g reading that float's bits as the word gets the
+    vectors wrong (the x byte loses its top bit, the alpha is the float's exponent), and drew the
+    0.69d0 optics nearly black with light streaks (seen in the game, rifle scopes @1..@4: the PK-01VI).
+    Checked on the Aimpoint CompM4, whose mesh both builds ship: each 0.69d0 float times 2^24 is the
+    0.26g word's bytes within 1. A mesh in neither layout is refused."""
+    kind, size, n = struct.unpack_from('<3I', data, 0)
+    stride = (size - 4) // n
+    if kind != 3 or stride != 28 or 4 + stride * n != size:
+        raise ValueError(f'not a static mesh (chunk {kind}, stride {stride})')
+    raw = np.frombuffer(data, dtype=np.uint8, count=stride * n, offset=12).reshape(n, stride).copy()
+    if (raw[:, 15] == 127).all():
+        return bytes(data)
+    floats = raw[:, 12:24].copy().view('<f4').reshape(n, 3).astype(np.float64)
+    if not (np.isfinite(floats).all() and (floats >= 0).all() and (floats < 1).all()):
+        raise ValueError("a basis in neither 0.26g's nor 0.69d0's layout")
+    packed = np.minimum(np.round(floats * 16_777_216.0).astype(np.uint32), 0xff_ffff)
+    words = packed | (np.array([127, 255, 255], dtype=np.uint32) << 24)
+    raw[:, 12:24] = words.astype('<u4').view(np.uint8).reshape(n, 12)
+    out = bytearray(data)
+    out[12:12 + stride * n] = raw.tobytes()
+    return bytes(out)
+
+
+def model_026(model, work):
+    """A model directory whose meshes are all in 0.26g's layout: `model` itself, or a copy of it under
+    `work` with its 0.69d0 meshes rewritten (static_026)."""
+    model = Path(model)
+    meshes = sorted(model.glob('render/*/converted_model'))
+    made = {m: static_026(m.read_bytes()) for m in meshes}
+    if all(made[m] == m.read_bytes() for m in meshes):
+        return model
+    copy = Path(work) / 'layout_026' / hashlib.sha1(str(model.resolve()).encode()).hexdigest()[:16] / model.name
+    if not copy.exists():
+        shutil.copytree(model, copy)
+        for m, data in made.items():
+            (copy / m.relative_to(model)).write_bytes(data)
+    return copy
+
+
+def basis(raw):
+    """(normal, tangent, bitangent) of 28-byte vertices in 0.26g's layout (static_026), each (n, 3)."""
+    def word(k):
+        return raw[:, 12 + 4 * k:15 + 4 * k][:, ::-1].astype(np.float64) / 127.5 - 1.0
+    return word(0), word(1), word(2)
 
 
 def locator(props, name):
