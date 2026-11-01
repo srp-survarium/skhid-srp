@@ -18,12 +18,8 @@ The manifest's rows, in this order of kinds (each kind's rows in their order):
   edit   <file>.json             - | resources.db.patch_<n>
          srp-026g/scripts/content-edit/<file>.json applied by content_edit.py to the files as the
          rows above (and the edits before it) leave them; or, with a base row's name, a record;
-         <category>-stats.tsv, a stats table (content_edit.py STATS), the same way: its cells
-         into the configs of its category, then their cards
+         (a <category>-stats.tsv too: content_edit.py STATS)
 Every Flash tree of srp-026g/flash needs a movie row and every edit list of content-edit a row.
-After the edits, every config of a category with a stats table is its row, its card lines say
-its numbers, and a match column (STATS `match`) that players have otherwise needs the `next` row
-of simulation_changes.tsv.
 
 Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
 them players do not have so: what the next patch carries; absent when there is none) and
@@ -335,7 +331,7 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
         if kind != 'edit' or source != '-':
             continue
         known = sorted(set(base_files) | set(world.bytes))
-        if name.endswith('-stats.tsv'):     # a stats table: every config of its category
+        if name.endswith('-stats.tsv'):
             paths = fnmatch.filter(known, own_content_edit().stats_category(name)['configs'])
         else:
             paths = edit_paths(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')), known)
@@ -405,7 +401,7 @@ def type_check(base, base_files, game, world):
 
 
 def own_content_edit():
-    """This checkout's content_edit.py (the checks' reader, as type_check's: not --tree's)."""
+    """This checkout's content_edit.py (not --tree's)."""
     import importlib.util
     path = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'content-edit' / 'content_edit.py'
     spec = importlib.util.spec_from_file_location('content_edit', str(path))
@@ -415,9 +411,8 @@ def own_content_edit():
 
 
 def stats_checks(rows, base, base_files, live, game, world, tree, compared):
-    """Per category of content_edit.STATS: every config of it is its row of the stats table (a row
-    each, the same numbers: the round trip), its card lines say its numbers, and a value of a match
-    column that players have otherwise needs the `next` row of SIMULATION_CHANGES."""
+    """Per content_edit.STATS category: each config equals its table row, its cards match it, and a
+    changed match column needs the `next` row of SIMULATION_CHANGES."""
     ce = own_content_edit()
     tables = {name: edits_dir(tree) / name for kind, name, source, _, _ in rows
               if kind == 'edit' and source == '-' and name.endswith('-stats.tsv')}
@@ -435,7 +430,7 @@ def stats_checks(rows, base, base_files, live, game, world, tree, compared):
             data = bytearray(configs[path])
             if path in table_rows:
                 problems += [f'{path}: {column} ({key}) is {have or "absent"}, its row says {cell or "nothing"}'
-                             for column, key, cell, have in ce.stats_differences(data, category, table_rows[path][0])]
+                             for column, key, cell, have in ce.stats_differences(data, category, table_rows[path])]
             if category['cards']:
                 problems += [f'{path}: card line {prop_id} says {text!r}, its config {want!r}'
                              for prop_id, text, want in ce.card_differences(data, category['cards'])]
@@ -452,9 +447,7 @@ def stats_checks(rows, base, base_files, live, game, world, tree, compared):
         print()
         for problem in problems:
             print(f'STATS: {problem}')
-        raise Problem(f'{len(problems)} config(s) that are not their stats table\'s row or card(s) that say another '
-                      'number: no patch made (the <category>-stats.tsv row writes them: its edit row last but '
-                      'localization)')
+        raise Problem(f'{len(problems)} stats problem(s): no patch made')
     if not moved:
         return
     changes = tree / SIMULATION_CHANGES
@@ -463,8 +456,7 @@ def stats_checks(rows, base, base_files, live, game, world, tree, compared):
         print(f'  match value: {line}')
     if not marked:
         raise Problem(f'{len(moved)} value(s) a match computes with differ from what players have, and '
-                      f'{SIMULATION_CHANGES} has no `next` row: add its words there (replays of older games '
-                      'would play out otherwise)')
+                      f'{SIMULATION_CHANGES} has no `next` row')
     print(f'{len(moved)} value(s) a match computes with differ from players\': {SIMULATION_CHANGES} has '
           'its `next` row')
 

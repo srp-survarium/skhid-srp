@@ -265,17 +265,16 @@ WEAPON = ce.STATS['weapon']
 
 
 def table(rows, columns=None):
-    """A weapon-stats.tsv: {weapon: {column: cell}}, the other cells empty."""
+    """weapon-stats.tsv of {weapon: {column: cell}}; other cells empty."""
     columns = columns or list(WEAPON['columns'])
-    return '# a comment\n' + '\t'.join(['weapon'] + columns + ['notes']) + '\n' + ''.join(
-        '\t'.join([name] + [cells.get(c, '') for c in columns] + ['why']) + '\n' for name, cells in rows.items())
+    return '\t'.join(['weapon'] + columns) + '\n' + ''.join(
+        '\t'.join([name] + [cells.get(c, '') for c in columns]) + '\n' for name, cells in rows.items())
 
 
 def row_of(text, name):
-    """The cells of a weapon's row of a table's text, as read_stats reads them."""
     with tempfile.TemporaryDirectory() as folder:
         (Path(folder) / 'weapon-stats.tsv').write_text(text)
-        return ce.read_stats(str(Path(folder) / 'weapon-stats.tsv'))[1][ce.stats_config(WEAPON, name)][0]
+        return ce.read_stats(str(Path(folder) / 'weapon-stats.tsv'))[1][ce.stats_config(WEAPON, name)]
 
 
 def cells_of(damage, rpm=600, k_damage=2):
@@ -300,8 +299,6 @@ class WeaponTable(unittest.TestCase):
         return bytearray((out / ce.stats_config(WEAPON, name)).read_bytes())
 
     def test_each_cell_is_its_configs_value_and_every_card_follows(self):
-        """A changed cell is written (an int key with a fraction becomes a float), every card is written
-        from its config, a weapon whose row and card agree is not written."""
         text = table({'wpn_a': cells_of('0.5', k_damage=1.5), 'wpn_b': cells_of('0.45'), 'wpn_c': cells_of('0.3')})
         result, out = self.run_table(text, {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.45, '40'),
                                             'wpn_c': weapon(0.3, '30')})
@@ -345,7 +342,6 @@ class WeaponTable(unittest.TestCase):
             self.assertEqual(ce.stats_differences(data, WEAPON, row_of(text, name)), [])
 
     def test_a_bolt_guns_rate_of_fire_counts_its_chambering(self):
-        """The stock cards' rule: rounds a minute with chambering each, rounded down (the Mosin: 27)."""
         self.assertEqual(ce.weapon_card(weapon(1.1, '110', rpm=160, chamber=1.8))[4], '27')
         self.assertEqual(ce.weapon_card(weapon(1.2, '120', rpm=200, chamber=1.2))[4], '40')
         self.assertEqual(ce.card_differences(weapon(0.5, '50', rpm=160, chamber=1.8), ce.weapon_card),

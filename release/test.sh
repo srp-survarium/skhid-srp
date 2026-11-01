@@ -2407,8 +2407,7 @@ else:
 open(sys.argv[1], 'wb').write(buf)
 EOF
 python3 "$T/mkcfg.py" "$T/b40/gameplay/items/vec.options" vector
-# A weapon config (content-edit's test fixture writer): its damage and its card's damage line; or
-# (mktable) a weapon-stats.tsv whose row of wpn_t says that damage, or with no rows.
+# mkgun <file> <damage> <card damage>: a weapon config; mkgun <weapon-stats.tsv> [damage]: its table.
 cat >"$T/mkgun.py" <<'EOF'
 import os, sys
 sys.path.insert(0, sys.argv[1])
@@ -2558,8 +2557,6 @@ expect_refused "build-content: a pack writing a vector as an indexed table" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42t"
 check "build-content: ... and no patch" test ! -e "$T/work/c42t"
 
-# A weapon card that says another number than its config, and a weapon value a match computes
-# with that players have otherwise, without the `next` row of simulation_changes.tsv: refused.
 gun_pack() { # <version> <damage> <card> [edit rows]: the pack gun@<version> rewriting wpn_t; its manifest
     mkgun "$T/packs/gun-$1/files/gameplay/items/weapons/wpn_t.options" "$2" "$3"
     printf '{"id": "gun", "version": "%s"}\n' "$1" >"$T/packs/gun-$1/pack.json"
@@ -2578,8 +2575,7 @@ printf '# revision\twhat\nnext\tthe test gun\n' >"$C/srp-026g/crates/session/src
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42y" 2>&1) ||
     fail "build-content with a retuned gun and the next row: $out"
 check "build-content: ... with it, the value said" has "$out" "match value: gameplay/items/weapons/wpn_t.options parameters/bullet_damage"
-# A weapon stats table: the build's weapon configs are its rows (the stand-in content_edit.py writes
-# nothing, so the pack's damage 0.4 stays), every one has a row.
+# The stand-in content_edit.py writes no stats table, so the pack's damage 0.4 stays.
 stats=$C/srp-026g/scripts/content-edit/weapon-stats.tsv
 mkgun "$stats" 0.5
 gun_pack 2 0.4 40 "edit|weapon-stats.tsv|-"

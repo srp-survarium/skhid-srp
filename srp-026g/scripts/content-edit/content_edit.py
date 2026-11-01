@@ -118,13 +118,8 @@ Edits (edits.json):
                        "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
                                                        allow_bones: this surface's other native bones
                                                        (indices), which then follow the head too
-A stats table (<category>-stats.tsv, STATS: weapon-stats.tsv a row a weapon, a column a stat): every
-config of the category gets the numbers of its row where it has others (a key keeps its type; an
-int key takes a fraction as a float: release/content_type_check.py allows it only where 0.26g's
-configs mix the two), then its card lines that mirror a value are written from it. A config without
-a row, a row without a config, an unknown column, an empty cell where the config has the key (or a
-cell where it has not) are refused. `--dump-stats <category> <live folder>` prints the table of the
-configs there, as they are.
+A stats table (<category>-stats.tsv, see STATS): its cells are written into its category's configs,
+then their card lines. `--dump-stats <category> <folder>` prints the table of the configs there.
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -648,9 +643,7 @@ def set_prop(buf, prop_id, frm, to):
     raise KeyError('prop %d' % prop_id)
 
 
-# The weapon card's lines (ui_desc/props_list) that mirror a number of the weapon's config: prop_id:
-# (key path, times); the line's text is that number times `times`, as number_text writes it. Rate of
-# fire (4) and weight (15) are weapon_card's own. A key a config lacks has no line there.
+# Weapon card lines (ui_desc/props_list) that show a config value: prop_id: (key path, factor).
 WEAPON_CARD = {
     1: ('parameters/bullet_damage', 100), 2: ('dispersion/base_dispersion', 1),
     3: ('parameters/bullet_pierce', 100), 24: ('parameters/min_damage_distance', 1),
@@ -681,19 +674,15 @@ def weapon_card(buf):
     out = {p: number_text(number(k) * times) for p, (k, times) in WEAPON_CARD.items() if number(k) is not None}
     rpm, chamber = number('parameters/rounds_per_minute'), number('parameters/chamber_a_round_time')
     if rpm:
-        # a bolt or pump gun's chambering is in its rounds a minute, rounded down: the stock cards' rule
+        # the stock cards count a bolt or pump gun's chambering in its rate of fire
         out[4] = number_text(rpm if chamber is None else math.floor(60 / (chamber + 60 / rpm) + 1e-3))
     if number('parameters/weight') is not None:
-        out[15] = '%.1f' % number('parameters/weight')     # the stock cards' 0.8, 7.0
+        out[15] = '%.1f' % number('parameters/weight')
     return out
 
 
-# The stats tables, <category>-stats.tsv beside this file: a row a config of the category (named as
-# its path between the folder of `configs` and its suffix: wpn_ak_12), a column a stat by its plain
-# name, `notes` last. A category: `configs`, the glob of its game paths; `columns`, each column's
-# key path in the config; `match`, the columns a match computes with (release/build_content.py
-# wants the `next` row of simulation_changes.tsv when one changes); `cards`, the function of a
-# config to the text of its card lines that mirror its values ({prop_id: text}), or None.
+# <category>-stats.tsv: a row a config (named without the glob's folder and suffix), a column a stat.
+# `match`: the columns a match computes with (a change needs the `next` row of simulation_changes.tsv).
 STATS = {
     'weapon': {
         'configs': 'gameplay/items/weapons/wpn_*.options',
@@ -735,7 +724,6 @@ STATS = {
 
 
 def stats_category(path):
-    """The STATS entry of a stats table's file (<category>-stats.tsv); another name is refused."""
     name = os.path.basename(path)
     if not name.endswith('-stats.tsv') or name[:-len('-stats.tsv')] not in STATS:
         raise ValueError('%s: not <category>-stats.tsv of a category of STATS (%s)' % (name, ', '.join(STATS)))
@@ -743,41 +731,37 @@ def stats_category(path):
 
 
 def stats_config(category, name):
-    """A row's config: its name between the folder of the category's glob and its suffix."""
     glob = category['configs']
     return glob[:glob[:glob.index('*')].rindex('/') + 1] + name + glob[glob.rindex('*') + 1:]
 
 
 def read_stats(path):
-    """A stats table: (its category, {config: ({column: cell}, notes)}). Refused (ValueError): a column
-    the category has not or a column of it missing, a row of another length, a cell no number, a
-    config twice."""
+    """(category, {config: {column: cell}}) of a stats table."""
     category = stats_category(path)
     with open(path, encoding='utf-8') as f:
         lines = [l for l in f.read().splitlines() if l.strip() and not l.startswith('#')]
     head = lines[0].split('\t')
-    columns, known = head[1:-1], category['columns']
+    columns, known = head[1:], category['columns']
     unknown, missing = [c for c in columns if c not in known], [c for c in known if c not in columns]
-    if head[-1] != 'notes' or unknown or missing or len(set(columns)) != len(columns):
-        raise ValueError('%s: the header is <config> <the columns, each once> notes: unknown %s, missing %s'
-                         % (path, unknown, missing))
+    if unknown or missing or len(set(columns)) != len(columns):
+        raise ValueError('%s: unknown columns %s, missing %s' % (path, unknown, missing))
     rows = {}
     for line in lines[1:]:
         fields = line.split('\t')
         if len(fields) != len(head):
             raise ValueError('%s: %s: %d fields, not %d' % (path, fields[0], len(fields), len(head)))
         config = stats_config(category, fields[0])
-        for column, cell in zip(columns, fields[1:-1]):
+        for column, cell in zip(columns, fields[1:]):
             if cell and not re.fullmatch(r'-?\d+(\.\d+)?(e-?\d+)?', cell):
                 raise ValueError('%s: %s %s: %r is no number' % (path, fields[0], column, cell))
         if config in rows:
             raise ValueError('%s: %s is there twice' % (path, fields[0]))
-        rows[config] = (dict(zip(columns, fields[1:-1])), fields[-1])
+        rows[config] = dict(zip(columns, fields[1:]))
     return category, rows
 
 
 def stat_text(t, raw):
-    """A config's number as its table writes it: an int, or the shortest float that is these 32 bits."""
+    """An int, or the shortest text that reads back as the same 32-bit float."""
     if t == T_INT:
         return str(as_number(t, raw))
     for digits in range(6, 10):
@@ -787,9 +771,7 @@ def stat_text(t, raw):
 
 
 def stats_differences(buf, category, cells):
-    """[(column, key path, the cell, the config's text)] of every column where the config `buf`
-    disagrees with its row: another number (an int key with a fraction too: the cell makes it a
-    float), a key the row leaves empty, a cell for a key the config has not ('' for either none)."""
+    """[(column, key path, cell, config value)] where the config disagrees with its row ('' for none)."""
     out = []
     for column, key in category['columns'].items():
         cell = cells[column]
@@ -810,8 +792,7 @@ def stats_differences(buf, category, cells):
 
 
 def card_differences(buf, card):
-    """[(prop_id, the card's text, the config's)] of each card line (ui_desc/props_list) of the config
-    `buf` that says another number than `card(buf)` makes of its values."""
+    """[(prop_id, card text, text from the config)] of the card lines that disagree with `card(buf)`."""
     try:
         lines = children(buf, find(buf, 'ui_desc/props_list'))
     except KeyError:
@@ -825,12 +806,10 @@ def card_differences(buf, card):
 
 
 def dump_stats(name, live):
-    """`content_edit.py --dump-stats <category> <live folder>`: the stats table of the configs there,
-    as they are (a table's first version: its notes are empty)."""
     category = STATS[name]
     glob = category['configs']
     start, end = glob[:glob.index('*')].rindex('/') + 1, -len(glob[glob.rindex('*') + 1:])
-    print('\t'.join([name] + list(category['columns']) + ['notes']))
+    print('\t'.join([name] + list(category['columns'])))
     for root, _, names in sorted(os.walk(live)):
         for n in sorted(names):
             path = os.path.relpath(os.path.join(root, n), live).replace(os.sep, '/')
@@ -839,7 +818,7 @@ def dump_stats(name, live):
                 cells = {c: '' for c in category['columns']}
                 for column, key, _, have in stats_differences(buf, category, cells):
                     cells[column] = have
-                print('\t'.join([path[start:end]] + list(cells.values()) + ['']))
+                print('\t'.join([path[start:end]] + list(cells.values())))
 
 
 def prefix_strings(buf, key, prefix):
@@ -1327,12 +1306,12 @@ def main():
             sys.exit('%s: %s: a config without its row, or a row without its config' % (edits_file, unmatched[0]))
         values = cards = 0
         for p in configs:
-            cells = rows[p][0]
+            cells = rows[p]
             for column, key, cell, have in stats_differences(bufs.get(p) or bytearray(open(files[p], 'rb').read()),
                                                              category, cells):
                 if not cell or not have:
-                    sys.exit('%s %s (%s): the row says %r, the config %r: a cell is empty where the config has no '
-                             'such key, and only there' % (p, column, key, cell, have))
+                    sys.exit('%s %s (%s): the row says %r, the config %r (an empty cell: no such key)'
+                             % (p, column, key, cell, have))
                 b = buf(p)
                 d, _, _, t, _ = rec(b, find(b, key))
                 to = float(cell) if t == T_FLOAT or float(cell) != int(float(cell)) else int(float(cell))
