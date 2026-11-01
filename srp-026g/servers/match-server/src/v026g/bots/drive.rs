@@ -427,6 +427,7 @@ fn drive_tick_inner(
         bot.features.stock.pools,
         me.health,
         view.world_time,
+        bot.hurt.last_hit_ms,
         me.carrying.is_some(),
         &bot.features.stock.pantry,
         &tuning.heal,

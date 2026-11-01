@@ -60,6 +60,49 @@ pub struct HealTuning {
     /// `cover_step_ms`. Otherwise it presses at once.
     pub cover_m: f32,
     pub cover_step_ms: u32,
+    /// [A217] What the bot makes of a bullet that hits it while a drug works ([`DrugStops`]; patch 84, live since
+    /// revision 40).
+    pub drug_stops: DrugStops,
+}
+
+/// [A217] Patch 84 (live since revision 40; `origin/main:srp-026g/docs/notes/drug-interrupt.md`, PROVEN in the
+/// exe): a ranged hit that took health (`damage_model::hit_body_part` 0x2E5080 said 1) stops every healing drug the
+/// victim has in use. In its delay nothing is healed; in its active time what it healed stays. The unit stays used,
+/// and another can be pressed at once. The player sees it: the drug's quick slot shows red for a second, and the
+/// health bar stops. The bot sees the hit as the world's `m_last_hit_time_ms`, which the same function writes only
+/// for a hit that took health (0x2E5134, PROVEN), whatever its type ([`crate::v026g::bots::stock::Press`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DrugStops {
+    /// As the bots were before patch 84: a drug pressed works to its end whatever hits the bot, so a medkit shot
+    /// through in its delay is counted as healing and blocks the next press for its whole window. Wrong since
+    /// revision 40; kept to copy the old live bots.
+    Unknown,
+    /// A drug that a hit stopped is known stopped: it heals no more in the reckoning, and the item may be pressed
+    /// again at once. The press itself is as before (at once, the cover walk in its delay).
+    Known,
+    /// [`Self::Known`], and the press waits while hits land (the default): no drug is pressed within `quiet_ms` of
+    /// the last hit that took health, and the bot walks to cover meanwhile, as it does in a press's delay.
+    /// "Break the line of sight, then heal": a press under fire is a unit a hit in the next 2 s throws away.
+    Wait {
+        /// GUESS: 1.5 s, under the medkit's 2 s delay; the bot learns of a hit a world late.
+        quiet_ms: u32,
+    },
+}
+
+impl DrugStops {
+    /// Whether a drug a hit stopped is known stopped.
+    pub fn known(self) -> bool {
+        !matches!(self, Self::Unknown)
+    }
+
+    /// How long after the last hit that took health a press waits, ms (none: it does not wait).
+    pub fn quiet_ms(self) -> Option<u32> {
+        match self {
+            Self::Wait { quiet_ms } => Some(quiet_ms),
+            Self::Unknown | Self::Known => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -110,6 +153,7 @@ impl Default for HealTuning {
             enemy_m: 10.0,
             cover_m: 4.0,
             cover_step_ms: 1_500,
+            drug_stops: DrugStops::Wait { quiet_ms: 1_500 },
         }
     }
 }
@@ -133,6 +177,7 @@ impl Check for HealTuning {
             "heal.cover_*",
         )?;
         check((0.0..=1.0).contains(&self.bandage_pain_weight), "heal.bandage_pain_weight")?;
+        check(self.drug_stops.quiet_ms().is_none_or(|ms| ms <= 10_000), "heal.drug_stops.wait.quiet_ms")?;
         check((0.0..=10.0).contains(&self.walk_mps), "heal.walk_mps")
     }
 }

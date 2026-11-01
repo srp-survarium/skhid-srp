@@ -18,6 +18,18 @@ owner-test heal: hurt at the fatal fight's start 0.0 % (0.0 % over 4 s old) of 4
   "heal_deaths_pain_low": 0,
   "heal_deaths_pain_zero": 0,
   "heal_deaths_with_stock": 12,
+  "heal_drug_stops_active_by_team": [
+    0,
+    0
+  ],
+  "heal_drug_stops_in_delay_by_team": [
+    0,
+    0
+  ],
+  "heal_drug_stops_medkit_by_team": [
+    0,
+    0
+  ],
   "heal_empty_presses": 0,
   "heal_enemy_m_line": {},
   "heal_episodes_pressed_by_depth_pct": [
@@ -29,6 +41,14 @@ owner-test heal: hurt at the fatal fight's start 0.0 % (0.0 % over 4 s old) of 4
   "heal_fatal_fights": 4,
   "heal_first_press_median_s": null,
   "heal_full_3_9s_after_pct": 0.0,
+  "heal_held_presses_by_team": [
+    0,
+    0
+  ],
+  "heal_holds_by_team": [
+    0,
+    0
+  ],
   "heal_hurt_at_fatal_start_pct": 0.0,
   "heal_hurt_episodes": 2,
   "heal_hurt_over_4s_at_fatal_start_pct": 0.0,

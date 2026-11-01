@@ -3100,6 +3100,11 @@ pub struct Reflex {
     /// The bench's counts: heal presses made, cover walks begun.
     pub heal_presses: u32,
     pub heal_walks: u32,
+    /// [A217] A press held while hits land (`DrugStops::Wait`): until when (none: no hold under way).
+    heal_hold: Option<u32>,
+    /// [A217] The bench's counts: holds begun, and presses made at the end of a hold.
+    pub heal_holds: u32,
+    pub heal_held_presses: u32,
     thrown: u8,
     next_grenade_roll: u32,
     /// The fragmentation grenades the kit holds now, where known (`Throws::frags_left`, set each poll); none where not.
@@ -6305,10 +6310,23 @@ impl Reflex {
     /// the next think ([`Self::heal_cover`]).
     fn heal_press(&mut self, over: &mut Override, me: &PlaceView, now: u32) {
         let Some(wish) = self.heal_wish.take() else {
+            self.heal_hold = None;
             return;
         };
         if me.carrying.is_some() || self.throw.is_some() {
             return;
+        }
+        // [A217] Hits land: no press, the cover walk now (a hit in the item's delay would throw the unit away).
+        if let Some(until) = wish.wait_until {
+            if self.heal_hold.is_none() {
+                self.heal_holds += 1;
+            }
+            self.heal_hold = Some(until);
+            self.heal_walk = Some((wish, now));
+            return;
+        }
+        if self.heal_hold.take().is_some() {
+            self.heal_held_presses += 1;
         }
         over.keys |= wish.key;
         self.heal_presses += 1;
@@ -13692,6 +13710,7 @@ mod tests {
             key: key::QUICK[0],
             reach_m,
             enemy_m: 10.0,
+            wait_until: None,
         }
     }
 
@@ -13729,6 +13748,23 @@ mod tests {
             assert_eq!(a.keys & !key::QUICK[0], b.keys, "no other key changes");
             assert_eq!((a.fire, a.legs, a.look_at), (b.fire, b.legs, b.look_at));
         }
+    }
+
+    /// [A217] A wish held while hits land presses no key and counts one hold however many ticks it lasts; the press
+    /// that ends it counts as a held press.
+    #[test]
+    fn a_held_heal_wish_presses_nothing_until_it_is_quiet() {
+        let enemy_at = Vec3::new(55.0, 0.0, 30.0);
+        let aim = AimTuning::default();
+        let (mut reflex, me, view, memory, mut rng) = heal_duel(enemy_at, false);
+        let held = HealWish { wait_until: Some(1_500), ..wish(7.0) };
+        let mut keys = Vec::new();
+        for (now, wished) in [(1_350, held), (1_400, held), (1_500, wish(7.0)), (1_550, wish(7.0))] {
+            reflex.set_heal((now != 1_550).then_some(wished));
+            keys.push(reflex.tick(&me, &view, &memory, now, true, &aim, 0.5, &mut rng).keys & key::QUICK[0]);
+        }
+        assert_eq!(keys, [0, 0, key::QUICK[0], 0]);
+        assert_eq!((reflex.heal_holds, reflex.heal_held_presses, reflex.heal_presses), (1, 1, 1));
     }
 
     #[test]

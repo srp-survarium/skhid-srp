@@ -112,6 +112,7 @@ pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use hazard::RouteCrossing;
 pub use hazard::ZonePools;
+pub use heal::DrugStops;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
 pub use kit::KitTuning;
@@ -709,6 +710,8 @@ mod tests {
         assert_eq!(off.unstick.progress_ms, None);
         assert_eq!(off.feel.carrier_jump_m, None);
         assert!(off.aim.combat.grenade_push_tracks);
+        // [A217] The habit off, the knowledge kept: a drug a bullet stopped is never believed working (patch 84).
+        assert_eq!(off.heal.drug_stops, DrugStops::Known);
         let off = serde_json::to_value(off).unwrap();
         for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
             assert_eq!(off.pointer(pointer), defaults.pointer(pointer), "{pointer}");
