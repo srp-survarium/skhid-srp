@@ -883,7 +883,7 @@ impl Default for ThinkTuning {
             door_centres: false,
             wall_clear_corners: false,
             stamina: true,
-            stamina_rates: StaminaRates::Light,
+            stamina_rates: StaminaRates::Kit,
             fall_lock: true,
         }
     }
@@ -897,9 +897,11 @@ impl Default for ThinkTuning {
 #[serde(rename_all = "snake_case")]
 pub enum StaminaRates {
     /// As it was: every kit at the light kit's (spend 5 a second, regain 10, a jump 10).
-    #[default]
     Light,
-    /// Each life at its kit's: the weight's cost against the kit's capacity and the skills (`stamina::Rates::of_kit`).
+    /// Each life at its kit's: the weight's cost against the kit's capacity and the skills (`stamina::Rates::of_kit`). The
+    /// default (A207 ON's by-side bench, 288 matches, `feel.sprint_turns` off: lockouts 2 vs 26, z -4.5, falls off the route
+    /// 839 vs 897, outcomes level).
+    #[default]
     Kit,
 }
 
