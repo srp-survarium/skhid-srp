@@ -122,7 +122,9 @@ impl BenchEvents {
 
     /// The kills since the last call, and each bot as it is now: [place,
     /// team, alive, x, z, yaw, play, aiming at someone, walking to a goal,
-    /// carrying a battery, the place of its target (null: none)].
+    /// carrying a battery, the place of its target (null: none), y]. The
+    /// feet's height comes last so that readers by index keep their columns;
+    /// without it a fall under a slab read as a climb onto it (A199).
     pub(crate) fn world(&mut self, clock: u32, game: &mut Game, bots: &Bots) {
         let kills = std::mem::take(&mut game.kill_log);
         if self.0.is_none() {
@@ -175,6 +177,7 @@ impl BenchEvents {
                     goal,
                     body.carrying.is_some(),
                     bot.reflex.target(),
+                    (body.feet.y * 100.0).round() / 100.0,
                 ])
             })
             .collect();
