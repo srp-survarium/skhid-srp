@@ -176,6 +176,10 @@ impl BotNow {
             walk: 0,
             why: 0,
             has_route: false,
+            motor_keys: 0,
+            stepped: 0,
+            apart: 0,
+            guard: 0,
         }
     }
 }
