@@ -2,13 +2,15 @@
 
 The lobby projects resource-porter makes from S.T.A.L.K.E.R. 2's (2011-12) levels
 (build-stk2-lobby-026): the bomb shelter (pack lobby-stk2-bunker,
-ports/stk2-bunker-lobby-to-026g.json), the blockpost guard hut of STK2's own lobby (lobby-stk2,
-ports/stk2-lobby-to-026g.json) and the Bar's shooting gallery (lobby-stk2-bar,
+ports/stk2-bunker-lobby-to-026g.json), the House, the Bar's upper floor (lobby-stk2-house,
+ports/stk2-house-lobby-to-026g.json), and the Bar's shooting gallery below it (lobby-stk2-bar,
 ports/stk2-bar-lobby-to-026g.json): their sources, the manifests' choices and each version.
+The blockpost guard hut of STK2's own lobby (lobby-stk2, ports/stk2-lobby-to-026g.json) is
+made and not shipped.
 What a lobby project must give, the lobby window and the upgrade view are the lobby
 selection's (lobby-scenes.md, #778).
 
-## STK2 lighting (the bomb shelter; the hut and the Bar as their own sections say)
+## STK2 lighting (the bomb shelter; the House, the hut and the Bar as their own sections say)
 
 - Kept from STK2: the project's own lights (point, sphere and box lights as points; spots
   and plane spots as spots with their cones and directions; the sun with its colour,
@@ -48,10 +50,88 @@ selection's (lobby-scenes.md, #778).
   before, at most 512 px, props 256). Weapons on tables and STK2's static characters are
   left out.
 
-## STK2 blockpost hut (`lobby_scene/stk2_blockpost`, pack lobby-stk2@4)
+## STK2 House, the Bar's upper floor (`lobby_scene/stk2_house`, pack lobby-stk2-house@1)
 
-The owner (2026-11-01): "let's add 2 more lobbies into the game from stk2. One is house and
-another one is shooting range". The house is STK2's own lobby (`lobby_scene/project.xprj`,
+The owner (2026-11-01): "there is another house though", the one of the video "Map Showcase [5]
+(House)" (youtube `_4iyMIQLaC8`, about 7:00): "there is a small kitchen, model in exoskeleton",
+"tent on top". It is the upper floor of STK2's Bar building
+(`architecture/research_institute/bar_shooting_gallery`, the Shooting Range's building), dressed
+as `bar_shooting_gallery` dresses it. Manifest `ports/stk2-house-lobby-to-026g.json`.
+
+- The match, frame by frame (the video's 6:50..7:50 against static renders of this floor from the
+  same eye): the hall under a hanging camouflage net, high strip windows down both long walls,
+  concrete pillars; long wooden trestle tables with benches, bottles and cups; through the opening
+  at the hall's far end the kitchen corner, blue-green tiled, its gas cooker under the hood, a sink,
+  the bar cabinet with bottles on top; a bench along the right wall; pallets and cement bags by the
+  pillar at the stairs. The video's eye stands in the annex by the stairs, looking west. The tables
+  are where `bar_shooting_gallery` (and its copy `dima_test`) put them; `stohe_light_test` puts
+  them elsewhere and without benches.
+- "Tent on top": the camouflage net (`props/bar/bar_camouflage`, its `shooting_gallery_camouflage`
+  texture) hung under the ceiling over the whole hall, 2.6..3.9 m up. Kept; it fills the top of
+  every view. Outside, on the roof landing beyond the annex's north door, an awning over the door
+  (the video's 6:54) is not in the lobby's view (the door is closed, below).
+- The figure in the exoskeleton: `dima_test` and `stohe_light_test` stand a `test_object/
+  test_character` at (89.08, 0.221, -3.29) (STK2), by the left table, where the video shows it.
+  Its model is in neither STK2 archive, so the video's build drew something not shipped.
+  `bar_shooting_gallery` stands the STK2 Novice (`actors/.../neutral_01`, skinned) at
+  (89.86, 0.22, -0.27) instead; static characters are left out. Not ported (the owner's call):
+  STK2's static Duty exoskeleton (`character/human/dolg/dolg_exo_static`, an exported static
+  model, 1.2 MB, its textures PSDs of up to 185 MB) could stand at the video's spot as a prop
+  (a third slice of a project that places it, moved there).
+- The candles: the video's table flames are in no project of the archives (no candle model or
+  particle on these tables). STK2 put small warm point lights just above the twin tables and the
+  right table (their light is kept, soft, no fixture).
+- Spot: the open floor between the tables and the annex (STK2 (94.3, 0.221, -0.5)), facing
+  east, so the default view looks west down the hall: the tables either side, the watering-can
+  lamp over them, the kitchen corner at the far end under the net.
+- Kept: the box x 77..101.5, y 0.05..9, z -6.5..6 (STK2 world), the upper floor, its roof and
+  the annex by the stairs: 253 of 544 objects, merged in `level/stk2_house/main_v1`. 16 props
+  have no model in the archive (barrels, buckets, cement bags, broken bottles). A second slice
+  (`door_v1`) puts a copy of the annex's closed brown door (`props/door/door_exterior_brown_close`)
+  in its open north doorway, which looked out onto the roof landing, its railing and nothing
+  below.
+- Unmapped faces: STK2 left some faces without a mapping (the kitchen partition's end, 19
+  triangles, a strip of plaster stretched across it; door edges; a stair riser): mapped by
+  projection at their surface's texel density (resource-porter's `Mesh::stk2`, as the bomb
+  shelter's @9).
+- Spots (data `srp-026g/scripts/lobby-scenes/stk2_house.tsv`):
+
+      character          ( 0.000, 0.000,  0.000)
+      camera, default    ( 0.000, 1.200, -1.960)  yaw 0
+      weapon             ( 1.750, 1.194,  2.300)  weapon_view 0 (above the table behind the right)
+      artefact           ( 0.950, 0.774,  2.250)  on the same table
+
+- The upgrade view: the trestle table behind the character's right (top 0.77 m), the weapon
+  0.42 m above it, seen along +z, the bottles and cups below it and the kitchen corner beyond.
+- Light (as the bunker's @8):
+  - one box probe over the hall (half extents 5.45, 1.85, 7.9), the bunker's warm-neutral
+    gradient, ambient 0.45; warm ambient fills along the hall, in the kitchen corner and the
+    annex; the character's fill and a warm bounce on his back;
+  - STK2's lamps, each with its fixture: the watering-can lamp over the tables (a spot, warm,
+    2.4, range 7) and the two halogen work lamps at the kitchen end (blue-white, now warm white
+    (1, 0.9, 0.78));
+  - STK2's small warm lights just above the twin tables and the right-hand table (no fixture:
+    the video's candles' place), soft (2.2 and 1.8, range 3.2), and the bar cabinet's;
+  - no light casts a shadow (STK2's cast them); STK2's sun is left out.
+- The camera: boxes over the floor, under the net (2.35..2.65 m: its lowest within the wheel's
+  reach), round the watering-can lamp, round the five tables with their benches near the
+  character and the tub on its stool.
+- The audit: the squad's three spots are clear, the floor at 0 under them; no view ray of the
+  orbit meets nothing below the horizon (the default view's 1.4 % is the sky in the high
+  strip windows). The eye is behind a surface in 8.0 % of the orbit, the stock floor rows; 23
+  cells more at the wheel's far end (yaw 20..25 and 320, 4.6 m). The upgrade flight: as the
+  Bar's and the hut's.
+- In the game (2026-11-01, the full sweep): warm, no hard shadows; the net fills the top of the
+  view, the kitchen corner and the bar cabinet glow at the far end, the tables either side. The
+  strip windows show the 0.26g day sky, light blue; the hall's west end and the annex are the
+  darker parts.
+- The hut it replaces stays in resource-porter (`ports/stk2-lobby-to-026g.json`, @4), not shipped.
+
+## STK2 blockpost hut (`lobby_scene/stk2_blockpost`, pack lobby-stk2@4, not shipped)
+
+Made as the House and replaced by the Bar's upper floor the same day (the owner, 2026-11-01:
+"there is another house though"). The owner (2026-11-01): "let's add 2 more lobbies into the game from stk2. One is house and
+another one is shooting range". The house was taken for STK2's own lobby (`lobby_scene/project.xprj`,
 2011-12): the a02 blockpost guard hut alone on terrain, with a campfire on its floor, a sentry
 cabinet, a mattress and a stool. Manifest `ports/stk2-lobby-to-026g.json`. @1 and @2 (#768) were
 made and never shipped.
@@ -62,7 +142,7 @@ made and never shipped.
   (`level/stk2_blockpost/main_v<version>`, `main_v4`, new with each version as the bunker's). Up to @2 these were
   five models of their own under `level/stk2_lobby`. STK2's terrain is not ported: a flat grass
   plane 1.107 m below the floor. The hut's walls are the camera's collision. 43 MB.
-- Spots (data `srp-026g/scripts/lobby-scenes/stk2_blockpost.tsv`):
+- Spots (@4, in its lobby frame; its spot data left with the hut):
 
       character          ( 0.000, 0.000,  0.000)
       camera, default    ( 0.000, 1.200, -1.960)  yaw 0
@@ -107,17 +187,32 @@ made and never shipped.
   are dark against a dusk sky, beyond the porch railing. The window side, though no longer a
   silhouette, stays the hut's darker side.
 
-## STK2 Bar shooting gallery (`lobby_scene/stk2_bar`, pack lobby-stk2-bar@4)
+## STK2 Bar shooting gallery (`lobby_scene/stk2_bar`, pack lobby-stk2-bar@5)
 
 The shooting range: the lower level of STK2's `bar_shooting_gallery` (2011-12), with the
 gallery's lanes, targets, camouflage nets, the bottle shelf at the lanes' end, its lamps, and the
 hall before it. Manifest `ports/stk2-bar-lobby-to-026g.json`. The owner dropped it on 2026-10-30
 (one lobby per faction) and brought it back on 2026-11-01. @1..@3 never shipped.
 
-- Spot: at the head of the lanes (STK2 (97.0, -3.208, 0.6)), the lanes behind the character and
-  the hall before him.
+- Spot (@5): at the firing line. The owner (2026-11-01): "with shooting range, I wonder whether we
+  can change their location, since now it looks like they are set there to be shot at". Up to @4
+  the squad stood 4 m before the targets at the lanes' end (STK2 (97.0, -3.208, 0.6)), the
+  camera looking at them with the targets behind. The lanes run 17 m from the firing line (a
+  sandbag wall under a wooden counter, STK2 x 83.6..84.75) to the targets (x 100..101); behind
+  the line is the shooters' plank floor (x 79.75..83.6, 0.1 m up), with a lounge (a chair and a
+  television table) and the stairs up to the House. Three spots on it, each captured in the game
+  from the stock camera with the squad:
+  - R1, straight downrange (82.0, -3.109, 0.2), view along +x: the squad's backs to the
+    sandbags and counter, the lanes and a target far behind them;
+  - R2, from the lounge north-east (81.6, -3.109, -1.6), view yaw -0.9: the counter behind the
+    squad, the lanes hidden behind its right member;
+  - R3, by the stairs (82.0, -3.109, -1.0), view yaw -2.24 (south-east): the sandbag wall and
+    counter run away on the left with the lanes and the targets off to that side, the squad
+    beside the line, the stairs on the right. Picked: the targets are off to one side, not
+    behind the squad.
+  The character stands on the plank floor (y -3.109).
 - Kept: the box x 77..102.5, y -3.6..0.3, z -7..6 (STK2 world): 286 of 544 objects, merged in
-  `level/stk2_bar/main_v4`. 16 props have no model in the archive (barrels, buckets, cement bags,
+  `level/stk2_bar/main_v5` (`main_v4` up to @4). 16 props have no model in the archive (barrels, buckets, cement bags,
   broken bottles) and are left out, and so are the planks under the squad's right member (@2).
   The canister on the vent stack by the workbench sits on the floor (@3: the upgrade flight).
   141 MB.
@@ -125,12 +220,13 @@ hall before it. Manifest `ports/stk2-bar-lobby-to-026g.json`. The owner dropped 
 
       character          ( 0.000, 0.000,  0.000)
       camera, default    ( 0.000, 1.200, -1.960)  yaw 0
-      weapon             (-2.610, 1.240,  3.150)  weapon_view 0 (above 0.26's workbench_02)
-      artefact           (-0.900, 1.288,  4.200)  on the bottle shelf
+      weapon             (-3.284, 1.319,  0.284)  weapon_view 0.668 (above the firing counter)
+      artefact           (-3.990, 0.909, -0.275)  on the firing counter
 
-- The upgrade view (@2): the gallery has no table near the character, so 0.26's
-  `props/furniture/workbench_02` stands in the back left corner with the weapon 0.41 m above
-  it, seen along +z.
+- The upgrade view (@5): the firing counter is the table, the weapon 0.41 m above its top
+  (0.91 m), seen downrange with the lanes and targets beyond. From @2 to @4 the gallery had no
+  table near the character, and 0.26's `props/furniture/workbench_02` stood in the back left
+  corner for it; @5 leaves it out.
 - Textures (@4): at their STK2 sources' full size, up to 2048 px. Up to @3 they were capped at
   512, and the props' at 256.
 - Light (@4, as the bunker's @8):
@@ -145,18 +241,32 @@ hall before it. Manifest `ports/stk2-bar-lobby-to-026g.json`. The owner dropped 
     gallery and the warm bounce on the character's back stay from @3.
   - The lamps are STK2's own composites, each with its fixture: the halogen work lamps, the
     ceiling lamps and the watering-can lamp. Nothing is added.
+  - @5: the fills stay where they were in the gallery (moved with the frame); a dim warm fill at
+    the foot of the stairs behind the squad, which showed black.
 - The camera (@4): the hall's ceiling collision (3.07 m) has no margin, so at the wheel's far
   end with the eye above the point (pitch -25 degrees, 49 of 72 yaws) the eye stopped on it and
   saw into the level above. A box now sits 0.15..0.29 m under the ceiling over the hall, and
   another over the carton boxes and shelf by the right wall, which the eye got into at yaw
   50..75. The @2 and @3 boxes stay: the floor, the workbench, the bottle shelf.
+- The camera (@5), re-made for the spot (the boxes are in the lobby frame, turned with it): the
+  floor, under the ceiling (2.97 m over the planks), the sandbag wall and counter (to 0.2 m over
+  its top: at 0.91 the eye passed just over it at pitch 0 and looked along the boards), the
+  ammunition boxes by the stairs, the back wall and the south wall with the stairs' doorway (their
+  collision has no margin), the television table and the chair.
 - The audit (@4): no view ray of the orbit meets nothing (the gallery is closed). The eye is
   behind a surface in 8.2 % of the orbit, the stock floor rows. Views with over 10 % back faces
   are 8.1 %: the floor rows and two cells over a pallet on the floor at pitch +45..50.
+- The audit (@5): the squad's three spots are clear, the floor at 0 under them; no view ray
+  meets nothing; the eye is behind a surface in 8.1..8.5 % of the orbit, the stock floor rows and
+  48 cells (0.4 %) at yaw 140..160 looking up, by the counter.
 - In the game (2026-11-01, the same poses): warm, no blue, no hard shadows. The squad is lit from
   every side. The hall behind the character is dimmer, with a bright pool under its far lamp.
   From above (pitch -25) the eye stays under the ceiling. The upgrade view frames the workbench
   against the targets and the bottle shelf.
+- In the game (@5, 2026-11-01, the full sweep, with the counter's box at its @5 candidate's 1.17 m):
+  warm, no hard shadows; the squad by the firing line, the lit counter and sandbags on the left,
+  the targets small at the lanes' end; the stairs behind the squad are the dark side. The upgrade
+  view looks down the lanes over the counter.
 
 ## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@8)
 
@@ -244,7 +354,7 @@ crates, beds and lockers, and the vaults beside it.
 
 ## Captures
 
-The hut and the Bar (2026-11-01): the diagnostics sweep of this branch's exe, each project in the
+The House @1, the Bar @5 and its three candidates (2026-11-01), as the hut and the Bar @4 the same day: the diagnostics sweep of this branch's exe, each project in the
 Bunker's slot (`srp_lobby 3`, a local test patch over the live layers), no input but the sign-in.
 The lobby window's pictures are the `empty` scene at 2560 x 1440, cut between the interface's
 bars (y 180..1390) to the card's framing.

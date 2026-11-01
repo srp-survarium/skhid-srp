@@ -1,0 +1,15 @@
+# The House, the upper floor of STK2's Bar building (pack lobby-stk2-house@1, projects/lobby_scene/stk2_house): where things are,
+# in the lobby's world (metres, y up; the default camera looks along +z). Made by resource-porter's build-stk2-lobby-026
+# (ports/stk2-house-lobby-to-026g.json), which bakes the STK2 scene into this frame.
+# yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
+# One row a line, tabs between: <key> <x> <y> <z> <yaw> <what>
+character	0.000	0.000	0.000	-	the lobby character's spot (the exe's: the origin, facing -z), on the open floor between the tables and the annex by the stairs, the hall before the camera (+z); STK2 (94.300, 0.221, -0.500)
+camera_default_eye	0.000	1.200	-1.960	0	the stock camera at its start, the annex behind it
+weapon	1.750	1.194	2.300	0	srp_lobby.weapon: 0.42 m above the trestle table behind the character's right (top y 0.77; the table and its bench x 0.75..2.90, z 1.19..3.29), seen along +z with the kitchen beyond; STK2 (92.000, 1.415, 1.250)
+artefact	0.950	0.774	2.250	-	on the same table, at its near end
+lamp	0.980	2.419	2.590	-	the watering-can lamp over the tables (its shade down to y 1.53), a camera box round it
+net	0.000	2.340	0.000	-	the camouflage net under the ceiling (y 3.7), its lowest within the wheel's reach; the camera box under it at 2.35..2.65
+bar_cabinet	3.180	0.000	7.550	-	the bar cabinet with bottles on top, at the kitchen corner
+cooker	3.440	0.000	11.990	-	the kitchen corner's gas cooker under its hood, the hall's far end
+figure_spot	-2.790	0.000	5.220	-	where the video's figure in an exoskeleton stands (dima_test's test_object/test_character, its model in no archive); nothing there
+door	1.750	0.000	-4.630	-	the copy of the brown door closing the annex's north doorway (to the roof landing), behind the camera
