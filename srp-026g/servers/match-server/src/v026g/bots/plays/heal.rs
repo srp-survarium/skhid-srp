@@ -53,16 +53,25 @@
 //! 1.5 s cover steps ended on the timeout 2.7 m short of the spot). The play
 //! below is kept for the switch.
 //!
+//! **Patch 84 (live since revision 40, `HealTuning::drug_stops`):** a ranged
+//! hit that took health stops every healing drug in use: in the delay it heals
+//! nothing, in the active time what it healed stays, and the unit is spent. A
+//! drug a hit stopped is known stopped ([`Press::hit`]): the reckoning drops the
+//! rest of it and the item may be pressed again (`DrugStops::Known`, the
+//! default). `DrugStops::Wait` (off: its bench gained nothing) also holds the press
+//! within `quiet_ms` of the last hit that took health, the habit walking to
+//! cover first and pressing once it is quiet.
+//!
 //! With the switch off the old rule runs: an enemy seen meanwhile ends it.
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::pools::{Pool, Pools};
-use crate::v026g::bots::stock::{Drug, Held, Pantry};
+use crate::v026g::bots::stock::{Drug, Held, Pantry, Press};
 #[cfg(test)]
 use survarium::v026g::loadouts::PocketStore;
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::tuning::{HealTuning, NeedWeights};
+use crate::v026g::bots::tuning::{DrugStops, HealTuning, NeedWeights};
 use crate::v026g::bots::view::still_eye;
 use crate::v026g::drive::key;
 
@@ -82,7 +91,11 @@ pub struct Item {
     pub drug: Drug,
     pub delay_s: f32,
     pub active_s: f32,
+    /// The pools it is pressed for, and their rates.
     pub treats: &'static [(Pool, f32)],
+    /// Pools it also restores but is never pressed for (they count in the reckoning, not in the need): the
+    /// Medikit's pain, a pool that mends on its own and that the bandages are for.
+    pub also: &'static [(Pool, f32)],
 }
 
 pub const ITEMS: [Item; 3] = [
@@ -96,6 +109,9 @@ pub const ITEMS: [Item; 3] = [
             (Pool::Hands, 1.0),
             (Pool::Legs, 1.0),
         ],
+        // Since revision 40: 40 % of the pain over the 3 s (`origin/main:srp-026g/scripts/medicines/medicines.tsv`,
+        // 32c661400, PROVEN).
+        also: &[(Pool::Pain, 0.4 / 3.0)],
     },
     Item {
         drug: Drug::Bandages,
@@ -108,12 +124,14 @@ pub const ITEMS: [Item; 3] = [
             (Pool::Head, 0.14),
             (Pool::Pain, 0.35),
         ],
+        also: &[],
     },
     Item {
         drug: Drug::Antitoxin,
         delay_s: 1.0,
         active_s: 10.0,
         treats: &[(Pool::Infection, 0.5)],
+        also: &[],
     },
 ];
 
@@ -128,6 +146,21 @@ impl Item {
     /// From the press until the effect is over, ms.
     fn window_ms(&self) -> u32 {
         ((self.delay_s + self.active_s) * 1000.0) as u32
+    }
+
+    /// Every pool it restores, and its rate: [`Self::treats`] and [`Self::also`].
+    fn restores(&self) -> impl Iterator<Item = &(Pool, f32)> {
+        self.treats.iter().chain(self.also)
+    }
+
+    /// When the effect of `press` ends, ms: its window's end, or the hit that stopped it before then when the bot
+    /// knows of patch 84 (`HealTuning::drug_stops`).
+    fn ends(&self, press: Press, stops: DrugStops) -> u32 {
+        let end = press.at + self.window_ms();
+        match press.hit {
+            Some(hit) if stops.known() && hit < end => hit,
+            _ => end,
+        }
     }
 }
 
@@ -176,10 +209,10 @@ pub fn medkits_left(cx: &Ctx) -> u32 {
     }
 }
 
-/// Whether `held` was pressed and its effect is not over.
-fn busy(held: &Held, now: u32) -> bool {
+/// Whether `held` was pressed and its effect is not over (a hit stopped it, with `stops` known).
+fn busy(held: &Held, now: u32, stops: DrugStops) -> bool {
     held.pressed
-        .is_some_and(|at| now < at + item(held.drug).window_ms())
+        .is_some_and(|press| now < item(held.drug).ends(press, stops))
 }
 
 /// Its pools as they will be once every drug pressed has acted: the last
@@ -189,21 +222,23 @@ pub fn projected(cx: &Ctx) -> Pools {
         cx.bot.pools.unwrap_or_else(|| Pools::of_body(cx.me.health)),
         cx.view.world_time,
         cx.bot.pantry,
+        cx.tuning.heal.drug_stops,
     )
 }
 
-/// [`projected`] from the raw inputs (the reflex habit has no [`Ctx`]).
-pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry) -> Pools {
+/// [`projected`] from the raw inputs (the reflex habit has no [`Ctx`]): a drug a hit stopped acts to the hit
+/// only, with `stops` known.
+pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry, stops: DrugStops) -> Pools {
     for held in pantry.held() {
-        let Some(at) = held.pressed else {
+        let Some(press) = held.pressed else {
             continue;
         };
         let it = item(held.drug);
-        let from = (at + (it.delay_s * 1000.0) as u32).max(seen);
-        let to = at + it.window_ms();
+        let from = (press.at + (it.delay_s * 1000.0) as u32).max(seen);
+        let to = it.ends(press, stops);
         if to > from {
             let secs = (to - from) as f32 / 1000.0;
-            for &(pool, rate) in it.treats {
+            for &(pool, rate) in it.restores() {
                 pools.add(pool, rate * secs);
             }
         }
@@ -234,7 +269,7 @@ pub fn need(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
 /// The need that is left once `item` has done all it will.
 fn left_after(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
     let mut after = *pools;
-    for &(pool, rate) in item.treats {
+    for &(pool, rate) in item.restores() {
         after.add(pool, rate * item.active_s);
     }
     ITEMS
@@ -265,7 +300,7 @@ pub fn choose_of<'a>(
     pantry
         .held()
         .iter()
-        .filter(|held| held.hand > 0 && !busy(held, now))
+        .filter(|held| held.hand > 0 && !busy(held, now, heal.drug_stops))
         .map(|held| (held, need(item(held.drug), pools, w)))
         .filter(|&(_, need)| need >= heal.start_need)
         .map(|(held, need)| (held, need, left_after(item(held.drug), pools, w)))
@@ -290,6 +325,9 @@ pub struct Wish {
     pub reach_m: f32,
     /// No walk with a known enemy this near, m (`HealTuning::enemy_m`).
     pub enemy_m: f32,
+    /// [A217] Hits land: the press waits until this time, ms, and the bot walks to cover meanwhile
+    /// (`DrugStops::Wait`). None: press now.
+    pub wait_until: Option<u32>,
 }
 
 /// The press the bot wants now, from its own knowledge alone (pools, kit,
@@ -298,11 +336,15 @@ pub struct Wish {
 /// 0x2D8DA0, so a press would be counted as used and heal nothing), when
 /// no need reaches `start_need`, or while the item is active. The pantry
 /// counts the press as it goes out (`drive.rs`), so the next tick wishes
-/// the next item or none: one hurt is not answered twice.
+/// the next item or none: one hurt is not answered twice. With
+/// `DrugStops::Wait` a hit that took health (`last_hit_ms`, the world's)
+/// within `quiet_ms` holds the press (`Wish::wait_until`).
+#[allow(clippy::too_many_arguments)]
 pub fn wish(
     pools: Option<Pools>,
     health: f32,
     world_time: u32,
+    last_hit_ms: Option<u32>,
     carrying: bool,
     pantry: &Pantry,
     heal: &HealTuning,
@@ -315,12 +357,20 @@ pub fn wish(
         pools.unwrap_or_else(|| Pools::of_body(health)),
         world_time,
         pantry,
+        heal.drug_stops,
     );
     let (held, _) = choose_of(&pools, pantry, heal, now)?;
+    let wait_until = heal
+        .drug_stops
+        .quiet_ms()
+        .zip(last_hit_ms)
+        .map(|(quiet, hit)| hit.saturating_add(quiet))
+        .filter(|&until| now < until);
     Some(Wish {
         key: key::QUICK[held.quick],
         reach_m: heal.walk_mps * item(held.drug).delay_s,
         enemy_m: heal.enemy_m,
+        wait_until,
     })
 }
 
@@ -865,6 +915,7 @@ mod tests {
             None,
             health,
             10_000,
+            None,
             carrying,
             pantry,
             &on(),
@@ -907,7 +958,7 @@ mod tests {
         assert_eq!(wish_for(0.5, false, &pantry), None, "the first medkit is active");
         // ... and the pools it will have given are not asked again; a second medkit only after the first is over.
         let later = |pantry: &Pantry, now: u32| {
-            wish(None, 0.5, now, false, pantry, &on(), now)
+            wish(None, 0.5, now, None, false, pantry, &on(), now)
         };
         assert!(later(&pantry, 15_500).is_some());
         // Both medkits used: an empty slot is never wished.
@@ -920,13 +971,36 @@ mod tests {
             interrupt: false,
             ..on()
         };
-        assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &no_habit, 10_000), None);
+        assert_eq!(wish(None, 0.5, 10_000, None, false, &fresh, &no_habit, 10_000), None);
         // The rework off: the tip's bots, nothing wished.
         let off = HealTuning { on: false, ..HealTuning::default() };
         assert_eq!(
-            wish(None, 0.5, 10_000, false, &fresh, &off, 10_000),
+            wish(None, 0.5, 10_000, None, false, &fresh, &off, 10_000),
             None
         );
+    }
+
+    /// [A217] Patch 84: a medkit a bullet stopped in its delay heals nothing in the reckoning and frees the key at
+    /// once (`DrugStops::Known`); believed working (`Unknown`) it blocks the key for its whole 5 s. With `Wait` a
+    /// hit within `quiet_ms` holds the press, which comes once it is quiet.
+    #[test]
+    fn a_drug_a_bullet_stopped_is_known_stopped_and_the_press_waits_while_hits_land() {
+        let mut pantry = Pantry::medkits();
+        pantry.new_life(0);
+        assert!(pantry.pressed(0, 10_000));
+        pantry.hit(11_000);
+        let hurt = Pools::of_body(0.5);
+        assert_eq!(projected_of(hurt, 11_500, &pantry, DrugStops::Known).body, 0.5, "stopped in its delay");
+        assert_eq!(projected_of(hurt, 11_500, &pantry, DrugStops::Unknown).body, 1.0, "believed working");
+        let at = |stops: DrugStops, now: u32| {
+            let heal = HealTuning { drug_stops: stops, ..on() };
+            wish(None, 0.5, now, Some(11_000), false, &pantry, &heal, now)
+        };
+        assert!(at(DrugStops::Known, 11_500).is_some_and(|w| w.wait_until.is_none()), "pressed again at once");
+        assert_eq!(at(DrugStops::Unknown, 11_500), None, "the key believed busy");
+        let wait = DrugStops::Wait { quiet_ms: 1_500 };
+        assert_eq!(at(wait, 11_500).and_then(|w| w.wait_until), Some(12_500), "hits land: held");
+        assert!(at(wait, 12_500).is_some_and(|w| w.wait_until.is_none()), "quiet: pressed");
     }
 
     #[test]
@@ -991,7 +1065,7 @@ mod tests {
         let pantry = kit_with_bandages();
         // The rework on, the bandage habit off: a body whole with a pain pool at 0.3 wishes nothing.
         assert_eq!(
-            wish(Some(pools(1.0, 0.3)), 1.0, 10_000, false, &pantry, &bandage_habit(false), 10_000),
+            wish(Some(pools(1.0, 0.3)), 1.0, 10_000, None, false, &pantry, &bandage_habit(false), 10_000),
             None
         );
     }
@@ -1001,16 +1075,16 @@ mod tests {
         let pantry = kit_with_bandages();
         let heal = bandage_habit(true);
         // A body whole, the pain at 0.5: the bandages (quick use 2), a walk of the 1 s delay.
-        let w = wish(Some(pools(1.0, 0.5)), 1.0, 10_000, false, &pantry, &heal, 10_000).expect("pain 0.5");
+        let w = wish(Some(pools(1.0, 0.5)), 1.0, 10_000, None, false, &pantry, &heal, 10_000).expect("pain 0.5");
         assert_eq!(w.key, key::QUICK[1]);
         assert_eq!(w.reach_m, 3.5);
         // The pain at 0.7 is not low: nothing. A carrier: nothing.
-        assert_eq!(wish(Some(pools(1.0, 0.7)), 1.0, 10_000, false, &pantry, &heal, 10_000), None);
-        assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, true, &pantry, &heal, 10_000), None);
+        assert_eq!(wish(Some(pools(1.0, 0.7)), 1.0, 10_000, None, false, &pantry, &heal, 10_000), None);
+        assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, None, true, &pantry, &heal, 10_000), None);
         // A kit without bandages (the tip's): a low pain pool wishes nothing, the habit on or not.
         let mut medkits_only = Pantry::medkits();
         medkits_only.new_life(0);
-        assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, false, &medkits_only, &heal, 10_000), None);
+        assert_eq!(wish(Some(pools(1.0, 0.5)), 1.0, 10_000, None, false, &medkits_only, &heal, 10_000), None);
     }
 
     #[test]
@@ -1019,19 +1093,23 @@ mod tests {
         let heal = bandage_habit(true);
         // The world shows the same pools throughout (the bot's own presses are projected): the medkit and the bandages go
         // out in the first two asks, 100 ms apart, and nothing a third time: one hurt is not answered twice.
-        let mut keys = Vec::new();
-        for step in 0..3 {
-            let now = 10_000 + step * 100;
-            let got = wish(Some(pools(0.4, 0.4)), 0.4, 10_000, false, &pantry, &heal, now);
-            if let Some(w) = got {
-                let quick = key::QUICK.iter().position(|&k| k == w.key).expect("a quick key");
-                assert!(pantry.pressed(quick, now));
-                keys.push(w.key);
-            } else {
-                assert_eq!(step, 2, "the third ask is the empty one");
+        let asks = |pain: f32, pantry: &mut Pantry| {
+            let mut keys = Vec::new();
+            for step in 0..3 {
+                let now = 10_000 + step * 100;
+                let got = wish(Some(pools(0.4, pain)), 0.4, 10_000, None, false, pantry, &heal, now);
+                if let Some(w) = got {
+                    let quick = key::QUICK.iter().position(|&k| k == w.key).expect("a quick key");
+                    assert!(pantry.pressed(quick, now));
+                    keys.push(w.key);
+                }
             }
-        }
-        keys.sort_unstable();
-        assert_eq!(keys, [key::QUICK[0], key::QUICK[1]], "the medkit and the bandages, once each");
+            keys.sort_unstable();
+            keys
+        };
+        assert_eq!(asks(0.2, &mut pantry), [key::QUICK[0], key::QUICK[1]], "the medkit and the bandages, once each");
+        // Since revision 40 the medkit takes 40 % of the pain: a pain pool of 0.4 is answered by it alone.
+        let mut pantry = kit_with_bandages();
+        assert_eq!(asks(0.4, &mut pantry), [key::QUICK[0]], "the medkit's pain is reckoned");
     }
 }

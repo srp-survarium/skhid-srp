@@ -18,7 +18,7 @@ switches ON think: fall_lock rest_off_lip shut_in_gate stamina stranded_start
 switches ON threat: area crossfire_out_of_lines detour job job_line_by_id job_objective job_open_staffed lane_weighted lanes_pierce pair_up_hidden recast spots sprint trade_out_of_lines whole_route whole_route_booked
 switches ON traps: enabled press_landing_m=1 react.defuse react.hear react.jump react.on react.pass react.shot
 switches ON unstick: blind_stop_ms=4500 home_gate_max_ms=90000 home_no_way_ms=20000 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
-switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_close combat.grenade_close_pace combat.grenade_off_y_m combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.stand_strafe combat.worth.objective_in_band combat.worth.switch_gap_m
+switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_step_slides_along combat.glance_run_yields combat.grenade_close combat.grenade_close_pace combat.grenade_off_y_m combat.grenade_push_tracks combat.grenade_volley combat.grenade_volley_track combat.hit_at_shot combat.hit_bearing combat.hit_bearing_with_target combat.lead_drop combat.lead_flight combat.outranged_cover combat.reacquire_keep combat.stand_strafe combat.worth.objective_in_band combat.worth.switch_gap_m
 switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
@@ -35,6 +35,7 @@ switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0}
 switch values feel: drop_truth=links past_drop=window
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
+switch values heal: drug_stops=known
 switch values kin: edge=client fix_floor=under_in_jump jump_snap=by_keys margin_edge=lattice pitch_scale=client walk_off_landing=link
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}

@@ -431,6 +431,7 @@
     "hit_shot_ms": 3000,
     "hit_aim_deg": 8.0,
     "hit_match_deg": 15.0,
+    "hit_at_shot": null,
     "hit_cover": true,
     "hit_cover_m": 30.0,
     "hit_cover_reach": true,

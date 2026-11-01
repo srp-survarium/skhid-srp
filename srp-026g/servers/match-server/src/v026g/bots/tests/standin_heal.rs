@@ -11,13 +11,18 @@
 //! - nothing heals for the drug's delay; then for its active time each pool
 //!   it treats gains its rate a second, clamped to the pool's maximum
 //!   (`medkit::tick` 0x33D790): the medkit 2 s then 3 s at 1.0 a second on
-//!   the head (0.4), the body (1.0), the hands and legs (0.5), no pain; the
+//!   the head (0.4), the body (1.0), the hands and legs (0.5), and since
+//!   revision 40 40 % of the pain over the 3 s ([`MEDKIT_PAIN_PER_S`]); the
 //!   bandages of revision 32 (`origin/main:srp-026g/scripts/content-edit/
 //!   bandages-1.json`) 1 s then 1 s at 1.0 on hands and legs, 0.35 on the
 //!   body, 0.14 on the head, 0.35 on the pain; the antitoxin 1 s then 10 s
 //!   at 0.5 on the infection, and a toxic hit is halved while it is active
 //!   (LIKELY: the hit path was not read);
-//! - a use cannot be cancelled; only a death ends it;
+//! - a use is not cancelled by its player; a death ends it, and since
+//!   revision 40 so does a ranged hit that took health (patch 84,
+//!   `origin/main:srp-026g/docs/notes/drug-interrupt.md`): in its delay it
+//!   heals nothing, in its active time what it healed stays, the unit stays
+//!   used, and the slot takes its next press at once ([`stop_on_bullet`]);
 //! - a spawn fills a slot from the item's storage (the slot's count, at
 //!   most what the storage has) and the storage loses it; a death puts the
 //!   slot back (`inventory::setup_from_profile` 0x2FCB70).
@@ -71,6 +76,18 @@ pub(crate) fn model_on() -> bool {
         Ok("off") => false,
         Ok(_) => true,
         Err(_) => super::bench::bench_tuning().heal.on,
+    })
+}
+
+/// [A217] Whether the stand-in's drugs are revision 40's (`SRP_BENCH_STAND_IN_DRUGS`, default `rev40`, the live game): a bullet
+/// that took health stops them ([`stop_on_bullet`]) and the Medikit takes pain ([`Model::since_rev40`]). `rev39` puts
+/// back the drugs of before (an identity run of the bots on the old game).
+pub(crate) fn rev40() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| match bench_settings().var("SRP_BENCH_STAND_IN_DRUGS").as_deref() {
+        Ok("rev39") => false,
+        Ok("rev40") | Err(_) => true,
+        Ok(other) => panic!("SRP_BENCH_STAND_IN_DRUGS={other}: rev40 or rev39"),
     })
 }
 
@@ -190,6 +207,10 @@ impl Group {
     }
 }
 
+/// The Medikit's pain, a second, since revision 40: 40 % of the pool over its 3 s
+/// (`origin/main:srp-026g/scripts/medicines/medicines.tsv`, 32c661400, PROVEN).
+pub(crate) const MEDKIT_PAIN_PER_S: f32 = 0.4 / 3.0;
+
 /// What a drug does: the client's `.options` (PROVEN) and the revision 32
 /// bandages.
 #[derive(Debug)]
@@ -198,6 +219,8 @@ pub(crate) struct Model {
     pub(crate) delay_s: f32,
     pub(crate) active_s: f32,
     rates: &'static [(Group, f32)],
+    /// Rates since revision 40, with [`rev40`].
+    since_rev40: &'static [(Group, f32)],
     /// A toxic hit is this share of itself while the drug is active.
     toxic: f32,
 }
@@ -213,6 +236,7 @@ pub(crate) const MODELS: [Model; 3] = [
             (Group::Hands, 1.0),
             (Group::Legs, 1.0),
         ],
+        since_rev40: &[(Group::Pain, MEDKIT_PAIN_PER_S)],
         toxic: 1.0,
     },
     Model {
@@ -226,6 +250,7 @@ pub(crate) const MODELS: [Model; 3] = [
             (Group::Head, 0.14),
             (Group::Pain, 0.35),
         ],
+        since_rev40: &[],
         toxic: 1.0,
     },
     Model {
@@ -233,15 +258,20 @@ pub(crate) const MODELS: [Model; 3] = [
         delay_s: 1.0,
         active_s: 10.0,
         rates: &[(Group::Infection, 0.5)],
+        since_rev40: &[],
         toxic: 0.5,
     },
 ];
 
 impl Model {
+    /// The rates in the game the run has: [`Self::rates`], and [`Self::since_rev40`] with [`rev40`].
+    fn rates_now(&self) -> impl Iterator<Item = &(Group, f32)> {
+        self.rates.iter().chain(if rev40() { self.since_rev40 } else { &[] })
+    }
+
     /// The rate a second the drug restores `pool` at.
     pub(crate) fn rate(&self, pool: Pool) -> f32 {
-        self.rates
-            .iter()
+        self.rates_now()
             .filter(|(group, _)| group.pools().contains(&pool))
             .map(|&(_, rate)| rate)
             .sum()
@@ -257,7 +287,7 @@ pub(crate) fn model_of(drug: Drug) -> &'static Model {
 
 /// `model`'s rates over `dt_s` seconds on `target`.
 fn heal(target: &mut impl Restore, model: &Model, dt_s: f32) {
-    for &(group, rate) in model.rates {
+    for &(group, rate) in model.rates_now() {
         for &pool in group.pools() {
             target.restore(pool, rate * dt_s);
         }
@@ -416,6 +446,19 @@ impl Heal {
         Pressed::Used(slot.drug)
     }
 
+    /// [A217] Patch 84: a bullet that took health at `tick` stops every drug in use (all three heal a pool); the
+    /// units stay used, and a slot is free for its next press at once. What each stopped drug was doing.
+    pub(crate) fn shot(&mut self, tick: u32) -> Vec<(Drug, Stopped)> {
+        let stopped = self
+            .uses
+            .iter()
+            .filter(|u| !over(u, tick))
+            .map(|u| (u.drug, if active(u, tick) { Stopped::Active } else { Stopped::InDelay }))
+            .collect();
+        self.uses.clear();
+        stopped
+    }
+
     /// The share of a toxic hit the body takes at `tick`.
     pub(crate) fn toxic_factor(&self, tick: u32) -> f32 {
         self.uses
@@ -520,6 +563,34 @@ pub(crate) struct Seen {
 /// A press of a quick-use key: the tick, the place, what it did, and the
 /// body pool before it.
 pub(crate) type DrugPress = (u32, Place, Pressed, f32);
+
+/// [A217] Where a drug a bullet stopped was.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Stopped {
+    /// In its delay: it healed nothing (the medkit's 2 s).
+    InDelay,
+    /// In its active time: what it healed stays.
+    Active,
+}
+
+/// [A217] A drug a bullet stopped: the tick, the place, the drug, where it was.
+pub(crate) type DrugStop = (u32, Place, Drug, Stopped);
+
+/// The pools a bullet takes from in the stand-in (the body, the head, the pain a limb hit takes for the limb's
+/// own health, the legs), summed: a hit that lowers it took health.
+pub(crate) fn health_of(body: &Body) -> f32 {
+    body.health + body.pools.head + body.pools.pain + body.legs.iter().sum::<f32>()
+}
+
+/// [A217] Patch 84 (live since revision 40; `origin/main:srp-026g/docs/notes/drug-interrupt.md`): a ranged hit
+/// that took health (the pools of `body` under `before`, [`health_of`]) stops every healing drug the body has in
+/// use, at `tick`; a bullet the armour stopped whole stops nothing. Logged in `log`.
+pub(crate) fn stop_on_bullet(body: &mut Body, place: Place, before: f32, tick: u32, log: &mut Vec<DrugStop>) {
+    if !model_on() || !rev40() || health_of(body) >= before {
+        return;
+    }
+    log.extend(body.heal.shot(tick).into_iter().map(|(drug, at)| (tick, place, drug, at)));
+}
 
 /// The quick-use keys among `pressed` (the keys that went down this tick)
 /// pressed by the living `body` of `place` at `tick`.
@@ -677,9 +748,31 @@ mod tests {
         assert!((pools.legs[0] - 0.5).abs() < 1e-3 && (pools.hands[0] - 0.5).abs() < 1e-3);
         run(&mut heal, &mut pools, 12_500, 3_000);
         assert_eq!(pools.body, 1.0);
-        // No pain, no infection.
-        assert_eq!((pools.pain, pools.infection), (0.5, 0.3));
+        // 40 % of the pain since revision 40, no infection.
+        assert!((pools.pain - 0.9).abs() < 1e-3, "{}", pools.pain);
+        assert_eq!(pools.infection, 0.3);
         assert!(heal.uses.is_empty(), "over after 5 s");
+    }
+
+    /// [A217] Patch 84: a bullet in the medkit's delay stops it (nothing healed), one in its active time keeps what
+    /// it healed; either way the slot takes the next press at once.
+    #[test]
+    fn a_bullet_stops_a_drug_in_its_delay_or_its_active_time_and_frees_the_slot() {
+        let mut heal = spawned();
+        let mut pools = hurt();
+        assert_eq!(heal.press(0, 1_000), Pressed::Used(Drug::Medkit));
+        run(&mut heal, &mut pools, 1_000, 1_500);
+        assert_eq!(heal.shot(2_500), vec![(Drug::Medkit, Stopped::InDelay)]);
+        run(&mut heal, &mut pools, 2_500, 4_000);
+        assert_eq!(pools, hurt(), "stopped in its delay: nothing healed");
+        assert_eq!(heal.press(0, 6_500), Pressed::Used(Drug::Medkit), "the slot takes the next press at once");
+        run(&mut heal, &mut pools, 6_500, 2_250);
+        let healed = pools;
+        assert!(healed.body > hurt().body && healed.body < 1.0, "{}", healed.body);
+        assert_eq!(heal.shot(8_750), vec![(Drug::Medkit, Stopped::Active)]);
+        run(&mut heal, &mut pools, 8_750, 3_000);
+        assert_eq!(pools, healed, "what it healed stays, the rest is gone");
+        assert!(heal.shot(12_000).is_empty(), "nothing in use");
     }
 
     #[test]
@@ -867,6 +960,7 @@ mod tests {
                 let rate = item
                     .treats
                     .iter()
+                    .chain(item.also)
                     .find(|(pool, _)| *pool == mine)
                     .map_or(0.0, |&(_, rate)| rate);
                 assert_eq!(rate, model.rate(theirs), "{:?} {mine:?}", item.drug);
@@ -1025,7 +1119,14 @@ mod tests {
                         // assignment is compared, and then nothing else of the bot's play may have moved.
                         if bot.assignment.as_ref() == assignment.as_ref() {
                             assert_eq!(&bot.last_ran, last_ran, "last_ran stamped by a heal");
-                            assert_eq!(bot.route.is_some(), *routed, "route ended by a heal");
+                            // A route the play plans in the same poll is its own (A217: place 4 at 26 s began one as it
+                            // pressed); a route the press ends would be the heal's.
+                            assert!(
+                                bot.route.is_some() || !*routed,
+                                "route ended by a heal: tick {}, place {}",
+                                game.tick,
+                                m.place
+                            );
                             unchanged += 1;
                         }
                     }
