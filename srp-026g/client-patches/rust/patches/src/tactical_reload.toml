@@ -1,0 +1,14 @@
+# Patch 90: a reload with rounds left in the magazine lasts the weapon's
+# parameters/tactical_reload_time, an empty one its reload_time, as retail
+# 0.69d0 times them. The sites (the two-clip reload state's construction and
+# its hands clip's speed) are sites_026g.tsv's; the logic is tactical_reload.rs.
+name = "tactical_reload"
+patch = 90
+
+[[hook]]
+site = "pistol_reload.constructed"
+handler = "on_constructed"
+
+[[hook]]
+site = "pistol_reload.lexeme_time_scale"
+handler = "on_lexeme_time_scale"

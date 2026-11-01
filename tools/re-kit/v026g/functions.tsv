@@ -1914,3 +1914,6 @@ va	status	ref_021d	name
 0x00304370	reviewed	0x001e8da3	survarium::hit_type
 0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
 0x001b9460	reviewed	0x0012d125	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x0030fe90	reviewed	0x001f31f6	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme
+0x0030fc50	reviewed	0x001f3056	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state
+0x00255260	reviewed	0x0018f6dc	survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>

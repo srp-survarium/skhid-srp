@@ -2765,6 +2765,84 @@ tab_cursor_on_hud_call_replay:
     db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x233d36
 
+; 0x255276 the pistol reload state's sound handler ctor (0x255260) once the state's own ctor (0x30FC50) returned (mov ecx,[esp+20h]; mov eax,[esp+1Ch]): ESI the state, its clips and time scale set, the creation params at [esp+10h]; the only construction of the class (0x255260 is the cook's, 0x25331E): lohook -> tactical_reload_on_constructed
+global tactical_reload_on_constructed
+extern hook_tactical_reload_on_constructed
+tactical_reload_on_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tactical_reload_on_constructed
+    mov edx, tactical_reload_on_constructed_replay
+    cmp eax, 0
+    je tactical_reload_on_constructed_go
+    mov edx, 0x25527e
+    cmp eax, 1
+    je tactical_reload_on_constructed_go
+    ud2
+tactical_reload_on_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tactical_reload_on_constructed_replay:
+    db 0x8b, 0x4c, 0x24, 0x20, 0x8b, 0x44, 0x24, 0x1c
+    jmp 0x25527e
+
+; 0x30fec9 get_weapon_lexeme (0x30FE90, the hands clip of a two-clip reload) after it stored the state's time scale as apply_modifier's value (fstp [esp]), before the clip slot (lea ebx,[ebx+ecx*2]; add ebx,ebx): EDI the state; BL the magazine empty, CL crouching: lohook -> tactical_reload_on_lexeme_time_scale
+global tactical_reload_on_lexeme_time_scale
+extern hook_tactical_reload_on_lexeme_time_scale
+tactical_reload_on_lexeme_time_scale:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tactical_reload_on_lexeme_time_scale
+    mov edx, tactical_reload_on_lexeme_time_scale_replay
+    cmp eax, 0
+    je tactical_reload_on_lexeme_time_scale_go
+    mov edx, 0x30fece
+    cmp eax, 1
+    je tactical_reload_on_lexeme_time_scale_go
+    ud2
+tactical_reload_on_lexeme_time_scale_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tactical_reload_on_lexeme_time_scale_replay:
+    db 0x8d, 0x1c, 0x4b, 0x03, 0xdb
+    jmp 0x30fece
+
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char
 extern hook_text_input_on_char

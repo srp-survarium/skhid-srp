@@ -4990,3 +4990,10 @@ va	name	location	role	basis
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	entry ESP+4	sort_by_size_predicate (empty)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+8	the light_props filled (+7Ch shadow_map_size_index u32, the map 1024, 512, 256 texels for 0, 1, 2 in 0.10b's index_to_shadow_size, not read in 0.26g; +84h shadow_transparency, a float, an int config converted)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+0Ch	the light's config table (has_key 0xF6C00 / child 0xF6B10 per field)	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	EDI	this, the reload state (weapon_and_hands_expression's ECX, 0x30FE05)	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+4	the lexeme it builds (returned in EAX)	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+8	the mutable buffer	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+12	the user state, 1 crouch (cmp [esp+0Ch],1, 0x30FE9A)	observed
+0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	EAX	the weapon_state_creation_params (weapon at +4, reload_time at +10h)	observed
+0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	stack+4	this (the handler ctor's ESI, 0x255270)	observed
+0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	stack+8	the 10 clips: the 2 item clips (+164h), then the 8 hands clips (+144h), flat 4 x view + 2 x crouch + empty	observed

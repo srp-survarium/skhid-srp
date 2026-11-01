@@ -2683,6 +2683,45 @@ time (display only): patch 77's `consumable_activity` tells a stopped drug
 from a spent one by the timers set_active(0) leaves, and sends phase 3
 (section "Medical consumable activity (patch 77)").
 
+### Tactical reload (patch 90)
+
+`tactical_reload` (Rust, `vostok::reload`; the rules: `tactical-reload.md`) times
+the two clips of state type 314, `pistol_weapon_core_reload_state`, apart. PROVEN
+in the code, both sites run with Unicorn from the game's own functions
+(`check_tactical_reload_026g.py`); not run in a game until the in-game check.
+
+- **The state** (0x16C bytes, its sound handler's own members from +170h; the
+  cook allocates 1B0h, 0x24E110): +120h the weapon, +130h the clip array being
+  waited on, +134h that clip's index, +138h the one speed, +144h the 8 hands
+  clips `[view + 2 x empty + 4 x crouch]`, +164h the 2 item clips `[empty]`.
+  The ctor (0x30FC50: EAX the creation params, then this and the 10 clips on the
+  stack, `ret 8`) fills them from the config's `animations` and
+  `user_animations` (flat `4 x view + 2 x crouch + empty`) and sets +138h =
+  computed_show_animation_time_scale (0x30D750) of clip 2 (the first hands clip,
+  the tactical one) over `params->reload_time` (+10h). It has one caller, the
+  sound handler's ctor 0x255260, which has one, the cook's on_subresources_ready
+  (0x25331E).
+- **The clip** (get_weapon_lexeme 0x30FE90, 0.21d 0x1F31F6; called only by
+  weapon_and_hands_expression 0x30FDF0, the class's and its handler's vtable slot
+  20h): slot `2 x ([weapon+5E5h] == 0) + 4 x crouch` of view 0, its speed
+  apply_modifier(13, [this+138h], 1.0); the item clip `[+164h + 4 x empty]`
+  follows it as weight_driving (0x30FE38). 0.21d put the speed on the item clip.
+  The reload ends when the clip does (+134h, on_animation_end -> instant_reload).
+- **Hook 1**, `pistol_reload.constructed` (0x255276, `mov ecx,[esp+20h]` /
+  `mov eax,[esp+1Ch]`, 8 bytes, replayed): ESI the state, the params at
+  [esp+10h]. With `parameters/tactical_reload_time` (the params' config +0, the
+  one `reload_time` came from, its modifications applied) and both times
+  positive: +138h = 0x30D750(slot 2, `reload_time`), +16Ch = 0x30D750(slot 0,
+  `tactical_reload_time`); else +16Ch = 0. +16Ch is tail padding: no function of
+  the class or its handler (0x30FC50, 0x30FDB0, 0x30FDF0, 0x30FE90, 0x30E420,
+  0x252F90, 0x253090, 0x2530D0, 0x2523C0, 0x255260, 0x255750) touches it; the
+  check runs the original's ctor over CCh and finds it untouched.
+- **Hook 2**, `pistol_reload.lexeme_time_scale` (0x30FEC9, `lea ebx,[ebx+ecx*2]` /
+  `add ebx,ebx`, 5 bytes, replayed; after `fstp [esp]` stored +138h as
+  apply_modifier's value): EDI the state; with +16Ch a speed and
+  `[weapon+5E5h] != 0`, [esp] = +16Ch. +138h is read nowhere else in the class
+  (0x30FEC0 only).
+
 ### Names on the Tab map (patch 82)
 
 `map_names` (Rust, `vostok::GameWorldKeys`) is a lohook at 0x25CD1C in

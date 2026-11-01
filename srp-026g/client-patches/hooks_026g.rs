@@ -1542,6 +1542,36 @@ pub extern "C" fn hook_tab_cursor_on_hud_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- tactical_reload (patch 90) ----
+
+/// The entry `tactical_reload_on_constructed` (0x255276, the pistol reload state's sound handler ctor (0x255260) once the state's own ctor (0x30FC50) returned (mov ecx,[esp+20h]; mov eax,[esp+1Ch]): ESI the state, its clips and time scale set, the creation params at [esp+10h]; the only construction of the class (0x255260 is the cook's, 0x25331E)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tactical_reload_on_constructed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tactical_reload_on_constructed` calls this, from the game's jump at 0x255276,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tactical_reload::on_constructed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- tactical_reload (patch 90) ----
+
+/// The entry `tactical_reload_on_lexeme_time_scale` (0x30fec9, get_weapon_lexeme (0x30FE90, the hands clip of a two-clip reload) after it stored the state's time scale as apply_modifier's value (fstp [esp]), before the clip slot (lea ebx,[ebx+ecx*2]; add ebx,ebx): EDI the state; BL the magazine empty, CL crouching) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tactical_reload_on_lexeme_time_scale(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tactical_reload_on_lexeme_time_scale` calls this, from the game's jump at 0x30fec9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tactical_reload::on_lexeme_time_scale(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- text_input (patch 52) ----
 
 /// The named exits of text_input::on_char (the order the shim's Flow code

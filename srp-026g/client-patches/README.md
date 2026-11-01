@@ -3939,3 +3939,24 @@ time, the active time and between them.
 The stopped drug's quick slot shows red for a second of game time (display
 only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
 `../scripts/consumable-activity/check.sh`).
+
+## Tactical reload (patch 90, unreleased)
+
+A two-clip reload (state type 314: the pistols, the SVD, the SKS, the SOCOM 16,
+the Kedr, the Kiparis, the two-clip ports) with rounds left in the magazine lasts
+the weapon's `parameters/tactical_reload_time`, an empty one its `reload_time`,
+as retail 0.69d0 times them (the owner, 2026-11-01; `../docs/notes/tactical-reload.md`).
+The game already plays the tactical clip with rounds left and the empty one
+without (get_weapon_lexeme 0x30FE90, `ammo_in_magazine == 0`), but at one speed,
+the tactical clip's length over `reload_time` (the ctor 0x30FC50). The Rust
+`tactical_reload` hooks: at the state's construction (0x255276, the sound
+handler's ctor after the state's), with both times in the weapon's config, the
+state's speed becomes the empty clip's length over `reload_time` and its tail
+padding (+16Ch) the tactical clip's over `tactical_reload_time`, both by the
+game's computed_show_animation_time_scale (0x30D750, `engine_animation_time_scale`);
+in get_weapon_lexeme (0x30FEC9), with rounds in the magazine, the speed handed
+to apply_modifier is the tactical one. A weapon without `tactical_reload_time`
+keeps the game's timing. The data: content-edit `tactical-reload-1`. A match's
+computation changes: every client of a match needs it.
+`check_tactical_reload_026g.py` runs the cook's ctor and get_weapon_lexeme in the
+original and the patched exe.

@@ -173,6 +173,8 @@ unsafe extern "C" {
     pub fn engine_set_listener(scene: Option<SoundScene>, position: *const f32, front: *const f32, top: *const f32);
     /// 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
     pub fn engine_medkit_set_active(medkit: Option<Medkit>, active: u32, time: u32);
+    /// 0x30d750 survarium::computed_show_animation_time_scale: animation EDI, time ESP+4; pops 0; XMM0
+    pub fn engine_animation_time_scale(animation: Option<ManagedResourcePtr>, time: f32) -> f32;
 }
 
 #[allow(dead_code)]
@@ -6759,6 +6761,238 @@ impl HitInfo {
     }
 }
 
+/// A survarium::pistol_weapon_core_reload_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PistolWeaponCoreReloadState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PistolWeaponCoreReloadState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x120 (ptr<survarium::weapon_core>): the weapon the state reloads (initialize 0x30FDBA, get_weapon_lexeme 0x30FE90)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon(self) -> Option<WeaponCore> {
+        unsafe { self.0.byte_add(0x120).cast::<Option<WeaponCore>>().read_volatile() }
+    }
+
+    /// +0x138 (f32): the clips' animation speed, the tactical clip's length over parameters/reload_time (the ctor 0x30FCA2 by computed_show_animation_time_scale 0x30D750 from the first hands clip; read only at 0x30FEC0, get_weapon_lexeme's value to apply_modifier 13)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x138).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x144 (obj<vostok::resources::managed_resource_ptr>): the 8 hands clips, the slot view + 2 x empty + 4 x crouch (the ctor's loop 0x30FD23 from the config's user_animations, flat 4 x view + 2 x crouch + empty; get_weapon_lexeme reads view 0: +144h + 8 x (empty + 2 x crouch), 0x30FECC); slot 0 the magazine-not-empty clip, slot 2 the empty one
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hands_animations(self) -> ManagedResourcePtr {
+        ManagedResourcePtr(unsafe { self.0.byte_add(0x144) })
+    }
+
+    /// +0x16c (f32): patch 90's: the tactical clip's speed, 0 for none; the class's tail padding: its members end at +16Ch (the item clips +164h, 2 x 4), its sound handler's own start at +170h (0x255260 -> 0x297B40; its last, +1ACh, the 1B0h allocation 0x24E110); no code of the class or its handler touches +16Ch (they are 0x30FC50, 0x30FDB0, 0x30FDF0, 0x30FE90, 0x30E420, 0x252F90, 0x253090, 0x2530D0, 0x2523C0, 0x255260, 0x255750)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tactical_time_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x16c).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::resources::managed_resource_ptr (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ManagedResourcePtr(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ManagedResourcePtr {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the resource it holds, 0 none (a counted pointer: count at the resource's +0DCh, computed_show_animation_time_scale 0x30D75D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x4 bytes: a pointer: the clip arrays step 4 (the ctor 0x30FD7E steps 8 over every other one)
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::managed_resource_ptrs (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ManagedResourcePtrStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl ManagedResourcePtrStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ManagedResourcePtr {
+        ManagedResourcePtr(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ManagedResourcePtr> {
+        (!rooms.is_empty()).then(|| ManagedResourcePtr(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::weapon_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x5e4 (u8): the magazine's rounds (reload_one_round 0x2E1A0F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn magazine_capacity(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5e4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5e5 (u8): the rounds in the magazine (reload_one_round 0x2E1A01; the reload's empty test, get_weapon_lexeme 0x30FEA5 and weapon_and_hands_expression 0x30FE1A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ammo_in_magazine(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5e5).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::weapon_state_creation_params (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponStateCreationParams(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponStateCreationParams {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::binary_config>): the weapon's config, its modifications applied (query_weapon_states 0x30B4BE; the parameters it read are its root's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<BinaryConfig> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BinaryConfig>>().read_volatile() }
+    }
+
+    /// +0x10 (f32): parameters/reload_time (query_weapon_states 0x30B34A -> 0x30B4E8; the pistol reload ctor's fld [eax+10h], 0x30FC5D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reload_time(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::pistol_reload_construct_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PistolReloadConstructFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PistolReloadConstructFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::weapon_state_creation_params>): the sound handler ctor's first argument, the creation params (by the site's ESP at 0x255276: three pushes over it; read at 0x25526C as [esp+14h] for the state's ctor)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn params(self) -> Option<WeaponStateCreationParams> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<WeaponStateCreationParams>>().read_volatile() }
+    }
+}
+
+/// A survarium::reload_lexeme_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReloadLexemeFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ReloadLexemeFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): apply_modifier's value B, the state's time scale get_weapon_lexeme just stored (fld [edi+138h]; fstp [esp], 0x30FEC6), its result the hands clip's speed (0x30FF17)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -8461,6 +8695,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn hit(machine: &impl Machine) -> Option<HitInfo> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitInfo)
+        }
+    }
+
+    /// pistol_reload.constructed (0x255276): the pistol reload state's sound handler ctor (0x255260) once the state's own ctor (0x30FC50) returned (mov ecx,[esp+20h]; mov eax,[esp+1Ch]): ESI the state, its clips and time scale set, the creation params at [esp+10h]; the only construction of the class (0x255260 is the cook's, 0x25331E)
+    pub mod pistol_reload_constructed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::pistol_weapon_core_reload_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<PistolWeaponCoreReloadState> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(PistolWeaponCoreReloadState)
+        }
+
+        /// the site's ESP: a survarium::pistol_reload_construct_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PistolReloadConstructFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PistolReloadConstructFrame)
+        }
+    }
+
+    /// pistol_reload.lexeme_time_scale (0x30fec9): get_weapon_lexeme (0x30FE90, the hands clip of a two-clip reload) after it stored the state's time scale as apply_modifier's value (fstp [esp]), before the clip slot (lea ebx,[ebx+ecx*2]; add ebx,ebx): EDI the state; BL the magazine empty, CL crouching
+    pub mod pistol_reload_lexeme_time_scale {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::pistol_weapon_core_reload_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<PistolWeaponCoreReloadState> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(PistolWeaponCoreReloadState)
+        }
+
+        /// the site's ESP: a survarium::reload_lexeme_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ReloadLexemeFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ReloadLexemeFrame)
         }
     }
 }

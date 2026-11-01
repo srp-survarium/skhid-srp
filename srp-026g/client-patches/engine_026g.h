@@ -35,6 +35,7 @@ struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
 struct lobby_menu;
+struct managed_resource_ptr;
 struct match_options;
 struct material_pair;
 struct medkit;
@@ -380,5 +381,8 @@ void engine_set_listener(struct sound_scene *scene, const float *position, const
 
 /* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
 void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
+
+/* 0x30d750 survarium::computed_show_animation_time_scale: animation EDI, time ESP+4; pops 0; XMM0 */
+float engine_animation_time_scale(const struct managed_resource_ptr *animation, float time);
 
 #endif

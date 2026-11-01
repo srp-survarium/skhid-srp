@@ -340,3 +340,6 @@ extern engine_set_listener
 ; void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)
 ; 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
 extern engine_medkit_set_active
+; float engine_animation_time_scale(const struct managed_resource_ptr *animation, float time)
+; 0x30d750 survarium::computed_show_animation_time_scale: animation EDI, time ESP+4; pops 0; XMM0
+extern engine_animation_time_scale
