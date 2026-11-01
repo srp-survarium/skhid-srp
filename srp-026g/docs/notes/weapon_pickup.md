@@ -71,7 +71,8 @@
   battery, an artefact, a grenade, a medkit, nothing) "Hold a gun to swap
   it" (`st_weapon_no_gun_in_hands`); a weapon switch under way "Wait for
   the weapon switch" (`st_weapon_switching`); taken already "Already
-  taken" (`st_weapon_already_taken`); anything else (a body that is not
+  taken" (`st_weapon_already_taken`; only while the gun is still drawn at
+  its spot: once hidden, the empty spot shows nothing); anything else (a body that is not
   the drop's, no drop in its record) "Can't pick this up"
   (`st_weapon_cannot_pick_up`). A gun not made yet on this client is
   offered all the same (the pickup waits for it). Not aimed at, out of

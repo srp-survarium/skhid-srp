@@ -777,7 +777,11 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
         return RagdollGun::Shown;
     }
     match record.drop {
-        DropState::Taken => RagdollGun::Hidden,
+        // Taken: hidden, and nothing left to aim at there.
+        DropState::Taken => {
+            SEEN.with(thread, |seen| seen[usize::from(place.get())] = None);
+            RagdollGun::Hidden
+        }
         DropState::Open { .. } => {
             let pose = drop_box(thread, place).and_then(|model| native::drawn_gun(ctx, model));
             SEEN.with(thread, |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));

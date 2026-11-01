@@ -1296,12 +1296,15 @@ def stage2b(patched):
     r.word(r.picker + 0x330, sent)
     r.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: r.picker, UC_X86_REG_EAX: r.picker + 0x32C})
     r.installed()
-    assert not r.draw() and r.removed == [r.instance], "the taken gun is still drawn"
-    assert r.hud() == [("st_weapon_already_taken",)], "the prompt says why after the take"
+    # "Already taken" only while the gun is still drawn there (before the ragdoll's next draw hides it).
+    assert r.hud() == [("st_weapon_already_taken",)], "the gun still seen at its spot"
     assert sights(r)[-1] == "not offered, already taken", sights(r)
+    assert not r.draw() and r.removed == [r.instance], "the taken gun is still drawn"
+    assert r.hud() == [("",)] and r.hud() == [], "hidden: nothing left to aim at"
     assert r.build(USE) == USE
     print("ok the command played (carry.filter): taken; its gun out of the scene on the ragdoll (native draw "
-          "skipped, as patch 78 hides a carrier's), the prompt says it is taken, Use the game's again")
+          "skipped, as patch 78 hides a carrier's); \"Already taken\" only while it is still seen there, then "
+          "nothing at the empty spot; Use the game's again")
 
     rule = "; held 10 two-handed, other %s, gun two-handed, rule %s"
     def battery(g):
