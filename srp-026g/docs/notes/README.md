@@ -36,7 +36,7 @@ given), LIKELY or GUESS.
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
-| [kd-balance.md](kd-balance.md) | The sides of a match by K/D and rating at the match's equipment level (the owner, 2026-11-01): squads 1.3 times, a little diffusion, late joiners, what a match counts |
+| [kd-balance.md](kd-balance.md) | The sides of a match by K/D at the match's equipment level (the owner, 2026-11-01): squads 1.3 times, a small noise, late joiners, what a match counts |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |
 | [data.md](data.md) | `resources.db`: items, skills, drops, quests, item configs |

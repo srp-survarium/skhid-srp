@@ -224,8 +224,8 @@ match). A build of before refuses the file once the step is made.
 
 ## 8. The sides: what a player counts for — choice (2026-10-13)
 
-**Replaced on 2026-11-01** (the owner's): a player now counts for its K/D and rating at the
-match's equipment level, a squad's members 1.3 times, with a little diffusion
+**Replaced on 2026-11-01** (the owner's): a player now counts for its K/D at the match's
+equipment level, a squad's members 1.3 times, with a small noise
 ([kd-balance.md](kd-balance.md)). §8.2's weights of gear level, account level and the overall
 balance rating are no longer counted; the overall rating (§8.3) is still moved and logged, and the
 late-join rule (§9) and the lead are as they were, in K/Ds. Kept below for the record and the

@@ -55,6 +55,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
+use survarium::v026g::drops::Rng;
+
 use super::level_stats;
 use crate::Strength;
 
@@ -1491,31 +1493,33 @@ impl Party {
     }
 }
 
-/// How near the most even way a way of making the sides must be to be
-/// drawn: its sides apart by no more than the most even way's, and this
-/// part of what both sides count for together, in hundredths (the owner's
-/// of 2026-11-01: "a bit of diffusion so players are matched randomly a
-/// bit too"). 8 v 8 of average players count for 32: 0.32 of a K/D.
-pub const DIFFUSION_PERCENT: i64 = 1;
+/// How far each party's strength is shaken before the sides are made,
+/// either way, in thousandths: 100 is a factor drawn from 0.9 to 1.1 (the
+/// owner's of 2026-11-01: "we can add small noise", so the same players
+/// do not always play together).
+pub const NOISE_MILLI: u32 = 100;
 
 /// The sides of a match of a room: `parties` on two sides of at most
 /// `size`, a party too large for a side split into parts that fit (each
-/// part counting its share). Of the ways to put the parties whole, every
-/// one is tried: of those that fit the sizes and whose sides are the
-/// fewest players apart past one, the sides should count the most alike
-/// (`player` a player, and the parties' strengths: the owner's "k/d
+/// part counting its share). Each party's strength is first shaken by a
+/// factor drawn by `seed` within [`NOISE_MILLI`], so the same parties and
+/// seed always make the same sides. Of the ways to put the parties whole,
+/// every one is tried: of those that fit the sizes and whose sides are
+/// the fewest players apart past one, the one whose sides count the most
+/// alike (`player` a player, and the shaken strengths: the owner's "k/d
 /// equalizer", so with an odd count the stronger players are the side of
-/// fewer). One is drawn by `seed` among the ways within
-/// [`DIFFUSION_PERCENT`] of the most even one, so the same players do not
-/// always play together; the same parties and seed always make the same
-/// sides. The largest party (the first of those) is on side 0. When no
+/// fewer). The largest party (the first of those) is on side 0. When no
 /// way fits, the larger parties go first, each to the side with fewer
 /// players, split where it must be.
 pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Vec<u32>; 2] {
+    let mut rng = Rng::new(u64::from(seed) ^ 0x9E37_79B9_7F4A_7C15);
     let parties: Vec<(Vec<u32>, Strength)> = parties
         .iter()
         .flat_map(|party| {
-            let each = party.strength.ratio(1, party.members.len().max(1) as i64);
+            let factor = 1000 - NOISE_MILLI + rng.below(2 * NOISE_MILLI + 1);
+            let each = party
+                .strength
+                .ratio(i64::from(factor), 1000 * party.members.len().max(1) as i64);
             party
                 .members
                 .chunks(size.max(1))
@@ -1540,26 +1544,10 @@ pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Ve
     };
     let fixed = (0..count).max_by_key(|&index| (parties[index].0.len(), std::cmp::Reverse(index)));
     // A room has at most 20 members, so at most 20 parties.
-    let ways = || {
-        (0..1_u32 << count.min(crate::MAX_PLAYERS_PER_MATCH))
-            .filter(|mask| fixed.is_none_or(|fixed| mask >> fixed & 1 == 0))
-    };
-    let best = ways()
-        .map(score)
-        .min()
-        .filter(|&(over, ..)| over == 0)
-        .and_then(|(_, apart, even)| {
-            let players = parties.iter().map(|(members, _)| members.len()).sum();
-            let total = player.times(players) + parties.iter().map(|(_, each)| *each).sum();
-            let near = even + total.ratio(DIFFUSION_PERCENT, 100);
-            let drawn: Vec<u32> = ways()
-                .filter(|&mask| {
-                    let (over, apart_by, by) = score(mask);
-                    over == 0 && apart_by == apart && by <= near
-                })
-                .collect();
-            drawn.get(seed as usize % drawn.len().max(1)).copied()
-        });
+    let best = (0..1_u32 << count.min(crate::MAX_PLAYERS_PER_MATCH))
+        .filter(|mask| fixed.is_none_or(|fixed| mask >> fixed & 1 == 0))
+        .min_by_key(|&mask| score(mask))
+        .filter(|&mask| score(mask).0 == 0);
     let [mut a, mut b] = match best {
         Some(mask) => {
             let mut sides: [Vec<u32>; 2] = Default::default();
@@ -2334,37 +2322,39 @@ mod tests {
     }
 
     /// The owner's of 2026-11-01, "k/d equalizer": players that can be
-    /// split even are, whatever the seed.
+    /// split even are, whatever the seed, when no other way is near.
     #[test]
     fn the_sides_are_as_even_as_they_can_be() {
+        // 24 in all: 12 a side, the two strongest apart (every other way
+        // is 6 or more apart, past twice what the noise can move: 2.4).
         let strengths = [
-            (1, 3000),
-            (2, 500),
-            (3, 1000),
-            (4, 1500),
-            (5, 2000),
-            (6, 1000),
+            (1, 7000),
+            (2, 1000),
+            (3, 4000),
+            (4, 7000),
+            (5, 1000),
+            (6, 4000),
         ];
         let parties: Vec<Party> = strengths.iter().map(|&(id, s)| party(&[id], s)).collect();
         for seed in 0..50 {
             let [a, b] = sides(&parties, 8, KD, seed);
             assert_eq!((a.len(), b.len()), (3, 3));
-            // 9 in all: 4.5 a side, the strongest with the weakest (every
-            // other way is 1 or more apart, past the diffusion's 0.15).
             assert_eq!(
                 (strength_of(&a, &strengths), strength_of(&b, &strengths)),
-                (4500, 4500)
+                (12000, 12000)
             );
-            assert!(a.contains(&1) == a.contains(&2));
+            assert!(a.contains(&1) != a.contains(&4));
         }
         // Eight players of 1 and two of 5 in a 5 v 5: one 5 a side.
         let mut strengths: Vec<(u32, i64)> = (1..=8).map(|id| (id, 1000)).collect();
         strengths.extend([(9, 5000), (10, 5000)]);
         let parties: Vec<Party> = strengths.iter().map(|&(id, s)| party(&[id], s)).collect();
-        let [a, b] = sides(&parties, 5, KD, 7);
-        assert_eq!((a.len(), b.len()), (5, 5));
-        assert!(a.contains(&9) != a.contains(&10));
-        assert_eq!(strength_of(&a, &strengths), strength_of(&b, &strengths));
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 5, KD, seed);
+            assert_eq!((a.len(), b.len()), (5, 5));
+            assert!(a.contains(&9) != a.contains(&10));
+            assert_eq!(strength_of(&a, &strengths), strength_of(&b, &strengths));
+        }
     }
 
     /// The owner's of 2026-11-01: a squad's members count 1.3 times, and
@@ -2374,25 +2364,26 @@ mod tests {
         let squad = party(&[1, 2], 1000);
         assert_eq!(squad.strength(), Strength::from_milli(2600));
         assert_eq!(party(&[3], 1000).strength(), Strength::from_milli(1000));
-        // The squad (2.6) and four alone (0.8, 1.3, 1.4, 1.1) in a 3 v 3:
-        // the squad's third is the one of 1.1 (3.7 against 3.5). Without
-        // the 1.3 (2.0) it would be the one of 1.3 (3.3 against 3.3).
-        let alone = [(3, 800), (4, 1300), (5, 1400), (6, 1100)];
-        let mut parties = vec![squad];
+        // A squad of two of 5 (13) and four alone (0.5, 3.5, 5, 6) in a
+        // 3 v 3: the squad's third is the one of 0.5 (13.5 against 14.5).
+        // Without the 1.3 (10) it would be the one of 3.5 (13.5 against
+        // 11.5, where 0.5 makes 10.5 against 14.5).
+        let alone = [(3, 500), (4, 3500), (5, 5000), (6, 6000)];
+        let mut parties = vec![party(&[1, 2], 5000)];
         parties.extend(alone.iter().map(|&(id, s)| party(&[id], s)));
-        for seed in 0..20 {
+        for seed in 0..50 {
             let [a, b] = sides(&parties, 3, KD, seed);
             let mut with_squad = if a.contains(&1) { a } else { b };
             with_squad.sort_unstable();
-            assert_eq!(with_squad, [1, 2, 6]);
+            assert_eq!(with_squad, [1, 2, 3]);
         }
     }
 
-    /// The owner's of 2026-11-01, "a bit of diffusion": of ways alike
-    /// enough the seed draws one, so the same players do not always play
-    /// together; the same seed always draws the same.
+    /// The owner's of 2026-11-01, "we can add small noise": players alike
+    /// are put apart otherwise by each seed, so the same players do not
+    /// always play together; the same seed always makes the same sides.
     #[test]
-    fn the_seed_draws_among_the_ways_near_the_most_even() {
+    fn the_noise_varies_the_sides_and_a_seed_always_makes_the_same() {
         let parties: Vec<Party> = (1..=8).map(|id| party(&[id], 1000)).collect();
         let drawn: HashSet<[Vec<u32>; 2]> = (0..40)
             .map(|seed| {

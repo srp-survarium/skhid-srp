@@ -1,12 +1,10 @@
-//! The rows an account has in `g26_level_stats`: its kills, deaths and
-//! rating by the equipment level of the matches
-//! ([`crate::v026g::level_stats`]).
+//! The rows an account has in `g26_level_stats`: its kills and deaths by
+//! the equipment level of the matches ([`crate::v026g::level_stats`]).
 
 use rusqlite::{Connection, params};
 
 use crate::persist::PersistError;
-use crate::v026g::balance::Balance;
-use crate::v026g::level_stats::{AtLevel, KillsDeaths, LevelStats};
+use crate::v026g::level_stats::{KillsDeaths, LevelStats};
 
 /// The schema step that adds the table. An account of before has no rows:
 /// it counts as a new player at every level until its first rated match
@@ -18,9 +16,6 @@ pub(super) const MIGRATION: &str = "
         level      INTEGER NOT NULL,
         kills      INTEGER NOT NULL,
         deaths     INTEGER NOT NULL,
-        -- Thousandths of a point; 0 is the average.
-        rating     INTEGER NOT NULL,
-        matches    INTEGER NOT NULL,
         PRIMARY KEY (account_id, level)
     );
     ";
@@ -28,25 +23,18 @@ pub(super) const MIGRATION: &str = "
 /// The account's rows.
 pub(super) fn load(connection: &Connection, account_id: u32) -> Result<LevelStats, PersistError> {
     let mut statement = connection.prepare_cached(
-        "SELECT level, kills, deaths, rating, matches FROM g26_level_stats
-         WHERE account_id = ?1 ORDER BY level",
+        "SELECT level, kills, deaths FROM g26_level_stats WHERE account_id = ?1 ORDER BY level",
     )?;
     let rows = statement.query_map([account_id], |row| {
         Ok((
             row.get::<_, u8>(0)?,
-            AtLevel {
-                kd: KillsDeaths {
-                    kills: row.get(1)?,
-                    deaths: row.get(2)?,
-                },
-                rating: Balance {
-                    rating: row.get(3)?,
-                    matches: row.get(4)?,
-                },
+            KillsDeaths {
+                kills: row.get(1)?,
+                deaths: row.get(2)?,
             },
         ))
     })?;
-    let rows: Vec<(u8, AtLevel)> = rows.collect::<Result<_, _>>()?;
+    let rows: Vec<(u8, KillsDeaths)> = rows.collect::<Result<_, _>>()?;
     Ok(LevelStats::from_rows(rows))
 }
 
@@ -62,16 +50,9 @@ pub(super) fn save(
     )?;
     for &(level, row) in stats.rows() {
         connection.execute(
-            "INSERT INTO g26_level_stats (account_id, level, kills, deaths, rating, matches)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                account_id,
-                level,
-                row.kd.kills,
-                row.kd.deaths,
-                row.rating.rating,
-                row.rating.matches
-            ],
+            "INSERT INTO g26_level_stats (account_id, level, kills, deaths)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![account_id, level, row.kills, row.deaths],
         )?;
     }
     Ok(())
@@ -105,28 +86,20 @@ mod tests {
     fn the_rows_come_back_as_they_were_saved() {
         let dir = temp_dir("round-trip");
         let mut alice = Account::new("Alice");
-        alice.level_stats.played(7, kd(12, 5), 300);
-        alice.level_stats.played(3, kd(1, 4), -1250);
+        alice.level_stats.played(7, kd(12, 5));
+        alice.level_stats.played(3, kd(1, 4));
         {
             let mut repository = SqliteGameRepository::open(&dir.join(DB_FILE)).unwrap();
             repository.save(1, &alice).unwrap();
             repository.save(2, &Account::new("Bob")).unwrap();
             // A second save replaces the rows.
-            alice.level_stats.played(7, kd(2, 1), 50);
+            alice.level_stats.played(7, kd(2, 1));
             repository.save(1, &alice).unwrap();
         }
         let mut repository = SqliteGameRepository::open(&dir.join(DB_FILE)).unwrap();
         let loaded = repository.load_all().unwrap();
-        let seven = loaded[0].1.level_stats.at(7);
-        assert_eq!(seven.kd, kd(14, 6));
-        assert_eq!(
-            seven.rating,
-            Balance {
-                rating: 350,
-                matches: 2
-            }
-        );
-        assert_eq!(loaded[0].1.level_stats.at(3).rating.rating, -1250);
+        assert_eq!(loaded[0].1.level_stats.at(7), kd(14, 6));
+        assert_eq!(loaded[0].1.level_stats.at(3), kd(1, 4));
         assert_eq!(loaded[0].1, alice);
         assert!(loaded[1].1.level_stats.rows().is_empty());
         drop(repository);
@@ -176,10 +149,10 @@ mod tests {
         assert_eq!((id, account.rating), (5, 118));
         assert_eq!(account.level_stats, LevelStats::default());
         // And it is kept from then on.
-        account.level_stats.played(4, kd(3, 3), 10);
+        account.level_stats.played(4, kd(3, 3));
         repository.save(id, &account).unwrap();
         let loaded = repository.load_all().unwrap();
-        assert_eq!(loaded[0].1.level_stats.at(4).kd, kd(3, 3));
+        assert_eq!(loaded[0].1.level_stats.at(4), kd(3, 3));
         drop(repository);
         let _ = std::fs::remove_dir_all(&dir);
     }

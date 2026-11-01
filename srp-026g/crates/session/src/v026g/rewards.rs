@@ -856,9 +856,8 @@ impl Results {
 
     /// A player of gear level `gear` is in the match `match_id` (made, or
     /// let in late): the match's equipment level is the highest of its
-    /// players' (the owner's of 2026-11-01), what its kills, deaths and
-    /// ratings are counted at when it is settled (`level_stats`). The level
-    /// now.
+    /// players' (the owner's of 2026-11-01), what its kills and deaths are
+    /// counted at when it is settled (`level_stats`). The level now.
     pub fn raise_match_gear(&self, match_id: u32, gear: u8) -> u8 {
         let mut inner = self.inner.locked();
         let level = inner.gear.entry(match_id).or_insert(gear);
@@ -1082,15 +1081,7 @@ impl Results {
             })
             .collect();
         let changes = shared.rating_changes(&held);
-        let balance_changes = shared.balance_changes(accounts, |account| account.balance);
-        // The match's equipment level, and how its rating there moves: a
-        // match that moves the balance rating is one of its K/D and rating
-        // at that level (`level_stats`), and no other is.
-        let level_changes = gear.map(|gear| {
-            let changes =
-                shared.balance_changes(accounts, |account| account.level_stats.at(gear).rating);
-            (gear, changes)
-        });
+        let balance_changes = shared.balance_changes(accounts);
 
         let mut players = Vec::with_capacity(result.players.len());
         for (index, player) in result.players.iter().enumerate() {
@@ -1110,15 +1101,16 @@ impl Results {
                     let mut account = account.locked();
                     if let Some(change) = balance_changes[index] {
                         account.balance = account.balance.moved(change);
-                    }
-                    if let Some((gear, changes)) = &level_changes
-                        && let Some(change) = changes[index]
-                    {
-                        let played = KillsDeaths {
-                            kills: u32::from(player.kills),
-                            deaths: u32::from(player.deaths),
-                        };
-                        account.level_stats.played(*gear, played, change);
+                        // A match that moves the balance rating counts its
+                        // kills and deaths at its equipment level
+                        // (`level_stats`), and no other does.
+                        if let Some(gear) = gear {
+                            let played = KillsDeaths {
+                                kills: u32::from(player.kills),
+                                deaths: u32::from(player.deaths),
+                            };
+                            account.level_stats.played(gear, played);
+                        }
                     }
                     let (reward, full, notices) = shared.settle_player(
                         &mut account,
@@ -1689,14 +1681,7 @@ impl<'a> Shared<'a> {
     /// ([`balance::changes_by_share`]): its time in the match against the
     /// longest anybody's was. One who came late or left early is that part
     /// of a player to its side, and is moved by that part.
-    ///
-    /// `rating` is the rating moved: the overall one, or the one at the
-    /// match's equipment level (`level_stats`).
-    fn balance_changes(
-        &self,
-        accounts: &GameAccounts,
-        rating: impl Fn(&Account) -> balance::Balance,
-    ) -> Vec<Option<i32>> {
+    fn balance_changes(&self, accounts: &GameAccounts) -> Vec<Option<i32>> {
         let mut changes = vec![None; self.result.players.len()];
         let Some(winner) = self.winner else {
             return changes;
@@ -1715,7 +1700,7 @@ impl<'a> Shared<'a> {
             })
             .filter_map(|(index, player)| {
                 let account = accounts.get(player.account_id)?;
-                let held = rating(&account.locked());
+                let held = account.locked().balance;
                 Some((index, player.team, held, player.time_in_match_ms))
             })
             .collect();

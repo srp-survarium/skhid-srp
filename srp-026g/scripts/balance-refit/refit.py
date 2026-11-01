@@ -52,7 +52,7 @@ import re
 import sys
 from pathlib import Path
 
-# Since 2026-11-01 the parts go on with the K/D and rating at the match's level.
+# Since 2026-11-01 the parts go on with the K/D at the match's level.
 PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches(?:, [^)]*)?\)"
 LINE = re.compile(r"^(\d\d:\d\d:\d\d(?:\.\d+)?)Z ")
 SIDES = re.compile(r"Match (0x[0-9a-f]+) sides(?: \(equipment level \d+\))?: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")

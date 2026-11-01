@@ -3542,12 +3542,12 @@ fn a_match_moves_the_balance_rating_by_the_sides_sizes() {
     assert_eq!(account(&store, 10).rating, 98);
 }
 
-/// The owner's of 2026-11-01: a match counts its players' kills, deaths
-/// and rating at its equipment level, the highest gear level of its
-/// players (late joiners too), when it moves the balance rating, and
-/// never otherwise (`docs/notes/kd-balance.md`).
+/// The owner's of 2026-11-01: a match counts its players' kills and
+/// deaths at its equipment level, the highest gear level of its players
+/// (late joiners too), when it moves the balance rating, and never
+/// otherwise (`docs/notes/kd-balance.md`).
 #[test]
-fn a_rated_match_counts_kills_deaths_and_rating_at_its_equipment_level() {
+fn a_rated_match_counts_kills_and_deaths_at_its_equipment_level() {
     use crate::v026g::level_stats::KillsDeaths;
 
     let players = three_and_two();
@@ -3565,17 +3565,14 @@ fn a_rated_match_counts_kills_deaths_and_rating_at_its_equipment_level() {
     assert_eq!(results.match_gear(MATCH), None);
     let alice = account(&store, 10).level_stats;
     assert_eq!(alice.rows().len(), 1);
-    let at_nine = alice.at(9);
     assert_eq!(
-        at_nine.kd,
+        alice.at(9),
         KillsDeaths {
             kills: 1,
             deaths: 1
         }
     );
-    // The level's rating moves as the overall one does: both new.
-    assert_eq!(at_nine.rating, account(&store, 10).balance);
-    assert_eq!(account(&store, 11).level_stats.at(9).rating.matches, 1);
+    assert_eq!(account(&store, 10).balance.matches, 1);
 
     // One the balance rating does not move counts nothing: a whole side
     // left, a test bot, no level known (a match made before a restart).

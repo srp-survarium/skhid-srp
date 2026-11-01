@@ -162,9 +162,8 @@ pub struct Account {
     /// ranking's, shown to nobody, kept for the log and its refit
     /// ([`super::balance`]); the sides no longer count it.
     pub balance: super::balance::Balance,
-    /// Its kills, deaths and rating by the equipment level of the
-    /// matches: what the sides of a match are made with
-    /// ([`super::level_stats`]).
+    /// Its kills and deaths by the equipment level of the matches: what
+    /// the sides of a match are made with ([`super::level_stats`]).
     pub level_stats: super::level_stats::LevelStats,
     pub kits: Vec<Kit>,
     /// The id of the kit it plays.

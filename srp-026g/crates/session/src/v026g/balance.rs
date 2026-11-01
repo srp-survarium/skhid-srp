@@ -6,19 +6,18 @@
 //! original server made its sides.
 //!
 //! - **A side counts** [`Weights::player`] for each of its players, and
-//!   each player's strength at the match's equipment level, its K/D and
-//!   its rating there (`super::level_stats`; the owner's of 2026-11-01).
-//!   A room makes its two sides count alike (`crate::v026g::rooms::sides`).
-//! - **The balance rating** ([`Balance`]; one overall, and one at each
-//!   equipment level, `super::level_stats`) is not the ranking's
+//!   each player's K/D at the match's equipment level
+//!   (`super::level_stats`; the owner's of 2026-11-01). A room makes its
+//!   two sides count alike (`crate::v026g::rooms::sides`).
+//! - **The balance rating** ([`Balance`]) is not the ranking's
 //!   (`Account::rating`), which the client shows and which every player of
 //!   a side moves by alike whatever the sides' sizes. It starts at 0 (the
 //!   average), a win raises it and a loss lowers it ([`changes`]), by more
 //!   the less the result was to be expected: the side with a player more
 //!   is expected to win ([`PLAYER`]), so winning with it moves little.
-//!   The rating at the match's level is a part of what a player counts
-//!   for; the overall one was until 2026-11-01, and is still kept and
-//!   written in the log's "sides" lines (`scripts/balance-refit`).
+//!   The sides counted it until 2026-11-01; it is still kept and written
+//!   in the log's "sides" lines (`scripts/balance-refit`), and the matches
+//!   that move it are the ones that count kills and deaths.
 //! - **A match of few players moves none** ([`RATED_PLAYERS`],
 //!   [`players_in`]): one against one and two against one say nothing of
 //!   how sides should be made.
@@ -188,7 +187,7 @@ pub fn changes_by_share(players: &[(u8, Balance, f64)], winner: u8) -> Vec<i32> 
 }
 
 /// What a player is worth to a side when the sides are made, beside its
-/// strength (`super::level_stats`), in K/Ds.
+/// K/D (`super::level_stats`), in K/Ds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Weights {
     /// A player, by being there. With an odd count the side with a player

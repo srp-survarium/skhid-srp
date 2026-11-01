@@ -102,7 +102,7 @@ pub struct Level {
 }
 
 /// What a player, a party or a side counts for when the sides of a match
-/// are made: thousandths of a K/D (`crate::v026g::kd`,
+/// are made: thousandths of a K/D (`crate::v026g::level_stats`,
 /// `docs/notes/kd-balance.md`). A whole number, so every sum and
 /// comparison is exact and the same on every run: never NaN, never
 /// infinite.

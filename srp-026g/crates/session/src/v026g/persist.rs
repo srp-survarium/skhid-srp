@@ -140,8 +140,8 @@ const MIGRATIONS: &[&str] = &[
     drop_cards::MIGRATION,
     // 11: an account's kit presets and the active one (`presets`).
     presets::MIGRATION,
-    // 12: an account's kills, deaths and rating by the matches' equipment
-    // level (`level_stats`).
+    // 12: an account's kills and deaths by the matches' equipment level
+    // (`level_stats`).
     level_stats::MIGRATION,
 ];
 

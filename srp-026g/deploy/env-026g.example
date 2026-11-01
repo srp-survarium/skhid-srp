@@ -85,7 +85,7 @@ RUST_LOG=info
 # SRP_REGISTRATION=closed
 # SRP_MATCH_MODES=2,3,4
 # What a player counts for by being there when the sides of a match are
-# made, in K/Ds, beside its K/D and rating at the match's equipment level
+# made, in K/Ds, beside its K/D at the match's equipment level
 # (docs/notes/kd-balance.md): with an odd count the side with a player more
 # has this much more, so the stronger players are the side of fewer. The
 # default (SRP_BALANCE_PLAYER, _PLAYER_LEVEL, _RATING and _TRUST_MATCHES,

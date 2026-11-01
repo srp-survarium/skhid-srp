@@ -71,8 +71,8 @@ class Refit(unittest.TestCase):
 
     def test_lines_since_k_d_balance(self):
         # Since 2026-11-01 the "sides" line names the match's equipment level
-        # and each player's parts go on with its K/D and rating there.
-        parts = "(gear 3, level 2, rating +0.50 of 4 matches, at 6: kd 1.25 of 40/31, rating -0.20 of 3)"
+        # and each player's parts go on with its K/D there.
+        parts = "(gear 3, level 2, rating +0.50 of 4 matches, at 6: kd 1.25 of 40/31)"
         ms = read("\n".join([
             line("12:00:00.000", f"Match 0xc sides (equipment level 6): team 0 counts 4.20: A, B 2.25 {parts}"
                  + f", C 1.95 {parts} | team 1 counts 2.00: D 2.00 {parts}"),

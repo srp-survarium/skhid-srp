@@ -55,11 +55,8 @@
 //!   `SRP_PUBLIC_HOST` / `SRP_LOBBY_PUBLIC_HOST`, `SRP_LOCAL_PEERS`: the
 //!   address (`vostok::config`), the one the 0.26g login server announces;
 //! - `SRP_BALANCE_PLAYER_KD` (default 1): what a player counts for by
-//!   being there when the sides are made, in K/Ds, beside its strength
-//!   (`session::v026g::balance`, `docs/notes/kd-balance.md`). The settings
-//!   of before 2026-11-01 (`SRP_BALANCE_PLAYER`, `_PLAYER_LEVEL`,
-//!   `_RATING`, `_TRUST_MATCHES`, in gear levels) are no longer read: one
-//!   that is set is an error in the log;
+//!   being there when the sides are made, in K/Ds, beside its K/D
+//!   (`session::v026g::balance`, `docs/notes/kd-balance.md`);
 //! - `SRP_BALANCE_RATED_PLAYERS` (default 4): the fewest players a match
 //!   must have had in it to move the balance rating (read where a match
 //!   is settled: `session::v026g::balance::rated_players`);
@@ -282,24 +279,9 @@ impl Settings {
             battery_lead: weight("SRP_BALANCE_BATTERY_LEAD", defaults.battery_lead),
             ticket_lead: weight("SRP_BALANCE_TICKET_LEAD", defaults.ticket_lead),
         };
-        // In gear levels: a value of them would be read in K/Ds.
-        for gone in [
-            "SRP_BALANCE_PLAYER",
-            "SRP_BALANCE_PLAYER_LEVEL",
-            "SRP_BALANCE_RATING",
-            "SRP_BALANCE_TRUST_MATCHES",
-        ] {
-            if let Some(value) = var(gone) {
-                log::error!(
-                    "{gone} is `{value}`, and is no longer read: the sides are made by the \
-                     players' K/D and rating at the match's equipment level \
-                     (SRP_BALANCE_PLAYER_KD, docs/notes/kd-balance.md); unset it"
-                );
-            }
-        }
         log::info!(
-            "The sides of a match: each player counts for its K/D and rating at the match's \
-             equipment level, and {} K/D for being there",
+            "The sides of a match: each player counts for its K/D at the match's equipment \
+             level, and {} K/D for being there",
             balance.player
         );
         log::info!(

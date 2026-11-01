@@ -2071,7 +2071,7 @@ impl Core<'_> {
             .collect();
         // The match's equipment level: the highest gear level of the
         // players placed (the owner's of 2026-11-01); each counts for its
-        // K/D and rating there.
+        // K/D there.
         let match_gear = ready.iter().map(|each| each.gear).max().unwrap_or(0);
         let strength = |account_id: u32| self.strength_of(account_id, match_gear, false);
         // Squads of the room's members, each a party; any other member alone.
@@ -2108,8 +2108,9 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         }
-        // Drawn among the splits near the most even one (the owner's "a bit
-        // of diffusion"), by a seed of this start.
+        // The strengths are shaken a little by a seed of this start (the
+        // owner's "small noise"), so the same players do not always play
+        // together.
         let seed = self.rng.below(u32::MAX);
         let player_value = self.settings.balance.player_value();
         let sides = match &arranged {
@@ -2415,7 +2416,7 @@ impl Core<'_> {
         let going: Vec<(session::Player, u8)> = std::iter::once((ready.player, ready.gear))
             .chain(waiting_mate.map(|mate| (mate.player, mate.gear)))
             .collect();
-        // Each counts for its K/D and rating at the match's equipment level,
+        // Each counts for its K/D at the match's equipment level,
         // which a joiner of higher gear raises (the owner's of 2026-11-01);
         // a squad's members 1.3 times.
         let squad = mate_side.is_some() || going.len() > 1;

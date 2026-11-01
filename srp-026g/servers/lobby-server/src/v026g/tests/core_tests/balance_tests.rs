@@ -1,11 +1,11 @@
 //! What a player counts for when the sides of a match are made: its K/D
-//! and rating at the match's equipment level (`session::v026g::level_stats`,
+//! at the match's equipment level (`session::v026g::level_stats`,
 //! `docs/notes/kd-balance.md`).
 
 use super::*;
 use session::Strength;
-use session::v026g::balance::{Balance, Weights};
-use session::v026g::level_stats::{self, AtLevel, KillsDeaths, LevelStats};
+use session::v026g::balance::Weights;
+use session::v026g::level_stats::{self, KillsDeaths, LevelStats};
 use session::v026g::matchmaking;
 
 /// Five players press Play, which puts them into one room, and get its
@@ -28,8 +28,8 @@ fn five(world: &mut World) -> Vec<usize> {
         .collect()
 }
 
-/// The same kills, deaths and rating at every equipment level.
-fn everywhere(row: AtLevel) -> LevelStats {
+/// The same kills and deaths at every equipment level.
+fn everywhere(row: KillsDeaths) -> LevelStats {
     LevelStats::from_rows((0..=15).map(|level| (level, row)))
 }
 
@@ -45,12 +45,9 @@ fn with_an_odd_count_the_stronger_players_are_the_side_of_fewer() {
     // side of fewer: 2 + 4 against 3 + 3.
     for strong in [players[2], players[4]] {
         world.change(strong, |account| {
-            account.level_stats = everywhere(AtLevel {
-                kd: KillsDeaths {
-                    kills: 2000,
-                    deaths: 1000,
-                },
-                rating: Balance::default(),
+            account.level_stats = everywhere(KillsDeaths {
+                kills: 2000,
+                deaths: 1000,
             });
         });
     }
@@ -61,35 +58,9 @@ fn with_an_odd_count_the_stronger_players_are_the_side_of_fewer() {
     world.assert_clean();
 }
 
-#[test]
-fn a_rating_at_the_level_counts_too() {
-    let mut world = World::new();
-    let players = five(&mut world);
-    // Bob and Dave won much at every level, over many matches: 2.2 points
-    // trusted nearly in full are about one K/D more.
-    for winner in [players[1], players[3]] {
-        world.change(winner, |account| {
-            account.level_stats = everywhere(AtLevel {
-                kd: KillsDeaths::default(),
-                rating: Balance {
-                    rating: 2200,
-                    matches: 1000,
-                },
-            });
-        });
-    }
-    let sides = sides_of_five(&mut world, &players);
-    assert_eq!(sides[1], sides[3], "{sides:?}");
-    assert_eq!(
-        sides.iter().filter(|&&side| side == sides[1]).count(),
-        2,
-        "{sides:?}"
-    );
-}
-
 /// The owner's of 2026-11-01: the match's equipment level is the highest
-/// gear level of its players, and each counts for its K/D and rating
-/// there; a new player for 1.
+/// gear level of its players, and each counts for its K/D there; a new
+/// player for 1.
 #[test]
 fn each_counts_for_its_strength_at_the_highest_gear_level_of_the_match() {
     let mut world = World::new();
@@ -100,12 +71,9 @@ fn each_counts_for_its_strength_at_the_highest_gear_level_of_the_match() {
     world.change(alice, |account| {
         account.level_stats = LevelStats::from_rows([(
             gear,
-            AtLevel {
-                kd: KillsDeaths {
-                    kills: 300,
-                    deaths: 100,
-                },
-                rating: Balance::default(),
+            KillsDeaths {
+                kills: 300,
+                deaths: 100,
             },
         )]);
     });
@@ -125,7 +93,7 @@ fn each_counts_for_its_strength_at_the_highest_gear_level_of_the_match() {
             .unwrap();
         running.strengths[place]
     });
-    assert_eq!(of_alice, world.account(alice).level_stats.strength_at(gear));
+    assert_eq!(of_alice, world.account(alice).level_stats.kd_at(gear));
     assert!(of_alice > Strength::from_milli(2800), "{of_alice:?}");
     assert_eq!(of_bob, level_stats::DEFAULT_KD);
 }

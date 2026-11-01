@@ -300,28 +300,25 @@ pub(super) struct Running {
 /// counts for and the parts of that, at the match's equipment level
 /// `at`. `scripts/balance-refit` reads these.
 fn counted_player(account: &Account, counts: f64, gear: u8, at: u8) -> String {
-    let unit = f64::from(session::v026g::balance::UNIT);
     let there = account.level_stats.at(at);
     format!(
         "{} {counts:.2} (gear {gear}, level {}, rating {:+.2} of {} matches, at {at}: kd {:.2} \
-         of {}/{}, rating {:+.2} of {})",
+         of {}/{})",
         account.name,
         account.level(),
-        f64::from(account.balance.rating) / unit,
+        f64::from(account.balance.rating) / f64::from(session::v026g::balance::UNIT),
         account.balance.matches,
         account.level_stats.kd_at(at).as_kd(),
-        there.kd.kills,
-        there.kd.deaths,
-        f64::from(there.rating.rating) / unit,
-        there.rating.matches
+        there.kills,
+        there.deaths,
     )
 }
 
 /// What a player counts for in a match of equipment level `gear`, beside
-/// being there: its K/D and rating there (`level_stats`; the owner's of
-/// 2026-11-01), 1.3 times for a member of a squad that plays together.
+/// being there: its K/D there (`level_stats`; the owner's of 2026-11-01),
+/// 1.3 times for a member of a squad that plays together.
 pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength {
-    let strength = account.level_stats.strength_at(gear);
+    let strength = account.level_stats.kd_at(gear);
     if squad {
         level_stats::in_squad(strength)
     } else {

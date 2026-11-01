@@ -1764,7 +1764,7 @@ fn a_late_joiner_of_higher_gear_raises_the_matchs_equipment_level() {
         .unwrap();
     assert_eq!(
         running.strengths.last().copied(),
-        Some(world.account(erin).level_stats.strength_at(raised))
+        Some(world.account(erin).level_stats.kd_at(raised))
     );
 }
 
