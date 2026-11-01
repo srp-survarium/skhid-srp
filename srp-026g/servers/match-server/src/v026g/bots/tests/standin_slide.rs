@@ -111,6 +111,39 @@ pub(crate) fn gain_mps(ground: Ground) -> f32 {
     GRAVITY * deg.to_radians().sin() * TICK_MS as f32 / 1000.0
 }
 
+/// What the bodies of one game slid ([`stand_in_slide`]): counting only.
+#[derive(Default)]
+pub(crate) struct Slides {
+    /// Slides begun, and the ticks and metres (xz) slid.
+    pub(crate) started: u32,
+    pub(crate) ticks: u64,
+    pub(crate) metres: f32,
+    /// The ticks a body stood on ground that slides it with no floor below to slide to (it stands there, as without the switch).
+    pub(crate) no_floor: u32,
+}
+
+impl Slides {
+    /// One tick of a body on ground that slides it: `from` its feet before, `to` after, `began` its first tick; `to` none: no floor below.
+    pub(crate) fn note(&mut self, began: bool, from: Vec3, to: Option<Vec3>) {
+        match to {
+            Some(to) => {
+                self.started += u32::from(began);
+                self.ticks += 1;
+                self.metres += from.distance_xz(to);
+            }
+            None => self.no_floor += 1,
+        }
+    }
+
+    /// The counts for a cell's log.
+    pub(crate) fn line(&self) -> String {
+        format!(
+            "slides: started {} ticks {} metres {:.1} no_floor {}",
+            self.started, self.ticks, self.metres, self.no_floor
+        )
+    }
+}
+
 /// A slide's move this tick from `node` (the body's feet at `feet`) at `speed` m/s: toward its lowest walk or drop neighbour below it,
 /// onto it once reached. None: no floor below to slide to.
 pub(crate) fn slide_step(grid: &WalkGrid, node: NodeId, feet: Vec3, speed: f32) -> Option<(NodeId, Vec3)> {
@@ -145,6 +178,17 @@ mod tests {
         assert!(Ground::Slope(56.0).slides(false));
         // 0.05 s of gravity along a 30 degree face: 0.245 m/s.
         assert!((gain_mps(Ground::Slope(30.0)) - 0.245).abs() < 1e-3);
+    }
+
+    #[test]
+    fn slides_count_their_ticks_metres_and_ends_with_no_floor() {
+        let mut s = Slides::default();
+        let at = |x: f32| Vec3::new(x, 0.0, 0.0);
+        s.note(true, at(0.0), Some(at(0.1)));
+        s.note(false, at(0.1), Some(at(0.3)));
+        s.note(false, at(0.3), None);
+        assert_eq!((s.started, s.ticks, s.no_floor), (1, 2, 1));
+        assert!(s.line().starts_with("slides: started 1 ticks 2 metres 0.3 no_floor 1"), "{}", s.line());
     }
 
     #[test]

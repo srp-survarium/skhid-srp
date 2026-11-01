@@ -637,6 +637,8 @@ pub(crate) struct Game {
     pub(crate) sections: Option<Arc<standin_capsule::Sections>>,
     /// The ground of the floors bodies stand on, by face material and slope ([`standin_slide::Grounds`]), built at the first need.
     pub(crate) grounds: Option<standin_slide::Grounds>,
+    /// What the bodies slid ([`standin_slide::Slides`]).
+    pub(crate) slides: standin_slide::Slides,
     pub(crate) landings: Vec<Landing>,
     /// The height the bodies gained, by way, against what the client's body can climb ([`standin_climb`]).
     pub(crate) climbs: standin_climb::Climbs,
@@ -905,6 +907,7 @@ impl Game {
             walls: None,
             sections: None,
             grounds: None,
+            slides: standin_slide::Slides::default(),
             landings: Vec::new(),
             climbs: standin_climb::Climbs::default(),
             drug_log: Vec::new(),
@@ -1339,7 +1342,9 @@ impl Game {
                     body.slide_mps = match ground {
                         Some(ground) if standin_slide::stand_in_slide() && ground.slides(still || body.slide_mps.is_some()) => {
                             let speed = body.slide_mps.unwrap_or(0.0) + standin_slide::gain_mps(ground);
-                            standin_slide::slide_step(&self.world.grid, node, body.feet, speed).map(|(to, feet)| {
+                            let step = standin_slide::slide_step(&self.world.grid, node, body.feet, speed);
+                            self.slides.note(body.slide_mps.is_none(), body.feet, step.map(|(_, feet)| feet));
+                            step.map(|(to, feet)| {
                                 body.node = Some(to);
                                 body.feet = feet;
                                 speed
