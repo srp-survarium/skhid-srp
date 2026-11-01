@@ -2118,6 +2118,37 @@ fn a_room_whose_match_is_called_off_votes_again_and_plays_with_who_is_there() {
     assert_ne!(again, ticket);
 }
 
+/// srp tells the lobby that a room's match was called off before the match
+/// server lets the match go from its registry (`Settler::match_ended` for
+/// `NotMade`, then housekeeping's `registry.end`). A lobby tick right after
+/// the close then finds the notice first: the match is finished as not
+/// made, and the members who came by Play stay in their room, which votes
+/// again (not `room_match_over`, which would take them out of it).
+#[test]
+fn a_called_off_match_told_before_its_close_keeps_plays_members_in_the_room() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let (ticket, _) = world.match_of(alice, bob);
+    let (a, b) = (world.ids[alice].0, world.ids[bob].0);
+    let key = world.core.rooms.key_of(a).expect("Play's room");
+    {
+        let room = world.core.rooms.get(key).unwrap();
+        assert!(room.by_play.contains(&a) && room.by_play.contains(&b));
+    }
+    world.inbox.match_finished(MatchFinished {
+        match_id: ticket,
+        not_made: true,
+    });
+    world.host.open.lock().unwrap().remove(&ticket);
+    world.advance(Duration::from_secs(1));
+    let room = world.core.rooms.get(key).expect("the room");
+    assert_eq!(room.members.len(), 2, "both still in the room");
+    assert!(room.in_match.is_empty());
+    assert!(!room.after_match, "not finished as a match played");
+    assert_eq!(world.core.rooms.key_of(b), Some(key));
+}
+
 /// A member whose game started anew is an older one (it plays in no match
 /// that takes players) counts for nothing: a room of four that needs four
 /// makes no match of three, which the match server would call off at once
