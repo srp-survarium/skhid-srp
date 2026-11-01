@@ -26,6 +26,7 @@ handler = "on_bones"
 [[hook]]
 site = "camera.eye"
 handler = "on_eye"
+order = 0                           # before patch 89's pose marker, which reads the eye given
 
 # a bullet's ray traced: the corpses it crosses pushed, a living hit kept
 [[hook]]

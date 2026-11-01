@@ -2397,6 +2397,126 @@ music_on_sound_tick_replay:
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
 
+; 0x220482 lobby_menu::switch_to_level_loading with the map's maps_dict entry (map_descriptor_by_id 0x21F910's EAX, the id its ESP+8), before its config is read (mov edx,[eax+8] / add eax,8; the root +108h, then "mode" 0x220493): lohook -> pose_marker_on_level
+global pose_marker_on_level
+extern hook_pose_marker_on_level
+pose_marker_on_level:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_pose_marker_on_level
+    mov edx, pose_marker_on_level_replay
+    cmp eax, 0
+    je pose_marker_on_level_go
+    mov edx, 0x220488
+    cmp eax, 1
+    je pose_marker_on_level_go
+    ud2
+pose_marker_on_level_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+pose_marker_on_level_replay:
+    db 0x8b, 0x50, 0x08, 0x83, 0xc0, 0x08
+    jmp 0x220488
+
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
+global tab_cursor_on_key
+extern hook_tab_cursor_on_key_chain
+tab_cursor_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_key_chain
+    mov edx, tab_cursor_on_key_replay
+    cmp eax, 0
+    je tab_cursor_on_key_go
+    mov edx, 0x25cd09
+    cmp eax, 1
+    je tab_cursor_on_key_go
+    mov edx, 0x25cf15
+    cmp eax, 2
+    je tab_cursor_on_key_go
+    ud2
+tab_cursor_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
+    jmp 0x25cd09
+
+; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
+global ragdoll_on_eye
+extern hook_ragdoll_on_eye_chain
+ragdoll_on_eye:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_eye_chain
+    mov edx, ragdoll_on_eye_replay
+    cmp eax, 0
+    je ragdoll_on_eye_go
+    mov edx, 0x1f3649
+    cmp eax, 1
+    je ragdoll_on_eye_go
+    ud2
+ragdoll_on_eye_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_eye_replay:
+    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
+    jmp 0x1f3649
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
@@ -2474,45 +2594,6 @@ ragdoll_on_bones_go:
 ragdoll_on_bones_replay:
     db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
     jmp 0x24771c
-
-; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
-global ragdoll_on_eye
-extern hook_ragdoll_on_eye
-ragdoll_on_eye:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_eye
-    mov edx, ragdoll_on_eye_replay
-    cmp eax, 0
-    je ragdoll_on_eye_go
-    mov edx, 0x1f3649
-    cmp eax, 1
-    je ragdoll_on_eye_go
-    ud2
-ragdoll_on_eye_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_eye_replay:
-    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
-    jmp 0x1f3649
 
 ; 0x24754f mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player): lohook -> ragdoll_on_held_item
 global ragdoll_on_held_item
@@ -2680,48 +2761,6 @@ ragdoll_on_killed_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
-
-; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
-global tab_cursor_on_key
-extern hook_tab_cursor_on_key
-tab_cursor_on_key:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_tab_cursor_on_key
-    mov edx, tab_cursor_on_key_replay
-    cmp eax, 0
-    je tab_cursor_on_key_go
-    mov edx, 0x25cd09
-    cmp eax, 1
-    je tab_cursor_on_key_go
-    mov edx, 0x25cf15
-    cmp eax, 2
-    je tab_cursor_on_key_go
-    ud2
-tab_cursor_on_key_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-tab_cursor_on_key_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
-    jmp 0x25cd09
 
 ; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
 global tab_cursor_on_hud_call

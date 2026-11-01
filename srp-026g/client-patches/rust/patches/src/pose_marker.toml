@@ -1,0 +1,24 @@
+# Patch 89: a local build's pose marker (docs/notes/pose-marker.md): in a
+# match, the comma key writes the camera's pose to srp_poses.tsv, the map
+# port comparator's reference poses. Only in a diagnostics build
+# (--diagnostics, vostok::trace::enabled); never a release's. Only the
+# decisions: which sites, and the handlers. The logic is pose_marker.rs.
+name = "pose_marker"
+patch = 89
+
+# the lobby loads a match's level: its map, mode and project kept
+[[hook]]
+site = "level_loading.map"
+handler = "on_level"
+
+# the game world's keys: the comma key asks for a pose
+[[hook]]
+site = "tab_cursor.key"
+handler = "on_key"
+order = 1                           # after patch 86's Tab cursor
+
+# update_camera: the eye the view is given, written once asked
+[[hook]]
+site = "camera.eye"
+handler = "on_eye"
+order = 1                           # after patch 76's death camera

@@ -39,6 +39,7 @@ mod input;
 pub mod inventory;
 mod keyboard;
 pub mod language;
+pub mod level;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;

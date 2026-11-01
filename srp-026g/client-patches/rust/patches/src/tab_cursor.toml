@@ -7,6 +7,7 @@ patch = 86
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
+order = 0                           # before patch 89's pose marker (pose_marker.toml)
 
 [[hook]]
 site = "hud.callback"

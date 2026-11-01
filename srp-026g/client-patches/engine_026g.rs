@@ -235,4 +235,8 @@ unsafe extern "C" {
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x870064 (an import, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
+    /// the IAT slot 0x870184 (an import, stdcall): void engine_get_local_time(unsigned int *time)
+    pub static engine_get_local_time: unsafe extern "stdcall" fn(*mut u32);
+    /// the IAT slot 0x870044 (an import, stdcall): unsigned int engine_get_file_size(void *file, unsigned int *high)
+    pub static engine_get_file_size: unsafe extern "stdcall" fn(*mut c_void, *mut u32) -> u32;
 }

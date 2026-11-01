@@ -144,6 +144,12 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     (near-black tiles, sky where a wall or the ground should be). A spot the kept poses
     miss is checked from the port alone.
   - Fix what it flags at its cause, rebuild, rerun, until nothing serious is flagged.
+- **The owner's own spots** (exe patch 89, `srp-026g/docs/notes/pose-marker.md`): in a
+  diagnostics build (`patch_026g.py ... --diagnostics`) the comma key in a match appends the
+  camera's pose to `Documents/survarium/srp_poses.tsv`. Every poses argument of the rig takes
+  that file as it is (`sweep.py run --poses <it>`, `ref069.py batch <it>`, `port_only.py`);
+  `<rig>/marks.py <it> -o poses-marked.json` writes the JSON form. Each row is a pose named
+  `mark_<time>` with its map; its hfov is the owner's FOV at 1280 x 720.
 
 ## The machine
 

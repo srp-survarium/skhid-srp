@@ -241,6 +241,10 @@ unsafe extern "C" {
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x870064 (an import, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
+    /// the IAT slot 0x870184 (an import, stdcall): void engine_get_local_time(unsigned int *time)
+    pub static engine_get_local_time: unsafe extern "stdcall" fn(*mut u32);
+    /// the IAT slot 0x870044 (an import, stdcall): unsigned int engine_get_file_size(void *file, unsigned int *high)
+    pub static engine_get_file_size: unsafe extern "stdcall" fn(*mut c_void, *mut u32) -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -432,6 +436,15 @@ impl MatchOptions {
     #[inline(always)]
     pub unsafe fn first_place(self) -> MatchPlace {
         MatchPlace(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x577b4 (u8): the match's maps_dict id, as the static info gives it (match_options::deserialize 0x1F0E70; logged "Map : %s (%d)")
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn map_id(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x577b4).cast::<u8>().as_ptr() }
     }
 }
 
@@ -6759,6 +6772,63 @@ impl HitInfo {
     }
 }
 
+/// A survarium::map_descriptor (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MapDescriptor(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MapDescriptor {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a maps_dict entry's id (map_descriptor_by_id 0x21F910: cmp [edx],edi over the items dictionary's entries [+160h], [+164h] of them, 0Ch each)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<vostok::binary_config>): the entry's mode config, its root +108h (switch_to_level_loading 0x220482..0x220493: then "mode", "ui")
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<BinaryConfig> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BinaryConfig>>().read_volatile() }
+    }
+}
+
+/// A vostok::console_commands::float_value (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FloatValue(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FloatValue {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): a float console variable's value (cc_float's +40h points to it; its setter 0xECB70 stores within [+44h, +48h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -7085,6 +7155,13 @@ pub mod image {
 
     /// 0x9e7c6c (u32, vostok::console_commands::image): cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
     pub const CC_FLOAT_VTABLE: u32 = 0x9e7c6c;
+
+    /// 0xa6fa28 (obj<vostok::console_commands::float_value>, vostok::console_commands::image): uro_fov's value (65.0 in the image): its cc_float 0xAA6510's +40h (registration 0x85AE24), patch 22's fov_projection reads it, the camera's vertical angle unaimed
+    #[inline(always)]
+    pub fn uro_fov() -> FloatValue {
+        // SAFETY: an image VA, not 0.
+        FloatValue(unsafe { NonNull::new_unchecked(0xa6fa28 as *mut c_void) })
+    }
 }
 
 /// A general-purpose register at a hook's site.
@@ -7234,6 +7311,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// EAX: a vostok::float4x4 (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn eye(machine: &impl Machine) -> Option<Float4x4> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Float4x4)
         }
     }
 
@@ -8398,6 +8484,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn ui(machine: &impl Machine) -> Option<EngineCfg> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EngineCfg)
+        }
+    }
+
+    /// level_loading.map (0x220482): lobby_menu::switch_to_level_loading with the map's maps_dict entry (map_descriptor_by_id 0x21F910's EAX, the id its ESP+8), before its config is read (mov edx,[eax+8] / add eax,8; the root +108h, then "mode" 0x220493)
+    pub mod level_loading_map {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::map_descriptor (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn map(machine: &impl Machine) -> Option<MapDescriptor> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(MapDescriptor)
         }
     }
 
