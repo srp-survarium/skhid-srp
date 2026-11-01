@@ -271,9 +271,13 @@ package survarium.controls
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
       
+      // The lobby's inventory list (there is one), for the shop's tiles (owned).
+      private static var me:InventoryList;
+
       public function InventoryList()
       {
          super();
+         me = this;
          addEventListener(Event.ADDED_TO_STAGE,this.listenSearchKey);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OVER,this.newItemOver);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OUT,this.newItemOut);
@@ -405,17 +409,28 @@ package survarium.controls
          }
       }
       
-      public function hasItem(value:int) : Boolean
+      // Whether the account owns an item of this dictionary id: any condition, a stack while it
+      // holds any (the buy's "already purchased"; the shop's owned mark, shop-owned-mark.md).
+      public function hasItem(dictId:int) : Boolean
       {
-         var l:int = (this._inventoryItems.length);
-         for(var i:uint = 0; i < l; i++)
+         if(this._inventoryItems == null)
          {
-            if(this._inventoryItems[i].dictId == value)
+            return false;
+         }
+         for each(var item:Object in this._inventoryItems)
+         {
+            if(item.dictId == dictId && (!item.isStack || item.value > 0))
             {
                return true;
             }
          }
          return false;
+      }
+
+      // ItemRendererInv: the lobby's inventory's hasItem (the shop's owned mark).
+      public static function owned(dictId:int) : Boolean
+      {
+         return me != null && me.hasItem(dictId);
       }
       
       public function selectItemDict(value:int, seller:int = Faction.ANY) : void
