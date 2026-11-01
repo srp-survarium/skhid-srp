@@ -138,6 +138,32 @@
   ragdoll's gun, the prompt and the input builder's encoding (stage 2b) are
   built and checked under Unicorn; not run in a game yet.
 
+## The live desyncs of rev41 (match 0x1c0ebd31, 2026-11-01) and their fixes
+
+- **The parked block** (late joiners, from 138 s on): a client that loaded a
+  record naming a pick wrote the parked block from its own objects (zeros or
+  a full kit). The loaded block now becomes the hidden own kit
+  (`vostok::pickup::apply_parked`), so the next save writes back what was
+  loaded, and the restore gives back the same kit.
+- **A pick's end** (one game refunded 14, in another pick 120 rounds less): at
+  base_player::remove(1) the counts the native unload refunds (the gun in the
+  pick's slot: its magazine, no chambered round; each parked stack's slot: its
+  count) are the parked block's as last saved or loaded, whatever objects are
+  where (`unload_as_parked`). The chambered round of the own gun is not
+  refunded, in every game alike.
+- **A re-used copy** (seed 1 against 0x442aa381): at the switch the picked gun
+  takes a spawn's state: `KIT_STATE_FIELDS` and +5A4h before the initialize,
+  the spawn hook's seed (`weapon_pickup::spawn_seed`: the picker's place, kit,
+  slot and the switch's time) after it.
+- **No cook in a tick**: an untaken drop's copy is kept 10 s past its body's
+  removal (`KEEP_GONE_MS`, past any rollback) and a loaded record with its drop
+  open puts it in the world again, so a pickup replayed across the donor's
+  respawn finds it; a world loaded with an open drop this client has no copy of
+  has it cooked before the load (`before_world_load`). A pickup still cooks in
+  its tick only for a death a client neither saw nor loaded (none known), or
+  when the death's cook is not made by the pickup (milliseconds against the
+  walk to the body).
+
 ## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
 
 The owner (2026-11-01): a pickup is a normal weapon switch, the gun in hands

@@ -330,11 +330,13 @@ def main():
     assert any("place 5 at %d ms: its body left the world, the drop of its kit 1 slot 10 ends" % gone in l
                for l in r.log), r.log
     r.step(gone + 1)
+    assert r.read(COOKED + 0xD0) == 2, "freed inside a rollback's reach of its body's removal"
+    r.step(gone + 10_000)
     assert r.read(COOKED + 0xD0) == 1 and copy not in r.live and r.releases == []
     assert r.live == {}, {hex(k): v for k, v in r.live.items()}
     print("ok the completion through the game's boost invoker 0x202300: the gun kept (one reference), the recipe freed, logged made with its ms and memory; "
-          "kept while its body is in the world (60 s); never registered nor in hands, given back at the next frame after "
-          "base_player::remove(1) takes the body out; every allocation freed once")
+          "kept while its body is in the world (60 s) and 10 s past base_player::remove(1) (a rollback can bring the body "
+          "back); never registered nor in hands, given back after; every allocation freed once")
 
     # The last reference: the native release; a new life dies again: a new cook.
     r.player(spawned=SPAWNED + 9000)
@@ -392,6 +394,7 @@ def main():
     parked_from_the_record(patched)
     a_new_life(patched)
     the_end_refunds_the_parked_block(patched)
+    no_cook_in_a_tick(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1206,6 +1209,58 @@ def the_end_refunds_the_parked_block(patched):
     assert restored[:3] == refused[:3] == (struct.pack("<H", 40), b"\x09", b"\0"), (restored, refused)
     print("ok a pick's end refunds the parked block in every game: restored or refused, the picker's slot 8 holds "
           "40 and its slot-10 gun 9 rounds and no chambered round when the native unload runs")
+
+
+def no_cook_in_a_tick(patched):
+    """No client cooks or waits for a drop's gun in a tick, where a refusal (a player made this frame, the 2 s cap)
+    would be its own: a rollback across the donor's respawn (its body's removal marked the copy gone, the late
+    pickup replayed before it) finds the copy in the world again, and a late joiner's first world with an open drop
+    has its gun cooked before the load (outside the tick); each pickup then takes it with no query."""
+    # The rollback: the removal, the frame's step, the load of the donor's state before it, the pickup replayed.
+    r = Pick(patched)
+    r.setup()
+    gone = DIED + 8_000
+    r.remove(PLAYER, gone)
+    r.step(gone + 100)
+    r.load(PLAYER, record(drop=("open", KIT, 1)))
+    r.lohook(PLAYER_MADE_SITE, PLAYER_MADE_AFTER, {})
+    r.queries = []
+    r.pick(now=gone - 200)
+    assert r.queries == [], ("cooked in a tick", r.log)
+    r.installed()
+    print("ok a rollback across the donor's respawn: its drop's copy kept and in the world again, the replayed pickup "
+          "takes it with no cook nor wait (a player made this frame)")
+
+    # The late joiner: the donor's open drop in its first world, cooked before the load.
+    j = Pick(patched)
+    j.setup()
+    j.remove(PLAYER, gone)
+    j.step(gone + 20_000)                       # this client's copy of that death gone: a death it never saw
+    j.emu.mem_write(PLAYER + 0x328, struct.pack("<I", SPAWNED + 30_000))
+
+    def active_player(emu, address, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        out, place = j.read(sp + 4), j.read(sp + 8)
+        player = j.roster.get(place, 0)
+        j.word(out, player)
+        if player:
+            j.word(player + 0xD0, j.read(player + 0xD0) + 1)
+        j.ret(8, out)
+    j.emu.hook_add(UC_HOOK_CODE, active_player, begin=GET_ACTIVE_PLAYER, end=GET_ACTIVE_PLAYER)
+    j.lohook(PLAYER_MADE_SITE, PLAYER_MADE_AFTER, {})
+    cooked, gun, _ = j.cooked_gun()
+    j.on_dispatch, j.queries = cooked, []
+    opened = record(drop=("open", KIT, 1))
+    load_world(j, world_with({PLACE: b"\0\0" + opened}))
+    assert len(j.queries) == 1 and any("a world to load has the open drop" in l for l in j.log), j.log
+    j.load(PLAYER, opened)
+    j.queries = []
+    j.cooked, j.new_gun = cooked, gun
+    j.new_ammo = j.slot(cooked, 11)
+    j.pick(now=gone + 20_100)
+    assert j.queries == [] and j.slot(j.inventory, 10) == gun + 0x10, j.log
+    print("ok a late joiner's first world with an open drop it never saw: its gun cooked before the load, the pickup "
+          "takes it with no cook nor wait in the tick")
 
 
 def crate_per_gun(patched):
