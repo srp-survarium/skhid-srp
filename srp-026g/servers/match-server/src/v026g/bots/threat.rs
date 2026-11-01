@@ -374,10 +374,13 @@ pub enum Count {
     /// spot's centre while its target is not that spot: the by-point lookup
     /// took it for a job's pin (`job_line_by_id` off), the id does not.
     CrossfireChokeOnSpot,
+    /// design-p1c §6 (`threat.pair_target`): a hold given no job at a tick because a hold covering common ground with it
+    /// ranks above it (spot-ticks).
+    PairLeftOut,
 }
 
 /// The [`Count`]s, in order, and their names in the tally.
-pub const COUNTS: [(Count, &str); 23] = [
+pub const COUNTS: [(Count, &str); 24] = [
     (Count::ReplanAsked, "replan_asked"),
     (Count::ReplanClear, "replan_clear"),
     (Count::Recast, "recast"),
@@ -401,11 +404,12 @@ pub const COUNTS: [(Count, &str); 23] = [
     (Count::PairUpWaitHidden, "pair_up_wait_hidden"),
     (Count::CrossfireSpotRefused, "crossfire_spot_refused"),
     (Count::CrossfireChokeOnSpot, "crossfire_choke_on_spot"),
+    (Count::PairLeftOut, "pair_left_out"),
 ];
 
 #[cfg(test)]
 thread_local! {
-    static COUNTED: std::cell::Cell<[u64; 23]> = const { std::cell::Cell::new([0; 23]) };
+    static COUNTED: std::cell::Cell<[u64; COUNTS.len()]> = const { std::cell::Cell::new([0; COUNTS.len()]) };
     static JOB_COUNTED: std::cell::Cell<[[u64; JOB_TALLIES.len()]; 2]> = const { std::cell::Cell::new([[0; JOB_TALLIES.len()]; 2]) };
     static JOB_LIVES: std::cell::RefCell<Vec<(u8, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -518,7 +522,7 @@ pub fn count(c: Count) {
 
 /// The [`Count`]s so far, by [`COUNTS`] order.
 #[cfg(test)]
-pub fn counted() -> [u64; 23] {
+pub fn counted() -> [u64; COUNTS.len()] {
     COUNTED.with(|cell| cell.get())
 }
 
@@ -1837,6 +1841,20 @@ impl HeldLine {
     pub fn covers(&self, p: Vec3) -> bool {
         p.distance_xz(self.at) <= self.reach_m && self.lanes.iter().any(|&(from, b)| in_lane(&[b], from, p))
     }
+
+    /// design-p1c §6: whether a point of his lanes, walked from where each is seen in `step_m` steps to his reach, is ground
+    /// `other` covers too ([`Self::covers`]): two holders who see one lane.
+    pub fn shares_ground(&self, other: &HeldLine, step_m: f32) -> bool {
+        let step = step_m.max(1.0);
+        let steps = (self.reach_m / step).ceil() as usize;
+        self.lanes.iter().any(|&(from, b)| {
+            (1..=steps).any(|i| {
+                let d = i as f32 * step;
+                let p = Vec3::new(from.x + b.sin() * d, from.y, from.z + b.cos() * d);
+                p.distance_xz(self.at) <= self.reach_m && other.covers(p)
+            })
+        })
+    }
 }
 
 /// A role of the team job on a held spot (K2).
@@ -2075,6 +2093,29 @@ impl Picture {
 /// [`ThreatTuning::job_kills`]: crate::v026g::bots::tuning::ThreatTuning::job_kills
 pub fn holds(held: &[HeldLine], min_kills: u32) -> Vec<HeldLine> {
     held.iter().filter(|l| l.kills >= min_kills as usize).cloned().collect()
+}
+
+/// design-p1c §6 (`threat.pair_target`, `fx-threat-obj-two-campers-note.md`): the holds a job may open on when two campers
+/// cover one lane. Of two holds of two shooters that cover common ground ([`HeldLine::shares_ground`]), only the one that
+/// ranks first keeps its offer: more kills, then sensed latest, then the lower id (live humans take the one who had killed
+/// more first, 161 of 255 pairs). A hold whose job runs keeps it. The holds left out are counted ([`Count::PairLeftOut`]).
+pub fn one_of_each_pair(holds: Vec<HeldLine>, jobs: &[Job], step_m: f32) -> Vec<HeldLine> {
+    let rank = |l: &HeldLine| (l.kills, l.seen, std::cmp::Reverse(l.id));
+    let left_out: Vec<u32> = holds
+        .iter()
+        .filter(|l| {
+            !jobs.iter().any(|j| j.spot == l.id)
+                && holds.iter().any(|o| {
+                    o.shooter != l.shooter && rank(o) > rank(l) && (o.shares_ground(l, step_m) || l.shares_ground(o, step_m))
+                })
+        })
+        .map(|l| l.id)
+        .collect();
+    if left_out.is_empty() {
+        return holds;
+    }
+    count_n(Count::PairLeftOut, left_out.len() as u64);
+    holds.into_iter().filter(|l| !left_out.contains(&l.id)).collect()
 }
 
 /// The team's jobs at `now` (K2), and what changed:
@@ -2931,6 +2972,31 @@ mod tests {
         assert_eq!(ids(2), [5], "one kill and a sighting is no hold");
         assert_eq!(ids(1), [4, 5]);
         assert!(ids(3).is_empty());
+    }
+
+    #[test]
+    fn of_two_holds_covering_one_lane_only_the_one_with_more_kills_is_offered() {
+        // Two shooters 20 m apart who both see the ground round (10, 0, 30); a third whose lanes run the other way.
+        let target = Vec3::new(10.0, 0.0, 30.0);
+        let toward = |from: Vec3, n: usize| vec![bearing(from, target); n];
+        let a = HeldLine { shooter: 7, ..line(1, at(0.0), &toward(at(0.0), 3)) };
+        let b = HeldLine { shooter: 8, ..line(2, at(20.0), &toward(at(20.0), 2)) };
+        let back = Vec3::new(0.0, 0.0, -60.0);
+        let far = HeldLine { shooter: 9, ..line(3, back, &[bearing(back, Vec3::new(0.0, 0.0, -100.0))]) };
+        assert!(a.shares_ground(&b, 5.0) && b.shares_ground(&a, 5.0));
+        assert!(!a.shares_ground(&far, 5.0) && !far.shares_ground(&a, 5.0));
+        let ids = |holds: Vec<HeldLine>| holds.iter().map(|l| l.id).collect::<Vec<_>>();
+        let before = counted()[Count::PairLeftOut as usize];
+        assert_eq!(ids(one_of_each_pair(vec![b.clone(), a.clone(), far.clone()], &[], 5.0)), [1, 3], "b has fewer kills");
+        assert_eq!(counted()[Count::PairLeftOut as usize] - before, 1);
+        // Equal kills: the one sensed latest. A hold whose job runs keeps it.
+        let b3 = HeldLine { kills: 3, seen: Some(5_000), ..b.clone() };
+        assert_eq!(ids(one_of_each_pair(vec![a.clone(), b3.clone()], &[], 5.0)), [2]);
+        let job = Job { spot: 1, objective: false, shooter: 7, since: 0, flanker: None, pinner: None, passed: Vec::new() };
+        assert_eq!(ids(one_of_each_pair(vec![a.clone(), b3], &[job], 5.0)), [1, 2]);
+        // One shooter's two spots are no pair: he has one job already.
+        let moved = HeldLine { shooter: 7, ..b };
+        assert_eq!(ids(one_of_each_pair(vec![a, moved], &[], 5.0)), [1, 2]);
     }
 
     #[test]

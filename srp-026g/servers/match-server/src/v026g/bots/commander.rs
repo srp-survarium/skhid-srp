@@ -158,6 +158,10 @@ fn threat_tick(
                 }
             });
         }
+        // [threat.pair_target] Two holds covering one lane: a job on the one with more kills only (design-p1c §6).
+        if let Some(pair) = tuning.threat.pair_target {
+            holds = threat::one_of_each_pair(holds, &threat.jobs, pair.step_m);
+        }
         let areas = objective.home_spots(&tactics.world.map);
         let job_team = threat::JobTeam { mates: &mates, size: view.team(team).count(), objective_areas: &areas };
         let spots = &threat.spots;

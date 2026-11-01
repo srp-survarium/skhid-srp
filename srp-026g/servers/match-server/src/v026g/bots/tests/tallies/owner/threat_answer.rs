@@ -26,7 +26,7 @@ use crate::v026g::bots::threat;
 
 /// The threat answer's counts at the start of the match, for the difference at its end.
 pub(super) struct ThreatAnswerCounts {
-    counted: [u64; 23],
+    counted: [u64; threat::COUNTS.len()],
     searches: [u64; 4],
     checks: [u64; 2],
     spent: [u64; 3],
