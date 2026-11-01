@@ -87,6 +87,30 @@ pub(crate) struct CamperOptions {
     pub(crate) side: CamperSide,
     /// Where each of his lives starts ([`CamperStart`]).
     pub(crate) start: CamperStart,
+    /// Where the standing camper goes after a death ([`ReturnRule`]).
+    pub(crate) returns: ReturnRule,
+}
+
+/// Where the standing camper (no [`MoveOptions`]) goes after a death (`SRP_BENCH_CAMPER_RETURN`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ReturnRule {
+    /// Back to the same point at once, every life: the old stand-in.
+    #[default]
+    Always,
+    /// As the live campers do after a death (`camper_move::LiveReturn`): back to the very point he held now and then, to a
+    /// point near it more often, else to another spot.
+    Live,
+}
+
+impl ReturnRule {
+    /// Unset or `always`: [`Self::Always`]; `live`; anything else is refused.
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("always") => Ok(Self::Always),
+            Some("live") => Ok(Self::Live),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_RETURN={other:?}: always or live")),
+        }
+    }
 }
 
 impl CamperOptions {
@@ -99,6 +123,7 @@ impl CamperOptions {
         watch: Watch::Around,
         side: CamperSide::Given,
         start: CamperStart::Spawn,
+        returns: ReturnRule::Always,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -133,6 +158,7 @@ impl CamperOptions {
             watch: Watch::parse(get("SRP_BENCH_CAMPER_WATCH").as_deref())?,
             side: CamperSide::parse(get("SRP_BENCH_CAMPER_SIDE").as_deref())?,
             start: CamperStart::parse(get("SRP_BENCH_CAMPER_START").as_deref())?,
+            returns: ReturnRule::parse(get("SRP_BENCH_CAMPER_RETURN").as_deref())?,
         })
     }
 }
@@ -339,6 +365,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_WATCH", "lane"),
         ("SRP_BENCH_CAMPER_SIDE", "seed"),
         ("SRP_BENCH_CAMPER_START", "spot"),
+        ("SRP_BENCH_CAMPER_RETURN", "live"),
     ])
     .expect("known values");
     assert_eq!((all.rule, all.crouch, all.long_gun, all.at), (SpotRule::Hidden, true, true, CamperAt::Container));
@@ -346,6 +373,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
     assert_eq!(all.watch, Watch::Lane);
     assert_eq!(all.side, CamperSide::BySeed);
     assert_eq!(all.start, CamperStart::Spot);
+    assert_eq!(all.returns, ReturnRule::Live);
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
         ("SRP_BENCH_CAMPER_CROUCH", "yes"),
@@ -354,6 +382,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_WATCH", "lanes"),
         ("SRP_BENCH_CAMPER_SIDE", "team1"),
         ("SRP_BENCH_CAMPER_START", "home"),
+        ("SRP_BENCH_CAMPER_RETURN", "sometimes"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));
         assert!(with(pairs).is_err(), "{bad:?}");
@@ -367,7 +396,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn, returns: ReturnRule::Always });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);

@@ -797,6 +797,26 @@ pub struct Defeated {
     pub kind: DefeatedKind,
 }
 
+/// [A145, `TrapTuning::at_cleared`] Where a camper stood when a team job killed him (his death point), and the job's bot
+/// wished to put a trap there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cleared {
+    pub at: Vec3,
+    pub time: u32,
+    pub shooter: Place,
+    pub placer: Place,
+    pub by: ClearedBy,
+}
+
+/// The team job that killed him.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClearedBy {
+    /// A Breach after its go (`breach.rs`).
+    Breach,
+    /// A K2 Flank job's flanker or pinner.
+    Flank,
+}
+
 /// How the killed enemy was known to have held the place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DefeatedKind {
@@ -975,6 +995,9 @@ pub struct TeamKnowledge {
     pub losses: Vec<Loss>,
     /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).
     pub defeated: Vec<Defeated>,
+    /// [A145] The death points of campers team jobs killed, kept `TrapTuning::at_cleared`'s `keep_s` (one taken off when its
+    /// trap is placed).
+    pub cleared: Vec<Cleared>,
     /// Enemies seen carrying lately.
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
@@ -993,6 +1016,8 @@ pub struct TeamKnowledge {
     /// The team's held threat spots and the jobs on them, as the plays read
     /// them (the commander's, `threat::Picture`).
     pub threat: std::sync::Arc<super::threat::Picture>,
+    /// [threat.breach] The team's Breaches on held spots, as the plays read them (the commander's, `breach.rs`).
+    pub breaches: std::sync::Arc<Vec<super::breach::Breach>>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).

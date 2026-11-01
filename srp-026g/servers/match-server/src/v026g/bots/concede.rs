@@ -365,14 +365,19 @@ pub fn step(state: SpotState, at: Vec3, event: SpotEvent, now: u32, rules: &Conc
 /// A bot of team `team` died at `from` to `shooter`, whom the team sensed at `at` lately (the K1 spot's rule,
 /// `ThreatSpots::died`), his spot a hold already (`camper-decision-map.md` §2: the deaths that make the hold are how the
 /// team finds him, `facts.rs` counts them apart): a failed try on his area, the one record of a death. A bot that held a
-/// role of a job on his spot failed that job ([`Failed::HolderDown`]); any other failed what it was doing, `play` (the
-/// answer play on him, else a lone peek: [`Failed::Untraded`]; without [`ConcedeRules::keep_ms`] his death opens the area
-/// again, so a death traded before he kills again is undone).
+/// role of a job on his spot (a Flank job, or a Breach on him) failed that job ([`Failed::HolderDown`]); any other failed
+/// what it was doing, `play` (the answer play on him, else a lone peek: [`Failed::Untraded`]; without
+/// [`ConcedeRules::keep_ms`] his death opens the area again, so a death traded before he kills again is undone).
 #[allow(clippy::too_many_arguments)]
 pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shooter: Place, at: Vec3, play: TryKind, now: u32, rules: &ConcedeRules) {
-    let role = threat.jobs.iter().filter(|j| j.shooter == shooter).find_map(|j| j.role_of(victim));
+    let role = threat
+        .jobs
+        .iter()
+        .filter(|j| j.shooter == shooter)
+        .find_map(|j| j.role_of(victim).map(|role| (JobKind::Flank, role)))
+        .or_else(|| threat.breaches.iter().filter(|b| b.shooter == shooter).find_map(|b| b.role_of(victim).map(|role| (JobKind::Breach, role.role()))));
     let (kind, why) = match role {
-        Some(role) => (TryKind::Job(JobKind::Flank), Failed::HolderDown { role }),
+        Some((job, role)) => (TryKind::Job(job), Failed::HolderDown { role }),
         None => (play, Failed::Untraded),
     };
     let memory = &mut threat.spot_memory;

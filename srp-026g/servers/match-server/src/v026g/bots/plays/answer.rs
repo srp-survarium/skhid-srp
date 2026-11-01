@@ -23,6 +23,7 @@
 //!   the commander picks again (the cooldown keeps the same bot off him for a while).
 
 use super::*;
+use crate::v026g::bots::breach::BreachRole;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::tactics::SpotQuery;
@@ -161,9 +162,11 @@ fn inputs_at(cx: &Ctx, at: Vec3) -> [(Input, f32); 2] {
     [(Input::PathDist, cx.path_dist(at)), (Input::FriendsNearTarget, cx.friends_near(at, 25.0) as f32)]
 }
 
-/// A team job (K2) runs on `who` and the bot is not its pinner: the job goes first (`camper-decision-map.md` §3).
+/// A team job (K2: a Flank job, or a Breach) runs on `who` and the bot is not its pinner: the job goes first
+/// (`camper-decision-map.md` §3).
 fn job_on(cx: &Ctx, who: Place) -> bool {
     cx.team.threat.jobs.iter().any(|j| j.shooter == who && j.role_of(cx.me.place) != Some(Role::Pinner))
+        || cx.team.breaches.iter().any(|b| b.shooter == who && !b.phase.ended() && b.role_of(cx.me.place) != Some(BreachRole::Pinner))
 }
 
 /// Why a running answer on `target` is no longer a candidate, counted once the commander drops it (A210: a quarter of the
@@ -484,6 +487,37 @@ mod tests {
         assert_eq!(answers(&s).len(), 2, "the bot is the job's pinner");
         s.team.threat = std::sync::Arc::new(Picture { jobs: vec![job(5, 2)], ..Picture::default() });
         assert_eq!(answers(&s).len(), 2, "the job is on another shooter");
+    }
+
+    /// The camper decision map §3 for a Breach: one on him goes first; its pinner may still answer him; a Breach on another
+    /// shooter changes nothing.
+    #[test]
+    fn a_breach_on_him_goes_first_but_its_pinner_may_answer() {
+        use crate::v026g::bots::breach::{Breach, BreachRules, Crosser};
+        use crate::v026g::bots::threat::{HeldLine, Holder};
+        let mut s = sniper();
+        let rules = BreachRules {
+            gather_ms: 8_000,
+            walk_max_m: 40.0,
+            go_ms: 6_000,
+            hold_ms: 10_000,
+            trade_ms: 5_000,
+            apart_m: (6.0, 12.0),
+            bearing_min_deg: 30.0,
+            cover_m: (8.0, 22.0),
+            gather_m: (5.0, 15.0),
+        };
+        let breach = |shooter, pinner| {
+            let line = HeldLine::for_test(4, shooter, Vec3::new(85.0, 0.0, 30.0), &[], Some(0));
+            let crosser = |place| Crosser { holder: Holder { place, since: 0 }, gather: Vec3::ZERO, cover: Vec3::ZERO };
+            Breach::open(&line, false, Some(Holder { place: pinner, since: 0 }), [crosser(3), crosser(6)], None, 0, 0, &rules)
+        };
+        s.team.breaches = std::sync::Arc::new(vec![breach(1, 2)]);
+        assert!(answers(&s).is_empty(), "a Breach runs on him");
+        s.team.breaches = std::sync::Arc::new(vec![breach(1, 0)]);
+        assert_eq!(answers(&s).len(), 2, "the bot is the Breach's pinner");
+        s.team.breaches = std::sync::Arc::new(vec![breach(5, 2)]);
+        assert_eq!(answers(&s).len(), 2, "the Breach is on another shooter");
     }
 
     /// A210: the walk to the spot is kept against the plays of its band (`commit.hold_to_arrival`); the peek is not a walk.

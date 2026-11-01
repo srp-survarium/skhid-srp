@@ -103,6 +103,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(LiveListCounts::default()),
         Box::new(SearchQueueCounts::default()),
         Box::new(ThreatAnswerCounts::default()),
+        Box::new(BreachCounts::default()),
         Box::new(WorthCounts::default()),
         Box::new(GridCounts::new(n)),
         Box::new(ThroughCounts::default()),
@@ -115,6 +116,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(StealCounts::new(n)),
         Box::new(CrouchCounts::new(n)),
         Box::new(RangeLegCounts::new(n)),
+        Box::new(SprintTables::default()),
     ]
 }
 

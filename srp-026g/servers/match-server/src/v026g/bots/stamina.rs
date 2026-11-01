@@ -11,11 +11,16 @@
 //!   2 s of regeneration); while the sprint keys stay held it lasts as long as they do;
 //! - a jump needs the flag clear and the bar at [`JUMP_COST`], spent at the press; a refused press spends nothing.
 //!
-//! The rates are the light kit's (no weight cost, no skills): the weight and the skills only make the spending and the
-//! cost larger by a few per cent to a third, and the reckoning is meant to be about right, not exact (GUESS: the kit's
-//! rates come with the bot's loadout later). A hit's own stamina damage is not reckoned (the world's hit time only
-//! restarts the wait). Counted whether the switch (`think.stamina`) is on or off ([`counts`]); the motor acts on it only
-//! when on.
+//! The rates are the light kit's (no weight cost, no skills, [`Rates::LIGHT`]) unless `think.stamina_rates` is `kit`:
+//! then a life's are its kit's ([`Rates::of_kit`]), the client's law of the weight's cost `t` and the skills: spending and
+//! the jump's cost `x (1 + 1.5 t) x (1 + skill 201)`, regeneration `x (1 + skill 204)`, 4.4-12.6 a second across the bots'
+//! kits (A207: the light rates let a heavy kit's real bar reach 0 with the reckoning still over the reserve). A hit's own
+//! stamina damage is not reckoned (the world's hit time only restarts the wait). Counted whether the switch
+//! (`think.stamina`) is on or off ([`counts`]); the motor acts on it only when on.
+
+use survarium::v026g::bot_skills;
+use survarium::v026g::loadouts::Loadout;
+use survarium::v026g::skills::{MODIFIERS, modifier_index};
 
 use crate::v026g::drive::key;
 
@@ -37,6 +42,39 @@ pub const SPEND_PER_M: f32 = SPRINT_SPEND_PER_S / SPRINT_MPS;
 /// reckoning that is a little off still has it.
 pub const JUMP_MARGIN: f32 = 5.0;
 
+/// What a kit makes of the bar's law: spent a second of sprint keys, regained a second, and a jump's cost (also the
+/// least the bar needs for one).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rates {
+    pub spend: f32,
+    pub regen: f32,
+    pub jump: f32,
+}
+
+impl Rates {
+    /// A kit of no weight cost and no skills.
+    pub const LIGHT: Self = Self { spend: SPRINT_SPEND_PER_S, regen: REGEN_PER_S, jump: JUMP_COST };
+
+    /// The rates of `kit` worn with `modifiers` (the bot's skills, `bot_skills::bot_modifiers` of its kits): the weight's
+    /// cost `t` of the kit against its capacity, as the bench's stand-in body works it (`tests/standin_stamina.rs`).
+    pub fn of_kit(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> Self {
+        let index = |name| modifier_index(name).expect("a modifier of the 68");
+        let t = bot_skills::weight_cost(kit.weight(), bot_skills::carry_capacity(kit, modifiers));
+        let carried = 1.0 + survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * t;
+        let spending = 1.0 + modifiers[index("stamina_spending_speed_skill")];
+        Self {
+            spend: SPRINT_SPEND_PER_S * carried * spending,
+            regen: REGEN_PER_S * (1.0 + modifiers[index("stamina_regeneration_speed")]),
+            jump: JUMP_COST * carried * spending,
+        }
+    }
+
+    /// What a sprint spends a metre.
+    pub fn spend_per_m(&self) -> f32 {
+        self.spend / SPRINT_MPS
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum Flag {
     #[default]
@@ -54,11 +92,13 @@ pub struct Reckoning {
     last_tick: u32,
     /// The keys of the last tick, for the jump's edge.
     keys: u32,
+    /// The life's kit's ([`Reckoning::set_rates`]), else the light kit's.
+    rates: Rates,
 }
 
 impl Default for Reckoning {
     fn default() -> Self {
-        Self { value: MAX, flag: Flag::Fine, last_spend: None, last_tick: 0, keys: 0 }
+        Self { value: MAX, flag: Flag::Fine, last_spend: None, last_tick: 0, keys: 0, rates: Rates::LIGHT }
     }
 }
 
@@ -67,12 +107,18 @@ impl Default for Reckoning {
 pub struct Gauge {
     pub value: f32,
     pub low: bool,
+    pub rates: Rates,
 }
 
 impl Reckoning {
-    /// A new life: a full bar.
+    /// A new life: a full bar, at the light kit's rates until [`Reckoning::set_rates`].
     pub fn spawn(&mut self, now: u32) {
         *self = Self { last_tick: now, ..Self::default() };
+    }
+
+    /// The life's rates (its kit's, `think.stamina_rates`).
+    pub fn set_rates(&mut self, rates: Rates) {
+        self.rates = rates;
     }
 
     pub fn value(&self) -> f32 {
@@ -84,16 +130,16 @@ impl Reckoning {
     }
 
     pub fn of(gauge: Gauge) -> Self {
-        Self { value: gauge.value, flag: if gauge.low { Flag::Low } else { Flag::Fine }, ..Self::default() }
+        Self { value: gauge.value, flag: if gauge.low { Flag::Low } else { Flag::Fine }, rates: gauge.rates, ..Self::default() }
     }
 
     pub fn gauge(&self) -> Gauge {
-        Gauge { value: self.value, low: self.low() }
+        Gauge { value: self.value, low: self.low(), rates: self.rates }
     }
 
     /// The jump goes: the flag clear and the bar at its cost.
     pub fn may_jump(&self) -> bool {
-        self.flag == Flag::Fine && self.value >= JUMP_COST
+        self.flag == Flag::Fine && self.value >= self.rates.jump
     }
 
     /// One tick at `now` ms, with the keys the bot sent in the tick before (`keys`) and whether it carries (no
@@ -103,14 +149,14 @@ impl Reckoning {
         let dt = now.saturating_sub(self.last_tick) as f32 / 1_000.0;
         let held = Kinematics::sprints(keys);
         if held && !carrying {
-            self.value = (self.value - SPRINT_SPEND_PER_S * dt).max(0.0);
+            self.value = (self.value - self.rates.spend * dt).max(0.0);
             self.last_spend = Some(self.last_tick);
         } else if self.value < MAX && (self.value == 0.0 || self.last_spend.is_none_or(|at| now > at + WAIT_MS)) {
-            self.value = (self.value + REGEN_PER_S * dt).min(MAX);
+            self.value = (self.value + self.rates.regen * dt).min(MAX);
         }
         if keys & key::JUMP != 0 && self.keys & key::JUMP == 0 {
             if self.may_jump() {
-                self.value -= JUMP_COST;
+                self.value -= self.rates.jump;
                 self.last_spend = Some(self.last_tick);
             } else {
                 counts::jump_refused();
@@ -133,10 +179,10 @@ impl Reckoning {
 
     /// Whether a sprint may go on with a sprint-needing segment `ahead_m` metres on along the route (a sprint jump:
     /// its run-up of `run_up_m` is sprinted too): the bar, less what the sprint to the segment spends, still pays the
-    /// jump, its run-up and the margin. Walking (not spending) the bar comes back at [`REGEN_PER_S`] after the wait,
+    /// jump, its run-up and the margin, at the life's rates. Walking (not spending) the bar comes back after the wait,
     /// so a sprint dropped early arrives with more.
     pub fn covers(&self, ahead_m: f32, run_up_m: f32) -> bool {
-        self.value - SPEND_PER_M * (ahead_m + run_up_m) >= JUMP_COST + JUMP_MARGIN
+        self.value - self.rates.spend_per_m() * (ahead_m + run_up_m) >= self.rates.jump + JUMP_MARGIN
     }
 }
 
@@ -249,5 +295,27 @@ mod tests {
         let low = Reckoning { value: 40.0, ..Reckoning::default() };
         assert!(low.covers(10.0, 2.0));
         assert!(!low.covers(25.0, 2.0));
+    }
+
+    /// At a heavy kit's rates a held sprint empties the bar sooner, a jump costs more, and a segment is covered later.
+    #[test]
+    fn a_heavy_kits_bar_empties_sooner() {
+        let sprint = key::FORWARD | key::SPRINT;
+        let heavy = Rates { spend: 12.5, regen: 10.0, jump: 25.0 };
+        let mut light = Reckoning::default();
+        let mut kit = Reckoning::default();
+        kit.set_rates(heavy);
+        run(&mut light, 0, 8_000, sprint);
+        run(&mut kit, 0, 8_000, sprint);
+        assert!(!light.low() && (light.value() - 60.0).abs() < 1.0, "{}", light.value());
+        assert!(kit.low() && kit.value() <= 1e-3, "{}", kit.value());
+        let mut jump = Reckoning::default();
+        jump.set_rates(heavy);
+        jump.tick(50, key::JUMP, false);
+        assert!((jump.value() - (MAX - 25.0)).abs() < 1e-3, "{}", jump.value());
+        let half = Reckoning { value: 50.0, rates: heavy, ..Reckoning::default() };
+        assert!(Reckoning { value: 50.0, ..Reckoning::default() }.covers(20.0, 2.0));
+        assert!(!half.covers(20.0, 2.0));
+        assert_eq!(Reckoning::of(half.gauge()).rates, heavy);
     }
 }
