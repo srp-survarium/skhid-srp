@@ -43,7 +43,13 @@ package survarium.controls
       protected var _shopTab:ButtonBar;
       
       protected var _checkbox_shop_items:Button;
-      
+
+      // The row's width, and the room at its right end kept for the shop's owned toggle
+      // (ShopOwnedToggle, placed by InventoryList): the filters are centred in the rest.
+      public static const ROW_WIDTH:int = 573;
+
+      public static const TOGGLE_ROOM:int = 40;
+
       public function OptionFilterControl()
       {
          super();
@@ -130,7 +136,8 @@ package survarium.controls
             cellWidth = 64;
             listWidth = filterCount * cellWidth;
             this.filterList.width = listWidth;
-            this.filterList.x = int((573 - (listWidth + cellWidth)) / 2 + cellWidth);
+            // Centred in the row but its right end, the shop's owned toggle's (InventoryList).
+            this.filterList.x = int((ROW_WIDTH - TOGGLE_ROOM - (listWidth + cellWidth)) / 2 + cellWidth);
             trace("filterspos:",filterCount,this.filterList.x);
             this.selectAll.x = this.filterList.x - cellWidth;
             this.checkAllButton();

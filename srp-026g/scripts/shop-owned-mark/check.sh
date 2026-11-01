@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: the shop's owned mark (docs/notes/shop-owned-mark.md), in
-# Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU). ShopOwnedHarness.as makes
-# the lobby movie's own inventory list and shop: the entries of owned items (a weapon, a stack) have
-# the mark, the others (an item not owned, an empty stack, a bundle whose id is an owned item's) not;
-# a bought item gets it, a sold one loses it.
-# Screenshots into the work dir: before.png (rifle and medkit owned), bought.png (the helmet too).
+# check.sh <lobby_menu.swf> [work dir]: the shop's owned mark and its not-owned toggle
+# (docs/notes/shop-owned-mark.md), in Ruffle (CPU only: lavapipe on its own virtual X display, never
+# the GPU). ShopOwnedHarness.as makes the lobby movie's own inventory list and shop: the entries of
+# owned items (a weapon, a stack, a scope loose or worn on a weapon, a camouflage) have the mark, the
+# others (an item not owned, an empty stack, a bundle whose id is an owned item's) not; a bought item
+# gets it, a sold one loses it; the toggle leaves the owned entries out (the upgrades tab too, and an
+# item bought while it is on), and off brings them back.
+# Screenshots into the work dir: before.png (the owned entries marked), bought.png (the helmet
+# bought too), not-owned.png (the not-owned toggle on: the owned entries gone), upgrades.png (the
+# toggle on, the upgrades tab: the toggle beside its filters).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, the shots,
 # Ruffle's log). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md),
 # or SRP_AS_TOOLS.
@@ -56,7 +60,7 @@ display=:$(cat "$work/display")
 ) >"$work/ShopOwnedHarness.log" 2>&1 &
 ruffle_pid=$!
 # The harness holds the list a while after each SHOT line.
-for name in before bought; do
+for name in before bought not-owned upgrades; do
     for _ in $(seq 1200); do grep -q "SHOPMARK SHOT $name\|SHOPMARK RESULT" "$work/ShopOwnedHarness.log" && break; sleep 0.1; done
     grep -q "SHOPMARK SHOT $name" "$work/ShopOwnedHarness.log" || break
     sleep 0.5

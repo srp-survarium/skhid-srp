@@ -270,7 +270,10 @@ package survarium.controls
       
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
-      
+
+      // The shop's "not owned only" toggle (makeOwnedToggle).
+      private var _ownedToggle:ShopOwnedToggle;
+
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
 
@@ -344,6 +347,10 @@ package survarium.controls
       {
          isShop = value;
          label.text = LocalizationData.getName(this.isShop ? "shop" : "inventory_label");
+         if(this._ownedToggle != null)
+         {
+            this._ownedToggle.visible = value;
+         }
          this.shopTab.selectedIndex = this.isShop ? ShopFilter.SHOP : ShopFilter.INVENTORY;
          this.itemControlPanel.toggleShop(value);
       }
@@ -2183,7 +2190,27 @@ package survarium.controls
          this.checkboxCompareItems.selected = true;
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
          this.makeSearch();
+         this.makeOwnedToggle();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
+      }
+
+      // The shop's "not owned only" toggle (ShopOwnedToggle) at the right end of the filters' row,
+      // which OptionFilterControl keeps free; shown in the shop only.
+      private function makeOwnedToggle() : void
+      {
+         _ownedToggle = new ShopOwnedToggle();
+         this._ownedToggle.x = optionControl.x + OptionFilterControl.ROW_WIDTH - OptionFilterControl.TOGGLE_ROOM + (OptionFilterControl.TOGGLE_ROOM - ShopOwnedToggle.SIZE) / 2;
+         this._ownedToggle.y = optionControl.y + optionControl.filterList.y;
+         this._ownedToggle.visible = this.isShop;
+         this._ownedToggle.addEventListener(Event.CHANGE,this.changeInventoryFilterFromFilters);
+         addChild(this._ownedToggle);
+      }
+
+      // Whether the shop's list leaves out this entry: the toggle is on and the account owns the item
+      // (an entry of the shop's; a bundle never, as its mark).
+      private function hiddenAsOwned(item:ItemData) : Boolean
+      {
+         return this.isShop && this._ownedToggle != null && this._ownedToggle.hidesOwned && item.descriptor == ItemPlace.SHOP && this.hasItem(item.dictId);
       }
       
       private function onLocal(value:*) : void
@@ -2921,6 +2948,10 @@ package survarium.controls
             setChildIndex(this._searchBox,numChildren - 1);
             setChildIndex(this._searchIcon,numChildren - 1);
          }
+         if(this._ownedToggle != null)
+         {
+            setChildIndex(this._ownedToggle,numChildren - 1);
+         }
       }
       
       private function isUpgradeable(value:Object) : Boolean
@@ -3275,8 +3306,9 @@ package survarium.controls
          function checkBaseOptions(value:ItemData):Boolean
          {
             var isWeapon:Boolean = options.weapons == WeaponHands.ALL || ItemFactory.getCategory(value.category) != SuperCategory.WEAPONS || (value.oneHanded && options.weapons == WeaponHands.ONE_HANDED || value.oneHanded == false && options.weapons == WeaponHands.TWO_HANDED);
-            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value)));
+            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value);
          }
+         var leftOutAsOwned:Function = this.hiddenAsOwned;
          if((this._filterItems))
          {
             this.filterInventoryItems();
