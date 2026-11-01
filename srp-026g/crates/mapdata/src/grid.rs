@@ -156,7 +156,7 @@ pub struct Body {
     pub capsule_steps: bool,
     /// Whether a walk-off (a Drop link, a walk-off GapDrop) is kept only where the capsule walking off the edge has room: no wall
     /// ([`Erosion::Exact`]'s walls) on the move's side of the take-off, between a step and the crouched height over the take-off,
-    /// within [`WalkGrid::exact_clearance`] of the way from the take-off's centre to the landing or [`WALK_OFF_REACH_M`] on
+    /// within [`WalkGrid::walk_off_clearance`] of the way from the take-off's centre to the landing or [`WALK_OFF_REACH_M`] on
     /// ([`WalkGrid::cut_blocked_walk_offs`]). A link checks only the landing's ceiling over the take-off; a rail or a parapet at the
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,

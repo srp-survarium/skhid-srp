@@ -68,10 +68,11 @@ pub struct GridTuning {
     pub capsule_steps: bool,
     /// Whether a walk-off of the maps' walk grids (a Drop link, a walk-off gap drop) is kept only where the capsule walking off the
     /// edge has room (`mapdata::Body::drop_room`): no wall on the move's side of the take-off, between a step and the crouched
-    /// height over it, within the exact erosion's clearance of the way down. The links check the landing's ceiling only; a wall
-    /// past the edge, between the floors a drop spans, holds the body at the edge (A206: the live stuck notes come 83.0 per 100
-    /// such take-off cells against 67.7 elsewhere, and the live players walked off 10 of 9,536 such links). Off (the default) until
-    /// its bench. A grid is the map's (see `gap_links`).
+    /// height over it, within the radius less half a cell of the way down. The links check the landing's ceiling only; a wall
+    /// past the edge, between the floors a drop spans, holds the body at the edge (A206, the offered maps: 4,350 links cut; their
+    /// take-off cells had a live stuck note 1.75 times as often as the others, live bodies walked off 4 of them, at one spot of
+    /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
+    /// map's (see `gap_links`).
     pub drop_room: bool,
 }
 

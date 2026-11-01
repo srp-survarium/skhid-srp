@@ -252,6 +252,15 @@ impl WalkGrid {
         (self.body.radius - EXACT_SLACK_CELLS * self.cell).max(0.0)
     }
 
+    /// How near a wall may come to a walk-off's way ([`Body::drop_room`]), metres: the radius less half a cell. The way runs between
+    /// cell centres; a body walks off anywhere across its take-off's cell, up to half a cell aside of that line. With the radius
+    /// less a quarter ([`Self::exact_clearance`]) the live bodies walked off 9 of the cut links (45 times; walls 0.19-0.29 m from
+    /// the way at Tarakanovsky Fort); with half a cell 4 (14 times, all at one spot), and the cut take-offs had a live stuck note
+    /// 1.75 times as often as the others (A206: 4.51 % of 3,326 cells against 2.57 %).
+    pub fn walk_off_clearance(&self) -> f32 {
+        (self.body.radius - 0.5 * self.cell).max(0.0)
+    }
+
     /// How far from its axis the standing capsule is met by a wall at `above` metres over the cylinder's top (the standing height
     /// less the radius): the radius up to there, the round top's reach above (a circle: nothing at the standing height), less the
     /// grid's slack ([`EXACT_SLACK_CELLS`]); 0 or less where the wall is out of reach. The capsule is 0.76 m wide and 1.8 m tall
@@ -312,12 +321,12 @@ impl WalkGrid {
 
     /// Takes away the walk-offs ([`Body::drop_room`]) a wall blocks: a Drop link, or a GapDrop walked off ([`gap::Takeoff::WalkOff`]),
     /// whose way from the take-off's centre to the landing, or [`WALK_OFF_REACH_M`] on where the landing is nearer (the edge holds the
-    /// capsule until there), comes nearer than [`Self::exact_clearance`] to a wall ahead of the take-off ([`Walls::nearest_ahead`])
+    /// capsule until there), comes nearer than [`Self::walk_off_clearance`] to a wall ahead of the take-off ([`Walls::nearest_ahead`])
     /// between a step over the take-off (stepped over) and the crouched height (a crouched body passes under what is higher). The
     /// links check the landing's ceiling only: a wall past the edge, between the floors a drop spans (the erosion's reach past a
     /// floor it took, a gap's walk-off), is in no cell they look at. Returns the links taken away.
     pub(super) fn cut_blocked_walk_offs(&self, wide: &mut Wide, walls: &Walls) -> usize {
-        let limit = self.exact_clearance();
+        let limit = self.walk_off_clearance();
         let blocked = |a: NodeId, b: NodeId| {
             let (from, landing) = (self.position(a), self.position(b));
             let length = from.distance_xz(landing);
@@ -534,8 +543,8 @@ mod tests {
         assert!(drops(&room, along) > 0);
         assert_eq!(plain_stats.drops_blocked, 0);
         assert!(room_stats.drops_blocked > 0);
-        // The bracket is past the take-off's clearance: the switch takes the link, not the floor.
-        assert!(room.exact_clearance() < 0.335_f32.hypot(0.175));
+        // The bracket is past the take-off's clearance and within the way's: the switch takes the link, not the floor.
+        assert!(room.exact_clearance() < 0.335_f32.hypot(0.175) && room.walk_off_clearance() > 0.175);
         assert_eq!(room.len(), plain.len());
     }
 
