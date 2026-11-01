@@ -4,7 +4,8 @@
 //! it started with.
 //!
 //! - Each group of knobs is a table: the value the next match runs on (a
-//!   field when the group is settable), what a reset gives, the limits.
+//!   field when the knob is settable), what a reset gives, the limits;
+//!   the group's note says what its shown-only knobs wait for.
 //! - A field is sent with the value it showed (`was.<key>`), and only the
 //!   fields the admin changed are set: two admins saving at once do not put
 //!   back each other's changes. The desk refuses the whole when one value
@@ -16,7 +17,7 @@
 //!   changes: when, from which address, the knob, old and new); the tab
 //!   shows the latest. The token is in none of them.
 
-use session::v026g::bot_desk::{Change, DeskView, GroupState, Kept, Text};
+use session::v026g::bot_desk::{Change, DeskView, Kept, KnobState, Text};
 
 use super::password_reset::date_utc;
 use super::{AdminView, Lang, Request, Web, clock_utc, escape};
@@ -157,8 +158,8 @@ impl Web {
                     .view()
                     .groups
                     .iter()
-                    .filter(|group| group.state == GroupState::Settable)
                     .flat_map(|group| &group.knobs)
+                    .filter(|knob| knob.state == KnobState::Settable)
                     .filter_map(|knob| {
                         let now = request.field(&format!("bot.{}", knob.key));
                         let was = request.field(&format!("was.{}", knob.key));
@@ -243,16 +244,13 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
     });
     let mut groups = String::new();
     for group in &desk.groups {
-        let settable = group.state == GroupState::Settable;
-        let note = match &group.state {
-            GroupState::Settable => String::new(),
-            GroupState::Shown(why) => format!("<p><small>{}</small></p>", text(*why)),
-        };
+        let settable = group.knobs.iter().any(|knob| knob.state == KnobState::Settable);
+        let note = group.note.map_or(String::new(), |why| format!("<p><small>{}</small></p>", text(why)));
         let rows: String = group
             .knobs
             .iter()
             .map(|knob| {
-                let value = if settable {
+                let value = if knob.state == KnobState::Settable {
                     let key = escape(&knob.key);
                     let value = escape(&knob.value);
                     format!(

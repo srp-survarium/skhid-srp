@@ -29,7 +29,7 @@ use session::v026g::bot_desk;
 use session::v026g::bot_desk::BotDesk;
 use session::v026g::bot_desk::Change;
 use session::v026g::bot_desk::DeskView;
-use session::v026g::bot_desk::GroupState;
+use session::v026g::bot_desk::KnobState;
 use session::v026g::bot_desk::Kept;
 use session::v026g::bot_desk::Refused;
 use session::v026g::bot_desk::Text;
@@ -80,14 +80,15 @@ impl Group {
         }
     }
 
-    fn state(self) -> GroupState {
+    /// What its shown-only knobs, or its knobs to come, wait for.
+    fn note(self) -> Option<Text> {
         match self {
-            Group::Balance => GroupState::Settable,
-            Group::Brackets => GroupState::Shown(Text {
-                en: "Shown only: set here once the brackets by equipment (floor, start, ceiling each) are in.",
-                uk: "Лише показано: задаватимуться тут, коли будуть рівні за спорядженням (мінімум, старт, стеля кожного).",
+            Group::Balance => None,
+            Group::Brackets => Some(Text {
+                en: "The ceiling is one for every equipment and shown only until each band gets its own (floor <= start <= ceiling).",
+                uk: "Стеля одна для всього спорядження і лише показана, доки кожен рівень не матиме свою (мінімум <= старт <= стеля).",
             }),
-            Group::Hits => GroupState::Shown(Text {
+            Group::Hits => Some(Text {
                 en: "Comes with the aim's calibration by weapon class: each class's target at skill 1, with the measured rate beside it.",
                 uk: "З'явиться з калібруванням прицілу за класами зброї: ціль кожного класу на навичці 1 і виміряне поруч.",
             }),
@@ -160,11 +161,21 @@ impl Value {
     }
 }
 
-/// A number of the tuning the page shows, and sets if its group is settable.
+/// Who sets a knob.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Set {
+    /// The page.
+    Page,
+    /// Nobody yet: the page shows it (its group's note says why).
+    Later,
+}
+
+/// A number of the tuning the page shows, and sets if it may.
 struct Knob {
     /// Its key in the tuning (a JSON merge patch's path, `.` between the names).
     key: &'static str,
     group: Group,
+    set: Set,
     label: Text,
     unit: Unit,
     read: fn(&Tuning) -> f64,
@@ -176,7 +187,7 @@ impl Knob {
     }
 
     fn settable(&self) -> bool {
-        self.group.state() == GroupState::Settable
+        self.set == Set::Page
     }
 }
 
@@ -186,11 +197,13 @@ const SHARE: Unit = Unit::Number { min: 0.0, max: 1.0 };
 const KD: Unit = Unit::Number { min: 0.1, max: 10.0 };
 
 /// The knobs of the page. The brackets are the tiers of [`super::SkillTuning`] (players of equipment 0-5 meet bots of
-/// tier 4-5, and so on: [`BotTier`]) with their one ceiling, `skill.max`.
+/// tier 4-5, and so on: [`BotTier`]): each one's floor and start, which the page sets, and their one ceiling, `skill.max`,
+/// shown only until each tier gets its own (A244).
 const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.4-5.min",
         group: Group::Brackets,
+        set: Set::Page,
         label: Text { en: "Equipment 0-5: floor", uk: "Спорядження 0–5: мінімум" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::Low).min),
@@ -198,6 +211,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.4-5.start",
         group: Group::Brackets,
+        set: Set::Page,
         label: Text { en: "Equipment 0-5: start", uk: "Спорядження 0–5: старт" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::Low).start),
@@ -205,6 +219,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.9-10.min",
         group: Group::Brackets,
+        set: Set::Page,
         label: Text { en: "Equipment 6-10: floor", uk: "Спорядження 6–10: мінімум" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::Mid).min),
@@ -212,6 +227,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.9-10.start",
         group: Group::Brackets,
+        set: Set::Page,
         label: Text { en: "Equipment 6-10: start", uk: "Спорядження 6–10: старт" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::Mid).start),
@@ -219,6 +235,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.13-15.min",
         group: Group::Brackets,
+        set: Set::Page,
         label: Text { en: "Equipment 11-15: floor", uk: "Спорядження 11–15: мінімум" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::High).min),
@@ -226,6 +243,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.13-15.start",
         group: Group::Brackets,
+        set: Set::Page,
         label: Text { en: "Equipment 11-15: start", uk: "Спорядження 11–15: старт" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::High).start),
@@ -233,6 +251,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.max",
         group: Group::Brackets,
+        set: Set::Later,
         label: Text { en: "Ceiling (every equipment)", uk: "Стеля (будь-яке спорядження)" },
         unit: SHARE,
         read: |t| f64::from(t.skill.max),
@@ -240,6 +259,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.step",
         group: Group::Balance,
+        set: Set::Page,
         label: Text {
             en: "Skill step at a look (the n-th step one way in a row is step / n, n up to 10)",
             uk: "Крок навички за раз (n-й крок поспіль в один бік — крок / n, n до 10)",
@@ -250,6 +270,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.kd_low",
         group: Group::Balance,
+        set: Set::Page,
         label: Text {
             en: "The bots get better while their K/D against humans is under",
             uk: "Боти кращають, поки їхній K/D проти людей нижче",
@@ -260,6 +281,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.kd_high",
         group: Group::Balance,
+        set: Set::Page,
         label: Text {
             en: "The bots get worse while their K/D against humans is over",
             uk: "Боти слабшають, поки їхній K/D проти людей вище",
@@ -270,6 +292,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.every_s",
         group: Group::Balance,
+        set: Set::Page,
         label: Text { en: "A look every (seconds)", uk: "Перевірка кожні (секунд)" },
         unit: Unit::Whole { min: 5, max: 600 },
         read: |t| f64::from(t.skill.every_s),
@@ -277,6 +300,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.window_s",
         group: Group::Balance,
+        set: Set::Page,
         label: Text { en: "Over the last (seconds)", uk: "За останні (секунд)" },
         unit: Unit::Whole { min: 30, max: 1800 },
         read: |t| f64::from(t.skill.window_s),
@@ -284,6 +308,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.min_events",
         group: Group::Balance,
+        set: Set::Page,
         label: Text {
             en: "Fewest kills and deaths in that time to act on",
             uk: "Найменше вбивств і смертей за цей час, щоб діяти",
@@ -626,13 +651,14 @@ impl BotDesk for LiveTuning {
             .map(|group| bot_desk::Group {
                 key: group.key(),
                 title: group.title(),
-                state: group.state(),
+                note: group.note(),
                 knobs: KNOBS
                     .iter()
                     .filter(|knob| knob.group == group)
                     .map(|knob| bot_desk::Knob {
                         key: knob.key.to_owned(),
                         label: knob.label,
+                        state: if knob.settable() { KnobState::Settable } else { KnobState::Shown },
                         value: knob.shown(state.good.tuning()),
                         default: knob.shown(state.file.tuning()),
                         limits: knob.unit.limits(),
@@ -769,13 +795,17 @@ mod tests {
         assert!(next.data_line().starts_with("tuning=defaults admin=sha256:"), "{}", next.data_line());
         // The same values again change nothing.
         assert_eq!(set(&live, &[("skill.step", "0.20")]), Ok(Vec::new()));
-        // Refused whole: out of the limits, not a number, not whole, the K/D's order, a knob not settable yet or none.
+        // Refused whole: out of the limits, not a number, not whole, the K/D's order, a bracket's order (floor <= start <=
+        // ceiling), a knob not settable yet (the ceiling) or none.
         for bad in [
             &[("skill.step", "0.25"), ("skill.window_s", "10")][..],
             &[("skill.step", "0.25"), ("skill.kd_low", "a lot")],
             &[("skill.every_s", "30.5")],
             &[("skill.kd_low", "2"), ("skill.kd_high", "1.9")],
-            &[("skill.tiers.4-5.start", "0.4")],
+            &[("skill.tiers.4-5.start", "1.2")],
+            &[("skill.tiers.9-10.min", "0.8")],
+            &[("skill.tiers.13-15.start", "0.6")],
+            &[("skill.max", "0.9")],
             &[("aim.error_deg", "1")],
         ] {
             assert!(set(&live, bad).is_err(), "{bad:?}");
@@ -787,6 +817,41 @@ mod tests {
         let keys: Vec<_> = view.audit.iter().map(|c| (c.key.as_str(), c.new.as_str())).collect();
         assert_eq!(keys, [("skill.step", "0.15"), ("skill.every_s", "60"), ("skill.step", "0.2")]);
         assert_eq!(patch_of(&live.state.locked().changes), serde_json::json!({"skill": {"every_s": 60}}));
+    }
+
+    /// The brackets as the owner set them (2026-11-01T16:30:58Z: equipment 0-5 floor 0.0 start 0.3, 6-10 0.2 / 0.5, 11-15
+    /// 0.3 / 0.6) can be put in from the page; a match's team then starts there.
+    #[test]
+    fn the_page_sets_the_brackets_floor_and_start_in_their_order() {
+        let live = LiveTuning::default();
+        let made = set(
+            &live,
+            &[
+                ("skill.tiers.4-5.min", "0"),
+                ("skill.tiers.4-5.start", "0.3"),
+                ("skill.tiers.9-10.min", "0.2"),
+                ("skill.tiers.9-10.start", "0.5"),
+                ("skill.tiers.13-15.min", "0.3"),
+                ("skill.tiers.13-15.start", "0.6"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(made.len(), 6);
+        let next = live.for_match();
+        let rows: Vec<_> = BotTier::ALL.iter().map(|&tier| next.tuning().skill.of_tier(tier)).map(|row| (row.min, row.start)).collect();
+        assert_eq!(rows, [(0.0, 0.3), (0.2, 0.5), (0.3, 0.6)]);
+        // The start may go under its old floor when the floor goes with it, in one save.
+        set(&live, &[("skill.tiers.4-5.min", "0.05"), ("skill.tiers.4-5.start", "0.1")]).unwrap();
+        assert_eq!(live.for_match().tuning().skill.of_tier(BotTier::Low).start, 0.1);
+        // The view: the floors and starts settable, the ceiling shown only, the group's note says why.
+        let view = live.view();
+        let brackets = view.groups.iter().find(|group| group.key == "brackets").unwrap();
+        assert!(brackets.note.is_some());
+        let shown: Vec<_> = brackets.knobs.iter().filter(|knob| knob.state == KnobState::Shown).map(|knob| knob.key.as_str()).collect();
+        assert_eq!(shown, ["skill.max"]);
+        // The group's reset puts the shipped brackets back.
+        assert_eq!(live.reset(Some("brackets"), "192.0.2.3").unwrap().len(), 6);
+        assert_eq!(live.for_match(), LoadedTuning::default());
     }
 
     #[test]

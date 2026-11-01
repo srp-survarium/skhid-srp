@@ -1682,8 +1682,8 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
     assert_eq!(repository.all_admin_actions().len(), 1);
 }
 
-/// A bots' desk in memory: two groups (one settable), and what it was
-/// asked.
+/// A bots' desk in memory: two groups (one with a shown-only knob), and
+/// what it was asked.
 struct Desk {
     view: Mutex<session::v026g::bot_desk::DeskView>,
     asked: Mutex<Vec<String>>,
@@ -1691,13 +1691,14 @@ struct Desk {
 
 impl Desk {
     fn new() -> Self {
-        use session::v026g::bot_desk::{DeskView, Group, GroupState, Kept, Knob, Text};
-        let knob = |key: &str, value: &str| Knob {
+        use session::v026g::bot_desk::{DeskView, Group, Kept, Knob, KnobState, Text};
+        let knob = |key: &str, state: KnobState, value: &str| Knob {
             key: key.to_owned(),
             label: Text {
                 en: "A <knob>",
                 uk: "Параметр",
             },
+            state,
             value: value.to_owned(),
             default: value.to_owned(),
             limits: "0.01–0.5".to_owned(),
@@ -1713,11 +1714,11 @@ impl Desk {
                         en: "Skill by the players' equipment",
                         uk: "Навичка",
                     },
-                    state: GroupState::Shown(Text {
+                    note: Some(Text {
                         en: "Shown only.",
                         uk: "Лише показано.",
                     }),
-                    knobs: vec![knob("skill.max", "1")],
+                    knobs: vec![knob("skill.max", KnobState::Shown, "1")],
                 },
                 Group {
                     key: "balance",
@@ -1725,8 +1726,11 @@ impl Desk {
                         en: "Self-balancing",
                         uk: "Самобалансування",
                     },
-                    state: GroupState::Settable,
-                    knobs: vec![knob("skill.step", "0.15"), knob("skill.every_s", "30")],
+                    note: None,
+                    knobs: vec![
+                        knob("skill.step", KnobState::Settable, "0.15"),
+                        knob("skill.every_s", KnobState::Settable, "30"),
+                    ],
                 },
             ],
             audit: Vec::new(),

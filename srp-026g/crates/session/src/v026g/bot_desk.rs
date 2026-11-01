@@ -59,22 +59,23 @@ pub enum Kept {
     Memory,
 }
 
-/// A group of knobs, with a reset of its own.
+/// A group of knobs, with a reset of its own when one of them is settable.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Group {
     /// Its name in a form ([`BotDesk::reset`]).
     pub key: &'static str,
     pub title: Text,
-    pub state: GroupState,
+    /// What the group's shown-only knobs, or knobs to come, wait for.
+    pub note: Option<Text>,
     pub knobs: Vec<Knob>,
 }
 
-/// Whether the page may set a group's knobs yet.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum GroupState {
+/// Whether the page may set a knob yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KnobState {
     Settable,
-    /// Shown only, for this reason.
-    Shown(Text),
+    /// Shown only (the group's note says why).
+    Shown,
 }
 
 /// A knob: its value for the next match, what a reset gives, and its limits.
@@ -83,9 +84,10 @@ pub struct Knob {
     /// Its name in a form ([`BotDesk::set`]): the tuning's key, `skill.step`.
     pub key: String,
     pub label: Text,
+    pub state: KnobState,
     pub value: String,
     pub default: String,
-    /// The values it takes, as the page says them (`0 to 1`).
+    /// The values it takes, as the page says them (`0–1`).
     pub limits: String,
 }
 
