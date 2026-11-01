@@ -1,6 +1,7 @@
 // Fake answers of the match history's JSON (/api/history/..., in the shapes of
 // docs/notes/match_history.md) for check_history.mjs: twelve players, two
-// clans, 23 public matches, and Nova, signed up with none.
+// clans, 23 public matches (Yasen in the newest 15 only), and Nova, signed up
+// with none.
 const NAMES = ['Sheep', 'Volk', 'Kvitka', 'Lys', 'Bars', 'Grim', 'Sova', 'Taras', 'Zhuk', 'Orel', 'Dub', 'Yasen', 'Nova'];
 const CLANS = [{id: 7, name: 'Skhid', tag: 'SKH', level: 5, leader: 1042}, {id: 9, name: 'Radianty', tag: 'RAD', level: 3, leader: 1045}];
 const CLAN_OF = {Sheep: 7, Volk: 7, Bars: 7, Lys: 9, Grim: 9};
@@ -26,28 +27,32 @@ for (let i = 0; i < 23; i++) {
   const [map_id, map, mode] = MAPS[i % MAPS.length];
   const id = 5509 + i, winner = i === 4 ? 'draw' : random(2);
   const team_points = winner === 'draw' ? [3, 3] : winner === 0 ? [5, 2 + random(3)] : [1 + random(4), 5];
-  const lines = players.slice(0, 12).map((p, k) => {
+  const all = players.slice(0, 12).map((p, k) => {
     const team = k % 2, kills = random(18), deaths = 1 + random(12);
     return {player: ref(p), level: p.level, team, place: 0, won: winner !== 'draw' && winner === team, left: k === 11 && i % 5 === 0,
       rating: p.rating, score: 60 + 25 * kills + random(90), kills, deaths, kd: round(kills / deaths, 2), assists: random(6),
       headshots: random(Math.max(kills, 1)), grenade_kills: random(2), melee_kills: random(10) === 0 ? 1 : 0,
       batteries: mode === 'Batteries' ? random(4) : 0, captures: mode === 'Research' ? round(random(300) / 100, 2) : 0};
   });
+  const lines = all.filter(l => l.player.name !== 'Yasen' || i >= 8);
   for (const team of [0, 1]) lines.filter(l => l.team === team).sort((a, b) => b.score - a.score).forEach((l, k) => { l.place = k + 1; });
   lines.sort((a, b) => a.team - b.team || a.place - b.place);
-  matches.push({match: {id, ended_at: END - (22 - i) * 5400, duration_s: 600 + random(600), map_id, map, mode, level: 12, winner, team_points, players: 12}, lines});
+  matches.push({match: {id, ended_at: END - (22 - i) * 5400, duration_s: 600 + random(600), map_id, map, mode, level: 12, winner, team_points, players: lines.length}, lines});
 }
 const linesOf = p => matches.map(m => m.lines.find(l => l.player.id === p.id)).filter(Boolean);
 const card = p => ({player: ref(p), level: p.level, rating: p.rating, totals: totals(linesOf(p))});
 const clanMembers = clan => players.filter(p => CLAN_OF[p.name] === clan.id);
-const clanCard = clan => ({clan: {id: clan.id, name: clan.name, tag: clan.tag, level: clan.level, leader: ref(players.find(p => p.id === clan.leader))},
+const clanCard = clan => ({clan: {id: clan.id, name: clan.name, tag: clan.tag, level: clan.level, members: clanMembers(clan).length,
+  leader: ref(players.find(p => p.id === clan.leader))},
   totals: totals(clanMembers(clan).flatMap(linesOf)),
   members: clanMembers(clan).map(p => ({...card(p), commander: p.id === clan.leader}))
     .sort((a, b) => b.commander - a.commander || b.totals.score - a.totals.score)});
 function page(list, params) {
   const before = Number(params.get('before')) || Infinity, limit = Math.min(Number(params.get('limit')) || 15, 50);
   const rows = list.filter(r => r.id < before).sort((a, b) => b.id - a.id);
-  return {matches: rows.slice(0, limit), next: rows.length > limit ? rows[limit - 1].id : null};
+  // `next` after every full page: a full last one is followed by an empty one.
+  const shown = rows.slice(0, limit);
+  return {matches: shown, next: shown.length === limit ? shown[limit - 1].id : null};
 }
 
 // The answer to GET /api/history/<path>?<params>: [status, body].
@@ -61,7 +66,7 @@ export function answer(path, params) {
   case 'player': { const p = player(); return found(p && {...card(p), experience: p.experience}); }
   case 'player/matches': {
     const p = player();
-    if (!p) return found(null);
+    if (!p) return [200, {matches: [], next: null}];
     // The match and the player's line (its level is the match's).
     const rows = matches.flatMap(m => m.lines.filter(l => l.player.id === p.id)
       .map(({player: _, level: __, ...line}) => ({...m.match, ...line})));
@@ -91,13 +96,15 @@ export function answer(path, params) {
     return [200, {by, players: players.map(card).filter(c => c.totals.matches).sort((a, b) => key(b) - key(a)).slice(0, Number(params.get('limit')) || 50)}];
   }
   case 'best': {
+    const period = params.get('period') || 'day';
+    if (!['hour', 'day'].includes(period)) return [400, {error: 'bad request'}];
     const rows = matches.flatMap(m => m.lines.map(l => ({player: l.player, match: m.match.id, ended_at: m.match.ended_at, level: m.match.level,
       map: m.match.map, mode: m.match.mode, score: l.score, kills: l.kills, deaths: l.deaths})));
-    return [200, {period: params.get('period') || 'day', rows: rows.sort((a, b) => b.score - a.score).slice(0, 20)}];
+    return [200, {period, rows: rows.sort((a, b) => b.score - a.score).slice(0, 20)}];
   }
   case 'clans': {
     const by = params.get('by') || 'score';
-    return [200, {by, clans: CLANS.map(c => { const k = clanCard(c); return {id: c.id, name: c.name, tag: c.tag, level: c.level, members: k.members.length, totals: k.totals}; })
+    return [200, {by, clans: CLANS.map(c => { const {clan: {leader: _, ...line}, totals: t} = clanCard(c); return {...line, totals: t}; })
       .sort((a, b) => b.totals[by] - a.totals[by])}];
   }
   case 'clan': { const c = clan(); return found(c && clanCard(c)); }

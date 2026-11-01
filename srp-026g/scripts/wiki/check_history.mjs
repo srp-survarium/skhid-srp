@@ -5,20 +5,34 @@
 // (cargo test -p web-server serve_wiki_preview -- --ignored --nocapture);
 // this script serves them on port 24584 with /api/history/... answered from
 // the fixture, each answer late by 300 ms, so the page is seen loading too.
+// With a fifth argument `real`, /api/history/... is the preview's own: a
+// web server over an srp.db holding the fixture's players, clans and 23
+// public matches (Yasen in the newest 15, one a draw), recorded as srp
+// records them (what is checked is the same; the ratings and the match
+// numbers are the answers').
 // Saves review screenshots to /tmp/wiki-stats-review.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import {answer} from './history_fixture.mjs';
-const [preview = 'http://127.0.0.1:24583', port = '9457', output = '/tmp/wiki-stats-review', own = '24584'] = process.argv.slice(2);
+const [preview = 'http://127.0.0.1:24583', port = '9457', output = '/tmp/wiki-stats-review', own = '24584', source = 'fixture'] = process.argv.slice(2);
+const real = source === 'real';
 const base = `http://127.0.0.1:${own}`;
 await fs.mkdir(output, {recursive: true});
 const asked = [];
+// The last answer of each endpoint, by its path under /api/history/.
+const answered = {};
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, base);
   if (url.pathname.startsWith('/api/history/')) {
     asked.push(url.pathname + url.search);
-    const [status, body] = answer(url.pathname.slice('/api/history/'.length), url.searchParams);
+    const path = url.pathname.slice('/api/history/'.length);
+    let status, body;
+    if (real) {
+      const upstream = await fetch(preview + request.url);
+      [status, body] = [upstream.status, await upstream.json()];
+    } else [status, body] = answer(path, url.searchParams);
+    answered[path] = body;
     await new Promise(resolve => setTimeout(resolve, 300));
     response.writeHead(status, {'content-type': 'application/json'}).end(JSON.stringify(body));
     return;
@@ -82,7 +96,9 @@ try {
   await navigate('/wiki/stats');
   assert.equal(await text('#stats-title'), 'Stats');
   assert.equal(await count('.stats-table tbody tr'), 12, 'every player with a match, Nova not');
-  assert.equal(await text('.stats-table tbody tr td:nth-child(2)'), '[SKH] Sheep');
+  const named = ({player}) => `${player.clan ? `[${player.clan.tag}] ` : ''}${player.name}`;
+  assert.equal(await text('.stats-table tbody tr td:nth-child(2)'), named(answered.top.players[0]));
+  if (!real) assert.equal(named(answered.top.players[0]), '[SKH] Sheep');
   assert.equal(await text('.stats-table thead th.sorted'), 'Rating');
   await screenshot('boards-players');
   await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Kills').click()");
@@ -94,15 +110,20 @@ try {
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
   assert.equal(await count('.stats-table tbody tr'), 2);
-  assert.equal(await text('.stats-table tbody tr td:nth-child(2) a'), '[SKH] Skhid');
+  const firstClan = answered.clans.clans[0];
+  assert.equal(await text('.stats-table tbody tr td:nth-child(2) a'), `[${firstClan.tag}] ${firstClan.name}`);
+  assert.equal(await text('.stats-table tbody tr td:nth-child(4)'), String(firstClan.members));
   await evaluate("document.querySelector('[data-board=best]').click()");
   await settled();
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-keys button')].map(b => b.textContent).join()"), 'Day,Hour', 'no week');
   assert.equal(await count('.stats-table tbody tr'), 20);
   await screenshot('boards-best');
   await evaluate("document.querySelector('[data-board=latest]').click()");
   await settled();
   assert.equal(await count('.stats-table tbody tr'), 15);
-  assert.equal(await text('.stats-table tbody tr td:nth-child(2)'), '5531', 'newest first');
+  const newest = answered.matches.matches[0].id;
+  if (!real) assert.equal(newest, 5531);
+  assert.equal(await text('.stats-table tbody tr td:nth-child(2)'), String(newest), 'newest first');
   await evaluate("document.querySelector('.stats-paged button').click()");
   await settled();
   assert.equal(await count('.stats-table tbody tr'), 23);
@@ -131,6 +152,18 @@ try {
   assert.ok(asked.some(path => path.includes('player/matches') && path.includes('before=')), 'pages by before=');
   assert.ok(await evaluate("[...document.querySelectorAll('.stats-table tbody td:nth-child(6)')].some(td => td.textContent === 'Draw')"));
 
+  // Yasen played exactly a page: the older page is empty, so the button just goes.
+  await navigate('/wiki/stats?player=Yasen&lang=en');
+  assert.equal(await count('.stats-table tbody tr'), 15);
+  assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), false, 'a full page may have more');
+  await evaluate("document.querySelector('.stats-paged button').click()");
+  await settled();
+  assert.equal(answered['player/matches'].matches.length, 0, 'the page after is empty');
+  assert.equal(await count('.stats-table tbody tr'), 15);
+  assert.equal(await count('.stats-paged .stats-table'), 1, 'no second table');
+  assert.equal(await count('.stats-empty'), 0, 'no notice under the rows');
+  assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no button left');
+
   // A new player, an unknown one.
   await navigate('/wiki/stats?player=Nova&lang=en');
   assert.equal(await text('.stats-empty'), 'No public matches yet.');
@@ -142,7 +175,7 @@ try {
   await screenshot('player-not-found');
 
   // A match, an unknown one.
-  await navigate('/wiki/stats?match=5531&lang=en', 'interactive');
+  await navigate(`/wiki/stats?match=${newest}&lang=en`, 'interactive');
   assert.equal(await count('.stats-table tbody tr'), 12, 'six empty rows a team while it loads');
   const loadingMatch = await top(1);
   await settled();
@@ -159,6 +192,7 @@ try {
   assert.equal(await text('#stats-title'), '[SKH] Skhid');
   assert.equal(await count('.stats-table:first-of-type tbody tr'), 3 + 15);
   assert.match(await text('.stats-table tbody tr td'), /Sheep · Commander/);
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Members').nextSibling.textContent"), String(answered.clan.clan.members));
   await screenshot('clan');
   await navigate('/wiki/stats?clan=NONE&lang=en');
   assert.equal(await text('.stats-empty'), 'No clan tagged [NONE].');
@@ -171,7 +205,7 @@ try {
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await screenshot('player-mobile-uk');
-  console.log(`ok: ${asked.length} answers from the fixture; screenshots in ${output}`);
+  console.log(`ok: ${asked.length} answers from ${real ? 'the real endpoints' : 'the fixture'}; screenshots in ${output}`);
 } finally {
   await send('session.end').catch(() => {});
   socket.close();

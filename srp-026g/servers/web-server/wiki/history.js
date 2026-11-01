@@ -13,7 +13,7 @@
       stats: 'Stats', player: 'Player', clan: 'Clan', match: 'Match', matches: 'Matches', find: 'Find',
       playerName: 'Player name', clanTag: 'Clan tag', matchNumber: 'Match number',
       players: 'Players', clans: 'Clans', best: 'Best matches', latest: 'Latest matches',
-      hour: 'Hour', day: 'Day', week: 'Week', rank: '#', level: 'Level', experience: 'Experience', rating: 'Rating',
+      hour: 'Hour', day: 'Day', rank: '#', level: 'Level', experience: 'Experience', rating: 'Rating',
       wins: 'Wins', losses: 'Losses', winRate: 'Win rate', kills: 'Kills', deaths: 'Deaths', kd: 'K/D',
       assists: 'Assists', score: 'Score', scoreAvg: 'Avg score', headshots: 'Headshots', grenadeKills: 'Grenade kills',
       meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', members: 'Members', commander: 'Commander',
@@ -28,7 +28,7 @@
       stats: 'Статистика', player: 'Гравець', clan: 'Клан', match: 'Матч', matches: 'Матчі', find: 'Знайти',
       playerName: 'Ім’я гравця', clanTag: 'Тег клану', matchNumber: 'Номер матчу',
       players: 'Гравці', clans: 'Клани', best: 'Найкращі матчі', latest: 'Останні матчі',
-      hour: 'Година', day: 'День', week: 'Тиждень', rank: '#', level: 'Рівень', experience: 'Досвід', rating: 'Рейтинг',
+      hour: 'Година', day: 'День', rank: '#', level: 'Рівень', experience: 'Досвід', rating: 'Рейтинг',
       wins: 'Перемоги', losses: 'Поразки', winRate: 'Частка перемог', kills: 'Вбивства', deaths: 'Смерті', kd: 'В/С',
       assists: 'Допомоги', score: 'Очки', scoreAvg: 'Сер. очки', headshots: 'У голову', grenadeKills: 'Гранатами',
       meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', members: 'Учасники', commander: 'Командир',
@@ -44,11 +44,11 @@
   const BOARDS = {
     players: ['rating', 'matches', 'wins', 'kills', 'score', 'headshots', 'batteries'],
     clans: ['score', 'matches', 'wins', 'kills', 'headshots', 'batteries'],
-    best: ['day', 'hour', 'week'],
+    best: ['day', 'hour'],
     latest: [],
   };
   const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score: 'score',
-    headshots: 'headshots', batteries: 'batteries', day: 'day', hour: 'hour', week: 'week'};
+    headshots: 'headshots', batteries: 'batteries', day: 'day', hour: 'hour'};
   const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
   const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
@@ -67,6 +67,8 @@
   const n = value => value === null || value === undefined ? '—' : numbers.format(value);
   const kd = value => value === null || value === undefined ? '—' : pair.format(value);
   const rate = value => value === null || value === undefined ? '—' : percent.format(value);
+  // A map's or a mode's name: null for one the game data no longer has.
+  const name = value => value ?? '—';
   const when = seconds => dates.format(new Date(seconds * 1000));
   const duration = seconds => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const say = (template, value) => template.replace('{}', value);
@@ -125,6 +127,8 @@
   }
 
   // A list that grows by `before=` pages: its table and the button under it.
+  // `next` follows every full page, so the last one may come back empty:
+  // nothing is added and the button goes.
   function paged(columns, load, empty) {
     const box = el('div', {className: 'stats-paged'});
     const more = el('button', {type: 'button', className: 'quiet', hidden: true}, TEXT.older);
@@ -166,8 +170,8 @@
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
   const MATCH_COLUMNS = [
-    [TEXT.ended, row => when(row.ended_at), 'l'], [TEXT.match, matchLink], [TEXT.map, row => row.map, 'l'],
-    [TEXT.mode, row => row.mode, 'l'], [TEXT.level, row => n(row.level)],
+    [TEXT.ended, row => when(row.ended_at), 'l'], [TEXT.match, matchLink], [TEXT.map, row => name(row.map), 'l'],
+    [TEXT.mode, row => name(row.mode), 'l'], [TEXT.level, row => n(row.level)],
   ];
 
   // The day totals of the last 30 days, added up.
@@ -230,7 +234,7 @@
         return [el('h2', {className: 'stats-heading'}, title), table(columns, rows, 6)];
       });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
-        [TEXT.map, m ? m.map : null], [TEXT.mode, m ? m.mode : null]]],
+        [TEXT.map, m ? name(m.map) : null], [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? m.team_points.map(n).join(' : ') : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null]]]), ...teams.flat()];
     };
@@ -249,7 +253,7 @@
       [TEXT.headshots, row => n(row.totals.headshots)], [TEXT.batteries, row => n(row.totals.batteries)]];
     const matchColumns = [...MATCH_COLUMNS, [TEXT.points, row => row.team_points.map(n).join(' : ')], [TEXT.players, row => n(row.players)]];
     const head = data => panels(
-      [TEXT.clan, [[TEXT.level, data ? n(data.clan.level) : null], [TEXT.members, data ? n(data.members.length) : null],
+      [TEXT.clan, [[TEXT.level, data ? n(data.clan.level) : null], [TEXT.members, data ? n(data.clan.members) : null],
         [TEXT.commander, data ? (data.clan.leader ? link({player: data.clan.leader.name}, data.clan.leader.name) : '—') : null],
         ...record(data && data.totals)]],
       [TEXT.inMatches, combat(data && data.totals)]);
@@ -301,7 +305,7 @@
     const bestColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
       [TEXT.score, row => n(row.score), 'sorted'], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.match, row => link({match: row.match}, `${row.match}`)], [TEXT.ended, row => when(row.ended_at), 'l'],
-      [TEXT.map, row => row.map, 'l'], [TEXT.mode, row => row.mode, 'l'], [TEXT.level, row => n(row.level)]];
+      [TEXT.map, row => name(row.map), 'l'], [TEXT.mode, row => name(row.mode), 'l'], [TEXT.level, row => n(row.level)]];
     const latestColumns = [...MATCH_COLUMNS, [TEXT.points, row => row.team_points.map(n).join(' : ')], [TEXT.players, row => n(row.players)]];
     // A ranked list: its rows numbered.
     const ranked = columns => columns.map(([label, cell, ...rest]) => [label, row => cell(row, row.rank), ...rest]);

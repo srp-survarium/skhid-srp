@@ -149,3 +149,14 @@ with `/api/history/...` from the fixture. Screenshots go to
 ```
 node scripts/wiki/check_history.mjs http://127.0.0.1:24583 9457
 ```
+
+With a fifth argument `real`, `/api/history/...` is passed on to the server
+of the first argument instead: a web server over an `srp.db` that holds the
+fixture's players and clans and 23 public matches (Yasen in the newest 15,
+one a draw), recorded as srp records them (`Results::settle`, then the
+accounts' flush). The checks are the same; the ratings and the match numbers
+are taken from the answers.
+
+```
+node scripts/wiki/check_history.mjs http://127.0.0.1:24583 9457 /tmp/wiki-stats-review 24584 real
+```
