@@ -712,9 +712,10 @@ impl JumpCounts {
                         for k in ri.saturating_sub(20)..(ri + 40).min(recs.len()) {
                             let r = &recs[k];
                             eprintln!(
-                                "jumptrace\t{spot}\t{}\t{}\t{:+}\t{:.2}\t{:.2}\t{:.2}\t{:#x}\t{:.0}\t{}\t{:.2}\t{}\t{:#x}\t{}",
+                                "jumptrace\t{spot}\t{}\t{}\t{:+}\t{:.2}\t{:.2}\t{:.2}\t{:#x}\t{:.0}\t{}\t{:.2}\t{}\t{:#x}\t{}\t{:#x}\t{}\t{}\t{}",
                                 p.place, p.t, k as i64 - ri as i64, r.feet.x, r.feet.y, r.feet.z, r.keys,
-                                r.yaw.to_degrees(), u8::from(r.air), r.speed, r.walk, r.why, u8::from(r.has_route)
+                                r.yaw.to_degrees(), u8::from(r.air), r.speed, r.walk, r.why, u8::from(r.has_route),
+                                r.motor_keys, r.stepped, r.apart, r.guard
                             );
                         }
                     }

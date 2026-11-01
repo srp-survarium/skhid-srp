@@ -174,10 +174,13 @@ struct Rec {
     walk: u8,
     why: u16,
     has_route: bool,
-    /// The lip guard of the bot's last motor tick (`Bot::bench_guard`) and its watch ([`LipWatchKind`]): the stuck episodes' print.
+    /// The motor's own keys, the side step, the step apart and the lip guard of the tick ([`run::Doing`]).
+    motor_keys: u32,
+    stepped: u8,
+    apart: u8,
     guard: u8,
+    /// The lip guard's watch ([`LipWatchKind`]) and why it said the keys fall (`Bot::bench_guard_why`): the stuck episodes' print.
     watch: LipWatchKind,
-    /// Why the guard said the keys fall (`Bot::bench_guard_why`).
     guard_why: u8,
 }
 

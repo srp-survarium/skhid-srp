@@ -125,7 +125,6 @@ pub enum FixFloor {
     /// in front of a wall puts it on the floor over the wall's top when that is nearer than its own. School, the r1 stuck spot
     /// (A196, live): a jump against the facade, shown 0.68 m up, put the reckoned body on the top behind it, 0.59 m over the feet;
     /// with [`Edge::Client`] it walked on there for a second (2-3 m off) while the body fell back.
-    #[default]
     Nearest,
     /// The nearest floor at most [`FIX_ABOVE_M`] over the feet, else the nearest: feet are on their floor or over it.
     Under,
@@ -135,7 +134,10 @@ pub enum FixFloor {
     /// ledge, 0.5 m under the top it left and over a lower top 0.6-0.8 m aside that it falls past); only the jump's floor is
     /// under it. Over every differing fix of the rev 38+ live recordings (14,097, A204), the mean error of the reckoning at the
     /// next world is 0.638 m with this rule, 1.380 with [`Self::Nearest`] and 0.944 with [`Self::Under`], and no map is worse
-    /// than with [`Self::Nearest`] (Under alone was worse on four: Tarakanovsky Fort 1.644 against 0.691).
+    /// than with [`Self::Nearest`] (Under alone was worse on four: Tarakanovsky Fort 1.644 against 0.691). The default: its by-side
+    /// bench could not reach the case (47 such fixes in 256 matches: the stand-in's bodies stay on the grid's floors) and showed no
+    /// cost (score +0.3 %, z +0.6, no guard flagged; #944).
+    #[default]
     UnderInJump,
 }
 
@@ -156,7 +158,7 @@ impl Default for Kinematics {
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             margin_edge: MarginEdge::Lattice,
-            fix_floor: FixFloor::Nearest,
+            fix_floor: FixFloor::UnderInJump,
             pitch_scale: PitchScale::Client,
         }
     }
