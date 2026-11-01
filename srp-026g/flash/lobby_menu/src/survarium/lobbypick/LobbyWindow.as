@@ -24,8 +24,8 @@ package survarium.lobbypick
       public static const PICK_BASE:int = 2095000000;
 
       // the cards in id order, 1 to 6: their names (dictionary keys) and pictures (bitmaps/)
-      private static const NAMES:Array = ["st_srp_lobby_room","st_srp_lobby_basement","st_srp_lobby_bunker","st_srp_lobby_hangar","st_srp_lobby_house","st_srp_lobby_range"];
-      private static const PICTURES:Array = ["SrpLobbyRoom","SrpLobbyBasement","SrpLobbyBunker","SrpLobbyHangar","SrpLobbyHouse","SrpLobbyRange"];
+      private static const NAMES:Array = ["st_srp_lobby_room","st_srp_lobby_basement","st_srp_lobby_bunker","st_srp_lobby_hangar","st_srp_lobby_bar","st_srp_lobby_range"];
+      private static const PICTURES:Array = ["SrpLobbyRoom","SrpLobbyBasement","SrpLobbyBunker","SrpLobbyHangar","SrpLobbyBar","SrpLobbyRange"];
 
       // a vote card's size (RoomsRoom: a third of the rooms window less its margins, 190 high), three
       // to a row

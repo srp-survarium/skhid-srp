@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Используется в комплектах %1$s. 
 st_srp_loadout_sell_one	Используется в комплекте %1$s. Продать?
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для боя
+st_srp_lobby_bar	Бар
 st_srp_lobby_basement	Подвал
 st_srp_lobby_bunker	Бункер
 st_srp_lobby_hangar	Ангар
-st_srp_lobby_house	Дом
 st_srp_lobby_range	Тир
 st_srp_lobby_room	Комната
 st_srp_lobby_title	Лобби

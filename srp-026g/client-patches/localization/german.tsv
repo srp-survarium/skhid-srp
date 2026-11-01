@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	nicht spielbar
+st_srp_lobby_bar	Bar
 st_srp_lobby_basement	Keller
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
-st_srp_lobby_house	Haus
 st_srp_lobby_range	Schießstand
 st_srp_lobby_room	Zimmer
 st_srp_lobby_title	Lobby

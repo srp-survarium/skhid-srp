@@ -1,7 +1,7 @@
 //! Patch 81: the lobby's scene is the one the player picks in the lobby
 //! window (docs/notes/lobby-scenes.md): the Room (the 0.69d camp, the
 //! default), the Basement (the classic), the Bunker (S.T.A.L.K.E.R. 2), the
-//! Hangar (0.46c2), the House or the Shooting Range (S.T.A.L.K.E.R. 2). In a
+//! Hangar (0.46c2), the Bar or the Shooting Range (S.T.A.L.K.E.R. 2). In a
 //! squad the lobby is its commander's pick. The six lobbies ship with the game: a project that fails to load is a bug,
 //! logged, never a state of the game's.
 //!
@@ -60,10 +60,10 @@ pub enum Lobby {
     Stk2Bunker,
     /// The Hangar: the 0.46c2 hangar.
     Hangar046,
-    /// The House: the upper floor of the S.T.A.L.K.E.R. 2 (2012) Bar.
-    Stk2House,
+    /// The Bar: the upper floor of the S.T.A.L.K.E.R. 2 (2012) Bar.
+    Stk2BarHall,
     /// The Shooting Range: the S.T.A.L.K.E.R. 2 (2012) bar's shooting gallery.
-    Stk2Bar,
+    Stk2Range,
 }
 
 /// srp's start of a lobby pick (`3B`; its `lobby_pick::LOBBY_PICK_BASE`,
@@ -74,7 +74,7 @@ pub const PICK_BASE: u32 = 2095 * 1000 * 1000;
 impl Lobby {
     /// In the window's order (and the ids' 1 to 6).
     pub const ALL: [Lobby; 6] =
-        [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046, Lobby::Stk2House, Lobby::Stk2Bar];
+        [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046, Lobby::Stk2BarHall, Lobby::Stk2Range];
 
     /// Its id: user.cfg's `srp_lobby`, the lobby window's card, srp's
     /// `3B` start (`2 095 000 000 + id`) and `0xA1`'s bytes (0 none).
@@ -84,8 +84,8 @@ impl Lobby {
             Lobby::Classic => 2,
             Lobby::Stk2Bunker => 3,
             Lobby::Hangar046 => 4,
-            Lobby::Stk2House => 5,
-            Lobby::Stk2Bar => 6,
+            Lobby::Stk2BarHall => 5,
+            Lobby::Stk2Range => 6,
         }
     }
 
@@ -109,8 +109,8 @@ impl Lobby {
             Lobby::Classic => b"2",
             Lobby::Stk2Bunker => b"3",
             Lobby::Hangar046 => b"4",
-            Lobby::Stk2House => b"5",
-            Lobby::Stk2Bar => b"6",
+            Lobby::Stk2BarHall => b"5",
+            Lobby::Stk2Range => b"6",
         }
     }
 
@@ -127,8 +127,8 @@ impl Lobby {
             Lobby::Stk2Bunker => c"lobby_scene/stk2_bunker",
             Lobby::Hangar046 => c"lobby_scene/hangar_046",
             Lobby::Camp069 => c"lobby_scene/camp_069",
-            Lobby::Stk2House => c"lobby_scene/stk2_house",
-            Lobby::Stk2Bar => c"lobby_scene/stk2_bar",
+            Lobby::Stk2BarHall => c"lobby_scene/stk2_bar_hall",
+            Lobby::Stk2Range => c"lobby_scene/stk2_range",
         }
     }
 
@@ -141,8 +141,8 @@ impl Lobby {
             Lobby::Stk2Bunker => c"resources/projects/lobby_scene/stk2_bunker/client_project",
             Lobby::Hangar046 => c"resources/projects/lobby_scene/hangar_046/client_project",
             Lobby::Camp069 => c"resources/projects/lobby_scene/camp_069/client_project",
-            Lobby::Stk2House => c"resources/projects/lobby_scene/stk2_house/client_project",
-            Lobby::Stk2Bar => c"resources/projects/lobby_scene/stk2_bar/client_project",
+            Lobby::Stk2BarHall => c"resources/projects/lobby_scene/stk2_bar_hall/client_project",
+            Lobby::Stk2Range => c"resources/projects/lobby_scene/stk2_range/client_project",
         }
     }
 
@@ -153,8 +153,8 @@ impl Lobby {
             Lobby::Classic => "day",
             Lobby::Stk2Bunker => "stk2_bunker",
             Lobby::Hangar046 => "hangar_046",
-            Lobby::Stk2House => "stk2_house",
-            Lobby::Stk2Bar => "stk2_bar",
+            Lobby::Stk2BarHall => "stk2_bar_hall",
+            Lobby::Stk2Range => "stk2_range",
         }
     }
 }

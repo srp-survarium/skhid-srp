@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 564168,
-  "sha256": "1669f07c35a7d02f28f0b607ec24ddd8012289af5d95d3b57ef8ca3a8ae1959d",
+  "sha256": "2b67f9a00ddc3d3515418dc03990724b2996f67375a3cf8d14757f9ad01ce59d",
   "blocks": {
     "weight_ui.code": {
       "kind": "code",
@@ -72,7 +72,7 @@
     "patches.code": {
       "kind": "code",
       "va": "0xa457000",
-      "size": 172536
+      "size": 172552
     },
     "patches.data": {
       "kind": "data",
@@ -86,7 +86,7 @@
     }
   },
   "symbols": {
-    "SRP_DIAGNOSTICS": "0xa47e538",
+    "SRP_DIAGNOSTICS": "0xa47e530",
     "__rodata_bake_cache_code": "0xa43d0e9",
     "__rodata_hide_ui_code": "0xa4381e2",
     "__rodata_kill_feed_code": "0xa43b178",
@@ -338,7 +338,7 @@
     "kill_feed_row": "0xa43b09f",
     "kit_keys": "0xa43704a",
     "kit_keys_since": "0xa43704c",
-    "lamps_light_vtable": "0xa4811cc",
+    "lamps_light_vtable": "0xa4811dc",
     "lamps_on_bind": "0xa47ce43",
     "lamps_on_decal_enter": "0xa47d11b",
     "lamps_on_decal_leave": "0xa47d182",
@@ -353,7 +353,7 @@
     "lamps_on_save": "0xa47d015",
     "lamps_on_visual_insert": "0xa47d0cd",
     "lamps_on_visual_remove": "0xa47d0e3",
-    "lamps_visual_vtable": "0xa4811c0",
+    "lamps_visual_vtable": "0xa4811d0",
     "language_on_configs_start": "0xa47cd81",
     "language_on_configs_texts": "0xa47d313",
     "language_on_options_call": "0xa47cddd",

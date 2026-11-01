@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
 st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
 st_srp_loadout_title	Zestaw
 st_srp_loadout_unfit	nie do gry
+st_srp_lobby_bar	Bar
 st_srp_lobby_basement	Piwnica
 st_srp_lobby_bunker	Bunkier
 st_srp_lobby_hangar	Hangar
-st_srp_lobby_house	Dom
 st_srp_lobby_range	Strzelnica
 st_srp_lobby_room	Pokój
 st_srp_lobby_title	Lobby

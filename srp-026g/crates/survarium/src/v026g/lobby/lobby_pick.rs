@@ -20,9 +20,9 @@ pub enum LobbyPick {
     Bunker,
     /// `lobby_scene/hangar_046`.
     Hangar,
-    /// `lobby_scene/stk2_house`.
-    House,
-    /// `lobby_scene/stk2_bar`.
+    /// `lobby_scene/stk2_bar_hall`.
+    Bar,
+    /// `lobby_scene/stk2_range`.
     Range,
 }
 
@@ -32,7 +32,7 @@ impl LobbyPick {
         LobbyPick::Basement,
         LobbyPick::Bunker,
         LobbyPick::Hangar,
-        LobbyPick::House,
+        LobbyPick::Bar,
         LobbyPick::Range,
     ];
 
@@ -43,7 +43,7 @@ impl LobbyPick {
             LobbyPick::Basement => 2,
             LobbyPick::Bunker => 3,
             LobbyPick::Hangar => 4,
-            LobbyPick::House => 5,
+            LobbyPick::Bar => 5,
             LobbyPick::Range => 6,
         }
     }

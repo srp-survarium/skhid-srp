@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Выкарыстоўваецца ў камплекта�
 st_srp_loadout_sell_one	Выкарыстоўваецца ў камплекце %1$s. Прадаць?
 st_srp_loadout_title	Камплект
 st_srp_loadout_unfit	не для бою
+st_srp_lobby_bar	Бар
 st_srp_lobby_basement	Падвал
 st_srp_lobby_bunker	Бункер
 st_srp_lobby_hangar	Ангар
-st_srp_lobby_house	Дом
 st_srp_lobby_range	Цір
 st_srp_lobby_room	Пакой
 st_srp_lobby_title	Лобі

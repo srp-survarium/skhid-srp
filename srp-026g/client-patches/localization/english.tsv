@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Used in %1$s. Sell anyway?
 st_srp_loadout_sell_one	Used in Loadout %1$s. Sell anyway?
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	can't play
+st_srp_lobby_bar	Bar
 st_srp_lobby_basement	Basement
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
-st_srp_lobby_house	House
 st_srp_lobby_range	Shooting Range
 st_srp_lobby_room	Room
 st_srp_lobby_title	Lobby

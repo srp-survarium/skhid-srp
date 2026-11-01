@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Ezekben használod: %1$s. Így is eladod?
 st_srp_loadout_sell_one	A(z) %1$s. összeállításban használod. Így is eladod?
 st_srp_loadout_title	Összeállítás
 st_srp_loadout_unfit	nem használható
+st_srp_lobby_bar	Bár
 st_srp_lobby_basement	Pince
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangár
-st_srp_lobby_house	Ház
 st_srp_lobby_range	Lőtér
 st_srp_lobby_room	Szoba
 st_srp_lobby_title	Lobbi

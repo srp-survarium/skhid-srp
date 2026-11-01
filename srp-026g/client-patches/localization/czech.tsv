@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Použito v: %1$s. Přesto prodat?
 st_srp_loadout_sell_one	Používá se ve výbavě %1$s. Přesto prodat?
 st_srp_loadout_title	Výbava
 st_srp_loadout_unfit	nelze hrát
+st_srp_lobby_bar	Bar
 st_srp_lobby_basement	Sklep
 st_srp_lobby_bunker	Bunkr
 st_srp_lobby_hangar	Hangár
-st_srp_lobby_house	Dům
 st_srp_lobby_range	Střelnice
 st_srp_lobby_room	Pokoj
 st_srp_lobby_title	Lobby

@@ -2424,10 +2424,10 @@ st_srp_loadout_sell_many	Koristi se u: %1$s. Ipak prodati?
 st_srp_loadout_sell_one	Koristi se u kompletu %1$s. Ipak prodati?
 st_srp_loadout_title	Komplet
 st_srp_loadout_unfit	nije spreman
+st_srp_lobby_bar	Bar
 st_srp_lobby_basement	Podrum
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
-st_srp_lobby_house	Kuća
 st_srp_lobby_range	Streljana
 st_srp_lobby_room	Soba
 st_srp_lobby_title	Lobi
