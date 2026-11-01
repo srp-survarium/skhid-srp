@@ -211,6 +211,9 @@ survarium::weapon_hide_frame	was_visible	0x4	u8	weapon on_hide entry boolean; fa
 survarium::weapon	optics	0x1808	ptr<survarium::weapon_optics>	optional optics object, mt_draw 0x244F66
 survarium::weapon_optics	model	0x108	ptr<survarium::scene_model>	normal optics model holder, 0x244FF7
 survarium::weapon_optics	aim_model	0x10C	ptr<survarium::scene_model>	aimed optics model holder, 0x244FE1
+survarium::weapon_optics	hide_weapon_on_aim	0x11C	u8	the config's hide_weapon_on_aim (rifle_scope ctor 0x2996C0, ESP+10h): aimed, the weapon's body is out of the scene and the hands hidden (add_aimed_rifle_scope_to_scene 0x244BCF); 0, the gun stays drawn under the aimed optic
+survarium::weapon	scope_in_scene	0x181D	u8	the optic's aimed model is in the scene (and, for hide_weapon_on_aim, the body out): set by add_aimed_rifle_scope_to_scene 0x244C3F (and the stock on_show's aimed branch 0x243EBE), cleared by remove_aimed_rifle_scope_from_scene 0x244D2C and on_hide 0x2440C0; drawing only, not in the world
+survarium::weapon	scope_view	0x181E	u8	the scope's view is on: weapon::tick sets it at the aim's progress (+5FCh) past the optic's change_scope_factor (+110h, 0x244B26) and clears it (0x244B54); in the world (serialize 0x244A14, deserialize 0x244A6C) and its hash: a patch never writes it
 survarium::artefact_client	world	0xC	ptr<survarium::game_world>	client game world, common callback prefix
 survarium::artefact_client	cached_state	0x10	u32	presentation owner state, common callback prefix
 survarium::artefact_client	model	0x14	ptr<survarium::scene_model>	model holder, common callback prefix
