@@ -142,7 +142,7 @@ impl FireGate {
         let Some(e) = self.engaged.get_mut(place).and_then(Option::take) else {
             return;
         };
-        let ttfs = e.first_shot.map(|first| u64::from(first.saturating_sub(e.since) * TICK_MS));
+        let ttfs = e.first_shot.map(|first| u64::from(first.saturating_sub(e.since)));
         let counts = &mut self.teams[team];
         counts.duels.end(end, ttfs);
         if camper == Some(e.target) {
@@ -156,7 +156,7 @@ impl Topic for FireGate {
         self
     }
 
-    /// The tick's shots and kills, and each body's target.
+    /// The tick's shots and kills, and each body's target. `game.tick` and the facts' ticks are the match time in ms.
     fn begin(&mut self, run: &Run, game: &mut Game) {
         let tick = game.tick;
         let camper = run.camper;
@@ -172,14 +172,14 @@ impl Topic for FireGate {
         }
         for fact in game.shot_facts.iter().filter(|f| bot(f.shooter)) {
             let s = fact.shooter;
-            let burst = self.last_shot[s].is_some_and(|last| tick.saturating_sub(last) * TICK_MS <= BURST_MS);
+            let burst = self.last_shot[s].is_some_and(|last| tick.saturating_sub(last) <= BURST_MS);
             self.last_shot[s] = Some(tick);
             let (Some((target, distance, _)), Some(rise)) = (fact.target, fact.rise) else {
                 continue;
             };
             let half_deg = HALF_M.atan2(distance.max(0.5)).to_degrees();
             // Under fire: an enemy's shot at him in the second before this tick (this tick's own shots at him included).
-            let under_fire = self.shot_at[s].is_some_and(|at| tick.saturating_sub(at) * TICK_MS <= UNDER_FIRE_MS);
+            let under_fire = self.shot_at[s].is_some_and(|at| tick.saturating_sub(at) <= UNDER_FIRE_MS);
             let cell = Self::cell(rise.off_deg / half_deg, burst, distance, under_fire);
             let hit = u32::from(fact.hit == Some(target));
             let counts = &mut self.teams[team_of(s)];
@@ -191,7 +191,7 @@ impl Topic for FireGate {
             }
             if let Some(e) = self.engaged[s].as_mut().filter(|e| e.target == target && e.first_shot.is_none()) {
                 e.first_shot = Some(tick);
-                let ms = tick.saturating_sub(e.since) * TICK_MS;
+                let ms = tick.saturating_sub(e.since);
                 let bin = TTFS_BINS_MS.iter().position(|&edge| ms < edge).unwrap_or(TTFS_BINS_MS.len());
                 self.teams[team_of(s)].ttfs[bin] += 1;
             }
@@ -219,7 +219,7 @@ impl Topic for FireGate {
                 (Some(e), Some(t)) if e.target == t => self.engaged[place] = Some(Engagement { lost_since: None, ..e }),
                 (Some(e), None) if body.alive => match e.lost_since {
                     None => self.engaged[place] = Some(Engagement { lost_since: Some(tick), ..e }),
-                    Some(at) if tick.saturating_sub(at) * TICK_MS > LOST_MS => self.close(place, team, End::None, camper),
+                    Some(at) if tick.saturating_sub(at) > LOST_MS => self.close(place, team, End::None, camper),
                     Some(_) => {}
                 },
                 (_, target) => {
@@ -307,14 +307,15 @@ mod tests {
     #[test]
     fn an_engagement_ends_won_lost_or_none_with_its_time_to_the_first_shot() {
         let mut gate = FireGate::new(4);
-        gate.engaged[0] = Some(Engagement { target: 2, since: 10, first_shot: Some(15), lost_since: None });
+        // Ticks are the match time in ms: the first shot 600 ms after the target was taken.
+        gate.engaged[0] = Some(Engagement { target: 2, since: 10_000, first_shot: Some(10_600), lost_since: None });
         gate.close(0, 0, End::Won, Some(2));
         gate.engaged[1] = Some(Engagement { target: 3, since: 10, first_shot: None, lost_since: None });
         gate.close(1, 0, End::Lost, Some(2));
         gate.close(1, 0, End::None, Some(2));
         let team = &gate.teams[0];
         assert_eq!(team.duels.ends, [1, 1, 0]);
-        assert_eq!(team.duels.won_ttfs, [1, u64::from(5 * TICK_MS)]);
+        assert_eq!(team.duels.won_ttfs, [1, 600]);
         assert_eq!(team.duels.lost_ttfs, [0, 0]);
         // Only the engagement on the stand-in camper (place 2) counts apart.
         assert_eq!(team.camper.ends, [1, 0, 0]);
