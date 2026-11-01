@@ -518,15 +518,21 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
 /// ([`before_world_load`]); a rollback's are this client's own. Else (a
 /// replay's key frame, a cook that failed there) cooked anew from its recipe
 /// and waited for, refused while a player was made since the last move
-/// ([`Dispatch::Guarded`]: a late join's install must not run in a load).
+/// ([`Dispatch::Guarded`]: a late join's install must not run in a load);
+/// so is one found still cooking (not made by [`before_world_load`]'s
+/// deadline).
 fn gun_for(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, pick: Pick) -> Result<(CookId, DropOf), Why> {
-    if let Some(found) = let_go(thread, player.id(), slot, pick) {
-        return Ok(found);
-    }
-    let cook_from = peer(player, pick.recipe.place).ok_or(Why::NoDonor)?;
-    let from = DropOf { place: pick.recipe.place, body: cook_from.id(), lies: Lies::Gone };
-    let id = ask(&cook_from, thread, pick.recipe, At::Drop(from)).ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
-    Ok((wait_for(thread, id, pick.recipe, Dispatch::Guarded).map_err(Why::Gun)?, from))
+    let (id, from) = match let_go(thread, player.id(), slot, pick) {
+        Some(found) => found,
+        None => {
+            let cook_from = peer(player, pick.recipe.place).ok_or(Why::NoDonor)?;
+            let from = DropOf { place: pick.recipe.place, body: cook_from.id(), lies: Lies::Gone };
+            let id = ask(&cook_from, thread, pick.recipe, At::Drop(from))
+                .ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
+            (id, from)
+        }
+    };
+    Ok((wait_for(thread, id, pick.recipe, Dispatch::Guarded, Deadline::from_now(thread)).map_err(Why::Gun)?, from))
 }
 
 /// A gun this client has for `player`'s `slot` that `pick` names: the one it
@@ -620,9 +626,19 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
             }
         }
     }
+    if n == 0 {
+        return;
+    }
+    // One deadline for them all: the 0xE8 handler is held at most
+    // WAIT_CAP_MS however many guns the world names (the server drops a
+    // silent peer after 10 s).
+    let deadline = Deadline::from_now(thread);
     for (id, recipe) in asked.iter().flatten() {
-        // A refusal is logged; the reader then logs the pick NOT installed.
-        let _ = wait_for(thread, *id, *recipe, Dispatch::BeforeLoad);
+        if let Err(refused) = wait_for(thread, *id, *recipe, Dispatch::BeforeLoad, deadline) {
+            log_recipe("NOT made before the world's load:", *recipe, &[
+                Text(" ("), Text(refused.text()), Text("; the record's reader waits for it, refused while a player \
+                                                           was made since the last move)")]);
+        }
     }
 }
 
@@ -785,12 +801,12 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     let body = peer(player, target).ok_or(Why::NoDonor)?;
     let recipe = Recipe { place: target, kit, slot };
     let (cook, from) = match body_drop(thread, target) {
-        Some((id, _, from)) => (wait_for(thread, id, recipe, Dispatch::Guarded).map_err(Why::Gun)?, from),
+        Some((id, _, from)) => (wait_for(thread, id, recipe, Dispatch::Guarded, Deadline::from_now(thread)).map_err(Why::Gun)?, from),
         // A death this client did not see (it joined after): cooked now.
         None => {
             let from = DropOf { place: target, body: body.id(), lies: Lies::InWorld };
             let id = ask(&body, thread, recipe, At::Drop(from)).ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
-            (wait_for(thread, id, recipe, Dispatch::Guarded).map_err(Why::Gun)?, from)
+            (wait_for(thread, id, recipe, Dispatch::Guarded, Deadline::from_now(thread)).map_err(Why::Gun)?, from)
         }
     };
     let incoming = native::handedness(thread, cook, slot).ok_or(Why::Install(native::Refusal::NoCookedGun))?;
@@ -991,7 +1007,24 @@ enum Dispatch {
     BeforeLoad,
 }
 
-fn wait_for(thread: &Thread, id: CookId, recipe: Recipe, how: Dispatch) -> Result<CookId, Refused> {
+/// When waits give up: [`WAIT_CAP_MS`] after their start (one wait's, or
+/// shared by several).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Deadline {
+    since: u64,
+}
+
+impl Deadline {
+    fn from_now(thread: &Thread) -> Deadline {
+        Deadline { since: clock::counter(thread) }
+    }
+
+    fn passed(self, thread: &Thread) -> bool {
+        elapsed_ms(thread, self.since, clock::counter(thread)) >= WAIT_CAP_MS
+    }
+}
+
+fn wait_for(thread: &Thread, id: CookId, recipe: Recipe, how: Dispatch, deadline: Deadline) -> Result<CookId, Refused> {
     let start = clock::counter(thread);
     let mut waited = false;
     let outcome = loop {
@@ -1004,7 +1037,7 @@ fn wait_for(thread: &Thread, id: CookId, recipe: Recipe, how: Dispatch) -> Resul
         if how == Dispatch::Guarded && PLAYER_MADE.load(Ordering::Acquire) {
             break Err(Refused::LateJoin);
         }
-        if elapsed_ms(thread, start, clock::counter(thread)) >= WAIT_CAP_MS {
+        if deadline.passed(thread) {
             break Err(Refused::Timeout);
         }
         waited = true;

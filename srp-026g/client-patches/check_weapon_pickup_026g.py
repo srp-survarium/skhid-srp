@@ -1083,6 +1083,24 @@ def late_join_after_player_made(patched):
     r.queries = []
     load_world(r, world_with({3: b"\0\0" + loaded}))
     assert r.queries == [], r.log
+    # Several guns named, none made in time: one deadline for them all (2 s from the first wait, each look of
+    # the clock a quarter of a second), each logged loudly; the reader then waits for its own (refused here).
+    r, cooked, gun = joiner()
+    r.on_dispatch = None
+    r.roster[7] = PLAYER
+    several = record(slot7=(DIED + 800, 7, KIT, 1), slot10=pick)
+    load_world(r, world_with({3: b"\0\0" + several}))
+    assert len(r.queries) == 2, r.log
+    import re
+    waits = [int(m.group(1)) for l in r.log for m in [re.search(r"waited for the gun of place \d+ kit 1 slot 10: "
+                                                                 r"(\d+) ms, not made in time", l)] if m]
+    held_for = sum(waits) / 1000
+    # 2 s for the first; the second at the deadline at once (its own clock looks only: a cap each would be 4 s).
+    assert len(waits) == 2 and waits[0] >= 2000 and held_for <= 2.5, ("one deadline for all", waits, r.log)
+    assert sum("NOT made before the world's load: the gun of place" in l and "not made in time" in l
+               for l in r.log) == 2, r.log
+    print("ok several guns named and none made: one deadline for the 0xE8 handler (%.2f s waited in all, not 2 s "
+          "a gun), each logged NOT made before the load" % held_for)
     print("ok a late join's first world with its players made this frame (player_cook.ready): the gun a record "
           "names that this client never cooked is cooked at the 0xE8 handler before the load, the reader installs "
           "it with no wait (fresh: set_user + initialize), the state saved is the record; a world naming only kept "
