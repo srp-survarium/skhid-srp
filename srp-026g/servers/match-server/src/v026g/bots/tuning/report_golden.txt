@@ -23,7 +23,7 @@ switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift floor_height_clear
-switches OFF grid: keep_last_resorts
+switches OFF grid: capsule_steps keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease apart_tie lane
@@ -33,7 +33,7 @@ switches OFF traps: at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0} pierce={"max_share":0.5,"pierce":0.3125}
-switch values feel: drop_truth=links
+switch values feel: drop_truth=links past_drop=window
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values kin: edge=client fix_floor=nearest jump_snap=by_keys pitch_scale=client
 switch values kit: frags=support_and_camper smoke=radio_place
