@@ -1047,6 +1047,7 @@ def stage2b(patched):
     assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], "60 s after the death, the body still there"
     g.remove(PLAYER, DIED + 61_000)
     assert g.hud() == [("",)] and g.hud() == [] and g.build(USE) == USE, "its body out of the world"
+    assert sights(g) == ["offered"], ("its pose forgotten with the body: nothing aimed at", sights(g))
     g = Prompt(patched)
     g.setup()
     g.word(PLAYER + 0x324, DIED + 50)
@@ -1061,7 +1062,7 @@ def stage2b(patched):
     assert g.hud() == [("st_weapon_pick_up", NAME)], "5 cm of padding"
     print("ok no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
           "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 5 cm; offered 60 s after the death while the body is there, "
-          "gone with base_player::remove(1) of the body; each drop's reason logged once a change (not aimed at, "
+          "gone with base_player::remove(1) of the body (its pose forgotten); each drop's reason logged once a change (not aimed at, "
           "out of reach, no line of sight, the carry rule with both slots' handedness and the gun's, taken)")
 
 

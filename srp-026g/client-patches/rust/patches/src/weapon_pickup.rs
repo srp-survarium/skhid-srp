@@ -387,6 +387,8 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some((world, place)) = located(&player) {
         let (record, _) = placed_at(thread, world, place);
         update_record(thread, world, place, |r| *r = Record::EMPTY);
+        // Its gun's last pose goes with the body (the prompt reads none).
+        SEEN.with(thread, |seen| seen[usize::from(place.get())] = None);
         if let DropState::Open { kit, slot, .. } = record.drop {
             log(&[Text("place "), Dec(u32::from(place.get())), Text(" at "), Dec(player.time()),
                   Text(" ms: its body left the world, the drop of its kit "), Dec(u32::from(kit.get())),
