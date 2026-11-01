@@ -3831,7 +3831,7 @@ the original exe; selftest check 68 reads the sites.
 ## The muzzle device (patch 90, unreleased)
 
 A weapon draws a muzzle device, a static model, at its model's
-`muzzle_point` locator (`../docs/notes/weapon-kit.md`, "The muzzle device").
+`muzzle_point` locator (`../docs/notes/muzzle-devices.md`).
 The weapon config names it in `data`: `srp_muzzle_model` and
 `srp_muzzle_fire_mm` (the device the kit names, slot 4: its modification
 adds both), else `srp_muzzle_stock_model` and `srp_muzzle_stock_fire_mm`

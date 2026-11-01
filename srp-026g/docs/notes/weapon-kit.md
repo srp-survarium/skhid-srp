@@ -125,7 +125,11 @@ The release that ships this sets `SRP_MIN_PATCH_REVISION` to its revision (every
 an exe without patch 68 is refused at sign-in, and recordings of older games are not offered
 (release.sh). There is no old-client path.
 
-## Steps B and C (not here)
+## Step B: the muzzle device
+
+`muzzle-devices.md`: the devices, the stock devices, patch 90's drawing, the checks.
+
+## Step C (not here)
 
 The transport is complete for them: slots 4 and 5, the kit's muzzle and grip fields, their
 expansion in the cook, their members to the movie (`kit_muzzle`, `kit_grip`), the attached marks
