@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """content_edit.py: make a resources.db patch folder by editing game configs in place.
 
-usage: python3 -I content_edit.py <edits.json> <live folder> <out folder> [--check]
+usage: python3 -I content_edit.py <edits.json | weapon-stats.tsv> <live folder> <out folder> [--check]
 
 <live folder>  the live game files, at their game paths (gameplay/items/...) or flattened as
                `dbgrab <server-game-data.db> get gameplay/ <dir>` writes them (gameplay__items__...).
@@ -29,8 +29,6 @@ Edits (edits.json):
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
-  "set_prop":       [{"file", "prop_id", "from", "to"}] the lobby card's text of a stat (ui_desc/props_list:
-                                                       1 damage x100, 3 armour piercing x100, 4 rate of fire)
   "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
@@ -120,6 +118,12 @@ Edits (edits.json):
                        "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
                                                        allow_bones: this surface's other native bones
                                                        (indices), which then follow the head too
+The weapon table (weapon-stats.tsv, rows `<weapon> <key path> <value> <why>`): each row sets that
+number of gameplay/items/weapons/<weapon>.options (a value written with a point is a float, so an int
+key becomes one: release/content_type_check.py allows it only where 0.26g's configs mix the two; a row
+that changes nothing is refused). Then every weapon config's card lines that mirror a value
+(WEAPON_CARD) are written from it, the configs the table leaves alone too: nothing copies a number
+to a card by hand.
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -135,6 +139,7 @@ import json
 import hashlib
 import math
 import os
+import re
 import struct
 import sys
 import zlib
@@ -359,12 +364,16 @@ def matches(buf, entry, want):
     return True
 
 
+def number_text(v):
+    """A number as the game's cards write it: 50, 0.45, 3.167."""
+    return str(int(v)) if v == int(v) else '%g' % v
+
+
 def filled(buf, text):
     """`{a/b}` in a value: that number of the same file, as the game's cards write numbers."""
     if not (isinstance(text, str) and text.startswith('{') and text.endswith('}')):
         return text
-    v = value_of(buf, find(buf, text[1:-1]))
-    return str(int(v)) if v == int(v) else '%g' % v
+    return number_text(value_of(buf, find(buf, text[1:-1])))
 
 
 def add_entry(buf, path, after, like, values):
@@ -636,6 +645,93 @@ def set_prop(buf, prop_id, frm, to):
         REC.pack_into(buf, off, noff, i2, c, t, len(to.encode()) + 1)
         return '/ui_desc/props_list[%d]/prop_value' % i
     raise KeyError('prop %d' % prop_id)
+
+
+WEAPONS = 'gameplay/items/weapons/%s.options'
+
+# The weapon card's lines (ui_desc/props_list) that mirror a number of the weapon's config: prop_id:
+# (key path, times); the line's text is that number times `times`, as number_text writes it. Rate of
+# fire (4) and weight (15) are weapon_card's own. A key a config lacks has no line there.
+WEAPON_CARD = {
+    1: ('parameters/bullet_damage', 100), 2: ('dispersion/base_dispersion', 1),
+    3: ('parameters/bullet_pierce', 100), 24: ('parameters/min_damage_distance', 1),
+    105: ('parameters/movement_speed_modifier', 1), 132: ('parameters/stopping_power', 100),
+    133: ('parameters/aim_time', 1), 134: ('parameters/magazine_capacity', 1),
+    138: ('parameters/reload_time', 1), 139: ('parameters/max_damage_distance', 1),
+    140: ('parameters/min_damage_distance', 1), 141: ('parameters/min_damage_amount', 1),
+    142: ('parameters/show_time', 1), 143: ('parameters/hide_time', 1),
+    144: ('parameters/aim_zoom_factor', 1), 145: ('parameters/stamina_damage', 1),
+    146: ('recoil/min_top_recoil', 1), 147: ('recoil/max_top_recoil', 1),
+    148: ('recoil/min_left_recoil', 1), 149: ('recoil/max_left_recoil', 1),
+    150: ('recoil/min_right_recoil', 1), 151: ('recoil/max_right_recoil', 1),
+    152: ('dispersion/from_the_hip_multiplier', 1), 153: ('dispersion/one_shoot_dispersion_amount', 1),
+    154: ('dispersion/speed_of_aiming', 1), 155: ('dispersion/growth_speed', 1),
+    156: ('breath_vibration/base_horizontal_amplitude', 1), 157: ('breath_vibration/base_vertical_amplitude', 1),
+    158: ('breath_vibration/base_period', 1), 159: ('dispersion/max_dispersion', 1),
+    160: ('parameters/chamber_a_round_time', 1), 161: ('ui_desc/combat_log_icon', 1),
+}
+
+
+def weapon_card(buf):
+    """{prop_id: text} of the card lines the weapon config `buf` makes (WEAPON_CARD)."""
+    def number(path):
+        try:
+            return value_of(buf, find(buf, path))
+        except KeyError:
+            return None
+    out = {p: number_text(number(k) * times) for p, (k, times) in WEAPON_CARD.items() if number(k) is not None}
+    rpm, chamber = number('parameters/rounds_per_minute'), number('parameters/chamber_a_round_time')
+    if rpm:
+        # a bolt or pump gun's chambering is in its rounds a minute, rounded down: the stock cards' rule
+        out[4] = number_text(rpm if chamber is None else math.floor(60 / (chamber + 60 / rpm) + 1e-3))
+    if number('parameters/weight') is not None:
+        out[15] = '%.1f' % number('parameters/weight')     # the stock cards' 0.8, 7.0
+    return out
+
+
+def card_differences(buf):
+    """[(prop_id, the card's text, the config's)] of each card line of the weapon config `buf` that
+    says another number than its config value (weapon_card)."""
+    try:
+        lines = children(buf, find(buf, 'ui_desc/props_list'))
+    except KeyError:
+        return []
+    want, out = weapon_card(buf), []
+    for entry in lines:
+        prop_id, text = (value_of(buf, find(buf, k, entry)) for k in ('prop_id', 'prop_value'))
+        if prop_id in want and want[prop_id] != text:
+            out.append((prop_id, text, want[prop_id]))
+    return sorted(out)
+
+
+def weapon_table(path):
+    """The rows of the weapon table (weapon-stats.tsv): [(config, key path, value)], a value written
+    with a point a float. A malformed row, or a weapon's key twice, is refused."""
+    rows, seen = [], set()
+    for n, line in enumerate(open(path, encoding='utf-8').read().splitlines(), 1):
+        if not line.strip() or line.startswith('#'):
+            continue
+        fields = line.split('\t')
+        if len(fields) != 4 or not all(fields) or not re.fullmatch(r'wpn_\w+', fields[0]) or \
+                not re.fullmatch(r'-?\d+(\.\d+)?', fields[2]):
+            sys.exit('%s:%d: not <wpn_...> <key path> <number> <why>, tabs between' % (path, n))
+        weapon, key, text, _ = fields
+        if (weapon, key) in seen:
+            sys.exit('%s:%d: %s %s is there twice' % (path, n, weapon, key))
+        seen.add((weapon, key))
+        rows.append((WEAPONS % weapon, key, float(text) if '.' in text else int(text)))
+    return rows
+
+
+def set_stat(buf, path, value):
+    """A row of the weapon table: the number at `path` becomes `value` (a float makes an int a float).
+    A row that changes nothing is refused."""
+    off = find(buf, path)
+    before = bytes(buf[off:off + 24])
+    d, _, _, t, _ = rec(buf, off)
+    set_number(buf, path, as_number(t, d & 0xffffffff), value, as_float=isinstance(value, float))
+    if bytes(buf[off:off + 24]) == before:
+        raise ValueError('%s is %r already: the row changes nothing' % (path, value))
 
 
 def prefix_strings(buf, key, prefix):
@@ -1042,7 +1138,8 @@ def main():
     if len(args) != 3:
         sys.exit(__doc__)
     edits_file, live, out = args
-    edits = json.load(open(edits_file, encoding='utf-8'))
+    table = weapon_table(edits_file) if edits_file.endswith('.tsv') else None
+    edits = json.load(open(edits_file, encoding='utf-8')) if table is None else {}
     if not check and os.path.exists(out):
         sys.exit('%s: already there' % out)
     files = {}
@@ -1112,9 +1209,20 @@ def main():
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
-    for e in edits.get('set_prop', []):
-        q = set_prop(buf(e['file']), e['prop_id'], e['from'], e['to'])
-        allowed.setdefault(e['file'], set()).add(q)
+    for cfg, path, value in table or ():
+        try:
+            set_stat(buf(cfg), path, value)
+        except (KeyError, ValueError, TypeError) as why:
+            sys.exit('%s %s: %s' % (cfg, path, why))
+        allowed.setdefault(cfg, set()).add('/' + path)
+    if table is not None:
+        cards = 0
+        for p in sorted(fnmatch.filter(files, WEAPONS % 'wpn_*')):
+            for prop_id, text, want in card_differences(bufs.get(p) or bytearray(open(files[p], 'rb').read())):
+                allowed.setdefault(p, set()).add(set_prop(buf(p), prop_id, text, want))
+                print('card %s %d: %s -> %s' % (p, prop_id, text, want))
+                cards += 1
+        print('weapon table: %d rows, %d card lines written from the configs' % (len(table), cards))
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])

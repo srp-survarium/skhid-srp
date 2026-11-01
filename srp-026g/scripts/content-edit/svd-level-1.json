@@ -1,7 +1,0 @@
-{
- "_about": "The SVD at level 15 (the owner, 2026-10-25: \"also move the SVD to level 15\", after the SOCOM's; docs/notes/socom_nerf.md). wpn_svd, the game's only SVD (no premium copy): item_level and match_making_level 12 -> 15 (the card's \"Equipment level\", the drop tier, the matchmaking level, the craft and reroll prices and srp's shop rank, Renaissance 7 -> 10; the two are equal in every 0.26g item). Its damage and the rest stay.",
- "set": [
-  {"file": "gameplay/items/weapons/wpn_svd.options", "path": "parameters/item_level", "from": 12, "to": 15},
-  {"file": "gameplay/items/weapons/wpn_svd.options", "path": "parameters/match_making_level", "from": 12, "to": 15}
- ]
-}

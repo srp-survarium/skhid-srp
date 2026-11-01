@@ -1,0 +1,74 @@
+# The weapons' stats over their configs: each row sets <key path> of
+# gameplay/items/weapons/<weapon>.options to <value>. A retune of a gun is a row here (a new one, or
+# its value changed), nothing else: release/build-content applies the table after the packs (a ported
+# gun takes rows too) and writes every weapon's card lines from its config (content_edit.py
+# WEAPON_CARD), refusing a card that says another number. A value with a point is a float (an int key
+# turns float only where 0.26g's configs mix the two); a row that changes nothing is refused. A row
+# that changes what a match computes (build_content.py MATCH_KEYS) needs the `next` row of
+# srp-026g/crates/session/src/v026g/simulation_changes.tsv: build-content refuses it without one.
+#
+# weapon	key path	value	why
+wpn_a545	parameters/bullet_damage	0.45	weapon balance 2 (#265): 0.28a's A-545 nerf
+wpn_a545	parameters/bullet_pierce	0.25	weapon balance 2 (#265): 0.28a's A-545 nerf
+wpn_a545	parameters/rounds_per_minute	800	weapon balance 2 (#265): 0.28a's A-545 nerf
+wpn_aek_919k	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_ak_12	parameters/bullet_damage	0.5	weapon balance 2 (#242, #260): 0.27a's AK-12 nerf
+wpn_ak_12	parameters/bullet_pierce	0.4	weapon balance 2 (#242, #260): 0.27a's AK-12 nerf
+wpn_ak_12_premium	parameters/bullet_damage	0.5	weapon balance 2 (#242, #260): 0.27a's AK-12 nerf
+wpn_ak_12_premium	parameters/bullet_pierce	0.4	weapon balance 2 (#242, #260): 0.27a's AK-12 nerf
+wpn_fn_fnc	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_fn_p90	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_hk416	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_hk416	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_hk416	recoil/max_shake_recoil	0.4	0.31a2's lower screen shake (#1001)
+wpn_hk416	recoil/recoil_power	0.55	kick nearer the AK-12's (#1011)
+wpn_hk416	recoil/min_top_recoil	1.7	kick nearer the AK-12's (#1011)
+wpn_hk416	recoil/max_top_recoil	1.9	kick nearer the AK-12's (#1011)
+wpn_kedr	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_kriss_vector	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_m4a1	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_m4a1	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_m4a1	recoil/max_shake_recoil	0.4	0.31a2's lower screen shake (#1001)
+wpn_m4a1	recoil/recoil_power	0.55	kick nearer the AK-12's (#1011)
+wpn_m4a1	recoil/min_top_recoil	1.5	kick nearer the AK-12's (#1011)
+wpn_m4a1	recoil/max_top_recoil	1.5	kick nearer the AK-12's (#1011)
+wpn_mp7	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_mp7_silencer	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_mp7_silencer_special	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_msbs_carbine	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_msbs_carbine	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_msbs_carbine	recoil/max_shake_recoil	0.4	0.31a2's lower screen shake (#1001)
+wpn_neostead	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_neostead_2	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_pkp_pecheneg	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_saiga_12	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_saiga_12_premium	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_soc_vepr	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_socom16	parameters/bullet_damage	0.6	the SOCOM 16 nerf (the owner, 2026-10-25; docs/notes/socom_nerf.md)
+wpn_socom16	parameters/bullet_pierce	0.4	the SOCOM 16 nerf (the owner, 2026-10-25; docs/notes/socom_nerf.md)
+wpn_socom16	parameters/item_level	15	the SOCOM 16 nerf (the owner, 2026-10-25; docs/notes/socom_nerf.md)
+wpn_socom16	parameters/match_making_level	15	the SOCOM 16 nerf (the owner, 2026-10-25; docs/notes/socom_nerf.md)
+wpn_svd	parameters/item_level	15	the SVD at equipment level 15 (the owner, 2026-10-25; docs/notes/socom_nerf.md)
+wpn_svd	parameters/match_making_level	15	the SVD at equipment level 15 (the owner, 2026-10-25; docs/notes/socom_nerf.md)
+wpn_uzi	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_uzi	recoil/max_shake_recoil	0.4	0.31a2's lower screen shake (#1001)
+wpn_uzi_premium	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_uzi_premium	recoil/max_shake_recoil	0.4	0.31a2's lower screen shake (#1001)
+wpn_uzi_premium_2	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_uzi_premium_2	recoil/max_shake_recoil	0.4	0.31a2's lower screen shake (#1001)
+wpn_valmet	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_vepr_12	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_vepr_12_premium	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)
+wpn_vsk_94	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_vsk_94	recoil/max_shake_recoil	0.3	0.31a2's lower screen shake (#1001)
+wpn_vsk_94	recoil/shake_time_scale	8	0.31a2's lower screen shake (#1001)
+wpn_vsk_94_premium	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_vsk_94_premium	recoil/max_shake_recoil	0.3	0.31a2's lower screen shake (#1001)
+wpn_vsk_94_premium	recoil/shake_time_scale	8	0.31a2's lower screen shake (#1001)
+wpn_vss	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_vss	recoil/max_shake_recoil	0.3	0.31a2's lower screen shake (#1001)
+wpn_vss	recoil/shake_time_scale	8	0.31a2's lower screen shake (#1001)
+wpn_vss_premium	recoil/min_shake_recoil	0.2	0.31a2's lower screen shake (#1001)
+wpn_vss_premium	recoil/max_shake_recoil	0.3	0.31a2's lower screen shake (#1001)
+wpn_vss_premium	recoil/shake_time_scale	8	0.31a2's lower screen shake (#1001)
+wpn_vz58	melee/data/k_damage	1.5	melee as every native weapon's; patch 19's port rounded 1.5 to 2 (#951)

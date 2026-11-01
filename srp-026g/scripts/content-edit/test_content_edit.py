@@ -248,3 +248,62 @@ class MapEditorEdits(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def weapon(damage, card_damage, rpm=600, chamber=None):
+    """A weapon config with a card of three lines: damage x100, rate of fire, weight."""
+    parameters = {'bullet_damage': damage, 'rounds_per_minute': rpm, 'weight': 3.0}
+    if chamber is not None:
+        parameters['chamber_a_round_time'] = chamber
+    return config({'parameters': parameters, 'melee': {'data': {'k_damage': 2}},
+                   'ui_desc': {'props_list': [{'prop_id': 1, 'prop_value': card_damage},
+                                              {'prop_id': 4, 'prop_value': str(rpm)},
+                                              {'prop_id': 15, 'prop_value': '3.0'}]}})
+
+
+class WeaponTable(unittest.TestCase):
+    def run_table(self, rows, weapons):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        for name, data in weapons.items():
+            path = root / 'live' / (ce.WEAPONS % name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(bytes(data))
+        (root / 'weapon-stats.tsv').write_text('# weapon\tkey path\tvalue\twhy\n' +
+                                               ''.join('\t'.join(row) + '\twhy\n' for row in rows))
+        result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), str(root / 'weapon-stats.tsv'),
+                                 str(root / 'live'), str(root / 'out')], capture_output=True, text=True)
+        return result, root / 'out'
+
+    def test_rows_set_their_values_and_every_card_follows_its_config(self):
+        """A row sets its value (a point makes an int a float); every weapon's card is written from its
+        config, a weapon no row names too; a weapon whose card agrees is not written."""
+        result, out = self.run_table(
+            [('wpn_a', 'parameters/bullet_damage', '0.5'), ('wpn_a', 'melee/data/k_damage', '1.5')],
+            {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.45, '40'), 'wpn_c': weapon(0.3, '30')})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('0 unexpected differences', result.stdout)
+        a = bytearray((out / (ce.WEAPONS % 'wpn_a')).read_bytes())
+        self.assertTrue(ce.same(value(a, 'parameters/bullet_damage'), 0.5))
+        self.assertEqual(ce.rec(a, ce.find(a, 'melee/data/k_damage'))[3], ce.T_FLOAT)
+        self.assertEqual(value(a, 'melee/data/k_damage'), 1.5)
+        self.assertEqual(value(a, 'ui_desc/props_list[0]/prop_value'), '50')
+        b = bytearray((out / (ce.WEAPONS % 'wpn_b')).read_bytes())
+        self.assertEqual(value(b, 'ui_desc/props_list[0]/prop_value'), '45')
+        self.assertFalse((out / (ce.WEAPONS % 'wpn_c')).exists())
+        self.assertEqual(ce.card_differences(a) + ce.card_differences(b), [])
+
+    def test_a_row_that_changes_nothing_or_twice_is_refused(self):
+        for rows in ([('wpn_a', 'parameters/bullet_damage', '0.55')],
+                     [('wpn_a', 'parameters/rounds_per_minute', '500')] * 2,
+                     [('wpn_a', 'parameters/no_such_key', '1')]):
+            result, out = self.run_table(rows, {'wpn_a': weapon(0.55, '55')})
+            self.assertNotEqual(result.returncode, 0, rows)
+            self.assertFalse(out.exists())
+
+    def test_a_bolt_guns_rate_of_fire_counts_its_chambering(self):
+        """The stock cards' rule: rounds a minute with chambering each, rounded down (the Mosin: 27)."""
+        self.assertEqual(ce.weapon_card(weapon(1.1, '110', rpm=160, chamber=1.8))[4], '27')
+        self.assertEqual(ce.weapon_card(weapon(1.2, '120', rpm=200, chamber=1.2))[4], '40')
+        self.assertEqual(ce.card_differences(weapon(0.5, '50', rpm=160, chamber=1.8)), [(4, '160', '27')])

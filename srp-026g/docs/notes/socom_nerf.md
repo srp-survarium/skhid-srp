@@ -2,7 +2,7 @@
 
 "Nerf SOCOM: 10 damage, 5 penetration" and "move SOCOM to lvl 15". The SOCOM 16
 (`wpn_socom16`, dict id 366) is the only SOCOM in the game data. The edit list is
-`scripts/content-edit/socom-nerf-1.json`.
+`scripts/content-edit/weapon-stats.tsv` (its rows, the weapon table).
 
 ## The rule
 
@@ -41,7 +41,7 @@
 ## The SVD at level 15 (the owner, 2026-10-25)
 
 "also move the SVD to level 15". The SVD (`wpn_svd`, Renaissance) is the only SVD; it has no
-premium copy. The edit list is `scripts/content-edit/svd-level-1.json`.
+premium copy. Its rows are in `scripts/content-edit/weapon-stats.tsv`.
 
 - `item_level` and `match_making_level` 12 -> 15. Damage, piercing and the rest stay.
 - Shop: srp sells it at Renaissance rank `item_level` - 5, so rank 7 -> 10 (the last). The

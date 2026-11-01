@@ -2,7 +2,7 @@
 
 The owner's rules and what they change. Data: `gameplay/items/weapons/wpn_ak_12.options`,
 `wpn_ak_12_premium.options` and `wpn_socom16.options`; the change ships as a
-resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
+resources.db patch (rows of `scripts/content-edit/weapon-stats.tsv`, the weapon table).
 
 ## AK-12
 
