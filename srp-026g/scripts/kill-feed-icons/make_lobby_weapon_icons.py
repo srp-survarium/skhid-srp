@@ -12,9 +12,10 @@ usage: python3 -I make_lobby_weapon_icons.py (--hud <hud.swf> | --patches <folde
 --java         the java that runs it (tools.json's; default: java on PATH)
 --check        write nothing: compare what it would write with the lobby's files (pixels and text),
                exit 1 on any difference (scripts/weight-ui/check_ui.sh runs it)
---hud-bitmaps  srp-026g/flash/hud/bitmaps: CombatLogWeapon53..68.png, the icons past the clip's frames
+--hud-bitmaps  srp-026g/flash/hud/bitmaps: its CombatLogWeapon<icon>.png, the icons past the clip's frames
 --lobby        srp-026g/flash/lobby_menu: writes bitmaps/KillFeedWeapon<icon>.png, a class a bitmap
-               (src/KillFeedWeapon<icon>.as) and src/survarium/player/KillFeedIcons.as, their index
+               (src/KillFeedWeapon<icon>.as) and src/survarium/player/KillFeedIcons.as, which finds
+               them by name (a new icon adds files only)
 
 The same images the kill feed shows: a weapon's icon is its config's `ui_desc/combat_log_icon`, frame
 (icon + 1) of the hud's weapon icon clip (sprite 698, object_icon of CombatLogItem: each frame one shape
@@ -41,7 +42,6 @@ import swf  # noqa: E402
 HUD_SHA256 = 'b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80'
 CLIP = 698
 DEFINE_SPRITE, PLACE_OBJECT2, SHOW_FRAME, DEFINE_SHAPE = 39, 26, 1, 2
-MORE = range(53, 69)
 
 
 class Bits:
@@ -204,8 +204,10 @@ def write(args, data, lobby):
         written = {}
         for icon, bitmap in icons.items():
             written[icon] = save(Image.open(exported[bitmap]), bitmaps / f'KillFeedWeapon{icon}.png')
-    for icon in MORE:
-        written[icon] = save(Image.open(args.hud_bitmaps / f'CombatLogWeapon{icon}.png'), bitmaps / f'KillFeedWeapon{icon}.png')
+    # The icons past the clip's frames: every CombatLogWeapon<icon> bitmap of the hud (53 on).
+    for path in sorted(args.hud_bitmaps.glob('CombatLogWeapon*.png'), key=lambda p: int(p.stem[len('CombatLogWeapon'):])):
+        icon = int(path.stem[len('CombatLogWeapon'):])
+        written[icon] = save(Image.open(path), bitmaps / f'KillFeedWeapon{icon}.png')
     src = lobby / 'src'
     for icon, (w, h) in sorted(written.items()):
         (src / f'KillFeedWeapon{icon}.as').write_text(
@@ -216,17 +218,19 @@ def write(args, data, lobby):
             f'      public function KillFeedWeapon{icon}(w:int = {w}, h:int = {h})\n      {{\n'
             '         super(w,h);\n      }\n   }\n}\n', encoding='utf-8')
     last = max(written)
-    entries = ','.join(f'KillFeedWeapon{i}' if i in written else 'null' for i in range(last + 1))
     (src / 'survarium' / 'player' / 'KillFeedIcons.as').write_text(
-        'package survarium.player\n{\n   import flash.display.BitmapData;\n\n'
-        '   // The kill feed\'s weapon icons by ui_desc/combat_log_icon (null where the hud\'s clip has none):\n'
-        '   // made by scripts/kill-feed-icons/make_lobby_weapon_icons.py from the hud\'s own images.\n'
+        'package survarium.player\n{\n   import flash.display.BitmapData;\n   import flash.utils.getDefinitionByName;\n\n'
+        '   // The kill feed\'s weapon icons by ui_desc/combat_log_icon: the class KillFeedWeapon<icon>\n'
+        '   // (src/, bitmaps/), made by scripts/kill-feed-icons/make_lobby_weapon_icons.py from the hud\'s own\n'
+        '   // images; a weapon whose icon has none (the clip\'s empty 17, a stock icon past it) gets null.\n'
         '   public final class KillFeedIcons\n   {\n'
-        f'      private static const ICONS:Array = [{entries}];\n'
         '      // A new copy of the icon\'s bitmap, or null when there is none.\n'
         '      public static function bitmap(icon:int) : BitmapData\n      {\n'
-        '         var kind:Class = icon >= 0 && icon < ICONS.length ? ICONS[icon] as Class : null;\n'
-        '         return kind != null ? new kind() as BitmapData : null;\n      }\n   }\n}\n', encoding='utf-8')
+        '         if(icon < 0)\n         {\n            return null;\n         }\n'
+        '         try\n         {\n'
+        '            return new (getDefinitionByName("KillFeedWeapon" + icon) as Class)() as BitmapData;\n'
+        '         }\n         catch(error:Error)\n         {\n         }\n'
+        '         return null;\n      }\n   }\n}\n', encoding='utf-8')
     if not args.check:
         print(f'Wrote {len(written)} icons (0 to {last}, none for {sorted(set(range(last + 1)) - set(written))})')
     return ([f'bitmaps/KillFeedWeapon{i}.png' for i in written] + [f'src/KillFeedWeapon{i}.as' for i in written]
