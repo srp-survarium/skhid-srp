@@ -303,6 +303,8 @@ st_base_trap_description	Szokványos vadászcsapda erős rugóval. Működésbe 
 st_base_trap_name	Csapda
 st_benelli_description	Olasz öntöltő sörétes puska, 12-es kaliberrel. A Benelli az 1990-es évek végén fejlesztette gázüzemű működéssel. Az amerikai tengerészgyalogság M1014 néven rendszeresítette. Csőtár a cső alatt, csak egyes lövés.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Olasz gépipisztoly, lőszer: 9x19. Egyes lövések vagy hármas sorozatok; lehajtható elülső markolat.
+st_beretta93r_name	Beretta 93R
 st_best	Legjobb
 st_best_explorer	FELFEDEZŐ
 st_best_explorer_artefacts	Artefaktumok:
@@ -841,6 +843,8 @@ st_clan_window_label	Klánregisztráció
 st_clear	Törlés
 st_close	Bezárás
 st_collect_statistics_option	Statisztikagyűjtés engedélyezése
+st_colt_m1911_description	Amerikai pisztoly, lőszer: .45 ACP. Hét évtizedig az amerikai hadsereg szolgálati pisztolya.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Elérted a napi dicséretlimitet.
 st_compliment_count_per_user_owerflow	Ugyanazt a játékost nem dicsérheted meg napi kétszer!
 st_compliment_player	Dicséret
@@ -865,6 +869,8 @@ st_crouch_action	Guggolás (nyomva tartva)
 st_crouch_toggle_action	Guggolás
 st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat megtelt.
 st_current_value	\nJelenlegi érték:
+st_cz_75_description	Cseh öntöltő pisztoly, lőszer: 9x19. A hidegháború egyik legtöbbet másolt pisztolya.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Játssz mindennap, és az <highlight>első három</highlight> győzelemért <highlight>x2</highlight> tapasztalatot és hírnevet kapsz.
 st_daily_bonus_hint	Üdvözlőképernyő mutatása
 st_daily_bonus_label	Üdv újra
@@ -1175,6 +1181,8 @@ st_fn_p90_description	Belga önvédelmi fegyver, 5.7x28 lőszerrel. Az FN Hersta
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrán öntöltő pisztoly, 9x18 lőszerrel. Gyártása 2004-ben indult. A belügyi csapatok és egyes különleges egységek használták. 12 lőszeres tár. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrán könnyű géppuska, lőszer: 7,62x51. Vinnicjában licenc alapján gyártott Negev, 100 töltényes dobozzal.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Nehéz páncélozott csizma a Szabadság színeiben, nehéz páncélhoz.
 st_freedom_026_boots_name	Szabadság-csizma
@@ -1197,6 +1205,8 @@ st_fullscreen_option	Teljes képernyő
 st_general_volume_option	Fő hangerő
 st_generic_money_name	Rubel
 st_geometry_quality_option	Geometria minősége
+st_glock_17_description	Osztrák polimer vázas pisztoly, lőszer: 9x19. Ezt sorozatlövésre alakították át.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	A tudástár új böngészőablakban nyílik meg.
 st_go_to_online_store_message	Az online bolt böngészőablakban nyílik meg. Folytatod?
 st_go_to_video_tutorial_message	A videóútmutató böngészőablakban nyílik meg. Folytatod?
@@ -1324,6 +1334,8 @@ st_izh27_description	A leírás még nem érhető el.
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Orosz bock sörétes puska, 12-es kaliberrel. Az izsevszki gépgyár Baikal néven gyártja, az egyik legelterjedtebb vadász- és sportduplapuska. Két cső, csövenként egy lövés. Külön vagy egyszerre is elsüthetők. Prémium változat különleges álcafestéssel.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	Amerikai automata sörétes puska, lőszer: 12/70. Bullpup 10 töltényes dobtárral, csak sorozatot lő.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Ugrás
 st_kedr_description	Szovjet géppisztoly, 9x18 PM lőszerrel. Jevgenyij Dragunov tervezte az 1970-es évek elején. Sorozatgyártása csak az 1990-es években indult az orosz belügyminisztérium és rendőrség számára. 30 lőszeres tár, egyes és sorozatlövés.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1361,8 @@ st_knw_synergy_desc	Az artefaktumok ereje a számukkal arányosan nő.
 st_knw_synergy_name	Szinergia
 st_kriss_vector_description	Amerikai géppisztoly, .45 ACP lőszerrel. A KRISS a 2000-es években mutatta be. Visszarúgáscsökkentő rendszere lefelé mozgatja a zárat, mérsékelve a csőemelkedést. Walther Competition II irányzékkal, 30 lőszeres tárral. Egyes lövés, rövid és folyamatos sorozat.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Brit bullpup gépkarabély, lőszer: 5,56x45. A brit hadsereg alapfegyvere.
+st_l85a2_name	L85A2
 st_label_invites	Meghívók
 st_label_leave_queue_btn	Sor elhagyása
 st_label_quenue	Várakozás a játékosokra:
@@ -1511,6 +1525,10 @@ st_movement_speed_when_aiming_description	Mozgási sebesség célzás közben:
 st_movement_speed_when_aiming_name	Harci állás
 st_mp153_description	Orosz öntöltő, simacsövű sörétes puska, 12x70 lőszerrel. Alacsony ára és megbízhatósága népszerű vadász- és sportfegyverré tette. Cső alatti, 4 lőszeres csőtár.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Orosz katonai pisztoly, lőszer: 9x19. 2003-ban rendszeresítették a Makarov helyett.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	Német géppisztoly, lőszer: 9x19. A rendőrség és a különleges egységek klasszikusa, görgős zárral.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Lengyel moduláris karabély, 5.56x45 lőszerrel. A varsói katonai műszaki egyetem és a radomi fegyvergyár fejlesztette a 2010-es években. A lengyel hadsereg Grot néven rendszeresítette. EOTech 552 irányzék, 30 lőszeres tár. Egyes lövés, rövid és folyamatos sorozat.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Irányzék kilengése
@@ -2745,6 +2763,8 @@ st_sv_98_description	A leírás még nem érhető el.
 st_sv_98_name	SV-98
 st_svd_description	Öntöltő Dragunov mesterlövészpuska, 7.62x54 lőszerrel. Évekig a szovjet hadsereg fő mesterlövészpuskája volt. 5 lőszeres tárral. 
 st_svd_name	SVD
+st_svu_a_description	Orosz bullpup mesterlövészpuska, lőszer: 7,62x54R. Közelharcra rövidített SZVD, öntöltő.
+st_svu_a_name	SZVU
 st_swear_clan_string	A szöveg trágárságot tartalmaz
 st_swearing_claim	Trágár beszéd
 st_team_already_has_commander	A kláncsapatnak már van parancsnoka.
