@@ -101,9 +101,91 @@ pub struct Level {
     pub min: u8,
 }
 
-/// One level, as a player's strength counts it: strengths are whole
-/// numbers, so a part of a level can be told.
-pub const STRENGTH_SCALE: i32 = 100;
+/// What a player, a party or a side counts for when the sides of a match
+/// are made: thousandths of a K/D (`crate::v026g::level_stats`,
+/// `docs/notes/kd-balance.md`). A whole number, so every sum and
+/// comparison is exact and the same on every run: never NaN, never
+/// infinite.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Strength(i64);
+
+impl Strength {
+    /// The thousandths of one K/D (a player who kills as often as it dies).
+    pub const UNIT: i64 = 1000;
+    pub const ZERO: Self = Self(0);
+
+    pub const fn from_milli(milli: i64) -> Self {
+        Self(milli)
+    }
+
+    pub const fn milli(self) -> i64 {
+        self.0
+    }
+
+    /// `kds` K/Ds, rounded to a thousandth; a weight that is no number
+    /// counts for none.
+    pub fn of_kd(kds: f64) -> Self {
+        if kds.is_finite() {
+            Self((kds * Self::UNIT as f64).round().clamp(-1e15, 1e15) as i64)
+        } else {
+            Self::ZERO
+        }
+    }
+
+    /// In K/Ds, for the log.
+    pub fn as_kd(self) -> f64 {
+        self.0 as f64 / Self::UNIT as f64
+    }
+
+    /// `count` times this.
+    pub fn times(self, count: usize) -> Self {
+        Self(
+            self.0
+                .saturating_mul(i64::try_from(count).unwrap_or(i64::MAX)),
+        )
+    }
+
+    /// This times `numerator / denominator`, rounded to the nearest
+    /// thousandth (a half up); a denominator of 0 is 1.
+    pub fn ratio(self, numerator: i64, denominator: i64) -> Self {
+        let denominator = denominator.max(1);
+        let product = i128::from(self.0) * i128::from(numerator);
+        let rounded =
+            (2 * product + i128::from(denominator)).div_euclid(2 * i128::from(denominator));
+        Self(rounded.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64)
+    }
+
+    /// How far apart two strengths are, either way.
+    pub fn abs_diff(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0).saturating_abs())
+    }
+}
+
+impl std::ops::Add for Strength {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0.saturating_add(other.0))
+    }
+}
+
+impl std::ops::AddAssign for Strength {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl std::ops::Sub for Strength {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0))
+    }
+}
+
+impl std::iter::Sum for Strength {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |sum, each| sum + each)
+    }
+}
 
 /// Clients from different pools never share a match: a 0.26g game that
 /// takes late joiners (`GrowingRoster`, patch revision 5 on) or not.

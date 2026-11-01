@@ -38,6 +38,7 @@ pub mod clans;
 pub mod extras;
 pub mod items_rules;
 pub mod known;
+pub mod level_stats;
 pub mod matches_now;
 pub mod matchmaking;
 pub mod moderation;

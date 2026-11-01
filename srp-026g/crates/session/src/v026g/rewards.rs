@@ -166,6 +166,7 @@ use survarium::v026g::modifications;
 use survarium::v026g::quests::MatchStats as QuestStats;
 
 use super::account::Account;
+use super::level_stats::KillsDeaths;
 use super::pay::{self, Pay};
 use super::persist::GameRepository;
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
@@ -711,6 +712,11 @@ struct Inner {
     /// and when (Unix seconds): the screen may still be open, so the
     /// report stays ([`SHOWN_FOR_SECONDS`]).
     shown: HashMap<u32, (u32, u64)>,
+    /// The equipment level of each match being played, by the id its
+    /// players were sent with: the highest gear level of its players
+    /// ([`Results::raise_match_gear`]). Not kept across a restart, which
+    /// ends the matches.
+    gear: HashMap<u32, u8>,
 }
 
 impl Inner {
@@ -838,6 +844,25 @@ pub struct Results {
 impl Results {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The equipment level of the match being played that its players
+    /// were sent to as `match_id`: the highest gear level of its players
+    /// so far ([`Self::raise_match_gear`]); `None` for one it does not
+    /// know.
+    pub fn match_gear(&self, match_id: u32) -> Option<u8> {
+        self.inner.locked().gear.get(&match_id).copied()
+    }
+
+    /// A player of gear level `gear` is in the match `match_id` (made, or
+    /// let in late): the match's equipment level is the highest of its
+    /// players' (the owner's of 2026-11-01), what its kills and deaths are
+    /// counted at when it is settled (`level_stats`). The level now.
+    pub fn raise_match_gear(&self, match_id: u32, gear: u8) -> u8 {
+        let mut inner = self.inner.locked();
+        let level = inner.gear.entry(match_id).or_insert(gear);
+        *level = (*level).max(gear);
+        *level
     }
 
     /// The results kept in `accounts`' repository: what it had of them
@@ -1017,6 +1042,8 @@ impl Results {
         terms: &Terms,
         rng: &mut Rng,
     ) -> Option<Arc<MatchReport>> {
+        // The match's equipment level is of no use past its end.
+        let gear = self.inner.locked().gear.remove(&result.match_id);
         if matches!(result.end, MatchEnd::NoShow | MatchEnd::NotMade) {
             return None;
         }
@@ -1074,6 +1101,16 @@ impl Results {
                     let mut account = account.locked();
                     if let Some(change) = balance_changes[index] {
                         account.balance = account.balance.moved(change);
+                        // A match that moves the balance rating counts its
+                        // kills and deaths at its equipment level
+                        // (`level_stats`), and no other does.
+                        if let Some(gear) = gear {
+                            let played = KillsDeaths {
+                                kills: u32::from(player.kills),
+                                deaths: u32::from(player.deaths),
+                            };
+                            account.level_stats.played(gear, played);
+                        }
                     }
                     let (reward, full, notices) = shared.settle_player(
                         &mut account,

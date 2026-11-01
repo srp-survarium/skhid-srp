@@ -3542,6 +3542,65 @@ fn a_match_moves_the_balance_rating_by_the_sides_sizes() {
     assert_eq!(account(&store, 10).rating, 98);
 }
 
+/// The owner's of 2026-11-01: a match counts its players' kills and
+/// deaths at its equipment level, the highest gear level of its players
+/// (late joiners too), when it moves the balance rating, and never
+/// otherwise (`docs/notes/kd-balance.md`).
+#[test]
+fn a_rated_match_counts_kills_and_deaths_at_its_equipment_level() {
+    use crate::v026g::level_stats::KillsDeaths;
+
+    let players = three_and_two();
+    let store = accounts(&players);
+    let results = Results::new();
+    // Made at 6, a joiner of 9 came, one of 4 did not lower it.
+    assert_eq!(results.raise_match_gear(MATCH, 6), 6);
+    assert_eq!(results.raise_match_gear(MATCH, 9), 9);
+    assert_eq!(results.raise_match_gear(MATCH, 4), 9);
+    assert_eq!(results.match_gear(MATCH), Some(9));
+    results
+        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    // Settled, the level is forgotten.
+    assert_eq!(results.match_gear(MATCH), None);
+    let alice = account(&store, 10).level_stats;
+    assert_eq!(alice.rows().len(), 1);
+    assert_eq!(
+        alice.at(9),
+        KillsDeaths {
+            kills: 1,
+            deaths: 1
+        }
+    );
+    assert_eq!(account(&store, 10).balance.matches, 1);
+
+    // One the balance rating does not move counts nothing: a whole side
+    // left, a test bot, no level known (a match made before a restart).
+    let store = accounts(&players);
+    let results = Results::new();
+    results.raise_match_gear(MATCH, 6);
+    let mut deserted = result(players.clone());
+    deserted.end = MatchEnd::Deserted;
+    results
+        .settle(&deserted, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(account(&store, 10).level_stats.rows().is_empty());
+    let store = accounts(&players);
+    store.set_bots(&["dave".to_owned()]);
+    let results = Results::new();
+    results.raise_match_gear(MATCH, 6);
+    results
+        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(account(&store, 10).level_stats.rows().is_empty());
+    let store = accounts(&players);
+    Results::new()
+        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(account(&store, 10).level_stats.rows().is_empty());
+    assert_eq!(account(&store, 10).balance.matches, 1);
+}
+
 #[test]
 fn the_balance_rating_is_not_moved_by_a_match_that_says_nothing() {
     use crate::v026g::balance::Balance;
