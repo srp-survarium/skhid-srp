@@ -914,6 +914,10 @@ pub struct CombatTuning {
     /// Which guns it applies to (the scoped ones).
     pub settle_guns: SettleGuns,
     pub settle_k: f32,
+    /// [A243] `settle_k` at skill 0 (`settle_k` is skill 1's), mixed by the skill: a weak player fires before his aim fits the
+    /// body as well as a strong one waits for. 1.0 at both: the same bound at every skill (before A243: A242 found the bolt's hit
+    /// rate flat across skill, every skill firing at about the same expected error).
+    pub settle_k_low: f32,
     pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
@@ -1517,6 +1521,7 @@ impl Default for CombatTuning {
             settle: Settle::WanderAndPolicy,
             settle_guns: SettleGuns::Scoped,
             settle_k: 1.0,
+            settle_k_low: 1.0,
             settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
@@ -4699,7 +4704,8 @@ impl Reflex {
                 self.target = Some(track.who());
                 self.since = now;
                 // A fresh target: the aim starts well off and settles.
-                let error = mix(aim.error_deg, skill).to_radians() * 3.0;
+                let class = aim.combat.fire.class_of(self.hands().held().gun);
+                let error = aim.angle(aim.error_deg, skill, class).to_radians() * 3.0;
                 self.error = (rng.range(-error, error), rng.range(-error, error) * 0.5);
                 // The first shot a reaction after noticing.
                 let t = track.track();
@@ -6782,7 +6788,9 @@ impl Reflex {
         let aim_since = self.aim_since.take();
         let legs = self.legs(now);
         let settle_s = mix(aim.settle_s, skill).max(0.05);
-        let floor = mix(aim.error_deg, skill).to_radians();
+        // [A243] The gun's class takes its own factors on the aim's angles.
+        let class = c.fire.class_of(self.hands().held().gun);
+        let floor = aim.angle(aim.error_deg, skill, class).to_radians();
         // Play 20: a throw under way has the look and the hands.
         if let Some(throw) = self.throw
             && let Some(over) = self.throwing(throw, me, view, now, c, settle_s)
@@ -7004,8 +7012,8 @@ impl Reflex {
         let settle = c.settle_guns.settle(c.settle, self.hands().held().gun.optic);
         let wander_deg = aim_settle::wander_deg(
             settle,
-            mix(aim.wander_deg, skill),
-            mix(aim.settled_wander_deg, skill),
+            aim.angle(aim.wander_deg, skill, class),
+            aim.angle(aim.settled_wander_deg, skill, class),
             mix(aim.settle_tau_s, skill),
             t,
         );
@@ -7022,7 +7030,7 @@ impl Reflex {
             (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
         );
         // What a player knows of his own hand: the error to expect, not this tick's draw (`aim_settle`).
-        let expected_deg = aim_settle::error_rms_deg(mix(aim.error_deg, skill), fade, wander_deg, zoom);
+        let expected_deg = aim_settle::error_rms_deg(aim.angle(aim.error_deg, skill, class), fade, wander_deg, zoom);
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
@@ -7110,7 +7118,7 @@ impl Reflex {
                 expected_deg,
                 distance,
                 c.body_half_m,
-                c.settle_k,
+                mix((c.settle_k_low, c.settle_k), skill),
                 now.saturating_sub(self.since),
                 c.settle_max_wait_ms,
             );

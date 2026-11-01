@@ -1,4 +1,5 @@
 use super::*;
+use crate::v026g::bots::guns::WeaponClass;
 
 /// The aim at skill 0 (weakest) and 1 (best); `skill` mixes them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -35,6 +36,12 @@ pub struct AimTuning {
     /// From noticing an enemy to the first shot, ms (drawn ±15 % per
     /// target).
     pub reaction_ms: (f32, f32),
+    /// [A243] How the skill mixes the aim's angles (`error_deg`, `wander_deg`,
+    /// `settled_wander_deg`) and the class factors ([`ClassAim`]).
+    pub skill_curve: SkillCurve,
+    /// [A243] Each gun class's factors on the aim's angles at skill 0 and at
+    /// skill 1: each class has its own bar (the owner, 2026-11-01).
+    pub class_aim: ClassAim,
     /// The reflex's other numbers (plays 5, 7, 11, 19, 20, 21, reloads),
     /// the same at every skill.
     pub combat: super::super::reflex::CombatTuning,
@@ -62,8 +69,82 @@ impl Default for AimTuning {
             pause_ms: (150, 700),
             range_m: 80.0,
             reaction_ms: (450.0, 120.0),
+            skill_curve: SkillCurve::default(),
+            class_aim: ClassAim::default(),
             combat: super::super::reflex::CombatTuning::default(),
             friends: super::super::friends::FriendlyFireTuning::default(),
+        }
+    }
+}
+
+impl AimTuning {
+    /// An aim angle (`range`: at skill 0, at skill 1) at `skill` with a gun of
+    /// `class`: the curve's mix times the class's factor.
+    pub fn angle(&self, range: (f32, f32), skill: f32, class: WeaponClass) -> f32 {
+        self.skill_curve.mix(range, skill) * self.skill_curve.mix(self.class_aim.of(class), skill)
+    }
+}
+
+/// [A243] How the skill mixes an aim angle between skill 0 and skill 1.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillCurve {
+    /// A straight line in degrees (before A243). The hit rate it gives is
+    /// convex in the skill: the angle falls by the same degrees each step and
+    /// the hits climb steeply only as it nears the body's angular size (A242,
+    /// rifles + SMGs at the stand-in human: 12.8 / 14.0 / 14.6 / 20.1 / 23.2 %
+    /// at 0.2 / 0.4 / 0.6 / 0.8 / 1.0).
+    #[default]
+    Linear,
+    /// The same factor each step (`a0 * (a1 / a0)^skill`), so the middle skills
+    /// aim tighter than the straight line and the hit rate runs nearer the
+    /// owner's straight line of hit rates; an end at 0 falls back to the line.
+    Geometric,
+}
+
+impl SkillCurve {
+    pub fn mix(self, range: (f32, f32), skill: f32) -> f32 {
+        match self {
+            Self::Geometric if range.0 > 0.0 && range.1 > 0.0 => {
+                range.0 * (range.1 / range.0).powf(skill.clamp(0.0, 1.0))
+            }
+            Self::Linear | Self::Geometric => super::super::signals::mix(range, skill),
+        }
+    }
+}
+
+/// [A243] Factors on the aim's angles by the gun's class, at skill 0 and at
+/// skill 1 (1.0: the shared numbers). The class is the bots' own
+/// (`CombatTuning::class_of`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ClassAim {
+    pub pistol: (f32, f32),
+    pub smg: (f32, f32),
+    pub rifle: (f32, f32),
+    pub mg: (f32, f32),
+    pub shotgun: (f32, f32),
+    pub marksman: (f32, f32),
+    pub bolt: (f32, f32),
+}
+
+impl Default for ClassAim {
+    fn default() -> Self {
+        let same = (1.0, 1.0);
+        Self { pistol: same, smg: same, rifle: same, mg: same, shotgun: same, marksman: same, bolt: same }
+    }
+}
+
+impl ClassAim {
+    pub fn of(&self, class: WeaponClass) -> (f32, f32) {
+        match class {
+            WeaponClass::Pistol => self.pistol,
+            WeaponClass::Smg => self.smg,
+            WeaponClass::Rifle => self.rifle,
+            WeaponClass::MachineGun => self.mg,
+            WeaponClass::Shotgun => self.shotgun,
+            WeaponClass::Marksman => self.marksman,
+            WeaponClass::Bolt => self.bolt,
         }
     }
 }
@@ -172,8 +253,16 @@ impl Check for AimTuning {
                 && self.settle_tau_s.1 > 0.0
                 && self.settled_wander_deg.0 >= 0.0
                 && self.settled_wander_deg.1 >= 0.0
-                && self.combat.settle_k > 0.0,
+                && self.combat.settle_k > 0.0
+                && self.combat.settle_k_low > 0.0,
             "aim.settle_*",
+        )?;
+        let c = &self.class_aim;
+        check(
+            [c.pistol, c.smg, c.rifle, c.mg, c.shotgun, c.marksman, c.bolt]
+                .iter()
+                .all(|&(low, high)| low.is_finite() && high.is_finite() && low > 0.0 && high > 0.0),
+            "aim.class_aim",
         )?;
         let c = &self.combat;
         check(
@@ -192,5 +281,35 @@ impl Check for AimTuning {
         check(c.worth.valid(), "aim.combat.worth")?;
         check(c.band_cross_deg.is_none_or(|deg| (0.0..90.0).contains(&deg)), "aim.combat.band_cross_deg")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_geometric_curve_keeps_the_ends_and_tightens_the_middle() {
+        let error = (6.0, 0.9);
+        for curve in [SkillCurve::Linear, SkillCurve::Geometric] {
+            assert!((curve.mix(error, 0.0) - 6.0).abs() < 1e-5);
+            assert!((curve.mix(error, 1.0) - 0.9).abs() < 1e-5);
+        }
+        // Halfway: the line's 3.45 degrees, the same factor twice 2.32 (6 x sqrt(0.15)).
+        assert!((SkillCurve::Linear.mix(error, 0.5) - 3.45).abs() < 1e-4);
+        assert!((SkillCurve::Geometric.mix(error, 0.5) - 6.0 * 0.15f32.sqrt()).abs() < 1e-4);
+        // An end at 0 (the settled wander at skill 1): the straight line.
+        assert!((SkillCurve::Geometric.mix((1.5, 0.0), 0.5) - 0.75).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_class_factor_scales_only_its_own_class() {
+        let aim = AimTuning { class_aim: ClassAim { bolt: (2.0, 0.5), ..ClassAim::default() }, ..AimTuning::default() };
+        assert!((aim.angle(aim.error_deg, 1.0, WeaponClass::Rifle) - 0.9).abs() < 1e-5);
+        assert!((aim.angle(aim.error_deg, 1.0, WeaponClass::Bolt) - 0.45).abs() < 1e-5);
+        assert!((aim.angle(aim.error_deg, 0.0, WeaponClass::Bolt) - 12.0).abs() < 1e-5);
+        assert!(aim.check().is_ok());
+        let bad = AimTuning { class_aim: ClassAim { pistol: (0.0, 1.0), ..ClassAim::default() }, ..AimTuning::default() };
+        assert!(bad.check().is_err());
     }
 }
