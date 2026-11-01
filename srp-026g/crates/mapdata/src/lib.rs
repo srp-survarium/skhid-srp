@@ -127,6 +127,9 @@ pub const CAPSULE_STEPS_ALGO: u32 = 1;
 /// The same for the walk-offs kept only where the capsule has room to walk off the edge ([`Body::drop_room`],
 /// `WalkGrid::cut_blocked_walk_offs`), in [`grid_key_with_links`] only for a body that asks for it.
 pub const DROP_ROOM_ALGO: u32 = 1;
+/// The same for the walks up measured from the ground under their floor ([`Body::walk_from_support`],
+/// `WalkGrid::cut_unsupported_walks`), in [`grid_key_with_links`] only for a body that asks for it.
+pub const WALK_FROM_SUPPORT_ALGO: u32 = 1;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -258,6 +261,10 @@ pub fn grid_key_with_links(
     // The room to walk off is a switch too.
     if body.drop_room {
         digest.u32(DROP_ROOM_ALGO);
+    }
+    // The walks up from the ground under their floor too.
+    if body.walk_from_support {
+        digest.u32(WALK_FROM_SUPPORT_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {
