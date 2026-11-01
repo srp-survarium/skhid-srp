@@ -234,7 +234,7 @@ def main():
              '# gun\toptic\tslot\torigin\trails']
     fits = {r[0]: [] for r in optics}
     sums = []
-    for gun, key, model, first_at, _ in rows('guns.tsv'):
+    for gun, key, model, first_at in rows('guns.tsv'):
         gun_dir, _, used = find_gun_dir(args.guns, gun)
         sums += [f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {rel}' for rel, p in used]
         found = survey_gun(donor, gun, key, model, first_at, gun_dir)

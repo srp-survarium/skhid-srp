@@ -4,6 +4,8 @@
 # places them. Rails: their material as 0.26g gets it: loc2:<name> an existing material of ours
 # (weapons/loc2/<name>), else 0.69d0's made again on the 0.26g template named (retexture.py).
 # A base: a module only its locators are taken of (our gun has it in its own mesh).
+# A sight: an iron sight module, up (its `model`, as the gun's port baked it in) and folded (its
+# `model_param1`, as 0.69d0 shows it under an optic): sights.tsv folds the one into the other.
 # module (models/weapons/modules/...)	kind	material	how
 collimators/aimpoint_compm4_collimator	optic	-	-
 collimators/belomo_pk01_collimator	optic	-	-
@@ -32,3 +34,11 @@ picatinnyrails/g3a3_picatinnyrail	rail	weapons/modules/picatinnyrails/g3a3_picat
 picatinnyrails/aks74u_zenit_b18_picatinnyrail	rail	weapons/modules/picatinnyrails/aks74u_zenit_b18_picatinnyrail	material_instances/weapons/loc2/picatini_medium.material
 receivercovers/aks74u_receivercover	base	-	-
 frames/glock_17_sandy_frame	base	-	-
+ironsights/scarh_rear_ironsight_on	sight	-	-
+ironsights/scarh_rear_ironsight_off	sight	-	-
+ironsights/scarh_front_ironsight_on	sight	-	-
+ironsights/scarh_front_ironsight_off	sight	-	-
+ironsights/vhs2_rear_ironsight_on	sight	-	-
+ironsights/vhs2_rear_ironsight_off	sight	-	-
+ironsights/vhs2_front_ironsight_on	sight	-	-
+ironsights/vhs2_front_ironsight_off	sight	-	-

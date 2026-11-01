@@ -2,27 +2,25 @@
 # is (its scopes and mounts: survey.py), that weapon's 0.69d0 model (its locators: the meshes are the
 # same, vertex for vertex), and where the first mount of a chain sits when 0.69d0's model is not ours
 # there (- 0.69d0's locator; else a locator of our model: the 0.46c2 Glock is one piece where 0.69d0's
-# is modular, its frame module carrying the rail); and the surfaces of our model a scope's variant
-# leaves out (- none): a sight the gun's port baked in where 0.69d0 attaches it as a module on the very
-# slot the optic takes (the L85A2's and the Fort-401's rear sights), which 0.69d0 takes off for it.
-# gun	0.69d0 weapon	0.69d0 model	first mount at	left out under an optic
-ots14	ots14	weapons/assault/ots144a_groza/ots14	-	-
-scar_h	scar_h	weapons/assault/scar_h/scar_h	-	-
-vhs_2	vhs_2	weapons/assault/vhs_2/vhs_2	-	-
-fn_minimi	fn_minimi	weapons/lmg/fn_minimi/fn_minimi	-	-
-mp5a1	mp5a1	weapons/smg/mp5a1/mp5a1	-	-
-svu_a	svu_a	weapons/sniper/svu_a/svu_a	-	-
-l85a2	l85a2	weapons/assault/enfield_l85a2/enfield_l85a2	-	scope_enfield_l85a2_ironsight_s
-fort_401	fort_401	weapons/lmg/fort_401/fort_401	-	scope_fort_401_ironsight_s
-jackhammer	jackhammer	weapons/shotguns/jackhammer/jackhammer	-	-
-cz_75	cz_75	weapons/pistols/cz_75b	-	-
-mp443	mp443	weapons/pistols/mp_443	-	-
-beretta93r	beretta93r	weapons/pistols/beretta_93r/beretta_93r	-	-
-glock_17	glock_17	weapons/pistols/glock_17/glock_17_sandy	picatini_scope_point	-
-colt_m1911	colt_m1911	weapons/pistols/colt_m1911/colt_m1911	-	-
-akmsu	akmsu	weapons/assault/akmsu/akmsu	-	-
-famas	famas	weapons/assault/famas/famas	-	-
-g3sg1	g3a3	weapons/dmr/g3a3/g3a3	-	-
-mauser_m712	mauser	weapons/pistols/mauser_m712/mauser	-	-
-ks_23m	ks_23	weapons/shotguns/ks_23/ks_23	-	-
-ppsh_drum	ppsh_drum	weapons/smg/ppsh/ppsh	-	-
+# is modular, its frame module carrying the rail). Its iron sights under an optic: sights.tsv.
+# gun	0.69d0 weapon	0.69d0 model	first mount at
+ots14	ots14	weapons/assault/ots144a_groza/ots14	-
+scar_h	scar_h	weapons/assault/scar_h/scar_h	-
+vhs_2	vhs_2	weapons/assault/vhs_2/vhs_2	-
+fn_minimi	fn_minimi	weapons/lmg/fn_minimi/fn_minimi	-
+mp5a1	mp5a1	weapons/smg/mp5a1/mp5a1	-
+svu_a	svu_a	weapons/sniper/svu_a/svu_a	-
+l85a2	l85a2	weapons/assault/enfield_l85a2/enfield_l85a2	-
+fort_401	fort_401	weapons/lmg/fort_401/fort_401	-
+jackhammer	jackhammer	weapons/shotguns/jackhammer/jackhammer	-
+cz_75	cz_75	weapons/pistols/cz_75b	-
+mp443	mp443	weapons/pistols/mp_443	-
+beretta93r	beretta93r	weapons/pistols/beretta_93r/beretta_93r	-
+glock_17	glock_17	weapons/pistols/glock_17/glock_17_sandy	picatini_scope_point
+colt_m1911	colt_m1911	weapons/pistols/colt_m1911/colt_m1911	-
+akmsu	akmsu	weapons/assault/akmsu/akmsu	-
+famas	famas	weapons/assault/famas/famas	-
+g3sg1	g3a3	weapons/dmr/g3a3/g3a3	-
+mauser_m712	mauser	weapons/pistols/mauser_m712/mauser	-
+ks_23m	ks_23	weapons/shotguns/ks_23/ks_23	-
+ppsh_drum	ppsh_drum	weapons/smg/ppsh/ppsh	-

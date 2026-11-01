@@ -29,9 +29,12 @@ reference of its scope, moved from the reference's mount to the gun's:
   collimator's aimed model too (its red dot with it); a scope's aimed model (its eyepiece) moved so
   it sits before the gun's eye as it sits before the reference's;
 - **the gun's model**: a collimator's eye on the optic's sight line: an existing model with that
-  eye (0.3 mm), else a copy of the gun's model with only its `aim` locator moved
+  eye (0.3 mm), else a copy of the gun's model with its `aim` locator moved
   (models/weapons/<..>_n_<scope>); a scope keeps the gun's own model (the weapon is hidden when
-  aiming; the eyepiece sits before the gun's own eye);
+  aiming; the eyepiece sits before the gun's own eye), or a copy with its eye levelled
+  (<..>_n_optic); either copy with its iron sights as under an optic (sights.tsv: folded, cut);
+- **the check**: nothing of the gun's model or the rails in the variant's line of sight
+  (occlusion.py; occlusion.tsv), a release-41 gun's variant failing it stops the build;
 - **its item**: the config of a type-3 variant of ours of the same form (the reference's own when
   it is one), its ids, models, fit and gun changed, and its data and texts the scope's (read back,
   nothing else differs); dict ids from FIRST_VARIANT; its dictionary row.
@@ -69,9 +72,11 @@ def _load(name, path):
 
 rs = _load('rifle_scopes_make_pack', HERE.parent / 'rifle-scopes' / 'make_pack.py')  # compose, configs, eyes
 survey = _load('scope_fits_survey', HERE / 'survey.py')
+occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
+sights = _load('scope_fits_sights', HERE / 'sights.py')
 
 PACK_ID = 'scope-fits'
-VERSION = '2'
+VERSION = '3'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -379,7 +384,8 @@ def build(args, work):
         if roots.file(cfg) is None:
             sys.exit(f'{gun}: no {cfg} in --guns')
         weapons[gun] = (cfg, lib.leaves(roots.file(cfg))['/object/model'])
-    drops = {g: ([] if d == '-' else d.split()) for g, _k, _m, _f, d in survey.rows('guns.tsv')}
+    changes = sight_changes()
+    new_guns = {g for g, *_ in survey.rows('guns.tsv')}
     variants = our_variants(args.live)
     refs = references(args, work, donor, optics, fits, variants, weapons, roots)
     new_mounts = mounts_new()
@@ -387,7 +393,7 @@ def build(args, work):
     live_variants = {v['name']: v for v in lib.variants(args.live, lib.Modules(args.donor))}
     renames = {r[2]: 'weapons/loc2/' + r[3][len('loc2:'):] for r in survey.rows('modules.tsv')
                if r[1] == 'rail' and r[3].startswith('loc2:')}
-    files, entries, compat, report, icons, axis = {}, [], [], [], [], []
+    files, entries, compat, report, icons, axis, seen = {}, [], [], [], [], [], []
     eyes = {}  # gun -> [(model reference, its directory)]: the models with a moved eye made here
     next_id = FIRST_VARIANT
     placeholders = []
@@ -446,26 +452,26 @@ def build(args, work):
             files.update(rs.files_of(idle_out, work))
             files.update(rs.files_of(aim_out, work))
             change = None
-            drop = drops.get(gun, [])
-            if kind == 'S' and (drop or aim_turned(from_dir)):
-                # the gun's model without the sight under the optic and its eye looking straight
-                # along the bore (an aim locator turned about x tilts the view: the eyepiece, set
-                # before the eye along the bore, then shows its reticle off the screen's centre,
+            sighted = changes.get(gun, [])
+            if kind == 'S' and (sighted or aim_turned(from_dir)):
+                # the gun's model with its sights as under an optic (sights.tsv) and its eye looking
+                # straight along the bore (an aim locator turned about x tilts the view: the eyepiece,
+                # set before the eye along the bore, then shows its reticle off the screen's centre,
                 # where the bullets go; seen in the game on the AK-74M, 10 px at x4), its eye its own
                 change = f'{base_model}_n_optic'
                 target = work / 'models' / (change + '.skinned_model')
                 if not target.exists():
                     shutil.copytree(from_dir, target)
                     level_eye(target)
-                    leave_out(target, drop)
+                    under_optic(target, sighted, donor, gun)
                     files.update(rs.files_of(target, work))
             if kind == 'C':
                 # the aim locator's own position: the eye less its bone's origin
                 needed = (sp[0] - eye[0] - aim_bone[0], sp[1] + eye[1] - aim_bone[1])
                 has_point = lib.locator(lib.leaves(base_dir / 'render/export_properties'), 'scope_point')
-                candidates = ([(base_model, base_dir)] if has_point and not drop else []) + eyes.get(gun, [])
+                candidates = ([(base_model, base_dir)] if has_point and not sighted else []) + eyes.get(gun, [])
                 candidates += [(v['change'], lib.model_dir(args.live, v['change'])) for v in live_variants.values()
-                               if v['weapons'] == [gun] and v['change'] and not drop]
+                               if v['weapons'] == [gun] and v['change'] and not sighted]
                 candidates = [(m, d) for m, d in candidates if d and not aim_turned(d)]
                 change = rs.eye_model(candidates, base_model, needed)
                 if change is False:
@@ -473,7 +479,7 @@ def build(args, work):
                     target = work / 'models' / (change + '.skinned_model')
                     shutil.copytree(from_dir, target)
                     rs.moved_eye(target, needed)
-                    leave_out(target, drop)
+                    under_optic(target, sighted, donor, gun)
                     files.update(rs.files_of(target, work))
                     eyes.setdefault(gun, []).append((change, target))
                 elif change is None:
@@ -498,6 +504,15 @@ def build(args, work):
             if off is None or np.abs(off - ref['off']).max() > EYE_AXIS:
                 sys.exit(f'{vname}: its reticle is {off} from the eye, the reference\'s {ref["off"]}')
             axis.append(f'{vname}\t{off[0] * 1000:+.2f}\t{off[1] * 1000:+.2f}\t{ref["off"][0] * 1000:+.2f}\t{ref["off"][1] * 1000:+.2f}')
+            # nothing of the gun or its rails in the line of sight (occlusion.py): a release-41 gun's
+            # variant must pass; a live weapon's (the Walther's) is as its live variants are (recorded)
+            ok, wmin, wmax, clear, hit = occlusion.variant_check(
+                eye_model, idle_out, aim_out, kind, ref['own'], [s for s in lib.surfaces(idle_out) if s not in ref['own']])
+            result = 'pass' if ok and wmax > 0 else 'FAIL' if gun in new_guns else 'live'  # a shut window checks nothing
+            seen.append(f'{vname}\t{kind}\t{result}\t{wmin:.1f}\t{wmax:.1f}\t{clear:.1f}\t{occlusion.describe(hit)}')
+            if result == 'FAIL':
+                sys.exit(f'{vname}: the gun stands in its line of sight: {occlusion.describe(hit)} (clear {clear:.1f} of its '
+                         f'window, {wmin:.1f} to {wmax:.1f} degrees)')
             entries.append({'base_cost': 0, 'cfg_name': path, 'dict_id': dict_id, 'is_premium': False,
                             'is_stack': False, 'item_category': CATEGORY, 'name': vname})
             compat.append((gun, name))
@@ -509,6 +524,13 @@ def build(args, work):
     (HERE / 'eyes.tsv').write_text('# made by make_pack.py: each variant\'s reticle (red dot, else grid) from its weapon model\'s eye, '
                                    'mm (x, y), and its reference\'s: equal within EYE_AXIS\n# variant\tx\ty\treference x\treference y\n'
                                    + '\n'.join(axis) + '\n', encoding='utf-8')
+    (HERE / 'occlusion.tsv').write_text(
+        '# made by make_pack.py (occlusion.py): each variant\'s line of sight; window: a collimator\'s, degrees about its red dot\n'
+        '# from its weapon model\'s eye (the optic\'s body bounds it), a scope\'s, its eyepiece\'s radius in mm (rays along its\n'
+        '# axis); clear: the fraction of the window nothing of the gun or its rails stands in (1.0 none in 0.9); hits inside\n'
+        '# CLEAR, each where it is from the eye (metres); result pass, FAIL (a release-41 gun: the build stops) or live (a live\n'
+        '# weapon: as its live variants are)\n# variant\tkind\tresult\twindow min\twindow max\tclear\tsurfaces hit\n'
+        + '\n'.join(seen) + '\n', encoding='utf-8')
     write_pack(args, files, entries, report, icons)
     write_edit_list(args.live, compat, weapons, placeholders, roots)
 
@@ -565,6 +587,44 @@ def leave_out(model, surfaces):
     if any(v in surfaces for k, v in left.items() if k.startswith('/lod_hierrarchy/')) or \
             any(k.startswith(f'/material_settings/{x}/') for k in left for x in surfaces):
         sys.exit(f'{model}: a surface left out is still listed')
+
+
+def sight_changes():
+    """sights.tsv's changes under an optic, per gun: (how, surface, the rest), `keep` left out."""
+    out = {}
+    for row in survey.rows('sights.tsv'):
+        how = row[-1].split()
+        if how[0] == 'keep':
+            continue
+        if len(how) not in {'fold': (4,), 'cut': (2, 3), 'lower': (4,)}.get(how[0], ()):
+            sys.exit(f'sights.tsv: {row[0]}: {row[-1]!r} is not keep, fold <surface> <up> <folded>, cut <surface> [box] '
+                     'or lower <surface> <box> <height>')
+        out.setdefault(row[0], []).append(how)
+    return out
+
+
+def under_optic(model, changes, donor, gun):
+    """A copied weapon model's sights as sights.tsv has them under an optic: folded (sights.fold: the
+    up module the port baked in made 0.69d0's folded one), cut (sights.cut: a surface's islands
+    inside a box; leave_out: a whole surface), lowered (sights.lower: a part of an island cut flat)."""
+    for how, surface, *rest in changes:
+        if how == 'cut' and not rest:
+            leave_out(model, [surface])
+            done = 'left out'
+        elif how == 'cut':
+            done = sights.cut(model / 'render' / surface, [float(x) for x in rest[0].split(',')])
+        elif how == 'lower':
+            done = sights.lower(model / 'render' / surface, [float(x) for x in rest[0].split(',')], float(rest[1]))
+        else:
+            up, folded = (donor.module_dir(f'weapons/modules/{m}') for m in rest)
+            if up is None or folded is None:
+                sys.exit(f'{gun}: {rest} not in --donor (modules.tsv)')
+            names = lib.surfaces(up)
+            if len(names) != 1 or lib.surfaces(folded) != names:
+                sys.exit(f'{gun}: {rest}: not one surface each, the same')
+            done = sights.fold(model / 'render' / surface, up / 'render' / names[0] / 'converted_model',
+                               folded / 'render' / names[0] / 'converted_model')
+        print(f'{gun}: {model.name}: {how} {surface} {" ".join(rest)}: {done}')
 
 
 def shop_item(args, files, entries, name, dict_id, price, icon, fov, first, texts, model):
