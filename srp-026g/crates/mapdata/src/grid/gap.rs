@@ -993,10 +993,11 @@ impl WalkGrid {
     }
 
     /// [A238] The floor a body comes down on when it slips off `a`'s edge in direction `d` slower than any walk-off is flown for
-    /// (`Body::slip_landings`): it goes over where a walk-off does ([`Self::walk_off_edge`]) and falls about straight down, onto
-    /// the highest floor lower than a step and within the harmless drop whose cell overlaps the square of the body's radius and
-    /// half a cell around the point half a cell past that edge: the bots' reckoning's slip (`body::under_edge` under
-    /// `kin.walk_off_landing = by_speed`). Vector Laboratory's 20.6 lip: the walk-off lands 2.5 m out on 17.80, a slip on the
+    /// (`Body::slip_landings`): it goes over where a walk-off does ([`Self::walk_off_edge`], half a cell on) or where the
+    /// capsule stops being held by the edge ([`WALK_OFF_REACH_M`] past the floor's centre), whichever is further, and falls about
+    /// straight down, onto the highest floor lower than a step and within the harmless drop whose cell overlaps the square of the
+    /// body's radius and half a cell around that point: the bots' reckoning's slip (`body::under_edge` from `body::SUPPORT_M`
+    /// under `kin.walk_off_landing = by_speed`). Vector Laboratory's 20.6 lip: the walk-off lands 2.5 m out on 17.80, a slip on the
     /// 16.22 ledge under the edge (two bots' FALL lines, `fx-smoke-pockets.md` §1).
     fn slip_landing(&self, a: usize, d: usize, solids: &Solids) -> Option<u32> {
         let from = self.position(a as NodeId);
@@ -1005,7 +1006,7 @@ impl WalkGrid {
         let len = ((di * di + dk * dk) as f32).sqrt();
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
-        let s = self.walk_off_edge(a, d, solids) + ds;
+        let s = (self.walk_off_edge(a, d, solids) + ds).max(WALK_OFF_REACH_M);
         let (px, pz) = (from.x + ux * s, from.z + uz * s);
         let r = self.body.radius + ds;
         self.floors_in([px - r, pz - r, px + r, pz + r])
