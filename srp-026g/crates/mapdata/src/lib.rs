@@ -124,6 +124,9 @@ pub const LANDING_CARRY_ALGO: u32 = 3;
 /// The same for the walks up a ledge's edge the capsule rides ([`Body::capsule_steps`]), in [`grid_key_with_links`] only for a
 /// body that asks for it.
 pub const CAPSULE_STEPS_ALGO: u32 = 1;
+/// The same for the climbs up steep ground begun only on walkable ground ([`Body::climb_from_walkable`],
+/// `WalkGrid::cut_steep_climbs`), in [`grid_key_with_links`] only for a body that asks for it.
+pub const CLIMB_FROM_WALKABLE_ALGO: u32 = 1;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -251,6 +254,10 @@ pub fn grid_key_with_links(
     // The capsule's edge steps are a switch too.
     if body.capsule_steps {
         digest.u32(CAPSULE_STEPS_ALGO);
+    }
+    // The climbs from walkable ground only are a switch too.
+    if body.climb_from_walkable {
+        digest.u32(CLIMB_FROM_WALKABLE_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

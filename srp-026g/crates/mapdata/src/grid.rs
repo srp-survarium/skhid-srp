@@ -154,6 +154,13 @@ pub struct Body {
     /// notes of those functions, not run in the client): Vostok Radar Station's 0.86-0.90 m edge at (8.41, -16.51), walked up
     /// with no jump by the live players (A198). Off: a rise over [`Body::step`] is a jump. A build input: in the key when set.
     pub capsule_steps: bool,
+    /// Whether a climb up steep ground begins only on walkable ground ([`WalkGrid::cut_steep_climbs`]): a drop or a jump that lands
+    /// on a steep floor gives it no base of its own. The client never rests on ground steeper than its slope: a walk tick whose
+    /// step down meets such ground under the feet is refused (`step_down` 0x7E1B0 with `impassable_slope` 0x7DE10, both escapes
+    /// re-test it), and a jump that lands on it slides (A216, PROVEN). Off: every drop's or jump's landing is a base, so a jump
+    /// onto a steep face starts a fresh climb a step up it, and the jumps landing at its different heights chain walks up a rock no
+    /// client body gets up (Mamayev Kurgan day 2 at (90.9, 30.4, 117.9): +2.54 m of 59-88 deg). A build input: in the key when set.
+    pub climb_from_walkable: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -200,6 +207,7 @@ impl Body {
             keep_last_resorts: true,
             crouch_only_floors: true,
             capsule_steps: false,
+            climb_from_walkable: false,
         }
     }
 }
@@ -262,6 +270,7 @@ impl Default for Body {
             keep_last_resorts: true,
             crouch_only_floors: true,
             capsule_steps: false,
+            climb_from_walkable: false,
         }
     }
 }
@@ -1311,8 +1320,9 @@ impl WalkGrid {
         let on_steep =
             |a: usize, b: usize| (steep_floor[a] || steep_floor[b]) && !(forced[a] && forced[b]);
         // A floor's base: its own height on walkable ground or where a
-        // drop or jump lands; on steep ground, that of the ground its climb
-        // began on (none if it is only come down to).
+        // drop or jump lands (on walkable ground only, with
+        // [`Body::climb_from_walkable`]); on steep ground, that of the ground
+        // its climb began on (none if it is only come down to).
         let mut base: Vec<f32> = (0..n)
             .map(|a| {
                 if steep_floor[a] {
@@ -1325,7 +1335,8 @@ impl WalkGrid {
         for a in 0..n {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] != LinkKind::Walk {
+                // With [`Body::climb_from_walkable`], a landing on steep ground is no base: the body slides, it does not climb on.
+                if b != NONE && wide.kinds[a][d] != LinkKind::Walk && !(self.body.climb_from_walkable && steep_floor[b as usize]) {
                     base[b as usize] = self.height[b as usize];
                 }
             }
@@ -4823,6 +4834,45 @@ pub(crate) mod tests {
         assert_eq!(way(&steep, Body::default()), (false, false));
         // The default body's grid is what it was: Body::default() is the exe's numbers.
         assert_eq!((Body::default().step, Body::default().min_ground_normal_y), (0.6, 0.642_787_6));
+    }
+
+    /// [`Body::climb_from_walkable`]: a riser of 0.9 m with a 59° face on it (Mamayev Kurgan's rock, A216). The jump from the foot
+    /// lands on the steep face 1.15 m up; that landing was a base of its own, so the walk on up the face (0.42 m a cell) stayed
+    /// within a step of it. With the switch a landing on steep ground is no base: the walk up from it goes; a curb's steep face from
+    /// walkable ground is stepped up as before.
+    #[test]
+    fn a_jump_onto_a_steep_face_starts_no_climb_with_climb_from_walkable() {
+        let (riser, degrees, rise) = (0.9f32, 59.0f32, 2.0f32);
+        let run = rise / degrees.to_radians().tan();
+        let mut tris = floor(0.0, 0.0, 5.1, 10.0, 0.0).to_vec();
+        let walker = WalkerBehaviour::BySlope;
+        let (a, b) = (Vec3::new(5.1, 0.0, 0.0), Vec3::new(5.1, 0.0, 10.0));
+        let (c, d) = (Vec3::new(5.1, riser, 10.0), Vec3::new(5.1, riser, 0.0));
+        tris.extend([Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]);
+        let (a, b) = (Vec3::new(5.1, riser, 0.0), Vec3::new(5.1 + run, riser + rise, 0.0));
+        let (c, d) = (Vec3::new(5.1 + run, riser + rise, 10.0), Vec3::new(5.1, riser, 10.0));
+        tris.extend([Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]);
+        tris.extend(floor(5.1 + run, 0.0, 14.0, 10.0, riser + rise));
+        let walk_up = |climb_from_walkable: bool| {
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 14.0, 10.0], 0.25, Body { climb_from_walkable, ..Body::client() });
+            let landing = grid.locate(Vec3::new(5.125, 1.15, 5.125), 0.3).expect("the face's first floor");
+            let next = grid.locate(Vec3::new(5.375, 1.57, 5.125), 0.3).expect("the face's next floor");
+            let (low, high) = (grid.position(landing).y, grid.position(next).y);
+            assert!(high - low > 0.3 && low > riser, "{low} {high}");
+            grid.links(landing).any(|l| l == (next, LinkKind::Walk))
+        };
+        assert!(walk_up(false), "the jump's landing was a base: the walk on up the face stayed");
+        assert!(!walk_up(true), "a landing on steep ground is no base");
+        // A curb's steep face from walkable ground is stepped up as before.
+        let mut curb = floor(0.0, 0.0, 3.0, 10.0, 0.0).to_vec();
+        curb.extend(floor(3.5, 0.0, 10.0, 10.0, 0.45));
+        let (a, b) = (Vec3::new(3.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 10.0));
+        let (c, d) = (Vec3::new(3.5, 0.45, 10.0), Vec3::new(3.5, 0.45, 0.0));
+        curb.extend([Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]);
+        let grid = WalkGrid::build(&curb, AREA, 0.25, Body { climb_from_walkable: true, ..Body::client() });
+        let foot = grid.locate(Vec3::new(1.0, 0.0, 5.0), 0.3).unwrap();
+        let top = grid.locate(Vec3::new(7.0, 0.45, 5.0), 0.3).unwrap();
+        assert!(grid.distances_from(&[foot]).reaches(top));
     }
 
     /// With the clients' numbers a face of 1.2 m (over the standing jump, under the sprint jump's 1.28) is a Jump

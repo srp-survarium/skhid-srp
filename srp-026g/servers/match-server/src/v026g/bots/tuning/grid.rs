@@ -66,6 +66,12 @@ pub struct GridTuning {
     /// by the live players with no jump; 59 % of the offered maps' standing-jump links rise that much in one edge (A198). Off
     /// (the default) until a client test shows the walk. A grid is the map's (see `gap_links`).
     pub capsule_steps: bool,
+    /// Whether the maps' walk grids begin a climb up steep ground only on walkable ground (`mapdata::Body::climb_from_walkable`): a
+    /// drop or a jump that lands on ground steeper than the clients' 55 deg is no base for a walk on up it. The client refuses a walk
+    /// tick that would rest the feet on such ground, and a jump that lands on it slides (A216, fx-bench's client read, PROVEN); the
+    /// grid walked up Mamayev Kurgan's rock faces (day 2 at (90.9, 30.4, 117.9), day 4 at (-2.9, 29.6, 105.4)), where live bots
+    /// stood stuck at the foot (11 notes on day 4). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    pub climb_from_walkable: bool,
 }
 
 impl Default for GridTuning {
@@ -82,6 +88,7 @@ impl Default for GridTuning {
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
+            climb_from_walkable: false,
         }
     }
 }
@@ -106,6 +113,7 @@ impl GridTuning {
             keep_last_resorts: self.keep_last_resorts,
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
+            climb_from_walkable: self.climb_from_walkable,
             ..body
         }
     }
