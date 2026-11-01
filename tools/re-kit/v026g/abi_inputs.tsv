@@ -4877,3 +4877,8 @@ va	name	location	role	basis
 0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+16	1 for a display object ((type & 8Fh) == 0Ah, 0x2882B3)	observed
 0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	EDI	the pair	observed
 0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	ESI	the vector {begin, end, capacity}	observed
+0x0015a9c0	vostok::render::skeleton_render_model_instance::get_locator	entry ESP+4	NUL-terminated locator name (render_model::get_locator 0x1585B0's, after the tail jump)	observed
+0x0015a9c0	vostok::render::skeleton_render_model_instance::get_locator	entry ESP+8	0x64-byte output record (19h dwords copied, 0x158595)	observed
+0x00243bc0	survarium::weapon::calculate_locator	stack+8	world matrix, applied last (weapon::draw's [ebp+8], 0x244E51; multiply_affine at 0x243C8E)	observed
+0x00243bc0	survarium::weapon::calculate_locator	stack+12	bones: model-space bone matrices, 40h each, indexed by the locator's bone (+60h; FFFFh: not read, 0x243C01)	observed
+0x00243bc0	survarium::weapon::calculate_locator	stack+16	extra matrix applied first, before R_y(pi) (0xA262768) and the locator's own (+20h); draw gives the identity (0x33390)	observed

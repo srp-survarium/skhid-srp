@@ -9,7 +9,7 @@
 //! in the log beside its dump. A loud stop, never a world computed wrong and
 //! never undefined behaviour; nothing goes on with a half-done change.
 //!
-//! **memcpy, memmove, memset, memcmp and bcmp**: LLVM calls them for a large copy, move
+//! **memcpy, memmove, memset, memcmp, bcmp and strlen**: LLVM calls them for a large copy, move
 //! or fill, or a comparison, and the game gives none to the arena (one crate: one copy); `rep
 //! movsb` (backward for a move onto its own tail) and `rep stosb`, which
 //! LLVM cannot turn back into a call of themselves. Not in `cargo test`'s
@@ -100,6 +100,21 @@ mod game {
     pub unsafe extern "C" fn bcmp(a: *const u8, b: *const u8, size: usize) -> i32 {
         // SAFETY: the caller's contract is memcmp's.
         unsafe { memcmp(a, b, size) }
+    }
+
+    /// # Safety
+    /// As C's: `text` a terminated string. `repne scasb` (the direction flag
+    /// clear, as the ABI keeps it), which LLVM cannot turn back into a call
+    /// of itself; `CStr::from_ptr` calls it (a config's string, patch 90).
+    #[unsafe(no_mangle)]
+    #[linkage = "weak"]
+    pub unsafe extern "C" fn strlen(text: *const u8) -> usize {
+        let left: usize;
+        unsafe {
+            core::arch::asm!("repne scasb", inout("edi") text => _, inout("ecx") usize::MAX => left, in("al") 0u8,
+                             options(nostack, readonly));
+        }
+        !left - 1
     }
 
     #[panic_handler]

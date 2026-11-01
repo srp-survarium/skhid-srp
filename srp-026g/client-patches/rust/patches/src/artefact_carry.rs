@@ -316,7 +316,7 @@ pub fn on_weapon(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactCarryOnWe
 /// them. Its renderer asserts if asked to remove a model absent from scene.
 pub fn on_weapon_hide(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(weapon) = native::WeaponHiding::at(ctx) {
-        HIDDEN.with(ctx.thread(), |weapons| weapon.restore(weapons));
+        HIDDEN.with(ctx.thread(), |weapons| weapon.restore(ctx.thread(), weapons));
     }
     Flow::Continue
 }

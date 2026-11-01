@@ -1,0 +1,39 @@
+# Patch 90: a weapon's muzzle device (docs/notes/weapon-kit.md, "The muzzle
+# device"), a static model drawn at the weapon model's muzzle_point. Only
+# the decisions: which sites, and the handlers. The sites (VAs, kinds,
+# spans, what their registers hold) are sites_026g.tsv's; the logic is
+# muzzle.rs over vostok::muzzle.
+name = "muzzle"
+patch = 90
+
+[[hook]]
+site = "muzzle.request_room"
+handler = "on_request_room"
+
+[[hook]]
+site = "muzzle.request"
+handler = "on_request"
+
+[[hook]]
+site = "muzzle.loaded"
+handler = "on_loaded"
+
+[[hook]]
+site = "muzzle.locate"
+handler = "on_locate"
+
+[[hook]]
+site = "muzzle.draw"
+handler = "on_draw"
+
+[[hook]]
+site = "muzzle.culled"
+handler = "on_culled"
+
+[[hook]]
+site = "muzzle.hidden"
+handler = "on_hidden"
+
+[[hook]]
+site = "muzzle.release"
+handler = "on_release"

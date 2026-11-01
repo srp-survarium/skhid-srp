@@ -81,6 +81,8 @@ global engine_send_important
 global engine_comment_about_user
 global engine_close_current_match
 global engine_gfx_set_member
+global engine_calculate_locator
+global engine_model_locator
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1088,6 +1090,43 @@ engine_comment_about_user:
     push dword [esp + 32]   ; nickname -> 8
     push dword [esp + 32]   ; lobby_client -> 4
     call 0x274470
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_calculate_locator:
+    ; 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; extra -> 16
+    push dword [esp + 32]   ; bones -> 12
+    push dword [esp + 32]   ; world -> 8
+    push dword [esp + 32]   ; locator -> 4
+    mov edi, [esp + 52]   ; output
+    call 0x243bc0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_model_locator:
+    ; 0x1585b0 vostok::render::render_model::get_locator: owner ECX, name ESP+4, output ESP+8; pops 8; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; output -> 8
+    push dword [esp + 28]   ; name -> 4
+    mov ecx, [esp + 28]   ; owner
+    call 0x1585b0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx

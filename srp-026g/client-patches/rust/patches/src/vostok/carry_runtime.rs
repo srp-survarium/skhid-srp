@@ -205,7 +205,7 @@ impl Scene {
             Some(Self { renderer: renderer.scene_renderer()?, reference: world.scene() })
         }
     }
-    unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
+    pub(super) unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
         // SAFETY: model holder and scene are retained by the live caller.
         unsafe {
             let reference = model.render_instance();
@@ -249,12 +249,14 @@ impl HiddenWeapons {
     }
 }
 
-/// A client weapon's models: the weapon's, its optics' and aimed optics'.
-unsafe fn weapon_models(weapon: raw::Weapon) -> [Option<raw::SceneModel>; 3] {
+/// A client weapon's models: the weapon's, its optics' and aimed optics',
+/// and its muzzle device's (patch 90, [`super::muzzle`]).
+unsafe fn weapon_models(thread: &super::Thread, weapon: raw::Weapon) -> [Option<raw::SceneModel>; 4] {
     // SAFETY: a live client weapon (caller).
     unsafe {
         let optics = weapon.optics();
-        [weapon.model(), optics.and_then(|o| o.model()), optics.and_then(|o| o.aim_model())]
+        [weapon.model(), optics.and_then(|o| o.model()), optics.and_then(|o| o.aim_model()),
+         super::muzzle::model_of(thread, weapon)]
     }
 }
 
@@ -269,7 +271,7 @@ impl WeaponHiding {
             Some(Self { weapon: raw::site::carry_weapon_hide::weapon(ctx)? })
         }
     }
-    pub fn restore(&self, hidden: &mut HiddenWeapons) {
+    pub fn restore(&self, thread: &super::Thread, hidden: &mut HiddenWeapons) {
         let Some(record) = hidden.find(self.weapon.address()) else { return };
         let Some(Hidden { models: removed, .. }) = *record else { return };
         // SAFETY: on_hide owns this weapon, its models and client world.
@@ -279,7 +281,7 @@ impl WeaponHiding {
             let Some(world) = self.weapon.world() else { return };
             let Some(scene) = Scene::of_world(world) else { return };
             let matrix = floats(self.weapon.transform());
-            for (n, model) in weapon_models(self.weapon).into_iter().enumerate() {
+            for (n, model) in weapon_models(thread, self.weapon).into_iter().enumerate() {
                 if removed & (1 << n) != 0 && let Some(model) = model { scene.present(model, &matrix); }
             }
         }
@@ -299,7 +301,7 @@ pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapo
         let weapon = weapon.weapon();
         let Some(world) = player.this.game_world() else { return false };
         let Some(scene) = Scene::of_world(world) else { return false };
-        let models = weapon_models(weapon);
+        let models = weapon_models(ctx.thread(), weapon);
         if hide {
             let Some(record) = hidden.entry(weapon.address()) else { return false };
             let Some(Hidden { models: removed, .. }) = record else { return false };

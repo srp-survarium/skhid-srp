@@ -57,3 +57,4 @@ pub mod tab_cursor;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
+pub mod muzzle;

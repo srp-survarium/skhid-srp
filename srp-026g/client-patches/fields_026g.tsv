@@ -125,7 +125,7 @@ scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C strin
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
 vostok::engine_cfg	data	0x0	u32	value bits of a binary config node
 vostok::engine_cfg	children	0x0	ptr<vostok::engine_cfg>	child array when node_type is table or array
-vostok::engine_cfg	node_type	0x14	u16	binary config type: integer 1, float 2, table 3, array 4
+vostok::engine_cfg	node_type	0x14	u16	binary config type: integer 1, float 2, table 3, array 4, string 5
 vostok::engine_cfg	count	0x16	u16	child count for tables and arrays
 vostok::engine_cfg	size	0x18	size	binary config record stride, cfg_child 0xF6B10
 vostok::binary_config	root	0x108	ptr<vostok::engine_cfg>	root record of the loaded binary config
@@ -327,3 +327,25 @@ survarium::preview_change	size	0xC	size	0Ch bytes
 survarium::preview_apply_frame	item	0x4	ptr<survarium::item_record>	weapon_kit.preview_apply's first argument (by the site's ESP, the return address at +0): patch 48's scratch record of the window's weapon (its edi)
 survarium::preview_apply_frame	changes	0x8	ptr<survarium::preview_change>	its second: the queue, patch 48's state +64h
 survarium::preview_apply_frame	count	0xC	u32	its third: the queued changes (patch 48's state +4, at most five)
+vostok::engine_cfg	text	0x0	ptr<u8>	a string node's value (node_type 5): its C string, in the config's own memory (weapon_cook reads object/model so, 0x24AB02)
+survarium::weapon	barrel	0x620	f32	barrel_point's frame this draw, a row-vector 4x4: weapon::draw computes it each frame (calculate_locator 0x243BC0, copied at 0x244E68); the shot effects (0x24413E) and update_pfx_transform (0x2445BA) read it, nothing a match computes
+survarium::weapon_cook_frame	requests	-0x40	obj<survarium::resource_requests>	weapon_cook::on_weapon_config_loaded 0x24A920's sub-resource requests (by EBP: ebp-40h begin, -3Ch end, -38h capacity end), pushed by 0x5FCB0 into the alloca 0x24AABD sizes from the count at 0x24AAB4, queried at 0x24AC95
+survarium::resource_requests	begin	0x0	ptr<survarium::resource_request>	a buffer_vector of {path, class} requests: the first
+survarium::resource_requests	end	0x4	ptr<survarium::resource_request>	past the last (query_resources' count is (end - begin) / 8, 0x24AC90)
+survarium::resource_requests	capacity	0x8	ptr<survarium::resource_request>	past the room (the cook's alloca, exactly the count at 0x24AAB4)
+survarium::weapon_loaded_frame	results	0x38	ptr<vostok::weapon_queries>	weapon_cook::on_weapon_subresources_ready 0x24ACF0's first argument at muzzle.loaded (0x24B0E1, by ESP: 0x24 + four registers below its entry): the queries' results
+survarium::weapon_loaded_frame	config	0x3C	ptr<vostok::binary_config>	its second: the weapon config's resource (its root at +108h, the cook's EBX)
+vostok::weapon_queries	count	0x38	u32	queries_result m_size: the results, one a request in its order (the callback indexes them so, 0x24ADC8)
+vostok::weapon_queries	first	0x50	obj<vostok::query_result>	the first result (2E0h each, 0x24ADCA)
+vostok::query_result	resource	0xDC	ptr<survarium::scene_model>	its resource: for a class-15 request a static model holder (0x24ADD4 reads the model's so; the artefacts' flower too)
+vostok::query_result	size	0x2E0	size	a result's stride (imul 2E0h, 0x24ADCA)
+survarium::weapon_draw_frame	world	0x8	ptr<f32>	weapon::draw 0x244E10's [ebp+8]: the weapon's world matrix (copied to +9BCh at 0x244E46; calculate_locator's second argument at 0x244E51)
+survarium::weapon_draw_frame	bones	0xC	ptr<f32>	its [ebp+0Ch]: the model-space bone matrices (calculate_locator's third, 0x244E4D)
+vostok::render::locator	bone	0x60	u16	the bone the locator is on (FFFFh none: calculate_locator 0x243C01)
+vostok::render::locator	size	0x64	size	a model's locator record (render_model::get_locator 0x158580 copies 19h dwords; the weapon's three at +6E0h, +744h, +7A8h)
+survarium::weapon_delete_frame	resource	0x4	ptr<survarium::weapon_resource>	weapon_cook::delete_resource 0x24B190's argument (by ESP at its entry): the weapon's +10h, or 0
+survarium::weapon_resource	weapon	-0x10	obj<survarium::weapon>	the weapon the resource base is in (delete_resource's `add edi,-10h`, 0x24B19B)
+survarium::resource_requests	size	0xC	size	a buffer_vector's three pointers
+vostok::render::model_instance	skeleton	0x0	obj<vostok::render::skeleton_instance>	only for a skeleton model's instance (its vtable survarium::image::skeleton_instance_vtable): a weapon's model (load_weapon 0x243AC0)
+vostok::render::skeleton_instance	vtable	0x0	u32	its vtable: skeleton_instance_vtable for a skeleton_render_model_instance
+survarium::image	skeleton_instance_vtable	0x9F0F24	u32	skeleton_render_model_instance's vtable (written at 0x15A111, 0x15A220): +24h get_locator 0x15A9C0, a tail jump through the original model (+62B4h)'s vtable +28h, skeleton_render_model's (0x9F0F90, constructor 0x159EA0) render_model::get_locator 0x1585B0

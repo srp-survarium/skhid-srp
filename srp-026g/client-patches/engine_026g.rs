@@ -125,6 +125,10 @@ unsafe extern "C" {
     pub fn engine_send_important(messaging: *mut c_void, target: *const u8, r#type: u32, text: *const u8);
     /// 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
     pub fn engine_comment_about_user(lobby_client: *mut c_void, nickname: *const u8, kind: u32, mode: u32);
+    /// 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16
+    pub fn engine_calculate_locator(locator: *const c_void, world: *const f32, bones: *const f32, extra: *const f32, output: *mut f32);
+    /// 0x1585b0 vostok::render::render_model::get_locator: owner ECX, name ESP+4, output ESP+8; pops 8; AL
+    pub fn engine_model_locator(owner: *mut c_void, name: *const u8, output: *mut c_void) -> u32;
 }
 
 #[allow(dead_code)]

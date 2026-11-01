@@ -253,3 +253,9 @@ extern engine_close_current_match
 ; 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_gfx_set_member
+; void engine_calculate_locator(const struct locator *locator, const float *world, const float *bones, const float *extra, float *output)
+; 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16
+extern engine_calculate_locator
+; unsigned int engine_model_locator(struct skeleton_render_model *owner, const char *name, struct locator *output)
+; 0x1585b0 vostok::render::render_model::get_locator: owner ECX, name ESP+4, output ESP+8; pops 8; AL
+extern engine_model_locator

@@ -7,13 +7,22 @@ use super::world::{read};
 use super::carry_runtime::Scene;
 use crate::raw;
 
-struct Model(raw::SceneModel);
+/// A model holder of ours: one resource reference, taken by [`Model::retain`]
+/// and given back exactly once when it drops (the held flower's, patch 90's
+/// muzzle devices).
+pub(super) struct Model(raw::SceneModel);
 impl Model {
-    unsafe fn retain(object: raw::SceneModel) -> Self {
+    /// # Safety
+    /// `object` is a live model holder (a query's result, retained by it).
+    pub(super) unsafe fn retain(object: raw::SceneModel) -> Self {
         // SAFETY: live query result retains the model through this increment.
         unsafe { AtomicU32::from_ptr(object.references()).fetch_add(1, Ordering::AcqRel); }
         Self(object)
     }
+}
+impl Model {
+    /// The holder (alive while this owner is).
+    pub(super) fn get(&self) -> raw::SceneModel { self.0 }
 }
 impl Drop for Model {
     fn drop(&mut self) {

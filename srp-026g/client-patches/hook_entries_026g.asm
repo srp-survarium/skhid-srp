@@ -1806,6 +1806,318 @@ map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
 
+; 0x24aab4 weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root: lohook -> muzzle_on_request_room
+global muzzle_on_request_room
+extern hook_muzzle_on_request_room
+muzzle_on_request_room:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_request_room
+    mov edx, muzzle_on_request_room_replay
+    cmp eax, 0
+    je muzzle_on_request_room_go
+    mov edx, 0x24aabb
+    cmp eax, 1
+    je muzzle_on_request_room_go
+    ud2
+muzzle_on_request_room_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_request_room_replay:
+    db 0x8d, 0x34, 0xc5, 0x00, 0x00, 0x00, 0x00
+    jmp 0x24aabb
+
+; 0x24abf9 on_weapon_config_loaded after its last request push (the shot effects' loop, 0x24ABF7; mov ecx,[ebp-10h] / movzx ecx,word [ecx+16h]): EBX the root, [ebp-40h] the requests, queried at 0x24AC95: lohook -> muzzle_on_request
+global muzzle_on_request
+extern hook_muzzle_on_request
+muzzle_on_request:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_request
+    mov edx, muzzle_on_request_replay
+    cmp eax, 0
+    je muzzle_on_request_go
+    mov edx, 0x24ac00
+    cmp eax, 1
+    je muzzle_on_request_go
+    ud2
+muzzle_on_request_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_request_replay:
+    db 0x8b, 0x4d, 0xf0, 0x0f, 0xb7, 0x49, 0x16
+    jmp 0x24ac00
+
+; 0x24b0e1 weapon_cook::on_weapon_subresources_ready (0x24ACF0) after load_weapon 0x243A30 returned (mov ecx,[esp+48h] / mov edx,[esp+44h]): EDI the weapon, its model at +1810h; [esp+38h] the results, [esp+3Ch] the config: lohook -> muzzle_on_loaded
+global muzzle_on_loaded
+extern hook_muzzle_on_loaded
+muzzle_on_loaded:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_loaded
+    mov edx, muzzle_on_loaded_replay
+    cmp eax, 0
+    je muzzle_on_loaded_go
+    mov edx, 0x24b0e9
+    cmp eax, 1
+    je muzzle_on_loaded_go
+    ud2
+muzzle_on_loaded_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_loaded_replay:
+    db 0x8b, 0x4c, 0x24, 0x48, 0x8b, 0x54, 0x24, 0x44
+    jmp 0x24b0e9
+
+; 0x244e99 weapon::draw (0x244E10) after its two locators (+620h barrel_point at 0x244E68, +660h the scope's; mov eax,[ebx+180Ch]): EBX the weapon, before update_pfx_transform 0x244F61: lohook -> muzzle_on_locate
+global muzzle_on_locate
+extern hook_muzzle_on_locate
+muzzle_on_locate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_locate
+    mov edx, muzzle_on_locate_replay
+    cmp eax, 0
+    je muzzle_on_locate_go
+    mov edx, 0x244e9f
+    cmp eax, 1
+    je muzzle_on_locate_go
+    ud2
+muzzle_on_locate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_locate_replay:
+    db 0x8b, 0x83, 0x0c, 0x18, 0x00, 0x00
+    jmp 0x244e9f
+
+; 0x245017 weapon::draw after the weapon model's update and the aimed scope's add or remove (every path joins here; mov esi,[ebp+14h] / test esi,esi): EBX the weapon: lohook -> muzzle_on_draw
+global muzzle_on_draw
+extern hook_muzzle_on_draw
+muzzle_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_draw
+    mov edx, muzzle_on_draw_replay
+    cmp eax, 0
+    je muzzle_on_draw_go
+    mov edx, 0x24501c
+    cmp eax, 1
+    je muzzle_on_draw_go
+    ud2
+muzzle_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_draw_replay:
+    db 0x8b, 0x75, 0x14, 0x85, 0xf6
+    jmp 0x24501c
+
+; 0x245353 weapon::on_culled_player_draw (0x245250) after the weapon model's update at the player's root (mov ebx,[ebx+1808h]; EBX the weapon until it): lohook -> muzzle_on_culled
+global muzzle_on_culled
+extern hook_muzzle_on_culled
+muzzle_on_culled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_culled
+    mov edx, muzzle_on_culled_replay
+    cmp eax, 0
+    je muzzle_on_culled_go
+    mov edx, 0x245359
+    cmp eax, 1
+    je muzzle_on_culled_go
+    ud2
+muzzle_on_culled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_culled_replay:
+    db 0x8b, 0x9b, 0x08, 0x18, 0x00, 0x00
+    jmp 0x245359
+
+; 0x244017 weapon::on_hide (0x243FA0) after the weapon model's removal (0x244012, or the aimed scope's 181Dh skipping it; mov edi,[esi+1808h]): ESI the weapon: lohook -> muzzle_on_hidden
+global muzzle_on_hidden
+extern hook_muzzle_on_hidden
+muzzle_on_hidden:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_hidden
+    mov edx, muzzle_on_hidden_replay
+    cmp eax, 0
+    je muzzle_on_hidden_go
+    mov edx, 0x24401d
+    cmp eax, 1
+    je muzzle_on_hidden_go
+    ud2
+muzzle_on_hidden_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_hidden_replay:
+    db 0x8b, 0xbe, 0x08, 0x18, 0x00, 0x00
+    jmp 0x24401d
+
+; 0x24b190 weapon_cook::delete_resource's entry (push ebx / push esi / push edi / mov edi,[esp+10h]): [esp+4] the weapon's +10h, 0 for none: lohook -> muzzle_on_release
+global muzzle_on_release
+extern hook_muzzle_on_release
+muzzle_on_release:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_muzzle_on_release
+    mov edx, muzzle_on_release_replay
+    cmp eax, 0
+    je muzzle_on_release_go
+    mov edx, 0x24b197
+    cmp eax, 1
+    je muzzle_on_release_go
+    ud2
+muzzle_on_release_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+muzzle_on_release_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0x7c, 0x24, 0x10
+    jmp 0x24b197
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull

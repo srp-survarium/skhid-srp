@@ -1,4 +1,5 @@
-//! Read-only binary configuration views. Discriminants are decoded once;
+//! Read-only binary configuration views (`vostok::engine_cfg`: integer 1,
+//! float 2, table 3, array 4, string 5). Discriminants are decoded once;
 //! patch code receives typed values, never a record or an address.
 use core::{ffi::CStr, marker::PhantomData, num::NonZeroU16};
 use crate::raw;
@@ -12,6 +13,8 @@ pub enum ConfigValue<'t> {
     Number(f32),
     Table(ConfigTable<'t>),
     Array(ConfigEntries<'t>),
+    /// A string (node_type 5): its C string, in the config's own memory.
+    Text(&'t CStr),
     Unsupported,
 }
 
@@ -35,6 +38,12 @@ impl<'t> ConfigValue<'t> {
                     let entries = ConfigEntries(entries);
                     if kind == 3 { Self::Table(ConfigTable { node, entries }) } else { Self::Array(entries) }
                 }
+                // the loader relocated the string's pointer into the config,
+                // which lives for 't (the caller's), its bytes terminated
+                5 => match node.text() {
+                    text if text.is_null() => return Err(ConfigError::WrongType),
+                    text => Self::Text(CStr::from_ptr(text.cast())),
+                },
                 _ => Self::Unsupported,
             })
         }
@@ -47,6 +56,9 @@ impl<'t> ConfigValue<'t> {
             Self::Integer(n) => Ok((n as i32) as f32), Self::Number(n) => Ok(n),
             _ => Err(ConfigError::WrongType),
         }
+    }
+    pub fn text(self) -> Result<&'t CStr, ConfigError> {
+        match self { Self::Text(text) => Ok(text), _ => Err(ConfigError::WrongType) }
     }
     pub fn table(self) -> Result<ConfigTable<'t>, ConfigError> {
         match self { Self::Table(table) => Ok(table), _ => Err(ConfigError::WrongType) }

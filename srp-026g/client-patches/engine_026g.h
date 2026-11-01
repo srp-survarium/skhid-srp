@@ -28,6 +28,7 @@ struct inventory;
 struct item_entry;
 struct items_dictionary;
 struct lobby_client;
+struct locator;
 struct match_options;
 struct material_pair;
 struct messaging_client;
@@ -44,6 +45,7 @@ struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
+struct skeleton_render_model;
 struct static_model_instance;
 struct statistics_listener;
 struct text_translator;
@@ -278,5 +280,11 @@ void __attribute__((thiscall)) engine_close_current_match(struct network_client 
 
 /* 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display);
+
+/* 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16 */
+void engine_calculate_locator(const struct locator *locator, const float *world, const float *bones, const float *extra, float *output);
+
+/* 0x1585b0 vostok::render::render_model::get_locator: owner ECX, name ESP+4, output ESP+8; pops 8; AL */
+unsigned int engine_model_locator(struct skeleton_render_model *owner, const char *name, struct locator *output);
 
 #endif
