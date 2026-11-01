@@ -2152,6 +2152,8 @@ st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
 st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
 st_srp_ammo069_23mm_r_name	23x75R, шрот
+st_srp_ammo069_762x51_g3_desc	Вінтовачныя патроны 7.62×51 у магазінах на 20 патронаў, для H&K G3SG/1.
+st_srp_ammo069_762x51_g3_name	7.62x51, магазін G3
 st_srp_attachments	Абвес
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл

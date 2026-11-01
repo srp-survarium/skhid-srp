@@ -302,6 +302,9 @@ pub const EXCEPTIONS: &[(&str, &[(u8, u8)])] = {
         ("ammo_12mm_buck2", &[(REN, 7), (EDGE, 7)]),
         // 23x75R smallshot: the KS-23M's (pack weapons-069; Renaissance, rank 2).
         ("ammo_23mm_r", &[(REN, 2)]),
+        // 7.62x51 in the G3SG/1's 20-round magazines (pack weapons-069;
+        // Black Market, whose rank 5 sells the gun).
+        ("ammo_7.62x51_g3", &[(BM, 5)]),
         // --- Drugs, the trap, grenades (the four faction pages and
         // `Items` W:9996; PROVEN) ---
         ("bandages", &[(SCAV, 1)]),
@@ -378,6 +381,9 @@ pub const AMMO_PRICES: &[(&str, u32, u32)] = &[
     // The KS-23M's 23x75R smallshot (pack weapons-069): the 12x70 smallshot's
     // twin, as 0.69d0 has it, at its price.
     ("ammo_23mm_r", 20, 10),
+    // 7.62x51 in the G3SG/1's magazines of 20: two of the 7.62x51's clips
+    // of 10, at their price.
+    ("ammo_7.62x51_g3", 300, 150),
 ];
 
 /// Items the tables of this module name that come with a game patch not
@@ -394,6 +400,7 @@ pub const UNRELEASED: &[&str] = &[
     "ammo_12mm_buck2",
     // The 0.69d0 weapons' new ammo (pack weapons-069).
     "ammo_23mm_r",
+    "ammo_7.62x51_g3",
     // The STK2 Novice's cap (resource-porter pack novice-6).
     "novice_026_helmet",
     // The STK2 outfits (packs stk2-bandit, stk2-novice, stk2-loner).
@@ -1636,10 +1643,12 @@ mod with_the_weapons_from_0_29a3 {
         let params_of = |item: &Item| *params.iter().find(|p| p.dict_id == item.dict_id).unwrap();
         // Every unreleased name of the patch is in it: its ammo (the other
         // names come with content packs, which this data need not have; the
-        // 0.69d0 weapons' 23 mm with pack weapons-069).
+        // 0.69d0 weapons' rounds with pack weapons-069).
         for name in UNRELEASED
             .iter()
-            .filter(|name| name.starts_with("ammo_") && **name != "ammo_23mm_r")
+            .filter(|name| {
+                name.starts_with("ammo_") && !matches!(**name, "ammo_23mm_r" | "ammo_7.62x51_g3")
+            })
         {
             assert!(dictionary.item_named(name).is_some(), "{name}");
         }

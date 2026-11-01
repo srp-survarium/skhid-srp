@@ -32,6 +32,7 @@ weapons-046's), so their rows come before this one's.
 | KS-23M | 2294 | `wpn_ks_23m` | weapons [21, 5] | 85 |
 | PPSH-41 "Drum" | 2295 | `wpn_ppsh_drum` | weapons [22, 5] | 33 (the PPSh's) |
 | 23x75R, smallshot | 2253 | `ammo/ammo_23mm_r` | ammo [22, 4] | - |
+| 7.62x51, G3 magazine | 2254 | `ammo/ammo_7.62x51_g3` | ammo [21, 4] | - |
 
 - Kill feed icons are 0.69d0's own numbers and images (`icon_<n + 1>.png`): hud bitmaps
   `CombatLogWeapon85/86/96/97/98` (`CombatLogItem` finds an icon past the clip's frames by its
@@ -97,6 +98,12 @@ Why each sits there:
   and the SPAS, Renaissance (0.69d0's) at rank 2.
 - PPSH-41 "Drum": the PPSh-41 with 0.69d0's 71-round drum, its slower reload (+25 %: 4.6 s) and
   aim (0.3 s), 3.9 kg; level 2 from the Scavengers (the PPSh is the starting gun, sold to all).
+- 7.62x51, G3 magazine: the live 7.62x51 in clips of 20 (the gun's magazine), its price for two
+  clips of 10 (300, the shop's 150), Black Market. A default kit's three ammo bags hold three clips
+  of a round: of the live 7.62x51 (clips of 10) 30 rounds, under a magazine of 20 and a reload; so
+  the G3SG/1 takes a round of its own, as the RPD and the PKP their belts. Every gun's rounds are
+  checked so (`port-weapons-069d`): the drum's 71 and a reload of 7.62x25 fit 150, the KS-23M's
+  4 and a reload 45.
 - 23x75R, smallshot: 0.69d0's twin of its 12/70 smallshot, so the live 12x70 smallshot's
   numbers (10 pellets of 0.2, armour piercing 0.2, 15 a clip) and price (20, the shop's 10);
   sold by Renaissance (`AMMO_PRICES`, `EXCEPTIONS`).

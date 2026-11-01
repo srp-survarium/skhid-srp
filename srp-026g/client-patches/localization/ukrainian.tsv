@@ -2152,6 +2152,8 @@ st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	СР-3М "Вихор"
 st_srp_ammo069_23mm_r_desc	Набій калібру 23 мм, споряджений дробом, для КС-23М. Завдає високе пошкодження неброньованим цілям.
 st_srp_ammo069_23mm_r_name	23x75R, дріб
+st_srp_ammo069_762x51_g3_desc	Гвинтівкові набої 7.62×51 у магазинах на 20 набоїв, для H&K G3SG/1.
+st_srp_ammo069_762x51_g3_name	7.62x51, магазин G3
 st_srp_attachments	Обвіс
 st_srp_crosshair_dynamic	Динамічний приціл
 st_srp_crosshair_hidden	Прихований приціл
