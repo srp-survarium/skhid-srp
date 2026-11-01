@@ -1330,9 +1330,52 @@ impl GunPose {
     }
 }
 
-/// The model box of the cooked gun of `cook` (its `slot`): its model
-/// (weapon+1810h, load_weapon's at the weapon's cook) -> the render
-/// reference -> its skeleton instance -> the resource's +108h.
+// ---- a bullet's record ------------------------------------------------------------------------
+
+/// A bullet's record names its weapon by its shooter's slot and the ammo's
+/// ordinal in that weapon (bullet::serialize 0x32C0B5, 0x32C0EE; the loader
+/// 0x32BDA1, 0x2E2750). After a pickup's swap the slot holds another gun
+/// than the one that fired a bullet still in flight: the loader reads the
+/// record with that gun. Its quiet byte (+80h) was written and read only for
+/// an ammo of more than one pellet (0x32C14B, 0x32BE15), each by its own
+/// gun's ammo, so a rifle's bullet loaded with a shotgun in the slot read a
+/// byte the record lacks and every record after was misread (the 85a crash:
+/// a slot of 0 and an ordinal of 16 into a helmet's null table). Now the
+/// byte is always written and read, and an ordinal past the loading gun's
+/// ammo is none.
+/// `bullet.load_quiet`: the store the hook's span replaces (the struck
+/// material, +4Ch), before the read the hook goes on to.
+pub fn load_quiet(ctx: &Context<'_>) {
+    // SAFETY: the loader's bullet and the material it read (EAX), as the
+    // replaced mov [edi+4Ch],eax stores it.
+    unsafe {
+        if let Some(bullet) = raw::site::bullet_load_quiet::bullet(ctx) {
+            bullet.set_surface(raw::site::bullet_load_quiet::surface(ctx));
+        }
+    }
+}
+
+/// `bullet.load_ordinal`: an ammo ordinal (CL) at or past the resolved
+/// gun's ammo count (+5B0h) is that count, which 0x2E2750 answers with the
+/// gun's own none (+53Ch) instead of reading past its ammo slots.
+pub fn clamp_bullet_ordinal(ctx: &mut Context<'_>) {
+    let ordinal = (ctx.reg(super::Reg::Ecx) & 0xFF) as u8;
+    // SAFETY: the loader's bullet; its weapon item read as a weapon only
+    // after its active object's vtable says it is a client weapon.
+    let count = unsafe {
+        let Some(bullet) = raw::site::bullet_load_ordinal::bullet(ctx) else { return };
+        let Some(item) = bullet.weapon_item() else { return };
+        let gun = item.active_object();
+        if read(gun.vtable()) != raw::image::WEAPON_VTABLE {
+            return;
+        }
+        read(gun.weapon().ammo_count())
+    };
+    if ordinal > count {
+        ctx.set_reg8(super::Reg::Ecx, count);
+    }
+}
+
 /// The address of the cooked gun of `cook` (its `slot`), for the log.
 pub fn gun_address(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<u32> {
     let inventory = gun_cook::inventory(thread, cook)?;
@@ -1358,6 +1401,9 @@ impl Installed {
     }
 }
 
+/// The model box of the cooked gun of `cook` (its `slot`): its model
+/// (weapon+1810h, load_weapon's at the weapon's cook) -> the render
+/// reference -> its skeleton instance -> the resource's +108h.
 pub fn gun_box(thread: &Thread, cook: CookId, slot: WeaponSlot) -> Option<GunBox> {
     let inventory = gun_cook::inventory(thread, cook)?;
     // SAFETY: the made cooked inventory (its ticket holds it), its gun read

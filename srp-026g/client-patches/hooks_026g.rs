@@ -1877,6 +1877,61 @@ pub extern "C" fn hook_weapon_pickup_on_switch(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_save_quiet (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnSaveQuietExit { Write }
+/// The entry `weapon_pickup_on_save_quiet` (0x32c148, bullet::serialize at its test of the ammo (mov eax,[esi+40h] / cmp byte [eax+44h],1, then jbe 0x32C171 past the write): the quiet byte (+80h) is written only for an ammo of more than one pellet; write is the write (0x32C151)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_save_quiet(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_save_quiet` calls this, from the game's jump at 0x32c148,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_save_quiet(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_load_quiet (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnLoadQuietExit { Read }
+/// The entry `weapon_pickup_on_load_quiet` (0x32be12, the loader storing the struck material (mov [edi+4Ch],eax) and testing its resolved ammo (cmp byte [ecx+44h],1, then jbe 0x32BE29 past the read): the quiet byte (+80h) is read only for an ammo of more than one pellet; read is the read (0x32BE1B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_quiet(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_quiet` calls this, from the game's jump at 0x32be12,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_quiet(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_load_ordinal` (0x32bdba, bullet::bullet (the loader 0x32BBC0) with its weapon item resolved from the shooter's slot (+0Ch, 0x32BDAE) and the ammo ordinal read into CL (0x32BDB4), before 0x2E2750 indexes the weapon's ammo slots by it (mov eax,[edi+0Ch] / test eax,eax): EDI the bullet, CL the ordinal) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_ordinal` calls this, from the game's jump at 0x32bdba,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_ordinal(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code

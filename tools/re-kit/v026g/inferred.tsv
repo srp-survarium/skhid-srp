@@ -3160,3 +3160,5 @@ va	status	ref_021d	name
 0x000ddff0	inferred-high		vostok::command_line::key::initialize(pcstr)
 0x000de0c0	inferred-high		vostok::command_line::key_initializator::operator()
 0x000df020	inferred-high		vostok::command_line::iterate_keys<key_initializator>
+0x002e26b0	inferred-medium		survarium::weapon_core::ammo_ordinal
+0x002e2750	inferred-medium		survarium::weapon_core::ammo_by_ordinal

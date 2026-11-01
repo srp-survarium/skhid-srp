@@ -8,6 +8,7 @@ render.skeleton_updated	0x15A950	lohook	-	7	-	instance=EDI:vostok::render::skele
 player.killed_event	0x2DA3DF	lohook	-	6	-	victim=ESI:survarium::player	generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]
 camera.eye	0x1F3643	lohook	-	6	-	player=EBX:survarium::player	update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)
 bullet.ray_traced	0x32D627	lohook	-	10	-	bullet=EDI:survarium::bullet result=EAX:vostok::physics::ray_result frame=ESP:survarium::check_collision_frame	check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)
+bullet.save_quiet	0x32C148	lohook	-	7	write@0x32C151	bullet=ESI:survarium::bullet	bullet::serialize at its test of the ammo (mov eax,[esi+40h] / cmp byte [eax+44h],1, then jbe 0x32C171 past the write): the quiet byte (+80h) is written only for an ammo of more than one pellet; write is the write (0x32C151)
 player_draw.held_item	0x24754F	lohook	-	6	no_bones@0x24781E	player=EBX:survarium::player	mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
 static_info.options_read	0x27b92d	lohook	-	5	-	options=ESI:survarium::match_options frame=EBP:survarium::static_info_frame	process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
 replay.options_read	0x1f0971	lohook	-	5	-	frame=ESP:survarium::replay_options_frame	a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h
@@ -31,6 +32,8 @@ project.removed	0x285614	lohook	-	5	-	project=ESI:survarium::simple_game_project
 project.destroy	0x285330	lohook	-	10	-	project=ECX:survarium::simple_game_project	destructor before any member is released
 bullet_history.saved	0x321C3B	lohook	-	5	-	manager=EDI:survarium::bullet_manager frame=EBP:survarium::history_save_frame	serialize epilogue, after native bullet history
 bullet_history.loaded	0x321D01	lohook	-	7	-	manager=EDI:survarium::bullet_manager reader=EBX:vostok::buffer_reader	deserialize epilogue, after native bullet history
+bullet.load_ordinal	0x32BDBA	lohook	-	5	-	bullet=EDI:survarium::bullet	bullet::bullet (the loader 0x32BBC0) with its weapon item resolved from the shooter's slot (+0Ch, 0x32BDAE) and the ammo ordinal read into CL (0x32BDB4), before 0x2E2750 indexes the weapon's ammo slots by it (mov eax,[edi+0Ch] / test eax,eax): EDI the bullet, CL the ordinal
+bullet.load_quiet	0x32BE12	lohook	-	7	read@0x32BE1B	bullet=EDI:survarium::bullet surface=EAX:survarium::game_material	the loader storing the struck material (mov [edi+4Ch],eax) and testing its resolved ammo (cmp byte [ecx+44h],1, then jbe 0x32BE29 past the read): the quiet byte (+80h) is read only for an ammo of more than one pellet; read is the read (0x32BE1B)
 visual.insert	0xA029B4	vtable	engine_visual_insert	-	-	-	render visual insert slot
 visual.remove	0xA029B8	vtable	engine_visual_remove	-	-	-	render visual remove slot
 light.insert	0xA0AE0C	vtable	engine_light_insert	-	-	-	object_light insert slot 8

@@ -63,7 +63,8 @@ use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Ins
                             RegistryId, Role, Select, Site};
 use crate::vostok::world::{GameWorld, Player, PlayerId};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread};
-use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
+use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
+                    WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
 
 /// The longest a wait runs the callbacks before it gives up (the pickup is
 /// then refused, logged).
@@ -1632,6 +1633,26 @@ fn log_refill(player: &Player<'_>, c: &native::Crate) {
 fn log_recipe(what: &str, recipe: Recipe, rest: &[Piece<'_>]) {
     log_joined(&[&[Text(what), Text(" the gun of place "), Dec(u32::from(recipe.place.get())), Text(" kit "),
                    Dec(u32::from(recipe.kit.get())), Text(" slot "), Dec(u32::from(recipe.slot.slot()))], rest]);
+}
+
+// ---- a bullet's record (vostok::pickup's "a bullet's record") --------------------------------
+
+/// `bullet.save_quiet`: the quiet byte always written, whatever the ammo.
+pub fn on_save_quiet(_: &mut Context<'_>) -> Flow<WeaponPickupOnSaveQuietExit> {
+    Flow::Exit(WeaponPickupOnSaveQuietExit::Write)
+}
+
+/// `bullet.load_quiet`: the quiet byte always read, whatever the ammo
+/// the record's slot resolves to now.
+pub fn on_load_quiet(ctx: &mut Context<'_>) -> Flow<WeaponPickupOnLoadQuietExit> {
+    native::load_quiet(ctx);
+    Flow::Exit(WeaponPickupOnLoadQuietExit::Read)
+}
+
+/// `bullet.load_ordinal`: an ordinal past the resolved gun's ammo is none.
+pub fn on_load_ordinal(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    native::clamp_bullet_ordinal(ctx);
+    Flow::Continue
 }
 
 #[cfg(test)]

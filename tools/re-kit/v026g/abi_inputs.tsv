@@ -5321,3 +5321,9 @@ va	name	location	role	basis
 0x000de0c0	vostok::command_line::key_initializator::operator()	ESI	parsed key name	observed
 0x000de0c0	vostok::command_line::key_initializator::operator()	entry ESP+4	parsed value string	observed
 0x000df020	vostok::command_line::iterate_keys<key_initializator>	entry ESP+4	empty predicate storage (the caller passes a zero byte)	observed
+0x002e26b0	survarium::weapon_core::ammo_ordinal	EAX	the weapon (an active object)	observed
+0x002e26b0	survarium::weapon_core::ammo_ordinal	EDI	the ammo data sought (a bullet's +40h)	observed
+0x002e2750	survarium::weapon_core::ammo_by_ordinal	EAX	the weapon (an active object; the bullet loader's resolved slot item - 10h, 0x32BDC1)	observed
+0x002e2750	survarium::weapon_core::ammo_by_ordinal	CL	the ordinal (a bullet record's, 0x32BDB4)	observed
+0x0032bec0	survarium::bullet::serialize	ESI	the bullet: its record, in order, +4 (u32, 0x1F48A0), +28h, +34h, +78h, +7Ch, +5Ch, +64h, +68h, +70h, +74h, +88h (byte), +84h (byte), +54h, +58h (0x32F190), its shooter's place ([+8]+4), +50h's place, its weapon item's slot (+0Ch -> +254h, 0x32C0B5), the ammo's ordinal (0x2E26B0, 0x32C0EE), +4Ch's id (+64h; 0 none), then +80h (the quiet byte) only when its ammo data's +44h (pellets) is above 1 (0x32C148..0x32C16C)	observed
+0x0032bbc0	survarium::bullet::bullet	EDI	the bullet loaded from a record (bullet_manager::deserialize 0x321CC7): the shooter by its place (0x32BD4E), the weapon item = the shooter's inventory slot of the record (0x32BDA1, no check that it is a weapon), the ammo by the ordinal (0x2E2750 at 0x32BDC8), then +80h read only when that ammo data's +44h is above 1 (0x32BE15): a record read with another gun's ammo than it was written with goes out of step	observed

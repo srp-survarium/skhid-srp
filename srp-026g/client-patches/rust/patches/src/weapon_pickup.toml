@@ -64,3 +64,19 @@ handler = "on_tick_active"
 [[hook]]
 site = "pickup.switch"
 handler = "on_switch"
+
+# a bullet record names its weapon by the shooter's slot and the ammo's
+# ordinal: after a pickup's swap the slot holds another gun, so the
+# record's layout must not depend on it (its quiet byte always written and
+# read) and an ordinal past the gun's ammo is none
+[[hook]]
+site = "bullet.save_quiet"
+handler = "on_save_quiet"
+
+[[hook]]
+site = "bullet.load_quiet"
+handler = "on_load_quiet"
+
+[[hook]]
+site = "bullet.load_ordinal"
+handler = "on_load_ordinal"

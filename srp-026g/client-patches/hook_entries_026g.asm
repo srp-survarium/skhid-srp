@@ -3589,6 +3589,129 @@ weapon_pickup_on_switch_replay:
     db 0x8b, 0x8e, 0x28, 0x01, 0x00, 0x00
     jmp 0x2d76d6
 
+; 0x32c148 bullet::serialize at its test of the ammo (mov eax,[esi+40h] / cmp byte [eax+44h],1, then jbe 0x32C171 past the write): the quiet byte (+80h) is written only for an ammo of more than one pellet; write is the write (0x32C151): lohook -> weapon_pickup_on_save_quiet
+global weapon_pickup_on_save_quiet
+extern hook_weapon_pickup_on_save_quiet
+weapon_pickup_on_save_quiet:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_save_quiet
+    mov edx, weapon_pickup_on_save_quiet_replay
+    cmp eax, 0
+    je weapon_pickup_on_save_quiet_go
+    mov edx, 0x32c14f
+    cmp eax, 1
+    je weapon_pickup_on_save_quiet_go
+    mov edx, 0x32c151
+    cmp eax, 2
+    je weapon_pickup_on_save_quiet_go
+    ud2
+weapon_pickup_on_save_quiet_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_save_quiet_replay:
+    db 0x8b, 0x46, 0x40, 0x80, 0x78, 0x44, 0x01
+    jmp 0x32c14f
+
+; 0x32be12 the loader storing the struck material (mov [edi+4Ch],eax) and testing its resolved ammo (cmp byte [ecx+44h],1, then jbe 0x32BE29 past the read): the quiet byte (+80h) is read only for an ammo of more than one pellet; read is the read (0x32BE1B): lohook -> weapon_pickup_on_load_quiet
+global weapon_pickup_on_load_quiet
+extern hook_weapon_pickup_on_load_quiet
+weapon_pickup_on_load_quiet:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_quiet
+    mov edx, weapon_pickup_on_load_quiet_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_quiet_go
+    mov edx, 0x32be19
+    cmp eax, 1
+    je weapon_pickup_on_load_quiet_go
+    mov edx, 0x32be1b
+    cmp eax, 2
+    je weapon_pickup_on_load_quiet_go
+    ud2
+weapon_pickup_on_load_quiet_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_quiet_replay:
+    db 0x89, 0x47, 0x4c, 0x80, 0x79, 0x44, 0x01
+    jmp 0x32be19
+
+; 0x32bdba bullet::bullet (the loader 0x32BBC0) with its weapon item resolved from the shooter's slot (+0Ch, 0x32BDAE) and the ammo ordinal read into CL (0x32BDB4), before 0x2E2750 indexes the weapon's ammo slots by it (mov eax,[edi+0Ch] / test eax,eax): EDI the bullet, CL the ordinal: lohook -> weapon_pickup_on_load_ordinal
+global weapon_pickup_on_load_ordinal
+extern hook_weapon_pickup_on_load_ordinal
+weapon_pickup_on_load_ordinal:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_ordinal
+    mov edx, weapon_pickup_on_load_ordinal_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_ordinal_go
+    mov edx, 0x32bdbf
+    cmp eax, 1
+    je weapon_pickup_on_load_ordinal_go
+    ud2
+weapon_pickup_on_load_ordinal_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_ordinal_replay:
+    db 0x8b, 0x47, 0x0c, 0x85, 0xc0
+    jmp 0x32bdbf
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked

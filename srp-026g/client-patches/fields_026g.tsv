@@ -36,6 +36,7 @@ survarium::item	count	0x260	u16	a stack's count (update_weight 0x2FC72B)
 survarium::item_entry	stack	0x22A	u8	set: the item is a stack (update_weight 0x2FC722)
 survarium::bullet	id	0x4	u32	its id (add_shootmark's key; the ctor 0x32BA6F)
 survarium::bullet	shooter	0x8	ptr<survarium::bullet_owner>	its shooter (0: none; +4 the place; process_front_face_piercing 0x32E547)
+survarium::bullet	weapon_item	0xC	ptr<survarium::item>	the firing weapon's inventory item (the ctor 0x32BB27: weapon+10h); a record names it by its slot (+254h, 0x32C0B5) and the ammo's ordinal in the weapon (0x2E26B0), the loader by the shooter's slot (0x32BDA1)
 survarium::bullet	velocity	0x1C	f32	its segment's velocity, a float3 (the ctor 0x32BA8E, change_trajectory 0x32EE55)
 survarium::bullet	ammo	0x40	ptr<survarium::ammo_data>	its ammo's data (ammo_data::load 0x332440; the weapon's +53Ch, the ctor 0x32BB53)
 survarium::bullet	manager	0x44	ptr<survarium::bullet_manager>	the bullet manager

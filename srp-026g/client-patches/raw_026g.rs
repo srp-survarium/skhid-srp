@@ -1642,6 +1642,24 @@ impl Bullet {
         unsafe { self.0.byte_add(0x8).cast::<Option<BulletOwner>>().write_volatile(value) }
     }
 
+    /// +0xc (ptr<survarium::item>): the firing weapon's inventory item (the ctor 0x32BB27: weapon+10h); a record names it by its slot (+254h, 0x32C0B5) and the ammo's ordinal in the weapon (0x2E26B0), the loader by the shooter's slot (0x32BDA1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon_item(self) -> Option<Item> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<Item>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::item>): the firing weapon's inventory item (the ctor 0x32BB27: weapon+10h); a record names it by its slot (+254h, 0x32C0B5) and the ammo's ordinal in the weapon (0x2E26B0), the loader by the shooter's slot (0x32BDA1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_weapon_item(self, value: Option<Item>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<Item>>().write_volatile(value) }
+    }
+
     /// +0x1c (f32): its segment's velocity, a float3 (the ctor 0x32BA8E, change_trajectory 0x32EE55)
     ///
     /// # Safety
@@ -10604,6 +10622,21 @@ pub mod site {
         }
     }
 
+    /// bullet.save_quiet (0x32c148): bullet::serialize at its test of the ammo (mov eax,[esi+40h] / cmp byte [eax+44h],1, then jbe 0x32C171 past the write): the quiet byte (+80h) is written only for an ammo of more than one pellet; write is the write (0x32C151)
+    pub mod bullet_save_quiet {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Bullet)
+        }
+    }
+
     /// player_draw.held_item (0x24754f): mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player)
     pub mod player_draw_held_item {
         #[allow(unused_imports)]
@@ -11000,6 +11033,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferReader)
+        }
+    }
+
+    /// bullet.load_ordinal (0x32bdba): bullet::bullet (the loader 0x32BBC0) with its weapon item resolved from the shooter's slot (+0Ch, 0x32BDAE) and the ammo ordinal read into CL (0x32BDB4), before 0x2E2750 indexes the weapon's ammo slots by it (mov eax,[edi+0Ch] / test eax,eax): EDI the bullet, CL the ordinal
+    pub mod bullet_load_ordinal {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Bullet)
+        }
+    }
+
+    /// bullet.load_quiet (0x32be12): the loader storing the struck material (mov [edi+4Ch],eax) and testing its resolved ammo (cmp byte [ecx+44h],1, then jbe 0x32BE29 past the read): the quiet byte (+80h) is read only for an ammo of more than one pellet; read is the read (0x32BE1B)
+    pub mod bullet_load_quiet {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::bullet (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Bullet)
+        }
+
+        /// EAX: a survarium::game_material (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn surface(machine: &impl Machine) -> Option<GameMaterial> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(GameMaterial)
         }
     }
 

@@ -380,6 +380,7 @@ def main():
     print("ok the donor destroyed while its gun cooks: the completion gives the gun, recipe and profile back")
 
     stage2(patched, original)
+    bullet_record(patched, original)
     holster(patched)
     keep_and_reuse(patched)
     second_pickup(patched)
@@ -403,7 +404,7 @@ HINT, HINT_AFTER, HINT_AVAILABLE = 0x2F80E4, 0x2F80EA, 0x2F8116
 RESUPPLY, RESUPPLY_AFTER = 0x2F81B8, 0x2F81BE
 CLIENT_RESUPPLY, CLIENT_RESUPPLY_AFTER = 0x2954EF, 0x2954F5
 NEW_SPANS = {SAVE_SITE: 6, LOAD_SITE: 6, REMOVE_SITE: 6, CAN_USE: 6, HINT: 6, RESUPPLY: 6, CLIENT_RESUPPLY: 6,
-             0x2D7650: 5, 0x2D76D0: 6}
+             0x2D7650: 5, 0x2D76D0: 6, 0x32C148: 7, 0x32BE12: 7, 0x32BDBA: 5}
 WRITE_U8, DEACTIVATE, FORGET, SET_USER, INITIALIZE, ACTIVATE, ACTIVE_PLAYER = (
     0x1F3DE0, 0x244860, 0x3919E0, 0x2445E0, 0x2449E0, 0x244610, 0x2D0AB0)
 SET_OWNER = 0x243590                        # inventory_item::set_owner: the item's +250h/+254h (ret 8)
@@ -1465,10 +1466,67 @@ def keep_and_reuse(patched):
     print("ok no free of a copy ever held until its holder's destruction (15 min on, still kept)")
 
 
+def bullet_record(patched, original):
+    """A bullet's record names its weapon by its shooter's slot and the ammo's ordinal; after a pickup's swap
+    the slot holds another gun than the one that fired a bullet in flight (the 85a crash: a rifle's records
+    read with a shotgun in the slot, its quiet byte read where none was written, every record after out of
+    step). The game's own branch sites, run: the original writes the quiet byte (+80h) only for an ammo of
+    more than one pellet and reads it only for the loading gun's such ammo; the patched build always writes
+    and reads it, and an ordinal past the loading gun's ammo is none."""
+    SAVE, SAVE_WRITE, SAVE_SKIP = 0x32C148, 0x32C151, 0x32C171
+    LOAD, LOAD_READ, LOAD_SKIP = 0x32BE12, 0x32BE1B, 0x32BE29
+    ORDINAL, ORDINAL_CALL = 0x32BDBA, 0x32BDC8
+
+    def quiet_bytes(data, pellets_at_save, pellets_at_load):
+        """(written, read) quiet bytes of one record: saved with the firing gun's ammo, loaded with the gun
+        in the slot then."""
+        r = Pick(data)
+        bullet, saved_ammo, loaded_ammo, material = r.blk(0x90), r.blk(0x50), r.blk(0x50), r.blk(0x10)
+        r.emu.mem_write(saved_ammo + 0x44, bytes([pellets_at_save]))
+        r.emu.mem_write(loaded_ammo + 0x44, bytes([pellets_at_load]))
+        r.word(bullet + 0x40, saved_ammo)
+        r.lohook(SAVE, SAVE_WRITE, {UC_X86_REG_ESI: bullet}, stops=(SAVE_WRITE, SAVE_SKIP))
+        written = r.stopped == SAVE_WRITE
+        r.lohook(LOAD, LOAD_READ, {UC_X86_REG_EDI: bullet, UC_X86_REG_EAX: material, UC_X86_REG_ECX: loaded_ammo},
+                 stops=(LOAD_READ, LOAD_SKIP))
+        assert r.read(bullet + 0x4C) == material, "the struck material stored as the replaced mov does"
+        return int(written), int(r.stopped == LOAD_READ)
+
+    # The original: a rifle's record (1 pellet) loaded with a shotgun (10) in the slot reads a byte it lacks.
+    assert quiet_bytes(original, 1, 10) == (0, 1), "the original's misstep"
+    assert quiet_bytes(original, 1, 1) == (0, 0) and quiet_bytes(original, 10, 10) == (1, 1)
+    # Patched: always one, written and read: every swap, and the native swap-free cases, in step.
+    for save, load in ((1, 10), (10, 1), (1, 1), (10, 10)):
+        assert quiet_bytes(patched, save, load) == (1, 1), (save, load)
+
+    # The ordinal: past the loading gun's ammo count it is that count (0x2E2750's none, +53Ch); within, kept.
+    r = Pick(patched)
+    shotgun = r.gun()
+    r.emu.mem_write(shotgun + 0x5B0, bytes([3]))
+    bullet = r.blk(0x90)
+    r.word(bullet + 0xC, shotgun + 0x10)
+    for ordinal, want in ((16, 3), (22, 3), (4, 3), (3, 3), (2, 2), (0, 0)):
+        out, _ = r.lohook(ORDINAL, ORDINAL_CALL, {UC_X86_REG_EDI: bullet, UC_X86_REG_ECX: 0x1234500 | ordinal})
+        assert out[UC_X86_REG_ECX] == 0x1234500 | want, (ordinal, hex(out[UC_X86_REG_ECX]))
+        assert out[UC_X86_REG_EAX] == shotgun, "the weapon passed on as the replaced code computes it"
+    o = Pick(original)
+    o_gun = o.gun()
+    o.emu.mem_write(o_gun + 0x5B0, bytes([3]))
+    o_bullet = o.blk(0x90)
+    o.word(o_bullet + 0xC, o_gun + 0x10)
+    out, _ = o.lohook(ORDINAL, ORDINAL_CALL, {UC_X86_REG_EDI: o_bullet, UC_X86_REG_ECX: 16})
+    assert out[UC_X86_REG_ECX] & 0xFF == 16, "the original passes it on unchecked"
+    print("ok a bullet's record after a swap: the original writes the quiet byte only for multi-pellet ammo and "
+          "reads it by the loading gun's (a rifle's record with a shotgun in the slot: written 0, read 1, out of "
+          "step); patched it is always written and read (rifle to shotgun, shotgun to rifle, and the swap-free "
+          "rifle and shotgun alike: in step), the struck material stored as before; an ordinal past the loading "
+          "gun's ammo is its count (none), one within is kept, where the original passes 16 on")
+
+
 def stage2(patched, original):
     no_branch_into(original)
     print("ok nothing in the original branches into the new spans (0x2DAF70, 0x2DB4CF, 0x2DA790, 0x2F809C, "
-          "0x2F80E4, 0x2F81B8, 0x2954EF, tick_active_object 0x2D7650 and its switch 0x2D76D0)")
+          "0x2F80E4, 0x2F81B8, 0x2954EF, tick_active_object 0x2D7650 and its switch 0x2D76D0, the bullet record's 0x32C148, 0x32BE12, 0x32BDBA)")
 
     r = Pick(patched)
     r.setup()

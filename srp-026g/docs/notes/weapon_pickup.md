@@ -371,6 +371,19 @@ cooked gun).
   cook; the switch grants that death's magazine and the reserve). A copy
   never registered nor in hands (an untaken drop) is freed at the frame
   after its body left the world. No timed free remains.
+- **A bullet's record after a swap** (the 85a crash, 2026-11-01, proven
+  from a full heap dump): a record names its weapon by its shooter's slot
+  and the ammo's ordinal (bullet::serialize 0x32C0B5, 0x32C0EE); the loader
+  takes the gun now in that slot (0x32BDA1) and its ammo by the ordinal
+  (0x2E2750). The quiet byte (+80h) was written only for an ammo of more
+  than one pellet (0x32C148) and read only for the loading gun's such ammo
+  (0x32BE15): a rifle's bullets in flight across a swap to a shotgun
+  (+44h = 10) were read one byte out of step, then a slot of 0 (a helmet)
+  and an ordinal of 16 into a null table. Now (`bullet.save_quiet`,
+  `bullet.load_quiet`) the byte is always written and read, and
+  (`bullet.load_ordinal`) an ordinal at or past the loading gun's ammo
+  count is that count, its own none (+53Ch). A record is one byte longer
+  for a one-pellet ammo; the server keeps the bullets' section opaque.
 - **The bound** (the owner's): 20 places x 3 kits x 2 weapon slots = 120
   recipes at most (40..60 in practice); another copy of a recipe only while
   all of its copies are in use, at most 60 at once (two held a player, one
