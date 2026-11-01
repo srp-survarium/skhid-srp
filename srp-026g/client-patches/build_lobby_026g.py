@@ -40,13 +40,11 @@ OLDER = {
 }
 # The movie last checked in the game: the build says whether it made this one
 # (a note, not a gate). Set it when the owner has checked a new one, with a
-# line on what it holds. RESULT (2026-10-21): the tree of 6064476c (the lobby's
-# features in the game's classes, the rooms in survarium/rooms, the craft and
-# upgrade windows' own right-click menus, Buy asking the shop, Sell on all but
-# the last of a kind), one Flex run. The owner checked c3898574…, built from
-# this tree before the build compiled every tree from one place: the same
-# code laid out by compc in another order ("good, it works").
-RESULT_SHA256 = "f9c8fb082bc724884638022f327a08d592a6dc20d789549df73eb8f5a0c22146"
+# line on what it holds. RESULT (2026-11-01): the tree released in revision 41
+# (tag 026g-rev41, main 958eaa8: the lobby work since revision 40, #982 #983
+# #984 #985 #999 #1003 #1004), one Flex run; the owner checked it in the game
+# before the release.
+RESULT_SHA256 = "fd4f38d47fc2ff3d1b36039682a9ab13868dc899dee66ce8097bfc9158a1f75e"
 
 
 def build(movie, tools, report=print):
