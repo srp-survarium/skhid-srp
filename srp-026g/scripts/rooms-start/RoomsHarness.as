@@ -527,18 +527,29 @@ package
             "Room max level 15, your gear 5. Loadout 2 is level 14.");
          playOffer("Play into its room", "S1;O;1002;1;2;8;5;10;0", "Enter anyway",
             "Room max level 10, your gear 5. Loadout 2 is level 8.");
+         // A full room's Queue (the owner's of 2026-11-01): Join's offer, its first button "Queue"
+         // (the queue as it is) for a higher loadout, "Exit" for gear over the max.
+         playOffer("Queue of a full room, a higher loadout", "S1;O;1001;1;2;15;10;15;0", "Queue",
+            "Room max level 15, your gear 10. Loadout 2 is level 15.", "1001;2;15;8;16;0;0;0;0;QueueDemo01");
+         playOffer("Queue of a full room, gear over its max", "S1;O;1001;2;2;10;15;10;0", "Exit",
+            "Your gear 15 is over the room's max level 10. Loadout 2 is level 10.", "1001;2;10;8;16;0;0;0;0;QueueDemo01");
       }
 
-      private function playOffer(what:String, row:String, first:String, why:String):void
+      // Play pressed, or (`full`, a full room's list row) that room's Queue in the list; then the
+      // server's offer `row`.
+      private function playOffer(what:String, row:String, first:String, why:String, full:String = null):void
       {
          tell(["S1;N;0;0;0"]);
          try
          {
-            win["quickPlay"]();
+            if(full == null)
+               win["quickPlay"]();
+            else
+               pressQueue(full);
          }
          catch(err:Error)
          {
-            failures.push(what + ": Play: " + err.message);
+            failures.push(what + ": " + (full == null ? "Play" : "Queue") + ": " + err.message);
             return;
          }
          tell([row]);
@@ -573,6 +584,22 @@ package
          for each(b in buttons)
             if(b.label == "Switch and enter")
                failures.push(what + ": the popup stays after " + first);
+      }
+
+      // The list of the one full room `full`, its Queue pressed.
+      private function pressQueue(full:String):void
+      {
+         tell(["S1;L;1;0", full]);
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+            if(b.label == "Queue")
+            {
+               var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               return;
+            }
+         throw new Error("no Queue button");
       }
 
       private function queueButton(what:String, expected:String, enabled:Boolean):void

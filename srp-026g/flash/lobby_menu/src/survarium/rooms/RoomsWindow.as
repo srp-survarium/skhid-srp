@@ -1314,8 +1314,9 @@ package survarium.rooms
             askMembers(true);
         }
 
-        // A join from the list: first whether it offers one of our kit
-        // presets (presets.md); the server answers `S1;O` (takeOffer).
+        // A join (or a full room's queue) from the list: first whether it
+        // offers one of our kit presets (presets.md); the server answers
+        // `S1;O` (takeOffer).
         internal function askOffer(room:Object):void
         {
             _offer = null;
@@ -1328,7 +1329,8 @@ package survarium.rooms
         // its max) and 3 (our kits can not play, preset n can) show the popup.
         // `about` 1: Play would queue, the room is of the other bracket
         // (the owner's of 2026-10-30): "Queue" (Play as it is) for the
-        // popup's first button.
+        // popup's first button. So for a full room's Queue offered a higher
+        // loadout (the owner's of 2026-11-01): its queue as it is.
         private function takeOffer(head:Array):void
         {
             var asked:Object = _offerAsk;
@@ -1341,9 +1343,10 @@ package survarium.rooms
                 goOn(asked, 0);
                 return;
             }
+            var full:Boolean = asked.room != null && asked.room.players >= asked.room.size * 2;
             _offer = {"kind": kind, "preset": int(head[4]), "level": int(head[5]), "gear": int(head[6]),
                 "max": int(head[7]), "room": asked.room, "play": asked.play,
-                "queue": asked.play && head.length > 8 && head[8] == "1"};
+                "queue": (asked.play && head.length > 8 && head[8] == "1") || (full && kind == 1)};
             _busyAt = 0;
             _playAskedAt = 0;
             applyPlay();
@@ -1400,8 +1403,9 @@ package survarium.rooms
             tf.text = text;
             var bw:Number = 200;
             var by:Number = y + h - 50;
-            // Play that would queue: "Queue" plays as it is; else "Enter
-            // anyway" (the kits as they are) or "Exit" (nothing).
+            // Play that would queue, or a full room's queue: "Queue" goes on
+            // as it is; else "Enter anyway" (the kits as they are) or "Exit"
+            // (nothing).
             var asIs:Boolean = _offer.queue || _offer.kind == 1;
             var first:String = _offer.queue ? "st_srp_rooms_queue" : _offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit";
             look.button(look._content, say(first), x + w / 2 - bw - 8, by, bw,
