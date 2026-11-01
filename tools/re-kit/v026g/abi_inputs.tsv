@@ -3237,15 +3237,22 @@ va	name	location	role	basis
 0x0032ff70	survarium::transition_helper::deserialize	EAX	reader	inferred
 0x003312f0	survarium::dispersion_calculator::serialize	stack+4	dispersion	inferred
 0x003312f0	survarium::dispersion_calculator::serialize	EAX	writer	inferred
+0x00334900	survarium::victory_item_event_manager::start_match	ESI	the manager (shared statistics+2760h); +0A38h the rule, +0A3Ch the options, +0A20h/+0A2Ch the two containers' positions written (0x33490E..0x334993)	observed
+0x00334900	survarium::victory_item_event_manager::start_match	EAX	the match's options (kept at +0A3Ch)	observed
+0x00334900	survarium::victory_item_event_manager::start_match	entry ESP+4	the battery rule (kept at +0A38h; its items +110h..+114h)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	ESI	the manager (shared statistics+2760h)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	EAX	the victory item	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+4	the player's place (byte)	observed
 0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+8	the player's kit (byte)	observed
-0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+12	the event (4: spotted)	observed
+0x00334ac0	survarium::victory_item_event_manager::on_event	entry ESP+12	the event: 4 spotted (event 19 and first_finder when still FFh, 0x334B14..0x334B3A), 1 taken out of a container (+FDh, 0x334B4D), 0 put into a container (event 20, then the shares and the reset, owner_team the putter's team, 0x334B55..0x334CEA)	observed
 0x00334dc0	survarium::victory_item_event_manager::serialize	stack+4	victory item event manager	inferred
 0x00334dc0	survarium::victory_item_event_manager::serialize	EDI	writer	inferred
 0x00334fb0	survarium::victory_item_event_manager::deserialize	stack+4	victory item event manager	inferred
 0x00334fb0	survarium::victory_item_event_manager::deserialize	EDX	reader	inferred
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	EAX	the putter's team (on_event 0x334CAD)	observed
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	ECX	the battery's record (0x334CB1)	observed
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	EDI	the manager (0x334CB3; its options at +0A3Ch, 0x335133)	observed
+0x00335110	survarium::victory_item_event_manager::share_delivery_by_distance	entry ESP+4	the event the shares count: 6 never delivered, 17 the enemy owned it, 18 own team (0x334C8C..0x334CAC)	observed
 0x003353c0	survarium::intermediate_shared_statistics::serialize	stack+4	intermediate statistics	inferred
 0x003353c0	survarium::intermediate_shared_statistics::serialize	stack+8	writer	inferred
 0x003355f0	survarium::intermediate_shared_statistics::deserialize	stack+4	intermediate statistics	inferred
@@ -4963,6 +4970,17 @@ va	name	location	role	basis
 0x00274470	survarium::lobby_client::comment_about_user	entry ESP+8	NUL-terminated nickname	observed
 0x00274470	survarium::lobby_client::comment_about_user	entry ESP+12	kind low byte; no clamping (2744D8)	observed
 0x00274470	survarium::lobby_client::comment_about_user	entry ESP+16	subtype/mode low byte; no clamping (2744F4)	observed
+0x002f2060	survarium::item_config_query::get_item	ESI	the query's holder ([translate_query's [ebp+7Ch]]+108h): +8 dict id, +0Ch modifications*, +10h upgrades* (the item record's +14h and +60h buffer_vectors), +14h the items dictionary, +2Ch its thread	observed
+0x002f2060	survarium::item_config_query::get_item	EDI	where the four dwords go (translate_query's ebp+38h)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	EDI	the buffer_vector (begin, end, capacity end)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	ECX	the new count	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	ECX	the object interface (a GFx value's +0)	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+4	the target, the object's own (the GFx value's +8)	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+8	the member's name, a C string	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+12	the value to set (a GFx value: +4 its type, 4 uint; +8 what it holds)	observed
+0x007c6a20	Scaleform::GFx::AS3ValueObjectInterface::SetMember	entry ESP+16	1 for a display object ((type & 8Fh) == 0Ah, 0x2882B3)	observed
+0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	EDI	the pair	observed
+0x0028b0f0	vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back	ESI	the vector {begin, end, capacity}	observed
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	ESI	the scene: +2FAh set (the listener's position is set), the three vectors stored as atomic half3 at +120h, +128h, +130h; the game calls it from its own thread every frame for its scenes (game_world 0x1F7653, lobby_menu 0x21D689, 0x220D9D). Without it a scene's tick (0x57B80) never calls notify_listener 0x5C280 (0x57C9C), the only path to create_sound_voice 0x59E70 (via 0x5C7A0): its sounds get no voice	observed
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	EAX	the listener's position (float3)	observed
 0x000587d0	vostok::sound::sound_scene::set_listener_properties	entry ESP+4	its front (float3; the lobby's +2Ch)	observed
@@ -4990,6 +5008,14 @@ va	name	location	role	basis
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	entry ESP+4	sort_by_size_predicate (empty)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+8	the light_props filled (+7Ch shadow_map_size_index u32, the map 1024, 512, 256 texels for 0, 1, 2 in 0.10b's index_to_shadow_size, not read in 0.26g; +84h shadow_transparency, a float, an int config converted)	observed
 0x0034f940	vostok::render::load_props_impl	entry ESP+0Ch	the light's config table (has_key 0xF6C00 / child 0xF6B10 per field)	observed
+0x00243940	survarium::weapon::is_first_person_view	EAX	weapon (its user at +8)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	EAX	this, the 120h-byte rifle_scope (rifle_scope_cook 0x258812 allocates it)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	entry ESP+4	the idle model pointer's address (kept at +108h, a reference added)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	entry ESP+8	the aimed model pointer's address (kept at +10Ch, a reference added)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	entry ESP+0Ch	change_scope_factor, a float (+110h)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	entry ESP+10h	hide_weapon_on_aim, a bool in the low byte (+11Ch)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	entry ESP+14h	fov_factor, a float (+114h)	observed
+0x002996c0	survarium::rifle_scope::rifle_scope	entry ESP+18h	near_plane_factor, a float (+118h)	observed
 0x00118430	vostok::render::engine::world::add_model	entry ESP+4	pointer to the scene handle; its first DWORD is the scene	observed
 0x00118430	vostok::render::engine::world::add_model	entry ESP+8	pointer to the model handle; its first DWORD is the render model instance	observed
 0x001184c0	vostok::render::engine::world::update_model	entry ESP+4	pointer to the scene handle; its first DWORD is the scene	observed

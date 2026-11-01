@@ -1307,11 +1307,13 @@ va	status	ref_021d	name
 0x0032fee0	reviewed	0x0020761f	survarium::transition_helper::serialize
 0x0032ff70	reviewed	0x002076b4	survarium::transition_helper::deserialize
 0x003312f0	reviewed	0x002078c0	survarium::dispersion_calculator::serialize
+0x00334900	reviewed	0x00204cdc	survarium::victory_item_event_manager::start_match
 0x00334ac0	reviewed	0x00204e28	survarium::victory_item_event_manager::on_event
 0x00334d00	observed		survarium::victory_item_event_manager::is_solo_delivery
 0x00334dc0	reviewed	0x00204fac	survarium::victory_item_event_manager::serialize
 0x00334fb0	reviewed	0x002050e9	survarium::victory_item_event_manager::deserialize
 0x00335110	observed		survarium::victory_item_event_manager::share_delivery_by_distance
+0x00335250	reviewed	0x0020523e	survarium::victory_item_event_manager::calculate_players_share
 0x003353c0	reviewed	0x00205334	survarium::intermediate_shared_statistics::serialize
 0x003355f0	reviewed	0x0020550e	survarium::intermediate_shared_statistics::deserialize
 0x00335750	reviewed	0x0020569f	survarium::player_shared_statistics::serialize
@@ -1910,10 +1912,13 @@ va	status	ref_021d	name
 0x0005b390	reviewed	0x0004163b	vostok::sound::sound_instance_proxy_internal::free_object
 0x0028cbe0	reviewed		survarium::lobby_menu::comment_about_user
 0x00274470	reviewed		survarium::lobby_client::comment_about_user
+0x007c6a20	observed		Scaleform::GFx::AS3ValueObjectInterface::SetMember
 0x000587d0	reviewed		vostok::sound::sound_scene::set_listener_properties
 0x00304370	reviewed	0x001e8da3	survarium::hit_type
 0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
 0x001b9460	reviewed	0x0012d125	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x00243940	verified		survarium::weapon::is_first_person_view
+0x002996c0	verified		survarium::rifle_scope::rifle_scope
 0x00118430	reviewed	0x000d5e2c	vostok::render::engine::world::add_model
 0x001184c0	reviewed	0x000d5ed5	vostok::render::engine::world::update_model
 0x00118540	reviewed	0x000d5f76	vostok::render::engine::world::remove_model

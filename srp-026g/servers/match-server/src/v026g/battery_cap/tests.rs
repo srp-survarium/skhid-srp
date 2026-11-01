@@ -111,18 +111,28 @@ fn an_honest_battery_match_under_the_cap_is_paid_as_counted() {
 #[test]
 fn an_active_honest_carriers_eleventh_delivery_is_not_paid() {
     // The rule's known catch (the owner accepted it, 2026-10-20): a
-    // carrier who delivers 11 batteries in one match is paid for 10.
+    // carrier who delivers 11 batteries in one match is paid for 10, each
+    // with its share and 200 m of progress (exe patch 92).
     let mut played = statistics(&[&[
         (event::PUT_VICTORY_ITEM_IN_CONTAINER, 0, 11),
-        (event::BRING_VICTORY_ITEM, 0, 1100),
+        (event::BRING_VICTORY_ITEM, 0, 11 * 900),
         (event::SOLO_DELIVERY, 0, 11),
     ]]);
     let cuts = cap(&mut played, BATTERIES);
     assert_eq!(cuts.len(), 3);
     let carrier = &played.players[0];
     assert_eq!(carrier.total(event::PUT_VICTORY_ITEM_IN_CONTAINER), 10);
-    assert_eq!(carrier.total(event::BRING_VICTORY_ITEM), 1000);
+    assert_eq!(carrier.total(event::BRING_VICTORY_ITEM), 9000);
     assert_eq!(carrier.total(event::SOLO_DELIVERY), 10);
+}
+
+#[test]
+fn a_carriers_progress_on_the_ten_batteries_is_paid_as_counted() {
+    // Ten fresh batteries brought 75 m each: ten shares and 7 steps of
+    // progress each (exe patch 92: 40 hundredths a step), under the cap.
+    let mut played = statistics(&[&[(event::BRING_VICTORY_ITEM, 0, 10 * (100 + 7 * 40))]]);
+    assert!(cap(&mut played, BATTERIES).is_empty());
+    assert_eq!(played.players[0].total(event::BRING_VICTORY_ITEM), 3800);
 }
 
 #[test]

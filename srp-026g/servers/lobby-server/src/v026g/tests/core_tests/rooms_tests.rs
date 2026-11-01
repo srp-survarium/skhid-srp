@@ -1632,7 +1632,7 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
                 running
                     .seats
                     .push((9000 + u32::from(team) * 100 + n as u32, team));
-                running.strengths.push(0);
+                running.strengths.push(session::Strength::ZERO);
                 running.names.push(String::new());
             }
         }
@@ -1686,7 +1686,7 @@ fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
         let running = world.core.matches.get_mut(&id).unwrap();
         for n in running.seats.len()..20 {
             running.seats.push((9000 + n as u32, (n % 2) as u8));
-            running.strengths.push(0);
+            running.strengths.push(session::Strength::ZERO);
             running.names.push(String::new());
         }
     }
@@ -1733,6 +1733,39 @@ fn a_member_waiting_while_a_maintenance_is_near_is_told_so() {
         .set_maintenance(Some(session::v026g::quests::now() + 20 * 60));
     let state = state(&mut world, erin);
     assert_eq!(join_row(&state), Some("J;-1;5"), "{state:?}");
+}
+
+#[test]
+fn a_late_joiner_of_higher_gear_raises_the_matchs_equipment_level() {
+    // The owner's of 2026-11-01 (`docs/notes/kd-balance.md`): the match's
+    // level is the highest gear level of its players; a late joiner keeps
+    // it, or raises it with higher gear, and is counted at the level then.
+    let mut world = World::new();
+    let (key, ticket, _, players) = room_match_of_four(&mut world);
+    let at_start = matchmaking::gear_level(&world.account(players[0]), quests::now());
+    assert_eq!(world.results.match_gear(ticket), Some(at_start));
+    let erin = world.connect("Erin");
+    let raised = at_start + 3;
+    with_gear(&mut world, erin, raised);
+    world.host.admitting.locked().insert(ticket);
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    world.take(erin);
+    world.advance(Duration::from_secs(16));
+    assert_eq!(
+        sent_to_match(&world.take(erin)).map(|(id, _)| id),
+        Some(ticket)
+    );
+    assert_eq!(world.results.match_gear(ticket), Some(raised));
+    let running = world
+        .core
+        .matches
+        .values()
+        .find(|running| running.ticket.match_id == ticket)
+        .unwrap();
+    assert_eq!(
+        running.strengths.last().copied(),
+        Some(world.account(erin).level_stats.kd_at(raised))
+    );
 }
 
 /// Live, 2026-10-19 (room 2168): a member that went into its room's match

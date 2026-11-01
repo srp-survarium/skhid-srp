@@ -357,7 +357,7 @@ fn the_match_level_multiplies_the_rewards() {
 
 /// A player of team 0 with premium, a quest faction and the counters of a
 /// results screen: `kills`, `assists` and an other score of `brought`
-/// hundredths of a battery × 10.
+/// hundredths of event 6 (a battery's delivery share and progress) × 5.
 fn screen_match(
     level: u16,
     kills: u16,
@@ -399,10 +399,10 @@ fn screen_match(
 /// the premium block and the totals come out.
 #[test]
 fn the_second_screen_comes_out() {
-    // The other score, 59: five and nine tenths batteries brought (matched
-    // as two artefacts and five and a half batteries while an artefact
-    // weighed 2).
-    let (store, result) = screen_match(15, 19, 8, 590);
+    // The other score, 59: 1180 hundredths of event 6 at its weight 5
+    // (matched as two artefacts and five and a half batteries while an
+    // artefact weighed 2).
+    let (store, result) = screen_match(15, 19, 8, 1180);
     assert_eq!(result.players[0].score, 289);
     let report = Results::new()
         .settle(&result, &store, &terms(), &mut Rng::new(1))
@@ -449,10 +449,10 @@ fn the_second_screen_comes_out() {
 /// more, and half of the rows.
 #[test]
 fn the_first_screen_comes_out_but_for_its_kills() {
-    // The other score, 33: three and three tenths batteries brought
+    // The other score, 33: 660 hundredths of event 6 at its weight 5
     // (matched as four artefacts and two and a half batteries while an
     // artefact weighed 2).
-    let (store, result) = screen_match(1, 17, 4, 330);
+    let (store, result) = screen_match(1, 17, 4, 660);
     assert_eq!(result.players[0].score, 223);
     // Her first victory of the day.
     store.get(10).unwrap().locked().extras.bonus = Default::default();
@@ -3009,23 +3009,27 @@ fn a_private_rooms_match_takes_no_drop_card() {
 }
 
 /// A report kept before rooms with a PIN paid nothing has no `private`:
-/// it is read as a match that paid.
+/// it is read as a match that paid. One kept before matches against bots
+/// were marked has no `vs_bots`: it is read as PvP.
 #[test]
 fn a_report_kept_without_the_private_mark_is_not_private() {
     let players = alice_and_bob();
     let store = accounts(&players);
     let mut private = result(players);
     private.private = true;
+    private.vs_bots = true;
     let report = Results::new()
         .settle(&private, &store, &terms(), &mut Rng::new(3))
         .unwrap();
     let mut body = serde_json::to_value(&*report).unwrap();
     body.as_object_mut().unwrap().remove("private").unwrap();
+    body.as_object_mut().unwrap().remove("vs_bots").unwrap();
     let rows = vec![(report_key(MATCH), body.to_string())];
     let [kept] = &kept_reports(&rows)[..] else {
         panic!("one report kept");
     };
     assert!(!kept.private);
+    assert!(!kept.vs_bots);
     assert_eq!(kept.match_id, MATCH);
 }
 
@@ -3538,6 +3542,65 @@ fn a_match_moves_the_balance_rating_by_the_sides_sizes() {
     assert_eq!(account(&store, 10).rating, 98);
 }
 
+/// The owner's of 2026-11-01: a match counts its players' kills and
+/// deaths at its equipment level, the highest gear level of its players
+/// (late joiners too), when it moves the balance rating, and never
+/// otherwise (`docs/notes/kd-balance.md`).
+#[test]
+fn a_rated_match_counts_kills_and_deaths_at_its_equipment_level() {
+    use crate::v026g::level_stats::KillsDeaths;
+
+    let players = three_and_two();
+    let store = accounts(&players);
+    let results = Results::new();
+    // Made at 6, a joiner of 9 came, one of 4 did not lower it.
+    assert_eq!(results.raise_match_gear(MATCH, 6), 6);
+    assert_eq!(results.raise_match_gear(MATCH, 9), 9);
+    assert_eq!(results.raise_match_gear(MATCH, 4), 9);
+    assert_eq!(results.match_gear(MATCH), Some(9));
+    results
+        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    // Settled, the level is forgotten.
+    assert_eq!(results.match_gear(MATCH), None);
+    let alice = account(&store, 10).level_stats;
+    assert_eq!(alice.rows().len(), 1);
+    assert_eq!(
+        alice.at(9),
+        KillsDeaths {
+            kills: 1,
+            deaths: 1
+        }
+    );
+    assert_eq!(account(&store, 10).balance.matches, 1);
+
+    // One the balance rating does not move counts nothing: a whole side
+    // left, a test bot, no level known (a match made before a restart).
+    let store = accounts(&players);
+    let results = Results::new();
+    results.raise_match_gear(MATCH, 6);
+    let mut deserted = result(players.clone());
+    deserted.end = MatchEnd::Deserted;
+    results
+        .settle(&deserted, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(account(&store, 10).level_stats.rows().is_empty());
+    let store = accounts(&players);
+    store.set_bots(&["dave".to_owned()]);
+    let results = Results::new();
+    results.raise_match_gear(MATCH, 6);
+    results
+        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(account(&store, 10).level_stats.rows().is_empty());
+    let store = accounts(&players);
+    Results::new()
+        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(account(&store, 10).level_stats.rows().is_empty());
+    assert_eq!(account(&store, 10).balance.matches, 1);
+}
+
 #[test]
 fn the_balance_rating_is_not_moved_by_a_match_that_says_nothing() {
     use crate::v026g::balance::Balance;
@@ -3849,4 +3912,87 @@ fn pve_rewards_stop_at_level_seven_including_the_money_rate_and_premium() {
     // PvP retains its normal level scaling; lower PvE levels stay lower.
     assert!(settle(15, false).players[0].reward.money > settle(7, false).players[0].reward.money);
     assert!(settle(3, true).players[0].reward.money < seven.players[0].reward.money);
+}
+
+#[test]
+fn pve_drops_stop_at_level_seven() {
+    let players = alice_and_bob();
+    let settle = |level, vs_bots, seed| {
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        Results::new()
+            .settle(&outcome, &accounts(&players), &terms(), &mut Rng::new(seed))
+            .unwrap()
+            .players[0]
+            .reward
+            .drop
+    };
+    // The highest item level the generic table's row of match level 7 gives.
+    let row = &Drops::shared().generic.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
+    let top = row.iter().rposition(|&weight| weight > 0).unwrap() as u8;
+    let level_of = |drop: Option<Dropped>| {
+        drop.filter(|drop| is_gear(drop.dict_id))
+            .map(|drop| item_params(drop.dict_id).unwrap().item_level)
+    };
+    let (mut pve_gear, mut pvp_above) = (0, 0);
+    for seed in 1..=300 {
+        let at_seven = settle(7, true, seed);
+        assert_eq!(settle(15, true, seed), at_seven, "seed {seed}");
+        if let Some(level) = level_of(at_seven) {
+            pve_gear += 1;
+            assert!(level <= top, "seed {seed}: level {level} over {top}");
+        }
+        // PvP rolls at its own level.
+        pvp_above += u32::from(level_of(settle(15, false, seed)).is_some_and(|level| level > top));
+    }
+    assert!(
+        pve_gear > 30 && pvp_above > 30,
+        "{pve_gear} PvE gear, {pvp_above} PvP above {top}, row {row:?}"
+    );
+}
+
+#[test]
+fn a_drop_card_on_a_pve_match_rolls_at_level_seven() {
+    let card = Dictionary::shared().item_named(DROP_CARD).unwrap().dict_id;
+    let players = alice_and_bob();
+    // Alice's card on the screen of a match of `level`: the level it rolled
+    // at and what it gave.
+    let use_card = |level, vs_bots, seed| {
+        let store = accounts(&players);
+        let item_id = store.get(10).unwrap().locked().add_item(card, 3);
+        let mut outcome = result(players.clone());
+        outcome.match_level = level;
+        outcome.vs_bots = vs_bots;
+        let results = Results::new();
+        results
+            .settle(&outcome, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        let alice = store.get(10).unwrap();
+        let mut alice = alice.locked();
+        let (rolled_at, used) = results
+            .use_drop_card(MATCH, 10, &mut alice, item_id, &mut Rng::new(seed))
+            .unwrap();
+        (rolled_at, used.unwrap().dropped)
+    };
+    let row = &Drops::shared().drop_card.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
+    let top = row.iter().rposition(|&weight| weight > 0).unwrap() as u8;
+    let level_of = |dropped: Dropped| {
+        is_gear(dropped.dict_id).then(|| item_params(dropped.dict_id).unwrap().item_level)
+    };
+    let mut pvp_above = 0;
+    for seed in 1..=100 {
+        let (at, at_seven) = use_card(7, true, seed);
+        assert_eq!(at, 7);
+        assert_eq!(use_card(15, true, seed), (7, at_seven), "seed {seed}");
+        assert!(
+            level_of(at_seven).is_none_or(|level| level <= top),
+            "seed {seed}"
+        );
+        // PvP rolls at its own level.
+        let (at, pvp) = use_card(15, false, seed);
+        assert_eq!(at, 15);
+        pvp_above += u32::from(level_of(pvp).is_some_and(|level| level > top));
+    }
+    assert!(pvp_above > 10, "{pvp_above} PvP cards above {top}");
 }

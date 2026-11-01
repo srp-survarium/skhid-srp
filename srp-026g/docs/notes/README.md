@@ -30,11 +30,13 @@ given), LIKELY or GUESS.
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
+| [weapon-kit.md](weapon-kit.md) | A weapon's six upgrades (two decals, camouflage, scope, muzzle device, grip) in the client's three records: the kit record's layout, client patch 68, the server's packing |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
+| [kd-balance.md](kd-balance.md) | The sides of a match by K/D at the match's equipment level (the owner, 2026-11-01): squads 1.3 times, a small noise, late joiners, what a match counts |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |
 | [data.md](data.md) | `resources.db`: items, skills, drops, quests, item configs |
@@ -100,6 +102,7 @@ given), LIKELY or GUESS.
 | [shop-owned-mark.md](shop-owned-mark.md) | The shop's owned mark (the owner, 2026-11-01): a check mark on the shop entries of items the account owns, every kind, updated after each buy and sale; a "Hide owned" box (the Autobuy box, left of Buy) that leaves owned items out |
 | [ui_scale.md](ui_scale.md) | The UI at high resolutions: how each Flash movie follows the screen size, what is drawn 1:1 at 4K and how small, the HUD centring fixes |
 | [launcher_updater.md](launcher_updater.md) | The game's own updater (`survarium_updater.exe`), which the Skhid launcher does not use: its arguments, what it said on the pipe, what it did on the network |
+| [download-mirrors.md](download-mirrors.md) | Download mirrors (the owner, 2026-11-01, after Google Drive's quota stopped new players): the game's archive and the patches from many addresses in order, srp's `/game` and `mirrors.tsv`, `release/add-mirror`, resume at the next address, the addresses built into the updater and the .bat, one log line a try |
 | [armour-params.md](armour-params.md) | Armour configs: what each key does |
 | [artefact-score.md](artefact-score.md) | Match score for an artefact put into a slot |
 | [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts-1 edit list |

@@ -91,7 +91,7 @@ fn world_with(accounts: GameAccounts) -> World {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
-            patches: Vec::new(),
+            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
             replays: None,
         }),
@@ -771,6 +771,7 @@ fn offered(n: u32, sha: char, urls: &[&str]) -> crate::OfferedPatch {
     crate::OfferedPatch {
         name: format!("patch_{n}"),
         sha256: sha.to_string().repeat(64),
+        size: 1,
         urls: urls.iter().map(|url| (*url).to_owned()).collect(),
     }
 }
@@ -820,17 +821,21 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().patches = vec![
-        offered(
-            14,
-            'a',
-            &[
-                "http://203.0.113.5/patches/resources.db.patch_14",
-                "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t",
-            ],
-        ),
-        offered(16, '0', &["https://files.example/db/resources.db.patch_16"]),
-    ];
+    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+        vec![
+            offered(
+                14,
+                'a',
+                &[
+                    "http://203.0.113.5/patches/resources.db.patch_14",
+                    "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t",
+                ],
+            ),
+            offered(16, '0', &["https://files.example/db/resources.db.patch_16"]),
+        ],
+        None,
+        None,
+    ));
     let expected = format!(
         "{{\"patch_14\":{{\"sha256\":\"{}\",\"urls\":[\"http://203.0.113.5/patches/resources.db.patch_14\",\
          \"https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t\"]}},\
@@ -852,6 +857,52 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     assert_eq!(body, expected);
 }
 
+/// The game's archive at `/game`, apart from the patches: a 404 when the
+/// data names none (the updater then uses the addresses built into it).
+#[test]
+fn the_games_archive_is_offered_apart_from_the_patches() {
+    let mut world = world();
+    assert_eq!(world.web.route(&get("/game"), "t").status, "404 Not Found");
+    let archive = crate::OfferedPatch {
+        name: "survarium-026g.7z".into(),
+        sha256: "7".repeat(64),
+        size: 2_906_544_103,
+        urls: vec![
+            "http://203.0.113.5:8090/survarium-026g.7z".into(),
+            "https://archive.org/download/x/survarium_full_026g0.7z".into(),
+        ],
+    };
+    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+        vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
+        Some(archive),
+        None,
+    ));
+    let game = world.web.route(&get("/game"), "t");
+    assert_eq!(game.status, "200 OK");
+    assert_eq!(
+        game.body,
+        format!(
+            "{{\"sha256\":\"{}\",\"size\":2906544103,\"urls\":[\"http://203.0.113.5:8090/survarium-026g.7z\",\
+             \"https://archive.org/download/x/survarium_full_026g0.7z\"]}}",
+            "7".repeat(64)
+        )
+    );
+    // Not among the patches: every member there is one.
+    assert_eq!(
+        world.web.route(&get("/patches"), "t").body,
+        format!(
+            "{{\"patch_14\":{{\"sha256\":\"{}\",\"urls\":[\"http://203.0.113.5/p14\"]}}}}",
+            "a".repeat(64)
+        )
+    );
+    let (head, body) = patches_over_http(world.web, b"GET /game HTTP/1.0\r\n\r\n");
+    assert!(
+        head.contains("\r\nContent-Type: application/json\r\n"),
+        "{head}"
+    );
+    assert!(body.contains("\"size\":2906544103"));
+}
+
 #[test]
 fn a_patch_list_string_is_always_escaped() {
     // srp-game-data writes nothing that needs it; were it ever there, the
@@ -859,6 +910,7 @@ fn a_patch_list_string_is_always_escaped() {
     let odd = crate::OfferedPatch {
         name: "patch_1".into(),
         sha256: "a\"b\\c\n".into(),
+        size: 1,
         urls: vec!["http://x/y".into(), "http://x/\"".into()],
     };
     assert_eq!(

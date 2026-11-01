@@ -88,7 +88,7 @@ use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
 use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
 use session::v026g::{matchmaking, quests, rules};
-use session::{LockExt, QueuePool};
+use session::{LockExt, QueuePool, Strength};
 use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
     self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, OfferRoom,
@@ -239,10 +239,12 @@ fn code_of(refused: Refused) -> RoomCode {
     }
 }
 
-/// A free member of a room, ready for its match.
+/// A free member of a room, ready for its match, and the gear level it
+/// would bring (`matchmaking::gear_level`): a match's equipment level is
+/// the highest of its players' (`docs/notes/kd-balance.md`).
 struct Ready {
     player: session::Player,
-    strength: i32,
+    gear: u8,
 }
 
 impl Core<'_> {
@@ -1370,7 +1372,7 @@ impl Core<'_> {
         }
         let anyone = Worth {
             players: 1,
-            strength: 0,
+            strength: Strength::ZERO,
         };
         if policy::place_joiner(sides, anyone, None, &rule).is_none() {
             return Err(Some(JoinHold::Full));
@@ -1887,15 +1889,17 @@ impl Core<'_> {
         if self.member_fit(account_id) != Fit::Yes {
             return None;
         }
-        let kit_id = player.account.locked().active_kit;
-        let level = self.level_of(account_id, unix);
+        let (kit_id, gear) = {
+            let account = player.account.locked();
+            (account.active_kit, matchmaking::gear_level(&account, unix))
+        };
         Some(Ready {
             player: session::Player {
                 session_id,
                 account_id,
                 profile_id: kit_id,
             },
-            strength: self.strength_of(account_id, level),
+            gear,
         })
     }
 
@@ -2065,9 +2069,14 @@ impl Core<'_> {
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
             .collect();
+        // The match's equipment level: the highest gear level of the
+        // players placed (the owner's of 2026-11-01); each counts for its
+        // K/D there.
+        let match_gear = ready.iter().map(|each| each.gear).max().unwrap_or(0);
+        let strength = |account_id: u32| self.strength_of(account_id, match_gear, false);
         // Squads of the room's members, each a party; any other member alone.
         let mut seen = HashSet::new();
-        let mut parties: Vec<(Vec<u32>, i64)> = Vec::new();
+        let mut parties: Vec<model::Party> = Vec::new();
         for each in &ready {
             if !seen.insert(each.player.account_id) {
                 continue;
@@ -2084,29 +2093,29 @@ impl Core<'_> {
                         && ready.iter().any(|other| other.player.account_id == *mate)
                 })
                 .collect();
-            let mut party = vec![each.player.account_id];
-            let mut strength = i64::from(each.strength);
+            let mut party = vec![(each.player.account_id, strength(each.player.account_id))];
             for mate in mates {
-                if seen.insert(mate)
-                    && let Some(other) = ready.iter().find(|other| other.player.account_id == mate)
-                {
-                    party.push(mate);
-                    strength += i64::from(other.strength);
+                if seen.insert(mate) && ready.iter().any(|other| other.player.account_id == mate) {
+                    party.push((mate, strength(mate)));
                 }
             }
-            parties.push((party, strength));
+            parties.push(model::Party::new(party));
         }
         // A squad alone plays no match against itself (the owner's of
         // 2026-10-31): the room waits for a third.
-        if arranged.is_none() && parties.len() == 1 && parties[0].0.len() > 1 {
+        if arranged.is_none() && parties.len() == 1 && parties[0].members().len() > 1 {
             log::info!("Room {key}: no match yet: only a squad can play");
             self.rooms.not_started(key, now);
             return;
         }
-        let player_value = i64::from(self.settings.balance.player_value());
+        // The strengths are shaken a little by a seed of this start (the
+        // owner's "small noise"), so the same players do not always play
+        // together.
+        let seed = self.rng.below(u32::MAX);
+        let player_value = self.settings.balance.player_value();
         let sides = match &arranged {
             Some(arranged) => arranged.clone(),
-            None => model::sides(&parties, size, player_value),
+            None => model::sides(&parties, size, player_value, seed),
         };
         let player_of = |account_id: &u32| {
             ready
@@ -2137,7 +2146,11 @@ impl Core<'_> {
         // Each squad of two or more is a squad in the match too.
         let mut squad_ids: std::collections::HashMap<u32, u8> = std::collections::HashMap::new();
         let mut next_squad = 0_u8;
-        for (party, _) in parties.iter().filter(|(party, _)| party.len() > 1) {
+        for party in parties
+            .iter()
+            .map(model::Party::members)
+            .filter(|party| party.len() > 1)
+        {
             // In a private room a squad may be on both teams: a squad in the
             // match is its members on one team, two at least.
             let groups: Vec<Vec<u32>> = match arranged {
@@ -2151,7 +2164,7 @@ impl Core<'_> {
                             .collect()
                     })
                     .collect(),
-                None => vec![party.clone()],
+                None => vec![party.to_vec()],
             };
             for group in groups.iter().filter(|group| group.len() > 1) {
                 next_squad = next_squad.saturating_add(1);
@@ -2335,7 +2348,7 @@ impl Core<'_> {
         if !admitted {
             return;
         }
-        let joined: Vec<(session::Player, u8, i32)> = party
+        let joined: Vec<(session::Player, u8, Strength)> = party
             .iter()
             .map(|each| (each.player, team, each.strength))
             .collect();
@@ -2400,14 +2413,29 @@ impl Core<'_> {
                 mate_side.is_none() && room.members.contains(mate) && !room.in_match.contains(mate)
             })
             .and_then(|mate| self.room_ready(mate));
-        let mut party = vec![Ready {
-            player: ready.player,
-            strength: ready.strength,
-        }];
-        party.extend(waiting_mate);
+        let going: Vec<(session::Player, u8)> = std::iter::once((ready.player, ready.gear))
+            .chain(waiting_mate.map(|mate| (mate.player, mate.gear)))
+            .collect();
+        // Each counts for its K/D at the match's equipment level,
+        // which a joiner of higher gear raises (the owner's of 2026-11-01);
+        // a squad's members 1.3 times.
+        let squad = mate_side.is_some() || going.len() > 1;
+        let match_gear = going.iter().map(|(_, gear)| *gear).fold(
+            self.results
+                .match_gear(running.ticket.match_id)
+                .unwrap_or(0),
+            u8::max,
+        );
+        let party: Vec<Joiner> = going
+            .into_iter()
+            .map(|(player, _)| Joiner {
+                player,
+                strength: self.strength_of(player.account_id, match_gear, squad),
+            })
+            .collect();
         let worth = Worth {
             players: party.len(),
-            strength: party.iter().map(|each| i64::from(each.strength)).sum(),
+            strength: party.iter().map(|each| each.strength).sum(),
         };
         // One who played this match before (left it, or its game was gone
         // for good) goes back to its side when the sides have as many
@@ -2422,19 +2450,25 @@ impl Core<'_> {
         Late {
             placement,
             lead: rule.lead,
-            squad: mate_side.is_some() || party.len() > 1,
+            squad,
             party,
         }
     }
+}
+
+/// One who goes into a match being played, and what it counts for there.
+struct Joiner {
+    player: session::Player,
+    strength: Strength,
 }
 
 /// [`Core::late_placement`]'s answer.
 struct Late {
     /// The side, or none now.
     placement: Option<policy::LatePlacement>,
-    lead: [i64; 2],
+    lead: [Strength; 2],
     /// Who goes in: the member, and its squad mate waiting with it.
-    party: Vec<Ready>,
+    party: Vec<Joiner>,
     /// Whether its squad decided the side (its mate in the match, or
     /// going in with it).
     squad: bool,

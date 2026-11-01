@@ -1611,6 +1611,22 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
+      // The first item of the inventory of a dictionary id, or null (the weapon kit names its
+      // attachments by dictionary id: UpgradeWindow.kitUpgrades).
+      public function getInventoryItemOf(dictId:int) : ItemData
+      {
+         var item:ItemData = null;
+         var found:ItemData = null;
+         for each(item in this._inventoryItemsDict)
+         {
+            if(Boolean(item) && int(item.dictId) == dictId && (found == null || item.itemId < found.itemId))
+            {
+               found = item;
+            }
+         }
+         return found;
+      }
+
       // The dictionary ids of the weapons in the chosen kit's two weapon slots.
       public function kitWeaponDicts() : Array
       {
@@ -2012,7 +2028,15 @@ package survarium.controls
          {
             this.setPrimaryItem(item);
          }
-         this._item_control.onBtnClick1();
+         // an owned item's own menu: no "already purchased" question; a shop entry's: the card's Buy
+         if(item.descriptor <= ItemPlace.INVENTORY)
+         {
+            this._item_control.buyFromOwnMenu();
+         }
+         else
+         {
+            this._item_control.onBtnClick1();
+         }
       }
 
       // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
@@ -2887,6 +2911,12 @@ package survarium.controls
          var _relocateArray:Array;
          if(itemAvailable)
          {
+            // the upgrade window open: a camouflage, a decal or a scope goes into its slot there,
+            // as a drop on it would
+            if(UpgradeWindow.attach(item))
+            {
+               return;
+            }
             if((item) && item.usable)
             {
                this.useElement();
@@ -3627,8 +3657,8 @@ package survarium.controls
       }
       
       // As the item card's Buy: by the dictionary id, at the shop's price;
-      // the shop names the seller. A buy on an owned item is not asked
-      // whether the account wants another.
+      // the shop names the seller. An item owned already is asked about
+      // first, as every buy (LobbyMenu.try_buy_item).
       private function buyFromCraftMenu(item:Object) : void
       {
          var profile:* = parent != null ? parent["player_profile"] : null;

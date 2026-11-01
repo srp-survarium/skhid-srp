@@ -183,10 +183,44 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
   the game goes on after OK; an ordinary folder: no box. Not tried: Windows'
   Controlled folder access itself, Wine, the launcher's own start.
 
+## Dump contents
+
+`src/dump.rs`, `DUMP_TYPE`:
+
+- **Players' build:** `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
+  (0x41): every thread's stack and registers, the modules, their writable data
+  sections, and the memory the stacks point to. Its memory callback also adds,
+  for the crashing thread's EAX, EBX, ECX, EDX, ESI, EDI and EBP, the range
+  `[value - 256, value + 2048)` cut to the committed readable region holding
+  it: the object behind a faulting `mov eax, [esi+116h]`, which no stack slot
+  need point to (at most 7 × 2.3 KiB). A range dbghelp cannot read is skipped,
+  not a failed dump. Before 2026-11-01 it was DataSegs alone: no heap at all.
+- **Local test build** (`./build.sh --features full-memory-dumps`):
+  `MiniDumpWithFullMemory | FullMemoryInfo | HandleData | ThreadInfo |
+  UnloadedModules` (0x1826): the whole process memory, every heap object.
+  About the game's committed memory (1–3 GB); kept as the `.dmp` beside the
+  exe, not zipped (zipping would hold the crash for many seconds, and the dump
+  is read on that PC), the text report beside it. Crash details say
+  `Reporter:  local build, full-memory dumps`. Never released: `build.rs`
+  refuses the feature with `SKHID_REVISION`, which every release build sets
+  (`release/build-zip` builds a fresh worktree with plain `build.sh`).
+- **Wine's dbghelp** (Linux players and the local clients, which have no
+  `dbghelp.dll` beside the exe) ignores DataSegs, IndirectlyReferencedMemory
+  and memory callbacks: a players' dump written under Wine has stacks,
+  registers and modules only (about 0.5–1 MB, 50 KB zipped). Full memory works
+  under Wine (`tests/check_memory.py`). Microsoft's own dbghelp/dbgcore does
+  not run under Wine 11.8 (`RtlAcquirePrivilege` is missing: the capture fails
+  with 0x80070005), so the Windows sizes below are from players' reports, not
+  measured here.
+- Reading one: `python3Packages.minidump`, or WinDbg (`dd <address>`); a full
+  dump answers for any heap object.
+
 ## Zipped dumps
 
-A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
-2–4 MB, small enough for Discord.
+A Windows dump is about 160–190 MB (it holds the game's data segments, mostly
+zeros); zipped, it is 2–4 MB, small enough for Discord (10 MB). The memory the
+stacks and registers point to is expected to add little (pages near stack
+pointers; not yet measured on Windows: see Dump contents).
 
 - When: right after the dump is written, flushed and closed, on the report
   worker, before callbacks and the dialog; for crashes and for
@@ -361,6 +395,7 @@ nix develop ./srp-026g
 cd client/bugtrap
 ./build.sh                       # a local build: version 0.0.0.0, "local build"
 SKHID_REVISION=27 ./build.sh     # as release/build-zip builds revision 27
+./build.sh --features full-memory-dumps   # local tests only: whole-memory dumps
 ```
 
 The target is `i686-win7-windows-msvc` (Windows 7 and later, as the game; the
@@ -404,6 +439,26 @@ rustc --edition 2024 --test tests/text_tests.rs -o target/text-tests
 rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
 ./target/zip-test   # SRP_ZIP_SAMPLE=<a dump> zips that file instead
 ```
+
+What a dump holds (Dump contents) has its own check, no X server needed, run
+once with a players' build and once with a `full-memory-dumps` build. Build the
+probe and the test dbghelp with MinGW
+(`nix shell nixpkgs#pkgsCross.mingw32.buildPackages.gcc`), into a folder with
+that `BugTrap.dll`:
+
+```sh
+i686-w64-mingw32-gcc -O2 -DPROBE_NO_CRT -nostdlib -Wl,-e,_probe_start@0 \
+  tests/memory_probe.c -lmsvcrt -lkernel32 -o <folder>/memory_probe.exe
+i686-w64-mingw32-gcc -O2 -D__USE_MINGW_ANSI_STDIO=0 -shared -nostdlib -Wl,--kill-at \
+  -Wl,-e,_DllMainCRTStartup@12 tests/callback_dbghelp.c -lkernel32 -lmsvcrt \
+  -o <folder>/callback_dbghelp.dll
+WINEPREFIX=/path/to/test-prefix python3 tests/check_memory.py <folder>
+```
+
+It checks the dump type BugTrap asks for, the register ranges its callback
+gives (through the test dbghelp, which records them and forwards to Wine's),
+and in Wine's dump: no unreferenced heap object in a players' dump, all three
+probe objects in a full one, and which file is kept (ZIP or `.dmp`).
 
 The text tests cover automatic Windows UI language selection, regional variants,
 English fallback and the startup notice, and the crash details: exception
