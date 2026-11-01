@@ -76,6 +76,13 @@ pub struct GridTuning {
     /// by the client (a walk-off its capsule cannot make: live bodies walked off none of the 1,567 cut walk-off gap drops), so the
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub drop_room: bool,
+    /// Whether the maps' walk grids ask a sprint jump's run-up (1.5 m straight behind its take-off) after the erosion, of the
+    /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes
+    /// jumps of its own (a jump past a floor that went starts a cell back) and takes floors off a run-up's line, so checked before
+    /// it 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m keep less than 1.5 m straight behind them, 290 of them
+    /// jumps the erosion made (A236); the motor gives such a jump up for no clear run. Off (the default) until its bench. A grid
+    /// is the map's (see `gap_links`).
+    pub run_ups_after_erosion: bool,
 }
 
 impl Default for GridTuning {
@@ -93,6 +100,7 @@ impl Default for GridTuning {
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
             drop_room: true,
+            run_ups_after_erosion: false,
         }
     }
 }
@@ -118,6 +126,7 @@ impl GridTuning {
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
             drop_room: self.drop_room,
+            run_ups_after_erosion: self.run_ups_after_erosion,
             ..body
         }
     }
