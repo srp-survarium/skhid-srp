@@ -40,6 +40,11 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 - **Cost.** A bake per weapon surface the first time a camouflage is seen on that weapon (cached in
   `Documents/Survarium/streamed_textures/srpw1_*`, the 1 GiB baked-texture cache armour uses):
   three 2048² textures (diffuse, normal, smoothness), about 11 MB on disk and in video memory.
+- **Surfaces.** Up to 16 of a weapon's surfaces are baked (`MAX_SURFACES`; 8 until 2026-11-01).
+  0.69d0's AKMSU has 11 (receiver halves, cover, stock, handguard, forend, grip, magazine,
+  cartridges, bolt, selector): with 8 its magazine stayed bare. Every other weapon, live or of
+  the release-41 batches, has 8 or fewer and bakes as before. The AKMSU's three more surfaces cost
+  three more bakes, about 33 MB more the first time a camouflage is seen on it.
 
 ## The weapon's upgrade window (patches 32 and 45)
 
