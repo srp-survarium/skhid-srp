@@ -769,7 +769,13 @@ pub struct CombatTuning {
     /// least `fire_within_min_deg` and at most the aim's
     /// `fire_within_deg`; 0: off (the flat `fire_within_deg`). Off: at 3 it
     /// raised the hit rate 1.6 points alone but with `aim_in_first` cost
-    /// 11.5 kills a seed on the bench.
+    /// 11.5 kills a seed on the bench. Why (A228, by side against the tip,
+    /// tier 9-10, 8 seeds: wins -24 %, hits dealt -5 %): the error's floor
+    /// is drawn anew every tick and the view carries the last tick's draw,
+    /// so a bound under the floor's tick-to-tick spread refuses shots by
+    /// the draw, not by where they go (the shots it let go hit no better
+    /// at any view offset); it cut 15 % of the shots in bursts and 25 % of
+    /// those at 40-65 m.
     pub fire_body_share: f32,
     pub fire_within_min_deg: f32,
     /// Standing to aim at a seen target, the legs step side to side: runs
