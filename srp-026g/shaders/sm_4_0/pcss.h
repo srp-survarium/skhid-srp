@@ -17,8 +17,8 @@
 #ifndef PCSS_MAX_RADIUS_TEXELS
 #define PCSS_MAX_RADIUS_TEXELS	24.0f		// widest penumbra (and blocker search) in texels
 #endif
-#ifndef PCSS_ROTATE
-#define PCSS_ROTATE				1			// per-pixel rotation of the disc (dither instead of banding)
+#ifndef PCSS_ROTATE							// per-pixel rotation of the disc (dither instead of banding):
+#define PCSS_ROTATE				( SHADOW_QUALITY >= 2 )	// only with 16 taps or more; 8 rotated taps read as grain
 #endif
 
 #if SHADOW_QUALITY <= 1
@@ -70,7 +70,7 @@ float pcss_shadow( float4 projection, float2 pixel, float slope )
 
 	// 1. blockers: a blocker at a fifth of the receiver's distance sets the search radius
 	float search		= clamp( 2.0f*PCSS_LIGHT_RADIUS*p00/z_receiver, 1.5f*texel, max_radius );
-	float search_depth	= depth - search*depth_per_uv;
+	float search_depth	= depth - ( search + 1.5f*texel )*depth_per_uv;
 	float blocker_sum	= 0.0f;
 	float blockers		= 0.0f;
 	[unroll]
@@ -91,7 +91,7 @@ float pcss_shadow( float4 projection, float2 pixel, float slope )
 	float radius		= clamp( penumbra, texel, max_radius );
 
 	// 3. filter
-	float filter_depth	= depth - radius*depth_per_uv;
+	float filter_depth	= depth - ( radius + 1.5f*texel )*depth_per_uv;
 	float lit			= 0.0f;
 	[unroll]
 	for ( int j = 0; j < PCSS_FILTER_TAPS; j++ )

@@ -228,7 +228,7 @@ light_accumulator main( pixel_shader_input input )
 	float3 offset			= normalize( normal*0.75f + normalize( to_light ) )*24.0f/shadow_map_size;
 #if PCSS && SHADOW_QUALITY >= 1
 	float n_dot_l_shadow	= saturate( dot( normal, normalize( to_light ) ) );
-	float slope				= min( sqrt( 1.0f - n_dot_l_shadow*n_dot_l_shadow )/max( n_dot_l_shadow, 0.2f ), 5.0f );
+	float slope				= min( sqrt( 1.0f - n_dot_l_shadow*n_dot_l_shadow )/max( n_dot_l_shadow, 0.1f ), 10.0f );
 	float shadow			= pcss_shadow( mul( view_to_light_matrix, float4( mul( m_V2W, float4( position + offset, 1.0f ) ), 1.0f ) ), input.position.xy, slope );
 #else
 	float shadow			= shadow_factor( position + offset );

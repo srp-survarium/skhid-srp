@@ -901,19 +901,114 @@ branch. There is no separate gamma pass: the encode is in the sharpen / copy sha
 
 ## 11. The captured frame
 
-Pending: the RenderDoc capture (one lobby frame, DXVK under Wine, `frame.rdc`) is taken; its
-action list, targets and the PCSS before|after pairs are not yet folded in. OBSERVED claims
-elsewhere in this note wait on it.
+**How.** RenderDoc 1.44 hooks DXVK's Vulkan inside the Wine process through its Vulkan layer
+(`ENABLE_VULKAN_RENDERDOC_CAPTURE=1`, the layer's directory in `VK_ADD_IMPLICIT_LAYER_PATH`), on
+the headless Xorg dummy display, and the frame is triggered over RenderDoc's target-control port
+(qrenderdoc's python, `TriggerCapture`), so no input reaches the game. Two things were needed:
+
+- Wine 11.8 runs the 32-bit game in wow64 mode and maps GPU memory below 4 GB with
+  `VK_EXT_map_memory_placed`, which stock RenderDoc 1.44 hides; DXVK then fails ("Failed to map
+  Vulkan memory"). A 169-line patch to RenderDoc passes the extension through (its structs
+  serialized, the reserve flag dropped on replay).
+- DXVK with `dxvk.enableDescriptorBuffer = False` and `dxvk.enableGraphicsPipelineLibrary = False`;
+  `DXVK_SHADER_DUMP_PATH` dumps every DXBC it creates, named by SHA-1, which maps each Vulkan
+  shader of the capture back to its `resources.db` path.
+
+The frame: the Basement (`srp_lobby 2`, stock `lobby_scene/day`), 1280x720, live layers
+(stock db + patches 12..40), `r_shadow_quality 1`, `r_ambient_occlusion_quality 1`,
+`r_lighting_quality 1`, `r_ssdo on` (inactive: SSDO needs AO quality 3), default lobby camera.
+1161 actions, 1150 draws, GPU 2.25 ms (RTX 3060 Ti, replay timestamps). OBSERVED.
+
+**The order**, as drawn (pass = render-target set; this confirms section 1):
+
+```
+cached shadow maps refreshed (copy_shadow_map, depth_accumulate), 4 x D16 1024
+gbuffer           71 draws  normal R16G16F, albedo RGBA8, surface_parameters RGBA8, D24S8   433 us
+position copy     R16F linear depth; decals 16 draws into the three G-buffer targets
+SSAO              decode_position, downsample (640x360), ssao_hemisphere_optimized, filter_upsample
+ambient           environment_probe_lighting (2), ambient_light (30 + 2) with their masks,
+                  apply_ambient_lights, apply_ssao_and_hba
+local lights      14 lights (9 point, 5 spot), 78 accumulator draws; per shadowed face: its D16
+                  256 map (12..51 caster draws), then mask + 2 accumulator draws         515 us
+sun               shadow_mask, sun_shadow; atmosphere, god rays
+composition       composition, subsurface_scattering, atmosphere on geometry
+forward           forward_lighting (41), gbuffer_emissive_pass (6), forward_base, probes;
+                  olta, fire particles, distortion
+post              motion vectors; log luminance -> reductions -> eye_adaptation; bloom (6 blur
+                  levels, lens flares); complex_post_process_blend; TAA; motion blur;
+                  aberration/sharpen; present; then the UI (Scaleform, 139 draws)
+```
+
+**Lights, OBSERVED:**
+
+- Every point/spot accumulator draw blends ONE/ONE (add) into both `accum_diffuse` and
+  `accum_specular` (R11G11B10F). Each light draws its stencil mask, then technique 0 (front
+  faces, depth LESS_EQUAL) and technique 1 (back faces, no depth test): section 4.3's volumes.
+- A shadowed point light is six 2D faces, each lit right after its own map was rendered:
+  12 accumulator draws for a shadowed point light against 2 for an unshadowed one. Three point
+  lights re-render their faces every frame into the shared 256 map; the others read cached
+  maps of their own (`static_shadows`).
+- `s_shmap_local`: comparison LESS_EQUAL, linear min/mag/mip, clamp to edge.
+- A face's `view_to_light_matrix` has |row 0| = 1 (90 degrees) and Q = 1.00662, i.e. near 0.025
+  and far = the range (3.8 m): section 4.3's projection. `shadow_z_bias` is 0 or 0.0002,
+  `shadow_transparency` 0, `shadow_map_size` 256 for every shadowed light in the Basement.
+- Emission: `gbuffer_emissive_pass` draws into the composition's target (`generic0`) with blend
+  ONE/ONE add, depth LESS_EQUAL (6 draws in this frame): section 6.2 seen in a frame.
+- The tone mapper reads the adapted luminance 0.0493 (`eye_adaptation.ps`'s 1x1 output).
+
+**Stock against PCSS** (section 13). Same exe, same layers, same default camera; the PCSS run
+adds a test `resources.db.patch_41` with the 32 rebuilt light shaders (DXVK's dump confirms they
+were the ones drawn). Pairs are the HDR scene before the post-process (`generic0` after emission)
+and the local-light diffuse accumulation, both sides tone-mapped with the stock frame's adapted
+luminance and the game's own curve (section 10, without bloom and LUT): one fixed exposure, not
+each side's own. The character's idle pose differs between runs.
+
+Pairs (`srp-026g/docs/images/renderer-026g/`; left stock, right PCSS; `r_shadow_quality 1`):
+
+- `pcss-6cm-feet-scene.png`, `pcss-6cm-feet-lights.png`: the character's shadow on the floor.
+  Contact hardening works: sharp where the boots touch the floor, wider and softer along the
+  shadow away from them; the stock edge is one texel everywhere.
+- `pcss-6cm-crate-lights.png`: the crate and the window bars' shadows on the floor, softened by
+  their distance from what casts them.
+- `pcss-15cm-full-scene.png`, `pcss-15cm-full-lights.png`: the whole view with a 15 cm light.
+- `pcss-6cm-shelf-lights.png`: **the artifacts that remain**: the shelf's shadow on the brick
+  wall breaks into blotches, and under the bench the penumbra comes out in blocks. GUESS: the
+  stock normal offset (normalize(0.75 N + L) * 24 / 256 = up to 9 cm along the normal-mapped
+  normal) moves the receiver by different amounts on a bumpy wall, and the 8-tap blocker search
+  at quality 1 is too coarse at a contact; tried and not enough: a larger receiver-plane bias,
+  and the slope from the screen-derivative normal (worse: blocky in 2x2 quads).
+
+So PCSS works on the floor and the characters and is not ready for walls with relief or close
+contacts at quality 1. Next: the normal offset scaled down with the filter radius (or taken
+along the geometric normal), and 12..16 blocker taps at quality 1.
+
+**Cost, OBSERVED** (GPU time of the 57 shadowed light draws of this frame, RenderDoc replay on an
+RTX 3060 Ti while a Blender render shared the GPU, so +-10 %; 1280x720; the 21 unshadowed light
+draws stay at about 95 us):
+
+```
+r_shadow_quality   stock     PCSS 6 cm        PCSS 15 cm
+       1           182 us    252 us (+70)     300 us (+118)
+       2           355 us    609 us (+254)    -
+whole frame (sum of draws): stock 2.25 ms (q1) / 2.49 ms (q2); PCSS 2.21..2.58 ms (q1) / 2.97 ms (q2)
+```
+
+At quality 1 PCSS costs less than the stock quality 2 filter. Frames per second were not
+measured: under the dummy display and the capture layer the frame rate is set by the CPU and the
+60 Hz mode, and the shadow cost (0.1..0.25 ms a frame here) is below what fps would show; the
+per-draw GPU time is the measure. A larger light costs more because fewer pixels find no
+blocker (the early out).
 
 ## 12. Compiling replacement shaders
 
 **The compiler.** Every 0.26g blob's RDEF names its creator,
 `Microsoft (R) HLSL Shader Compiler 9.29.952.3111`: the June 2010 DirectX SDK's fxc /
-D3DCompiler_43, the same as 0.10b. The vostok repository's flake builds it from Microsoft's
-`DXSDK_Jun10.exe` (`dxsdk-shader-compiler`: `fxc.exe` and the native `D3DCompiler_43.dll`); it runs
-under Wine (keep the native DLL beside fxc.exe; Wine's builtin d3dcompiler is a different
-compiler). The flags are `/Zpr /O3 /T ps_4_0 /E main`, as vostok's `docs/shaders.md` proved for
-all 3,402 shipped 0.10b blobs. The game cannot compile HLSL; it only loads blobs. PROVEN.
+D3DCompiler_43, the same as 0.10b. `srp-026g/shaders/fxc.nix` (the vostok flake's
+`dxsdk-shader-compiler`) takes `fxc.exe` and the native `D3DCompiler_43.dll` from Microsoft's
+`DXSDK_Jun10.exe`, pinned by hash (the hashes are in `srp-026g/shaders/README.md`); it runs under
+Wine (keep the native DLL beside fxc.exe; Wine's builtin d3dcompiler is a different compiler).
+The flags are `/Zpr /O3 /T ps_4_0 /E main`, as vostok's `docs/shaders.md` proved for all 3,402
+shipped 0.10b blobs. The game cannot compile HLSL; it only loads blobs. PROVEN.
 
 **A blob** (`shaders/sm_4_0/<family>.<ps|vs|gs>/<permutation>` in resources.db) is a u32 count,
 that many 264-byte records (a 260-byte include path, a u32 mtime), then the DXBC. The include list
@@ -937,10 +1032,10 @@ one mov placed elsewhere   4/16    4/16   (B = 1 and C = 1: `mov r4.w, 1.0` one 
 
 So the constant layout (cbuffers, offsets, names), the resource and sampler slots, the outputs,
 the G-buffer decode, the BRDF and the stock shadow filter of the reconstruction are the shipped
-ones. PROVEN. The sources and the scripts are on the branch `research/renderer-026g`
-(`srp-026g/shaders/`): `fxc.sh` (fxc under Wine in its own prefix),
-`lights.sh roundtrip` (compile every permutation and compare with the shipped DXBC), `lights.sh
-build` (compile the PCSS variants into db-ready blobs for `release/build-patch`).
+ones. PROVEN. The sources and the scripts are in `srp-026g/shaders/` (its README): `fxc.sh` (fxc
+under Wine in its own prefix), `lights.sh check <resources.db>` (compile every permutation and
+compare with the shipped DXBC; anyone can rerun it), `lights.sh build` (db-ready blobs, stock or
+`--pcss`, for `release/build-patch`). They are not in `release/content.tsv`: nothing ships.
 
 vkd3d-shader 2.0 (`vkd3d-compiler`) reads DXBC and was used for nothing here: fxc's own
 `/dumpbin` gives the reflection (cbuffer layouts, `[unused]` members, bindings) the
@@ -970,7 +1065,7 @@ others, 0x18F562..), fill it in `render_shadowed_light` / `render_light` from a 
 key read beside the others (0x34F99C..0x34FB38). The two influence factors are uploaded but read by
 no shader; they are not a size and stay unused. PROVEN (the inputs), design (the patch).
 
-**The filter** (`srp-026g/shaders/sm_4_0/pcss.h` on `research/renderer-026g`), per shadowed pixel:
+**The filter** (`srp-026g/shaders/sm_4_0/pcss.h`), per shadowed pixel:
 
 ```
 1. blocker search   N_b point loads on a disc of radius
@@ -981,10 +1076,11 @@ no shader; they are not a size and stay unused. PROVEN (the inputs), design (the
                     w   = R (z_r - z_b) / z_b * P00 / (2 z_r)    in uv, clamped 1 .. 24 texels
 3. filter           N_f bilinear compare taps on a disc of radius w
                     s = saturate(mean + shadow_transparency)
-receiver-plane bias: both depths minus radius * Qn/z_r^2 * tan(angle(N, L)) / (P00/(2 z_r)),
-                    tan clamped to 5, so wide kernels do not shadow their own slope
-disc: Vogel (golden angle), rotated per pixel by interleaved-gradient noise (fixed in screen
-      space: a fine dither, no flicker; 0.26g has no temporal filter to hide noise)
+receiver-plane bias: both depths minus (radius + 1.5 texels) * Qn/z_r^2 * tan(angle(N, L))
+                    / (P00/(2 z_r)), tan clamped to 10 (N: the G-buffer normal)
+disc: Vogel (golden angle); at r_shadow_quality 2 and 3 rotated per pixel by interleaved-gradient
+      noise (fixed in screen space: a fine dither, no flicker), at 1 fixed (8 rotated taps read
+      as grain; the screen-fixed pattern is only smoothed when the player picks TAA)
 ```
 
 `R` is the light's radius, `z_r` the receiver's distance from the light. The stock normal offset
@@ -1000,8 +1096,11 @@ quality   stock          PCSS                         PCSS, no blocker found
    1      4 compare      8 loads + 8 compare  = 16     8
    2      16 compare     16 loads + 16 compare = 32    16
    3      16 compare     16 loads + 32 compare = 48    16
-ALU slots (point, SSDO on): stock 146 / 181; PCSS 324 (q1), 468 (q2), 548 (q3)
+ALU slots (point, SSDO on), about: stock 146 / 181; PCSS 320 (q1), 470 (q2), 550 (q3)
 ```
+
+**Tested** in the Basement, section 11: contact hardening on the floor and the characters; blotches
+on a relief wall at a close contact and blocky penumbrae under a bench remain at quality 1.
 
 **Limits.**
 - Point-light faces are rendered with exactly 90 degrees and no guard band, so a kernel that
