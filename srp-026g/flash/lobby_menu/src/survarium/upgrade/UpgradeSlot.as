@@ -474,7 +474,9 @@ package survarium.upgrade
             }
             if(Boolean(this.textFieldLabel))
             {
-               this.textFieldLabel.text = this._label;
+               // an empty slot's label on one line in its field, its font made smaller as long as
+               // it does not fit (a muzzle device's slot, the stock scope labels of most languages)
+               UpgradeWindow.fitText(this.textFieldLabel,this._label,this.textFieldLabel.width - 4);
             }
          }
       }

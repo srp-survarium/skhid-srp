@@ -24,6 +24,11 @@ package
    //   records as they come;
    // - the preview: a drop on a slot shown at once (the slot's handleDropEvent, the window's
    //   onItemDropped): a decal into the second slot, a camouflage beside the kit's scope;
+   // - the muzzle device (patch 90, docs/notes/muzzle-devices.md): its slot on the Attachments page
+   //   of a weapon that takes devices (none on one that takes none, nor on armour), inside the
+   //   window and apart from the scope's; a kit naming a device fills it; a device that fits lights
+   //   the muzzle slot and not the scope's, a scope the scope's and not the muzzle's; a device that
+   //   does not fit the window's weapon is greyed;
    // - the texts: each language's title, page names, slot labels, hints and button fitting.
    // Prints "WEAPONKIT ..." lines and ends with "WEAPONKIT RESULT pass" or "... fail: ...".
    public class WeaponKitHarness extends Sprite
@@ -34,6 +39,15 @@ package
       private static const STOCK_RIFLE:int = 9002;
 
       private static const ARMOUR:int = 9010;
+
+      // a weapon with a camouflage's data table that takes no muzzle device
+      private static const PLAIN_RIFLE:int = 9003;
+
+      // muzzle devices (ItemDictId.MUZZLE_DEVICE_FIRST..LAST): one the rifle takes, one only the
+      // stock-scoped rifle takes
+      private static const DEVICE:int = 2601;
+
+      private static const DEVICE_OTHER:int = 2602;
 
       private static const DECAL_A:int = 9020;
 
@@ -65,6 +79,12 @@ package
       private static const CAMO_LOW_ID:int = 40;
 
       private static const CAMO_OTHER_ID:int = 60;
+
+      private static const PLAIN_RIFLE_ID:int = 14;
+
+      private static const DEVICE_ID:int = 70;
+
+      private static const DEVICE_OTHER_ID:int = 71;
 
       private var loader:Loader = new Loader();
 
@@ -146,15 +166,18 @@ package
             }
             at = "the items";
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("weapon-kit-check");
-            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0)]);
+            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0),item(PLAIN_RIFLE,Category.ASSAULT_RIFLES,"Plain rifle",2,1),item(DEVICE,Category.SCOPES,"Brake",0,0),item(DEVICE_OTHER,Category.SCOPES,"Other brake",0,0)]);
             // the scopes the rifles take (ItemFactory gives the movie its pairs so)
             Window.addCompatibility(RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,domain.getDefinition("survarium.constants.ItemDictId").SCOPE_PSO_1);
+            // the muzzle devices they take (items_compatibility rows, as the scopes')
+            require(Window.addCompatibility(RIFLE,DEVICE),"a muzzle device's pair is kept");
+            Window.addCompatibility(STOCK_RIFLE,DEVICE_OTHER);
             at = "the shop";
             var shop:* = new (C("survarium.controls.GangShop"))();
             shop.registerItemDescriptor(descriptor);
-            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,SCOPE,CAMO,CAMO_OTHER].map(function(dictId:int, i:int, a:Array):Object
+            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,SCOPE,CAMO,CAMO_OTHER,PLAIN_RIFLE,DEVICE,DEVICE_OTHER].map(function(dictId:int, i:int, a:Array):Object
             {
                return {dictId:dictId,faction_id:0,level:0,cost:100,condition_or_stack:10000};
             }));
@@ -251,7 +274,8 @@ package
                   });
                   inventory.setupShopItems(offers);
                   inventory.setupBundleData([]);
-                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER)]);
+                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER),owned(PLAIN_RIFLE_ID,PLAIN_RIFLE),owned(DEVICE_ID,DEVICE),owned(DEVICE_OTHER_ID,DEVICE_OTHER)]);
+                  require(Window.hasScopes(RIFLE) && Window.hasMuzzleDevices(RIFLE) && !Window.hasScopes(PLAIN_RIFLE) && !Window.hasMuzzleDevices(PLAIN_RIFLE),"a weapon's scopes and devices told apart in its pairs");
                   require(inventory.getInventoryItemOf(CAMO).itemId == CAMO_LOW_ID,"getInventoryItemOf gives the lowest item of a dict id (" + inventory.getInventoryItemOf(CAMO).itemId + ")");
                   require(inventory.getInventoryItemOf(4242) == null,"getInventoryItemOf gives null for a dict id not owned");
                   // armour first, before any weapon: the movie's window
@@ -264,20 +288,23 @@ package
                   break;
                case 2:
                   require(window.container.textField.text == WeaponKitText.DATA.english.scope_window_title,"a scoped weapon opens on Attachments (the title says " + window.container.textField.text + ")");
-                  expect("the kit (scope, camouflage named)",[DECAL_A_ID,DECAL_B_ID,CAMO_LOW_ID,SCOPE_ID]);
-                  require(window.camoSlot.visible && !window.decalSlot.visible && !window.decalSlot1.visible && !window.decalSlot2.visible,"Attachments shows the scope slot only");
+                  expect("the kit (scope, camouflage named)",[DECAL_A_ID,DECAL_B_ID,CAMO_LOW_ID,SCOPE_ID,0]);
+                  require(window.camoSlot.visible && window.muzzleSlot.visible && !window.decalSlot.visible && !window.decalSlot1.visible && !window.decalSlot2.visible,"Attachments shows the scope and muzzle slots only");
+                  require(window.muzzleSlot.index == Slot.MUZZLE,"the muzzle slot is the kit's slot 4 (" + window.muzzleSlot.index + ")");
+                  require(window.muzzleSlot.textFieldLabel.text == WeaponKitText.DATA.english.st_srp_muzzle_slot,"the muzzle slot says " + window.muzzleSlot.textFieldLabel.text);
+                  checkLayout("Attachments",[window.camoSlot,window.muzzleSlot]);
                   turnPage();
                   break;
                case 3:
                   require(window.container.textField.text == WeaponKitText.DATA.english.btn_upgrade_label,"the arrow turns to Appearance (the title says " + window.container.textField.text + ")");
-                  require(window.decalSlot.visible && window.decalSlot1.visible && window.decalSlot2.visible && !window.camoSlot.visible,"Appearance shows two decal slots and the camouflage, not the scope");
-                  expect("the kit on Appearance",[DECAL_A_ID,DECAL_B_ID,CAMO_LOW_ID,SCOPE_ID]);
+                  require(window.decalSlot.visible && window.decalSlot1.visible && window.decalSlot2.visible && !window.camoSlot.visible && !window.muzzleSlot.visible,"Appearance shows two decal slots and the camouflage, not the scope or muzzle");
+                  expect("the kit on Appearance",[DECAL_A_ID,DECAL_B_ID,CAMO_LOW_ID,SCOPE_ID,0]);
                   checkWeaponLayout();
                   // a kit whose own is the camouflage, nothing named
                   open(RIFLE_ID,[kit(CAMO_HIGH_ID,2,0)]);
                   break;
                case 4:
-                  expect("a kit whose own is the camouflage",[0,0,CAMO_HIGH_ID,0]);
+                  expect("a kit whose own is the camouflage",[0,0,CAMO_HIGH_ID,0,0]);
                   // armour again, after a weapon: the movie's places back, its records as they come
                   open(ARMOUR_ID,[{id:DECAL_A_ID,param:0},{id:DECAL_B_ID,param:1},{id:CAMO_HIGH_ID,param:3}]);
                   break;
@@ -290,21 +317,55 @@ package
                   turnPage();
                   break;
                case 7:
-                  expect("decal A alone",[DECAL_A_ID,0,0,0]);
+                  expect("decal A alone",[DECAL_A_ID,0,0,0,0]);
                   drop(window.decalSlot1,DECAL_B_ID);
-                  expect("decal B dropped into the second decal slot",[DECAL_A_ID,DECAL_B_ID,0,0]);
+                  expect("decal B dropped into the second decal slot",[DECAL_A_ID,DECAL_B_ID,0,0,0]);
                   // a camouflage dropped beside the kit's scope
                   open(RIFLE_ID,[kit(SCOPE_ID,3,0)]);
                   break;
                case 8:
-                  expect("the kit (scope, nothing named)",[0,0,0,SCOPE_ID]);
+                  expect("the kit (scope, nothing named)",[0,0,0,SCOPE_ID,0]);
                   turnPage();
                   break;
                case 9:
                   drop(window.decalSlot2,CAMO_OTHER_ID);
-                  expect("a camouflage dropped beside the kit's scope",[0,0,CAMO_OTHER_ID,SCOPE_ID]);
+                  expect("a camouflage dropped beside the kit's scope",[0,0,CAMO_OTHER_ID,SCOPE_ID,0]);
+                  // the muzzle device: a kit naming it (its own the scope)
+                  open(RIFLE_ID,[kit(SCOPE_ID,3,0,DEVICE)]);
                   break;
                case 10:
+                  expect("the kit (scope, device named)",[0,0,0,SCOPE_ID,DEVICE_ID]);
+                  // a kit whose own is the device
+                  open(RIFLE_ID,[kit(DEVICE_ID,4,0,0)]);
+                  break;
+               case 11:
+                  expect("a kit whose own is the device",[0,0,0,0,DEVICE_ID]);
+                  require(window.camoSlot.visible && window.muzzleSlot.visible,"Attachments shows the scope and muzzle slots");
+                  // which slots a drag lights: a device the muzzle's alone, a scope the scope's alone
+                  lights(DEVICE_ID,[window.muzzleSlot]);
+                  lights(SCOPE_ID,[window.camoSlot]);
+                  lights(DEVICE_OTHER_ID,[]);
+                  require(!Window.greyed(inventory.getInventoryItem(DEVICE_ID)),"a device the rifle takes is not greyed");
+                  require(Window.greyed(inventory.getInventoryItem(DEVICE_OTHER_ID)),"a device the rifle does not take is greyed");
+                  // a device dropped into the empty muzzle slot
+                  open(RIFLE_ID,[kit(SCOPE_ID,3,0,0)]);
+                  break;
+               case 12:
+                  drop(window.muzzleSlot,DEVICE_ID);
+                  expect("a device dropped beside the kit's scope",[0,0,0,SCOPE_ID,DEVICE_ID]);
+                  // a weapon that takes no device: no muzzle slot
+                  open(PLAIN_RIFLE_ID,[]);
+                  break;
+               case 13:
+                  require(!window.muzzleSlot.visible && !window.camoSlot.visible,"a weapon that takes no device or scope has no muzzle or scope slot");
+                  require(!arrowsShown(),"a weapon with the Appearance page alone has no arrows");
+                  // armour after the device: its window as the movie has it
+                  open(ARMOUR_ID,[{id:DECAL_A_ID,param:0},{id:DECAL_B_ID,param:1},{id:CAMO_HIGH_ID,param:3}]);
+                  break;
+               case 14:
+                  checkArmour("armour after a muzzle device");
+                  break;
+               case 15:
                   // every language: each window's texts in their fields
                   texts(WeaponKitText.LANGUAGES[language]);
                   if(++language < WeaponKitText.LANGUAGES.length)
@@ -325,14 +386,28 @@ package
       }
 
       // The weapon kit's record as patch 68 gives it the movie.
-      private static function kit(own:int, ownSlot:int, camoDict:int) : Object
+      private static function kit(own:int, ownSlot:int, camoDict:int, muzzleDict:int = 0) : Object
       {
-         return {id:own,param:3,kit_own:ownSlot,kit_camo:camoDict,kit_muzzle:0,kit_grip:0};
+         return {id:own,param:3,kit_own:ownSlot,kit_camo:camoDict,kit_muzzle:muzzleDict,kit_grip:0};
       }
 
       private function slots() : Array
       {
-         return [window.decalSlot,window.decalSlot1,window.decalSlot2,window.camoSlot];
+         return [window.decalSlot,window.decalSlot1,window.decalSlot2,window.camoSlot,window.muzzleSlot];
+      }
+
+      // A drag's start of an owned item lights `lit` of the window's slots and no other; its end
+      // puts them out.
+      private function lights(itemId:int, lit:Array) : void
+      {
+         var Drag:Class = C("scaleform.clik.events.DragEvent");
+         var dragged:* = inventory.getInventoryItem(itemId);
+         window.onDrag(new Drag("dragStart",dragged,null,null,null));
+         for each(var s:* in slots())
+         {
+            require(s.highlighted == (lit.indexOf(s) != -1),dragged.name + ": " + s.name + (s.highlighted ? " lights" : " stays dark"));
+         }
+         window.onDrag(new Drag("dragEnd",dragged,null,null,null));
       }
 
       // The window opened on an owned item with these upgrade records (the account's), as
@@ -349,14 +424,14 @@ package
          window.setData(data);
       }
 
-      // The item ids of the slots (decalSlot, decalSlot1, decalSlot2, camoSlot), 0 empty.
+      // The item ids of the slots (decalSlot, decalSlot1, decalSlot2, camoSlot, muzzleSlot), 0 empty.
       private function expect(what:String, ids:Array) : void
       {
          var shown:Array = slots().map(function(s:*, i:int, a:Array):int
          {
             return s.data ? int(s.data.itemId) : 0;
          });
-         trace("WEAPONKIT " + what + ": slots 0, 1, 2, 3 hold " + shown.join(", "));
+         trace("WEAPONKIT " + what + ": slots 0, 1, 2, 3, 4 hold " + shown.join(", "));
          require(shown.join(",") == ids.join(","),what + ": " + shown.join(",") + ", not " + ids.join(","));
       }
 
@@ -395,13 +470,19 @@ package
       // Armour's window: its slots where the movie has them, its decals and camouflage.
       private function checkArmour(what:String) : void
       {
+         // the movie's own slots; the muzzle slot is the window's own (made beside the scope's) and
+         // hidden on armour
          for each(var s:* in slots())
          {
+            if(s == window.muzzleSlot)
+            {
+               continue;
+            }
             var place:Array = [s.x,s.y,s.actualScaleX,s.actualScaleY];
             require(place.join(",") == moviePlaces[s.name].join(","),what + ": " + s.name + " at " + place.join(",") + ", the movie's " + moviePlaces[s.name].join(","));
          }
-         require(window.decalSlot.visible && window.decalSlot1.visible && !window.decalSlot2.visible && window.camoSlot.visible,what + ": two decal slots and the camouflage shown");
-         expect(what,[DECAL_A_ID,DECAL_B_ID,0,CAMO_HIGH_ID]);
+         require(window.decalSlot.visible && window.decalSlot1.visible && !window.decalSlot2.visible && window.camoSlot.visible && !window.muzzleSlot.visible,what + ": two decal slots and the camouflage shown, no muzzle slot");
+         expect(what,[DECAL_A_ID,DECAL_B_ID,0,CAMO_HIGH_ID,0]);
          require(!arrowsShown(),what + ": no page arrows");
       }
 
@@ -448,9 +529,14 @@ package
       // the window, none over another.
       private function checkWeaponLayout() : void
       {
+         checkLayout("Appearance",[window.decalSlot,window.decalSlot1,window.decalSlot2]);
+      }
+
+      // A page's slots at distinct places inside the window, none over another.
+      private function checkLayout(page:String, shown:Array) : void
+      {
          var bounds:Rectangle = frame();
-         var shown:Array = [window.decalSlot,window.decalSlot1,window.decalSlot2];
-         trace("WEAPONKIT the window's frame " + bounds + "; Appearance: " + shown.map(function(s:*, i:int, a:Array):String
+         trace("WEAPONKIT the window's frame " + bounds + "; " + page + ": " + shown.map(function(s:*, i:int, a:Array):String
          {
             return s.name + " at " + s.x + "," + s.y + " square " + square(s);
          }).join("; "));

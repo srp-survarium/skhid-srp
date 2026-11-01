@@ -2521,7 +2521,6 @@ st_srp_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Red Heat Shturm muzzle brak
 st_srp_muzzle_slot	Muzzle device
 st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Hides the shot's flash.
 st_srp_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Spikes Dynacomp flash hider, M24x1.5
-st_srp_muzzle_stock	Stock muzzle device
 st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Hides the shot's flash. Aim time +3 %.
 st_srp_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Taktika Tula 419 flash hider, M22x0.75
 st_srp_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Hides the shot's flash.

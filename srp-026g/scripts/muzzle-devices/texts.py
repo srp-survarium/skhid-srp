@@ -69,11 +69,6 @@ UI = {
                            'russian': 'Дульное устройство', 'ukrainian': 'Дульний пристрій',
                            'belarusian': 'Дульная прылада', 'czech': 'Úsťové zařízení',
                            'finnish': 'Suulaite', 'hungarian': 'Csőszájeszköz', 'serbian': 'Uređaj na ustima cevi'},
-    'st_srp_muzzle_stock': {'english': 'Stock muzzle device', 'german': 'Standard-Mündungsaufsatz',
-                            'polish': 'Fabryczna nasadka', 'russian': 'Стандарт. дульное устр.',
-                            'ukrainian': 'Стандарт. дульний пристрій', 'belarusian': 'Стандарт. дульная прылада',
-                            'czech': 'Základní úsťové zařízení', 'finnish': 'Vakiosuulaite',
-                            'hungarian': 'Alap csőszájeszköz', 'serbian': 'Fabrički uređaj'},
 }
 
 

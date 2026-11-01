@@ -35,8 +35,7 @@ movie's weapon window, the server's `modifications::MUZZLE_KIND`. The transport 
   (their other roll, movement-speed damage, has no 0.26g key); the M22x0.75 shotgun brakes: none
   (0.26g's shotguns lack the buckshot-spread keys): looks only. The Taktika Tula flash hider also
   aim time +3 %. A simulation change: the `next` row of `simulation_changes.tsv`.
-- The texts (names, one-line effects, the slot's two labels `st_srp_muzzle_slot`,
-  `st_srp_muzzle_stock`) in all ten dictionaries (`scripts/muzzle-devices/texts.py`); icons in
+- The texts (names, one-line effects, the slot's label `st_srp_muzzle_slot`) in all ten dictionaries (`scripts/muzzle-devices/texts.py`); icons in
   `LobbyMenu_AmmoIcons` columns 5 and 6 (new), rendered from the models.
 
 ## How a device is drawn (patch 90; PROVEN in Unicorn, see the AK-74M check below)

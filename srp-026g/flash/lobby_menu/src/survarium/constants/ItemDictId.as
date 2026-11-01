@@ -26,6 +26,12 @@ package survarium.constants
       public static const SHOP_SCOPE_FIRST:int = 2101;
       
       public static const SHOP_SCOPE_LAST:int = 2199;
+
+      // srp's muzzle devices (flash hiders, brakes; the weapon kit's slot 4): 2601..2649, of the scopes'
+      // category (docs/notes/muzzle-devices.md)
+      public static const MUZZLE_DEVICE_FIRST:int = 2601;
+
+      public static const MUZZLE_DEVICE_LAST:int = 2649;
       
       // The golden weapons (docs/notes/golden_weapons.md), and in the same
       // places their plain weapons: the server's table
