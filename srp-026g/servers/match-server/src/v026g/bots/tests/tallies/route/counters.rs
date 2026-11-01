@@ -205,6 +205,15 @@ pub(super) fn past_drop() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The worlds `kin.fix_floor = under_in_jump` put on a floor other than the other rule's: on the nearest (no jump of the body's own
+/// in the air) and on the floor under the feet (its jump in the air) (`body::counts`).
+pub(super) fn fix_floors() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::body::counts::fix_floors().to_vec(),
+        |d, line| line.ends.push(format!("fix_floor_nearest {} fix_floor_under_in_jump {}", d[0], d[1])),
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
