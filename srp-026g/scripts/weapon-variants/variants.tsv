@@ -1,0 +1,19 @@
+# The owner's pick of 0.69d0's skins of live guns (the catalogue, 2026-11-01): one gold-bought copy of the
+# live gun each, its stats (golden_weapons.md: only the +10 % silver bonus over the plain gun's).
+# name	dict_id	base	icon_row	icon_col	gold	donor_model (0.69d0's, models/<it>.skinned_model)	donor_base_model (0.69d0's model of the live gun)
+ak_74n_premium_2	2300	ak_74n	11	6	1200	weapons/assault/ak_74n/ak_74n_camo_st_	weapons/assault/ak_74n/ak_74n
+akmn_victoryday2019	2301	akmn	12	6	1000	weapons/assault/akmn/akmn_victoryday2019	weapons/assault/akmn/akmn
+kedr_premium	2302	kedr	13	6	500	weapons/smg/pp91_kedr/pp91_kedr_prem	weapons/smg/pp91_kedr/pp91_kedr
+kiparis_victoryday2020	2303	kiparis	14	6	500	weapons/smg/ots02_kiparis/ots02_kiparis_victoryday2020	weapons/smg/ots02_kiparis/ots02_kiparis
+pkp_pecheneg_premium	2304	pkp_pecheneg	15	6	2500	weapons/lmg/pkp_pecheneg/pkp_pecheneg_prem	weapons/lmg/pkp_pecheneg/pkp_pecheneg
+pp2000_summer17	2305	pp2000	16	6	1000	weapons/smg/pp2000/pp2000_summer17	weapons/smg/pp2000/pp2000
+rem_700_summer17	2306	rem_700	17	6	1000	weapons/sniper/rem_700/rem_700_summer17	weapons/sniper/rem_700/rem_700
+rem_870_premium	2307	rem_870	18	6	1000	weapons/shotguns/rem_870/rem_870_prem	weapons/shotguns/rem_870/rem_870
+sks_victoryday2020	2308	sks	19	6	1000	weapons/dmr/sks/sks_victoryday2020	weapons/dmr/sks/sks
+spas_12_premium	2309	spas_12	20	6	1000	weapons/shotguns/spas_12/spas_12_prem	weapons/shotguns/spas_12/spas_12
+sr2m_premium	2310	sr2m	21	6	1000	weapons/smg/sr2m/sr2m_prem	weapons/smg/sr2m/sr2m
+svd_snow_20	2311	svd	22	6	2500	weapons/sniper/svd/svd_snow_20	weapons/sniper/svd/svd
+toz_122_hw2017	2312	toz_122	13	5	500	weapons/sniper/toz_122/toz_122_hw2017	weapons/sniper/toz_122/toz_122
+toz_122_premium	2313	toz_122	14	5	500	weapons/sniper/toz_122/toz_122_huntersface	weapons/sniper/toz_122/toz_122
+valmet_victoryday2020	2314	valmet	15	5	1000	weapons/assault/valmet_rk62/valmet_rk62_victoryday2020	weapons/assault/valmet_rk62/valmet_rk62
+vepr_12_legend_0919	2315	vepr_12	16	5	2000	weapons/shotguns/vepr_12/vepr_12_short_legend_0919	weapons/shotguns/vepr_12/vepr_12_short

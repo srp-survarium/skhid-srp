@@ -1,0 +1,20 @@
+# The skins' names: the live gun's name in each language and the skin's word (0.69d0's names where it has
+# them: English, Russian, Ukrainian, German, Polish). A gun whose name has quotes takes the word after
+# it (PP-91 "Kedr" Taiga, as 0.69d0), any other the word in quotes (AKM "Victory").
+# name	english	russian	ukrainian	belarusian	polish	german	czech	finnish	hungarian	serbian
+ak_74n_premium_2	Avenger	Мститель	Месник	Мсцівец	Mściciel	Rächer	Avenger	Avenger	Avenger	Avenger
+akmn_victoryday2019	Victory	Победа	Перемога	Перамога	Zwycięstwo	Sieg	Vítězství	Voitto	Győzelem	Pobeda
+kedr_premium	Taiga	Тайга	Тайга	Тайга	Tajga	Taiga	Tajga	Taiga	Tajga	Tajga
+kiparis_victoryday2020	Victory	Победа	Перемога	Перамога	Zwycięstwo	Sieg	Vítězství	Voitto	Győzelem	Pobeda
+pkp_pecheneg_premium	Pixel	Пиксель	Піксель	Піксель	Piksel	Pixel	Pixel	Pikseli	Pixel	Piksel
+pp2000_summer17	Ornament	Орнамент	Орнамент	Арнамент	Ornament	Ornament	Ornament	Ornamentti	Díszítés	Ornament
+rem_700_summer17	Soot	Сажа	Сажа	Сажа	Sadza	Ruß	Saze	Noki	Korom	Čađ
+rem_870_premium	Urban	Урбан	Урбан	Урбан	Urban	Urban	Urban	Urbaani	Urban	Urban
+sks_victoryday2020	Victory	Победа	Перемога	Перамога	Zwycięstwo	Sieg	Vítězství	Voitto	Győzelem	Pobeda
+spas_12_premium	Hexagon	Хексагон	Хексагон	Хексагон	Sześciokąt	Sechseck	Hexagon	Heksagoni	Hexagon	Heksagon
+sr2m_premium	Steppe	Степь	Степ	Стэп	Step	Steppe	Step	Aro	Sztyepp	Stepa
+svd_snow_20	Snow-20	Снег-20	Сніг-20	Снег-20	Śnieg-20	Schnee-20	Sníh-20	Lumi-20	Hó-20	Sneg-20
+toz_122_hw2017	Hunter	Охотник	Мисливець	Паляўнічы	Myśliwy	Jäger	Lovec	Metsästäjä	Vadász	Lovac
+toz_122_premium	Leather	Кожа	Шкіра	Скура	Skóra	Leder	Kůže	Nahka	Bőr	Koža
+valmet_victoryday2020	Victory	Победа	Перемога	Перамога	Zwycięstwo	Sieg	Vítězství	Voitto	Győzelem	Pobeda
+vepr_12_legend_0919	Legend	Легенда	Легенда	Легенда	Legenda	Legende	Legenda	Legenda	Legenda	Legenda

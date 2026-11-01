@@ -440,3 +440,84 @@ fn the_lobby_shows_the_bonuses_of_the_data() {
         .collect();
     assert_eq!(lobby, data);
 }
+
+/// The skins of live guns of the built game data (pack weapon-variants,
+/// `docs/notes/weapon-variants.md`): golden weapons of their guns as the
+/// 22 are (their gun as plain and craft donor, the silver bonus, sold for
+/// gold), every scope fit of their gun theirs too (but the TOZ-122
+/// "Leather"'s: not the Docter, whose model is the TOZ-122's mesh). It makes
+/// that data the process's: run it alone.
+#[test]
+#[ignore = "needs game data with pack weapon-variants (SRP_GAME_DATA); run alone"]
+fn the_skins_of_the_built_data_are_golden_weapons_of_their_guns() {
+    let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+    game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+    let fits = crate::v026g::scopes::ScopeFits::shared();
+    let scopes = |weapon: u16| -> Vec<u16> {
+        let mut out: Vec<u16> = fits
+            .all()
+            .iter()
+            .filter(|fit| fit.weapon == weapon)
+            .map(|fit| fit.scope)
+            .collect();
+        out.sort_unstable();
+        out
+    };
+    for (skin, gun, gold, fits_left_out) in [
+        ("ak_74n_premium_2", "ak_74n", 1200, 0),
+        ("akmn_victoryday2019", "akmn", 1000, 0),
+        ("kedr_premium", "kedr", 500, 0),
+        ("kiparis_victoryday2020", "kiparis", 500, 0),
+        ("pkp_pecheneg_premium", "pkp_pecheneg", 2500, 0),
+        ("pp2000_summer17", "pp2000", 1000, 0),
+        ("rem_700_summer17", "rem_700", 1000, 0),
+        ("rem_870_premium", "rem_870", 1000, 0),
+        ("sks_victoryday2020", "sks", 1000, 0),
+        ("spas_12_premium", "spas_12", 1000, 0),
+        ("sr2m_premium", "sr2m", 1000, 0),
+        ("svd_snow_20", "svd", 2500, 0),
+        ("toz_122_hw2017", "toz_122", 500, 0),
+        ("toz_122_premium", "toz_122", 500, 1),
+        ("valmet_victoryday2020", "valmet", 1000, 0),
+        ("vepr_12_legend_0919", "vepr_12", 2000, 0),
+    ] {
+        let (id, plain) = (dict(skin), dict(gun));
+        assert!(
+            is_golden_weapon(id) && is_golden(id) && !is_premium_armour(id),
+            "{skin}"
+        );
+        assert_eq!(plain_name(skin), Some(gun), "{skin}");
+        assert!(may_donate(id, plain) && may_donate(plain, id), "{skin}");
+        assert_eq!(
+            starting_modifications(id),
+            [(SILVER_BONUS, false)],
+            "{skin}"
+        );
+        let price = crate::v026g::shop_offers::premium_price(id).expect("sold for gold");
+        assert_eq!(
+            (price.cost, price.level, price.faction_id),
+            (gold, 0, 0),
+            "{skin}"
+        );
+        let params = item_params(id).unwrap();
+        assert!(
+            params.default_modifications.is_empty() && params.base_rarity_level == 0,
+            "{skin}"
+        );
+        assert_eq!(
+            params.item_level,
+            item_params(plain).unwrap().item_level,
+            "{skin}"
+        );
+        let (own, guns) = (scopes(id), scopes(plain));
+        assert!(
+            own.iter().all(|scope| guns.contains(scope)),
+            "{skin}: {own:?} {guns:?}"
+        );
+        assert_eq!(
+            own.len() + fits_left_out,
+            guns.len(),
+            "{skin}: {own:?} {guns:?}"
+        );
+    }
+}

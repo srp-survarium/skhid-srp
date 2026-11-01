@@ -34,6 +34,11 @@
 //! give_premium_armour_bonuses`). Both groups are "golden" items here: the
 //! gold-bought copy of a plain item ([`is_golden`]).
 //!
+//! Content packs declare golden weapons and premium armour of their own
+//! in the item's config (`srp_premium`: its plain item and bonuses;
+//! [`check_content`]): the skins of live guns (`scripts/weapon-variants`)
+//! are golden weapons so, each with the silver bonus.
+//!
 //! srp applies the rule to whatever data it reads ([`super::item_params`]
 //! gives a golden weapon no defaults and base rarity 0), and refuses to
 //! start on data whose golden items still have them ([`check`]): the
@@ -140,9 +145,14 @@ pub const PREMIUM_ARMOUR: [(&str, &str, u16, u16, [u32; 2]); 4] = [
     ),
 ];
 
-/// Whether `name` (a dictionary name) is a golden weapon.
+/// Whether `name` (a dictionary name) is a golden weapon: one of
+/// [`GOLDEN_WEAPONS`] or one a content pack declares (`srp_premium` on a
+/// weapon, `scripts/weapon-variants`).
 pub fn is_golden_weapon_name(name: &str) -> bool {
     GOLDEN_WEAPONS.iter().any(|&(golden, ..)| golden == name)
+        || content::shared()
+            .get(name)
+            .is_some_and(|item| matches!(item.kind, content::Kind::Weapon))
 }
 
 /// The premium equipment its content pack declares (`srp_premium`), or why
@@ -158,7 +168,8 @@ pub fn armour_bonuses(name: &str) -> Option<&'static [u32]> {
     legacy_armour_bonuses(name).or_else(|| {
         content::shared()
             .get(name)
-            .map(|item| item.bonuses.as_slice())
+            .filter(|item| matches!(item.kind, content::Kind::Armour(_)))
+            .map(content::PremiumCopy::bonuses)
     })
 }
 

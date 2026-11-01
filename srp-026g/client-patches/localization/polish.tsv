@@ -2629,6 +2629,22 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_variant_ak_74n_premium_2_name	AK-74N "Mściciel"
+st_srp_variant_akmn_victoryday2019_name	AKM "Zwycięstwo"
+st_srp_variant_kedr_premium_name	PP-91 Kedr "Tajga"
+st_srp_variant_kiparis_victoryday2020_name	OC-02 "Cyprys" Zwycięstwo
+st_srp_variant_pkp_pecheneg_premium_name	PKP Pieczenieg "Piksel"
+st_srp_variant_pp2000_summer17_name	PP-2000 "Ornament"
+st_srp_variant_rem_700_summer17_name	Remington 700 "Sadza"
+st_srp_variant_rem_870_premium_name	Remington 870 "Urban"
+st_srp_variant_sks_victoryday2020_name	SKS "Zwycięstwo"
+st_srp_variant_spas_12_premium_name	Franchi SPAS-12 "Sześciokąt"
+st_srp_variant_sr2m_premium_name	SR-2M "Wrzos" Step
+st_srp_variant_svd_snow_20_name	SWD "Śnieg-20"
+st_srp_variant_toz_122_hw2017_name	TOZ-122 "Myśliwy"
+st_srp_variant_toz_122_premium_name	TOZ-122 "Skóra"
+st_srp_variant_valmet_victoryday2020_name	Valmet Rk.62 "Zwycięstwo"
+st_srp_variant_vepr_12_legend_0919_name	Vepr-12 "Legenda"
 st_srp_weapon_aim_zoom	Bazowe przybliżenie
 st_srp_weapon_chamber	Czas repetowania
 st_srp_weapon_draw_time	Czas wyciągnięcia

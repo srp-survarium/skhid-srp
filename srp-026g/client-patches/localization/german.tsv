@@ -2629,6 +2629,22 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_variant_ak_74n_premium_2_name	AK-74N "Rächer"
+st_srp_variant_akmn_victoryday2019_name	AKM "Sieg"
+st_srp_variant_kedr_premium_name	PP-91 "Kedr" Taiga
+st_srp_variant_kiparis_victoryday2020_name	OTS-02 Kiparis "Sieg"
+st_srp_variant_pkp_pecheneg_premium_name	PKP "Pecheneg" Pixel
+st_srp_variant_pp2000_summer17_name	PP-2000 "Ornament"
+st_srp_variant_rem_700_summer17_name	Remington 700 "Ruß"
+st_srp_variant_rem_870_premium_name	Remington 870 "Urban"
+st_srp_variant_sks_victoryday2020_name	SKS "Sieg"
+st_srp_variant_spas_12_premium_name	Franchi SPAS-12 "Sechseck"
+st_srp_variant_sr2m_premium_name	SR-2M "Veresk" Steppe
+st_srp_variant_svd_snow_20_name	SVD "Schnee-20"
+st_srp_variant_toz_122_hw2017_name	TOZ-122 "Jäger"
+st_srp_variant_toz_122_premium_name	TOZ-122 "Leder"
+st_srp_variant_valmet_victoryday2020_name	Valmet Rk.62 "Sieg"
+st_srp_variant_vepr_12_legend_0919_name	Vepr-12 "Legende"
 st_srp_weapon_aim_zoom	Basis-Zielzoom
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit

@@ -1,19 +1,44 @@
-//! Premium equipment declared by its content pack, without a server item table.
+//! Premium equipment and golden weapons declared by their content pack (`srp_premium`), without a
+//! server item table.
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 use binary_config_parser::tree::ConfigValue;
 
-use super::{Dictionary, GameData, GameDataError};
+use super::{Dictionary, GameData, GameDataError, SILVER_BONUS};
+use crate::v026g::scopes::WEAPON_CATEGORIES;
 use crate::v026g::{game_data, modifications};
 
-pub(super) struct PremiumArmour {
-    pub plain_name: String,
-    pub bonuses: Vec<u32>,
+/// The armour categories (torso to back).
+const ARMOUR_CATEGORIES: std::ops::RangeInclusive<u8> = 1..=7;
+
+/// What a content pack's gold-bought copy is.
+pub(super) enum Kind {
+    /// A premium armour piece: its premium bonuses, the piece's own first modifications.
+    Armour(Vec<u32>),
+    /// A golden weapon: its one bonus is the silver bonus ([`SILVER_BONUS`],
+    /// `docs/notes/golden_weapons.md`), its own first modification.
+    Weapon,
 }
 
-pub(super) fn shared() -> &'static BTreeMap<String, PremiumArmour> {
-    static CONTENT: OnceLock<BTreeMap<String, PremiumArmour>> = OnceLock::new();
+/// A gold-bought copy of a plain item: its plain item's name and what it is.
+pub(super) struct PremiumCopy {
+    pub plain_name: String,
+    pub kind: Kind,
+}
+
+impl PremiumCopy {
+    /// The bonuses srp gives a new one as its own first modifications.
+    pub fn bonuses(&self) -> &[u32] {
+        match &self.kind {
+            Kind::Armour(bonuses) => bonuses,
+            Kind::Weapon => &[SILVER_BONUS],
+        }
+    }
+}
+
+pub(super) fn shared() -> &'static BTreeMap<String, PremiumCopy> {
+    static CONTENT: OnceLock<BTreeMap<String, PremiumCopy>> = OnceLock::new();
     CONTENT.get_or_init(|| {
         load(game_data::shared(), Dictionary::shared())
             .expect("srp checks the premium equipment metadata at start (golden::check_content)")
@@ -33,11 +58,12 @@ fn integer(value: Option<&ConfigValue>, field: &str) -> Result<u32, GameDataErro
 pub(super) fn load(
     data: &GameData,
     dictionary: &Dictionary,
-) -> Result<BTreeMap<String, PremiumArmour>, GameDataError> {
+) -> Result<BTreeMap<String, PremiumCopy>, GameDataError> {
     let mut result = BTreeMap::new();
     let mut available_bonuses = None;
     for item in &dictionary.items {
-        if !(1..=7).contains(&item.category) {
+        let weapon = WEAPON_CATEGORIES.contains(&item.category);
+        if !weapon && !ARMOUR_CATEGORIES.contains(&item.category) {
             continue;
         }
         let config = game_data::config(data, &item.cfg_name)?
@@ -57,13 +83,14 @@ pub(super) fn load(
             || plain.category != item.category
         {
             return Err(fail(
-                "requires a premium armour piece and a distinct plain piece of the same category",
+                "requires a premium armour piece or weapon and a distinct plain piece of the same category",
             ));
         }
         let plain_config = game_data::config(data, &plain.cfg_name)?
             .ok_or_else(|| fail("plain config is missing"))?;
         if plain_config.get("srp_premium").is_some()
             || super::PREMIUM_ARMOUR.iter().any(|r| r.0 == plain.name)
+            || super::GOLDEN_WEAPONS.iter().any(|r| r.0 == plain.name)
         {
             return Err(fail("plain item is itself a premium copy"));
         }
@@ -129,11 +156,21 @@ pub(super) fn load(
                 "premium copy must have base rarity zero and its plain item's level",
             ));
         }
+        let kind = if weapon {
+            if bonuses != [SILVER_BONUS] {
+                return Err(fail(
+                    "a golden weapon's one bonus is the silver bonus (1230)",
+                ));
+            }
+            Kind::Weapon
+        } else {
+            Kind::Armour(bonuses)
+        };
         result.insert(
             item.name.clone(),
-            PremiumArmour {
+            PremiumCopy {
                 plain_name: plain.name.clone(),
-                bonuses,
+                kind,
             },
         );
     }
@@ -144,11 +181,18 @@ pub(super) fn load(
 mod tests {
     use super::*;
 
-    fn fixture(plain: u16, bonuses: &[i32], defaults: &[i32]) -> (GameData, Dictionary) {
+    /// The stock data with one more item: a copy of `template`'s config (dict id 9000) with
+    /// `srp_premium` naming `plain` and `bonuses`, and `defaults` as its default modifications.
+    fn fixture(
+        template: u16,
+        plain: u16,
+        bonuses: &[i32],
+        defaults: &[i32],
+    ) -> (GameData, Dictionary) {
         let stock = GameData::test_archive();
         let mut dictionary =
             Dictionary::parse(stock.file(crate::v026g::dictionary::PATH).unwrap()).unwrap();
-        let mut item = dictionary.item(325).unwrap().clone();
+        let mut item = dictionary.item(template).unwrap().clone();
         let mut config = ConfigValue::parse(stock.file(&item.cfg_name).unwrap()).unwrap();
         let ConfigValue::Named(root) = &mut config else {
             panic!("named config")
@@ -170,9 +214,10 @@ mod tests {
                 ),
             ]),
         ));
+        let folder = item.cfg_name.rsplit_once('/').unwrap().0.to_owned();
         item.dict_id = 9000;
         item.name = "a_content_pack_premium".into();
-        item.cfg_name = "gameplay/items/armour/torso/test_pack.options".into();
+        item.cfg_name = format!("{folder}/test_pack.options");
         item.is_premium = true;
         let data = stock.laid_over(
             "premium metadata fixture",
@@ -183,29 +228,49 @@ mod tests {
         (data, dictionary)
     }
 
+    /// scav_torso_4 (armour) and the Kiparis (a weapon, 88; its golden copy 332).
+    const TORSO: u16 = 325;
+    const KIPARIS: u16 = 88;
+
     #[test]
     fn a_pack_defines_its_premium_without_a_server_item_row() {
-        let (data, dictionary) = fixture(325, &[1240, 1250], &[1030]);
+        let (data, dictionary) = fixture(TORSO, TORSO, &[1240, 1250], &[1030]);
         let premiums = load(&data, &dictionary).unwrap();
         let item = &premiums["a_content_pack_premium"];
         assert_eq!(item.plain_name, "scav_torso_4");
-        assert_eq!(item.bonuses, [1240, 1250]);
+        assert!(matches!(item.kind, Kind::Armour(_)));
+        assert_eq!(item.bonuses(), [1240, 1250]);
+        assert_eq!(premiums.len(), 1);
+    }
+
+    #[test]
+    fn a_pack_defines_a_golden_weapon_with_the_silver_bonus() {
+        let (data, dictionary) = fixture(KIPARIS, KIPARIS, &[1230], &[]);
+        let premiums = load(&data, &dictionary).unwrap();
+        let item = &premiums["a_content_pack_premium"];
+        assert_eq!(item.plain_name, "kiparis");
+        assert!(matches!(item.kind, Kind::Weapon));
+        assert_eq!(item.bonuses(), [SILVER_BONUS]);
         assert_eq!(premiums.len(), 1);
     }
 
     #[test]
     fn malformed_premium_relationships_are_refused_at_the_boundary() {
-        for (plain, bonuses, defaults, reason) in [
-            (9000, vec![1240], vec![], "distinct plain piece"),
-            (326, vec![1240], vec![], "same category"),
-            (345, vec![1240], vec![], "itself a premium"),
-            (9999, vec![1240], vec![], "does not exist"),
-            (325, vec![], vec![], "modification slots"),
-            (325, vec![1240, 1240], vec![], "duplicate bonus"),
-            (325, vec![99999], vec![], "unknown modification"),
-            (325, vec![1240], vec![1240], "not defaults"),
+        for (template, plain, bonuses, defaults, reason) in [
+            (TORSO, 9000, vec![1240], vec![], "distinct plain piece"),
+            (TORSO, 326, vec![1240], vec![], "same category"),
+            (TORSO, 345, vec![1240], vec![], "itself a premium"),
+            (TORSO, 9999, vec![1240], vec![], "does not exist"),
+            (TORSO, TORSO, vec![], vec![], "modification slots"),
+            (TORSO, TORSO, vec![1240, 1240], vec![], "duplicate bonus"),
+            (TORSO, TORSO, vec![99999], vec![], "unknown modification"),
+            (TORSO, TORSO, vec![1240], vec![1240], "not defaults"),
+            (KIPARIS, KIPARIS, vec![1240], vec![], "silver bonus"),
+            (KIPARIS, KIPARIS, vec![1230, 1240], vec![], "silver bonus"),
+            (KIPARIS, 332, vec![1230], vec![], "itself a premium"),
+            (KIPARIS, TORSO, vec![1230], vec![], "same category"),
         ] {
-            let (data, dictionary) = fixture(plain, &bonuses, &defaults);
+            let (data, dictionary) = fixture(template, plain, &bonuses, &defaults);
             let error = load(&data, &dictionary)
                 .err()
                 .expect("invalid metadata refused");
