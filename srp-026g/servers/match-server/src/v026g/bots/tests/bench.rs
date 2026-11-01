@@ -270,7 +270,9 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
 ///
 /// - `SRP_BENCH_TUNING` (for team 1 of a one-sided run, `SRP_BENCH_SIDE1_TUNING`) is a JSON merge patch
 ///   (RFC 7386) over the defaults' JSON, the form of the `SRP_BOT_TUNING` file: objects merge key by key,
-///   anything else (a number, a list) replaces, `null` takes a key out (it falls back to its default).
+///   anything else (a number, a list) replaces, `null` sets an optional field to none at any depth, under a
+///   section that is none in the defaults too (`{"threat": {"concede": {"lone_peek": null}}}`), and is refused
+///   for any other field or an unknown name ([`Tuning::apply_patch`]).
 ///   A new tuning switch needs no setting of its own: the run names it by its path, `{"aim": {"combat":
 ///   {"band_legs": false}}}`. The patch's result is checked by [`Tuning::validate`] as the file's is.
 /// - The settings below it are older names for the same changes, kept so that the bench scripts and
