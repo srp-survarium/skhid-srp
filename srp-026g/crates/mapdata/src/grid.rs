@@ -1451,10 +1451,10 @@ impl WalkGrid {
         };
         let mut n = 0;
         for a in 0..self.height.len() {
-            // Only a walk up past the climb from the support can go, and the support is at most SUPPORT_OVER_M over the floor.
+            // Every walk up: the support may lie far under the floor (a crest's cell over the ground), so no rise is too small to check.
             let ups = (0..8).filter(|&d| {
                 let b = wide.links[a][d];
-                b != NONE && wide.kinds[a][d] == LinkKind::Walk && self.height[b as usize] - self.height[a] > climb - SUPPORT_OVER_M
+                b != NONE && wide.kinds[a][d] == LinkKind::Walk && self.height[b as usize] > self.height[a] + LEVEL_M
             });
             let ups: Vec<usize> = ups.collect();
             if ups.is_empty() {
