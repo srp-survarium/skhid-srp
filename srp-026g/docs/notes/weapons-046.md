@@ -28,7 +28,7 @@ balances "around the current balance".
   .45 ACP damage.
 - **Levels and factions** as `prices.rs` sells them: Scavengers and Black Market items 1 to 5 (rank =
   level, capped at 5), Renaissance and Edge 6 to 15 (rank = level - 5). The long guns keep their
-  donor's faction; the pistols (no faction in 0.46c2) spread over the four. A donor one level above its
+  donor's faction; the pistols (no faction in 0.46c2) take Renaissance or Edge at level 6 and 7, the Colt the Black Market beside the Colt Python. A donor one level above its
   peer in 0.46c2 sits one level above it here, within 15.
 - **Fire modes** are the donor's: the L85A2 auto, single and burst of 3; the Jackhammer automatic only
   (0.46c2's, on the Saiga's `wpn_asgn`); the Beretta 93R bursts of 3 and single shots; the Glock 17
@@ -65,23 +65,23 @@ The new guns beside their closest live peers.
 | **L85A2** | Scavengers 12 | 72,000 | 48 | 32 | 650 | 30 | 3.0 | 0.30 | 3.8 | M4A1 x 0.96 damage, 650/750 rate; the M4A1's level in both builds |
 | M4A1 | Black Market 12 | 75,000 | 50 | 32 | 750 | 30 | 3.2 | 0.25 | 3.0 | |
 | MSBS Radon | Scavengers 12 | 75,000 | 50 | 32 | 750 | 30 | 3.0 | 0.30 | 3.7 | |
-| **Fort-401** | Edge 13 | 95,000 | 39 | 45 | 700 | 100 | 6.9 | 0.36 | 6.5 | PKP x 0.86 damage, 750/700 rate, 5.5/8 reload; a level below it |
+| **Fort-401** | Edge 14 | 95,000 | 39 | 45 | 700 | 100 | 6.9 | 0.36 | 6.5 | PKP x 0.86 damage, 750/700 rate, 5.5/8 reload; a level below it, as in 0.46c2 |
 | PKP | Renaissance 15 | 125,000 | 45 | 45 | 650 | 100 | 10 | 0.40 | 7.0 | |
 | RPK-74M | Edge 11 | 69,300 | 50 | 30 | 600 | 45 | 3.17 | 0.35 | 5.0 | |
 | **Jackhammer** | Black Market 13 | 85,000 | 93 | 10 | 300 | 10 | 2.56 | 0.30 | 4.6 | Saiga x 0.78 damage, 300/350 rate, 10/5 mag; a level above it; automatic only |
 | Saiga-12K | Edge 12 | 75,000 | 120 | 10 | 350 | 5 | 2.8 | 0.30 | 3.6 | |
-| **CZ 75** | Scavengers 5 | 9,000 | 40 | 20 | 300 | 16 | 1.4 | 0.20 | 1.0 | 9x19 damage, the Fort 17's rate and 2.0/2.3 reload |
-| **MP-443** | Renaissance 6 | 12,830 | 40 | 20 | 300 | 18 | 1.4 | 0.20 | 0.95 | as the CZ 75, 18 rounds; the Fort 17's level and price |
-| **Beretta 93R** | Edge 7 | 15,500 | 34 | 20 | 580 | 20 | 1.0 | 0.20 | 1.1 | APS x 0.96 damage, 700/600 rate; bursts of 3; a level above the APS |
-| **Glock 17** | Renaissance 7 | 15,000 | 36 | 20 | 375 | 17 | 1.25 | 0.20 | 0.7 | APS x 1.04 damage, 450/600 rate; automatic |
+| **CZ 75** | Edge 6 | 13,500 | 40 | 20 | 300 | 16 | 1.4 | 0.20 | 1.0 | 9x19 damage (the 9x19 SMGs'), the Fort 17's rate and its 2.0/2.3 reload; the APS's level (both 3 in 0.46c2) |
+| **MP-443** | Renaissance 6 | 13,500 | 40 | 20 | 300 | 18 | 1.4 | 0.20 | 0.95 | as the CZ 75, 18 rounds |
+| **Beretta 93R** | Edge 6 | 14,000 | 34 | 20 | 580 | 20 | 1.0 | 0.20 | 1.1 | APS x 0.96 damage, 700/600 rate; bursts of 3; the APS's level (both 3 in 0.46c2) |
+| **Glock 17** | Renaissance 7 | 15,000 | 36 | 20 | 375 | 17 | 1.25 | 0.20 | 0.7 | APS x 1.04 damage, 450/600 rate; automatic; a level above the APS, as in 0.46c2 |
 | **Colt M1911** | Black Market 3 | 4,500 | 55 | 25 | 260 | 7 | 1.4 | 0.20 | 1.1 | .45 ACP as the UMP45; 0.46c2 puts it beside the Colt Python |
 | PM | Scavengers 2 | 2,630 | 35 | 20 | 250 | 8 | 1.6 | 0.20 | 0.75 | |
 | Colt Python | Black Market 3 | 4,280 | 60 | 30 | 120 | 6 | 3.5 | 0.20 | 1.1 | |
 | Fort 17 | Renaissance 6 | 12,830 | 35 | 20 | 300 | 12 | 1.6 | 0.20 | 0.75 | |
 | APS | Edge 6 | 12,830 | 35 | 20 | 500 | 20 | 1.3 | 0.20 | 1.2 | |
 
-Drop weights follow the level, as the peers': 130 at level 3, 110 at 5, 100 at 6 and 7, 80 at 12, 70 and
-60 at 13, 40 at 15.
+Drop weights follow the level, as the peers': 130 at level 3, 110 at 5, 100 at 6 and 7, 80 at 12, 70 at
+13, 50 at 14, 40 at 15.
 
 ## Muzzles (for the muzzle device step)
 
