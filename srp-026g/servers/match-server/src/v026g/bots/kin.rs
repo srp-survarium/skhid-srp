@@ -58,6 +58,8 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// Where the reckoned body comes down off a ledge whose drop is an off-mesh walk-off ([`WalkOffLanding`]).
+    pub walk_off_landing: WalkOffLanding,
     /// Where the stop forecast's margin falls off a ledge ([`MarginEdge`]).
     pub margin_edge: MarginEdge,
     /// Which floor a world's feet are put on ([`FixFloor`]).
@@ -97,6 +99,23 @@ pub enum Edge {
     /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
     #[default]
     Client,
+}
+
+/// [POCKETS (b)] Where the reckoned body ([`Edge::Client`]) comes down when it goes off a ledge whose drop is an off-mesh walk-off
+/// (`GapDrop`, `gap::Takeoff::WalkOff`): a flight kept only where bodies at every one of `gap::WALK_OFF_SPEEDS` (3.0-5.1 m/s, PROVEN
+/// J0 g2a) come down on its landing, which lies cells out from the edge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WalkOffLanding {
+    /// On the link's landing at any speed. A body that slips off slowly falls almost straight down, onto another floor: Vector
+    /// Laboratory's 20.6 m lip, whose walk-off lands 2.5 m out on the 17.80 floor, put two fighting bots there at 0.03-0.12 m/s
+    /// while their bodies fell onto the 16.22 ledge under the edge; believing they stood 2 m away, they walked off the ledge into
+    /// the shut pit (`fx-smoke-pockets.md` §1, PROVEN from their FALL lines).
+    #[default]
+    Link,
+    /// On the link's landing only at the slowest of `gap::WALK_OFF_SPEEDS` or more; slower, on the highest floor under the body
+    /// (within its radius and half a cell, lower than a step), else held at the edge until a world shows where it is.
+    BySpeed,
 }
 
 /// Where the stop forecast's margin (`body::stays_up`: the same stop from [`super::body::RECKONING_M`] further on along the body's
@@ -157,6 +176,7 @@ impl Default for Kinematics {
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            walk_off_landing: WalkOffLanding::Link,
             margin_edge: MarginEdge::Lattice,
             fix_floor: FixFloor::UnderInJump,
             pitch_scale: PitchScale::Client,
