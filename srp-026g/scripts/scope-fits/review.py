@@ -69,11 +69,13 @@ def main():
             aimed = lib.model_dir(files, d['/data/aimed_model'])
             # a skinned model's vertices are in model space, its locators in its bones' (a half turn about
             # Y): drawn in the locators' frame, as the optic at scope_point is
-            gun_parts = [(q * np.array([-1.0, 1.0, -1.0]), uv, ix, tex) for q, uv, ix, tex in rv.weapon_parts(wdir)]
-            outside = ri.orthographic(gun_parts + rv.coloured(idle, roots, sp, True), rv.VIEW, yaw=-90 + 20, pitch=12,
-                                      margin=0.04, background=(70, 80, 95))
-            side = ri.orthographic(gun_parts + rv.coloured(idle, roots, sp, True), rv.VIEW, yaw=-90, pitch=0,
-                                   margin=0.04, background=(70, 80, 95))
+            grey = ri.Material(albedo=(0.3, 0.3, 0.3), gloss=0.2, f0=0.05)
+            gun_parts = ri.parts(wdir, [], flip=True, materials=lambda name: grey)
+            frame = (rv.VIEW[0] * 0.04, rv.VIEW[1] * 0.04, rv.VIEW[0] * 0.96, rv.VIEW[1] * 0.96)
+            outside = ri.render(gun_parts + rv.coloured(idle, roots, sp, True), rv.VIEW, -90 + 20, 12, frame=frame,
+                                background=(70, 80, 95))
+            side = ri.render(gun_parts + rv.coloured(idle, roots, sp, True), rv.VIEW, -90, 0, frame=frame,
+                             background=(70, 80, 95))
             optic = rv.coloured(aimed, roots, sp, True, skip=('scope_lense',))
             kind = 'C' if d.get('/data/hide_weapon_on_aim') is False else 'S'
             items = optic + (gun_parts if kind == 'C' else [])

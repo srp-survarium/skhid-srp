@@ -4,12 +4,12 @@
 #   prepare_donor.sh <0.69d0 split list> <0.26g patch 19> <resource-porter checkout> <players' paths> <out folder>
 # For each module of modules.tsv: its model and aimed model (models/weapons/modules/<module>{,_aim}.model:
 # the meshes as they are, the configs written again in 0.26g's layout, ../rifle-scopes/widen_config.rs);
-# for each rail whose material is made again: the material on its template given the donor's textures
-# slot for slot (../rifle-scopes/retexture.py), with the textures it names that the players' archives
+# for each rail whose material is made again: its template with the donor's textures slot for slot
+# (../rifle-scopes/retexture.py), with the textures it names that the players' archives
 # lack (a texture the players have at that path is theirs: not imported); the locators and bind poses
 # of the 0.69d0 models of guns.tsv. gameplay/game.options too
-# (survey.py reads 0.69d0's slots and module links from it). make_pack.py checks every file against
-# donor.sha256.
+# (survey.py reads 0.69d0's slots and module links from it); each new shop scope's 0.69d0 icon,
+# icons/<module>.png (optics.tsv). make_pack.py checks every file against donor.sha256.
 set -euo pipefail
 split=$1 target=$2 porter=$3 have=$4 out=$5
 here=$(cd "$(dirname "$0")" && pwd)
@@ -50,13 +50,10 @@ grep -v '^#' "$here/modules.tsv" | while IFS=$'\t' read -r module kind material 
     done
     [[ $kind == rail && $how != loc2:* ]] || continue
     m=material_instances/$material.material
-    rm -rf "$work/material"
-    "$port" build-material-patch --source-db "$split" --target-db "$target" \
-        --material "$m=$how" --output "$work/material" >/dev/null
     mkdir -p "$out/$(dirname "$m")"
-    cp "$work/material/overlay/$m" "$out/$m"
+    "$port" extract --db "$target" --path "$how" --output "$work/template" >/dev/null
     "$port" dump-db-config --db "$split" --path "$m" --leaves > "$work/leaves"
-    nix shell nixpkgs#python3 -c python3 -I "$scopes/retexture.py" "$out/$m" "$work/leaves" >&2
+    nix shell nixpkgs#python3 -c python3 -I "$scopes/retexture.py" "$work/template" "$work/leaves" "$out/$m"
     "$port" dump-config --file "$out/$m" --leaves | grep 'texture[a-z_]*\.value	string:"[^"]' | cut -f2 \
         | sed 's/^string:"//; s/"$//' | sort -u | while read -r texture; do
         [[ -e $out/textures/$texture.dds ]] && continue
@@ -75,5 +72,15 @@ grep -v "^#" "$here/guns.tsv" | cut -f3 | while read -r model; do
     "$port" extract --db "$split" --path "$path/export_properties" --output "$work/raw" >/dev/null
     "$widen" "$work/raw" "$out/$path/export_properties"
     "$port" extract --db "$split" --path "$path/bind_pose" --output "$out/$path/bind_pose" >/dev/null
+done
+# each new shop scope's icon as 0.69d0 draws it (optics.tsv's rows with a dict id: its module's
+# ui_desc.icon_renderer <n> in gameplay/game.options, flash_movies/textures/ui_icons/modules/module_renderer_<n>.png)
+"$port" dump-db-config --db "$split" --path gameplay/game.options --leaves > "$work/game"
+grep -v '^#' "$here/optics.tsv" | awk -F'\t' '$4 != "-" {print $2}' | while read -r module; do
+    n=$(grep -F "weapon_modules.$module.ui_desc.icon_renderer	" "$work/game" | cut -f2 | sed 's/^i32://')
+    [[ -n $n ]] || { echo "$module: no icon_renderer in game.options" >&2; exit 1; }
+    mkdir -p "$out/icons"
+    "$port" extract --db "$split" --path "flash_movies/textures/ui_icons/modules/module_renderer_$n.png" \
+        --output "$out/icons/$module.png" >/dev/null
 done
 (cd "$out" && find . -type f | sed 's|^\./||' | sort | xargs sha256sum)

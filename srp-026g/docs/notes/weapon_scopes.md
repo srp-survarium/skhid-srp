@@ -392,3 +392,7 @@ make_pack.py, review.py).
     that line, so the check judges nothing there (`occlusion-live.tsv`). Not changed here: a later revision.
   - Made on weapons-046@8 and weapons-069@10 (the pistols' and the KS-23M's configs differ from @6 and @9; the models
     are the same).
+  - Made as the rifle scopes' @5 makes theirs (section 6): the Walther's and the rails' 0.69d0 meshes in 0.26g's
+    vertex layout (`compose()`), the rails' materials their 0.26g templates with only the four textures changed
+    (`prepare_donor.sh`, `retexture.py`), their textures converted per pixel (`pbr_026.py`), and the Walther's shop
+    icon 0.69d0's own picture (`module_renderer_106.png`, its `ui_desc.icon_renderer`), framed as the stock icons.

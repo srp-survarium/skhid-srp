@@ -21,6 +21,7 @@ model at scope_point turned half about Y (as the weapon draws a scope).
 """
 import argparse
 import importlib.util
+import struct
 import sys
 from pathlib import Path
 
@@ -28,12 +29,14 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'rifle-scopes'))
-import render_icon as ri  # noqa: E402
 import scopes_lib as lib  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location('scope_fits_survey', HERE / 'survey.py')
 survey = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(survey)
+_spec = importlib.util.spec_from_file_location('scope_fits_sights', HERE / 'sights.py')
+sights = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(sights)
 
 HALF_TURN = np.array([-1.0, 1.0, -1.0])
 DIRECTIONS = 24
@@ -52,7 +55,7 @@ def triangles(model_dir, names, skinned):
     tris, labels = [], []
     for s in names:
         f = model_dir / 'render' / s / 'converted_model'
-        p, _uv, ix = ri.mesh(f.read_bytes())
+        p, ix = mesh(f)
         if skinned:
             p = p * HALF_TURN
         t = p[ix.astype(np.int64)]
@@ -61,6 +64,18 @@ def triangles(model_dir, names, skinned):
     if not tris:
         return np.zeros((0, 3, 3)), np.array([], dtype=object)
     return np.concatenate(tris), np.array(labels, dtype=object)
+
+
+def mesh(path):
+    """(positions, triangles) of a converted_model: chunk 3 its vertices (a float3 position first),
+    chunk 4 its 16-bit indices."""
+    cs = dict(sights.chunks(Path(path).read_bytes()))
+    n = struct.unpack_from('<I', cs[3])[0]
+    stride = (len(cs[3]) - 4) // n
+    raw = np.frombuffer(cs[3], dtype=np.uint8, count=n * stride, offset=4).reshape(n, stride)
+    m = struct.unpack_from('<I', cs[4])[0]
+    return (raw[:, 0:12].copy().view('<f4').reshape(n, 3).astype(np.float64),
+            np.frombuffer(cs[4], dtype='<u2', count=m, offset=4).reshape(-1, 3).astype(np.int64))
 
 
 def placed(model_dir, names, sp):
@@ -195,8 +210,7 @@ def lens_disks(idle_dir, sp):
     lens = idle_dir / 'render' / LENS / 'converted_model'
     if not lens.exists():
         raise SystemExit(f'{idle_dir}: no {LENS}')
-    p, _uv, _ix = ri.mesh(lens.read_bytes())
-    p = sp + p * HALF_TURN
+    p = sp + mesh(lens)[0] * HALF_TURN
     z = p[:, 2]
     mid = (z.min() + z.max()) / 2
     disks = [p[z > mid], p[z <= mid]]

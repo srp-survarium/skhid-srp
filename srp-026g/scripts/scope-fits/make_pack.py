@@ -39,7 +39,7 @@ reference of its scope, moved from the reference's mount to the gun's:
   it is one), its ids, models, fit and gun changed, and its data and texts the scope's (read back,
   nothing else differs); dict ids from FIRST_VARIANT; its dictionary row.
 The Walther Competition II's shop item (optics.tsv) is made from the CompM4's, with the texts our
-HK416's stock Walther already has; its icon rendered from 0.69d0's model.
+HK416's stock Walther already has; its icon 0.69d0's own picture (prepare_donor.sh), framed as the stock icons.
 The edit list (../content-edit/scope-fits-1.json): an `addons { mount: 1 }` placeholder in each gun
 that takes a scope and has no `addons` (a type-3 modifier adds only to a table with a child,
 weapon_scopes.md section 2), and an items_compatibility row for each gun and scope it fits.
@@ -273,7 +273,7 @@ def new_reference(args, work, mdir, variants):
     stock = lib.leaves(Path(args.live) / f'gameplay/items/scopes/{STOCK_WALTHER}.options')
     return {'idle': idle, 'aim': aim, 'own': lib.surfaces(idle), 'aim_own': lib.surfaces(aim), 't': np.zeros(3),
             'd': np.array([eye[0], eye[1], 0.0]), 'e': None, 'kind': 'C', 'leaves': stock, 'variant': None,
-            'off': np.zeros(2)}
+            'off': np.zeros(2), 'renames': renames}
 
 
 def template_for(ref, kind, needs_model, variants, name):
@@ -520,7 +520,7 @@ def build(args, work):
             report.append(f'{name}\t{gun}\t{dict_id}\t{change or "-"}\t{",".join("%.5f" % x for x in t)}')
         if new_id != '-':
             icons.append(shop_item(args, files, entries, name, int(new_id), int(price), icon, scope_fov, first,
-                                   ref['leaves'], ref['idle']))
+                                   ref['leaves'], ref['idle'], args.donor / 'icons' / f'{link}.png', ref['renames']))
     (HERE / 'eyes.tsv').write_text('# made by make_pack.py: each variant\'s reticle (red dot, else grid) from its weapon model\'s eye, '
                                    'mm (x, y), and its reference\'s: equal within EYE_AXIS\n# variant\tx\ty\treference x\treference y\n'
                                    + '\n'.join(axis) + '\n', encoding='utf-8')
@@ -627,7 +627,11 @@ def under_optic(model, changes, donor, gun):
         print(f'{gun}: {model.name}: {how} {surface} {" ".join(rest)}: {done}')
 
 
-def shop_item(args, files, entries, name, dict_id, price, icon, fov, first, texts, model):
+def shop_item(args, files, entries, name, dict_id, price, icon, fov, first, texts, model, picture, renames):
+    """A new shop scope's item and icon: 0.69d0's own picture of it (prepare_donor.sh), framed as the
+    stock icons."""
+    if not picture.exists():
+        sys.exit(f'{name}: no {picture} (prepare_donor.sh: its module\'s icon_renderer)')
     tpath = Path(args.live) / f'gameplay/items/scopes/{SHOP_TEMPLATE}.options'
     tl = lib.leaves(tpath)
     values = {'parameters/modification': (tl['/parameters/modification'], 991000 + dict_id),
@@ -645,7 +649,7 @@ def shop_item(args, files, entries, name, dict_id, price, icon, fov, first, text
                     'is_stack': False, 'item_category': CATEGORY, 'name': name})
     source = f'icons/{ICON_ATLAS}/r{icon[0]:02}c{icon[1]:02}.png'
     (args.out / source).parent.mkdir(parents=True, exist_ok=True)
-    render_icon.icon(model, [args.donor, args.live]).save(args.out / source)
+    render_icon.icon(model, [args.donor, args.live], picture=picture, renames=renames).save(args.out / source)
     return {'row': icon[0], 'col': icon[1], 'source': source}
 
 
