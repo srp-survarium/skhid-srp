@@ -99,7 +99,7 @@ use super::pitch::{Pitch, PitchScale};
 use super::aimpoint::PartsLook;
 use super::know::{LookOutcome, Memory, Miss, SeenTrack, Source, TeamKnowledge};
 use super::plays::heal::Wish as HealWish;
-use super::recoil::{Cadence, Recoil, kick_of};
+use super::recoil::{Cadence, Recoil};
 use super::rng::Rng;
 use super::signals::mix;
 use super::hazards::ARRIVE_MPS;
@@ -4336,11 +4336,13 @@ impl Reflex {
     }
 
     /// The kick of the weapon in hand: another weapon taken (the pistol)
-    /// starts with none (0x2E2C21).
+    /// starts with none (0x2E2C21). The model is the held item's, so a weapon
+    /// with no kick of its own keeps its stand-in kick between ticks (A224:
+    /// rebuilt at every tick, it never pulled against the kick).
     fn in_hand(&mut self) {
         let item = self.hands().held().gun.item;
-        if self.recoil.kick().item != item {
-            self.recoil = Recoil::new(kick_of(item));
+        if self.recoil.held() != item {
+            self.recoil = Recoil::in_hand(item);
             self.cadence = Cadence::default();
             self.ready_at = 0.0;
         }
@@ -8504,7 +8506,7 @@ mod tests {
         let view = view_of(vec![me.clone(), enemy.clone()]);
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
-        let mut truth = Recoil::new(kick_of(reflex.hands().held().gun.item));
+        let mut truth = Recoil::in_hand(reflex.hands().held().gun.item);
         let mut cadence = Cadence::default();
         let (interval_ms, auto) = (truth.kick().interval_s() * 1000.0, reflex.hands().held().gun.auto);
         let mut draw = Rng::new(11);
@@ -8908,7 +8910,7 @@ mod tests {
         let mut reflex = Reflex::armed(arms);
         // The client's side: the base pitch and the weapon's kick.
         let mut base = me.pitch;
-        let mut client = Recoil::new(kick_of(reflex.hands().held().gun.item));
+        let mut client = Recoil::in_hand(reflex.hands().held().gun.item);
         let mut cadence = Cadence::default();
         let (mut over, mut shots, mut held) = (Vec::new(), 0, 0u32);
         for k in 0..ticks {
@@ -8952,8 +8954,8 @@ mod tests {
             // pistol.
             let taken = reflex.sent(now, keys, turn);
             let item = reflex.held_gun().item;
-            if item != client.kick().item {
-                client = Recoil::new(kick_of(item));
+            if item != client.held() {
+                client = Recoil::in_hand(item);
                 cadence = Cadence::default();
             } else if keys & key::RELOAD != 0 {
                 client.reset();
@@ -9077,6 +9079,59 @@ mod tests {
         };
         let (over, _) = kicked_fight("support", 20.0, &lifted, 200);
         let highest = over.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        assert!(highest > 0.8, "{highest}");
+    }
+
+    /// A weapon the kick table does not know (A224: main's derived weapons on
+    /// live) kicks as the AK-74M, said once, and keeps that model from tick to
+    /// tick: a shot's kick is there at the next tick and pulled back, so the
+    /// view stays on the chest as with a known weapon. Rebuilt at every tick,
+    /// the bot had no kick to pull against while the client's climbed.
+    #[test]
+    fn a_weapon_with_no_kick_keeps_its_model_between_ticks_and_pulls() {
+        use super::super::recoil::{DEFAULT_KICK, weapons_without_kick};
+        let known = Arms::of_test_role("support").expect("a support kit").primary.0;
+        let gun: &'static Gun = Box::leak(Box::new(Gun {
+            item: "no_kick_test",
+            ..*known
+        }));
+        let arms: &'static Arms = Box::leak(Box::new(Arms {
+            primary: (gun, 300),
+            pistol: None,
+            reserve: 300,
+        }));
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut reflex = Reflex::armed(Some(arms));
+        reflex.weapon_tick(&me, 1_000, PitchScale::Client);
+        assert_eq!(reflex.recoil.held(), "no_kick_test");
+        assert_eq!(reflex.recoil.kick().item, DEFAULT_KICK);
+        assert!(weapons_without_kick().contains(&"no_kick_test"));
+        reflex.sent(1_000, key::FIRE, 0.0);
+        reflex.weapon_tick(&me, 1_050, PitchScale::Client);
+        assert_eq!(reflex.recoil.held(), "no_kick_test");
+        assert!(reflex.kick() > 0.0 && reflex.kick_step > 0.0, "kick {} step {}", reflex.kick(), reflex.kick_step);
+        // The bot's books equal the client's at every tick (`kicked_fight_with`),
+        // and the pull keeps the view on him; with no pull it climbs off.
+        let aim = AimTuning {
+            fire_within_deg: 180.0,
+            error_deg: (0.01, 0.01),
+            wander_deg: (0.0, 0.0),
+            ..AimTuning::default()
+        };
+        let (over, shots) = kicked_fight_with(Some(arms), 20.0, &aim, 200, 1.0);
+        assert!(shots >= 3, "{shots} shots");
+        let worst = over.iter().fold(0f32, |m, (_, o)| m.max(o.abs()));
+        assert!(worst < 0.1, "{worst}° off the chest");
+        let lifted = AimTuning {
+            combat: CombatTuning {
+                recoil_pull: 0.0,
+                recoil_pull_low: 0.0,
+                ..CombatTuning::default()
+            },
+            ..aim
+        };
+        let (over, _) = kicked_fight_with(Some(arms), 20.0, &lifted, 200, 1.0);
+        let highest = over.iter().map(|(_, o)| *o).fold(f32::NEG_INFINITY, f32::max);
         assert!(highest > 0.8, "{highest}");
     }
 
