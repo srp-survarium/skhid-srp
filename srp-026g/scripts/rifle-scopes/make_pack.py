@@ -54,7 +54,7 @@ import scopes_lib as lib  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '1'
+VERSION = '2'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -151,6 +151,22 @@ def moved_eye(model, needed):
     buf = bytearray(path.read_bytes())
     i, position, rotation = lib.locator(lib.leaves(path), 'aim')
     set_float3(buf, f'locators[{i}]/position', [needed[0], needed[1], position[2]])
+    if rotation is not None:
+        set_float3(buf, f'locators[{i}]/rotation', [0.0, 0.0, 0.0])
+    path.write_bytes(bytes(buf))
+
+
+def aim_turned(model):
+    """Whether a model's aim locator is turned (the view through it tilted)."""
+    rotation = lib.locator(lib.leaves(model / 'render/export_properties'), 'aim')[2]
+    return bool(rotation) and max(abs(x) for x in rotation) > 1e-6
+
+
+def level_eye(model):
+    """A copied weapon model's aim locator unturned, where it is."""
+    path = model / 'render/export_properties'
+    buf = bytearray(path.read_bytes())
+    i, _, rotation = lib.locator(lib.leaves(path), 'aim')
     if rotation is not None:
         set_float3(buf, f'locators[{i}]/rotation', [0.0, 0.0, 0.0])
     path.write_bytes(bytes(buf))
@@ -284,14 +300,28 @@ def build(args, work):
             # the weapon draws a scope at scope_point turned 180 degrees about Y (an optic's x and z
             # mirrored: PROVEN by the MP7's and the Vepr-12's variants, whose eyes are centred so)
             needed = (sp[0] - (t[0] + eye[0]), sp[1] + t[1] + eye[1])
+            # the weapon's own model only where the mount variant keeps it (the M4A1's mount variants
+            # set a flat-top model, without the carry handle the stock one has: seen in the game, the
+            # NcSTAR 4 under the handle, @1), and no model whose aim locator is turned
             has_point = lib.locator(lib.leaves(base_dir / 'render/export_properties'), 'scope_point')
-            candidates = [(base_model, base_dir)] if has_point else []
+            candidates = [(base_model, base_dir)] if has_point and ref['change'] is None else []
             for v in variants.values():
                 if v['weapons'] == [w] and v['change']:
                     candidates.append((v['change'], lib.model_dir(args.live, v['change'])))
+            candidates = [(m, d) for m, d in candidates if d and not aim_turned(d)]
             if kind == 'S':
-                # a scope's aimed view is the mount variant's eyepiece: its eye, its weapon model
+                # a scope's aimed view is the mount variant's eyepiece: its eye, its weapon model; a
+                # model whose aim locator is turned about x tilts the view, and the reticle, set along
+                # the bore, shows off the screen's centre (seen in the game, @1: the AK-74M's TA01 10 px,
+                # its Leupold 3-7 16 px above): the model again with that locator unturned
                 change = ref['change']
+                if aim_turned(from_dir):
+                    change = f'{base_model}_n_scope'
+                    target = work / 'models' / (change + '.skinned_model')
+                    if not target.exists():
+                        shutil.copytree(from_dir, target)
+                        level_eye(target)
+                        files.update(files_of(target, work))
             else:
                 change = eye_model(candidates, base_model, needed)
                 if change is False:
