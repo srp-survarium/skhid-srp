@@ -4,10 +4,12 @@ Six guns only retail 0.69d0 has, and the KS-23M's ammo, for release 41 (batch 4 
 owner's weapon batches, 2026-11-01). Built by `scripts/weapons-069/make_pack.sh` with
 resource-porter's shared weapon core, 0.69d0 as its donor (`port-weapons-069d`,
 `ports/weapons-069d.json` and its sidecar; `docs/weapons-069d-026.md`). The camouflage masks are
-pack weapons-069-camo (`camo.tsv`), the configs take the camouflage and decal by the edit list
-`weapon-camo-069-1.json`. Built over weapons-031 and weapons-046 (`make_pack.sh ... 4 1 weapons-031@3
-weapons-046@3`): what they add is reused, not added again (the MP5's bolt sounds the G3SG/1 plays are
-weapons-046's), so their rows come before this one's.
+pack weapons-069-camo (`camo.tsv`; `parts.tsv` leaves the cartridges and the KS-23M's loose shell
+plain, and `--bare-masks` still gives each a mask, so no surface of a camouflaged gun fails to load
+its `_aoac`), the configs take the camouflage and decal by the edit list `weapon-camo-069-1.json`.
+Built over weapons-031 and weapons-046 (`make_pack.sh ... 6 2 weapons-031@5 weapons-046@3`): what
+they add is reused, not added again (the MP5's bolt sounds the G3SG/1 plays are weapons-046's, the
+G3SG/1's 7.62x51 in clips of 20 weapons-031's), so their rows come before this one's.
 
 ## Owner rules
 
