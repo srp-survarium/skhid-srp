@@ -253,8 +253,11 @@ pub struct Feel {
     /// any leg with room before a sharp turn or the route's end, kept through the turns under [`SprintTurns::sharp_deg`]
     /// and let go of [`SprintTurns::release_m`] before a sharper one. Live humans sprint 59 % of their calm ticks with under
     /// 3.5 m of straight way ahead and 57 % before a turn of 60-90 degrees within 3 m; the live bots 4 % and 2 %
-    /// (`a199-sprint`). On by default (A207's by-side bench: the bench bots' 4-8 % sprint under 3.5 m of straight way became 20-25 %,
-    /// outcomes not worse, with `think.stamina_rates` kit). None: [`Feel::sprint_from_m`] of straight way to start and
+    /// (`a199-sprint`). Off by default (A207 ON's by-side bench, 288 matches): the bench bots' 6 % sprint under 3.5 m of
+    /// straight way became 20 %, but the corners walked right after a sprint was let go of fell more (falls off the route
+    /// 943 vs 794, z +2.6; a corner taken at a sprint fell 6 times in 5,702) with no outcome gained; let go of 1.5 m before
+    /// every turn over 34 degrees they fell more still (falls at turns +41 %), 3.5 m before them the sprint was back at the
+    /// old rule's share and the wins fewer (z -2.3). None: [`Feel::sprint_from_m`] of straight way to start and
     /// [`Feel::sprint_until_m`] before every corner over [`Feel::corner`], as before.
     pub sprint_turns: Option<SprintTurns>,
 }
@@ -358,7 +361,7 @@ impl Default for Feel {
             sprint_through: true,
             straight_jumps: false,
             press_in_reach: false,
-            sprint_turns: Some(SprintTurns::default()),
+            sprint_turns: None,
         }
     }
 }
@@ -5417,7 +5420,7 @@ mod tests {
 
     /// Out of a blast (register #30) the sprint is taken on a 6 m route, facing the way, with no 10 m straight stretch and no
     /// facing time to wait for; the same route at a walk is not sprinted before its end, nor a run (`Gait::Run`) under the old
-    /// rule; a run with `feel.sprint_turns` (the default) sprints it.
+    /// rule (the default); a run with `feel.sprint_turns` sprints it.
     #[test]
     fn an_escape_sprints_on_a_short_route_and_a_walk_does_not() {
         let sprinted = |gait: Gait, feel: Feel| {
@@ -5426,10 +5429,11 @@ mod tests {
             decisions.iter().filter(|d| d.keys & key::SPRINT != 0).count()
         };
         let old = Feel { sprint_turns: None, ..Feel::default() };
+        let turns = Feel { sprint_turns: Some(SprintTurns::default()), ..Feel::default() };
         assert!(sprinted(Gait::Escape, old.clone()) >= 5, "an escape sprints: {}", sprinted(Gait::Escape, old.clone()));
-        assert_eq!(sprinted(Gait::Walk, Feel::default()), 0);
+        assert_eq!(sprinted(Gait::Walk, turns.clone()), 0);
         assert_eq!(sprinted(Gait::Run, old), 0, "a run needs the long straight under the old rule");
-        assert!(sprinted(Gait::Run, Feel::default()) > 0, "with sprint_turns a run sprints the short leg");
+        assert!(sprinted(Gait::Run, turns) > 0, "with sprint_turns a run sprints the short leg");
     }
 
     /// An escape is the legs running: the sprint into a walking jump is kept as for `Gait::Run`.
