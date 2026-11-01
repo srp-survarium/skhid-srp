@@ -328,6 +328,17 @@ pub(super) fn edge_falls() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The stand-in's air control (`SRP_BENCH_STAND_IN_AIR`, `standin_jump::air_control`): airborne ticks steered, airborne ticks with
+/// none, jumps come down, and of them those it moved 0.25 m or more.
+pub(super) fn air_steers() -> Box<dyn RouteTopic> {
+    Delta::of(
+        crate::v026g::bots::tests::standin_jump::air_steer_stats,
+        |d, line| {
+            line.ends.push(format!("stand_in_air steered/unsteered/landed/moved {}/{}/{}/{}", d[0], d[1], d[2], d[3]));
+        },
+    )
+}
+
 /// The sprint lift (`motor::lifts`), by band of rise (up to 0.80 m, 0.80-0.95, 0.95-1.05, 1.05-1.11): lifts tried (the body
 /// stood at the face), got up, given up for the jump; the jumps pressed up those faces with the body calm and in a fight
 /// or a rush; and the faces a body in a fight or a rush did not lift (top short, sprint blocked, no run).
