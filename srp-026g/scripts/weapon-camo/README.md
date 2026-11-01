@@ -37,10 +37,7 @@ python3 -I weapon_camo.py guns.tsv game donor - --previews previews \
 The pack adds each `_aoac` (an `add_file`; a `replace_file` pinned by its sha256 for one the
 players' files already have) and prints pack.json's sha256 for the row. Version 1 (2026-10-21,
 the players' files of revision 26, 0.28a2's for the donors): 112 `_aoac` textures, 224 files,
-pack.json `8e93b030…a132e2`. Version 3 (2026-11-01, weapons batch 1's four guns added to guns.tsv, their large parts
-painted, sights bare; @2 was never released): 130 textures; built over the stock db and the base
-patches of `release/content.tsv` (the game folder of those and the weapons-031 pack's files), so
-the earlier `_aoac` are `add_file` as the composer expects, not `replace_file` of a live patch's.
+pack.json `8e93b030…a132e2`.
 
 Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a UV point on each;
 a texture with no line gets the suggestion, the large parts its premium painted. To choose:

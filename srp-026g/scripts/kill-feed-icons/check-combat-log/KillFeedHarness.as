@@ -142,13 +142,15 @@ package
          }
       }
 
-      // A kill row for every weapon icon a config may name (ui_desc/combat_log_icon: 0.26g's 0 to 52,
-      // the ported weapons' from 53) up to 99: icon i shows frame i + 1 of object_icon, or, when the
-      // hud has a bitmap CombatLogWeapon<i>, that in its place (the clip hidden); the weapon right after
-      // the killer, within the row, the victim after it.
+      // A kill row for every weapon icon a config may name (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
+      // ported weapons' from 53 on) up to 99: icon i shows frame i + 1 of object_icon, or past the clip's
+      // frames the bitmap CombatLogWeapon<i> in its place (the clip hidden) when the movie has that
+      // class, else the clip's last frame; the weapon right after the killer, within the row, the victim
+      // after it.
       private function weapons() : void
       {
          var bitmaps:int = 0;
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
          for(var icon:int = 0; icon <= 99; icon++)
          {
             var data:Object = row(1,0,0,0);
@@ -176,7 +178,7 @@ package
                   bitmaps++;
                }
             }
-            var want:String = hudHas("CombatLogWeapon" + icon) ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
+            var want:String = icon >= clip.totalFrames && domain.hasDefinition("CombatLogWeapon" + icon) ? "no frame, CombatLogWeapon" + icon : "frame " + Math.min(icon + 1,clip.totalFrames);
             if(shown.indexOf(want) != 0 || shown.indexOf(",",want.length) >= 0)
             {
                failures.push("icon " + icon + ": " + shown + " (want " + want + ")");
@@ -193,12 +195,6 @@ package
             }
          }
          trace("KF icons 0 to 99: " + bitmaps + " bitmaps");
-      }
-
-      // Whether the hud movie defines `name` (a bitmap class of bitmaps/).
-      private function hudHas(name:String) : Boolean
-      {
-         return loader.contentLoaderInfo.applicationDomain.hasDefinition(name);
       }
 
       private function finish(result:String) : void

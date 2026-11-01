@@ -1,9 +1,10 @@
 # Weapons batch 1: OTs-14, SCAR-H, VHS-2, Minimi (0.31a2)
 
-Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031` (its row in
+Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@2` (its row in
 `release/content.tsv`). The owner's scope (2026-11-01): four batches of ported weapons, this one
 from 0.31a2; no premium or skin copies; machine-gun ammunition is the rifle round (no belt items);
-stats are the donor's own, scaled by a peer both builds ship, and the guns sit in our live balance.
+stats are the donor's own, scaled by a peer both builds ship, and the guns sit in our live balance
+(the SCAR-H's pierce is its round-mate's, the SOCOM 16's: the owner, 2026-11-01).
 
 ## The guns
 
@@ -15,14 +16,16 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
 | FN Minimi | 2264 | `wpn_fn_minimi` | [8, 5] | 74 | 5.56x45 (2201) |
 
 - Configs at `gameplay/items/weapons/wpn_<name>.options`, so the edit lists' `wpn_*` globs (weapon
-  details, movement, kill feed icon in the lobby) cover them; `weapon-camo-1` and `weapon-decals-1`
-  list them by name, and `weapon-camo@3` has their `_aoac` masks (`scripts/weapon-camo/guns.tsv`).
+  details, movement, kill feed icon in the lobby) cover them. The batch's own edit list `weapon-camo-031-1`
+  gives them a camouflage and a decal (as weapon-camo-1 and weapon-decals-1 the live guns), and its
+  own pack `weapons-031-camo@1` their 18 `_aoac` masks (`scripts/weapons-031/camo.tsv`, the
+  suggested parts, sights bare): no shared list or pack changes, as batch 2's `weapons-046-camo`.
 - Lobby cell `[row, col]` of `LobbyMenu_WeaponIcons`: the donor's own cell (free in 0.26g); the
   donor's icon (a cell and its 8-pixel gap, 171x91) scaled into a 0.26g cell.
 - Kill feed icon: the donor's number; the hud's `CombatLogWeapon<icon>` is 0.31a2's
   `icon_<icon + 1>.png` (`scripts/kill-feed-icons/make_weapon_icons.py`), the lobby's
-  `KillFeedWeapon<icon>` made from it (`make_lobby_weapon_icons.py`). The hud's extra icons are a
-  map by number (`CombatLogItem.MORE_WEAPONS`), so the batches' icons need not be contiguous.
+  `KillFeedWeapon<icon>` made from it (`make_lobby_weapon_icons.py`). Both movies find an icon by its
+  class name (batch 2's lookup, #948), so a batch adds bitmaps and classes and edits no list.
 - Ids, cells and icons were claimed beside the other batches' (dict 2261-2264).
 - Texts: `st_<name>_name` and `_description` in the ten localization tables.
 - Sellers and ranks: srp's rule (`prices.rs`): Renaissance (the donor's faction) at rank
@@ -40,7 +43,7 @@ balance is the manifest's `set` (resource-porter `ports/weapons-031a2-batch1.jso
 | **OTs-14 "Groza"** | 0.50 | 0.30 | 700 | 20 | 13 | Renaissance (8) | 80,000 |
 | AS "Val" (peer) | 0.50 | 0.30 | 800 | 20 | 13 | Renaissance (8) | 76,000 |
 | 9A-91 | 0.50 | 0.30 | 700 | 20 | 13 | Renaissance (8) | 84,000 |
-| **FN SCAR-H** | 0.59 | 0.50 | 625 | 20 | 15 | Renaissance (10) | 125,000 |
+| **FN SCAR-H** | 0.59 | 0.40 | 625 | 20 | 15 | Renaissance (10) | 125,000 |
 | M4A1 (peer) | 0.50 | 0.32 | 750 | 30 | 12 | Black Market (5) | 75,000 |
 | SOCOM 16 (7.62x51) | 0.60 | 0.40 | 300 | 10 | 15 | none | 75,000 |
 | AK-12 | 0.50 | 0.40 | 650 | 30 | 15 | Renaissance (10) | 115,000 |
@@ -54,8 +57,8 @@ balance is the manifest's `set` (resource-porter `ports/weapons-031a2-batch1.jso
 - **Groza:** the Val's damage and pierce (the same 9x39 in both builds), 100 rpm slower, a faster
   aim (0.2 s) and a tighter spread (0.2); the Val's level and drops (30), priced between the Val and
   the 9A-91.
-- **SCAR-H:** the heavy round: damage as the SOCOM 16 on the same 7.62x51 (0.6), pierce 0.5 (the
-  SVD's), automatic at 625 with 20 rounds; the donor put it two levels over its M4A1, so the top
+- **SCAR-H:** the heavy round: damage and pierce as the SOCOM 16 on the same 7.62x51 (0.6 and 0.4:
+  one round, one penetration, the owner, 2026-11-01), automatic at 625 with 20 rounds; the donor put it two levels over its M4A1, so the top
   level (15) beside the AK-12 and the PKP, drops 40 as the level-15 rifles.
 - **VHS-2:** a 5.56 rifle at the HK416's rate and pierce with less damage (0.5 against 0.55) and a
   tighter spread (0.1 against 0.15): the HK416's level (14), just under its price; drops 60.
@@ -73,7 +76,7 @@ resource-porter's weapon port (branch `feat/weapons-port`, `docs/weapons-026.md`
 vostok-port port-weapons --manifest ports/weapons-031a2-batch1.json --donor v031a2.split \
   --target-db <stock resources.db> --target-patch <every listed patch> --output <bundle>
 vostok-port pack from-bundle --base-db <stock> --base-patch <every listed patch> \
-  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-1 --id weapons-031 --version 1
+  --bundle <bundle> --output $SKHID_PACKS_DIR/weapons-031-2 --id weapons-031 --version 2
 ```
 
 - The art is 0.31a2's: meshes (0.31's statistics chunk 110 dropped), textures, sounds as they are;
