@@ -162,7 +162,7 @@ pub struct Body {
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
     /// Whether a walk up off a perched steep floor (steeper than [`Body::min_ground_normal_y`] by its neighbours, not a `walk` face, its
-    /// top under less than a fifth of its cell: the top of something in a corner of the cell) is measured from the walkable
+    /// cell's centre over ground more than 0.3 m lower: the top of something in a corner of the cell) is measured from the walkable
     /// ground its climb began on, whatever the floor it reaches, and a drop's or jump's landing on steep ground gives it no
     /// base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not rest on such ground: it slides back to where it
     /// stood. Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
@@ -605,12 +605,12 @@ const STEEP_NORMAL_Y: f32 = 0.5;
 /// hemisphere (r 0.38) stays on the edge until it no longer reaches it (`step_down` 0x7E1B0), and the live players stand up to
 /// 0.32 m past a lip floor's centre (the bots' `body::SUPPORT_M`, the same number).
 pub const WALK_OFF_REACH_M: f32 = 0.435;
-/// [`Body::steep_walk_base`]: how far under a floor a face still counts as its top, m.
-const PERCH_M: f32 = 0.1;
-/// [`Body::steep_walk_base`]: a floor whose top is under fewer than this many of 25 points spread over its cell is perched (a fifth of
-/// the cell): Mamayev Kurgan day 4's boulder floor (-2.90, 29.58, 105.38) has its top, a rock's crest, in a corner of about 6 % of the
-/// cell; Vector Laboratory's treads at (60.76, 24.75, -32.30) a strip of the cell.
-const PERCH_AREA: usize = 5;
+/// [`Body::steep_walk_base`]: a floor whose cell's centre stands more than this over the ground under it is perched, m: Mamayev
+/// Kurgan day 4's boulder floor stands 1.13 m over the ground under its centre; a cell of a 59 degree slope 0.21 m (its height is the
+/// slope's top in the cell), a stair's tread 0.
+const PERCH_M: f32 = 0.3;
+/// How far under a floor [`PERCH_M`] looks for ground, m.
+const PERCH_LOOK_M: f32 = 1.5;
 /// Two floors this near in height are level to each other (a walk across
 /// a slope), metres.
 const LEVEL_M: f32 = 0.05;
@@ -1320,22 +1320,14 @@ impl WalkGrid {
     /// Returns the directions cut, a bit each, by floor: no wall there for
     /// [`Self::erode`] (the slope goes on).
     fn cut_steep_climbs(&self, wide: &mut Wide, forced: &[bool], steep_face: &[bool], ground: Option<&RayTree>) -> Vec<u8> {
-        // With [`Body::steep_walk_base`]: whether a floor is perched, its height the top of something in a small part of its cell
-        // (fewer than [`PERCH_AREA`] of 25 points over the cell have a face within [`PERCH_M`] under the floor): a body there stands
-        // on the ground beside it. A stair's tread, or a slope's cell, has its top over a strip of the cell or more.
+        // With [`Body::steep_walk_base`]: whether a floor is perched, its height the top of something in a corner of its cell with
+        // the ground under its centre more than [`PERCH_M`] lower (or none within [`PERCH_LOOK_M`]): a body there stands on that
+        // ground. A stair's tread or a slope's cell is not (the ground under its centre is at most a slope's part of a cell lower).
         let perched = |a: usize| {
             ground.is_some_and(|ground| {
                 let at = self.position(a as NodeId);
-                let down = Vec3::new(0.0, -1.0, 0.0);
-                let step = self.cell / 5.0;
-                let on_top = (0..25)
-                    .filter(|k| {
-                        let (dx, dz) = ((k % 5) as f32 - 2.0, (k / 5) as f32 - 2.0);
-                        let from = Vec3::new(at.x + dx * step, self.height[a] + 0.05, at.z + dz * step);
-                        ground.ray_cast(from, down, 0.05 + PERCH_M).is_some()
-                    })
-                    .count();
-                on_top < PERCH_AREA
+                let from = Vec3::new(at.x, self.height[a] + 0.05, at.z);
+                ground.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), 0.05 + PERCH_LOOK_M).is_none_or(|t| t - 0.05 > PERCH_M)
             })
         };
         let n = self.height.len();
@@ -4852,7 +4844,7 @@ pub(crate) mod tests {
     }
 
     /// [`Body::steep_walk_base`]: ground at 0 to x 4.25, a top 1.1 m up from x 4.25, and between them either a crest 0.5 m high and
-    /// 1 cm wide at the foot of the top's wall (in the corner of a cell whose centre stands over the ground: Mamayev Kurgan day 4's
+    /// 5 cm wide at the foot of the top's wall (in the corner of a cell whose centre stands over the ground: Mamayev Kurgan day 4's
     /// boulder under the top, A237) or a stair's tread 0.5 m up across the whole cell. Either cell's floor is steep by its neighbours,
     /// within a step of the ground and a walk of 0.6 m from the top. A body on the crest's cell stands on the ground, 1.1 m under the
     /// top; one on the tread stands on it.
@@ -4862,7 +4854,7 @@ pub(crate) mod tests {
             let mut tris = floor(0.0, 0.0, 4.25, 10.0, 0.0).to_vec();
             tris.extend(wall_x(4.25, 0.0, 10.0, 1.1));
             tris.extend(floor(4.25, 0.0, 10.0, 10.0, 1.1));
-            let x0 = if crest { 4.24 } else { 4.0 };
+            let x0 = if crest { 4.2 } else { 4.0 };
             tris.extend(floor(x0, 0.0, 4.25, 10.0, 0.5));
             tris.extend(wall_x(x0, 0.0, 10.0, 0.5));
             tris

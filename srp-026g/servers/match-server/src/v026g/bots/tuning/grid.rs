@@ -74,8 +74,8 @@ pub struct GridTuning {
     /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
     /// map's (see `gap_links`).
     pub drop_room: bool,
-    /// Whether the maps' walk grids measure a walk up off perched steep ground (a by-slope floor over the clients' 55 degrees whose top is
-    /// under less than a fifth of its cell) from the walkable ground its climb began on, whatever the floor it reaches, and give a landing on steep ground no base (`mapdata::Body::steep_walk_base`):
+    /// Whether the maps' walk grids measure a walk up off perched steep ground (a by-slope floor over the clients' 55 degrees whose cell's
+    /// centre stands over ground more than 0.3 m lower) from the walkable ground its climb began on, whatever the floor it reaches, and give a landing on steep ground no base (`mapdata::Body::steep_walk_base`):
     /// the client's body does not rest on such ground. Mamayev Kurgan day 4's boulder floor (-2.90, 29.58, 105.38), a drop's landing,
     /// walks 0.58-0.76 m onto the top; a live bot walked onto the boulder and held forward for 5 s with no jump, its feet sinking to
     /// 29.00, 0.9-1.2 m under the top, the walkable floors its climb began on (A237, PROVEN). Off (the default) until its bench. A grid
