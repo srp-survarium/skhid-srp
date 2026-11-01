@@ -160,6 +160,14 @@ pub struct Body {
     /// ([`WalkGrid::cut_blocked_walk_offs`]). A link checks only the landing's ceiling over the take-off; a rail or a parapet at the
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
+    /// [A238] Whether the floor a body comes down on when it slips off a walk-off gap drop's take-off slower than any walk-off is
+    /// flown for (`gap::WALK_OFF_SPEEDS`) is reached: the highest floor under the edge ([`WalkGrid::slip_landing`]), where the
+    /// link's flight lands cells out. The reach and the pockets are flooded along it too (`Wide::slips`); it is no link, so no
+    /// route plans a slip and the pieces and searches are as before. A floor only a slip gets to is then reached, and a pocket
+    /// when no walk returns: Vector Laboratory's 16.22 ledge under the 20.6 lip, where two bots that slipped in a fight stood
+    /// unseen by the pocket marks, the escape and the bench's pocket counts (`fx-smoke-pockets.md` §1). A build input: in the
+    /// key when set.
+    pub slip_landings: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -207,6 +215,7 @@ impl Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
+            slip_landings: false,
         }
     }
 }
@@ -270,6 +279,7 @@ impl Default for Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
+            slip_landings: false,
         }
     }
 }
@@ -658,9 +668,18 @@ struct Wide {
     fall: Vec<bool>,
     /// The off-mesh links ([`gap`]), by take-off then landing.
     off: Vec<OffLink>,
+    /// [`Body::slip_landings`]: each walk-off take-off and the floor a slip off it comes down on, by take-off; floods of the
+    /// reach only, not links ([`Wide::out`] leaves them out).
+    slips: Vec<(u32, u32)>,
 }
 
 impl Wide {
+    /// The floors a slip off floor `a` comes down on ([`Body::slip_landings`]).
+    fn slips_from(&self, a: u32) -> impl Iterator<Item = u32> + '_ {
+        let first = self.slips.partition_point(|&(f, _)| f < a);
+        self.slips[first..].iter().take_while(move |&&(f, _)| f == a).map(|&(_, s)| s)
+    }
+
     /// The links out of floor `a`: its neighbours' and its off-mesh ones.
     fn out(&self, a: usize) -> impl Iterator<Item = u32> + '_ {
         let first = self.off.partition_point(|l| (l.from as usize) < a);
@@ -881,6 +900,9 @@ impl WalkGrid {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
+        if body.slip_landings {
+            wide.slips = grid.slip_landings(&wide, &solids);
+        }
         drop(solids);
         if let Some(walls) = walls.as_ref().filter(|_| body.drop_room) {
             stats.drops_blocked = grid.cut_blocked_walk_offs(&mut wide, walls);
@@ -949,6 +971,7 @@ impl WalkGrid {
             kinds,
             fall: vec![false; n],
             off: Vec::new(),
+            slips: Vec::new(),
         }
     }
 
@@ -1605,7 +1628,8 @@ impl WalkGrid {
         }
         let forward = |kept: &mut Vec<bool>, queue: &mut Vec<u32>| {
             while let Some(a) = queue.pop() {
-                for b in wide.out(a as usize) {
+                // A floor a slip comes down on is got to as well ([`Body::slip_landings`]).
+                for b in wide.out(a as usize).chain(wide.slips_from(a)) {
                     if !kept[b as usize] {
                         kept[b as usize] = true;
                         queue.push(b);
@@ -1702,6 +1726,11 @@ impl WalkGrid {
         for l in &mut wide.off {
             l.from = new_id[l.from as usize];
             l.to = new_id[l.to as usize];
+        }
+        wide.slips.retain(|&(a, s)| alive[a as usize] && alive[s as usize]);
+        for (a, s) in &mut wide.slips {
+            *a = new_id[*a as usize];
+            *s = new_id[*s as usize];
         }
         let mut k = 0;
         wide.fall.retain(|_| {
@@ -2145,6 +2174,20 @@ impl WalkGrid {
         let (out_first, out) = wide.adjacency();
         let out_of = |a: usize| &out[out_first[a] as usize..out_first[a + 1] as usize];
         flood(&starts, &mut flags, REACHED, out_of);
+        // A floor a slip off a reached take-off comes down on is reached, and what is walked to from it ([`Body::slip_landings`]),
+        // till no slip adds one.
+        loop {
+            let landed: Vec<u32> = wide
+                .slips
+                .iter()
+                .filter(|&&(a, s)| flags[a as usize] & REACHED != 0 && flags[s as usize] & REACHED == 0)
+                .map(|&(_, s)| s)
+                .collect();
+            if landed.is_empty() {
+                break;
+            }
+            flood(&landed, &mut flags, REACHED, out_of);
+        }
         // The links into each floor, any reach.
         let mut first = vec![0u32; n + 1];
         for &b in &out {

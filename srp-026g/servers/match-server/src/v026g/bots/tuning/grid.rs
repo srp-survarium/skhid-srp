@@ -74,6 +74,13 @@ pub struct GridTuning {
     /// Tarakanovsky Fort, and no live body stood on the floors only they led to). Off (the default) until its bench. A grid is the
     /// map's (see `gap_links`).
     pub drop_room: bool,
+    /// [A238] Whether the floor a body comes down on when it slips off a walk-off's take-off (slower than a walk-off is flown
+    /// for) is reached in the maps' walk grids (`mapdata::Body::slip_landings`): the highest floor under the edge, where the
+    /// walk-off's flight lands cells out. No link, so no route plans a slip; but a floor only a slip gets to is reached, so a
+    /// pocket when no walk returns, which the pocket marks, the escape (and its minute's self-kill) and the bench's pocket counts
+    /// then see. Vector Laboratory's 16.22 ledge under the 20.6 lip held 173-326 bot-s of the all-maps bench unseen by them
+    /// (`fx-smoke-pockets.md`, #980's bench). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    pub slip_landings: bool,
 }
 
 impl Default for GridTuning {
@@ -91,6 +98,7 @@ impl Default for GridTuning {
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
             drop_room: false,
+            slip_landings: false,
         }
     }
 }
@@ -116,6 +124,7 @@ impl GridTuning {
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
             drop_room: self.drop_room,
+            slip_landings: self.slip_landings,
             ..body
         }
     }
