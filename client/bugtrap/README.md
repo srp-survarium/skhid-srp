@@ -202,8 +202,8 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
   exe, not zipped (zipping would hold the crash for many seconds, and the dump
   is read on that PC), the text report beside it. Crash details say
   `Reporter:  local build, full-memory dumps`. Never released: `build.rs`
-  refuses the feature with `SKHID_REVISION`, and `release/build-zip` refuses a
-  DLL holding that Reporter text.
+  refuses the feature with `SKHID_REVISION`, which every release build sets
+  (`release/build-zip` builds a fresh worktree with plain `build.sh`).
 - **Wine's dbghelp** (Linux players and the local clients, which have no
   `dbghelp.dll` beside the exe) ignores DataSegs, IndirectlyReferencedMemory
   and memory callbacks: a players' dump written under Wine has stacks,

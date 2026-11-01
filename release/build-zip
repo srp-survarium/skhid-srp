@@ -140,9 +140,6 @@ import sys
 sys.exit(sys.argv[2].encode("utf-16-le") + b"\0\0" not in open(sys.argv[1], "rb").read())
 PY
 done
-# Full-memory dumps are a local test build's (client/bugtrap's feature): never shipped.
-! LC_ALL=C grep -aqF 'full-memory dumps' "$work/src/client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll" ||
-    die "BugTrap.dll was built with full-memory-dumps, a local test feature"
 zip=$work/Survarium-0.26g-srp-files.zip
 original=$SKHID_GAME/binaries/x86/survarium.exe
 if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.exe; fi
