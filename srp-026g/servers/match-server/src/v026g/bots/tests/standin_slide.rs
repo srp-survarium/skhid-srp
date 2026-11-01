@@ -91,16 +91,25 @@ impl Grounds {
 /// Cologne with the centre's ray, 768 had ground that holds the body within 0.3 m.
 const FOOTPRINT: [(f32, f32); 5] = [(0.0, 0.0), (0.3, 0.0), (-0.3, 0.0), (0.0, 0.3), (0.0, -0.3)];
 
-/// The highest face under the body's footprint ([`FOOTPRINT`]), as rays down from 0.5 m over the feet meet them within 1.5 m (a
-/// floor of the lattice on a slope stands over its face, by the capsule's rest), and its class.
+/// Over this, m, a face a footprint ray meets is beside the body, not under it: the client's contact above the capsule's bottom is a
+/// side, never ground (`impassable_slope` 0x7de10 takes only a contact below the bottom). Measured on the bench: the highest face of
+/// the footprint with no such bound took rocks and walls rising beside bodies (the share of still time on sliding ground went from
+/// 1.63 % to 3.01 %, slides from 3,074 to 4,034).
+const SIDE_ABOVE_M: f32 = 0.1;
+
+/// How far under the feet a footprint ray looks, m: a floor of the lattice on a slope stands over its face, by the capsule's rest.
+const UNDER_M: f32 = 1.0;
+
+/// The highest face under the body's footprint ([`FOOTPRINT`]) and not over its feet by more than [`SIDE_ABOVE_M`] (rays down from
+/// there, [`UNDER_M`] under the feet at most), and its class.
 fn ground_under(all: &RayTree, slope: &RayTree, dont: &RayTree, feet: Vec3) -> Option<Ground> {
     let down = Vec3::new(0.0, -1.0, 0.0);
     let (from, first) = FOOTPRINT
         .iter()
-        .map(|&(dx, dz)| feet + Vec3::new(dx, 0.5, dz))
-        .filter_map(|from| all.ray_hit(from, down, 1.5).map(|hit| (from, hit)))
+        .map(|&(dx, dz)| feet + Vec3::new(dx, SIDE_ABOVE_M, dz))
+        .filter_map(|from| all.ray_hit(from, down, SIDE_ABOVE_M + UNDER_M).map(|hit| (from, hit)))
         .min_by(|a, b| a.1.t.total_cmp(&b.1.t))?;
-    let same = |tree: &RayTree| tree.ray_hit(from, down, 1.5).filter(|hit| (hit.t - first.t).abs() < 1e-4);
+    let same = |tree: &RayTree| tree.ray_hit(from, down, SIDE_ABOVE_M + UNDER_M).filter(|hit| (hit.t - first.t).abs() < 1e-4);
     let deg = |normal: Vec3| normal.y.abs().clamp(0.0, 1.0).acos().to_degrees();
     Some(if same(slope).is_some() {
         Ground::Slope(deg(first.normal))
@@ -207,8 +216,11 @@ mod tests {
         let tris: Vec<Triangle> = top(0.0, 10.0).into_iter().chain(face).collect();
         let all = Arc::new(RayTree::build(&tris));
         let mut g = Grounds::new(&tris, all);
-        // The centre over the face's top 0.1 m from the edge: the top 0.3 m back holds the capsule.
-        assert_eq!(g.at(1, Vec3::new(10.1, 0.7, 5.0)), Some(Ground::Slope(0.0)));
+        // Feet at the top's level, the centre over the face 0.1 m out from the edge: the top 0.3 m back holds the capsule.
+        assert_eq!(g.at(1, Vec3::new(10.1, 1.0, 5.0)), Some(Ground::Slope(0.0)));
+        // Feet down on the face 0.1 m out: the top over them is beside the body, not under it.
+        let Some(Ground::Slope(deg)) = g.at(3, Vec3::new(10.1, 0.72, 5.0)) else { panic!("a slope") };
+        assert!((deg - 70.0).abs() < 0.5, "{deg}");
         // Far out over the face (no top within 0.3 m): the face.
         let Some(Ground::Slope(deg)) = g.at(2, Vec3::new(10.33, 0.1, 5.0)) else { panic!("a slope") };
         assert!((deg - 70.0).abs() < 0.5, "{deg}");
