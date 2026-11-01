@@ -41,16 +41,16 @@ strength = (kills at L + 10 * overall) / (deaths at L + 10)
 
 ## Noise
 
-- Before the split, each party's strength is multiplied by a factor drawn from 0.9 to 1.1
-  (`NOISE_MILLI` = 100); then the most even split of those strengths is taken. No history of
-  past teams, no other state.
+- Before the split, each party's strength is multiplied by a factor drawn from 0.95 to 1.05
+  (`NOISE_MILLI` = 50, the owner's pick); then the most even split of those strengths is taken.
+  No history of past teams, no other state.
 - Drawn by a seed the lobby takes from its random generator at each start: the same parties and
   seed always make the same sides (tests fix the seed). Squads are never split by it.
 - Checked on rooms of realistic K/Ds (0.45 to 1.9; 6 v 6, 8 v 8 and 10 v 10, with squads of 2
-  and 3), 1000 starts each: the sides change at 98 to 100 % of consecutive starts, about 2 to 3
-  players a side moving; the true imbalance is 0.2 to 0.3 of a K/D at the median, 1.1 at worst
-  (a side of 8 to 10 counts 17 to 22). At 0.95 to 1.05 the sides change as often, at half the
-  imbalance (worst 0.6).
+  and 3), 1000 starts each: the sides change at 97 to 100 % of consecutive starts, about 2 to 3
+  players a side moving; the true imbalance is 0.06 to 0.13 of a K/D at the median, 0.4 to 0.6
+  at worst (a side of 8 to 10 counts 17 to 22). At 0.9 to 1.1 the sides changed as often, at
+  twice the imbalance (worst 1.1).
 
 ## The match's equipment level
 

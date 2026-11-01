@@ -1494,10 +1494,10 @@ impl Party {
 }
 
 /// How far each party's strength is shaken before the sides are made,
-/// either way, in thousandths: 100 is a factor drawn from 0.9 to 1.1 (the
+/// either way, in thousandths: 50 is a factor drawn from 0.95 to 1.05 (the
 /// owner's of 2026-11-01: "we can add small noise", so the same players
 /// do not always play together).
-pub const NOISE_MILLI: u32 = 100;
+pub const NOISE_MILLI: u32 = 50;
 
 /// The sides of a match of a room: `parties` on two sides of at most
 /// `size`, a party too large for a side split into parts that fit (each
@@ -2326,7 +2326,7 @@ mod tests {
     #[test]
     fn the_sides_are_as_even_as_they_can_be() {
         // 24 in all: 12 a side, the two strongest apart (every other way
-        // is 6 or more apart, past twice what the noise can move: 2.4).
+        // is 6 or more apart, past twice what the noise can move: 1.2).
         let strengths = [
             (1, 7000),
             (2, 1000),
