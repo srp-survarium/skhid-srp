@@ -14,6 +14,10 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   silver (modification 1230); and the MP7 special (owner: it joins them; its one bonus, 2004,
   goes). Not the VSSK camo (not premium); the premium armour has the same treatment since
   2026-10-22 ([premium_armour.md](premium_armour.md)).
+- **Golden weapons of content packs:** a weapon config's `srp_premium` (its plain weapon, the
+  silver bonus) makes it a golden weapon as these 22 (`golden::content`; the lobby's mirror of
+  the pack, `ItemDictId`'s lists for the 22): the skins of live guns (pack weapon-variants,
+  [weapon-variants.md](weapon-variants.md)).
 - **Plain weapon of each:** the same weapon for silver (`*_premium*` → its stem); the
   Neostead's is `neostead_2`, the MP7 special's the silenced MP7.
 - **What they keep:** the silver bonus only. Their other built-in bonuses (reload, reliability,

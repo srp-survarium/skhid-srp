@@ -17,6 +17,7 @@ package survarium.item
    import survarium.constants.ItemDictId;
    import survarium.constants.Equipment029;
    import survarium.constants.Equipment046;
+   import survarium.constants.WeaponVariants1;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
@@ -162,12 +163,13 @@ package survarium.item
          return category == ItemCategory.SCOPES ? SuperCategory.UPGRADES : getCategory(category);
       }
       
-      // A premium armour piece a content pack declares (srp_premium): [dictId, plain, bonuses],
-      // from the packs' generated mirrors; null for any other item.
+      // A premium armour piece or golden weapon a content pack declares (srp_premium): [dictId,
+      // plain, bonuses], from the packs' generated mirrors; null for any other item.
       private static function contentPremium(dictId:int) : Array
       {
          var row:Array = Equipment029.premium(dictId);
-         return row != null ? row : Equipment046.premium(dictId);
+         if(row == null) row = Equipment046.premium(dictId);
+         return row != null ? row : WeaponVariants1.premium(dictId);
       }
       
       // A golden item: a golden weapon or a premium armour piece (golden::is_golden).

@@ -2629,6 +2629,22 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_variant_ak_74n_premium_2_name	AK-74N "Avenger"
+st_srp_variant_akmn_victoryday2019_name	AKM "Győzelem"
+st_srp_variant_kedr_premium_name	PP-91 "Kedr" Tajga
+st_srp_variant_kiparis_victoryday2020_name	OTs-02 Kiparis "Győzelem"
+st_srp_variant_pkp_pecheneg_premium_name	PKP "Pecheneg" Pixel
+st_srp_variant_pp2000_summer17_name	PP-2000 "Díszítés"
+st_srp_variant_rem_700_summer17_name	Remington 700 "Korom"
+st_srp_variant_rem_870_premium_name	Remington 870 "Urban"
+st_srp_variant_sks_victoryday2020_name	SKS "Győzelem"
+st_srp_variant_spas_12_premium_name	Franchi SPAS-12 "Hexagon"
+st_srp_variant_sr2m_premium_name	SR-2M "Veresk" Sztyepp
+st_srp_variant_svd_snow_20_name	SVD "Hó-20"
+st_srp_variant_toz_122_hw2017_name	TOZ-122 "Vadász"
+st_srp_variant_toz_122_premium_name	TOZ-122 "Bőr"
+st_srp_variant_valmet_victoryday2020_name	Valmet Rk.62 "Győzelem"
+st_srp_variant_vepr_12_legend_0919_name	Vepr-12 "Legenda"
 st_srp_weapon_aim_zoom	Alap célzási nagyítás
 st_srp_weapon_chamber	Csőre töltési idő
 st_srp_weapon_draw_time	Elővételi idő

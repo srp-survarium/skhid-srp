@@ -2629,6 +2629,22 @@ st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_variant_ak_74n_premium_2_name	АК-74Н "Мститель"
+st_srp_variant_akmn_victoryday2019_name	АКМ "Победа"
+st_srp_variant_kedr_premium_name	ПП-91 "Кедр" Тайга
+st_srp_variant_kiparis_victoryday2020_name	ОЦ-02 Кипарис "Победа"
+st_srp_variant_pkp_pecheneg_premium_name	ПКП "Печенег" Пиксель
+st_srp_variant_pp2000_summer17_name	ПП-2000 "Орнамент"
+st_srp_variant_rem_700_summer17_name	Remington 700 "Сажа"
+st_srp_variant_rem_870_premium_name	Remington 870 "Урбан"
+st_srp_variant_sks_victoryday2020_name	СКС "Победа"
+st_srp_variant_spas_12_premium_name	Franchi SPAS-12 "Хексагон"
+st_srp_variant_sr2m_premium_name	СР-2М "Вереск" Степь
+st_srp_variant_svd_snow_20_name	СВД "Снег-20"
+st_srp_variant_toz_122_hw2017_name	ТОЗ-122 "Охотник"
+st_srp_variant_toz_122_premium_name	ТОЗ-122 "Кожа"
+st_srp_variant_valmet_victoryday2020_name	Valmet Rk.62 "Победа"
+st_srp_variant_vepr_12_legend_0919_name	Вепрь-12 "Легенда"
 st_srp_weapon_aim_zoom	Базовое увеличение
 st_srp_weapon_chamber	Досылка патрона
 st_srp_weapon_draw_time	Время доставания
