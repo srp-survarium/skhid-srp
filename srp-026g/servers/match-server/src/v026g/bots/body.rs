@@ -669,8 +669,8 @@ pub fn slide_supported(grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, max_
 pub enum WalkOffs {
     /// Every walk-off drop of the floor, an off-mesh walk-off's landing included, at any speed.
     Landings,
-    /// The body is slower than an off-mesh walk-off is flown for: its drop links only, else the highest floor under the body
-    /// ([`under_edge`]).
+    /// The body is slower than an off-mesh walk-off is flown for: over such a walk-off it comes down on the highest floor under
+    /// it ([`under_edge`]), else it is held at the edge; a drop link's landing as with [`Self::Landings`].
     Under,
 }
 
@@ -683,6 +683,22 @@ impl WalkOffs {
             WalkOffLanding::BySpeed | WalkOffLanding::Link => Self::Landings,
         }
     }
+}
+
+/// What a step past a floor's cells comes down on ([`slide_supported_by`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Down {
+    /// This floor, the feet there.
+    Onto(NodeId, Vec3),
+    /// Over a walk-off it is too slow for ([`WalkOffs::Under`]) with no floor found under it: a fall, held at the edge.
+    Unseen,
+    /// No drop ahead: not a fall.
+    None,
+}
+
+/// Whether `node`'s link to `next` is an off-mesh walk-off (a `GapDrop` walked off with no key).
+fn is_walk_off(grid: &WalkGrid, node: NodeId, next: NodeId) -> bool {
+    grid.off_link(node, next).is_some_and(|l| l.kind == LinkKind::GapDrop && l.press == mapdata::grid::gap::Takeoff::WalkOff)
 }
 
 /// [`slide_supported`] with the landings a step off a ledge may come down on ([`WalkOffs`]).
@@ -713,16 +729,15 @@ pub fn slide_supported_by(
             let walked = floor_under(grid, node, point, max_rise).map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)));
             let fall = match walked {
                 Some((next, _)) if grid.position(next).y >= base - fall_below => return walked,
-                Some((next, _)) => Some((next, grid.position(next))),
-                None => dropped_to(grid, node, at, (mx, mz), offs)
-                    .or_else(|| dropped_past(grid, node, point, (mx, mz), offs))
-                    .map(|next| (next, grid.position(next)))
-                    .or_else(|| match offs {
-                        // Straight down: the floor under the body, its feet where they went over.
-                        WalkOffs::Under => under_edge(grid, point, base - fall_below)
-                            .map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z))),
-                        WalkOffs::Landings => None,
-                    }),
+                Some((next, _)) => Down::Onto(next, grid.position(next)),
+                None => match dropped_to(grid, node, at, (mx, mz)).or_else(|| dropped_past(grid, node, point, (mx, mz))) {
+                    // Too slow for a walk-off's flight: straight down onto the floor under the body, its feet where they went
+                    // over; none found there (yet), over the edge all the same.
+                    Some(next) if offs == WalkOffs::Under && is_walk_off(grid, node, next) => under_edge(grid, point, base - fall_below)
+                        .map_or(Down::Unseen, |under| Down::Onto(under, Vec3::new(point.x, grid.position(under).y, point.z))),
+                    Some(next) => Down::Onto(next, grid.position(next)),
+                    None => Down::None,
+                },
             };
             // Held: the nearest floor of this one and those it walks to (not down a drop) within the support; with no drop
             // ahead, only a lip floor holds a body past its cells (a wall is not a ledge), so a body past the edge still walks
@@ -735,11 +750,14 @@ pub fn slide_supported_by(
                         .filter(|&next| grid.position(next).y >= base - fall_below && grid.position(next).y - base <= max_rise),
                 )
                 .map(|n| (n, grid.position(n).distance_xz(point)))
-                .filter(|&(n, d)| d <= support_m && (fall.is_some() || grid.is_lip(n)))
+                .filter(|&(n, d)| d <= support_m && (fall != Down::None || grid.is_lip(n)))
                 .min_by(|a, b| a.1.total_cmp(&b.1));
-            match held {
-                Some((n, _)) => Some((n, Vec3::new(point.x, grid.position(n).y, point.z))),
-                None => fall,
+            match (held, fall) {
+                (Some((n, _)), _) => Some((n, Vec3::new(point.x, grid.position(n).y, point.z))),
+                (None, Down::Onto(n, feet)) => Some((n, feet)),
+                // Past the support over a walk-off it is too slow for, with no floor under it: held at the edge until a world
+                // shows where it is.
+                (None, Down::Unseen | Down::None) => None,
             }
         });
         let Some((next, point)) = moved else {
@@ -778,7 +796,7 @@ fn slide_up_to(
             floor_under(grid, node, point, max_rise)
                 .map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)))
                 .or_else(|| {
-                    dropped_to(grid, node, at, (mx, mz), WalkOffs::Landings).map(|next| (next, grid.position(next)))
+                    dropped_to(grid, node, at, (mx, mz)).map(|next| (next, grid.position(next)))
                 })
         });
         let Some((next, point)) = moved else {
@@ -797,11 +815,11 @@ fn slide_up_to(
 /// cell eroded at the foot of its face, so no floor holds the step between:
 /// a body walked to the edge and stood there, the server's reckoning of a
 /// bot as well as the tests' stand-in (`player_bots_stuck.md` §8.4).
-fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32), offs: WalkOffs) -> Option<NodeId> {
+fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32)) -> Option<NodeId> {
     let half = grid.cell_size() * 0.5 + 1e-4;
     let from = grid.position(node);
     let (px, pz) = (at.x + sx, at.z + sz);
-    walk_off_drops(grid, node, offs)
+    walk_off_drops(grid, node)
         .filter(|&next| {
             let to = grid.position(next);
             let (dx, dz) = (to.x - from.x, to.z - from.z);
@@ -823,13 +841,12 @@ fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32), off
 }
 
 /// The floors `node` drops to that a body walks off: a drop link, or a gap drop walked off (no key: the body walks over the
-/// edge and comes down on its landing, `mapdata::grid::gap`) unless the body is too slow for it ([`WalkOffs::Under`]).
-fn walk_off_drops(grid: &WalkGrid, node: NodeId, offs: WalkOffs) -> impl Iterator<Item = NodeId> + '_ {
+/// edge and comes down on its landing, `mapdata::grid::gap`).
+fn walk_off_drops(grid: &WalkGrid, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
     grid.links(node)
         .filter(move |&(next, kind)| {
             kind == LinkKind::Drop
                 || (kind == LinkKind::GapDrop
-                    && offs == WalkOffs::Landings
                     && grid
                         .off_link(node, next)
                         .is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff))
@@ -837,9 +854,9 @@ fn walk_off_drops(grid: &WalkGrid, node: NodeId, offs: WalkOffs) -> impl Iterato
         .map(|(next, _)| next)
 }
 
-/// The floor a body that goes over a ledge with no drop link ahead comes down on when it falls straight ([`WalkOffs::Under`]):
-/// the highest floor lower than `below` whose cell overlaps the square of the body's radius and half a cell around `point`, a
-/// floor of the grid whether a walk reaches it or not (Vector Laboratory's 16.22 ledge under the 20.6 lip, `fx-smoke-pockets.md`).
+/// The floor a body too slow for a walk-off's flight comes down on when it falls straight ([`WalkOffs::Under`]): the highest
+/// floor lower than `below` whose cell overlaps the square of the body's radius and half a cell around `point`, a floor of the
+/// grid whether a walk reaches it or not (Vector Laboratory's 16.22 ledge under the 20.6 lip, `fx-smoke-pockets.md`).
 fn under_edge(grid: &WalkGrid, point: Vec3, below: f32) -> Option<NodeId> {
     let r = grid.body().radius + grid.cell_size() * 0.5;
     grid.floors_in([point.x - r, point.z - r, point.x + r, point.z + r])
@@ -849,9 +866,9 @@ fn under_edge(grid: &WalkGrid, point: Vec3, below: f32) -> Option<NodeId> {
 
 /// The drop of `node` a body that has gone past the support of its floors comes down on: `node`'s drop ahead of the step
 /// `(sx, sz)` nearest to `point`. A body held past the edge is further out than [`dropped_to`]'s line reaches.
-fn dropped_past(grid: &WalkGrid, node: NodeId, point: Vec3, (sx, sz): (f32, f32), offs: WalkOffs) -> Option<NodeId> {
+fn dropped_past(grid: &WalkGrid, node: NodeId, point: Vec3, (sx, sz): (f32, f32)) -> Option<NodeId> {
     let from = grid.position(node);
-    walk_off_drops(grid, node, offs)
+    walk_off_drops(grid, node)
         .filter(|&next| {
             let to = grid.position(next);
             (to.x - from.x) * sx + (to.z - from.z) * sz > 0.0
