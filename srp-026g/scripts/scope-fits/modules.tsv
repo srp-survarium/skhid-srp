@@ -1,0 +1,44 @@
+# 0.69d0 modules the scope fits are made of (make_pack.py, prepare_donor.sh): the optics whose meshes
+# make_pack.py finds in our variants (each a variant's translation: scopes_lib.Modules.match), and
+# the rails and mounts 0.69d0 puts under an optic on the new guns (mounts.tsv), placed as 0.69d0
+# places them. Rails: their material as 0.26g gets it: loc2:<name> an existing material of ours
+# (weapons/loc2/<name>), else 0.69d0's made again on the 0.26g template named (retexture.py).
+# A base: a module only its locators are taken of (our gun has it in its own mesh).
+# A sight: an iron sight module, up (its `model`, as the gun's port baked it in) and folded (its
+# `model_param1`, as 0.69d0 shows it under an optic): sights.tsv folds the one into the other.
+# module (models/weapons/modules/...)	kind	material	how
+collimators/aimpoint_compm4_collimator	optic	-	-
+collimators/belomo_pk01_collimator	optic	-	-
+collimators/ekp8cobra_collimator	optic	-	-
+collimators/eotech_552_collimator	optic	-	-
+collimators/eotech_xps2_collimator	optic	-	-
+collimators/hensoldt_rsas_collimator	optic	-	-
+collimators/leupold_dppro_collimator	optic	-	-
+collimators/ncstar_4_collimator	optic	-	-
+collimators/walther_competition2_collimator	optic	-	-
+scopes/acog_ta01_4x32_scope	optic	-	-
+scopes/acog_ta31_4x32_scope	optic	-	-
+scopes/aperture_scope	optic	-	-
+scopes/elcan_specterdr01_1x4x_scope	optic	-	-
+scopes/leupold_3_7x4x8_scope	optic	-	-
+scopes/leupold_mk4_x35x10_scope	optic	-	-
+scopes/pso_1_old_scope	optic	-	-
+scopes/pso_1_scope	optic	-	-
+scopes/zenit_1p69hyperon_3x10x_scope	optic	-	-
+picatinnyrails/mp5a1_scope_picatinnyrail	rail	weapons/attach/picatini_rails/picatini_mp5a1	material_instances/weapons/loc2/picatini_medium.material
+picatinnyrails/custom_dovetail_01_picatinnyrail	rail	weapons/attach/picatini_rails/picatini_lastochka	loc2:picatini_lastochka
+picatinnyrails/pistol2_picatinnyrail	rail	weapons/attach/picatini_rails/picatini_pistol	loc2:picatini_pistol
+picatinnyrails/medium_picatinnyrail	rail	weapons/attach/picatini_rails/picatini_medium	loc2:picatini_medium
+picatinnyrails/famas_picatinnyrail	rail	weapons/modules/picatinnyrails/famas_picatynnyrail	material_instances/weapons/loc2/picatini_medium.material
+picatinnyrails/g3a3_picatinnyrail	rail	weapons/modules/picatinnyrails/g3a3_picatinnyrail	material_instances/weapons/loc2/picatini_medium.material
+picatinnyrails/aks74u_zenit_b18_picatinnyrail	rail	weapons/modules/picatinnyrails/aks74u_zenit_b18_picatinnyrail	material_instances/weapons/loc2/picatini_medium.material
+receivercovers/aks74u_receivercover	base	-	-
+frames/glock_17_sandy_frame	base	-	-
+ironsights/scarh_rear_ironsight_on	sight	-	-
+ironsights/scarh_rear_ironsight_off	sight	-	-
+ironsights/scarh_front_ironsight_on	sight	-	-
+ironsights/scarh_front_ironsight_off	sight	-	-
+ironsights/vhs2_rear_ironsight_on	sight	-	-
+ironsights/vhs2_rear_ironsight_off	sight	-	-
+ironsights/vhs2_front_ironsight_on	sight	-	-
+ironsights/vhs2_front_ironsight_off	sight	-	-

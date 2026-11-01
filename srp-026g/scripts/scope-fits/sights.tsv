@@ -1,0 +1,40 @@
+# The release-41 guns' iron sights under an optic (the scope fits' variants; make_pack.py, sights.py;
+# docs/notes/weapon_scopes.md, section 7). For each gun with scope fits, each sight: where our model has
+# it (a surface, or a part of one); what 0.69d0 does with it under an optic (a sight module's
+# attach_params: an optic sets the sight slots to param 1, the module's model_param1: its folded model;
+# a module on the optic's own slot is taken off for it; a sight of the gun's own mesh stays); whether it
+# stood in a variant's line of sight in scope-fits@2 (occlusion.py: the variant, how far before the eye);
+# and what a variant's weapon model does with it (the last column, make_pack.py reads it):
+#   keep                                   it stays (it is below every optic's line of sight)
+#   fold <surface> <up module> <folded>    the up module the port baked into <surface> (found in it
+#                                          whole) made the folded one (models/weapons/modules/...)
+#   cut <surface>                          the whole surface left out
+#   cut <surface> <x0,y0,z0,x1,y1,z1>      the surface's mesh islands wholly inside the box (the
+#                                          locators' frame, metres) taken out
+#   lower <surface> <box> <y>              the surface's vertices inside the box above y lowered to y:
+#                                          the part of a bigger island above y cut flat
+# The OTs-14 and the Mauser M.712 take no scope (fit.tsv).
+# gun	sight	our model	0.69d0 under an optic	line of sight, scope-fits@2	under an optic
+scar_h	rear, flip-up	scar_h_sightsg: 0.69d0's scarh_rear_ironsight_on, whole (1898 triangles)	scarh_rear_ironsight: folded (scarh_rear_ironsight_off)	every collimator (6.5 cm)	fold scar_h_sightsg ironsights/scarh_rear_ironsight_on ironsights/scarh_rear_ironsight_off
+scar_h	front, flip-up	scar_h_sightsg: scarh_front_ironsight_on, whole (618 triangles)	scarh_front_ironsight: folded (scarh_front_ironsight_off)	every collimator (0.49 m), every scope (0.29 to 0.40 m)	fold scar_h_sightsg ironsights/scarh_front_ironsight_on ironsights/scarh_front_ironsight_off
+vhs_2	rear, flip-up	vhs_2_sights_s: vhs2_rear_ironsight_on, whole (959 triangles)	vhs2_rear_ironsight: folded (vhs2_rear_ironsight_off)	no	fold vhs_2_sights_s ironsights/vhs2_rear_ironsight_on ironsights/vhs2_rear_ironsight_off
+vhs_2	front, flip-up	vhs_2_sights_s: 0.31a2's vhs2_front_ironsight_on, whole (497 triangles; its post 2.3 mm lower than 0.69d0's)	vhs2_front_ironsight: folded (vhs2_front_ironsight_off)	DeltaPoint, PK-01VI, RSAS, Walther (0.51 m), Mk4 (0.30 m)	fold vhs_2_sights_s ironsights/vhs2_front_ironsight_on ironsights/vhs2_front_ironsight_off
+fn_minimi	rear (aperture, on the feed cover)	part of kolya_lp_receiver01sg	its own mesh: stays	no	keep
+fn_minimi	front post (on the gas block)	part of kolya_lp_receiver02sg: two islands (310 triangles)	its own mesh: stays	PK-01VI, RSAS, Walther (0.65 m)	cut kolya_lp_receiver02sg -0.011,0.064,-0.481,0.011,0.115,-0.456
+mp5a1	rear drum, front hood	part of mp5a1_s	its own mesh: stays	no	keep
+svu_a	rear, front	part of svu_a_handguard_s (0.46c2's own: not 0.69d0's modules)	svu_a_rear_ironsight, svu_a_front_ironsight: folded (their _off); our mesh has no 0.69d0 module to fold	no	keep
+l85a2	carry handle with the rear sight, front post	scope_enfield_l85a2_ironsight_s (0.46c2's rear sight module: both)	enfieldl85a2_rear_ironsight, on picatinny_scope_medium (the optic's slot): taken off	cut since scope-fits@1	cut scope_enfield_l85a2_ironsight_s
+fort_401	rear	scope_fort_401_ironsight_s (0.46c2's module)	fort401_ironsight, on picatinny_scope_medium (the optic's slot): taken off	cut since scope-fits@1	cut scope_fort_401_ironsight_s
+fort_401	front post (between the front block's ears)	part of fort_401_part2_s: two islands (218 triangles)	its own mesh: stays	every collimator (0.60 m)	cut fort_401_part2_s -0.008,0.09,-0.358,0.008,0.114,-0.34
+fort_401	front sight's ears (either side of the post)	part of fort_401_part2_s: the top of its front block's island, 1.1 to 2.5 cm above the block	its own mesh: stays	EOTech 552 with the post cut (0.59 m)	lower fort_401_part2_s -0.02,0.0912,-0.365,0.02,0.12,-0.33 0.0912
+jackhammer	none (a rail on the carry handle)	-	-	no	keep
+cz_75	rear notch, front blade	part of cz_75b_s	its own mesh: stays	no	keep
+mp443	rear notch, front blade	part of mp_443_s	its own mesh: stays	no	keep
+beretta93r	rear notch, front blade	part of beretta_93r_s	its own mesh: stays	no	keep
+glock_17	rear notch, front blade	ironsight_glock_17_ironsight_s	glock17_ironsight: fixed (model_param1 the same model), stays	no	keep
+colt_m1911	rear notch, front blade	colt_m1911_ironsight_s	its own mesh: stays	no	keep
+akmsu	rear (on the receiver cover's hinge), front post	parts of aks74u_receivercover_aks74u_receivercover_s and akmsu_reciever_02_s	its own mesh: stays	no	keep
+famas	rear and front, in the carry handle	part of famas_01_s	its own mesh: stays	no	keep
+g3sg1	rear drum, front hood	part of g3a3_s	its own mesh: stays	no	keep
+ks_23m	rear notch, front bead	parts of ks_23_s and ks_23_barrel_rifling_short_ks_23_barrel_rifling_short_s	its own mesh: stays	no	keep
+ppsh_drum	rear, front hood	part of ppsh_s	its own mesh: stays	no	keep

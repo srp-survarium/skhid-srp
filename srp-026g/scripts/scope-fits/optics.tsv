@@ -1,0 +1,25 @@
+# Every scope item sold (seller 0) and the 0.69d0 module it is: the scope fits put each on the
+# release-41 guns 0.69d0 gives that module to (survey.py, fit.tsv). A row with a dict id of its own
+# and a price is a new shop item of this pack, made from the CompM4's (the Walther Competition II:
+# 0.69d0's collimator our HK416 and MSBS carry as their stock scope, never sold before); it goes on
+# our weapons with a collimator mount too (the rifle scopes' mounts.tsv), as 0.69d0 gives it.
+# scope	0.69d0 module (link name)	0.69d0 model (models/weapons/modules/...)	new item: dict id	price	icon row	icon col	fov_factor
+shop_scope_aimpoint_compm4	aimpoint_compm4_collimator	collimators/aimpoint_compm4_collimator	-	-	-	-	-
+shop_scope_eotech_552	eotech_552_collimator	collimators/eotech_552_collimator	-	-	-	-	-
+shop_scope_cobra_ekp_8	ekp8cobra_collimator	collimators/ekp8cobra_collimator	-	-	-	-	-
+shop_scope_docter	docter_red_dot_sight_collimator	collimators/docter_red_dot_sight_collimator	-	-	-	-	-
+shop_scope_leupold_deltapoint	leupold_dppro_collimator	collimators/leupold_dppro_collimator	-	-	-	-	-
+shop_scope_ncstar_4	ncstar_4_collimator	collimators/ncstar_4_collimator	-	-	-	-	-
+shop_scope_eotech_xps2	eotech_xps2_collimator	collimators/eotech_xps2_collimator	-	-	-	-	-
+shop_scope_belomo_pk01	belomo_pk01_collimator	collimators/belomo_pk01_collimator	-	-	-	-	-
+shop_scope_hensoldt_rsas	hensoldt_rsas_collimator	collimators/hensoldt_rsas_collimator	-	-	-	-	-
+shop_scope_walther_comp2	walther_competition2_collimator	collimators/walther_competition2_collimator	2120	8000	20	4	0.8
+shop_scope_acog_ta31	acog_ta31_4x32_scope	scopes/acog_ta31_4x32_scope	-	-	-	-	-
+shop_scope_acog_ta01	acog_ta01_4x32_scope	scopes/acog_ta01_4x32_scope	-	-	-	-	-
+shop_scope_aperture	aperture_scope	scopes/aperture_scope	-	-	-	-	-
+shop_scope_elcan_specterdr	elcan_specterdr01_1x4x_scope	scopes/elcan_specterdr01_1x4x_scope	-	-	-	-	-
+shop_scope_leupold_3_7	leupold_3_7x4x8_scope	scopes/leupold_3_7x4x8_scope	-	-	-	-	-
+shop_scope_leupold_mk4	leupold_mk4_x35x10_scope	scopes/leupold_mk4_x35x10_scope	-	-	-	-	-
+shop_scope_1p69_hyperon	zenit_1p69hyperon_3x10x_scope	scopes/zenit_1p69hyperon_3x10x_scope	-	-	-	-	-
+shop_scope_pso_1	pso1_x4_scope	scopes/pso_1_scope	-	-	-	-	-
+shop_scope_pso_1_old	pso1_x4_old_scope	scopes/pso_1_old_scope	-	-	-	-	-

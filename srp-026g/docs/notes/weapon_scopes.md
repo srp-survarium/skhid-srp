@@ -304,3 +304,95 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
       name was not renamed to loc2's acog; in the game it was textured);
     - make_pack.py stops when a material of the pack's models names a texture neither shipped nor the
       players', or not a DDS 0.26g reads.
+
+## 7. Scope fits for the release-41 guns, and the Walther Competition II (2026-11-01)
+
+The owner (2026-11-01): "Properly port all weapons. And their attachments (all we can)." Every scope
+we sell goes on each release-41 gun 0.69d0 gives it to; the one optic of 0.69d0 and 0.46c2 that we
+did not sell, the Walther Competition II collimator, becomes a shop scope. Pack `scope-fits`, edit
+list `scope-fits-1`, made by `scripts/scope-fits` (prepare_donor.sh, prepare_live.sh, survey.py,
+make_pack.py, review.py).
+
+- **What else exists:** 0.69d0's optics are 0.46c2's and more. Of them we did not sell the Walther
+  Competition II (the HK416's and MSBS's stock collimator), the EOTech G33 x3 magnifier (it sits behind a
+  collimator: no scope alone, 0.26g has one zoom a scope) and the Leupold 3-7 "summer17" (a skin). Laser
+  sights and suppressors are not scopes (and no suppressors, ever).
+- **The Walther Competition II:** item 2120, seller 0, 8,000 silver, x1.25 (fov 0.8, as 0.69d0's
+  aim_zoom 1.2), its icon in LobbyMenu_AmmoIcons [20, 4], the texts our stock Walther has
+  (`st_walther_competition2_collimator_*`). Made as the rifle scopes' collimators: 0.69d0's module and
+  aimed model, our red dot at its eye 0.6 m on; drawn with the stock Walther's material (the same
+  mesh and UVs, turned half about Y: 0.26g's own textures, nothing imported). It goes on each
+  weapon 0.69d0 gives it to that has a collimator mount of ours (section 6's mounts.tsv) and on the
+  release-41 guns, but not the HK416 and MSBS (it is their stock scope).
+- **Where an optic goes** (`survey.py`, `mounts.tsv`): where 0.69d0 mounts it: the gun's slot, or the
+  rail a module adds (the MP5's claw mount, the FAMAS carry-handle rail, the G3's claw mount, the
+  KS-23M's and PPSh's medium rail, the AKMSU's Zenit B-18 on its cover, the SVU's dovetail mount,
+  the pistols' bridge mount), the rail drawn with the optic. The new guns' meshes are 0.69d0's vertex
+  for vertex (checked), so 0.69d0's locators hold, each in its bone's frame (the Minimi's rail hangs
+  on its feed cover's bone). A chain that needs a module our gun does not have in its mesh (a
+  replaced handguard) is not taken. The variant's translation is the scope frame's: the weapon
+  draws a scope at scope_point turned half about Y, as 0.69d0 draws a module at its locator
+  (PROVEN: patch 19's AK-12 and M4A1 variants sit exactly where 0.69d0's locators put the module).
+- **How a variant is made** (`make_pack.py`): from a variant of ours of that scope (its reference: the
+  same models, materials, red dot and eyepiece players know), the module's mesh found in it (exactly,
+  or by its bounding box: our Kobra, DeltaPoint and old PSO-1 are the same shapes written in another
+  order; our Leupold Mk4's turret is bigger, its lens the same), moved to the gun's mount. A
+  collimator's eye: the gun's model copied with only its `aim` locator moved onto the sight line
+  (as section 6). A scope's aimed model (its eyepiece) sits before the gun's own eye as it sits
+  before the reference's; the gun's model is its own (hidden when aiming), or a copy with its eye
+  levelled and its sights as under an optic (`sights.tsv`, @3).
+- **Fits** (fit.tsv): 212 variants, dict ids 2901 on (claimed to 3299). No scope: the OTs-14 Groza
+  (0.69d0 mounts its optics only on the tactical handguard that replaces its own; our 0.31a2 Groza has
+  its carry handle and handguard in its mesh) and the Mauser (0.69d0 gives it none). The Docter fits
+  none (0.69d0 links it but gives it no slot on them).
+- **Checked:** `release/build-content` with the three weapon packs; srp starts on the data; a review
+  sheet (`review.py`) of each gun with a collimator and a scope, outside and aimed: optics on their
+  rails, reticles centred, red dots in the windows. The pack is made from the weapon packs' files
+  (`guns.sha256`): a new version of a weapon pack means survey.py and make_pack.py again.
+- **@2 (2026-11-01, after the owner's game):** made on the final weapon packs (weapons-031@7, weapons-046@6,
+  weapons-069@9): @1's model copies were of older gun models. The rails' 0.69d0 textures are converted as the
+  rifle scopes' @4 converts the optics' (`../rifle-scopes/pbr_026.py`): taken as they were, metal drew as a black
+  mirror. Every variant's reticle (red dot, else grid) is checked against its weapon model's eye: before it as
+  before its reference's, within 0.2 mm, and the eye unturned (`eyes.tsv`; the SCAR-H's Walther: 0.00 mm). The
+  camouflage bake reaches only the weapon model's own surfaces (the game's log names surfaces 0..n-1 of the
+  variant's gun model), not the scope's.
+- **@3 (2026-11-01, the owner's screenshots: the SCAR-H's flip-up sights stood up round a red dot, the VHS-2's
+  front sight in a PK-01VI):** every variant's gun model has its iron sights as 0.69d0 has them under an optic
+  (`sights.tsv`, the survey of every gun's sights; `sights.py`):
+  - **folded** where 0.69d0's sight is a module with a folded model (an optic sets the sight slots to param 1:
+    the module's `model_param1`, `<name>_off`): the SCAR-H's rear and front, the VHS-2's rear and front. The up
+    module the port baked into the gun's sight surface is found in it whole (every triangle, at one
+    translation: exactly, but the VHS-2's front, which is 0.31a2's module of the same mesh, its post 2.3 mm
+    lower, found by its vertex order) and replaced by 0.69d0's folded one there, on the same bone, with the
+    port's texture coordinates (checked equal to 0.69d0's as half floats) and its vectors packed as the port
+    packs them (checked on the up one: within a step);
+  - **cut** where the sight is fixed: a module 0.69d0 takes off for the optic (the L85A2's carry handle with its
+    front post, the Fort-401's rear sight: whole surfaces, as @1 and @2), or a part of the gun's own mesh that
+    stands in the line of sight: the Minimi's front post and the Fort-401's (their mesh islands in a box), and
+    the Fort-401's front sight ears (the top of its front block's island lowered flat to the block);
+  - **kept**: the other guns' sights are their own mesh (0.69d0 keeps them too) and below every optic's line
+    of sight: the MP5's, SVU's (0.46c2's own, not 0.69d0's folding modules: nothing to fold), AKMSU's, FAMAS's,
+    G3SG/1's, KS-23M's, PPSh's and the pistols'. The Jackhammer has none.
+  - **The check** (`occlusion.py`, every variant, the build stops on a release-41 gun's; `occlusion.tsv`): a
+    collimator's: rays from its weapon model's eye in a cone about its red dot, 24 directions round, out to
+    where the optic's own body closes the window; a scope's (the weapon is hidden when aiming): rays along its
+    axis from its eyepiece's disk. Nothing of the gun's model or the rails may be hit inside 0.6 of the window
+    (its rim may show the rail or handguard, as on a real rifle). @2 failed 30 variants (all 15 of the SCAR-H, the
+    VHS-2's DeltaPoint, PK-01VI, RSAS, Walther and Mk4, seven of the Fort-401's eight collimators, the Minimi's PK-01VI, RSAS
+    and Walther); @3 passes all 207 on the release-41 guns. The Walther on five live weapons (M4A1, RPD,
+    TOZ-122, UMP-45, Valmet) is recorded `live`: their own front sights stand in it, as in every live
+    collimator of ours on them (below).
+  - **The live variants** (patch 19's and the rifle scopes', `occlusion.py --live --donor`): none drops or
+    folds a sight; each sets the gun's own model or a copy with only its eye moved (the Mosin's bent bolt
+    aside). 34 of 349 variant and weapon pairs have the gun's own sight or rail in the line of sight: the
+    M4A1's front post (its six collimators, the ACOGs and the Elcan), the RPD's, UMP-45's, Valmet's, TOZ-122's,
+    IZh-27's, MP7's, SPAS-12's and AEK-919K's front sights, the Rem 870's and Magnum's rails, the Vepr's Leupold
+    3-7 (a part 1.5 cm before its eyepiece). Eight of patch 19's CompM4 and Kobra variants (on the A-91,
+    SR-3M, AS Val, Vepr, RPD, UMP-45, Rem 870) have their window shut from the eye: their optic's own body is on
+    that line, so the check judges nothing there (`occlusion-live.tsv`). Not changed here: a later revision.
+  - Made on weapons-046@8 and weapons-069@10 (the pistols' and the KS-23M's configs differ from @6 and @9; the models
+    are the same).
+  - Made as the rifle scopes' @5 makes theirs (section 6): the Walther's and the rails' 0.69d0 meshes in 0.26g's
+    vertex layout (`compose()`), the rails' materials their 0.26g templates with only the four textures changed
+    (`prepare_donor.sh`, `retexture.py`), their textures converted per pixel (`pbr_026.py`), and the Walther's shop
+    icon 0.69d0's own picture (`module_renderer_106.png`, its `ui_desc.icon_renderer`), framed as the stock icons.
