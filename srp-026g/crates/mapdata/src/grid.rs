@@ -160,6 +160,12 @@ pub struct Body {
     /// ([`WalkGrid::cut_blocked_walk_offs`]). A link checks only the landing's ceiling over the take-off; a rail or a parapet at the
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
+    /// Whether the sprint jumps' run-ups ([`SPRINT_RUN_UP_M`] straight behind the take-off, `WalkGrid::drop_short_run_ups`) are
+    /// asked after the erosion, of the take-offs and floors it leaves, not before it. The erosion makes Jump links of its own (a
+    /// jump past a floor that went starts a cell back; a jump whose landing went lands further on) and takes floors off a run-up's
+    /// line: checked before it, 366 of the offered maps' 3,716 sprint-band jumps over 1.05 m are left with less than 1.5 m straight
+    /// behind them, 290 of them jumps the erosion made (A236). A build input: in the key when set.
+    pub run_ups_after_erosion: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -207,6 +213,7 @@ impl Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
+            run_ups_after_erosion: false,
         }
     }
 }
@@ -270,6 +277,7 @@ impl Default for Body {
             crouch_only_floors: true,
             capsule_steps: false,
             drop_room: false,
+            run_ups_after_erosion: false,
         }
     }
 }
@@ -873,10 +881,18 @@ impl WalkGrid {
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
-        (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide);
+        // Before the erosion the run is counted with the radius the erosion takes off the take-off's side.
+        if !body.run_ups_after_erosion {
+            let cells = ((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize;
+            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, cells);
+        }
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact));
+        if body.run_ups_after_erosion {
+            let cells = (SPRINT_RUN_UP_M / cell).ceil() as usize;
+            (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, cells);
+        }
         wide.off = match links {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
@@ -1239,15 +1255,12 @@ impl WalkGrid {
     }
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
-    /// [`SPRINT_RUN_UP_M`] behind their take-off: the floors walked back from it in the opposite direction, each a
+    /// [`SPRINT_RUN_UP_M`] behind their take-off: `cells` floors walked back from it in the opposite direction, each a
     /// Walk link within a step of the one before (a sprint from rest is at speed by 2 m, 8e). The links of the capped band
     /// (rises from `max_jump` up to the exe body's top) are kept without a run-up: a cap does not cut what the base kept
     /// for an objective only they reach. Returns the links taken away and those of the band kept with none.
-    fn drop_short_run_ups(&self, wide: &mut Wide) -> (usize, usize) {
+    fn drop_short_run_ups(&self, wide: &mut Wide, cells: usize) -> (usize, usize) {
         let (mut cut, mut kept) = (0, 0);
-        // Erosion takes the floors within the body's radius of the face off the take-off's side: the run is counted from
-        // before it.
-        let cells = ((SPRINT_RUN_UP_M + self.body.radius) / self.cell).ceil() as usize;
         for a in 0..self.height.len() {
             for d in 0..8 {
                 let b = wide.links[a][d];
@@ -4859,6 +4872,55 @@ pub(crate) mod tests {
         assert!(!way(1.2, Body::client()), "no run of 1.5 m behind the take-off");
         assert_eq!(Body::default().jump_cap(), 1.05);
         assert_eq!(Body::client().jump_cap(), SPRINT_JUMP_LOW_M);
+    }
+
+    /// [`Body::run_ups_after_erosion`]: a pillar beside the run-up to a 1.2 m face. Its neighbour floors are there for the run-up
+    /// check before the erosion and go in it (and the erosion starts the jump a cell back): asked before it, the jumps beside the
+    /// pillar keep 0.5 m of run; asked after it, every sprint-band jump left has its 1.5 m.
+    #[test]
+    fn a_sprint_jumps_run_up_is_asked_of_the_floors_the_erosion_leaves() {
+        let short_of_run_ups = |body: Body| {
+            let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.0, 0.0, 12.0, 10.0, 1.2));
+            tris.extend(crate_box(3.5, 5.3, 4.0, 5.55, 2.0));
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body);
+            let cells = (SPRINT_RUN_UP_M / 0.25).ceil() as usize;
+            // The floors walked straight back from `a` against the way (di, dk), each a Walk link within a step.
+            let run = |a: NodeId, di: f32, dk: f32| {
+                let (mut at, mut n) = (a, 0);
+                while n < cells {
+                    let p = grid.position(at);
+                    let back = grid.links(at).find(|&(c, kind)| {
+                        let q = grid.position(c);
+                        kind == LinkKind::Walk
+                            && (q.x - (p.x - di * 0.25)).abs() < 0.01
+                            && (q.z - (p.z - dk * 0.25)).abs() < 0.01
+                            && (q.y - p.y).abs() <= body.step
+                    });
+                    let Some((c, _)) = back else { break };
+                    at = c;
+                    n += 1;
+                }
+                n
+            };
+            let (mut jumps, mut short) = (0, 0);
+            for a in 0..grid.len() as NodeId {
+                for (b, kind) in grid.links(a) {
+                    let (pa, pb) = (grid.position(a), grid.position(b));
+                    if kind != LinkKind::Jump || pb.y - pa.y <= Body::default().max_jump {
+                        continue;
+                    }
+                    jumps += 1;
+                    let way = |d: f32| if d.abs() < 0.01 { 0.0 } else { d.signum() };
+                    short += usize::from(run(a, way(pb.x - pa.x), way(pb.z - pa.z)) < cells);
+                }
+            }
+            (jumps, short)
+        };
+        let before = short_of_run_ups(Body::client());
+        let after = short_of_run_ups(Body { run_ups_after_erosion: true, ..Body::client() });
+        assert!(before.0 > 0 && before.1 > 0, "checked before the erosion, some keep no run: {before:?}");
+        assert!(after.0 > 0 && after.1 == 0, "checked after it, every one left has its run: {after:?}");
     }
 
     #[test]
