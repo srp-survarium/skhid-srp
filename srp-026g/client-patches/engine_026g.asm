@@ -7,6 +7,8 @@ section .text
 global engine_cfg_child
 global engine_cfg_has
 global engine_malloc
+global engine_allocated_size
+global engine_dump_statistics
 global engine_match_rule_base
 global engine_write_u8
 global engine_write_u16
@@ -201,6 +203,37 @@ engine_malloc:
     mov esi, [esp + 24]   ; allocator
     mov eax, [esp + 28]   ; size
     call 0xe4f90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_allocated_size:
+    ; 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; allocator
+    call 0xe5270
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_dump_statistics:
+    ; 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; flag -> 4
+    call 0xe1370
+    add esp, 4                  ; the caller's part of the stack
     pop edi
     pop esi
     pop ebx

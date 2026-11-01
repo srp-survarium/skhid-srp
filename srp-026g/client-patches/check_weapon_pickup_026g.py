@@ -247,6 +247,11 @@ class Run(hide.Run):
         assert self.stopped == STEP_AFTER and sp == top, (hex(self.stopped or 0), hex(sp))
         self.word(GAME + 0x53AC, CLIENT)
 
+    def destroy_player(self, player):
+        """player::~player of `player` (player.destroy 0x1F2100)."""
+        self.run(DESTROY_SITE, (DESTROY_AFTER,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_ECX: player})
+        assert self.stopped == DESTROY_AFTER
+
     def destroy(self):
         _, sp = self.run(DESTROY_SITE, (DESTROY_AFTER,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_ECX: PLAYER})
         assert self.stopped == DESTROY_AFTER
@@ -324,14 +329,12 @@ def main():
     r.remove(PLAYER, gone)
     assert any("place 5 at %d ms: its body left the world, the drop of its kit 1 slot 10 ends" % gone in l
                for l in r.log), r.log
-    r.step(gone + 2_999)
-    assert r.read(COOKED + 0xD0) == 2, "freed inside the margin"
-    r.step(gone + 3_000)
+    r.step(gone + 1)
     assert r.read(COOKED + 0xD0) == 1 and copy not in r.live and r.releases == []
     assert r.live == {}, {hex(k): v for k, v in r.live.items()}
     print("ok the completion through the game's boost invoker 0x202300: the gun kept (one reference), the recipe freed, logged made with its ms and memory; "
-          "kept while its body is in the world (60 s), given back 3 s after base_player::remove(1) takes the body out, "
-          "every allocation freed once")
+          "kept while its body is in the world (60 s); never registered nor in hands, given back at the next frame after "
+          "base_player::remove(1) takes the body out; every allocation freed once")
 
     # The last reference: the native release; a new life dies again: a new cook.
     r.player(spawned=SPAWNED + 9000)
@@ -378,6 +381,7 @@ def main():
 
     stage2(patched, original)
     holster(patched)
+    keep_and_reuse(patched)
     second_pickup(patched)
     two_slots(patched)
     ordinary_kit(patched)
@@ -856,13 +860,16 @@ def second_pickup(patched):
     assert r.slot(inv, 10) == own + 0x10 and r.slot(inv, 8) == r.own_ammo
     assert r.slot(second, 10) == gun + 0x10 and r.slot(second, 11) == ammo
     assert r.read(r.registry + 4 * GUN_ID) == own and r.save(r.picker) == record()
-    # Let go, each is freed 3 s after (a rollback can take it back meanwhile).
-    r.step(DIED + 2_500 + 2_900)
-    assert r.read(second + 0xD0) == 2 and r.read(first + 0xD0) == 2
+    # Let go, both kept (never freed mid-match: bullets and the game's objects may point at them) ...
     r.step(DIED + 2_500 + 3_000)
+    r.step(DIED + 2_500 + 300_000)
+    assert r.read(second + 0xD0) == 2 and r.read(first + 0xD0) == 2
+    # ... until their holder is destroyed (its departure or the match's end).
+    r.destroy_player(r.picker)
     assert r.read(second + 0xD0) == 1 and r.read(first + 0xD0) == 1
     print("ok a pistol for a pistol (slot 10 picked twice): the picked gun let go for the new one, the own gun "
-          "and ammunition hidden; the removal puts the own ones back; guns let go are freed 3 s after")
+          "and ammunition hidden; the removal puts the own ones back; guns let go are kept (5 min on) until their "
+          "holder is destroyed")
 
 
 def two_slots(patched):
@@ -1387,6 +1394,77 @@ def holster(patched):
           "the switch again puts the first gun away in its slot before any move; a gun in hands throughout")
 
 
+def keep_and_reuse(patched):
+    """The owner's lifetime model (2026-11-01, after 83Lb41's crash on a bullet of a freed gun): a copy that
+    was ever registered or in hands is never freed mid-match, only with its last holder (its departure, the
+    match's end); an idle one is re-used for its donor's next drop; a loaded record naming a kept copy
+    re-installs that object with no weapon call of ours."""
+    # A replacement, a rollback across its switch, then much later: the replaced gun (which bullets of its
+    # may still name) is alive.
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    first, first_cooked = r.new_gun, r.cooked
+    second_cooked, second, _ = r.new_life(6, SPAWNED + 20_000, DIED + 2_000)
+    r.pick(target=6, now=DIED + 2_500, switch=False)
+    r.tick(ready=False)
+    window = r.save(r.picker)
+    r.tick(now=DIED + 3_400)
+    assert r.read(r.picker + 0x128) == second
+    r.load(r.picker, window)                            # back into the holster: the first gun in hands again
+    r.reader(PICK_ID)
+    r.word(r.picker + 0x12C, r.read(r.registry + 4 * PENDING_ID))
+    r.tick(now=DIED + 3_450)
+    assert r.read(r.picker + 0x128) == second
+    for t in (10_000, 60_000, 600_000):
+        r.step(DIED + t)
+    assert r.read(first_cooked + 0xD0) == 2 and r.read(second_cooked + 0xD0) == 2, "freed mid-match"
+    assert r.slot(first_cooked, 10) == first + 0x10, "the replaced gun alive in its cooked inventory"
+    print("ok a replacement, a rollback across its switch, the switch again: 10 min on the replaced gun (which a "
+          "bullet of its may name) and the new one are both alive")
+
+    # Re-use: the picker's removal lets the gun go; the donor (the same player object) dies again with the
+    # same kit and slot: the kept copy is its drop's gun, no new cook; a pickup of it is the usual one.
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    kept, kept_cooked = r.new_gun, r.cooked
+    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.restored()
+    r.remove(PLAYER, DIED + 8_000)
+    r.word(PLAYER + 0x328, SPAWNED + 20_000)
+    r.word(PLAYER + 0x324, DIED + 30_000)
+    r.emu.mem_write(WEAPON + 0x5E5, bytes([9]))
+    r.queries, r.log = [], []
+    r.death()
+    assert r.queries == [], "an idle kept copy is re-used: no new cook"
+    assert any("re-using a kept copy of the gun of place 5 kit 1 slot 10: gun %#x" % kept in l for l in r.log), r.log
+    assert r.save(PLAYER) == record(("open", KIT, 1))
+    r.word(r.picker + 0x128, r.own_gun)
+    r.word(r.picker + 0x12C, r.own_gun)
+    r.pick(now=DIED + 31_000)
+    assert r.slot(r.inventory, 10) == kept + 0x10 and r.read(r.registry + 4 * PICK_ID) == kept
+    assert r.read(kept + 0x5E5, 1)[0] == 9, "the donor's magazine of this death, granted at the switch"
+    r.in_hands()
+    print("ok re-use: the picker's removal lets the gun go (kept); the donor's next death with that kit and slot "
+          "takes the kept copy as its drop's gun (no cook, logged); its pickup installs it with this death's magazine")
+
+    # A resync or late join's record naming a kept copy: that object re-installed, no cook, no weapon call.
+    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.queries, r.native = [], []
+    r.load(r.picker, record(slot10=(DIED + 31_000, PLACE, KIT, 1)))
+    assert r.queries == [] and r.slot(r.inventory, 10) == kept + 0x10, r.log
+    assert [n for n in r.native if n[1] == kept] == [], r.native
+    print("ok a loaded record naming a kept copy: the same object re-installed, no cook, no weapon call of ours")
+
+    # No free until teardown: the holder's destruction frees what it last held.
+    r.step(DIED + 900_000)
+    assert r.read(kept_cooked + 0xD0) == 2
+    r.destroy_player(r.picker)
+    assert r.read(kept_cooked + 0xD0) == 1
+    print("ok no free of a copy ever held until its holder's destruction (15 min on, still kept)")
+
+
 def stage2(patched, original):
     no_branch_into(original)
     print("ok nothing in the original branches into the new spans (0x2DAF70, 0x2DB4CF, 0x2DA790, 0x2F809C, "
@@ -1584,8 +1662,12 @@ def stage2(patched, original):
     print("ok a record that does not decode (bad bytes, a short state): logged loudly, read as empty (the pick "
           "restored), never a crash")
     r.step(gone + 10_100)
-    assert r.read(r.cooked + 0xD0) == 1, "back in the drop of a body gone 10 s ago: freed at the next frame"
-    print("ok a gun back in the drop of a body that left the world is freed at the next frame's step after the margin")
+    r.step(gone + 600_000)
+    assert r.read(r.cooked + 0xD0) == 2, "a copy that was in hands is never freed mid-match"
+    r.destroy_player(r.picker)
+    assert r.read(r.cooked + 0xD0) == 1, "freed with its last holder"
+    print("ok keep and reuse: a copy that was in hands, back in the drop of a body gone long ago, is never freed "
+          "mid-match (10 min on); its last holder's destruction frees it")
 
     # Availability ends when the body leaves the world: a command after the donor's removal.
     late = Pick(patched)

@@ -205,7 +205,7 @@ va	name	source	ret_cleanup	result
 0x000e5140	vostok::memory::doug_lea_allocator::call_realloc	manual	24	
 0x000e5160	vostok::memory::doug_lea_allocator::call_free	manual	16	
 0x000e51a0	vostok::memory::doug_lea_allocator::total_size	manual	0	
-0x000e5270	vostok::memory::doug_lea_allocator::allocated_size	manual	0	
+0x000e5270	vostok::memory::doug_lea_allocator::allocated_size	manual	0	EAX: the bytes allocated (ECX the allocator; 0x0E5300..0x0E5310)
 0x000e7d20	vostok::resources::mount_by_config_helper::mount_by_config_helper	manual	0	EAX: the helper
 0x000e7d90	vostok::resources::mount_by_config_helper::query_db	manual	0	
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
@@ -2219,3 +2219,4 @@ va	name	source	ret_cleanup	result
 0x0001a390	vostok::engine::engine_world::logic	manual	0	the logic thread's loop: GetCurrentThreadId into apc logic, then logic_tick 0x1A030 (or 0x1A140) for ever; while logic frame +2ECh > renderer frame + 1 it loops dispatching callbacks with Sleep(1) (0x1A2B0..0x1A35F): a stuck render thread holds the logic thread there, silent
 0x00288d60	survarium::lobby_menu::process_default_relocate_item	manual	4	the ammo slots of a weapon put in a kit: each from the profile item of an ammo category (+228h 9, 12h..15h) its weapon takes, its count (bags div parameters/required_bags) x parameters/clip_size of its dictionary entry's config (0x289EB2..0x289EF3, low bytes; one weapon 0x28A035..0x28A04F), capped by the rounds owned; two weapons split the bags (0x28A09F..0x28A10C): slot 7's weapon min(int(0.7 x bags + 0.5), its ammo's clips owned) into slot 8, slot 10's the rest into slot 9; one weapon, or one item for both, all bags into slot 8; bags = int(apply_kit_parameter 0x2F7660 of modifier 16 on lobby+311Ch, player/ammo_bags_count read at 0x22112B) (0x288E4B..0x288E65); the pick of an item: the lowest entry+384h byte, at least a clip owned; the crate later fills each slot to that count (resupply_from_profile)
 0x00313f50	survarium::gather_victory_items_rule::set_game_world_core	manual	4	no result; registers each victory item (rule+110h..+114h) in core+18B4Ch as 0.21d register_interactive_object did (push_back 0x2D4540, item+0Ch its index, item+4 the core, item+2C0h keyed from core+18FB0h); with bind_to_game_core 0x2E30F0 the registry's only appenders; called once per rule (0x314CD9)
+0x000e1370	vostok::memory::dump_statistics	manual	0	no result; cdecl, one byte argument (0x0E13E6 tests [ebp+8]); logs every registered allocator's statistics (the list at [0xA808FC])

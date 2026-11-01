@@ -2,6 +2,8 @@ symbol	va	arguments	prototype	call	vostok
 engine_cfg_child	0x0f6b10	EAX:table EDI:key	const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)	thunk	
 engine_cfg_has	0x0f6c00	EAX:table ESI:key	unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key)	thunk	
 engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_malloc(void *allocator, unsigned int size, const void *where)	thunk	
+engine_allocated_size	0x0e5270	ECX:allocator	unsigned int engine_allocated_size(void *allocator)	thunk	
+engine_dump_statistics	0x0e1370	ESP+4:flag	void engine_dump_statistics(unsigned int flag)	thunk	
 engine_match_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	void *engine_match_rule_base(void *rule, unsigned int type)	thunk	
 engine_write_u8	0x1f3de0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_u16	0x2f5da0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	

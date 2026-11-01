@@ -81,6 +81,12 @@ unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key);
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 void *engine_malloc(void *allocator, unsigned int size, const void *where);
 
+/* 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX */
+unsigned int engine_allocated_size(void *allocator);
+
+/* 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0 */
+void engine_dump_statistics(unsigned int flag);
+
 /* 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX */
 void *engine_match_rule_base(void *rule, unsigned int type);
 

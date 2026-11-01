@@ -359,11 +359,30 @@ cooked gun).
   C/B) = bags` for each, then `place P crate: slot S ammo A before ->
   after; the weapon slot's bags = total (clip C/B) less in-gun` for the
   loaded stack and `(not the gun's loaded stack: left)` for the others.
-- **The cache**: a gun installed is lent (never freed by its body's end or
-  its donor's destruction); kept, it is freed 3 s after its donor's
-  remove(1) (the body left the world: `Origin::Death.gone`), or after its
-  give-back when that came later (a holder's respawn long after the body
-  went), so a rollback that takes it again finds it and cooks nothing.
+- **The copies' lifetime: keep and reuse** (the owner, 2026-11-01, after
+  83Lb41 crashed on a bullet whose gun we had freed: a bullet keeps raw
+  pointers to its weapon item and ammunition, +0Ch and +40h, 0x32BDAE, and
+  writes the weapon's slot and ammunition ordinal at each capture,
+  0x32C0B5/0x32C0EE; the engine never expects a weapon to die while its
+  player lives). A copy that was ever registered or in hands is never freed
+  mid-match: only when its last holder is destroyed (its departure, the
+  match's end). An idle one (let go, or back in a drop whose body left) is
+  the drop's gun of its donor's next death with the same kit and slot (no
+  cook; the switch grants that death's magazine and the reserve). A copy
+  never registered nor in hands (an untaken drop) is freed at the frame
+  after its body left the world. No timed free remains.
+- **The bound** (the owner's): 20 places x 3 kits x 2 weapon slots = 120
+  recipes at most (40..60 in practice); another copy of a recipe only while
+  all of its copies are in use, at most 60 at once (two held a player, one
+  drop a body): 180 kept at most; `TICKETS` = 192, so a pickup is never
+  refused for want of a ticket. About 9.5 MiB of the survarium arena (32 MiB,
+  0x1E8D67) at 180 copies; a diagnostics build logs the survarium and ai
+  arenas' allocated bytes (0xE5270) and the copies kept at a match's load,
+  each cook, and the last copy's free (with dump_statistics(0) 0xE1370).
+  The profile copy stays with its inventory: the inventory cook builds the
+  items from its item records (0x2C764C), so it is not freed earlier. The
+  weapon cook alone (46h) is not enough: the install moves the gun's
+  ammunition stacks, which the inventory cook makes.
 - **For stage 2b**: `borrowing(thread, player)`; the death's body (player
   object and life) kept with the place's record (below).
 - **Checked**: `check_weapon_pickup_026g.py` (Unicorn, the built exe, the
@@ -565,18 +584,14 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   dispatches the querying thread's callbacks: between frames, or in a wait.
 - **The cache, by donor life**: place + spawn time (+328h). A rollback that
   replays the death finds it and cooks nothing. Each entry owns a ticket of
-  `gun_cook` (48): dropping it gives back the inventory and the profile copy;
+  `gun_cook` (192): dropping it gives back the inventory and the profile copy;
   a cook still running is abandoned and its completion frees everything.
-  Freed: a death's gun when the world core's time (+18FC0h, at the frame's
-  `game_world.after_move`, ragdoll's handler calling
-  `weapon_pickup::after_move`) is 3 s (a rollback's reach) past its donor's
-  base_player::remove(1) (`pickup.remove`: the body and its gun left the
-  world, typically the respawn 8 s after the death); any gun of a donor player at its destruction
-  (`player.destroy` 0x1F2100: it leaves; every player at the match's
-  teardown). A gun lent to a holder is never freed; given back (its holder
-  died or left) it is kept again, its 3 s counted from the later of the
-  body's removal and the give-back. A holder's inventory keeps its own
-  native reference.
+  Freed only as "The copies' lifetime" above says: an untaken drop's at the
+  frame after its body left the world (base_player::remove(1),
+  `pickup.remove`), or with its donor's destruction (`player.destroy`
+  0x1F2100); a copy ever registered or in hands with its last holder's
+  destruction (its departure; every player at the match's teardown). A
+  holder's inventory keeps its own native reference.
 - **The wait** (`wait_for`, for the pickup's tick and a loaded record): when the cook
   is not in, the game's `dispatch_callbacks` (0xE5AB0) runs until it is,
   query_resources_and_wait's loop (0xE5C20); at most 2 s, then refused

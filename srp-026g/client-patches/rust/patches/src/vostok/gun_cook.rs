@@ -63,9 +63,15 @@ const AMMO: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 const SLOTS: u8 = 23;
 const EMPTY_SLOT: u16 = 0xFFFF;
 const LABEL: &CStr = c"srp pickup gun";
-/// Cooks running or kept at once (20 places, a body each in the world, its
-/// margin after it, and the guns of a loaded world).
-pub const TICKETS: usize = 48;
+/// Cooks kept at once (the owner's bound, 2026-11-01): a copy that was ever
+/// in hands or registered lives until the match's end (keep and reuse, no
+/// frees mid-match: the engine keeps raw pointers to a weapon, e.g. a
+/// bullet's +0Ch and +40h, as long as its player lives). Distinct recipes:
+/// 20 places x 3 kits x 2 weapon slots = 120 at most (40..60 in practice);
+/// a recipe needs another copy only while its copies are all in use, and at
+/// most 60 are in use at once (two held a player, one drop a body): 180.
+/// 192 so that no pickup is refused for want of a ticket.
+pub const TICKETS: usize = 192;
 
 /// The resources' allocator (the global every query passes).
 fn allocator() -> Option<*mut c_void> {
@@ -73,6 +79,25 @@ fn allocator() -> Option<*mut c_void> {
     // is queried; a cook runs only after.
     let allocator = unsafe { raw::image::game_allocator().allocator() }?;
     Some(allocator.address() as usize as *mut c_void)
+}
+
+/// The bytes allocated in the survarium arena (the cooks') and the ai arena
+/// (doug_lea_allocator::allocated_size 0xE5270), for the diagnostics' log.
+pub fn arena_usage(_: &Thread) -> (u32, u32) {
+    // SAFETY: the image's allocator slots, set before any match; the
+    // allocator's own size query.
+    unsafe {
+        let used = |slot: raw::AllocatorSlot| slot.allocator()
+            .map_or(0, |a| raw::engine_allocated_size(a.address() as usize as *mut c_void));
+        (used(raw::image::game_allocator()), used(raw::image::ai_allocator()))
+    }
+}
+
+/// Every allocator's statistics to the game's log (dump_statistics(0)
+/// 0xE1370), for the diagnostics.
+pub fn dump_statistics(_: &Thread) {
+    // SAFETY: the engine's own report, any time on the game's thread.
+    unsafe { raw::engine_dump_statistics(0) };
 }
 
 /// Frees memory of the allocator's (its address), as the game does.
@@ -514,6 +539,12 @@ pub fn destroyed(ctx: &super::Context<'_>) -> Option<super::world::PlayerId> {
 
 /// The world core's completed simulation time (+18FC0h) of the world ticked
 /// at `game_world.after_move`.
+/// The game world's match core's address: which match a frame is of.
+pub fn world_key(world: &super::world::GameWorld<'_>) -> Option<u32> {
+    // SAFETY: the site's game world and its match, compared only.
+    unsafe { Some(world.this.pvp_match()?.core().address()) }
+}
+
 pub fn world_time(world: &super::world::GameWorld<'_>) -> Option<u32> {
     // SAFETY: the site's game world, its match and core, alive for the hook.
     unsafe { Some(read(world.this.pvp_match()?.core().time())) }

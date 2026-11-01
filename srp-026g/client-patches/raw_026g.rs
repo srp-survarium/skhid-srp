@@ -23,6 +23,10 @@ unsafe extern "C" {
     pub fn engine_cfg_has(table: Option<EngineCfg>, key: *const u8) -> u32;
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_malloc(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
+    /// 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX
+    pub fn engine_allocated_size(allocator: *mut c_void) -> u32;
+    /// 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0
+    pub fn engine_dump_statistics(flag: u32);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_match_rule_base(rule: *mut c_void, r#type: u32) -> *mut c_void;
     /// 0x1f3de0 vostok::network_core::buffer_writer::w<unsigned char>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
@@ -9163,6 +9167,16 @@ pub mod image {
         // SAFETY: an image VA, not 0.
         AllocatorSlot(unsafe { NonNull::new_unchecked(0x1f1d9c4 as *mut c_void) })
     }
+
+    /// 0x1f1da44 (obj<survarium::allocator_slot>, survarium::image): the ai arena's slot (patch 36's 4 MiB arena "ai", the static initializer 0x1E8B50 registers it with 0xE21C0)
+    #[inline(always)]
+    pub fn ai_allocator() -> AllocatorSlot {
+        // SAFETY: an image VA, not 0.
+        AllocatorSlot(unsafe { NonNull::new_unchecked(0x1f1da44 as *mut c_void) })
+    }
+
+    /// 0x1f1d960 (u32, survarium::image): the render's allocator global (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3)
+    pub const RENDER_ALLOCATOR: u32 = 0x1f1d960;
 
     /// 0x9e7c6c (u32, vostok::console_commands::image): cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
     pub const CC_FLOAT_VTABLE: u32 = 0x9e7c6c;

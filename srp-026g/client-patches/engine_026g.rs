@@ -17,6 +17,10 @@ unsafe extern "C" {
     pub fn engine_cfg_has(table: *const c_void, key: *const u8) -> u32;
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_malloc(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
+    /// 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX
+    pub fn engine_allocated_size(allocator: *mut c_void) -> u32;
+    /// 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0
+    pub fn engine_dump_statistics(flag: u32);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_match_rule_base(rule: *mut c_void, r#type: u32) -> *mut c_void;
     /// 0x1f3de0 vostok::network_core::buffer_writer::w<unsigned char>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20

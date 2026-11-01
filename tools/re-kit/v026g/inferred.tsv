@@ -3146,3 +3146,4 @@ va	status	ref_021d	name
 0x00297c50	inferred-medium		survarium::weapon_sound_effect::on_animation_event
 0x002981a0	inferred-medium		survarium::weapon_sound_effect::play_from_event
 0x002e0de0	inferred-medium		survarium::weapon_core::update_ammo_selection
+0x00013c40	inferred-medium		vostok::render::set_render_allocator
