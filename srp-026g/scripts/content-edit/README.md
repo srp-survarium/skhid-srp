@@ -131,9 +131,6 @@ weapon / kills the same players get with their other weapons.
 
 | a magazine line on every weapon card (83): `ui_properties` line 134 "Magazine" (a new text in the six localization tables), a `props_list` entry after the rate of fire with the weapon's `magazine_capacity` | the card did not say how many rounds a magazine holds; it draws eight comparable lines and every weapon had eight, so the patch also carries the lobby movie with a ninth row (`srp-026g/docs/notes/items.md` §7) |
 
-The lobby card shows text kept in each config (`ui_desc/props_list`), not the
-values: the list changes that text with each value (`set_prop`).
-
 The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4fe7`) is patch 20's
 (sha256 `f21eac03…e117`) with two tags changed and every other tag byte-identical: sprite 1538
 (`SrvItemCompareHintG`) places a ninth row `diff_9` (sprite 1537, depth 33, 22.6 px under `diff_8`),
