@@ -1285,13 +1285,16 @@ pub enum Running {
 
 impl Running {
     /// Whether the play is a hold still walking to the spot it holds from
-    /// (`commit.hold_to_arrival`).
+    /// (`commit.hold_to_arrival`). Play 28's walk to the spot it answers a
+    /// sniper from is one (A210: 198 of 826 runs were taken on the way by a
+    /// play of its own band, the runs 5 s long on average).
     pub fn travelling(&self) -> bool {
         matches!(
             self,
             Self::Crossfire(crossfire::State::Going { .. } | crossfire::State::PeekGoing { .. })
                 | Self::HoldExit(hold_exit::State::Going { .. })
                 | Self::Cut(cut::State::Going { .. })
+                | Self::Answer(answer::State::Via { .. } | answer::State::Approach { .. })
         )
     }
 
