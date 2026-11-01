@@ -1,0 +1,17 @@
+# made by make_pack.py: each aimed model made again, for a weapon model with a turned eye
+# aimed model	weapon model	new aimed model	aim turn (x, y rad)	reticle distance (m)	shift (scope frame, m)
+weapons/attach/fit2/fit_ak_74m_acog_ta31_aim	weapons/ak74m/ak74m	weapons/attach/fit6/fit_ak_74m_acog_ta31_aim_ak74m	0.00400,0.00000	0.1271	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_ak_74m_pso_1_aim	weapons/ak74m/ak74m	weapons/attach/fit6/fit_ak_74m_pso_1_aim_ak74m	0.00400,0.00000	0.1273	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_ak_74n_acog_ta31_aim	weapons/ak74n/ak_74n	weapons/attach/fit6/fit_ak_74n_acog_ta31_aim_ak_74n	0.00400,0.00000	0.1271	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_ak_74n_elcan_specterdr_aim	weapons/ak74n/ak_74n	weapons/attach/fit6/fit_ak_74n_elcan_specterdr_aim_ak_74n	0.00400,0.00000	0.1271	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_ak_74n_pso_1_aim	weapons/ak74n/ak_74n	weapons/attach/fit6/fit_ak_74n_pso_1_aim_ak_74n	0.00400,0.00000	0.1273	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_akmn_acog_ta31_aim	weapons/akmn/akmn	weapons/attach/fit6/fit_akmn_acog_ta31_aim_akmn	0.00400,0.00000	0.1271	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_akmn_pso_1_aim	weapons/akmn/akmn	weapons/attach/fit6/fit_akmn_pso_1_aim_akmn	0.00400,0.00000	0.1273	-0.00000,-0.00051,-0.00000
+weapons/attach/fit2/fit_ash_12_acog_ta31_aim	weapons/ash_12/ash_12	weapons/attach/fit6/fit_ash_12_acog_ta31_aim_ash_12	0.01700,0.00000	0.1271	0.00000,-0.00046,-0.00000
+weapons/attach/fit2/fit_ash_12_elcan_specterdr_aim	weapons/ash_12/ash_12	weapons/attach/fit6/fit_ash_12_elcan_specterdr_aim_ash_12	0.01700,0.00000	0.1271	-0.00000,-0.00046,-0.00000
+weapons/attach/fit3/fitn_acog_ta31_akmn_premium_aim	weapons/akmn/akmn_camo	weapons/attach/fit6/fitn_acog_ta31_akmn_premium_aim_akmn_camo	0.00400,0.00000	0.1271	-0.00000,-0.00051,-0.00000
+weapons/attach/fit3/fitn_acog_ta31_akmn_premium_2_aim	weapons/akmn/akmn_camo_st	weapons/attach/fit6/fitn_acog_ta31_akmn_premium_2_aim_akmn_camo_st	0.00400,0.00000	0.1271	-0.00000,-0.00051,-0.00000
+weapons/attach/fit3/fitn_pso_1_akmn_premium_aim	weapons/akmn/akmn_camo	weapons/attach/fit6/fitn_pso_1_akmn_premium_aim_akmn_camo	0.00400,0.00000	0.1273	-0.00000,-0.00051,-0.00000
+weapons/attach/fit3/fitn_pso_1_akmn_premium_2_aim	weapons/akmn/akmn_camo_st	weapons/attach/fit6/fitn_pso_1_akmn_premium_2_aim_akmn_camo_st	0.00400,0.00000	0.1273	-0.00000,-0.00051,-0.00000
+weapons/attach/fit3/fitn_pso_1_saiga_12_aim	weapons/saiga_12s/saiga_12s_n_pso_1	weapons/attach/fit6/fitn_pso_1_saiga_12_aim_saiga_12s_n_pso_1	0.00000,-0.00600	0.1274	-0.00076,0.00000,-0.00000
+weapons/attach/fit3/fitn_pso_1_saiga_12_premium_aim	weapons/saiga_12s/saiga_12s_camo_n_pso_1	weapons/attach/fit6/fitn_pso_1_saiga_12_premium_aim_saiga_12s_camo_n_pso_1	0.00000,-0.00600	0.1274	-0.00076,0.00000,-0.00000
