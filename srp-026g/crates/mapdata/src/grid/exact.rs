@@ -122,6 +122,84 @@ impl Walls {
         }
         best
     }
+
+    /// The distance on the ground from the way `from`-`to` to the nearest wall between the heights `low` and `high`, counting only the
+    /// part of each wall ahead of `from` along the way (past the line through `from` square to it: a wall behind or level with where
+    /// the body starts is not met by a body that moves on), among those within `limit`; `None` when there is none.
+    pub(super) fn nearest_ahead(&self, from: Vec3, to: Vec3, low: f32, high: f32, limit: f32) -> Option<f32> {
+        let length = from.distance_xz(to);
+        if length < 1e-6 {
+            return None;
+        }
+        let (ux, uz) = ((to.x - from.x) / length, (to.z - from.z) / length);
+        let range = |a: f32, b: f32, origin: f32, n: usize| {
+            let first = (((a.min(b) - limit - origin) / BIN_M).floor().max(0.0) as usize).min(n - 1);
+            let last = (((a.max(b) + limit - origin) / BIN_M).floor().max(0.0) as usize).min(n - 1);
+            first..=last
+        };
+        let mut best: Option<f32> = None;
+        let (mut one, mut two, mut ahead) = (Vec::with_capacity(8), Vec::with_capacity(8), Vec::with_capacity(8));
+        for k in range(from.z, to.z, self.z0, self.nz) {
+            for i in range(from.x, to.x, self.x0, self.nx) {
+                let bin = k * self.nx + i;
+                for &t in &self.entries[self.start[bin] as usize..self.start[bin + 1] as usize] {
+                    let v = self.triangles[t as usize];
+                    if v.iter().all(|p| p.y < low) || v.iter().all(|p| p.y > high) {
+                        continue;
+                    }
+                    clip(&v, 1, low, true, &mut one);
+                    clip(&one, 1, high, false, &mut two);
+                    clip_ahead(&two, from, (ux, uz), &mut ahead);
+                    if ahead.is_empty() {
+                        continue;
+                    }
+                    let d = segment_distance(&ahead, from, to);
+                    if d <= limit && best.is_none_or(|b| d < b) {
+                        best = Some(d);
+                    }
+                }
+            }
+        }
+        best
+    }
+}
+
+/// The part of the convex polygon `polygon` ahead of `from` along the unit ground direction `along` (Sutherland-Hodgman).
+fn clip_ahead(polygon: &[Vec3], from: Vec3, along: (f32, f32), out: &mut Vec<Vec3>) {
+    out.clear();
+    let side = |p: Vec3| (p.x - from.x) * along.0 + (p.z - from.z) * along.1;
+    for i in 0..polygon.len() {
+        let (a, b) = (polygon[i], polygon[(i + 1) % polygon.len()]);
+        let (da, db) = (side(a), side(b));
+        if da >= 0.0 {
+            out.push(a);
+        }
+        if (da >= 0.0) != (db >= 0.0) {
+            out.push(a + (b - a) * (da / (da - db)));
+        }
+    }
+}
+
+/// The distance on the ground from the segment `from`-`to` to the convex polygon `polygon` (0 where they meet).
+fn segment_distance(polygon: &[Vec3], from: Vec3, to: Vec3) -> f32 {
+    let mut best = ground_distance(polygon, from.x, from.z).min(ground_distance(polygon, to.x, to.z));
+    let (dx, dz) = (to.x - from.x, to.z - from.z);
+    let length2 = dx * dx + dz * dz;
+    let cross = |o: (f32, f32), a: (f32, f32), b: (f32, f32)| (a.0 - o.0) * (b.1 - o.1) - (a.1 - o.1) * (b.0 - o.0);
+    let (p, q) = ((from.x, from.z), (to.x, to.z));
+    let n = polygon.len();
+    for i in 0..n {
+        let (a, b) = (polygon[i], polygon[(i + 1) % n]);
+        // The polygon's corner to the segment.
+        let t = if length2 > 1e-12 { (((a.x - from.x) * dx + (a.z - from.z) * dz) / length2).clamp(0.0, 1.0) } else { 0.0 };
+        best = best.min((from.x + t * dx - a.x).hypot(from.z + t * dz - a.z));
+        // An edge across the segment.
+        let (a, b) = ((a.x, a.z), (b.x, b.z));
+        if (cross(a, b, p) > 0.0) != (cross(a, b, q) > 0.0) && (cross(p, q, a) > 0.0) != (cross(p, q, b) > 0.0) {
+            return 0.0;
+        }
+    }
+    best
 }
 
 /// Whether a triangle is a wall: no `walk` face, and steeper than [`STEEP_NORMAL_Y`] (which no body walks on,
@@ -230,6 +308,39 @@ impl WalkGrid {
             }
         }
         (removed, crouch_only)
+    }
+
+    /// Takes away the walk-offs ([`Body::drop_room`]) a wall blocks: a Drop link, or a GapDrop walked off ([`gap::Takeoff::WalkOff`]),
+    /// whose way from the take-off's centre to the landing, or [`WALK_OFF_REACH_M`] on where the landing is nearer (the edge holds the
+    /// capsule until there), comes nearer than [`Self::exact_clearance`] to a wall ahead of the take-off ([`Walls::nearest_ahead`])
+    /// between a step over the take-off (stepped over) and the crouched height (a crouched body passes under what is higher). The
+    /// links check the landing's ceiling only: a wall past the edge, between the floors a drop spans (the erosion's reach past a
+    /// floor it took, a gap's walk-off), is in no cell they look at. Returns the links taken away.
+    pub(super) fn cut_blocked_walk_offs(&self, wide: &mut Wide, walls: &Walls) -> usize {
+        let limit = self.exact_clearance();
+        let blocked = |a: NodeId, b: NodeId| {
+            let (from, landing) = (self.position(a), self.position(b));
+            let length = from.distance_xz(landing);
+            if length < 1e-6 {
+                return false;
+            }
+            let reach = length.max(WALK_OFF_REACH_M) / length;
+            let to = Vec3::new(from.x + (landing.x - from.x) * reach, from.y, from.z + (landing.z - from.z) * reach);
+            walls.nearest_ahead(from, to, from.y + self.body.step, from.y + self.body.crouch_height, limit).is_some_and(|d| d < limit)
+        };
+        let mut cut = 0;
+        for a in 0..self.height.len() {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b != NONE && wide.kinds[a][d] == LinkKind::Drop && blocked(a as NodeId, b) {
+                    wide.links[a][d] = NONE;
+                    cut += 1;
+                }
+            }
+        }
+        let before = wide.off.len();
+        wide.off.retain(|l| !(l.kind == LinkKind::GapDrop && l.press == gap::Takeoff::WalkOff && blocked(l.from, l.to)));
+        cut + before - wide.off.len()
     }
 
     /// The wall nearest to the floor centre (`x`, `z`) at feet height `y`, among those within `limit` metres on the ground: its distance and
@@ -356,6 +467,71 @@ mod tests {
         assert!((grid.capsule_reach(0.0) - grid.exact_clearance()).abs() < 1e-6);
         assert!(grid.capsule_reach(0.28) < grid.capsule_reach(0.0));
         assert!(grid.capsule_reach(0.38) <= 0.0);
+    }
+
+    /// A box of `dont_walk` faces (no floor on its top).
+    fn block(x0: f32, x1: f32, z0: f32, z1: f32, y0: f32, y1: f32) -> Vec<Triangle> {
+        let p = |x, y, z| Vec3::new(x, y, z);
+        let quads = [
+            [p(x0, y0, z0), p(x1, y0, z0), p(x1, y1, z0), p(x0, y1, z0)],
+            [p(x1, y0, z0), p(x1, y0, z1), p(x1, y1, z1), p(x1, y1, z0)],
+            [p(x1, y0, z1), p(x0, y0, z1), p(x0, y1, z1), p(x1, y1, z1)],
+            [p(x0, y0, z1), p(x0, y0, z0), p(x0, y1, z0), p(x0, y1, z1)],
+            [p(x0, y1, z0), p(x1, y1, z0), p(x1, y1, z1), p(x0, y1, z1)],
+            [p(x0, y0, z0), p(x0, y0, z1), p(x1, y0, z1), p(x1, y0, z0)],
+        ];
+        quads
+            .iter()
+            .flat_map(|&[a, b, c, d]| {
+                [Triangle { v: [a, b, c], walker: WalkerBehaviour::DontWalk }, Triangle { v: [a, c, d], walker: WalkerBehaviour::DontWalk }]
+            })
+            .collect()
+    }
+
+    /// The way ahead meets only the walls past its start, in the band asked: a face across it is at 0, one it stops short of at
+    /// the distance left, one behind the start (or level with it) is not met, nor one under the band.
+    #[test]
+    fn the_way_ahead_meets_only_the_walls_past_its_start() {
+        let walls = Walls::new(&block(5.0, 5.1, 4.0, 6.0, 0.0, 2.0), 0.0, 0.0, 0.25, 41, 41);
+        let at = |x: f32| Vec3::new(x, 0.0, 5.0);
+        assert_eq!(walls.nearest_ahead(at(4.5), at(5.5), 0.8, 1.1, 1.0), Some(0.0));
+        let short = walls.nearest_ahead(at(4.0), at(4.5), 0.8, 1.1, 1.0).unwrap();
+        assert!((short - 0.5).abs() < 1e-4, "{short}");
+        assert_eq!(walls.nearest_ahead(at(5.3), at(6.3), 0.8, 1.1, 1.0), None, "a wall behind the start");
+        assert_eq!(walls.nearest_ahead(at(4.5), at(5.5), 2.5, 3.0, 1.0), None, "a wall under the band");
+        // Beside the way, past the start: met at its distance across.
+        let beside = walls.nearest_ahead(Vec3::new(4.0, 0.0, 6.2), Vec3::new(6.0, 0.0, 6.2), 0.8, 1.1, 1.0).unwrap();
+        assert!((beside - 0.2).abs() < 1e-4, "{beside}");
+    }
+
+    /// `Body::drop_room`: a bracket hanging past a deck's edge, at chest height over the deck and far over the floor below, is in no
+    /// cell the drop down checks (not over the landing, beside the drop's row) and further from the take-off than the exact erosion's
+    /// clearance, yet the capsule walking off passes 0.175 m from it: the drop goes with the switch; one a metre along the edge stays.
+    #[test]
+    fn a_wall_beside_the_way_off_an_edge_takes_the_drop_with_drop_room() {
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 2.0));
+        // The deck's face, as the ledge tests of the grid have it.
+        let (a, b, c, d) = (Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 10.0), Vec3::new(5.0, 2.0, 10.0), Vec3::new(5.0, 2.0, 0.0));
+        tris.extend([Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]);
+        tris.extend(block(4.6, 4.79, 4.8, 4.95, 2.7, 3.0));
+        let build = |drop_room| WalkGrid::build_with_stats(&tris, AREA, 0.25, Body { erosion: Erosion::Exact, drop_room, ..Body::default() });
+        let drops = |grid: &WalkGrid, at: Vec3| {
+            let node = grid.locate(at, 0.05).expect("the take-off is a floor");
+            grid.links(node).filter(|&(_, kind)| kind == LinkKind::Drop).count()
+        };
+        let (beside, along) = (Vec3::new(5.125, 2.0, 5.125), Vec3::new(5.125, 2.0, 6.125));
+        let (plain, plain_stats) = build(false);
+        let (room, room_stats) = build(true);
+        assert!(drops(&plain, beside) > 0, "a drop off the edge by the bracket without the switch");
+        assert_eq!(drops(&room, beside), 0, "none with it");
+        assert_eq!(drops(&room, along), drops(&plain, along), "the edge away from it keeps its drop");
+        assert!(drops(&room, along) > 0);
+        assert_eq!(plain_stats.drops_blocked, 0);
+        assert!(room_stats.drops_blocked > 0);
+        // The bracket is past the take-off's clearance: the switch takes the link, not the floor.
+        assert!(room.exact_clearance() < 0.335_f32.hypot(0.175));
+        assert_eq!(room.len(), plain.len());
     }
 
     /// Stairs (`walk` faces) and floors are no walls: a staircase beside a floor takes no floors.
