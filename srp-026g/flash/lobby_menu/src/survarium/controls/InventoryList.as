@@ -271,8 +271,8 @@ package survarium.controls
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
 
-      // The shop's "not owned only" toggle (makeOwnedToggle).
-      private var _ownedToggle:ShopOwnedToggle;
+      // The shop's "not owned" check box (makeOwnedToggle).
+      private var _ownedToggle:CheckBoxSharedPD;
 
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
@@ -350,6 +350,7 @@ package survarium.controls
          if(this._ownedToggle != null)
          {
             this._ownedToggle.visible = value;
+            this.placeSearch();
          }
          this.shopTab.selectedIndex = this.isShop ? ShopFilter.SHOP : ShopFilter.INVENTORY;
          this.itemControlPanel.toggleShop(value);
@@ -2194,23 +2195,34 @@ package survarium.controls
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
       }
 
-      // The shop's "not owned only" toggle (ShopOwnedToggle) at the right end of the filters' row,
-      // which OptionFilterControl keeps free; shown in the shop only.
+      // The shop's "not owned" check box (shop-owned-mark.md): the character panel's Autobuy box
+      // (CheckBoxSharedPD), its label and tooltip as Autobuy's, at the left of the search row (as the
+      // compare box below it; placeSearch); shown in the shop only. Off when the lobby opens.
       private function makeOwnedToggle() : void
       {
-         _ownedToggle = new ShopOwnedToggle();
-         this._ownedToggle.x = optionControl.x + OptionFilterControl.ROW_WIDTH - OptionFilterControl.TOGGLE_ROOM + (OptionFilterControl.TOGGLE_ROOM - ShopOwnedToggle.SIZE) / 2;
-         this._ownedToggle.y = optionControl.y + optionControl.filterList.y;
+         _ownedToggle = new CheckBoxSharedPD();
+         LocalizationData.addButton(this._ownedToggle,"st_srp_shop_not_owned");
+         this._ownedToggle.tooltipRendererName = "SrvProfileTipRendererStyled";
+         this._ownedToggle.fitLabel();
+         this._ownedToggle.x = this.checkboxCompareItems.x;
          this._ownedToggle.visible = this.isShop;
-         this._ownedToggle.addEventListener(Event.CHANGE,this.changeInventoryFilterFromFilters);
+         this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
+         // Its label drawn with a new text: the search box is placed by it.
+         this._ownedToggle.addEventListener(Event.RESIZE,this.onOwnedToggleLabel);
          addChild(this._ownedToggle);
+         this.placeSearch();
       }
 
-      // Whether the shop's list leaves out this entry: the toggle is on and the account owns the item
+      private function onOwnedToggleLabel(e:Event) : void
+      {
+         this.placeSearch();
+      }
+
+      // Whether the shop's list leaves out this entry: the box is on and the account owns the item
       // (an entry of the shop's; a bundle never, as its mark).
       private function hiddenAsOwned(item:ItemData) : Boolean
       {
-         return this.isShop && this._ownedToggle != null && this._ownedToggle.hidesOwned && item.descriptor == ItemPlace.SHOP && this.hasItem(item.dictId);
+         return this.isShop && this._ownedToggle != null && this._ownedToggle.selected && item.descriptor == ItemPlace.SHOP && this.hasItem(item.dictId);
       }
       
       private function onLocal(value:*) : void
@@ -2220,6 +2232,7 @@ package survarium.controls
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
+         this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,
@@ -2234,12 +2247,10 @@ package survarium.controls
          this._searchBox.getTextFormat().rightMargin = margin;
          this._searchBox.defaultTextFormat.rightMargin = margin;
          this._searchBox.textSize = Number(this._searchBox.getTextFormat().size) + SEARCH_GROW;
-         this._searchBox.x = int((background.width - w) / 2);
          this._searchBox.addEventListener(Event.CHANGE,this.onSearchChange);
          this._searchBox.textField.addEventListener(KeyboardEvent.KEY_UP,this.onSearchBoxKey);
          addChild(this._searchBox);
          _searchIcon = this.makeSearchIcon();
-         this._searchIcon.x = this._searchBox.x + w - SEARCH_ICON_RIGHT - SEARCH_ICON_SIZE;
          this._searchIcon.addEventListener(MouseEvent.CLICK,this.onSearchIcon);
          addChild(this._searchIcon);
          black_gradient.y -= SEARCH_ROW;
@@ -2247,13 +2258,26 @@ package survarium.controls
       }
       
       // The box (and its magnifier) centred in its row: from the grid's foot to the item panel's
-      // buttons.
+      // buttons. In the shop the "not owned" box is at the row's left, on its middle, and the search
+      // box moves right as far as that box's label needs (a longer language's).
       private function placeSearch() : void
       {
          var top:Number = itemsTileList.y + itemsTileList.height;
          var bottom:Number = this.itemControlPanel.y + SEARCH_PANEL_TOP;
          var h:Number = this._searchBox.height;
+         var w:Number = this._searchBox.width;
+         this._searchBox.x = int((background.width - w) / 2);
          this._searchBox.y = Math.round(top + (bottom - top - h) / 2);
+         if(this._ownedToggle != null)
+         {
+            this._ownedToggle.y = this._searchBox.y + Math.round((h - this._ownedToggle.height) / 2);
+            if(this._ownedToggle.visible)
+            {
+               var labelEnd:Number = this._ownedToggle.x + this._ownedToggle.textField.x + this._ownedToggle.textField.textWidth;
+               this._searchBox.x = Math.max(this._searchBox.x,Math.ceil(labelEnd) + SEARCH_ICON_GAP * 2);
+            }
+         }
+         this._searchIcon.x = this._searchBox.x + w - SEARCH_ICON_RIGHT - SEARCH_ICON_SIZE;
          this._searchIcon.y = this._searchBox.y + Math.round((h - SEARCH_ICON_SIZE) / 2);
       }
       
