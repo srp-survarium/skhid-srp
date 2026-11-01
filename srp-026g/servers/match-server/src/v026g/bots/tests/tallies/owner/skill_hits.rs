@@ -9,8 +9,9 @@
 //! skill its bots had. Bots only: the stand-ins' own shots are not counted. Counts only: nothing decides by them.
 //!
 //! Key of the `owner` object `skill_hits`: `"team<t>"` -> `cells` (`"<human|camper|bot>:<class>:<band>"` -> `[shots, hits, bullets,
-//! bullets on an enemy]`, only cells with a shot; the class `WeaponClass::name`) and `skill` (`[shots, the shooters' skill
-//! summed]`).
+//! bullets on an enemy]`, only cells with a shot; the class `WeaponClass::name`), `speed` (A243: every target, `"<class>:<band>:<his
+//! ground speed>"` -> the same four, speed bins [`SPEED_LABELS`], the live table's: to weigh the bench's shots to the live humans'
+//! distances and target speeds) and `skill` (`[shots, the shooters' skill summed]`).
 
 use super::*;
 use crate::v026g::bots::guns::WeaponClass;
@@ -31,6 +32,11 @@ const CLASSES: [WeaponClass; 7] = [
     WeaponClass::Bolt,
 ];
 const CELLS: usize = TARGETS.len() * CLASSES.len() * BAND_LABELS.len();
+/// The target's ground speed at the shot, m/s (upper edges; the last takes the rest): `hit_marks.py`'s `tspd` bins (still,
+/// walking or strafing, running).
+const SPEED_EDGES: [f32; 2] = [0.5, 3.0];
+const SPEED_LABELS: [&str; 3] = ["0-0.5", "0.5-3", "3+"];
+const SPEED_CELLS: usize = CLASSES.len() * BAND_LABELS.len() * SPEED_LABELS.len();
 
 /// Who a shot was at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,6 +50,8 @@ enum Target {
 struct TeamCounts {
     /// By cell ([`SkillHits::cell`]): shots, hits, bullets (a shotgun's pellets), bullets on an enemy.
     cells: Vec<[u32; 4]>,
+    /// By class, band and the target's speed ([`SkillHits::speed_cell`]), every target: the same four.
+    speed: Vec<[u32; 4]>,
     /// The shots counted and their shooters' skill summed.
     skill: (u32, f64),
 }
@@ -58,7 +66,7 @@ pub(super) struct SkillHits {
 
 impl SkillHits {
     pub(super) fn new(n: usize) -> Self {
-        let team = || TeamCounts { cells: vec![[0; 4]; CELLS], ..TeamCounts::default() };
+        let team = || TeamCounts { cells: vec![[0; 4]; CELLS], speed: vec![[0; 4]; SPEED_CELLS], ..TeamCounts::default() };
         Self { teams: [team(), team()], skills: vec![None; n], human: None }
     }
 
@@ -71,6 +79,20 @@ impl SkillHits {
     fn cell(target: Target, class: WeaponClass, band: usize) -> usize {
         let class = CLASSES.iter().position(|&c| c == class).unwrap_or(0);
         ((target as usize) * CLASSES.len() + class) * BAND_LABELS.len() + band
+    }
+
+    /// A shot's cell by the gun's class, the distance band and the target's ground speed, m/s.
+    fn speed_cell(class: WeaponClass, band: usize, speed: f32) -> usize {
+        let class = CLASSES.iter().position(|&c| c == class).unwrap_or(0);
+        let bin = SPEED_EDGES.iter().position(|&edge| speed < edge).unwrap_or(SPEED_EDGES.len());
+        (class * BAND_LABELS.len() + band) * SPEED_LABELS.len() + bin
+    }
+
+    fn speed_label(cell: usize) -> String {
+        let bin = cell % SPEED_LABELS.len();
+        let band = (cell / SPEED_LABELS.len()) % BAND_LABELS.len();
+        let class = cell / SPEED_LABELS.len() / BAND_LABELS.len();
+        format!("{}:{}:{}", CLASSES[class].name(), BAND_LABELS[band], SPEED_LABELS[bin])
     }
 
     fn label(cell: usize) -> String {
@@ -112,12 +134,16 @@ impl Topic for SkillHits {
                 Target::Bot
             };
             let body = &game.bodies[s];
+            let speed = game.bodies.get(target).map_or(0.0, |t| t.step_vec.length() / TICK_S);
             let counts = &mut self.teams[usize::from(body.team).min(1)];
-            let cell = &mut counts.cells[Self::cell(who, body.gun.class, Self::band(distance))];
-            cell[0] += 1;
-            cell[1] += u32::from(fact.landed.on_enemy > 0);
-            cell[2] += u32::from(fact.landed.fired);
-            cell[3] += u32::from(fact.landed.on_enemy);
+            let band = Self::band(distance);
+            let (at, by_speed) = (Self::cell(who, body.gun.class, band), Self::speed_cell(body.gun.class, band, speed));
+            for cell in [&mut counts.cells[at], &mut counts.speed[by_speed]] {
+                cell[0] += 1;
+                cell[1] += u32::from(fact.landed.on_enemy > 0);
+                cell[2] += u32::from(fact.landed.fired);
+                cell[3] += u32::from(fact.landed.on_enemy);
+            }
             if let Some(skill) = self.skills.get(s).copied().flatten() {
                 counts.skill = (counts.skill.0 + 1, counts.skill.1 + f64::from(skill));
             }
@@ -136,7 +162,14 @@ impl Topic for SkillHits {
             for (i, c) in counts.cells.iter().enumerate().filter(|(_, c)| c[0] > 0) {
                 cells.insert(Self::label(i), serde_json::json!(c));
             }
-            json.insert(format!("team{team}"), serde_json::json!({ "cells": cells, "skill": [counts.skill.0, counts.skill.1] }));
+            let mut speed = serde_json::Map::new();
+            for (i, c) in counts.speed.iter().enumerate().filter(|(_, c)| c[0] > 0) {
+                speed.insert(Self::speed_label(i), serde_json::json!(c));
+            }
+            json.insert(
+                format!("team{team}"),
+                serde_json::json!({ "cells": cells, "speed": speed, "skill": [counts.skill.0, counts.skill.1] }),
+            );
             // The line: the bar's own cut (rifles + SMGs, 0-65 m) and its bands, then every other class over all bands (a shotgun's
             // pellets); at the stand-in human and at the bots.
             let sum = |target: Target, classes: &[WeaponClass], bands: &[usize]| {
@@ -190,5 +223,14 @@ mod tests {
         let last = SkillHits::cell(Target::Bot, WeaponClass::Bolt, SkillHits::band(200.0));
         assert_eq!(last, CELLS - 1);
         assert_eq!(SkillHits::label(last), "bot:bolt:105+");
+    }
+
+    #[test]
+    fn a_shot_finds_its_speed_cell() {
+        let at = |class, distance, speed| SkillHits::speed_label(SkillHits::speed_cell(class, SkillHits::band(distance), speed));
+        assert_eq!(at(WeaponClass::Rifle, 30.0, 0.2), "rifle:20-40:0-0.5");
+        assert_eq!(at(WeaponClass::Smg, 10.0, 2.9), "smg:0-20:0.5-3");
+        assert_eq!(at(WeaponClass::Bolt, 200.0, 5.0), "bolt:105+:3+");
+        assert_eq!(SkillHits::speed_cell(WeaponClass::Bolt, SkillHits::band(200.0), 5.0), SPEED_CELLS - 1);
     }
 }
