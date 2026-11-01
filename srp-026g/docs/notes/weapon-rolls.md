@@ -48,4 +48,5 @@ the lobby card shows all three (`flash/lobby_menu`, `WeaponDetails.as`, `ItemCom
   (`1.13s`), as every other row (the owner, 2026-10-29); lower is better. Beside a compared weapon
   with one, a weapon without one shows a dash, so the rows stay aligned. Label
   `st_srp_weapon_chamber`.
-- Only the weapon's own modifications (with its defaults), never the player's.
+- Only the weapon's own modifications (with its defaults), never the player's; Alt held adds the
+  kit's and the skills' (alt-weapon-stats.md).

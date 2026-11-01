@@ -3162,3 +3162,7 @@ va	status	ref_021d	name
 0x000df020	inferred-high		vostok::command_line::iterate_keys<key_initializator>
 0x002e26b0	inferred-medium		survarium::weapon_core::ammo_ordinal
 0x002e2750	inferred-medium		survarium::weapon_core::ammo_by_ordinal
+0x0030df10	inferred-medium		survarium::weapon_core_hide_state_base::get_weapon_lexeme_pair
+0x0030df10	inferred-medium		survarium::weapon_core_show_state_base::get_weapon_lexeme_pair
+0x0030e1f0	inferred-medium		survarium::weapon_core_reload_state::get_weapon_lexeme_pair
+0x0030e510	inferred-medium		survarium::weapon_core_chamber_a_round_state::get_weapon_lexeme_pair

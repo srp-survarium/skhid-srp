@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Statystyki broni
 st_srp_weapon_sway_cycle	Cykl kołysania
 st_srp_weapon_sway_horizontal	Kołysanie poziome
 st_srp_weapon_sway_vertical	Kołysanie pionowe
+st_srp_weapon_with_kit	Z zestawem
+st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
 st_srp_weather_before_rain	przed deszczem
 st_srp_weather_day	dzień
 st_srp_weather_evening	wieczór

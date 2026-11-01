@@ -11,6 +11,8 @@ package survarium.controls
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
    import survarium.item.WeaponDetails;
+   import survarium.player.LocalPlayerProfile;
+   import survarium.player.MatchEffects;
    import survarium.constants.ModifierType;
    import survarium.constants.SuperCategory;
    import survarium.constants.ItemCategory;
@@ -241,6 +243,10 @@ package survarium.controls
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
+         // Held Alt over a weapon: the stats as a match has them, with the kit and the skills.
+         var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(this._primary);
+         // The weapon's own base value of the property last read (initPropValues).
+         var base_value:Number = 0;
          function initPropValues(baseProperty:Object, modifierList:Object):void
          {
             modifier_value = 0;
@@ -273,6 +279,7 @@ package survarium.controls
             // The exe sends a line's prop_value as the config's text ("175", ui_desc/props_list):
             // a number before any sum, where "175" + 0 would be "1750".
             var base:Number = ModificationRolls.value(baseProperty);
+            base_value = base;
             if(modifierType == ModifierType.ADD)
             {
                total = base + modifier_value;
@@ -286,7 +293,7 @@ package survarium.controls
             {
                modifier_value = base * modifier_value;
             }
-            _value = total;
+            _value = effects == null ? total : effects.stat(propDescription.prop_id,total);
          }
          function initIndicatorValues(diffClip:MovieClip, propertyInfo:Object, compareValue:Number, currentValue:Number):void
          {
@@ -310,6 +317,7 @@ package survarium.controls
             _diff.indicator.extra = modifier_value;
             _diff.indicator.compare = compareValue;
             _diff.indicator.value = currentValue;
+            _diff.indicator.changeText = null;
          }
          for each(var s:Object in this._primary.properties)
          {
@@ -328,6 +336,10 @@ package survarium.controls
                {
                   initPropValues(_valueObject,this._primary.modifiers);
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
+                  // While Alt is held, a value its modifications, the kit or the skills change
+                  // reads "base -> in a match".
+                  if(effects != null && MatchEffects.changed(base_value,_value))
+                     _diff.indicator.changeText = MatchEffects.change(base_value,_value,2) + _diff.indicator.postfix;
                   index++;
                   if(index == indicators)
                   {

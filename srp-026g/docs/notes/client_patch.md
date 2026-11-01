@@ -2483,6 +2483,9 @@ And the carry limit's parts: the menu's base limit (+3118h), the kit's floats
 of modifiers 5 (skills) and 26 (Packrat) (`data.md`, "The carry limit by
 source"): ten arguments in all.
 It retains the original two arguments if the config is unavailable or invalid.
+Before the weight, in every case, it calls `root.set_kit_modifiers` with the
+selected kit's 68 floats by index (the skills' sums), for a weapon card's stats
+in a match while Alt is held (`alt-weapon-stats.md`).
 The shim preserves registers, flags and floating-point state and returns with
 the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
 the original callback and kit evaluator; `data.md` records the formula evidence.
@@ -2510,7 +2513,9 @@ card replaces the ambiguous distance row with the full-damage distance and the
 minimum-damage distance/fraction, and adds base reload time. Holding Shift adds
 draw/holster time, zoom, stamina damage, hip spread where specified, recoil,
 spread/recovery and sway. Wear rates and reliability are deliberately excluded.
-Weapon-local modifiers are included; profile gear and skills are excluded.
+Weapon-local modifiers are included; profile gear and skills are excluded, but
+while Alt is held (`alt-weapon-stats.md`: the harness checks it, with an aim-time
+roll on a 0.2 s weapon, `0.2 -> 0.196s`).
 
 Recoil and spread are not labelled degrees: the native recoil loader at
 0x331840 divides horizontal config values by 21.48 and vertical values by

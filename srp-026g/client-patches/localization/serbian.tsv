@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Osobine oružja
 st_srp_weapon_sway_cycle	Ciklus ljuljanja
 st_srp_weapon_sway_horizontal	Vodoravno ljuljanje
 st_srp_weapon_sway_vertical	Uspravno ljuljanje
+st_srp_weapon_with_kit	Sa kompletom
+st_srp_weapon_with_kit_skills	Sa kompletom i veštinama
 st_srp_weather_before_rain	pred kišu
 st_srp_weather_day	dan
 st_srp_weather_evening	veče

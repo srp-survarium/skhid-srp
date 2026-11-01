@@ -1,6 +1,7 @@
 package survarium.item
 {
    import survarium.data.LocalizationData;
+   import survarium.player.MatchEffects;
 
    // Read-only weapon stats from weapon-details-ui-1.json. These are not item
    // modifications and must never be added to an item's bonus/modifier sums.
@@ -11,13 +12,27 @@ package survarium.item
       // Chambering time, on bolt and pump weapons only (parameters/chamber_a_round_time).
       private static const CHAMBER:int = 160;
       private var values:Object;
+      // In a match's view (Alt): the weapon's own base values, before its modifications, the kit
+      // and the skills, for the rows that change ("base -> in a match"); null in the card's own.
+      private var base:Object = null;
       public function WeaponDetails(data:Object) { values = data; }
-      public static function read(item:Object) : WeaponDetails
+      // The weapon's stats with its modifications; with effects (held Alt), as a match has them
+      // with the kit and the skills too.
+      public static function read(item:Object, effects:MatchEffects = null) : WeaponDetails
       {
          if(item == null || !item.isWeapon) return null;
          var details:WeaponDetails = fromProperties(item.properties);
-         if(details != null) details.applyWeaponModifiers(item.modifiers);
+         if(details == null) return null;
+         if(effects != null) details.base = copy(details.values);
+         details.applyWeaponModifiers(item.modifiers);
+         if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(int(id),details.values[id]);
          return details;
+      }
+      private static function copy(from:Object) : Object
+      {
+         var to:Object = {};
+         for(var id:String in from) to[id] = from[id];
+         return to;
       }
       private static function fromProperties(properties:Array) : WeaponDetails
       {
@@ -63,18 +78,21 @@ package survarium.item
          if(has(CHAMBER)) values[CHAMBER] *= Math.max(0,1 + sums[119]);
       }
       private function has(id:int) : Boolean { return values[id] !== undefined; }
-      private static function number(n:Number) : String
+      private static function decimals(n:Number) : int { return n > 0 && n < 0.1 ? 3 : 2; }
+      private static function number(n:Number) : String { return MatchEffects.fixed(n,decimals(n)); }
+      // A row's value text: the value, or in a match's view "base -> in a match" where it changed.
+      private function shown(before:Number, after:Number, digits:int) : String
       {
-         var precision:Number = n > 0 && n < 0.1 ? 1000 : 100;
-         return (Math.round(n * precision) / precision).toString();
+         return base != null && MatchEffects.changed(before,after) ? MatchEffects.change(before,after,digits) : MatchEffects.fixed(after,digits);
       }
       // `unit` is the dictionary text of the value with its unit (%1$s the number).
       private function scalar(result:Array, id:int, key:String, direction:String, unit:String = null, multiplier:Number = 1) : void
       {
          if(!has(id)) return;
          var n:Number = values[id] * multiplier;
+         var text:String = shown(base == null ? n : base[id] * multiplier,n,decimals(n));
          result.push({kind:"stat",id:id,label:LocalizationData.getName(key),
-            value:unit == null ? number(n) : LocalizationData.format(unit,number(n)),
+            value:unit == null ? text : LocalizationData.format(unit,text),
             comparison:direction == "neutral" ? {kind:"neutral"} : {kind:direction,value:Number(number(n))}});
       }
       // Chambering time with its rolls, as every other row. A weapon
@@ -88,21 +106,38 @@ package survarium.item
             return;
          }
          var modified:String = number(values[CHAMBER]);
-         var value:String = LocalizationData.format("st_srp_unit_seconds",modified);
+         var value:String = LocalizationData.format("st_srp_unit_seconds",shown(base == null ? values[CHAMBER] : base[CHAMBER],values[CHAMBER],decimals(values[CHAMBER])));
          result.push({kind:"stat",id:CHAMBER,label:label,value:value,comparison:{kind:"lower",value:Number(modified)}});
       }
       private static function recoilNumber(n:Number) : String
       {
-         return (Math.round(n * 1000) / 1000).toString();
+         return MatchEffects.fixed(n,3);
       }
-      private function kickRange(result:Array, id:int, key:String, low:Number, high:Number, comparison:Object) : void
+      // A kick range "low…high"; in a match's view "base -> in a match" where it changed, each
+      // end to the decimals at which it differs.
+      private function kickRange(result:Array, id:int, key:String, low:Array, high:Array, comparison:Object) : void
       {
-         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:recoilNumber(low) + "…" + recoilNumber(high),comparison:comparison});
+         var value:String = recoilNumber(low[1]) + "…" + recoilNumber(high[1]);
+         if(base != null && (MatchEffects.changed(low[0],low[1]) || MatchEffects.changed(high[0],high[1])))
+         {
+            var lowDigits:int = MatchEffects.decimalsFor(low[0],low[1],2), highDigits:int = MatchEffects.decimalsFor(high[0],high[1],2);
+            value = MatchEffects.fixed(low[0],lowDigits) + "…" + MatchEffects.fixed(high[0],highDigits) + " -> " +
+               MatchEffects.fixed(low[1],lowDigits) + "…" + MatchEffects.fixed(high[1],highDigits);
+         }
+         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:value,comparison:comparison});
       }
-      private function variability(result:Array, id:int, key:String, variance:Number) : void
+      // `variance`: [base, shown].
+      private function variability(result:Array, id:int, key:String, variance:Array) : void
       {
-         var value:String = recoilNumber(Math.sqrt(variance));
-         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:value,comparison:{kind:"lower",value:Number(value)}});
+         var value:Number = Math.sqrt(variance[1]);
+         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:shown(Math.sqrt(variance[0]),value,3),
+            comparison:{kind:"lower",value:Number(recoilNumber(value))}});
+      }
+      // A recoil figure of the base values and of the shown ones: [base, shown] (the same twice
+      // in the card's own view).
+      private function both(figure:Function) : Array
+      {
+         return [figure(base == null ? values : base),figure(values)];
       }
       private function recoil(result:Array) : void
       {
@@ -110,16 +145,19 @@ package survarium.item
          // recovery. Each axis setting is an independent uniform draw.
          if(has(146) && has(147) && values[146] <= values[147])
          {
-            kickRange(result,146,"st_srp_weapon_kick_up",values[146],values[147],{kind:"lower-range",
+            kickRange(result,146,"st_srp_weapon_kick_up",both(function(v:Object):Number { return v[146]; }),
+               both(function(v:Object):Number { return v[147]; }),{kind:"lower-range",
                low:Number(recoilNumber(values[146])),high:Number(recoilNumber(values[147]))});
-            variability(result,147,"st_srp_weapon_kick_up_variability",Math.pow(values[147] - values[146],2) / 12);
+            variability(result,147,"st_srp_weapon_kick_up_variability",both(function(v:Object):Number { return Math.pow(v[147] - v[146],2) / 12; }));
          }
          if(has(148) && has(149) && has(150) && has(151) && values[148] <= values[149] && values[150] <= values[151])
          {
             // The engine subtracts left from right. A signed range has no
             // universal better direction; compare its variability separately.
-            kickRange(result,148,"st_srp_weapon_kick_side",values[150] - values[149],values[151] - values[148],{kind:"neutral"});
-            variability(result,149,"st_srp_weapon_kick_side_variability",(Math.pow(values[149] - values[148],2) + Math.pow(values[151] - values[150],2)) / 12);
+            kickRange(result,148,"st_srp_weapon_kick_side",both(function(v:Object):Number { return v[150] - v[149]; }),
+               both(function(v:Object):Number { return v[151] - v[148]; }),{kind:"neutral"});
+            variability(result,149,"st_srp_weapon_kick_side_variability",
+               both(function(v:Object):Number { return (Math.pow(v[149] - v[148],2) + Math.pow(v[151] - v[150],2)) / 12; }));
          }
       }
       // `other`: the compared weapon's details, for the rows only one of the two has.

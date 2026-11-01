@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Характарыстыкі зброі
 st_srp_weapon_sway_cycle	Перыяд разгойдвання
 st_srp_weapon_sway_horizontal	Разгойдванне ў бакі
 st_srp_weapon_sway_vertical	Разгойдванне ўверх-уніз
+st_srp_weapon_with_kit	З камплектам
+st_srp_weapon_with_kit_skills	З камплектам і навыкамі
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
 st_srp_weather_evening	вечар

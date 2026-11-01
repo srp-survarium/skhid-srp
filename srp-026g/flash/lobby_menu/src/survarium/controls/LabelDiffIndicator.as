@@ -29,6 +29,67 @@ package survarium.controls
       // Null keeps the ordinary numeric comparison behaviour.
       private var _detailValue:String = null;
 
+      // A weapon card's row while Alt is held, its value changed by its modifications, the kit or
+      // the skills: "base -> in a match" with its unit, in place of the value (the bar keeps the
+      // value); null shows the value.
+      private var _changeText:String = null;
+
+      // The value field's own width (unscaled) and line, which a wider detail value grows from;
+      // 0 until the first layout.
+      private var _valueWidth:Number = 0;
+
+      private var _valueY:Number = 0;
+
+      // A detail row's value: on the label's line (0), or on the line under it (1) where it leaves
+      // the label too little room for one line (fitWideValue).
+      private var _valueLine:int = 0;
+
+      // The lines a detail row takes (WeaponDetailsView): its label's, and the value's own line
+      // under it.
+      public function get detailLines() : int
+      {
+         return textFieldLabel.numLines + _valueLine;
+      }
+
+      public function set changeText(value:String) : void
+      {
+         _changeText = value;
+         invalidateData();
+      }
+
+      // A text field's width in its parent's units: a scaled field's width setter may take its
+      // own units (Ruffle does), so the setter is corrected by what the getter reads.
+      private static function resize(field:TextField, width:Number) : void
+      {
+         field.width = width;
+         if(field.width > 0 && Math.abs(field.width - width) > 0.01) field.width = width * width / field.width;
+      }
+
+      // A detail value wider than its field (a changed range held Alt, "1.8…2 -> 1.73…1.92")
+      // takes the room to its left, its right edge kept; where the label has too little room
+      // for one line beside it ("base -> in a match" held Alt), the value takes the line under it. The constraints counter-scale the
+      // field (scaleX) after its first layout, and x is the native column's again at each layout.
+      private function fitWideValue() : void
+      {
+         var scale:Number = textFieldValue.scaleX;
+         if(_valueWidth == 0)
+         {
+            _valueWidth = textFieldValue.width / scale;
+            _valueY = textFieldValue.y;
+         }
+         var natural:Number = _valueWidth * scale;
+         var wanted:Number = Math.max(natural,textFieldValue.textWidth * Math.max(1,scale) + 5);
+         resize(textFieldValue,wanted);
+         textFieldValue.x += natural - wanted;
+         textFieldLabel.autoSize = TextFieldAutoSize.NONE;
+         textFieldLabel.wordWrap = false;
+         var labelWidth:Number = textFieldLabel.textWidth * Math.max(1,textFieldLabel.scaleX);
+         var valueStart:Number = textFieldValue.x + wanted - textFieldValue.textWidth * Math.max(1,scale) - 4;
+         // With a margin: Scaleform lays the embedded Calibri out close to, not exactly as, this.
+         _valueLine = textFieldLabel.x + labelWidth * 1.05 + 6 > valueStart ? 1 : 0;
+         textFieldValue.y = _valueY + _valueLine * textFieldLabel.getLineMetrics(0).height * textFieldLabel.scaleY;
+      }
+
       public function setDetailText(label:String, value:String) : void
       {
          _label = label;
@@ -153,6 +214,7 @@ package survarium.controls
             }
             this.textFieldValue.text = this._prefix + Util.getNumberString(_realValue) + this._postfix;
          }
+         if(_changeText != null) this.textFieldValue.text = _changeText;
          if(this.textFieldDiff.text.length)
          {
             this.textFieldValue.x = this.textFieldDiff.x + this.textFieldDiff.width - this.textFieldValue.width - this.textFieldDiff.textWidth - 4;
@@ -184,8 +246,10 @@ package survarium.controls
                // instead of running under it; WeaponDetailsView gives the
                // row its lines.
                var align:String = textFieldValue.getTextFormat().align;
+               if(align == TextFormatAlign.RIGHT) fitWideValue();
                var valueStart:Number = textFieldValue.x;
-               if(align == TextFormatAlign.RIGHT) valueStart += textFieldValue.width - textFieldValue.textWidth - 4;
+               if(_valueLine == 1) valueStart += textFieldValue.width + 6;
+               else if(align == TextFormatAlign.RIGHT) valueStart += textFieldValue.width - textFieldValue.textWidth - 4;
                else if(align == TextFormatAlign.CENTER) valueStart += (textFieldValue.width - textFieldValue.textWidth) / 2 - 2;
                textFieldLabel.width = Math.max(1,valueStart - 6 - textFieldLabel.x);
             }

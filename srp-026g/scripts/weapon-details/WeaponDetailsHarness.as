@@ -116,6 +116,86 @@ package {
    Loc.setData(texts("english"));
    shows(items[0],items[1]);
   }
+  // Held Alt (docs/notes/alt-weapon-stats.md): the stats as a match has them, with the kit's armour
+  // and the skills; a changed one reads "base -> in a match", to the decimal at which they differ.
+  private var profile:Object,Kit:Object,Provider:Class;
+  private var altView:Object,released:String;
+  private function kitFloats(values:Object):Object {var floats:Array=[];for(var i:int=0;i<68;i++)floats.push(values[i]===undefined?0:values[i]);return Kit.parse(floats);}
+  private function wearing(items:Array):void {profile.profileItems.dataProvider=new Provider(items);}
+  private function piece(slot:int,props:Array):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.slotId=slot;d.isWeapon=slot==7;d.name="piece "+slot;d.properties=[];d.modifiers=[];
+   for each(var p:Array in props)d.modifiers.push({props:[{prop_id:p[0],prop_value:p[1]}]});
+   return d;
+  }
+  private function aimTime(d:Object,value:String):Object {for each(var p:Object in d.properties)if(p.prop_id==133)p.prop_value=value;return d;}
+  private function nativeText(card:Object,label:String):String {var row:Object=nativeRow(card,label);row.validateNow();return row.textFieldValue.text;}
+  private function line(card:Object,start:String):String {
+   for each(var l:String in text(card).split("\n"))if(l.indexOf(start)==0)return l;
+   throw new Error("missing line: "+start+" in "+text(card));
+  }
+  private function altChecks():void {
+   var Profile:Class=domain.getDefinition("SrvLocalPlayerProfile") as Class;
+   profile=new Profile();profile.x=-2000;
+   profile.setAmmoShare(domain.getDefinition("survarium.ammo.AmmoShareLite").getInstance());
+   addChildAt(profile as DisplayObject,0);
+   profile.paperDoll.ammoControl=new (domain.getDefinition("survarium.ammo.AmmoShareControll") as Class)();
+   Kit=domain.getDefinition("survarium.player.KitModifiers");
+   Provider=domain.getDefinition("scaleform.clik.data.DataProvider") as Class;
+   var english:Object=HarnessText.DATA.english;
+   Scene.isShift=true;
+   // No kit, no skills: a weapon's own roll alone. A 0.2 s aim time with -2 % reads 0.19 on the
+   // card (two decimals); held Alt, 0.2 -> 0.196, never "x -> x".
+   profile.setKitModifiers(kitFloats({}));wearing([]);
+   var quick:Object=aimTime(item(false),"0.2");quick.modifiers=[{icon:33,textValue:"Aim time -2%",props:[{prop_id:102,prop_value:"-0.02"}]}];
+   Scene.isAlt=false;shows(quick,items[1]);
+   require(nativeText(cards[0],"Aim time")=="0.19s","released: the card's own two decimals ("+nativeText(cards[0],"Aim time")+")");
+   require(text(cards[0]).indexOf(english.st_srp_weapon_with_kit_skills)<0,"released: no effects line");
+   Scene.isAlt=true;shows(quick,items[1]);
+   require(nativeText(cards[0],"Aim time")=="0.2 -> 0.196s","aim-time roll on a 0.2 s weapon: "+nativeText(cards[0],"Aim time"));
+   require(nativeText(cards[0],"Damage")=="34","a stat nothing changes keeps its single value");
+   quick.modifiers[0].props[0].prop_value="-0.04";shows(quick,items[1]);
+   require(nativeText(cards[0],"Aim time")=="0.2 -> 0.19s","-4 %: two decimals already differ ("+nativeText(cards[0],"Aim time")+")");
+   aimTime(quick,"0.3");quick.modifiers[0].props[0].prop_value="-0.02";shows(quick,items[1]);
+   require(nativeText(cards[0],"Aim time")=="0.3 -> 0.29s","-2 % on 0.3 s: rounded, two decimals differ ("+nativeText(cards[0],"Aim time")+")");
+   require(line(cards[0],english.st_srp_weapon_with_kit_skills)==english.st_srp_weapon_with_kit_skills,"the effects line under the heading");
+   // Skills (the kit's own floats: Steady aim -10 %, reload +12 %, chambering +12 %, weapon change
+   // +15 %, hip fire -10 %), gloves (reload +10 %, aim time -6 %), a vest (recoil -4 %, spread -4 %);
+   // a weapon's player-modifier line is not armour and adds nothing.
+   profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
+   wearing([piece(5,[[114,"0.10"],[102,"-0.06"]]),piece(2,[[115,"-0.04"],[101,"-0.04"]]),piece(7,[[114,"0.50"],[102,"-0.5"]])]);
+   var ak:Object=item(false);Scene.isAlt=false;shows(ak,items[0]);released=text(cards[0]);
+   Scene.isAlt=true;shows(ak,items[0]);
+   require(nativeText(cards[0],"Aim time")=="0.25 -> 0.21s","aim time x max(0, 1 + skills + gloves): "+nativeText(cards[0],"Aim time"));
+   require(line(cards[0],"Reload")=="Reload: 3 -> 2.46s","reload / max(0, 1 + 0.12 + 0.10): "+line(cards[0],"Reload"));
+   require(line(cards[0],"Draw time")=="Draw time: 0.6 -> 0.52s" && line(cards[0],"Holster time")=="Holster time: 0.6 -> 0.52s","draw and holster / 1.15");
+   require(line(cards[0],"Vertical recoil:")=="Vertical recoil: 1.8…2 -> 1.73…1.92","kick x 0.96: "+line(cards[0],"Vertical recoil:"));
+   require(line(cards[0],"Hip-fire spread")=="Hip-fire spread: 1 -> 0.86x","hip fire x 0.9 x 0.96: "+line(cards[0],"Hip-fire spread"));
+   require(line(cards[0],"Full damage up to")=="Full damage up to: 30m","range: nothing in a kit changes it");
+   require(text(cards[1]).indexOf(english.st_srp_weapon_with_kit_skills)>=0,"the compared weapon too");
+   require(line(cards[1],"Reload")=="Reload: 10 -> 8.2s","the compared weapon with the same kit: "+line(cards[1],"Reload"));
+   require(color(cards[0],"Reload")==8890390,"comparison of the in-match values");
+   aligned();
+   // An exe that sends no floats: the kit alone, said so.
+   profile.setKitModifiers(null);shows(ak,items[0]);
+   require(line(cards[0],english.st_srp_weapon_with_kit)==english.st_srp_weapon_with_kit && line(cards[0],"Reload")=="Reload: 3 -> 2.73s","skills unknown: gloves only");
+   profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
+   // Every language fits, held Alt and expanded, beside the widest kick values.
+   var misses:Array=[],wide:Object=recoilItem(1.98,2.2,1.42,2,1.42,2);
+   for each(var language:String in HarnessText.LANGUAGES){
+    Loc.setData(texts(language));
+    shows(ak,wide);
+    misses=misses.concat(overflows(cards[0],language),overflows(cards[1],language));
+    require(text(cards[0]).indexOf(HarnessText.DATA[language].st_srp_weapon_with_kit_skills)>=0,"effects line: "+language);
+   }
+   var told:Object={};misses=misses.filter(function(m:String,...rest):Boolean{var again:Boolean=told[m];told[m]=true;return !again;});
+   for each(var miss:String in misses)trace("DETAILS OVERFLOW "+miss);
+   require(misses.length==0,misses.length+" labels held Alt do not fit one line (DETAILS OVERFLOW lines)");
+   Loc.setData(texts("english"));
+   // Pressed and let go while the card is open: the card follows at the next frame.
+   Scene.isAlt=false;shows(ak,items[0]);
+   require(text(cards[0])==released,"released: the weapon's own card");
+  }
   private function loaded(e:Event):void {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;Scene=domain.getDefinition("MainScene");Scene.stage=this;Scene.scaleFactor=1;
@@ -162,13 +242,19 @@ package {
       for each(var name:String in ["textFieldLabel","textFieldValue"]){
        var actual:TextFormat=row[name].getTextFormat(),expected:TextFormat=original[name].getTextFormat();
        require(!row[name].text.length || (actual.font==expected.font && actual.size==expected.size && actual.bold==expected.bold && actual.align==expected.align),"original typography: "+name+" '"+row[name].text+"' got="+[actual.font,actual.size,actual.bold,actual.align]+" expected="+[expected.font,expected.size,expected.bold,expected.align]);
-       require(Math.abs(row[name].localToGlobal(new Point()).x-original[name].localToGlobal(new Point()).x)<.2,"original column alignment: "+name);
+       // A value's right edge (a wide changed value held Alt grows to its left).
+       var edge:Function=function(f:TextField):Number{return f.parent.localToGlobal(new Point(f.x+(name=="textFieldValue"?f.width:0),f.y)).x;};
+       require(Math.abs(edge(row[name])-edge(original[name]))<.2,"original column alignment: "+name);
        require(Math.abs(row[name].transform.concatenatedMatrix.a-original[name].transform.concatenatedMatrix.a)<.001 && Math.abs(row[name].transform.concatenatedMatrix.d-original[name].transform.concatenatedMatrix.d)<.001,"original text scale: "+name);
       }
       require(row.textFieldLabel.textColor==original.textFieldLabel.textColor,"original label color");
       require([15911311,8890390,9834254].indexOf(row.textFieldValue.textColor)>=0,"original stat palette");
       require(row.textFieldValue.textWidth<row.textFieldValue.width,"value fits row: "+row.textFieldValue.text);
-      if(j+1<child.numChildren && !(child.getChildAt(j+1) is Caption) && row.textFieldLabel.numLines==1)require(Math.abs(child.getChildAt(j+1).y-child.getChildAt(j).y-(card.itemCompare.diff_2.y-card.itemCompare.diff_1.y))<.1,"original row spacing");
+      // The native stride, or whole strides more where the compared card's row wraps.
+      if(j+1<child.numChildren && !(child.getChildAt(j+1) is Caption) && row.textFieldLabel.numLines==1){
+       var stride:Number=card.itemCompare.diff_2.y-card.itemCompare.diff_1.y,step:Number=(child.getChildAt(j+1).y-child.getChildAt(j).y)/stride;
+       require(step>=1-.01 && Math.abs(step-Math.round(step))<.01,"original row spacing");
+      }
      }
     }
    }
@@ -188,10 +274,13 @@ package {
      continue;
     }
     var label:TextField=e.indicator.textFieldLabel,value:TextField=e.indicator.textFieldValue;
+    // A value on the line under its label (a changed range held Alt) leaves the label the row.
+    var below:Boolean=value.y>label.y+1;
     var align:String=value.getTextFormat().align,valueStart:Number=value.x;
-    if(align==TextFormatAlign.RIGHT)valueStart+=value.width-value.textWidth-4;
+    if(below)valueStart+=value.width+6;
+    else if(align==TextFormatAlign.RIGHT)valueStart+=value.width-value.textWidth-4;
     else if(align==TextFormatAlign.CENTER)valueStart+=(value.width-value.textWidth)/2-2;
-    if(label.numLines!=1 || label.x+label.textWidth*(1+FIT_MARGIN)+6>valueStart)misses.push(language+": '"+label.text+"' "+Math.round(label.textWidth)+"/"+Math.round(valueStart-label.x-6)+(label.numLines!=1?" ("+label.numLines+" lines)":""));
+    if(label.numLines!=1 || label.x+label.textWidth*(1+FIT_MARGIN)+6>valueStart)misses.push(language+": '"+label.text+"' "+Math.round(label.textWidth)+"/"+Math.round(valueStart-label.x-6)+(label.numLines!=1?" ("+label.numLines+" lines)":"")+(below?" (value below)":""));
    }
    return misses;
   }
@@ -331,10 +420,13 @@ package {
      cards[0].alignComparisonHeader(null);
      require(Math.abs(cards[0].topBlackContainer.height-headerHeight)<.1,"single card restores its natural header");
      cards[1].textFieldDescription.visible=false;cards[0].alignComparisonHeader(cards[1]);aligned();
-     finish(null);
+     altChecks();
     }
+    if(frame==140){Scene.isAlt=true;}
+    if(frame==150){require(line(cards[0],"Reload")=="Reload: 3 -> 2.46s" && nativeText(cards[0],"Aim time")=="0.25 -> 0.21s","Alt pressed over an open card");Scene.isAlt=false;}
+    if(frame==160){require(text(cards[0])==released && nativeText(cards[0],"Aim time")=="0.25s","Alt let go over an open card");finish(null);}
    }catch(err:Error){finish("frame "+frame+": "+err+" "+err.getStackTrace());}
   }
-  private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;}trace("DETAILS RESULT "+(error?"fail: "+error:"pass"));}
+  private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;Scene.isAlt=loaderInfo.parameters.alt=="1";}trace("DETAILS RESULT "+(error?"fail: "+error:"pass"));}
  }
 }

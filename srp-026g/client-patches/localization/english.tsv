@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Weapon stats
 st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weapon_with_kit	With kit
+st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
 st_srp_weather_evening	evening

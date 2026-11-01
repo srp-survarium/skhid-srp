@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Asetilastot
 st_srp_weapon_sway_cycle	Heiluntajakso
 st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
+st_srp_weapon_with_kit	Varustesetillä
+st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
 st_srp_weather_evening	ilta

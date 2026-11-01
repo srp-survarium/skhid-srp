@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	A fegyver statisztikái
 st_srp_weapon_sway_cycle	Kilengési ciklus
 st_srp_weapon_sway_horizontal	Vízszintes kilengés
 st_srp_weapon_sway_vertical	Függőleges kilengés
+st_srp_weapon_with_kit	Összeállítással
+st_srp_weapon_with_kit_skills	Összeállítással és képességekkel
 st_srp_weather_before_rain	eső előtt
 st_srp_weather_day	nappal
 st_srp_weather_evening	este
