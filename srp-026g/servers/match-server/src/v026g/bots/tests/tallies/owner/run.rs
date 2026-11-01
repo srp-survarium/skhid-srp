@@ -26,6 +26,8 @@ pub(super) struct Doing {
     pub(super) stepped: u8,
     pub(super) apart: u8,
     pub(super) guard: u8,
+    pub(super) watch: LipWatchKind,
+    pub(super) guard_why: u8,
 }
 
 impl Doing {
@@ -54,6 +56,8 @@ impl Doing {
             stepped: bot.bench_stepped,
             apart: bot.bench_apart,
             guard: bot.bench_guard,
+            watch: LipWatchKind::of(&bot.lip_watch),
+            guard_why: bot.bench_guard_why,
             after_landing: watch.and_then(|w| w.route).and_then(|jump| {
                 bot.route.as_ref().map(|(route, goal)| {
                     let mut r = route.clone();
@@ -221,6 +225,8 @@ impl Run {
             stepped: doing.map_or(0, |d| d.stepped),
             apart: doing.map_or(0, |d| d.apart),
             guard: doing.map_or(0, |d| d.guard),
+            watch: doing.map_or(LipWatchKind::Watching, |d| d.watch),
+            guard_why: doing.map_or(0, |d| d.guard_why),
         };
         self.recs[place].push(rec);
         // A bot's jump pressed: why, from its watch of it.

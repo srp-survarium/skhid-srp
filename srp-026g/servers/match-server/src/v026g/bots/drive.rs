@@ -2039,6 +2039,14 @@ const LIP_GLIDE_MPS: f32 = 0.5;
 /// [`Feel::lip_guard_full`]: a bot the guard gave up is watched again when it has moved this far from where it was given up (m).
 const LIP_RESUME_M: f32 = 0.5;
 
+#[cfg(test)]
+thread_local! {
+    /// The bench's reason for the lip guard's last verdict that the keys fall (`Bot::bench_guard_why`): 1 the walk from the reckoned
+    /// feet falls, 2 only the same walk a reckoning's error to a side falls ([`Feel::lip_guard_full`]'s sides), plus 2 when the lip
+    /// was seen only on the floors about the reckoned feet (3, 4).
+    static GUARD_WHY: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
+
 /// The lip guard's watch over its own hold on a bot: a guard that keeps changing a bot's keys has stopped its
 /// walk, not saved it (a bot braked at a rim it must turn at, again and again). The score rises with each
 /// tick the keys are changed and falls with each that they are not; past [`LIP_GIVE_UP`] the guard leaves
@@ -2203,9 +2211,13 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
             LipGuard::Safe
         } else {
             #[cfg(test)]
-            if full && body::stays_up(&at, keys, turn, &stop) {
+            let sides_only = full && body::stays_up(&at, keys, turn, &stop);
+            #[cfg(test)]
+            if sides_only {
                 motor::counts::lip_gap(4);
             }
+            #[cfg(test)]
+            GUARD_WHY.set(1 + u8::from(sides_only) + 2 * u8::from(about));
             let brake = (speed > 0.5).then(|| {
                 let relative = kin::wrap(kin::yaw_of([-me.velocity[0], -me.velocity[1]]) - (me.yaw + turn));
                 (keys & !MOVE) | motor::keys_toward(relative)
@@ -2293,6 +2305,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             LipGuard::Swapped(_) => 2,
             LipGuard::Braked(_) | LipGuard::Doomed => 3,
         };
+        bot.bench_guard_why = if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed) { GUARD_WHY.get() } else { 0 };
         if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) && bot.bench_guard_dbg < 6 && std::env::var_os("SRP_GUARD_DEBUG").is_some() {
             bot.bench_guard_dbg += 1;
             let route = bot.route.as_ref().map(|(r, goal)| (r.length(), r.points().len(), goal.to_array()));
@@ -2664,6 +2677,37 @@ mod tests {
             narrower += usize::from(old && !new);
         }
         assert_eq!((wider > 0, narrower), (true, 0), "wider {wider} narrower {narrower}");
+    }
+
+    /// [`kin::MarginEdge`]: a walk along the rim on the slab's last floor (its centre 0.125 m inside the rim) stays up, the body held
+    /// by the client's edge. With the margin at the lattice's edge the full guard's sides hold it (the side 0.3 m out is past the
+    /// cell's boundary, where its margin falls at once), and the plain guard holds a body reckoned past the boundary for its own
+    /// margin. With the margin at the body's edge both walk on (the full guard still holds a body whose side is past the support),
+    /// and a walk toward the rim is stopped as before.
+    #[test]
+    fn a_walk_along_a_rim_is_held_only_with_the_margin_at_the_lattices_edge() {
+        let world = slab();
+        let grid = &world.grid;
+        let lattice = kin::Kinematics::default();
+        let body = kin::Kinematics { margin_edge: kin::MarginEdge::Body, ..lattice.clone() };
+        assert_eq!((lattice.edge, lattice.margin_edge), (kin::Edge::Client, kin::MarginEdge::Lattice), "the defaults");
+        let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
+        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full);
+        // Along the rim on its last floor: the sides.
+        assert!(held(walk(&lattice, 55.875, 0.0, true)), "held for a side");
+        assert_eq!(walk(&lattice, 55.875, 0.0, false), LipGuard::Safe, "the plain guard has no sides");
+        assert_eq!(walk(&body, 55.875, 0.0, true), LipGuard::Safe);
+        // Reckoned 0.1 m past the boundary (within the support): its own margin.
+        assert!(held(walk(&lattice, 56.1, 0.0, false)), "held for its own margin");
+        assert_eq!(walk(&body, 56.1, 0.0, false), LipGuard::Safe);
+        // There a reckoning's error further out is past the support (0.225 + 0.3 > `SUPPORT_M`): the full guard holds it still.
+        assert!(held(walk(&body, 56.1, 0.0, true)));
+        // Toward the rim: stopped either way.
+        let toward = -std::f32::consts::FRAC_PI_2;
+        for full in [false, true] {
+            assert!(held(walk(&body, 55.4, toward, full)), "{full}");
+            assert!(held(walk(&lattice, 55.4, toward, full)), "{full}");
+        }
     }
 
     /// [`Feel::lip_guard_full`], the give-up is a state with what ends it: kept while the body stays near where it was given up and
