@@ -48,6 +48,13 @@ pub struct TrapTuning {
     /// is back within 3 m of his death place in 120 s in 27-40 % of cases (his team's other bots 21-22 %), but the carriers seldom
     /// pass it: of the candidates at a wished spot the floor, their own route and a mate near refuse most.
     pub at_defeated: Option<DefeatedTuning>,
+    /// [A145, design-p1c §9] A trap on the floor a camper stood on when the team's Breach (in its hold) or its K2 flanker
+    /// killed him: the job's bot with a trap nearest his death point is wished to put it there when its route passes the
+    /// point or it stands by it (no detour, no new goal), with the gates of any trap and a wider guard for mates. Live 6+
+    /// player matches (`fx-gear-trap-payoff.md`, 1,070 cleared campers): he or a mate steps within 1 m of that point in
+    /// 41 % of cases within 120 s (he himself 21.5 %, a median 46 s after his death), and the clearing team as often (38 %):
+    /// hence the guard. `at_defeated` stays the fallback for the spots this does not cover. Off by default.
+    pub at_cleared: Option<ClearedTuning>,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -127,6 +134,29 @@ impl Default for DefeatedTuning {
             ahead_m: 12.0,
             min_kills: 2,
         }
+    }
+}
+
+/// The rule for the death point of a camper a team job just killed (`TrapTuning::at_cleared`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ClearedTuning {
+    /// His death point is wished this long, seconds: design-p1c §9 places within 20 s; his own return comes P25 33 s after
+    /// his death.
+    pub keep_s: f32,
+    /// The trap lies within this of the point, metres (a foot point 0.6 m from a trap's centre sets it off).
+    pub within_m: f32,
+    /// No mate within this of the trap's cell now, in 2 s or in 4 s, metres (the guard's `friend_m` is 2.5 m): the
+    /// clearing team crosses the point in 38 % of the live cases.
+    pub friend_m: f32,
+    /// How far ahead along the route the point is looked for, metres (at most `route_ahead_m`): a route that passes it
+    /// within `within_m` waits for it.
+    pub ahead_m: f32,
+}
+
+impl Default for ClearedTuning {
+    fn default() -> Self {
+        Self { keep_s: 20.0, within_m: 1.5, friend_m: 4.0, ahead_m: 12.0 }
     }
 }
 
@@ -290,6 +320,7 @@ impl Default for TrapTuning {
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
             at_defeated: None,
+            at_cleared: None,
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
@@ -339,6 +370,12 @@ impl Check for TrapTuning {
                     && d.min_kills <= 5
             }),
             "traps.at_defeated",
+        )?;
+        check(
+            self.at_cleared.is_none_or(|c| {
+                c.keep_s > 0.0 && c.within_m >= 1.0 && c.within_m <= 6.0 && c.friend_m >= self.friend_m && c.ahead_m >= 2.0 && c.ahead_m <= self.route_ahead_m
+            }),
+            "traps.at_cleared",
         )?;
         check(
             self.friend_m >= 0.0

@@ -1,0 +1,27 @@
+owner-test trap at a cleared point: team 0: cleared points noted after a Breach 0 / a flanker 0 (no job bot with a trap 0), thinks wished 0, waited 0, planned 0, put down 0, caught enemy 0 / mate 0 / own 0; team 1: cleared points noted after a Breach 0 / a flanker 0 (no job bot with a trap 0), thinks wished 0, waited 0, planned 0, put down 0, caught enemy 0 / mate 0 / own 0
+{
+  "team0": {
+    "caught_enemy": 0,
+    "caught_mate": 0,
+    "caught_own": 0,
+    "no_placer": 0,
+    "noted_breach": 0,
+    "noted_flank": 0,
+    "placed": 0,
+    "put_down": 0,
+    "thinks": 0,
+    "waited": 0
+  },
+  "team1": {
+    "caught_enemy": 0,
+    "caught_mate": 0,
+    "caught_own": 0,
+    "no_placer": 0,
+    "noted_breach": 0,
+    "noted_flank": 0,
+    "placed": 0,
+    "put_down": 0,
+    "thinks": 0,
+    "waited": 0
+  }
+}
