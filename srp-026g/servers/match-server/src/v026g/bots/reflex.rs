@@ -1632,6 +1632,9 @@ pub enum LegsWhy {
     /// A smoke throw: standing still from the turn to the launch, as [`Self::Throwing`]; with `smoke.throw_keeps_route`
     /// the route stays for the walk on after it.
     ThrowingSmoke,
+    /// [A208 `smoke.wait_for_cloud`] Holding short of a crossing until a cloud hides it (`smoke::CloudWait`): the
+    /// route stays for the walk on.
+    WaitingForCloud,
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
@@ -1897,7 +1900,47 @@ struct SmokeThrowing {
     key: u32,
     started: u32,
     phase: SmokePhase,
+    /// [A208] The hold after the launch, if any.
+    wait: Option<super::smoke::CloudWait>,
 }
+
+/// [A208 `smoke.wait_for_cloud`] A hold for a cloud under way: since when (the press for its own smoke), its latest end,
+/// and its legs.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CloudHolding {
+    wait: super::smoke::CloudWait,
+    since: u32,
+    until: u32,
+    legs: HoldLegs,
+}
+
+/// [A208] Where a hold's legs are: walking the route on to the hold point, or standing at it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum HoldLegs {
+    Walking,
+    Standing(Vec3),
+}
+
+/// [A208] A hold walking to its point stands once this near it, metres.
+const HOLD_AT_M: f32 = 1.5;
+/// [A208] Two crossings this near are the same one, metres (`crossing_of`'s 2 m steps and a step's slack).
+const HOLD_SAME_CROSSING_M: f32 = 3.0;
+
+/// [A208, the bench's] A thrown smoke's crossing, watched until the bot comes to it or this time passes.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CrossingWatch {
+    for_use: super::smoke::SmokeUse,
+    line: super::smoke::SmokeLine,
+    until: u32,
+}
+
+/// [A208, the bench's] A thrown smoke's crossing is watched this long from the launch, ms.
+#[cfg(test)]
+const CROSSING_WATCH_MS: u32 = 15_000;
+/// [A208, the bench's] The bot is at its crossing within this, metres (the throw classes' 2.5 m).
+#[cfg(test)]
+const CROSSING_AT_M: f32 = 2.5;
 
 /// Where a smoke throw is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2996,6 +3039,13 @@ pub struct Reflex {
     /// under way.
     smoke_key: Option<u32>,
     smoke_throw: Option<SmokeThrowing>,
+    /// [A208] A hold for a cloud under way.
+    cloud_hold: Option<CloudHolding>,
+    /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
+    hold_ended: Option<(Vec3, u32)>,
+    /// [A208, the bench's] The last thrown smoke's crossing.
+    #[cfg(test)]
+    crossing_watch: Option<CrossingWatch>,
     /// [smoke] The lane smokes and the sniper smokes begun this life (`smoke.lanes_a_life`, `smoke.snipers_a_life`; the
     /// reflex is made anew each life).
     lane_smokes: u32,
@@ -3919,12 +3969,44 @@ impl Reflex {
 
     /// [smoke] Whether the kit has a smoke to throw now, and no throw is under way.
     pub fn can_smoke(&self) -> bool {
-        self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none()
+        self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none() && self.cloud_hold.is_none()
+    }
+
+    /// [A208 `smoke.wait_for_cloud`] Whether it holds for a cloud now.
+    pub fn holds_for_cloud(&self) -> bool {
+        self.cloud_hold.is_some()
+    }
+
+    /// [A208 `smoke.wait_for_cloud`] A hold for a mate's cloud from now (`smoke::WaitsFor::Mates`), if nothing has the
+    /// legs: no throw, no hold, no target. Whether it was begun.
+    pub fn hold_for_cloud(&mut self, wait: super::smoke::CloudWait, me: &PlaceView, now: u32) -> bool {
+        if self.cloud_hold.is_some() || self.smoke_throw.is_some() || self.throw.is_some() || self.target.is_some() {
+            return false;
+        }
+        // One hold a crossing: one ended there (a hit, an enemy close, the cap) is not begun again for the same cloud.
+        if self
+            .hold_ended
+            .is_some_and(|(crossing, ended)| crossing.distance_xz(wait.line.crossing) <= HOLD_SAME_CROSSING_M && now < ended + wait.cap_ms)
+        {
+            return false;
+        }
+        self.begin_hold(wait, me, now);
+        true
+    }
+
+    /// [A208] A hold begun, counted from `since`.
+    fn begin_hold(&mut self, wait: super::smoke::CloudWait, me: &PlaceView, since: u32) {
+        let legs = if me.feet.distance_xz(wait.hold) <= HOLD_AT_M { HoldLegs::Standing(me.feet) } else { HoldLegs::Walking };
+        self.cloud_hold = Some(CloudHolding { wait, since, until: since.saturating_add(wait.cap_ms), legs });
+        #[cfg(test)]
+        super::smoke::tally::wait(me.team, wait.waits_for, super::smoke::tally::Wait::Begun, 1);
     }
 
     /// [smoke] A smoke thrown at `plan` from now, if the kit has one and the hands are free: no throw under way, no
     /// target, no reload or weapon switch. Whether it was begun.
-    pub fn start_smoke(&mut self, plan: super::smoke::SmokePlan, now: u32) -> bool {
+    /// With `wait` (`smoke::CloudWait::of`, `smoke.wait_for_cloud`), after the launch it holds short of the plan's
+    /// crossing until the cloud hides the line.
+    pub fn start_smoke(&mut self, plan: super::smoke::SmokePlan, now: u32, wait: Option<super::smoke::CloudWait>) -> bool {
         let Some(key) = self.smoke_key.filter(|_| self.can_smoke()) else {
             return false;
         };
@@ -3939,6 +4021,7 @@ impl Reflex {
             key,
             started: now,
             phase: SmokePhase::Turning,
+            wait,
         });
         match plan.for_use {
             super::smoke::SmokeUse::CrossLane => self.lane_smokes += 1,
@@ -4000,10 +4083,19 @@ impl Reflex {
                 {
                     super::smoke::tally::thrown(me.team, t.plan.for_use, true);
                     super::smoke::tally::threw(me.place, now);
+                    if let Some(w) = self.crossing_watch.take() {
+                        super::smoke::tally::wait(me.team, super::smoke::WaitsFor::Own(w.for_use), super::smoke::tally::Wait::CrossedNever, 1);
+                    }
+                    self.crossing_watch =
+                        Some(CrossingWatch { for_use: t.plan.for_use, line: t.plan.line, until: now + CROSSING_WATCH_MS });
                 }
             }
             SmokePhase::Released(pressed) if now >= pressed + c.grenade_launch_ms + c.grenade_look_after_ms => {
                 self.smoke_throw = None;
+                // [A208] Its cloud first: the hold, counted from the press.
+                if let Some(wait) = t.wait {
+                    self.begin_hold(wait, me, pressed);
+                }
                 return None;
             }
             SmokePhase::Released(_) => {}
@@ -4179,11 +4271,102 @@ impl Reflex {
             if let Some(t) = self.smoke_throw {
                 super::smoke::tally::died(me.team, t.plan.for_use);
             }
+            #[cfg(test)]
+            if let Some(h) = self.cloud_hold {
+                super::smoke::tally::wait(me.team, h.wait.waits_for, super::smoke::tally::Wait::Died, 1);
+            }
+            #[cfg(test)]
+            if let Some(w) = self.crossing_watch {
+                super::smoke::tally::wait(me.team, super::smoke::WaitsFor::Own(w.for_use), super::smoke::tally::Wait::CrossedNever, 1);
+            }
             if self.life.is_some() {
                 *self = Self::armed_carrying(self.arms, self.left());
             }
             self.life = Some(me.spawned);
         }
+    }
+
+    /// [A208 `smoke.wait_for_cloud`] A hold for a cloud: walking its route on (no override: the drive walks it) to the
+    /// hold point, then standing there looking at the threat's eye, until the clouds hide the line, a target that is
+    /// not the threat, a hit since the hold began, an enemy its own senses put within `close_m` lately, or the cap.
+    /// `None`: no hold, or walking to it.
+    fn cloud_holding(&mut self, me: &PlaceView, view: &MatchView, memory: &Memory, now: u32, settle_s: f32) -> Option<Override> {
+        use super::smoke::HoldEnd;
+        let mut h = self.cloud_hold?;
+        let w = h.wait;
+        let hit = |at: Option<u32>| at.is_some_and(|at| at >= h.since);
+        let close = || {
+            memory.tracks().iter().any(|track| {
+                track.own.is_some_and(|(at, time)| now.saturating_sub(time) <= w.close_sensed_ms && at.distance_xz(me.feet) <= w.close_m)
+            })
+        };
+        let end = if w.hidden(&view.smoke, now) {
+            Some(HoldEnd::Hidden)
+        } else if self.target.is_some_and(|target| Some(target) != w.threat) {
+            Some(HoldEnd::Fight)
+        } else if hit(self.hit_at) || hit(self.bullet_hit_at) {
+            Some(HoldEnd::Hit)
+        } else if close() {
+            Some(HoldEnd::Close)
+        } else if now >= h.until {
+            Some(HoldEnd::Cap)
+        } else {
+            None
+        };
+        if let Some(why) = end {
+            self.cloud_hold = None;
+            self.hold_ended = Some((w.line.crossing, now));
+            self.smoke_notes.push(format!("walks on after holding for the cloud ({:?}): {why:?}", w.waits_for));
+            #[cfg(test)]
+            {
+                use super::smoke::tally::{self, Wait};
+                tally::wait(me.team, w.waits_for, Wait::ended(why), 1);
+                tally::wait(me.team, w.waits_for, Wait::HeldMs, u64::from(now.saturating_sub(h.since)));
+            }
+            return None;
+        }
+        // At the hold point, or nearer the crossing than it is (the route bent round it): it stands there.
+        if h.legs == HoldLegs::Walking
+            && (me.feet.distance_xz(w.hold) <= HOLD_AT_M || me.feet.distance_xz(w.line.crossing) <= w.hold.distance_xz(w.line.crossing))
+        {
+            h.legs = HoldLegs::Standing(me.feet);
+        }
+        self.cloud_hold = Some(h);
+        let HoldLegs::Standing(at) = h.legs else {
+            return None;
+        };
+        Some(Override {
+            look_at: Some(w.line.eye),
+            turn_time_s: Some(settle_s),
+            legs: Some(Legs { at, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::WaitingForCloud }),
+            band_m: self.band,
+            ..Override::default()
+        })
+    }
+
+    /// [A208, the bench's] The last thrown smoke's crossing: reached (within [`CROSSING_AT_M`]) with its line hidden from
+    /// the client's eyes (`smoke::Forming::Client`, the default thinness) or open, or not reached in time.
+    #[cfg(test)]
+    fn watch_crossing(&mut self, me: &PlaceView, view: &MatchView, now: u32) {
+        use super::smoke::tally::Wait;
+        let Some(w) = self.crossing_watch else {
+            return;
+        };
+        let what = if me.feet.distance_xz(w.line.crossing) <= CROSSING_AT_M {
+            let veil = super::smoke::Veil::Smoke {
+                clouds: view.smoke.all(),
+                at: super::smoke::MatchMs(now),
+                thin_m: super::tuning::SmokeTuning::default().thin_m.get(),
+                forming: super::smoke::Forming::Client,
+            };
+            if veil.hides(w.line.eye, w.line.target) { Wait::CrossedHidden } else { Wait::CrossedOpen }
+        } else if now >= w.until {
+            Wait::CrossedNever
+        } else {
+            return;
+        };
+        self.crossing_watch = None;
+        super::smoke::tally::wait(me.team, super::smoke::WaitsFor::Own(w.for_use), what, 1);
     }
 
     /// The target among the seen enemies: the present one if still seen,
@@ -6299,6 +6482,12 @@ impl Reflex {
         if let Some(over) = self.smoke_throwing(me, now, c, settle_s) {
             return over;
         }
+        // [A208] A hold for a cloud has them next.
+        if let Some(over) = self.cloud_holding(me, view, memory, now, settle_s) {
+            return over;
+        }
+        #[cfg(test)]
+        self.watch_crossing(me, view, now);
         // An enemy noticed since the last think (the noticing is its
         // track's own time, `know::Memory::seen`) is taken as the target at
         // once: the first shot waits its reaction, not the next think too
@@ -10751,7 +10940,7 @@ mod tests {
     /// the launch and the look after, and is over; given up when the view never comes round.
     #[test]
     fn a_smoke_is_thrown_with_its_quick_use_key_held_then_let_go() {
-        use crate::v026g::bots::smoke::{SmokeAim, SmokePlan, SmokeUse};
+        use crate::v026g::bots::smoke::{SmokeAim, SmokeLine, SmokePlan, SmokeUse};
         let c = CombatTuning::default();
         let pitch = 0.3;
         let plan = |for_use| SmokePlan {
@@ -10763,14 +10952,15 @@ mod tests {
             },
             for_use,
             covers_m: 4.0,
+            line: SmokeLine { eye: Vec3::new(40.0, 1.6, 20.0), target: Vec3::new(0.0, 1.3, 20.0), crossing: Vec3::new(0.0, 0.0, 20.0) },
         };
         let key = key::QUICK[3];
         let mut reflex = Reflex::default();
-        assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "no smoke in the kit");
+        assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0, None), "no smoke in the kit");
         reflex.set_smoke_key(Some(key));
         reflex.target = Some(1);
-        assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0), "fighting");
-        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0), "the sniper it is outranged by, its target");
+        assert!(!reflex.start_smoke(plan(SmokeUse::CrossLane), 0, None), "fighting");
+        assert!(reflex.start_smoke(plan(SmokeUse::AntiSniper), 0, None), "the sniper it is outranged by, its target");
         reflex.target = None;
         assert_eq!((reflex.lane_smokes(), reflex.sniper_smokes()), (0, 1), "a sniper's smoke is not a lane's");
         assert!(!reflex.can_smoke(), "one at a time");
@@ -10793,7 +10983,7 @@ mod tests {
         assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("throws a smoke for AntiSniper")));
         assert!(reflex.can_smoke(), "over");
         // Facing away: never pressed, given up.
-        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0));
+        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0, None));
         assert_eq!(reflex.lane_smokes(), 1, "a lane's smoke counts for the life");
         let away = body(0, 0, Vec3::ZERO, std::f32::consts::PI);
         for now in (0..=c.grenade_give_up_ms).step_by(50) {
@@ -10803,12 +10993,118 @@ mod tests {
         assert!(reflex.can_smoke());
         assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane")));
         // A battery picked up before the press: given up at once, the key never sent.
-        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0));
+        assert!(reflex.start_smoke(plan(SmokeUse::CrossLane), 0, None));
         let mut carrier = body(0, 0, Vec3::ZERO, std::f32::consts::PI);
         carrier.carrying = Some(1);
         assert!(reflex.smoke_throwing(&carrier, 50, &c, 0.1).is_none());
         assert!(reflex.can_smoke());
         assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane: carrying")));
+    }
+
+    /// [A208 `smoke.wait_for_cloud`] After the launch the thrower walks on to its hold point (no override), stands
+    /// there looking at the threat's eye, and walks on when the cloud hides the line; the threat as its target is no
+    /// fight, another target is, and so are a hit and the cap. Off (no wait), it walks on at the launch.
+    #[test]
+    fn a_thrower_holds_short_of_its_crossing_until_its_cloud_hides_the_line() {
+        use crate::v026g::bots::smoke::{Cloud, CloudWait, Clouds, MatchMs, Placed, SmokeAim, SmokeGrenade, SmokeLine, SmokePlan, SmokeUse, WaitsFor};
+        use crate::v026g::bots::tuning::{CloudWaiters, SmokeTuning, WaitForCloud};
+        let c = CombatTuning::default();
+        let pitch = 0.3;
+        let line = SmokeLine { eye: Vec3::new(40.0, 1.6, 20.0), target: Vec3::new(0.0, 1.3, 20.0), crossing: Vec3::new(0.0, 0.0, 20.0) };
+        let plan = SmokePlan {
+            at: Vec3::new(20.0, 0.0, 20.0),
+            aim: SmokeAim { yaw: 0.0, pitch, rest: Vec3::new(20.0, 0.0, 20.0) },
+            for_use: SmokeUse::CrossLane,
+            covers_m: 4.0,
+            line,
+        };
+        let on = SmokeTuning { wait_for_cloud: Some(WaitForCloud::default()), ..SmokeTuning::default() };
+        let grenade = SmokeGrenade::RDG_M;
+        let hold = Vec3::new(0.0, 0.0, 16.0);
+        assert_eq!(CloudWait::of(&SmokeTuning::default(), &grenade, line, Some(7), WaitsFor::Own(plan.for_use), hold), None, "off");
+        let wait = CloudWait::of(&on, &grenade, line, Some(7), WaitsFor::Own(plan.for_use), hold).expect("on");
+        assert_eq!(CloudWait::of(&on, &grenade, line, Some(7), WaitsFor::Mates, hold), None, "mates only with crossers");
+        assert_eq!(wait.cap_ms, 4_000 + 1_240 + 500, "the fuse, the client's forming and the margin");
+        let launch = c.grenade_launch_ms + c.grenade_look_after_ms;
+        let view = view_of(vec![]);
+        let memory = Memory::default();
+        let thrown = |reflex: &mut Reflex, me: &PlaceView| {
+            assert!(reflex.start_smoke(plan, 0, Some(wait)));
+            for now in (0..=launch).step_by(50) {
+                reflex.smoke_throwing(me, now, &c, 0.1);
+            }
+            assert!(reflex.holds_for_cloud(), "held from the launch");
+            assert!(!reflex.can_smoke(), "no second throw in a hold");
+        };
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        me.pitch = pitch;
+        let mut reflex = Reflex::default();
+        reflex.set_smoke_key(Some(key::QUICK[3]));
+        thrown(&mut reflex, &me);
+        // Walking its route on: no override.
+        assert!(reflex.cloud_holding(&me, &view, &memory, launch + 50, 0.1).is_none());
+        assert!(reflex.holds_for_cloud());
+        // At the hold point: standing, looking at the threat's eye.
+        let mut there = body(0, 0, Vec3::new(0.0, 0.0, 15.2), 0.0);
+        there.pitch = pitch;
+        let o = reflex.cloud_holding(&there, &view, &memory, launch + 100, 0.1).expect("stands");
+        assert_eq!(o.look_at, Some(line.eye));
+        assert!(o.legs.is_some_and(|l| l.why == LegsWhy::WaitingForCloud && l.at == there.feet), "{o:?}");
+        // The threat as its target is no fight.
+        reflex.target = Some(7);
+        assert!(reflex.cloud_holding(&there, &view, &memory, launch + 150, 0.1).is_some());
+        // The cloud hides the line: it walks on.
+        let cloud = Cloud {
+            by: 0,
+            team: 0,
+            placed: Placed::Arc,
+            centre: Vec3::new(20.0, 0.0, 20.0),
+            thrown: MatchMs(0),
+            pours: MatchMs(4_000),
+            shape: grenade.cloud,
+        };
+        let mut clouded = view_of(vec![]);
+        clouded.smoke = Clouds::new(vec![cloud]);
+        assert!(reflex.cloud_holding(&there, &clouded, &memory, 4_000 + 300, 0.1).is_some(), "still forming");
+        assert!(reflex.cloud_holding(&there, &clouded, &memory, 4_000 + 1_000, 0.1).is_some(), "the client's forming: 1.24 s");
+        assert!(reflex.cloud_holding(&there, &clouded, &memory, 4_000 + 1_300, 0.1).is_none());
+        assert!(!reflex.holds_for_cloud(), "over");
+        assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("Hidden")));
+        // Another target ends it; so does a hit; so does the cap.
+        for end in ["Fight", "Hit", "Cap"] {
+            let mut reflex = Reflex::default();
+            reflex.set_smoke_key(Some(key::QUICK[3]));
+            thrown(&mut reflex, &me);
+            let mut at = launch + 100;
+            match end {
+                "Fight" => reflex.target = Some(3),
+                "Hit" => reflex.hit_at = Some(launch),
+                _ => at = wait.cap_ms,
+            }
+            assert!(reflex.cloud_holding(&there, &view, &memory, at, 0.1).is_none(), "{end}");
+            assert!(!reflex.holds_for_cloud(), "{end}");
+            assert!(reflex.take_smoke_notes().iter().any(|n| n.contains(end)), "{end}");
+        }
+        // Off: over at the launch, no hold.
+        let mut reflex = Reflex::default();
+        reflex.set_smoke_key(Some(key::QUICK[3]));
+        assert!(reflex.start_smoke(plan, 0, None));
+        for now in (0..=launch).step_by(50) {
+            reflex.smoke_throwing(&me, now, &c, 0.1);
+        }
+        assert!(!reflex.holds_for_cloud() && reflex.can_smoke());
+        // A mate's cloud (crossers): a hold from now, capped from its begin; one ended at a crossing is not begun there
+        // again for that cloud.
+        let crossers = SmokeTuning { wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }), ..SmokeTuning::default() };
+        let mates = CloudWait::of(&crossers, &grenade, line, Some(7), WaitsFor::Mates, hold).expect("crossers");
+        let mut reflex = Reflex::default();
+        assert!(reflex.hold_for_cloud(mates, &me, 10_000));
+        reflex.cloud_holding(&me, &view, &memory, 10_000 + mates.cap_ms - 50, 0.1);
+        assert!(reflex.holds_for_cloud());
+        reflex.cloud_holding(&me, &view, &memory, 10_000 + mates.cap_ms, 0.1);
+        assert!(!reflex.holds_for_cloud(), "the cap from the hold's begin");
+        assert!(!reflex.hold_for_cloud(mates, &me, 10_000 + mates.cap_ms + 50), "not twice at one crossing");
+        assert!(reflex.hold_for_cloud(mates, &me, 10_000 + 2 * mates.cap_ms + 50), "a later cloud");
     }
 
     /// The view is held for the grenade from the key's press to the launch and

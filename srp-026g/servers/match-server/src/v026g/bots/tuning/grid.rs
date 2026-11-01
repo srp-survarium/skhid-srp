@@ -60,6 +60,12 @@ pub struct GridTuning {
     /// is not (J0 climbed flat tops of 1.00-1.02 m, the 8f rows mounted +1.08), so the client test G-V4 may move the
     /// number. 1.05 is the exe's, the base's. With `client_numbers` off the body keeps the exe's. A grid is the map's.
     pub jump_cap_m: Positive,
+    /// Whether the maps' walk grids walk up a ledge's edge the capsule rides (`mapdata::Body::capsule_steps`): a rise up to the
+    /// step plus the part of the radius over which the capsule's round bottom meets an edge within the slope (0.96 m with the
+    /// clients' numbers) is a Walk link up, not a jump. Vostok Radar Station's 0.86-0.90 m edge at (8.41, -16.51) is walked up
+    /// by the live players with no jump; 59 % of the offered maps' standing-jump links rise that much in one edge (A198). Off
+    /// (the default) until a client test shows the walk. A grid is the map's (see `gap_links`).
+    pub capsule_steps: bool,
 }
 
 impl Default for GridTuning {
@@ -75,6 +81,7 @@ impl Default for GridTuning {
             keep_last_resorts: false,
             crouch_floors: true,
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
+            capsule_steps: false,
         }
     }
 }
@@ -98,6 +105,7 @@ impl GridTuning {
             landing_carry: self.landing_carry,
             keep_last_resorts: self.keep_last_resorts,
             crouch_only_floors: self.crouch_floors,
+            capsule_steps: self.capsule_steps,
             ..body
         }
     }
