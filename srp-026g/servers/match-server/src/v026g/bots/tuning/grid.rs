@@ -91,11 +91,13 @@ pub struct GridTuning {
     /// is the map's (see `gap_links`).
     pub run_ups_after_erosion: bool,
     /// Whether the maps' walk grids measure a walk up off perched steep ground (a by-slope floor over the clients' 55 degrees whose cell's
-    /// centre stands over ground more than 0.3 m lower) from the walkable ground its climb began on, whatever the floor it reaches, and give a landing on steep ground no base (`mapdata::Body::steep_walk_base`):
+    /// centre stands over ground more than 0.3 m lower) from where the body stands: the walkable ground its climb began on, or the ground
+    /// under the floor if higher, whatever the floor it reaches; a landing on such a floor gives it no base (`mapdata::Body::steep_walk_base`):
     /// the client's body does not rest on such ground. Mamayev Kurgan day 4's boulder floor (-2.90, 29.58, 105.38), a drop's landing,
     /// walks 0.58-0.76 m onto the top; a live bot walked onto the boulder and held forward for 5 s with no jump, its feet sinking to
-    /// 29.00, 0.9-1.2 m under the top, the walkable floors its climb began on (A237, PROVEN). Off (the default) until its bench. A grid
-    /// is the map's (see `gap_links`).
+    /// 29.00, 0.9-1.2 m under the top, the walkable floors its climb began on (A237, PROVEN). On by default (A248's bench: routes lost
+    /// 614 -> 503, falls off 326 -> 283, stuck notes 178 -> 180; its no_way bursts have the same grid paths on and off); the all-off arm
+    /// keeps it (its old value is the proven walk). A grid is the map's (see `gap_links`).
     pub steep_walk_base: bool,
 }
 
@@ -116,7 +118,7 @@ impl Default for GridTuning {
             drop_room: true,
             slip_landings: false,
             run_ups_after_erosion: false,
-            steep_walk_base: false,
+            steep_walk_base: true,
         }
     }
 }
