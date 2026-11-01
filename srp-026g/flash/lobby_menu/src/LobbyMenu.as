@@ -3360,7 +3360,8 @@ package
          _obj.seller = seller != Faction.ANY ? seller : this.shop_list.getItemSeller(dict_uid);
          _obj.faction = _obj.seller;
          _obj.sellers = _descr.sellers;
-         _obj.category = _descr.sellers;
+         // the buy dialog's starting count reads it (MessageAsk.startCount); a bundle has none
+         _obj.category = _descr.category;
          _obj.uid = dict_uid;
          _obj.name = _descr.name;
          _obj.is_stack = _descr.is_stack;
