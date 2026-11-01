@@ -42,7 +42,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 
 - `GET` only, JSON, no sign-in; on the 0.26g site only. `lang=en|uk` names maps and modes.
 - `400 {"error":"bad request"}` for a bad parameter, `404 {"error":"not found"}` for an unknown or
-  non-public one, `503 {"error":"no history"}` when srp keeps no database (`SRP_DB=off`).
+  non-public one (a list of an unknown player is `200` with no matches), `503 {"error":"no history"}`
+  when srp keeps no database (`SRP_DB=off`).
 - No settings of its own: it reads the `srp.db` srp writes.
 - Paging is by match number: `before=<id>` gives the matches older than `id`; `next` is the value
   for the next page after a full one, `null` after a shorter one (a full last page is followed by
@@ -58,7 +59,8 @@ Common objects:
   two decimals; `win_rate` 0..1, three decimals; `score_avg` one decimal.
 - A match: `{"id":5531,"ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12}`. `winner` is 0 or 1,
-  `"draw"`, or `null` when not known.
+  `"draw"`, or `null` when not known. `map` and `mode` are `null` for a map the game data no longer
+  has.
 - A player's line of a match: `"team":0,"place":1,"won":true,"left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0`.
