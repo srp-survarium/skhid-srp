@@ -55,6 +55,12 @@ G3SG/1's 7.62x51 in clips of 20 weapons-031's), so their rows come before this o
 - G3SG/1, Mauser, KS-23M: their own 0.69d0 rigs and clips. The KS-23M is a pump as the
   Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
   start and the Mauser's aimed shots are 0.69d0-only and left out.
+- Sights: 0.69d0's aim locator, which 0.69d0 places at the eye; 0.69d0's configs carry
+  `aim_offset` on no weapon, so a gun keeps its template's (the KS-23M the Remington 870's 0.03:
+  at 0 its aim sat at the receiver's top and the receiver filled the lower screen). The Mauser
+  sets 0 (its aim was within 2 px; the APS's -0.1 is the APS model's). The Drum's body is the
+  live PPSh's mesh: it takes the live PPSh's aim locator and offset (`live_sights`), whose
+  angle (0.015 rad of yaw) the live clips hold the sights at; 0.69d0's put them 6-7 px right.
 
 ## Stats (live peers beside each)
 
