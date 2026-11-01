@@ -54,6 +54,7 @@ pub mod weapon_flight;
 pub mod camera_sweep;
 pub mod lamps;
 pub mod artefact_score;
+pub mod battery_progress;
 
 pub mod hud_options;
 pub mod tab_cursor;

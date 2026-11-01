@@ -455,6 +455,10 @@ pub struct VictoryItemStatus {
     pub nearest_positions: [f32; 2],
     pub owner_team: u8,
     pub first_finder: u8,
+    /// Exe patch 92's (battery_progress): how near each team's container
+    /// the battery has come in its life, in 10 m steps: 0 not carried yet in
+    /// the life, else the steps + 1. After `first_finder`.
+    pub progress: [u8; 2],
 }
 
 impl Default for VictoryItemStatus {
@@ -464,6 +468,7 @@ impl Default for VictoryItemStatus {
             nearest_positions: [0.0; 2],
             owner_team: 0,
             first_finder: 0,
+            progress: [0; 2],
         }
     }
 }
@@ -477,6 +482,7 @@ impl VictoryItemStatus {
         status.nearest_positions = [reader.f32()?, reader.f32()?];
         status.owner_team = reader.u8()?;
         status.first_finder = reader.u8()?;
+        status.progress = [reader.u8()?, reader.u8()?];
         Some(status)
     }
 
@@ -489,6 +495,7 @@ impl VictoryItemStatus {
         }
         out.push(self.owner_team);
         out.push(self.first_finder);
+        out.extend(self.progress);
     }
 }
 
@@ -1720,11 +1727,12 @@ mod tests {
     }
 
     /// A battery's record (snapshot_rules.md §3.2): carried 2.0 by player
-    /// 1 with kit 0, nearest 1.0 and 3.0, team 1 owns it, player 0 found it.
+    /// 1 with kit 0, nearest 1.0 and 3.0, team 1 owns it, player 0 found it,
+    /// 3 steps from team 0's container and untouched for team 1's.
     fn battery_bytes() -> Vec<u8> {
         let mut bytes = vec![0x02, 0, 0, 0, 0x00, 0x00, 0x00, 0x40];
         bytes.extend([0; 8]);
-        bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0]);
+        bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0, 4, 0]);
         bytes
     }
 
@@ -1733,14 +1741,15 @@ mod tests {
         let mut bytes = EMPTY_PLAYER.to_vec();
         bytes.extend(EMPTY_PLAYER);
         bytes.extend(battery_bytes());
-        // An untouched battery: three masks, two positions, two bytes.
-        bytes.extend([0; 22]);
+        // An untouched battery: three masks, two positions, four bytes.
+        bytes.extend([0; 24]);
         bytes.extend(TAIL);
         let statistics = Statistics::decode(&bytes, 2, 2).unwrap();
         let first = &statistics.victory_items[0];
         assert_eq!(first.carried_distances[0][1], 2.0);
         assert_eq!(first.nearest_positions, [1.0, 3.0]);
         assert_eq!((first.owner_team, first.first_finder), (1, 0));
+        assert_eq!(first.progress, [4, 0]);
         assert_eq!(statistics.victory_items[1], VictoryItemStatus::default());
         assert_eq!(statistics.encode(), bytes);
         // Read with another battery count it does not fit.

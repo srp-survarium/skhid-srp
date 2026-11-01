@@ -3833,6 +3833,18 @@ changes: every client of a match needs it. `check_artefact_score_026g.py`
 runs the hook from the game's site and compares it with the game's own count
 of event 5 and `take_artefact`'s own slot search.
 
+## Battery progress (patch 92, unreleased)
+
+A battery's carrier scores a point for each 10 m the battery comes nearer its team's container than
+it has been in its life, from the match's start or its last delivery, whoever carried it (the owner,
+2026-11-01; `docs/notes/battery_credit.md`). The Rust `battery_progress` hook in `base_player::tick`
+(0x2DAAD3) counts 10 hundredths of event 6 a step in the carrier's place and kit cell and tells the
+statistics' listener; each battery's record keeps the nearest steps per team in its unused
++FEh/+FFh, untouched again at start_match (0x334999) and at a put-in (0x334CEA), and saved after the
+record's own fields (0x334F66, 0x3350D0). A match's computation and the world's statistics change:
+every client of a match needs it, and the server reads two more bytes a battery.
+`check_battery_progress_026g.py` runs the hooks and the game's own serialize and deserialize.
+
 ## Names on the Tab map (patch 82, unreleased)
 
 While the Tab map is open and an Alt key is held, each player icon on it shows the player's name

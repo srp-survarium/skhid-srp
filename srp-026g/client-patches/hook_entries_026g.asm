@@ -882,6 +882,201 @@ artefact_score_on_transfer_replay:
     db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
     jmp 0x31c816
 
+; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
+global battery_progress_on_carrier_tick
+extern hook_battery_progress_on_carrier_tick
+battery_progress_on_carrier_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_carrier_tick
+    mov edx, battery_progress_on_carrier_tick_replay
+    cmp eax, 0
+    je battery_progress_on_carrier_tick_go
+    mov edx, 0x2daad8
+    cmp eax, 1
+    je battery_progress_on_carrier_tick_go
+    ud2
+battery_progress_on_carrier_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_carrier_tick_replay:
+    db 0x8b, 0x4c, 0x24, 0x10, 0x57
+    jmp 0x2daad8
+
+; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
+global battery_progress_on_match_start
+extern hook_battery_progress_on_match_start
+battery_progress_on_match_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_match_start
+    mov edx, battery_progress_on_match_start_replay
+    cmp eax, 0
+    je battery_progress_on_match_start_go
+    mov edx, 0x33499f
+    cmp eax, 1
+    je battery_progress_on_match_start_go
+    ud2
+battery_progress_on_match_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_match_start_replay:
+    db 0x8b, 0x86, 0x38, 0x0a, 0x00, 0x00
+    jmp 0x33499f
+
+; 0x334cea victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record: lohook -> battery_progress_on_delivered
+global battery_progress_on_delivered
+extern hook_battery_progress_on_delivered
+battery_progress_on_delivered:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_delivered
+    mov edx, battery_progress_on_delivered_replay
+    cmp eax, 0
+    je battery_progress_on_delivered_go
+    mov edx, 0x334cf0
+    cmp eax, 1
+    je battery_progress_on_delivered_go
+    ud2
+battery_progress_on_delivered_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_delivered_replay:
+    db 0x89, 0x83, 0xf8, 0x00, 0x00, 0x00
+    jmp 0x334cf0
+
+; 0x334f66 victory_item_event_manager::serialize after a record's first_finder (0x334F61), before the next battery (mov eax,[esp+24h] / mov eax,[eax+0A38h]): ESI the record, EDI the writer: lohook -> battery_progress_on_save
+global battery_progress_on_save
+extern hook_battery_progress_on_save
+battery_progress_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_save
+    mov edx, battery_progress_on_save_replay
+    cmp eax, 0
+    je battery_progress_on_save_go
+    mov edx, 0x334f70
+    cmp eax, 1
+    je battery_progress_on_save_go
+    ud2
+battery_progress_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_save_replay:
+    db 0x8b, 0x44, 0x24, 0x24, 0x8b, 0x80, 0x38, 0x0a, 0x00, 0x00
+    jmp 0x334f70
+
+; 0x3350d0 victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader: lohook -> battery_progress_on_load
+global battery_progress_on_load
+extern hook_battery_progress_on_load
+battery_progress_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_load
+    mov edx, battery_progress_on_load_replay
+    cmp eax, 0
+    je battery_progress_on_load_go
+    mov edx, 0x3350d6
+    cmp eax, 1
+    je battery_progress_on_load_go
+    ud2
+battery_progress_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_load_replay:
+    db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
+    jmp 0x3350d6
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info_chain

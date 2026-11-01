@@ -366,6 +366,81 @@ pub extern "C" fn hook_artefact_score_on_transfer(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_progress (patch 92) ----
+
+/// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_carrier_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_carrier_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_progress::on_carrier_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_progress (patch 92) ----
+
+/// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_match_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_match_start` calls this, from the game's jump at 0x334999,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_progress::on_match_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_progress (patch 92) ----
+
+/// The entry `battery_progress_on_delivered` (0x334cea, victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_delivered(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_delivered` calls this, from the game's jump at 0x334cea,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_progress::on_delivered(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_progress (patch 92) ----
+
+/// The entry `battery_progress_on_save` (0x334f66, victory_item_event_manager::serialize after a record's first_finder (0x334F61), before the next battery (mov eax,[esp+24h] / mov eax,[eax+0A38h]): ESI the record, EDI the writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_save` calls this, from the game's jump at 0x334f66,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_progress::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_progress (patch 92) ----
+
+/// The entry `battery_progress_on_load` (0x3350d0, victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_load` calls this, from the game's jump at 0x3350d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_progress::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
