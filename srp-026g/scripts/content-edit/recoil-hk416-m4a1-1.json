@@ -1,0 +1,17 @@
+{
+ "_about": "The HK416 and M4A1 kick nearer the AK-12's (the owner, 2026-11-01: the AK-12 \"feels fine\", the HK416 doesn't; bring both closer to the AK-12 but keep them distinct). wpn_hk416 and wpn_m4a1, the two 0.29a3 ports of base patch 19 (no golden copy or skin of either is live): recoil_power 0.88 -> 0.55 on both; the top kick (min_top_recoil, max_top_recoil; floats kept) 1.98-2.2 -> 1.7-1.9 on the HK416 and -> 1.5-1.5 on the M4A1, the AK-12's values and type (the owner, 2026-11-01: \"make the M4A1 like the AK-12\"; at 1.7-1.9 it climbed 40 % above the AK-12, its 80 ms shot interval losing less of each kick to the 50 ms ticks than the HK416's 70.6 ms); and the card's props 146 and 147 (weapon-details-ui-1) to match. The side ranges (1.5-2 both sides), the shake and the PID gains are not touched. The client adds T/63.735 x (1 - max(y, 0)^recoil_power) to the kick a shot (weapon_recoil_calculator::on_shot 0x331C50), so the lower power saturates sooner, as the AK-12's 0.5. A 1 s burst with the client's model (50 ms ticks, the rifles' own rates, 850 and 750 rounds a minute against the AK-12's 650) now peaks at 6.2 (HK416) and 6.1 degrees (M4A1), was 8.2 and 9.3, the AK-12 5.05. Changes the simulation.",
+ "set": [
+  {"file": "gameplay/items/weapons/wpn_hk416.options", "path": "recoil/recoil_power", "from": 0.88, "to": 0.55},
+  {"file": "gameplay/items/weapons/wpn_hk416.options", "path": "recoil/min_top_recoil", "from": 1.98, "to": 1.7},
+  {"file": "gameplay/items/weapons/wpn_hk416.options", "path": "recoil/max_top_recoil", "from": 2.2, "to": 1.9},
+  {"file": "gameplay/items/weapons/wpn_m4a1.options", "path": "recoil/recoil_power", "from": 0.88, "to": 0.55},
+  {"file": "gameplay/items/weapons/wpn_m4a1.options", "path": "recoil/min_top_recoil", "from": 1.98, "to": 1.5},
+  {"file": "gameplay/items/weapons/wpn_m4a1.options", "path": "recoil/max_top_recoil", "from": 2.2, "to": 1.5}
+ ],
+ "set_prop": [
+  {"file": "gameplay/items/weapons/wpn_hk416.options", "prop_id": 146, "from": "1.98", "to": "1.7"},
+  {"file": "gameplay/items/weapons/wpn_hk416.options", "prop_id": 147, "from": "2.2", "to": "1.9"},
+  {"file": "gameplay/items/weapons/wpn_m4a1.options", "prop_id": 146, "from": "1.98", "to": "1.5"},
+  {"file": "gameplay/items/weapons/wpn_m4a1.options", "prop_id": 147, "from": "2.2", "to": "1.5"}
+ ]
+}
