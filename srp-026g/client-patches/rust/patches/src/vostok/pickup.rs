@@ -771,6 +771,14 @@ impl Player<'_> {
         unsafe { *self.this.need_to_select_animations() = 1 };
     }
 
+    /// Clears `mask`'s bits of the actions set_input copied (+330h), what the
+    /// held weapon's tick reads this tick (its fire 0x20 and reload 0x40:
+    /// weapon_core 0x2E0E87..0x2E0EA1 reads user+32Ch+4 bits 5 and 6).
+    pub fn suppress_actions(&self, mask: u32) {
+        // SAFETY: the live player's own input action mask.
+        unsafe { *self.this.actions() &= !mask };
+    }
+
     /// Whether its pending object is `registered`'s gun.
     pub fn pending_is(&self, registered: &Registered) -> bool {
         // SAFETY: the live player's pending object, compared only.

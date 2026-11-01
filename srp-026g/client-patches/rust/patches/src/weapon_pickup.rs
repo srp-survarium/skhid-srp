@@ -547,7 +547,33 @@ fn body_drop(thread: &Thread, place: Place) -> Option<(CookId, Recipe, DropOf)> 
 /// before patch 78 filters the actions): a pickup command is played.
 pub fn on_filter(player: &Player<'_>, thread: &Thread) {
     nudge(player, thread);
-    let Some(target) = weapon_pickup::command(player.input_actions()) else { return };
+    if let Some(target) = weapon_pickup::command(player.input_actions()) {
+        play(player, thread, target);
+    }
+}
+
+/// The input's fire (0x20) and reload (0x40) bits.
+const FIRE_AND_RELOAD: u32 = 0x20 | 0x40;
+
+/// The owner (2026-11-01): E interrupts the firing. From the pickup's
+/// command to its swap the player's fire and reload are cleared from the
+/// actions as they are applied (keyed on the synced record's pending
+/// pickup: every client, every replay alike). The held gun then ends its
+/// current shot (the game's fire -> hide waits for the shot's animation,
+/// 0.10b weapon_core.cpp 193/210), starts no other and no reload (reload ->
+/// hide does not wait, line 185), is ready to be put away, and the game's
+/// switch holsters it and draws the picked one. After the swap the actions
+/// are the player's again. Composed from artefact_carry's `carry.filter`
+/// after patch 78's filter, which writes the whole mask.
+pub fn hold_fire(player: &Player<'_>, thread: &Thread) {
+    let Some((world, place)) = located(player) else { return };
+    if record_at(thread, world, place).pending.is_some() {
+        player.suppress_actions(FIRE_AND_RELOAD);
+    }
+}
+
+/// A pickup command played (on the input's apply point).
+fn play(player: &Player<'_>, thread: &Thread, target: Place) {
     match take(player, thread, target) {
         Ok((pending, registered)) => log_registered("took (the gun in hands holstering)", player, pending, registered),
         Err(why) => log(&[Text("place "), Dec(u32::from(player.place())), Text(" asked for the gun of place "),

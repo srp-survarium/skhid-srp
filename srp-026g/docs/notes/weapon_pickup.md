@@ -181,7 +181,16 @@ nothing in hands.
   to be put away (is_ready_to_be_deactivated): a gun firing is not (the
   fire -> hide transition waits for the trigger and its animation, 0.10b
   weapon_core.cpp 193/210, the switch looked at before fire in its tick),
-  so the pickup waits as a 1/2 key does, the old gun firing on. 3 s after the
+  so the switch waits for it. E interrupts the firing (the owner,
+  2026-11-01): from the command to the swap the fire (0x20) and reload
+  (0x40) bits are cleared from the actions as they are applied
+  (`hold_fire`, at carry.filter after patch 78's filter, which writes the
+  whole mask; keyed on the synced record's pending pickup, so every client
+  and replay alike): as if the trigger were let go, the gun ends its current
+  shot (fire -> hide waits only for the shot's animation), starts no other
+  and no reload (reload -> hide does not wait, 0.10b line 185: a native
+  switch interrupts a reload once it is looked at), and the game's switch
+  follows; after the swap the actions are the player's again. 3 s after the
   command (`SWITCH_DEADLINE_MS`, simulation time) the input's apply point
   sets m_need_to_select_animations each tick (logged once), so the game
   looks at the switch; never a forced swap. (83Lb41 forced it at 3 s: twice

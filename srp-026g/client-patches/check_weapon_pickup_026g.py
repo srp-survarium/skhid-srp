@@ -712,18 +712,32 @@ class Pick(Run):
         assert self.stopped in (stops or (after,)), (hex(site), hex(self.stopped or 0))
         return out, esp
 
-    def pick(self, target=PLACE, now=None, picker=None, switch=True):
-        """The pickup command played at the input's apply point, then (`switch`) the game's switch it
-        waits for, the held gun ready (holstered) at the next tick_active_object."""
+    def pick(self, target=PLACE, now=None, picker=None, switch=True, actions=0):
+        """The pickup command (with `actions` besides) played at the input's apply point, then
+        (`switch`) the game's switch it waits for, the held gun ready (holstered) at the next
+        tick_active_object. `applied`: the actions the game's tick then reads (+330h)."""
         p = picker or self.picker
         if now is not None:
             self.word(p + 0x324, now)
-        self.word(p + 0x330, command(target))
         self.native = []
-        self.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: p, UC_X86_REG_EAX: p + 0x32C})
+        self.applied = self.set_input(p, self.read(p + 0x324), command(target) | actions) & ~(CHORD | 63 << 14)
         self.word(p + 0x330, 0)
         if switch:
             self.tick(player=p)
+
+    def set_input(self, p, now, actions):
+        """base_player::set_input as the game runs it: its entry (patch 78's carry.input reads the
+        packet), its copy of the actions to +330h, the apply point (carry.filter: patch 85's command,
+        patch 78's filter, patch 85's held fire). The actions the tick then reads."""
+        packet = self.blk(0x40)
+        self.word(packet + 4, actions)
+        sp = hide.STACK + 0x9000
+        self.word(sp + 4, now)
+        self.word(sp + 8, packet)
+        self.lohook(0x2D86E0, 0x2D86E6, {UC_X86_REG_ECX: p}, sp=sp)
+        self.word(p + 0x330, actions)
+        self.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: p, UC_X86_REG_EAX: p + 0x32C})
+        return self.read(p + 0x330)
 
     def save(self, player):
         self.written = bytearray()
@@ -1131,17 +1145,16 @@ def holster(patched):
     # look at the switch (m_need_to_select_animations), logged once; never a forced swap. A rollback
     # during the wait keeps it waiting. Once the trigger is let go the game's switch puts the gun away
     # (deactivate, forget, in its slot) and the picked gun is drawn.
-    def apply_input(g, now):
+    def apply_input(g, now, actions=0x20):
         g.word(g.picker + 0x324, now)
-        g.word(g.picker + 0x330, 0x20)                     # fire held
         g.emu.mem_write(g.picker + 0x33E, b"\0")
-        g.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: g.picker, UC_X86_REG_EAX: g.picker + 0x32C})
+        g.applied = g.set_input(g.picker, now, actions)     # fire held
         return g.read(g.picker + 0x33E, 1) == b"\1"
     r = started()
     r.native, r.put_away = [], []
     r.log.clear()
     for t in range(100, 2_999, 450):
-        assert not apply_input(r, taken + t), "no nudge before the deadline"
+        assert not apply_input(r, taken + t) and r.applied == 0, "no nudge before the deadline; fire held"
         r.tick(ready=False, now=taken + t)                # firing: not ready to be deactivated
     window(r)
     nudged = [apply_input(r, taken + t) for t in (3_000, 3_050, 4_000, 6_000)]
@@ -1163,10 +1176,64 @@ def holster(patched):
     r.installed()
     r.put_away_in_slot(r.own_gun)
     assert r.native.index(("deactivate", r.own_gun, 1)) == 0
-    print("ok a pickup while firing waits as a 1/2 key does: no switch and nothing of the firing gun put away while "
-          "it is not ready (its intervals stay the game's), past 3 s the game is asked each tick to look at the "
+    print("ok a gun not ready to be put away is waited for (no forced swap): no switch and nothing of it put "
+          "away while it is not ready (its intervals stay the game's), past 3 s the game is asked each tick to look at the "
           "switch (logged once), never forced; a rollback during the wait keeps it waiting; the trigger let go, the "
           "game's switch puts the gun away in its slot and draws the picked one")
+
+    # E interrupts the firing (the owner, 2026-11-01): from the command to the swap the fire (0x20) and
+    # reload (0x40) bits are cleared from the actions as they are applied, keyed on the synced record's
+    # pending pickup, so the held gun ends its current shot and starts no other (the game's fire -> hide
+    # waits only for the shot's animation), starts no reload (reload -> hide does not wait), and the
+    # game's switch holsters it. Other bits pass. After the swap the actions are the player's again.
+    # Sustained fire: the command's own input (fire held) already reaches the gun without fire.
+    f = Pick(patched)
+    f.setup()
+    f.ready = False
+    f.pick(switch=False, actions=0x20)
+    assert f.applied & 0x60 == 0, hex(f.applied)
+    plain = Pick(patched)                                   # the same inputs without a pickup: what passes
+    plain.setup()
+    for t, actions in ((50, 0x20), (100, 0x20 | 0x40), (150, 0x40 | 0x80), (200, 0x20)):
+        apply_input(plain, taken + t, actions)
+        apply_input(f, taken + t, actions)
+        assert plain.applied & 0x60 == actions & 0x60, (t, hex(plain.applied))
+        assert f.applied == plain.applied & ~0x60, (t, hex(f.applied), hex(plain.applied))
+        f.tick(ready=False, now=taken + t)
+    window(f)
+    # A rollback during the wait: the replayed inputs are held alike; one to before the command lets them go.
+    assert f.load(f.picker, record(pending=waiting)) == RECORD
+    apply_input(f, taken + 250)
+    assert f.applied == 0, "a replay inside the wait holds the fire alike"
+    # The shot ended (the gun ready): the game's switch, then the new gun fires as the player asks.
+    assert f.tick(now=taken + 300) == f.new_gun
+    f.installed()
+    apply_input(f, taken + 350)
+    assert f.applied == 0x20, "after the swap the fire is the player's again (the new gun fires)"
+    apply_input(f, taken + 400, 0x40)
+    assert f.applied == 0x40
+    g = Pick(patched)
+    g.setup()
+    g.ready = False
+    g.pick(switch=False)
+    assert g.load(g.picker, record()) == RECORD
+    apply_input(g, taken + 50, 0x20 | 0x40)
+    assert g.applied == 0x60, "rolled back to before the command: nothing held"
+    # A single shot: the command's input with the trigger pressed once, the next ones without.
+    h = Pick(patched)
+    h.setup()
+    h.ready = False
+    h.pick(switch=False, actions=0x20)
+    assert h.applied == 0, "the shot pressed with E is not started"
+    apply_input(h, taken + 50, 0)
+    h.tick(ready=False, now=taken + 50)
+    assert h.tick(now=taken + 100) == h.new_gun
+    h.installed()
+    print("ok E interrupts the firing: from the command to the swap fire and reload are cleared from the applied "
+          "actions (keyed on the record's pending pickup), so sustained fire ends with the current shot and a "
+          "single shot pressed with E is not fired, no reload starts; a rollback during the wait holds the "
+          "replayed inputs alike, one to before the command does not; after the swap the new gun fires and "
+          "reloads as the player asks")
 
     # The picker's death while holstering: the only cancel. The gun back in the drop (open again).
     r = started()

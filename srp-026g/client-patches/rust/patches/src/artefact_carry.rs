@@ -132,13 +132,15 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// After set_input's copy: patch 85 plays a pickup command from the raw
-/// actions first, then the carry filters them.
+/// actions first, then the carry filters them (it writes the whole mask),
+/// then patch 85 holds the fire of a pickup waiting for its switch.
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Filter) {
         crate::weapon_pickup::on_filter(&player, ctx.thread());
         if player.carry_key().is_some() {
             player.carry_filter(machine(&player, ctx).filtered());
         }
+        crate::weapon_pickup::hold_fire(&player, ctx.thread());
     }
     Flow::Continue
 }
