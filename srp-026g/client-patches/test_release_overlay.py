@@ -134,6 +134,30 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn('localization', alone.lower())
         self.assertNotIn('LANGUAGE', alone)
 
+    def test_the_releases_addresses_are_written_into_the_file_without_the_updater(self):
+        listed, game = self.root / 'patches.tsv', self.root / 'game.tsv'
+        game_url = 'https://drive.usercontent.google.com/download?id=x&export=download&confirm=t'
+        game.write_text('# a comment\n'
+                        f'survarium-026g.7z\t{"7" * 64}\t2906544103\thttp://203.0.113.5:8090/g.7z {game_url}\n',
+                        encoding='ascii')
+        listed.write_text(f'resources.db.patch_12\t{"a" * 64}\t86199749\thttp://203.0.113.5:8090/resources.db.patch_12\n',
+                          encoding='ascii')
+        output = self.root / 'default'
+        self.build(output, '--downloads=' + str(game), '--downloads=' + str(listed))
+        alone = (output / overlay.WITHOUT_UPDATER).read_bytes()
+        alone.decode('ascii')
+        self.assertEqual(alone.count(b'\n'), alone.count(b'\r\n'))
+        self.assertTrue(alone.endswith(
+            f'\r\n#skhid-file survarium-026g.7z {"7" * 64} 2906544103 http://203.0.113.5:8090/g.7z {game_url}\r\n'
+            f'#skhid-file resources.db.patch_12 {"a" * 64} 86199749 '
+            'http://203.0.113.5:8090/resources.db.patch_12\r\n'.encode()))
+        # Read where its PowerShell code reads them: after its last line.
+        script = Path(overlay.HERE, overlay.WITHOUT_UPDATER).read_bytes().replace(b'\r\n', b'\n')
+        self.assertTrue(alone.replace(b'\r\n', b'\n').startswith(script.rstrip(b'\n') + b'\n#skhid-file '))
+        listed.write_text('resources.db.patch_12\taa\t1\thttp://h/p\n', encoding='ascii')
+        with self.assertRaises(SystemExit):
+            self.build(self.root / 'refused', '--downloads=' + str(listed))
+
     def test_folder_and_zip_ship_identical_player_files(self):
         folder, archive = self.root / 'overlay', self.root / 'release.zip'
         self.build(folder)
@@ -184,12 +208,19 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(alone.count(b'\n'), alone.count(b'\r\n'))
         self.assertEqual(alone.replace(b'\r\n', b'\n'),
                          Path(overlay.HERE, 'Skhid-without-updater.bat').read_bytes().replace(b'\r\n', b'\n'))
-        # The original game it downloads is the one the updater pins.
+        # The original game it downloads is the one the updater pins, and the
+        # one of the release's list.
         pins = Path(overlay.HERE, '..', '..', 'client', 'updater', 'logic', 'src', 'game.rs').read_text(encoding='utf-8')
-        [url] = re.findall(r'pub const GAME_URL: &str = "([^"]+)";', pins)
-        [digest] = re.findall(r'pub const ARCHIVE: Pin = Pin \{\s*size: [0-9_]+,\s*sha256: "([0-9a-f]{64})",', pins)
-        self.assertIn(b'\r\nset GAME_URL=' + url.replace('&', '^&').encode() + b'\r\n', alone)
+        [(size, digest)] = re.findall(r'pub const ARCHIVE: Pin = Pin \{\s*size: ([0-9_]+),\s*sha256: "([0-9a-f]{64})",', pins)
+        size = size.replace('_', '')
         self.assertIn(b'\r\nset GAME_SHA=' + digest.encode() + b'\r\n', alone)
+        self.assertIn(b'\r\nset GAME_SIZE=' + size.encode() + b'\r\n', alone)
+        rows = Path(overlay.HERE, '..', '..', 'release', 'game.tsv').read_text(encoding='ascii').splitlines()
+        [game] = [row.split('\t') for row in rows if not row.startswith('#')]
+        self.assertEqual(game[:3], ['survarium-026g.7z', digest, size])
+        self.assertIn(overlay.GAME_URL, game[3].split(' '))
+        # No --downloads: no address written in.
+        self.assertNotIn(b'\n#skhid-file ', alone)
         self.assertIn('start Skhid-without-updater.bat', ' '.join(readme.split()))
         # The same for Linux: a Bash script with Unix line ends.
         linux = paths['Skhid.sh'].read_bytes()
