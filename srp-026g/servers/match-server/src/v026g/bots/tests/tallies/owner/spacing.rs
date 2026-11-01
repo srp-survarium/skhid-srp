@@ -137,7 +137,8 @@ fn free_width(grid: &mapdata::WalkGrid, p: Vec3, (ux, uz): (f32, f32)) -> f32 {
         while reach < WIDTH_SIDE_M {
             let s = reach + WIDTH_STEP_M;
             let q = Vec3::new(p.x - uz * s * sign, p.y, p.z + ux * s * sign);
-            match grid.locate(q, 0.5 * WIDTH_STEP_M) {
+            // One step around the point: a point lies up to half a cell's diagonal (0.18 m) from the nearest floor's centre, so a half-step search missed floors that are there.
+            match grid.locate(q, WIDTH_STEP_M) {
                 Some(node) if (grid.position(node).y - p.y).abs() < WIDTH_DY_M => reach = s,
                 _ => break,
             }
