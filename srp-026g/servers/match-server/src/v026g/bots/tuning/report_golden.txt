@@ -26,7 +26,6 @@ switches OFF feel: fight_lift floor_height_clear press_in_reach straight_jumps
 switches OFF grid: capsule_steps keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
-switches OFF smoke: wait_for_cloud
 switches OFF spacing: apart_ease apart_tie lane queue
 switches OFF think: door_centres wall_clear_corners
 switches OFF threat: answer_sniper concede job_out_of_all_lines job_spot_levels pin_from_cover replan sniper_lanes
@@ -40,6 +39,7 @@ switch values kin: edge=client fix_floor=nearest jump_snap=by_keys pitch_scale=c
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values sense: ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}}
+switch values smoke: wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
 switch values spacing: callouts=seen_and_heard
 switch values think: search_queue=fair
 switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
