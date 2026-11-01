@@ -42,6 +42,7 @@
 
 mod damage;
 mod equipment;
+mod history;
 mod icons;
 pub mod item_tables;
 mod launcher;
@@ -966,6 +967,20 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
+                    path if path.starts_with(history::PREFIX) => {
+                        let query = request
+                            .target
+                            .split_once('?')
+                            .map_or("", |(_, query)| query);
+                        return history::response(
+                            path,
+                            query,
+                            request.lang,
+                            &self.store,
+                            game,
+                            unix_now(),
+                        );
+                    }
                     "/patches" => return patches::response(&game.downloads),
                     "/game" => {
                         if let Some(response) = patches::game_response(&game.downloads) {

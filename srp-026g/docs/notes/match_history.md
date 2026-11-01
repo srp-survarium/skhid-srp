@@ -42,7 +42,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   non-public one, `503 {"error":"no history"}` when srp keeps no database (`SRP_DB=off`).
 - No settings of its own: it reads the `srp.db` srp writes.
 - Paging is by match number: `before=<id>` gives the matches older than `id`; `next` is the value
-  for the next page, `null` at the end. `limit` is 1..50 (default 15).
+  for the next page after a full one, `null` after a shorter one (a full last page is followed by
+  an empty one). `limit` is 1..50 (default 15).
 
 Common objects:
 
@@ -131,7 +132,7 @@ The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `sc
              "batteries":40,"captures":5.5,"kd":1.29,"win_rate":0.533,"score_avg":254.2}}]}
 ```
 
-### `GET /api/history/best?period=<hour|day|week>`
+### `GET /api/history/best?period=<hour|day>`
 
 The 20 best single-match scores of public matches that ended in the period (default `day`).
 
@@ -160,7 +161,7 @@ A registered clan: its totals and its members, each with their own totals (all t
 matches), commander first, then by score.
 
 ```json
-{"clan":{"id":7,"name":"Skhid","tag":"SKH","level":5,
+{"clan":{"id":7,"name":"Skhid","tag":"SKH","level":5,"members":18,
          "leader":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}}},
  "totals":{"matches":400,"wins":230,"losses":170,"kills":3100,"deaths":2500,"assists":700,
            "score":98000,"headshots":610,"grenade_kills":40,"melee_kills":9,"batteries":150,
