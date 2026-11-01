@@ -1,5 +1,5 @@
 {
- "_about": "The live scope variants' reticles at the screen's centre (pack live-scope-eye; srp-026g/docs/notes/weapon_scopes.md, section 8): 15 variant configs name an aimed model on the tilted line of sight of their weapon model's turned aim locator. Made by scripts/live-scope-eye/make_pack.py.",
+ "_about": "The live scope variants' reticles at the screen's centre (pack live-scope-eye; srp-026g/docs/notes/live-scope-eye.md): 15 variant configs name an aimed model on the tilted line of sight of their weapon model's turned aim locator. Made by scripts/live-scope-eye/make_pack.py.",
  "replace_string": [
   {"files": "gameplay/items/scopes/fit_ak_74m_acog_ta31.options", "from": "weapons/attach/fit2/fit_ak_74m_acog_ta31_aim", "to": "weapons/attach/fit6/fit_ak_74m_acog_ta31_aim_ak74m"},
   {"files": "gameplay/items/scopes/fit_ak_74m_pso_1.options", "from": "weapons/attach/fit2/fit_ak_74m_pso_1_aim", "to": "weapons/attach/fit6/fit_ak_74m_pso_1_aim_ak74m"},

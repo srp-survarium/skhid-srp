@@ -261,7 +261,7 @@ def build(args, work):
     replaces = [{'files': c, 'from': aimed, 'to': new}
                 for new, by in sorted(edits.items()) for aimed, cfgs in sorted(by.items()) for c in sorted(cfgs)]
     about = (f"The live scope variants' reticles at the screen's centre (pack live-scope-eye; srp-026g/docs/notes/"
-             f"weapon_scopes.md, section 8): {len(per_cfg)} variant configs name an aimed model on the tilted line of "
+             f"live-scope-eye.md): {len(per_cfg)} variant configs name an aimed model on the tilted line of "
              "sight of their weapon model's turned aim locator. Made by scripts/live-scope-eye/make_pack.py.")
     lines = ['{', ' "_about": ' + json.dumps(about, ensure_ascii=False) + ',', ' "replace_string": [']
     lines += ['  ' + json.dumps(e, ensure_ascii=False) + (',' if i < len(replaces) - 1 else '') for i, e in enumerate(replaces)]
