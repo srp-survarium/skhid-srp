@@ -11,10 +11,13 @@
 //! Key of the `owner` object `skill_hits`: `"team<t>"` -> `cells` (`"<human|camper|bot>:<class>:<band>"` -> `[shots, hits, bullets,
 //! bullets on an enemy]`, only cells with a shot; the class `WeaponClass::name`), `speed` (A243: every target, `"<class>:<band>:<his
 //! ground speed>"` -> the same four, speed bins [`SPEED_LABELS`], the live table's: to weigh the bench's shots to the live humans'
-//! distances and target speeds) and `skill` (`[shots, the shooters' skill summed]`).
+//! distances and target speeds), `error` (A243: every target, the shots the bot's own numbers came with (`reflex::FireAim`, within
+//! [`AIM_MATCH_MS`]), `"<class>:<its aim error in his chest's half-widths>"` -> the same four, bins [`ERROR_LABELS`], `fire_gate`'s:
+//! how many shots left with the error over the body) and `skill` (`[shots, the shooters' skill summed]`).
 
 use super::*;
 use crate::v026g::bots::guns::WeaponClass;
+use crate::v026g::bots::reflex::FireAim;
 
 /// The shot's line is on the target when within this of his chest, degrees (the humans' test on the view, `gun_shots`).
 const ON_DEG: f32 = 10.0;
@@ -37,6 +40,14 @@ const CELLS: usize = TARGETS.len() * CLASSES.len() * BAND_LABELS.len();
 const SPEED_EDGES: [f32; 2] = [0.5, 3.0];
 const SPEED_LABELS: [&str; 3] = ["0-0.5", "0.5-3", "3+"];
 const SPEED_CELLS: usize = CLASSES.len() * BAND_LABELS.len() * SPEED_LABELS.len();
+/// His chest's half-width, metres (the gate's `CombatTuning::body_half_m`, `fire_gate`'s).
+const HALF_M: f32 = 0.25;
+/// The aim error's bins in his chest's half-widths (upper edges; the last takes the rest): `fire_gate`'s.
+const ERROR_EDGES: [f32; 4] = [1.0, 3.0, 10.0, 30.0];
+const ERROR_LABELS: [&str; 5] = ["on", "1-3", "3-10", "10-30", "30+"];
+const ERROR_CELLS: usize = CLASSES.len() * ERROR_LABELS.len();
+/// A shot takes the bot's numbers of its last shot when they are this near in time, ms (`fire_gate`'s).
+const AIM_MATCH_MS: u32 = 100;
 
 /// Who a shot was at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,22 +63,30 @@ struct TeamCounts {
     cells: Vec<[u32; 4]>,
     /// By class, band and the target's speed ([`SkillHits::speed_cell`]), every target: the same four.
     speed: Vec<[u32; 4]>,
+    /// By class and the bot's aim error at the shot ([`SkillHits::error_cell`]), every target: the same four.
+    error: Vec<[u32; 4]>,
     /// The shots counted and their shooters' skill summed.
     skill: (u32, f64),
 }
 
 pub(super) struct SkillHits {
     teams: [TeamCounts; 2],
-    /// By place: the bot's skill this tick ([`Topic::read`]).
+    /// By place: the bot's skill this tick and its own numbers at its last shot ([`Topic::read`]).
     skills: Vec<Option<f32>>,
+    aims: Vec<Option<FireAim>>,
     /// The stand-in human's place (`SRP_BENCH_HUMAN`), read at the first tick.
     human: Option<Option<Place>>,
 }
 
 impl SkillHits {
     pub(super) fn new(n: usize) -> Self {
-        let team = || TeamCounts { cells: vec![[0; 4]; CELLS], speed: vec![[0; 4]; SPEED_CELLS], ..TeamCounts::default() };
-        Self { teams: [team(), team()], skills: vec![None; n], human: None }
+        let team = || TeamCounts {
+            cells: vec![[0; 4]; CELLS],
+            speed: vec![[0; 4]; SPEED_CELLS],
+            error: vec![[0; 4]; ERROR_CELLS],
+            ..TeamCounts::default()
+        };
+        Self { teams: [team(), team()], skills: vec![None; n], aims: vec![None; n], human: None }
     }
 
     /// The distance band of `distance` metres.
@@ -86,6 +105,17 @@ impl SkillHits {
         let class = CLASSES.iter().position(|&c| c == class).unwrap_or(0);
         let bin = SPEED_EDGES.iter().position(|&edge| speed < edge).unwrap_or(SPEED_EDGES.len());
         (class * BAND_LABELS.len() + band) * SPEED_LABELS.len() + bin
+    }
+
+    /// A shot's cell by the gun's class and the bot's aim error, degrees, at `distance` metres.
+    fn error_cell(class: WeaponClass, error_deg: f32, distance: f32) -> usize {
+        let class = CLASSES.iter().position(|&c| c == class).unwrap_or(0);
+        let halves = error_deg / HALF_M.atan2(distance.max(0.5)).to_degrees();
+        class * ERROR_LABELS.len() + ERROR_EDGES.iter().position(|&edge| halves <= edge).unwrap_or(ERROR_EDGES.len())
+    }
+
+    fn error_label(cell: usize) -> String {
+        format!("{}:{}", CLASSES[cell / ERROR_LABELS.len()].name(), ERROR_LABELS[cell % ERROR_LABELS.len()])
     }
 
     fn speed_label(cell: usize) -> String {
@@ -108,10 +138,14 @@ impl Topic for SkillHits {
         self
     }
 
-    /// Each bot's skill (the one it took at its last spawn).
+    /// Each bot's skill (the one it took at its last spawn) and its own numbers at its last shot (read after the game step, before
+    /// [`Topic::begin`] takes the step's shots).
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         if let Some(slot) = self.skills.get_mut(place) {
             *slot = bot.map(|bot| bot.skill);
+        }
+        if let Some(slot) = self.aims.get_mut(place) {
+            *slot = bot.and_then(|bot| bot.reflex.fire_aim());
         }
     }
 
@@ -138,11 +172,16 @@ impl Topic for SkillHits {
             let counts = &mut self.teams[usize::from(body.team).min(1)];
             let band = Self::band(distance);
             let (at, by_speed) = (Self::cell(who, body.gun.class, band), Self::speed_cell(body.gun.class, band, speed));
-            for cell in [&mut counts.cells[at], &mut counts.speed[by_speed]] {
+            let add = |cell: &mut [u32; 4]| {
                 cell[0] += 1;
                 cell[1] += u32::from(fact.landed.on_enemy > 0);
                 cell[2] += u32::from(fact.landed.fired);
                 cell[3] += u32::from(fact.landed.on_enemy);
+            };
+            add(&mut counts.cells[at]);
+            add(&mut counts.speed[by_speed]);
+            if let Some(aim) = self.aims.get(s).copied().flatten().filter(|aim| aim.at.abs_diff(fact.tick) <= AIM_MATCH_MS) {
+                add(&mut counts.error[Self::error_cell(body.gun.class, aim.error_deg, distance)]);
             }
             if let Some(skill) = self.skills.get(s).copied().flatten() {
                 counts.skill = (counts.skill.0 + 1, counts.skill.1 + f64::from(skill));
@@ -166,9 +205,13 @@ impl Topic for SkillHits {
             for (i, c) in counts.speed.iter().enumerate().filter(|(_, c)| c[0] > 0) {
                 speed.insert(Self::speed_label(i), serde_json::json!(c));
             }
+            let mut error = serde_json::Map::new();
+            for (i, c) in counts.error.iter().enumerate().filter(|(_, c)| c[0] > 0) {
+                error.insert(Self::error_label(i), serde_json::json!(c));
+            }
             json.insert(
                 format!("team{team}"),
-                serde_json::json!({ "cells": cells, "speed": speed, "skill": [counts.skill.0, counts.skill.1] }),
+                serde_json::json!({ "cells": cells, "speed": speed, "error": error, "skill": [counts.skill.0, counts.skill.1] }),
             );
             // The line: the bar's own cut (rifles + SMGs, 0-65 m) and its bands, then every other class over all bands (a shotgun's
             // pellets); at the stand-in human and at the bots.
@@ -232,5 +275,16 @@ mod tests {
         assert_eq!(at(WeaponClass::Smg, 10.0, 2.9), "smg:0-20:0.5-3");
         assert_eq!(at(WeaponClass::Bolt, 200.0, 5.0), "bolt:105+:3+");
         assert_eq!(SkillHits::speed_cell(WeaponClass::Bolt, SkillHits::band(200.0), 5.0), SPEED_CELLS - 1);
+    }
+
+    #[test]
+    fn a_shot_finds_its_error_cell() {
+        // At 50 m his chest's half-width is about 0.286 degrees.
+        let at = |class, error_deg, distance| SkillHits::error_label(SkillHits::error_cell(class, error_deg, distance));
+        assert_eq!(at(WeaponClass::Bolt, 0.28, 50.0), "bolt:on");
+        assert_eq!(at(WeaponClass::Bolt, 0.30, 50.0), "bolt:1-3");
+        assert_eq!(at(WeaponClass::Rifle, 2.0, 50.0), "rifle:3-10");
+        assert_eq!(at(WeaponClass::Pistol, 1.0, 1.0), "pistol:on");
+        assert_eq!(SkillHits::error_cell(WeaponClass::Bolt, 90.0, 50.0), ERROR_CELLS - 1);
     }
 }
