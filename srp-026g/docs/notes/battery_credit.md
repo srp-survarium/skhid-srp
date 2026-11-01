@@ -25,8 +25,9 @@ The owner's rule against farming battery events and how srp keeps it. Code:
     200 score + 40 per paid kill + 20 per assist. Kill invader (10) stays whole. See
     `research_mode.md`; these payment-only limits do not change the battery cap's quest policy.
   - 20 put in and 19 found (`VICTORY_ITEM_FOUND`, weight 2.5, the results' "items" title): at
-    most N each. 6 delivery share, 17 stolen delivery share, 18 rescued delivery share
-    (hundredths of a delivery, shared among the carriers by distance): at most N × 100 each.
+    most N each. 6 delivery share and progress (hundredths: the delivery share, shared among
+    the carriers by distance, plus 10 per new 10 m of a battery's progress): at most N × 300.
+    17 stolen delivery share, 18 rescued delivery share: at most N × 100 each.
     24 solo delivery and 26 own steal (weight 0, but quests 6 and 7 count them): at most N
     each.
   - A cut is shared among the kits by what each counted, and every kit that counted keeps at
