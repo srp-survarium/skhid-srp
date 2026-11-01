@@ -492,7 +492,8 @@ batteries, batteries with chargers, Team Deathmatch and Research). Each of the s
 loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
 project. The damage zones own their idle sound and particles. The decorative rock piles stay.
 The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
-spawn point keeps its own 6 seconds of invulnerability.
+spawn point keeps its original invulnerability: 6 seconds in batteries, batteries with chargers
+and Research, and 3 seconds in Team Deathmatch.
 
 The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
 positions and rotations, retaining their names, order, teams and other properties. All four
