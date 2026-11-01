@@ -249,6 +249,64 @@ pub struct Feel {
     /// 1.36-1.50 m under one at Mamayev Kurgan, a rise of 1.03-2.37 m from the feet; none got up (A198). Off: pressed as
     /// the body walks over the take-off's place, at any height.
     pub press_in_reach: bool,
+    /// The sprint on short legs and through turns (A207, [`SprintTurns`]) for the legs that may run: a sprint is taken up on
+    /// any leg with room before a sharp turn or the route's end, kept through the turns under [`SprintTurns::sharp_deg`]
+    /// and let go of [`SprintTurns::release_m`] before a sharper one. Live humans sprint 59 % of their calm ticks with under
+    /// 3.5 m of straight way ahead and 57 % before a turn of 60-90 degrees within 3 m; the live bots 4 % and 2 %
+    /// (`a199-sprint`). None: [`Feel::sprint_from_m`] of straight way to start and [`Feel::sprint_until_m`] before every
+    /// corner over [`Feel::corner`], as before.
+    pub sprint_turns: Option<SprintTurns>,
+}
+
+/// The sprint on short legs and through turns ([`Feel::sprint_turns`]): the turn ahead decides the pace, not the length of
+/// the straight way, as a path follower takes its speed from the curve ahead (Unity's corner speed, the curvature-based
+/// target speed of de Schaetzen and Sestini, CoG 2023). The client turns the velocity with the view at once
+/// (`kin.rs`, PROVEN), so what limits a sprint at a corner is the view's turning speed, not a skid.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SprintTurns {
+    /// The legs it is for.
+    pub gaits: SprintGaits,
+    /// A turn of the way sharper than this, degrees ([`Route::turn_through`]), is not sprinted through ...
+    pub sharp_deg: Positive,
+    /// ... the sprint is let go of this far before it, metres (a walk's second to turn on: humans sprint 45 % of the ticks
+    /// before a turn of 90-135 degrees within 3 m, 33 % before one of 135-180).
+    pub release_m: Metres,
+    /// A turn is read over its corner and the legs starting this far after it, metres: a doorway's centre and the corner
+    /// past it are one turn.
+    pub merge_m: Metres,
+    /// A sprint is taken up only with this much way left before the point it is let go of (a sharp turn's release, or
+    /// [`Feel::sprint_until_m`] before the route's end, which stays), metres: under it the sprint would not reach its speed
+    /// (the client blends a change of speed over 0.3 s).
+    pub min_run_m: Metres,
+    /// A sprint held is let go of when the view is this far off the way, degrees (the old rule's twice
+    /// [`Feel::sprint_facing`], 20): the view lags the way a little through a turn at a sprint.
+    pub keep_facing_deg: Positive,
+}
+
+impl Default for SprintTurns {
+    fn default() -> Self {
+        Self {
+            gaits: SprintGaits::RunAndCruise,
+            sharp_deg: Positive::of(115.0),
+            release_m: Metres::of(1.5),
+            merge_m: Metres::of(2.0),
+            min_run_m: Metres::of(1.5),
+            keep_facing_deg: Positive::of(30.0),
+        }
+    }
+}
+
+/// Which legs [`SprintTurns`] is for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SprintGaits {
+    /// A play's run ([`Gait::Run`]) only.
+    Run,
+    /// A play's run and the legs the pace gate decides ([`Gait::Cruise`]): 60 % of the bots' calm moving ticks on the
+    /// tip's bench, the run 22 %.
+    #[default]
+    RunAndCruise,
 }
 
 impl Default for Feel {
@@ -299,6 +357,7 @@ impl Default for Feel {
             sprint_through: true,
             straight_jumps: false,
             press_in_reach: false,
+            sprint_turns: None,
         }
     }
 }
@@ -324,6 +383,19 @@ pub struct Pose {
     pub urgent: bool,
     /// What the legs are asked to do, from the play's pace (`Pace`), for the sprint rules.
     pub gait: Gait,
+    /// The floor under the body as the grid has it, for [`Feel::sprint_turns`] (read by the driver only with it on).
+    pub floor: Floor,
+}
+
+/// The floor under the body, for the sprint through turns ([`Feel::sprint_turns`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Floor {
+    /// Away from any lip or fall, or not read.
+    #[default]
+    Open,
+    /// A lip's floor, or one next to a lip or a fall (the grid's `is_lip`, `near_lip`, `near_fall`): a corner overshot at a
+    /// sprint there falls (A207's falls probe: the sprints the rule took up on these floors).
+    Edge,
 }
 
 /// The gait the driver asks of the motor, one state for the legs' pace (not a pair of flags).
@@ -334,6 +406,9 @@ pub enum Gait {
     Walk,
     /// The legs run (`Pace::Run`): the sprint is the body's pace where the way allows ([`Feel::sprint_through`]).
     Run,
+    /// The legs may run and the pace gate decides (`Pace::Cruise`, `Pace::Arrive`): [`Gait::Walk`] for every rule but
+    /// [`Feel::sprint_turns`]; the driver strips the sprint the gate walks.
+    Cruise,
     /// Out of a blast (`Pace::Escape`): [`Gait::Run`], and the sprint on any route: no long straight stretch to wait for, no
     /// facing time, and not let go at a corner.
     Escape,
@@ -1445,7 +1520,18 @@ impl Motor {
         } else {
             self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
         };
-        if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
+        // The legs that may run, with `sprint_turns` on: by the turn ahead, not the straight way's length. At an edge the
+        // old rule decides: a long straight to start, let go before a corner.
+        let turns = match (self.sprint_turns_for(pose.gait), pose.floor) {
+            (Some(_), Floor::Edge) => {
+                sprint_turns::at_edge(self.sprinting);
+                None
+            }
+            (turns, _) => turns,
+        };
+        if let Some(turns) = turns {
+            self.sprint_by_the_turns(route, s, turns, settled, still);
+        } else if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
             self.sprinting = true;
         } else if self.sprinting
             && (!self.walking
@@ -1454,6 +1540,8 @@ impl Motor {
         {
             self.sprinting = false;
         }
+        // The releases after the turn rule still win over a sprint it holds: counted when they let it go.
+        let mut held = turns.is_some() && self.sprinting;
         // Crouched where a standing body does not fit (a low passage):
         // no sprint there. Lining up for a jump: neither (a crouched body
         // does not jump).
@@ -1461,8 +1549,16 @@ impl Motor {
         if low || jump.is_some() {
             self.sprinting = false;
         }
+        if held && !self.sprinting {
+            sprint_turns::overruled(if low { sprint_turns::Overrule::Low } else { sprint_turns::Overrule::Jump });
+            held = false;
+        }
         // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
         self.sprint_by_the_bar(route, s);
+        if held && !self.sprinting {
+            sprint_turns::overruled(sprint_turns::Overrule::Bar);
+            held = false;
+        }
         // A planned drop is a link too: timed from the lining up to it.
         if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
             let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
@@ -1490,6 +1586,9 @@ impl Motor {
                 // A descent by walk links only (a ramp, stairs): no fall, the sprint goes on.
                 super::path::DropRecord::Walk | super::path::DropRecord::None => drop_walks::skipped_as_descent(),
             }
+        }
+        if held && !self.sprinting {
+            sprint_turns::overruled(sprint_turns::Overrule::Drop);
         }
         if let Some(release) = self.release {
             match release.edge {
@@ -1537,6 +1636,9 @@ impl Motor {
             }
             if low {
                 keys |= key::CROUCH;
+            }
+            if turns.is_some() {
+                sprint_turns::walked(self.sprinting, straight, &self.feel);
             }
         } else {
             self.key_hold = None;
@@ -1588,6 +1690,45 @@ impl Motor {
     /// Whether the sprint was let go of this tick at the life's reserve (the bar), not at the map.
     pub fn released_by_bar(&self) -> bool {
         self.released_by_bar
+    }
+
+    /// [`Feel::sprint_turns`] when it is on for legs of `gait`.
+    fn sprint_turns_for(&self, gait: Gait) -> Option<SprintTurns> {
+        let turns = self.feel.sprint_turns?;
+        match (gait, turns.gaits) {
+            (Gait::Run, _) | (Gait::Cruise, SprintGaits::RunAndCruise) => Some(turns),
+            _ => None,
+        }
+    }
+
+    /// The sprint by the turn ahead ([`Feel::sprint_turns`]): taken up, facing the way as before, with
+    /// [`SprintTurns::min_run_m`] of way left before the point it is let go of, which is [`SprintTurns::release_m`] before
+    /// the next turn sharper than [`SprintTurns::sharp_deg`] or a jump, or [`Feel::sprint_until_m`] before the route's end;
+    /// kept through the turns under it while the view is within [`SprintTurns::keep_facing_deg`] of the way.
+    fn sprint_by_the_turns(&mut self, route: &Route, s: f32, turns: SprintTurns, settled: bool, still: f32) {
+        let (to, sharp) = route.sharp_ahead(s, turns.sharp_deg.get().to_radians(), turns.merge_m.get());
+        let room = to - if sharp.is_some() { turns.release_m.get() } else { self.feel.sprint_until_m };
+        if !self.sprinting {
+            if settled && room >= turns.min_run_m.get() {
+                self.sprinting = true;
+            } else if settled {
+                sprint_turns::no_room(sharp.is_some());
+            }
+            return;
+        }
+        let end = if !self.walking {
+            Some(sprint_turns::End::Standing)
+        } else if room < 0.0 {
+            Some(if sharp.is_some() { sprint_turns::End::Sharp } else { sprint_turns::End::RouteEnd })
+        } else if still > turns.keep_facing_deg.get().to_radians() {
+            Some(sprint_turns::End::Facing)
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            self.sprinting = false;
+            sprint_turns::ended(end);
+        }
     }
 
     /// The sprint by the reckoned bar ([`Motor::gauge`]): let go of at an empty bar (a lockout lasts as long as the
@@ -2662,6 +2803,93 @@ pub mod landings {
 
     fn counts_of(from: LandingFrom) -> [[u64; BANDS + 1]; 2] {
         std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[from as usize][k][b].load(Ordering::Relaxed)))
+    }
+}
+
+/// The sprint by the turn ahead ([`Feel::sprint_turns`](super::Feel::sprint_turns), the route tally's `sprint_turns`):
+/// of the walking ticks of the legs it is for, those it sprinted, those of them on a stretch the old rule does not sprint
+/// (under `sprint_from_m` of straight way ahead, the old rule's start; under `sprint_until_m`, its release before a
+/// corner); the sprints it let go of by why ([`End`]); the ticks it took none up for want of room before a sharp
+/// turn or before the route's end; and the sprints it held that a later release let go of the same tick ([`Overrule`]).
+pub mod sprint_turns {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::Feel;
+
+    static COUNTS: [AtomicU64; 16] = [const { AtomicU64::new(0) }; 16];
+
+    /// Why a sprint held under the rule was let go of.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum End {
+        /// The walk stopped to turn on the spot.
+        Standing = 4,
+        /// The release before a sharp turn or a jump.
+        Sharp = 5,
+        /// Before the route's end.
+        RouteEnd = 6,
+        /// The view too far off the way.
+        Facing = 7,
+    }
+
+    /// A release after the rule that let go of a sprint the rule held, the same tick (they must still win).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Overrule {
+        /// A low passage ahead (crouched).
+        Low = 10,
+        /// Lining up for a jump of the route.
+        Jump = 11,
+        /// The reckoned bar ([`super::Motor`]'s reserve or a jump the bar is short for).
+        Bar = 12,
+        /// A planned drop unsafe at a sprint (`Feel::drop_walk`).
+        Drop = 13,
+    }
+
+    fn add(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn overruled(by: Overrule) {
+        add(by as usize);
+    }
+
+    /// A walking tick under the rule, with the sprint held or not, `straight` metres of the old rule's straight way ahead.
+    pub fn walked(sprint: bool, straight: f32, feel: &Feel) {
+        add(0);
+        if sprint {
+            add(1);
+            if straight < feel.sprint_from_m {
+                add(2);
+            }
+            if straight < feel.sprint_until_m {
+                add(3);
+            }
+        }
+    }
+
+    pub fn ended(end: End) {
+        add(end as usize);
+    }
+
+    /// A tick facing the way with no room for a sprint before a sharp turn (`sharp`) or before the route's end.
+    pub fn no_room(sharp: bool) {
+        add(if sharp { 8 } else { 9 });
+    }
+
+    /// A tick of the legs it is for on an edge's floor ([`super::Floor::Edge`]), left to the old rule, with a sprint on at
+    /// its start or not.
+    pub fn at_edge(sprinting: bool) {
+        add(14);
+        if sprinting {
+            add(15);
+        }
+    }
+
+    /// Walking ticks, sprinting, sprinting under the old start, sprinting under the old release; let go of standing, at a
+    /// sharp turn, before the end, off the way; no room before a sharp turn, before the end; held by the rule and let go of
+    /// the same tick for a low passage, a jump, the bar, a planned drop ([`Overrule`]); ticks at an edge left to the old
+    /// rule, of them with a sprint on.
+    pub fn counts() -> [u64; 16] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
@@ -4645,7 +4873,7 @@ mod tests {
     /// without the gauge, or with the bar full, it goes on.
     #[test]
     fn the_sprint_is_let_go_of_by_the_reckoned_bar() {
-        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::stamina::{Gauge, Rates};
         let p = |x: f32, y: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, 0.0),
             node: 0,
@@ -4662,7 +4890,7 @@ mod tests {
             motor.sprint_by_the_bar(&route, 0.0);
             motor.sprinting
         };
-        let bar = |value: f32, low: bool| Some(Gauge { value, low });
+        let bar = |value: f32, low: bool| Some(Gauge { value, low, rates: Rates::LIGHT });
         assert!(sprinting_after(None, false), "no gauge: as before");
         assert!(sprinting_after(bar(100.0, false), false), "a full bar pays the 20 m, the run-up and the jump");
         assert!(!sprinting_after(bar(30.0, false), false), "30 - 22 is under the jump and the margin");
@@ -4683,14 +4911,14 @@ mod tests {
     /// again before the bar is over stop + gap, and the draw is a life's own (two lives, two numbers; the same seed, the same).
     #[test]
     fn the_sprint_is_let_go_of_at_the_lifes_reserve_and_taken_up_over_its_gap() {
-        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::stamina::{Gauge, Rates};
         use crate::v026g::bots::tuning::Reserve;
         use crate::v026g::bots::tuning::Span;
         let route = Route::new(vec![
             Waypoint { at: Vec3::new(0.0, 0.0, 0.0), node: 0, jump: None, low: false },
             Waypoint { at: Vec3::new(60.0, 0.0, 0.0), node: 0, jump: None, low: false },
         ]);
-        let bar = |value: f32| Some(Gauge { value, low: false });
+        let bar = |value: f32| Some(Gauge { value, low: false, rates: Rates::LIGHT });
         let after = |reserve: Option<(f32, f32)>, value: f32, tired: bool| {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -4745,7 +4973,7 @@ mod tests {
     /// its run lets the sprint go.
     #[test]
     fn a_tired_body_walks_into_a_sprint_jump_and_a_gap_run_is_priced() {
-        use crate::v026g::bots::stamina::Gauge;
+        use crate::v026g::bots::stamina::{Gauge, Rates};
         let ledge = |tired_bar: f32| {
             let p = |x: f32, y: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, y, 0.0),
@@ -4755,7 +4983,7 @@ mod tests {
             };
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
-            motor.gauge = Some(Gauge { value: tired_bar, low: false });
+            motor.gauge = Some(Gauge { value: tired_bar, low: false, rates: Rates::LIGHT });
             motor.walking = true;
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.2, true), p(14.0, 1.2, false)]);
             let pose = Pose { feet: Vec3::new(6.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), speed: 4.0, ..Default::default() };
@@ -4775,7 +5003,7 @@ mod tests {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
             motor.sprinting = true;
-            motor.gauge = Some(Gauge { value: bar, low: false });
+            motor.gauge = Some(Gauge { value: bar, low: false, rates: Rates::LIGHT });
             motor.sprint_by_the_bar(&route, 19.5);
             motor.sprinting
         };
@@ -5185,7 +5413,98 @@ mod tests {
     /// An escape is the legs running: the sprint into a walking jump is kept as for `Gait::Run`.
     #[test]
     fn an_escape_and_a_run_both_run() {
-        assert!(Gait::Escape.runs() && Gait::Run.runs() && !Gait::Walk.runs());
+        assert!(Gait::Escape.runs() && Gait::Run.runs() && !Gait::Walk.runs() && !Gait::Cruise.runs());
+    }
+
+    /// The ticks a body walking `points` from the first, faced along the first leg, holds the sprint keys within `near_m`
+    /// of `at` on its way there (up to and with its nearest to `at`); and in all.
+    fn sprinted_near(feel: &Feel, gait: Gait, points: &[(f32, f32)], at: (f32, f32), near_m: f32) -> (usize, usize) {
+        sprinted_near_on(feel, (gait, Floor::Open), points, at, near_m)
+    }
+
+    /// [`sprinted_near`] on a floor of the kind given all the way.
+    fn sprinted_near_on(feel: &Feel, legs: (Gait, Floor), points: &[(f32, f32)], at: (f32, f32), near_m: f32) -> (usize, usize) {
+        let mut r = route(points);
+        let mut feet = Vec::new();
+        let yaw = yaw_of([points[1].0 - points[0].0, points[1].1 - points[0].1]);
+        let start = Vec3::new(points[0].0, 0.0, points[0].1);
+        let (decisions, _) = walk_feel(feel.clone(), &mut r, start, yaw, 400, legs, &mut feet);
+        let at = Vec3::new(at.0, 0.0, at.1);
+        let nearest = (0..feet.len()).min_by(|&a, &b| feet[a].distance_xz(at).total_cmp(&feet[b].distance_xz(at))).unwrap_or(0);
+        let sprint = |k: &usize| decisions[*k].keys & key::SPRINT != 0;
+        let near = (0..=nearest).filter(sprint).filter(|&k| feet[k].distance_xz(at) <= near_m).count();
+        (near, (0..decisions.len()).filter(sprint).count())
+    }
+
+    /// A leg of `first` metres along +x, then a turn of `deg` degrees (to the left) and `then` metres on.
+    fn turning(first: f32, deg: f32, then: f32) -> [(f32, f32); 3] {
+        let a = deg.to_radians();
+        [(0.0, 0.0), (first, 0.0), (first + then * a.cos(), then * a.sin())]
+    }
+
+    /// `feel.sprint_turns` (A207): a run, and the legs the pace gate decides, sprint a 6 m leg and on through a turn of 60
+    /// degrees, and of 90; the walk does not, nor the gate's legs when the switch is for the run only, nor a run with the
+    /// switch off (the old rule asks 10 m of straight way).
+    #[test]
+    fn with_sprint_turns_a_run_sprints_a_short_leg_and_through_a_turn() {
+        let on = Feel { sprint_turns: Some(SprintTurns::default()), ..Feel::default() };
+        let run_only = Feel {
+            sprint_turns: Some(SprintTurns { gaits: SprintGaits::Run, ..SprintTurns::default() }),
+            ..Feel::default()
+        };
+        for deg in [60.0, 90.0] {
+            let points = turning(6.0, deg, 8.0);
+            let near = |feel: &Feel, gait| sprinted_near(feel, gait, &points, points[1], 2.0).0;
+            assert!(near(&on, Gait::Run) >= 5, "{deg}: a run into the turn: {}", near(&on, Gait::Run));
+            assert!(near(&on, Gait::Cruise) >= 5, "{deg}: the gate's legs: {}", near(&on, Gait::Cruise));
+            // And on through it: the second leg's first metres are sprinted too.
+            let after = (points[1].0 + 1.5 * deg.to_radians().cos(), 1.5 * deg.to_radians().sin());
+            assert!(sprinted_near(&on, Gait::Run, &points, after, 1.0).0 >= 1, "{deg}: through the turn");
+            assert_eq!(near(&on, Gait::Walk), 0, "{deg}: a walk");
+            assert_eq!(near(&run_only, Gait::Cruise), 0, "{deg}: the switch for the run only");
+            assert_eq!(near(&Feel::default(), Gait::Run), 0, "{deg}: the old rule");
+        }
+    }
+
+    /// `feel.sprint_turns`: a turn sharper than `sharp_deg` is not sprinted into: the sprint of the leg before it is let go
+    /// of `release_m` before it; and the route's end keeps the old rule's release ([`Feel::sprint_until_m`]).
+    #[test]
+    fn with_sprint_turns_the_sprint_is_let_go_of_before_a_sharp_turn_and_the_end() {
+        let on = Feel { sprint_turns: Some(SprintTurns::default()), ..Feel::default() };
+        let points = turning(12.0, 150.0, 12.0);
+        let (at_turn, all) = sprinted_near(&on, Gait::Run, &points, points[1], 0.8);
+        assert!(all >= 20, "the leg before is sprinted: {all}");
+        assert_eq!(at_turn, 0, "not into the sharp turn");
+        let (at_end, _) = sprinted_near(&on, Gait::Run, &points, points[2], 2.5);
+        assert_eq!(at_end, 0, "not into the route's end");
+    }
+
+    /// On an edge's floor ([`Floor::Edge`]) the old rule decides: the 6 m leg into a turn of 60 degrees is not sprinted, a
+    /// leg of 14 m is, and let go of before its corner.
+    #[test]
+    fn with_sprint_turns_the_old_rule_decides_at_an_edge() {
+        let on = Feel { sprint_turns: Some(SprintTurns::default()), ..Feel::default() };
+        let short = turning(6.0, 60.0, 8.0);
+        assert!(sprinted_near_on(&on, (Gait::Run, Floor::Open), &short, short[1], 2.0).0 >= 5, "open: sprinted");
+        assert_eq!(sprinted_near_on(&on, (Gait::Run, Floor::Edge), &short, short[1], 2.0).1, 0, "edge: a short leg is walked");
+        let long = turning(14.0, 60.0, 8.0);
+        let (into, all) = sprinted_near_on(&on, (Gait::Run, Floor::Edge), &long, long[1], 2.0);
+        assert!(all >= 10 && into == 0, "edge: the long leg is sprinted ({all}), let go before the corner ({into})");
+    }
+
+    /// A doorway's centre and the corner 1 m past it turn the way by 100 degrees together: one turn, read through
+    /// `merge_m`; each alone is 50.
+    #[test]
+    fn two_corners_close_together_are_one_turn() {
+        let a = 50f32.to_radians();
+        let r = route(&[(0.0, 0.0), (6.0, 0.0), (6.0 + a.cos(), a.sin()), (6.0 + a.cos() + 8.0 * (2.0 * a).cos(), a.sin() + 8.0 * (2.0 * a).sin())]);
+        assert!((r.turn_at(1).to_degrees() - 50.0).abs() < 0.5);
+        assert!((r.turn_through(1, 2.0).to_degrees() - 100.0).abs() < 0.5, "{}", r.turn_through(1, 2.0).to_degrees());
+        assert!((r.turn_through(1, 0.5).to_degrees() - 50.0).abs() < 0.5);
+        let (to, k) = r.sharp_ahead(0.0, 80f32.to_radians(), 2.0);
+        assert_eq!(k, Some(1));
+        assert!((to - 6.0).abs() < 1e-3);
+        assert_eq!(r.sharp_ahead(0.0, 80f32.to_radians(), 0.5).1, None);
     }
 
     /// Walks a body that does what the keys and turns say, with the
@@ -5196,15 +5515,29 @@ mod tests {
 
     /// [`walk`] with the legs asked to `gait`.
     fn walk_as(route: &mut Route, start: Vec3, yaw: f32, ticks: usize, gait: Gait) -> (Vec<Decision>, Pose) {
+        walk_feel(Feel::default(), route, start, yaw, ticks, (gait, Floor::Open), &mut Vec::new())
+    }
+
+    /// [`walk_as`] with `feel`, each tick's feet put in `feet`.
+    fn walk_feel(
+        feel: Feel,
+        route: &mut Route,
+        start: Vec3,
+        yaw: f32,
+        ticks: usize,
+        (gait, floor): (Gait, Floor),
+        feet: &mut Vec<Vec3>,
+    ) -> (Vec<Decision>, Pose) {
         let kin = Kinematics::default();
         let mut rng = Rng::new(7);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(feel, &mut rng);
         let mut pose = Pose {
             feet: start,
             yaw,
             pitch: 0.0,
             speed: 0.0,
             gait,
+            floor,
             ..Default::default()
         };
         let mut blend = crate::v026g::bots::kin::Blend::default();
@@ -5213,6 +5546,7 @@ mod tests {
             let (decision, walked) = motor.walk(route, &pose, 5.0, |_| true);
             assert!(!matches!(walked, Walked::Off(_)), "{pose:?}");
             decisions.push(decision);
+            feet.push(pose.feet);
             if walked == Walked::Arrived {
                 break;
             }
