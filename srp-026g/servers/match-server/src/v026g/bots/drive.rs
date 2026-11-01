@@ -2609,7 +2609,8 @@ mod tests {
     /// [`kin::MarginEdge`]: a walk along the rim on the slab's last floor (its centre 0.125 m inside the rim) stays up, the body held
     /// by the client's edge. With the margin at the lattice's edge the full guard's sides hold it (the side 0.3 m out is past the
     /// cell's boundary, where its margin falls at once), and the plain guard holds a body reckoned past the boundary for its own
-    /// margin. With the margin at the body's edge both walk on, and a walk toward the rim is stopped as before.
+    /// margin. With the margin at the body's edge both walk on (the full guard still holds a body whose side is past the support),
+    /// and a walk toward the rim is stopped as before.
     #[test]
     fn a_walk_along_a_rim_is_held_only_with_the_margin_at_the_lattices_edge() {
         let world = slab();
@@ -2626,7 +2627,8 @@ mod tests {
         // Reckoned 0.1 m past the boundary (within the support): its own margin.
         assert!(held(walk(&lattice, 56.1, 0.0, false)), "held for its own margin");
         assert_eq!(walk(&body, 56.1, 0.0, false), LipGuard::Safe);
-        assert_eq!(walk(&body, 56.1, 0.0, true), LipGuard::Safe);
+        // There a reckoning's error further out is past the support (0.225 + 0.3 > `SUPPORT_M`): the full guard holds it still.
+        assert!(held(walk(&body, 56.1, 0.0, true)));
         // Toward the rim: stopped either way.
         let toward = -std::f32::consts::FRAC_PI_2;
         for full in [false, true] {
