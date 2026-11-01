@@ -236,8 +236,10 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
         Remove-Item -Force -LiteralPath $try, $headers -ErrorAction SilentlyContinue
         $options = @('-sS', '-L', '--max-redirs', '5', '--proto', '=http,https', '--proto-redir', '=http,https',
             '--connect-timeout', '10', '-D', $headers, '-o', $try, '-w', '%{http_code} %{size_download} %{content_type}')
-        # Too slow is a failure only while another address remains.
+        # Too slow is a failure only while another address remains; a stall
+        # (nothing for 2 minutes) always is.
         if ($at -lt $urls.Count) { $options += @('--speed-limit', '51200', '--speed-time', '120') }
+        else { $options += @('--speed-limit', '1', '--speed-time', '120') }
         if ($have -gt 0) { $options += @('-r', "$have-") }
         $written = (& curl.exe @options $url) -join ''
         $code = $LASTEXITCODE
@@ -279,6 +281,7 @@ function Get-File([string]$what, [string]$path, [string]$sha, [long]$size, [stri
         Remove-Item -Force -LiteralPath $try, $headers -ErrorAction SilentlyContinue
         # Cut short with its size known: said with the bytes it has, below.
         if (-not $why -and $code -ne 0 -and -not ($code -eq 18 -and $size -gt 0)) { $why = Get-CurlReason $code $status }
+        if ($code -eq 28 -and $status -ne '000' -and $at -ge $urls.Count) { $why = 'stalled: nothing received for 2 minutes' }
         if (-not $why) {
             $length = 0
             if (Test-Path -LiteralPath $path) { $length = (Get-Item -LiteralPath $path -Force).Length }

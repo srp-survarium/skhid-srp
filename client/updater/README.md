@@ -564,7 +564,10 @@ list's SHA-256, and the list came from the update server over HTTPS.
   release time is used (`SKHID_BUILTIN_PATCHES`, the `/patches` of
   `release/patches.tsv`, which `release/build-zip` passes to the build):
   a provider that blocks the server need not block the patches'
-  addresses. A list of no patch is none.
+  addresses. A list of no patch is none. It only adds: a listed patch
+  missing or damaged is fetched, no other patch file is deleted (the game
+  exe may be newer than the updater and need it), and neither the list
+  kept nor the status is written (it is not the server's list).
 - The Content-Length, when the server sends one, is checked against the
   disk first, and a body shorter than it is an error.
 

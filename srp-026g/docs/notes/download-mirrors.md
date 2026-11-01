@@ -16,6 +16,7 @@ answered a "Quota exceeded" page, and new players could not install. How it work
   only while another address remains; the game's archive goes on from its bytes (`Range`); one
   log line a try, a failure and the success; at a failure, where to send the log (#bugreports,
   tag install).
-- Server unreachable: the addresses built in at release time. The .bat then only fetches missing
-  patches and deletes none; a server that answers but gives no list is a failure.
+- Server unreachable: the addresses built in at release time. The updater and the .bat then only
+  fetch missing patches and delete none; for the .bat, a server that answers but gives no list is
+  a failure.
 - Not done: failure reports to srp, an admin-page tab, a health-check cron.

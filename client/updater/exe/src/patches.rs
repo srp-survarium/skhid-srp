@@ -592,8 +592,10 @@ impl Run<'_> {
                     at + 1,
                     address.text
                 );
-                // Too slow is a failure only while another address remains.
-                let slow = if at + 1 < count {
+                // Too slow is a failure only while another address will be
+                // tried this round (the second tries again only those that
+                // failed on the network).
+                let slow = if again[at + 1..].contains(&true) {
                     http::Slow::Leave
                 } else {
                     http::Slow::Wait
@@ -809,7 +811,20 @@ impl Run<'_> {
             Some(&mut *self.session),
         )
         .ok_or(Fail::Stopped)?;
-        let todo = todo(&list, &found, &mut |patch| lookup(&hashed, patch));
+        let mut todo = todo(&list, &found, &mut |patch| lookup(&hashed, patch));
+        // The list built in (the server not reached) only adds: the game exe
+        // may be newer than this updater (one restored from an old archive,
+        // or the .bat's install, which keeps the updater it has) and need
+        // patches this list does not name. Nor is it kept as the server's.
+        let built_in = matches!(self.source, Source::BuiltIn(_));
+        if built_in && !todo.delete.is_empty() {
+            log!(
+                "patches: the list built in: {} patch file(s) it has not are kept ({})",
+                todo.delete.len(),
+                todo.delete.join(", ")
+            );
+            todo.delete.clear();
+        }
         log!(
             "patches: the list has {} patch(es){}; {} to download, {} to delete",
             list.patches.len(),
@@ -834,7 +849,7 @@ impl Run<'_> {
         let list_path = beside(self.layout, LIST_FILE);
         let list_text = write_list(&list);
         let kept = win::read_file(&list_path, MAX_LIST).ok();
-        if !todo.is_empty() || kept.as_deref() != Some(&list_text[..]) {
+        if !built_in && (!todo.is_empty() || kept.as_deref() != Some(&list_text[..])) {
             self.changing = true;
             if let Err(code) = save(&beside(self.layout, STATUS_FILE), b"blocked checking\r\n") {
                 log!(
@@ -874,7 +889,9 @@ impl Run<'_> {
         // above (nothing has changed them since).
         let layout = self.layout;
         let record = &mut *self.record;
-        check(&list, &files(layout), &mut |patch| match downloaded
+        // Built in: the patches it lists in place, any other let be.
+        let others = if built_in { Vec::new() } else { files(layout) };
+        check(&list, &others, &mut |patch| match downloaded
             .iter()
             .find(|(number, _)| *number == patch.number)
         {
@@ -1033,6 +1050,7 @@ fn step(
     look: Look,
     record: &mut Record,
 ) -> Outcome {
+    let built_in = matches!(source, Source::BuiltIn(_));
     let mut run = Run {
         session,
         layout,
@@ -1054,6 +1072,10 @@ fn step(
         }
     };
     match outcome {
+        // The list built in is not the server's: `ready` and the next start
+        // without the server check the folder against the one kept, as
+        // before; this run's PLAY stands on the patches it lists in place.
+        Ok(()) if built_in => Outcome::Ready,
         Ok(()) => {
             status(b"ready\r\n");
             Outcome::Ready
