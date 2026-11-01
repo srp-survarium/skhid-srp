@@ -953,17 +953,23 @@ pub(super) mod tests {
         ]
     }
 
-    /// [POCKETS (b)] A lip whose drop is an off-mesh walk-off landing cells out (here 2 m down onto a floor 1.6 m past the
-    /// edge), over a lower ledge 0.8 m past the edge that no link reaches (Vector Laboratory's 20.6 lip, the 17.80 landing and the
+    /// [POCKETS (b)] A lip whose drop is an off-mesh walk-off landing cells out (here 2 m down onto a floor 1.8 m past the
+    /// edge), over a lower ledge 0.75 m past the edge that no link reaches (Vector Laboratory's 20.6 lip, the 17.80 landing and the
     /// 16.22 ledge): a body that goes over at a slip comes down on the walk-off's landing as before, and with
     /// [`WalkOffLanding::BySpeed`] on the ledge under it; at the walk it takes the landing either way.
     #[test]
     fn a_body_that_slips_off_a_walk_off_lip_comes_down_under_the_edge_by_its_speed() {
         let mut tris = Vec::new();
-        tris.extend(floor(0.0, 0.0, 10.0, 4.0, 4.0));
-        tris.extend(floor(10.8, 0.0, 11.2, 4.0, 0.5));
-        tris.extend(floor(11.6, 0.0, 20.0, 4.0, 2.0));
-        let grid = WalkGrid::build_with_links(&tris, [0.0, -1.0, 21.0, 5.0], 0.25, Body::default(), mapdata::OffMeshLinks::Gaps);
+        tris.extend(floor(0.0, 0.0, 10.0, 8.0, 4.0));
+        tris.extend(floor(10.75, 0.0, 11.0, 4.0, 0.5));
+        tris.extend(floor(11.8, 0.0, 20.0, 4.0, 2.0));
+        // The way back up (a gap link is kept only where it saves a walk round): a ramp from the far floor to a top that walks
+        // back to the lip's floor along a walkway beside the gap.
+        tris.push(Triangle { v: [Vec3::new(20.0, 2.0, 0.0), Vec3::new(24.0, 4.0, 0.0), Vec3::new(24.0, 4.0, 4.0)], walker: WalkerBehaviour::BySlope });
+        tris.push(Triangle { v: [Vec3::new(20.0, 2.0, 0.0), Vec3::new(24.0, 4.0, 4.0), Vec3::new(20.0, 2.0, 4.0)], walker: WalkerBehaviour::BySlope });
+        tris.extend(floor(24.0, 0.0, 26.0, 8.0, 4.0));
+        tris.extend(floor(10.0, 6.0, 24.0, 8.0, 4.0));
+        let grid = WalkGrid::build_with_links(&tris, [0.0, -1.0, 27.0, 9.0], 0.25, Body::default(), mapdata::OffMeshLinks::Gaps);
         let ledge = |n: NodeId| (grid.position(n).y - 0.5).abs() < 0.05;
         let landing = |n: NodeId| (grid.position(n).y - 2.0).abs() < 0.05;
         // The grid's way down is the walk-off onto the far floor (one a metre of edge: from one of the lip's last floors);
