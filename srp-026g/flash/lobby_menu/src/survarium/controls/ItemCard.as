@@ -13,7 +13,6 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IPlayerProfile;
-   import survarium.messages.MessageMoneyExchange;
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
@@ -22,7 +21,6 @@ package survarium.controls
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
-   import survarium.constants.MoneyType;
    import survarium.constants.ProfileSlot;
    import survarium.item.ModificationRolls;
    import survarium.constants.VoucherType;
@@ -43,8 +41,6 @@ package survarium.controls
       protected var isQuickSlot:Boolean;
       
       protected var isStack:Boolean;
-      
-      protected var _money_type:int = MoneyType.REGULAR;
       
       protected var _step:int = 0;
       
@@ -306,13 +302,6 @@ package survarium.controls
          dispatchEvent(new Event(Events.BUY));
       }
       
-      protected function buyCurrentItem() : void
-      {
-         trace("buyCurrentItem");
-         dispatchEvent(new Event(Events.BUY));
-         ExternalInterface.call("buy_ok_clicked",this._data.dictId,uint(1),uint(this._data.factionId),this._money_type);
-      }
-      
       public function onBtnClick4(event:Event = null) : void
       {
          if(this.isShopItems)
@@ -323,62 +312,6 @@ package survarium.controls
          {
             this.onBtnClick2();
          }
-      }
-      
-      public function acceptAction(event:Event = null) : void
-      {
-         trace("acceptAction");
-         if(this.isShopItems)
-         {
-            if(!this._data.isStack)
-            {
-               if(this._data.isPremium)
-               {
-                  if(PlayerInfo.premiumMoney < this._data.cost)
-                  {
-                     this.onNoMoneyEnought();
-                     return;
-                  }
-               }
-               if(this._inventory && !this._inventory.hasItem(this._data.dictId))
-               {
-                  dispatchEvent(new Event(Events.BUY));
-                  ExternalInterface.call("buy_ok_clicked",this._data.dictId,uint(1),uint(this._data.factionId),this._money_type);
-               }
-               else
-               {
-                  Message.showMessage("apply",{
-                     text:LocalizationData.getName("already_in_inventory"),
-                     onYes:this.buyCurrentItem
-                  });
-               }
-            }
-            else
-            {
-               dispatchEvent(new Event(Events.BUY));
-               ExternalInterface.call("buy_ok_clicked",this._data.dictId,uint(1),uint(this._data.factionId),this._money_type);
-            }
-         }
-         else
-         {
-            this.onBtnClick2();
-         }
-      }
-      
-      protected function onNoMoneyEnought() : void
-      {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
       }
       
       public function checkButtonEnabled(event:Event = null) : void

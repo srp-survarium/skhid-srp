@@ -273,19 +273,34 @@ Not yet seen in a running game: the stash with one camouflage on several
 items, the upgrade window's drop on each, and a match showing each item's
 camouflage.
 
-**Buying a camouflage owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I
-don't get warning that it was already bought"):
+**Buying an item owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I don't
+get warning that it was already bought"; "it shouldn't just be camo, it should also be scopes and
+other things", "some already have warning, some don't"):
 
-- A second copy is of no use: the one copy is worn on any number of items (above), armour and
-  weapons alike (`weapon-camo.md`: the same category 25 items).
-- The shop's Buy (`LobbyMenu.try_buy_item`: the shop list's and its right-click menu's) asks
-  first, with the stock box any item owned already gets: "This item is already purchased by you.
-  Would you like to buy anyway?" (`st_already_in_inventory`); OK opens the buy dialog, Cancel buys
-  nothing.
-- The stock movie left camouflages out of that box (LIKELY: a copy was worn by one item then); the
-  exception is gone. Decals had the box already. The item card's Buy (`ItemCard.acceptAction`)
-  never left them out.
-- Ownership is the inventory the movie has (`InventoryList.hasItem`); the server buys as before.
+- Every buy in the lobby goes through `LobbyMenu.try_buy_item` (`GangShop.buyFunction`,
+  `MainScene.buyFunction`). An item owned already that is no stack is asked about there first,
+  with the stock box "This item is already purchased by you. Would you like to buy anyway?"
+  (`st_already_in_inventory`): OK opens the buy dialog, Cancel buys nothing. A bundle is never
+  asked about (its id is no item's). Stacks (ammo, medkits) add to theirs and are not asked about.
+- The buys, by what calls `try_buy_item`:
+  - the item card's Buy (`ItemCard.onBtnClick1`): its button, the list's double click and the
+    right-click menu's Buy (rows and kit slots);
+  - the craft and attachment windows' menus' Buy (`InventoryList.buyFromCraftMenu`);
+  - a shop item dropped on the character (`ItemPaperDollSlot`);
+  - Buy maps on the results screen (`LobbyMenu.onBuyMaps`).
+- What lacked the box until 2026-11-01:
+  - a buy from an owned item's row (the item's place is INVENTORY, not SHOP): the inventory tab's
+    rows, a kit slot's menu and the craft and attachment windows. The stock movie asked there;
+    revision 25 stopped it (the owner, 2026-10-20, `buy-modified.md`), and 2026-11-01 brings it
+    back;
+  - a camouflage, from anywhere: the stock movie left camouflages out (LIKELY: a copy was worn by
+    one item then).
+- The shop tab's entries of other kinds (a helmet, a scope, a decal) had the box already.
+- `ItemCard.acceptAction`, a second buy with its own check that nothing called, is gone.
+- A second camouflage or decal is of no use: one copy is worn on any number of items (above).
+  Weapons take the same category 25 items (`weapon-camo.md`).
+- Ownership comes from the inventory the movie has (`InventoryList.hasItem`). The server buys as
+  before.
 - Check: `scripts/buy-owned/check.sh <lobby_menu.swf>` (Ruffle).
 
 ## 7. The lines of an item's card (2026-10-18)

@@ -3431,9 +3431,11 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         // An item owned already: asked first, a camouflage too (one is worn on any number of items,
-         // docs/notes/items.md §6, so a second is of no use).
-         if(!_descr.is_stack && sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction). An item owned already,
+         // not a stack, is asked first, whatever row it is bought from: a shop entry, the owned row the
+         // shop lists in its place, a kit slot, the craft and attachment windows. A bundle's id is no
+         // item's (docs/notes/items.md §6).
+         if(!_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;

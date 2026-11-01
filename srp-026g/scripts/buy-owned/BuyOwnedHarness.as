@@ -9,11 +9,20 @@ package
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
 
-   // The shop's Buy of an item owned already (LobbyMenu.try_buy_item, docs/notes/items.md §6) with
-   // the lobby movie's own root, its inventory list and shop:
-   // - an owned camouflage: the box that asks first ("apply", already_in_inventory);
-   // - a camouflage not owned: the buy dialog ("ask") at once;
-   // - an owned helmet: the box that asks first, as before.
+   // Every way the lobby buys, with the lobby movie's own root (its try_buy_item, which they all
+   // reach: GangShop.buyFunction, MainScene.buyFunction), inventory list, item card and shop
+   // (docs/notes/items.md §6). An item owned already, not a stack, is asked about first (the box
+   // "apply", already_in_inventory); anything else opens the buy dialog ("ask") at once:
+   // - the right-click menu's Buy on an owned camouflage's row and on an owned scope's row (the
+   //   list shows the owned row in place of the shop's entry);
+   // - the item card's Buy on the owned scope (the list's double click and Buy button too) and
+   //   on the shop's entry of the owned camouflage;
+   // - (not here: the craft and attachment windows' menus' Buy, InventoryList.buyFromCraftMenu. It
+   //   makes the card's call with the item's own place, INVENTORY for an owned one, but with no
+   //   seller, so try_buy_item asks GangShop.getItemSeller, which reads ItemData.seller: Scaleform
+   //   gives undefined, Ruffle throws);
+   // - a shop helmet dropped on the kit's head slot, a helmet owned (ItemPaperDollSlot's call);
+   // - the menu's Buy on a camouflage not owned, and on a bundle whose id is an owned item's.
    // The game's boxes call the exe as they are made (ExternalInterface, which Ruffle lacks), so the
    // box each Buy opens is told by a stand-in registered for its type (BoxSeen).
    // Prints "BUYOWNED ..." lines and ends with "BUYOWNED RESULT pass" or "BUYOWNED RESULT fail: ...".
@@ -25,6 +34,15 @@ package
 
       private static const HELMET:int = 9103;
 
+      private static const SCOPE:int = 9104;
+
+      // owned items' ids
+      private static const OWNED_CAMO:int = 1;
+
+      private static const OWNED_HELMET:int = 2;
+
+      private static const OWNED_SCOPE:int = 3;
+
       private var loader:Loader = new Loader();
 
       private var domain:ApplicationDomain;
@@ -33,11 +51,17 @@ package
 
       private var inventory:*;
 
+      private var card:*;
+
       private var shop:*;
 
       private var failures:Array = [];
 
       private var frames:int = 0;
+
+      private var step:int = 0;
+
+      private var wait:int = 0;
 
       public function BuyOwnedHarness()
       {
@@ -59,8 +83,9 @@ package
          return domain.getDefinition(name) as Class;
       }
 
-      // The parts try_buy_item uses, as the root's own setup gives them in the game: the icons, the
-      // items, the shop, the inventory list (as the inventory-menu check makes it), the boxes.
+      // The parts the buys use, as the root's own setup gives them in the game: the icons, the
+      // items, the shop, the inventory list and card (as the inventory-menu check makes them), the
+      // boxes, the buy function.
       private function loaded(e:Event) : void
       {
          var at:String = "the classes";
@@ -70,28 +95,32 @@ package
             lobby = loader.content;
             addChild(loader);
             domain.getDefinition("MainScene").stage = lobby;
+            domain.getDefinition("survarium.data.LocalizationData").setData({buy:"Buy",sell:"Sell",wear:"Wear",drop:"Drop",fix:"Repair",non_faction_items:"Any"});
             var Container:Class = C("survarium.data.IconContainer");
-            for each(var icons:String in ["equipment","camo","factionItemIcons"])
+            for each(var icons:String in ["equipment","camo","consumables","bundles","factionItemIcons"])
             {
                new Container(icons,1,1,new BitmapData(1,1,true,0),false,1,0,0,false);
             }
             at = "the items";
             var Category:Object = domain.getDefinition("survarium.constants.ItemCategory");
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("buy-owned-check");
-            descriptor.setItemsDictionary([item(CAMO,Category.CAMOUFLAGES,"Camo"),item(OTHER_CAMO,Category.CAMOUFLAGES,"Other camo"),item(HELMET,Category.HELMETS,"Helmet")]);
+            descriptor.setItemsDictionary([item(CAMO,Category.CAMOUFLAGES,"Camo"),item(OTHER_CAMO,Category.CAMOUFLAGES,"Other camo"),item(HELMET,Category.HELMETS,"Helmet"),item(SCOPE,Category.SCOPES,"Scope")]);
             lobby._itemDescriptor = descriptor;
             at = "the shop";
-            shop = new (C("survarium.controls.GangShop"))();
+            var Shop:Class = C("survarium.controls.GangShop");
+            shop = new Shop();
             shop.registerItemDescriptor(descriptor);
-            shop.setupShopItems([offer(CAMO),offer(OTHER_CAMO),offer(HELMET)]);
+            shop.setupShopItems([offer(CAMO),offer(OTHER_CAMO),offer(HELMET),offer(SCOPE)]);
             lobby.shop_list = shop;
+            Shop.buyFunction = lobby.try_buy_item;
+            domain.getDefinition("MainScene").buyFunction = lobby.try_buy_item;
             at = "the inventory";
             domain.getDefinition("survarium.controls.SrvContextMenu").registerStage(stage,lobby);
             var profile:* = new (C("SrvLocalPlayerProfile"))();
             profile.setAmmoShare(domain.getDefinition("survarium.ammo.AmmoShareLite").getInstance());
             lobby.player_profile = profile;
             lobby.addChild(profile);
-            var card:* = new (C("SrvSelectedItemControl"))();
+            card = new (C("SrvSelectedItemControl"))();
             lobby.item_control = card;
             inventory = new (C("SrvInventoryReskin"))();
             inventory.name = "inventory_list";
@@ -135,20 +164,21 @@ package
          return {id:id,dictId:dictId,faction_id:0,condition_or_stack:10000,modifiers:[],rarity_level:0,repair_time:0,reroll_time:0,is_attached_to:0};
       }
 
-      // The shop's Buy of dictId (GangShop.buyFunction) and the box it opens.
-      private function expect(what:String, dictId:int, want:String) : void
+      // A buy and the box it opens: "apply" (asked first), "ask" (the buy dialog) or "none".
+      private function expect(what:String, want:String, buy:Function) : void
       {
          BoxSeen.seen.length = 0;
-         var Place:Object = domain.getDefinition("survarium.constants.ItemPlace");
+         var threw:String = "none";
          try
          {
-            lobby.try_buy_item(1,0,dictId,Place.SHOP,Place.INVENTORY,1,100,0);
+            buy();
          }
          catch(err:Error)
          {
-            // the stand-in is no box of the game's: Message stops there
+            // after a box: the stand-in is no box of the game's, Message stops there
+            threw = String(err);
          }
-         var got:String = BoxSeen.seen.join(",") || "none";
+         var got:String = BoxSeen.seen.join(",") || threw;
          trace("BUYOWNED " + what + ": " + got);
          if(got != want)
          {
@@ -156,39 +186,193 @@ package
          }
       }
 
-      // The inventory list as the inventory-menu check makes it, a few frames after it is made.
+      private function rows() : Array
+      {
+         var list:* = inventory.itemsTileList;
+         var out:Array = [];
+         for(var i:int = 0; i < list.dataProvider.length; i++)
+         {
+            var r:* = list.getRendererAt(i,0);
+            if(r != null && r.data != null)
+            {
+               out.push(r);
+            }
+         }
+         return out;
+      }
+
+      // The list's row whose item matches.
+      private function row(match:Function, what:String) : *
+      {
+         for each(var r:* in rows())
+         {
+            if(match(r.data))
+            {
+               return r;
+            }
+         }
+         throw new Error("no row of " + what + ": " + rows().map(function(r:*, i:int, a:Array):String
+         {
+            return r.data.name + "#" + r.data.itemId + "@" + r.data.descriptor;
+         }).join(", "));
+      }
+
+      private function ownedRow(itemId:int) : *
+      {
+         return row(function(d:*):Boolean
+         {
+            return d.itemId == itemId && d.descriptor == ItemPlace("INVENTORY");
+         },"item " + itemId);
+      }
+
+      private function shopRow(dictId:int) : *
+      {
+         return row(function(d:*):Boolean
+         {
+            return d.dictId == dictId && d.descriptor == ItemPlace("SHOP");
+         },"shop entry " + dictId);
+      }
+
+      private function shopEntry(dictId:int) : *
+      {
+         var found:* = null;
+         shop.forEachItem(function(entry:*):Boolean
+         {
+            found = entry.dictId == dictId ? entry : found;
+            return found != null;
+         });
+         return found;
+      }
+
+      private function ItemPlace(name:String) : int
+      {
+         return domain.getDefinition("survarium.constants.ItemPlace")[name];
+      }
+
+      // A right click on a row, as the inventory-menu check gives it.
+      private function rightClick(renderer:*) : void
+      {
+         var Ex:Class = C("scaleform.gfx.MouseEventEx");
+         for each(var type:String in ["mouseDown","click"])
+         {
+            var e:* = new Ex(type);
+            e.buttonIdx = 1;
+            renderer.dispatchEvent(e);
+         }
+         inventory.showContextMenu(renderer);
+      }
+
+      // Buy in the open right-click menu.
+      private function chooseBuy() : void
+      {
+         var Menu:Object = domain.getDefinition("survarium.controls.SrvContextMenu");
+         var shown:* = Menu.visisble ? Menu.getInstance().contextList.list.dataProvider : null;
+         for(var i:int = 0; shown != null && i < shown.length; i++)
+         {
+            if(shown[i].name == "Buy")
+            {
+               Menu.hide();
+               shown[i].click_function();
+               return;
+            }
+         }
+         Menu.hide();
+         throw new Error("no Buy in the menu");
+      }
+
+      // The item card's Buy on an item (the list's double click and the menu's Buy press it too).
+      private function cardBuy(value:*) : void
+      {
+         inventory.setPrimaryItem(value);
+         card.onBtnClick1();
+      }
+
+      // One step a few frames apart: the list draws its rows as the frame renders.
       private function tick(e:Event) : void
       {
-         if(++frames < 10)
+         if(++frames < 10 || --wait > 0)
          {
             return;
          }
-         removeEventListener(Event.ENTER_FRAME,this.tick);
+         wait = 5;
          try
          {
-            inventory.fillSellers([{faction_id:1,name:"Seller"}]);
-            inventory.sellersTabPage.selectedIndex = 0;
-            inventory.toggleShopMode(false);
-            inventory.filterItems(null);
-            inventory.optionControl.checkbox_all_traders.selected = true;
-            var offers:Array = [];
-            shop.forEachItem(function(entry:*):Boolean
+            switch(step++)
             {
-               offers.push(entry);
-               return false;
-            });
-            inventory.setupShopItems(offers);
-            inventory.setupInventoryData([owned(1,CAMO),owned(2,HELMET)]);
+               case 0:
+                  // the inventory tab, every seller's items: the owned camouflage, helmet and
+                  // scope; the shop's entries of what is not owned; a bundle whose id is the helmet's
+                  inventory.fillSellers([{faction_id:1,name:"Seller"}]);
+                  inventory.sellersTabPage.selectedIndex = 0;
+                  inventory.toggleShopMode(false);
+                  inventory.filterItems(null);
+                  inventory.optionControl.checkbox_all_traders.selected = true;
+                  var offers:Array = [];
+                  shop.forEachItem(function(entry:*):Boolean
+                  {
+                     offers.push(entry);
+                     return false;
+                  });
+                  inventory.setupShopItems(offers);
+                  inventory.setupBundleData([{bundle_id:HELMET,bundle_icon:0,bundle_name:"Bundle",bundle_descr:"",bundle_properties:[],currency_type:false,cost:500,bundle_items:[]}]);
+                  inventory.setupInventoryData([owned(OWNED_CAMO,CAMO),owned(OWNED_HELMET,HELMET),owned(OWNED_SCOPE,SCOPE)]);
+                  break;
+               case 1:
+                  expect("the menu's Buy, the owned camouflage's row","apply",function():void
+                  {
+                     rightClick(ownedRow(OWNED_CAMO));
+                     chooseBuy();
+                  });
+                  expect("the menu's Buy, the owned scope's row","apply",function():void
+                  {
+                     rightClick(ownedRow(OWNED_SCOPE));
+                     chooseBuy();
+                  });
+                  expect("the card's Buy, the owned scope","apply",function():void
+                  {
+                     cardBuy(ownedRow(OWNED_SCOPE).data);
+                  });
+                  expect("the card's Buy, the shop's entry of the owned camouflage","apply",function():void
+                  {
+                     cardBuy(shopEntry(CAMO));
+                  });
+                  expect("a shop helmet dropped on the head slot, a helmet owned","apply",function():void
+                  {
+                     var entry:* = shopEntry(HELMET);
+                     domain.getDefinition("MainScene").buyFunction(1,entry.itemId,HELMET,entry.descriptor,domain.getDefinition("survarium.constants.ProfileSlot").HEAD,entry.count,entry.cost,entry.factionId);
+                  });
+                  // the shop tab: the shop's entries of what is not owned, and the bundle
+                  inventory.toggleShopMode(true);
+                  break;
+               case 2:
+                  trace("BUYOWNED the shop tab's rows: " + rows().map(function(r:*, i:int, a:Array):String
+                  {
+                     return r.data.name + "@" + r.data.descriptor;
+                  }).join(", "));
+                  expect("the menu's Buy, a camouflage not owned","ask",function():void
+                  {
+                     rightClick(shopRow(OTHER_CAMO));
+                     chooseBuy();
+                  });
+                  expect("the menu's Buy, a bundle whose id is the owned helmet's","ask",function():void
+                  {
+                     rightClick(row(function(d:*):Boolean
+                     {
+                        return d.descriptor == ItemPlace("BUNDLE");
+                     },"the bundle"));
+                     chooseBuy();
+                  });
+                  break;
+               default:
+                  removeEventListener(Event.ENTER_FRAME,this.tick);
+                  finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            }
          }
          catch(err:Error)
          {
-            finish("fail: the inventory: " + err);
-            return;
+            removeEventListener(Event.ENTER_FRAME,this.tick);
+            finish("fail: step " + (step - 1) + ": " + err);
          }
-         expect("an owned camouflage",CAMO,"apply");
-         expect("a camouflage not owned",OTHER_CAMO,"ask");
-         expect("an owned helmet",HELMET,"apply");
-         finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
 
       private function finish(result:String) : void

@@ -3573,8 +3573,8 @@ package survarium.controls
       }
       
       // As the item card's Buy: by the dictionary id, at the shop's price;
-      // the shop names the seller. A buy on an owned item is not asked
-      // whether the account wants another.
+      // the shop names the seller. An item owned already is asked about
+      // first, as every buy (LobbyMenu.try_buy_item).
       private function buyFromCraftMenu(item:Object) : void
       {
          var profile:* = parent != null ? parent["player_profile"] : null;
