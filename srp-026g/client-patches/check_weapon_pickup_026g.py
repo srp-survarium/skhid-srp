@@ -395,6 +395,7 @@ def main():
     a_new_life(patched)
     the_end_refunds_nothing_set_aside(patched)
     no_cook_in_a_tick(patched)
+    donor_left_then_a_late_join(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1287,6 +1288,49 @@ def no_cook_in_a_tick(patched):
     assert j.queries == [] and j.slot(j.inventory, 10) == gun + 0x10, j.log
     print("ok a late joiner's first world with an open drop it never saw: its gun cooked before the load, the pickup "
           "takes it with no cook nor wait in the tick")
+
+
+def donor_left_then_a_late_join(patched):
+    """The donor leaves while B holds its gun, then a game joins (late join). The departure keeps the place and its
+    profile; the joiner has that place's players from the static info, so it cooks the same item, but its wear is
+    the static info's (the world carries the profile's changing part only for the places in it): 1.0 where the
+    games that saw the death have the donor's (0.7 here). A held gun's wear comes with the world; a pickup still
+    waiting for its switch at the join is not in the world, so at its swap the picked gun takes a constant
+    condition (unworn, 1.0) in every game. Without that, the joiner's gun and the others' differ there."""
+    cond = lambda g: bytes(g.emu.mem_read(g.new_gun + 0x10 + 0x260, 4))
+    # Held: the donor's players destroyed in the game that stays; B keeps the gun; the joiner installs it.
+    r = Pick(patched)
+    r.setup()
+    r.emu.mem_write(r.new_gun + 0x10 + 0x260, struct.pack("<f", 0.7))
+    r.pick()
+    r.installed()
+    r.destroy_player(PLAYER)
+    r.installed()
+    held = r.save(r.picker)
+    j = Pick(patched)
+    j.setup()
+    j.load(j.picker, held)
+    assert j.slot(j.inventory, 10) == j.new_gun + 0x10 and j.save(j.picker) == held, j.log
+    # Pending at the join: the swap gives both games the same condition.
+    r = Pick(patched)
+    r.setup()
+    r.emu.mem_write(r.new_gun + 0x10 + 0x260, struct.pack("<f", 0.7))
+    r.pick(switch=False)
+    waiting = r.save(r.picker)
+    j = Pick(patched)
+    j.setup()
+    j.emu.mem_write(j.new_gun + 0x10 + 0x260, struct.pack("<f", 1.0))
+    j.load(j.picker, waiting)
+    j.word(j.picker + 0x12C, j.read(j.registry + 4 * PENDING_ID))     # the reader resolves the pending id
+    r.tick()
+    j.tick()
+    r.installed()
+    j.installed()
+    assert cond(r) == cond(j) == struct.pack("<f", 1.0), (cond(r).hex(), cond(j).hex())
+    assert r.save(r.picker) == j.save(j.picker)
+    print("ok the donor leaves while B holds its gun, then a late join: the joiner installs the held gun from the "
+          "static info's profile and saves the same; a pickup waiting for its switch at the join gives both games "
+          "an unworn gun at the swap (1.0, the donor's 0.7 and the static 1.0 alike)")
 
 
 def crate_per_gun(patched):

@@ -33,6 +33,7 @@ survarium::inventory	slots	0x10C	obj<survarium::inventory_slot>	its 23 slots' it
 survarium::item	weight	0x218	f32	its weight a piece, kg (update_weight 0x2FC740)
 survarium::item	entry	0x25C	ptr<survarium::item_entry>	its dictionary entry (update_weight 0x2FC71C)
 survarium::item	count	0x260	u16	a stack's count (update_weight 0x2FC72B)
+survarium::item	condition	0x260	f32	a non-stack item's condition, 0..1 (weapon_core::serialize's item header m_condition; inventory::unload_to_profile 0x2FD375 reads it as weapon+270h): where a stack has its count
 survarium::item_entry	stack	0x22A	u8	set: the item is a stack (update_weight 0x2FC722)
 survarium::bullet	id	0x4	u32	its id (add_shootmark's key; the ctor 0x32BA6F)
 survarium::bullet	shooter	0x8	ptr<survarium::bullet_owner>	its shooter (0: none; +4 the place; process_front_face_piercing 0x32E547)

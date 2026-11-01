@@ -16,6 +16,8 @@
   without respawns, the match's end or the player leaving.
 - The picked gun has the bullets left in its magazine (chamber included) and
   one full magazine in reserve.
+- A picked gun starts unworn (condition 1.0), whatever the dropped gun's wear
+  (my pick, 2026-11-02: every game must agree on it, below).
 - "Your ammo is replaced" (the owner, 2026-10-31): the borrowed gun's
   ammunition goes into the slots of the gun it replaces (the picker's own
   stacks there are set aside and come back with the own gun as objects);
@@ -168,6 +170,24 @@
   (`the_end_refunds_nothing_set_aside`): hidden 90 against 76 and 120 against
   0, and a restore refused against one done, end with the same store;
   rev41's build (#1024) on the same scenario: 14, 120 and 51 rounds apart.
+- **A recipe's source can't change mid-match.** A pick names its gun by its
+  recipe (place, kit, slot): a game without a copy cooks it from that
+  place's profile. That profile is the same in every game for the whole
+  match: a late join never reuses a place (the install takes only the next
+  one, `options[577B5h] == place`, late_join_install_026g.c); a departure
+  keeps the place and its profile (the match server's PLAYER_LEFT; the
+  games that stay destroy its players, the profile stays in the match
+  options); a returning player gets the same place and the same profile
+  (the static info is fixed per match, extended only for new places); a
+  late joiner has every place's players from the static info, a departed
+  one's too (query_players makes each place below the count). So a place
+  reused with another profile cannot happen, and no Unicorn case builds
+  one. Only the profile's changing part differs: the world carries it for
+  the places in it, so a joiner has a departed place's from the static info
+  (its items' wear 1.0). A held gun's wear comes with the world; a pickup
+  waiting for its switch is not in the world, so at the swap the picked gun
+  takes condition 1.0 in every game (`donor_left_then_a_late_join`; without
+  it the joiner had 1.0 and the others the donor's 0.7).
 - **A re-used copy** (seed 1 against 0x442aa381): at the switch the picked gun
   takes a spawn's state: `KIT_STATE_FIELDS` and +5A4h before the initialize,
   the spawn hook's seed (`weapon_pickup::spawn_seed`: the picker's place, kit,

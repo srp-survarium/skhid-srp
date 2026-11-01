@@ -1448,6 +1448,15 @@ impl Item {
         unsafe { self.0.byte_add(0x260).cast::<u16>().as_ptr() }
     }
 
+    /// +0x260 (f32): a non-stack item's condition, 0..1 (weapon_core::serialize's item header m_condition; inventory::unload_to_profile 0x2FD375 reads it as weapon+270h): where a stack has its count
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn condition(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x260).cast::<f32>().as_ptr() }
+    }
+
     /// +0x0 (u32): primary interface (an item's vtable); medkit type checked before reading its activity fields
     ///
     /// # Safety

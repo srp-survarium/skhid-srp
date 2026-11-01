@@ -737,6 +737,10 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
                 // 0x1c0ebd31 had seed 1 against a kept copy's): as a spawn's.
                 let (place, kit, time) = (read(p.place()), read(p.kit()), read(p.time()));
                 new_life(w);
+                // Unworn: its wear is the donor's profile's in a game that
+                // saw the death, the static info's in one that joined after
+                // (a pickup waiting for its switch is not in the world).
+                *gun_item.condition() = 1.0;
                 // The rest of the switch tick_active_object is at
                 // (0x2D76F0..0x2D7722); the gun in hands was put away first.
                 p.set_held_item(Some(gun));
