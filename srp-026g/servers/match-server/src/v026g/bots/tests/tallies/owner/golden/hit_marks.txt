@@ -1,4 +1,4 @@
-owner-test hit marks: team 0: unsensed_hits 0 unsensed_hits_carrying 0 marked 0 marked_carrying 0 kept_target 0 no_shooter 0 look_ticks_walking 0 look_ticks_standing 0 look_ticks_yielded 0 cover_declined 0 cover_began 0 cover_no_spot 0 callout_glances 0; team 1: unsensed_hits 0 unsensed_hits_carrying 0 marked 0 marked_carrying 0 kept_target 0 no_shooter 0 look_ticks_walking 0 look_ticks_standing 0 look_ticks_yielded 0 cover_declined 0 cover_began 0 cover_no_spot 0 callout_glances 0
+owner-test hit marks: team 0: unsensed_hits 0 unsensed_hits_carrying 0 marked 0 marked_carrying 0 kept_target 0 no_shooter 0 look_ticks_walking 0 look_ticks_standing 0 look_ticks_yielded 0 cover_declined 0 cover_began 0 cover_no_spot 0 callout_glances 0 shot_due 0 shot_due_out_of_view 0 shot_shown 0 shot_not_shown 0 shot_confirmed 0 shot_unconfirmed 0; team 1: unsensed_hits 0 unsensed_hits_carrying 0 marked 0 marked_carrying 0 kept_target 0 no_shooter 0 look_ticks_walking 0 look_ticks_standing 0 look_ticks_yielded 0 cover_declined 0 cover_began 0 cover_no_spot 0 callout_glances 0 shot_due 0 shot_due_out_of_view 0 shot_shown 0 shot_not_shown 0 shot_confirmed 0 shot_unconfirmed 0
 {
   "hit_marks": {
     "by_team": {
@@ -14,6 +14,12 @@ owner-test hit marks: team 0: unsensed_hits 0 unsensed_hits_carrying 0 marked 0 
         "marked": 0,
         "marked_carrying": 0,
         "no_shooter": 0,
+        "shot_confirmed": 0,
+        "shot_due": 0,
+        "shot_due_out_of_view": 0,
+        "shot_not_shown": 0,
+        "shot_shown": 0,
+        "shot_unconfirmed": 0,
         "unsensed_hits": 0,
         "unsensed_hits_carrying": 0
       },
@@ -29,6 +35,12 @@ owner-test hit marks: team 0: unsensed_hits 0 unsensed_hits_carrying 0 marked 0 
         "marked": 0,
         "marked_carrying": 0,
         "no_shooter": 0,
+        "shot_confirmed": 0,
+        "shot_due": 0,
+        "shot_due_out_of_view": 0,
+        "shot_not_shown": 0,
+        "shot_shown": 0,
+        "shot_unconfirmed": 0,
         "unsensed_hits": 0,
         "unsensed_hits_carrying": 0
       }
