@@ -194,20 +194,48 @@ exit /b 0
 
 rem --- the files Defender deleted --------------------------------------
 rem Once the folder is excluded: the ZIP of the server updater_skhid.url
-rem names (else skhid.link, as Skhid-without-updater.bat has it), checked
+rem names (else skhid.link, as Skhid-without-updater.bat has it; https only,
+rem plain http for this computer alone, as the updater takes it), checked
 rem against the sha256 its /api/client-files gives, and of the ZIP the
 rem files that are missing put in place; none that is there is overwritten.
-rem The ZIP is downloaded and unpacked in the game folder, not in %TEMP%: the
-rem files moved from there have the game folder's permissions (an elevated
+rem The ZIP is downloaded and unpacked in game\binaries\x86 itself: inside
+rem the exclusion (Defender leaves the copies alone) and not in %TEMP% (the
+rem files moved from there have the game folder's permissions; an elevated
 rem run's TEMP is the administrator's, and the updater could not replace
-rem them later). Both go afterwards. Unpacked by .NET 4.5's ZipFile, else
-rem (Windows 7 as it came, PowerShell 2) by the Windows shell.
+rem them later). Both go afterwards. Then each file that was missing is
+rem looked for again: one that is not there is said. A ZIP left by an
+rem interrupted run is used again when it is the one announced, else
+rem deleted and downloaded anew; a staging folder left is deleted.
+rem Unpacked by .NET 4.5's ZipFile (Windows 8.1, 10, 11, and 7 with WMF
+rem 5.1), else, only where there is no ZipFile, by the Windows shell; an
+rem error unpacking changes nothing. Windows 7 as it came (PowerShell 2, no
+rem TLS 1.2) cannot download the ZIP and says so.
 :restore
-set "SKHID_SITE=https://skhid.link"
+set "SKHID_SITE="
 if exist "%X86%\updater_skhid.url" set /p SKHID_SITE=<"%X86%\updater_skhid.url"
+call :site_check
+if not defined SKHID_OK set "SKHID_SITE=https://skhid.link"
 set "SKHID_TOP=%TOP%"
 if defined DRY goto restore_dry
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; function say($r, $e) { if ($env:SKHID_RU) { $r } else { $e } }; $top = $env:SKHID_TOP; $site = $env:SKHID_SITE.Trim().TrimEnd('/'); $zip = [IO.Path]::Combine($top, '.skhid-restore.zip'); $stage = [IO.Path]::Combine($top, '.skhid-restore'); $back = @(); $code = 0; $step = 'get'; try { try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 } catch {}; $web = New-Object Net.WebClient; $want = ''; foreach ($l in ($web.DownloadString($site + '/api/client-files') -split [char]10)) { $w = -split $l; if ($w[0] -eq 'sha256') { $want = $w[1] } }; if (-not $want) { throw 'no sha256' }; $web.DownloadFile($site + '/download', $zip); $step = 'sha'; $s = [IO.File]::OpenRead($zip); $h = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($s)).Replace('-', ''); $s.Close(); if ($h -ne $want) { throw 'sha256' }; $step = 'unpack'; if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }; [void][IO.Directory]::CreateDirectory($stage); try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory($zip, $stage) } catch { $sh = New-Object -ComObject Shell.Application; $sh.NameSpace($stage).CopyHere($sh.NameSpace($zip).Items(), 1556) }; $files = [IO.Directory]::GetFiles($stage, '*', 'AllDirectories'); if (-not $files) { throw 'nothing unpacked' }; $step = 'move'; foreach ($f in $files) { $rel = $f.Substring($stage.Length + 1); $t = [IO.Path]::Combine($top, $rel); if (-not (Test-Path -LiteralPath $t)) { [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($t)); [IO.File]::Move($f, $t); $back += $rel } } } catch { $code = 1; if ($step -eq 'get') { say ('Восстановление: не удалось скачать файлы Skhid с ' + $site + '. Ничего не изменено.') ('Restore: could not download the Skhid files from ' + $site + '. Nothing changed.') } elseif ($step -eq 'sha') { say 'Восстановление: скачанный архив повреждён (не тот sha256). Ничего не изменено.' 'Restore: the download is damaged (wrong sha256). Nothing changed.' } elseif ($step -eq 'unpack') { say 'Восстановление: Windows не смогла распаковать архив. Запустите Skhid.bat (лаунчер).' 'Restore: Windows could not unpack the archive. Start Skhid.bat (the launcher).' } else { say 'Восстановление: не удалось положить файлы на место.' 'Restore: the files could not be put in place.' } } finally { try { if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force } } catch {} }; if ($back) { say 'Восстановлены файлы Skhid:' 'Restored Skhid files:'; foreach ($r in $back) { '  ' + $r } } elseif ($code -eq 0) { say 'Все файлы Skhid на месте, восстанавливать нечего.' 'No Skhid file is missing, nothing to restore.' }; exit $code"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; function say($r, $e) { if ($env:SKHID_RU) { $r } else { $e } }; function sha($p) { $s = [IO.File]::OpenRead($p); try { [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($s)).Replace('-', '') } finally { $s.Close() } }; $top = $env:SKHID_TOP; $site = $env:SKHID_SITE.Trim().TrimEnd('/'); $zip = [IO.Path]::Combine($env:SKHID_EXCLUDED, '.skhid-restore.zip'); $stage = [IO.Path]::Combine($env:SKHID_EXCLUDED, '.skhid-restore'); $want = @(); $code = 0; $step = 'stage'; try { if ([IO.Directory]::Exists($stage)) { [IO.Directory]::Delete($stage, $true) }; $step = 'get'; try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 } catch {}; $web = New-Object Net.WebClient; $sha = ''; foreach ($l in ($web.DownloadString($site + '/api/client-files') -split [char]10)) { $w = -split $l; if ($w[0] -eq 'sha256') { $sha = $w[1] } }; if (-not $sha) { throw 'no sha256' }; $had = ''; try { $had = sha $zip } catch {}; if ($had -ne $sha) { $step = 'stage'; [IO.File]::Delete($zip); $step = 'get'; $web.DownloadFile($site + '/download', $zip) }; $step = 'sha'; if ((sha $zip) -ne $sha) { throw 'sha256' }; $step = 'unpack'; [void][IO.Directory]::CreateDirectory($stage); $zipfile = $true; try { Add-Type -AssemblyName System.IO.Compression.FileSystem } catch { $zipfile = $false }; if ($zipfile) { [IO.Compression.ZipFile]::ExtractToDirectory($zip, $stage) } else { $sh = New-Object -ComObject Shell.Application; $sh.NameSpace($stage).CopyHere($sh.NameSpace($zip).Items(), 1556) }; $files = [IO.Directory]::GetFiles($stage, '*', 'AllDirectories'); if (-not $files) { throw 'nothing unpacked' }; $step = 'move'; foreach ($f in $files) { $rel = $f.Substring($stage.Length + 1); $t = [IO.Path]::Combine($top, $rel); if (-not (Test-Path -LiteralPath $t)) { $want += $rel; try { [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($t)); [IO.File]::Move($f, $t) } catch {} } } } catch { $code = 1; if ($step -eq 'stage') { say 'Восстановление: не удалось удалить .skhid-restore, оставшийся с прошлого раза. Ничего не изменено.' 'Restore: .skhid-restore, left from an earlier run, could not be removed. Nothing changed.' } elseif ($step -eq 'get') { say ('Восстановление: не удалось скачать файлы Skhid с ' + $site + '. Ничего не изменено.') ('Restore: could not download the Skhid files from ' + $site + '. Nothing changed.') } elseif ($step -eq 'sha') { say 'Восстановление: скачанный архив повреждён (не тот sha256). Ничего не изменено.' 'Restore: the download is damaged (wrong sha256). Nothing changed.' } elseif ($step -eq 'unpack') { say 'Восстановление: Windows не смогла распаковать архив. Ничего не изменено. Запустите Skhid.bat (лаунчер).' 'Restore: Windows could not unpack the archive. Nothing changed. Start Skhid.bat (the launcher).' } else { say 'Восстановление: не удалось положить файлы на место.' 'Restore: the files could not be put in place.' } } finally { try { if ([IO.Directory]::Exists($stage)) { [IO.Directory]::Delete($stage, $true) } } catch {}; try { [IO.File]::Delete($zip) } catch {} }; $back = @($want | Where-Object { Test-Path -LiteralPath ([IO.Path]::Combine($top, $_)) }); $lost = @($want | Where-Object { -not (Test-Path -LiteralPath ([IO.Path]::Combine($top, $_))) }); if ($back) { say 'Восстановлены файлы Skhid:' 'Restored Skhid files:'; foreach ($r in $back) { '  ' + $r } }; if ($lost) { $code = 1; say 'Не восстановлены (возможно, Defender удалил их снова):' 'Not restored (Defender may have deleted them again):'; foreach ($r in $lost) { '  ' + $r } } elseif ($code -eq 0 -and -not $back) { say 'Все файлы Skhid на месте, восстанавливать нечего.' 'No Skhid file is missing, nothing to restore.' }; exit $code"
+exit /b 0
+
+rem SKHID_OK when SKHID_SITE is https://<host>..., or http:// to localhost
+rem or 127.0.0.1 (the updater's rule). Delayed expansion: the address is
+rem only looked at, never parsed as a command.
+:site_check
+set "SKHID_OK="
+if not defined SKHID_SITE exit /b 0
+setlocal EnableDelayedExpansion
+set "ok="
+set "local="
+if /i "!SKHID_SITE:~0,8!"=="https://" if not "!SKHID_SITE:~8,1!"=="" if not "!SKHID_SITE:~8,1!"=="/" set "ok=1"
+if /i "!SKHID_SITE:~0,16!"=="http://localhost" set "local=1"
+if "!SKHID_SITE:~0,16!"=="http://127.0.0.1" set "local=1"
+if defined local if "!SKHID_SITE:~16,1!"=="" set "ok=1"
+if defined local if "!SKHID_SITE:~16,1!"==":" set "ok=1"
+if defined local if "!SKHID_SITE:~16,1!"=="/" set "ok=1"
+endlocal & set "SKHID_OK=%ok%"
 exit /b 0
 :restore_dry
 setlocal EnableDelayedExpansion

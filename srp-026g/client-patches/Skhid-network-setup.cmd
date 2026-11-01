@@ -208,6 +208,8 @@ goto quit
 %RU% Не найден survarium_skhid.exe в папке
 %EN% survarium_skhid.exe is not in the folder
 echo   "%X86%"
+%RU% Если его удалил Microsoft Defender, запустите Skhid-defender-setup.cmd.
+%EN% If Microsoft Defender deleted it, run Skhid-defender-setup.cmd.
 %RU% Положите этот файл рядом со Skhid.bat, в папку, где лежит папка game,
 %RU% и запустите его оттуда.
 %EN% Put this file beside Skhid.bat, in the folder that holds the folder

@@ -695,6 +695,10 @@ class ReleaseTests(unittest.TestCase):
             lost = run('--dry-run')
             self.assertIn(said('Не найден survarium_skhid.exe в папке', 'survarium_skhid.exe is not in the folder'),
                           lost)
+            # The network setup names the usual cause.
+            self.assertEqual(said('Если его удалил Microsoft Defender, запустите Skhid-defender-setup.cmd.',
+                                  'If Microsoft Defender deleted it, run Skhid-defender-setup.cmd.') in lost,
+                             run is setup)
             self.assertFalse([line for line in lost if line.startswith('[dry-run] ')])
             self.assertIn(said('Неизвестный параметр: --firewall-off', 'Unknown option: --firewall-off'),
                           run('--firewall-off'))
@@ -703,6 +707,18 @@ class ReleaseTests(unittest.TestCase):
         # Without the updater's address, the server is skhid.link.
         exe.write_bytes(kept)
         shown(commands(defender('--dry-run'))[2:], restore('https://skhid.link'))
+        # An address the updater would not take either (plain http elsewhere
+        # than to this computer): skhid.link. (Once per Windows: it is not the
+        # folder's.)
+        if ui == 'ru':
+            url = top / 'game' / 'binaries' / 'x86' / 'updater_skhid.url'
+            for written, used in (('http://skhid.example', 'https://skhid.link'),
+                                  ('http://localhost.example', 'https://skhid.link'),
+                                  ('https:///x', 'https://skhid.link'),
+                                  ('http://127.0.0.1:8080', 'http://127.0.0.1:8080'),
+                                  ('https://other.example:8443', 'https://other.example:8443')):
+                url.write_bytes(written.encode() + b'\r\n')
+                shown(commands(defender('--dry-run'))[2:], restore(used))
 
     def powershell_of(self, word):
         """The PowerShell code of the shipped Defender script's powershell
@@ -785,20 +801,32 @@ class ReleaseTests(unittest.TestCase):
     def test_the_defender_setup_puts_back_the_files_defender_deleted(self):
         """The restore after the exclusion, by its PowerShell against a server
         here: the missing updater_skhid.exe put back from the ZIP, a file
-        that is there left as it is, nothing of the download left; a ZIP
-        that is not the one announced, or no server, changes nothing."""
+        that is there left as it is, nothing of the download left (nor of an
+        earlier run's, whose ZIP is used again when it is the one announced);
+        a file gone again before it is in place said; a ZIP
+        that is not the one announced, a staging folder that cannot be
+        removed, or no server, changes nothing."""
         import http.server
         import threading
         restore = self.powershell_of('/api/client-files')
+        # Defender deleting the staged copy of SKHID_TEST_VANISH just before it
+        # is moved: a stand-in for Test-Path, which the move asks first.
+        vanish = ("function Test-Path { param([string]$LiteralPath) "
+                  "$there = Microsoft.PowerShell.Management\\Test-Path -LiteralPath $LiteralPath; "
+                  "if ($env:SKHID_TEST_VANISH -and -not $there -and $f -and $LiteralPath -eq $t "
+                  "-and $LiteralPath.EndsWith($env:SKHID_TEST_VANISH) -and [IO.File]::Exists($f)) "
+                  "{ [IO.File]::Delete($f) }; $there }; ")
         packed = io.BytesIO()
         with zipfile.ZipFile(packed, 'w') as archive:
             for name in ('Skhid.bat', 'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/updater_skhid.exe'):
                 archive.writestr(name, 'from the server: ' + name)
         packed = packed.getvalue()
         announced = [hashlib.sha256(packed).hexdigest()]
+        downloads = []
 
         class Site(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
+                downloads.append(self.path)
                 body = {'/api/client-files': f'skhid-client-files 1\nsha256 {announced[0]}\nsize {len(packed)}\n'
                         'min-revision 0\n'.encode(), '/download': packed}.get(self.path, b'')
                 self.send_response(200 if body else 404)
@@ -818,38 +846,76 @@ class ReleaseTests(unittest.TestCase):
         (top / 'Skhid.bat').write_bytes(b"the player's starter")
         (x86 / 'survarium_skhid.exe').write_bytes(b"the player's exe")
         updater = x86 / 'updater_skhid.exe'
+        updater_name = os.path.join('game', 'binaries', 'x86', 'updater_skhid.exe')
+        stage = x86 / '.skhid-restore'
 
-        def run(ru, site=f'http://127.0.0.1:{server.server_port}/'):
-            env = dict(os.environ, SKHID_TOP=str(top), SKHID_SITE=site)
-            env.pop('SKHID_RU', None)
+        def run(ru, site=f'http://127.0.0.1:{server.server_port}/', gone=None):
+            env = dict(os.environ, SKHID_TOP=str(top), SKHID_EXCLUDED=str(x86), SKHID_SITE=site)
+            for name in ('SKHID_RU', 'SKHID_TEST_VANISH'):
+                env.pop(name, None)
             if ru:
                 env['SKHID_RU'] = '1'
-            done = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-Command', restore],
+            if gone:
+                env['SKHID_TEST_VANISH'] = gone
+            done = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-Command', vanish + restore],
                                   env=env, capture_output=True, timeout=300)
             said = done.stdout.decode('oem' if os.name == 'nt' else 'utf-8', 'replace')
             return done.returncode, said.strip().splitlines()
 
         def files():
             return {str(path.relative_to(top)): path.read_bytes() for path in top.rglob('*') if path.is_file()}
+
+        def nothing_left():
+            self.assertEqual(sorted(path.name for path in top.rglob('.skhid-restore*')), [])
         player = files()
-        self.assertEqual(run(True), (0, ['Восстановлены файлы Skhid:',
-                                         '  ' + os.path.join('game', 'binaries', 'x86', 'updater_skhid.exe')]))
-        self.assertEqual(files(), dict(player, **{
-            os.path.join('game', 'binaries', 'x86', 'updater_skhid.exe'):
-                b'from the server: game/binaries/x86/updater_skhid.exe'}))
-        self.assertEqual(run(False), (0, ['No Skhid file is missing, nothing to restore.']))
+        # An earlier run's leftovers, a stale updater among them: gone, and
+        # the updater put back is the server's.
+        (stage / 'game' / 'binaries' / 'x86').mkdir(parents=True)
+        (stage / 'game' / 'binaries' / 'x86' / 'updater_skhid.exe').write_bytes(b'stale')
+        (x86 / '.skhid-restore.zip').write_bytes(b'stale')
+        self.assertEqual(run(True), (0, ['Восстановлены файлы Skhid:', '  ' + updater_name]))
+        self.assertEqual(files(), dict(player, **{updater_name: b'from the server: game/binaries/x86/updater_skhid.exe'}))
+        nothing_left()
+        self.assertEqual(downloads.count('/download'), 1)
+        # A ZIP left that is the one announced: used again, not downloaded.
         updater.unlink()
+        (x86 / '.skhid-restore.zip').write_bytes(packed)
+        self.assertEqual(run(False), (0, ['Restored Skhid files:', '  ' + updater_name]))
+        self.assertEqual(downloads.count('/download'), 1)
+        nothing_left()
+        self.assertEqual(run(False), (0, ['No Skhid file is missing, nothing to restore.']))
+        # Deleted again before it is in place: said, not taken for done.
+        updater.unlink()
+        self.assertEqual(run(False, gone='updater_skhid.exe'),
+                         (1, ['Not restored (Defender may have deleted them again):', '  ' + updater_name]))
+        self.assertEqual(files(), player)
+        nothing_left()
+        # A staging folder left that cannot be removed: nothing downloaded.
+        if os.name != 'nt':
+            locked = stage / 'locked'
+            locked.mkdir(parents=True)
+            (locked / 'file').write_bytes(b'stale')
+            locked.chmod(0o500)
+            try:
+                self.assertEqual(run(False), (1, ['Restore: .skhid-restore, left from an earlier run, could not be '
+                                                  'removed. Nothing changed.']))
+                self.assertFalse(updater.exists())
+            finally:
+                locked.chmod(0o700)
+            shutil.rmtree(stage)
         announced[0] = '0' * 64
         self.assertEqual(run(False), (1, ['Restore: the download is damaged (wrong sha256). Nothing changed.']))
         self.assertEqual(run(True), (1, ['Восстановление: скачанный архив повреждён (не тот sha256). '
                                          'Ничего не изменено.']))
         self.assertEqual(files(), player)
+        nothing_left()
         server.shutdown()
         server.server_close()
         site = f'http://127.0.0.1:{server.server_port}'
         self.assertEqual(run(False, site), (1, [f'Restore: could not download the Skhid files from {site}. '
                                                 'Nothing changed.']))
         self.assertEqual(files(), player)
+        nothing_left()
 
     @unittest.skipUnless(WINE and os.name != 'nt', "Wine (on Windows, a real run would change its firewall)")
     def test_the_setup_scripts_ask_for_administrator_rights(self):
