@@ -12,11 +12,16 @@
 //!   roles given on a spot whose shooter the team had not sensed for 15 s, and the jobs' lives (count, median, p90).
 //! - K3: trades refused, PairUp teammates refused and join / wait spots out of sight found, Crossfire spots left
 //!   out.
+//! - No feeding (`threat.concede`, `concede.rs`), by team: deaths recorded on a shooter's area (lone tries, job
+//!   roles), failed retries by kind, areas conceded (and again), opened by the shooter's death, jobs refused (conceded,
+//!   like the last try), plays refused or weighed for a target in a conceded area and those taken anyway, and item
+//!   15's waits.
 //!
 //! The counts are the threads' (`threat::counted`, `searches`, `checks`, `spent`), read as the difference from
 //! the topic's start: a match runs on one thread.
 
 use super::*;
+use crate::v026g::bots::concede;
 use crate::v026g::bots::threat;
 
 /// The threat answer's counts at the start of the match, for the difference at its end.
@@ -25,10 +30,11 @@ pub(super) struct ThreatAnswerCounts {
     searches: [u64; 4],
     checks: [u64; 2],
     spent: [u64; 3],
-    jobs: [[u64; 12]; 2],
+    jobs: [[u64; threat::JOB_TALLIES.len()]; 2],
     lives_from: usize,
     by_tag: [[u64; 3]; 4],
     offers: std::collections::BTreeMap<String, u64>,
+    concede: [[u64; concede::TALLIES.len()]; 2],
 }
 
 impl Default for ThreatAnswerCounts {
@@ -42,6 +48,7 @@ impl Default for ThreatAnswerCounts {
             lives_from: threat::job_lives(0).len(),
             by_tag: crate::v026g::bots::path::tag::counted(),
             offers: threat::offer_counts(),
+            concede: concede::tallied(),
         }
     }
 }
@@ -121,6 +128,22 @@ impl ThreatAnswerCounts {
             }
         }
         json.insert("job_offers".into(), serde_json::Value::Object(offers));
+        // [threat.concede] The no-feeding rules by team (design-p1c §3, items 11, 13, 15; `concede::TALLIES`).
+        let tallied = concede::tallied();
+        let mut concede_text = Vec::new();
+        for team in 0..2usize {
+            let mut team_json = serde_json::Map::new();
+            let mut parts = Vec::new();
+            for (i, (_, name)) in concede::TALLIES.iter().enumerate() {
+                let n = tallied[team][i] - self.concede[team][i];
+                team_json.insert((*name).into(), n.into());
+                if n > 0 {
+                    parts.push(format!("{name} {n}"));
+                }
+            }
+            json.insert(format!("concede_team{team}"), serde_json::Value::Object(team_json));
+            concede_text.push(format!("team {team}: {}", if parts.is_empty() { "nothing".to_string() } else { parts.join(", ") }));
+        }
         // The grid searches by why they ran: count, failed, floors.
         let by_tag = crate::v026g::bots::path::tag::counted();
         let mut work = Vec::new();
@@ -131,7 +154,7 @@ impl ThreatAnswerCounts {
         }
         let n = |key: &str| json.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
         let text = format!(
-            "owner-test threat answer: K1 routes checked {} exposed {}; searches round the lanes {} (round {}, no way {}, too long or no less exposed {}, out of floors {}), {} floors a search, exposed m asked {:.1} kept {:.1}; replans asked {} (clear {}; next route a new way {}, the same {}, none {}; new ways less exposed {}, out of the lanes {}); recasts {}; K2 roles given {}, let go not free {} / no play {}, jobs ended unheld {} / time {} / no bot {} / a holder down {}, holds left without a job for no free bot {} spot-ticks; {}; K3 trades refused {}, PairUp mates refused {}, join spots hidden {} (none {}), wait spots hidden {}, Crossfire spots left out {}, chokes on a held spot not theirs {}; grid searches by why: {}; K2 role offers: {}",
+            "owner-test threat answer: K1 routes checked {} exposed {}; searches round the lanes {} (round {}, no way {}, too long or no less exposed {}, out of floors {}), {} floors a search, exposed m asked {:.1} kept {:.1}; replans asked {} (clear {}; next route a new way {}, the same {}, none {}; new ways less exposed {}, out of the lanes {}); recasts {}; K2 roles given {}, let go not free {} / no play {}, jobs ended unheld {} / time {} / no bot {} / a holder down {}, holds left without a job for no free bot {} spot-ticks; {}; K3 trades refused {}, PairUp mates refused {}, join spots hidden {} (none {}), wait spots hidden {}, Crossfire spots left out {}, chokes on a held spot not theirs {}; grid searches by why: {}; K2 role offers: {}; no feeding (threat.concede): {}",
             n("k1_checked"),
             n("k1_exposed"),
             runs,
@@ -168,6 +191,7 @@ impl ThreatAnswerCounts {
             n("crossfire_choke_on_spot"),
             work.join(", "),
             offer_text.join(", "),
+            concede_text.join("; "),
         );
         Part::new(serde_json::Value::Object(json), text)
     }

@@ -113,6 +113,46 @@ pub struct SmokeTuning {
     /// (`RouteEnd::NoGoal`, about 0.24 s into the throw), and the route drawn after the throw could miss the crossing
     /// (`notes-route-20261030T0911`: both "route changed" throws of `h2h-sniper-d-20261030T0850`).
     pub throw_keeps_route: bool,
+    /// [A208] Smoke first, then the crossing (`WaitForCloud`): after a smoke's launch the thrower walks its route on to the
+    /// last point short of the crossing its threat does not see, and holds there until the cloud hides the planned
+    /// line. None: it walks on at the launch and reaches the crossing before its cloud hides (a trace of 283 smoked
+    /// sniper crossings, `full-25a-xing-20261031T1801`: 69 of 86 with his line open went over before their cloud hid,
+    /// 0.8-2 s early; the cloud pours at the fuse, 4 s from the press, and hides 1.24 s later).
+    pub wait_for_cloud: Option<WaitForCloud>,
+}
+
+/// [A208] `SmokeTuning::wait_for_cloud`: who holds for a cloud, and what ends the hold before the cloud hides the line.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WaitForCloud {
+    pub who: CloudWaiters,
+    /// The hold ends this long after the cloud should hide, ms: past the press + the fuse + the forming (the team's
+    /// rule, `smoke::Forming`) for its own smoke; past now + those for a mate's in the air. The landing and the
+    /// rule's lag are the margin.
+    pub margin_ms: u32,
+    /// An enemy its own senses (seen, heard, told) put this near within `close_sensed_ms` ends the hold, metres:
+    /// a fight is coming to it, and the crossing is not the danger then. Humans throw smokes at a nearest enemy
+    /// of 32 m median, 14 m at P10 (`fx-smoke-data.md` section 5).
+    pub close_m: Metres,
+    pub close_sensed_ms: u32,
+}
+
+impl Default for WaitForCloud {
+    fn default() -> Self {
+        Self { who: CloudWaiters::Thrower, margin_ms: 500, close_m: Metres::of(15.0), close_sensed_ms: 2_000 }
+    }
+}
+
+/// [A208] Who holds short of a crossing for a cloud.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudWaiters {
+    /// The thrower, for its own smoke (every use: the lanes, the sniper, an objective actor's, a Breach thrower's).
+    #[default]
+    Thrower,
+    /// The thrower, and every bot (a carrier too) whose next crossing of a held lane a team cloud in the air or
+    /// forming will hide, until it hides.
+    Crossers,
 }
 
 impl SmokeTuning {
@@ -148,6 +188,7 @@ impl Default for SmokeTuning {
             claim_m: Metres::of(8.0),
             claim_ms: 3_000,
             throw_keeps_route: true,
+            wait_for_cloud: None,
         }
     }
 }

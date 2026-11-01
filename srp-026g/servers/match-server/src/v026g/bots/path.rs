@@ -125,6 +125,8 @@ pub struct Route {
     /// How far under a walked leg's floor a body is still on it
     /// ([`OFF_WALK_BELOW_M`]; the motor sets it from `Feel::off_walk_below_m`).
     below_walk_m: f32,
+    /// Which floors behind a body count for where it is ([`PastDrop`]; the motor sets it from `Feel::past_drop`).
+    past_drop: PastDrop,
     /// The landings of the route's drops whose flight at a sprint ([`SPRINT_FLIGHT_MPS`]) comes down within the
     /// harmless fall ([`WalkGrid::drop_harmless_at`]); the planner sets them. None known (a route made some other
     /// way) means every drop is taken to be unsafe at a sprint.
@@ -187,6 +189,21 @@ impl DropTruth {
 /// The shallowest Drop link, metres: the client's step height (`Body::client().step`, 0.8), from which a grid link is
 /// a drop and not a step.
 pub const DROP_LINK_MIN_M: f32 = 0.8;
+
+/// Which of the route's floors behind a body count for where it may be along the route ([`Route::progress`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PastDrop {
+    /// Every floor [`FALL_BACK_M`] back, the top of a drop as well: a body on a drop's top that is near its landing on the ground
+    /// plane is on the legs after it. Mamayev Kurgan's walk-off at (105.4, 29.9, 128.9), 0.7 m across and 3.1 m down: a body
+    /// at the edge was put on the leg past the landing, and once braked back it steered at that leg's end, 3.8 m on and 3.2 m
+    /// down, into the wall 0.9 m ahead (PROVEN, the route code replayed on the map).
+    #[default]
+    Window,
+    /// The floors back to the landing of the last drop behind the body only: a body is on a leg past a drop once it is down.
+    /// A falling body is on the drop's own leg, whose floors run from the top down.
+    Landed,
+}
 
 /// The speed a body leaves a drop's edge at when it sprints, m/s: a sprint is 5.0-5.1 m/s in the client (PROVEN: the
 /// J0 and item 10 rows, 5.08 m/s in the air with the key held).
@@ -794,6 +811,23 @@ pub mod below_walk {
     }
 }
 
+/// The bench's count of the legs [`PastDrop::Landed`] kept a body off (the window back to the last drop's landing): with
+/// [`PastDrop::Window`] it would have been on them, past a drop it had not gone down.
+#[cfg(test)]
+pub mod past_drop {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn count() {
+        COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> u64 {
+        COUNT.load(Ordering::Relaxed)
+    }
+}
+
 /// A grid path pulled straight: only the real corners left (module
 /// documentation).
 fn pull(grid: &WalkGrid, nodes: Vec<NodeId>, allowed: impl Fn(NodeId) -> bool) -> Route {
@@ -1125,7 +1159,7 @@ impl Route {
             new_at.push(total);
         }
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, planned, below_walk_m, .. } = self;
+        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, planned, below_walk_m, past_drop, .. } = self;
         gates.extend(corner.iter().flatten());
         let mut route = Self::with_floors(points, floors);
         route.sprint_drops = sprint_drops;
@@ -1134,6 +1168,7 @@ impl Route {
         route.gates = gates;
         route.planned = planned;
         route.below_walk_m = below_walk_m;
+        route.past_drop = past_drop;
         route
     }
 
@@ -1244,6 +1279,7 @@ impl Route {
             floors,
             segment: 0,
             below_walk_m: OFF_WALK_BELOW_M,
+            past_drop: PastDrop::Window,
             sprint_drops: Vec::new(),
             ledge_leads: Vec::new(),
             ledge_tops: Vec::new(),
@@ -1301,6 +1337,25 @@ impl Route {
     /// This route's rule for a body under a walked leg ([`OFF_WALK_BELOW_M`]).
     pub fn set_below_walk(&mut self, metres: f32) {
         self.below_walk_m = metres;
+    }
+
+    /// Which floors behind a body count for where it is ([`PastDrop`]).
+    pub fn set_past_drop(&mut self, past_drop: PastDrop) {
+        self.past_drop = past_drop;
+    }
+
+    /// Where the floors behind the body at `s` on `segment` that count for it start ([`PastDrop`]): [`FALL_BACK_M`] back,
+    /// with [`PastDrop::Landed`] not past the landing of the last drop at or before the segment's start (a waypoint a lip's
+    /// height or more under the one before it, reached by no jump).
+    fn fall_back_from(&self, segment: usize, s: f32) -> f32 {
+        let back = s - FALL_BACK_M;
+        match self.past_drop {
+            PastDrop::Window => back,
+            PastDrop::Landed => (1..=segment)
+                .rev()
+                .find(|&k| self.points[k].jump.is_none() && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
+                .map_or(back, |k| back.max(self.along[k])),
+        }
     }
 
     /// The highest floor from `s0` to `s1` metres along the route.
@@ -1418,9 +1473,16 @@ impl Route {
                 (((feet.x - a.x) * dx + (feet.z - a.z) * dz) / length2).clamp(0.0, 1.0)
             };
             let s = self.along[segment] + t * length2.sqrt();
-            if feet.y < self.floor_at(s) - self.below_m(segment)
-                || feet.y > self.highest_floor(s - FALL_BACK_M, s) + OFF_ROUTE_HEIGHT_M
+            let above = |from: f32| feet.y > self.highest_floor(from, s) + OFF_ROUTE_HEIGHT_M;
+            #[cfg(test)]
+            if self.past_drop == PastDrop::Landed
+                && feet.y >= self.floor_at(s) - self.below_m(segment)
+                && !above(s - FALL_BACK_M)
+                && above(self.fall_back_from(segment, s))
             {
+                past_drop::count();
+            }
+            if feet.y < self.floor_at(s) - self.below_m(segment) || above(self.fall_back_from(segment, s)) {
                 #[cfg(test)]
                 if feet.y >= self.floor_at(s) - OFF_ROUTE_HEIGHT_M
                     && feet.y <= self.highest_floor(s - FALL_BACK_M, s) + OFF_ROUTE_HEIGHT_M
@@ -1694,6 +1756,31 @@ impl Route {
 mod tests {
     use super::*;
     use crate::v026g::bots::body::tests::walled;
+
+    /// [`PastDrop::Landed`]: a body still on a drop's top past which the drop's landing lies on the ground plane (a walk-off
+    /// 0.7 m across and 3 m down, Mamayev Kurgan's) is on the drop's own leg, heading for the landing; with
+    /// [`PastDrop::Window`] it is on the leg after the landing, heading for its end. Once down it is on that leg with either.
+    #[test]
+    fn a_body_on_a_drops_top_is_not_on_the_legs_past_its_landing() {
+        let wp = |x: f32, y: f32, z: f32| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let route = Route::new(vec![wp(0.0, 3.0, 0.0), wp(5.0, 3.0, 0.0), wp(4.5, 0.0, 0.5), wp(2.5, 0.0, 3.0)]);
+        let on = |past_drop: PastDrop, path: &[Vec3]| {
+            let mut route = route.clone();
+            route.set_past_drop(past_drop);
+            for &feet in path {
+                route.progress(feet);
+            }
+            route.segment()
+        };
+        // Along the top to the edge, a little past the landing on the ground plane, braked back.
+        let top = [Vec3::new(2.0, 3.0, 0.0), Vec3::new(4.6, 3.0, 0.3), Vec3::new(4.4, 3.0, 0.62), Vec3::new(4.9, 3.0, 0.05)];
+        assert_eq!(on(PastDrop::Window, &top), 2, "the window puts it on the leg past the landing");
+        assert_eq!(on(PastDrop::Landed, &top), 1, "landed: on the drop's leg");
+        // Down on the landing and on.
+        let down = [Vec3::new(2.0, 3.0, 0.0), Vec3::new(4.6, 3.0, 0.3), Vec3::new(4.4, 0.0, 0.62)];
+        assert_eq!(on(PastDrop::Window, &down), 2);
+        assert_eq!(on(PastDrop::Landed, &down), 2);
+    }
 
     #[test]
     fn a_stretch_of_a_route_is_replaced_by_a_detour_and_the_rest_is_kept() {

@@ -675,6 +675,66 @@ impl JumpCounts {
             {
                 route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
             }
+            // `SRP_BENCH_JUMP_ROWS` (A187's residual check, local): one row per route jump: the link's rise, sprint held and the
+            // body's speed at the press, a battery carried, where the honest stand-in came down and with which clip, the flags.
+            if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_JUMP_ROWS")
+                && let Some((from, to)) = p.route
+            {
+                let recs = &run.recs[p.place];
+                let ri = run.index(p.t).min(recs.len().saturating_sub(1));
+                // The speed the stand-in picked the clip by: the last step before the press (the press's own tick makes
+                // none, the body is in the jump from it).
+                let keys = recs.get(ri).map_or(0, |r| r.keys);
+                let speed = recs.get(ri.saturating_sub(1)).map_or(0.0, |r| r.speed);
+                let landing = self.landings.iter().find(|l| l.place == p.place && l.at == p.t);
+                // `SRP_BENCH_JUMP_TRACE=x,z;x,z`: the records of the presses at those take-offs (within 0.6 m), 1 s before to
+                // 2 s after, the first 6 failed (came down, or nowhere) and the first 6 up at each, a run.
+                if let Ok(spots) = crate::v026g::bots::tests::bench_settings().var("SRP_BENCH_JUMP_TRACE")
+                    && let Some(spot) = spots.split(';').position(|s| {
+                        let v: Vec<f32> = s.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                        v.len() == 2 && (from.x - v[0]).hypot(from.z - v[1]) <= 0.6
+                    })
+                {
+                    static TRACED: std::sync::Mutex<Vec<[u32; 2]>> = std::sync::Mutex::new(Vec::new());
+                    let mut traced = TRACED.lock().unwrap_or_else(|e| e.into_inner());
+                    if traced.len() <= spot {
+                        traced.resize(spot + 1, [0; 2]);
+                    }
+                    let up = usize::from(landing.is_some_and(|l| l.to.y >= to.y - UP_SLACK_M));
+                    if traced[spot][up] < 6 {
+                        traced[spot][up] += 1;
+                        eprintln!(
+                            "jumptrace\t{spot}\t{}\t{}\tlink ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}); {} {}",
+                            p.place, p.t, from.x, from.y, from.z, to.x, to.y, to.z,
+                            if up == 1 { "up" } else { "down" },
+                            landing.map_or("nowhere".into(), |l| format!("at ({:.2}, {:.2}, {:.2}) {}", l.to.x, l.to.y, l.to.z, if l.sprint { "sprint clip" } else { "short clip" }))
+                        );
+                        for k in ri.saturating_sub(20)..(ri + 40).min(recs.len()) {
+                            let r = &recs[k];
+                            eprintln!(
+                                "jumptrace\t{spot}\t{}\t{}\t{:+}\t{:.2}\t{:.2}\t{:.2}\t{:#x}\t{:.0}\t{}\t{:.2}\t{}\t{:#x}\t{}",
+                                p.place, p.t, k as i64 - ri as i64, r.feet.x, r.feet.y, r.feet.z, r.keys,
+                                r.yaw.to_degrees(), u8::from(r.air), r.speed, r.walk, r.why, u8::from(r.has_route)
+                            );
+                        }
+                    }
+                }
+                eprintln!(
+                    "jumprow\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{:.3}\t{}\t{}\t{:.2}\t{}\t{}\t{}",
+                    p.place,
+                    p.t,
+                    from.x,
+                    from.y,
+                    from.z,
+                    to.y - from.y,
+                    u8::from(keys & key::SPRINT != 0),
+                    u8::from(p.carrying),
+                    speed,
+                    landing.map_or("none", |l| if l.to.y < to.y - UP_SLACK_M { "down" } else { "up" }),
+                    landing.map_or("-", |l| if l.sprint { "sprint" } else { "short" }),
+                    flags.join("+")
+                );
+            }
             if let Some((from, to)) = p.route
                 && to.y - from.y > crate::v026g::bots::motor::WALK_JUMP_TOP_M
             {
