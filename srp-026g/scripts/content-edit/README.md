@@ -100,6 +100,13 @@ the capture units' `capture_zones`). Moving spawns or capture units, or changing
 stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
 list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
+## Stats tables
+
+`<category>-stats.tsv` (`weapon-stats.tsv`): a row per config, a column per stat; an empty cell means
+the config has no such key. To retune, edit the cell. `content_edit.py` `STATS` maps each column to
+its key path; the build writes the cells and the cards, and refuses a config that differs from its
+row. `content_edit.py --dump-stats <category> <folder>` prints a table from configs.
+
 ## weapon-balance-1.json (2026-10-18)
 
 Scored against the recorded live matches since revision 19 (about 10,000 gun kills):
@@ -165,31 +172,6 @@ game data): 83 files edited, 0 unexpected differences; in `release/build-content
 after golden-weapons-1 and the other lists of the manifest): 83 files edited, 0 unexpected
 differences.
 
-## weapon-balance-2.json (2026-10-20)
-
-| change | why |
-|---|---|
-| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 40 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here"; then, shown the table below: "50 35 for ak-12" (piercing between 0.27d0's 40 and 0.28a2's 30; 0.28a2 rebalanced the whole game, so only the AK-12's own change is taken); 2026-10-21: "ak12 to have 40 penet" |
-| premium AK-12: `default_modifications` [1230, 2044, 2094] -> [1230] (a new edit, `remove_item`) | the owner: a premium weapon gives silver and nothing else. 1230 is +10 % silver; 2044 (reload time -15 %) and 2094 (reliability +25 %) go. The defaults are not on the wire: the client and srp both read them from the config |
-| Socom16 (`wpn_socom16`): `bullet_damage` 0.8 -> 0.7; the card's damage 80 -> 70 | the owner: "and also Socom16 75 → 50" (0.28a2's cut); then, shown the table below: "seems like socom is nerfed too much, let's make it 60" (0.31a2's value); 2026-10-21: "socom16 is fine if it has 70 damage". Live has 0.26g's 0.8 (0.27d0 had cut it to 0.75). Piercing stays 0.45: 0.28a2 also cut it to 0.35, the owner named the damage only |
-| A-545 (`wpn_a545`): `bullet_damage` 0.5 -> 0.45, `bullet_pierce` 0.3 -> 0.25, `rounds_per_minute` 900 -> 800; the card's props 1, 3, 4 to match | the owner, 2026-10-21, shown its history: yes to 0.28a's nerf (0.28a2's values; its recoil change not taken) |
-
-The two weapons in the builds at hand (damage / piercing; the card shows them x100):
-
-| build | AK-12 | premium AK-12 | Socom16 |
-|---|---|---|---|
-| 0.26g stock | 0.55 / 0.45 | - | 0.80 / 0.45 |
-| live, revision 25 | 0.55 / 0.45 | 0.55 / 0.45 | 0.80 / 0.45 |
-| 0.27d0 (no 0.27a at hand) | 0.55 / 0.40 | 0.50 / 0.40 | 0.75 / 0.45 |
-| 0.28a2 | 0.50 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
-| 0.28d0 | 0.45 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
-| 0.31a2 | 0.35 / 0.55 | 0.35 / 0.55 | 0.60 / 0.40 |
-| 0.46c2 (`material_pierce` 6, another scale) | 0.26 / - | 0.26 / - | 0.65 / - |
-| **here** | 0.50 / 0.40 | 0.50 / 0.40 | 0.70 / 0.45 |
-
-Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
-`wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
-
 ## grenade-bounce-1.json (2026-10-21)
 
 | change | why |
@@ -210,11 +192,6 @@ Applied to revision 26's server game data (`gameplay/items/weapons/`): 22 files 
 unexpected differences; server data built with it and the patches before passes `srp-check-game-data`. srp and
 `release/build-server-db` refuse data without it (`golden::check`). The patch also
 carries the lobby movie built from the tree (the craft result shows the item upgraded, not the donor).
-
-`wpn_ak_12_premium.options` is also weapon-balance-2's: a patch carries a file whole, so in one
-release apply this list to weapon-balance-2's output, not to the live file beside it (checked on
-revision 24's files: weapon-balance-2, then this list over its output: 22 files edited, 0
-unexpected differences).
 
 ## death-poses-1.json (2026-10-21)
 
@@ -455,29 +432,9 @@ Removed: its text is in `client-patches/localization/*.tsv`.
 Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`).
 
-## socom-nerf-1.json (2026-10-25)
-
-| change | why |
-|---|---|
-| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
-| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
-
-Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
-edited, 0 unexpected differences. The simulation changes (the `next` row of
-`simulation_changes.tsv`).
-
 ## network-texts-1.json (2026-10-25)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## svd-level-1.json (2026-10-25)
-
-| change | why |
-|---|---|
-| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
-
-Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
-differences. Not a simulation change.
 
 ## kill-feed-weapons-1.json (2026-10-26)
 
@@ -522,33 +479,3 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
-
-## patch19-melee-1.json (2026-11-01)
-
-| change | why |
-|---|---|
-| `melee/data/k_damage` 2 -> 1.5 (a float) on the 21 weapons patch 19 added from 0.29a3 (AEK-919K, FNC, P90, HK416, Kedr, KRISS, M4A1, the three MP7s, MSBS, both Neosteads, PKP, Saiga-12K and its premium, SOK-94, Valmet, Vepr-12 and its premium, vz. 58) | every native weapon has 1.5; patch 19's port wrote the natives' 1.5 into the donor's integer field, rounded to 2, so these guns hit a third harder with the butt (the owner, 2026-11-01: fix to 1.5); found by resource-porter's re-port of patch 19 (`ports/weapons-029a3-patch19.known.tsv`) |
-
-## recoil-hk416-m4a1-1.json (2026-11-01)
-
-| change | why |
-|---|---|
-| HK416 and M4A1 (`wpn_hk416`, `wpn_m4a1`, the 0.29a3 ports of base patch 19): `recoil/recoil_power` 0.88 -> 0.55; `min_top_recoil` / `max_top_recoil` 1.98 / 2.2 -> 1.7 / 1.9 (HK416) and 1.5 / 1.5 (M4A1, the AK-12's) (floats kept); the card's props 146 and 147 to match | the owner: the AK-12 (top 1.5, power 0.5, 650 rounds a minute) feels fine, the HK416 doesn't; bring both nearer the AK-12, keep them distinct. A shot adds `T / 63.735 x (1 - max(y, 0)^p)` to the kick (on_shot 0x331C50), so a lower power saturates sooner and a burst climbs less |
-
-Side ranges (1.5-2 both sides), shake and PID gains unchanged. A 1 s burst with the client's model
-(as `srp-026g/scripts/wiki/recoil.js`: 50 ms ticks, each rifle's own rate of fire, aimed, no pull-down;
-60 degrees of view a unit of kick), mean of 500 runs:
-
-| weapon | rpm | shots in 1 s | top | power | climb at 0.5 s | peak climb |
-|---|---|---|---|---|---|---|
-| AK-12 (unchanged) | 650 | 11 | 1.5 | 0.5 | 3.0° | 5.05° |
-| HK416 before / after | 850 | 15 | 1.98-2.2 / 1.7-1.9 | 0.88 / 0.55 | 4.8° / 3.7° | 8.2° / 6.2° |
-| M4A1 before / after | 750 | 13 | 1.98-2.2 / 1.5-1.5 | 0.88 / 0.55 | 6.2° / 4.1° | 9.3° / 6.1° |
-
-The M4A1 takes the AK-12's top kick (the owner: "make the M4A1 like the AK-12"). With the HK416's
-1.7-1.9 it peaked at 7.1°, 40 % above the AK-12: with the same values it climbs more than the HK416,
-though it fires slower. A shot is taken at the first tick after its time, its ramp is cut short by
-the next shot's and the PID runs in the ticks between; with its 70.6 ms interval against the 50 ms
-ticks the HK416 keeps about two thirds of each kick and spends 0.34 s of the second under the PID,
-the M4A1 (80 ms) about three quarters and 0.26 s. Side drift stays about 0.03° either way. The
-simulation changes (the `next` row of `simulation_changes.tsv`).

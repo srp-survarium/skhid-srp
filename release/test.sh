@@ -2407,6 +2407,19 @@ else:
 open(sys.argv[1], 'wb').write(buf)
 EOF
 python3 "$T/mkcfg.py" "$T/b40/gameplay/items/vec.options" vector
+# mkgun <file> <damage> <card damage>: a weapon config; mkgun <weapon-stats.tsv> [damage]: its table.
+cat >"$T/mkgun.py" <<'EOF'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+from test_content_edit import weapon, table, cells_of
+os.makedirs(os.path.dirname(sys.argv[2]), exist_ok=True)
+if sys.argv[2].endswith('-stats.tsv'):
+    open(sys.argv[2], 'w').write(table({'wpn_t': cells_of(sys.argv[3])} if sys.argv[3:] else {}))
+else:
+    open(sys.argv[2], 'wb').write(weapon(float(sys.argv[3]), sys.argv[4]))
+EOF
+mkgun() { python3 "$T/mkgun.py" "$here/../srp-026g/scripts/content-edit" "$@"; }
+mkgun "$T/b40/gameplay/items/weapons/wpn_t.options" 0.5 50
 quiet "$bin" pack --dir "$T/b40" --out "$T/patches/resources.db.patch_40"
 printf '{"schema": 2, "movie": "flash_movies/m.swf", "archive": "resources.db.patch_40", "movie_sha256": "%s"}\n' \
     "$(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)" >"$C/srp-026g/flash/m/movie.json"
@@ -2414,6 +2427,8 @@ echo 1 >"$C/srp-026g/flash/m/src/version"
 cat >"$C/srp-026g/scripts/content-edit/content_edit.py" <<'EOF'
 import json, os, sys
 edits, live, out = sys.argv[1:4]
+if edits.endswith("-stats.tsv"):
+    sys.exit(print("a stats table: nothing written"))
 for e in json.load(open(edits)).get("add_value", []):
     for f in e["files"]:
         os.makedirs(os.path.dirname(os.path.join(out, f)), exist_ok=True)
@@ -2541,6 +2556,40 @@ expect_refused "build-content: a pack writing a vector as an indexed table" \
     "gameplay/items/vec.options: /position was float3, now indexed table" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42t"
 check "build-content: ... and no patch" test ! -e "$T/work/c42t"
+
+gun_pack() { # <version> <damage> <card> [edit rows]: the pack gun@<version> rewriting wpn_t; its manifest
+    mkgun "$T/packs/gun-$1/files/gameplay/items/weapons/wpn_t.options" "$2" "$3"
+    printf '{"id": "gun", "version": "%s"}\n' "$1" >"$T/packs/gun-$1/pack.json"
+    manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|gun@$1|$(sha256sum <"$T/packs/gun-$1/pack.json" | cut -c1-64)" "edit|e1.json|-" "${@:4}"
+}
+gun_pack 1 0.5 40
+expect_refused "build-content: a weapon card that says another number than its config" \
+    "gameplay/items/weapons/wpn_t.options: card line 1 says '40', its config '50'" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42w"
+gun_pack 2 0.4 40
+expect_refused "build-content: a weapon's damage players have otherwise, without the next row" \
+    "simulation_changes.tsv has no \`next\` row" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42x"
+mkdir -p "$C/srp-026g/crates/session/src/v026g"
+printf '# revision\twhat\nnext\tthe test gun\n' >"$C/srp-026g/crates/session/src/v026g/simulation_changes.tsv"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42y" 2>&1) ||
+    fail "build-content with a retuned gun and the next row: $out"
+check "build-content: ... with it, the value said" has "$out" "match value: gameplay/items/weapons/wpn_t.options parameters/bullet_damage"
+# The stand-in content_edit.py writes no stats table, so the pack's damage 0.4 stays.
+stats=$C/srp-026g/scripts/content-edit/weapon-stats.tsv
+mkgun "$stats" 0.5
+gun_pack 2 0.4 40 "edit|weapon-stats.tsv|-"
+expect_refused "build-content: a weapon config that is not its stats row" \
+    "wpn_t.options: damage (parameters/bullet_damage) is 0.4, its row says 0.5" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42z"
+mkgun "$stats"
+expect_refused "build-content: a weapon config without a row" "wpn_t.options: no row in weapon-stats.tsv" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42z"
+mkgun "$stats" 0.4
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42s2" 2>&1) ||
+    fail "build-content with a weapon stats table: $out"
+check "build-content: ... each its row, said" has "$out" "weapon stats: 1 config(s), each its row of weapon-stats.tsv"
+rm -r "$C/srp-026g/crates" "$stats"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
 # An edit list whose `files` is a list of paths (content_edit.py's add_value), not a glob.
