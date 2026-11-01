@@ -436,6 +436,8 @@ pub struct Stack {
     pub match_addr: SocketAddr,
     /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
     pub min_patch_revision: u8,
+    /// The bots' tuning: what each match runs on, which the admin page's Bots section changes.
+    pub bot_tuning: Arc<matches::LiveTuning>,
     stop: Arc<AtomicBool>,
     /// The lobby's and the match server's threads: the ones [`Stack::stop`]
     /// waits for.
@@ -451,8 +453,8 @@ impl Stack {
         accounts: Arc<GameAccounts>,
         options: Options,
     ) -> io::Result<Self> {
-        // The bots' tuning file, read once: one the server cannot use stops srp here, with the reason, and
-        // never starts the matches on the defaults.
+        // The bots' tuning file, read here: one the server cannot use stops srp here, with the reason, and never
+        // starts the matches on the defaults. Each match takes it again, with the admin page's changes.
         let bot_tuning = matches::bot_tuning_from_env()?;
         // Kept in the accounts' repository: a restart forgets neither a
         // results screen not shown yet nor an account's play period.
@@ -496,7 +498,7 @@ impl Stack {
         let match_addr = match_socket.local_addr()?;
         let registry = Arc::new(
             MatchRegistry::new(&options.match_public_host, match_addr.port())
-                .with_bot_pockets(bot_tuning.tuning().kit.pockets()),
+                .with_bot_pockets(bot_tuning.at_start().kit.pockets()),
         );
 
         // One for the process: the match server converts, the lobby gives
@@ -567,7 +569,7 @@ impl Stack {
             None => log::info!("Replays are off (SRP_REPLAY_DIR, SRP_GAME_MODES_DIR)"),
         }
         {
-            let (registry, store, accounts, results, inbox, stop, replays) = (
+            let (registry, store, accounts, results, inbox, stop, replays, bot_tuning) = (
                 registry.clone(),
                 store.clone(),
                 accounts.clone(),
@@ -575,6 +577,7 @@ impl Stack {
                 inbox.clone(),
                 stop.clone(),
                 replays.clone(),
+                bot_tuning.clone(),
             );
             let mut socket = Some(match_socket);
             let flag = stop.clone();
@@ -644,6 +647,7 @@ impl Stack {
             lobby_addr,
             match_addr,
             min_patch_revision: options.lobby.min_patch_revision,
+            bot_tuning,
             stop,
             threads,
         })
@@ -662,6 +666,7 @@ impl Stack {
             patches: offered_patches(),
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
+            bots: Some(self.bot_tuning.clone()),
         }
     }
 

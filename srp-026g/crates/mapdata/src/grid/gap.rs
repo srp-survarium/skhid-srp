@@ -968,6 +968,76 @@ impl WalkGrid {
         level.map(|(to, _)| to)
     }
 
+    /// How far from `a`'s centre in direction `d` a body walks on `a`'s height before it falls ([`Self::walk_off`]): while a
+    /// surface of that height is under its centre (past the floors erosion took from the edge), up to 2 m.
+    fn walk_off_edge(&self, a: usize, d: usize, solids: &Solids) -> f32 {
+        let from = self.position(a as NodeId);
+        let h = self.height[a];
+        let (di, dk) = DIRS[d];
+        let len = ((di * di + dk * dk) as f32).sqrt();
+        let (ux, uz) = (di as f32 / len, dk as f32 / len);
+        let ds = 0.5 * self.cell;
+        let surface_under = |s: f32| {
+            let (px, pz) = (from.x + ux * s, from.z + uz * s);
+            self.cell_at(px, pz).is_some_and(|c| {
+                solids.spans[solids.start[c] as usize..solids.start[c + 1] as usize]
+                    .iter()
+                    .any(|&(_, hi)| (hi - h).abs() <= 0.06)
+            })
+        };
+        let mut edge = 0.0f32;
+        while edge < 2.0 && surface_under(edge + ds) {
+            edge += ds;
+        }
+        edge
+    }
+
+    /// [A238] The floor a body comes down on when it slips off `a`'s edge in direction `d` slower than any walk-off is flown for
+    /// (`Body::slip_landings`): it goes over where a walk-off does ([`Self::walk_off_edge`], half a cell on) or where the
+    /// capsule stops being held by the edge ([`WALK_OFF_REACH_M`] past the floor's centre), whichever is further, and falls about
+    /// straight down, onto the highest floor lower than a step and within the harmless drop whose cell overlaps the square of the
+    /// body's radius and half a cell around that point: the bots' reckoning's slip (`body::under_edge` from `body::SUPPORT_M`
+    /// under `kin.walk_off_landing = by_speed`). Vector Laboratory's 20.6 lip: the walk-off lands 2.5 m out on 17.80, a slip on the
+    /// 16.22 ledge under the edge (two bots' FALL lines, `fx-smoke-pockets.md` §1).
+    fn slip_landing(&self, a: usize, d: usize, solids: &Solids) -> Option<u32> {
+        let from = self.position(a as NodeId);
+        let h = self.height[a];
+        let (di, dk) = DIRS[d];
+        let len = ((di * di + dk * dk) as f32).sqrt();
+        let (ux, uz) = (di as f32 / len, dk as f32 / len);
+        let ds = 0.5 * self.cell;
+        let s = (self.walk_off_edge(a, d, solids) + ds).max(WALK_OFF_REACH_M);
+        let (px, pz) = (from.x + ux * s, from.z + uz * s);
+        let r = self.body.radius + ds;
+        self.floors_in([px - r, pz - r, px + r, pz + r])
+            .filter(|&f| {
+                let fy = self.height[f as usize];
+                fy < h - self.body.step && fy >= h - self.body.max_drop
+            })
+            .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
+    }
+
+    /// [A238] `Body::slip_landings`: each walk-off gap drop's take-off and the floor a slip off it comes down on
+    /// ([`Self::slip_landing`]) where that is not the walk-off's own landing level, by take-off: the reach's floods take them
+    /// (`Wide::slips`), no link does.
+    pub(super) fn slip_landings(&self, wide: &Wide, solids: &Solids) -> Vec<(u32, u32)> {
+        let mut slips: Vec<(u32, u32)> = wide
+            .off
+            .iter()
+            .filter(|l| l.press == Takeoff::WalkOff)
+            .filter_map(|l| {
+                let (fi, fk) = self.cell_xz(self.cell_of[l.from as usize] as usize);
+                let (ti, tk) = self.cell_xz(self.cell_of[l.to as usize] as usize);
+                let d = DIRS.iter().position(|&dir| dir == ((ti - fi).signum(), (tk - fk).signum()))?;
+                let s = self.slip_landing(l.from as usize, d, solids)?;
+                ((self.height[s as usize] - self.height[l.to as usize]).abs() > SAME_TOP).then_some((l.from, s))
+            })
+            .collect();
+        slips.sort_unstable();
+        slips.dedup();
+        slips
+    }
+
     /// One walk-off at `speed`: the body leaves `a`'s cell at its edge on
     /// `a`'s height and falls; the first floor it comes down to.
     fn walk_off(&self, a: usize, d: usize, speed: f32, solids: &Solids) -> Option<u32> {
@@ -979,21 +1049,7 @@ impl WalkGrid {
         let ds = 0.5 * self.cell;
         let floors = |cell: usize| self.start[cell]..self.start[cell + 1];
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
-        // It walks on `a`'s height while a surface of that height is under
-        // its centre (past the floors erosion took from the edge), and
-        // falls from where it ends.
-        let surface_under = |s: f32| {
-            let (px, pz) = at(s);
-            self.cell_at(px, pz).is_some_and(|c| {
-                solids.spans[solids.start[c] as usize..solids.start[c + 1] as usize]
-                    .iter()
-                    .any(|&(_, hi)| (hi - h).abs() <= 0.06)
-            })
-        };
-        let mut edge = 0.0f32;
-        while edge < 2.0 && surface_under(edge + ds) {
-            edge += ds;
-        }
+        let edge = self.walk_off_edge(a, d, solids);
         let mut last = h;
         let mut x = edge + ds;
         loop {
@@ -1428,6 +1484,42 @@ mod tests {
 
     /// A block from x0 to x1 (z 0 to 10), its top at `y`, standing on
     /// `ground`.
+    /// [A238] A lip whose walk-off lands 1.8 m out (2 m down), over a ledge 0.75 m past the edge that no link reaches (Vector
+    /// Laboratory's 20.6 lip, its 17.80 landing and its 16.22 ledge), with a way back up from the landing: with
+    /// `Body::slip_landings` the ledge is reached (a slip off the walk-off's take-off comes down on it) and a pocket, no walk
+    /// returning from it; without, it is not; no link leads onto it either way, so no route plans it.
+    #[test]
+    fn a_ledge_only_a_slip_gets_to_is_reached_with_the_switch() {
+        let walker = WalkerBehaviour::BySlope;
+        let mut t: Vec<Triangle> = Vec::new();
+        t.extend(quad(0.0, 0.0, 10.0, 8.0, 4.0));
+        t.extend(quad(10.75, 0.0, 11.0, 4.0, 0.5));
+        t.extend(quad(11.8, 0.0, 20.0, 4.0, 2.0));
+        t.push(Triangle { v: [Vec3::new(20.0, 2.0, 0.0), Vec3::new(24.0, 4.0, 0.0), Vec3::new(24.0, 4.0, 4.0)], walker });
+        t.push(Triangle { v: [Vec3::new(20.0, 2.0, 0.0), Vec3::new(24.0, 4.0, 4.0), Vec3::new(20.0, 2.0, 4.0)], walker });
+        t.extend(quad(24.0, 0.0, 26.0, 8.0, 4.0));
+        t.extend(quad(10.0, 6.0, 24.0, 8.0, 4.0));
+        let start = [Vec3::new(5.0, 4.0, 2.0)];
+        let build = |slip_landings: bool| {
+            let body = Body { slip_landings, ..Body::default() };
+            WalkGrid::build_kept_with_links(&t, [0.0, -1.0, 27.0, 9.0], 0.25, body, &start, &start, OffMeshLinks::Gaps).0
+        };
+        let ledge = |grid: &WalkGrid| grid.locate(Vec3::new(10.875, 0.5, 2.0), 0.3).filter(|&n| (grid.position(n).y - 0.5).abs() < 0.05);
+        let off = build(false);
+        assert!(off.off_links().iter().any(|l| l.press == Takeoff::WalkOff), "the lip's walk-off");
+        assert!(ledge(&off).is_none_or(|n| !off.reached(n)), "without the switch the ledge is no floor reached");
+        let on = build(true);
+        let n = ledge(&on).expect("the ledge is kept");
+        assert!(on.reached(n) && !on.returns(n) && on.in_pocket(n), "reached, no way back: a pocket");
+        assert!(on.pocket_of(n).is_some());
+        // Not a link: no route plans a slip.
+        let ledge_floors: Vec<NodeId> = (0..on.len() as NodeId).filter(|&f| (on.position(f).y - 0.5).abs() < 0.05).collect();
+        assert!(ledge_floors.iter().all(|&f| !(0..on.len() as NodeId).any(|a| !ledge_floors.contains(&a) && on.links(a).any(|(b, _)| b == f))));
+        // The lip itself is as it was: still reached, still returning.
+        let lip = on.locate(Vec3::new(9.875, 4.0, 2.0), 0.3).unwrap();
+        assert!(on.reached(lip) && on.returns(lip));
+    }
+
     fn block(x0: f32, x1: f32, y: f32, ground: f32) -> Vec<Triangle> {
         let mut t = quad(x0, 0.0, x1, 10.0, y).to_vec();
         t.extend(face_x(x0, 0.0, 10.0, ground, y));

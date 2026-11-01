@@ -239,6 +239,8 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 | `SRP_PVB_MASKS` | top | Whether every bot wears the respirator the top players of its tier wear (`docs/notes/pvb-tiers.md` §3.2): `top` (the default) puts `ren_mask_3` at 9-10, `edge_resp_3` at 13-15 in the mask slot of every role, in place of the table's piece; the lowest tier has none (two in three of its top players wear none). Read when the server starts. An item the game data lacks: none |
 | `SRP_BOT_TRACE_DIR` | unset (off) | Where each match's bots write their decision trace, one JSON line a decision (`bots_<match>.jsonl`, `servers/match-server/src/v026g/bots/trace.rs`): what a stuck or odd bot was doing and why |
 | `SRP_BOT_TRACE_MAX_MB` | 2000 | The traces over this many MB together go, the oldest first, when a match opens its own |
+| `SRP_BOT_TUNING` | unset (the shipped defaults) | The bots' tuning: a JSON merge patch over the defaults (`servers/match-server/src/v026g/bots/tuning/mod.rs`). A file the server cannot use stops it at the start; it is read again before each match, and one refused then (unreadable, a value refused, or a change of the maps' grid or the bots' kits, which needs a restart) keeps the last good tuning, logged and shown on the admin page |
+| `SRP_BOT_ADMIN_TUNING` | `/srv/srp/data/bot-admin-tuning.json` (the compose file; unset: in memory only) | Where the admin page's Bots tab keeps its changes over the tuning (a JSON merge patch of the tab's knobs only, from the next match), with their audit beside it (`<name>.audit.jsonl`: when, from which address, the knob, old and new). One that cannot be used at the start is left out and shown on the tab (`bots/tuning/live.rs`) |
 
 ### Match server (`servers/match-server/src/v026g/mod.rs`)
 

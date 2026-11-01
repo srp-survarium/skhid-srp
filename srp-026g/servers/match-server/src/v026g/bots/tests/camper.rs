@@ -157,7 +157,7 @@ impl CamperOptions {
             at: CamperAt::parse(get("SRP_BENCH_CAMPER_AT").as_deref())?,
             watch: Watch::parse(get("SRP_BENCH_CAMPER_WATCH").as_deref())?,
             side: CamperSide::parse(get("SRP_BENCH_CAMPER_SIDE").as_deref())?,
-            start: CamperStart::parse(get("SRP_BENCH_CAMPER_START").as_deref())?,
+            start: CamperStart::parse(get("SRP_BENCH_CAMPER_START").as_deref(), get("SRP_BENCH_CAMPER_ARRIVE").as_deref())?,
             returns: ReturnRule::parse(get("SRP_BENCH_CAMPER_RETURN").as_deref())?,
         })
     }
@@ -365,6 +365,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_WATCH", "lane"),
         ("SRP_BENCH_CAMPER_SIDE", "seed"),
         ("SRP_BENCH_CAMPER_START", "spot"),
+        ("SRP_BENCH_CAMPER_ARRIVE", "live"),
         ("SRP_BENCH_CAMPER_RETURN", "live"),
     ])
     .expect("known values");
@@ -372,7 +373,7 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
     assert!(all.moving.is_some());
     assert_eq!(all.watch, Watch::Lane);
     assert_eq!(all.side, CamperSide::BySeed);
-    assert_eq!(all.start, CamperStart::Spot);
+    assert_eq!(all.start, CamperStart::Spot(Arrival::LiveWalk));
     assert_eq!(all.returns, ReturnRule::Live);
     for bad in [
         ("SRP_BENCH_CAMPER_SPOT", "hiden"),
@@ -382,6 +383,8 @@ pub(crate) fn the_camper_options_refuse_an_unknown_value() {
         ("SRP_BENCH_CAMPER_WATCH", "lanes"),
         ("SRP_BENCH_CAMPER_SIDE", "team1"),
         ("SRP_BENCH_CAMPER_START", "home"),
+        ("SRP_BENCH_CAMPER_ARRIVE", "walk"),
+        ("SRP_BENCH_CAMPER_ARRIVE", "live"),
         ("SRP_BENCH_CAMPER_RETURN", "sometimes"),
     ] {
         let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([bad]));

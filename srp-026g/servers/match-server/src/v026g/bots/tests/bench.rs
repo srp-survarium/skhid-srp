@@ -1076,13 +1076,13 @@ pub(crate) fn real_bot_cost() {
             }
             // `SRP_BENCH_CAMPER_START=spot`: each of his lives starts on his spot (the one his own think takes, `camper_spot_at`), and
             // his map side is named for him: his first feet lie near the other team's spawns, which would name theirs (`Tactics::side_at`).
-            let camper_start_spot = camper_place.is_some() && camper_options.start == CamperStart::Spot;
+            let camper_start_spot = camper_place.is_some() && matches!(camper_options.start, CamperStart::Spot(_));
             if let Some(place) = camper_place
-                && camper_options.start == CamperStart::Spot
+                && camper_start_spot
             {
                 let side = i32::from(game.bodies[place].team);
                 if let Some((at, _)) = bots.tactics.as_ref().and_then(|tactics| camper_move::camper_spot_at(tactics, side, &camper_options)) {
-                    game.placed_start = Some((place, at));
+                    game.placed_start = Some(PlacedStart { place, at, walk_ms: 0 });
                     game.spawn(place);
                     if let Some(bot) = bots.bots[place].as_mut() {
                         bot.side = Some(side);
@@ -1113,14 +1113,19 @@ pub(crate) fn real_bot_cost() {
                     }
                     game.step();
                     // [A239] A live stand-in camper (`SRP_BENCH_CAMPER_MOVE=live` with `SRP_BENCH_CAMPER_START=spot`) starts his next life
-                    // on the spot he chose while dead (`BenchCamper::start_after_death`), not always his first.
+                    // on the spot he chose while dead (`BenchCamper::start_after_death`), not always his first; [A239b] with
+                    // `SRP_BENCH_CAMPER_ARRIVE=live`, after the respawn and a live camper's walk (`BenchCamper::walk_after_death`).
                     if camper_start_spot
-                        && let (Some(camper), Some(tactics)) = (bots.bench_camper.as_mut(), bots.tactics.as_ref())
-                        && let Some(body) = game.bodies.get(camper.place()).filter(|b| !b.alive)
-                        && let Some(side) = bots.bots.get(camper.place()).and_then(|b| b.as_ref()).and_then(|b| b.side)
-                        && let Some(at) = camper.start_after_death(tactics, side, body.spawned)
+                        && let Some(camper) = bots.bench_camper.as_mut()
+                        && let Some((spawned, died)) = game.bodies.get(camper.place()).filter(|b| !b.alive).map(|b| (b.spawned, b.dead_at))
                     {
-                        game.placed_start = Some((camper.place(), at));
+                        let side = bots.bots.get(camper.place()).and_then(|b| b.as_ref()).and_then(|b| b.side);
+                        let chosen = bots.tactics.as_ref().zip(side).and_then(|(tactics, side)| camper.start_after_death(tactics, side, spawned));
+                        let walk_ms = camper.walk_after_death(died);
+                        if let Some(start) = game.placed_start.as_mut() {
+                            start.at = chosen.unwrap_or(start.at);
+                            start.walk_ms = walk_ms;
+                        }
                     }
                     // The anomaly fields of the generator (`SRP_BENCH_LIVE_FIELDS`): their lives, and the world that lists them.
                     if game.fields.on() {

@@ -23,7 +23,7 @@ switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift floor_height_clear press_in_reach sprint_turns straight_jumps
-switches OFF grid: capsule_steps keep_last_resorts run_ups_after_erosion steep_walk_base
+switches OFF grid: capsule_steps keep_last_resorts run_ups_after_erosion slip_landings steep_walk_base
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease apart_tie lane

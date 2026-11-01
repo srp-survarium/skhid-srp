@@ -16,7 +16,7 @@ use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
 use udp_transport::{Config, Event, PacketLog, Table, Transport};
 
 use super::Settings;
-use super::bots::tuning::LoadedTuning;
+use super::bots::tuning::LiveTuning;
 use super::game::Game;
 use super::record::{Desk, Recorder};
 use super::registry::{MatchEnd, MatchRegistry, MatchResult, PlayerResult, ResultsSink};
@@ -104,10 +104,11 @@ pub fn run_on(
     run_on_with_replays(socket, registry, store, results, stop, None, bot_tuning_from_env()?)
 }
 
-/// `SRP_BOT_TUNING`, parsed: a file the server cannot use is an error that says why, never the defaults. A caller that
-/// starts the server in a thread of a supervisor parses it before that ([`run_on_with_replays`]), so that the error
-/// stops the program at its start.
-pub fn bot_tuning_from_env() -> io::Result<LoadedTuning> {
+/// `SRP_BOT_TUNING`, parsed, with the admin page's changes (`SRP_BOT_ADMIN_TUNING`, [`LiveTuning`]): a file the server
+/// cannot use is an error that says why, never the defaults. A caller that starts the server in a thread of a supervisor
+/// parses it before that ([`run_on_with_replays`]), so that the error stops the program at its start; srp's admin page
+/// shares the same store.
+pub fn bot_tuning_from_env() -> io::Result<Arc<LiveTuning>> {
     // TEST ONLY: the client tests (`bots/client_tests`). A server that cannot run them, or that looks live, does not start with
     // `SRP_CLIENT_TEST` set.
     #[cfg(not(feature = "client-test"))]
@@ -117,17 +118,20 @@ pub fn bot_tuning_from_env() -> io::Result<LoadedTuning> {
             "SRP_CLIENT_TEST is set, but this build has no client tests (cargo feature `client-test`): it is for a local server only",
         ));
     }
-    let loaded = LoadedTuning::from_env().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
+    let live = LiveTuning::from_env().map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
     #[cfg(feature = "client-test")]
-    super::bots::client_tests::init(loaded.tuning().hash(), loaded.data_line()).map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
-    Ok(loaded)
+    {
+        let loaded = live.for_match();
+        super::bots::client_tests::init(loaded.tuning().hash(), loaded.data_line()).map_err(|why| io::Error::new(io::ErrorKind::InvalidData, why))?;
+    }
+    Ok(Arc::new(live))
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it
 /// keeps, drops or deletes (`SRP_REPLAY_DIR`, `super::replay`): srp's, one
-/// for the process, which its lobby and web page share. `bot_tuning` is what every
-/// match's bots run on ([`bot_tuning_from_env`]): parsed once by the caller, so that
-/// a restart of this server does not read the file again.
+/// for the process, which its lobby and web page share. `bot_tuning` is what the
+/// matches' bots run on ([`bot_tuning_from_env`]): parsed by the caller, so that a
+/// restart of this server keeps the store the admin page changes.
 pub fn run_on_with_replays(
     socket: &UdpSocket,
     registry: Arc<MatchRegistry>,
@@ -135,7 +139,7 @@ pub fn run_on_with_replays(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
     replays: Option<Arc<Replays>>,
-    bot_tuning: LoadedTuning,
+    bot_tuning: Arc<LiveTuning>,
 ) -> io::Result<()> {
     let mut settings = Settings::from_env(bot_tuning);
     if let Some(record) = settings.record.as_mut() {

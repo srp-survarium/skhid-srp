@@ -76,6 +76,13 @@ pub struct GridTuning {
     /// by the client (a walk-off its capsule cannot make: live bodies walked off none of the 1,567 cut walk-off gap drops), so the
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub drop_room: bool,
+    /// [A238] Whether the floor a body comes down on when it slips off a walk-off's take-off (slower than a walk-off is flown
+    /// for) is reached in the maps' walk grids (`mapdata::Body::slip_landings`): the highest floor under the edge, where the
+    /// walk-off's flight lands cells out. No link, so no route plans a slip; but a floor only a slip gets to is reached, so a
+    /// pocket when no walk returns, which the pocket marks, the escape (and its minute's self-kill) and the bench's pocket counts
+    /// then see. Vector Laboratory's 16.22 ledge under the 20.6 lip held 173-326 bot-s of the all-maps bench unseen by them
+    /// (`fx-smoke-pockets.md`, #980's bench). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    pub slip_landings: bool,
     /// Whether the maps' walk grids ask a sprint jump's run-up (1.5 m straight behind its take-off) after the erosion, of the
     /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes
     /// jumps of its own (a jump past a floor that went starts a cell back) and takes floors off a run-up's line, so checked before
@@ -107,6 +114,7 @@ impl Default for GridTuning {
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
             drop_room: true,
+            slip_landings: false,
             run_ups_after_erosion: false,
             steep_walk_base: false,
         }
@@ -134,6 +142,7 @@ impl GridTuning {
             crouch_only_floors: self.crouch_floors,
             capsule_steps: self.capsule_steps,
             drop_room: self.drop_room,
+            slip_landings: self.slip_landings,
             run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
             ..body

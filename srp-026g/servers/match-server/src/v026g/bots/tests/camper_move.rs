@@ -75,19 +75,65 @@ pub(crate) enum CamperStart {
     /// On a spawn point of his team, as every body: he walks to his spot.
     #[default]
     Spawn,
-    /// On his spot ([`camper_spot_at`]): a bench of what his victims do (a spawn exit held, §2), not of his walk across the map.
-    Spot,
+    /// On his spot ([`camper_spot_at`]): a bench of what his victims do (a spawn exit held, §2), not of his walk across the map;
+    /// [`Arrival`] says when a life after a death begins there.
+    Spot(Arrival),
+}
+
+/// [A239b] When a life of the stand-in camper that starts on his spot begins after a death (`SRP_BENCH_CAMPER_ARRIVE`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Arrival {
+    /// At the respawn (6.4-8 s after his death), as every body. On the spot where the bots had just killed him, half his lives
+    /// back on the same one: 400 of his 917 deaths came within 10 s of his start (212 of 380 lives back on the spot he died on,
+    /// 172 of 500 elsewhere; camp-live-start-replica-c700284a), and he got 1.69 kills a life against the live replica (live 2.95).
+    #[default]
+    AtRespawn,
+    /// After the respawn and a live camper's walk from his spawn to his spot ([`live_walk_ms`]): he is out of the match for it, as a
+    /// live camper on his way is; his first life of a match starts on the spot at once (the bots are at their spawns then).
+    LiveWalk,
 }
 
 impl CamperStart {
-    /// Unset: [`Self::Spawn`]; `spawn`, `spot`; anything else is refused.
-    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
-        match value {
-            None | Some("spawn") => Ok(Self::Spawn),
-            Some("spot") => Ok(Self::Spot),
-            Some(other) => Err(format!("SRP_BENCH_CAMPER_START={other:?}: spawn or spot")),
+    /// `start` (`SRP_BENCH_CAMPER_START`) unset: [`Self::Spawn`]; `spawn`, `spot`. `arrive` (`SRP_BENCH_CAMPER_ARRIVE`) unset or
+    /// `respawn`: [`Arrival::AtRespawn`]; `live`: [`Arrival::LiveWalk`], with `spot` only (from a spawn he walks his way). Anything
+    /// else is refused.
+    pub(crate) fn parse(start: Option<&str>, arrive: Option<&str>) -> Result<Self, String> {
+        let arrival = match arrive {
+            None | Some("respawn") => Arrival::AtRespawn,
+            Some("live") => Arrival::LiveWalk,
+            Some(other) => return Err(format!("SRP_BENCH_CAMPER_ARRIVE={other:?}: respawn or live")),
+        };
+        match (start, arrival) {
+            (None | Some("spawn"), Arrival::AtRespawn) => Ok(Self::Spawn),
+            (None | Some("spawn"), Arrival::LiveWalk) => {
+                Err("SRP_BENCH_CAMPER_ARRIVE=live: only with SRP_BENCH_CAMPER_START=spot (from a spawn he walks)".to_string())
+            }
+            (Some("spot"), arrival) => Ok(Self::Spot(arrival)),
+            (Some(other), _) => Err(format!("SRP_BENCH_CAMPER_START={other:?}: spawn or spot")),
         }
     }
+}
+
+/// [A239b] A live camper's walk from his spawn to his spot, s, at the quantiles 0.1, 0.25, 0.5, 0.75 and 0.9: from his life's start to
+/// his first place within 10 m of the spot of that life's first held run (2+ kills within 120 s and 10 m, no kill of the life before
+/// it), 1,471 runs of human campers against the old bots (fx-fights' A199 tables of the 1,050 recordings of 2026-10-26..31,
+/// `camp_arrive.py`; his spot 82 m from his spawn, median). At his arrival an enemy was within 30 m of the spot in 1,256 of them
+/// (median 15.9 m): a live camper does not wait for an empty spot, so his walk, not an empty spot, is what the stand-in lacked.
+const LIVE_WALK_S: [(f32, f32); 5] = [(0.1, 11.9), (0.25, 18.6), (0.5, 28.8), (0.75, 38.5), (0.9, 53.2)];
+
+/// [A239b] A walk of [`LIVE_WALK_S`] at the share `u` in [0, 1], ms: linear between its quantiles, the ends held under the first
+/// and over the last (the longest walks are runs that met fights on the way).
+pub(crate) fn live_walk_ms(u: f32) -> u32 {
+    let (first, last) = (LIVE_WALK_S[0], LIVE_WALK_S[LIVE_WALK_S.len() - 1]);
+    let s = if u <= first.0 {
+        first.1
+    } else {
+        LIVE_WALK_S
+            .windows(2)
+            .find(|w| u <= w[1].0)
+            .map_or(last.1, |w| w[0].1 + (u - w[0].0) / (w[1].0 - w[0].0) * (w[1].1 - w[0].1))
+    };
+    (s * 1000.0).round() as u32
 }
 
 impl CamperAt {
@@ -1041,11 +1087,48 @@ pub(crate) struct BenchCamper {
     state: CamperState,
     /// The spot the lane was last worked out for and the point to look at along it (`Watch::Lane`).
     lane: Option<(Vec3, Option<Vec3>)>,
+    /// [A239b] His walks to his spot after a death ([`Arrival::LiveWalk`]); none with any other start.
+    walks: Option<Walks>,
+}
+
+/// [A239b] The stand-in camper's walks to his spot after his deaths ([`Arrival::LiveWalk`]): each drawn once per death.
+#[derive(Clone, Debug)]
+struct Walks {
+    rng: Rng,
+    /// The last death's tick and its walk, ms.
+    last: Option<(u32, u32)>,
+    /// [counts] The walks drawn and their sum, ms.
+    drawn: u32,
+    sum_ms: u64,
 }
 
 impl BenchCamper {
     pub(crate) fn new(place: Place, options: CamperOptions, seed: u32, tuning: Arc<Tuning>) -> Self {
-        Self { place, options, seed, tuning, state: CamperState::Seeking, lane: None }
+        let walks = (options.start == CamperStart::Spot(Arrival::LiveWalk)).then(|| Walks {
+            rng: Rng::new(0xCA3E_C000 + place as u64 + (u64::from(seed) << 20)),
+            last: None,
+            drawn: 0,
+            sum_ms: 0,
+        });
+        Self { place, options, seed, tuning, state: CamperState::Seeking, lane: None, walks }
+    }
+
+    /// [A239b] While he is dead after his death at tick `died`: how long his next life, on his spot, waits after the respawn, ms: a
+    /// live camper's walk from his spawn ([`live_walk_ms`]), drawn once for the death, with [`Arrival::LiveWalk`]; 0 otherwise.
+    pub(crate) fn walk_after_death(&mut self, died: u32) -> u32 {
+        let Some(walks) = self.walks.as_mut() else {
+            return 0;
+        };
+        match walks.last {
+            Some((at, ms)) if at == died => ms,
+            _ => {
+                let ms = live_walk_ms(walks.rng.range(0.0, 1.0));
+                walks.last = Some((died, ms));
+                walks.drawn += 1;
+                walks.sum_ms += u64::from(ms);
+                ms
+            }
+        }
     }
 
     pub(crate) fn place(&self) -> Place {
@@ -1086,7 +1169,10 @@ impl BenchCamper {
             CamperState::Returning { live, .. } => format!(" returns {:?}", live.counts),
             _ => String::new(),
         };
-        format!("camper: place {} spot {spot}{counts}", self.place)
+        let walks = self.walks.as_ref().map_or(String::new(), |w| {
+            format!(" walks {} mean {:.1} s", w.drawn, w.sum_ms as f64 / 1000.0 / f64::from(w.drawn.max(1)))
+        });
+        format!("camper: place {} spot {spot}{counts}{walks}", self.place)
     }
 
     /// The stand-in camper's think: to its spot and held there, whatever its play. True when the bot is the camper and found its
@@ -1616,9 +1702,14 @@ mod tests {
         assert_eq!(CamperAt::parse(Some("exit")), Ok(CamperAt::Exit));
         assert_eq!(CamperAt::parse(Some("live")), Ok(CamperAt::Live));
         assert!(CamperAt::parse(Some("exits")).is_err());
-        assert_eq!(CamperStart::parse(None), Ok(CamperStart::Spawn));
-        assert_eq!(CamperStart::parse(Some("spot")), Ok(CamperStart::Spot));
-        assert!(CamperStart::parse(Some("spots")).is_err());
+        assert_eq!(CamperStart::parse(None, None), Ok(CamperStart::Spawn));
+        assert_eq!(CamperStart::parse(Some("spot"), None), Ok(CamperStart::Spot(Arrival::AtRespawn)));
+        assert_eq!(CamperStart::parse(Some("spot"), Some("respawn")), Ok(CamperStart::Spot(Arrival::AtRespawn)));
+        assert_eq!(CamperStart::parse(Some("spot"), Some("live")), Ok(CamperStart::Spot(Arrival::LiveWalk)));
+        assert!(CamperStart::parse(Some("spots"), None).is_err());
+        assert!(CamperStart::parse(None, Some("live")).is_err(), "a walk from a spawn is his own");
+        assert!(CamperStart::parse(Some("spawn"), Some("live")).is_err());
+        assert!(CamperStart::parse(Some("spot"), Some("walk")).is_err());
         assert_eq!(MoveOptions::parse(None, None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("0"), None), Ok(None));
         assert_eq!(MoveOptions::parse(Some("1"), Some("30")), Ok(Some(MoveOptions::Area { dwell_s: 30.0 })));
@@ -1626,6 +1717,29 @@ mod tests {
         assert!(MoveOptions::parse(Some("yes"), None).is_err());
         assert!(MoveOptions::parse(Some("1"), Some("abc")).is_err());
         assert!(MoveOptions::parse(Some("1"), Some("-3")).is_err());
+    }
+
+    /// [A239b] A live walk follows the live quantiles, held at their ends; it is drawn once per death, about the live median, and only
+    /// with `SRP_BENCH_CAMPER_ARRIVE=live`.
+    #[test]
+    fn the_walk_after_a_death_is_drawn_once_about_the_live_median() {
+        assert_eq!([0.0, 0.1, 0.5, 0.9, 1.0].map(live_walk_ms), [11_900, 11_900, 28_800, 53_200, 53_200]);
+        assert_eq!(live_walk_ms(0.375), 23_700, "halfway from p25 to the median");
+        let ladder: Vec<u32> = (0..=100).map(|n| live_walk_ms(n as f32 / 100.0)).collect();
+        assert!(ladder.windows(2).all(|w| w[0] <= w[1]), "{ladder:?}");
+        let walking = CamperOptions { start: CamperStart::Spot(Arrival::LiveWalk), ..CamperOptions::OFF };
+        let mut camper = BenchCamper::new(0, walking, 7, Arc::new(human_tuning()));
+        let first = camper.walk_after_death(1_000);
+        assert_eq!(camper.walk_after_death(1_000), first, "the same death, the same walk");
+        let mut walks: Vec<u32> = (1..=400).map(|n| camper.walk_after_death(1_000 + n * 50)).collect();
+        assert!(walks.iter().all(|&ms| (11_900..=53_200).contains(&ms)));
+        walks.sort_unstable();
+        assert!((26_000..=32_000).contains(&walks[200]), "median {} ms", walks[200]);
+        assert!(camper.line().contains(" walks 401 mean "), "{}", camper.line());
+        let at_respawn = CamperOptions { start: CamperStart::Spot(Arrival::AtRespawn), ..CamperOptions::OFF };
+        let mut camper = BenchCamper::new(0, at_respawn, 7, Arc::new(human_tuning()));
+        assert_eq!(camper.walk_after_death(1_000), 0);
+        assert!(!camper.line().contains("walks"));
     }
 
     /// Two seeds do not give the camper one set of draws.

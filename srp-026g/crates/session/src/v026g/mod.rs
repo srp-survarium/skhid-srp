@@ -32,6 +32,7 @@ pub mod account;
 pub mod autobuy;
 pub mod balance;
 pub mod bonus;
+pub mod bot_desk;
 pub mod bots;
 pub mod clans;
 pub mod extras;
