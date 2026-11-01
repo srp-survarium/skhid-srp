@@ -979,7 +979,11 @@ pub struct CombatTuning {
     pub hit_match_deg: f32,
     /// [A227b] With `hit_bearing`, the marker is taken from the shot that meets the bot, not from the health its next world
     /// shows (a median 0.95-1.2 s later on the bench: the clients upload a world every 2 s, `game/driven.rs`), as a player's
-    /// HUD shows it at the hit ([`HitAtShot`]). OFF (none) by default.
+    /// HUD shows it at the hit ([`HitAtShot`]). OFF (none) by default: a shot whose line meets the bot is not a hit (the spread is
+    /// the clients'), so of the 318 marks it took against the stand-in human 70 were confirmed by a health drop within 3 s and
+    /// 209 never were, where the HUD shows hits only; by side (288 matches with the stand-in human, 192 with the stand-in
+    /// camper) the outcomes were level (score +0.2 % z +0.1, -0.1 % z -0.0) and the hits from a shooter not sensed faced
+    /// within 1 s 50 vs 58 % and 53 vs 52 % (`traces-20261028/a227-hit-bearing.md`).
     pub hit_at_shot: Option<HitAtShot>,
     /// With `hit_cover`, it takes cover from the marker's direction: a
     /// spot whose rays from the standing eyes along it (and the marker's
