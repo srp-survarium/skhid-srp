@@ -117,7 +117,9 @@ pub struct SmokeTuning {
     /// last point short of the crossing its threat does not see, and holds there until the cloud hides the planned
     /// line. None: it walks on at the launch and reaches the crossing before its cloud hides (a trace of 283 smoked
     /// sniper crossings, `full-25a-xing-20261031T1801`: 69 of 86 with his line open went over before their cloud hid,
-    /// 0.8-2 s early; the cloud pours at the fuse, 4 s from the press, and hides 1.24 s later).
+    /// 0.8-2 s early; the cloud pours at the fuse, 4 s from the press, and hides 1.24 s later). ON by default, `crossers`:
+    /// by side (136 pairs, `full-wait-crossers-20261101T0214`) smoked crossings reached with the line open fell from 93.5 %
+    /// to 51.0 % (z 9.7), score +2.1 % (z +2.0), no guard worse; `all_off.json` keeps it off.
     pub wait_for_cloud: Option<WaitForCloud>,
 }
 
@@ -188,7 +190,7 @@ impl Default for SmokeTuning {
             claim_m: Metres::of(8.0),
             claim_ms: 3_000,
             throw_keeps_route: true,
-            wait_for_cloud: None,
+            wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
         }
     }
 }
