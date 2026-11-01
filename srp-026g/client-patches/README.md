@@ -2555,7 +2555,8 @@ it is given to the weapon (0x243A30), calls `weapon_ready` (`.srpw`+0) in place 
 eax,[esp+20h] / push eax` (0x24B0D2, five bytes, no address and no relocation under them). With a
 non-empty `data/camouflage` text in the weapon's merged config (a camouflage upgrade puts it
 there when the config has a `data` table), an `object/model` text and a model with a render
-instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
+instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 16; 8 up to
+weapons batch 4, whose AKMSU has 11), as the
 lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
 allocator with the camouflage's diffuse, `_nmap` and `_smap` names, the identity as the
 camouflage's matrix, the render instance (one reference more), the surface's index, the scale

@@ -76,7 +76,7 @@ CONFIG_ROOT         equ 0x108
 REFERENCES          equ 0xD0
 T_FLOAT             equ 2
 T_STRING            equ 5
-MAX_SURFACES        equ 8
+MAX_SURFACES        equ 16          ; a bake each; 0.69d0's AKMSU has 11 (8 left its magazine bare)
 SURFACES            equ 64          ; the inline buffer of get_all_surfaces' vector
 
 ; the frame below ebp (ebp = esp after pushad)

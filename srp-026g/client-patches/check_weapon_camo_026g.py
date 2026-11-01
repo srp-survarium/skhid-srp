@@ -27,7 +27,7 @@ Each case must give, in the build: every register, the flags' carry and
 zero bits, the stack pointer and what the stack holds as the original
 leaves them at 0x24B0D7; with a non-empty `data/camouflage` text, an
 `object/model` text and a model with a render instance, one query a
-surface (at most 8), each of one request {"", 6Ch} with a variant of
+surface (at most 16), each of one request {"", 6Ch} with a variant of
 concrete_type_helper<P*> (the P, a pointer to itself, the type),
 the game's allocator and no parent, its function bind's manager | 1 with
 bake_done and the P; the P from the game's allocator with the allocation
@@ -60,6 +60,7 @@ BIND_MANAGER, VARIANT_HELPER, EMPTY = 0x9ED148, 0x9EBE74, 0x9DB708
 GAME_ALLOCATOR, ALLOCATION_NAME = 0x1F1D9C4, 0xAC1228
 TYPE_ID = 0x7E57
 P_SIZE = 0x8B8
+MAX_SURFACES = 16                       # weapon_camo_026g.asm: the surfaces baked at most
 STUBS = {0xF6C00: ("key_exists", 0), 0xF6B10: ("child", 0), 0x159700: ("get_all_surfaces", 8),
          0xE4F90: ("allocate", 4), 0xE45B0: ("appendf", 0), 0x119590: ("type_id", 0),
          0xE5B60: ("query_resources", 0), 0x1539D0: ("deallocate", 0), 0xE0210: ("destroyed", 0)}
@@ -330,7 +331,8 @@ def main():
         ("three surfaces", weapon({"camouflage": CAMO}), 3, 4.0, MODEL, CAMO),
         ("camo_scale 2.5", weapon({"camouflage": CAMO, "camo_scale": 2.5}), 1, 2.5, MODEL, CAMO),
         ("an integer camo_scale is not taken", weapon({"camouflage": CAMO, "camo_scale": 3}), 1, 4.0, MODEL, CAMO),
-        ("twelve surfaces: eight", weapon({"camouflage": CAMO}), 12, 4.0, MODEL, CAMO),
+        ("twelve surfaces: twelve", weapon({"camouflage": CAMO}), 12, 4.0, MODEL, CAMO),
+        ("twenty surfaces: sixteen", weapon({"camouflage": CAMO}), 20, 4.0, MODEL, CAMO),
         ("a model path with \\", weapon({"camouflage": "camo\\x"}, model="weapons\\ak_74n/premium"), 2, 4.0,
          "weapons\\ak_74n/premium", "camo\\x"),
     )
@@ -363,7 +365,7 @@ def main():
         say(not o_run.calls, f"{title}: the original asks for nothing")
         queries = [c for c in run.calls if c[0] == "query_resources"]
         allocations = [c for c in run.calls if c[0] == "allocate"]
-        want = min(surfaces, 8)
+        want = min(surfaces, MAX_SURFACES)
         say(len(queries) == want and len(allocations) == want,
             f"{title}: {want} queries and allocations (got {len(queries)}, {len(allocations)})")
         say(run.read(render + 0xD0) == 5 + want, f"{title}: the render instance holds {want} references more")
