@@ -320,6 +320,9 @@ pub struct Bot {
     /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
     #[cfg(test)]
     pub(crate) bench_walk: u8,
+    /// The keys the motor gave at the last drive tick, before the side step, the step apart and the lip guard (A198).
+    #[cfg(test)]
+    pub(crate) bench_motor_keys: u32,
     /// The velocity and feet the last guard check was made from.
     #[cfg(test)]
     pub(crate) bench_guard_at: ([f32; 2], Vec3),
@@ -514,6 +517,8 @@ impl Bot {
             bench_guard_dbg: 0,
             #[cfg(test)]
             bench_walk: 0,
+            #[cfg(test)]
+            bench_motor_keys: 0,
             #[cfg(test)]
             bench_guard_at: ([0.0; 2], Vec3::ZERO),
             #[cfg(test)]

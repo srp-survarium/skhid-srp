@@ -5,10 +5,17 @@
 //!
 //! - Who he is: the enemy whose weapon 1 the match knows is a sniper's ([`BotFacts::weapons`], as a live match knows it: the
 //!   rifle in his hands is seen), and where he is: [`Track::own`], what the bot's or its team's own senses gave (seen, heard,
-//!   told by a callout), never a cheat's place. Sensed within `recent_s`.
+//!   told by a callout), never a cheat's place. Sensed within `recent_s`; after that, where the team last sensed him while
+//!   its sniper memory holds his spot (`threat.sniper_memory`, #25b) and that sense is within `remembered_s` (A210: the
+//!   bot's own sense went stale on the way to the spot, and a third of the runs ended so).
+//! - On its way to the spot the play is a hold walking to its spot (`Running::travelling`, `commit.hold_to_arrival`):
+//!   kept against the plays of its band (A210: a quarter of the runs were taken by one on the way).
 //! - Who goes: not a carrier or a thief (`Ctx::me` an objective actor: carriers never stop), not dry, healthy, whose own reach
 //!   (the top of its weapon's band and the slack) is at least `reach_min_m`. Two bots a sniper at most (two slots); the gang-up
 //!   cap of the commander keeps the rest of the team off him.
+//! - The camper decision map (`camper-decision-map.md` §3): a team job on him (K2: a flank and its pin) goes first, so only
+//!   that job's pinner may answer him while it runs; an area the team conceded refuses the play, and a try like the last
+//!   failed one there is refused (`Ctx::concede_weight`, `threat.concede`).
 //! - The spot: `spot_min_m` to the bot's own reach from his place, a sight line to it, higher ground preferred, out of every held
 //!   threat line (his lanes: `ThreatTuning` K1), a fine goal out of the spawn areas; reached by a way point hidden from him
 //!   (`via`), crouched for the last metres, so the way there is not across his line.
@@ -19,12 +26,16 @@ use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::threat::Eyes;
+use crate::v026g::bots::threat::{Eyes, Role};
 use crate::v026g::bots::view;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // Sensed by the team's own senses this recently, seconds.
     ("recent_s", 10.0),
+    // Else the team's remembered spot of him, its last sense this recent, seconds: at most `fairness::UNSEEN_MS`, as every
+    // decision about an enemy (BENCH-DECISIONS §2D). 45 s (the play's own runtime) made its reads of him stale: the by-side
+    // bench's stale reads +10.1 % z +4.2, their share 5.19 vs 5.01 % (h2h-fix1-93b76905, seeds 1-8).
+    ("remembered_s", 15.0),
     // The bot's own reach (band top and slack) at least this, metres: a rifle's, a sniper's.
     ("reach_min_m", 45.0),
     // Only a sniper this near the bot is answered, metres.
@@ -131,15 +142,76 @@ fn own_reach(cx: &Ctx) -> Option<f32> {
     cx.bot.weapon.map(|kind| c.band(kind).1 + c.band_slack_m)
 }
 
-/// Where the team's own senses last put the enemy at `who`, when he is a sniper they sensed within `recent_s`.
+/// Where the team's own senses last put the enemy at `who`, when he is a sniper they sensed within `recent_s`; else where the
+/// team last sensed him, while its sniper memory holds his spot and that sense is within `remembered_s`.
 fn sniper_at(cx: &Ctx, who: Place) -> Option<Vec3> {
-    if cx.bot.weapons.get(who).copied().flatten() != Some(WeaponKind::Sniper) {
+    if cx.bot.weapons.get(who).copied().flatten() != Some(WeaponKind::Sniper) || !cx.view.place(who).is_some_and(|p| p.alive) {
         return None;
     }
-    let track = cx.memory.tracks().iter().find(|t| t.who == who)?;
-    let (at, time) = track.own?;
-    let recent = (cx.num(PlayKind::Answer, "recent_s") * 1000.0) as u32;
-    (cx.now.saturating_sub(time) <= recent && cx.view.place(who).is_some_and(|p| p.alive)).then_some(at)
+    let within = |time: u32, name: &str| cx.now.saturating_sub(time) <= (cx.num(PlayKind::Answer, name) * 1000.0) as u32;
+    let own = cx.memory.tracks().iter().find(|t| t.who == who).and_then(|t| t.own);
+    own.filter(|&(_, time)| within(time, "recent_s")).map(|(at, _)| at).or_else(|| {
+        let spot = cx.team.threat.sniper(who)?;
+        spot.sensed.is_some_and(|time| within(time, "remembered_s")).then_some(spot.at)
+    })
+}
+
+/// The inputs reckoned from where the play takes him to be (his track may be gone): the way there and the friends by him.
+fn inputs_at(cx: &Ctx, at: Vec3) -> [(Input, f32); 2] {
+    [(Input::PathDist, cx.path_dist(at)), (Input::FriendsNearTarget, cx.friends_near(at, 25.0) as f32)]
+}
+
+/// A team job (K2) runs on `who` and the bot is not its pinner: the job goes first (`camper-decision-map.md` §3).
+fn job_on(cx: &Ctx, who: Place) -> bool {
+    cx.team.threat.jobs.iter().any(|j| j.shooter == who && j.role_of(cx.me.place) != Some(Role::Pinner))
+}
+
+/// Why a running answer on `target` is no longer a candidate, counted once the commander drops it (A210: a quarter of the
+/// runs ended so, with no reason told). The first of [`candidates`]' conditions that fails, else the consideration at 0.
+/// Test-only.
+#[cfg(test)]
+pub fn left_out(cx: &Ctx, target: TargetRef) {
+    let why = why_left_out(cx, target);
+    noted(Box::leak(format!("left out: {why}").into_boxed_str()));
+}
+
+#[cfg(test)]
+fn why_left_out(cx: &Ctx, target: TargetRef) -> String {
+    let TargetRef::Place(who) = target else {
+        return "not a place".to_string();
+    };
+    if cx.view.objective().is_actor(cx.me) || cx.me.carrying.is_some() {
+        return "an objective actor".to_string();
+    }
+    if cx.bot.weapons.get(who).copied().flatten() != Some(WeaponKind::Sniper) {
+        return "his weapon is not known a sniper's".to_string();
+    }
+    if !cx.view.place(who).is_some_and(|p| p.alive) {
+        return "he is dead".to_string();
+    }
+    let Some(at) = sniper_at(cx, who) else {
+        return match cx.team.threat.sniper(who).and_then(|s| s.sensed) {
+            Some(_) => "the bot's sense old, the team's past remembered_s".to_string(),
+            None => "the bot's sense old, no remembered spot of him".to_string(),
+        };
+    };
+    if job_on(cx, who) {
+        return "a team job on him".to_string();
+    }
+    if cx.bot.set_aside.iter().any(|&(k, t, until)| k == PlayKind::Answer && t == target && cx.now < until) {
+        return "set aside".to_string();
+    }
+    if cx.bot.dry {
+        return "dry".to_string();
+    }
+    let given = inputs_at(cx, at);
+    let (score, why) = crate::v026g::bots::curve::score(&cx.play(PlayKind::Answer).considerations, |input| {
+        given.iter().find(|(i, _)| *i == input).map_or_else(|| cx.input(input, PlayKind::Answer, target), |&(_, v)| v)
+    });
+    if score.is_zero() {
+        return why.parts.iter().find(|(_, _, s)| *s <= 0.0).map_or("zero score".to_string(), |(i, _, _)| format!("zero {i:?}"));
+    }
+    "still scored: the concede rules or the mode weight".to_string()
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -153,18 +225,25 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     let weight = cx.num(PlayKind::Answer, cx.view.objective().weight_key());
-    for track in cx.memory.tracks() {
-        let target = TargetRef::Place(track.who);
+    // The enemies the bot tracks, and the snipers the team remembers whose tracks it has dropped.
+    let mut whos: Vec<Place> = cx.memory.tracks().iter().map(|t| t.who).collect();
+    whos.extend(cx.team.threat.snipers.iter().map(|s| s.shooter).filter(|&p| cx.memory.tracks().iter().all(|t| t.who != p)));
+    for who in whos {
+        let target = TargetRef::Place(who);
         let running = matches!(cx.bot.current, Some((PlayKind::Answer, t, _)) if t == target);
-        let Some(at) = sniper_at(cx, track.who) else {
+        let Some(at) = sniper_at(cx, who) else {
             continue;
         };
         if !running && cx.me.feet.distance_xz(at) > cx.num(PlayKind::Answer, "max_m") {
             continue;
         }
+        if job_on(cx, who) {
+            continue;
+        }
+        let given = inputs_at(cx, at);
         for k in 0..2 {
             out.extend(
-                cx.candidate(PlayKind::Answer, target, Some(track.who as u32 * 2 + k))
+                cx.candidate_given(PlayKind::Answer, target, Some(who as u32 * 2 + k), &given)
                     .map(|mut c| {
                         c.score = Score::new(c.score.get() * weight);
                         c
@@ -375,6 +454,46 @@ mod tests {
         let mut s = sniper();
         s.view.clock += 20_000;
         assert!(answers(&s).is_empty());
+    }
+
+    /// A210: the bot's own sense of him is old, but the team's sniper memory holds his spot: still answered; once the team's
+    /// last sense of him is older than `remembered_s`, not.
+    #[test]
+    fn a_sniper_the_team_remembers_is_answered_after_the_bots_own_sense_is_old() {
+        use crate::v026g::bots::threat::{HeldLane, Picture};
+        let mut s = sniper();
+        let sensed = s.view.clock;
+        s.view.clock += 12_000;
+        let held = HeldLane { at: Vec3::new(85.0, 0.0, 30.0), shooter: 1, reach_m: 98.0, sensed: Some(sensed), area_m: 10.0 };
+        s.team.threat = std::sync::Arc::new(Picture { snipers: vec![held], ..Picture::default() });
+        assert_eq!(answers(&s).len(), 2, "remembered by the team");
+        s.view.clock = sensed + 16_000;
+        assert!(answers(&s).is_empty(), "the team's last sense of him is past remembered_s");
+    }
+
+    /// The camper decision map §3: a team job on him goes first; only its pinner may still answer him, and a job on another
+    /// shooter changes nothing.
+    #[test]
+    fn a_team_job_on_him_goes_first_but_its_pinner_may_answer() {
+        use crate::v026g::bots::threat::{Holder, Job, Picture};
+        let mut s = sniper();
+        let job = |shooter, pinner| Job::of(4, shooter, Some(Holder { place: 3, since: 0 }), Some(Holder { place: pinner, since: 0 }));
+        s.team.threat = std::sync::Arc::new(Picture { jobs: vec![job(1, 2)], ..Picture::default() });
+        assert!(answers(&s).is_empty(), "a flank and its pin run on him");
+        s.team.threat = std::sync::Arc::new(Picture { jobs: vec![job(1, 0)], ..Picture::default() });
+        assert_eq!(answers(&s).len(), 2, "the bot is the job's pinner");
+        s.team.threat = std::sync::Arc::new(Picture { jobs: vec![job(5, 2)], ..Picture::default() });
+        assert_eq!(answers(&s).len(), 2, "the job is on another shooter");
+    }
+
+    /// A210: the walk to the spot is kept against the plays of its band (`commit.hold_to_arrival`); the peek is not a walk.
+    #[test]
+    fn its_walk_to_the_spot_is_a_hold_walking_to_its_spot() {
+        let spot = Vec3::new(1.0, 0.0, 1.0);
+        assert!(Running::Answer(State::Via { via: spot, spot }).travelling());
+        assert!(Running::Answer(State::Approach { spot }).travelling());
+        assert!(!Running::Answer(State::Peek { until: 0 }).travelling());
+        assert!(!Running::Answer(State::NoSpot).travelling());
     }
 
     #[test]
