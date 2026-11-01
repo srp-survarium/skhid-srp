@@ -1485,6 +1485,14 @@ fn drive_tick_inner(
                 Pace::Cruise | Pace::Arrive => motor::Gait::Cruise,
                 Pace::Walk | Pace::Sneak => motor::Gait::Walk,
             };
+            // The floor under the body, for the sprint through turns only (`Feel::sprint_turns`): at an edge its old rule decides.
+            if bot.motor.feel.sprint_turns.is_some() {
+                let grid = &tactics.world.grid;
+                pose.floor = match grid.locate(me.feet, 1.5) {
+                    Some(node) if grid.is_lip(node) || grid.near_lip(node) || grid.near_fall(node) => motor::Floor::Edge,
+                    _ => motor::Floor::Open,
+                };
+            }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where

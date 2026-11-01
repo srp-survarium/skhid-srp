@@ -799,8 +799,9 @@ pub(super) fn sprint_turns() -> Box<dyn RouteTopic> {
                 "sprint_turns_walking {} sprint_turns_sprinting {} sprint_turns_short_leg {} sprint_turns_past_corner {} \
                  sprint_turns_ended_standing {} sprint_turns_ended_sharp {} sprint_turns_ended_route_end {} sprint_turns_ended_facing {} \
                  sprint_turns_no_room_sharp {} sprint_turns_no_room_end {} \
-                 sprint_turns_overruled_low {} sprint_turns_overruled_jump {} sprint_turns_overruled_bar {} sprint_turns_overruled_drop {}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13]
+                 sprint_turns_overruled_low {} sprint_turns_overruled_jump {} sprint_turns_overruled_bar {} sprint_turns_overruled_drop {} \
+                 sprint_turns_edge {} sprint_turns_edge_sprinting {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]
             ));
         },
     )
