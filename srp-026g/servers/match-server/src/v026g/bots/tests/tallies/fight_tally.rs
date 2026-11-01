@@ -65,19 +65,23 @@ pub(crate) struct KickTick {
 }
 
 /// A shot at its target by pitch: the target's chest above or below the eye, degrees, and how far above the line to his chest the
-/// view pointed, degrees (positive up): what the view's pitch unit decides (`pitch.rs`), whatever the cone does.
+/// view pointed, degrees (positive up): what the view's pitch unit decides (`pitch.rs`), whatever the cone does; and the whole angle
+/// between the view and the line to his chest, degrees (the fire gate's measure, A228).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Rise {
     pub target_deg: f32,
     pub high_deg: f32,
+    pub off_deg: f32,
 }
 
 impl Rise {
     /// From `eye` with the view along `view` (unit) at `chest`.
     pub(crate) fn of(eye: Vec3, view: Vec3, chest: Vec3) -> Self {
         let elevation = |v: Vec3| v.y.atan2(v.x.hypot(v.z)).to_degrees();
-        let target = elevation(chest - eye);
-        Self { target_deg: target, high_deg: elevation(view) - target }
+        let to = chest - eye;
+        let target = elevation(to);
+        let off = (view.dot(to) / (view.length() * to.length()).max(1e-6)).clamp(-1.0, 1.0).acos().to_degrees();
+        Self { target_deg: target, high_deg: elevation(view) - target, off_deg: off }
     }
 }
 
