@@ -311,6 +311,54 @@ bytes and SHA-256
 The complete Drive download was checked against archive.org's independently
 published SHA-1 `bb30b71fab155b3435917690fd2be87984546163` before pinning it.
 
+**Its addresses** (`exe/src/game.rs`): `GET <server>/game`, srp's
+`{"sha256": "<64 hex>", "size": <bytes>, "urls": [...]}` (`patches::parse_game`:
+a patch list's entry with its size; 1 to 8 addresses, each one a patch may
+have), taken only when its size and SHA-256 are the pinned ones. When the
+server cannot be reached, offers none (an srp before `/game`: 404) or offers
+another archive, the addresses built into the updater at release time are
+used (`SKHID_BUILTIN_GAME`, the `/game` of the row of `release/game.tsv`,
+which `release/build-zip` passes to the build; a build
+without it has none, and says so). A server that answers always wins. srp's
+`/game` is the release's addresses (that row) and then the rows of its
+`mirrors.tsv` (see "Mirrors" below).
+
+**The download** is that of a patch's file (`http::get_file`), with the
+rules of "Mirrors" below: redirects followed, a web page refused. The
+addresses are tried in their order, each once a run; any failure moves on to
+the next. The bytes on disk (`game\.skhid-game.7z`) are the same file at
+every address, so the next address goes on from them: `Range: bytes=<n>-`;
+a `206` from byte n is appended, a `206` of another range is a failure, a
+`200` (a server that gives no part) is the whole file again from byte 0. A
+file of the whole size that is not the pinned one is deleted and fetched
+anew; one that broke off stays for the next start, which goes on from it.
+The whole file is checked by its size and SHA-256; a mismatch deletes it and
+fails that address. One line of `updater_skhid.log` a try, a failure and the
+success (`download::line`; `Skhid-without-updater.bat` writes the same
+lines to `skhid-download.log`):
+
+```text
+skhid-game  try      2.28.121.133: address 1 of 3, http://2.28.121.133:8090/survarium-026g.7z, from byte 0
+skhid-game  failed   2.28.121.133: receive timeout (nothing received for 30 s) (1048576 bytes received)
+skhid-game  try      archive.org: address 2 of 3, https://archive.org/download/..., from byte 1048576
+skhid-game  ok       archive.org: 2906544103 bytes, SHA-256 verified
+```
+
+The reasons (`text::reason`): `connect timeout`, `receive timeout` (no
+answer within 30 s, or nothing received for 30 s: WinHTTP's 10 s name
+lookup, 10 s connect, 30 s send and receive), `host not found (DNS)`,
+`unreachable`, `connection reset`, `HTTP <status>`, `web page "<its
+title>", not the file` (the `<title>` of its first 8 KB, any host's: Google
+Drive's "Quota exceeded" page among them), `too slow: <n> KB/s over 2
+minutes (under 50 KB/s)` (`download::Speed`), `cut short at byte <n> of
+<size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
+When every address failed the player is told each one's host and reason,
+then where to send the log (`text::reported`, as the crash reporter words
+it: `Send game\binaries\x86\updater_skhid.log to #bugreports in Discord
+(tag: install): discord.gg/Pxa4prXfwu`; the reason is cut to leave it room
+in the launcher's 255 characters, the log has the whole). So does every
+other failure the run ends on.
+
 Downloads use a 64 KiB buffer, including in the 32-bit updater. The complete
 file is flushed, read back and hashed before extraction.
 
@@ -340,12 +388,10 @@ are preserved, and a failed move rolls back files added by that attempt.
 The normal verified Skhid overlay then replaces the original certificate
 and crash DLL when needed. Existing complete games skip this bootstrap.
 
-The direct Drive endpoint was tested without cookies or sign-in. HTML
-confirmation pages, quota errors, redirects, interrupted transfers and hash
-mismatches fail closed. A failed transfer is removed; a completed verified
-archive is kept if extraction fails and is rehashed before retrying. The
-cache is deleted after successful installation. Interrupted transfers are
-not resumed.
+HTML confirmation pages, quota pages, interrupted transfers and hash
+mismatches fail closed, each at its address. A completed verified archive is
+kept if extraction fails and is rehashed before retrying; a part is kept and
+gone on from. The archive is deleted after successful installation.
 
 What an attempt that was cut short leaves behind (the PC switched off, the
 updater killed while the extractor ran) is removed at the next start, under
@@ -367,15 +413,16 @@ not "exit 2" alone. A file left by a killed updater is copied and deleted
 at the next start. When the file cannot be made, the extractor runs all the
 same.
 
-To move hosting, put a direct HTTPS URL in `updater_skhid.game-url` beside
-the updater. That file changes only the source, never the trusted hash. Plain HTTP is
-accepted only on localhost for tests; FTP is not supported. No server
-deployment or binary rebuild is needed to change the mirror this way.
+To add an address, `release/add-mirror survarium-026g.7z <url>`: srp offers
+it at once (`mirrors.tsv`), no release or rebuild. Addresses change only
+where the bytes come from, never the trusted hash.
 
 `tests/test_game_download.py` runs the actual exe on Windows or Wine against
-a local HTTP server, covering failed downloads, preservation of existing
-files, an extractor that is missing or changed, and what a cut-short attempt
-left. With `SKHID_TEST_GAME_ARCHIVE` pointing to the pinned archive, it also
+a local HTTP server, covering every address failing (each reason in the
+log), a download that broke off going on at the next address (`Range`, a
+`206`, a `200` from byte 0), a part of another range, redirects, a server
+without `/game` or with another archive, preservation of existing files, an
+extractor that is missing or changed, and what a cut-short attempt left. With `SKHID_TEST_GAME_ARCHIVE` pointing to the pinned archive, it also
 downloads, verifies and extracts the full game with the extractor of
 `extractor/`, then installs the Skhid overlay. It does not contact Drive or
 archive.org.
@@ -474,12 +521,17 @@ host, as it is not for the update server: the file is checked against the
 list's SHA-256, and the list came from the update server over HTTPS.
 
 - **Mirrors.** The addresses are tried in their order, each once a round,
-  two rounds a run. Any failure moves on to the next address: no
+  two rounds a run: srp's list gives the release's (`release/patches.tsv`)
+  and after them the rows of srp's `mirrors.tsv`, which `release/add-mirror`
+  writes and srp reads again when it changes. Any failure moves on to the
+  next address: no
   connection or a broken one, another status than 200, a web page
   (`Content-Type: text/html`: a sign-in page, Google Drive's "cannot scan
-  this file for viruses" page), a body shorter than its Content-Length,
-  another SHA-256, too many redirects or one to an address a list may not
-  name. The second round tries again only the addresses that failed on the
+  this file for viruses" or "Quota exceeded" page; its title is in the
+  log), slower than 50 KB/s over 2 minutes, a body shorter than its
+  Content-Length, another SHA-256, too many redirects or one to an address
+  a list may not name. Each try is a line of the log too (`... (try 1 of
+  2): asking`). The second round tries again only the addresses that failed on the
   network (no connection, cut short, a 5xx): another file or a web page
   would be the same 3 s later. The log names each address and its failure
   (`patches: resources.db.patch_<n>: address 2 of 3, <address> (try 1 of
@@ -497,13 +549,19 @@ list's SHA-256, and the list came from the update server over HTTPS.
   `https://drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`
   (`<id>` of the link `https://drive.google.com/file/d/<id>/view`): that
   form gives the file itself, whatever its size, without a cookie or a
-  sign-in (the original game's download uses it, `logic/src/game.rs`). The
-  `https://drive.google.com/uc?export=download&id=<id>` form redirects to
-  it, and for a large file answers a "cannot scan for viruses" web page
-  instead: that address fails and the next is tried. `release/add-mirror`
-  checks an address before it is listed.
-- No download is resumed: one that broke off is fetched again whole (the
-  owner's decision; a patch is tens of megabytes).
+  sign-in. The `https://drive.google.com/uc?export=download&id=<id>` form
+  redirects to it, and for a large file answers a "cannot scan for viruses"
+  web page instead: that address fails and the next is tried. A Drive
+  file has a daily download quota; past it, a "Quota exceeded" page, the
+  same. `release/add-mirror` checks an address before srp offers it.
+- No patch download is resumed: one that broke off is fetched again whole
+  (a patch is tens of megabytes; the game's archive is gone on from).
+- **The server not reached.** When the list cannot be fetched and the
+  folder is not as the list kept says, the list built into the updater at
+  release time is used (`SKHID_BUILTIN_PATCHES`, the `/patches` of
+  `release/patches.tsv`, which `release/build-zip` passes to the build):
+  a provider that blocks the server need not block the patches'
+  addresses. A list of no patch is none.
 - The Content-Length, when the server sends one, is checked against the
   disk first, and a body shorter than it is an error.
 

@@ -961,6 +961,7 @@ version = "0.1.0"
 dependencies = [
  "log",
  "openssl",
+ "resources-db 0.1.0",
  "session",
  "survarium",
  "vostok",

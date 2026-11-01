@@ -20,6 +20,13 @@ ITEM_TABLES_DIR=srp-026g/docs/data
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 # The players' exe in the ZIP.
 ZIP_EXE=game/binaries/x86/survarium_skhid.exe
+# The original game's archive (build 2777): its row of release/game.tsv
+# (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
+GAME_NAME=survarium-026g.7z
+# More URLs of the offered files, in srp's data volume: `<file> <url>` a
+# line, offered after the release's (release/add-mirror).
+# shellcheck disable=SC2034 # used by the scripts that source this
+MIRRORS_FILE=mirrors.tsv
 # The image the compose file runs srp26 from.
 IMAGE=srp-026g:latest
 # From this revision on the exe expects the menus of resources.db.patch_12: a
@@ -131,27 +138,34 @@ CURL_AS_UPDATER=(-L --max-redirs 5 --proto "=http,https" --proto-redir "=http,ht
 # patch is not downloaded again at every release.
 URL_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patch-urls.checked
 
-# check_patch_url <url> <sha256> <size> <scratch folder> [full]: whether
-# <url> gives the players that patch, as their updater fetches it. Its
-# first check is a whole download: 200, not a web page (Content-Type
-# text/html: Google Drive's virus-scan page, a sign-in page), the size and
+# check_patch_url <url> <sha256> <size> <scratch folder> [full | quick]:
+# whether <url> gives the players that file (a patch, or the game's archive
+# when <sha256> is GAME_ROW's), as their updater fetches it. Its first
+# check is a whole download: 200, not a web page (Content-Type text/html:
+# Google Drive's virus-scan or quota page, a sign-in page), the size and
 # the sha256; then the line in URL_CACHE. A URL in the cache for that
 # sha256 is asked for its first 13 bytes only: 200 or 206, not a web page,
 # the whole file's size the row's when the answer says it (a 206's
 # Content-Range, a 200's Content-Length: a file replaced since by one of
-# another size), the game archive's `little-endian`. A file replaced by
-# one of the same size and header is seen only by a whole download: the
-# players' updater checks the sha256 all the same and moves on to the next
-# URL. `full`: the whole download all the
-# same (add-mirror). False, with URL_PROBLEM saying why, otherwise; CHECKED
-# says how it was checked (`downloaded`, `as checked before`).
+# another size), the start of a patch (`little-endian`) or of a 7z archive.
+# A file replaced by one of the same size and header is seen only by a
+# whole download: the players' updater checks the sha256 all the same and
+# moves on to the next URL. `full`: the whole download all the same
+# (add-mirror); `quick`: its first bytes alone, cached or not (the game's
+# 2.9 GB at every release's preflight: release/add-mirror downloads it
+# whole once). False, with URL_PROBLEM saying why, otherwise; CHECKED says
+# how it was checked (`downloaded`, `as checked before`, `by its first
+# bytes`).
 URL_PROBLEM='' CHECKED=''
+# The start of a patch and of a 7z archive, as od -tx1 writes it.
+PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
-    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got
+    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
     out=$dir/url-check.$$ head=$dir/url-check.$$.head
     URL_PROBLEM='' CHECKED=''
-    if [[ -z $full ]] && grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; then
+    if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi
+    if [[ $full == quick ]] || { [[ -z $full ]] && grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; }; then
         { curl -sS "${CURL_AS_UPDATER[@]}" --max-time 60 -r 0-12 -D "$head" "$url" 2>/dev/null || true; } |
             head -c 13 >"$out"
         # The last answer's (a redirect's head comes first, with its own).
@@ -166,18 +180,21 @@ check_patch_url() {
                 tolower($1) == "content-range:" { n = split($0, part, "/"); r = part[n] }
                 tolower($1) == "content-length:" { l = $2 }
                 END { print (status == 206 ? r : l) }' || true)
-        got=$(cat "$out")
+        got=$(od -An -v -tx1 <"$out" | tr -d ' \n')
         rm -f "$out" "$head"
+        local before=' (it gave the file before)'
+        if [[ $full == quick ]]; then before=''; fi
         if [[ $status != 200 && $status != 206 ]]; then
-            URL_PROBLEM="$url answers ${status:-nothing} now (it gave the file before)"
+            URL_PROBLEM="$url answers ${status:-nothing} now$before"
         elif [[ $type == text/html* ]]; then
-            URL_PROBLEM="$url answers with a web page now (it gave the file before)"
+            URL_PROBLEM="$url answers with a web page now$before"
         elif [[ $total =~ ^[0-9]+$ && $total != "$size" ]]; then
-            URL_PROBLEM="$url says the file is $total bytes now, not $size (it gave the file before)"
-        elif [[ $got != little-endian ]]; then
-            URL_PROBLEM="$url does not start as a patch now (it gave the file before)"
+            URL_PROBLEM="$url says the file is $total bytes now, not $size$before"
+        elif [[ $got != "$start"* ]]; then
+            URL_PROBLEM="$url does not start as the file now$before"
         else
             CHECKED='as checked before: its first bytes now'
+            if [[ $full == quick ]]; then CHECKED='by its first bytes (status, type, size, start)'; fi
             return 0
         fi
         return 1
@@ -402,8 +419,10 @@ ask_yes() {
 #         $SKHID_TEST_PATCHES_URL, all three set and none of it the
 #         production folder or URL; the list release/patches-test.tsv
 #         ($SKHID_TEST_PATCH_LIST names another).
-PATCHES_SSH='' PATCHES_DIR='' PATCHES_URL='' PATCH_LIST='' PATCHES_LABEL=''
+PATCHES_SSH='' PATCHES_DIR='' PATCHES_URL='' PATCH_LIST='' PATCHES_LABEL='' GAME_LIST=''
 use_patches() {
+    # The game's archive, the same for both ($SKHID_GAME_LIST names another).
+    GAME_LIST=${SKHID_GAME_LIST:-$ROOT/release/game.tsv}
     case $1 in
     live)
         load_env SKHID_PATCHES_SSH SKHID_PATCHES_DIR SKHID_PATCHES_URL
@@ -436,41 +455,71 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
 # order the players' updater tries them: the patches server's first, then
-# mirrors (release/add-mirror), 1 to 8, none twice. The server data is built
-# of exactly these and /patches offers exactly these; a file on the patches
-# server that is not in it is offered to no one. Checks every row; sets LIST
-# (the rows, spaces between) and LIST_TOP (the highest revision in it, 0 for
-# none).
-LIST='' LIST_TOP=0
+# mirrors, 1 to 8, none twice. The server data is built of exactly these
+# and /patches offers exactly these; a file on the patches server that is
+# not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
+# row of the game's archive in the same form ($GAME_NAME, any host first):
+# offered at /game, built into the updater and Skhid-without-updater.bat; a
+# list without a row (or no such file) names none. Checks every row; sets
+# LIST (the patches' rows, spaces between), LIST_TOP (the highest revision
+# in it, 0 for none) and GAME_ROW (the game's row so, or nothing).
+LIST='' LIST_TOP=0 GAME_ROW=''
 read_patch_list() {
-    local line name sha size url extra n=0 number rows=() urls=() seen u
+    local line name sha size url extra n=0 number rows=() list
     [[ -f $PATCH_LIST ]] || die "$PATCH_LIST: no such file (the offered-patch list)"
-    LIST_TOP=0
-    while IFS= read -r line || [[ -n $line ]]; do
-        n=$((n + 1))
-        line=${line%$'\r'}
-        [[ -n $line && $line != '#'* ]] || continue
-        IFS=$'\t' read -r name sha size url extra <<<"$line"
-        [[ -n $url && -z $extra ]] || die "$PATCH_LIST:$n: not <name> <sha256> <size> <urls> with tabs between"
-        number=$(patch_number "$name") || die "$PATCH_LIST:$n: $name is not resources.db.patch_<n>"
-        ((number > LIST_TOP)) || die "$PATCH_LIST:$n: $name is not above the row before it (revision order, each patch once)"
-        [[ $sha =~ ^[0-9a-f]{64}$ ]] || die "$PATCH_LIST:$n: $sha is not a sha256"
-        [[ $size =~ ^[1-9][0-9]*$ ]] || die "$PATCH_LIST:$n: $size is not a size in bytes"
-        [[ $url != *'  '* && $url != ' '* && $url != *' ' ]] || die "$PATCH_LIST:$n: the URLs are one space apart"
-        read -r -a urls <<<"$url"
-        ((${#urls[@]} <= MAX_PATCH_URLS)) || die "$PATCH_LIST:$n: ${#urls[@]} URLs; the players' updater takes at most $MAX_PATCH_URLS"
-        [[ ${urls[0]} == "$PATCHES_URL/$name" ]] || die "$PATCH_LIST:$n: ${urls[0]} is not $PATCHES_URL/$name (the list of another patches server?)"
-        seen=' '
-        for u in "${urls[@]}"; do
-            is_patch_url "$u" || die "$PATCH_LIST:$n: $u is not a URL the players' updater takes"
-            [[ $seen != *" $u "* ]] || die "$PATCH_LIST:$n: $u is there twice"
-            seen+="$u "
-        done
-        LIST_TOP=$number
-        rows+=("$name $sha $size $url")
-    done <"$PATCH_LIST"
+    LIST_TOP=0 GAME_ROW=''
+    for list in "$PATCH_LIST" "$GAME_LIST"; do
+        [[ -f $list ]] || continue
+        n=0
+        while IFS= read -r line || [[ -n $line ]]; do
+            n=$((n + 1))
+            line=${line%$'\r'}
+            [[ -n $line && $line != '#'* ]] || continue
+            IFS=$'\t' read -r name sha size url extra <<<"$line"
+            [[ -n $url && -z $extra ]] || die "$list:$n: not <name> <sha256> <size> <urls> with tabs between"
+            if [[ $list == "$GAME_LIST" ]]; then
+                [[ $name == "$GAME_NAME" && -z $GAME_ROW ]] || die "$list:$n: one row, of $GAME_NAME"
+            else
+                number=$(patch_number "$name") || die "$list:$n: $name is not resources.db.patch_<n>"
+                ((number > LIST_TOP)) || die "$list:$n: $name is not above the row before it (revision order, each patch once)"
+            fi
+            check_row "$list:$n" "$sha" "$size" "$url"
+            if [[ $list == "$GAME_LIST" ]]; then
+                GAME_ROW="$name $sha $size $url"
+            else
+                [[ ${url%% *} == "$PATCHES_URL/$name" ]] || die "$list:$n: ${url%% *} is not $PATCHES_URL/$name (the list of another patches server?)"
+                LIST_TOP=$number
+                rows+=("$name $sha $size $url")
+            fi
+        done <"$list"
+    done
     LIST=''
     if ((${#rows[@]})); then LIST=$(printf '%s\n' "${rows[@]}"); fi
+}
+
+# A row's sha256, size and URLs (one space apart, 1 to 8, each one the
+# updater takes, none twice); dies saying <where> otherwise.
+check_row() {
+    local where=$1 sha=$2 size=$3 url=$4 urls=() seen=' ' u
+    [[ $sha =~ ^[0-9a-f]{64}$ ]] || die "$where: $sha is not a sha256"
+    [[ $size =~ ^[1-9][0-9]*$ ]] || die "$where: $size is not a size in bytes"
+    [[ $url != *'  '* && $url != ' '* && $url != *' ' ]] || die "$where: the URLs are one space apart"
+    read -r -a urls <<<"$url"
+    ((${#urls[@]} <= MAX_PATCH_URLS)) || die "$where: ${#urls[@]} URLs; the players' updater takes at most $MAX_PATCH_URLS"
+    for u in "${urls[@]}"; do
+        is_patch_url "$u" || die "$where: $u is not a URL the players' updater takes"
+        [[ $seen != *" $u "* ]] || die "$where: $u is there twice"
+        seen+="$u "
+    done
+}
+
+# The /patches (of LIST) and /game (of GAME_ROW; nothing without one) the
+# release's srp offers before any mirror, as JSON: what release/build-zip
+# builds into the updater (SKHID_BUILTIN_PATCHES, SKHID_BUILTIN_GAME).
+list_patches_json() { patches_json "$(offered_of_list "")"; }
+list_game_json() {
+    [[ -n $GAME_ROW ]] || return 0
+    jq -cn --arg row "$GAME_ROW" '$row | split(" ") | {sha256: .[1], size: (.[2] | tonumber), urls: .[3:]}'
 }
 
 # Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
@@ -646,8 +695,10 @@ lock_drop() {
 # ZIP's exe says patch revision <n>, the server data reads (srp-game-data
 # info), offers no patch above <n>, and offers patch_12 (the menus) from
 # revision 12 on. Sets ZIP_SHA ZIP_SIZE DATA_SHA, OFFERED (`patch_<n>
-# <sha256> <urls>` lines) and EXPECTED (/patches as JSON). <scratch> is a
-# folder for the exe.
+# <sha256> <urls>` lines), OFFERED_GAME (the game's archive the data names,
+# as GAME_ROW is, or nothing), EXPECTED (/patches as JSON) and
+# EXPECTED_GAME (/game as JSON, or nothing). <scratch> is a folder for the
+# exe.
 check_release_files() {
     local zip=$1 data=$2 revision=$3 scratch=$4 got bin info key
     got=$(zip_revision "$zip" "$scratch/exe")
@@ -655,6 +706,7 @@ check_release_files() {
     bin=$(game_data_bin)
     info=$("$bin" info "$data") || die "$data: srp-game-data info refused it"
     OFFERED=$(offered_in "$info")
+    OFFERED_GAME=$(offered_game_in "$info")
     while read -r key _; do
         [[ -n $key ]] || continue
         ((${key#patch_} <= revision)) || die "$data offers $key, above revision $revision"
@@ -665,6 +717,14 @@ check_release_files() {
     # shellcheck disable=SC2034 # the callers use them
     ZIP_SHA=$(sha256_of "$zip") ZIP_SIZE=$(size_of "$zip") DATA_SHA=$(sha256_of "$data")
     EXPECTED=$(patches_json "$OFFERED")
+    EXPECTED_GAME=''
+    if [[ -n $OFFERED_GAME ]]; then EXPECTED_GAME=$(GAME_ROW=$OFFERED_GAME list_game_json | jq -cS .); fi
+}
+
+# The game's archive `srp-game-data info` says data names, as GAME_ROW is
+# (`<name> <sha256> <size> <urls>`), or nothing.
+offered_game_in() {
+    sed -n 's/^  game \([^ ]*\) \([0-9]*\) bytes sha256 \([0-9a-f]*\) urls \(.*\)$/\1 \3 \2 \4/p' <<<"$1"
 }
 
 # The patches `srp-game-data info` (or build, or check) says data offers:
@@ -1165,11 +1225,29 @@ check_server() {
         say "GET $TARGET_SITE/patches gave no list (status $status)"
         return 1
     fi
-    if [[ $patches != "$EXPECTED" ]]; then
-        say "/patches is $patches, not $EXPECTED"
+    if ! served_as "$patches" "$EXPECTED"; then
+        say "/patches is $patches, not $EXPECTED (and mirrors after each file's URLs)"
         return 1
     fi
     say "/patches: $patches, as the server data says"
+    if [[ -n ${EXPECTED_GAME:-} ]]; then
+        status=$(HTTP_TIMEOUT=20 http_get "$TARGET_SITE/game" "$SWAP_WORK/game")
+        patches=$(jq -cS . "$SWAP_WORK/game" 2>/dev/null || true)
+        if [[ $status != 200 ]] || ! served_as "{\"game\": $patches}" "{\"game\": $EXPECTED_GAME}"; then
+            say "GET $TARGET_SITE/game: status $status, $patches, not $EXPECTED_GAME (and mirrors after its URLs)"
+            return 1
+        fi
+        say "/game: $patches, as the server data says"
+    fi
+}
+
+# Whether <served> (JSON of files, /patches as srp writes it) is <expected>
+# with any mirrors of mirrors.tsv after each file's URLs: the same files,
+# each with the same members, its URLs starting with the expected ones.
+served_as() {
+    jq -en --argjson got "$1" --argjson want "$2" '($got | keys) == ($want | keys) and
+        all($want | to_entries[]; .key as $k | .value as $w | $got[$k] as $g |
+            ($g | del(.urls)) == ($w | del(.urls)) and $g.urls[:($w.urls | length)] == $w.urls)' >/dev/null 2>&1
 }
 
 # <revision>: /api/client-files names the new ZIP (sha256, size) and, when

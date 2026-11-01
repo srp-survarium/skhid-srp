@@ -190,13 +190,13 @@ fn the_test_data_is_0_26g_with_the_test_patches() {
             }
         })
         .collect();
-    let built = build(&db, &patches).unwrap();
+    let built = build(&db, &patches, None).unwrap();
     assert!(
         built.bytes == TEST_ARCHIVE,
         "the test data is not that of 0.26g with these patches"
     );
 
-    let stock = build(&db, &[]).unwrap();
+    let stock = build(&db, &[], None).unwrap();
     let mut archive = Archive::new(Cursor::new(stock.bytes)).unwrap();
     let stock = GameData::from_archive(&mut archive, "0.26g".into()).unwrap();
     super::super::tables::check(&stock).unwrap();

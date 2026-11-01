@@ -24,7 +24,9 @@
 #      .env (that one line; the file is never printed), docker compose up -d
 #      --no-deps --force-recreate srp26;
 #   6. checks the container (running, healthy, not restarting), its log's
-#      game data line, $SKHID_SITE/patches and $SKHID_SITE/api/client-files
+#      game data line, $SKHID_SITE/patches and /game (the list's files, any
+#      rows of srp's mirrors.tsv after each one's URLs) and
+#      $SKHID_SITE/api/client-files
 #      (the new ZIP; min-revision <n> from an srp that says it).
 # A failure in 5-6 prints srp's log (a refusal to start says why there) and
 # runs the folder's rollback, srp.db included, then checks srp26 is up on
@@ -83,6 +85,8 @@ check_release_files "$zip" "$data" "$revision" "$work"
 read_patch_list
 [[ $OFFERED == "$(offered_of_list "")" ]] ||
     die "$data does not offer exactly the patches of $PATCH_LIST (build it with release/build-server-db)"
+[[ $OFFERED_GAME == "$GAME_ROW" ]] ||
+    die "$data does not name the game's archive of $GAME_LIST (build it with release/build-server-db)"
 check_exe_requires "$zip" "$work"
 say "ZIP: $zip, $ZIP_SIZE bytes, sha256 $ZIP_SHA, patch revision $revision"
 say "server data: $data, sha256 $DATA_SHA; /patches will offer:"

@@ -435,6 +435,7 @@ site_port=$(cat "$T/site.port")
 P=http://127.0.0.1:$patches_port
 
 # The lists start empty (their comment lines only), whatever the real ones hold.
+grep "^#" "$here/game.tsv" >"$T/game.tsv"
 grep "^#" "$here/patches.tsv" >"$T/patches.tsv"
 grep "^#" "$here/patches-test.tsv" >"$T/patches-test.tsv"
 cat >"$T/release.env" <<EOF
@@ -448,6 +449,7 @@ SKHID_PATCHES_URL=$P
 SKHID_PATCHES_CADDYFILE=$T/Caddyfile
 SKHID_PATCH_LIST=$T/patches.tsv
 SKHID_TEST_PATCH_LIST=$T/patches-test.tsv
+SKHID_GAME_LIST=$T/game.tsv
 SKHID_STOCK_DB=$T/resources.db
 SKHID_RELEASE_LOCK=$T/lock
 SKHID_BACKUP_DIR=$T/backups
@@ -646,24 +648,26 @@ check "build-server-db: no file left by a refused check" test ! -e "$T/work/sgd2
 out=$("$here/build-server-db" --test --out "$T/work/sgd-test.db" 2>&1) || fail "build-server-db --test: $out"
 check "build-server-db --test: the test list, the test URLs" has "$out" "  patch_12 sha256 $sha12 urls http://127.0.0.1:$test_patches_port/resources.db.patch_12"
 
-# Mirrors: add-mirror, a row of several URLs, build-server-db of it. On a
-# copy of the list (the live one stays that of sgd.db, which deploy takes).
+# Mirrors: add-mirror puts a row into srp's mirrors.tsv (the stand-in
+# volume) at once; a list of several URLs, build-server-db of it (on a copy
+# of the list: the live one stays that of sgd.db, which deploy takes).
 size3=$(stat -c %s "$patch")
 cp "$patch" "$T/mirror/resources.db.patch_3"
 # The patch's size, other bytes: an older file under the mirror's name.
 { head -c $((size3 - 1)) "$patch"; printf '\377'; } >"$T/mirror/wrong_3"
 wrong3=$(sha256sum <"$T/mirror/wrong_3" | cut -d' ' -f1)
-cp "$T/patches.tsv" "$T/mirrored.tsv"
-menv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|")
-am=(env SKHID_RELEASE_ENV="$menv" "$here/add-mirror")
+cp "$T/patches.tsv" "$T/list.before"
+am=("$here/add-mirror")
 check "--help is the usage" has "$("$here/add-mirror" --help)" "usage: release/add-mirror"
-expect_refused "add-mirror: a patch not in the list" "is not in $T/mirrored.tsv" "${am[@]}" resources.db.patch_5 "$M/files/x"
-expect_refused "add-mirror: not a patch's name" "a patch's name is resources.db.patch_<n>" "${am[@]}" patch_3 "$M/files/x"
+expect_refused "add-mirror: a patch not in the list" "is not in $T/patches.tsv" "${am[@]}" resources.db.patch_5 "$M/files/x"
+expect_refused "add-mirror: not a file's name" "a file of the list is resources.db.patch_<n>" "${am[@]}" patch_3 "$M/files/x"
+expect_refused "add-mirror: the game's archive when the list has none" "survarium-026g.7z is not in $T/game.tsv" \
+    "${am[@]}" survarium-026g.7z "$M/files/g.7z"
 for bad in "ftp://127.0.0.1/x" "http://user:pw@127.0.0.1/x" "http://127.0.0.1/a b" "http://127.0.0.1/a#b" "http://127.0.0.1/" "127.0.0.1/x"; do
     expect_refused "add-mirror: a URL the updater does not take ($bad)" "is not a URL the players' updater takes" \
         "${am[@]}" resources.db.patch_3 "$bad"
 done
-expect_refused "add-mirror: a URL the row has" "is in the row of resources.db.patch_3 already" \
+expect_refused "add-mirror: a URL of the list's row" "is a URL of resources.db.patch_3 in $T/patches.tsv already" \
     "${am[@]}" resources.db.patch_3 "$P/resources.db.patch_3"
 expect_refused "add-mirror: a web page in the place of the file" "answers with a web page (text/html; charset=utf-8)" \
     "${am[@]}" resources.db.patch_3 "$M/page/resources.db.patch_3"
@@ -671,16 +675,36 @@ expect_refused "add-mirror: other bytes" "gave sha256 $wrong3, not $sha3" "${am[
 expect_refused "add-mirror: no such file" "answers 404, not 200" "${am[@]}" resources.db.patch_3 "$M/files/none"
 expect_refused "add-mirror: six redirects, as the updater refuses them" "hop/6/resources.db.patch_3 answers" \
     "${am[@]}" resources.db.patch_3 "$M/hop/6/resources.db.patch_3"
-check "add-mirror: a refusal changes no row" cmp -s "$T/patches.tsv" "$T/mirrored.tsv"
+check "add-mirror: a refusal writes no mirrors.tsv" test ! -e "$T/volume/mirrors.tsv"
 check "add-mirror: a refusal is not in the cache" bash -c "! grep -q 127.0.0.1:${M##*:}/ $T/cache/skhid-release/patch-urls.checked 2>/dev/null"
-out=$("${am[@]}" resources.db.patch_3 "$M/hop/5/resources.db.patch_3" 2>&1) || fail "add-mirror: $out"
-check "add-mirror: five redirects are followed, the URL added to the row" grep -qxF \
-    "$(printf 'resources.db.patch_3\t%s\t%s\t%s %s' "$sha3" "$size3" "$P/resources.db.patch_3" "$M/hop/5/resources.db.patch_3")" "$T/mirrored.tsv"
-check "add-mirror: every other line as it was" test "$(grep -v '^resources.db.patch_3' "$T/mirrored.tsv")" = "$(grep -v '^resources.db.patch_3' "$T/patches.tsv")"
+out=$(yes_to "${am[@]}" resources.db.patch_3 "$M/hop/5/resources.db.patch_3") || fail "add-mirror: $out"
+check "add-mirror: five redirects are followed, the row put into srp's mirrors.tsv" test \
+    "$(cat "$T/volume/mirrors.tsv")" = "$(printf 'resources.db.patch_3\t%s' "$M/hop/5/resources.db.patch_3")"
+check "add-mirror: asked first, on the live host" has "$out" "On the live host (live through jump), about to run:"
+check "add-mirror: the list is as it was" cmp -s "$T/patches.tsv" "$T/list.before"
 check "add-mirror: the URL is in the cache" grep -qxF "$sha3 $size3 $M/hop/5/resources.db.patch_3" "$T/cache/skhid-release/patch-urls.checked"
-out=$("${am[@]}" resources.db.patch_3 "$M/files/resources.db.patch_3" 2>&1) || fail "add-mirror: $out"
-check "add-mirror: says the order" has "$out" "now has 3 URLs, tried in this order"
-check "add-mirror: says to commit, and the next release" has "$out" "commit it; players get it with the next release"
+check "add-mirror: says so when the site does not list it" has "$out" "does not list $M/hop/5/resources.db.patch_3"
+check "add-mirror: the release lock is free after" test ! -e "$T/lock"
+out=$(yes_to "${am[@]}" --first resources.db.patch_3 "$M/files/resources.db.patch_3") || fail "add-mirror --first: $out"
+check "add-mirror --first: before the file's other rows" test "$(cut -f2 "$T/volume/mirrors.tsv" | tr '\n' ' ')" = \
+    "$M/files/resources.db.patch_3 $M/hop/5/resources.db.patch_3 "
+expect_refused "add-mirror: a row there already" "is a row of resources.db.patch_3 in the live host's mirrors.tsv already" \
+    "${am[@]}" resources.db.patch_3 "$M/files/resources.db.patch_3"
+expect_refused "add-mirror --remove: no such row" "is not a row of resources.db.patch_3" \
+    "${am[@]}" --remove resources.db.patch_3 "$M/files/none"
+expect_refused "add-mirror --remove: a URL of the list" "take it out of the list's row in a PR" \
+    "${am[@]}" --remove resources.db.patch_3 "$P/resources.db.patch_3"
+out=$(yes_to "${am[@]}" --remove resources.db.patch_3 "$M/files/resources.db.patch_3") || fail "add-mirror --remove: $out"
+check "add-mirror --remove: the row is out, the other kept" test \
+    "$(cat "$T/volume/mirrors.tsv")" = "$(printf 'resources.db.patch_3\t%s' "$M/hop/5/resources.db.patch_3")"
+out=$("${am[@]}" --dry-run --at 1 resources.db.patch_3 "$M/files/resources.db.patch_3" 2>&1) || fail "add-mirror --dry-run: $out"
+check "add-mirror --dry-run: writes nothing" test "$(cut -f2 "$T/volume/mirrors.tsv")" = "$M/hop/5/resources.db.patch_3"
+rm "$T/volume/mirrors.tsv"
+# The list with mirrors, as a PR writes it.
+printf 'resources.db.patch_3\t%s\t%s\t%s %s %s\nresources.db.patch_12\t%s\t%s\t%s\n' "$sha3" "$size3" \
+    "$P/resources.db.patch_3" "$M/hop/5/resources.db.patch_3" "$M/files/resources.db.patch_3" \
+    "$sha12" "$(stat -c %s "$T/r12/resources.db.patch_12")" "$P/resources.db.patch_12" >"$T/mirrored.tsv"
+menv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|")
 : >"$T/mirror.log"
 out=$(env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-mirrors.db" 2>&1) || fail "build-server-db, mirrors: $out"
 check "build-server-db: the data offers the mirrors in their order" has "$out" \
@@ -696,6 +720,38 @@ expect_refused "build-server-db: a mirror that no longer gives the patch" \
     "resources.db.patch_3: $M/hop/5/resources.db.patch_3 answers 404 now (it gave the file before)" \
     env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m2.db"
 mv "$T/mirror/kept_3" "$T/mirror/resources.db.patch_3"
+# The game's archive: a row of the list, its URLs asked for their first
+# bytes alone at build time, named in the data, offered at /game; add-mirror
+# takes it too (here a small stand-in that starts as a 7z archive does).
+{ printf '7z\274\257\047\034'; head -c 4000 /dev/urandom; } >"$T/mirror/g.7z"
+cp "$T/mirror/g.7z" "$T/mirror/g2.7z"
+gsha=$(sha256sum <"$T/mirror/g.7z" | cut -d' ' -f1) gsize=$(stat -c %s "$T/mirror/g.7z")
+printf 'survarium-026g.7z\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/g.7z" >"$T/gamed.tsv"
+genv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|; s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/gamed.tsv|")
+: >"$T/mirror.log"
+out=$(env SKHID_RELEASE_ENV="$genv" "$here/build-server-db" --out "$T/work/sgd-game.db" 2>&1) || fail "build-server-db, the game's archive: $out"
+check "build-server-db: the game's archive by its first bytes alone" bash -c "grep -qx '/files/g.7z bytes=0-12' $T/mirror.log && ! grep -q '^/files/g.7z -' $T/mirror.log"
+check "build-server-db: the data names the game's archive" bash -c \
+    "'$bin' info $T/work/sgd-game.db | grep -qxF '  game survarium-026g.7z $gsize bytes sha256 $gsha urls $M/files/g.7z'"
+check "build-server-db: says what /game offers" has "$out" "/game will offer: {\"sha256\":\"$gsha\",\"size\":$gsize,\"urls\":\[\"$M/files/g.7z\"\]}"
+check "lib: /game as the data says it" test "$(bash -c ". $(printf '%q' "$here/lib.sh") && offered_game_in \"\$('$bin' info $T/work/sgd-game.db)\"")" = \
+    "survarium-026g.7z $gsha $gsize $M/files/g.7z"
+printf 'survarium-026g.7z\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/none.7z" >"$T/bad.tsv"
+expect_refused "build-server-db: a URL of the game's archive that does not give it" "survarium-026g.7z: $M/files/none.7z answers 404 now" \
+    env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
+printf 'resources.db.patch_3\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/g.7z" >"$T/bad.tsv"
+expect_refused "the game's list: its one row is the game's archive" "one row, of survarium-026g.7z" \
+    env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
+# (changed_env runs in a subshell: each call writes the same file.)
+genv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|; s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/gamed.tsv|")
+out=$(SKHID_RELEASE_ENV="$genv" yes_to "$here/add-mirror" survarium-026g.7z "$M/files/g2.7z") || fail "add-mirror, the game's archive: $out"
+check "add-mirror: the game's archive, downloaded whole, its row in mirrors.tsv" test \
+    "$(cat "$T/volume/mirrors.tsv")" = "$(printf 'survarium-026g.7z\t%s' "$M/files/g2.7z")"
+rm "$T/volume/mirrors.tsv"
+check "lib: /patches with mirrors after the release's URLs is as the data says" bash -c \
+    ". $(printf '%q' "$here/lib.sh") && served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"m1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
+check "lib: ... and not with another URL before them, or another file" bash -c \
+    ". $(printf '%q' "$here/lib.sh") && ! served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"m1\",\"u1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}' && ! served_as '{\"patch_4\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
 # The list's own rules for a row's URLs.
 nine=$(for n in 1 2 3 4 5 6 7 8; do printf ' %s/files/m%s' "$M" "$n"; done)
 for case in "$P/resources.db.patch_3  $M/x|one space apart" "$P/resources.db.patch_3 $M/x $M/x|is there twice" \

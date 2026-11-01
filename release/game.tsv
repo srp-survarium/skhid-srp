@@ -1,0 +1,13 @@
+# The original game's archive (build 2777) the players' updater and
+# Skhid-without-updater.bat install the game from, for the live and the test
+# environment alike. Its sha256 and size are those
+# client/updater/logic/src/game.rs pins: never changed. The urls are its
+# addresses, one space apart, tried in this order (any host first; 8 at
+# most): srp offers them at /game (release/build-server-db names this row in
+# the server data), and release/build-zip builds them into the updater and
+# Skhid-without-updater.bat for when the server cannot be reached. Each is
+# checked by its first bytes at a release. More addresses at once, without a
+# release: release/add-mirror survarium-026g.7z <url> (srp's mirrors.tsv).
+# One line, tabs between:
+# name	sha256	size	urls
+survarium-026g.7z	7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028	2906544103	http://2.28.121.133:8090/survarium-026g.7z https://archive.org/download/vostok_engine_v0.26g0_build_2777_internal_id_1104_jan_14_2015/survarium_full_026g0.7z https://drive.usercontent.google.com/download?id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK&export=download&confirm=t

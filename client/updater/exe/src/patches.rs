@@ -450,7 +450,9 @@ const WRITE_STEP: &str = "write the patch";
 struct Run<'a> {
     session: &'a mut Session,
     layout: &'a Layout,
-    server: &'a Url,
+    /// Where the list comes from: the server, or the list built into this
+    /// updater ([`built_in`]) when the server could not be reached.
+    source: Source<'a>,
     look: Look,
     record: &'a mut Record,
     /// The folder is about to change, or has: the status says so.
@@ -458,21 +460,22 @@ struct Run<'a> {
 }
 
 impl Run<'_> {
-    /// The server's list, asked for a few times.
+    /// The server's list, asked for a few times; or the one built in.
     fn list(&mut self) -> Result<List, Fail> {
+        let server = match &self.source {
+            Source::Server(server) => *server,
+            Source::BuiltIn(list) => return Ok(list.clone()),
+        };
         let mut last = String::new();
         for attempt in 1..=LIST_TRIES {
             let session = &mut *self.session;
-            let result = http::get(self.server, "/patches", MAX_LIST, &mut |_, _| {
-                session.pump()
-            });
-            self.session
-                .reached(self.server, result.as_ref().map(|_| ()));
+            let result = http::get(server, "/patches", MAX_LIST, &mut |_, _| session.pump());
+            self.session.reached(server, result.as_ref().map(|_| ()));
             let error = match result {
                 Ok(body) => {
                     return parse_list(&body).map_err(|error| {
                         Fail::Blocked(
-                            text::patches_bad_list(self.server, &list_error(&error)),
+                            text::patches_bad_list(server, &list_error(&error)),
                             format!("the list is not one ({error:?})"),
                         )
                     });
@@ -480,19 +483,19 @@ impl Run<'_> {
                 Err(HttpError::Stopped) => return Err(Fail::Stopped),
                 Err(HttpError::Status(404)) => {
                     return Err(Fail::Blocked(
-                        text::patches_not_offered(self.server),
+                        text::patches_not_offered(server),
                         "the server has no /patches".into(),
                     ));
                 }
                 Err(HttpError::TooLarge) => {
                     return Err(Fail::Blocked(
-                        text::patches_bad_list(self.server, "too large"),
+                        text::patches_bad_list(server, "too large"),
                         "the list is too large".into(),
                     ));
                 }
                 Err(error) => error,
             };
-            last = text::http(self.server, "/patches", &error);
+            last = text::http(server, "/patches", &error);
             log!("patches: the list, try {attempt} of {LIST_TRIES}: {last}");
             if attempt < LIST_TRIES && !self.session.pause(RETRY_PAUSE_MS) {
                 return Err(Fail::Stopped);
@@ -583,6 +586,12 @@ impl Run<'_> {
                 }
                 self.session.state(state::DOWNLOADING);
                 self.session.begin_progress();
+                log!(
+                    "patches: {name}: address {} of {count}, {} (try {round} of {FETCH_TRIES}): \
+                     asking",
+                    at + 1,
+                    address.text
+                );
                 let result = self.download(&part, patch, address);
                 let identity = match result {
                     Ok(identity) => identity,
@@ -679,9 +688,10 @@ impl Run<'_> {
         let session = &mut *self.session;
         let result = http::get_file(
             &address.url,
+            0,
             MAX_PATCH,
             &mut |to| log!("patches: {name}: {} redirects to {to}", address.text),
-            &mut |chunk| {
+            &mut |_, chunk| {
                 written += chunk.len() as u64;
                 output
                     .write(chunk)
@@ -891,6 +901,25 @@ fn list_error(error: &ListError) -> String {
     }
 }
 
+/// Where the patch step's list comes from.
+enum Source<'a> {
+    /// `GET <server>/patches`.
+    Server(&'a Url),
+    /// The server could not be reached: the list built in ([`built_in`]).
+    BuiltIn(List),
+}
+
+/// The list of the release this updater was built for (`SKHID_BUILTIN_PATCHES`,
+/// the `/patches` of `release/patches.tsv`, which `release/build-zip` passes
+/// to the build), for when the server cannot be reached: a provider that
+/// blocks the server need not block the patches' addresses. A list of no
+/// patch is none: it would delete every patch file.
+fn built_in() -> Option<List> {
+    option_env!("SKHID_BUILTIN_PATCHES")
+        .and_then(|text| parse_list(text.as_bytes()).ok())
+        .filter(|list| !list.patches.is_empty())
+}
+
 /// Writes `data` beside, then renames it over `path`.
 fn save(path: &str, data: &[u8]) -> Result<(), Code> {
     if win::read_file(path, data.len() + 1).ok().as_deref() == Some(data) {
@@ -906,15 +935,17 @@ fn save(path: &str, data: &[u8]) -> Result<(), Code> {
 
 /// The server, or its list, could not be fetched: the game may be played
 /// when the folder is as the list kept says, after a run that ended
-/// `ready`. Else PLAY stays off with `message`.
+/// `ready`. Else the step is made with the list built in, when there is
+/// one; else PLAY stays off with `message`.
 fn offline(
     session: &mut Session,
     layout: &Layout,
+    overlay: &[&str],
     record: &mut Record,
     look: Look,
     message: &str,
 ) -> Outcome {
-    match kept_in_place(layout, Some(session), record, look) {
+    match kept_in_place(layout, Some(&mut *session), record, look) {
         Ok(()) => {
             log!("patches: the server could not be asked; the patches kept are in place");
             Outcome::Ready
@@ -923,10 +954,26 @@ fn offline(
             log!("patches: stopped");
             Outcome::Stopped
         }
-        Err(Some(why)) => {
-            log!("patches: BLOCKED: {why}. The player is told: {message}");
-            Outcome::Blocked(message.into())
-        }
+        Err(Some(why)) => match built_in() {
+            Some(list) => {
+                log!(
+                    "patches: the server could not be asked and {why}: the list built into this \
+                     updater is used"
+                );
+                step(
+                    session,
+                    layout,
+                    Source::BuiltIn(list),
+                    overlay,
+                    look,
+                    record,
+                )
+            }
+            None => {
+                log!("patches: BLOCKED: {why}. The player is told: {message}");
+                Outcome::Blocked(message.into())
+            }
+        },
     }
 }
 
@@ -947,10 +994,18 @@ pub fn run(
     let mut record = read_record(layout, look);
     let before = record.clone();
     let outcome = match server {
-        Ok(server) => step(session, layout, server, overlay, look, &mut record),
+        Ok(server) => step(
+            session,
+            layout,
+            Source::Server(server),
+            overlay,
+            look,
+            &mut record,
+        ),
         Err(reason) => offline(
             session,
             layout,
+            overlay,
             &mut record,
             look,
             &text::patches_offline(reason),
@@ -965,7 +1020,7 @@ pub fn run(
 fn step(
     session: &mut Session,
     layout: &Layout,
-    server: &Url,
+    source: Source,
     overlay: &[&str],
     look: Look,
     record: &mut Record,
@@ -973,7 +1028,7 @@ fn step(
     let mut run = Run {
         session,
         layout,
-        server,
+        source,
         look,
         record,
         changing: false,
@@ -997,7 +1052,7 @@ fn step(
         }
         Err(Fail::Offline(message, why)) => {
             log!("patches: {why}: the folder is checked against the list kept");
-            offline(session, layout, record, look, &message)
+            offline(session, layout, overlay, record, look, &message)
         }
         Err(Fail::Stopped) => {
             log!("patches: stopped; the rest next time");

@@ -368,10 +368,14 @@ pub fn open_from_env() -> Result<Option<SqliteRepository>, PersistError> {
             return Ok(None);
         }
     }
-    let dir = std::env::var_os(DATA_DIR_VAR)
+    open_in(&data_dir()).map(Some)
+}
+
+/// srp's data folder: `SRP_DATA_DIR`, by default `./data`.
+pub fn data_dir() -> PathBuf {
+    std::env::var_os(DATA_DIR_VAR)
         .filter(|dir| !dir.is_empty())
-        .map_or_else(|| PathBuf::from(DEFAULT_DATA_DIR), PathBuf::from);
-    open_in(&dir).map(Some)
+        .map_or_else(|| PathBuf::from(DEFAULT_DATA_DIR), PathBuf::from)
 }
 
 /// `<dir>/srp.db`, the directory made if missing, after a backup of what

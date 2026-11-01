@@ -99,6 +99,7 @@ given), LIKELY or GUESS.
 | [shop-character-menu.md](shop-character-menu.md) | The character menu (kits) shown on the left in the Shop tab too (the owner, 2026-10-22) |
 | [ui_scale.md](ui_scale.md) | The UI at high resolutions: how each Flash movie follows the screen size, what is drawn 1:1 at 4K and how small, the HUD centring fixes |
 | [launcher_updater.md](launcher_updater.md) | The game's own updater (`survarium_updater.exe`), which the Skhid launcher does not use: its arguments, what it said on the pipe, what it did on the network |
+| [download-mirrors.md](download-mirrors.md) | Download mirrors (the owner, 2026-11-01, after Google Drive's quota stopped new players): the game's archive and the patches from many addresses in order, srp's `/game` and `mirrors.tsv`, `release/add-mirror`, resume at the next address, the addresses built into the updater and the .bat, one log line a try |
 | [armour-params.md](armour-params.md) | Armour configs: what each key does |
 | [artefact-score.md](artefact-score.md) | Match score for an artefact put into a slot |
 | [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts-1 edit list |
