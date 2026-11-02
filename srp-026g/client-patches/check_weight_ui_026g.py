@@ -38,6 +38,7 @@ class WeightGame(Game):
         self.weight = 25
         self.descriptor = self.block(0x400)
         self.calls = []
+        self.kit_calls = []
         self.emu.hook_add(UC_HOOK_CODE,self.capture,begin=0x511600,end=0x511600)
         self.emu.hook_add(UC_HOOK_CODE,self.total_weight,begin=0x2f76f0,end=0x2f76f0)
         self.emu.hook_add(UC_HOOK_CODE,self.item_descriptor,begin=0x1f0090,end=0x1f0090)
@@ -66,8 +67,7 @@ class WeightGame(Game):
     def capture(self,u,a,s,d):
         sp=u.reg_read(UC_X86_REG_ESP)
         assert u.reg_read(UC_X86_REG_ECX)==self.movie
-        method=b'root.update_player_items_weight\0'
-        assert bytes(u.mem_read(self.read(sp+4),len(method)))==method
+        method=bytes(u.mem_read(self.read(sp+4),64)).split(b'\0')[0]
         assert self.read(sp+8)==0
         args,count=self.read(sp+12),self.read(sp+16)
         values=[]
@@ -75,7 +75,14 @@ class WeightGame(Game):
             raw=bytes(u.mem_read(args+24*i,24))
             assert struct.unpack_from('<II',raw)==(0,5)
             values.append(struct.unpack_from('<d',raw,8)[0])
-        self.calls.append(values)
+        if method==b'root.set_kit_modifiers':
+            assert count==68,count
+            self.kit_calls.append(values)
+        else:
+            assert method==b'root.update_player_items_weight',method
+            # The kit's floats come first, once for each weight callback.
+            assert len(self.kit_calls)==len(self.calls)+1
+            self.calls.append(values)
         self.ret(16)
 
     def load_config(self, minimum=20, movement=-0.2, spending=1.5, maximum=30):
@@ -115,7 +122,17 @@ class WeightGame(Game):
         assert self.emu.reg_read(UC_X86_REG_EIP)==STOP
         assert self.emu.reg_read(UC_X86_REG_ESP)==STACK-0x100
         assert all(self.emu.reg_read(r)==v for r,v in kept.items())
+        # The selected kit's 68 floats, every one by its index, before the weight.
+        kit=self.emu.mem_read(self.profile+0x4632,1)[0]
+        floats=struct.unpack('<68f',bytes(self.emu.mem_read(self.profile+0xf4+kit*0x704,68*4)))
+        assert len(self.kit_calls[-1])==68 and all(a==e for a,e in zip(self.kit_calls[-1],floats)),(kit,self.kit_calls[-1],floats)
         return self.calls[-1]
+
+    def distinct_floats(self):
+        """Every kit's every float its own value (kit, index), so the order is checked."""
+        for kit in range(3):
+            for index in range(68):
+                self.word(self.profile+0xf4+kit*0x704+4*index,fbits(kit*10+index*0.125-4))
 
 
 def main():
@@ -127,6 +144,7 @@ def main():
     assert all(ok for ok,_ in shapes), [text for ok,text in shapes if not ok]
     g=WeightGame(image)
     g.word(g.menu+0x3118,fbits(30))
+    g.distinct_floats()
     g.kit(0)
     assert g.show()==[25,30], 'old callback until config is available'
     count=0
@@ -162,6 +180,6 @@ def main():
     # A different lobby must not borrow a previous lobby's config.
     replacement=g.block(0x3200);g.emu.mem_write(replacement,bytes(g.emu.mem_read(g.menu,0x3200)));g.menu=replacement
     assert len(g.show())==2
-    print(f'PASS: {count} native callback cases (with the kit\'s movement skills, Bear Arms, the carry limit\'s base, skills and Packrat, and stamina use\'s 19 and 67), 3 equipped kits, config hooks, kit switching, compatibility, invalid config and owner isolation')
+    print(f'PASS: the kit\'s 68 floats before each of {len(g.kit_calls)} weight callbacks; {count} native callback cases (with the kit\'s movement skills, Bear Arms, the carry limit\'s base, skills and Packrat, and stamina use\'s 19 and 67), 3 equipped kits, config hooks, kit switching, compatibility, invalid config and owner isolation')
 
 if __name__=='__main__': main()

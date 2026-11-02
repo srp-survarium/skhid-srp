@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimalne obrażenia
 st_srp_weapon_minimum_damage_from	Minimalne obrażenia od
 st_srp_weapon_recoil_heading	Odrzut, rozrzut i kołysanie
 st_srp_weapon_reload	Przeładowanie
-st_srp_weapon_shift_hint	Przytrzymaj Shift: szczegóły
+st_srp_weapon_shift_hint	Shift: więcej · Alt: w meczu
 st_srp_weapon_spread_growth	Tempo wzrostu rozrzutu
 st_srp_weapon_spread_max	Limit wzrostu rozrzutu
 st_srp_weapon_spread_per_shot	Rozrzut na strzał
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Statystyki broni
 st_srp_weapon_sway_cycle	Cykl kołysania
 st_srp_weapon_sway_horizontal	Kołysanie poziome
 st_srp_weapon_sway_vertical	Kołysanie pionowe
+st_srp_weapon_with_kit	Z zestawem
+st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
 st_srp_weather_before_rain	przed deszczem
 st_srp_weather_day	dzień
 st_srp_weather_evening	wieczór

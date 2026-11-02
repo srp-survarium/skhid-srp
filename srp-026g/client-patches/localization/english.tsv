@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway
 st_srp_weapon_reload	Reload
-st_srp_weapon_shift_hint	Hold Shift for details
+st_srp_weapon_shift_hint	Shift: details · Alt: in a match
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
 st_srp_weapon_spread_per_shot	Spread added per shot
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Weapon stats
 st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weapon_with_kit	With kit
+st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
 st_srp_weather_evening	evening

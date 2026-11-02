@@ -98,6 +98,7 @@ pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
 pub mod consumable;
+pub mod drawable_image;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;
