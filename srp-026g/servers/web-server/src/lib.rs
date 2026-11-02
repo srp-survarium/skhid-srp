@@ -1796,8 +1796,8 @@ footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid v
 /// The question is what the player sees, quoted as the updater words it today
 /// (`client/updater`: `logic/src/file_error.rs`, `exe/src/text.rs`,
 /// `logic/src/network.rs`; in the launcher's language where the updater has
-/// one, else its English); the answer what to run. Then where to send files,
-/// once.
+/// one, else its English); the answer what to run, the last one where to
+/// send what it makes.
 fn faq(lang: Lang) -> String {
     let cases = [
         (
@@ -1833,14 +1833,14 @@ fn faq(lang: Lang) -> String {
         (
             lang.tr("Nothing works.", "Нічого не працює."),
             lang.tr(
-                "Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes.",
-                "Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить.",
+                "Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>.",
+                "Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить, нам у Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>.",
             ),
         ),
     ];
     let (q, a) = (lang.tr("Q:", "П:"), lang.tr("A:", "В:"));
     format!(
-        "<section class=card><h2>{}</h2><dl class=qa>{}</dl><p>{}</p></section>",
+        "<section class=card><h2>{}</h2><dl class=qa>{}</dl></section>",
         lang.tr("If something goes wrong", "Якщо щось не так"),
         cases
             .iter()
@@ -1848,10 +1848,6 @@ fn faq(lang: Lang) -> String {
                 format!("<dt class=q>{q}</dt><dd class=q><b>{question}</b></dd><dt>{a}</dt><dd>{answer}</dd>")
             })
             .collect::<String>(),
-        lang.tr(
-            "Send files to us on Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>",
-            "Файли надсилайте нам у Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>",
-        ),
     )
 }
 
@@ -2030,8 +2026,8 @@ fn home(lang: Lang, stats: Stats) -> String {
         lang.tr("How to play", "Як зіграти"),
         if installs_game {
             lang.tr(
-                "Download our files and unpack them into an empty folder. <b>You do this only once.</b>",
-                "Завантажте наші файли й розпакуйте їх у порожню теку. <b>Це робиться лише один раз.</b>"
+                "Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>",
+                "Завантажте наші файли й розпакуйте їх у порожню теку (напр. D:\\Survarium). <b>Це робиться лише один раз.</b>"
             )
         } else if with_launcher {
             lang.tr(
@@ -3348,7 +3344,14 @@ mod tests {
             ] {
                 assert!(faq.contains(said), "{said}: {faq}");
             }
-            assert!(faq.contains("href=\"https://discord.gg/QUmJg3gBhg\""));
+            // The Discord invite is the last answer's, nothing after the pairs.
+            let last = faq.rsplit("<dd>").next().unwrap();
+            assert!(
+                last.contains("href=\"https://discord.gg/QUmJg3gBhg\""),
+                "{last}"
+            );
+            assert!(last.contains("Skhid-collect-logs.cmd"), "{last}");
+            assert!(faq.contains("</dl></section>"), "{faq}");
             assert!(!faq.contains("Russia") && !faq.contains("Росії"), "{faq}");
             assert!(page.contains("<h1>") && page.contains("class=stats"));
             assert!(!page.contains("How matches start") && !page.contains("Як починаються"));
@@ -3373,12 +3376,12 @@ mod tests {
         for (lang, empty, first) in [
             (
                 Lang::En,
-                "into an empty folder.",
+                "into an empty folder (e.g. D:\\Survarium).",
                 "The first start downloads the game",
             ),
             (
                 Lang::Uk,
-                "у порожню теку.",
+                "у порожню теку (напр. D:\\Survarium).",
                 "Під час першого запуску лаунчер завантажує гру",
             ),
         ] {
