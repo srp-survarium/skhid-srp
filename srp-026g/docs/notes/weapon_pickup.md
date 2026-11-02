@@ -19,11 +19,10 @@
   is refused (no player for the place, `peer`), the same in every game,
   and no prompt is offered for it (the offer asks the same: never a silent
   refusal; a player who rejoins on another place leaves the old one's drop
-  so) (the owner, 2026-11-02: nothing
-  more). All synced, the same tick on every client. Not built: drawing the copy alone at its last pose
-  after the respawn; the prompt is offered there (the pose this game last
-  drew), a late joiner (no pose) offers none, and every game plays a pickup
-  sent.
+  so; the owner, 2026-11-02: nothing more). All synced, the same tick on
+  every client. Not built: drawing the copy alone at its last pose after
+  the respawn; the prompt is offered there (the pose this game last drew),
+  a late joiner (no pose) offers none, and every game plays a pickup sent.
 - The picked gun has the bullets left in its magazine (chamber included) and
   one full magazine in reserve.
 - A picked gun starts unworn (condition 1.0), whatever the dropped gun's wear
@@ -77,7 +76,7 @@
 - A player who dies holding a picked gun drops that gun (the owner,
   2026-11-02): its drop is a copy of the pick's recipe (the place, kit and
   slot it was first cooked from, which the dead player's record keeps until
-  its respawn; `Record::drop_recipe`), a kept idle copy of that recipe
+  its respawn; `Record::death_drop`), a kept idle copy of that recipe
   re-used, else cooked from the recipe's place. Its body draws the gun in
   its hands, the prompt's box is the copy's (the same gun), and it is taken
   as any drop: A's gun goes from B's body to C, or back to A (A's own gun
@@ -707,7 +706,7 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   first; a client's players have only this death, 0x1F28E0 inlines the
   base's 0x2D77C0), when the held active object (+128h) is a client weapon
   (vtable 0xA04174) whose inventory item (+10h) is in slot 7 or 10, a copy
-  of the record's recipe for that slot (`Record::drop_recipe`: the gun
+  of the record's recipe for that slot (`Record::death_drop`: the gun
   picked into it, else its own), cooked from the recipe's place: one
   query (`query_resources` 0xE5B60) of one request, the player cook's own
   {"inventory" 0x9FD55C, 41h}, its user data an inventory variant (vtable
