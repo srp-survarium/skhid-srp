@@ -88,6 +88,19 @@ pub fn player<'t>(ctx: &'t Context<'_>, site: PlayerSite) -> Option<Player<'t>> 
     Player::of(ctx, raw)
 }
 
+/// The user a container's use just gave an artefact, and that artefact as
+/// its inventory now holds it (site artefact_container.taken, in
+/// transfer_artefact after take_artefact).
+pub fn container_taken<'t>(ctx: &'t Context<'_>) -> Option<(Player<'t>, Artefact)> {
+    use raw::site::artefact_container_taken as site;
+    // SAFETY: the site's typed registers: the user use_execute holds and
+    // the artefact take_artefact just put in one of its slots.
+    let (user, item) = unsafe { (site::user(ctx), site::item(ctx)?) };
+    let player = Player::of(ctx, user)?;
+    let artefact = player.inventory()?.holding(item)?;
+    Some((player, artefact))
+}
+
 pub fn local_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
     // SAFETY: update_player_icons entry argument and its live client world.
     unsafe {

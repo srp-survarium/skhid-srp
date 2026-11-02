@@ -98,6 +98,18 @@ impl<'t> Inventory<'t> {
         self.passive_item(expected).is_some()
     }
 
+    /// The artefact `item` is in this inventory: the container holding it
+    /// passive, and its id. None when none does.
+    pub(super) fn holding(&self, item: raw::Artefact) -> Option<Artefact> {
+        let count = self.containers()?.count;
+        (0..count).filter_map(ContainerIndex::parse).find_map(|slot| {
+            if self.item_in(slot)? != item { return None; }
+            // SAFETY: the live item this inventory's container holds.
+            let artefact = Artefact { id: ArtefactId::parse(unsafe { read(item.id()) })?, slot };
+            self.owns_passive(artefact).then_some(artefact)
+        })
+    }
+
     /// Identity for presentation only, never dereferenced by a patch.
     pub fn presentation_id(&self, expected: Artefact) -> Option<u32> {
         self.passive_item(expected).map(|item| item.address())
