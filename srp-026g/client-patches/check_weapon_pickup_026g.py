@@ -399,6 +399,7 @@ def main():
     donor_left_then_a_late_join(patched)
     a_departed_donors_gun_is_cooked(patched)
     a_cancel_reopens_the_drop_everywhere(patched)
+    an_open_drops_gun_is_not_idle(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1453,6 +1454,38 @@ def a_cancel_reopens_the_drop_everywhere(patched):
     assert r.save(PLAYER) == opened and j.save(PLAYER) == opened, (r.save(PLAYER).hex(), j.save(PLAYER).hex())
     print("ok a cancelled pickup (the picker's death) opens its drop again in every game, a game whose copy came "
           "from a loaded record too (the donor's record and life decide, not the copy's local mark)")
+
+
+def an_open_drops_gun_is_not_idle(patched):
+    """A holds a pick of D's gun and D, dead again with the same kit and slot, has its drop open (the same recipe).
+    A late joiner whose only copy of that recipe lies in D's open drop must not count it as idle for A's pick: it
+    cooks another before the load, A's reader takes that one, and D's drop keeps its gun (its next pickup then
+    takes it with no cook in the tick)."""
+    j = Pick(patched)
+    j.setup()                                   # the joiner's copy of the recipe: D's open drop's (place 5)
+
+    def active_player(emu, address, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        out, place = j.read(sp + 4), j.read(sp + 8)
+        player = j.roster.get(place, 0)
+        j.word(out, player)
+        if player:
+            j.word(player + 0xD0, j.read(player + 0xD0) + 1)
+        j.ret(8, out)
+    j.emu.hook_add(UC_HOOK_CODE, active_player, begin=GET_ACTIVE_PLAYER, end=GET_ACTIVE_PLAYER)
+    a_holds = record(slot10=(DIED - 5_000, PLACE, KIT, 1))
+    d_open = record(drop=("open", KIT, 1))
+    cooked, gun, _ = j.cooked_gun()
+    j.on_dispatch, j.queries = cooked, []
+    load_world(j, world_with({3: b"\0\0" + a_holds, PLACE: b"\0\0" + d_open}))
+    assert len(j.queries) == 1, ("another copy cooked for A's pick before the load", j.log)
+    j.load(j.picker, a_holds)
+    j.reader(PICK_ID)
+    j.load(PLAYER, d_open)
+    assert j.slot(j.inventory, 10) == gun + 0x10, "A's reader took the cooked copy"
+    assert j.slot(j.cooked, 10) == j.new_gun + 0x10, "D's drop kept its gun"
+    print("ok A holds a pick of D's gun while D's drop of the same recipe is open: a late joiner cooks another copy "
+          "for A before the load and A's reader takes it; D's drop keeps its gun")
 
 
 def crate_per_gun(patched):

@@ -210,7 +210,12 @@
   removal (`KEEP_GONE_MS`, past any rollback) and a loaded record with its drop
   open puts it in the world again, so a pickup replayed across the donor's
   respawn finds it; a world loaded with an open drop this client has no copy of
-  has it cooked before the load (`before_world_load`). A pickup still cooks in
+  has it cooked before the load (`before_world_load`). A copy lying in a
+  drop the world has open is that drop's gun, never counted idle for a
+  pick of the same recipe (a holder's pick of D's gun while D's next drop,
+  same kit and slot, is open): the joiner cooks another before the load, and
+  the reader (`let_go`) takes copies in an open drop only as its last resort
+  (`an_open_drops_gun_is_not_idle`). A pickup still cooks in
   its tick only for a death a client neither saw nor loaded (none known), or
   when the death's cook is not made by the pickup (milliseconds against the
   walk to the body).
