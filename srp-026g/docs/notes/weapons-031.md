@@ -84,6 +84,16 @@ A default kit has three ammo bags.
   class's live value (resource-porter `config::SHAKE_PATHS`), so all four guns have the live
   automatics' 0.8/1.0 x8.
 
+## Where the numbers live
+
+The pack carries the guns' assets. Their stats live in `scripts/content-edit/weapon-stats.tsv`
+(rows `wpn_ots14`, `wpn_scar_h`, `wpn_vhs_2`, `wpn_fn_minimi`), and the two rounds' in `ammo.tsv`
+(`ammo_5.56x45_belt`, `ammo_7.62x51_20`). The rows were dumped from `weapons-031@7`'s configs
+(`content_edit.py --dump-stats`), so they change nothing the pack set. To retune a gun, edit its
+cells, not the port manifest or the pack. The build writes the cells and computes the cards. The
+cards keep their nine rows and gain the detail rows every live gun has (reload, distances, kicks,
+spread, sway, ...).
+
 ## Balance
 
 Each gun's values are its 0.31a2 config's times the live peer's over the peer's in 0.31a2
