@@ -70,6 +70,7 @@ const FILES: &[(&str, &str, &[u8])] = files! {
     "maps/v011e_level_04.webp" => "image/webp",
     "maps/v021d_level_03.webp" => "image/webp",
     "maps/v021d_level_06.webp" => "image/webp",
+    "maps/v069d_level_01.webp" => "image/webp",
 };
 
 /// The page's file at `path` (the target before any `?`): its content type

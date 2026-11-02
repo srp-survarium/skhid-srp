@@ -977,7 +977,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
     let (script_type, script) = crate::damage::file("/damage/calc.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
     wanted.extend(named(std::str::from_utf8(script).unwrap()));
-    for (ending, count) in [(".js", 1), (".woff2", 7), (".webp", 13)] {
+    for (ending, count) in [(".js", 1), (".woff2", 7), (".webp", 14)] {
         assert_eq!(
             wanted.iter().filter(|path| path.ends_with(ending)).count(),
             count,
