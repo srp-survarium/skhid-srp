@@ -417,6 +417,11 @@ pub struct Bot {
     /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
     /// reflex (which counts its own).
     frag_rolls_refused: u32,
+    /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
+    /// reflex (which counts its own).
+    sway_taken: (u32, f32),
+    /// [A241] Whether the client sways its aimed automatic shots ([`Bots::with_client_sway`]); told to the reflex each tick.
+    client_sway: recoil::ClientSway,
     /// The frags its lives carried and threw (the lives over; the present life's throws are the reflex's).
     frag_lives: live_grenades::FragLives,
     /// The kit of this life, and the one it picked for its next (a kit
@@ -579,6 +584,8 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
+            sway_taken: (0, 0.0),
+            client_sway: recoil::ClientSway::Absent,
             frag_lives: live_grenades::FragLives::default(),
             kit: 0,
 
@@ -630,6 +637,8 @@ impl Bot {
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.sway_taken.0 += self.reflex.sway_taken().0;
+        self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
@@ -816,6 +825,8 @@ impl Bot {
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.sway_taken.0 += self.reflex.sway_taken().0;
+        self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
@@ -988,6 +999,15 @@ impl Bots {
     /// over the built map's, which may be of other data.
     pub fn with_container_teams(mut self, teams: Option<[u8; 2]>) -> Self {
         self.container_teams = teams;
+        self
+    }
+
+    /// [A241] Whether the clients sway the bots' aimed automatic shots ([`recoil::ClientSway`]): the live server's do; without
+    /// it none, and the bots' counter holds.
+    pub fn with_client_sway(mut self, sway: recoil::ClientSway) -> Self {
+        for bot in self.bots.iter_mut().flatten() {
+            bot.client_sway = sway;
+        }
         self
     }
 

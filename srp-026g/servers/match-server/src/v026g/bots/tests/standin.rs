@@ -623,6 +623,10 @@ pub(crate) struct Game {
     pub(crate) kick_ticks: Vec<fight_tally::KickTick>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
+    /// [A241] An aimed automatic's shot leaves right of the view by the client's aim sway when `Live` (`SRP_BENCH_AIM_SWAY=live`,
+    /// [`crate::v026g::bots::recoil::AIM_SWAY_DEG`]); and each team's shots so turned, with the degrees in all.
+    pub(crate) aim_sway: crate::v026g::bots::recoil::ClientSway,
+    pub(crate) swayed: [(u32, f32); 2],
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
     /// ([`HitVolume::bench`], the old disc unless `SRP_BENCH_HIT_MODEL=on`).
     pub(crate) volume: HitVolume,
@@ -921,6 +925,8 @@ impl Game {
             kick_pairs: Vec::new(),
             kick_ticks: Vec::new(),
             spread: false,
+            aim_sway: crate::v026g::bots::recoil::ClientSway::Absent,
+            swayed: [(0, 0.0); 2],
             volume: HitVolume::Disc,
             flight: standin_hitbox::BulletPath::Instant,
             honest: honest_stand_in(),
@@ -1554,7 +1560,19 @@ impl Game {
         self.shots_hits[shooter].0 += 1;
         let body = &self.bodies[shooter];
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
+        // [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway (a smaller yaw is right).
+        let sway_deg = if self.aim_sway == crate::v026g::bots::recoil::ClientSway::Live && crate::v026g::bots::recoil::sways(body.gun) {
+            body.spread.aimed_ms(body.keys, at).map_or(0.0, crate::v026g::bots::recoil::aim_sway_deg)
+        } else {
+            0.0
+        };
+        if sway_deg > 0.0 {
+            let team = &mut self.swayed[usize::from(body.team).min(1)];
+            team.0 += 1;
+            team.1 += sway_deg;
+        }
+        let body = &self.bodies[shooter];
+        let [fx, fz] = forward(body.yaw - sway_deg.to_radians());
         let pitch = body.view_elevation();
         let (c, s) = (pitch.cos(), pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
