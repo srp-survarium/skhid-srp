@@ -42,8 +42,32 @@ and `ports/tactical-reload-069d.json`); `scripts/tactical-clips/make_pack.sh`.
 Before, every reload lasted `reload_time`. The VSS's model has a `magazin2` the Val's clips do not
 drive: as its live reload.
 
-## Not converted (0.29a3 has one clip for them)
+## 0.69d0, for the guns 0.29a3 has none for (pack tactical-clips-069@1)
 
-The AK-12, A-545, ASh-12, 9A-91, VSK-94, PP-2000, PP-19 Vityaz, SR-2M, SR-3M, AEK-919K, Vepr,
-UMP-45, PPSh-41, PKP, RPD, VSSK, TOZ-122, Magnum: 0.69d0's clips, where they fit, in pack
-tactical-clips-069.
+0.69d0 reloads these with two clips (its 313, 0.26g's 314); its reload sound lists are ours:
+
+| weapon | tactical (= reload_time) | empty, now | clips (frames) |
+|---|---|---|---|
+| AK-12 (+premium) | 2.8 | 3.71 | `ak_12/reload_tactic` 120, `reload_069d0` 159 |
+| A-545 | 3.167 | 3.96 | `a_545/reload_tactic` 80, `reload_069d0` 100 |
+| ASh-12 | 3.167 | 4.67 | `ash_12/reload_tactic` 122, `reload_069d0` 180 |
+| 9A-91 | 3.167 | 4.47 | `a9_91/reload_tactic` 73, `a9_91/reload` 103 |
+| VSK-94 (+premium) | 3.367 | 4.75 | the 9A-91's |
+| PP-2000 | 2.8 | 3.43 | `pp2000/reload_tactic` 155, `reload_069d0` 190 |
+| PP-19 Vityaz | 3.367 | 4.57 | `vityaz/reload_tactic` 140, `reload_069d0` 190 |
+| PP-19 Vityaz premium | 3.167 | 4.30 | the Vityaz's |
+
+0.69d0's item clips carry a `shoot` event channel (its fire clips' shot): only the fire state
+listens to it (weapon_core_fire_state_base::initialize 0x30E9B3 subscribes, its finalize 0x33AA40
+unsubscribes), so in a reload it is heard by nothing. Accepted by name: the Vityaz's fire selector
+(`safety`, 10 degrees from our idle), the ASh-12's safety catch (25 degrees at the tactical clip's
+end, as our own reload starts it). Reported: the hands' fingers and forearm roll bones apart from
+our reload at the clips' ends (the Vityaz's forearm rolls); worth a look in the game.
+
+## Not converted
+
+- 0.69d0 moved the gun in the hands: its hands' `Weapon` bone carries the static placement our
+  clips keep in the gun's `offset` bone (the same numbers across the gun root's half turn about y),
+  so its reload would slide the gun at the start and end: the SR-2M, AEK-919K, Vepr (+premium)
+  (13 cm), UMP-45 (14 cm), PPSh-41 (6 to 9 cm), SR-3M (+premium) (the Val's clips, 5 cm).
+- One clip in 0.29a3 and 0.69d0 too: the PKP, RPD, VSSK (+camo), TOZ-122, Magnum (a revolver).
