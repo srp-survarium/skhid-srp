@@ -187,6 +187,19 @@ impl ClassAim {
         Self { pistol: same, smg: same, rifle: same, mg: same, shotgun: same, marksman: same, bolt: same }
     }
 
+    /// The class's factors, to change.
+    pub fn of_mut(&mut self, class: WeaponClass) -> &mut (f32, f32, f32) {
+        match class {
+            WeaponClass::Pistol => &mut self.pistol,
+            WeaponClass::Smg => &mut self.smg,
+            WeaponClass::Rifle => &mut self.rifle,
+            WeaponClass::MachineGun => &mut self.mg,
+            WeaponClass::Shotgun => &mut self.shotgun,
+            WeaponClass::Marksman => &mut self.marksman,
+            WeaponClass::Bolt => &mut self.bolt,
+        }
+    }
+
     pub fn of(&self, class: WeaponClass) -> (f32, f32, f32) {
         match class {
             WeaponClass::Pistol => self.pistol,
@@ -197,6 +210,115 @@ impl ClassAim {
             WeaponClass::Marksman => self.marksman,
             WeaponClass::Bolt => self.bolt,
         }
+    }
+}
+
+/// [A246] The bench's calibration of each class's skill-1 factor ([`ClassAim`]): the factor at skill 1 -> the hit rate a
+/// shot at skill 1, %, weighed to the live humans' shots: A243's ladder (PR #1089, "A246: skill-1 calibration points",
+/// 2026-11-02; the geometric curve, `combat.zoom_error` all, `combat.settle_k_low` 2.0). Each class's points are its
+/// tiers' runs pooled at each factor (the mean of each tier's mean) and made non-increasing in the factor by
+/// pool-adjacent-violators (a wider aim never hits more; the shotgun's and the scoped marksman's flat stretches are the
+/// bench's noise pooled), so a rate maps back to a factor ([`Calibration::factor_for`]). The admin page sets a class's
+/// skill-1 hit rate through it (`tuning/live.rs`); nothing the bots do reads it. The automatics (rifles, SMGs, machine
+/// guns) share one table; pistols have no bench kit, so no points. A rerun of the ladder replaces them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AimCalibration {
+    /// Where the points come from, as the page shows it.
+    pub source: String,
+    pub automatics: Calibration,
+    pub shotgun: Calibration,
+    pub marksman: Calibration,
+    pub bolt: Calibration,
+}
+
+impl Default for AimCalibration {
+    fn default() -> Self {
+        let points = |points: &[(f32, f32)]| Calibration(points.to_vec());
+        Self {
+            source: "PR #1089 (A243's skill-1 ladder, 2026-11-02; tiers pooled, made non-increasing)".to_owned(),
+            automatics: points(&[(1.0, 21.5), (1.1, 21.4), (1.25, 18.9), (1.32, 18.53), (1.6, 16.5), (2.0, 13.6)]),
+            shotgun: points(&[
+                (0.8, 21.4),
+                (1.0, 20.4),
+                (1.1, 20.4),
+                (1.25, 19.45),
+                (1.3, 18.8),
+                (1.35, 18.8),
+                (1.6, 17.77),
+                (2.0, 15.4),
+            ]),
+            marksman: points(&[(0.72, 29.52), (0.75, 29.52), (0.8, 29.52), (0.85, 29.3), (1.0, 28.75)]),
+            bolt: points(&[(1.0, 42.4), (1.1, 40.1), (1.4, 39.1), (2.0, 35.4), (3.0, 32.4), (4.5, 26.9)]),
+        }
+    }
+}
+
+impl Check for AimCalibration {
+    /// Every table in order ([`Calibration::is_ordered`]).
+    fn check(&self) -> Result<(), String> {
+        let tables = [&self.automatics, &self.shotgun, &self.marksman, &self.bolt];
+        check(tables.iter().all(|points| points.is_ordered()), "calibration")
+    }
+}
+
+impl AimCalibration {
+
+    /// The points of `class`'s guns; `None` for a class with none (pistols).
+    pub fn of(&self, class: WeaponClass) -> Option<&Calibration> {
+        match class {
+            WeaponClass::Pistol => None,
+            WeaponClass::Smg | WeaponClass::Rifle | WeaponClass::MachineGun => Some(&self.automatics),
+            WeaponClass::Shotgun => Some(&self.shotgun),
+            WeaponClass::Marksman => Some(&self.marksman),
+            WeaponClass::Bolt => Some(&self.bolt),
+        }
+    }
+}
+
+/// One class's points: (the factor at skill 1, the hit rate at skill 1 %), the factor rising, the rate never rising and
+/// falling from the first point to the last ([`Calibration::is_ordered`]).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Calibration(pub Vec<(f32, f32)>);
+
+impl Calibration {
+    /// The rate at `factor`, on the straight lines between the points; `None` outside them.
+    pub fn rate_at(&self, factor: f32) -> Option<f32> {
+        self.0.windows(2).find_map(|pair| {
+            let ((f0, r0), (f1, r1)) = (pair[0], pair[1]);
+            (f0..=f1).contains(&factor).then(|| r0 + (r1 - r0) * (factor - f0) / (f1 - f0))
+        })
+    }
+
+    /// The smallest factor whose rate is `rate`: the inverse of [`Calibration::rate_at`] (on a flat stretch, its first
+    /// point); `None` outside the points' rates.
+    pub fn factor_for(&self, rate: f32) -> Option<f32> {
+        self.0.windows(2).find_map(|pair| {
+            let ((f0, r0), (f1, r1)) = (pair[0], pair[1]);
+            if !(r1..=r0).contains(&rate) {
+                None
+            } else if r0 == r1 {
+                Some(f0)
+            } else {
+                Some(f0 + (f1 - f0) * (r0 - rate) / (r0 - r1))
+            }
+        })
+    }
+
+    /// The rates the points span: the last point's and the first's.
+    pub fn rates(&self) -> Option<(f32, f32)> {
+        Some((self.0.last()?.1, self.0.first()?.1))
+    }
+
+    /// Two points or more, each finite with a factor over 0 and a rate within 0-100 %; the factors rising, the rates
+    /// never rising, and the last under the first.
+    fn is_ordered(&self) -> bool {
+        let points = &self.0;
+        points.len() >= 2
+            && points.iter().all(|&(f, r)| f.is_finite() && f > 0.0 && (0.0..=100.0).contains(&r))
+            && points.windows(2).all(|pair| pair[0].0 < pair[1].0 && pair[0].1 >= pair[1].1)
+            && points[points.len() - 1].1 < points[0].1
     }
 }
 
@@ -369,6 +491,49 @@ impl Check for AimTuning {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [A246] The calibration maps a rate to a factor and back on its straight lines: the factor rises as the rate falls, a
+    /// flat stretch gives its first factor, and a rate or factor outside the points has none. A table out of order is
+    /// refused.
+    #[test]
+    fn the_calibration_maps_a_rate_to_its_factor_and_back() {
+        let near = |got: Option<f32>, want: f32| got.is_some_and(|got| (got - want).abs() < 1e-4);
+        let calibration = AimCalibration::default();
+        assert_eq!(calibration.check(), Ok(()), "the shipped points are in order");
+        let automatics = calibration.of(WeaponClass::Rifle).unwrap();
+        assert_eq!(calibration.of(WeaponClass::Smg), Some(automatics));
+        assert_eq!(calibration.of(WeaponClass::Pistol), None);
+        // At a point and between two.
+        assert!(near(automatics.factor_for(18.9), 1.25));
+        assert!(near(automatics.rate_at(1.25), 18.9));
+        let twenty = automatics.factor_for(20.0).unwrap();
+        assert!((1.1..1.25).contains(&twenty), "{twenty}");
+        assert!(near(automatics.rate_at(twenty), 20.0));
+        // Monotone: a higher rate never takes a wider factor.
+        let rates: Vec<f32> = (136..=215).map(|tenth| tenth as f32 / 10.0).collect();
+        let factors: Vec<f32> = rates.iter().map(|&rate| automatics.factor_for(rate).unwrap()).collect();
+        assert!(factors.windows(2).all(|pair| pair[1] <= pair[0]), "{factors:?}");
+        // Outside the points.
+        assert_eq!(automatics.factor_for(21.6), None);
+        assert_eq!(automatics.factor_for(13.5), None);
+        assert_eq!(automatics.rate_at(0.9), None);
+        assert_eq!(automatics.rate_at(2.1), None);
+        // A flat stretch (the marksman's scope): its first factor.
+        assert_eq!(calibration.marksman.factor_for(29.52), Some(0.72));
+        assert!(near(calibration.shotgun.factor_for(20.4), 1.0));
+        // Out of order: refused.
+        for bad in [
+            vec![(1.0, 20.0)],
+            vec![(1.0, 20.0), (1.2, 21.0)],
+            vec![(1.2, 20.0), (1.0, 18.0)],
+            vec![(1.0, 20.0), (1.2, 20.0)],
+            vec![(0.0, 20.0), (1.2, 18.0)],
+            vec![(1.0, 120.0), (1.2, 18.0)],
+        ] {
+            let calibration = AimCalibration { bolt: Calibration(bad.clone()), ..AimCalibration::default() };
+            assert_eq!(calibration.check(), Err("calibration".to_owned()), "{bad:?}");
+        }
+    }
 
     #[test]
     fn the_geometric_curve_keeps_the_ends_and_tightens_the_middle() {

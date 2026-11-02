@@ -67,6 +67,8 @@ pub struct Group {
     pub title: Text,
     /// What the group's shown-only knobs, or knobs to come, wait for.
     pub note: Option<Text>,
+    /// Where its numbers come from (the hits' calibration), as the page shows it.
+    pub source: Option<String>,
     pub knobs: Vec<Knob>,
 }
 
@@ -89,6 +91,8 @@ pub struct Knob {
     pub default: String,
     /// The values it takes, as the page says them (`0–1`).
     pub limits: String,
+    /// What the page shows beside the value (a hit rate's aim factors).
+    pub beside: Option<String>,
 }
 
 /// One knob changed, for the audit.
