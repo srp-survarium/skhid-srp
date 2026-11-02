@@ -941,10 +941,10 @@ pub struct ThinkTuning {
     pub stranded_start: bool,
     /// A goal on no floor near it (none within `path::GOAL_REACH_M` across and `path::GOAL_RISE_M` up or down: no search
     /// can reach it) is learned as no way, from a start floor, as a goal whose search found none (`Bot::no_way_to`): its
-    /// play is asked again (`goal_shut`). A251, PROVEN by the route search's checks: Vostok Radar Station day 4, goals 3.4 m
+    /// play is asked again (`goal_shut`). A251, PROVEN by the route search's checks: Chemical Plant TDM, goals 3.4 m
     /// from the nearest floor (at the height of the floors round them) ran no search, were never learned, and held one body
-    /// 20-35 s at a time. On by default (A251's bench, both switches, 64 matches: no-way ticks 4,311 -> 2,970, Vostok Radar
-    /// Station day 4 690 -> 106); the all-off arm keeps it (its old value is the proven hold). Off: such a goal is asked every
+    /// 20-35 s at a time. On by default (A251's bench, both switches, 64 matches: no-way ticks 4,311 -> 2,970, Chemical
+    /// Plant TDM 690 -> 106); the all-off arm keeps it (its old value is the proven hold). Off: such a goal is asked every
     /// 0.5 s while the play keeps it.
     pub goal_off_floor_no_way: bool,
     /// A walked leg of a bot's route that crosses a doorway gets a corner at the middle of the opening
