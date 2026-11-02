@@ -574,5 +574,28 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.medicine_card(medkit), {18: '3.0', 19: '2.0', 15: '0.2', 135: '100', 137: '40'})
 
 
+    def test_the_medicines_table_restates_the_packs_table(self):
+        """medicines.tsv here holds the numbers the pack's scripts/medicines/medicines.tsv makes (% of a pool,
+        100 a second; docs/notes/medicines.md) as the configs store them: the two must agree."""
+        here = Path(ce.__file__).resolve().parent
+        lines = (here.parent / 'medicines/medicines.tsv').read_text(encoding='utf-8').splitlines()
+        head = next(line for line in lines if line.startswith('# name\t'))[2:].split('\t')
+        pack = {row[0]: dict(zip(head, row)) for row in (line.split('\t') for line in lines if not line.startswith('#'))}
+        _, _, table = ce.read_stats(str(here / 'medicines.tsv'))
+        self.assertEqual(len(pack), 5)
+        for name, p in pack.items():
+            t, active = table[name], float(p['active'])
+            per_second = lambda pct: 1 if float(pct) == 100 else float(pct) / 100 / active
+            want = {'use_s': float(p['use']), 'active_s': active, 'weight': float(p['kg']),
+                    'level': float(p['level']), 'mm_level': float(p['mm']), 'limbs': per_second(p['limbs']),
+                    'body': per_second(p['body_head']),
+                    'head': 1 if float(p['body_head']) == 100 else per_second(p['body_head']) * 0.4,
+                    'pain': per_second(p['pain']), 'infection': float(p['toxins']) / 100 or None}
+            for column, value in want.items():
+                cell = float(t[column]) if t[column] else None
+                self.assertTrue(cell == value or (cell is not None and value is not None and abs(cell - value) < 1e-4),
+                                '%s %s: the table %s, the pack %s' % (name, column, cell, value))
+
+
 if __name__ == '__main__':
     unittest.main()
