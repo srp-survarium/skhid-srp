@@ -8972,6 +8972,48 @@ mod tests {
         assert!((low..=high).contains(&mean), "mean taken back {mean} deg, the table {low}-{high}");
     }
 
+    /// [A263] With the target-size gate (`fire_body_share`) a view its motor keeps on its aim (the last tick's look and error)
+    /// fires as often as with the flat gate: the gate tests the error the view carries, not the tick's fresh draw (A228: at
+    /// skill 0 the floor's redraw alone moves the aim by degrees from tick to tick, and a tight bound refused by it).
+    #[test]
+    fn a_tight_gate_lets_a_view_on_its_aim_fire() {
+        let fires = |share: f32| {
+            let aim = AimTuning {
+                combat: CombatTuning { fire_body_share: share, ..CombatTuning::default() },
+                ..AimTuning::default()
+            };
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            let at = Vec3::new(0.0, 0.0, 30.0);
+            let enemy = body(1, 1, at, 0.0);
+            facing(&mut me, enemy.chest());
+            let view = view_of(vec![me.clone(), enemy]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::armed(Arms::of_test_role("support"));
+            let mut rng = Rng::new(11);
+            let mut fired = 0u32;
+            for k in 0..200 {
+                let now = 1_000 + k * 50;
+                sense(&mut memory, &[percept(1, at, now, Source::Seen)], now);
+                if k % 5 == 0 {
+                    reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.0, &mut rng);
+                }
+                let o = reflex.tick(&me, &view, &memory, now, true, &aim, 0.0, &mut rng);
+                fired += u32::from(o.fire);
+                // A motor that arrives: the view on the look, with its error.
+                if let Some(look) = o.look_at {
+                    facing(&mut me, look);
+                    me.yaw += o.error.0;
+                    me.pitch += o.error.1;
+                }
+            }
+            fired
+        };
+        let flat = fires(0.0);
+        let tight = fires(0.5);
+        assert!(flat > 0, "the flat gate fires");
+        assert!(tight * 10 >= flat * 9, "the tight gate fired {tight} times, the flat {flat}");
+    }
+
     fn facing_fight(
         role: &str,
         distance: f32,
