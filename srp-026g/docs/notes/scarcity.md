@@ -7,7 +7,7 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
 ## Spec
 
 - **Its own mode in the lobby:** "Protective device: scarcity" (Захисний пристрій: дефіцит, Защитное
-  устройство: дефицит, Schutzeinrichtung: Knappheit, ...: as each language writes Blackout's), lobby mode 8 (7 is the free-for-all's, `feat/ffa-mode`):
+  устройство: дефицит, Schutzeinrichtung: Knappheit, ...: as each language writes Blackout's), lobby mode 7 (the first free one; the free-for-all, `feat/ffa-mode`, merging later, will take the next free mode):
   a tick of the rooms' create window, a card of the vote, a row of the room and match lists. Listed
   after Blackout: plain, chargers, blackout, scarcity, then team deathmatch and Research.
 - **Always offered, like Blackout:** the rooms' pool holds each plain battery map of the match pool
@@ -55,7 +55,7 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
 - **Lobby (srp):** `maps::Variant` (Plain, Blackout, Scarcity) is the one value a battery match's
   variant is. The variants' maps are named by ids of the lobby's own (`maps::variant_pairs`: ids
   `maps_dict` does not use, from 255 down, Blackout's first so its ids are those it had before
-  Scarcity, then Scarcity's), modes 6 and 8 in the rooms' pool, cards and rows. A room's match on
+  Scarcity, then Scarcity's), modes 6 and 7 in the rooms' pool, cards and rows. A room's match on
   such a card is made on the battery map with `MatchSetup::variant`.
 - **The ammo (the match server):** the game gives a life its kit's slot counts
   (`inventory::setup_from_profile` 0x2FCB70: each ammo slot `min(the kit's count, amount_in_storage)`,

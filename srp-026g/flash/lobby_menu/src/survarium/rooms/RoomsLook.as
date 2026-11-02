@@ -55,7 +55,7 @@ package survarium.rooms
         // deathmatch red, Research green, Blackout and Scarcity the same light grey (the owner,
         // 2026-11-02: Scarcity coloured as Blackout).
         private static const BLACKOUT_COLOUR:uint = LIGHT;
-        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": BLACKOUT_COLOUR, "8": BLACKOUT_COLOUR};
+        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": BLACKOUT_COLOUR, "7": BLACKOUT_COLOUR};
 
         public static function modeColour(mode:int):uint
         {

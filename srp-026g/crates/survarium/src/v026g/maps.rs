@@ -57,9 +57,10 @@ pub mod mode {
     pub const BLACKOUT: u8 = 6;
     /// Scarcity ("Protective device: scarcity", `docs/notes/scarcity.md`): a
     /// mode of the lobby's only, as Blackout. A match of it is one of
-    /// [`super::VARIANT_RULES`] with the static info's variant Scarcity. 8,
-    /// not 7: the free-for-all's configs and lobby take 7 (`feat/ffa-mode`).
-    pub const SCARCITY: u8 = 8;
+    /// [`super::VARIANT_RULES`] with the static info's variant Scarcity.
+    /// The free-for-all (`feat/ffa-mode`), merging later, takes the next free
+    /// mode.
+    pub const SCARCITY: u8 = 7;
 }
 
 /// What a battery match is beside its rules: the static info's variant

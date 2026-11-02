@@ -2703,7 +2703,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
     a_variant_is_a_mode_of_the_standard_pool(maps::Variant::Blackout);
 }
 
-/// Scarcity (`docs/notes/scarcity.md`): offered as Blackout is, as mode 8.
+/// Scarcity (`docs/notes/scarcity.md`): offered as Blackout is, as mode 7.
 #[test]
 fn scarcity_is_a_mode_of_the_standard_pool() {
     a_variant_is_a_mode_of_the_standard_pool(maps::Variant::Scarcity);
