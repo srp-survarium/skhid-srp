@@ -510,6 +510,24 @@ class OtherTables(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no such key'):
             ce.stats_write(category, columns, rows, files, 't')
 
+    def test_a_key_value_dump_is_the_configs_numbers_and_a_prefix_gates_every_key_under_it(self):
+        player = {'configs': 'player.options', 'match': {'player/fall'}}
+        with tempfile.TemporaryDirectory() as folder, unittest.mock.patch.dict(ce.STATS, {'t': player}):
+            (Path(folder) / 'player.options').write_bytes(bytes(config(
+                {'player': {'fall': {'fatal': 1.5, 'height': 5}, 'hands': 'empty', 'bags': 3}})))
+            with unittest.mock.patch('sys.stdout', new=io.StringIO()) as out:
+                ce.dump_stats('t', folder)
+        self.assertEqual(out.getvalue(), 'key\tvalue\nplayer/bags\t3\nplayer/fall/fatal\t1.5\nplayer/fall/height\t5\n')
+        columns, rows = read_table(player, out.getvalue().replace('1.5', '1'))
+        was = config({'player': {'fall': {'fatal': 1.5, 'height': 5}, 'bags': 3}})
+        files = {'player.options': bytearray(was)}
+        ce.stats_write(player, columns, rows, files, 't')
+        self.assertEqual(ce.stats_moved(player, columns, {'player.options': was}, files),
+                         ['player.options player/fall/fatal'])
+        columns, rows = read_table(player, 'key\tvalue\nplayer/fall/new\t1\n')
+        with self.assertRaisesRegex(ValueError, 'no such key'):
+            ce.stats_write(player, columns, rows, files, 't')
+
 
 if __name__ == '__main__':
     unittest.main()

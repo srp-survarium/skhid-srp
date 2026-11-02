@@ -854,6 +854,7 @@ va	status	ref_021d	name
 0x001f0090	reviewed	0x0015fdaa	survarium::items_dictionary::item_by_id
 0x001f1930	reviewed	0x00155f89	survarium::player::inflicted_damage_collector::serialize
 0x001f2720	observed	0x00156ad2	survarium::player::insert
+0x001f2870	reviewed	0x00156be1	survarium::player::remove
 0x001f3de0	reviewed	0x00157d77	vostok::network_core::buffer_writer::w<unsigned char>
 0x001f48a0	reviewed	0x00158564	vostok::network_core::buffer_writer::w<unsigned int>
 0x001f6d50	reviewed	0x0015a3f2	survarium::game_world::register_cooks
@@ -2000,6 +2001,75 @@ va	status	ref_021d	name
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
+0x000eee30	reviewed	0x000b829f	vostok::math::create_perspective_projection
+0x00185930	observed		vostok::render::effect_ambient_light<0,0,0,0>::compile
+0x00185c40	observed		vostok::render::effect_ambient_light<1,0,0,0>::compile
+0x00185f50	observed		vostok::render::effect_ambient_light<2,0,0,0>::compile
+0x00186260	observed		vostok::render::effect_ambient_light<0,1,0,0>::compile
+0x00186570	observed		vostok::render::effect_ambient_light<1,1,0,0>::compile
+0x00186880	observed		vostok::render::effect_ambient_light<2,1,0,0>::compile
+0x00186b90	observed		vostok::render::effect_ambient_light<0,0,1,0>::compile
+0x00186ea0	observed		vostok::render::effect_ambient_light<1,0,1,0>::compile
+0x001871b0	observed		vostok::render::effect_ambient_light<2,0,1,0>::compile
+0x001874c0	observed		vostok::render::effect_ambient_light<0,1,1,0>::compile
+0x001877d0	observed		vostok::render::effect_ambient_light<1,1,1,0>::compile
+0x00187ae0	observed		vostok::render::effect_ambient_light<2,1,1,0>::compile
+0x00187df0	observed		vostok::render::effect_ambient_light<0,0,0,1>::compile
+0x00188100	observed		vostok::render::effect_ambient_light<1,0,0,1>::compile
+0x00188410	observed		vostok::render::effect_ambient_light<2,0,0,1>::compile
+0x00188720	observed		vostok::render::effect_ambient_light<0,1,0,1>::compile
+0x00188a30	observed		vostok::render::effect_ambient_light<1,1,0,1>::compile
+0x00188d40	observed		vostok::render::effect_ambient_light<2,1,0,1>::compile
+0x00189050	observed		vostok::render::effect_ambient_light<0,0,1,1>::compile
+0x00189370	observed		vostok::render::effect_ambient_light<1,0,1,1>::compile
+0x00189690	observed		vostok::render::effect_ambient_light<2,0,1,1>::compile
+0x001899b0	observed		vostok::render::effect_ambient_light<0,1,1,1>::compile
+0x00189cd0	observed		vostok::render::effect_ambient_light<1,1,1,1>::compile
+0x00189ff0	observed		vostok::render::effect_ambient_light<2,1,1,1>::compile
+0x0018a310	observed		vostok::render::effect_environment_probe_lighting<0,0,0,0>::compile
+0x0018a720	observed		vostok::render::effect_environment_probe_lighting<1,0,0,0>::compile
+0x0018ab30	observed		vostok::render::effect_environment_probe_lighting<0,1,0,0>::compile
+0x0018af40	observed		vostok::render::effect_environment_probe_lighting<1,1,0,0>::compile
+0x0018b360	observed		vostok::render::effect_environment_probe_lighting<0,0,1,0>::compile
+0x0018b770	observed		vostok::render::effect_environment_probe_lighting<1,0,1,0>::compile
+0x0018bb80	observed		vostok::render::effect_environment_probe_lighting<0,1,1,0>::compile
+0x0018bf90	observed		vostok::render::effect_environment_probe_lighting<1,1,1,0>::compile
+0x0018c3b0	observed		vostok::render::effect_environment_probe_lighting<0,0,0,1>::compile
+0x0018c7c0	observed		vostok::render::effect_environment_probe_lighting<1,0,0,1>::compile
+0x0018cbd0	observed		vostok::render::effect_environment_probe_lighting<0,1,0,1>::compile
+0x0018cfe0	observed		vostok::render::effect_environment_probe_lighting<1,1,0,1>::compile
+0x0018d400	observed		vostok::render::effect_environment_probe_lighting<0,0,1,1>::compile
+0x0018d810	observed		vostok::render::effect_environment_probe_lighting<1,0,1,1>::compile
+0x0018dc20	observed		vostok::render::effect_environment_probe_lighting<0,1,1,1>::compile
+0x0018e030	observed		vostok::render::effect_environment_probe_lighting<1,1,1,1>::compile
+0x001d01b0	observed		vostok::render::effect_filter_fog_ambient_occlusion::compile
+0x0017cda0	observed		vostok::render::effect_decode_position::compile
+0x001ce930	observed		vostok::render::effect_ssdo::compile
+0x0017e080	observed		vostok::render::effect_ssao_filter<0>::compile
+0x0017ebf0	observed		vostok::render::effect_ssao_filter<1>::compile
+0x001a9330	observed		vostok::render::effect_composition<0,0,0>::compile
+0x001a95d0	observed		vostok::render::effect_composition<1,0,0>::compile
+0x001a9870	observed		vostok::render::effect_composition<0,1,0>::compile
+0x001a9b10	observed		vostok::render::effect_composition<1,1,0>::compile
+0x001a9db0	observed		vostok::render::effect_composition<0,0,1>::compile
+0x001aa050	observed		vostok::render::effect_composition<1,0,1>::compile
+0x001aa2f0	observed		vostok::render::effect_composition<0,1,1>::compile
+0x001aa590	observed		vostok::render::effect_composition<1,1,1>::compile
+0x001a5760	observed		vostok::render::effect_atmosphere_clouds<0,0>::compile
+0x001a6170	observed		vostok::render::effect_atmosphere_clouds<1,0>::compile
+0x001a65f0	observed		vostok::render::effect_atmosphere_clouds<0,1>::compile
+0x001a6a60	observed		vostok::render::effect_atmosphere_clouds<1,1>::compile
+0x001d21f0	observed		vostok::render::effect_atmospheric_scattering::compile
+0x001b5440	observed		vostok::render::effect_complex_post_process_blend<1,0>::compile
+0x001b56b0	observed		vostok::render::effect_complex_post_process_blend<1,1>::compile
+0x001b5920	observed		vostok::render::effect_aberration_and_sharpen<0,0,0>::compile
+0x001b5a60	observed		vostok::render::effect_aberration_and_sharpen<0,0,1>::compile
+0x001b5ba0	observed		vostok::render::effect_aberration_and_sharpen<0,1,0>::compile
+0x001b5ce0	observed		vostok::render::effect_aberration_and_sharpen<0,1,1>::compile
+0x001b5e20	observed		vostok::render::effect_aberration_and_sharpen<1,0,0>::compile
+0x001b5f60	observed		vostok::render::effect_aberration_and_sharpen<1,0,1>::compile
+0x001b60a0	observed		vostok::render::effect_aberration_and_sharpen<1,1,0>::compile
+0x001b61e0	observed		vostok::render::effect_aberration_and_sharpen<1,1,1>::compile
 0x00505ca0	reviewed	0x00397b80	Scaleform::RefCountImpl::AddRef
 0x00505cb0	reviewed	0x003698c0	Scaleform::RefCountImpl::Release
 0x005725f0	reviewed	0x003d8200	Scaleform::Render::DrawableImageContext::ExecuteNextCapture
