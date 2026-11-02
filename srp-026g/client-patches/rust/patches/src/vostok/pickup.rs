@@ -20,6 +20,9 @@
 //! - [`restore`] puts everything back as it was cooked and the own gun in
 //!   its slot, the reserved id's entry emptied; the held object is left to
 //!   the caller (remove deactivates it, the reader switches it).
+//! - [`place_lying`] / [`remove_lying`]: a cooked gun drawn alone (a drop's
+//!   gun whose body left the world), as weapon::on_show and weapon::draw place
+//!   a held one; `gun_cook` keeps what it placed and calls them.
 //! - every check is made before the first write: a refusal changes nothing.
 //! - the crate: [`crate_view`], a copy of the inventory with the own gun and
 //!   the own parked stacks in their places, what the native resupply reads;
@@ -38,7 +41,7 @@ pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Ref
 use super::config::{ConfigError, ConfigValue};
 
 use super::gun_cook::{self, CookId};
-use super::world::{read, ItemId, Player, WorldKey};
+use super::world::{floats, read, ItemId, Player, WorldKey};
 use super::{Context, Lock, Thread};
 use crate::raw;
 
@@ -549,6 +552,8 @@ impl Failure {
 /// user: the 83Lb41 crash).
 pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, id: RegistryId,
                mode: Mode<'_>) -> Result<Installed, Failure> {
+    // Drawn alone, its models are ours: out of the scene before the game shows it.
+    gun_cook::hide(player.thread, cook);
     let (registered, replacing) = match mode {
         Mode::Load(_) => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
         Mode::Switch(_, r) => (r, None),
@@ -1531,6 +1536,128 @@ impl GunPose {
     /// Refused when the transform is not finite.
     pub fn at(transform: [f32; 16], model: GunBox) -> Option<GunPose> {
         transform.iter().all(|v| v.is_finite()).then_some(GunPose { transform, model })
+    }
+}
+
+/// Which of a cooked gun's models this module put in the scene: its body,
+/// its scope (the optic's idle model). A model the game put there is never
+/// counted ours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::vostok) struct Models(u8);
+
+impl Models {
+    pub(in crate::vostok) const NONE: Models = Models(0);
+    const BODY: u8 = 1;
+    const SCOPE: u8 = 2;
+
+    fn has(self, bit: u8) -> bool {
+        self.0 & bit != 0
+    }
+}
+
+/// weapon::draw's last argument to calculate_locator (float4x4::identity 0x33390).
+const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
+
+/// The inverse of a row-vector affine 4x4 (its 3x3 and its place); None when
+/// it has none.
+fn affine_inverse(m: &[f32; 16]) -> Option<[f32; 16]> {
+    let a = |r: usize, c: usize| m[r * 4 + c];
+    let cof = |r: usize, c: usize| {
+        let (r0, r1, c0, c1) = ((r + 1) % 3, (r + 2) % 3, (c + 1) % 3, (c + 2) % 3);
+        a(r0, c0) * a(r1, c1) - a(r0, c1) * a(r1, c0)
+    };
+    let det = a(0, 0) * cof(0, 0) + a(0, 1) * cof(0, 1) + a(0, 2) * cof(0, 2);
+    if !det.is_finite() || det.abs() < 1e-12 {
+        return None;
+    }
+    let mut out = IDENTITY;
+    for r in 0..3 {
+        for c in 0..3 {
+            out[r * 4 + c] = cof(c, r) / det;
+        }
+    }
+    for c in 0..3 {
+        out[12 + c] = -(0..3).map(|k| m[12 + k] * out[k * 4 + c]).sum::<f32>();
+    }
+    out.iter().all(|v| v.is_finite()).then_some(out)
+}
+
+/// The gun of `inventory`'s `slot` drawn alone at `transform`, as
+/// weapon::on_show and weapon::draw place a held one (0x243EC7..0x243F37,
+/// 0x244F27..0x245012): its model at the transform (added, or moved there
+/// as weapon::draw moves a held one each frame),
+/// in its bind pose (the bones its model's inverse binds invert, once, when
+/// added: no animation of the dead body's is kept), its scope at the scope's
+/// locator (calculate_locator 0x243BC0 of +744h with the transform and those
+/// bones: the scope's model is in its own frame, at the weapon's origin it
+/// would float off the gun). `ours` what it placed before; what is ours now.
+/// A model already in the scene that is not ours is the game's: then nothing
+/// is placed.
+///
+/// # Safety
+/// `inventory` is a live cooked inventory of ours, its gun the game's in no
+/// way (not registered, not in hands).
+pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: WeaponSlot, transform: &[f32; 16],
+                                            ours: Models) -> Models {
+    use super::carry_runtime::Scene;
+    unsafe {
+        let Some((_, gun)) = cooked_gun(inventory, slot) else { return ours };
+        let weapon = gun.weapon();
+        let (Some(world), Some(model)) = (weapon.world(), weapon.model()) else { return ours };
+        let Some(scene) = Scene::of_world(world) else { return ours };
+        if !ours.has(Models::BODY) && Scene::has(model) {
+            return ours;
+        }
+        // The bind pose: each bone the inverse of its inverse bind (the
+        // renderer skins with inverse bind x bone: the mesh as authored).
+        let mut bones = [IDENTITY; super::draw::MAX_BONES];
+        let binds = model.render_instance().instance().and_then(|i| i.skeleton().original())
+            .and_then(|m| Some((m.inverse_binds()?, m.inverse_binds_end()?)));
+        let Some(count) = binds.and_then(|(begin, end)| end.index_from(begin)).filter(|&n| n > 0 && n <= bones.len())
+        else { return ours };
+        let Some((begin, _)) = binds else { return ours };
+        for (n, bone) in bones[..count].iter_mut().enumerate() {
+            let Some(inverse) = affine_inverse(&floats::<16>(begin.at(n).value())) else { return ours };
+            *bone = inverse;
+        }
+        let bones = &bones[..count];
+        let mut now = ours.0;
+        scene.present(model, transform);
+        if !ours.has(Models::BODY) {
+            scene.skin(model, bones);
+            now |= Models::BODY;
+        }
+        if let Some(scope) = weapon.optics().and_then(|optics| optics.model())
+            && (ours.has(Models::SCOPE) || !Scene::has(scope)) {
+            let mut at = [0.0f32; 16];
+            raw::engine_weapon_locator(at.as_mut_ptr(), weapon.scope_locator(), transform.as_ptr(),
+                                       bones.as_ptr().cast(), IDENTITY.as_ptr());
+            if at.iter().all(|v| v.is_finite()) {
+                scene.present(scope, &at);
+                now |= Models::SCOPE;
+            }
+        }
+        Models(now)
+    }
+}
+
+/// The models of the gun of `inventory`'s `slot` that are `ours` out of the
+/// scene (each only while it is in it: a second removal does nothing).
+///
+/// # Safety
+/// As [`place_lying`]'s.
+pub(in crate::vostok) unsafe fn remove_lying(inventory: raw::Inventory, slot: WeaponSlot, ours: Models) {
+    use super::carry_runtime::Scene;
+    unsafe {
+        let Some((_, gun)) = cooked_gun(inventory, slot) else { return };
+        let weapon = gun.weapon();
+        let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+        if ours.has(Models::BODY) && let Some(model) = weapon.model() {
+            scene.remove(model);
+        }
+        if ours.has(Models::SCOPE) && let Some(scope) = weapon.optics().and_then(|optics| optics.model()) {
+            scene.remove(scope);
+        }
     }
 }
 

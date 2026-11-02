@@ -45,6 +45,10 @@
 //!   the gun in its hands drawn (its own or a picked one); an open drop's gun
 //!   kept by place (its transform, its copy's model box: the same gun), a
 //!   taken drop's gun hidden as patch 78 hides a carrier's;
+//! - the gun alone ([`draw_alone`], each frame after the ragdolls' step):
+//!   an open drop whose body left the world has its copy drawn where the
+//!   ragdoll's gun body lies (it falls or slides on alone until it rests);
+//!   every other copy hidden (`gun_cook::show` / `hide`);
 //! - the prompt, at artefact_carry's on_hud after patch 78's own targets
 //!   ([`aim`]): the gun the local player looks at (2.2 m, its box padded by
 //!   15 cm, in sight) that a pickup would take now, "Pick up <gun> (E)";
@@ -1437,7 +1441,8 @@ fn resupply(ctx: &mut Context<'_>, site: Site) -> Flow<NoExit> {
 const REACH: f32 = 2.2;
 const PAD: f32 = 0.15;
 
-/// A drop's gun as its donor's ragdoll last drew it (by place).
+/// A drop's gun as its donor's ragdoll last drew it (by place), or, its
+/// body gone, as [`draw_alone`] draws it.
 #[derive(Clone, Copy)]
 struct Seen {
     body: Body,
@@ -1489,6 +1494,74 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
         }
         DropState::None => RagdollGun::Shown,
     }
+}
+
+/// A drop's gun its body left (its player respawned) as the ragdoll steps
+/// it alone (`ragdoll::corpse::Lone`): the life whose death dropped it and
+/// the world transform the game would draw it at (its `Weapon` bone's),
+/// still falling or sliding, or at rest.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LoneGun {
+    pub life: u32,
+    pub transform: [f32; 16],
+}
+
+/// Once a frame after the ragdolls' step (composed from ragdoll's
+/// `game_world.after_move`; `lone` each place's gun its body left): a
+/// place's copy is drawn alone at its lone gun while its drop is open and
+/// alone (the record: its body left), or taken with its pickup waiting for
+/// the switch (as on a body: the install hides it at the switch), of the
+/// death this client saw, its copy made here and its place in the world (a
+/// departed place's is neither offered nor drawn); the prompt's pose follows
+/// an open one. Every other copy is hidden.
+/// Nothing synced: a rollback just reconciles here.
+pub fn draw_alone(ctx: &Context<'_>, lone: &[Option<LoneGun>; PLACES as usize]) {
+    let thread = ctx.thread();
+    let world = GameWorld::at_after_move(ctx);
+    let mut drawn = [None; PLACES as usize];
+    if let Some((world, key)) = world.as_ref().and_then(|w| Some((w, gun_cook::world_key(w)?))) {
+        for (n, room) in drawn.iter_mut().enumerate() {
+            let (Some(place), Some(lone)) = (Place::new(n as u8), lone[n]) else { continue };
+            if !world.has_place(place.get()) {
+                continue;
+            }
+            let Some((cook, slot)) = lying(thread, key, place, lone) else { continue };
+            if gun_cook::show(thread, cook, slot, &lone.transform) {
+                *room = Some(cook);
+            }
+        }
+    }
+    let copies = CACHE.with(thread, |cache| cache.each_ref().map(|e| e.as_ref().map(|e| e.gun.id())));
+    for id in copies.iter().flatten().filter(|id| !drawn.contains(&Some(**id))) {
+        gun_cook::hide(thread, *id);
+    }
+}
+
+/// The copy of `place`'s drop to draw alone at `lone` (see [`draw_alone`]),
+/// and its slot; the prompt's pose made that one.
+fn lying(thread: &Thread, world: WorldKey, place: Place, lone: LoneGun) -> Option<(CookId, WeaponSlot)> {
+    let (record, last) = placed_at(thread, world, place);
+    let body = last.filter(|body| body.spawned == lone.life)?;
+    let gun = match record.drop {
+        DropState::Open(gun) => gun,
+        DropState::Taken(gun) if switching_from(thread, world, place) => gun,
+        _ => return None,
+    };
+    if gun.lying != Lying::Alone {
+        return None;
+    }
+    // Its copy: in its drop, or the pending pickup's taken from it.
+    let ours = |d: DropOf| d.place == place && d.body == body.player && d.life == Some(body.spawned) && d.lies == Lies::Current;
+    let cook = CACHE.with(thread, |cache| cache.iter().flatten().find_map(|e| match e.at {
+        At::Drop(d) | At::Pending(Waiting { from: d, .. }) | At::Overdue(Waiting { from: d, .. })
+            if e.recipe == gun.recipe && ours(d) => Some(e.gun.id()),
+        _ => None,
+    }))?;
+    // Taken: nothing to aim at (as ragdoll_gun).
+    let pose = record.drop.available().and_then(|_| drop_box(thread, place, gun.recipe))
+        .and_then(|model| GunPose::at(lone.transform, model));
+    SEEN.with(thread, |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
+    Some((cook, gun.recipe.slot))
 }
 
 /// The pickup Use would send now: the place whose gun the local player
@@ -1570,19 +1643,19 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
     let mut best: Option<(f32, Place, Offered)> = None;
     let mut sights = [None; PLACES as usize];
     for (n, seen) in seen.iter().enumerate() {
-        let (Some(seen), Some(target)) = (seen, Place::new(n as u8)) else { continue };
+        let (Some(Seen { body, pose }), Some(target)) = (*seen, Place::new(n as u8)) else { continue };
         // A departed place's drop (core_active_player refuses its place, as
         // the pickup's `peer` does): no prompt at all.
         if peer(viewer, target).is_none() {
             continue;
         }
-        let sight = match enters(&seen.pose, eye, forward, REACH, PAD) {
-            None if within(&seen.pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
+        let sight = match enters(&pose, eye, forward, REACH, PAD) {
+            None if within(&pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
             None => Err(Sight::OutOfReach),
             Some(distance) if distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some() => {
                 Err(Sight::Blocked)
             }
-            Some(distance) => Ok((distance, offer(thread, viewer, world, sender, target, seen.body))),
+            Some(distance) => Ok((distance, offer(thread, viewer, world, sender, target, body))),
         };
         let logged = match sight {
             Ok((distance, offered)) => {
@@ -1593,7 +1666,7 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
             }
             Err(why) => why,
         };
-        sights[n] = Some((seen.body, logged, seen.pose));
+        sights[n] = Some((body, logged, pose));
     }
     log_sights(thread, viewer, sights);
     let (_, target, offered) = best?;

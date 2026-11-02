@@ -20,9 +20,10 @@
   and no prompt is offered for it (the offer asks the same: never a silent
   refusal; a player who rejoins on another place leaves the old one's drop
   so; the owner, 2026-11-02: nothing more). All synced, the same tick on
-  every client. Not built: drawing the copy alone at its last pose after
-  the respawn; the prompt is offered there (the pose this game last drew),
-  a late joiner (no pose) offers none, and every game plays a pickup sent.
+  every client. Once the body is gone its copy is drawn alone where the
+  gun lies on this client (it finishes its fall first: below, "The gun
+  drawn alone"), offered there; a late joiner (no pose) draws and offers
+  none, and every game plays a pickup sent.
 - The picked gun has the bullets left in its magazine (chamber included) and
   one full magazine in reserve.
 - A picked gun starts unworn (condition 1.0), whatever the dropped gun's wear
@@ -166,6 +167,82 @@
   death), the record, the pickup, its restore and the crate (stage 2a), the
   ragdoll's gun, the prompt and the input builder's encoding (stage 2b) are
   built and checked under Unicorn; not run in a game yet.
+
+## The gun drawn alone once its body is gone (built, not run in a game)
+
+The owner (2026-11-02): a drop lingers past its body (a respawn reuses the
+player: the body and its ragdoll go, the gun with them); the gun stays visible
+where it lies until the drop ends, and finishes its fall first (a radio and a
+back piece make a respawn faster than a ragdoll may settle). Visual only and
+local: nothing synced, no `simulation_changes` row. The smallest version (the
+owner: "keep complexity down").
+
+- **Where the gun lies** (`crates/ragdoll`: `corpse::Lone`, `ragdoll::LoneGun`).
+  The ragdoll's dropped gun is a body of its own that meets only the level.
+  When a place's body goes because its player lives again, that gun body goes
+  on alone by the ragdoll's own rules (the level's query, the contacts,
+  friction, the near-rest slowing, the rest rules for one body: 0.4 s still or
+  1 s slow, 5 s at most) and is kept where it rests until the place's next
+  death (or a rollback that brings the body back). The hand-off is the gun
+  body as the last step left it: no jump. A body with no ragdoll (still dying,
+  or canned: the pool full) leaves none: nothing is drawn after its respawn,
+  as before.
+- **The drawn copy** (`weapon_pickup::draw_alone`, each frame from ragdoll's
+  `game_world.after_move` after the corpses' step). A place's copy is drawn at
+  its lone gun's `Weapon` bone (where the game would draw the held item) while
+  its drop is open and alone (the record), of the death this client saw (the
+  lone gun's life, the copy's drop), its cook made and its place in the world
+  (`GameWorld::has_place`: a departed place's is neither offered nor drawn).
+  A taken one stays drawn while its pickup waits for the switch (as the
+  body's gun does: its textures keep their streaming instance), not offered.
+  The prompt's pose is that one. Every other copy is hidden. One transition
+  (`gun_cook::Drawn::to`: Hidden, or Lying with the models placed), reconciled
+  each frame: a rollback just reconciles.
+- **The engine calls** (patch 78's `Scene`, as weapon::on_show and
+  weapon::draw place a held gun, 0x243EC7..0x243F37, 0x244F27..0x245012):
+  add_model 0x21CD0 of the copy's model (+1810h) at the transform, then
+  update_model 0x22280 each frame as weapon::draw does; update_skeleton
+  0x22490 once with its bind pose (each bone the inverse of its model's
+  inverse bind, render model +140h..+144h: the mesh as authored; no animation
+  of the dead body's is kept); the scope (the optic's +108h) at
+  calculate_locator 0x243BC0 of the copy's +744h with the transform, those
+  bones and the identity (`engine_weapon_locator`), as weapon::draw puts it at
+  +660h: the scope's model is in its own frame, so at the gun's transform it
+  would float off the gun. A model the game has in the scene is never touched.
+- **Lifetime.** The copy's ticket keeps which models it placed (`Drawn`): they
+  leave the scene, each only while in it (a second removal does nothing), at
+  the start of `install` (before the game shows the gun: a pickup's switch, a
+  loaded record) and in the cooked inventory's
+  drop before its reference is given back (every free: the 10 s margin, a
+  departed player's destruction, the match's end). Everything else (taken,
+  replaced by the next death, a departure, a rollback) is the next frame's.
+- **Late joiner:** no lone gun, nothing drawn (and no prompt, as before). No
+  cheap pose exists: the ragdoll is local, and a joiner after the respawn has
+  not even the dead player's transform. A derived one would need the death's
+  place in the record: not added.
+- **How fast a respawn can be:** `respawn_time` 8 s in Team Deathmatch, 10 s
+  in the battery modes (battery_respawn.md), times `1 + modifier 60`: the radio
+  (`respawn_booster`, -20 %, one pocket a type) and a back piece with -20 %
+  (the Antiradar Veil): 4.8 s and 6 s. A ragdoll settles at the latest 5 s
+  after it starts (two frames after the death), usually sooner; a shot at a
+  settled corpse wakes it for up to 5 s more. So a fast respawn can come while
+  the gun still moves: the lone gun finishes it.
+- **Checked:** `cargo test -p ragdoll` (a lone gun sliding on the ground stops;
+  the corpses: a respawn while the gun falls leaves it
+  falling until it rests, no jump, kept, ended by the next death; after the
+  settle at rest, ended by a rollback that brings the body back; none without
+  a gun or a ragdoll). `check_weapon_pickup_026g.py` (`drawn_alone`: the donor
+  falls as patch 76's ragdoll, respawns 0.3 s after its death, the renderer's
+  calls recorded): drawn at the hand-off in the air in its bind pose, moved
+  each frame until it rests on the floor, offered there; a pickup of it drawn
+  on through the holster (not offered), a rollback undoing and replaying it
+  changing nothing, out at the switch, once; the next death takes it out, a rollback across it and the
+  replay draw nothing stale, its free removes nothing; a departure takes it
+  out, a rollback across it draws it again, the destruction frees it with its
+  model out first; a scope at its locator, out with the gun. Not run in a game.
+- **Known gap:** a rollback across the place's next death that is not replayed
+  (the old drop reinstated) draws and offers nothing (no lone gun of that
+  death any more).
 
 ## The live desyncs of rev41 (match 0x1c0ebd31, 2026-11-01) and their fixes
 

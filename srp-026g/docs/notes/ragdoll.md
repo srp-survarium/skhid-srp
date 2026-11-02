@@ -1133,6 +1133,18 @@ floor at 0 and the hittable one 4 cm over it, a grenade's and a player's slab wh
 body falls; the filter is 434h/20Ah and the body lands on the hittable floor, through both
 slabs.
 
+## 18. The gun a body leaves (2026-11-02, patch 85's drop drawn alone)
+
+A respawn reuses the player: its body goes, and with it the gun the ragdoll
+drew. Patch 85's drop lingers past it (weapon_pickup.md, "The gun drawn alone").
+`corpse::Lone`: when a place's body goes because its player lives again, its
+gun body (`Ragdoll::lone_gun`) is stepped alone by the ragdoll's own rules
+(`LoneGun::step`: `query_body`, the contacts, friction, the near-rest slowing,
+the same rest rules for one body) until it rests, then kept until the place's
+next death (or a rollback that brings the body back). `Corpses::lone_gun`
+gives its `Weapon` bone's world pose; the patch hands it to
+`weapon_pickup::draw_alone` after each step. Visual only.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |

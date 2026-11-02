@@ -55,6 +55,26 @@ impl<'t> GameWorld<'t> {
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
+    /// Whether `place` is in the world: its match core's lookup by place
+    /// (core_active_player 0x2D0AB0, the pickup's `peer`) finds a player
+    /// (a departed place's bit of core+18FD8h is clear: none). The reference
+    /// the lookup adds is given back.
+    pub fn has_place(&self, place: u8) -> bool {
+        let mut out = None;
+        // SAFETY: the world, its match and core, alive for the hook; the
+        // lookup writes the player (a reference added) through `out`.
+        unsafe {
+            let Some(core) = self.this.pvp_match().map(|m| m.core()) else { return false };
+            raw::engine_core_active_player(Some(core), u32::from(place), &mut out);
+            let Some(player) = out else { return false };
+            let count = player.references();
+            if AtomicU32::from_ptr(count).fetch_sub(1, Ordering::AcqRel) == 1 {
+                raw::engine_release_object(Some(player), count);
+            }
+        }
+        true
+    }
+
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
         // SAFETY: the world, its game and the game's client, alive for the hook.
