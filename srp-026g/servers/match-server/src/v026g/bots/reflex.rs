@@ -782,7 +782,9 @@ pub struct CombatTuning {
     /// so a bound under the floor's tick-to-tick spread refuses shots by
     /// the draw, not by where they go (the shots it let go hit no better
     /// at any view offset); it cut 15 % of the shots in bursts and 25 % of
-    /// those at 40-65 m.
+    /// those at 40-65 m. [A263] So the gate tests the view against the error
+    /// it carries (the one it was turned to the tick before, on the same
+    /// target), not this tick's fresh draw.
     pub fire_body_share: f32,
     pub fire_within_min_deg: f32,
     /// Standing to aim at a seen target, the legs step side to side: runs
@@ -3214,6 +3216,8 @@ pub struct Reflex {
     sway_taken: (u32, f32),
     /// [A241] Whether the client sways its aimed automatic shots, as its host says ([`Self::set_client_sway`]).
     client_sway: super::recoil::ClientSway,
+    /// [A263] The error its view was last turned to, and at whom: what the view carries at the next tick (`fire_body_share`'s gate).
+    view_error: Option<(Place, (f32, f32))>,
     /// The aim's last fresh look found its target behind smoke; the aim sprays at the last point seen now (each
     /// a note when it begins); the notes not yet taken.
     smoke_lost: bool,
@@ -7104,7 +7108,15 @@ impl Reflex {
         } else {
             aim.fire_within_deg
         };
-        let within = off <= within_deg.to_radians();
+        // [A263] The target-size gate tests the view against the error it carries: it was turned the tick before to that
+        // tick's draw, and the floor is drawn anew each tick (A228: testing this tick's draw refused shots by the draw, not by
+        // where they go). A new target: this tick's.
+        let gate_off = match self.view_error {
+            Some((who, carried)) if c.fire_body_share > 0.0 && who == track.who() => off_by(me, point, carried),
+            _ => off,
+        };
+        self.view_error = Some((track.who(), error));
+        let within = gate_off <= within_deg.to_radians();
         let bolt = gun.handling == Handling::Bolt;
         // Down the sights at him, unless it runs for cover (a bolt action
         // always, else from `ads_near_m` or as drawn, and with
@@ -8958,6 +8970,48 @@ mod tests {
         let mean = deg / shots as f32;
         let (low, high) = super::super::recoil::AIM_SWAY_DEG.iter().fold((f32::MAX, 0.0f32), |(l, h), &(_, d)| (l.min(d), h.max(d)));
         assert!((low..=high).contains(&mean), "mean taken back {mean} deg, the table {low}-{high}");
+    }
+
+    /// [A263] With the target-size gate (`fire_body_share`) a view its motor keeps on its aim (the last tick's look and error)
+    /// fires as often as with the flat gate: the gate tests the error the view carries, not the tick's fresh draw (A228: at
+    /// skill 0 the floor's redraw alone moves the aim by degrees from tick to tick, and a tight bound refused by it).
+    #[test]
+    fn a_tight_gate_lets_a_view_on_its_aim_fire() {
+        let fires = |share: f32| {
+            let aim = AimTuning {
+                combat: CombatTuning { fire_body_share: share, ..CombatTuning::default() },
+                ..AimTuning::default()
+            };
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            let at = Vec3::new(0.0, 0.0, 30.0);
+            let enemy = body(1, 1, at, 0.0);
+            facing(&mut me, enemy.chest());
+            let view = view_of(vec![me.clone(), enemy]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::armed(Arms::of_test_role("support"));
+            let mut rng = Rng::new(11);
+            let mut fired = 0u32;
+            for k in 0..200 {
+                let now = 1_000 + k * 50;
+                sense(&mut memory, &[percept(1, at, now, Source::Seen)], now);
+                if k % 5 == 0 {
+                    reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.0, &mut rng);
+                }
+                let o = reflex.tick(&me, &view, &memory, now, true, &aim, 0.0, &mut rng);
+                fired += u32::from(o.fire);
+                // A motor that arrives: the view on the look, with its error.
+                if let Some(look) = o.look_at {
+                    facing(&mut me, look);
+                    me.yaw += o.error.0;
+                    me.pitch += o.error.1;
+                }
+            }
+            fired
+        };
+        let flat = fires(0.0);
+        let tight = fires(0.5);
+        assert!(flat > 0, "the flat gate fires");
+        assert!(tight * 10 >= flat * 9, "the tight gate fired {tight} times, the flat {flat}");
     }
 
     fn facing_fight(
