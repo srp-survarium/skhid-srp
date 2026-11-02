@@ -854,6 +854,7 @@ va	status	ref_021d	name
 0x001f0090	reviewed	0x0015fdaa	survarium::items_dictionary::item_by_id
 0x001f1930	reviewed	0x00155f89	survarium::player::inflicted_damage_collector::serialize
 0x001f2720	observed	0x00156ad2	survarium::player::insert
+0x001f2870	reviewed	0x00156be1	survarium::player::remove
 0x001f3de0	reviewed	0x00157d77	vostok::network_core::buffer_writer::w<unsigned char>
 0x001f48a0	reviewed	0x00158564	vostok::network_core::buffer_writer::w<unsigned int>
 0x001f6d50	reviewed	0x0015a3f2	survarium::game_world::register_cooks

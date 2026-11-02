@@ -1067,7 +1067,6 @@ va	status	ref_021d	name
 0x001f24c0	inferred-high	0x001568f6	survarium::player::remove_models_from_scene
 0x001f2540	inferred-high	0x0015694b	survarium::player::initialize
 0x001f2640	inferred-high	0x00156a6b	survarium::player::first_third_person_animations_resolver
-0x001f2870	inferred-high	0x00156be1	survarium::player::remove
 0x001f29d0	inferred-high	0x00156cbf	survarium::player::initialize_player_icon
 0x001f2ad0	inferred-high	0x00156d37	survarium::player::render_name
 0x001f3070	inferred-medium	0x001570a0	survarium::player::render_model
