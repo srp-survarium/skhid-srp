@@ -301,7 +301,7 @@ night version at all"). Which one is shown is the exe's (another change); the pa
 - **How:** resource-porter's lobby `variants` (its `docs/survarium-069d-to-026.md`): each variant
   is made from the lobby's built project, so its room, camera walls, weapon spot and camera track
   are the lobby's, and it changes the environment, lights, probe levels, particles, sounds, a
-  grading table, lit facade windows, and (the night) the turn. Not edit lists: a variant is a new
+  grading table, lit facade windows, and (the night) the characters' facing. Not edit lists: a variant is a new
   project and new files (sounds, textures, model copies), which only a pack ships; an edit list
   would copy the project and address its objects by index.
 - **What 0.26g has for weather** (the stock db and the live patches): the environment's own rain
@@ -324,13 +324,20 @@ night version at all"). Which one is shown is the exe's (another change); the pa
     level 02 rain's overcast sky (`sky/overcast` clouds, `sky/cgskies_cloud`, its sky fog and
     atmosphere), a grey haze (mie fog 0.55 grey, 10..700 m); eleven `fx/environment/rain` streams
     falling past the back and left windows from above them;
-  - the light comes in at the windows: the day's window key (outside the back window under its
-    top, shadowed: it threw window-shaped patches up the ceiling) is out; a soft cool-grey light
-    just outside each window, under the eaves (back 3.8 within 5 m, left 2.0 within 4.5 m), no
-    shadow: the window wall faces away from it, the floor and the far walls take it, falling off
-    into the room. The room's probes x0.7, the window-side fill sphere 0.6 and cool, the floor
-    fills halved; the chandelier as by day (on). A grading table of its own: saturation 0.8, a
-    little cooler (the overcast, not the interior: gear stays readable);
+  - the light comes in at the windows, from above them, as an overcast sky's does. Measured one
+    source at a time in a game (the owner on the round before: "lit from above", the ceiling the
+    brightest surface; `private/renders/room-weather/rain-sources_*.png`; the stock view's ceiling
+    band, sRGB luminance): all 141; the room probes off 141; the fills off 141; the chandelier off
+    86; the windows' lights alone 85 (the room lit, the walls 74, the character 70). The
+    chandelier (by day 0.5 within 2 m, and its two 0.4 ambient spheres) lit the ceiling; the probes
+    (x0.7) and the fills changed it little. Now: the day's window key (shadowed, under the window
+    top: window-shaped patches up the ceiling) out; the fills (the window side's sphere, the floor
+    and wall fills) out; the chandelier dim (0.25 within 2 m, its spheres out: a gloomy day); a cool
+    grey light just outside each window above the ceiling's height (back 4.2 within 7.5 m, left 2.6
+    within 6.5 m), no shadow: the ceiling and the window wall face away from it, the floor and the
+    far walls take it, brightest at the windows; a short soft fill on the character's front
+    (0.9 within 2.6 m, as the window's light off the floor); the room's probes x0.3. A grading
+    table of its own: saturation 0.75, gamma 1.12, a little darker and cooler;
   - sound: the 0.69d `rain_pour` (imported, `volume_k` 1.0, `mid_range`: 0.75 of it 2 m from a
     source, 0.3 at 8 m) 1.2 m outside the back and the left windows, and level 04's drips on the
     back window's sill. Heard in a game (a private PulseAudio null sink, the game's own mix): the
@@ -339,16 +346,25 @@ night version at all"). Which one is shown is the exe's (another change); the pa
     measurable, so the rain is not muffled; 0.69d's own "indoor" rain is the same audio, quieter.
     Picking another lobby stops it at once (the Basement: 2..10 kHz back to the day's level within
     the 5 s window), and it starts again with the Room: the emitters are the project's.
-  - measured on the stock view, the game's own frames (its eye adaptation; mean of sRGB luminance,
-    0..255): the character's torso 71.6 (day 71.9; the idle pose moves it a few points), the
-    scene 83.9 (78.2), its darkest tenth 21.3 (21.5).
+  - measured on the stock view, the game's own frames (mean of sRGB luminance, 0..255): the ceiling
+    band 70 (day 135), the left wall with the window 83 (64), the right wall facing it 144 (139),
+    the floor 73 (59); the character's torso 63.5 (day 73.5: a gloomy day, the gear reads), the
+    scene's darkest tenth 27.7 (22.1).
+  - **Eye adaptation** does not flatten it much. In 0.10b's source (`complex_post_process_blend.ps`)
+    the exposure is `2^(0.2 log2(key / average))`: a fifth of a full correction (a scene 4 times
+    darker shows only 1.32 times brighter); 0.26g's compiled shader has the same 0.2 (its key and
+    clamps come in as constants). The flat look was the light. A project's environment has no
+    exposure limit to set (only `eye_adaptation_speed`, how fast it moves); the grading table is
+    the per-project control, applied after it.
 - **Night** (`camp_069_night`):
-  - the room half a turn about the character (`turned`): the exe stands him at the origin facing
-    -z whatever the project, so the room turns instead, and he faces the chandelier: the stock
-    camera, between him and the lamp, sees his front lit by it (the owner's "model can be turned
-    towards chandelier"). Everything placed turns with the room (the weapon's spot to (1.60,
-    1.37, -3.255), view -pi/2; the camera walls; the moon's azimuth); the room's two grass
-    layers are left out (their density maps would not turn);
+  - the room as by day, the characters turned to face the chandelier and the lobby camera starting
+    on its side (the owner: "night should start with camera moved to face characters"): the
+    project's `srp_lobby.facing` = pi, which the exe is to read (feat/room-weather, #1060): it turns
+    the three characters about the origin (their spots and facings) and the camera's start yaw by
+    it. Until it does, the night shows them facing away from the lamp. The captures of the night
+    are of the turned-room build (resource-porter's `turned`, kept as the fallback: the room half a
+    turn about the characters, everything placed turning with it, the grass layers left out), which
+    puts characters, lamp and camera in the same places relative to each other;
   - the light is the room's own: the chandelier's two bulbs 2.2 within 5 m (by day 0.5 within 2),
     the work-table lamps 0.3; the day's fills (the window side's sphere, the floor fills, the
     wall's) out; the room's probes x0.1 (their cubemaps are the day's: a sky-lit fill from above);
@@ -363,17 +379,17 @@ night version at all"). Which one is shown is the exe's (another change); the pa
     bright"): resource-porter's `lit_windows` gives one instance of `level/02/bg_house_2` a copy
     whose window quads near a point draw a material emitting the glass of the atlas's window panes.
     One is seen through the left window from the orbit; the other is in line with the back window
-    from the stock eye, but from there the rag on the curtain rod and the character cover that
-    window, and the strip left open shows a wall between windows (checked by ray casts in a
-    Blender model of the scene): no lit window shows from the stock view itself;
+    from the night's start eye, but from there the rag on the curtain rod and the character cover
+    that window, and the strip left open shows a wall between windows (checked by ray casts in a
+    Blender model of the scene): no lit window shows from the start view itself;
   - wolves: 0.26g's `scapes/creatures/wolves` (imported, `volume_k` 0.6) 55 m out past the back
     window and 20 m down. The sound is a 221 s scape: 100 s of silence, a howl, 70 s, a howl, 50 s
     of silence, looped; so the first howl comes 100 s after the lobby's sound starts (never at the
     sign-in), then 70 and 151 s apart. Found in a game's recording at 176 s and 246 s (cross-
     correlated with the file), about 10 dB under the source (its howls -26 dBFS: about -36 dBFS in
     the mix, under the ambience bed);
-  - measured on the stock view: the character's torso 43.9 (day 71.9), the scene 59.1 (78.2), its
-    darkest tenth 10.3 (21.5): dim, the face and the gear still read.
+  - measured on the start view (turned-room build): the character's torso 43.9 (day 71.9), the
+    scene 59.1 (78.2), its darkest tenth 10.3 (21.5): dim, the face and the gear still read.
 - **Checks:** the three projects loaded in a game (a test patch with the variant in the Room's
   slot; `private/renders/room-weather/`); `vostok-port pack check` and `release/build-content`.
   A sound collection's `object_sound` needs `resource_id` 258 (256, a single sound's, crashed the
