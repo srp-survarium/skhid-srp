@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätz
 st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
 st_lightning_quality_option	Beleuchtung Qualität
 st_login_button_label	Betreten 
-st_login_default_text	E-mail
+st_login_default_text	Spitzname
 st_login_eula_label	Lizenzvereinbarung
 st_login_menu_accept	Akzeptieren
 st_login_menu_cancel	Abrechnen
 st_login_menu_status_access_level_restriction	Niveau des Zuganges ist dem Eingang ungenügend.
 st_login_menu_status_connecting	Autorisierung
 st_login_menu_status_error_connection	Der Skhid-Server ist nicht erreichbar. Erlaube das Spiel in deiner Firewall (Skhid-network-setup.cmd). In Russland nutze ein VPN und füge die .exe-Dateien des Spiels hinzu (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Ungültige E-mail oder Passwort
+st_login_menu_status_invalid_user_or_password	Ungültiger Spitzname oder Passwort
 st_login_menu_status_invalid_version	Sie verwenden eine veraltete Version des Spiels.
 st_login_menu_status_sign_in_already_online	Der Benutzer ist schon im Spiel
 st_login_menu_status_sign_in_attempt_interval_violated	Die maximale Anzahl der Anmelde Versuche ist zu ende. Versuchen Sie es erneut nach 10 Sekunden.
@@ -2564,8 +2564,8 @@ st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst 
 st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
 st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
 st_srp_rooms_leave	Verlassen
-st_srp_rooms_leave_queue	Warteschlange verlassen
-st_srp_rooms_leave_room	Raum verlassen
+st_srp_rooms_leave_queue	Verlassen
+st_srp_rooms_leave_room	Verlassen
 st_srp_rooms_left_room	%1$s hat den Raum verlassen
 st_srp_rooms_level	Stufe
 st_srp_rooms_map	Karte
@@ -2622,6 +2622,8 @@ st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
 st_srp_scope_slot	Optik
+st_srp_shop_not_owned	Besitz ausblenden
+st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
@@ -2657,7 +2659,7 @@ st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
 st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
-st_srp_weapon_shift_hint	Shift halten: Details
+st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss
@@ -2667,6 +2669,8 @@ st_srp_weapon_stats	Waffenwerte
 st_srp_weapon_sway_cycle	Verwackelperiode
 st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
+st_srp_weapon_with_kit	Mit Loadout
+st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
 st_srp_weather_before_rain	vor dem Regen
 st_srp_weather_day	Tag
 st_srp_weather_evening	Abend
@@ -2861,9 +2865,16 @@ st_walther_competition2_collimator_desc	Deutsches Rotpunktvisier von Walther, ur
 st_walther_competition2_collimator_name	Competition II Kollimator
 st_wasted	Kosten
 st_weapon_aim_action	Zielen (halt.)
+st_weapon_already_taken	Bereits aufgehoben
+st_weapon_cannot_carry	Kein zweites Gewehr möglich
+st_weapon_cannot_pick_up	Kann nicht aufgehoben werden
 st_weapon_could_not_be_used	Verwundung der Hände! Es ist unmöglich, die Waffen zu verwenden
 st_weapon_fire_action	Schießen
+st_weapon_no_gun_in_hands	Waffe in die Hand nehmen zum Tauschen
+st_weapon_one_gun_only	Nur eine Waffe tragbar
+st_weapon_pick_up	%1$s aufheben ({USE})
 st_weapon_reload_action	Nachladen
+st_weapon_switching	Waffenwechsel abwarten
 st_wear	Anziehen
 st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.
 st_weight_booster_name	 Anomalie Starke

@@ -55,14 +55,36 @@ pub struct RegistryHost(pub Arc<MatchRegistry>);
 pub fn offered_patches() -> Vec<web_server::OfferedPatch> {
     survarium::v026g::game_data::shared()
         .provenance
-        .offered()
-        .map(|(name, sha256, urls)| web_server::OfferedPatch {
-            name,
-            sha256: sha256.to_owned(),
-            urls: urls.to_vec(),
+        .patches
+        .iter()
+        .map(|patch| web_server::OfferedPatch {
+            name: patch.key(),
+            sha256: patch.input.sha256.clone(),
+            size: patch.input.size,
+            urls: patch.urls.clone(),
         })
         .collect()
 }
+
+/// The game's archive the web page offers the players' updater (`GET
+/// /game`): the one the server's game data names, if it names one.
+pub fn offered_game() -> Option<web_server::OfferedPatch> {
+    let game = survarium::v026g::game_data::shared()
+        .provenance
+        .game
+        .as_ref()?;
+    Some(web_server::OfferedPatch {
+        name: game.input.name.clone(),
+        sha256: game.input.sha256.clone(),
+        size: game.input.size,
+        urls: game.urls.clone(),
+    })
+}
+
+/// More URLs of the offered files, after the release's: `mirrors.tsv` in
+/// srp's data folder (`SRP_DATA_DIR`), read again when it changes
+/// (`web_server::Downloads`; `release/add-mirror` writes it).
+pub const MIRRORS_FILE: &str = "mirrors.tsv";
 
 /// What srp checks of the server's game data `data` once it is read
 /// (`game_data::init`), before it loads an account: every item, id and
@@ -638,7 +660,11 @@ impl Stack {
                 accounts: self.accounts.clone(),
                 inbox: self.inbox.clone(),
             }),
-            patches: offered_patches(),
+            downloads: Arc::new(web_server::Downloads::new(
+                offered_patches(),
+                offered_game(),
+                Some(session::persist::data_dir().join(MIRRORS_FILE)),
+            )),
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
         }

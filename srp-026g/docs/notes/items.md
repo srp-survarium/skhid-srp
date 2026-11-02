@@ -96,7 +96,9 @@ u32 its dict id** (`movzx eax, word [item+4]`), **the u64 the value the
 decal editor sets** (`46 05`), **`param` the slot**: 0 and 1 for decals
 (the lobby shows two for `decal_available`, `and esi, 2` at 0x2877A6), 3
 for the camouflage (`DragRegion.as`: `relocate_upgrade_item(item, camo,
-3)`). Three at most (the inline capacity): one camouflage and two decals.
+3)`). Three at most (the inline capacity): one camouflage and two decals. A
+weapon's (srp's, client patch 68) are sent packed into those three: the
+weapon kit, `weapon-kit.md`.
 
 `repair_time` and `reroll_time` are **seconds left** (PROVEN in the UI:
 `InventoryItem.updateRepairTime` counts `repairTime - delta` down with its
@@ -273,6 +275,34 @@ Not yet seen in a running game: the stash with one camouflage on several
 items, the upgrade window's drop on each, and a match showing each item's
 camouflage.
 
+**Buying an item owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I don't
+get warning that it was already bought"; "it shouldn't just be camo, it should also be scopes and
+other things"; "in shop it shouldn't, it should only skip from rmb on item in your inventory, since
+there it is a voluntary action"):
+
+- Every buy in the lobby goes through `LobbyMenu.try_buy_item` (`GangShop.buyFunction`,
+  `MainScene.buyFunction`). An item owned already that is no stack is asked about there first,
+  with the stock box "This item is already purchased by you. Would you like to buy anyway?"
+  (`st_already_in_inventory`): OK opens the buy dialog, Cancel buys nothing.
+- Not asked: Buy chosen from the right-click menu of an item the player owns, an inventory row or
+  a kit slot (`ItemCard.buyFromOwnMenu`, `try_buy_item`'s `ownItemMenu`): the player's own wish
+  for another, a stock copy of a modified item too (`buy-modified.md`).
+- Asked: everything else. The shop tab (card Buy, double click, right-click Buy on an entry,
+  a drop on the character), the card's Buy or a double click on an owned row, and the craft and
+  attachment windows' Buy (`InventoryList.buyFromCraftMenu`).
+- Never asked: a bundle (its id is no item's) and a stack (ammo, medkits add to theirs).
+- What lacked the box until 2026-11-01:
+  - a camouflage, from anywhere: the stock movie left camouflages out (LIKELY: a copy was worn by
+    one item then);
+  - the card's Buy, a double click and the windows' Buy on an owned row: revision 25 asked only for
+    a buy from a shop entry (`sourceSlot == SHOP`).
+- `ItemCard.acceptAction`, a second buy with its own check that nothing called, is gone.
+- A second camouflage or decal is of no use: one copy is worn on any number of items (above).
+  Weapons take the same category 25 items (`weapon-camo.md`).
+- Ownership comes from the inventory the movie has (`InventoryList.hasItem`). The server buys as
+  before.
+- Check: `scripts/buy-owned/check.sh <lobby_menu.swf>` (Ruffle).
+
 ## 7. The lines of an item's card (2026-10-18)
 
 The lobby's item hover card shows text the data keeps, not values it
@@ -295,3 +325,43 @@ so a ninth needs a ninth row. Weapon balance 1 adds the magazine: line 134
 (the weapon's `magazine_capacity`), and in the movie a `diff_9` row in
 sprite 1538 and `ItemCompare`'s constructor adding `getChildByName("diff_9")`
 to its rows when there is one (`scripts/content-edit/README.md`).
+
+## 8. A consumable's buy starts at 30 (2026-11-01)
+
+The owner: "when buying consumables, it should always try to buy at least 30 if enough money (this
+is for new players who might buy less and not understand why they no longer have consumables in
+the game)"; "this shouldn't take into account energy drinks and similar items which give passive
+bonuses per round".
+
+- **Where:** the buy dialog (`MessageAsk.update_slider` -> `startCount`), the one place a buy's
+  starting count is set. Every buy reaches it through `LobbyMenu.try_buy_item`: the card's Buy, a
+  double click, the right-click Buy (inventory, shop, kit slot), a drop on a pocket. The player can
+  still move the slider anywhere; only where it starts changes.
+- **Consumables:** stacks of category 10 (drugs: bandages, medkits, painkiller, antitoxin, the
+  medicines pack's), 11 (traps) and 24 (grenades), the pockets' categories.
+- **Not the boosters** (category 10 too, config `type` `booster`, dict 339..344: the Tornado energy
+  drink and the like): told apart by `fills_whole_pocket`, which every booster has and no other
+  stack of the data. They give their bonus while carried (`data.md`), so they start at one, as
+  before. Nor ammo (one clip; it has Autobuy), items that are no stack, sales, relocations.
+- **The count:** 30 (`CONSUMABLE_START_COUNT`), or the dialog's own most when less: what the money
+  buys, 100 at most. No money: the slider at 0 and Buy off, as before. The data has no per-item
+  stack cap.
+- **A drop on a pocket** starts at 30 too (the owner on #1003: "i'd say it should be 30 there
+  too"): a buy is no longer capped by the pocket's size. You own all you buy; the pocket carries
+  what it takes (its size, one for an item that fills a whole pocket), the rest stays in the
+  inventory. The lobby sends it as the ammo window does (`46 00`, `apply_profile_items`): the units
+  in the pocket (`count`) and the units owned after the buy (`count_in_inventory`: owned + bought,
+  `LobbyMenu.relocate_to_paperdoll`); the server buys what is beyond the stack (`move_items`,
+  `top_up`) and puts `count` in the pocket. Before, the lobby sent the bought units as both, so a
+  drop of N with N or more owned already bought nothing. Moving owned units into a pocket (the
+  relocate dialog) keeps the pocket's size as its most.
+- **Price:** the dialog's own total, count x price (30 medkits at 20: 600 silver). No consumable is
+  premium; one still locked at its seller, offered for gold (`getItemLockedCost`), counts the same
+  way in gold.
+- **Server:** unchanged. A buy needs a count of at least 1 and the money; it has no default count.
+  It never knew a pocket's size (gear and skills set it in the exe). Test:
+  `a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory`.
+- `try_buy_item` now gives the dialog the item's category (`_obj.category`; it gave the sellers
+  under that name, which nothing read).
+- **Check:** `scripts/consumables-buy-30/check.sh <lobby_menu.swf>` (Ruffle; fails on the movie
+  before this change).

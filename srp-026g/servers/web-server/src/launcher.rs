@@ -1018,7 +1018,7 @@ mod tests {
             // not an image, script, or automatic navigation.
             let discord = DISCORD_LINK.trim();
             assert_eq!(page.matches(discord).count(), 1);
-            assert!(discord.contains("href=\"https://discord.gg/Pxa4prXfwu\""));
+            assert!(discord.contains("href=\"https://discord.gg/QUmJg3gBhg\""));
             assert!(discord.contains("target=\"_blank\""));
             let page = page
                 .replace(style(), "")

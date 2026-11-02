@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Живокост активирован! Все кр
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
 st_login_button_label	Войти
-st_login_default_text	E-mail
+st_login_default_text	Никнейм
 st_login_eula_label	Лицензионное соглашение\n с конечным пользователем игры «Survarium»
 st_login_menu_accept	Принять
 st_login_menu_cancel	Отмена
 st_login_menu_status_access_level_restriction	Уровень доступа недостаточен для входа.
 st_login_menu_status_connecting	Авторизация...
 st_login_menu_status_error_connection	Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Неправильный email или пароль
+st_login_menu_status_invalid_user_or_password	Неправильный никнейм или пароль
 st_login_menu_status_invalid_version	Вы используете устаревшую версию игры.
 st_login_menu_status_sign_in_already_online	Пользователь уже в игре
 st_login_menu_status_sign_in_attempt_interval_violated	Превышено допустимое количество попыток входа. Попробуйте еще раз через 10 секунд.
@@ -2564,8 +2564,8 @@ st_srp_rooms_join_why_7	Этот матч достиг лимита игроко
 st_srp_rooms_joined_room	%1$s вошёл в комнату
 st_srp_rooms_late_hint	Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.
 st_srp_rooms_leave	Выйти
-st_srp_rooms_leave_queue	Выйти из очереди
-st_srp_rooms_leave_room	Выйти из комнаты
+st_srp_rooms_leave_queue	Выйти
+st_srp_rooms_leave_room	Выйти
 st_srp_rooms_left_room	%1$s покинул комнату
 st_srp_rooms_level	Уровень
 st_srp_rooms_map	Карта
@@ -2622,6 +2622,8 @@ st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
 st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
 st_srp_scope_slot	Прицел
+st_srp_shop_not_owned	Скрыть имеющиеся
+st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
@@ -2657,7 +2659,7 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
-st_srp_weapon_shift_hint	Зажмите Shift: подробнее
+st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела
@@ -2667,6 +2669,8 @@ st_srp_weapon_stats	Характеристики оружия
 st_srp_weapon_sway_cycle	Период раскачивания
 st_srp_weapon_sway_horizontal	Раскачивание в стороны
 st_srp_weapon_sway_vertical	Раскачивание вверх-вниз
+st_srp_weapon_with_kit	С комплектом
+st_srp_weapon_with_kit_skills	С комплектом и навыками
 st_srp_weather_before_rain	перед дождём
 st_srp_weather_day	день
 st_srp_weather_evening	вечер
@@ -2861,9 +2865,16 @@ st_walther_competition2_collimator_desc	Немецкий коллиматорн�
 st_walther_competition2_collimator_name	Коллиматор Competition II
 st_wasted	Расход
 st_weapon_aim_action	Прицеливание (удерж.)
+st_weapon_already_taken	Уже подобрано
+st_weapon_cannot_carry	Нельзя нести вторую винтовку
+st_weapon_cannot_pick_up	Это нельзя подобрать
 st_weapon_could_not_be_used	Ранение рук! Невозможно использовать оружие
 st_weapon_fire_action	Стрельба
+st_weapon_no_gun_in_hands	Возьмите оружие в руки, чтобы обменять
+st_weapon_one_gun_only	Можно нести только одно оружие
+st_weapon_pick_up	Подобрать %1$s ({USE})
 st_weapon_reload_action	Перезарядка
+st_weapon_switching	Дождитесь смены оружия
 st_wear	Надеть
 st_weight_booster_description	Протеин, содержащий необходимые вещества для роста мышц и повышения силы. Однако без физической нагрузки употреблять бессмысленно.
 st_weight_booster_name	Протеин "Аномальная сила"

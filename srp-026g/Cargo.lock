@@ -516,6 +516,7 @@ dependencies = [
  "survarium",
  "udp-transport",
  "vostok",
+ "weapon-pickup",
  "world-frame",
 ]
 
@@ -861,6 +862,8 @@ dependencies = [
  "serde",
  "serde_json",
  "udp-transport",
+ "weapon-kit",
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -956,11 +959,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 
 [[package]]
+name = "weapon-kit"
+version = "0.1.0"
+
+[[package]]
+name = "weapon-pickup"
+version = "0.1.0"
+
+[[package]]
 name = "web-server"
 version = "0.1.0"
 dependencies = [
  "log",
  "openssl",
+ "resources-db 0.1.0",
  "session",
  "survarium",
  "vostok",

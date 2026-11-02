@@ -128,8 +128,9 @@
 #      srp26 is stopped, so the site never offers the old ZIP beside the new
 #      /patches and revision (an updater would enable PLAY for a game the
 #      login server refuses);
-#   6. checks the container, the log's game data line, /patches (exactly
-#      the list's patches) and /api/client-files (the new ZIP and, from an
+#   6. checks the container, the log's game data line, /patches and /game
+#      (the list's files; any rows of srp's mirrors.tsv after each one's
+#      URLs, release/add-mirror) and /api/client-files (the new ZIP and, from an
 #      srp that says it, min-revision <rev>). A failed check prints srp's log and runs the
 #      folder's rollback (srp.db, image, data, ZIP, setting, source: as
 #      before), with --now too. The run's output is the folder's release.log;
@@ -1073,20 +1074,27 @@ if ((patches_ok && listed)); then
             problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
             continue
         fi
-        read -r -a each <<<"$urls"
-        for url in "${each[@]}"; do
-            say "  ...      $name at $url"
-            if check_patch_url "$url" "$sha" "$size" "$work"; then
-                urls_checked=$((urls_checked + 1))
-            else
-                bad=1
-                problem "$PATCH_LIST: $name: $URL_PROBLEM"
-            fi
-        done
+        if check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name"; then
+            urls_checked=$((urls_checked + URLS_GOOD))
+        else
+            bad=1
+            problem "$PATCH_LIST: $name: $URL_PROBLEM"
+        fi
     done <<<"$LIST"
     ((bad)) || okay "the offered-patch list: $listed patch(es), each on $PATCHES_LABEL with its sha256, and its $urls_checked URL(s) giving it"
 elif ((patches_ok)); then
     okay "the offered-patch list ($PATCH_LIST) is empty"
+fi
+# The game's archive: each URL of its row, by its first bytes (the 2.9 GB
+# are downloaded whole by release/add-mirror only); one that fails is a
+# warning, none that works a problem.
+if ((patches_ok)) && [[ -n $GAME_ROW ]]; then
+    read -r name sha size urls <<<"$GAME_ROW"
+    if check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick; then
+        okay "the game's archive ($name): $URLS_GOOD URL(s) giving it, by its first bytes"
+    else
+        problem "$GAME_LIST: $name: $URL_PROBLEM"
+    fi
 fi
 if [[ -n $rev ]] && ((LIST_TOP > rev)); then
     problem "$PATCH_LIST offers resources.db.patch_$LIST_TOP, above this release's revision $rev"
@@ -1539,6 +1547,8 @@ else
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
+    [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
+        die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
     # The record's item tables of this data: made once now, so a tool that
     # fails on it stops the release here, not after the swap.
