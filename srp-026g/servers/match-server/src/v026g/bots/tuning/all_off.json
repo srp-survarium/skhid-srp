@@ -121,6 +121,25 @@
   "sense": {
     "sight_refresh": false
   },
+  "skill": {
+    "tiers": {
+      "13-15": {
+        "max": 1.0,
+        "min": 0.65,
+        "start": 0.85
+      },
+      "4-5": {
+        "max": 1.0,
+        "min": 0.3,
+        "start": 0.6
+      },
+      "9-10": {
+        "max": 1.0,
+        "min": 0.5,
+        "start": 0.75
+      }
+    }
+  },
   "smoke": {
     "anti_sniper": false,
     "cross_lane": false,
