@@ -259,6 +259,7 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     sim.player_states[1] = Some(PlayerState {
         current_index: 0,
         target_index: 0,
+        pickup: weapon_pickup::Record::EMPTY,
         items: vec![1, 2, 3],
         alive: true,
         has_to_die: false,

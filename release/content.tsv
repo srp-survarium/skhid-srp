@@ -20,7 +20,7 @@
 #   edit   <file>.json   -   srp-026g/scripts/content-edit/<file>.json applied by content_edit.py,
 #          in order, to the files as the rows above leave them ("from" values are the base's).
 #          With a base row's name as the source: a record, applied in that patch. Every edit list
-#          of content-edit has a row.
+#          of content-edit has a row, a <category>-stats.tsv too.
 # A new pack or edit list: a row at the end of its kind. A retune of an edit list or a movie
 # change: no row to add (the source changed). A pack's new version: its row's name and sha256; the
 # files an earlier version added and it no longer makes stay live as they are (build-content lists
@@ -81,9 +81,8 @@ edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
 edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)
 edit	battery-pickup-1.json	-	battery pick-up 20 % faster (#221)
-edit	weapon-balance-2.json	-	weapon balance 2: AK-12, Socom16 (#242, #260), A-545 (#265)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
-edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263; after weapon-balance-2)
+edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263)
 edit	death-poses-1.json	-	the face-down death pose out of the rifles' and pistols' death animations (the death camera looked into the arms)
 edit	crouch-steps-1.json	-	crouched steps audible: the walking steps at 40 % for the crouch pairs (#272)
 edit	weapon-camo-1.json	-	the 83 weapon configs take a camouflage: parameters/camo_available and a data table with camo_scale 4.0 (#244, client patch 44)
@@ -98,8 +97,6 @@ edit	crouch-steps-2.json	-	crouched steps fire: the 16 moving crouch clips get t
 edit	protective-mask-1.json	-	the Protective mask (1816, the "hunter mask") is just a mask: it no longer covers the helmet slot, so a helmet is worn with it (T28; masks-pack.md)
 edit	master-set-net-1.json	-	the Master set's camouflage net (the "Leshy" vest and pants, Master's hood: part edge_sniper_06_alpha_s of the seven edge_sniper_06 models) drawn deferred with an alpha test, a copy of the hood's material with the net's textures, not as 0.26g's unfinished forward test material, which streaked across other players' screens (T31)
 edit	bandages-1.json	-	the bandage buff (the owner, 2026-10-24): the Pack of bandages heals hands and legs fully (influences 0.3/s -> 1/s) and pain, body and head 35 % (new influences 0.35/s, 0.14/s, 0.35/s for its 1 s), its lobby description in the six localization tables and no Heal amount line on its card (docs/notes/bandages.md)
-edit	socom-nerf-1.json	-	the SOCOM 16 nerf (the owner, 2026-10-25): damage 70 -> 60, armour piercing 45 -> 40 (bullet_damage 0.7 -> 0.6, bullet_pierce 0.45 -> 0.4, the card's props 1 and 3), equipment level 15 (item_level and match_making_level 12 -> 15) (#443; docs/notes/socom_nerf.md; after weapon-balance-2)
-edit	svd-level-1.json	-	the SVD at equipment level 15 (the owner, 2026-10-25): item_level and match_making_level 12 -> 15, so its Renaissance shop rank 7 -> 10 (docs/notes/socom_nerf.md; after socom-nerf-1)
 edit	kill-feed-weapons-1.json	-	the kill feed shows the ported weapons' own icons: ui_desc/combat_log_icon of the 21 configs of base patch 19's weapons back to their builds' icons (53 to 68, which the hud movie now has; the M4A1 21), from stand-ins of stock weapons (docs/notes/kill-feed-icons.md)
 edit	london-1.json	-	London without anomalies: all seven anomalies and their artefacts, damage zones and collision removed from day_2 to day_5; battery modes lose the old spawn-protection zones. The owner's map-editor placement supplies ten points per team in every mode: team1 on building_06_1's first floor and team2 on building_10's first floor, preserving point order and non-placement properties.
 edit	medical-cards-1.json	-	bandages and medkit: explicit healing and pain relief percentages, weight retained, lower activation time better; presentation only (after bandages-1 and weapon-balance-1)
@@ -119,4 +116,7 @@ edit	exo-boots-1.json	-	the Duty and Freedom exoskeleton boots worn under full-l
 edit	music-1.json	-	each playable mode's map theme, mode.ui.loading_music as retail's (levels 1-9 their own; the v0.21 and v0.11 maps their original's; Research's its level's), for exe patch 88 (docs/notes/music.md)
 edit	medicines-1.json	-	the bandages' (66) and the Medikit's (67) dictionary rows name their configs of pack medicines, gameplay/items/medicines/ (docs/notes/medicines.md)
 edit	rudnya-ammo-1.json	-	Rudnya (v0.69), all four modes: ammo only at the bases: the two mid-map ammo boxes, by the decent house and the church, removed with their models and collision; each base box refills only its own team (the other team's resupply zone removed)
+edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun> (E)", exe patch 85) in the existing collection widget; strings in the unified language catalog.
+edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
+edit	weapon-stats.tsv	-	the weapons' stats, and their cards
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

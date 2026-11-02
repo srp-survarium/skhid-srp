@@ -2,6 +2,8 @@ symbol	va	arguments	prototype	call	vostok
 engine_cfg_child	0x0f6b10	EAX:table EDI:key	const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)	thunk	
 engine_cfg_has	0x0f6c00	EAX:table ESI:key	unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key)	thunk	
 engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_malloc(void *allocator, unsigned int size, const void *where)	thunk	
+engine_allocated_size	0x0e5270	ECX:allocator	unsigned int engine_allocated_size(void *allocator)	thunk	
+engine_dump_statistics	0x0e1370	ESP+4:flag	void engine_dump_statistics(unsigned int flag)	thunk	
 engine_match_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	void *engine_match_rule_base(void *rule, unsigned int type)	thunk	
 engine_write_u8	0x1f3de0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u8(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_u16	0x2f5da0	EAX:integer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_u16(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
@@ -17,8 +19,8 @@ engine_apply_modifier	0x2d5ae0	EAX:modifiers ESI:index ESP+4:value ESP+8:weight	
 engine_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_setup_profile(const void *profile, void *character, unsigned int kit)	thunk	
 engine_find_item_by_id	0x277aa0	ECX:begin EDI:end ESP+4:id	void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id)	thunk	
 engine_item_by_id	0x1f0090	EAX:dictionary ESP+4:id	struct item_entry *engine_item_by_id(struct items_dictionary *dictionary, unsigned int id)	thunk	
-engine_profile_assign	0x284d10	ESI:destination EDI:source	void *engine_profile_assign(void *destination, const void *source)	thunk	
-engine_profile_construct	0x2f73f0	ECX:this	void *engine_profile_construct(void *profile)	thunk	
+engine_profile_assign	0x284d10	ESI:destination EDI:source	struct player_profile *engine_profile_assign(struct player_profile *destination, const struct player_profile *source)	thunk	
+engine_profile_construct	0x2f73f0	ECX:this	struct player_profile *engine_profile_construct(void *profile)	thunk	
 engine_allocation_name	0x420789	ECX:object	const void *engine_allocation_name(const void *where)	thunk	
 engine_log_passes	0x111860	ESP+4:channel ESP+8:level	unsigned int engine_log_passes(const char *channel, unsigned int level)	thunk	
 engine_string_assign	0x0127c0	EAX:destination ECX:text	void engine_string_assign(struct buffer_string *string, const char *text)	thunk	
@@ -104,6 +106,21 @@ engine_query_one	0x0e5b60	EAX:requests ECX:count ESP+4:callback ESP+8:allocator 
 engine_release_emitter	0x011540	ECX:pointer	void engine_release_emitter(struct sound_emitter **pointer)	thunk	
 engine_set_listener	0x0587d0	ESI:scene EAX:position ESP+4:front ESP+8:top	void engine_set_listener(struct sound_scene *scene, const float *position, const float *front, const float *top)	thunk	
 engine_medkit_set_active	0x33d390	ESP+4:medkit AL:active ESP+8:time	void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time)	thunk	
+engine_profile_destroy	0x26f3b0	ECX:this	void engine_profile_destroy(struct player_profile *profile)	thunk	
+engine_release_inventory	0x0e0210	ECX:instance EAX:count	void engine_release_inventory(struct inventory *object, unsigned int *count)	thunk	
+engine_global_memory_status_ex	0x870164	-	unsigned int engine_global_memory_status_ex(void *status)	import	
+engine_allocate_recipe	0x0e4f90	ESI:allocator EAX:size ESP+4:description	struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)	thunk	
+engine_get_current_process_id	0x8701b8	-	unsigned int engine_get_current_process_id(void)	import	
+engine_bind_member_callback	0x27d280	EDI:callback ESP+4:member ESP+8:adjustment ESP+12:object ESP+16:padding	struct query_callback *engine_bind_member_callback(struct query_callback *callback, const void *member, unsigned int adjustment, unsigned int object, unsigned int padding)	thunk	
+engine_inventory_variant_type	0x205c60	-	unsigned int engine_inventory_variant_type(void)	thunk	
+engine_dispatch_callbacks	0x0e5ab0	-	void engine_dispatch_callbacks(void)	thunk	
+engine_inventory_set	0x2fc620	ESI:inventory EDI:slot ESP+4:reference	void engine_inventory_set(struct inventory *inventory, unsigned int slot, struct item *const *item)	thunk
+engine_release_inventory_item	0x0e0210	ECX:instance EAX:count	void engine_release_inventory_item(struct item *object, unsigned int *count)	thunk
+engine_forget_active_object	0x3919e0	EAX:animation EDX:removed	void engine_forget_active_object(void *animation, struct item *object)	thunk
+engine_weapon_set_user	0x2445e0	ECX:weapon ESP+4:player	void engine_weapon_set_user(struct item *weapon, struct player *player)	thiscall
+engine_weapon_initialize	0x2449e0	ECX:weapon	void engine_weapon_initialize(struct item *weapon)	thiscall
+engine_weapon_activate	0x244610	ECX:weapon ESP+4:switch_flag	void engine_weapon_activate(struct item *weapon, unsigned int flag)	thiscall
+engine_weapon_deactivate	0x244860	ECX:weapon ESP+4:clear_user	void engine_weapon_deactivate(struct item *weapon, unsigned int clear)	thiscall
 engine_enter_critical_section	0x8700d0	-	void engine_enter_critical_section(struct critical_section *section)	import	
 engine_leave_critical_section	0x8700cc	-	void engine_leave_critical_section(struct critical_section *section)	import	
 engine_di_capture_remove	0x5726f0	ECX:context ESP+4:queue	void engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue)	thiscall	

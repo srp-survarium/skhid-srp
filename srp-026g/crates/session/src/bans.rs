@@ -5,6 +5,10 @@
 //! address is told so before the password: no account can sign in, or be
 //! registered, from it. Banning ends the sessions it covers at once and
 //! closes their lobby and chat connections.
+//!
+//! The admin's chat mute of an account (`docs/notes/admin-chat-mute.md`) is
+//! a [`Ban`] too: it signs in and plays as before, but nobody gets its chat
+//! lines; it gets [`Ban::chat_notice`] back instead.
 
 use std::fmt;
 use std::net::IpAddr;
@@ -70,7 +74,8 @@ impl fmt::Display for Net {
 pub struct Ban {
     /// Unix seconds it ends at; `None`: never.
     pub until: Option<u64>,
-    /// For the admin; never shown to the player.
+    /// For the admin; never shown to the player, but a chat mute's
+    /// ([`Self::chat_notice`]).
     pub reason: String,
 }
 
@@ -78,6 +83,21 @@ impl Ban {
     /// Whether it still holds at `now` (Unix seconds).
     pub fn holds(&self, now: u64) -> bool {
         self.until.is_none_or(|until| now < until)
+    }
+
+    /// As a chat mute, the line its player gets back instead of each line
+    /// it sends: `muted for <reason>`, or `muted until <date> <time> UTC:
+    /// <reason>`.
+    pub fn chat_notice(&self) -> String {
+        match self.until {
+            None => format!("muted for {}", self.reason),
+            Some(at) => format!(
+                "muted until {} {} UTC: {}",
+                crate::utc::date(at),
+                crate::utc::clock(at),
+                self.reason
+            ),
+        }
     }
 }
 
@@ -111,6 +131,24 @@ mod tests {
             Net::single("::ffff:10.0.0.1".parse().unwrap()).to_string(),
             "10.0.0.1"
         );
+    }
+
+    #[test]
+    fn a_chat_mute_tells_its_player_why_and_until_when() {
+        // 2026-10-18 12:34 UTC.
+        let timed = Ban {
+            until: Some(1_792_326_840),
+            reason: "spam".into(),
+        };
+        assert_eq!(
+            timed.chat_notice(),
+            "muted until 2026-10-18 12:34 UTC: spam"
+        );
+        let for_good = Ban {
+            until: None,
+            reason: "insults".into(),
+        };
+        assert_eq!(for_good.chat_notice(), "muted for insults");
     }
 
     #[test]

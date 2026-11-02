@@ -2875,6 +2875,68 @@ with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a ga
 - **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
   `engine_close_current_match`) with reason 2, as match.md section 25 has it.
 
+### Dropped-weapon pickup (patch 85)
+
+The spec, the design and its evidence in full: `weapon_pickup.md`. The
+addresses it rests on (Unicorn: `check_weapon_pickup_026g.py`):
+
+- **The copy:** at `carry.client_death` (0x1F28E0) one query (0xE5B60) of
+  the player cook's inventory request (41h, 0x9FD55C) from a profile copy
+  (0x2F73F0, operator= 0x284D10) keeping the weapon slot and the ammunition
+  slots; the completion a boost member callback (0x27D280, invoker
+  0x202300). Never freed mid-match once registered or in hands (a bullet
+  keeps raw pointers to its weapon item and ammo, +0Ch/+40h, 0x32BB27): only
+  at its last holder's destruction (`player.destroy` 0x1F2100); re-used for
+  its donor's next drop; an untaken one freed after base_player::remove(1)
+  (`pickup.remove` 0x2DA790).
+- **The record** (48 bytes, version 4) at `pickup.save` (0x2DAF70) and
+  `pickup.load` (0x2DB4CF), before the held (0x2DB626) and pending
+  (0x2DB796) ids and the inventory (0x2DB7D8): drop, picks, the pending
+  pickup, the parked own kit (the server's count of own ammunition).
+- **The registry** (core+18B4Ch, an inline buffer_vector of 255 at +18B58h;
+  appended by bind_to_game_core 0x2E30F0 and the victory items 0x313F50,
+  never erased, never saved or loaded): ids 195..254 reserved, three a
+  place (slot 7's pick, slot 10's, the pending gun).
+- **The command** at `carry.filter` (0x2D876F): the drop taken, the copy
+  registered and made the pending object (+12Ch), m_need_to_select_animations
+  (+33Eh) set as set_input does for changed actions (0x2D899D), so this
+  tick's tick_animations (0x2D8F42) runs select_animations and
+  tick_active_object (0x2D7650); fire (0x20) and reload (0x40) cleared from
+  the applied actions (+330h, read by the weapon at 0x2E0E87) until the swap,
+  after patch 78's filter.
+- **The holster:** `pickup.tick_active` (0x2D7650's entry) puts back another
+  pending object and the inventory's selected slot (+170h, inventory::action
+  0x2FCB18); `pickup.switch` (0x2D76D0, once the held gun is ready to be
+  deactivated) puts the gun in hands away as the native switch does
+  (deactivate(1) 0x244860, forget_active_object 0x3919E0) before any slot
+  moves, installs the copy (set_item 0x2FC620, remove_item 0x2FC680,
+  set_user 0x2445E0, initialize 0x2449E0, activate 0x244610) and exits to
+  0x2D7724. Never a forced swap: a gun put away before it is ready keeps
+  intervals forget_active_object does not drop, whose sound events
+  (0x297C50 -> 0x2981A0) read its cleared user (+8, 0x2E2EE0) at 0x298252.
+- **A loaded record:** a held pick it does not name is put away (deactivate,
+  forget) before its restore, so the reader (0x2DB662) and remove (0x2DA7FD)
+  find no held object; the reader rebuilds the animation player
+  (0x395B50) and activates the held object (0x2DB80D). A re-installed copy
+  that was in hands here gets no weapon call of ours.
+- **The crate:** `pickup.can_use` (0x2F809C), `pickup.use_hint` (0x2F80E4),
+  `pickup.resupply` (0x2F81B8), `pickup.client_resupply` (0x2954EF): the
+  native resupply (0x2FDC10) and check_resupply (0x2FDF50) see a 188h view
+  with the own kit; the borrowed loaded stack refilled by the bags rule.
+- **The bullets:** a record names its weapon by the shooter's slot (+254h,
+  0x32C0B5) and the ammo's ordinal (0x2E26B0); the loader takes the slot's
+  gun (0x32BDA1) and its ammo (0x2E2750). The quiet byte (+80h) is always
+  written and read (`bullet.save_quiet` 0x32C148, `bullet.load_quiet`
+  0x32BE12; natively only for multi-pellet ammo, so a rifle's record read
+  with a shotgun in the slot went out of step), an ordinal past the loading
+  gun's ammo is its none (`bullet.load_ordinal` 0x32BDBA).
+- **The local client:** the ragdoll's gun at `carry.weapon` (0x2477C8; the
+  copy's model box weapon+1810h -> +108h -> +0 -> +62B4h -> +108h, turned by
+  Y(pi)); the prompt at `player_icons.update_start` (0x23AA10; the eye
+  player+44Ch, a 2.2 m segment into the box padded by 15 cm, patch 78's ray
+  0x24/2), `show_artefact_offer` with the name translated (0x1FF0F0) or the
+  refusal's key; the command at `input_builder.end` (0x2421B0).
+
 ### The weapon kit (patch 68)
 
 The rules and the layout: `weapon-kit.md`. PROVEN in the code, run with Unicorn

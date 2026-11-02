@@ -1,0 +1,82 @@
+# Patch 85, dropped-weapon pickup (docs/notes/weapon_pickup.md): one gun
+# cooked at each death that dropped one (vostok::gun_cook), kept and
+# re-used (a copy once registered or in hands until its holder's end); the record in each player state, the pickup, its restore and the
+# crate (vostok::pickup). The death is artefact_carry's carry.client_death,
+# the input's apply point its carry.filter and the frame's step ragdoll's
+# game_world.after_move: their handlers call weapon_pickup::died / on_filter
+# / after_move, and its carry.weapon, its on_hud (player_icons.update_start)
+# and its on_input_end (input_builder.end) call ragdoll_gun / aim /
+# on_input_end (one detour per address). The sites are sites_026g.tsv's; the
+# logic is weapon_pickup.rs.
+name = "weapon_pickup"
+patch = 85
+
+# a player cook's batch is in: a late joiner's install may follow
+[[hook]]
+site = "player_cook.ready"
+handler = "on_player_made"
+
+# a player destroyed: the guns cooked from it go
+[[hook]]
+site = "player.destroy"
+handler = "on_destroy"
+
+# the record: written first in base_player::serialize, read first in
+# deserialize (the borrow reconciled before the native readers)
+[[hook]]
+site = "pickup.save"
+handler = "on_save"
+
+[[hook]]
+site = "pickup.load"
+handler = "on_load"
+
+# the death/respawn removal: the own gun back before remove unloads
+[[hook]]
+site = "pickup.remove"
+handler = "on_remove"
+
+# the crate: its checks and its use see the own loadout; the borrowed
+# reserve is refilled for free
+[[hook]]
+site = "pickup.can_use"
+handler = "on_can_use"
+
+[[hook]]
+site = "pickup.use_hint"
+handler = "on_use_hint"
+
+[[hook]]
+site = "pickup.resupply"
+handler = "on_resupply"
+
+[[hook]]
+site = "pickup.client_resupply"
+handler = "on_client_resupply"
+
+# the game's weapon switch: a pickup waits for it (the picked gun the
+# pending object, under its own registry id; another pending object is put
+# back, only the picker's death cancels); at the switch the gun takes the slot
+[[hook]]
+site = "pickup.tick_active"
+handler = "on_tick_active"
+
+[[hook]]
+site = "pickup.switch"
+handler = "on_switch"
+
+# a bullet record names its weapon by the shooter's slot and the ammo's
+# ordinal: after a pickup's swap the slot holds another gun, so the
+# record's layout must not depend on it (its quiet byte always written and
+# read) and an ordinal past the gun's ammo is none
+[[hook]]
+site = "bullet.save_quiet"
+handler = "on_save_quiet"
+
+[[hook]]
+site = "bullet.load_quiet"
+handler = "on_load_quiet"
+
+[[hook]]
+site = "bullet.load_ordinal"
+handler = "on_load_ordinal"

@@ -2849,9 +2849,16 @@ st_walther_competition2_collimator_desc	Niemiecki celownik kolimatorowy z czerwo
 st_walther_competition2_collimator_name	Kolimator Competition II
 st_wasted	Koszt
 st_weapon_aim_action	Celowanie (przytrzymaj)
+st_weapon_already_taken	Już podniesiona
+st_weapon_cannot_carry	Nie możesz nieść drugiego karabinu
+st_weapon_cannot_pick_up	Nie można tego podnieść
 st_weapon_could_not_be_used	Rana rąk! Nie można użyć broni
 st_weapon_fire_action	Strzał
+st_weapon_no_gun_in_hands	Weź broń do ręki, by ją wymienić
+st_weapon_one_gun_only	Możesz nieść tylko jedną broń
+st_weapon_pick_up	Podnieś %1$s ({USE})
 st_weapon_reload_action	Przeładowanie
+st_weapon_switching	Poczekaj na zmianę broni
 st_wear	Zastosuj
 st_weight_booster_description	Białka zawierające składniki odżywcze dla przyrostu masy mięśniowej i zwiększenia siły. Stosowanie ich jednak niepoparte wysiłkiem fizycznym jest nieskuteczne.
 st_weight_booster_name	Odżywka "Anormalna Siła"

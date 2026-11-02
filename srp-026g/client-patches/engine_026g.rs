@@ -17,6 +17,10 @@ unsafe extern "C" {
     pub fn engine_cfg_has(table: *const c_void, key: *const u8) -> u32;
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_malloc(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
+    /// 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX
+    pub fn engine_allocated_size(allocator: *mut c_void) -> u32;
+    /// 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0
+    pub fn engine_dump_statistics(flag: u32);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_match_rule_base(rule: *mut c_void, r#type: u32) -> *mut c_void;
     /// 0x1f3de0 vostok::network_core::buffer_writer::w<unsigned char>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
@@ -167,6 +171,24 @@ unsafe extern "C" {
     pub fn engine_set_listener(scene: *mut c_void, position: *const f32, front: *const f32, top: *const f32);
     /// 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8
     pub fn engine_medkit_set_active(medkit: *mut c_void, active: u32, time: u32);
+    /// 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0
+    pub fn engine_profile_destroy(profile: *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_inventory(object: *mut c_void, count: *mut u32);
+    /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    pub fn engine_allocate_recipe(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
+    /// 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX
+    pub fn engine_bind_member_callback(callback: *mut c_void, member: *const c_void, adjustment: u32, object: u32, padding: u32) -> *mut c_void;
+    /// 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX
+    pub fn engine_inventory_variant_type() -> u32;
+    /// 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0
+    pub fn engine_dispatch_callbacks();
+    /// 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4
+    pub fn engine_inventory_set(inventory: *mut c_void, slot: u32, item: *const *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_inventory_item(object: *mut c_void, count: *mut u32);
+    /// 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
+    pub fn engine_forget_active_object(animation: *mut c_void, object: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -217,6 +239,14 @@ unsafe extern "thiscall" {
     pub fn engine_close_current_match(client: *mut c_void, reason: u32);
     /// 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
     pub fn engine_gfx_set_member(interface: *mut c_void, target: *mut c_void, name: *const u8, value: *const c_void, display: u32) -> u8;
+    /// 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
+    pub fn engine_weapon_set_user(weapon: *mut c_void, player: *mut c_void);
+    /// 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly
+    pub fn engine_weapon_initialize(weapon: *mut c_void);
+    /// 0x244610 survarium::weapon::activate: weapon ECX, flag ESP+4; pops 4; thiscall, called directly
+    pub fn engine_weapon_activate(weapon: *mut c_void, flag: u32);
+    /// 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
+    pub fn engine_weapon_deactivate(weapon: *mut c_void, clear: u32);
     /// 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
     pub fn engine_di_capture_remove(context: *mut c_void, queue: *mut c_void);
     /// 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
@@ -243,6 +273,10 @@ unsafe extern "C" {
     pub static engine_get_user_default_lcid: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x870064 (an import, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
+    /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
+    pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
+    pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
     pub static engine_enter_critical_section: unsafe extern "stdcall" fn(*mut c_void);
     /// the IAT slot 0x8700cc (an import, stdcall): void engine_leave_critical_section(struct critical_section *section)
