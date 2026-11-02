@@ -1767,6 +1767,7 @@ main{max-width:46rem;margin:22px auto;padding:0 16px;display:grid;gap:22px}a{col
 h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}h1{font-size:1.35rem}h2{font-size:1.15rem}\
 .card{background:var(--panel);border:1px solid var(--rule);padding:16px;display:grid;gap:12px;align-content:start;min-width:0}\
 .card>h1:first-child,.card>h2:first-child{border-bottom:1px solid var(--rule);padding-bottom:8px}.card p{margin:0}\
+.qa{display:grid;grid-template-columns:max-content 1fr;gap:.2rem .7rem;margin:0}.qa dt{font:700 1em/1.55 var(--data);color:var(--accent)}.qa dd{margin:0;min-width:0}.qa dt.q:not(:first-child),.qa dt.q:not(:first-child)+dd{margin-top:.9rem}\
 ol{padding-left:1.3rem;margin:0}.rules{padding-left:1.1rem;margin:0}.opts{font-size:.85rem;color:var(--ink-2);padding-left:1.1rem}li{margin:.6rem 0}li>p{margin:.4rem 0}\
 pre,code{background:var(--code);border:1px solid var(--rule);border-radius:2px;color:var(--ink);font:.85rem var(--data)}pre{padding:.6rem .8rem;margin:.4rem 0;white-space:pre-wrap;word-break:break-all}code{padding:.05rem .3rem;word-break:break-all}\
 .dl{display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;margin:.6rem 0}.dl .button{margin:0}.hash{display:block;max-width:100%;font-size:.78rem;padding:.35rem .5rem}\
@@ -1791,40 +1792,68 @@ footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid v
 
 /// The home page's "if something goes wrong", after the steps, for a
 /// download with the launcher (whose ZIP has these files: `make_client_026g.py`):
-/// what the player sees, quoted as the updater words it today
+/// a question and its answer a case, their labels in a column of their own.
+/// The question is what the player sees, quoted as the updater words it today
 /// (`client/updater`: `logic/src/file_error.rs`, `exe/src/text.rs`,
 /// `logic/src/network.rs`; in the launcher's language where the updater has
-/// one, else its English), and what to run, a line each; then where to send
-/// files, once.
+/// one, else its English); the answer what to run. Then where to send files,
+/// once.
 fn faq(lang: Lang) -> String {
     let cases = [
-        lang.tr(
-            "<b>“Windows Security blocked …: a false positive.”</b> or <b>“Cannot start updater_skhid.exe.”</b> → run <code>Skhid-defender-setup.cmd</code>.",
-            "<b>«Безпека Windows заблокувала …: це хибне спрацювання.»</b> або <b>“Cannot start updater_skhid.exe.”</b> → запустіть <code>Skhid-defender-setup.cmd</code>.",
+        (
+            lang.tr(
+                "“Windows Security blocked …: a false positive.” or “Cannot start updater_skhid.exe.”",
+                "«Безпека Windows заблокувала …: це хибне спрацювання.» або “Cannot start updater_skhid.exe.”",
+            ),
+            lang.tr(
+                "Run <code>Skhid-defender-setup.cmd</code>.",
+                "Запустіть <code>Skhid-defender-setup.cmd</code>.",
+            ),
         ),
-        lang.tr(
-            "<b>“Game download failed: …”</b> or <b>“game\\resources.db.patch_… could not be downloaded …”</b> → start <code>Skhid.bat</code> again.",
-            "<b>“Game download failed: …”</b> або <b>“game\\resources.db.patch_… could not be downloaded …”</b> → запустіть <code>Skhid.bat</code> знову.",
+        (
+            lang.tr(
+                "“Game download failed: …” or “game\\resources.db.patch_… could not be downloaded …”",
+                "“Game download failed: …” або “game\\resources.db.patch_… could not be downloaded …”",
+            ),
+            lang.tr(
+                "Start <code>Skhid.bat</code> again.",
+                "Запустіть <code>Skhid.bat</code> знову.",
+            ),
         ),
-        lang.tr(
-            "<b>“skhid.link didn't answer.”</b>, <b>“skhid.link refused the connection.”</b>, <b>“Couldn't find skhid.link.”</b> or <b>“The connection to skhid.link was cut off.”</b> → run <code>Skhid-network-setup.cmd</code>.",
-            "<b>«skhid.link не відповідає.»</b>, <b>«skhid.link відхилив з'єднання.»</b>, <b>«Не вдається знайти skhid.link.»</b> або <b>«З'єднання з skhid.link перервано.»</b> → запустіть <code>Skhid-network-setup.cmd</code>.",
+        (
+            lang.tr(
+                "“skhid.link didn't answer.”, “skhid.link refused the connection.”, “Couldn't find skhid.link.” or “The connection to skhid.link was cut off.”",
+                "«skhid.link не відповідає.», «skhid.link відхилив з'єднання.», «Не вдається знайти skhid.link.» або «З'єднання з skhid.link перервано.»",
+            ),
+            lang.tr(
+                "Run <code>Skhid-network-setup.cmd</code>.",
+                "Запустіть <code>Skhid-network-setup.cmd</code>.",
+            ),
         ),
-        lang.tr(
-            "<b>Works only with a VPN, or only without one</b> → see <code>VPN.txt</code>.",
-            "<b>Працює лише з VPN або лише без нього</b> → див. <code>VPN.txt</code>.",
+        (
+            lang.tr(
+                "Works only with a VPN, or only without one.",
+                "Працює лише з VPN або лише без нього.",
+            ),
+            lang.tr("See <code>VPN.txt</code>.", "Див. <code>VPN.txt</code>."),
         ),
-        lang.tr(
-            "<b>Nothing works</b> → run <code>Skhid-collect-logs.cmd</code> and send the zip it makes.",
-            "<b>Нічого не працює</b> → запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить.",
+        (
+            lang.tr("Nothing works.", "Нічого не працює."),
+            lang.tr(
+                "Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes.",
+                "Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить.",
+            ),
         ),
     ];
+    let (q, a) = (lang.tr("Q:", "П:"), lang.tr("A:", "В:"));
     format!(
-        "<section class=card><h2>{}</h2><ul class=rules>{}</ul><p>{}</p></section>",
+        "<section class=card><h2>{}</h2><dl class=qa>{}</dl><p>{}</p></section>",
         lang.tr("If something goes wrong", "Якщо щось не так"),
         cases
             .iter()
-            .map(|case| format!("<li>{case}</li>"))
+            .map(|(question, answer)| {
+                format!("<dt class=q>{q}</dt><dd class=q><b>{question}</b></dd><dt>{a}</dt><dd>{answer}</dd>")
+            })
             .collect::<String>(),
         lang.tr(
             "Send files to us on Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>",
@@ -3301,7 +3330,19 @@ mod tests {
             let page = home(lang, stats(true));
             let (steps, faq) = page.split_once("</ol>").unwrap();
             let steps = steps.split("<ol>").nth(1).unwrap();
-            assert_eq!(faq.matches("<li>").count(), 5, "{faq}");
+            // A question and its answer a case, each label in its own cell.
+            let (q, a) = if lang == Lang::En {
+                ("Q:", "A:")
+            } else {
+                ("П:", "В:")
+            };
+            assert_eq!(
+                faq.matches(&format!("<dt class=q>{q}</dt>")).count(),
+                5,
+                "{faq}"
+            );
+            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 5, "{faq}");
+            assert!(!faq.contains("<li>"), "{faq}");
             for said in [
                 "Skhid-defender-setup.cmd",
                 "Skhid.bat",
