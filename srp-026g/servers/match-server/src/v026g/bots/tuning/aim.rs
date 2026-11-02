@@ -207,13 +207,17 @@ pub struct SkillTuning {
     /// The start and the floor of a tier with no row in `tiers`.
     pub start: f32,
     pub min: f32,
-    /// The most, every tier (the owner's word, 2026-10-23: no tier has its
-    /// own most).
+    /// The top of the scale: no tier's ceiling is over it, and a tier with
+    /// no row in `tiers` has it as its ceiling.
     pub max: f32,
-    /// By the bots' tier ([`BotTier`]): where a team's skill starts and
-    /// the floor the self-balancing keeps it above (the owner, 2026-10-23:
-    /// 4-5 from 0.6, floor 0.3; 9-10 from 0.75, floor 0.5; 13-15 from
-    /// 0.85, floor 0.65).
+    /// [A244] By the bots' tier ([`BotTier`]), its bracket: where a team's
+    /// skill starts, and the floor and the ceiling the self-balancing keeps
+    /// it between (the owner, 2026-11-01: players of level 0-5 skill 0.0-0.6
+    /// from 0.3; 6-10 0.2-0.8 from 0.5; 11-15 0.3-0.9 from 0.6). On A243's
+    /// line a skill is a hit rate (automatics 10.2 % at 0 to 18-20 % at 1),
+    /// so a ceiling caps how well a tier's bots shoot. Before A244 (and
+    /// `all_off.json`): 4-5 from 0.6, floor 0.3; 9-10 from 0.75, floor 0.5;
+    /// 13-15 from 0.85, floor 0.65; one ceiling, `max`, for every tier.
     pub tiers: BTreeMap<BotTier, TierSkill>,
     /// One step's size before damping (`step / min(steps, 10)`).
     pub step: f32,
@@ -234,12 +238,11 @@ impl Default for SkillTuning {
             min: 0.0,
             max: 1.0,
             tiers: [
-                (BotTier::Low, (0.6, 0.3)),
-                (BotTier::Mid, (0.75, 0.5)),
-                (BotTier::High, (0.85, 0.65)),
+                (BotTier::Low, TierSkill { start: 0.3, min: 0.0, max: 0.6 }),
+                (BotTier::Mid, TierSkill { start: 0.5, min: 0.2, max: 0.8 }),
+                (BotTier::High, TierSkill { start: 0.6, min: 0.3, max: 0.9 }),
             ]
             .into_iter()
-            .map(|(tier, (start, min))| (tier, TierSkill { start, min }))
             .collect(),
             step: 0.15,
             kd_low: 0.67,
@@ -252,27 +255,33 @@ impl Default for SkillTuning {
 }
 
 impl SkillTuning {
-    /// Where a team of bots of `tier` starts, and its floor: the tier's
-    /// row, else `start` and `min`; the start within the floor and `max`.
+    /// A team of bots of `tier`'s bracket: the tier's row, else `start`,
+    /// `min` and `max`; the ceiling at most `max`, the floor at most the
+    /// ceiling, the start between them.
     pub fn of_tier(&self, tier: BotTier) -> TierSkill {
         let row = self.tiers.get(&tier).copied().unwrap_or(TierSkill {
             start: self.start,
             min: self.min,
+            max: self.max,
         });
-        let min = row.min.min(self.max);
+        let max = row.max.min(self.max);
+        let min = row.min.min(max);
         TierSkill {
-            start: row.start.clamp(min, self.max),
+            start: row.start.clamp(min, max),
             min,
+            max,
         }
     }
 }
 
-/// A tier's start and floor of the skill.
+/// A tier's bracket of the skill: where it starts, its floor and its
+/// ceiling (A244).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TierSkill {
     pub start: f32,
     pub min: f32,
+    pub max: f32,
 }
 
 impl Check for SkillTuning {
@@ -284,7 +293,7 @@ impl Check for SkillTuning {
         )?;
         for (tier, row) in &self.tiers {
             check(
-                (0.0..=row.start).contains(&row.min) && row.start <= self.max,
+                (0.0..=row.start).contains(&row.min) && row.start <= row.max && row.max <= self.max,
                 &format!("skill.tiers.{tier:?}"),
             )?;
         }

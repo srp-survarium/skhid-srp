@@ -85,8 +85,8 @@ impl Group {
         match self {
             Group::Balance => None,
             Group::Brackets => Some(Text {
-                en: "The ceiling is one for every equipment and shown only until each band gets its own (floor <= start <= ceiling).",
-                uk: "Стеля одна для всього спорядження і лише показана, доки кожен рівень не матиме свою (мінімум <= старт <= стеля).",
+                en: "Each band's ceiling and the scale's top are shown only until the page sets them (floor <= start <= ceiling <= top).",
+                uk: "Стеля кожного рівня і верх шкали лише показані, доки сторінка їх не встановлює (мінімум <= старт <= стеля <= верх).",
             }),
             Group::Hits => Some(Text {
                 en: "Comes with the aim's calibration by weapon class: each class's target at skill 1, with the measured rate beside it.",
@@ -197,8 +197,8 @@ const SHARE: Unit = Unit::Number { min: 0.0, max: 1.0 };
 const KD: Unit = Unit::Number { min: 0.1, max: 10.0 };
 
 /// The knobs of the page. The brackets are the tiers of [`super::SkillTuning`] (players of equipment 0-5 meet bots of
-/// tier 4-5, and so on: [`BotTier`]): each one's floor and start, which the page sets, and their one ceiling, `skill.max`,
-/// shown only until each tier gets its own (A244).
+/// tier 4-5, and so on: [`BotTier`]): each one's floor and start, which the page sets, and its ceiling (A244) and the
+/// scale's top, `skill.max`, shown only until the page sets them.
 const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.4-5.min",
@@ -249,10 +249,34 @@ const KNOBS: &[Knob] = &[
         read: |t| f64::from(t.skill.of_tier(BotTier::High).start),
     },
     Knob {
+        key: "skill.tiers.4-5.max",
+        group: Group::Brackets,
+        set: Set::Later,
+        label: Text { en: "Equipment 0-5: ceiling", uk: "Спорядження 0–5: стеля" },
+        unit: SHARE,
+        read: |t| f64::from(t.skill.of_tier(BotTier::Low).max),
+    },
+    Knob {
+        key: "skill.tiers.9-10.max",
+        group: Group::Brackets,
+        set: Set::Later,
+        label: Text { en: "Equipment 6-10: ceiling", uk: "Спорядження 6–10: стеля" },
+        unit: SHARE,
+        read: |t| f64::from(t.skill.of_tier(BotTier::Mid).max),
+    },
+    Knob {
+        key: "skill.tiers.13-15.max",
+        group: Group::Brackets,
+        set: Set::Later,
+        label: Text { en: "Equipment 11-15: ceiling", uk: "Спорядження 11–15: стеля" },
+        unit: SHARE,
+        read: |t| f64::from(t.skill.of_tier(BotTier::High).max),
+    },
+    Knob {
         key: "skill.max",
         group: Group::Brackets,
         set: Set::Later,
-        label: Text { en: "Ceiling (every equipment)", uk: "Стеля (будь-яке спорядження)" },
+        label: Text { en: "Top of the scale (every equipment)", uk: "Верх шкали (будь-яке спорядження)" },
         unit: SHARE,
         read: |t| f64::from(t.skill.max),
     },
@@ -804,7 +828,9 @@ mod tests {
             &[("skill.kd_low", "2"), ("skill.kd_high", "1.9")],
             &[("skill.tiers.4-5.start", "1.2")],
             &[("skill.tiers.9-10.min", "0.8")],
-            &[("skill.tiers.13-15.start", "0.6")],
+            &[("skill.tiers.13-15.start", "0.2")],
+            &[("skill.tiers.13-15.start", "0.95")],
+            &[("skill.tiers.9-10.max", "0.9")],
             &[("skill.max", "0.9")],
             &[("aim.error_deg", "1")],
         ] {
@@ -819,36 +845,40 @@ mod tests {
         assert_eq!(patch_of(&live.state.locked().changes), serde_json::json!({"skill": {"every_s": 60}}));
     }
 
-    /// The brackets as the owner set them (2026-11-01T16:30:58Z: equipment 0-5 floor 0.0 start 0.3, 6-10 0.2 / 0.5, 11-15
-    /// 0.3 / 0.6) can be put in from the page; a match's team then starts there.
+    /// The brackets ship as the owner set them (2026-11-01: equipment 0-5 0.0-0.6 from 0.3, 6-10 0.2-0.8 from 0.5, 11-15
+    /// 0.3-0.9 from 0.6; A244); the page moves a band's floor and start inside its ceiling, and a match's team then
+    /// starts there.
     #[test]
     fn the_page_sets_the_brackets_floor_and_start_in_their_order() {
         let live = LiveTuning::default();
+        let shipped: Vec<_> = BotTier::ALL.iter().map(|&tier| live.for_match().tuning().skill.of_tier(tier)).map(|row| (row.min, row.start, row.max)).collect();
+        assert_eq!(shipped, [(0.0, 0.3, 0.6), (0.2, 0.5, 0.8), (0.3, 0.6, 0.9)]);
+        // The floors and starts before A244, each inside its band's ceiling.
         let made = set(
             &live,
             &[
-                ("skill.tiers.4-5.min", "0"),
-                ("skill.tiers.4-5.start", "0.3"),
-                ("skill.tiers.9-10.min", "0.2"),
-                ("skill.tiers.9-10.start", "0.5"),
-                ("skill.tiers.13-15.min", "0.3"),
-                ("skill.tiers.13-15.start", "0.6"),
+                ("skill.tiers.4-5.min", "0.3"),
+                ("skill.tiers.4-5.start", "0.6"),
+                ("skill.tiers.9-10.min", "0.5"),
+                ("skill.tiers.9-10.start", "0.75"),
+                ("skill.tiers.13-15.min", "0.65"),
+                ("skill.tiers.13-15.start", "0.85"),
             ],
         )
         .unwrap();
         assert_eq!(made.len(), 6);
         let next = live.for_match();
         let rows: Vec<_> = BotTier::ALL.iter().map(|&tier| next.tuning().skill.of_tier(tier)).map(|row| (row.min, row.start)).collect();
-        assert_eq!(rows, [(0.0, 0.3), (0.2, 0.5), (0.3, 0.6)]);
+        assert_eq!(rows, [(0.3, 0.6), (0.5, 0.75), (0.65, 0.85)]);
         // The start may go under its old floor when the floor goes with it, in one save.
         set(&live, &[("skill.tiers.4-5.min", "0.05"), ("skill.tiers.4-5.start", "0.1")]).unwrap();
         assert_eq!(live.for_match().tuning().skill.of_tier(BotTier::Low).start, 0.1);
-        // The view: the floors and starts settable, the ceiling shown only, the group's note says why.
+        // The view: the floors and starts settable, the ceilings and the top shown only, the group's note says why.
         let view = live.view();
         let brackets = view.groups.iter().find(|group| group.key == "brackets").unwrap();
         assert!(brackets.note.is_some());
         let shown: Vec<_> = brackets.knobs.iter().filter(|knob| knob.state == KnobState::Shown).map(|knob| knob.key.as_str()).collect();
-        assert_eq!(shown, ["skill.max"]);
+        assert_eq!(shown, ["skill.tiers.4-5.max", "skill.tiers.9-10.max", "skill.tiers.13-15.max", "skill.max"]);
         // The group's reset puts the shipped brackets back.
         assert_eq!(live.reset(Some("brackets"), "192.0.2.3").unwrap().len(), 6);
         assert_eq!(live.for_match(), LoadedTuning::default());

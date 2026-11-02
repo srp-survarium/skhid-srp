@@ -47,12 +47,19 @@ impl Bots {
             });
         }
         let after = self.tracker.view(&at(time), &self.tunings.match_wide().kin, None);
+        // A bot to the self-balancing: the tracker's word, but for the bench's stand-in human when it asks
+        // (`bench_human_dial`).
+        #[cfg(test)]
+        let dial_human = self.bench_human.filter(|_| self.bench_human_dial);
+        #[cfg(not(test))]
+        let dial_human: Option<Place> = None;
+        let is_bot = |p: &view::PlaceView| p.bot && dial_human != Some(p.place);
         let kills_by = |bot: bool| {
             after
                 .places
                 .iter()
                 .zip(&before.places)
-                .any(|(a, b)| a.bot == bot && a.kills > b.kills)
+                .any(|(a, b)| is_bot(a) == bot && a.kills > b.kills)
         };
         let (human_kills, bot_kills) = (kills_by(false), kills_by(true));
         for (a, b) in after.places.iter().zip(&before.places) {
@@ -233,13 +240,13 @@ impl Bots {
                 self.lost_carrier(a.place, 1 - team, (&before, &after), time, &mut notes);
             }
             // Self-balancing counts duels between bots and humans.
-            if a.bot && human_kills {
+            if is_bot(a) && human_kills {
                 self.teams[team].skill.duel(Duel {
                     time,
                     bot_won: false,
                 });
             }
-            if !a.bot && bot_kills {
+            if !is_bot(a) && bot_kills {
                 self.teams[1 - team].skill.duel(Duel {
                     time,
                     bot_won: true,

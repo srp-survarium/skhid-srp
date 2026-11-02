@@ -39,6 +39,29 @@ owner-test skill hits: team 0 (skill 0.00): at the stand-in human rifles + SMGs 
         0,
         0.0
       ],
+      "skill_bins": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "speed": {
         "smg:0-20:0-0.5": [
           58,
@@ -78,6 +101,29 @@ owner-test skill hits: team 0 (skill 0.00): at the stand-in human rifles + SMGs 
       "skill": [
         0,
         0.0
+      ],
+      "skill_bins": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "speed": {}
     }
