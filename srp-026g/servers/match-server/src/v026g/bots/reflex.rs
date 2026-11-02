@@ -5744,11 +5744,13 @@ impl Reflex {
                 return;
             }
         }
-        // [A170] A throw at a held spot the team has dropped since the roll is given up while the key is not yet let go.
+        // [A170] A throw at a held spot the team has dropped since the roll is given up while the key is not yet let go
+        // ([A260] with `grenade_commit`, only before the press: once the key has gone down the throw goes).
         if c.grenade_held_recheck
             && let Some(throw) = self.throw
             && let Some(id) = throw.spot
             && !throw.released
+            && !(c.grenade_commit && throw.pressed.is_some())
             && !team.is_some_and(|team| team.threat.held.iter().any(|line| line.id == id))
         {
             self.grenade_stats.held_dropped[usize::from(throw.pressed.is_some())] += 1;
