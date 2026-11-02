@@ -837,7 +837,7 @@ mod tests {
         // As JSON: a type's kind is its key.
         let json = serde_json::to_value(&calibration).unwrap();
         assert_eq!(json["pistol"], "not_measured");
-        assert!(json["smg"]["pooled"]["points"].is_array() && json["bolt"]["own"]["ladder"].is_array(), "{json}");
+        assert!(json["mg"]["pooled"]["points"].is_array() && json["bolt"]["own"]["ladder"].is_array(), "{json}");
         assert_eq!(serde_json::from_value::<AimCalibration>(json).unwrap(), calibration);
     }
 
