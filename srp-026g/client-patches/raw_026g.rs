@@ -253,6 +253,12 @@ unsafe extern "thiscall" {
     pub fn engine_weapon_activate(weapon: Option<Item>, flag: u32);
     /// 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
     pub fn engine_weapon_deactivate(weapon: Option<Item>, clear: u32);
+    /// 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_capture_remove(context: Option<DrawableImageContext>, queue: Option<DiCommandQueue>);
+    /// 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_queue_next_capture(queue: Option<DiCommandQueue>, notify: Option<RenderNotify>);
+    /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+    pub fn engine_di_queue_release(queue: Option<DiCommandQueue>);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -277,6 +283,10 @@ unsafe extern "C" {
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
+    pub static engine_enter_critical_section: unsafe extern "stdcall" fn(Option<CriticalSection>);
+    /// the IAT slot 0x8700cc (an import, stdcall): void engine_leave_critical_section(struct critical_section *section)
+    pub static engine_leave_critical_section: unsafe extern "stdcall" fn(Option<CriticalSection>);
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10081,6 +10091,180 @@ impl GatherVictoryItemsRuleCore {
     }
 }
 
+/// A scaleform::drawable_image_capture_notify (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawableImageCaptureNotify(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DrawableImageCaptureNotify {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x8 (obj<scaleform::drawable_image_context>): the DrawableImageContext this ContextCaptureNotify base is part of (context+8: OnNextCapture 0x572660's ECX, kept in ESI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> DrawableImageContext {
+        DrawableImageContext(unsafe { self.0.byte_sub(0x8) })
+    }
+}
+
+/// A scaleform::drawable_image_context (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawableImageContext(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DrawableImageContext {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (obj<windows::critical_section>): the lock of its queues' list (a Scaleform::Lock): Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) hold it for their link writes alone; the stock OnNextCapture (0x572660) and OnCapture (0x5744E0) walk the list without it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queue_lock(self) -> CriticalSection {
+        CriticalSection(unsafe { self.0.byte_add(0x24) })
+    }
+
+    /// +0x40 (obj<scaleform::di_queue_link>): its queues' list's end (the sentinel): its next (+4Ch) the first queue, its prev (+48h) the last (AddCaptureNotify 0x5726B0 appends there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queues(self) -> DiQueueLink {
+        DiQueueLink(unsafe { self.0.byte_add(0x40) })
+    }
+}
+
+/// A scaleform::di_queue_link (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiQueueLink(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DiQueueLink {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<scaleform::di_queue_link>): the next queue's link or the context's end (a list node's next; RemoveCaptureNotify 0x5726F0 zeroes a removed queue's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<DiQueueLink> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<DiQueueLink>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<scaleform::di_queue_link>): the next queue's link or the context's end (a list node's next; RemoveCaptureNotify 0x5726F0 zeroes a removed queue's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<DiQueueLink>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<DiQueueLink>>().write_volatile(value) }
+    }
+
+    /// +0x0 (obj<scaleform::di_command_queue>): the queue this link is (a DICommandQueue is its own list node, its prev at +8, next at +0Ch); not when the link is its context's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queue(self) -> DiCommandQueue {
+        DiCommandQueue(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A scaleform::di_command_queue (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiCommandQueue(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DiCommandQueue {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): its reference count (RefCountImpl: AddRef/Release 0x505CA0/0x505CB0 by InterlockedExchangeAdd; at 0 Release destroys it; the destructor 0x5ED1E0 then writes 2, later 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x34 (ptr<scaleform::drawable_image_context>): its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<DrawableImageContext> {
+        unsafe { self.0.byte_add(0x34).cast::<Option<DrawableImageContext>>().read_volatile() }
+    }
+
+    /// +0x34 (ptr<scaleform::drawable_image_context>): its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<DrawableImageContext>) {
+        unsafe { self.0.byte_add(0x34).cast::<Option<DrawableImageContext>>().write_volatile(value) }
+    }
+
+    /// +0x0 (obj<scaleform::di_queue_link>): itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn link(self) -> DiQueueLink {
+        DiQueueLink(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A scaleform::render_notify (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderNotify(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderNotify {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -10314,6 +10498,21 @@ pub struct GameAllocator(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl GameAllocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A windows::critical_section (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CriticalSection(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CriticalSection {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -12249,6 +12448,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn manager(machine: &impl Machine) -> Option<VictoryItemEventManager> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(VictoryItemEventManager)
+        }
+    }
+
+    /// scaleform.di_next_capture (0x572675): DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed)
+    pub mod scaleform_di_next_capture {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a scaleform::drawable_image_capture_notify (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn capture(machine: &impl Machine) -> Option<DrawableImageCaptureNotify> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(DrawableImageCaptureNotify)
+        }
+
+        /// EBX: a scaleform::render_notify (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn notify(machine: &impl Machine) -> Option<RenderNotify> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RenderNotify)
+        }
+    }
+
+    /// scaleform.di_queue_destroy (0x5ed1e0): DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4)
+    pub mod scaleform_di_queue_destroy {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a scaleform::di_command_queue (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn queue(machine: &impl Machine) -> Option<DiCommandQueue> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(DiCommandQueue)
         }
     }
 }

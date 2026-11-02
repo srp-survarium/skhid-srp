@@ -112,6 +112,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
+| `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -4092,3 +4093,42 @@ Checked: `selftest_026g.py` check 91; `check_weapon_show_026g.py` runs on_show a
 models with the game's code for the scope (the renderer stubbed with its in-scene byte): the
 original loses the body in first person with a red dot, the build keeps it, every other case
 ends each draw as the original. **Not run in a game.**
+
+## The render thread never reaches a Scaleform queue being destroyed (patch 93, unreleased)
+
+Two players' crash reports of revision 40, the same stack, at the switch from a match to the
+lobby: the render thread's `flash_renderer::present` (0x2AF0F0) -> `RTHandle::NextCapture`
+(0x50FEC0) -> `DrawableImageContext::OnNextCapture` (0x572660) -> `DICommandQueue::OnNextCapture`
+(0x5EE080) -> `updateCPUModifiedImagesRT` (0x5ED340), whose EnterCriticalSection of the queue's
+lock (+44h) wrote to 0x14: the queue was freed. A stock Scaleform race (0.21d's bodies are the
+same): a DrawableImageContext keeps a list of its command queues guarded by its lock (+24h), which
+Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) take, but OnNextCapture walks the list without it,
+and a queue whose last reference goes on the main thread is destroyed (its destructor 0x5ED1E0
+removes it, then frees it) while the walk is at it or about to go to it.
+
+**The patch** (the Rust patch `scaleform_capture`, two lohooks, `sites_026g.tsv`):
+
+- `scaleform.di_next_capture` (0x572675, after OnNextCapture's own ExecuteNextCapture, its
+  vtable+4): our walk instead of the stock loop, then its epilogue (0x57269C). Each queue of the
+  list whose count is not 0 gets `DICommandQueue::OnNextCapture` with the capture's notify, in the
+  list's order, with a reference of ours held across the call; the context's lock is held only to
+  read the list and take that reference (a compare-exchange from a count not 0), and the reference
+  is let go after the lock is left (`vostok/drawable_image.rs`).
+- `scaleform.di_queue_destroy` (0x5ED1E0, the destructor's start): the queue leaves its context's
+  list (RemoveCaptureNotify) while its count is still 0; the stock body then writes the count 2
+  and removes it again, which finds it gone. So a queue in the list has its true count, and one at
+  0 is being destroyed: the walk passes it over.
+
+The lock is not held around the walk's calls (the shape that only locks the stock loop): the main
+thread takes it with a queue's own lock held (mergeQueueWith 0x5731F0 releases the other image's
+queue with its own queue's lock held, and a last release runs the destructor, which takes the
+context's lock), while the walk's call takes each queue's lock: that order would deadlock. Here the
+context's lock stays a leaf, as in the stock code. Drawing only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section 3.61
+has the evidence.
+
+Checked: `check_scaleform_capture_026g.py` runs OnNextCapture from its start and the destructor
+past its own removal, the game's Release and RemoveCaptureNotify, on made-up contexts of three,
+none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
+the freed queue), and the walk's own reference the last; the lock never held across a call, every
+list read made with it, the references and registers as they were. **Not run in a game.**

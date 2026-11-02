@@ -31,11 +31,29 @@ the lobby card shows all three (`flash/lobby_menu`, `WeaponDetails.as`, `ItemCom
   always said.
 - **Chambering (prop 119):** 2050-2054 (-5..-15 %) and the defect 3050 (+10 %) on
   `parameters/chamber_a_round_time`, type 2: already working; unchanged.
+- **Reload (prop 114):** 2040-2044 and the defect 3040: already working, unchanged (checked
+  2026-11-01, below).
 - Dispersion, reliability and every other roll: unchanged. Ids, values, card texts and
   `lobby_info` unchanged: owned items keep what they have and now get its effect.
 - A simulation change: the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
   The server reads modifications from its game data and simulates neither recoil nor aim
   time: no server code.
+
+## Reload rolls (checked, no change)
+
+- Data (rev 40): 2040-2044 are `parameters/reload_time`, type 2, **-0.05, -0.08, -0.10, -0.12,
+  -0.15**; the card text (prop 114) is the opposite sign, +5..+15 %. The defect 3040 is +0.10
+  (card -10 %). Every weapon has `parameters/reload_time`, so the cook applies them: -15 % is
+  0.85 x the reload time.
+- The weapon reads it with its other state times (`weapon_core_cook::query_weapon_states`
+  0x30B2B0, block +10h). The reload state (0x30E000; the pistol and double-barrel ones alike)
+  keeps clip / reload_time (`computed_reload_animation_time_scale` 0x30D750) and plays the clip
+  at that x max(0, 1 + S13), the player's reload speed (`get_weapon_lexeme` 0x30E1F0 through
+  0x2D5AE0): a reload lasts reload_time / max(0, 1 + S13). A tube reload (bolt and pump guns)
+  splits reload_time over the rounds (0x30EE40); its start and end times take no roll.
+- The exe's own 0x358010, 0x30D750 and 0x30E1F0 run in Unicorn: a 3.167 s reload is 3.009 s
+  with 2040 and 2.692 s with 2044 (3.484 s with 3040), the card's base x (1 - 0.05) and
+  x (1 - 0.15). Card and game agree.
 
 ## The card
 
