@@ -102,10 +102,13 @@ list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
 ## Stats tables
 
-`<category>-stats.tsv` (`weapon-stats.tsv`): a row per config, a column per stat; an empty cell means
-the config has no such key. To retune, edit the cell. `content_edit.py` `STATS` maps each column to
-its key path; the build writes the cells and the cards, and refuses a config that differs from its
-row. `content_edit.py --dump-stats <category> <folder>` prints a table from configs.
+`<category>-stats.tsv` (`weapon-stats.tsv`): a row per config (or per level's projects, or per entry
+of a list), a column per stat; or `key  value`, a row per key of one config, which the build makes
+when no archive has it (`gameplay/srp/<name>.options`). An empty cell means no such key. To retune,
+edit the cell. `content_edit.py` `STATS` says what a row is and maps each column to its key path
+(`[*]` every entry of a list, `[field=cell]` the matching ones); the build writes the cells and the
+cards, refuses a config that differs from its row, and a changed match column without the `next` row.
+`content_edit.py --dump-stats <category> <folder>` prints a table from configs.
 
 ## weapon-balance-1.json (2026-10-18)
 

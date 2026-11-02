@@ -2588,7 +2588,7 @@ expect_refused "build-content: a weapon config without a row" "wpn_t.options: no
 mkgun "$stats" 0.4
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42s2" 2>&1) ||
     fail "build-content with a weapon stats table: $out"
-check "build-content: ... each its row, said" has "$out" "weapon stats: 1 config(s), each its row of weapon-stats.tsv"
+check "build-content: ... each its row, said" has "$out" "weapon stats: 1 row(s), each its row of weapon-stats.tsv"
 rm -r "$C/srp-026g/crates" "$stats"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
