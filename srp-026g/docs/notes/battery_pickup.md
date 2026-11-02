@@ -36,3 +36,27 @@ The owner's rule and what it changes. Data: `gameplay/victory_items/default.opti
   server data must be the one the players' patches make); and the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`, which this change shares
   with patch 38 and fall damage (one `next` row a release).
+
+## Local corpse collision and replicated pickup
+
+With battery ragdoll flight, each client can draw a dropped battery at a different
+place. The initiating client checks the drawn stock use box (half-extents
+0.30/0.12/0.16 m, centre 0/0.12/0), a two-metre view ray, level occlusion and the
+native `can_use` restrictions. Patch 23's under-floor rescue remains: below the
+feet, within one metre horizontally, a four-metre view ray without floor
+occlusion. A native-only target at the old invisible position is suppressed.
+
+One E press emits its battery index, using the next ten multi-quick-bit patterns
+after weapon pickups under bit 29. All replicas apply that id directly, without
+another spatial scan. They still require an alive inserted player with a held
+item, no ongoing use, no carried battery, a free uncontained battery and no
+existing claimant. Native `can_use` (0x300710) checks action/carry restrictions;
+native `use_initialize` (0x3007E0) links the user and begins the normal item switch.
+First claimant wins, and duplicate commands cannot add another user. Native
+pickup animation, carried ownership and delivery then proceed normally.
+
+The stored use point is the simulated player's eye, with the normal eye offset,
+identical across replicas. `use_tick` (0x300830) checks this saved point against
+the player's current simulated eye; it does not use the detected object's
+position argument. This keeps continuation independent of local render poses.
+The command changes match computation and has a `next` simulation-change row.

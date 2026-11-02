@@ -306,23 +306,32 @@ fn frame_time(clock: &mut Clock, thread: &Thread) -> f32 {
 struct GameLevel<'t> {
     world: Option<PhysicsWorld<'t>>,
     rays: u32,
+    ignored: [Option<BodyId>; weapon_pickup::battery::COUNT],
 }
 
 impl Level for GameLevel<'_> {
     fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep {
         let Some(world) = &self.world else { return Sweep::Deferred };
-        if self.rays == 0 {
-            return Sweep::Deferred;
-        }
-        self.rays -= 1;
         let along = to - from;
         let Some(direction) = along.direction() else { return Sweep::Clear };
-        let origin = [from.x, from.y, from.z];
-        let direction = [direction.x, direction.y, direction.z];
-        match world.ray_test(origin, direction, along.length() + radius, LEVEL_GROUP, LEVEL_MASK) {
-            None => Sweep::Clear,
-            Some(hit) => Sweep::Hit { point: vec3(hit.point), normal: vec3(hit.normal) },
+        let mut origin = from;
+        let end = to + direction * radius;
+        // Enter a native battery by a millimetre, then continue the ray.
+        // Bullet's convex ray does not report an exit from inside a body.
+        // The bounded budget also covers a degenerate repeated zero hit.
+        for _ in 0..=weapon_pickup::battery::COUNT {
+            if self.rays == 0 { return Sweep::Deferred; }
+            self.rays -= 1;
+            let remaining = (end-origin).dot(direction);
+            if remaining <= 0.0 { return Sweep::Clear; }
+            let Some(hit) = world.ray_test([origin.x,origin.y,origin.z], [direction.x,direction.y,direction.z],
+                                          remaining, LEVEL_GROUP, LEVEL_MASK) else { return Sweep::Clear };
+            if !self.ignored.contains(&Some(hit.object)) {
+                return Sweep::Hit { point: vec3(hit.point), normal: vec3(hit.normal) };
+            }
+            origin = vec3(hit.point) + direction * 0.001;
         }
+        Sweep::Deferred
     }
 }
 
@@ -429,12 +438,13 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let world = GameWorld::at_after_move(ctx);
     let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
     let client = world.and_then(|world| world.network_client());
+    let batteries = crate::vostok::battery::frame(ctx);
     let guns = STATE.with(thread, |state| {
         if state.world != key {
             state.world = key;
             state.corpses.reset();
         }
-        step(state, client.as_ref(), thread);
+        step(state, client.as_ref(), thread, batteries.as_ref());
         // each place's dropped gun, for patch 85's drops drawn as their copies
         core::array::from_fn(|place| state.corpses.gun(place)
             .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
@@ -443,7 +453,7 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) {
+fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread, batteries: Option<&crate::vostok::battery::Frame>) {
     let dt = frame_time(&mut state.clock, thread);
     state.time += dt;
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
@@ -514,8 +524,11 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     }
     state.deaths[count..].fill(None);
     let frame = Frame { dt, up: UP, places: &seen_places[..count], local: local.map(|(p, _)| p) };
-    let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME };
+    let batteries = batteries.filter(|_| physics.is_some());
+    let ignored = batteries.map_or([None; weapon_pickup::battery::COUNT], |f| f.items.map(|i| i.and_then(|b| b.body)));
+    let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME, ignored };
     state.corpses.step(&frame, &mut level);
+    crate::battery_ragdoll::step(thread, dt, batteries, &state.corpses, &mut level);
     for (place, r) in state.corpses.started() {
         trace_line(&mut state.trace, thread, |w| {
             w.text("death,");

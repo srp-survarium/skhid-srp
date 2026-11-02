@@ -2105,3 +2105,7 @@ va	status	ref_021d	name
 0x00219990	verified	0x0016c901	survarium::network_client::match_options
 0x0027a9c0	verified	0x001a259b	survarium::network_client::get_active_player
 0x00288cd0	observed		survarium::lobby_menu::autobuy_changed
+0x003007e0	observed		survarium::victory_item_core::use_initialize
+0x00300830	observed		survarium::victory_item_core::use_tick
+0x002464f0	observed		survarium::victory_item::update_free_model
+0x002467b0	observed		survarium::victory_item::loose_model_callback

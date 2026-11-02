@@ -116,3 +116,4 @@ mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
+pub mod battery;

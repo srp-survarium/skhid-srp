@@ -905,3 +905,5 @@ mod tests {
         assert_eq!(crate_refill(ammo_70.bags(100), ak, 0, (13, false)), Refill { bags: 2, total: 60, target: 47 });
     }
 }
+
+pub mod battery;

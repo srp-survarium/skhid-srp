@@ -11,7 +11,8 @@ Requires Python `unicorn`. The 0xE8 handler (process_dynamic_match_info
 network client, game and frame: the load (game_world_core::deserialize
 0x2D0B70) and close_current_match (0x27A790) are stubs that record their
 arguments; kernel32's CreateFileA, WriteFile and CloseHandle (the log's
-import slots) stubs that record the line.
+import slots) stubs that record the line; GetCurrentThreadId supplies one
+thread for the local battery-flight reset's lock.
 
 - `world_load.raw` (0x27C0FF, the packet's reader in ESI) and
   `world_load.unpacked` (0x27C0D0, the world in the frame's mutable buffer
@@ -74,6 +75,9 @@ class Run:
         self.word(CLIENT + 0x1F1C40, GAME)
         for slot, stub in ((CREATE_FILE, STUBS), (WRITE_FILE, STUBS + 0x10), (CLOSE_HANDLE, STUBS + 0x20)):
             self.word(slot, stub)
+        # The accepted load resets cosmetic battery flight under its lock.
+        self.word(0x870118, STUBS + 0x30)  # GetCurrentThreadId, stdcall with no arguments
+        emu.mem_write(STUBS + 0x30, b'\xB8\x01\x00\x00\x00\xC3')
         for address in (LOAD, CLOSE, STUBS, STUBS + 0x10, STUBS + 0x20):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=address, end=address)
         for address in (LOADED, EPILOGUE):

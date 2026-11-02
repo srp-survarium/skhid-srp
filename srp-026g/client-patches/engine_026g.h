@@ -9,6 +9,8 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct battery_usable;
+struct battery_use_data;
 struct buffer_string;
 struct buffer_writer;
 struct bullet_manager;
@@ -78,6 +80,7 @@ struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
 struct text_translator;
+struct victory_item;
 struct weapon_locator;
 struct world_user;
 
@@ -464,5 +467,17 @@ void __attribute__((thiscall)) engine_di_queue_next_capture(struct di_command_qu
 
 /* 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_di_queue_release(struct di_command_queue *queue);
+
+/* 0x300a20 survarium::victory_item_core::get_transform: battery ECX, out ESP+4; pops 4; EAX; thiscall, called directly */
+float *__attribute__((thiscall)) engine_battery_transform(struct victory_item *battery, float *out);
+
+/* 0x300710 survarium::victory_item_core::can_use: usable ECX, user ESP+4; pops 4; EAX; thiscall, called directly */
+unsigned int __attribute__((thiscall)) engine_battery_can_use(struct battery_usable *usable, struct battery_use_data *user);
+
+/* 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_battery_use(struct battery_usable *usable, struct battery_use_data *user, unsigned int time);
+
+/* 0x2d84c0 survarium::base_player::detect_usable_object: player ESP+4, point ESP+8; pops 8; EAX */
+struct battery_usable *engine_detect_usable(struct player *player, float *point);
 
 #endif

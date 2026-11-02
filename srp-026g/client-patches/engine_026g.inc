@@ -422,3 +422,18 @@ extern engine_di_queue_next_capture
 ; 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_di_queue_release
+; float *engine_battery_transform(struct victory_item *battery, float *out)
+; 0x300a20 survarium::victory_item_core::get_transform: battery ECX, out ESP+4; pops 4; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_battery_transform
+; unsigned int engine_battery_can_use(struct battery_usable *usable, struct battery_use_data *user)
+; 0x300710 survarium::victory_item_core::can_use: usable ECX, user ESP+4; pops 4; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_battery_can_use
+; void engine_battery_use(struct battery_usable *usable, struct battery_use_data *user, unsigned int time)
+; 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_battery_use
+; struct battery_usable *engine_detect_usable(struct player *player, float *point)
+; 0x2d84c0 survarium::base_player::detect_usable_object: player ESP+4, point ESP+8; pops 8; EAX
+extern engine_detect_usable

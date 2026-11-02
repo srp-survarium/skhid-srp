@@ -462,6 +462,13 @@ impl Corpses {
         }
     }
 
+    pub fn colliders(&self) -> impl Iterator<Item = (usize, DeathKey, &Ragdoll)> {
+        self.places.iter().enumerate().filter_map(|(place, corpse)| {
+            let Corpse::Body { death, slot } = corpse else { return None };
+            self.pool[slot.index()].body().map(|body| (place, *death, body))
+        })
+    }
+
     pub fn place(&self, place: usize) -> Corpse {
         self.places.get(place).copied().unwrap_or(Corpse::Alive)
     }

@@ -127,3 +127,7 @@ engine_leave_critical_section	0x8700cc	-	void engine_leave_critical_section(stru
 engine_di_capture_remove	0x5726f0	ECX:context ESP+4:queue	void engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue)	thiscall	
 engine_di_queue_next_capture	0x5ee080	ECX:queue ESP+4:notify	void engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify)	thiscall	
 engine_di_queue_release	0x505cb0	ECX:queue	void engine_di_queue_release(struct di_command_queue *queue)	thiscall	
+engine_battery_transform	0x300a20	ECX:battery ESP+4:out	float *engine_battery_transform(struct victory_item *battery, float *out)	thiscall
+engine_battery_can_use	0x300710	ECX:usable ESP+4:user	unsigned int engine_battery_can_use(struct battery_usable *usable, struct battery_use_data *user)	thiscall
+engine_battery_use	0x3007e0	ECX:usable ESP+4:user ESP+8:time	void engine_battery_use(struct battery_usable *usable, struct battery_use_data *user, unsigned int time)	thiscall
+engine_detect_usable	0x2d84c0	ESP+4:player ESP+8:point	struct battery_usable *engine_detect_usable(struct player *player, float *point)	thunk

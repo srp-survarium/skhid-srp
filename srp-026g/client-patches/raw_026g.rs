@@ -201,6 +201,8 @@ unsafe extern "C" {
     pub fn engine_release_inventory_item(object: Option<Item>, count: *mut u32);
     /// 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
     pub fn engine_forget_active_object(animation: *mut c_void, object: Option<Item>);
+    /// 0x2d84c0 survarium::base_player::detect_usable_object: player ESP+4, point ESP+8; pops 8; EAX
+    pub fn engine_detect_usable(player: Option<Player>, point: *mut f32) -> Option<BatteryUsable>;
 }
 
 #[allow(dead_code)]
@@ -261,6 +263,12 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_next_capture(queue: Option<DiCommandQueue>, notify: Option<RenderNotify>);
     /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
     pub fn engine_di_queue_release(queue: Option<DiCommandQueue>);
+    /// 0x300a20 survarium::victory_item_core::get_transform: battery ECX, out ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_battery_transform(battery: Option<VictoryItem>, out: *mut f32) -> *mut f32;
+    /// 0x300710 survarium::victory_item_core::can_use: usable ECX, user ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_battery_can_use(usable: Option<BatteryUsable>, user: Option<BatteryUseData>) -> u32;
+    /// 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_battery_use(usable: Option<BatteryUsable>, user: Option<BatteryUseData>, time: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -882,6 +890,15 @@ impl Player {
     #[inline(always)]
     pub unsafe fn animation(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x750).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x130 (obj<survarium::battery_use_data>): the player's native usable_object_user_data, used by apply_new_input 0x2D898C
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn battery_use_data(self) -> BatteryUseData {
+        BatteryUseData(unsafe { self.0.byte_add(0x130) })
     }
 }
 
@@ -1575,6 +1592,15 @@ impl Item {
     #[inline(always)]
     pub unsafe fn active_object(self) -> Item {
         Item(unsafe { self.0.byte_sub(0x10) })
+    }
+
+    /// +0x0 (obj<survarium::victory_item>): validated by VICTORY_ITEM_VTABLE before use
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn victory_item(self) -> VictoryItem {
+        VictoryItem(unsafe { self.0.byte_add(0x0) })
     }
 }
 
@@ -10673,6 +10699,201 @@ impl RenderNotify {
     }
 }
 
+/// A survarium::victory_item (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VictoryItem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl VictoryItem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): client battery vtable, 0xA042AC
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): carrier, get_transform 0x300A2C
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): carrier, get_transform 0x300A2C
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x14 (obj<survarium::battery_usable>): usable subobject, use_initialize 0x30081C subtracts 14h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn usable(self) -> BatteryUsable {
+        BatteryUsable(unsafe { self.0.byte_add(0x14) })
+    }
+
+    /// +0x1a8 (u32): container pointer, get_transform 0x300A5D; zero while loose
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn container(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1a8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2c8 (u8): inserted dynamic body, set by insert 0x300950 and cleared by remove
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physical(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2c8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x2a8 (ptr<vostok::physics::hit_object>): its dynamic rigid body, activate_physics 0x301CB0 and set_transform 0x3009F0; excluded from cosmetic terrain rays to avoid self-support
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn body(self) -> Option<HitObject> {
+        unsafe { self.0.byte_add(0x2a8).cast::<Option<HitObject>>().read_volatile() }
+    }
+
+    /// +0x2a8 (ptr<vostok::physics::hit_object>): its dynamic rigid body, activate_physics 0x301CB0 and set_transform 0x3009F0; excluded from cosmetic terrain rays to avoid self-support
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_body(self, value: Option<HitObject>) {
+        unsafe { self.0.byte_add(0x2a8).cast::<Option<HitObject>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::battery_usable (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryUsable(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BatteryUsable {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x28 (u32): users count, incremented by use_initialize 0x3007ED; the first input claims the loose battery
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn users(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x0 (u32): 0xA0437C only for a client battery's usable subobject
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::battery_use_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryUseData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BatteryUseData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): active usable object, player+134h at 0x2D86A4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (f32): three floats, apply_new_input 0x2D896D; relative to player transform
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_offset(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x18 (f32): three floats, apply_new_input 0x2D897E; checked by battery use_tick
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x18).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::battery_model_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryModelFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BatteryModelFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (obj<vostok::float4x4>): loose_model_callback stack, low matrix at ESP+1Ch before 0x24681D/0x24687B
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Float4x4 {
+        Float4x4(unsafe { self.0.byte_add(0x1c) })
+    }
+
+    /// +0x5c (obj<vostok::float4x4>): loose_model_callback high matrix at ESP+5Ch before 0x24681D/0x24687B
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn second(self) -> Float4x4 {
+        Float4x4(unsafe { self.0.byte_add(0x5c) })
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -11048,6 +11269,9 @@ pub mod image {
 
     /// 0x9fd808 (u32, survarium::image): the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
     pub const INVENTORY_VARIANT_VTABLE: u32 = 0x9fd808;
+
+    /// 0xa0437c (u32, survarium::image): victory_item usable subobject's vtable, can_use +30h is 0x300710
+    pub const BATTERY_USABLE_VTABLE: u32 = 0xa0437c;
 }
 
 /// A general-purpose register at a hook's site.
@@ -12910,6 +13134,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn queue(machine: &impl Machine) -> Option<DiCommandQueue> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(DiCommandQueue)
+        }
+    }
+
+    /// battery.draw_primary (0x24681d): loose model callback, primary model: stack matrices before argument pushes
+    pub mod battery_draw_primary {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::victory_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<VictoryItem> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(VictoryItem)
+        }
+
+        /// the site's ESP: a survarium::battery_model_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BatteryModelFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BatteryModelFrame)
+        }
+    }
+
+    /// battery.draw_secondary (0x24687b): loose model callback, secondary model: same stack matrix pair before argument pushes
+    pub mod battery_draw_secondary {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::victory_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<VictoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(VictoryItem)
+        }
+
+        /// the site's ESP: a survarium::battery_model_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BatteryModelFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BatteryModelFrame)
         }
     }
 }
