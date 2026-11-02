@@ -712,6 +712,7 @@ mod tests {
             "/aim/combat/mirror_gated",
             "/aim/friends/spread_source",
             "/cover/pierce",
+            "/feel/floor_height_clear",
             "/grid/client_numbers",
             "/grid/drop_room",
             "/grid/run_ups_after_erosion",
