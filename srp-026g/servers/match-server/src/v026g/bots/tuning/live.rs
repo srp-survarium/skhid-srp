@@ -41,6 +41,7 @@ use session::v026g::bot_desk::Refused;
 use session::v026g::bot_desk::Text;
 
 use super::BotTier;
+use super::TypeCalibration;
 use super::Check;
 use crate::v026g::bots::guns::WeaponClass;
 use super::LoadedTuning;
@@ -97,8 +98,8 @@ impl Group {
                 uk: "Для кожного рівня мінімум <= старт <= стеля, у межах верху шкали (лише показано); команда починає зі старту свого рівня, а самобалансування тримає її між мінімумом і стелею.",
             }),
             Group::Hits => Some(Text {
-                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused outside the bench's points, or under the lowest rate that keeps the line rising; the owner's bar is shown beside the limits, and a target may go over it. Pistols have no bench points: their factors are shown only.",
-                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова поза точками стенду або нижче найменшої ставки, з якою лінія росте; планку власника показано біля меж, і ціль може бути вище неї. Пістолети не мають точок стенду: їхні фактори лише показано.",
+                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused outside the bench's points, or under the lowest rate that keeps the line rising; the owner's bar is shown beside the limits, and a target may go over it. A type on the pool's numbers (the automatics') says so until its own are measured. Pistols have no bench points: their factors are shown only.",
+                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова поза точками стенду або нижче найменшої ставки, з якою лінія росте; планку власника показано біля меж, і ціль може бути вище неї. Тип на спільних числах (автоматичної зброї) так і позначено, доки його власні не виміряно. Пістолети не мають точок стенду: їхні фактори лише показано.",
             }),
         }
     }
@@ -273,7 +274,11 @@ impl Knob {
     fn limits(&self, file: &Tuning) -> String {
         match self.unit {
             Unit::Hits { class } => match (self.usable(file), file.calibration.of(class)) {
-                (Some((low, high)), Some(calibration)) => format!("{low:.1}–{high:.1} % (bar {})", calibration.bar),
+                (Some((low, high)), Some(calibration)) => {
+                    let (from, to) = calibration.bar;
+                    let bar = if from == to { format!("{to}") } else { format!("{from}–{to}") };
+                    format!("{low:.1}–{high:.1} % (default bar {bar} %)")
+                }
                 _ => "—".to_owned(),
             },
             unit => unit.limits(),
@@ -319,9 +324,12 @@ impl Knob {
             return None;
         };
         let (low, middle, high) = tuning.aim.class_aim.of(class);
-        Some(match tuning.calibration.of(class) {
-            Some(_) => format!("factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle})"),
-            None => format!("factors {low} / {middle} / {high} (skill 0 / 0.5 / 1); no bench points"),
+        Some(match tuning.calibration.type_of(class) {
+            TypeCalibration::Own(_) => format!("factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle})"),
+            TypeCalibration::Pooled(_) => format!(
+                "factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle}); not measured on its own yet: the pool's numbers"
+            ),
+            TypeCalibration::NotMeasured => format!("factors {low} / {middle} / {high} (skill 0 / 0.5 / 1); no bench points"),
         })
     }
 }
@@ -376,11 +384,18 @@ fn rates(tuning: &Tuning) -> Rates {
 
 /// A class's expected rates at `points` in `tuning`.
 fn line_of(tuning: &Tuning, class: WeaponClass, points: &[RatePoint]) -> ClassLine {
-    let Some(calibration) = tuning.calibration.of(class) else {
-        return ClassLine::Unknown(Text { en: "not measured (no bench kit)", uk: "не виміряно (немає набору на стенді)" });
+    let (calibration, pooled) = match tuning.calibration.type_of(class) {
+        TypeCalibration::NotMeasured => {
+            return ClassLine::Unknown(Text { en: "not measured (no bench kit)", uk: "не виміряно (немає набору на стенді)" });
+        }
+        TypeCalibration::Pooled(numbers) => (numbers, true),
+        TypeCalibration::Own(numbers) => (numbers, false),
     };
     match calibration.line(tuning.aim.skill_curve, tuning.aim.class_aim.of(class)) {
-        Some(line) => ClassLine::Expected(points.iter().map(|point| line.at(point.skill)).collect()),
+        Some(line) => {
+            let rates = points.iter().map(|point| line.at(point.skill)).collect();
+            if pooled { ClassLine::Pooled(rates) } else { ClassLine::Own(rates) }
+        }
         None => ClassLine::Unknown(Text {
             en: "not calibrated: the bench measured this class's line with the geometric curve and other skill-0 and 0.5 factors, or the skill-1 factor is outside its points",
             uk: "не калібровано: стенд виміряв лінію цього класу з геометричною кривою та іншими факторами навичок 0 і 0.5, або фактор навички 1 поза його точками",
@@ -1191,9 +1206,14 @@ mod tests {
         assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.6", "18.6"));
         // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
         // to ~1.49, ~17.4 %) to the sweep's top (21.5 % at 1.0, on the line 21.6), the owner's bar beside.
-        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–21.6 % (bar 20)"), "{}", rifle.limits);
+        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–21.6 % (default bar 18–20 %)"), "{}", rifle.limits);
         let span_low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
-        assert_eq!(rifle.beside.as_deref(), Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"));
+        assert_eq!(
+            rifle.beside.as_deref(),
+            Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77); not measured on its own yet: the pool's numbers")
+        );
+        let shotgun = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.shotgun").unwrap();
+        assert!(shotgun.limits.ends_with("(default bar 20 %)") && !shotgun.beside.as_deref().unwrap().contains("pool"), "{shotgun:?}");
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
         assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
         // 19 % for the rifles: their skill-1 factor from the calibration, the lower two kept; the next match runs on it.
@@ -1252,7 +1272,7 @@ mod tests {
     /// A class's expected rates at the page's points (panics on a class with none).
     fn line(rates: &Rates, label: &str) -> Vec<f32> {
         match &rates.classes.iter().find(|class| class.label.en == label).unwrap().line {
-            ClassLine::Expected(at) => at.clone(),
+            ClassLine::Own(at) | ClassLine::Pooled(at) => at.clone(),
             unknown => panic!("{label}: {unknown:?}"),
         }
     }
@@ -1297,6 +1317,9 @@ mod tests {
         assert_eq!(steps, 6 * 7, "0, 1 and the bands' 0.0, 0.6, 0.2, 0.8, 0.6: a class's points on the ladder's steps");
         let pistols = rates.classes.iter().find(|class| class.label.en == "Pistols").unwrap();
         assert!(matches!(pistols.line, ClassLine::Unknown(_)));
+        // The automatics on the pool's numbers, said so; the others their own.
+        let pooled: Vec<_> = rates.classes.iter().filter(|class| matches!(class.line, ClassLine::Pooled(_))).map(|class| class.label.en).collect();
+        assert_eq!(pooled, ["SMGs", "Rifles (automatic)", "Machine guns"]);
         // On `all_off.json`'s factors (every class 1, the straight curve) the bench's line is not the class's: none shown.
         let mut off = Tuning::default();
         off.aim.class_aim = super::super::ClassAim::same();

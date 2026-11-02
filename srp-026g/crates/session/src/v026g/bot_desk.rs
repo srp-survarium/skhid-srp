@@ -96,8 +96,10 @@ pub struct ClassRates {
 /// A class's expected rates.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ClassLine {
-    /// At each of [`Rates::points`], %.
-    Expected(Vec<f32>),
+    /// At each of [`Rates::points`], %, from the class's own numbers.
+    Own(Vec<f32>),
+    /// The same from a pool's numbers (the automatics'): the class is not measured on its own yet.
+    Pooled(Vec<f32>),
     /// None, and why (pistols: not measured).
     Unknown(Text),
 }

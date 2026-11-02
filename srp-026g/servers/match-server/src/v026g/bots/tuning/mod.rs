@@ -110,6 +110,7 @@ pub use aim::ClassCalibration;
 pub use aim::SkillCurve;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;
+pub use aim::TypeCalibration;
 pub use cover::BulletPierce;
 pub use cover::CoverRule;
 pub use cover::CoverTuning;

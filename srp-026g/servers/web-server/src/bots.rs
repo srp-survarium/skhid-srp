@@ -492,10 +492,19 @@ fn rates_table(lang: Lang, before: &Rates, after: Option<&Rates>) -> String {
         .collect();
     let values = |line: &ClassLine| -> Vec<Option<String>> {
         match line {
-            ClassLine::Expected(rates) => rates.iter().map(|rate| Some(format!("{rate:.1}"))).collect(),
+            ClassLine::Own(rates) | ClassLine::Pooled(rates) => {
+                rates.iter().map(|rate| Some(format!("{rate:.1}"))).collect()
+            }
             ClassLine::Unknown(_) => vec![None; before.points.len()],
         }
     };
+    let pooled = format!(
+        "<br><small>{}</small>",
+        lang.tr(
+            "not measured on its own yet: the pool's numbers",
+            "ще не виміряно окремо: спільні числа"
+        )
+    );
     let rows: String = before
         .classes
         .iter()
@@ -524,7 +533,11 @@ fn rates_table(lang: Lang, before: &Rates, after: Option<&Rates>) -> String {
                         .collect()
                 }
             };
-            format!("<tr><td>{}</td>{cells}</tr>", text(class.label))
+            let mark = match class.line {
+                ClassLine::Pooled(_) => pooled.as_str(),
+                ClassLine::Own(_) | ClassLine::Unknown(_) => "",
+            };
+            format!("<tr><td>{}{mark}</td>{cells}</tr>", text(class.label))
         })
         .collect();
     format!(
