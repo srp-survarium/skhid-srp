@@ -121,6 +121,7 @@
   },
   "threat": {
     "area": false,
+    "concede": null,
     "crossfire_out_of_lines": false,
     "gang_up": null,
     "job": false,

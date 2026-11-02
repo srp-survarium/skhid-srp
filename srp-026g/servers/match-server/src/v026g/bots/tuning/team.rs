@@ -116,9 +116,10 @@ pub struct Concede {
     /// A shooter's death keeps the tries on his areas for a while ([`KeepAfterDeath`]); none: his death opens them.
     pub keep_after_death: Option<KeepAfterDeath>,
     /// The fight side ([`RefuseFights`]): fight and roam plays aimed into a conceded area, or like the last failed try,
-    /// are refused, no K2 job opens on such an area, and a job on an area conceded ends. None: only the objective's plays
-    /// are weighed (A256 look 4, P1: look 3's collectors dying with their battery in a team-held lane 168 vs 268, z -4.0,
-    /// came with the refusal's Roam fallback).
+    /// are refused, no K2 job opens on such an area, and a job on an area conceded ends. None (the default, A256 look 4
+    /// P1): only the objective's plays are weighed. Off by its benches against the live-like camper (look 3, 256 pairs: the
+    /// camper's kills 307 vs 315, z -0.33, while its Roam fallback stood with a goal and no route +15.8 %, z +3.4; look 4
+    /// with [`RoamAvoid`], 256 pairs: camper kills 327 vs 327, the stand +6.5 %, z +1.6).
     pub refuse_fights: Option<RefuseFights>,
 }
 
@@ -132,7 +133,7 @@ impl Default for Concede {
             objective_weight: 0.5,
             lone_peek: None,
             keep_after_death: Some(KeepAfterDeath::default()),
-            refuse_fights: Some(RefuseFights::default()),
+            refuse_fights: None,
         }
     }
 }
@@ -578,8 +579,13 @@ pub struct ThreatTuning {
     /// did not replicate. Its detours (+46-59 %) pass known enemies no more than the ways they replace, and die no more.
     pub sniper_memory: Option<SniperMemory>,
     /// design-p1c §3 "no feeding" and items 11, 15 ([`Concede`], `concede.rs`): a team's failed tries on a shooter's area
-    /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. OFF by
-    /// default: not built into the jobs yet (the memory and its rules only).
+    /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. ON by default
+    /// with its objective side only (`Concede::refuse_fights` none, A256 look 4 P1): an objective play aimed into a
+    /// conceded area, or like the last failed try there (the same lane within 30 s of a mate's death), is weighed down,
+    /// never refused. By side against the live-like camper (`camper-cell-live.env`, 256 pairs, 512 matches): collectors
+    /// dying with their battery in a held lane of their team 198 vs 263 (-24.7 %, paired z -2.65; look 3, with the fight
+    /// side too: 168 vs 268, z -4.0), deliveries 853 vs 856, score -0.1 % (z -0.2), no guard flagged, stood with a goal and
+    /// no route +4.7 % (z +1.5); the camper's kills 364 vs 368 (z -0.23).
     pub concede: Option<Concede>,
     /// design-p1c §1, items 13, 14, 16, 18 ([`Breach`], `breach.rs`): the group push on a held spot whose Flank failed or
     /// found no flank spot. OFF by default until its by-side bench.
@@ -764,7 +770,7 @@ impl Default for ThreatTuning {
             answer_sniper: false,
             sniper_lanes: false,
             sniper_memory: Some(SniperMemory::default()),
-            concede: None,
+            concede: Some(Concede::default()),
             breach: None,
             pair_target: None,
             walk_watch: None,

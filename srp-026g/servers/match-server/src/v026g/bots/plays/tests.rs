@@ -546,12 +546,13 @@ fn friends_near_a_held_target_count_the_other_contender() {
 #[test]
 fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
     use crate::v026g::bots::threat::{HeldLine, Picture};
-    use crate::v026g::bots::tuning::Concede;
+    use crate::v026g::bots::tuning::{Concede, RefuseFights};
     let battery = Vec3::new(30.0, 0.0, 35.0);
     let mut s = Scenario::field(Mode::Batteries);
     // Late enough for a try 40 s before.
     s.view.clock = s.view.clock.max(60_000);
-    s.tuning.threat.concede = Some(Concede::default());
+    // With the fight side (off in the default).
+    s.tuning.threat.concede = Some(Concede { refuse_fights: Some(RefuseFights::default()), ..Concede::default() });
     s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
     s.battery(BatteryState::Free(battery));
     let collect = |s: &Scenario| {
@@ -592,7 +593,7 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
     // [A256 P1] The fight side off: conceded, the roam is not refused and the Collect still weighed.
     let concede = crate::v026g::bots::concede::Offers { conceded: vec![7], tried: Vec::new() };
     s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
-    s.tuning.threat.concede = Some(Concede { refuse_fights: None, ..Concede::default() });
+    s.tuning.threat.concede = Some(Concede::default());
     assert_eq!(roam(&s), Some(roam_clear), "objectives only");
     assert!(collect(&s).is_some_and(|w| (w - weighed).abs() < 1e-4));
     // Off: as it was.
@@ -607,11 +608,11 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
 fn a_lone_bot_hit_from_a_lane_makes_no_second_peek_into_it() {
     use crate::v026g::bots::concede::Hit;
     use crate::v026g::bots::threat::{HeldLine, Picture};
-    use crate::v026g::bots::tuning::{Concede, LonePeek};
+    use crate::v026g::bots::tuning::{Concede, LonePeek, RefuseFights};
     let mut s = Scenario::field(Mode::Batteries);
     s.view.clock = s.view.clock.max(60_000);
-    // Off by default (its bench: `Concede::lone_peek`); on here.
-    s.tuning.threat.concede = Some(Concede { lone_peek: Some(LonePeek::default()), ..Concede::default() });
+    // Off by default (its bench: `Concede::lone_peek`); on here, with the fight side it refuses through.
+    s.tuning.threat.concede = Some(Concede { lone_peek: Some(LonePeek::default()), refuse_fights: Some(RefuseFights::default()), ..Concede::default() });
     let me = Vec3::new(10.0, 0.0, 10.0);
     s.bot(0, 0, me);
     // His spot 25 m east of the bot; he killed someone 10 m north of the bot (a held line, nothing conceded or tried).
