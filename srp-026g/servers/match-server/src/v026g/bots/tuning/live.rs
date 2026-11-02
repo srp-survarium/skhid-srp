@@ -760,11 +760,14 @@ fn combine(file: &LoadedTuning, changes: &Changes) -> Result<LoadedTuning, Strin
     Ok(file.changed(bytes_sha(&bytes_of(&patch)), tuning))
 }
 
-/// What the server made with the tuning it started on, which a match cannot change: the maps' grid and their wall
-/// clearances ([`crate::v026g::bot_maps`]), and the bots' kits (the lobby's pockets).
+/// What the server made with the tuning it started on, which a match cannot change: the maps' grid, their wall clearances and
+/// their open sides ([`crate::v026g::bot_maps`]), and the bots' kits (the lobby's pockets).
 fn fits(start: &Tuning, tuning: &Tuning) -> Result<(), String> {
-    if tuning.grid != start.grid || tuning.needs_wall_clearance() != start.needs_wall_clearance() {
-        return Err("it changes the maps' grid (`grid`, `think.wall_clear_corners`), which needs a restart".to_owned());
+    if tuning.grid != start.grid
+        || tuning.needs_wall_clearance() != start.needs_wall_clearance()
+        || tuning.needs_open_sides() != start.needs_open_sides()
+    {
+        return Err("it changes the maps' grid (`grid`, `think.wall_clear_corners`, `kin.edge` client_walks_off), which needs a restart".to_owned());
     }
     if tuning.kit != start.kit {
         return Err("it changes the bots' kits (`kit`), which needs a restart".to_owned());

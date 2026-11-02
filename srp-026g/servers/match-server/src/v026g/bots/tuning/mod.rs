@@ -303,6 +303,12 @@ impl Tuning {
         self.think.wall_clear_corners
     }
 
+    /// The support at a ledge the maps' grids make their table of open sides for (`mapdata::WalkGrid::open_toward`), if this tuning
+    /// needs it ([`super::kin::Edge::ClientWalksOff`]): the one place that says it, as [`Self::needs_wall_clearance`].
+    pub fn needs_open_sides(&self) -> Option<f32> {
+        (self.kin.edge == super::kin::Edge::ClientWalksOff).then_some(super::body::SUPPORT_M)
+    }
+
     /// The hash of the tuning as it runs (its JSON), for the traces.
     pub fn hash(&self) -> u32 {
         crc32fast::hash(serde_json::to_string(self).unwrap_or_default().as_bytes())

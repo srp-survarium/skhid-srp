@@ -7,6 +7,9 @@ use super::*;
 pub(super) struct Falls {
     /// Falls off the route, and taken by it.
     falls: (u32, u32),
+    /// Of the falls off the route, those past a ledge's edge with no drop link ahead (the stand-in's `past_edge`, the client's
+    /// capsule walking off where the bots' body model held it: A269).
+    past_edge: u32,
     /// Where the bots got stuck or fell off their route (team, place, where), and the stucks and falls off at a
     /// spot a teammate had already.
     marks: Vec<(u8, usize, Vec3)>,
@@ -39,6 +42,7 @@ impl RouteTopic for Falls {
             self.falls.1 += 1;
         } else {
             self.falls.0 += 1;
+            self.past_edge += u32::from(at.body.past_edge_down.is_some_and(|t| at.time.saturating_sub(t) <= 100));
             self.repeats.1 += u32::from(self.mark(run, at.place, fall.from));
             self.unsticking += u32::from(at.bots.bots[at.place].as_ref().is_some_and(|bot| bot.unstick.is_some()));
         }
@@ -58,5 +62,6 @@ impl RouteTopic for Falls {
             self.falls.0, self.falls.1, self.repeats.0, self.repeats.1
         ));
         line.tail.push(format!("falls_off_unsticking {}", self.unsticking));
+        line.ends.push(format!("falls_off_past_edge {}", self.past_edge));
     }
 }

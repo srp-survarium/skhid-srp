@@ -163,6 +163,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(turns::Turns::new(bodies)),
         Box::new(flights::Flights::new(bodies)),
         escape_floors(),
+        open_walks(),
     ]
 }
 
