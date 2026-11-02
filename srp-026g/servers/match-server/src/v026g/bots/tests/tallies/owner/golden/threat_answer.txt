@@ -20,6 +20,8 @@ owner-test threat answer: K1 routes checked 0 exposed 0; searches round the lane
     "play_refused_like_last": 0,
     "retries_failed_job": 0,
     "retries_failed_peek": 0,
+    "roam_draws_none_left": 0,
+    "roam_routes_avoided": 0,
     "taken_objective_into_conceded": 0,
     "taken_other_into_conceded": 0,
     "tried_on_his_return": 0
@@ -44,6 +46,8 @@ owner-test threat answer: K1 routes checked 0 exposed 0; searches round the lane
     "play_refused_like_last": 0,
     "retries_failed_job": 0,
     "retries_failed_peek": 0,
+    "roam_draws_none_left": 0,
+    "roam_routes_avoided": 0,
     "taken_objective_into_conceded": 0,
     "taken_other_into_conceded": 0,
     "tried_on_his_return": 0
