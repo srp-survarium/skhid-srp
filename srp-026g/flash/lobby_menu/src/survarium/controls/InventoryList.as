@@ -2218,21 +2218,31 @@ package survarium.controls
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
       }
 
-      // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
-      // (CheckBoxShared), the character panel's Autobuy box's look (CheckBoxSharedPD: the same box,
-      // tick and label, but its bitmaps fill shapes unsmoothed, pixelated once the lobby is scaled to
-      // the screen), with Autobuy's label sizing and tooltip; in the shop's Buy button's row
-      // (btnSellBig) at its left, at the window's margin as the compare box below it; shown in the shop
-      // only. Off when the lobby opens.
+      // The shop's "Hide owned" check box (shop-owned-mark.md) and the window's foot, the owner's of
+      // 2026-11-02: one column of check boxes at the window's margin, "Comparing items" at the left
+      // of the Buy button's row (btnSellBig), "Hide owned" directly below it in the window's last row,
+      // where the compare box is placed on the timeline (with the sort). The two are one symbol
+      // (CheckBoxShared) at one scale, the compare box's, so they look the same (Autobuy's symbol,
+      // CheckBoxSharedPD, fills its bitmaps unsmoothed: pixelated once the lobby is scaled to the
+      // screen). A check box is not sized by CLIK (preventAutosizing): its scale is its placement's,
+      // its label counter-scaled; the symbol's scale-9 grid keeps the square as it is. Both are
+      // narrowed to end where Buy begins, so neither takes a press over Buy. "Hide owned"
+      // has Autobuy's label sizing and tooltip; shown in the shop only, off when the lobby opens.
       private function makeOwnedToggle() : void
       {
+         var compare:Button = this.checkboxCompareItems;
+         var buy:DisplayObject = this.itemControlPanel.btnSellBig;
          _ownedToggle = new CheckBoxShared();
+         this._ownedToggle.x = compare.x;
+         this._ownedToggle.y = compare.y;
+         compare.y = this.itemControlPanel.y + buy.y + Math.round((buy.height - compare.height) / 2);
+         var room:Number = this.itemControlPanel.x + buy.x - compare.x;
+         var natural:Number = compare.actualWidth / compare.actualScaleX;
+         compare.setActualScale(Math.min(compare.actualScaleX,room / natural),compare.actualScaleY);
+         this._ownedToggle.setActualScale(compare.actualScaleX,compare.actualScaleY);
          LocalizationData.addButton(this._ownedToggle,"st_srp_shop_not_owned");
          this._ownedToggle.tooltipRendererName = "SrvProfileTipRendererStyled";
          this._ownedToggle.fitLabel();
-         var buy:DisplayObject = this.itemControlPanel.btnSellBig;
-         this._ownedToggle.x = this.checkboxCompareItems.x;
-         this._ownedToggle.y = this.itemControlPanel.y + buy.y + Math.round((buy.height - this._ownedToggle.height) / 2);
          this._ownedToggle.visible = this.isShop;
          this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
          addChild(this._ownedToggle);

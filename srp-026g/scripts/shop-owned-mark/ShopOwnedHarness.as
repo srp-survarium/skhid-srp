@@ -2,11 +2,17 @@ package
 {
    import flash.display.BitmapData;
    import flash.display.DisplayObject;
+   import flash.display.FrameLabel;
    import flash.display.Loader;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.UncaughtErrorEvent;
+   import flash.geom.Point;
+   import flash.geom.Rectangle;
+   import flash.text.TextField;
+   import flash.text.TextFormat;
+   import flash.text.TextLineMetrics;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
@@ -21,10 +27,11 @@ package
    // - a bundle whose id is the rifle's dictionary id: no mark (a bundle's id is not an item's);
    // - the helmet bought (the account comes again, as the server sends it after a buy): marked;
    // - the rifle sold: unmarked; the scope it wore stays owned, marked.
-   // The box (the compare box's symbol, CheckBoxShared): off at first, labelled, left of
+   // The box (the compare box's symbol, CheckBoxShared, at its size): off at first, labelled, left of
    // Buy on its row (a Russian label too); on, the owned items' entries leave the list and the others
    // stay; with the upgrades tab chosen too; the decal bought while it is on leaves the list; off,
-   // every entry is back.
+   // every entry is back. It looks as the compare box: the same symbol, bounds and label format in
+   // every state.
    // Prints "SHOPMARK ..." lines; "SHOPMARK SHOT <name>" when the list is drawn for a screenshot
    // (held a while); ends with "SHOPMARK RESULT pass" or "SHOPMARK RESULT fail: ...".
    public class ShopOwnedHarness extends Sprite
@@ -56,6 +63,14 @@ package
 
       private static const MARK_Y:Number = 6;
 
+      // The check box symbol's square (CheckBoxShared): its side and its top in the symbol.
+      private static const SQUARE:Number = 21;
+
+      private static const SQUARE_TOP:Number = 2;
+
+      // A text field's gutters: its text is cut beyond its width less them.
+      private static const TEXT_GUTTER:Number = 4;
+
       private var loader:Loader = new Loader();
 
       private var domain:ApplicationDomain;
@@ -71,6 +86,9 @@ package
       private var frames:int = 0;
 
       private var step:int = 0;
+
+      // The language the layout is checked in (HarnessText.LANGUAGES), one after another.
+      private var language:int = 0;
 
       private var wait:int = 0;
 
@@ -150,7 +168,7 @@ package
             profile.paperDoll.ammoControl.registerInventory(inventory);
             inventory.item_control = card;
             // The texts come after the movie is built, as the game sends them (set_localization_data).
-            texts("Hide owned");
+            texts("english");
             addEventListener(Event.ENTER_FRAME,this.tick);
          }
          catch(err:Error)
@@ -159,10 +177,27 @@ package
          }
       }
 
-      // The lobby's texts, the "not owned" box's label `notOwned`.
-      private function texts(notOwned:String) : void
+      // The lobby's texts in `language` as the exe gives them: srp's and the shop's stock ones from
+      // the dictionaries (HarnessText), a few others the shop shows.
+      private function texts(language:String) : void
       {
-         domain.getDefinition("survarium.data.LocalizationData").setData({buy:"Buy",sell:"Sell",shop:"Shop",non_faction_items:"Any",st_srp_shop_not_owned:notOwned,st_srp_shop_not_owned_hint:"Show only the items you do not own",st_srp_inventory_search:"Search",checkbox_compare_items:"Compare items",sort:"Sort:",sort_level:"Level",sort_cost:"Price"});
+         var data:Object = {sell:"Sell",shop:"Shop",non_faction_items:"Any"};
+         var key:String;
+         for(key in HarnessText.DATA[language])
+         {
+            data[key] = HarnessText.DATA[language][key];
+         }
+         for(key in HarnessText.STOCK[language])
+         {
+            data[key] = HarnessText.STOCK[language][key];
+         }
+         domain.getDefinition("survarium.data.LocalizationData").setData(data);
+         // The game sends its texts once, before the list shows; the compare box takes its label
+         // then only (InventoryList.onLocal), so a later language is given to it here.
+         if(inventory != null)
+         {
+            inventory.checkboxCompareItems.label = data.checkbox_compare_items;
+         }
       }
 
       private static function item(dictId:int, category:int, name:String, stack:Boolean) : Object
@@ -231,7 +266,7 @@ package
                   expect(DECAL,false,"the decal not owned");
                   require(bundleRow() != null && !marked(bundleRow()),"the bundle whose id is the rifle's has no mark");
                   require(toggle() != null && toggle().visible && !toggle().selected && toggle().label == "Hide owned","the shop shows the hide-owned box, off, labelled");
-                  inBuyRow("the box");
+                  stacked("english");
                   shot("before");
                   break;
                case 2:
@@ -289,13 +324,28 @@ package
                   expect(DECAL,true,"the decal just bought");
                   expect(SCOPE,true,"the scope in the stash, the upgrades tab");
                   // A longer language's label (Russian); the window's title as the shop gives it.
-                  texts("Скрыть имеющиеся");
+                  texts("russian");
                   inventory.toggleShopMode(true);
                   break;
                case 12:
-                  toggle().validateNow();
-                  inBuyRow("the box with the Russian label");
+                  stacked("russian");
                   shot("long-label");
+                  break;
+               case 13:
+                  // Every language's texts, one after another.
+                  texts(HarnessText.LANGUAGES[language]);
+                  inventory.toggleShopMode(true);
+                  break;
+               case 14:
+                  stacked(HarnessText.LANGUAGES[language]);
+                  if(++language < HarnessText.LANGUAGES.length)
+                  {
+                     step = 13;
+                  }
+                  break;
+               case 15:
+                  // Last: it leaves the boxes on their frames' last state.
+                  sameLook();
                   break;
                default:
                   removeEventListener(Event.ENTER_FRAME,this.tick);
@@ -360,15 +410,16 @@ package
          return false;
       }
 
-      // The shop's "not owned" box: the list's child of the compare box's class that is not the
-      // compare box (the last, should the list have another).
+      // The shop's "not owned" box: the list's check box child that is not the compare box (the
+      // last, should the list have another).
       private function toggle() : *
       {
          var found:* = null;
+         var CheckBox:Class = C("survarium.controls.UnfocusedCheckBox");
          for(var i:int = 0; i < inventory.numChildren; i++)
          {
             var child:DisplayObject = inventory.getChildAt(i);
-            if(getQualifiedClassName(child) == "CheckBoxShared" && child != inventory.checkboxCompareItems)
+            if(child is CheckBox && child != inventory.checkboxCompareItems)
             {
                found = child;
             }
@@ -385,18 +436,137 @@ package
          box.dispatchEvent(new (C("scaleform.clik.events.ButtonEvent"))("buttonClick"));
       }
 
-      // The box in the Buy button's row: at the window's margin (the compare box's), on Buy's middle,
-      // its label ending before Buy.
-      private function inBuyRow(what:String) : void
+      // The shop's foot in `what`'s texts: "Hide owned" directly below "Comparing items", at its left
+      // edge, the next row down; both labels whole; nothing there overlaps: the two boxes (the square as the game draws
+      // it, the label's text), Buy, the sort's label and its choices, the search box, the list; the
+      // boxes take no press over Buy or the sort's choices; all inside the window.
+      private function stacked(what:String) : void
       {
+         var compare:* = inventory.checkboxCompareItems;
          var box:* = toggle();
-         var panel:* = inventory.itemControlPanel;
-         var buy:* = panel.btnSellBig;
-         var labelEnd:Number = Math.ceil(box.x + box.textField.x + box.textField.textWidth);
-         var buyLeft:Number = panel.x + buy.x;
-         var middle:Number = box.y + box.height / 2;
-         var buyMiddle:Number = panel.y + buy.y + buy.height / 2;
-         require(box.x == inventory.checkboxCompareItems.x && Math.abs(middle - buyMiddle) <= 1 && labelEnd < buyLeft,what + " sits left of Buy, on its row (x " + box.x + ", middle " + middle + " / " + buyMiddle + ", label to " + labelEnd + " < " + buyLeft + ")");
+         var sort:* = inventory.sortTab;
+         for each(var it:* in [compare,box,sort])
+         {
+            it.validateNow();
+         }
+         var gap:Number = box.y - (compare.y + compare.height);
+         require(box.x == compare.x && gap >= 0 && gap < compare.height,what + ": the box directly below the compare box, at its left edge (x " + box.x + " / " + compare.x + ", gap " + gap + ")");
+         var buy:Rectangle = inventory.itemControlPanel.btnSellBig.getBounds(inventory);
+         var parts:Object = {};
+         parts["the compare box"] = square(compare);
+         parts["its label"] = ink(compare.textField);
+         parts["the box"] = square(box);
+         parts["its label \"" + box.label + "\""] = ink(box.textField);
+         parts["Buy"] = buy;
+         parts["the sort's label"] = ink(inventory.textField);
+         parts["the search box"] = searchBox().getBounds(inventory);
+         parts["the list"] = new Rectangle(inventory.itemsTileList.x,inventory.itemsTileList.y,inventory.itemsTileList.width,inventory.itemsTileList.height);
+         var choices:Array = [];
+         for(var i:int = 0; i < sort.dataProvider.length; i++)
+         {
+            var choice:* = sort.getButtonAt(i);
+            parts["the sort's choice \"" + choice.label + "\""] = ink(choice.textField);
+            choices.push(choice.getBounds(inventory));
+         }
+         for each(var labelled:* in [compare,box])
+         {
+            var field:TextField = labelled.textField;
+            var room:Number = field.width / field.scaleX;
+            require(field.textWidth + TEXT_GUTTER <= room + 0.5,what + ": the label \"" + labelled.label + "\" is whole in its field (" + field.textWidth + " + " + TEXT_GUTTER + " <= " + room + ")");
+         }
+         var window:Rectangle = inventory.background.getBounds(inventory);
+         var names:Array = [];
+         for(var name:String in parts)
+         {
+            names.push(name);
+            require(window.containsRect(parts[name]),what + ": " + name + " inside the window (" + parts[name] + ")");
+         }
+         names.sort();
+         for(i = 0; i < names.length; i++)
+         {
+            for(var j:int = i + 1; j < names.length; j++)
+            {
+               require(!parts[names[i]].intersects(parts[names[j]]),what + ": " + names[i] + " clear of " + names[j] + " (" + parts[names[i]] + ", " + parts[names[j]] + ")");
+            }
+         }
+         for each(var pressed:* in [compare,box])
+         {
+            var area:Rectangle = pressed.getBounds(inventory);
+            for each(var other:Rectangle in [buy].concat(choices))
+            {
+               require(!area.intersects(other),what + ": " + pressed.label + " takes no press over " + other + " (" + area + ")");
+            }
+         }
+         trace("SHOPMARK " + what + ": compare " + compare.getBounds(inventory) + " " + parts["its label"] + "; box " + box.getBounds(inventory) + " " + parts["its label \"" + box.label + "\""] + "; sort " + parts["the sort's label"] + " " + sort.getBounds(inventory) + "; buy " + buy);
+      }
+
+      // A check box's square as the game draws it: the symbol's scale-9 grid keeps its left column
+      // (the square) unscaled.
+      private function square(box:*) : Rectangle
+      {
+         var at:Point = inventory.globalToLocal(box.localToGlobal(new Point(0,0)));
+         return new Rectangle(at.x,at.y + SQUARE_TOP,SQUARE,SQUARE);
+      }
+
+      // A text field's text (its first line) in the list's units.
+      private function ink(field:TextField) : Rectangle
+      {
+         var line:TextLineMetrics = field.getLineMetrics(0);
+         var from:Point = inventory.globalToLocal(field.localToGlobal(new Point(line.x,2)));
+         var to:Point = inventory.globalToLocal(field.localToGlobal(new Point(line.x + line.width,2 + line.height)));
+         return new Rectangle(from.x,from.y,to.x - from.x,to.y - from.y);
+      }
+
+      // The shop's search box: the list's child of the friends window's name box class.
+      private function searchBox() : DisplayObject
+      {
+         for(var i:int = 0; i < inventory.numChildren; i++)
+         {
+            if(getQualifiedClassName(inventory.getChildAt(i)) == "TextInputFriendName")
+            {
+               return inventory.getChildAt(i);
+            }
+         }
+         return null;
+      }
+
+      // The box looks as the compare box below it: the same symbol, bounds and scale; its label as
+      // shown (off, on, disabled) and in every state's frame of the symbol in the same format (font,
+      // size, bold, colour), drawn at the same scale.
+      private function sameLook() : void
+      {
+         var compare:* = inventory.checkboxCompareItems;
+         var box:* = toggle();
+         var a:Rectangle = compare.getBounds(inventory);
+         var b:Rectangle = box.getBounds(inventory);
+         require(getQualifiedClassName(box) == getQualifiedClassName(compare) && a.width == b.width && a.height == b.height && box.actualScaleX == compare.actualScaleX && box.actualScaleY == compare.actualScaleY,"the box is the compare box's symbol at its scale (" + getQualifiedClassName(box) + " " + b.width + "x" + b.height + " / " + getQualifiedClassName(compare) + " " + a.width + "x" + a.height + ")");
+         var shown:Array = [["off",false,true],["on",true,true],["disabled",false,false]];
+         for each(var state:Array in shown)
+         {
+            for each(var it:* in [compare,box])
+            {
+               it.selected = state[1];
+               it.enabled = state[2];
+               it.validateNow();
+            }
+            sameLabel("the label shown " + state[0] + " (" + box.currentFrameLabel + ")",compare.textField,box.textField);
+         }
+         for each(var frame:FrameLabel in compare.currentLabels)
+         {
+            compare.gotoAndStop(frame.name);
+            box.gotoAndStop(frame.name);
+            sameLabel("the label of the frame " + frame.name,compare.getChildByName("textField"),box.getChildByName("textField"));
+         }
+      }
+
+      private function sameLabel(what:String, compare:*, box:*) : void
+      {
+         var a:TextFormat = compare.getTextFormat();
+         var b:TextFormat = box.getTextFormat();
+         var sa:Number = compare.transform.concatenatedMatrix.a;
+         var sb:Number = box.transform.concatenatedMatrix.a;
+         var said:String = b.font + " " + b.size + (b.bold ? " bold" : "") + " #" + uint(b.color).toString(16) + " x" + sb.toFixed(3) + " / " + a.font + " " + a.size + (a.bold ? " bold" : "") + " #" + uint(a.color).toString(16) + " x" + sa.toFixed(3);
+         require(a.font == b.font && a.size == b.size && a.bold == b.bold && a.color == b.color && Math.abs(sa - sb) < 0.001 && compare.embedFonts == box.embedFonts,what + ": as the compare box's (" + said + ")");
       }
 
       private function place(name:String) : int

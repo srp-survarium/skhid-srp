@@ -5,11 +5,11 @@
 # owned items (a weapon, a stack, a scope loose or worn on a weapon, a camouflage) have the mark, the
 # others (an item not owned, an empty stack, a bundle whose id is an owned item's) not; a bought item
 # gets it, a sold one loses it; the box on leaves the owned entries out (the upgrades tab too, and an
-# item bought while it is on), and off brings them back; the box sits left of Buy, a
-# Russian label too.
+# item bought while it is on), and off brings them back; the box sits directly below "Comparing
+# items" and looks as it, and the shop's foot overlaps nowhere, in every language.
 # Screenshots into the work dir: before.png (the owned entries marked, the box off), bought.png (the
 # helmet bought too), not-owned.png (the box on: the owned entries gone), upgrades.png (the box on,
-# the upgrades tab), long-label.png (the Russian label left of Buy).
+# the upgrades tab), long-label.png (the Russian labels).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, the shots,
 # Ruffle's log). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md),
 # or SRP_AS_TOOLS.
@@ -25,11 +25,14 @@ else
     work=$(mktemp -d)
 fi
 
+# The texts the exe gives the movie (set_localization_data), from the dictionaries.
+"${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
+
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
+    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" -source-path+="$work" \
     -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
     -output="$work/ShopOwnedHarness.swf" "$here/ShopOwnedHarness.as" >"$work/ShopOwnedHarness.mxmlc.log" 2>&1 \
     || { cat "$work/ShopOwnedHarness.mxmlc.log"; exit 1; }
