@@ -94,19 +94,31 @@ pub(super) fn load(
         {
             return Err(fail("plain item is itself a premium copy"));
         }
-        let Some(ConfigValue::Indexed(values)) = meta.get("bonuses") else {
-            return Err(fail("bonuses must be an indexed table"));
+        // A golden weapon's one bonus is the silver bonus: its config names only its plain gun
+        // (each entry counts against the client's arena, `tables::MAX_CONFIG_ENTRIES`).
+        let bonuses: Vec<u32> = if weapon {
+            if meta.get("bonuses").is_some() {
+                return Err(fail(
+                    "a golden weapon names no bonuses: its one bonus is the silver bonus (1230)",
+                ));
+            }
+            vec![SILVER_BONUS]
+        } else {
+            let Some(ConfigValue::Indexed(values)) = meta.get("bonuses") else {
+                return Err(fail("bonuses must be an indexed table"));
+            };
+            if values.is_empty() || values.len() > modifications::MAX_RANK {
+                return Err(fail("bonuses must fit the item's modification slots"));
+            }
+            let bonuses: Vec<u32> = values
+                .iter()
+                .map(|v| integer(Some(v), "bonuses"))
+                .collect::<Result<_, _>>()?;
+            if bonuses.iter().copied().collect::<BTreeSet<_>>().len() != bonuses.len() {
+                return Err(fail("duplicate bonus"));
+            }
+            bonuses
         };
-        if values.is_empty() || values.len() > modifications::MAX_RANK {
-            return Err(fail("bonuses must fit the item's modification slots"));
-        }
-        let bonuses: Vec<u32> = values
-            .iter()
-            .map(|v| integer(Some(v), "bonuses"))
-            .collect::<Result<_, _>>()?;
-        if bonuses.iter().copied().collect::<BTreeSet<_>>().len() != bonuses.len() {
-            return Err(fail("duplicate bonus"));
-        }
         if available_bonuses.is_none() {
             let mods = game_data::config(data, modifications::MODIFICATIONS_PATH)?
                 .ok_or_else(|| fail("modifications config is missing"))?;
@@ -157,11 +169,6 @@ pub(super) fn load(
             ));
         }
         let kind = if weapon {
-            if bonuses != [SILVER_BONUS] {
-                return Err(fail(
-                    "a golden weapon's one bonus is the silver bonus (1230)",
-                ));
-            }
             Kind::Weapon
         } else {
             Kind::Armour(bonuses)
@@ -182,11 +189,12 @@ mod tests {
     use super::*;
 
     /// The stock data with one more item: a copy of `template`'s config (dict id 9000) with
-    /// `srp_premium` naming `plain` and `bonuses`, and `defaults` as its default modifications.
+    /// `srp_premium` naming `plain` and `bonuses` (if any), and `defaults` as its default
+    /// modifications.
     fn fixture(
         template: u16,
         plain: u16,
-        bonuses: &[i32],
+        bonuses: Option<&[i32]>,
         defaults: &[i32],
     ) -> (GameData, Dictionary) {
         let stock = GameData::test_archive();
@@ -202,18 +210,14 @@ mod tests {
             "default_modifications".into(),
             ConfigValue::Indexed(defaults.iter().copied().map(ConfigValue::Integer).collect()),
         ));
-        root.push((
-            "srp_premium".into(),
-            ConfigValue::Named(vec![
-                ("plain_item".into(), ConfigValue::Integer(i32::from(plain))),
-                (
-                    "bonuses".into(),
-                    ConfigValue::Indexed(
-                        bonuses.iter().copied().map(ConfigValue::Integer).collect(),
-                    ),
-                ),
-            ]),
-        ));
+        let mut meta = vec![("plain_item".into(), ConfigValue::Integer(i32::from(plain)))];
+        if let Some(bonuses) = bonuses {
+            meta.push((
+                "bonuses".into(),
+                ConfigValue::Indexed(bonuses.iter().copied().map(ConfigValue::Integer).collect()),
+            ));
+        }
+        root.push(("srp_premium".into(), ConfigValue::Named(meta)));
         let folder = item.cfg_name.rsplit_once('/').unwrap().0.to_owned();
         item.dict_id = 9000;
         item.name = "a_content_pack_premium".into();
@@ -234,7 +238,7 @@ mod tests {
 
     #[test]
     fn a_pack_defines_its_premium_without_a_server_item_row() {
-        let (data, dictionary) = fixture(TORSO, TORSO, &[1240, 1250], &[1030]);
+        let (data, dictionary) = fixture(TORSO, TORSO, Some(&[1240, 1250]), &[1030]);
         let premiums = load(&data, &dictionary).unwrap();
         let item = &premiums["a_content_pack_premium"];
         assert_eq!(item.plain_name, "scav_torso_4");
@@ -245,7 +249,7 @@ mod tests {
 
     #[test]
     fn a_pack_defines_a_golden_weapon_with_the_silver_bonus() {
-        let (data, dictionary) = fixture(KIPARIS, KIPARIS, &[1230], &[]);
+        let (data, dictionary) = fixture(KIPARIS, KIPARIS, None, &[]);
         let premiums = load(&data, &dictionary).unwrap();
         let item = &premiums["a_content_pack_premium"];
         assert_eq!(item.plain_name, "kiparis");
@@ -256,6 +260,13 @@ mod tests {
 
     #[test]
     fn malformed_premium_relationships_are_refused_at_the_boundary() {
+        let refused = |template, plain, bonuses: Option<&[i32]>, defaults: &[i32], reason| {
+            let (data, dictionary) = fixture(template, plain, bonuses, defaults);
+            let error = load(&data, &dictionary)
+                .err()
+                .expect("invalid metadata refused");
+            assert!(error.0.contains(reason), "{error}");
+        };
         for (template, plain, bonuses, defaults, reason) in [
             (TORSO, 9000, vec![1240], vec![], "distinct plain piece"),
             (TORSO, 326, vec![1240], vec![], "same category"),
@@ -265,16 +276,18 @@ mod tests {
             (TORSO, TORSO, vec![1240, 1240], vec![], "duplicate bonus"),
             (TORSO, TORSO, vec![99999], vec![], "unknown modification"),
             (TORSO, TORSO, vec![1240], vec![1240], "not defaults"),
-            (KIPARIS, KIPARIS, vec![1240], vec![], "silver bonus"),
-            (KIPARIS, KIPARIS, vec![1230, 1240], vec![], "silver bonus"),
-            (KIPARIS, 332, vec![1230], vec![], "itself a premium"),
-            (KIPARIS, TORSO, vec![1230], vec![], "same category"),
+            (KIPARIS, KIPARIS, vec![1230], vec![], "names no bonuses"),
         ] {
-            let (data, dictionary) = fixture(template, plain, &bonuses, &defaults);
-            let error = load(&data, &dictionary)
-                .err()
-                .expect("invalid metadata refused");
-            assert!(error.0.contains(reason), "{error}");
+            refused(template, plain, Some(&bonuses), &defaults, reason);
+        }
+        // Without a bonus list.
+        for (template, plain, defaults, reason) in [
+            (TORSO, TORSO, vec![], "indexed table"),
+            (KIPARIS, KIPARIS, vec![1230], "not defaults"),
+            (KIPARIS, 332, vec![], "itself a premium"),
+            (KIPARIS, TORSO, vec![], "same category"),
+        ] {
+            refused(template, plain, None, &defaults, reason);
         }
     }
 }

@@ -1,6 +1,6 @@
 # Skins of live guns from 0.69d0
 
-`weapon-variants@1` adds the owner's pick of 0.69d0's skins of guns 0.26g has: sixteen golden
+`weapon-variants@2` adds the owner's pick of 0.69d0's skins of guns 0.26g has: sixteen golden
 copies of their guns (`variants.tsv`: ids, guns, cells, gold prices, 0.69d0's models). What ships
 and why: [docs/notes/weapon-variants.md](../../docs/notes/weapon-variants.md).
 
@@ -26,10 +26,10 @@ python3 srp-026g/scripts/weapon-variants/prepare_inputs.py --stock $SKHID_STOCK_
   --game-data-bin srp-026g/target/release/srp-game-data \
   --donor full069.split --donor-port <0.69d0 vostok-port> --out <inputs folder>
 python3 srp-026g/scripts/weapon-variants/make_pack.py --inputs <inputs folder> \
-  --out $SKHID_PACKS_DIR/weapon-variants-1 [--previews <folder>]
-cmp $SKHID_PACKS_DIR/weapon-variants-1/ui/WeaponVariants1.as \
+  --out $SKHID_PACKS_DIR/weapon-variants-2 [--previews <folder>]
+cmp $SKHID_PACKS_DIR/weapon-variants-2/ui/WeaponVariants1.as \
   srp-026g/flash/lobby_menu/src/survarium/constants/WeaponVariants1.as
-python3 srp-026g/scripts/weapon-variants/check_pack.py $SKHID_PACKS_DIR/weapon-variants-1 <inputs folder>
+python3 srp-026g/scripts/weapon-variants/check_pack.py $SKHID_PACKS_DIR/weapon-variants-2 <inputs folder>
 python3 srp-026g/scripts/weapon-variants/names.py --inputs <inputs folder> --check
 ```
 

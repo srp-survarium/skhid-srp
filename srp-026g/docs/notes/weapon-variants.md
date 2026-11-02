@@ -9,12 +9,13 @@ The owner's pick of 0.69d0's skins of guns 0.26g already has (the catalogue, 202
 - A skin is a **golden weapon** (golden_weapons.md): a gold-bought copy of its gun, the gun's
   stats, the silver bonus as its first modification of its own, upgraded and crafted as the gun
   (either is the other's donor), gold background and name. Sold for gold at no rank, never dropped,
-  no faction shop.
+  no faction shop. Its config marks it with `srp_premium` naming only its gun (the bonus is srp's):
+  a config is at most 565 entries (the client's upgrade arena), the Remington 700 "Soot" 564.
 - **Stats: the gun's**, the two 0.69d0 premiums too (below).
 - **Everything the gun takes, the skin takes**: its ammo (items_compatibility), its camouflage and
-  decal slot (weapon-camo-1, weapon-decals-1), its kill-feed icon (kill-feed-weapons-1), its level
-  (svd-level-1), its scope fits. Each edit list names the skin beside its gun (check_pack.py holds
-  them to it).
+  decal slot (weapon-camo-1, weapon-decals-1), its kill-feed icon (kill-feed-weapons-1), its stats
+  and level (its row of weapon-stats.tsv, its gun's), its scope fits. Each edit list names the skin
+  beside its gun (check_pack.py holds them to it).
 - **Gold price** by the gun's level, as the live golden weapons: 500 to level 3, 1,000 to 9 (the
   AK-74N's copy 1,200, as its live one), 2,000 at 12, 2,500 at 15 (the Vepr-12's 2,000 as its live
   copy).

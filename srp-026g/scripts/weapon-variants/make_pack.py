@@ -6,8 +6,8 @@ usage: python3 make_pack.py --inputs <prepare_inputs.py's folder> --out <packs f
 
 Each skin is a gold-bought copy of its live gun (docs/notes/weapon-variants.md), as the live golden
 weapons are (the AKM's two premium copies): the gun's config as the edit lists start from it, with
-the skin's model, icon and name, no drop weight, and `srp_premium` (its plain gun and the silver bonus
-srp gives it, golden_weapons.md); its model the gun's, its materials the gun's with the skin's
+the skin's model, icon and name, no drop weight, and `srp_premium` (its plain gun: srp gives a golden
+weapon the silver bonus, golden_weapons.md; no bonus list, for the client's config arena); its model the gun's, its materials the gun's with the skin's
 diffuse (paint.py: 0.69d0's paint on 0.26g's texture); each new diffuse's camouflage mask (_aoac,
 client patch 44) the gun's own, byte for byte; the gun's ammo rows in items_compatibility; the gun's
 scope fits (one that only puts a scope on names the skin too; one that puts the gun's model with a
@@ -30,7 +30,7 @@ import paint
 from common import (DICTIONARY, FOLDER, PACK, SCOPES, SILVER_BONUS, SYMBOL, WEAPONS, Inputs, bcw, mesh, name_key,
                     sha, variants)
 
-VERSION = '1'
+VERSION = '2'
 
 
 def dump(config):
@@ -218,7 +218,7 @@ def write_pack(inputs, out, previews):
         variant['ui_desc']['text_descriptions']['name'] = name_key(row)
         if variant.get('default_modifications') or variant['parameters'].get('base_rarity_level', 0):
             raise ValueError(f'{row.base}: the gun has bonuses or a rarity of its own')
-        variant['srp_premium'] = {'plain_item': base['dict_id'], 'bonuses': [SILVER_BONUS]}
+        variant['srp_premium'] = {'plain_item': base['dict_id']}
         cfg = f'{WEAPONS}/wpn_{row.name}.options'
         add(cfg, dump(variant))
         entries.append({'base_cost': row.gold, 'cfg_name': cfg, 'dict_id': row.dict_id, 'is_premium': True,

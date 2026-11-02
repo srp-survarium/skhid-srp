@@ -4,7 +4,7 @@
 usage: python3 check_pack.py <pack folder> <prepare_inputs.py's folder>
 
 - every skin is its gun: the config the gun's as the edit lists start from but for the model, the
-  drop weight (0), the icon, the name and srp_premium (the gun, the silver bonus); its dictionary row
+  drop weight (0), the icon, the name and srp_premium (the gun); its dictionary row
   a premium (gold) row of the gun's category; its items_compatibility rows the gun's;
 - every edit list the release applies (release/content.tsv's `edit` rows made here) names a skin's
   config as often as its gun's, so the skin takes every change its gun takes;
@@ -107,7 +107,7 @@ def main():
         check(entry and entry['cfg_name'] == cfg, f'{row.name}: config path')
         mine, theirs = bcw.loads(files[cfg]), inputs.config('compose', gun['cfg_name'])
         premium = mine.pop('srp_premium', None)
-        check(premium == {'plain_item': gun['dict_id'], 'bonuses': [SILVER_BONUS]}, f'{row.name}: srp_premium')
+        check(premium == {'plain_item': gun['dict_id']}, f'{row.name}: srp_premium')
         a, b = flat(mine), flat(theirs)
         differ = {k for k in set(a) | set(b) if a.get(k) != b.get(k)}
         check(differ <= ALLOWED, f'{row.name}: differs from its gun at {sorted(differ - ALLOWED)}')

@@ -35,7 +35,7 @@
 //! gold-bought copy of a plain item ([`is_golden`]).
 //!
 //! Content packs declare golden weapons and premium armour of their own
-//! in the item's config (`srp_premium`: its plain item and bonuses;
+//! in the item's config (`srp_premium`: its plain item, armour its bonuses;
 //! [`check_content`]): the skins of live guns (`scripts/weapon-variants`)
 //! are golden weapons so, each with the silver bonus.
 //!
