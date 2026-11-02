@@ -149,6 +149,7 @@ NH3API's HiHook/LoHook applied at build time:
 | `callback` | a function the game is handed | its typed arguments |
 | `write` | a `byte`, `word`, `dword`, `float`, `bytes` or pointer, with its expected original | nothing |
 | `code` | hand-written NASM with a byte limit, where nothing above fits | -- |
+| `entry` | a Rust handler our own NASM calls (cdecl; a site row with VA `-`, its arguments the frame at ESP in `holds`), installed nowhere: the build writes its address where our code calls it | `&mut Context`, returning `Flow::Continue` |
 
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
@@ -165,6 +166,8 @@ written into the saved state (or `st0` loaded) on the way out. A `call`/
 `pointer` entry wraps a call boundary, where the host already treats
 `eax`/`ecx`/`edx`/xmm as clobbered, so it only aligns the stack, passes the
 arguments and cleans up as the function did; it adds no `fxsave`.
+
+**`entry`**: the way from our own NASM into Rust (patch 48's preview apply calls patch 68's). Its generated entry saves the machine and aligns the stack as a lohook's does, so the Context's site ESP is the caller's (the return address, then the arguments), and returns with `ret`; the caller pops its arguments. Never a hand-written `#[no_mangle]` export called from NASM: rustc's i686 code keeps 16-byte locals with movaps and assumes 16 at every call, and the game's stack (our NASM's too) is aligned to 4 only, a #GP on a real CPU that Unicorn does not raise (#893's review). `check_hooks_026g.py` runs the entry from each of the four skews.
 
 **Lohook chains**: handlers sharing an exact named site declare distinct
 integer `order`s. A single entry saves/restores the machine; handlers observe
@@ -349,6 +352,7 @@ bit when the key went down.
   without the bit, the consumer and its one caller, the site, the generated
   entry's shape, the blocks and the lock) plus the engine, hooks-staleness
   and layer checks.
+- **The alignment probe** (`align_probe_026g.py`): Unicorn does not fault on a misaligned aligned-SSE operand. A check that imports it and calls `install()` has every Unicorn machine check each aligned-SSE memory operand our code runs (`.srp` to the arena's end) and reports the misaligned ones; `python align_probe_026g.py check_<patch>_026g.py <exe>` runs any check under it unchanged. `check_weapon_kit_026g.py` and `check_upgrade_preview_026g.py` have it built in.
 - **Not run in a game** until the owner plays it.
 
 The generator regressions can also run alone in the dev shell, from

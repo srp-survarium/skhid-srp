@@ -2,6 +2,7 @@ package survarium.controls
 {
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import flash.text.TextFormatAlign;
    import scaleform.clik.constants.ConstrainMode;
    import scaleform.clik.constants.InvalidationType;
@@ -9,6 +10,7 @@ package survarium.controls
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.constants.PropertyDirection;
+   import survarium.player.MatchEffects;
    
    public class LabelDiffIndicator extends DiffIndicator
    {
@@ -29,8 +31,76 @@ package survarium.controls
       // Null keeps the ordinary numeric comparison behaviour.
       private var _detailValue:String = null;
 
-      public function setDetailText(label:String, value:String) : void
+      // A weapon card's row while Alt is held, its value changed by its modifications, the kit or
+      // the skills: {text: "base -> in a match" with its unit, in place of the value (the bar
+      // keeps the value), verdict: MatchEffects.BETTER or WORSE}; null shows the value.
+      private var _change:Object = null;
+
+      // A detail row's value's verdict, where it is such a change (MatchEffects.BETTER or WORSE);
+      // null otherwise.
+      private var _detailVerdict:String = null;
+
+      // The value field's own width (unscaled) and line, which a wider detail value grows from;
+      // 0 until the first layout.
+      private var _valueWidth:Number = 0;
+
+      private var _valueY:Number = 0;
+
+      // A detail row's value: on the label's line (0), or on the line under it (1) where it leaves
+      // the label too little room for one line (fitWideValue).
+      private var _valueLine:int = 0;
+
+      // The lines a detail row takes (WeaponDetailsView): its label's, and the value's own line
+      // under it.
+      public function get detailLines() : int
       {
+         return textFieldLabel.numLines + _valueLine;
+      }
+
+      // `text` null: the row's own value.
+      public function setChange(text:String, verdict:String) : void
+      {
+         _change = text == null ? null : {text:text,verdict:verdict};
+         invalidateData();
+      }
+
+      // A text field's width in its parent's units: a scaled field's width setter may take its
+      // own units (Ruffle does), so the setter is corrected by what the getter reads.
+      private static function resize(field:TextField, width:Number) : void
+      {
+         field.width = width;
+         if(field.width > 0 && Math.abs(field.width - width) > 0.01) field.width = width * width / field.width;
+      }
+
+      // A detail value wider than its field (a changed range held Alt, "1.8…2 -> 1.73…1.92")
+      // takes the room to its left, its right edge kept; where the label has too little room
+      // for one line beside it ("base -> in a match" held Alt), the value takes the line under it.
+      // The constraints counter-scale the field (scaleX) after its first layout, and x is the
+      // native column's again at each layout.
+      private function fitWideValue() : void
+      {
+         var scale:Number = textFieldValue.scaleX;
+         if(_valueWidth == 0)
+         {
+            _valueWidth = textFieldValue.width / scale;
+            _valueY = textFieldValue.y;
+         }
+         var natural:Number = _valueWidth * scale;
+         var wanted:Number = Math.max(natural,textFieldValue.textWidth * Math.max(1,scale) + 5);
+         resize(textFieldValue,wanted);
+         textFieldValue.x += natural - wanted;
+         textFieldLabel.autoSize = TextFieldAutoSize.NONE;
+         textFieldLabel.wordWrap = false;
+         var labelWidth:Number = textFieldLabel.textWidth * Math.max(1,textFieldLabel.scaleX);
+         var valueStart:Number = textFieldValue.x + wanted - textFieldValue.textWidth * Math.max(1,scale) - 4;
+         // With a margin: Scaleform lays the embedded Calibri out close to, not exactly as, this.
+         _valueLine = textFieldLabel.x + labelWidth * 1.05 + 6 > valueStart ? 1 : 0;
+         textFieldValue.y = _valueY + _valueLine * textFieldLabel.getLineMetrics(0).height * textFieldLabel.scaleY;
+      }
+
+      public function setDetailText(label:String, value:String, verdict:String = null) : void
+      {
+         _detailVerdict = verdict;
          _label = label;
          _detailValue = value;
          invalidateData();
@@ -153,6 +223,7 @@ package survarium.controls
             }
             this.textFieldValue.text = this._prefix + Util.getNumberString(_realValue) + this._postfix;
          }
+         if(_change != null) this.textFieldValue.text = _change.text;
          if(this.textFieldDiff.text.length)
          {
             this.textFieldValue.x = this.textFieldDiff.x + this.textFieldDiff.width - this.textFieldValue.width - this.textFieldDiff.textWidth - 4;
@@ -184,14 +255,32 @@ package survarium.controls
                // instead of running under it; WeaponDetailsView gives the
                // row its lines.
                var align:String = textFieldValue.getTextFormat().align;
+               if(align == TextFormatAlign.RIGHT) fitWideValue();
                var valueStart:Number = textFieldValue.x;
-               if(align == TextFormatAlign.RIGHT) valueStart += textFieldValue.width - textFieldValue.textWidth - 4;
+               if(_valueLine == 1) valueStart += textFieldValue.width + 6;
+               else if(align == TextFormatAlign.RIGHT) valueStart += textFieldValue.width - textFieldValue.textWidth - 4;
                else if(align == TextFormatAlign.CENTER) valueStart += (textFieldValue.width - textFieldValue.textWidth) / 2 - 2;
                textFieldLabel.width = Math.max(1,valueStart - 6 - textFieldLabel.x);
             }
             textFieldLabel.multiline = textFieldLabel.wordWrap = true;
             textFieldLabel.autoSize = TextFieldAutoSize.LEFT;
          }
+         var verdict:String = _detailValue != null ? _detailVerdict : _change != null ? _change.verdict : null;
+         if(verdict != null) colourChange(verdict,neutralComparison);
+      }
+
+      // Held Alt, a changed value "original -> current" (alt-weapon-stats.md): the original and
+      // the arrow in the value's neutral colour, the current green when it is better for the
+      // player, red when worse, the comparison's own colours; Ctrl leaves it neutral.
+      private function colourChange(verdict:String, neutral:Boolean) : void
+      {
+         textFieldValue.textColor = 15911311;
+         var text:String = textFieldValue.text;
+         var at:int = text.lastIndexOf(MatchEffects.ARROW);
+         if(neutral || at < 0) return;
+         var format:TextFormat = new TextFormat();
+         format.color = verdict == MatchEffects.BETTER ? Colors.GREEN_DIFF : Colors.RED_DIFF;
+         textFieldValue.setTextFormat(format,at + MatchEffects.ARROW.length,text.length);
       }
    }
 }

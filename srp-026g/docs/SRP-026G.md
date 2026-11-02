@@ -206,17 +206,13 @@ that rule is mended when the accounts load, and never plays.
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_BALANCE_PLAYER` | 12 | What a player counts for by being there when the sides are made, in gear levels: with an odd count the side with a player more has this much more, so the stronger players are the side of fewer. 0: only the strengths are made even (`matchmaking.md` §8) |
-| `SRP_BALANCE_PLAYER_LEVEL` | 1.5 | What a level of the account counts for, in gear levels |
-| `SRP_BALANCE_RATING` | 4 | What a point of the balance rating counts for, fully trusted, in gear levels |
-| `SRP_BALANCE_TRUST_MATCHES` | 5 | The matches after which a balance rating counts for half; one of no match counts for nothing |
+| `SRP_BALANCE_PLAYER_KD` | 1 | What a player counts for by being there when the sides are made, in K/Ds, beside its K/D at the match's equipment level: with an odd count the side with a player more has this much more, so the stronger players are the side of fewer. 0: only the K/Ds are made even (`notes/kd-balance.md`). `SRP_BALANCE_PLAYER`, `_PLAYER_LEVEL`, `_RATING` and `_TRUST_MATCHES` (in gear levels, before 2026-11-01) are no longer read |
 | `SRP_BALANCE_RATED_PLAYERS` | 4 | The fewest players a match must have had in it to move the balance rating, 1 to 20: the players who were in it for half of the longest stay or more. With 4, one against one and two against one move none; 1: every match does (`matchmaking.md` §8.3). The ranking's rating and the pay do not depend on it |
 | `SRP_BALANCE_BATTERY_LEAD` | 0.55 | In a match being played (modes 2, 3): what a battery of lead counts for, in players, for the side that leads. Used where a player who comes into a room while its match is played goes, and in the log's prediction (`matchmaking.md` §9) |
 | `SRP_BALANCE_TICKET_LEAD` | 0.2 | The same for a ticket of lead in a Team Deathmatch, or a point in Research |
 | `SRP_MIN_PATCH_REVISION` | none | A game whose exe says a patch revision under this one is refused at its sign-in with the game's own "You're using an outdated version of the game." (login answer 0x22), and a lobby sign-in with a session it had before the restart is refused and the session ended, so a game that reconnects goes to its login screen within about half a minute and is refused there. It never gets the lobby's sign-in, which names items (the price list) its game may lack (`patch_check.rs`). The test bots are never refused. Left out or 0: every game is let in; not a number from 0 to 255 stops srp at start, and so does a number under the newest patch of the server's game data (`resources.db.patch_<n>` is released with revision n: an older game lacks its items), with a line that says what to set. The web page says it to the players' updater (`/api/client-files`, `min-revision`), which keeps PLAY off for an older game exe |
 | `SRP_MATCH_MODES` | `2,3,4,5` | The modes played (5: Research, on data with its maps) |
 | `SRP_MATCH_MAPS` | every playable map of those modes | `maps_dict` ids, e.g. `117` (Team Deathmatch on level_01) for a first test: a room's pool by default, and what a clan team's match is drawn from |
-| `SRP_ROOMS_MAX` | 50 | The most rooms at once, 1 to 1000 |
 | `SRP_ROOMS_EXTRA_MAPS` | none | Playable `maps_dict` ids a room's maker may add to its pool besides `SRP_MATCH_MAPS` (the experimental maps) |
 | `SRP_LOBBY_LINK_TIMEOUT_SECONDS` | 30 | A client silent this long loses its lobby link: offline for its friends (its room keeps its place while its session waits) |
 | `SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS` | 120 | The same for a player in a match that runs (its level may be loading); never less than the one above |
@@ -229,7 +225,6 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 | Variable | Default | What |
 |---|---|---|
 | `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
-| `SRP_PVB_MAX_GEAR` | 15 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15; the bots wear that level (`player_bots.md` §8) |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
 | `SRP_PVB_PAY` | 0.5 | The share of a match's silver and experience such a match pays, 0 to 1. It counts for no quest and no daily bonus, and moves no rating |
 | `SRP_PVB_STALL_S` | 60 | A match against bots whose player has been asked for its world this long and uploaded none while it plays is over (as deserted), 10 to 3600 |

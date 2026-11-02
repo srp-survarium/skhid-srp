@@ -101,6 +101,11 @@ pub const FULL_CONDITION: u32 = 1_000_000;
 /// artefact slot and [`ARTEFACT_SCORE_SLOTS_FULL`] with every slot full
 /// (the owner, 2026-10-29; `docs/notes/artefact-score.md`): the game counts
 /// event 5 for each, exe patch 80 counts event 16 too for the first.
+///
+/// A battery (the owner, 2026-11-01; `docs/notes/battery_credit.md`): found
+/// 5, put in 5, a delivery's share 5 (event 6, in hundredths), and 2 a 10 m
+/// it was brought nearer its container in its life (exe patch 92: event 6,
+/// paid at the delivery).
 pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     10.0, // kill (sourced)
     5.0,  // assist (sourced)
@@ -108,7 +113,7 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     0.0,  // suicide
     0.0,  // team kill
     ARTEFACT_SCORE_SLOTS_FULL, // artefact (every one an anomaly gives)
-    10.0, // bring victory item (x0.01 by the client)
+    5.0,  // bring victory item (x0.01 by the client): a delivery's share 5; patch 92: 2 a 10 m of progress, paid at the delivery
     2.5,  // teammate cure
     2.5,  // teammate rescue
     2.5,  // revenge
@@ -121,7 +126,7 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     ARTEFACT_SCORE - ARTEFACT_SCORE_SLOTS_FULL, // an artefact into an empty slot (patch 80)
     35.0, // steal victory item (x0.01) (sourced)
     10.0, // recover victory item (x0.01)
-    2.5,  // victory item found
+    5.0,  // victory item found (the owner, 2026-11-01)
     5.0,  // put victory item in container
     2.5,  // entrap enemy
     0.0,  // bullet fired
