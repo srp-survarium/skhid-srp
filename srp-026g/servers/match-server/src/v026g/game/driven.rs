@@ -930,17 +930,18 @@ mod tests {
 
     /// What the other bots believe of a bot's weapon: its role's, but the
     /// rusher's follows the kit it wears (the SMG is an SMG, the SPAS-12 a
-    /// shotgun), and the lowest tier's rusher keeps the shotgun it has.
+    /// shotgun; A267's bench-only machine gun a rifle, its pistol a pistol),
+    /// and the lowest tier's rusher keeps the shotgun it has.
     #[test]
     fn the_rushers_weapon_kind_follows_its_kit() {
         let kind =
             |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher, mask: BotMask::Table }), false);
         for kit in RusherKit::ALL {
-            let shotgun = !matches!(kit.worn_in(BotTier::Mid), RusherKit::Smg | RusherKit::Alt);
-            let wanted = if shotgun {
-                WeaponKind::Shotgun
-            } else {
-                WeaponKind::Smg
+            let wanted = match kit.worn_in(BotTier::Mid) {
+                RusherKit::Smg | RusherKit::Alt => WeaponKind::Smg,
+                RusherKit::Mg => WeaponKind::Rifle,
+                RusherKit::Pistol => WeaponKind::Pistol,
+                RusherKit::Slug | RusherKit::Helmet | RusherKit::Control => WeaponKind::Shotgun,
             };
             assert_eq!(
                 kind(BotTier::Mid, kit, BotRole::Rusher),
