@@ -833,6 +833,11 @@ pub struct CombatTuning {
     /// strafing, away from the edge); both refused, it stands. OFF: it
     /// stands.
     pub clear_step_slides_along: bool,
+    /// [A269c] The side step, the weave and the step apart are tested over the floors near an open side too (with
+    /// `kin.edge = client_walks_off`, the grid's table of open sides: `Tactics::clear_step_seeing`): not ending on one, not crossing
+    /// one unless it starts there, and a floor under the whole way no more than a lip's drop down (`Tactics::floor_free_step`). OFF:
+    /// as it was.
+    pub clear_step_sees_open: bool,
     /// With a bolt-action weapon, it crouches to fire at a target with
     /// this chance (drawn per target); other weapons: `fire.crouch_*`.
     pub sniper_crouch_chance: f32,
@@ -1558,6 +1563,7 @@ impl Default for CombatTuning {
             strafe_walking: true,
             clear_step_sees_lip: false,
             clear_step_slides_along: false,
+            clear_step_sees_open: false,
             sniper_crouch_chance: 0.25,
             fire: FireTuning::default(),
             worth: super::worth::WorthTuning::default(),

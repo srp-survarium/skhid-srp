@@ -2121,10 +2121,32 @@ impl Tactics {
         side: Option<i32>,
         objective: bool,
     ) -> bool {
+        self.clear_step_seeing(a, b, time, side, objective, false)
+    }
+
+    /// [`Self::clear_step_for`], with `sees_open` (`aim.combat.clear_step_sees_open`, A269c) over the floors near an open side
+    /// too ([`WalkGrid::near_open_side`], with the grid's table of open sides): the step does not end on one nor cross one unless the
+    /// body starts on one, as at a lip's band, and the way has a floor under it all along no more than a lip's drop down
+    /// ([`Self::floor_free_step`]). Such an edge has no link, so the lip's band does not see it, and the client's capsule walks off
+    /// it (`kin::Edge::ClientWalksOff`): a side step at it was the lip guard's to stop, a key change a tick (A269b).
+    pub fn clear_step_seeing(
+        &self,
+        a: Vec3,
+        b: Vec3,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        sees_open: bool,
+    ) -> bool {
         let grid = &self.world.grid;
         let (Some(from), Some(to)) = (grid.locate(a, 1.0), grid.locate(b, 0.6)) else {
             return false;
         };
+        let open = |node: NodeId| sees_open && grid.near_open_side(node);
+        let leaving_open = open(from);
+        if open(to) || (sees_open && !self.floor_free_step(a, b)) {
+            return false;
+        }
         let home = grid.pocket_of(from);
         let trap = |node: NodeId| {
             grid.near_fall(node)
@@ -2142,6 +2164,7 @@ impl Tactics {
                 self.allowed(node, time, side, objective)
                     && !trap(node)
                     && !(sees_lip && !leaving && grid.near_lip(node))
+                    && !(!leaving_open && open(node))
             })
     }
 
@@ -2864,6 +2887,18 @@ pub(super) mod tests {
         edit(&mut map);
         let sight = RayTree::build(&triangles);
         Arc::new(World::assemble(map, grid.into(), sight.into()))
+    }
+
+    /// [`field_with_solids`] with the grid's table of open sides (`kin::Edge::ClientWalksOff`, at the support
+    /// [`crate::v026g::bots::body::SUPPORT_M`]).
+    pub fn field_with_open_sides(solids: &[mapdata::Triangle]) -> Arc<World> {
+        let base = field_with_solids(solids, |_| {});
+        let mut triangles = floor(0.0, 0.0, 80.0, 40.0, 0.0).to_vec();
+        triangles.extend(wall_x(40.0, 0.0, 25.0));
+        triangles.extend_from_slice(solids);
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 80.0, 40.0], 0.25, mapdata::Body::default())
+            .with_open_sides(&triangles, crate::v026g::bots::body::SUPPORT_M);
+        Arc::new(World::assemble(base.map.clone(), grid.into(), base.sight.clone()))
     }
 
     /// [`MILD_HIT_PS`] is of a body's health, `[0, 1]`: a zone that kills

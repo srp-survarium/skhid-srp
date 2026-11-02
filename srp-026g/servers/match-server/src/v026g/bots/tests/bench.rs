@@ -756,6 +756,59 @@ pub(crate) fn real_bot_cost() {
                 world.grid.len()
             );
         }
+        // A269c: the floors near an open side (`WalkGrid::near_open_side`, with the table only) by the route cost they carry: a lip's
+        // (`near_lip` / `is_lip`), a deep fall's (`near_fall`), none.
+        if world.grid.has_open_sides() {
+            let grid = &world.grid;
+            let (mut near, mut lip, mut fall, mut bare) = (0, 0, 0, 0);
+            for node in (0..grid.len() as mapdata::NodeId).filter(|&n| grid.near_open_side(n)) {
+                near += 1;
+                if grid.near_lip(node) || grid.is_lip(node) {
+                    lip += 1;
+                } else if grid.near_fall(node) {
+                    fall += 1;
+                } else {
+                    bare += 1;
+                }
+            }
+            eprintln!("  open_side_floors {near} lip {lip} fall {fall} bare {bare} of {} floors", grid.len());
+            // The open sides themselves on floors with no route cost (neither a lip's nor a deep fall's): what the cell beside holds
+            // (the highest floor under the step, by its depth; only floors higher; none), and how many of those floors have a drop
+            // link (a Drop or a gap drop) another way.
+            const DIRS: [(f32, f32); 8] = [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0)];
+            let step = grid.body().step;
+            let (mut sides, mut floors, mut with_drop) = ([0u32; 6], 0u32, 0u32);
+            for node in 0..grid.len() as mapdata::NodeId {
+                if grid.near_lip(node) || grid.is_lip(node) || grid.near_fall(node) {
+                    continue;
+                }
+                let at = grid.position(node);
+                let open: Vec<(f32, f32)> = DIRS.iter().copied().filter(|&(dx, dz)| grid.open_toward(node, dx, dz) == Some(true)).collect();
+                if open.is_empty() {
+                    continue;
+                }
+                floors += 1;
+                with_drop += u32::from(grid.links(node).any(|(_, kind)| matches!(kind, mapdata::grid::LinkKind::Drop | mapdata::grid::LinkKind::GapDrop)));
+                for (dx, dz) in open {
+                    let (x, z) = (at.x + dx * mapdata::CELL, at.z + dz * mapdata::CELL);
+                    let heights: Vec<f32> = grid.floors_in([x - 0.01, z - 0.01, x + 0.01, z + 0.01]).map(|b| grid.position(b).y).collect();
+                    let under = heights.iter().copied().filter(|&h| h < at.y - step).fold(None, |best: Option<f32>, h| Some(best.map_or(h, |b| b.max(h))));
+                    let k = match under.map(|h| at.y - h) {
+                        Some(d) if d <= 1.0 => 0,
+                        Some(d) if d <= 2.0 => 1,
+                        Some(d) if d <= 5.0 => 2,
+                        Some(_) => 3,
+                        None if !heights.is_empty() => 4,
+                        None => 5,
+                    };
+                    sides[k] += 1;
+                }
+            }
+            eprintln!(
+                "  open_sides_bare floors {floors} with_drop_link {with_drop} sides beside: under<=1m {} 1-2m {} 2-5m {} >5m {} higher_only {} empty {}",
+                sides[0], sides[1], sides[2], sides[3], sides[4], sides[5]
+            );
+        }
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];
