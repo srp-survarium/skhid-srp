@@ -9,7 +9,9 @@ package survarium.controls
    import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.Point;
    import flash.text.TextField;
+   import flash.text.TextLineMetrics;
    import flash.ui.Keyboard;
    import flash.utils.Dictionary;
    import flash.utils.Timer;
@@ -274,6 +276,14 @@ package survarium.controls
       // The shop's "not owned" check box (makeOwnedToggle).
       private var _ownedToggle:CheckBoxShared;
 
+      // The sort's place on the timeline (its label's x, its choices' x and spacing), the last row's
+      // outside the shop (placeLastRow).
+      private var _sortLabelX:Number;
+
+      private var _sortTabX:Number;
+
+      private var _sortSpacing:Number;
+
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
 
@@ -353,6 +363,10 @@ package survarium.controls
          }
          this.shopTab.selectedIndex = this.isShop ? ShopFilter.SHOP : ShopFilter.INVENTORY;
          this.itemControlPanel.toggleShop(value);
+         if(this._ownedToggle != null)
+         {
+            this.placeLastRow();
+         }
       }
       
       override public function get width() : Number
@@ -2219,23 +2233,82 @@ package survarium.controls
       }
 
       // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
-      // (CheckBoxShared), the character panel's Autobuy box's look (CheckBoxSharedPD: the same box,
-      // tick and label, but its bitmaps fill shapes unsmoothed, pixelated once the lobby is scaled to
-      // the screen), with Autobuy's label sizing and tooltip; in the shop's Buy button's row
-      // (btnSellBig) at its left, at the window's margin as the compare box below it; shown in the shop
-      // only. Off when the lobby opens.
+      // (CheckBoxShared; Autobuy's, CheckBoxSharedPD, fills its bitmaps unsmoothed, pixelated once the
+      // lobby is scaled to the screen), with Autobuy's label sizing and tooltip; on the compare box's
+      // row, at its right (placeLastRow); shown in the shop only. Off when the lobby opens.
       private function makeOwnedToggle() : void
       {
          _ownedToggle = new CheckBoxShared();
          LocalizationData.addButton(this._ownedToggle,"st_srp_shop_not_owned");
          this._ownedToggle.tooltipRendererName = "SrvProfileTipRendererStyled";
          this._ownedToggle.fitLabel();
-         var buy:DisplayObject = this.itemControlPanel.btnSellBig;
          this._ownedToggle.x = this.checkboxCompareItems.x;
-         this._ownedToggle.y = this.itemControlPanel.y + buy.y + Math.round((buy.height - this._ownedToggle.height) / 2);
+         this._ownedToggle.y = this.checkboxCompareItems.y;
          this._ownedToggle.visible = this.isShop;
          this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
          addChild(this._ownedToggle);
+         // Above the compare box, below the sort's choices: each takes the presses on itself.
+         setChildIndex(this.sortTab,numChildren - 1);
+         _sortLabelX = this.textField.x;
+         _sortTabX = this.sortTab.x;
+         _sortSpacing = this.sortTab.spacing;
+      }
+
+      // The window's last row in the shop (shop-owned-mark.md, the owner's of 2026-11-02), left to
+      // right: [Comparing items] [Hide owned] Sort [By level] [By price], from the window's margin
+      // (the compare box's) to the same margin at its right, the five evenly apart, each as wide as
+      // its text: a box or a choice from its square or circle to its label's end. Laid out when the
+      // shop opens and when the texts come; outside the shop the row is the timeline's.
+      private function placeLastRow() : void
+      {
+         var sortLabel:TextField = this.textField;
+         if(!this.isShop)
+         {
+            sortLabel.x = this._sortLabelX;
+            this.sortTab.x = this._sortTabX;
+            this.sortTab.spacing = this._sortSpacing;
+            return;
+         }
+         var compare:Button = this.checkboxCompareItems;
+         compare.validateNow();
+         this._ownedToggle.validateNow();
+         this.sortTab.validateNow();
+         var level:Button = this.sortTab.getButtonAt(0);
+         var price:Button = this.sortTab.getButtonAt(1);
+         var margin:Number = compare.x;
+         var widths:Array = [this.textRight(compare.textField) - compare.x,this.textRight(this._ownedToggle.textField) - this._ownedToggle.x,this.textRight(sortLabel) - this.textLeft(sortLabel),this.textRight(level.textField) - this.leftOf(level),this.textRight(price.textField) - this.leftOf(price)];
+         var used:Number = 0;
+         for each(var w:Number in widths)
+         {
+            used += w;
+         }
+         var gap:Number = (background.width - margin * 2 - used) / (widths.length - 1);
+         this._ownedToggle.x = Math.round(margin + widths[0] + gap);
+         this._ownedToggle.y = compare.y;
+         sortLabel.x += Math.round(this._ownedToggle.x + widths[1] + gap - this.textLeft(sortLabel));
+         this.sortTab.x += Math.round(this.textRight(sortLabel) + gap - this.leftOf(level));
+         // The bar steps by a choice's width (its CLIK width, not its drawn one) and the spacing.
+         this.sortTab.spacing = Math.round(widths[3] + gap - level.width);
+         this.sortTab.validateNow();
+      }
+
+      // A text's ends (its first line), in the list's units.
+      private function textLeft(field:TextField) : Number
+      {
+         var line:TextLineMetrics = field.getLineMetrics(0);
+         return globalToLocal(field.localToGlobal(new Point(line.x,0))).x;
+      }
+
+      private function textRight(field:TextField) : Number
+      {
+         var line:TextLineMetrics = field.getLineMetrics(0);
+         return globalToLocal(field.localToGlobal(new Point(line.x + line.width,0))).x;
+      }
+
+      // A control's left edge (its square or circle), in the list's units.
+      private function leftOf(control:DisplayObject) : Number
+      {
+         return globalToLocal(control.localToGlobal(new Point(0,0))).x;
       }
 
       // Whether the shop's list leaves out this entry: the box is on and the account owns the item
@@ -2253,6 +2326,7 @@ package survarium.controls
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
+         this.placeLastRow();
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,
@@ -2989,7 +3063,9 @@ package survarium.controls
          }
          if(this._ownedToggle != null)
          {
+            // Above the compare box, below the sort's choices: each takes the presses on itself.
             setChildIndex(this._ownedToggle,numChildren - 1);
+            setChildIndex(this.sortTab,numChildren - 1);
          }
       }
       

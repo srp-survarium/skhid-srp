@@ -759,7 +759,7 @@ st_checkbox_clan_change_rank_permission	Изменение ранга игрок
 st_checkbox_clan_daily_message_permission	Изменение сообщения дня
 st_checkbox_clan_invite_permission	Приглашение
 st_checkbox_clan_member_kick_permission	Изгнание
-st_checkbox_compare_items	Сравнение предметов
+st_checkbox_compare_items	Сравнение
 st_checkbox_compare_items_hint	Отображать описание одетого вами предмета
 st_checkbox_players_live_search	Искать при вводе
 st_checkbox_show_locked_items	Недоступное
@@ -2123,8 +2123,8 @@ st_soc_vepr_description	Российский самозарядный караб
 st_soc_vepr_name	СОК-94
 st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_socom16_name	SOCOM 16
-st_sort	Сортировать
-st_sort_cost	По стоимости
+st_sort	Сортировка
+st_sort_cost	По цене
 st_sort_label	Фильтр
 st_sort_level	По уровню
 st_sort_reset	Сбросить
