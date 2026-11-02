@@ -211,14 +211,19 @@ impl RouteTally {
             };
             let fall = from.filter(|from| body.alive && from.y - body.feet.y >= 1.0).map(|from| {
                 // Its route drops there: a corner over a metre under the one before, within a metre of where
-                // it landed (or, for a walk-off that carried it on, the corner before within a metre of the edge
-                // it walked off), or a drop the planner recorded (a drop link under a metre, onto a shelf above
-                // the floor the body lands on: Mamayev Kurgan's spawn deck).
+                // it landed, or a drop the planner recorded (a drop link under a metre, onto a shelf above the
+                // floor the body lands on: Mamayev Kurgan's spawn deck). A walk-off that carried the body on is
+                // looked at from the edge it walked off too, where the one-tick drop landed it (either corner of
+                // the drop within a metre across): A271, 186 of the 196 falls it turned unplanned were drops the
+                // one-tick arm counted planned at the same spot.
                 let planned = bot.and_then(|bot| bot.route.as_ref()).is_some_and(|(route, _)| {
-                    route.points().windows(2).any(|w| {
-                        w[0].at.y - w[1].at.y >= 1.0
-                            && (w[1].at.distance_xz(body.feet) <= 1.0 || walked_off && w[0].at.distance_xz(from) <= 1.0)
-                    }) || route.drops_near(body.feet, 1.0)
+                    let drops_at = |at: Vec3, top: bool| {
+                        route.points().windows(2).any(|w| {
+                            w[0].at.y - w[1].at.y >= 1.0
+                                && (w[1].at.distance_xz(at) <= 1.0 || top && w[0].at.distance_xz(at) <= 1.0)
+                        }) || route.drops_near(at, 1.0)
+                    };
+                    drops_at(body.feet, false) || walked_off && drops_at(from, true)
                 });
                 Fall { from, planned, exact }
             });
