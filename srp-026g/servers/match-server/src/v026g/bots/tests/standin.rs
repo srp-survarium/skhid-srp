@@ -1146,6 +1146,7 @@ impl Game {
                         base: None,
                         fall: None,
                         air: [0.0; 2],
+                        carry: [0.0; 2],
                     });
                 }
             }
@@ -1341,7 +1342,33 @@ impl Game {
                                 && feet.distance_xz(at) < body.feet.distance_xz(at)
                         })
                     });
-                    if !blocked {
+                    // A walk off an edge (the move ends a step or more down, not a lift): with `SRP_BENCH_STAND_IN_WALKOFF` it falls from
+                    // where the walk took it, keeping the walk's speed across (`standin_jump::stand_in_walk_off`), instead of being put
+                    // on the floor below in one tick.
+                    let walk_off = !blocked
+                        && !lifted
+                        && standin_jump::stand_in_walk_off()
+                        && self.walls.is_some()
+                        && feet.y < body.feet.y - grid.body().step;
+                    if walk_off {
+                        standin_jump::walk_off_started();
+                        let carry = [(target.x - body.feet.x) / TICK_S, (target.z - body.feet.z) / TICK_S];
+                        body.flight = Some(Flight {
+                            at: tick,
+                            from: body.feet,
+                            dir: [0.0, 0.0],
+                            clip: &SHORT_CLIP,
+                            prepare: (0.0, 0.0),
+                            base: Some(body.feet.y),
+                            fall: Some(0.0),
+                            air: [0.0; 2],
+                            carry,
+                        });
+                        body.feet = Vec3::new(target.x, body.feet.y, target.z);
+                        if let Some(stood) = standing.get_mut(place) {
+                            stood.0 = body.feet;
+                        }
+                    } else if !blocked {
                         let way = if lifted { standin_climb::Way::Lift } else { standin_climb::Way::Walk };
                         self.climbs.note(way, tick, place, body.team, body.feet, feet);
                         body.node = Some(node);

@@ -144,6 +144,29 @@ pub(crate) fn force_fall(on: Option<bool>) {
     FALL_FORCED.with(|f| f.set(on));
 }
 
+/// Whether a stand-in body that walks off an edge falls from it keeping the walk's speed across (`SRP_BENCH_STAND_IN_WALKOFF`, off
+/// unless `on`): the client's capsule leaves the edge at its walk speed and comes down along a ballistic arc, so a walk off a 1.2 m ledge
+/// lands on a walkway 1.5 m ahead of it (J0 g2a at Chemical Plant's pedestrian bridge: 7 of 7 walk-offs on the walkway, PROVEN), where the
+/// stand-in puts the body on the floor straight below the edge in one tick ([`past_edge`], or a walk along a Drop link). Off: as before
+/// (the benches up to A265 are comparable only with it off).
+pub(crate) fn stand_in_walk_off() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").is_some_and(|v| v == "on" || v == "1"))
+}
+
+/// What [`stand_in_walk_off`] did: walk-offs that fell from the edge, those that came down, and the metres across they carried in all
+/// (tenths).
+static WALK_OFFS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
+
+pub(crate) fn walk_off_stats() -> Vec<u64> {
+    WALK_OFFS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
+/// A walk off an edge starts its fall ([`stand_in_walk_off`]).
+pub(crate) fn walk_off_started() {
+    WALK_OFFS[0].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// What [`past_edge`] did: walked on past the boundary, fell to the floor below, found no floor below.
 static EDGE_FALLS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
 
@@ -554,6 +577,9 @@ pub(crate) struct Flight {
     pub(crate) fall: Option<f32>,
     /// How far the air control has moved the body off the clip's way so far, m ([`stand_in_air_control`]).
     pub(crate) air: [f32; 2],
+    /// The speed across kept while it falls, m/s: a walk off an edge's ([`stand_in_walk_off`]); none for a jump (its fall after the
+    /// clip is straight down).
+    pub(crate) carry: [f32; 2],
 }
 
 impl Flight {
@@ -723,10 +749,25 @@ pub(crate) fn fly(
     if let Some(v) = f.fall {
         let v = v + GRAVITY * TICK_S;
         let y = body.feet.y - v * TICK_S;
-        match air_floor(grid, body.feet, body.feet.y + 0.05) {
-            Some((n, feet)) if feet.y >= y => return landed(body, &f, n, feet, Some(v)),
+        // A walk off an edge goes on across at its speed, held by the walls as a jump is ([`air_move`]).
+        let (x, z) = if f.carry == [0.0, 0.0] {
+            (body.feet.x, body.feet.z)
+        } else {
+            let to = (body.feet.x + f.carry[0] * TICK_S, body.feet.z + f.carry[1] * TICK_S);
+            air_move(walls, grid.body().radius, body.feet, to, y)
+        };
+        let at = Vec3::new(x, body.feet.y, z);
+        match air_floor(grid, at, body.feet.y + 0.05) {
+            Some((n, feet)) if feet.y >= y => {
+                if f.carry != [0.0, 0.0] {
+                    use std::sync::atomic::Ordering::Relaxed;
+                    WALK_OFFS[1].fetch_add(1, Relaxed);
+                    WALK_OFFS[2].fetch_add((feet.distance_xz(f.from) * 10.0) as u64, Relaxed);
+                }
+                return landed(body, &f, n, feet, Some(v));
+            }
             Some(_) => {
-                body.feet.y = y;
+                body.feet = Vec3::new(x, y, z);
                 f.fall = Some(v);
                 body.flight = Some(f);
                 return None;
@@ -886,6 +927,7 @@ pub(crate) fn honest_jump_in(
         base: None,
         fall: None,
         air: [0.0; 2],
+        carry: [0.0; 2],
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
@@ -1152,6 +1194,43 @@ pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
             }
         }
     }
+}
+
+/// [`stand_in_walk_off`]'s fall: a body that leaves a 2 m top's edge at a walk (3.5 m/s) keeps it across while it falls and comes down
+/// on a walkway 1.1 m lower that starts 1.4 m out (J0 g2a's bridge: the walk-off lands on it); with no speed kept it comes down at the
+/// foot of the face, on the ground.
+#[test]
+fn a_walk_off_falls_on_at_its_walk_speed() {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 2.0));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+        t
+    }));
+    triangles.extend(floor(6.0, 0.0, 8.6, 10.0, 0.9));
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let fall = |carry: [f32; 2]| {
+        let mut body = honest_body(&grid, Vec3::new(10.2, 2.0, 5.0));
+        body.feet = Vec3::new(9.9, 2.0, 5.0);
+        body.flight = Some(Flight {
+            at: 1_000,
+            from: body.feet,
+            dir: [0.0, 0.0],
+            clip: &SHORT_CLIP,
+            prepare: (0.0, 0.0),
+            base: Some(2.0),
+            fall: Some(0.0),
+            air: [0.0; 2],
+            carry,
+        });
+        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS)).map(|landing| landing.to)
+    };
+    let carried = fall([-3.5, 0.0]).expect("it comes down");
+    assert!((carried.y - 0.9).abs() < 0.05 && carried.x < 8.6, "kept its walk: on the walkway: {carried:?}");
+    let straight = fall([0.0, 0.0]).expect("it comes down");
+    assert!(straight.y.abs() < 0.05, "no speed kept: on the ground: {straight:?}");
 }
 
 /// [`past_edge`]: a body past the top's last floor at a ledge walks on while that floor is within [`body::SUPPORT_M`] of where it

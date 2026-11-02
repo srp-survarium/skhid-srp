@@ -111,6 +111,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         side_slides(),
         lip_gaps(),
         edge_falls(),
+        walk_offs(),
         air_steers(),
         request_gaps(),
         shots_heard(),
