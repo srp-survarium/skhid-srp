@@ -230,10 +230,16 @@ fn read<R: Read + Seek>(archive: &mut Archive<R>, path: &str) -> Result<Vec<u8>,
 /// srp's own configs, each made by a key/value table of
 /// `scripts/content-edit` (`content_edit.py` STATS) into the content patch:
 /// the test data's are the repository's.
-const SRP_TABLES: &[(&str, &str)] = &[(
-    super::lobby::rooms::RULES_PATH,
-    include_str!("../../../../scripts/content-edit/rooms.tsv"),
-)];
+const SRP_TABLES: &[(&str, &str)] = &[
+    (
+        super::lobby::rooms::RULES_PATH,
+        include_str!("../../../../scripts/content-edit/rooms.tsv"),
+    ),
+    (
+        super::new_account::PATH,
+        include_str!("../../../../scripts/content-edit/new-account.tsv"),
+    ),
+];
 
 /// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
 /// in a key, `/` goes into a named table and `[i]` to an item of an indexed
@@ -369,6 +375,7 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     }
     let data = shared();
     super::tables::check(data)?;
+    super::new_account::check_data(data)?;
     super::golden::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \

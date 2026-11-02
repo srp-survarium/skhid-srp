@@ -430,18 +430,12 @@ mod tests {
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
         ]);
         assert_eq!(bytes(&own_account(&account, NOW).unwrap()), expected);
-        // A new account's 2,000 silver and no gold.
-        assert_eq!(
-            bytes(&money(&account)),
-            [0x8B, 0xD0, 0x07, 0, 0, 0, 0, 0, 0]
-        );
+        // The stock account has no money.
+        assert_eq!(bytes(&money(&account)), [0x8B, 0, 0, 0, 0, 0, 0, 0, 0]);
         // And with gold: the second u32.
         let mut rich = account.clone();
         rich.premium_money = 1_000;
-        assert_eq!(
-            bytes(&money(&rich)),
-            [0x8B, 0xD0, 0x07, 0, 0, 0xE8, 0x03, 0, 0]
-        );
+        assert_eq!(bytes(&money(&rich)), [0x8B, 0, 0, 0, 0, 0xE8, 0x03, 0, 0]);
         assert_eq!(
             bytes(&level_and_skills(&account).unwrap()),
             [0x8C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xF4, 0x01, 0, 0, 0]

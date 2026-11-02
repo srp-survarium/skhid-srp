@@ -626,6 +626,15 @@ class OtherTables(unittest.TestCase):
                     checked += 1
         self.assertGreater(checked, 50)
 
+    def test_a_medicine_heals_by_the_second_and_its_card_shows_the_share(self):
+        medkit = config({'data': {'activity_time_sec': 3, 'activation_delay_sec': 2,
+                                  'influences': [{'body_part': p, 'amount': a} for p, a in
+                                                 (('left_hand', 1), ('right_leg', 1), ('head', 0.4), ('pain', 0.1333))]},
+                         'parameters': {'weight': 0.2}})
+        self.assertEqual([ce.cell_text(medkit, o) for _, o in
+                          ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['1', '1'])
+        self.assertEqual(ce.medicine_card(medkit), {18: '3.0', 19: '2.0', 15: '0.2', 135: '100', 137: '40'})
+
 
 if __name__ == '__main__':
     unittest.main()
