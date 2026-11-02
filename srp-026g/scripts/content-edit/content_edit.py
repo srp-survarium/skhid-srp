@@ -134,6 +134,7 @@ that grows gets a new array and the old one stays, unreferenced.
 Every edited file is read back with an independent walk: only the intended values, names and order
 may differ from the live file (the check prints each difference).
 """
+import decimal
 import fnmatch
 import json
 import hashlib
@@ -383,6 +384,11 @@ def matches(buf, entry, want):
         if c is None or not same(value_of(buf, c), v):
             return False
     return True
+
+
+def weight_text(v):
+    """A weight as the cards write it: one decimal, half up, of the value to 3 decimals (0.25 -> 0.3)."""
+    return str(decimal.Decimal(repr(round(v, 3))).quantize(decimal.Decimal('0.1'), decimal.ROUND_HALF_UP))
 
 
 def number_text(v):
@@ -708,29 +714,29 @@ def weapon_card(buf):
         # the stock cards count a bolt or pump gun's chambering in its rate of fire
         out[4] = number_text(rpm if chamber is None else math.floor(60 / (chamber + 60 / rpm) + 1e-3))
     if number('parameters/weight') is not None:
-        out[15] = '%.1f' % number('parameters/weight')
+        out[15] = weight_text(number('parameters/weight'))
     return out
 
 
 def ammo_card(buf):
     """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip,
-    15 a clip's weight (as the weapon card's weight)."""
+    15 a clip's weight."""
     def number(path):
         return value_of(buf, find(buf, path))
     return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
             22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size')),
-            15: '%.1f' % number('parameters/clip_weight')}
+            15: weight_text(number('parameters/clip_weight'))}
 
 
 def throwable_card(buf):
     """{prop_id: text} of a grenade's or a trap's card: 1 damage x100 (a grenade's on every body it
-    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight (as the weapon card's)."""
+    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight."""
     def number(path):
         try:
             return value_of(buf, find(buf, path))
         except KeyError:
             return None
-    out = {15: '%.1f' % number('parameters/weight')}
+    out = {15: weight_text(number('parameters/weight'))}
     if number('data/splash_max_damage') is not None:
         bodies = len(children(buf, find(buf, 'data/splash_affected_bodies')))
         out.update({1: number_text(number('data/splash_max_damage') * 100 * bodies),
