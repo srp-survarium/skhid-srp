@@ -2016,3 +2016,6 @@ va	status	ref_021d	name
 0x005ed740	reviewed	0x00445ea0	Scaleform::Render::DICommandQueue::`scalar deleting destructor'
 0x005edea0	reviewed	0x00446600	Scaleform::Render::DICommandQueue::ExecuteNextCapture
 0x005ee080	reviewed	0x004467e0	Scaleform::Render::DICommandQueue::OnNextCapture
+0x0030d750	reviewed	0x001b1cf4	survarium::computed_reload_animation_time_scale
+0x0030e1f0	reviewed	0x001f1795	survarium::weapon_core_reload_state::get_weapon_lexeme
+0x0030ee40	reviewed	0x001b1e1a	survarium::computed_shotgun_reload_animation_time_scale

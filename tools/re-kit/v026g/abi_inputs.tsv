@@ -5344,3 +5344,10 @@ va	name	location	role	basis
 0x005ed1e0	Scaleform::Render::DICommandQueue::~DICommandQueue	ECX	the command queue (this; its context at +34h)	observed
 0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	ECX	the command queue (this)	observed
 0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	entry ESP+4	the render notify of the capture	observed
+0x0030b2b0	survarium::weapon_core_cook::query_weapon_states	EBX	[EBX+0Ch]: the weapon's cooked config resource (root +108h, modifications already applied); fills the states' 30h block from its parameters: +0Ch rounds_per_minute/60, +10h reload_time, +14h reload_start_time and +18h reload_end_time (both default reload_time), +1Ch show_time, +20h hide_time, +24h chamber_a_round_time (default 0), +28h melee_time (default 0.2) (0x30B33E..0x30B52D)	observed
+0x0030e000	survarium::weapon_core_reload_state::weapon_core_reload_state	EAX	the weapon states' 30h block (0x30B2B0); its +10h (parameters/reload_time) goes to 0x30D750, the result to state +138h (0x30E052)	observed
+0x0030e1f0	survarium::weapon_core_reload_state::get_weapon_lexeme	EDI	the reload state: +138h its time scale, +120h -> +8 the player whose kit modifiers 0x2D5AE0 reads ([+115h] x 704h + [+6B8h] + 0F4h)	observed
+0x0030e1f0	survarium::weapon_core_reload_state::get_weapon_lexeme	entry ESP+4	the lexeme out-param, returned in EAX	observed
+0x0030ee40	survarium::computed_shotgun_reload_animation_time_scale	EDI	the clip handle, as 0x30D750	observed
+0x0030ee40	survarium::computed_shotgun_reload_animation_time_scale	entry ESP+4	int rounds: the magazine capacity (weapon +5E4h, 0x30EEEB)	observed
+0x0030ee40	survarium::computed_shotgun_reload_animation_time_scale	entry ESP+8	float time: parameters/reload_time (block +10h, 0x30EEE8)	observed
