@@ -1,4 +1,4 @@
-owner-test grid: falls off the route 1 (from a flagged floor 0, an unflagged one 1; by class {"unplanned_unflagged_drop": 1}), planned 0 (0 only within 2 m); lip guard on walk-off take-offs 0 ticks, other lips 0; drops of 4 m or more in a second: off the route 0 {}, the rest 0; route jump presses by rise: step 1, standing 7, capped band 0, sprint 6, over a gap 0; links: jump 0 standing 0 capped 0 sprint, 0 walk rises of 0.6 m to the step, 0 gap jumps, 0 walk-offs (0 take-offs are lips); zone lines: 0 entries 0 exits, 0 ticks; zone floors: 0 bot-ticks (0 standing still, 0 stands of 2 s or more {}); carriers: 3543 ticks, 0 on lip floors, lip guard safe / swapped / braked [0, 0, 0]; sprint: 0 of 0 lip-floor ticks, 0 on drop take-offs, 1 falls off the route sprinting
+owner-test grid: falls off the route 1 (from a flagged floor 0, an unflagged one 1; by class {"unplanned_unflagged_drop": 1}), planned 0 (0 only within 2 m); lip guard on walk-off take-offs 0 ticks, other lips 0; drops of 4 m or more in a second: off the route 0 {}, the rest 0; route jump presses by rise: step 1, standing 7, capped band 0, sprint 6, over a gap 0; links: jump 0 standing 0 capped 0 sprint, 0 walk rises of 0.6 m to the step, 0 gap jumps, 0 walk-offs (0 take-offs are lips); zone lines: 0 entries 0 exits, 0 ticks; zone floors: 0 bot-ticks (0 standing still, 0 stands of 2 s or more {}); carriers: 3543 ticks, 0 on lip floors, lip guard safe / swapped / braked [0, 0, 0]; sprint: 0 of 0 lip-floor ticks, 0 on drop take-offs, 1 falls off the route sprinting; dry islands: 0 bot-ticks (0 standing still, 0 stands of 10 s or more), 0 walked off alive, 0 plans off one, 0 ways out past one
 {
   "grid_carry_guard_ticks": [
     0,
@@ -20,6 +20,12 @@ owner-test grid: falls off the route 1 (from a flagged floor 0, an unflagged one
   "grid_falls_unplanned_unflagged": 1,
   "grid_guard_other_lip_ticks": 0,
   "grid_guard_walk_off_ticks": 0,
+  "grid_island_bot_ticks": 0,
+  "grid_island_left": 0,
+  "grid_island_outs_skipped": 0,
+  "grid_island_plans": 0,
+  "grid_island_stands_10s": 0,
+  "grid_island_still_ticks": 0,
   "grid_links_gap_drop_pressed": 0,
   "grid_links_gap_jump": 0,
   "grid_links_jump_capped": 0,
