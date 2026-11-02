@@ -197,24 +197,26 @@ impl RouteTally {
             let exact = std::mem::replace(&mut run.exact_was[place], exact_now) || exact_now;
             // A walk-off's fall is told where it lands, from the edge; any other in the tick it drops a metre or more.
             let walk_off = body.flight.as_ref().filter(|f| body.alive && f.carry != [0.0; 2]).map(|f| f.from);
-            let from = match (walk_off, run.walk_off_from[place]) {
+            let (from, walked_off) = match (walk_off, run.walk_off_from[place]) {
                 (Some(edge), _) => {
                     run.walk_off_from[place] = Some(edge);
-                    None
+                    (None, false)
                 }
                 (None, Some(edge)) => {
                     run.walk_off_from[place] = None;
-                    body.alive.then_some(edge)
+                    (body.alive.then_some(edge), true)
                 }
-                (None, None) => before,
+                (None, None) => (before, false),
             };
             let fall = from.filter(|from| body.alive && from.y - body.feet.y >= 1.0).map(|from| {
                 // Its route drops there: a corner over a metre under the one before, within a metre of where
-                // it landed, or a drop the planner recorded (a drop link under a metre, onto a shelf above the
-                // floor the body lands on: Mamayev Kurgan's spawn deck).
+                // it landed (or, for a walk-off that carried it on, the corner before within a metre of the edge
+                // it walked off), or a drop the planner recorded (a drop link under a metre, onto a shelf above
+                // the floor the body lands on: Mamayev Kurgan's spawn deck).
                 let planned = bot.and_then(|bot| bot.route.as_ref()).is_some_and(|(route, _)| {
                     route.points().windows(2).any(|w| {
-                        w[0].at.y - w[1].at.y >= 1.0 && w[1].at.distance_xz(body.feet) <= 1.0
+                        w[0].at.y - w[1].at.y >= 1.0
+                            && (w[1].at.distance_xz(body.feet) <= 1.0 || walked_off && w[0].at.distance_xz(from) <= 1.0)
                     }) || route.drops_near(body.feet, 1.0)
                 });
                 Fall { from, planned, exact }
