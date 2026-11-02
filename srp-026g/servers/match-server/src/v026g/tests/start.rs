@@ -105,7 +105,7 @@ fn the_live_room_5209_starts_with_the_two_players_who_stayed() {
 }
 
 /// A place whose game never connects is not waited for past
-/// `START_WAIT_MS` after the first entry: it stands in, and the match
+/// `RoomRules::match_start_wait_ms` after the first entry: it stands in, and the match
 /// starts with who is in. The result counts the stand-in nowhere.
 #[test]
 fn a_place_whose_game_never_comes_stands_in_after_the_start_wait() {
@@ -222,7 +222,7 @@ fn a_match_of_no_room_waits_for_its_players_as_before() {
 }
 
 /// The tick of the place's stand-in entry: its first entry 30 s or more
-/// after the first (`START_WAIT_MS`; a stand-in's, in these tests).
+/// after the first (`RoomRules::match_start_wait_ms`; a stand-in's, in these tests).
 fn stand_in_entry(bench: &Bench, place: usize) -> Option<u32> {
     let first = bench.game().events().iter().map(|(at, _, _)| *at).min()?;
     bench
