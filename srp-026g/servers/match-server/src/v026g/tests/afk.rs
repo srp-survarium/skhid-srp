@@ -166,3 +166,16 @@ fn a_bot_is_never_removed() {
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
     assert!(bench.registry.seat(session_of(2)).is_some());
 }
+
+#[test]
+fn a_match_against_bots_removes_nobody() {
+    // The owner's of 2026-11-02: "it should also be fine to afk w/bots".
+    let mut bench = Bench::vs_bots(3, MAP_BATTERIES, Settings::default(), &[1, 2]);
+    alive(&mut bench, [true; 3]);
+    bench.join(0);
+    until_play(&mut bench);
+    play(&mut bench, 400_000, &[]);
+    assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.registry.seat(session_of(0)).is_some());
+    assert!(bench.results.try_recv().is_err());
+}

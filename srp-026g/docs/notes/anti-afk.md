@@ -10,7 +10,10 @@ The owner, 2026-11-01: the simplest version first.
 - No warning, no message, no client change.
 - Removed as a player who leaves by its own word: its place is given up, its game is told it left
   (the match closes on it), the others see it leave. No other punishment, no ban.
-- **Private rooms (a PIN): never.** Public rooms, Play and bot matches: yes.
+- **Private rooms (a PIN): never.** Public rooms and Play: yes.
+- **Matches against bots ("Player vs Bots"): never.** The owner, 2026-11-02: "it should also be
+  fine to afk w/bots".
+- Both decided once, when the match is made.
 - Bots are never removed.
 
 ## Pauses (picks, to keep slow players in)
@@ -22,6 +25,8 @@ The owner, 2026-11-01: the simplest version first.
   paused.
 - Alive or dead is read from the newest trusted world; with none in the last 10 s, paused.
 - A game that connects again (a crash, a new start) starts from nothing.
+- "With bots" read as Player vs Bots, the only matches the lobby puts the server's bots in;
+  every PvP match stays watched.
 
 ## The setting
 

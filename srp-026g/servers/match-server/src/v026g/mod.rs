@@ -102,8 +102,8 @@
 //!   only through that player's uploads;
 //! - `SRP_ANTI_AFK` (default 180, at least 60; `off`): a player who gives
 //!   no input for that many seconds of play is removed from the match, as
-//!   one who leaves; never in a private room's match ([`afk`],
-//!   `docs/notes/anti-afk.md`).
+//!   one who leaves; never in a private room's match nor one against
+//!   bots ([`afk`], `docs/notes/anti-afk.md`).
 
 /// Anti-AFK: a player without input for three minutes of play is removed.
 mod afk;
