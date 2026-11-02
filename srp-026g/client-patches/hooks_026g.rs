@@ -1610,41 +1610,16 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
 
 // ---- scarcity (patch 94) ----
 
-/// The named exits of scarcity::on_can_use (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum ScarcityOnCanUseExit { Refused }
-/// The entry `scarcity_on_can_use` (0x2f8080, resupply_zone_core::can_use start (mov eax,[esp+4] / mov eax,[eax]; ECX the zone, [esp+4] the interaction record); refused: xor eax,eax / ret 4, the answer for another team's zone (zone+54h not the player's team +45ECh, not 2)) calls this with the saved machine.
+/// The entry `scarcity_on_project_cook` (0x22c010, project_cooker_simple::create_game_objects entry (push ebp / mov ebp,esp / and esp,-10h; [esp+4] the cook, [esp+8] the project's loaded client_project binary config, before the cook reads it; its only call 0x22BF68)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_scarcity_on_can_use(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `scarcity_on_can_use` calls this, from the game's jump at 0x2f8080,
+pub extern "C" fn hook_scarcity_on_project_cook(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_project_cook` calls this, from the game's jump at 0x22c010,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::scarcity::on_can_use(&mut ctx) {
+    match crate::scarcity::on_project_cook(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- scarcity (patch 94) ----
-
-/// The named exits of scarcity::on_use_hint (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum ScarcityOnUseHintExit { NoHint }
-/// The entry `scarcity_on_use_hint` (0x2f80c0, resupply_zone_core::use_hint start (mov eax,[esp+4] / mov eax,[eax]); no_hint: mov eax,0x9DB708 (the empty key) / ret 4, the answer for another team's zone) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_scarcity_on_use_hint(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `scarcity_on_use_hint` calls this, from the game's jump at 0x2f80c0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::scarcity::on_use_hint(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
+        Flow::Exit(e) => match e {},
     }
 }
 

@@ -392,12 +392,13 @@ Patches:
   forced interface and Tab; on_keyboard_action after its Tab test (0x25CD2C)
   lets a key go on while Tab is held; the input builder's end (0x2421B0)
   takes the moves and acts out of the mask while Tab is held;
-- Scarcity, a battery match whose ammo crates refill no one (patch 94,
+- Scarcity, a battery match with no ammo crates (patch 94,
   docs/notes/scarcity.md; client_patch.md section 3.62): the Rust patch
   scarcity (rust/patches/src/scarcity.rs, scarcity.toml): srp's block's tag
-  2 read after each match_options::deserialize (patch 65's chains); at the
-  starts of resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0)
-  every crate answers as another team's in a Scarcity match;
+  2 read after each match_options::deserialize (patch 65's chains); at
+  project_cooker_simple::create_game_objects' entry (0x22C010) a Scarcity
+  match's project loses its crates (each resupply_zone and its folder's
+  client objects, every item/quest/container_closed visual and collision);
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's

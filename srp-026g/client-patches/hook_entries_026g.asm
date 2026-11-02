@@ -2952,10 +2952,10 @@ scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
 
-; 0x2f8080 resupply_zone_core::can_use start (mov eax,[esp+4] / mov eax,[eax]; ECX the zone, [esp+4] the interaction record); refused: xor eax,eax / ret 4, the answer for another team's zone (zone+54h not the player's team +45ECh, not 2): lohook -> scarcity_on_can_use
-global scarcity_on_can_use
-extern hook_scarcity_on_can_use
-scarcity_on_can_use:
+; 0x22c010 project_cooker_simple::create_game_objects entry (push ebp / mov ebp,esp / and esp,-10h; [esp+4] the cook, [esp+8] the project's loaded client_project binary config, before the cook reads it; its only call 0x22BF68): lohook -> scarcity_on_project_cook
+global scarcity_on_project_cook
+extern hook_scarcity_on_project_cook
+scarcity_on_project_cook:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2972,69 +2972,24 @@ scarcity_on_can_use:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_scarcity_on_can_use
-    mov edx, scarcity_on_can_use_replay
+    call hook_scarcity_on_project_cook
+    mov edx, scarcity_on_project_cook_replay
     cmp eax, 0
-    je scarcity_on_can_use_go
-    mov edx, 0x2f8086
+    je scarcity_on_project_cook_go
+    mov edx, 0x22c016
     cmp eax, 1
-    je scarcity_on_can_use_go
-    mov edx, 0x2f80bb
-    cmp eax, 2
-    je scarcity_on_can_use_go
+    je scarcity_on_project_cook_go
     ud2
-scarcity_on_can_use_go:
+scarcity_on_project_cook_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-scarcity_on_can_use_replay:
-    db 0x8b, 0x44, 0x24, 0x04, 0x8b, 0x00
-    jmp 0x2f8086
-
-; 0x2f80c0 resupply_zone_core::use_hint start (mov eax,[esp+4] / mov eax,[eax]); no_hint: mov eax,0x9DB708 (the empty key) / ret 4, the answer for another team's zone: lohook -> scarcity_on_use_hint
-global scarcity_on_use_hint
-extern hook_scarcity_on_use_hint
-scarcity_on_use_hint:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_scarcity_on_use_hint
-    mov edx, scarcity_on_use_hint_replay
-    cmp eax, 0
-    je scarcity_on_use_hint_go
-    mov edx, 0x2f80c6
-    cmp eax, 1
-    je scarcity_on_use_hint_go
-    mov edx, 0x2f80dc
-    cmp eax, 2
-    je scarcity_on_use_hint_go
-    ud2
-scarcity_on_use_hint_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-scarcity_on_use_hint_replay:
-    db 0x8b, 0x44, 0x24, 0x04, 0x8b, 0x00
-    jmp 0x2f80c6
+scarcity_on_project_cook_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x22c016
 
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot

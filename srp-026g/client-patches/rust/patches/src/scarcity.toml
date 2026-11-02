@@ -2,8 +2,8 @@
 # site, and the handler. The sites (their VAs, kinds and spans) are
 # sites_026g.tsv's; the logic is scarcity.rs. The options reads are patch
 # 65's, 86's, 83's and 88's sites too: this patch's hooks come last there
-# (order 4). The two resupply_zone_core starts are this patch's own; patch
-# 85's pickup.can_use and pickup.use_hint lie further in the same functions.
+# (order 4). The project's cook (create_game_objects' entry) is this
+# patch's own.
 name = "scarcity"
 patch = 94
 
@@ -18,9 +18,5 @@ handler = "on_replay_options"
 order = 4
 
 [[hook]]
-site = "resupply_zone.can_use"
-handler = "on_can_use"
-
-[[hook]]
-site = "resupply_zone.use_hint"
-handler = "on_use_hint"
+site = "project.cook"
+handler = "on_project_cook"

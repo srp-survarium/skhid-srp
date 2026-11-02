@@ -184,6 +184,7 @@ survarium::object_light_methods	size	40	size	ten methods, insert/remove at indic
 survarium::image	visual_methods	0xA029B4	obj<survarium::render_visual_methods>	render_visual native vtable including RTTI at -4
 survarium::image	light_methods	0xA0ADEC	obj<survarium::object_light_methods>	object_light native vtable including RTTI at -4
 survarium::project_insert_frame	physics	4	ptr<vostok::physics::bullet_physics_world>	insert entry ESP+4: the physics world, not scene camera director
+survarium::project_cook_frame	config	8	ptr<vostok::binary_config>	create_game_objects entry ESP+8: the project's client_project binary config (the caller 0x22BF47..0x22BF67 pushes it by value, its count +0D0h raised)
 survarium::history_save_frame	writer	8	ptr<vostok::buffer_writer>	serialize epilogue EBP+8: writer argument
 survarium::bullet_manager	physics	0x98	ptr<vostok::physics::bullet_physics_world>	physics world used for ray tests and lamp history
 vostok::animation::skeleton_bone	computed_layers	0x18	u8	computed matrix selection: render bit 1, damage bit 2; 0x3B2AF0 and 0x3B2C90

@@ -3995,33 +3995,28 @@ def test_blackout(original, image, before):
 
 def test_scarcity(original, image, before):
     """Check 94: Scarcity (patch 94, the Rust patch `scarcity`, lohooks of
-    scarcity.toml: the options reads, patch 65's sites too, and the starts of
-    resupply_zone_core::can_use and use_hint, its own; ../docs/notes/
+    scarcity.toml: the options reads, patch 65's sites too, and
+    project_cooker_simple::create_game_objects' entry, its own; ../docs/notes/
     scarcity.md). check_scarcity_026g.py runs each from the game's code on
     made-up objects, the original beside."""
     stock = Image(original)
     rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
-    check(rows(0x2F8080, 0x1A) == ["mov eax,[esp+0x4]", "mov eax,[eax]", "mov edx,[eax+0x6b8]", "mov ecx,[ecx+0x54]",
-                                   "cmp [edx+0x45ec],ecx", "jz 0x2f809c", "cmp ecx,byte +0x2"]
-          and rows(0x2F80BB, 5) == ["xor eax,eax", "ret 0x4"]
-          and rows(0x2F80C0, 0x24) == ["mov eax,[esp+0x4]", "mov eax,[eax]", "mov edx,[eax+0x6b8]",
-                                       "mov ecx,[ecx+0x54]", "cmp [edx+0x45ec],ecx", "jz 0x2f80e4",
-                                       "cmp ecx,byte +0x2", "jz 0x2f80e4", "mov eax,0x9db708", "ret 0x4"]
-          and original[stock.offset(0x9DB708)] == 0,
-          "resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0) start with the record's player, then "
-          "compare the zone's team (+54h) with the profile's (+45ECh) or 2; another team's zone: xor eax,eax / "
-          "ret 4 (0x2F80BB) and the empty key 0x9DB708 / ret 4 (0x2F80DC)")
+    check(rows(0x22C010, 0xF) == ["push ebp", "mov ebp,esp", "and esp,byte -0x10", "sub esp,0x4a4",
+                                   "mov eax,[ebp+0x10]"]
+          and stock.read(0x22BF68, 5) == b"\xe8" + struct.pack("<i", 0x22C010 - 0x22BF6D)
+          and stock.read(0x22C11B, 9) == bytes.fromhex("8b450c8b8008010000"),
+          "create_game_objects (0x22C010) starts push ebp / mov ebp,esp / and esp,-10h, called at 0x22BF68; it "
+          "reads its config's root ([ebp+0Ch]+108h) at 0x22C11B")
     import hooks_026g
     # a chain's members (the options reads, shared with patches 65, 83, 86 and 88) and the hooks alone
     hooks = [m for h in hooks_026g.hooks() for m in h.get("chain", [h]) if m["patch"] == "scarcity"]
     linked = P.arena()
     block = linked.blocks["patches.code"]
     sites = {h["site_name"]: h for h in hooks}
-    check(sorted(sites) == ["replay.options_read", "resupply_zone.can_use", "resupply_zone.use_hint",
-                            "static_info.options_read"]
+    check(sorted(sites) == ["project.cook", "replay.options_read", "static_info.options_read"]
           and all(h["kind"] == "lohook" for h in hooks),
-          "scarcity.toml's four hooks are lohooks at static_info.options_read, replay.options_read, "
-          "resupply_zone.can_use and resupply_zone.use_hint")
+          "scarcity.toml's three hooks are lohooks at static_info.options_read, replay.options_read and "
+          "project.cook")
     for h in hooks:
         if h["site_name"].endswith("options_read"):
             continue  # a chain of patch 65's sites: test_blackout checks its span

@@ -4928,6 +4928,39 @@ impl ProjectInsertFrame {
     }
 }
 
+/// A survarium::project_cook_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectCookFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProjectCookFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::binary_config>): create_game_objects entry ESP+8: the project's client_project binary config (the caller 0x22BF47..0x22BF67 pushes it by value, its count +0D0h raised)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<BinaryConfig> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BinaryConfig>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::binary_config>): create_game_objects entry ESP+8: the project's client_project binary config (the caller 0x22BF47..0x22BF67 pushes it by value, its count +0D0h raised)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<BinaryConfig>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BinaryConfig>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::history_save_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -12691,6 +12724,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// project.cook (0x22c010): project_cooker_simple::create_game_objects entry (push ebp / mov ebp,esp / and esp,-10h; [esp+4] the cook, [esp+8] the project's loaded client_project binary config, before the cook reads it; its only call 0x22BF68)
+    pub mod project_cook {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::project_cook_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ProjectCookFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProjectCookFrame)
         }
     }
 

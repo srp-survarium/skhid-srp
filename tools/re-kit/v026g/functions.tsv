@@ -2095,3 +2095,4 @@ va	status	ref_021d	name
 0x002f4eb0	reviewed	0x001ddc36	survarium::shared_statistics::on_player_killed
 0x002f5450	reviewed	0x001dde52	survarium::shared_statistics::on_player_damaged
 0x002d7800	reviewed	0x001d3980	survarium::base_player::on_fire
+0x0022c010	verified	0x00179cf0	survarium::project_cooker_simple::create_game_objects

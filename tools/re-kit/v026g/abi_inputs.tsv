@@ -5374,3 +5374,7 @@ va	name	location	role	basis
 0x002d7800	survarium::base_player::on_fire	ECX, entry ESP+4	the player + 110h (vtable 0xA10B1C; called by instant_fire through [weapon+594h] slot +4 at 0x2E258D), the pellet count; held weapon [ECX+18h], inventory [ECX-4] selected slot +170h	observed
 0x002d9f40	survarium::base_player::generate_hit_event	EBP at 0x2DA10C	the bullet or 0 (its +0Ch the weapon core + 10h, +58h player_stance at the shot, +5Ch m_born_time_in_ms); ESI the victim, EBX the victim place, [ESP+24h] the attacker, [ESP+34h] the melee byte, [ESP+38h] the flag 0x2F5450 needs	observed
 0x002e23a0	survarium::weapon_core::instant_fire	EBX at 0x2E2578	the weapon core (+538h its ammo config, +2ACh the pellet count; +594h its user + 110h; +10h its inventory item: +254h slot, +25Ch the dictionary entry, dict_id at +0, item_category at +228h, is_stack at +22Ah)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+4	the project cook (its one caller 0x22BF68 pushes EDI)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+8	the client_project binary config (by value, counted +0D0h; root record at +108h, first read 0x22C11B)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+0Ch	the parent query (its +108h user data, 0x22C01C)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+10h	the requested project path (formatted into resources/projects/%s, 0x22C067)	observed
