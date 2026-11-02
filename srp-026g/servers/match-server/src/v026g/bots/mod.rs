@@ -1585,15 +1585,36 @@ impl Bots {
                 .body(place)
                 .and_then(|body| body.estimate())
                 .map(|at| at.yaw);
+            // [unstick] With `escape_floor`, also a floor under the way the keys go for as long as they are held (0.5-1.3 s at a
+            // walk, the sidestep's jump: `stuck::ESCAPE_REACH`), not over an edge or into a wall (A271).
+            let floor = self.tunings.of(bot.team).unstick.escape_floor;
             let escape = match (self.tactics.as_ref(), yaw) {
                 (Some(tactics), Some(yaw)) => escapes
                     .into_iter()
                     .find(|&keys| {
-                        tactics.zone_free_step(feet, feet + unstick_step(keys, yaw), time)
+                        let way = unstick_step(keys, yaw);
+                        tactics.zone_free_step(feet, feet + way, time) && {
+                            let floored = !floor || tactics.floor_free_step(feet, feet + way * stuck::ESCAPE_REACH);
+                            #[cfg(test)]
+                            if !floored {
+                                stuck::escape_floors::count(1);
+                            }
+                            floored
+                        }
                     })
-                    .unwrap_or(0),
+                    .unwrap_or_else(|| {
+                        #[cfg(test)]
+                        if floor {
+                            stuck::escape_floors::count(2);
+                        }
+                        0
+                    }),
                 _ => escapes[0],
             };
+            #[cfg(test)]
+            if floor {
+                stuck::escape_floors::count(0);
+            }
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
             // [pockets] No jump the game would refuse (a broken leg, a hit's
             // stagger): the keys alone.

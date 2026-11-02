@@ -85,6 +85,12 @@ pub struct UnstickTuning {
     /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
     /// meant 1.2 m) judges a window by (A240b).
     pub window: StuckWindow,
+    /// The stuck recovery's back-off and sidestep keys (`Bots::fixed`'s escapes) are taken only where the way they go has a
+    /// floor under it all along ([`Tactics::floor_free_step`](super::super::tactics::Tactics::floor_free_step)): no edge
+    /// over a lip's drop, no wall above a step; with none left the recovery takes no walk key (the sidestep's jump in place).
+    /// A271, PROVEN by the A265 walk: on Station 705's 0.10 m rail top the sidestep's back-diagonal jump carried a bot 3.3 m
+    /// off the rail to the ground, its escape checked against the zones only. Off: the zones alone, as before.
+    pub escape_floor: bool,
 }
 
 /// What the reckoned stuck watch judges a window by ([`UnstickTuning::window`]).
@@ -142,6 +148,7 @@ impl Default for UnstickTuning {
             drop_shut: Some(DropShut::default()),
             drop_shut_from_top: true,
             window: StuckWindow::SinceAsked,
+            escape_floor: false,
         }
     }
 }
