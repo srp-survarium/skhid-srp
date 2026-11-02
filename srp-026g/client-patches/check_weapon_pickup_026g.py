@@ -420,6 +420,7 @@ def main():
     death_drop(patched)
     linger(patched)
     one_tick(patched)
+    one_current_copy(patched)
 
 
 # ---- stage 2a: the record, the pickup, the restore, the crate --------------------------------------
@@ -3170,6 +3171,53 @@ def one_tick(patched):
             assert g.slot(g.inventory, 10) == g.own_gun + 0x10 and g.save(c.p) == record(("open", 1, (4, 0, 1)))
     print("ok one tick, a death and a pickup of its gun: the death first, taken; the pickup first, refused (the "
           "drop open after it)")
+
+
+def one_current_copy(patched):
+    """B holsters A's gun (taken from A's drop) when A, respawned, dies again holding its slot-7 gun (its new
+    drop), then B dies (the pickup cancelled, the gun given back): the gun goes back as the ended drop's, not
+    as A's drop, so C's pickup of A's drop takes the slot-7 copy the record names; a rollback across both
+    (to before B's pickup: A's first drop open) gives the first copy back, and the pickup replayed takes it."""
+    r = Death(patched)
+    r.setup()
+    first = r.new_gun
+    c = r.add_picker(4, GUN_ID + 2)
+    r.remove(PLAYER, DIED + 8_000)
+    before_a, before_b = r.save(PLAYER), r.save(r.picker)
+    r.pick(now=DIED + 9_000, switch=False)
+    second = DIED + 9_100
+    r.player(slot=7, spawned=DIED + 8_000)
+    r.word(PLAYER + 0x324, second)
+    r.queries = []
+    r.death()
+    (q,) = r.queries
+    inv, gun, ammo = r.cooked_gun()
+    for item, slot in ((gun + 0x10, 7), (ammo, 11)):
+        r.word(inv + 0x10C + 4 * slot, item)
+        r.word(item + 0x254, slot)
+    r.word(inv + 0x10C + 4 * 10, 0)
+    r.complete(q, inv)
+    r.die(r.picker, second + 50)
+    assert r.save(PLAYER) == record(("open", 0, (PLACE, KIT, 0))), "the second death's drop stays open"
+    r.queries = []
+    r.pick(target=PLACE, picker=c.p, now=second + 100, switch=False)
+    assert r.queries == [] and r.read(r.registry + 4 * reserved(4, "pending")) == gun, \
+        ("the record's slot-7 copy, not the first death's", hex(r.read(r.registry + 4 * reserved(4, "pending"))), r.log)
+    print("ok a pickup cancelled after its donor died again gives its gun back as the ended drop's: the next "
+          "pickup of the donor's drop takes the copy its record names")
+
+    # A rollback across B's pickup and A's second death: A's first drop, its first copy.
+    r.load(c.p, record())
+    r.reader(GUN_ID + 2, player=c.p)
+    r.load(r.picker, before_b)
+    r.load(PLAYER, before_a)
+    r.emu.mem_write(r.picker + 0x33C, bytes([1]))
+    r.word(r.picker + 0x128, r.own_gun)
+    r.word(r.picker + 0x12C, r.own_gun)
+    r.queries = []
+    r.pick(now=DIED + 9_000, switch=False)
+    assert r.queries == [] and r.read(r.registry + 4 * PENDING_ID) == first, r.log
+    print("ok a rollback across the pickup and the second death: the first drop and its copy again, no cook")
 
 
 def sights(run):
