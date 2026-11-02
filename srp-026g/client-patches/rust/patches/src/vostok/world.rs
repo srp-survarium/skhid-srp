@@ -81,6 +81,13 @@ impl<'t> NetworkClient<'t> {
         unsafe { raw::engine_match_options(Some(self.this)).map_or(0, |options| u32::from(read(options.places()))) }
     }
 
+    /// The local player, if the match has one.
+    pub fn local_player(&self) -> Option<Player<'t>> {
+        // SAFETY: the client's local player, alive for the hook.
+        let this = unsafe { self.this.local_player() }?;
+        Some(Player { this, thread: self.thread })
+    }
+
     /// The local player's place, if it has a player.
     pub fn local_place(&self) -> Option<u8> {
         // SAFETY: the client's local player, alive for the hook.

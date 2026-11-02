@@ -396,6 +396,7 @@ def main():
     the_end_refunds_nothing_set_aside(patched)
     no_cook_in_a_tick(patched)
     donor_left_then_a_late_join(patched)
+    a_departed_donors_gun_is_cooked(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1331,6 +1332,58 @@ def donor_left_then_a_late_join(patched):
     print("ok the donor leaves while B holds its gun, then a late join: the joiner installs the held gun from the "
           "static info's profile and saves the same; a pickup waiting for its switch at the join gives both games "
           "an unworn gun at the swap (1.0, the donor's 0.7 and the static 1.0 alike)")
+
+
+def a_departed_donors_gun_is_cooked(patched):
+    """A record names the gun of a place whose player left (its bit of core+18FD8h clear: the lookup by place,
+    core_active_player 0x2D0AB0, refuses it in every game). The place keeps its players and its profile (a
+    returning player gets them again: the static info is fixed per match), so a game that has no copy cooks the
+    recipe from the place's kit player in the core's place table (core+18458h, 30h a place): a late joiner's world
+    load (before the load) and a resync's record (at its reader) both install it."""
+    pick = (DIED + 900, 6, KIT, 1)
+    loaded = record(slot10=pick)
+
+    def departed(g):
+        """Place 6 departed: not in the world (the lookup gives none), its kit players in the place table."""
+        places = g.blk(0x30 * 8)
+        g.word(CORE + 0x18458, places)
+        g.word(CORE + 0x1845C, places + 0x30 * 8)
+        g.word(places + 0x30 * 6 + 4 * KIT, PLAYER)
+        g.roster.pop(6, None)
+        g.word(CLIENT + 4, g.picker)            # the local player, whose world the table is read in
+
+    # A late joiner's first world.
+    j = Pick(patched)
+    j.setup()
+    departed(j)
+
+    def active_player(emu, address, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        out, place = j.read(sp + 4), j.read(sp + 8)
+        player = j.roster.get(place, 0)
+        j.word(out, player)
+        if player:
+            j.word(player + 0xD0, j.read(player + 0xD0) + 1)
+        j.ret(8, out)
+    j.emu.hook_add(UC_HOOK_CODE, active_player, begin=GET_ACTIVE_PLAYER, end=GET_ACTIVE_PLAYER)
+    cooked, gun, _ = j.cooked_gun()
+    j.on_dispatch, j.queries = cooked, []
+    load_world(j, world_with({3: b"\0\0" + loaded}))
+    assert len(j.queries) == 1, ("the departed place's gun cooked before the load", j.log)
+    j.load(j.picker, loaded)
+    assert j.slot(j.inventory, 10) == gun + 0x10 and not any("NOT installed" in l for l in j.log), j.log
+    assert j.save(j.picker) == loaded
+    # A resync's record read with no world load before it (its reader cooks it, no player made this frame).
+    r = Pick(patched)
+    r.setup()
+    departed(r)
+    cooked, gun, _ = r.cooked_gun()
+    r.on_dispatch, r.queries = cooked, []
+    r.load(r.picker, loaded)
+    assert len(r.queries) == 1 and r.slot(r.inventory, 10) == gun + 0x10, r.log
+    print("ok a departed donor's gun (its place out of the world, the lookup by place refusing it): cooked from the "
+          "place's kit player in the core's place table, by a late joiner before its load and by a resync's reader; "
+          "installed, the state saved the record's")
 
 
 def crate_per_gun(patched):

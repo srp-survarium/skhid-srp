@@ -480,6 +480,13 @@ survarium::player	pending_item	0x12C	ptr<survarium::item>	the active object to s
 survarium::player	animation	0x750	u32	its animation player (forget_active_object's EAX, the switch 0x2D76E5)
 survarium::core_world	objects	0x18B4C	ptr<survarium::inventory_slot>	the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
 survarium::core_world	objects_end	0x18B50	ptr<survarium::inventory_slot>	the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
+survarium::core_world	places	0x18458	ptr<survarium::core_place>	the match's places (a vector's begin, 30h a place: core_active_player 0x2D0AED; the late join's install appends one, late_join_install_026g.c)
+survarium::core_world	places_end	0x1845C	ptr<survarium::core_place>	the places' end (core_active_player 0x2D0AB0 bounds the place by it)
+survarium::core_world	active_places	0x18FD8	u32	the places in the world, a bit each (core_active_player 0x2D0AD4 refuses a place without it: a departed one)
+survarium::core_place	kit0	0x0	ptr<survarium::player>	the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
+survarium::core_place	kit1	0x4	ptr<survarium::player>	the place's kit 1 player
+survarium::core_place	kit2	0x8	ptr<survarium::player>	the place's kit 2 player
+survarium::core_place	size	0x30	size	a place's entry: 30h bytes (core_active_player 0x2D0AE7)
 survarium::item	active_object	-0x10	obj<survarium::item>	a weapon's inventory item's active object (a weapon slot holds active+10h): only for an item known to be a weapon's
 survarium::weapon	core	0x4	ptr<survarium::core_world>	the bound world core (bind_to_game_core 0x2E3117); a cooked gun has none
 survarium::weapon	registry_id	0xC	u8	its index in core+18B4Ch (bind_to_game_core 0x2E311F; the held/pending ids serialized 0x2DB626)

@@ -180,9 +180,17 @@
   options); a returning player gets the same place and the same profile
   (the static info is fixed per match, extended only for new places); a
   late joiner has every place's players from the static info, a departed
-  one's too (query_players makes each place below the count). So a place
-  reused with another profile cannot happen, and no Unicorn case builds
-  one. Only the profile's changing part differs: the world carries it for
+  one's too (query_players makes each place below the count; the match
+  server's `Formed`, its static info and profiles, is fixed per match). So
+  a place reused with another profile cannot happen, and no Unicorn case
+  builds one. But the lookup by place (core_active_player 0x2D0AB0, under
+  get_active_player and patch 78's peer) refuses a place whose bit of
+  core+18FD8h is clear, a departed one, in every game: a late joiner's or a
+  resync's cook of a departed donor's recipe found no player and the pick
+  was not installed there. The cook now takes the recipe's place's player
+  of its kit from the core's place table (core+18458h, 30h a place, the kit
+  players at +0/+4/+8; `Player::kit_player`), which keeps them
+  (`a_departed_donors_gun_is_cooked`). Only the profile's changing part differs: the world carries it for
   the places in it, so a joiner has a departed place's from the static info
   (its items' wear 1.0). A held gun's wear comes with the world; a pickup
   waiting for its switch is not in the world, so at the swap the picked gun

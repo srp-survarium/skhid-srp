@@ -5934,6 +5934,51 @@ impl CoreWorld {
     pub unsafe fn set_objects_end(self, value: Option<InventorySlot>) {
         unsafe { self.0.byte_add(0x18b50).cast::<Option<InventorySlot>>().write_volatile(value) }
     }
+
+    /// +0x18458 (ptr<survarium::core_place>): the match's places (a vector's begin, 30h a place: core_active_player 0x2D0AED; the late join's install appends one, late_join_install_026g.c)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn places(self) -> Option<CorePlace> {
+        unsafe { self.0.byte_add(0x18458).cast::<Option<CorePlace>>().read_volatile() }
+    }
+
+    /// +0x18458 (ptr<survarium::core_place>): the match's places (a vector's begin, 30h a place: core_active_player 0x2D0AED; the late join's install appends one, late_join_install_026g.c)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_places(self, value: Option<CorePlace>) {
+        unsafe { self.0.byte_add(0x18458).cast::<Option<CorePlace>>().write_volatile(value) }
+    }
+
+    /// +0x1845c (ptr<survarium::core_place>): the places' end (core_active_player 0x2D0AB0 bounds the place by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn places_end(self) -> Option<CorePlace> {
+        unsafe { self.0.byte_add(0x1845c).cast::<Option<CorePlace>>().read_volatile() }
+    }
+
+    /// +0x1845c (ptr<survarium::core_place>): the places' end (core_active_player 0x2D0AB0 bounds the place by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_places_end(self, value: Option<CorePlace>) {
+        unsafe { self.0.byte_add(0x1845c).cast::<Option<CorePlace>>().write_volatile(value) }
+    }
+
+    /// +0x18fd8 (u32): the places in the world, a bit each (core_active_player 0x2D0AD4 refuses a place without it: a departed one)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_places(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18fd8).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -9938,6 +9983,118 @@ impl QueryCallbackStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<QueryCallback> {
         (!rooms.is_empty()).then(|| QueryCallback(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::core_place (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CorePlace(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CorePlace {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::player>): the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit0(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::player>): the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit0(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<survarium::player>): the place's kit 1 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit1(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::player>): the place's kit 1 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit1(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::player>): the place's kit 2 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit2(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): the place's kit 2 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit2(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// 0x30 bytes: a place's entry: 30h bytes (core_active_player 0x2D0AE7)
+    pub const SIZE: usize = 0x30;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::core_places (0x30 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CorePlaceStorage([u8; 0x30]);
+
+#[allow(dead_code)]
+impl CorePlaceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x30])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CorePlace {
+        CorePlace(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CorePlace> {
+        (!rooms.is_empty()).then(|| CorePlace(NonNull::from(rooms).cast()))
     }
 }
 

@@ -541,7 +541,10 @@ fn gun_for(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, pick: Pick) -
     let (id, from) = match let_go(thread, player.id(), slot, pick) {
         Some(found) => found,
         None => {
-            let cook_from = peer(player, pick.recipe.place).ok_or(Why::NoDonor)?;
+            // The recipe's place's player of its kit, its place in the world or
+            // not (a departed donor's: in every game the lookup by place refuses it).
+            let cook_from = player.kit_player(pick.recipe.place, pick.recipe.kit)
+                .or_else(|| peer(player, pick.recipe.place)).ok_or(Why::NoDonor)?;
             let from = DropOf { place: pick.recipe.place, body: cook_from.id(), lies: Lies::Gone { at: Ms(0) } };
             let id = ask(&cook_from, thread, pick.recipe, At::Drop(from))
                 .ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
@@ -642,7 +645,9 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if wanted <= idle {
             continue;
         }
-        let Some(donor) = client.player(u32::from(recipe.place.get())) else {
+        let local = client.local_player();
+        let Some(donor) = local.as_ref().and_then(|l| l.kit_player(recipe.place, recipe.kit))
+            .or_else(|| client.player(u32::from(recipe.place.get()))) else {
             log_recipe("a world to load names", recipe, &[Text(": its place has no player to cook it from (the reader \
                                                                  will not install it)")]);
             continue;

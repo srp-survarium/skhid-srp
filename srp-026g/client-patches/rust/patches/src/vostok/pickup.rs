@@ -344,6 +344,30 @@ pub fn hand_view(ctx: &mut Context<'_>, site: Site, view: View) {
 }
 
 impl Player<'_> {
+    /// `place`'s player of `kit` in this player's world, whether its place
+    /// is in the world or not (core_active_player 0x2D0AB0 refuses a place
+    /// whose bit core+18FD8h is clear: a departed place, in every game). The
+    /// place keeps its players and its profile when its player leaves, and a
+    /// returning player gets them again: what a pick's recipe is cooked from.
+    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+        // SAFETY: the live player's world core and its places' vector, the
+        // place bounded by the vector's end before its entry is read.
+        unsafe {
+            let core = self.this.world_core()?;
+            let (begin, end) = (core.places()?, core.places_end()?);
+            if end.index_from(begin)? <= usize::from(place.get()) {
+                return None;
+            }
+            let entry = begin.at(usize::from(place.get()));
+            let this = match kit.get() {
+                0 => entry.kit0(),
+                1 => entry.kit1(),
+                _ => entry.kit2(),
+            }?;
+            Some(Player { this, thread: self.thread })
+        }
+    }
+
     /// The world core: the match the records are of.
     pub fn world_key(&self) -> Option<WorldKey> {
         // SAFETY: the live player's world core pointer, compared only.
