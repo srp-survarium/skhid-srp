@@ -387,6 +387,12 @@ pub struct CombatTuning {
     /// as far up and down, must not meet anything within `grenade_land_m` of the start either ([`grazes_near`]): an arc that
     /// clears a face at arm's reach by centimetres is refused as the thrower's blast. A start the eye cannot reach (a face
     /// between them) is left out. None: not asked (only the arc from the eye).
+    ///
+    /// OFF by default (A260): at 0.5 m on top of `grenade_commit` (192 pairs, smoke maps 10 a side, tiers 4-5/9-10/13-15)
+    /// the thrower's own damage halved again (9.3 -> 4.5, z -2.1), but 15 % fewer grenades were let go (z -5.1), the
+    /// enemies took 16 % less grenade damage (z -2.1), and the zone deaths on Vector Laboratory TDM rose (+11 there; +7
+    /// on fresh seeds 5-12, 26 -> 33) by no traced path: those deaths are route walks through its zones 0 and 13. It waits
+    /// for that link traced, or a smaller margin benched.
     pub grenade_start_margin_m: Option<f32>,
     /// The first contact farther than this from the place the throw is at:
     /// not thrown, metres (the arc met something on its way). GUESS: the
@@ -1449,7 +1455,7 @@ impl Default for CombatTuning {
             grenade_look_after_ms: 300,
             grenade_land_m: 10.0,
             grenade_wall_m: 10.0,
-            grenade_start_margin_m: Some(0.5),
+            grenade_start_margin_m: None,
             grenade_off_m: 8.0,
             grenade_off_y_m: None,
             grenade_lane_m: 2.0,
@@ -11601,11 +11607,11 @@ mod tests {
         let me = body(0, 0, Vec3::ZERO, 0.0);
         let view = view_of(vec![me.clone()]);
         let at = Vec3::new(0.0, 0.0, 20.0);
-        let on = CombatTuning::default();
-        assert_eq!(on.grenade_start_margin_m, Some(0.5));
-        let off = CombatTuning {
-            grenade_start_margin_m: None,
-            ..on.clone()
+        let off = CombatTuning::default();
+        assert_eq!(off.grenade_start_margin_m, None, "off by default");
+        let on = CombatTuning {
+            grenade_start_margin_m: Some(0.5),
+            ..off.clone()
         };
         let view_yp = throw_view(&me, at, &on).expect("in reach");
         let flight = arc::Flight::thrown(me.eye(), view_yp.0, view_yp.1);
