@@ -102,6 +102,10 @@ const LEDGE_NEAR_M: f32 = 0.2;
 const LEDGE_FAR_M: f32 = 1.0;
 /// … and this far to either side of its facing, metres.
 const LEDGE_ASIDE_M: f32 = 0.4;
+
+/// [`Tactics::floor_free_step`]: a point of the way has a floor under it when one is this near across, metres: a grid
+/// cell's diagonal (0.25 m cells) and a little, so a point half a metre off a 0.10 m rail has none.
+const FLOOR_STEP_NEAR_M: f32 = 0.3;
 /// A way out ends at least this far from where it starts, metres: past the
 /// motor's arrival distance, so the body really walks out.
 const ESCAPE_MIN_M: f32 = 1.5;
@@ -1948,6 +1952,23 @@ impl Tactics {
         })
     }
 
+    /// Whether the way from `a` to `b` has a floor under it all along, every half metre: a floor a body stands on within
+    /// [`FLOOR_STEP_NEAR_M`] across, no more than a lip's drop ([`mapdata::grid::LIP_DROP_M`]) under `a`'s feet and no more
+    /// than the client's step ([`WalkGrid::body`]'s) over them. An edge with a fall past it, or a wall a walk does not get
+    /// up, fails it. The stuck recovery's keys (`UnstickTuning::escape_floor`).
+    pub fn floor_free_step(&self, a: Vec3, b: Vec3) -> bool {
+        let grid = &self.world.grid;
+        let step = grid.body().step;
+        let n = (a.distance_xz(b) / 0.5).ceil().max(1.0) as u32;
+        (1..=n).all(|k| {
+            let point = a + (b - a) * (k as f32 / n as f32);
+            grid.locate_within(point, FLOOR_STEP_NEAR_M, step).is_some_and(|node| {
+                let y = grid.position(node).y;
+                y >= a.y - mapdata::grid::LIP_DROP_M && grid.can_stand(node)
+            })
+        })
+    }
+
     /// The rise of the lowest ledge a stuck body at `feet` facing `yaw` can
     /// jump up, if there is one ahead: a floor to stand on more than the
     /// client's step-up ([`STEP_UP_M`], which it walks up by itself) and at
@@ -3039,6 +3060,23 @@ pub(super) mod tests {
             tactics.ledge_ahead(feet, std::f32::consts::PI).is_none(),
             "to the side of its facing"
         );
+    }
+
+    /// A271: a stuck body's escape has a floor under its way on a top it walks along, and none where the way goes over the
+    /// top's edge (a 3 m drop) or along a 0.25 m rail off its side.
+    #[test]
+    fn a_floor_free_step_keeps_to_the_floor_under_it() {
+        let top = floor(30.0, 0.0, 40.0, 40.0, 3.0);
+        let tactics = Tactics::new(field_with_solids(&top, |_| {}), 1.0);
+        let feet = Vec3::new(31.0, 3.0, 10.0);
+        assert!(tactics.floor_free_step(feet, feet + Vec3::new(3.0, 0.0, 0.0)), "along the top");
+        assert!(tactics.floor_free_step(feet, feet + Vec3::new(0.0, 0.0, 3.0)), "across it");
+        assert!(!tactics.floor_free_step(feet, feet + Vec3::new(-3.0, 0.0, 0.0)), "over its edge");
+        let rail = floor(50.0, 0.0, 50.25, 40.0, 3.0);
+        let tactics = Tactics::new(field_with_solids(&rail, |_| {}), 1.0);
+        let feet = Vec3::new(50.12, 3.0, 10.0);
+        assert!(tactics.floor_free_step(feet, feet + Vec3::new(0.0, 0.0, 3.0)), "along the rail");
+        assert!(!tactics.floor_free_step(feet, feet + Vec3::new(-2.1, 0.0, 2.1)), "back-diagonal off it");
     }
 
     #[test]
