@@ -52,9 +52,6 @@ TEMPLATE_DRUG = {
     'injuries': INJURIES,
     'card': {12: '100', 19: '2.0', 18: '3.0', 15: '0.2'},
 }
-# A drug heals `amount` of a pool a second over its active time, after its use time (bandages.md:
-# medkit::tick 0x33D790, increase_health clamps at the pool's max). The pools' max.
-POOLS = {'head': 0.4, 'body': 1.0, 'pain': 1.0, **dict.fromkeys(LIMBS, 0.5), 'infection': 1.0}
 # Affects (the exe's hit_affects_type_enum, its names' table in .data: death 0, bleeding 1, concussion
 # 2, hand_damage 3, leg_damage 4, critical_poisoning 5, poisoning 6, radiation_sickness 7, blindness
 # 8; the medkit's 3 on the hands and 4 on the legs agree). The `infection` pool takes toxic and
@@ -65,8 +62,7 @@ STAMINA = ('stamina_regenation_speed_modifier', 'stamina_regeneration_speed_modi
 # Not set: parameters/heal_amount (neither the exe nor a movie names it; the template's 1 stays).
 # The card's rows: 19 use, 18 active, 15 weight; medical-cards-1's 135 arms and legs, 136 body and
 # head, 137 pain (after 18); 13 intoxication (the antitoxin's). 12 ("Heal amount") is not shown.
-COLUMNS = ('name', 'dict_id', 'key', 'colour', 'faction', 'level', 'mm', 'cost', 'use', 'active', 'kg',
-           'limbs', 'body_head', 'pain', 'toxins', 'injuries', 'row', 'col', 'source', 'english')
+COLUMNS = ('name', 'dict_id', 'key', 'colour', 'faction', 'cost', 'injuries', 'row', 'col', 'source', 'english')
 
 ATLAS = 'flash_movies/lobby_menu.swf'
 SYMBOL = 'LobbyMenu_AmmoIcons'
@@ -102,6 +98,8 @@ def read_inputs(folder, wanted, what):
 
 
 def read_table():
+    """Each row of medicines.tsv, with its numbers from content-edit's medicines.tsv (the one source)."""
+    numbers = ce.read_stats(str(HERE.parent / 'content-edit' / 'medicines.tsv'))[2]
     rows = []
     for line in (HERE / 'medicines.tsv').read_text(encoding='utf-8').splitlines():
         if not line or line.startswith('#'):
@@ -110,10 +108,15 @@ def read_table():
         if len(cells) != len(COLUMNS):
             sys.exit(f'medicines.tsv: {cells[0]} has {len(cells)} columns, not {len(COLUMNS)}')
         row = dict(zip(COLUMNS, cells))
-        for k in ('dict_id', 'faction', 'level', 'mm', 'cost', 'use', 'active', 'limbs', 'body_head',
-                  'pain', 'toxins', 'row', 'col'):
+        for k in ('dict_id', 'faction', 'cost', 'row', 'col'):
             row[k] = int(row[k])
-        row['kg'] = float(row['kg'])
+        cells = numbers[row['name']]
+        number = lambda column: float(cells[column]) if cells[column] else 0  # noqa: E731
+        whole = lambda column: int(number(column))  # noqa: E731
+        row.update(level=whole('level'), mm=whole('mm_level'), use=whole('use_s'), active=whole('active_s'),
+                   kg=number('weight'), heal={'head': number('head'), 'body': number('body'), 'pain': number('pain'),
+                                              **dict.fromkeys(LIMBS, number('limbs'))},
+                   infection=number('infection'))
         if row['injuries'] not in ('yes', 'no'):
             sys.exit(f'medicines.tsv: {row["name"]} injuries is yes or no')
         row['config'] = FOLDER + row['name'] + '.options'
@@ -121,28 +124,26 @@ def read_table():
     return rows
 
 
-def amount(pct, pool, active):
-    """The heal a second of `pct` % of `pool` over `active` s: 100 is 1 a second (the stock medkit's)."""
-    return 1 if pct == 100 else round(pct / 100 * POOLS[pool] / active, 4)
+def share(row, pool):
+    """The % of `pool` a row heals over its active time, as its card says (content_edit.medicine_card)."""
+    return str(min(100, round(row['heal'][pool] * row['active'] / ce.POOLS.get(pool, 1) * 100)))
 
 
 def drug_of(row):
     """What the config of a row says, as `drug` reads it."""
-    share = {'head': row['body_head'], 'body': row['body_head'], 'pain': row['pain'],
-             **dict.fromkeys(LIMBS, row['limbs'])}
-    heal = {pool: amount(pct, pool, row['active']) for pool, pct in share.items()}
-    if row['toxins']:
-        heal['infection'] = amount(row['toxins'], 'infection', row['active'])
-    card = {19: f'{row["use"]}.0', 18: f'{row["active"]}.0', 135: str(row['limbs']),
-            136: str(row['body_head']), 137: str(row['pain'])}
-    if row['toxins']:
-        card[13] = str(row['toxins'])
+    heal = dict(row['heal'])
+    if row['infection']:
+        heal['infection'] = row['infection']
+    card = {19: f'{row["use"]}.0', 18: f'{row["active"]}.0', 135: share(row, 'left_hand'),
+            136: share(row, 'body'), 137: share(row, 'pain')}
+    if row['infection']:
+        card[13] = ce.number_text(round(row['infection'] * 100, 4))
     card[15] = f'{row["kg"]:g}'
     return {
         'key': row['key'], 'icon': (row['row'], row['col']), 'faction': row['faction'] or None,
         'level': row['level'], 'mm': row['mm'],
         'use': row['use'], 'active': row['active'], 'kg': row['kg'], 'heal': heal,
-        'injuries': (INJURIES if row['injuries'] == 'yes' else ()) + (TOXINS if row['toxins'] else ()),
+        'injuries': (INJURIES if row['injuries'] == 'yes' else ()) + (TOXINS if row['infection'] else ()),
         'card': card,
     }
 

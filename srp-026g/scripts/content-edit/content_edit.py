@@ -877,6 +877,30 @@ def default_modification(decade):
     return Derived('default_modifications', read, write)
 
 
+# A medicine's pools, for its card's % lines: a pool's health is 1, the head's 0.4 (0.26g's human_hit_params).
+POOLS = {'limbs': 1, 'body': 1, 'head': 0.4, 'pain': 1}
+
+
+def medicine_card(buf):
+    """{prop_id: text} of a medicine's card: 18 its active and 19 its delay seconds, 15 the weight, 135
+    the limbs', 136 the body's and 137 the pain pool's share it heals over its active time (%), 13 its
+    infection cure a second x100."""
+    def number(path):
+        found = resolve(buf, path)
+        return value_of(buf, found[0][1]) if found else None
+    active = number('data/activity_time_sec')
+    out = {18: '%.1f' % active, 19: '%.1f' % number('data/activation_delay_sec'),
+           15: weight_text(number('parameters/weight'))}
+    for prop, column in ((135, 'limbs'), (136, 'body'), (137, 'pain')):
+        amount = number(STATS['medicines']['columns'][column])
+        if amount is not None:
+            out[prop] = number_text(min(100, round(amount * active / POOLS[column] * 100)))
+    infection = number(STATS['medicines']['columns']['infection'])
+    if infection is not None:
+        out[13] = number_text(round(infection * 100, 4))
+    return out
+
+
 # <table>.tsv, a row each of what `configs` names, a column a stat:
 #   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
 #                      files, each the row's (a level's projects of every weather: a cell goes into those
@@ -1067,10 +1091,25 @@ STATS = {
                   'reload_speed', 'recoil', 'stamina_spend', 'slot_size'},
         'cards': armour_card,
     },
+    'medicines': {
+        'configs': ['gameplay/items/medicines/*.options', 'gameplay/items/drugs/antitoxin.options',
+                    'gameplay/items/drugs/painkiller.options'],
+        'columns': {
+            'use_s': 'data/activation_delay_sec', 'active_s': 'data/activity_time_sec',
+            'limbs': 'data/influences[body_part=left_hand|right_hand|left_leg|right_leg]/amount',
+            'body': 'data/influences[body_part=body]/amount', 'head': 'data/influences[body_part=head]/amount',
+            'pain': 'data/influences[body_part=pain]/amount', 'infection': 'data/influences[body_part=infection]/amount',
+            'weight': 'parameters/weight', 'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
+        },
+        'match': {'use_s', 'active_s', 'limbs', 'body', 'head', 'pain', 'infection', 'weight'},
+        'cards': medicine_card,
+    },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
     # srp reads it from its game data (RoomRules): nothing a match computes.
     'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
+    # srp reads it from its game data (survarium v026g::new_account): a new account's grant.
+    'new-account': {'configs': 'gameplay/srp/new_account.options', 'match': set()},
 }
 
 
@@ -1171,7 +1210,8 @@ def read_stats(path):
 
 def resolve(buf, path, off=0):
     """[(walk path, offset)] of every value `path` selects under the value at `off`: `name` a key,
-    `[i]` item i, `[*]` every item, `[field=cell]` every entry whose field reads as that cell."""
+    `[i]` item i, `[*]` every item, `[field=cell]` every entry whose field reads as that cell (or one of
+    `a|b`)."""
     out = [('', off)]
     for part in path.split('/'):
         name, *selectors = part.split('[')
@@ -1183,7 +1223,7 @@ def resolve(buf, path, off=0):
             out = [('%s[%d]' % (at, i), c) for at, o in out if rec(buf, o)[3] == T_INDEXED
                    for i, c in enumerate(children(buf, o))
                    if s in ('*', str(i)) or (cell and resolve(buf, field, c) and
-                                             cell_text(buf, resolve(buf, field, c)[0][1]) == cell)]
+                                             cell_text(buf, resolve(buf, field, c)[0][1]) in cell.split('|'))]
     return out
 
 

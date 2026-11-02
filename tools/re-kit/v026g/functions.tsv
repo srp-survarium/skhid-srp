@@ -1906,6 +1906,8 @@ va	status	ref_021d	name
 0x002debc0	observed		survarium::weapon_breath_vibration_parameters::load
 0x002f1430	observed		survarium::item_config_cook::find_modifier_target
 0x00358010	observed		vostok::configs::apply_multiplicative_modifiers
+0x00358a10	observed		vostok::configs::free_memory
+0x00358aa0	observed		vostok::configs::create_binary_config_buffer
 0x0028cab0	verified		survarium::lobby_menu::go_to_knowledge_base
 0x00285540	verified		survarium::simple_game_project::insert_static
 0x002855b0	verified		survarium::simple_game_project::remove_static
@@ -2095,3 +2097,6 @@ va	status	ref_021d	name
 0x002f4eb0	reviewed	0x001ddc36	survarium::shared_statistics::on_player_killed
 0x002f5450	reviewed	0x001dde52	survarium::shared_statistics::on_player_damaged
 0x002d7800	reviewed	0x001d3980	survarium::base_player::on_fire
+0x0023a430	reviewed	0x001831ff	survarium::game_world_ui::set_using_progress_message
+0x0023a560	reviewed	0x0018329c	survarium::game_world_ui::set_using_info_message
+0x00246f50	reviewed	0x00186af7	survarium::player::st_draw
