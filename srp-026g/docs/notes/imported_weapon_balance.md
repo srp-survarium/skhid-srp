@@ -1,4 +1,4 @@
-# Imported weapons: Zubr +8 balance proposal
+# Imported weapons: Zubr +8 balance
 
 Local balance pass based on `009b2dabe` (#947 over main's #948 and #949), 2026-11-02.
 Not released or playtested. The changes are in `scripts/content-edit/weapon-stats.tsv` and
@@ -249,16 +249,17 @@ those documents' initial balance numbers, keeping their asset/animation/ammo pro
 | PPSh Drum | Level-10 pool: 71-round sustained fire | Weak penetration, slow reload and aim |
 | PKP | Top-level sustained-fire reference | Unchanged |
 
-## Verification and remaining work
+## Verification
 
 - Eight audit checks: armour, AK-12 distance breakpoints, compatible ammo, pump timing,
   partial pellets, a magazine that cannot kill, bullet reach, Groza helmet breakpoints and complete coverage.
 - All 20 imported weapon configs and four imported ammo configs round-trip in memory
   through the real content table writer, retaining every value type and matching card text.
 - Content editor unit suite passed. No Rust code or executable patch changes.
-- No full release build, push, PR, deployment or live playtest was performed. Before pushing,
-  run the repository's required full self-test/Unicorn/clippy/content build gates. The actual
-  release follows the owner's normal approval at that moment.
+- The full content build verified all 18,210 manifest files against the players' archive layers.
+  Workspace clippy, the complete client self-test (every variant, Windows APIs through Wine),
+  all 59 client Unicorn checks and all three launcher Unicorn checks passed.
+- No deployment or live playtest was performed. Release approval remains a separate step.
 
 Reproduce the detailed 440-row torso/head audit (ten distances for 22 weapons):
 
