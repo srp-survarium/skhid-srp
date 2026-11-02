@@ -1793,17 +1793,16 @@ footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid v
 /// The home page's "if something goes wrong", after the steps, for a
 /// download with the launcher (whose ZIP has these files: `make_client_026g.py`):
 /// a question and its answer a case, their labels in a column of their own.
-/// The question is what the player sees, quoted as the updater words it today
-/// (`client/updater`: `logic/src/file_error.rs`, `exe/src/text.rs`,
-/// `logic/src/network.rs`; in the launcher's language where the updater has
-/// one, else its English); the answer what to run, the last one where to
-/// send what it makes.
+/// The question is the title of the updater's box, its opening words before
+/// what failed (`client/updater/logic/src/problem.rs`, in the launcher's
+/// language); the answer what to run, the last one where to send what it
+/// makes.
 fn faq(lang: Lang) -> String {
     let cases = [
         (
             lang.tr(
-                "“Windows Security blocked …: a false positive.” or “Cannot start updater_skhid.exe.”",
-                "«Безпека Windows заблокувала …: це хибне спрацювання.» або “Cannot start updater_skhid.exe.”",
+                "“Game files removed by antivirus: …”",
+                "«Файли гри видалено антивірусом: …»",
             ),
             lang.tr(
                 "Run <code>Skhid-defender-setup.cmd</code>.",
@@ -1812,8 +1811,8 @@ fn faq(lang: Lang) -> String {
         ),
         (
             lang.tr(
-                "“Game download failed: …” or “game\\resources.db.patch_… could not be downloaded …”",
-                "“Game download failed: …” або “game\\resources.db.patch_… could not be downloaded …”",
+                "“Download failed: …”",
+                "«Завантаження не вдалося: …»",
             ),
             lang.tr(
                 "Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.",
@@ -1822,12 +1821,22 @@ fn faq(lang: Lang) -> String {
         ),
         (
             lang.tr(
-                "“skhid.link didn't answer.”, “skhid.link refused the connection.”, “Couldn't find skhid.link.” or “The connection to skhid.link was cut off.”",
-                "«skhid.link не відповідає.», «skhid.link відхилив з'єднання.», «Не вдається знайти skhid.link.» або «З'єднання з skhid.link перервано.»",
+                "“No connection: …”",
+                "«Немає з'єднання: …»",
             ),
             lang.tr(
-                "Run <code>Skhid-network-setup.cmd</code>. Still the same? Your provider may block skhid.link: use a VPN, see <code>VPN.txt</code>.",
-                "Запустіть <code>Skhid-network-setup.cmd</code>. Не допомогло? Можливо, ваш провайдер блокує skhid.link: скористайтеся VPN, див. <code>VPN.txt</code>.",
+                "Run <code>Skhid-network-setup.cmd</code>.",
+                "Запустіть <code>Skhid-network-setup.cmd</code>.",
+            ),
+        ),
+        (
+            lang.tr(
+                "“Blocked on this network: …”",
+                "«Заблоковано в цій мережі: …»",
+            ),
+            lang.tr(
+                "Your provider may block skhid.link: use a VPN and add the game's programs to it, see <code>VPN.txt</code>.",
+                "Можливо, ваш провайдер блокує skhid.link: скористайтеся VPN і додайте до нього програми гри, див. <code>VPN.txt</code>.",
             ),
         ),
         (
@@ -3302,18 +3311,28 @@ mod tests {
         // them, what to run when something goes wrong, each case by the
         // words the player sees. No other way to start, no language line,
         // no matchmaking rules.
-        for (lang, press, once, unanswered) in [
+        for (lang, press, once, titles) in [
             (
                 Lang::En,
                 "press <b>PLAY</b>",
                 "You do this only once",
-                "“skhid.link didn't answer.”",
+                [
+                    "<b>“Game files removed by antivirus: …”</b>",
+                    "<b>“Download failed: …”</b>",
+                    "<b>“No connection: …”</b>",
+                    "<b>“Blocked on this network: …”</b>",
+                ],
             ),
             (
                 Lang::Uk,
                 "натисніть <b>PLAY</b>",
                 "лише один раз",
-                "«skhid.link не відповідає.»",
+                [
+                    "<b>«Файли гри видалено антивірусом: …»</b>",
+                    "<b>«Завантаження не вдалося: …»</b>",
+                    "<b>«Немає з'єднання: …»</b>",
+                    "<b>«Заблоковано в цій мережі: …»</b>",
+                ],
             ),
         ] {
             let page = home(lang, stats(true));
@@ -3327,10 +3346,10 @@ mod tests {
             };
             assert_eq!(
                 faq.matches(&format!("<dt class=q>{q}</dt>")).count(),
-                4,
+                5,
                 "{faq}"
             );
-            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 4, "{faq}");
+            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 5, "{faq}");
             assert!(!faq.contains("<li>"), "{faq}");
             for said in [
                 "Skhid-defender-setup.cmd",
@@ -3339,11 +3358,19 @@ mod tests {
                 "VPN.txt",
                 "Skhid-collect-logs.cmd",
                 "Skhid-without-updater.bat",
-                "“Game download failed: …”",
-                unanswered,
             ] {
                 assert!(faq.contains(said), "{said}: {faq}");
             }
+            // The updater's box titles, in the order of the questions; the
+            // VPN only in the blocked one's answer.
+            let mut rest = faq;
+            for title in titles {
+                let at = rest.find(title).unwrap_or_else(|| panic!("{title}: {faq}"));
+                rest = &rest[at + title.len()..];
+            }
+            let (no_connection, blocked) = faq.split_once(titles[3]).unwrap();
+            assert!(!no_connection.contains("VPN"), "{no_connection}");
+            assert!(blocked.contains("VPN.txt"), "{blocked}");
             // The Discord invite is the last answer's, nothing after the pairs.
             let last = faq.rsplit("<dd>").next().unwrap();
             assert!(
@@ -3352,7 +3379,10 @@ mod tests {
             );
             assert!(last.contains("Skhid-collect-logs.cmd"), "{last}");
             assert!(faq.contains("</dl></section>"), "{faq}");
-            assert!(!faq.contains("Russia") && !faq.contains("Росії"), "{faq}");
+            for country in ["Russia", "Росі", "Belarus", "Білорус", "China", "Китай"]
+            {
+                assert!(!faq.contains(country), "{country}: {faq}");
+            }
             assert!(page.contains("<h1>") && page.contains("class=stats"));
             assert!(!page.contains("How matches start") && !page.contains("Як починаються"));
             assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
