@@ -1937,9 +1937,9 @@ st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpd_name	RPD
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpk_name	RPK-74M
-st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a box magazine. Single shots only.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a box magazine. Single shots only.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Save password
 st_scav_back_1_desc	A hand-made container for artifact storage, designed as backpack. A useful item when going out to hunt artifacts.
