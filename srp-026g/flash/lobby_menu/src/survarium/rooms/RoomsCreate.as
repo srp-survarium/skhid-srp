@@ -114,7 +114,8 @@ package survarium.rooms
         // `S1;F` as the window keeps it (RoomsWindow._form), read against
         // the pool: the sliders (a value out of a slider's range: its
         // default), the modes out, and a tile out unless an entry of it is
-        // in (`bits`: entry `index` by bit `index % 20` of chunk `index / 20`).
+        // in (`bits`: entry `index` by bit `index % BITS_PER_CHUNK` of chunk
+        // `index / BITS_PER_CHUNK`).
         internal function formOf(head:Array, bits:Array):Object
         {
             var size:int = int(head[3]);
@@ -133,8 +134,7 @@ package survarium.rooms
             for (i = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                var chunk:uint = uint(bits[int(p.index / RoomsWire.BITS_PER_CHUNK)]);
-                if ((chunk & (1 << (p.index % RoomsWire.BITS_PER_CHUNK))) != 0)
+                if (RoomsWire.bitIn(bits, p.index))
                     on[p.level + "_" + p.weather] = true;
             }
             var off:Object = {};
@@ -523,20 +523,16 @@ package survarium.rooms
             }
             win._code = RoomCode.NONE;
             win._steps = [];
-            // The pool in pieces of 20 entries, each in by its bit.
-            var chunks:Array = [0, 0, 0, 0, 0, 0, 0, 0];
-            var any:Boolean = false;
+            // The pool in pieces of BITS_PER_CHUNK entries, each in by its bit.
+            var picked:Array = [];
             for (var i:int = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                if (!chosen(p))
-                    continue;
-                chunks[int(p.index / RoomsWire.BITS_PER_CHUNK)] |= 1 << (p.index % RoomsWire.BITS_PER_CHUNK);
-                any = true;
+                if (chosen(p))
+                    picked.push(p.index);
             }
-            var used:int = win._pool.length > 0 ? int((win._pool.length + (RoomsWire.BITS_PER_CHUNK - 1)) / RoomsWire.BITS_PER_CHUNK) : 1;
-            for (var c:int = 0; c < used && c < RoomsWire.CHUNKS; c++)
-                win._steps.push(RoomsWire.BITS + c * RoomsWire.CHUNK_STEP + chunks[c]);
+            var any:Boolean = picked.length > 0;
+            win._steps = RoomsWire.poolSteps(picked, win._pool.length);
             var wait:int = RoomsWire.WAITS.indexOf(_wait);
             if (wait < 0)
                 wait = WAIT_INDEX_DEFAULT;

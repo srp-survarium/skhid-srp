@@ -41,12 +41,11 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
 - **A simulation change** (`simulation_changes.tsv`): the release that ships it refuses older games
   (a game without patch 94 would refill at the crates in a Scarcity match and leave its world).
 - **Open for the owner:** the name.
-- **Open: the rooms' pool holds 160 entries at most** (`lobby::rooms::POOL_BITS`, 8 chunks of 20
-  bits; the bits' request ids end just below the create's, so more chunks is a wire change). The
-  game data of revision 41 and main has 112 playable entries and 30 plain battery maps: 142 with
-  Blackout, 172 with Scarcity, so with every map in the pool (no `SRP_MATCH_MAPS`) `room_entries`
-  keeps the first 160 and the last 12 Scarcity maps (by id) are not offered. Either more pool bits
-  or fewer variant maps; the owner's call.
+- **Every Scarcity map is offered** (the owner, 2026-11-02: raise the pool's limit): the rooms'
+  pool holds 256 entries (`lobby::rooms::POOL_BITS`: 16 bits requests of 16 entries, the wire's
+  and the lobby movie's `RoomsWire`, the server's drafts), 160 until then. Revision 41's data has
+  112 playable entries and 30 plain battery maps: 172 with Blackout's and Scarcity's. A game of an
+  older revision is refused anyway (one client version).
 
 ## How
 

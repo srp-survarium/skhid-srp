@@ -71,8 +71,10 @@ pub const START_PLAYERS: usize = 2;
 pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
 /// The cards of a vote.
 pub const CARDS: usize = 3;
-/// The pool entries one piece of a draft carries.
-pub const DRAFT_CHUNK: usize = 20;
+/// The pool entries one piece of a draft carries (the wire's).
+pub const DRAFT_CHUNK: usize = survarium::v026g::lobby::rooms::BITS_PER_CHUNK as usize;
+/// The pieces a draft has at most (the wire's).
+const DRAFT_CHUNKS: usize = survarium::v026g::lobby::rooms::CHUNKS as usize;
 /// The keys new rooms are given first: four digits, easy to say.
 const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
@@ -411,8 +413,9 @@ pub enum MoveRefused {
 /// A pool being sent in pieces before its create.
 #[derive(Clone, Debug)]
 struct Draft {
-    chunks: [u32; 8],
-    seen: u8,
+    chunks: [u32; DRAFT_CHUNKS],
+    /// Bit `n`: piece `n` was sent.
+    seen: u32,
     at: Instant,
 }
 
@@ -531,12 +534,12 @@ impl Rooms {
             .entry(account_id)
             .and_modify(|draft| {
                 if now.saturating_duration_since(draft.at) > DRAFT_LIFE {
-                    draft.chunks = [0; 8];
+                    draft.chunks = [0; DRAFT_CHUNKS];
                     draft.seen = 0;
                 }
             })
             .or_insert(Draft {
-                chunks: [0; 8],
+                chunks: [0; DRAFT_CHUNKS],
                 seen: 0,
                 at: now,
             });
@@ -2145,7 +2148,7 @@ mod tests {
         let key = rooms
             .create(1, 0, spec(8, None), &entries, &[99], 50, now, &mut first)
             .unwrap();
-        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, 20]);
+        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, DRAFT_CHUNK as u8]);
         // Too old: the default.
         rooms.draft(2, 0, 0b1, now);
         let key = rooms
@@ -2167,6 +2170,33 @@ mod tests {
             rooms.create(3, 0, spec(8, None), &entries, &[99], 50, now, &mut first),
             Err(Refused::Bad)
         );
+    }
+
+    /// A pool of every playable map with Blackout's and Scarcity's (172 in
+    /// revision 41's data) and more: each entry sent by its bit, each
+    /// named back.
+    #[test]
+    fn a_draft_of_a_big_pool_names_every_entry() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let entries: Vec<u8> = (1..=250).collect();
+        let pieces = entries.len().div_ceil(DRAFT_CHUNK);
+        assert_eq!(pieces, 16);
+        for piece in 0..pieces {
+            // every entry but each piece's first
+            rooms.draft(1, piece as u8, ((1 << DRAFT_CHUNK) - 1) & !1, now);
+        }
+        let key = rooms
+            .create(1, 0, spec(8, None), &entries, &[99], 50, now, &mut first)
+            .unwrap();
+        let want: Vec<u8> = entries
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| index % DRAFT_CHUNK != 0)
+            .map(|(_, &id)| id)
+            .collect();
+        assert_eq!(rooms.get(key).unwrap().pool, want);
+        assert!(want.contains(&250) && !want.contains(&1) && want.len() > 172);
     }
 
     #[test]

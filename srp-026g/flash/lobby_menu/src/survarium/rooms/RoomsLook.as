@@ -52,8 +52,10 @@ package survarium.rooms
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
         // A vote card's mode tag: the protective devices blue, team
-        // deathmatch red, Research green, Blackout white, Scarcity amber.
-        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2, "7": 0xC8902E};
+        // deathmatch red, Research green, Blackout and Scarcity the same light grey (the owner,
+        // 2026-11-02: Scarcity coloured as Blackout).
+        private static const BLACKOUT_COLOUR:uint = LIGHT;
+        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": BLACKOUT_COLOUR, "7": BLACKOUT_COLOUR};
 
         public static function modeColour(mode:int):uint
         {

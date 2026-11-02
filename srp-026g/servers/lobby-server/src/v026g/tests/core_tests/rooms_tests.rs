@@ -1229,7 +1229,7 @@ fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
         let fields: Vec<&str> = row.split(';').collect();
         assert_eq!(fields[..2], ["E", &chunk.to_string()]);
         let bits: u32 = fields[2].parse().unwrap();
-        tiles_on.extend((0..20).map(|b| bits & 1 << b != 0));
+        tiles_on.extend((0..survarium::v026g::lobby::rooms::BITS_PER_CHUNK).map(|b| bits & 1 << b != 0));
     }
     let chosen = world
         .core

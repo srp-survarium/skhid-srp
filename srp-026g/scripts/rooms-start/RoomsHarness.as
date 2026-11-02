@@ -136,7 +136,61 @@ package
          checkSoldier();
          checkInSquad();
          checkFit();
+         checkBigPool();
+         checkModeColours();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // A pool of 256 entries at most (every playable map with Blackout's and Scarcity's: 172 in
+      // revision 41's data): the create's bits requests of a 200-entry pool, every third entry
+      // out, one a chunk of 16 (13), each read back entry by entry as the form's rows are read;
+      // and the window told the 200 entries, the create window drawn with them.
+      private function checkBigPool() : void
+      {
+         var Wire:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.rooms.RoomsWire");
+         var count:int = 200;
+         var picked:Array = [];
+         var i:int;
+         for(i = 0; i < count; i++)
+            if(i % 3 != 0)
+               picked.push(i);
+         var steps:Array = Wire.poolSteps(picked, count);
+         var bits:Array = [];
+         var bad:Array = [];
+         for(var c:int = 0; c < steps.length; c++)
+         {
+            var offset:int = int(steps[c]) - int(Wire.BITS);
+            if(int(offset / int(Wire.CHUNK_STEP)) != c)
+               bad.push("chunk " + c + " sent as " + int(offset / int(Wire.CHUNK_STEP)));
+            bits.push(offset % int(Wire.CHUNK_STEP));
+         }
+         for(i = 0; i < count; i++)
+            if(Wire.bitIn(bits, i) != (i % 3 != 0))
+               bad.push("entry " + i);
+         if(Wire.POOL_BITS < 172 || steps.length != 13 || bad.length != 0)
+            failures.push("a 200-entry pool: " + steps.length + " requests, " + Wire.POOL_BITS + " bits, wrong: "
+               + bad.slice(0, 5).join(", "));
+         trace("ROOMS a 200-entry pool: " + steps.length + " bits requests of " + Wire.BITS_PER_CHUNK
+            + ", every entry read back: " + (bad.length == 0 ? "yes" : "no"));
+         var rows:Array = ["S1;M;" + count + ";0"];
+         for(i = 0; i < count; i++)
+            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 7][i % 6] + ";0");
+         if(!tell(rows))
+            return;
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var misses:Array = overlaps("a 200-entry pool, a room's vote");
+         if(misses.length != 0)
+            failures.push("a 200-entry pool: " + misses.join("; "));
+      }
+
+      // Scarcity's mode tag is coloured as Blackout's, by the same constant (the owner, 2026-11-02).
+      private function checkModeColours() : void
+      {
+         var Look:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.rooms.RoomsLook");
+         var blackout:uint = Look.modeColour(6), scarcity:uint = Look.modeColour(7);
+         trace("ROOMS mode colours: Blackout " + blackout.toString(16) + ", Scarcity " + scarcity.toString(16));
+         if(blackout != scarcity)
+            failures.push("Scarcity's mode colour " + scarcity.toString(16) + " is not Blackout's " + blackout.toString(16));
       }
 
       // Ruffle draws the movie's embedded Calibri, yet not exactly as Scaleform lays it out: every
