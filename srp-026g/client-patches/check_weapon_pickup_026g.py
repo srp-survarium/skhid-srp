@@ -2423,21 +2423,26 @@ def stage2b(patched):
     print("ok Use's press on it: the input builder's end sends the pickup command (Use, the quick bits out; fire "
           "kept); held, the game sees no Use until it is let go")
 
-    # The command played: taken; the gun is hidden on the ragdoll, the prompt gone.
+    # The command played: taken, the prompt gone; the gun stays drawn on the ragdoll while the picker's
+    # gun holsters, and is hidden at the switch.
     r.word(r.picker + 0x330, sent)
     r.lohook(FILTER_SITE, FILTER_AFTER, {UC_X86_REG_EDI: r.picker, UC_X86_REG_EAX: r.picker + 0x32C})
     r.word(r.picker + 0x330, 0)
-    r.tick()
-    r.installed()
-    # "Already taken" only while the gun is still drawn there (before the ragdoll's next draw hides it).
+    # "Already taken" only while the gun is still where the ragdoll's last draw had it.
     assert r.hud() == [("st_weapon_already_taken",)], "the gun still seen at its spot"
     assert sights(r)[-1] == "not offered, already taken", sights(r)
-    assert not r.draw() and r.removed == [r.instance], "the taken gun is still drawn"
-    assert r.hud() == [("",)] and r.hud() == [], "hidden: nothing left to aim at"
+    assert r.draw() and r.removed == [], "holstering: the taken gun still in the scene (its textures' instance)"
+    assert r.hud() == [("",)] and r.hud() == [], "taken: nothing to aim at, though still drawn"
+    assert r.tick(ready=False) and r.draw() and r.removed == [], "still holstering: still drawn"
+    r.tick()
+    r.installed()
+    assert not r.draw() and r.removed == [r.instance], "switched: the taken gun out of the scene"
+    assert r.hud() == [], "hidden: nothing left to aim at"
     assert r.build(USE) == USE
-    print("ok the command played (carry.filter): taken; its gun out of the scene on the ragdoll (native draw "
-          "skipped, as patch 78 hides a carrier's); \"Already taken\" only while it is still seen there, then "
-          "nothing at the empty spot; Use the game's again")
+    print("ok the command played (carry.filter): taken, no prompt for it (\"Already taken\" only until the "
+          "ragdoll's next draw); its gun stays drawn on the ragdoll through the holster and goes out of the "
+          "scene at the switch (native draw skipped, as patch 78 hides a carrier's), so the shared textures "
+          "never lose their streaming instance; Use the game's again")
 
     rule = "; held 10 two-handed, other %s, gun two-handed, rule %s"
     def battery(g):
@@ -2745,10 +2750,13 @@ def picked_gun_drops(patched):
     g.complete(q, gcooked)
     g.pick(target=3, picker=gc.p, now=died + 2_000, switch=False)
     assert g.save(g.picker) == record(("taken", 1, A_GUN), slot10=PICKED)
+    assert g.draw_body(g.picker) and g.removed == [], "holstering: B's ragdoll still draws the taken gun"
     g.die(gc.p, died + 2_100)
     assert g.save(g.picker) == record(("open", 1, A_GUN), slot10=PICKED), "B's drop open again (kit 0, slot 10)"
     assert g.save(PLAYER) == record(("taken", 1, A_GUN)), "A's drop untouched"
-    print("ok C dies while holstering it: cancelled, B's drop open again as it was (not A's)")
+    assert g.draw_body(g.picker) and g.removed == [], "the gun never left B's ragdoll"
+    print("ok C dies while holstering it: cancelled, B's drop open again as it was (not A's), its gun drawn on "
+          "B's ragdoll throughout")
 
 
 def picked_into_slot_7(patched):
