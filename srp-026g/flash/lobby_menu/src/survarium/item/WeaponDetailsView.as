@@ -3,6 +3,7 @@ package survarium.item
    import flash.display.Sprite;
    import survarium.controls.LabelDiffIndicator;
    import survarium.controls.ItemCompare;
+   import survarium.player.MatchEffects;
    import temp_test_fla.weapon_compare_mc_8;
 
    // Use the exported native symbol, not a new TextField: Scaleform resolves
@@ -17,7 +18,9 @@ package survarium.item
          mouseChildren = false;
       }
 
-      public function show(details:WeaponDetails, expanded:Boolean, original:ItemCompare) : void
+      // effects: the kit's and the skills' while Alt is held (details already with them), null for
+      // the weapon's own stats.
+      public function show(details:WeaponDetails, expanded:Boolean, original:ItemCompare, effects:MatchEffects = null) : void
       {
          while(numChildren) removeChildAt(numChildren - 1);
          contentHeight = 0;
@@ -27,8 +30,10 @@ package survarium.item
          scaleY = original.scaleY;
          var stride:Number = original.diff_2.y - original.diff_1.y;
          var nextY:Number = 0;
-         var secondary:WeaponDetails = WeaponDetails.read(original.getSecondaryData());
+         var secondary:WeaponDetails = WeaponDetails.read(original.getSecondaryData(),effects);
          var entries:Array = details.rows(expanded,secondary);
+         // Under the heading, one line saying what is on ("With kit and skills").
+         if(effects != null) entries.splice(1,0,{kind:"effects",text:effects.label});
          var peer:Array = secondary == null ? [] : secondary.rows(expanded,details);
          var peerStats:Object = {};
          for each(var other:Object in peer) if(other.kind == "stat") peerStats[other.id] = other;
@@ -75,20 +80,29 @@ package survarium.item
                row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
             }
             else row.value = row.compare = 0;
-            row.setDetailText(entry.label,entry.value);
+            row.setDetailText(entry.label,entry.value,entry.verdict);
             row.validateNow();
-            var lines:int = row.textFieldLabel.numLines;
+            var lines:int = row.detailLines;
             // Both cards reserve the larger label height for a compared row.
             // Different falloff distances can wrap differently in translation.
-            if(compared != null && compared.label != entry.label)
-            {
-               row.textFieldLabel.text = compared.label;
-               lines = Math.max(lines,row.textFieldLabel.numLines);
-               row.textFieldLabel.text = entry.label;
-            }
+            // Held Alt, a wider value ("base -> in a match") leaves its label less room, too.
+            if(compared != null && (compared.label != entry.label || effects != null && compared.value != entry.value))
+               lines = Math.max(lines,linesOf(compared));
             nextY += stride * Math.max(1,lines);
          }
          contentHeight = nextY * scaleY;
+      }
+
+      // The lines a row's label takes beside its value, laid out on a row of its own.
+      private function linesOf(entry:Object) : int
+      {
+         var probe:weapon_compare_mc_8 = new weapon_compare_mc_8();
+         addChild(probe);
+         probe.indicator.setDetailText(entry.label,entry.value);
+         probe.indicator.validateNow();
+         var lines:int = probe.indicator.detailLines;
+         removeChild(probe);
+         return lines;
       }
    }
 }

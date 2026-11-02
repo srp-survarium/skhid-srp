@@ -34,6 +34,12 @@ const STACK_BYTES: usize = 256 * 1024;
 /// The game log's tail: at most this many lines of its last bytes.
 const LOG_LINES: usize = 20;
 const LOG_BYTES: usize = 8 * 1024;
+/// The Reporter line of a build without a revision. `release/build-zip`
+/// refuses a DLL that holds the full-memory one.
+#[cfg(not(feature = "full-memory-dumps"))]
+const LOCAL_BUILD: &str = "local build";
+#[cfg(feature = "full-memory-dumps")]
+const LOCAL_BUILD: &str = "local build, full-memory dumps";
 
 pub struct Report {
     /// The whole report; `text[..head]` is what "Copy" copies.
@@ -391,7 +397,7 @@ pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS,
         "\r\nReporter:  {}\r\nWindows:   ",
         match option_env!("SKHID_REVISION") {
             Some(r) if !r.is_empty() => r,
-            _ => "local build",
+            _ => LOCAL_BUILD,
         }
     );
     windows(w);

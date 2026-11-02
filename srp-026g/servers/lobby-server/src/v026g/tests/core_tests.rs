@@ -2750,6 +2750,7 @@ fn the_operators_text_reaches_everyone_and_who_signs_in_later() {
     world.assert_clean();
 }
 
+mod admin_mute_tests;
 mod away_tests;
 mod balance_tests;
 mod chat_mute_tests;

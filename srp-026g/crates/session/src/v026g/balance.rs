@@ -1,24 +1,23 @@
-//! What a player counts for when the sides of a match are made, and the
-//! balance rating that is a part of it (`docs/notes/matchmaking.md` §8).
+//! What a player is worth to a side when the sides of a match are made,
+//! beside its K/D, and the balance rating (`docs/notes/kd-balance.md`,
+//! `docs/notes/matchmaking.md` §8).
 //!
 //! All of it is srp's own [choice]: the client knows nothing of how the
-//! original server made its sides. The numbers are fitted to the players'
-//! server's matches of 2026-10-12 and 13 (88 with a winner), which is
-//! little: they are settings ([`Weights`]) to be fitted again.
+//! original server made its sides.
 //!
 //! - **A side counts** [`Weights::player`] for each of its players, and
-//!   each player's [`Weights::strength`]: its gear level, its own level and
-//!   its balance rating as far as that is trusted. A room makes its two
-//!   sides count alike (`crate::v026g::rooms::sides`).
+//!   each player's K/D at the match's equipment level
+//!   (`super::level_stats`; the owner's of 2026-11-01). A room makes its
+//!   two sides count alike (`crate::v026g::rooms::sides`).
 //! - **The balance rating** ([`Balance`]) is not the ranking's
 //!   (`Account::rating`), which the client shows and which every player of
-//!   a side moves by alike whatever the sides' sizes. This one is kept for
-//!   the sides only. It starts at 0 (the average), a win raises it and a
-//!   loss lowers it ([`changes`]), by more the less the result was to be
-//!   expected: the side with a player more is expected to win
-//!   ([`PLAYER`]), so winning with it moves little.
-//! - **It is trusted by its matches** ([`Weights::trust`]): a rating of no
-//!   match counts for nothing, of [`Weights::trust_matches`] for half.
+//!   a side moves by alike whatever the sides' sizes. It starts at 0 (the
+//!   average), a win raises it and a loss lowers it ([`changes`]), by more
+//!   the less the result was to be expected: the side with a player more
+//!   is expected to win ([`PLAYER`]), so winning with it moves little.
+//!   The sides counted it until 2026-11-01; it is still kept and written
+//!   in the log's "sides" lines (`scripts/balance-refit`), and the matches
+//!   that move it are the ones that count kills and deaths.
 //! - **A match of few players moves none** ([`RATED_PLAYERS`],
 //!   [`players_in`]): one against one and two against one say nothing of
 //!   how sides should be made.
@@ -34,7 +33,7 @@
 use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::rules::DRAW;
 
-use crate::matchmaking::STRENGTH_SCALE;
+use crate::Strength;
 
 /// A whole point of the balance rating, as it is kept: thousandths.
 pub const UNIT: i32 = 1000;
@@ -187,21 +186,14 @@ pub fn changes_by_share(players: &[(u8, Balance, f64)], winner: u8) -> Vec<i32> 
         .collect()
 }
 
-/// What the parts of a player count for when the sides are made, each in
-/// gear levels.
+/// What a player is worth to a side when the sides are made, beside its
+/// K/D (`super::level_stats`), in K/Ds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Weights {
     /// A player, by being there. With an odd count the side with a player
     /// more has this much more, so the stronger players go to the other.
-    /// 0: only the strengths are made even, as before 2026-10-13.
+    /// 0: only the K/Ds are made even.
     pub player: f64,
-    /// A level of the account (`Account::level`: its skill points).
-    pub player_level: f64,
-    /// A whole point of the balance rating, fully trusted.
-    pub rating: f64,
-    /// The matches after which a rating counts for half. 0: it counts in
-    /// full from its first match.
-    pub trust_matches: f64,
     /// A battery of lead in a match being played (modes 2 and 3), in
     /// players: what the side that leads counts for more.
     pub battery_lead: f64,
@@ -211,24 +203,19 @@ pub struct Weights {
 }
 
 impl Default for Weights {
-    /// The fit of 2026-10-13 (player count, gear level, player level and
-    /// the rating, trusted, against who won): a player 2.28, a gear level
-    /// 0.15, a player level 0.18, a rating point 0.58. In gear levels that
-    /// is 15, 1.2 and 3.9; without the rating the same fit said 12 and
-    /// 1.5, and the splits were the same from 8 to 12.
+    /// A player is one K/D more: what an average player brings
+    /// ([`super::level_stats::DEFAULT_KD`]), so a side of a player more
+    /// and the same sum of strengths is the stronger one.
     ///
-    /// The lead is the fit of the same day on the worlds saved of 66 of
-    /// those matches (who won against the players in the match and the
-    /// lead, at five moments of each): a battery 0.57 of a player (51
-    /// matches), ten tickets 2.2 players (15 matches, so taken lower). The
-    /// side that first led by five batteries won 28 of 30 matches, by
-    /// four 35 of 39; no lead of eleven tickets was lost (9).
+    /// The lead is the fit of 2026-10-13 on the worlds saved of 66
+    /// matches (who won against the players in the match and the lead, at
+    /// five moments of each): a battery 0.57 of a player (51 matches), ten
+    /// tickets 2.2 players (15 matches, so taken lower). The side that
+    /// first led by five batteries won 28 of 30 matches, by four 35 of 39;
+    /// no lead of eleven tickets was lost (9).
     fn default() -> Self {
         Self {
-            player: 12.0,
-            player_level: 1.5,
-            rating: 4.0,
-            trust_matches: 5.0,
+            player: 1.0,
             battery_lead: 0.55,
             ticket_lead: 0.2,
         }
@@ -237,36 +224,14 @@ impl Default for Weights {
 
 impl Weights {
     /// [`Self::player`] as the sides of a match count it.
-    pub fn player_value(&self) -> i32 {
-        scaled(self.player)
-    }
-
-    /// How far a rating of `matches` matches is trusted, 0 to 1.
-    pub fn trust(&self, matches: u32) -> f64 {
-        let matches = f64::from(matches);
-        if matches <= 0.0 {
-            0.0
-        } else {
-            matches / (matches + self.trust_matches.max(0.0))
-        }
-    }
-
-    /// What a player counts for on top of [`Self::player`] when the sides
-    /// of a match are made: its gear level
-    /// (`matchmaking::level`'s `min`), its own level and its rating.
-    pub fn strength(&self, gear_level: u8, player_level: u8, balance: Balance) -> i32 {
-        let rating = f64::from(balance.rating) / f64::from(UNIT);
-        scaled(
-            f64::from(gear_level)
-                + self.player_level * f64::from(player_level)
-                + self.rating * self.trust(balance.matches) * rating,
-        )
+    pub fn player_value(&self) -> Strength {
+        Strength::of_kd(self.player)
     }
 
     /// What each side's lead counts for in a match of `game_mode` that
     /// stands at `points` (batteries home, tickets left, or Research's
     /// points): nothing for the side that trails.
-    pub fn lead(&self, game_mode: u8, points: [u16; 2]) -> [i32; 2] {
+    pub fn lead(&self, game_mode: u8, points: [u16; 2]) -> [Strength; 2] {
         let each = if matches!(game_mode, mode::TEAM_DEATHMATCH | mode::RESEARCH) {
             self.ticket_lead
         } else {
@@ -274,28 +239,21 @@ impl Weights {
         };
         let ahead = |side: usize| {
             let lead = f64::from(points[side].saturating_sub(points[1 - side]));
-            scaled(lead * each.max(0.0) * self.player.max(0.0))
+            Strength::of_kd(lead * each.max(0.0) * self.player.max(0.0))
         };
         [ahead(0), ahead(1)]
     }
 
     /// The chance of side 0 when it counts for `apart` more than side 1
-    /// (players, strengths and lead together): a
-    /// player more is [`PLAYER`] rating points, as in [`changes`].
-    pub fn expected(&self, apart: i64) -> f64 {
-        let player = f64::from(self.player_value());
+    /// (players, K/Ds and lead together): a player more is [`PLAYER`]
+    /// rating points, as in [`changes`].
+    pub fn expected(&self, apart: Strength) -> f64 {
+        let player = self.player_value().milli() as f64;
         if player <= 0.0 {
             return 0.5;
         }
-        1.0 / (1.0 + (-PLAYER * apart as f64 / player).exp())
+        1.0 / (1.0 + (-PLAYER * apart.milli() as f64 / player).exp())
     }
-}
-
-/// Gear levels as whole numbers ([`STRENGTH_SCALE`]).
-fn scaled(levels: f64) -> i32 {
-    (levels * f64::from(STRENGTH_SCALE))
-        .round()
-        .clamp(f64::from(i32::MIN / 64), f64::from(i32::MAX / 64)) as i32
 }
 
 #[cfg(test)]
@@ -405,34 +363,45 @@ mod tests {
         assert_eq!(players_in(&[]), 0);
     }
 
+    fn milli(each: [i64; 2]) -> [Strength; 2] {
+        each.map(Strength::from_milli)
+    }
+
     #[test]
     fn a_lead_counts_for_the_side_that_has_it() {
         let weights = Weights::default();
-        // Batteries: 0.55 of a player each, a player being twelve levels.
-        assert_eq!(weights.lead(mode::BATTERIES, [5, 3]), [1320, 0]);
-        assert_eq!(weights.lead(mode::TIMED_BATTERIES, [0, 5]), [0, 3300]);
-        assert_eq!(weights.lead(mode::BATTERIES, [4, 4]), [0, 0]);
+        // Batteries: 0.55 of a player each, a player being one K/D.
+        assert_eq!(weights.lead(mode::BATTERIES, [5, 3]), milli([1100, 0]));
+        assert_eq!(
+            weights.lead(mode::TIMED_BATTERIES, [0, 5]),
+            milli([0, 2750])
+        );
+        assert_eq!(weights.lead(mode::BATTERIES, [4, 4]), milli([0, 0]));
         // Tickets: a fifth of a player.
-        assert_eq!(weights.lead(mode::TEAM_DEATHMATCH, [80, 93]), [0, 3120]);
+        assert_eq!(
+            weights.lead(mode::TEAM_DEATHMATCH, [80, 93]),
+            milli([0, 2600])
+        );
         // Research's points as tickets.
-        assert_eq!(weights.lead(mode::RESEARCH, [93, 80]), [3120, 0]);
+        assert_eq!(weights.lead(mode::RESEARCH, [93, 80]), milli([2600, 0]));
         // With no weight for a player there is no lead to count.
         let none = Weights {
             player: 0.0,
             ..weights
         };
-        assert_eq!(none.lead(mode::BATTERIES, [9, 0]), [0, 0]);
-        assert_eq!(none.expected(5000), 0.5);
+        assert_eq!(none.lead(mode::BATTERIES, [9, 0]), milli([0, 0]));
+        assert_eq!(none.expected(Strength::from_milli(5000)), 0.5);
     }
 
     #[test]
     fn the_chance_of_a_side_follows_what_it_counts_for_more() {
         let weights = Weights::default();
-        assert_eq!(weights.expected(0), 0.5);
+        assert_eq!(weights.expected(Strength::ZERO), 0.5);
         // A player more: the nine to one of the rating.
-        let player = i64::from(weights.player_value());
+        let player = weights.player_value();
+        assert_eq!(player, Strength::from_milli(1000));
         assert!((weights.expected(player) - 0.9).abs() < 0.01);
-        assert!((weights.expected(-player) - 0.1).abs() < 0.01);
+        assert!((weights.expected(Strength::ZERO - player) - 0.1).abs() < 0.01);
     }
 
     #[test]
@@ -451,42 +420,5 @@ mod tests {
         let favourite = changes(&[(0, rated(2 * UNIT, 40)), (1, rated(0, 40))], 0);
         let upset = changes(&[(0, rated(2 * UNIT, 40)), (1, rated(0, 40))], 1);
         assert!(favourite[0] > 0 && favourite[0] < upset[1]);
-    }
-
-    #[test]
-    fn a_rating_is_trusted_by_its_matches() {
-        let weights = Weights::default();
-        assert_eq!(weights.trust(0), 0.0);
-        assert_eq!(weights.trust(5), 0.5);
-        assert!(weights.trust(45) >= 0.9);
-        // A new account is its gear and its level: the rating counts for
-        // nothing, whatever it says.
-        assert_eq!(weights.strength(3, 2, rated(5 * UNIT, 0)), 600);
-        // After five matches a point counts for half of 4 gear levels.
-        assert_eq!(weights.strength(3, 2, rated(UNIT, 5)), 800);
-        assert_eq!(weights.strength(3, 2, rated(-UNIT, 5)), 400);
-        assert_eq!(weights.player_value(), 1200);
-    }
-
-    #[test]
-    fn weights_of_zero_leave_the_gear_level() {
-        let weights = Weights {
-            player: 0.0,
-            player_level: 0.0,
-            rating: 0.0,
-            ..Weights::default()
-        };
-        assert_eq!(
-            weights.strength(7, 9, rated(3 * UNIT, 100)),
-            7 * STRENGTH_SCALE
-        );
-        assert_eq!(weights.player_value(), 0);
-        // No trust setting: in full from the first match.
-        let at_once = Weights {
-            trust_matches: 0.0,
-            ..Weights::default()
-        };
-        assert_eq!(at_once.trust(1), 1.0);
-        assert_eq!(at_once.trust(0), 0.0);
     }
 }

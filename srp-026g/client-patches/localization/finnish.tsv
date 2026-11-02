@@ -1388,14 +1388,14 @@ st_lifebone_activation_hint	Ritarinkannus aktivoitu! Kaikki vakavat vammat paran
 st_lifebone_pickup_hint	Ritarinkannus-artefakti. Nopeuttaa terveyden palautumista. 
 st_lightning_quality_option	Valaistuksen laatu
 st_login_button_label	Kirjaudu
-st_login_default_text	Sähköposti
+st_login_default_text	Nimimerkki
 st_login_eula_label	Lisenssisopimus
 st_login_menu_accept	Hyväksy
 st_login_menu_cancel	Peruuta
 st_login_menu_status_access_level_restriction	Käyttöoikeutesi eivät riitä kirjautumiseen.
 st_login_menu_status_connecting	Kirjaudutaan…
 st_login_menu_status_error_connection	Skhid-palvelimeen ei saada yhteyttä. Salli peli palomuurissa (Skhid-network-setup.cmd). Venäjällä käytä VPN:ää ja lisää pelin .exe-tiedostot siihen (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Virheellinen sähköposti tai salasana
+st_login_menu_status_invalid_user_or_password	Virheellinen nimimerkki tai salasana
 st_login_menu_status_invalid_version	Käytät vanhentunutta peliversiota.
 st_login_menu_status_sign_in_already_online	 Käyttäjä on jo pelissä
 st_login_menu_status_sign_in_attempt_interval_violated	Liian monta kirjautumisyritystä. Yritä uudelleen 10 sekunnin kuluttua.
@@ -2572,8 +2572,8 @@ st_srp_rooms_join_why_7	Ottelun pelaajaraja on täynnä. Liityt seuraavaan ottel
 st_srp_rooms_joined_room	%1$s liittyi huoneeseen
 st_srp_rooms_late_hint	Uudet liittyjät näkevät ensin huoneen ja siirtyvät sitten otteluun.
 st_srp_rooms_leave	Poistu
-st_srp_rooms_leave_queue	Poistu jonosta
-st_srp_rooms_leave_room	Poistu huoneesta
+st_srp_rooms_leave_queue	Poistu
+st_srp_rooms_leave_room	Poistu
 st_srp_rooms_left_room	%1$s poistui huoneesta
 st_srp_rooms_level	Taso
 st_srp_rooms_map	Kartta
@@ -2630,6 +2630,8 @@ st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
 st_srp_scope_screen_hint	Vedä tähtäin tavaroistasi aseen muokkauspaikkaan
 st_srp_scope_slot	Tähtäin
+st_srp_shop_not_owned	Piilota omistetut
+st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s
@@ -2653,7 +2655,7 @@ st_srp_weapon_minimum_damage	Vähimmäisvahinko
 st_srp_weapon_minimum_damage_from	Vähimmäisvahinko alkaa
 st_srp_weapon_recoil_heading	Rekyyli, hajonta ja heilunta
 st_srp_weapon_reload	Lataaminen
-st_srp_weapon_shift_hint	Lisätiedot: pidä Shift pohjassa
+st_srp_weapon_shift_hint	Shift: lisää · Alt: ottelussa
 st_srp_weapon_spread_growth	Hajonnan kasvunopeus
 st_srp_weapon_spread_max	Suurin lisähajonta
 st_srp_weapon_spread_per_shot	Hajonta laukausta kohden
@@ -2663,6 +2665,8 @@ st_srp_weapon_stats	Asetilastot
 st_srp_weapon_sway_cycle	Heiluntajakso
 st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
+st_srp_weapon_with_kit	Varustesetillä
+st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
 st_srp_weather_evening	ilta
@@ -2859,9 +2863,16 @@ st_walther_competition2_collimator_desc	Saksalainen Walther-punapistetähtäin, 
 st_walther_competition2_collimator_name	Competition II -punapistetähtäin
 st_wasted	Kulutus
 st_weapon_aim_action	Tähtää (pidä)
+st_weapon_already_taken	Jo poimittu
+st_weapon_cannot_carry	Et voi kantaa toista kivääriä
+st_weapon_cannot_pick_up	Tätä ei voi poimia
 st_weapon_could_not_be_used	Kädet haavoittuneet! Aseita ei voi käyttää
 st_weapon_fire_action	Ammu
+st_weapon_no_gun_in_hands	Ota ase käteen vaihtaaksesi
+st_weapon_one_gun_only	Voit kantaa vain yhtä asetta
+st_weapon_pick_up	Poimi %1$s ({USE})
 st_weapon_reload_action	Lataa
+st_weapon_switching	Odota aseen vaihtoa
 st_wear	Käytä
 st_weight_booster_description	Proteiinia, joka sisältää lihaskasvun ja voiman tarvitsemat ravintoaineet. Ilman fyysistä rasitusta se ei kuitenkaan tehoa.
 st_weight_booster_name	Anomaalinen voima -proteiini

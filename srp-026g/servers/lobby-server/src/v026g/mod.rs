@@ -54,11 +54,9 @@
 //! - `SRP_BIND_HOST` / `SRP_LOBBY_BIND`, `SRP_LOBBY_PORT` (default 1235),
 //!   `SRP_PUBLIC_HOST` / `SRP_LOBBY_PUBLIC_HOST`, `SRP_LOCAL_PEERS`: the
 //!   address (`vostok::config`), the one the 0.26g login server announces;
-//! - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
-//!   `SRP_BALANCE_RATING` (4), `SRP_BALANCE_TRUST_MATCHES` (5): what a
-//!   player, a level of its account and a point of its balance rating
-//!   count for when the sides are made, in gear levels, and the matches
-//!   after which the rating counts for half (`session::v026g::balance`);
+//! - `SRP_BALANCE_PLAYER_KD` (default 1): what a player counts for by
+//!   being there when the sides are made, in K/Ds, beside its K/D
+//!   (`session::v026g::balance`, `docs/notes/kd-balance.md`);
 //! - `SRP_BALANCE_RATED_PLAYERS` (default 4): the fewest players a match
 //!   must have had in it to move the balance rating (read where a match
 //!   is settled: `session::v026g::balance::rated_players`);
@@ -89,11 +87,12 @@
 //!   (0: it ends with the link);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log (the sign-in's
 //!   session id is left out of it);
-//! - `SRP_PVB` (default off), `SRP_PVB_MAX_GEAR` (15), `SRP_PVB_MAX_MATCHES`
-//!   (5), `SRP_PVB_PAY` (0.5), `SRP_PVB_STALL_S` (60): "Player vs Bots"
-//!   (`pvb`, whose module says what each does and which server reads it).
-//! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
-//!   players' "servers" (`rooms`, whose module says what each does).
+//! - `SRP_PVB` (default off), `SRP_PVB_MAX_MATCHES` (5), `SRP_PVB_PAY` (0.5),
+//!   `SRP_PVB_STALL_S` (60): "Player vs Bots" (`pvb`, whose module says what
+//!   each does and which server reads it).
+//! - `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the players' "servers" (`rooms`,
+//!   whose module says what each does). Their numbers are game data:
+//!   `gameplay/srp/rooms.options` (`RoomRules`).
 
 mod away;
 mod clans;
@@ -194,10 +193,10 @@ pub struct Settings {
     /// What a player counts for when the sides of a match are made
     /// (`SRP_BALANCE_*`; `session::v026g::balance`).
     pub balance: Weights,
-    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_GEAR`,
-    /// `SRP_PVB_MAX_MATCHES`; `pvb`).
+    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_MATCHES`, `RoomRules::pvb`;
+    /// `pvb`).
     pub pvb: pvb::Config,
-    /// Rooms (`SRP_ROOMS_MAX`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
+    /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
 }
 
@@ -277,20 +276,14 @@ impl Settings {
         };
         let defaults = Weights::default();
         let balance = Weights {
-            player: weight("SRP_BALANCE_PLAYER", defaults.player),
-            player_level: weight("SRP_BALANCE_PLAYER_LEVEL", defaults.player_level),
-            rating: weight("SRP_BALANCE_RATING", defaults.rating),
-            trust_matches: weight("SRP_BALANCE_TRUST_MATCHES", defaults.trust_matches),
+            player: weight("SRP_BALANCE_PLAYER_KD", defaults.player),
             battery_lead: weight("SRP_BALANCE_BATTERY_LEAD", defaults.battery_lead),
             ticket_lead: weight("SRP_BALANCE_TICKET_LEAD", defaults.ticket_lead),
         };
         log::info!(
-            "The sides of a match: a player counts for {} gear levels, a level of its account \
-             for {}, a point of its balance rating for {} (for half after {} matches)",
-            balance.player,
-            balance.player_level,
-            balance.rating,
-            balance.trust_matches
+            "The sides of a match: each player counts for its K/D at the match's equipment \
+             level, and {} K/D for being there",
+            balance.player
         );
         log::info!(
             "The balance rating: a match moves it when {} players or more were in it for half \

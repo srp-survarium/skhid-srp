@@ -1388,14 +1388,14 @@ st_lifebone_activation_hint	Larkspur activated! All the critical wounds cured! H
 st_lifebone_pickup_hint	Larkspur artifact. Increases health regeneration. 
 st_lightning_quality_option	Lighting quality
 st_login_button_label	Enter
-st_login_default_text	E-mail
+st_login_default_text	Nickname
 st_login_eula_label	Licensing agreement
 st_login_menu_accept	Accept
 st_login_menu_cancel	Cancel
 st_login_menu_status_access_level_restriction	The access level is insufficient to enter.
 st_login_menu_status_connecting	Authorizing…
 st_login_menu_status_error_connection	Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Invalid e-mail or password
+st_login_menu_status_invalid_user_or_password	Invalid nickname or password
 st_login_menu_status_invalid_version	You're using an outdated version of the game.
 st_login_menu_status_sign_in_already_online	 The user is already in the game
 st_login_menu_status_sign_in_attempt_interval_violated	You have exceeded the number of allowed login attempts. Try again in 10 seconds.
@@ -2630,6 +2630,8 @@ st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
 st_srp_scope_screen_hint	Drag a scope from your inventory into the weapon modification slot
 st_srp_scope_slot	Optics
+st_srp_shop_not_owned	Hide owned
+st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s
@@ -2653,7 +2655,7 @@ st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway
 st_srp_weapon_reload	Reload
-st_srp_weapon_shift_hint	Hold Shift for details
+st_srp_weapon_shift_hint	Shift: details · Alt: in a match
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
 st_srp_weapon_spread_per_shot	Spread added per shot
@@ -2663,6 +2665,8 @@ st_srp_weapon_stats	Weapon stats
 st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weapon_with_kit	With kit
+st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
 st_srp_weather_evening	evening
@@ -2859,9 +2863,16 @@ st_walther_competition2_collimator_desc	German red dot collimator sight made by 
 st_walther_competition2_collimator_name	Competition II collimator
 st_wasted	Consumption
 st_weapon_aim_action	Aim (hold)
+st_weapon_already_taken	Already taken
+st_weapon_cannot_carry	Can't carry a second rifle
+st_weapon_cannot_pick_up	Can't pick this up
 st_weapon_could_not_be_used	Arms wounded! Unable to use weapons
 st_weapon_fire_action	Shoot
+st_weapon_no_gun_in_hands	Hold a gun to swap it
+st_weapon_one_gun_only	You can carry one gun only
+st_weapon_pick_up	Pick up %1$s ({USE})
 st_weapon_reload_action	Reload
+st_weapon_switching	Wait for the weapon switch
 st_wear	Apply
 st_weight_booster_description	Protein containing essential nutrients for muscle growth and strength improvement. However using it without physical exertion is ineffective.
 st_weight_booster_name	Anomalous Force Protein
