@@ -1513,7 +1513,7 @@ pub(super) mod tests {
         triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 6.0));
         let bare = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
         let last = (0..bare.len() as NodeId).map(|n| bare.position(n)).filter(|p| p.y > 5.9 && (p.z - 5.0).abs() < 0.2).map(|p| p.x).fold(f32::MIN, f32::max);
-        let rim = bare.locate(Vec3::new(last, 6.0, 5.0), 0.1).unwrap();
+        let rim = bare.locate(Vec3::new(last, 6.0, 5.0), 0.3).unwrap();
         assert!(bare.links(rim).all(|(b, _)| bare.position(b).y > 5.0), "no link off the 6 m edge");
         let open = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_open_sides(&triangles, SUPPORT_M);
         let yaw = -std::f32::consts::FRAC_PI_2;
