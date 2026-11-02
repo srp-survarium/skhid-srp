@@ -1,4 +1,4 @@
-# The STK2 bomb shelter (pack lobby-stk2-bunker@8, projects/lobby_scene/stk2_bunker): where things are,
+# The STK2 bomb shelter (pack lobby-stk2-bunker@10, projects/lobby_scene/stk2_bunker): where things are,
 # in the lobby's world (metres, y up; the default camera looks along +z). Made by resource-porter's
 # build-stk2-lobby-026 (ports/stk2-bunker-lobby-to-026g.json), which bakes the STK2 scene into this frame.
 # yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
