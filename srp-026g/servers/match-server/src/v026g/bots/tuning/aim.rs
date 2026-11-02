@@ -96,16 +96,16 @@ impl AimTuning {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillCurve {
-    /// A straight line in degrees (before A243). The hit rate it gives is
-    /// convex in the skill: the angle falls by the same degrees each step and
-    /// the hits climb steeply only as it nears the body's angular size (A242,
-    /// rifles + SMGs at the stand-in human: 12.8 / 14.0 / 14.6 / 20.1 / 23.2 %
-    /// at 0.2 / 0.4 / 0.6 / 0.8 / 1.0).
-    #[default]
+    /// A straight line in degrees (before A243; `all_off.json` keeps it). The
+    /// hit rate it gives is convex in the skill: the angle falls by the same
+    /// degrees each step and the hits climb steeply only as it nears the body's
+    /// angular size (A242, rifles + SMGs at the stand-in human: 12.8 / 14.0 /
+    /// 14.6 / 20.1 / 23.2 % at 0.2 / 0.4 / 0.6 / 0.8 / 1.0).
     Linear,
     /// The same factor each step (`a0 * (a1 / a0)^skill`), so the middle skills
     /// aim tighter than the straight line and the hit rate runs nearer the
     /// owner's straight line of hit rates; an end at 0 falls back to the line.
+    #[default]
     Geometric,
 }
 
@@ -121,8 +121,19 @@ impl SkillCurve {
 }
 
 /// [A243] Factors on the aim's angles by the gun's class, at skill 0 and at
-/// skill 1 (1.0: the shared numbers). The class is the bots' own
-/// (`CombatTuning::class_of`).
+/// skill 1 (1.0: the shared numbers, [`ClassAim::same`], `all_off.json`'s). The
+/// class is the bots' own (`CombatTuning::class_of`).
+///
+/// The defaults put each class on the owner's line (2026-11-01): skill 0 the
+/// class's live median, skill 1 its bar, a straight line of hit rates between,
+/// per shot on the target's line at 0-65 m (bolts 0-105 m; a shotgun per
+/// pellet), never over the bar. Fitted on the bench's skill ladder with the
+/// geometric curve, `combat.zoom_error` all and `combat.settle_k_low` 2.0, its
+/// rates weighed to the live humans' shots by distance and target speed
+/// (`a243-read.py`; the live shares and the bench's rates in the A243 PR):
+/// rifles, SMGs, MGs 10.2 -> 18-20 %; shotgun ~11 -> ~20 %; marksman 18.6 ->
+/// 30-32 %; bolt 31.1 -> 38-40 %. Pistols have no bench kit and take the
+/// automatics' factors (their bar, 10.7 -> up to 25 %, is not measured).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClassAim {
@@ -137,12 +148,26 @@ pub struct ClassAim {
 
 impl Default for ClassAim {
     fn default() -> Self {
-        let same = (1.0, 1.0);
-        Self { pistol: same, smg: same, rifle: same, mg: same, shotgun: same, marksman: same, bolt: same }
+        let automatic = (0.40, 1.32);
+        Self {
+            pistol: automatic,
+            smg: automatic,
+            rifle: automatic,
+            mg: automatic,
+            shotgun: (1.0, 1.25),
+            marksman: (1.33, 0.80),
+            bolt: (0.77, 1.0),
+        }
     }
 }
 
 impl ClassAim {
+    /// Every class on the shared numbers (before A243).
+    pub fn same() -> Self {
+        let same = (1.0, 1.0);
+        Self { pistol: same, smg: same, rifle: same, mg: same, shotgun: same, marksman: same, bolt: same }
+    }
+
     pub fn of(&self, class: WeaponClass) -> (f32, f32) {
         match class {
             WeaponClass::Pistol => self.pistol,
@@ -311,12 +336,32 @@ mod tests {
 
     #[test]
     fn a_class_factor_scales_only_its_own_class() {
-        let aim = AimTuning { class_aim: ClassAim { bolt: (2.0, 0.5), ..ClassAim::default() }, ..AimTuning::default() };
+        let aim = AimTuning { class_aim: ClassAim { bolt: (2.0, 0.5), ..ClassAim::same() }, ..AimTuning::default() };
         assert!((aim.angle(aim.error_deg, 1.0, WeaponClass::Rifle) - 0.9).abs() < 1e-5);
         assert!((aim.angle(aim.error_deg, 1.0, WeaponClass::Bolt) - 0.45).abs() < 1e-5);
         assert!((aim.angle(aim.error_deg, 0.0, WeaponClass::Bolt) - 12.0).abs() < 1e-5);
         assert!(aim.check().is_ok());
-        let bad = AimTuning { class_aim: ClassAim { pistol: (0.0, 1.0), ..ClassAim::default() }, ..AimTuning::default() };
+        let bad = AimTuning { class_aim: ClassAim { pistol: (0.0, 1.0), ..ClassAim::same() }, ..AimTuning::default() };
         assert!(bad.check().is_err());
+    }
+
+    #[test]
+    fn the_default_class_factors_are_valid_and_keep_every_class_rising_with_skill() {
+        let aim = AimTuning::default();
+        assert!(aim.check().is_ok());
+        let classes = [
+            WeaponClass::Pistol,
+            WeaponClass::Smg,
+            WeaponClass::Rifle,
+            WeaponClass::MachineGun,
+            WeaponClass::Shotgun,
+            WeaponClass::Marksman,
+            WeaponClass::Bolt,
+        ];
+        // Each class's error angle falls at every step, so its hit rate can only rise with the skill (the owner's rule).
+        for class in classes {
+            let steps: Vec<f32> = (0..=10).map(|i| aim.angle(aim.error_deg, i as f32 / 10.0, class)).collect();
+            assert!(steps.windows(2).all(|w| w[1] < w[0]), "{class:?}: {steps:?}");
+        }
     }
 }

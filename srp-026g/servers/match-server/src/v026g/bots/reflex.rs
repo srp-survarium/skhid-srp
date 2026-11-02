@@ -197,8 +197,8 @@ impl WeaponKind {
 }
 
 /// Whether the aim's error angles scale with the zoom of the sights, as a player's hand does (the client turns the view by
-/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): a bench setting to size the effect,
-/// off in the game.
+/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): every sight's in the game since A243
+/// (`CombatTuning::zoom_error`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ZoomError {
@@ -903,7 +903,9 @@ pub struct CombatTuning {
     /// target is not trailed by the turn's ease (the turn's time constant,
     /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
     pub turn_feed: bool,
-    /// The error angles times the sights' zoom ([`ZoomError`]): the scopes' (A182 #29; `all_off.json` keeps it off).
+    /// The error angles times the sights' zoom ([`ZoomError`]): every sight's, iron sights too (A243: the client zooms an
+    /// aimed-in iron sight by `1 / aim_zoom_factor` of the game data, 1.0-1.2, PROVEN; before, the scopes' only, A182 #29;
+    /// `all_off.json` keeps it off).
     pub zoom_error: ZoomError,
     /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]), on the guns with a
     /// scope (`settle_guns`; A182 #29, `all_off.json` keeps it off). The
@@ -915,8 +917,9 @@ pub struct CombatTuning {
     pub settle_guns: SettleGuns,
     pub settle_k: f32,
     /// [A243] `settle_k` at skill 0 (`settle_k` is skill 1's), mixed by the skill: a weak player fires before his aim fits the
-    /// body as well as a strong one waits for. 1.0 at both: the same bound at every skill (before A243: A242 found the bolt's hit
-    /// rate flat across skill, every skill firing at about the same expected error).
+    /// body as well as a strong one waits for. 2.0: skill 0 fires at twice the error skill 1 waits for, so the scoped classes'
+    /// hit rates rise with the skill (fitted with the class factors, `AimTuning::class_aim`). 1.0 (before A243, `all_off.json`):
+    /// the same bound at every skill, and A242 found the bolt's hit rate flat across skill.
     pub settle_k_low: f32,
     pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
@@ -1517,11 +1520,11 @@ impl Default for CombatTuning {
             lead_own: true,
             live_eye: true,
             turn_feed: true,
-            zoom_error: ZoomError::Scopes,
+            zoom_error: ZoomError::All,
             settle: Settle::WanderAndPolicy,
             settle_guns: SettleGuns::Scoped,
             settle_k: 1.0,
-            settle_k_low: 1.0,
+            settle_k_low: 2.0,
             settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
