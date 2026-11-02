@@ -10,6 +10,7 @@ use survarium::v026g::lobby::{
 use survarium::v026g::modifications::Modifications;
 use survarium::v026g::shop_offers;
 use survarium::v026g::skills::SkillsTree;
+use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item};
 use super::{items_rules, rules};
@@ -44,24 +45,36 @@ pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
             .filter(|&&(id, state)| table.is_known(id, state))
             .map(|&(id, state)| Modification { id, state })
             .collect(),
-        // A record whose dict id the data lacks (a withdrawn scope variant)
-        // would have the client build the item with a modification it does
-        // not have; the load takes such records off, this is the last guard.
-        upgrades: item
-            .upgrades
-            .iter()
-            .filter(|upgrade| {
-                u16::try_from(upgrade.a)
-                    .ok()
-                    .is_some_and(|dict_id| Dictionary::shared().item(dict_id).is_some())
-            })
-            .map(|upgrade| Upgrade {
-                id: upgrade.id,
-                a: upgrade.a,
-                value: upgrade.value,
-                param: upgrade.param,
-            })
-            .collect(),
+        upgrades: upgrades_descr(item),
+    }
+}
+
+/// An item's upgrades as the client is sent them. A record whose dict id
+/// the data lacks (a withdrawn scope variant) would have the client build
+/// the item with a modification it does not have; the load takes such
+/// records off, this is the last guard. A weapon's (up to six, in logical
+/// slots) go packed into at most three: the decals, then the weapon kit
+/// (`survarium::v026g::weapon_kit`, client patch 68).
+pub fn upgrades_descr(item: &Item) -> Vec<Upgrade> {
+    let known: Vec<Upgrade> = item
+        .upgrades
+        .iter()
+        .filter(|upgrade| {
+            u16::try_from(upgrade.a)
+                .ok()
+                .is_some_and(|dict_id| Dictionary::shared().item(dict_id).is_some())
+        })
+        .map(|upgrade| Upgrade {
+            id: upgrade.id,
+            a: upgrade.a,
+            value: upgrade.value,
+            param: upgrade.param,
+        })
+        .collect();
+    if items_rules::is_weapon(item.dict_id) {
+        weapon_kit::pack(&known)
+    } else {
+        known
     }
 }
 

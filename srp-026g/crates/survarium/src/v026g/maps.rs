@@ -825,7 +825,7 @@ mod tests {
                 }
             })
             .collect();
-        let built = build(&db, &patches).unwrap();
+        let built = build(&db, &patches, None).unwrap();
         let mut archive = resources_db::Archive::new(std::io::Cursor::new(built.bytes)).unwrap();
         let data = GameData::from_archive(&mut archive, "live".into()).unwrap();
         super::super::tables::check(&data).unwrap();

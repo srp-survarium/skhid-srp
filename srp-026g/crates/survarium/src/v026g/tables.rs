@@ -12,6 +12,7 @@ use super::drops::{self, Drops};
 use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemParams, PlayerLimits};
 use super::loadouts::{self, Loadouts};
+use super::lobby::rooms::{RULES_PATH, RoomRules};
 use super::localization;
 use super::maps;
 use super::modifications::{self, Modifications};
@@ -129,6 +130,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         loadouts::PATH,
         Loadouts::parse(needed(data, loadouts::PATH)?, &dictionary),
     )?;
+    RoomRules::parse(needed(data, RULES_PATH)?).map_err(GameDataError)?;
     if let Some(pair) = dictionary
         .items
         .windows(2)

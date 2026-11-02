@@ -88,7 +88,7 @@ def audit_content_sources(repo, keys):
     rows = [line.split('\t') for line in (repo / 'release/content.tsv').read_text().splitlines()
             if line and not line.startswith('#')]
     edits = [(row[1], json.loads((repo / 'srp-026g/scripts/content-edit' / row[1]).read_text()))
-             for row in rows if row[0] == 'edit' and row[2] == '-']
+             for row in rows if row[0] == 'edit' and row[2] == '-' and row[1].endswith('.json')]
     compilers = [name for name, edit in edits if 'localization' in edit]
     if len(compilers) != 1 or rows[-1][:3] != ['edit', compilers[0], '-']:
         issues.append('content.tsv must end with exactly one localization catalog edit')

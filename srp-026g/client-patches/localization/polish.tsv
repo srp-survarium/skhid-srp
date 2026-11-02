@@ -1398,14 +1398,14 @@ st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zosta
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
 st_login_button_label	Wejdź
-st_login_default_text	E-mail
+st_login_default_text	Nick
 st_login_eula_label	Umowa licencyjna\n z użytkownikiem końcowym gry „Survarium”
 st_login_menu_accept	Akceptuj
 st_login_menu_cancel	Anuluj
 st_login_menu_status_access_level_restriction	Niewystarczający poziom dostępu, aby wejść.
 st_login_menu_status_connecting	Autoryzacja…
 st_login_menu_status_error_connection	Brak połączenia z serwerem Skhid. Zezwól na grę w zaporze (Skhid-network-setup.cmd). W Rosji użyj VPN i dodaj do niego pliki .exe gry (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Nieprawidłowy e-mail lub hasło
+st_login_menu_status_invalid_user_or_password	Nieprawidłowy nick lub hasło
 st_login_menu_status_invalid_version	Korzystasz z nieaktualnej wersji gry.
 st_login_menu_status_sign_in_already_online	Użytkownik jest już w grze
 st_login_menu_status_sign_in_attempt_interval_violated	Przekroczono maksymalną liczbę prób logowana. Spróbuj ponownie za 10 sekund.
@@ -2582,8 +2582,8 @@ st_srp_rooms_join_why_7	Ten mecz osiągnął limit graczy. Dołączysz do nastę
 st_srp_rooms_joined_room	%1$s dołączył do pokoju
 st_srp_rooms_late_hint	Kto dołączy teraz, zobaczy pokój, potem trafi do meczu.
 st_srp_rooms_leave	Opuść
-st_srp_rooms_leave_queue	Opuść kolejkę
-st_srp_rooms_leave_room	Opuść pokój
+st_srp_rooms_leave_queue	Opuść
+st_srp_rooms_leave_room	Opuść
 st_srp_rooms_left_room	%1$s opuścił pokój
 st_srp_rooms_level	Poziom
 st_srp_rooms_map	Mapa
@@ -2640,6 +2640,8 @@ st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
 st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
 st_srp_scope_slot	Optyka
+st_srp_shop_not_owned	Ukryj posiadane
+st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s
@@ -2663,7 +2665,7 @@ st_srp_weapon_minimum_damage	Minimalne obrażenia
 st_srp_weapon_minimum_damage_from	Minimalne obrażenia od
 st_srp_weapon_recoil_heading	Odrzut, rozrzut i kołysanie
 st_srp_weapon_reload	Przeładowanie
-st_srp_weapon_shift_hint	Przytrzymaj Shift: szczegóły
+st_srp_weapon_shift_hint	Shift: więcej · Alt: w meczu
 st_srp_weapon_spread_growth	Tempo wzrostu rozrzutu
 st_srp_weapon_spread_max	Limit wzrostu rozrzutu
 st_srp_weapon_spread_per_shot	Rozrzut na strzał
@@ -2673,6 +2675,8 @@ st_srp_weapon_stats	Statystyki broni
 st_srp_weapon_sway_cycle	Cykl kołysania
 st_srp_weapon_sway_horizontal	Kołysanie poziome
 st_srp_weapon_sway_vertical	Kołysanie pionowe
+st_srp_weapon_with_kit	Z zestawem
+st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
 st_srp_weather_before_rain	przed deszczem
 st_srp_weather_day	dzień
 st_srp_weather_evening	wieczór
@@ -2869,9 +2873,16 @@ st_walther_competition2_collimator_desc	Niemiecki celownik kolimatorowy z czerwo
 st_walther_competition2_collimator_name	Kolimator Competition II
 st_wasted	Koszt
 st_weapon_aim_action	Celowanie (przytrzymaj)
+st_weapon_already_taken	Już podniesiona
+st_weapon_cannot_carry	Nie możesz nieść drugiego karabinu
+st_weapon_cannot_pick_up	Nie można tego podnieść
 st_weapon_could_not_be_used	Rana rąk! Nie można użyć broni
 st_weapon_fire_action	Strzał
+st_weapon_no_gun_in_hands	Weź broń do ręki, by ją wymienić
+st_weapon_one_gun_only	Możesz nieść tylko jedną broń
+st_weapon_pick_up	Podnieś %1$s ({USE})
 st_weapon_reload_action	Przeładowanie
+st_weapon_switching	Poczekaj na zmianę broni
 st_wear	Zastosuj
 st_weight_booster_description	Białka zawierające składniki odżywcze dla przyrostu masy mięśniowej i zwiększenia siły. Stosowanie ich jednak niepoparte wysiłkiem fizycznym jest nieskuteczne.
 st_weight_booster_name	Odżywka "Anormalna Siła"

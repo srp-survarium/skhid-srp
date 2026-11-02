@@ -4,9 +4,9 @@ use super::*;
 fn the_test_archive_is_0_26g_with_the_test_patches() {
     let data = shared();
     assert_eq!(data.origin, TEST_ORIGIN);
-    // 0.26g's 508, the Bandit balaclava's config of patch 15, and the
-    // English and Ukrainian localizations.
-    assert_eq!(data.len(), 511);
+    // 0.26g's 508, the Bandit balaclava's config of patch 15, the English
+    // and Ukrainian localizations, and srp's own configs (SRP_TABLES).
+    assert_eq!(data.len(), 511 + SRP_TABLES.len());
     assert!(data.file("localization/ukrainian/localization").is_some());
     assert!(
         data.file("gameplay/items/armour/mask/bandit_026.options")
@@ -87,7 +87,14 @@ fn srp_needs_readable_server_game_data() {
     // The test data, as srp reads it.
     std::fs::write(&data, TEST_ARCHIVE).unwrap();
     let opened = GameData::open(&data).unwrap();
-    assert_eq!(opened.files, shared().files);
+    // The test data has srp's own configs over the archive's (SRP_TABLES).
+    let mut files = opened.files.clone();
+    files.extend(
+        SRP_TABLES
+            .iter()
+            .map(|(path, table)| ((*path).to_owned(), key_value_config(table))),
+    );
+    assert_eq!(files, shared().files);
     assert_eq!(opened.projects, shared().projects);
     assert_eq!(opened.provenance, shared().provenance);
     // SAFETY: as above.
@@ -190,13 +197,13 @@ fn the_test_data_is_0_26g_with_the_test_patches() {
             }
         })
         .collect();
-    let built = build(&db, &patches).unwrap();
+    let built = build(&db, &patches, None).unwrap();
     assert!(
         built.bytes == TEST_ARCHIVE,
         "the test data is not that of 0.26g with these patches"
     );
 
-    let stock = build(&db, &[]).unwrap();
+    let stock = build(&db, &[], None).unwrap();
     let mut archive = Archive::new(Cursor::new(stock.bytes)).unwrap();
     let stock = GameData::from_archive(&mut archive, "0.26g".into()).unwrap();
     super::super::tables::check(&stock).unwrap();

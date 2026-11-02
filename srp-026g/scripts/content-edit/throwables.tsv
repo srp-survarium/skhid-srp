@@ -1,0 +1,4 @@
+throwables	splash_damage	splash_min	splash_pierce	splash_radius	stopping	stamina_damage	throw_power	fuse_ms	roll_ms	safe_ms	contact	damage	pierce	defuse_s	armed_life_s	disarmed_life_s	fired_life_s	deploy_m	slope_deg	weight	level	mm_level
+blackmarket_trap												0.6	1	5	0	8	8	2	30	0.8	1	1
+rgd-5	1.3	0.05	0.15	10	0.1	10	17	4000	400	0	false									0.3	3	3
+smoke_grenade	0	0	0	0	0	0	17	4000	400	0	false									0.35	6	6
