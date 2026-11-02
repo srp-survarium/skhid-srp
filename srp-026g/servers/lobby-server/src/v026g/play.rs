@@ -1262,15 +1262,19 @@ impl Core<'_> {
         }
     }
 
+    /// The lobby's id (its players' `in_match`) of the running match the
+    /// clients were told as `ticket_match_id` (the match server's).
+    pub(super) fn running_id(&self, ticket_match_id: u32) -> Option<u32> {
+        self.matches
+            .iter()
+            .find(|(_, running)| running.ticket.match_id == ticket_match_id)
+            .map(|(id, _)| *id)
+    }
+
     /// [`super::Inbox::match_finished`], by the id the clients were told.
     pub(super) fn match_finished(&mut self, finished: super::MatchFinished, _now: Instant) {
         let ticket_match_id = finished.match_id;
-        let id = self
-            .matches
-            .iter()
-            .find(|(_, running)| running.ticket.match_id == ticket_match_id)
-            .map(|(id, _)| *id);
-        match id {
+        match self.running_id(ticket_match_id) {
             Some(id) if finished.not_made => self.finish_not_made(id),
             Some(id) => self.finish(id),
             None => log::debug!("Match {ticket_match_id:#x} is over; the lobby had freed it"),

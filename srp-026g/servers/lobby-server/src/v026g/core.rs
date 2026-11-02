@@ -1030,6 +1030,11 @@ impl<'a> Core<'a> {
                     self.send_all(addr, messages.clone());
                 }
             }
+            Notice::IdleRemoved {
+                match_id,
+                account_id,
+                name,
+            } => self.idle_removed(match_id, account_id, &name),
             Notice::AccountChanged { account_id } => {
                 let Some(who) = self.who_is(account_id) else {
                     return;
