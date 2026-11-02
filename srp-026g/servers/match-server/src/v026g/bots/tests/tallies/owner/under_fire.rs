@@ -340,8 +340,9 @@ impl Topic for UnderFireCounts {
                     serde_json::json!({
                         "hits": c.hits, "by_band": c.by_band, "seen_before": c.seen_before, "died_1s": c.died_1s, "died": c.died,
                         "died_same_play": c.died_same_play, "targeted": c.targeted, "fired": c.fired, "fired_him": c.fired_him,
-                        "switched": c.switched, "switched_to": to, "to_target": c.to_target, "to_fire": c.to_fire,
-                        "to_fire_him": c.to_fire_him, "to_switch": c.to_switch, "sight_to_fire_him": c.sight_to_fire_him,
+                        "switched": c.switched, "switched_to": to, "to_target": c.to_target.to_vec(), "to_fire": c.to_fire.to_vec(),
+                        "to_fire_him": c.to_fire_him.to_vec(), "to_switch": c.to_switch.to_vec(),
+                        "sight_to_fire_him": c.sight_to_fire_him.to_vec(),
                     }),
                 );
                 lines.push(format!(
