@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Гэты матч дасягнуў ліміту гуль
 st_srp_rooms_joined_room	%1$s увайшоў у пакой
 st_srp_rooms_late_hint	Хто зойдзе зараз, убачыць пакой, потым трапіць у матч.
 st_srp_rooms_leave	Выйсці
-st_srp_rooms_leave_queue	Выйсці з чаргі
-st_srp_rooms_leave_room	Выйсці з пакоя
+st_srp_rooms_leave_queue	Выйсці
+st_srp_rooms_leave_room	Выйсці
 st_srp_rooms_left_room	%1$s пакінуў пакой
 st_srp_rooms_level	Узровень
 st_srp_rooms_map	Карта

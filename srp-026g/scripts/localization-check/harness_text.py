@@ -15,8 +15,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
 from localization_026g import CATALOG, LANGUAGES, flash_rows, read_translations  # noqa: E402
 
-# The stock texts beside the weight and speed in the inventory's profile (the weight-ui harness).
-STOCK_KEYS = {'equipment_weight': 'st_equipment_weight', 'autobuy_button_label': 'st_autobuy_button_label'}
+# The stock texts a harness lays out: beside the weight and speed in the inventory's profile (the
+# weight-ui harness); the shop's foot: Buy, the compare box (the shop-owned-mark harness).
+STOCK_KEYS = {'equipment_weight': 'st_equipment_weight', 'autobuy_button_label': 'st_autobuy_button_label',
+              'buy': 'st_buy', 'checkbox_compare_items': 'st_checkbox_compare_items'}
 
 
 def main():

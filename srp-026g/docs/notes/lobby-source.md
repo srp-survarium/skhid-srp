@@ -165,7 +165,7 @@ Ctrl+F over an item list ([item-search.md](item-search.md)), written in the clas
 
 - the box, its keys and the matching: `InventoryList` (`makeSearch`, `onSearchKey`, `closeSearch`,
   `applySearch`, `searchItems`); the search narrows what `ApplyInventoryFilter` lists, after the
-  list's own filters and sort; the grid's height while the box shows: `onFilterShowed`;
+  list's own filters and its order (`LIST_ORDER`); the grid's height while the box shows: `onFilterShowed`;
 - Esc in the box: `LobbyMenu.close_active_window`; the exe's window keys while Ctrl is held over the
   list: `LobbyMenu.windowKeysOff`; the Ctrl keys: `onKeyDownStage`, `onKeyUpStage`,
   `MainScene.isCtrl`, `KeyCode`;

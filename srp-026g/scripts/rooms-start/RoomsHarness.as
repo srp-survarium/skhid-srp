@@ -181,6 +181,34 @@ package
             tell(["S1;N;0;0;0"]);
             tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
             misses = misses.concat(overlaps(language + ", list"));
+            // A full room's queue, ours: its Join is Leave queue.
+            tell(["S1;L;1;0","1001;2;15;8;16;0;0;0;0;Bob"]);
+            selectRow("1001");
+            tell(["S1;N;0;1001;1"]);
+            misses = misses.concat(overlaps(language + ", list, queued"));
+            tell(["S1;N;0;0;0"]);
+            // The preset offer's three first buttons beside Switch and enter: Queue (Play that would
+            // queue), Enter anyway, Exit (a full room's Queue, gear over its max).
+            var offers:Array = [["st_srp_rooms_queue", "S1;O;1002;2;2;10;15;10;1", null],
+               ["st_srp_rooms_enter_anyway", "S1;O;1002;1;2;8;5;10;0", null],
+               ["st_srp_rooms_exit", "S1;O;1001;2;2;10;15;10;0", "1001;2;10;8;16;0;0;0;0;Bob"]];
+            for each(var offer:Array in offers)
+            {
+               tell(["S1;N;0;0;0"]);
+               if(offer[2] == null)
+                  win["quickPlay"]();
+               else
+               {
+                  tell(["S1;L;1;0", offer[2]]);
+                  selectRow("1001");
+                  pressLabel(say.st_srp_rooms_queue);
+               }
+               tell([offer[1]]);
+               misses = misses.concat(cutButtons(language + ", offer, " + say[offer[0]]));
+               pressLabel(say[offer[0]]);
+            }
+            tell(["S1;N;0;0;0"]);
+            tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
             var buttons:Array = [];
             walk(win,[],[],0,0,buttons);
             for each(var b:* in buttons)
@@ -399,7 +427,8 @@ package
       }
 
       // The top bar's Play (the lobby's StatusPanel, its symbol SrvTopMenuContainer): a soldier's
-      // greyed Play says "In squad" (in capitals, as the game's PLAY), whole in every language;
+      // greyed Play says "In squad", in a room or its queue it is the rooms' Leave ("Leave room",
+      // "Leave queue", lit); each in capitals (as the game's PLAY), whole in every language;
       // its leader's is the game's own PLAY.
       private function checkInSquad() : void
       {
@@ -420,31 +449,45 @@ package
          btn.label = "PLAY";
          btn.validateNow();
          var said:Array = [];
+         // What Play says and what of it fits: `key`'s text in capitals.
+         var fits:Function = function(what:String, language:String, key:String):void
+         {
+            btn.validateNow();
+            var want:String = String(HarnessText.DATA[language][key]).toUpperCase();
+            var field:TextField = btn.textField as TextField;
+            said.push(what + " " + language + " " + btn.label + (field != null ? " " + Math.round(field.textWidth) + "/" + Math.round(field.width - 4) : ""));
+            if(btn.label != want)
+               failures.push(what + ", " + language + ": Play says " + btn.label + ", not " + want);
+            else if(field == null || field.textWidth * (1 + FIT_MARGIN) > field.width - 4)
+               failures.push(what + ", " + language + ": \"" + btn.label + "\" does not fit Play");
+         };
          for each(var language:String in HarnessText.LANGUAGES)
          {
-            var say:Object = HarnessText.DATA[language];
-            Loc.setData(say);
+            Loc.setData(HarnessText.DATA[language]);
             Info.isInSquad = true;
             Info.commander = false;
             panel.showRoomsPlay(false,false,false,false,false,"");
-            btn.validateNow();
-            var want:String = String(say.st_srp_play_in_squad).toUpperCase();
-            var field:TextField = btn.textField as TextField;
-            said.push(language + " " + btn.label + (field != null ? " " + Math.round(field.textWidth) + "/" + Math.round(field.width) : ""));
-            if(btn.label != want)
-               failures.push("in squad, " + language + ": Play says " + btn.label + ", not " + want);
-            else if(field == null || field.textWidth * (1 + FIT_MARGIN) > field.width - 4)
-               failures.push("in squad, " + language + ": \"" + btn.label + "\" does not fit Play");
+            fits("in squad", language, "st_srp_play_in_squad");
             if(btn.enabled)
                failures.push("in squad, " + language + ": Play lit for a soldier");
             Info.commander = true;
             panel.showRoomsPlay(false,false,false,false,true,"");
             if(btn.label != "PLAY")
                failures.push("in squad, " + language + ": the leader's Play says " + btn.label);
+            Info.isInSquad = false;
+            panel.showRoomsPlay(true,false,false,false,true,Loc.getName("st_srp_rooms_leave_room"));
+            fits("leave room", language, "st_srp_rooms_leave_room");
+            panel.showRoomsPlay(false,true,false,false,true,Loc.getName("st_srp_rooms_leave_queue"));
+            fits("leave queue", language, "st_srp_rooms_leave_queue");
+            if(!btn.enabled)
+               failures.push("leave queue, " + language + ": Play greyed");
+            panel.showRoomsPlay(false,false,false,false,true,"");
+            if(btn.label != "PLAY")
+               failures.push(language + ": Play out of the room says " + btn.label);
          }
          Info.isInSquad = false;
          Loc.setData(HarnessText.DATA.english);
-         trace("ROOMS a soldier's Play: " + said.join(", "));
+         trace("ROOMS Play: " + said.join(", "));
       }
 
       // The list's rows (their sprites are named by their rooms' keys).
@@ -459,13 +502,33 @@ package
             findRows(box.getChildAt(i), rows);
       }
 
+      // Every button `what` shows whose label its field cuts.
+      private function cutButtons(what:String) : Array
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         var misses:Array = [];
+         for each(var b:* in buttons)
+         {
+            // Drawn as the next frame draws it; the label counter-scaled to the button's size
+            // (its own width, unscaled, is what its text gets).
+            b.validateNow();
+            var label:TextField = b.textField as TextField;
+            var room:Number = label != null ? label.width / label.scaleX - 4 : 0;
+            if(label != null && label.textWidth * (1 + FIT_MARGIN) > room)
+               misses.push(what + ": button \"" + b.label + "\" cut: " + Math.round(label.textWidth) + " in " + Math.round(room));
+         }
+         return misses;
+      }
+
       // What `what` shows: every shown text's drawn extent (its alignment in its field, the margin
-      // added), a single-line one cut at its field's end, and any two on one line that meet.
+      // added), a single-line one cut at its field's end, and any two on one line that meet; every
+      // button's label cut (cutButtons).
       private function overlaps(what:String) : Array
       {
          var texts:Array = [];
          walk(win,[],texts,0,0,[]);
-         var misses:Array = [];
+         var misses:Array = cutButtons(what);
          var spans:Array = [];
          for each(var t:Object in texts)
          {
@@ -584,6 +647,31 @@ package
          for each(b in buttons)
             if(b.label == "Switch and enter")
                failures.push(what + ": the popup stays after " + first);
+      }
+
+      // The list's row of room `key` chosen.
+      private function selectRow(key:String):void
+      {
+         var rows:Array = [];
+         findRows(win, rows);
+         for each(var row:Sprite in rows)
+            if(row.name == key)
+               row.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+      }
+
+      // The window's button labelled `label` pressed.
+      private function pressLabel(label:String):void
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+            if(b.label == label)
+            {
+               var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               return;
+            }
+         failures.push("no " + label + " button");
       }
 
       // The list of the one full room `full`, its Queue pressed.
