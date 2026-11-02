@@ -323,7 +323,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
         set(&mut tuning, "/feel/unclear_aim", true.into());
     }
     // The walk's tests of the ground at the route's floor heights, not the line between each leg's ends
-    // (`Feel::floor_height_clear`; off by default).
+    // (`Feel::floor_height_clear`; on by default since A261: the setting keeps it on in a tuning that turned it off).
     if settings.var("SRP_BENCH_FLOOR_HEIGHT").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/floor_height_clear", true.into());
     }

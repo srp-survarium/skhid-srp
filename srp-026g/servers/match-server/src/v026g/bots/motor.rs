@@ -171,7 +171,12 @@ pub struct Feel {
     /// ([`Route::point_at`]), which over a hump of the floor (Cologne's deck: a long leg between two lower ends) lies
     /// up to 1.6 m under the floor, so that the grid finds no floor under the point (`line_ends` takes floors up to
     /// 1.0 m over it) and the walk sees no clear point, cuts its look-ahead and, with `unclear_aim`, steers back;
-    /// `true` on the route's floor ([`Route::floor_point`]).
+    /// `true` on the route's floor ([`Route::floor_point`]). The chord is not where the body walks: in whole matches (A261,
+    /// 256 pairs, the 16 offered map-days at 10 a side) 402,078 look-ahead cuts were of a point unclear at the chord and clear at
+    /// the floor (`counts::cut_false`, PROVEN false), so the all-off arm keeps it on (`KEPT_RIGHT`). With it: the cuts
+    /// 5.61 M -> 4.42 M, "no way" -25.7 % (z -2.1), Cologne's deck day 4 stuck s -35 %; stuck episodes +3.4 % (z +0.7), falls off
+    /// the route +2.4 % (z +0.7), kills -0.7 %: the bench's verdict PASS. (#668 had stuck s +19 %, falls +12 % before the lip
+    /// guard's fix.)
     pub floor_height_clear: bool,
     /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
     /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
@@ -348,7 +353,7 @@ impl Default for Feel {
             drop_aim: true,
             unclear_aim: true,
             zone_lines: true,
-            floor_height_clear: false,
+            floor_height_clear: true,
             carrier_jump_m: Some(Positive::of(0.998)),
             drop_walk: true,
             sprint_gaps: true,
