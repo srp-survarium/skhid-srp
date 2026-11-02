@@ -1093,6 +1093,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
+        "/wiki/stats",
     ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
@@ -1118,6 +1119,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
+        "/wiki/stats",
     ] {
         assert!(
             index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),

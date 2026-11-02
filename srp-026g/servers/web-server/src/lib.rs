@@ -704,6 +704,8 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
+        } else if self.game.is_some() && request.path == wiki::STATS {
+            wiki::STATS_POLICY
         } else if self.game.is_some()
             && matches!(
                 request.path.as_str(),
@@ -989,7 +991,11 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
-                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT) => {
+                    path @ (wiki::PATH
+                    | wiki::WEAPONS
+                    | wiki::MODIFIERS
+                    | wiki::EQUIPMENT
+                    | wiki::STATS) => {
                         return wiki_page(path, &request.target, request.lang);
                     }
                     path if path.starts_with(launcher::FRESH) => {

@@ -126,3 +126,44 @@ differs, faction (`factions_dict`), and the modifiers page's "Can roll" /
 `equipment.js` (copied by `build.py`) filters by slot and faction (both kept
 in the address: `?slot=helmet&faction=3`), level and name, sorts, and groups
 by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.
+
+## Stats
+
+`/wiki/stats` is a frame the web server gives (`servers/web-server/src/wiki.rs`,
+its policy lets the script ask the site for JSON) and `history.js` (copied by
+`build.py`) fills from the match history's JSON (`/api/history/...`,
+`docs/notes/match_history.md`) when it is viewed. The address says what it
+shows: `?player=<name>`, `?match=<number>`, `?clan=<tag>`, else the
+leaderboards (`?board=players|clans|best|latest&by=<key>`). Each view is
+drawn once empty in its final shape, then with its data, so nothing moves
+while it loads; match lists grow by "Older matches" (`before=`). The page is
+`aria-busy` while an answer is on its way.
+
+Accuracy is shown in whole percents (shots count every pellet of a shotgun).
+A match line shows the weapons of the kits it used (each kit in full on
+hover); a player's favourite equipment (`player/equipment`) carries its kits'
+numbers, said so on the page. In the player's match list the weapons column
+takes the width the others leave, so the list fits at 1440 px in both
+languages.
+
+`check_history.mjs` exercises it in an isolated Firefox, as
+`check_browser.mjs` does, against `history_fixture.mjs` (fake answers in the
+contract's shapes, each 300 ms late): the page, script and policy from the
+real preview (`serve_wiki_preview`, port 24583), served again on port 24584
+with `/api/history/...` from the fixture. Screenshots go to
+`/tmp/wiki-stats-review`.
+
+```
+node scripts/wiki/check_history.mjs http://127.0.0.1:24583 9457
+```
+
+With a fifth argument `real`, `/api/history/...` is passed on to the server
+of the first argument instead: a web server over an `srp.db` that holds the
+fixture's players and clans and 23 public matches (Yasen in the newest 15,
+one a draw), recorded as srp records them (`Results::settle`, then the
+accounts' flush). The checks are the same; the ratings, the match numbers
+and the kits are taken from the answers.
+
+```
+node scripts/wiki/check_history.mjs http://127.0.0.1:24583 9457 /tmp/wiki-stats-review 24584 real
+```

@@ -171,6 +171,8 @@ def build(calculator, out):
     (out / "modifiers.js").write_bytes(b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "modifiers.js")))
     # The equipment page is the web server's too (src/equipment.rs).
     (out / "equipment.js").write_bytes((HERE / "equipment.js").read_bytes())
+    # So is the stats page (src/wiki.rs), filled by its script from /api/history.
+    (out / "history.js").write_bytes((HERE / "history.js").read_bytes())
     (out / "source.sha256").write_text(hashlib.sha256(blob).hexdigest() + "\n")
     print(f"{out}: {len(data['weapons'])} weapons, EN/UK, from {calculator}")
 
