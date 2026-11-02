@@ -28,7 +28,7 @@ switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease apart_tie lane
 switches OFF think: door_centres wall_clear_corners
-switches OFF threat: answer_sniper breach concede job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes walk_watch
+switches OFF threat: answer_sniper breach job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes walk_watch
 switches OFF traps: at_cleared at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=scopes friends.spread_source=data
@@ -42,7 +42,7 @@ switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values smoke: wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
 switch values spacing: callouts=seen_and_heard queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
 switch values think: search_queue=fair stamina_rates=kit
-switch values threat: gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
+switch values threat: concede={"concede_s":60.0,"fails":2,"keep_after_death":{"keep_s":120.0},"lone_peek":n... gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
 switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
 switch values unstick: drop_shut={"kept_ms":45000,"near_m":2.0}
 changed numbers aim: combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18)
