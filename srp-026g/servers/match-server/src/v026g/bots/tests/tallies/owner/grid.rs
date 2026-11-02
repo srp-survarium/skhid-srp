@@ -16,6 +16,10 @@
 //!   0.6-0.8 m rises taken as steps), walk-off links and the lips among their take-offs.
 //! - **Zone lines** (A136): the walks that tested their lines over a zone's floors (entries, exits, ticks), the bot-ticks on
 //!   floors a zone refuses, those standing still, and the stands of 2 s or more by play and whether the zone was its choice.
+//! - **Dry islands** (A257, `hazard.leave_islands`): bot-ticks on a floor no zone on all match marks that no walk from a spawn
+//!   reaches without one's floors (`Tactics::dry_island`, either arm), those standing still, the stands of 10 s or more there,
+//!   the bodies that walked off one alive; and the switch's own: route plans made from one (its walk off), and the ways out of
+//!   zones one would have ended.
 
 use std::collections::BTreeMap;
 
@@ -28,6 +32,8 @@ use super::*;
 const STILL_MPS: f32 = 0.2;
 /// A stand on refused floors counts from this many ticks in a row (2 s).
 const STAND_TICKS: u32 = 2 * TPS as u32;
+/// A stand on a dry island counts from this many ticks in a row (10 s).
+const ISLAND_STAND_TICKS: u32 = 10 * TPS as u32;
 /// A fall is the route's own when its landing is within this of a corner of the route's drops, m (the shared tally's is 1).
 const PLANNED_LANDING_M: f32 = 2.0;
 const SHARED_LANDING_M: f32 = 1.0;
@@ -159,6 +165,16 @@ pub(super) struct GridCounts {
     drops4_rest: u32,
     /// The grid's links, for the grid of the first tick the topic saw (a run has one).
     links: Option<LinkCounts>,
+    /// By place: the body stands on a dry island at this tick, did at the last, and its ticks standing still there in a row.
+    on_island: Vec<bool>,
+    was_on_island: Vec<bool>,
+    island_still_run: Vec<u32>,
+    island_ticks: u32,
+    island_still_ticks: u32,
+    island_stands: u32,
+    island_left: u32,
+    /// The switch's counts when the run began (`tactics::islands`): plans off an island, ways out past one.
+    island_start: [u64; 2],
 }
 
 impl GridCounts {
@@ -172,6 +188,10 @@ impl GridCounts {
             chosen: vec![false; n],
             still_ticks: vec![0; n],
             seconds: vec![Second::default(); n],
+            on_island: vec![false; n],
+            was_on_island: vec![false; n],
+            island_still_run: vec![0; n],
+            island_start: crate::v026g::bots::tactics::islands::counts(),
             ..Self::default()
         }
     }
@@ -232,6 +252,9 @@ impl Topic for GridCounts {
         for (place, body) in game.bodies.iter().enumerate() {
             if let Some(on) = self.on_zone.get_mut(place) {
                 *on = body.alive && grid.locate(body.feet, 1.0).is_some_and(|node| !tactics.hazards.allowed(node, game.tick));
+            }
+            if let Some(on) = self.on_island.get_mut(place) {
+                *on = body.alive && grid.locate(body.feet, 1.0).is_some_and(|node| tactics.dry_island(node));
             }
         }
     }
@@ -295,6 +318,22 @@ impl Topic for GridCounts {
             }
             *second = Second { from_y: at.rec.feet.y, whole: at.rec.alive, unplanned: None };
         }
+        // The dry islands: ticks on one, standing still, stands of 10 s, and walks off one alive.
+        let on_island = at.rec.alive && self.on_island[place];
+        self.island_left += u32::from(at.rec.alive && self.was_on_island[place] && !on_island);
+        self.was_on_island[place] = on_island;
+        if on_island {
+            self.island_ticks += 1;
+            if at.rec.speed < STILL_MPS {
+                self.island_still_ticks += 1;
+                self.island_still_run[place] += 1;
+                self.island_stands += u32::from(self.island_still_run[place] == ISLAND_STAND_TICKS);
+            } else {
+                self.island_still_run[place] = 0;
+            }
+        } else {
+            self.island_still_run[place] = 0;
+        }
         // The zone lines.
         let walking = self.walking_out[place];
         self.walk_entries += u32::from(walking && !self.was_walking_out[place]);
@@ -346,6 +385,8 @@ impl Topic for GridCounts {
         let unplanned = self.fall_total("unplanned", "");
         let planned = self.fall_total("planned", "");
         let drops4_unplanned: u32 = self.drops4_unplanned.values().sum();
+        let islands = crate::v026g::bots::tactics::islands::counts();
+        let (island_plans, island_outs) = (islands[0] - self.island_start[0], islands[1] - self.island_start[1]);
         let json = serde_json::json!({
             "grid_falls": self.falls,
             "grid_falls_unplanned": unplanned,
@@ -384,8 +425,20 @@ impl Topic for GridCounts {
             "grid_zone_walk_exits": self.walk_exits,
             "grid_zone_walk_ticks": self.walk_ticks,
         });
+        // The dry islands (set apart: one `json!` of all the keys passes the macro's recursion limit).
+        let mut json = json;
+        for (key, n) in [
+            ("grid_island_bot_ticks", u64::from(self.island_ticks)),
+            ("grid_island_still_ticks", u64::from(self.island_still_ticks)),
+            ("grid_island_stands_10s", u64::from(self.island_stands)),
+            ("grid_island_left", u64::from(self.island_left)),
+            ("grid_island_plans", island_plans),
+            ("grid_island_outs_skipped", island_outs),
+        ] {
+            json[key] = serde_json::json!(n);
+        }
         let text = format!(
-            "owner-test grid: falls off the route {unplanned} (from a flagged floor {}, an unflagged one {}; by class {:?}), planned {planned} ({} only within {PLANNED_LANDING_M} m); lip guard on walk-off take-offs {} ticks, other lips {}; drops of 4 m or more in a second: off the route {drops4_unplanned} {:?}, the rest {}; route jump presses by rise: step {}, standing {}, capped band {}, sprint {}, over a gap {}; links: jump {} standing {} capped {} sprint, {} walk rises of 0.6 m to the step, {} gap jumps, {} walk-offs ({} take-offs are lips); zone lines: {} entries {} exits, {} ticks; zone floors: {} bot-ticks ({} standing still, {} stands of 2 s or more {:?}); carriers: {} ticks, {} on lip floors, lip guard safe / swapped / braked {:?}; sprint: {} of {} lip-floor ticks, {} on drop take-offs, {} falls off the route sprinting",
+            "owner-test grid: falls off the route {unplanned} (from a flagged floor {}, an unflagged one {}; by class {:?}), planned {planned} ({} only within {PLANNED_LANDING_M} m); lip guard on walk-off take-offs {} ticks, other lips {}; drops of 4 m or more in a second: off the route {drops4_unplanned} {:?}, the rest {}; route jump presses by rise: step {}, standing {}, capped band {}, sprint {}, over a gap {}; links: jump {} standing {} capped {} sprint, {} walk rises of 0.6 m to the step, {} gap jumps, {} walk-offs ({} take-offs are lips); zone lines: {} entries {} exits, {} ticks; zone floors: {} bot-ticks ({} standing still, {} stands of 2 s or more {:?}); carriers: {} ticks, {} on lip floors, lip guard safe / swapped / braked {:?}; sprint: {} of {} lip-floor ticks, {} on drop take-offs, {} falls off the route sprinting; dry islands: {} bot-ticks ({} standing still, {} stands of 10 s or more), {} walked off alive, {} plans off one, {} ways out past one",
             self.fall_total("unplanned", "flagged"),
             self.fall_total("unplanned", "unflagged"),
             self.falls,
@@ -420,6 +473,12 @@ impl Topic for GridCounts {
             self.lip_ticks,
             self.drop_sprint_ticks,
             self.falls_sprinting,
+            self.island_ticks,
+            self.island_still_ticks,
+            self.island_stands,
+            self.island_left,
+            island_plans,
+            island_outs,
         );
         vec![("grid", Part::new(json, text))]
     }
