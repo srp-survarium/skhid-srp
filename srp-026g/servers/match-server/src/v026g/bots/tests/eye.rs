@@ -382,6 +382,9 @@ fn pre_eye_pin_tuning() -> Tuning {
     // K1: the threat spots; the pinned counts predate them.
     tuning.threat.spots = false;
 
+    // A271: the stuck recovery's floor test; the pinned counts predate it (all-off keeps it on).
+    tuning.unstick.escape_floor = false;
+
     tuning
 }
 
