@@ -183,7 +183,7 @@ pub struct Body {
     /// and a drop's or jump's landing on it gives it no base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not
     /// rest on such ground: it slides back to where it stood. Floors that are not perched are as without it (measured from no base at
     /// all, a perched floor come to by a walk down or a landing, and a landing on a steep slope with no base, left pits: a floor
-    /// reached with every walk out cut, School 12 floors and Mamayev Kurgan day 4 23; A248).
+    /// reached with every walk out cut, Vostok Radar Station 12 floors and Mamayev Kurgan day 4 23; A248).
     /// Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
     /// top a step over it however far over the ground it stands on that is: Mamayev Kurgan day 4's boulder floor (-2.90, 29.58,
     /// 105.38), 63 degrees by its neighbours, its base reset by a drop, walks 0.58-0.76 m onto the top; a live bot walked onto the
