@@ -4,8 +4,6 @@ The bandages, the Medikit and three coloured medkits (blue, green, yellow), each
 table: `scripts/medicines/medicines.tsv`. `scripts/medicines/make_pack.py` makes the pack `medicines`
 from it (its row in `release/content.tsv`); content-edit `medicines-1` points the bandages' and the
 Medikit's dictionary rows at their new configs; the texts are in `client-patches/localization/*.tsv`.
-Content-edit `medicines.tsv` restates the pack's numbers as the configs store them (the health a
-second); the content-edit test `test_the_medicines_table_restates_the_packs_table` keeps the two equal.
 
 ## The owner's rules
 
@@ -20,13 +18,8 @@ second); the content-edit test `test_the_medicines_table_restates_the_packs_tabl
 
 ## The table (the owner's, 2026-10-31)
 
-| | use | active | arms, legs | body, head | pain | other | kg | silver | sold by |
-|---|---|---|---|---|---|---|---|---|---|
-| Bandages | 1 s | 1 s | 100 % + injuries | 35 % | 35 % | | 0.1 | 10 | Scavengers r1 |
-| Orange Medikit | 2 s | 3 s | 100 % + injuries | 100 % | 40 % (was 0) | | 0.2 | 20 | Scavengers r3 |
-| Blue Military | 1 s | 1 s | 100 % + injuries | 60 % | 50 % | | 0.3 | 40 | Renaissance r1 |
-| Green Black Market | 2 s | 2 s | 0 | 100 % | 100 % | | 0.3 | 40 | Black Market r3 |
-| Yellow Science | 2 s | 3 s | 100 % + injuries | 100 % | 50 % | intoxication and radiation | 0.3 | 40 | Fringe r1 |
+The numbers are content-edit's `scripts/content-edit/medicines.tsv` (the one source: `make_pack.py`
+reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, icon and seller.
 
 - What each wins at: bandages light, cheap, a bit of everything; orange the full heal with some pain;
   blue a big heal in 1 s; green the one full pain cure; yellow the full heal that cures
