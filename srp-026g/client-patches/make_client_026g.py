@@ -464,7 +464,7 @@ def readme(server, description, files, embedded=False, site=None):
             "STILL NOT WORKING?",
             f"Run {COLLECT_LOGS}: it puts the game's logs and the state of its",
             "folder into one ZIP on your Desktop (no password, nothing changed). Send",
-            "that file to #bugreports in Discord: https://discord.gg/Pxa4prXfwu",
+            "that file to us on Discord: https://discord.gg/QUmJg3gBhg",
             "",
             "WHAT THE ARCHIVE ADDS",
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",

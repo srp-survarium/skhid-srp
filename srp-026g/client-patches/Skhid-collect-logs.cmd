@@ -668,7 +668,7 @@ try {
         Say 'Сожмите её сами: правой кнопкой мыши, "Отправить", "Сжатая ZIP-папка".' 'Zip it yourself: right-click it, "Send to", "Compressed (zipped) folder".'
         $sent = $stage
     }
-    Say 'Отправьте его в канал #bugreports в Discord: https://discord.gg/Pxa4prXfwu' 'Send it to #bugreports in Discord: https://discord.gg/Pxa4prXfwu'
+    Say 'Отправьте его нам в Discord: https://discord.gg/QUmJg3gBhg' 'Send it to us on Discord: https://discord.gg/QUmJg3gBhg'
     Say 'Внутри только текст: его можно открыть и посмотреть.' 'It holds only text: you can open it and look.'
     if ($env:OS -eq 'Windows_NT') { try { Start-Process explorer.exe -ArgumentList ('/select,"' + $sent + '"') } catch {} }
     $global:skhidStatus = 0

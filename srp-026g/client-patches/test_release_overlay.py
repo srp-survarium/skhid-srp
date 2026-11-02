@@ -468,6 +468,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotRegex(defender, r'>\s*"%MARKER%"')
         self.assertIn('set "MARKER=%TOP%\\Skhid-network-setup.defender"', defender)
         self.assertIn('VPN.txt', readme)
+        # Where the collected logs go: the bug-reports invite (owner, 2026-11-02).
+        self.assertIn('Send\nthat file to us on Discord: https://discord.gg/QUmJg3gBhg', readme)
         self.assertIn('VPN.txt', (folder / 'LINUX.txt').read_text(encoding='utf-8'))
 
     def windows_env(self, locale='en_US.UTF-8', ui=None):
@@ -1113,10 +1115,10 @@ class ReleaseTests(unittest.TestCase):
                 self.assertTrue(made.name.endswith('.zip'), made)
                 if ru:
                     self.assertIn('Готово. Файл с логами:', said)
-                    self.assertIn('Отправьте его в канал #bugreports в Discord: https://discord.gg/Pxa4prXfwu', said)
+                    self.assertIn('Отправьте его нам в Discord: https://discord.gg/QUmJg3gBhg', said)
                 else:
                     self.assertIn('Done. The file with the logs:', said)
-                    self.assertIn('Send it to #bugreports in Discord: https://discord.gg/Pxa4prXfwu', said)
+                    self.assertIn('Send it to us on Discord: https://discord.gg/QUmJg3gBhg', said)
                 self.assertIn('  ' + str(made), said)
                 with zipfile.ZipFile(made) as archive:
                     entries = {name: archive.read(name) for name in archive.namelist()}
