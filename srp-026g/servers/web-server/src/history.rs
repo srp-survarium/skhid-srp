@@ -8,12 +8,13 @@
 use serde_json::{Value, json};
 use session::SessionStore;
 use session::v026g::persist::history::{
-    ClanKey, ClanLine, Counters, MatchHistory, MatchSummary, Named, PlayerLine, PlayerRanking,
-    Presence, Totals, TotalsKey, Winner,
+    ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchSummary,
+    Named, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, Winner,
 };
+use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
-use crate::{ContentType, Game, Lang, Response, decode, launcher};
+use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers};
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
@@ -25,6 +26,9 @@ const DAYS: u64 = 30;
 const MAX_DAYS: u64 = 90;
 /// How many lines the best single-match scores have.
 const BEST: usize = 20;
+/// How many weapons and armour pieces a player's favourites list when the
+/// request names no limit.
+const FAVOURITES: usize = 10;
 const DAY: u64 = 86_400;
 const HOUR: u64 = 3_600;
 
@@ -78,6 +82,7 @@ enum Endpoint {
     Player(PlayerKey),
     PlayerMatches { account_id: u32, page: Page },
     PlayerDays { account_id: u32, days: u64 },
+    PlayerEquipment { account_id: u32, limit: usize },
     Matches { page: Page, clan: Option<u32> },
     Match(u64),
     Top { by: PlayerRanking, limit: usize },
@@ -199,6 +204,7 @@ fn ranking_name(by: PlayerRanking) -> &'static str {
     match by {
         PlayerRanking::Rating => "rating",
         PlayerRanking::Totals(key) => totals_key_name(key),
+        PlayerRanking::Accuracy => "accuracy",
     }
 }
 
@@ -227,6 +233,10 @@ impl Endpoint {
                     Some(_) => return Err(Refusal::BadRequest),
                 },
             },
+            "player/equipment" => Self::PlayerEquipment {
+                account_id: query.required("id")?,
+                limit: query.limit(FAVOURITES)?,
+            },
             "matches" => Self::Matches {
                 page: query.page()?,
                 clan: query.number("clan")?,
@@ -235,6 +245,7 @@ impl Endpoint {
             "top" => Self::Top {
                 by: match query.text("by") {
                     None | Some("rating") => PlayerRanking::Rating,
+                    Some("accuracy") => PlayerRanking::Accuracy,
                     Some(text) => {
                         PlayerRanking::Totals(totals_key(text).ok_or(Refusal::BadRequest)?)
                     }
@@ -313,16 +324,38 @@ fn answer(
         }
         Endpoint::PlayerMatches { account_id, page } => {
             let rows = history.player_matches(*account_id, page.before, page.limit)?;
-            let next = next(page, rows.iter().map(|(summary, _)| summary.id));
+            let next = next(page, rows.iter().map(|played| played.summary.id));
             let matches: Vec<Value> = rows
                 .iter()
-                .map(|(summary, line)| {
-                    let mut value = match_summary(summary, lang);
-                    extend(&mut value, line_fields(line, summary.info.winner));
+                .map(|played| {
+                    let mut value = match_summary(&played.summary, lang);
+                    extend(
+                        &mut value,
+                        line_fields(&played.line, played.summary.info.winner),
+                    );
+                    extend(&mut value, json!({ "kits": kits(&played.kits, lang) }));
                     value
                 })
                 .collect();
             json!({ "matches": matches, "next": next })
+        }
+        Endpoint::PlayerEquipment { account_id, limit } => {
+            let favourites = history.favourites(*account_id, *limit)?;
+            let list = |items: &[ItemTotals]| -> Vec<Value> {
+                items
+                    .iter()
+                    .map(|item| {
+                        let mut value = item_ref(item.dict_id, lang);
+                        extend(&mut value, json!({ "matches": item.matches }));
+                        extend(&mut value, kit_counts(&item.counts));
+                        value
+                    })
+                    .collect()
+            };
+            json!({
+                "weapons": list(&favourites.weapons),
+                "armour": list(&favourites.armour),
+            })
         }
         Endpoint::PlayerDays { account_id, days } => {
             let today = now - now % DAY;
@@ -352,6 +385,7 @@ fn answer(
                     let mut value =
                         json!({ "player": named(&player.player), "level": player.level });
                     extend(&mut value, line_fields(&player.line, summary.info.winner));
+                    extend(&mut value, json!({ "kits": kits(&player.kits, lang) }));
                     value
                 })
                 .collect();
@@ -466,6 +500,15 @@ fn kd(kills: u64, deaths: u64) -> f64 {
     round(kills as f64 / deaths.max(1) as f64, 2)
 }
 
+/// Hits by shots, three decimals; 0 with no shot.
+fn accuracy(shots: u64, hits: u64) -> f64 {
+    if shots == 0 {
+        0.0
+    } else {
+        round(hits as f64 / shots as f64, 3)
+    }
+}
+
 fn counters(counters: &Counters) -> Value {
     json!({
         "assists": counters.assists,
@@ -475,7 +518,57 @@ fn counters(counters: &Counters) -> Value {
         "batteries": counters.batteries,
         "captures": counters.capture_hundredths as f64 / 100.0,
         "artefacts": counters.artefacts,
+        "shots": counters.shots,
+        "hits": counters.hits,
+        "accuracy": accuracy(counters.shots, counters.hits),
     })
+}
+
+/// A kit's counters, of one match or added up: a kit's, never one item's.
+fn kit_counts(counts: &KitCounts) -> Value {
+    json!({
+        "kills": counts.kills,
+        "headshots": counts.headshots,
+        "shots": counts.shots,
+        "hits": counts.hits,
+        "accuracy": accuracy(counts.shots, counts.hits),
+    })
+}
+
+/// An item by its dict id, named from the game data in `lang`; `name` is
+/// `null` for an item the game data no longer has.
+fn item_ref(dict_id: u16, lang: Lang) -> Value {
+    let name = Dictionary::shared()
+        .item(dict_id)
+        .map(|_| modifiers::item_name(lang, dict_id));
+    json!({ "id": dict_id, "name": name })
+}
+
+/// The kits a player used in a match: each its place, its counters, and
+/// its weapons and armour by slot.
+fn kits(kits: &[KitLine], lang: Lang) -> Vec<Value> {
+    kits.iter()
+        .map(|kit| {
+            let of = |gear: Gear| -> Vec<Value> {
+                kit.items
+                    .iter()
+                    .filter(|item| item.slot.gear() == gear)
+                    .map(|item| {
+                        let mut value = json!({ "slot": item.slot.number() });
+                        extend(&mut value, item_ref(item.dict_id, lang));
+                        value
+                    })
+                    .collect()
+            };
+            let mut value = json!({
+                "kit": kit.kit,
+                "weapons": of(Gear::Weapon),
+                "armour": of(Gear::Armour),
+            });
+            extend(&mut value, kit_counts(&kit.counts));
+            value
+        })
+        .collect()
 }
 
 fn totals(totals: &Totals) -> Value {
