@@ -152,8 +152,10 @@ impl Dictionary {
                     .ok_or_else(|| ConfigError("`srp_like` is not a name".into()))
             });
             let start = item.get("srp_start").map_or(Ok(Vec::new()), |ids| {
-                ids.children()
-                    .into_iter()
+                let ConfigValue::Indexed(ids) = ids else {
+                    return Err(ConfigError("`srp_start` is not a list of ids".into()));
+                };
+                ids.iter()
                     .map(|id| {
                         id.as_i32()
                             .and_then(|id| u32::try_from(id).ok())
@@ -535,6 +537,44 @@ mod tests {
         assert_eq!(dictionary.match_levels[1].money_k, 1.47);
         assert_eq!(dictionary.match_level(20).unwrap().money_k, 13.59);
         assert_eq!(dictionary.match_level(99).unwrap().reputation_k, 1.95);
+    }
+
+    #[test]
+    fn starting_modifications_require_an_indexed_list_of_ids() {
+        let parse = |start| {
+            let mut root = ConfigValue::parse(super::super::game_data::file(PATH)).unwrap();
+            let ConfigValue::Named(sections) = &mut root else {
+                panic!("a table")
+            };
+            let (_, ConfigValue::Indexed(items)) = sections
+                .iter_mut()
+                .find(|(name, _)| name == "items_dict")
+                .unwrap()
+            else {
+                panic!("items")
+            };
+            let Some(ConfigValue::Named(keys)) = items
+                .iter_mut()
+                .find(|item| item.i32_at("dict_id") == Ok(3))
+            else {
+                panic!("AK-74M")
+            };
+            keys.push(("srp_start".into(), start));
+            Dictionary::parse(&root.to_bytes().unwrap()).map(|d| d.item(3).unwrap().start.clone())
+        };
+        assert_eq!(
+            parse(ConfigValue::Indexed(vec![ConfigValue::Integer(1230)])),
+            Ok(vec![1230])
+        );
+        assert_eq!(parse(ConfigValue::Indexed(vec![])), Ok(vec![]));
+        for value in [
+            ConfigValue::Integer(1230),
+            ConfigValue::String("1230".into()),
+            ConfigValue::Named(vec![]),
+            ConfigValue::Indexed(vec![ConfigValue::Integer(-1)]),
+        ] {
+            assert!(parse(value).is_err());
+        }
     }
 
     #[test]
