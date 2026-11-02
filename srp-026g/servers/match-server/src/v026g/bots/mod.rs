@@ -865,6 +865,10 @@ pub struct Bots {
     /// Raid whenever Raid is a candidate.
     #[cfg(test)]
     pub bench_human: Option<Place>,
+    /// [A244] The self-balancing counts the stand-in human's duels as a human's (`SRP_BENCH_HUMAN_DIAL=on`): the tracker
+    /// takes his place for a bot, so without it the bench's dial never moves.
+    #[cfg(test)]
+    pub bench_human_dial: bool,
     /// The real-map bench's model of Player vs Bots for the team's lanes of enemy humans (`SRP_BENCH_ENEMY_HUMAN_LANES`,
     /// **model**): every body of the other team counts as a human in [`know::HumanLanes`]; nothing else reads it.
     #[cfg(test)]
@@ -972,6 +976,8 @@ impl Bots {
             tunings,
             #[cfg(test)]
             bench_human: None,
+            #[cfg(test)]
+            bench_human_dial: false,
             #[cfg(test)]
             bench_enemy_lanes: tests::EnemyLanes::Off,
             opened: [false; 2],
