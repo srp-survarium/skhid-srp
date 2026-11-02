@@ -2,7 +2,7 @@
 
 The owner's rule and what it changes. Data: `gameplay/victory_items/default.options`
 `states[0].take_time`; the change ships as a resources.db patch
-(`scripts/content-edit/battery-pickup-1.json`, one `set`).
+(`scripts/content-edit/battery.tsv`, `states[0]/take_time`).
 
 - **Decision (the owner, 2026-10-20):** the battery pick-up animation 20 % faster.
 - **Values:** `take_time` 0.6 -> 0.5 s: 1.2 times the speed (0.6 / 1.2; 0.48 would
@@ -30,7 +30,7 @@ The owner's rule and what it changes. Data: `gameplay/victory_items/default.opti
 - **Bots:** no pick-up time in their code (they press use every 1.2 s until they
   carry; `use_every_s`); nothing to change.
 - **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
-  from `scripts/content-edit/battery-pickup-1.json` (with
+  from `scripts/content-edit/battery.tsv` (with
   `gameplay/victory_items/` from the live server game data) and
   `release/build-patch`; the server game data built again with that patch (the
   server data must be the one the players' patches make); and the `next` row of
