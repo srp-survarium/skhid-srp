@@ -4,6 +4,8 @@ The bandages, the Medikit and three coloured medkits (blue, green, yellow), each
 table: `scripts/medicines/medicines.tsv`. `scripts/medicines/make_pack.py` makes the pack `medicines`
 from it (its row in `release/content.tsv`); content-edit `medicines-1` points the bandages' and the
 Medikit's dictionary rows at their new configs; the texts are in `client-patches/localization/*.tsv`.
+Content-edit `medicines.tsv` restates the pack's numbers as the configs store them (the health a
+second); the content-edit test `test_the_medicines_table_restates_the_packs_table` keeps the two equal.
 
 ## The owner's rules
 

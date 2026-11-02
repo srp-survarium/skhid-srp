@@ -1,0 +1,8 @@
+medicines	use_s	active_s	limbs	body	head	pain	infection	weight	level	mm_level
+antitoxin	1	10					0.5	0.1	3	3
+bandages	1	1	1	0.35	0.14	0.35		0.1	1	1
+blackmarket_medkit	2	2	0	1	1	1		0.3	3	3
+medkit	2	3	1	1	1	0.1333		0.2	3	3
+military_medkit	1	1	1	0.6	0.24	0.5		0.3	6	3
+painkiller	1	10						0.1	3	3
+science_medkit	2	3	1	1	1	0.1667	1	0.3	6	3
