@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Živokost je aktivirana! Sve kritične povrede su iz
 st_lifebone_pickup_hint	Artefakt Živokost. Ubrzava obnovu zdravlja.
 st_lightning_quality_option	Kvalitet osvetljenja
 st_login_button_label	Prijavi se
-st_login_default_text	E-pošta
+st_login_default_text	Nadimak
 st_login_eula_label	Ugovor o licenci
 st_login_menu_accept	Prihvati
 st_login_menu_cancel	Otkaži
 st_login_menu_status_access_level_restriction	Nemate dovoljan nivo pristupa za prijavu.
 st_login_menu_status_connecting	Prijavljivanje…
 st_login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Dozvolite igru u zaštitnom zidu (Skhid-network-setup.cmd). U Rusiji koristite VPN i dodajte .exe datoteke igre u njega (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Pogrešna adresa e-pošte ili lozinka.
+st_login_menu_status_invalid_user_or_password	Pogrešan nadimak ili lozinka.
 st_login_menu_status_invalid_version	Koristite zastarelu verziju igre.
 st_login_menu_status_sign_in_already_online	Korisnik je već u igri.
 st_login_menu_status_sign_in_attempt_interval_violated	Previše pokušaja prijave. Pokušajte ponovo za 10 sekundi.
@@ -1937,9 +1937,9 @@ st_rpd_description	Opis još nije dostupan.
 st_rpd_name	RPD
 st_rpk_description	Opis još nije dostupan.
 st_rpk_name	RPK-74M
-st_saiga_12_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija K ima kratku cev i preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
+st_saiga_12_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija K ima kratku cev i preklopni kundak. Napaja se iz kutijastog okvira. Samo pojedinačna paljba.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija S ima preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
+st_saiga_12_premium_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija S ima preklopni kundak. Napaja se iz kutijastog okvira. Samo pojedinačna paljba.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Sačuvaj lozinku
 st_scav_back_1_desc	Ručno izrađen kontejner za artefakte u obliku ranca. Koristan za odlazak u potragu za artefaktima.
@@ -2563,7 +2563,7 @@ st_srp_rooms_joined_room	%1$s se pridružio sobi
 st_srp_rooms_late_hint	Ko se sada pridruži, prvo vidi sobu, zatim ulazi u meč.
 st_srp_rooms_leave	Napusti
 st_srp_rooms_leave_queue	Napusti red
-st_srp_rooms_leave_room	Napusti sobu
+st_srp_rooms_leave_room	Napusti
 st_srp_rooms_left_room	%1$s je napustio sobu
 st_srp_rooms_level	Nivo
 st_srp_rooms_map	Mapa
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
 st_srp_scope_screen_hint	Prevucite nišan iz inventara na mesto za izmenu oružja.
 st_srp_scope_slot	Optika
+st_srp_shop_not_owned	Sakrij posedovano
+st_srp_shop_not_owned_hint	Prikaži samo predmete koje nemaš
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s
@@ -2659,7 +2661,7 @@ st_srp_weapon_minimum_damage	Minimalna šteta
 st_srp_weapon_minimum_damage_from	Minimalna šteta od
 st_srp_weapon_recoil_heading	Trzaj, rasipanje i ljuljanje
 st_srp_weapon_reload	Punjenje
-st_srp_weapon_shift_hint	Držite Shift za detalje
+st_srp_weapon_shift_hint	Shift: više · Alt: u meču
 st_srp_weapon_spread_growth	Brzina rasta rasipanja
 st_srp_weapon_spread_max	Najveće dodatno rasipanje
 st_srp_weapon_spread_per_shot	Rasipanje po hicu
@@ -2669,6 +2671,8 @@ st_srp_weapon_stats	Osobine oružja
 st_srp_weapon_sway_cycle	Ciklus ljuljanja
 st_srp_weapon_sway_horizontal	Vodoravno ljuljanje
 st_srp_weapon_sway_vertical	Uspravno ljuljanje
+st_srp_weapon_with_kit	Sa kompletom
+st_srp_weapon_with_kit_skills	Sa kompletom i veštinama
 st_srp_weather_before_rain	pred kišu
 st_srp_weather_day	dan
 st_srp_weather_evening	veče
@@ -2863,9 +2867,16 @@ st_walther_competition2_collimator_desc	Nemački kolimatorski nišan Walther, pr
 st_walther_competition2_collimator_name	Kolimatorski nišan Competition II
 st_wasted	Potrošnja
 st_weapon_aim_action	Nišani (drži)
+st_weapon_already_taken	Već podignuto
+st_weapon_cannot_carry	Ne možeš nositi drugu pušku
+st_weapon_cannot_pick_up	Ovo ne možeš podići
 st_weapon_could_not_be_used	Ruke su vam povređene! Ne možete da koristite oružje.
 st_weapon_fire_action	Pucaj
+st_weapon_no_gun_in_hands	Uzmi oružje u ruke da ga zameniš
+st_weapon_one_gun_only	Možeš nositi samo jedno oružje
+st_weapon_pick_up	Podigni %1$s ({USE})
 st_weapon_reload_action	Napuni oružje
+st_weapon_switching	Sačekaj zamenu oružja
 st_wear	Primeni
 st_weight_booster_description	Proteinski dodatak sa hranljivim materijama potrebnim za rast mišića i snagu. Bez fizičkog napora nema efekta.
 st_weight_booster_name	Proteinski dodatak - Anomalna snaga

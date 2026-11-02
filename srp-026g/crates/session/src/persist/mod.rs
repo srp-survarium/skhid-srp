@@ -76,6 +76,7 @@ pub struct AccountRecord {
     pub active_profile: Option<u32>,
     pub notices: Vec<(u8, String)>,
     pub ban: Option<Ban>,
+    pub chat_ban: Option<Ban>,
     pub last_ip: Option<IpAddr>,
 }
 
@@ -97,6 +98,7 @@ impl AccountRecord {
             play: _,
             notices,
             ban,
+            chat_ban,
             last_ip,
             // Not kept: only the admin's password reset shows the first,
             // and the second orders sign-ins against resets while srp runs.
@@ -114,6 +116,7 @@ impl AccountRecord {
             active_profile: *active_profile,
             notices: notices.clone(),
             ban: ban.clone(),
+            chat_ban: chat_ban.clone(),
             last_ip: *last_ip,
         }
     }
@@ -131,6 +134,7 @@ impl AccountRecord {
             play: None,
             notices: self.notices,
             ban: self.ban,
+            chat_ban: self.chat_ban,
             last_ip: self.last_ip,
             last_sign_in: None,
             password_epoch: 0,
@@ -368,10 +372,14 @@ pub fn open_from_env() -> Result<Option<SqliteRepository>, PersistError> {
             return Ok(None);
         }
     }
-    let dir = std::env::var_os(DATA_DIR_VAR)
+    open_in(&data_dir()).map(Some)
+}
+
+/// srp's data folder: `SRP_DATA_DIR`, by default `./data`.
+pub fn data_dir() -> PathBuf {
+    std::env::var_os(DATA_DIR_VAR)
         .filter(|dir| !dir.is_empty())
-        .map_or_else(|| PathBuf::from(DEFAULT_DATA_DIR), PathBuf::from);
-    open_in(&dir).map(Some)
+        .map_or_else(|| PathBuf::from(DEFAULT_DATA_DIR), PathBuf::from)
 }
 
 /// `<dir>/srp.db`, the directory made if missing, after a backup of what

@@ -109,9 +109,11 @@ pub struct Game {
     pub accounts: Arc<GameAccounts>,
     pub lobby: Arc<dyn LobbyLink>,
     pub matches: Arc<dyn MatchCounter>,
-    /// The patches of `resources.db` the players' updater is told to fetch
-    /// (`GET /patches`): those the server's game data was made of.
-    pub patches: Vec<crate::OfferedPatch>,
+    /// What the players' updater is told to fetch (`GET /patches`, `GET
+    /// /game`): the patches of `resources.db` the server's game data was
+    /// made of and the game's archive it names, with the mirrors of
+    /// `mirrors.tsv` after their URLs.
+    pub downloads: Arc<crate::Downloads>,
     /// `SRP_MIN_PATCH_REVISION`: the least game revision the login server
     /// lets in, which `/api/client-files` says (`min-revision`), so that the
     /// updater keeps PLAY off for an older game (0: none).

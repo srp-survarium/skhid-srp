@@ -26,7 +26,7 @@
 //! treatment, `docs/notes/premium_armour.md`) had its plain piece's one
 //! default and two premium bonuses (+5 % experience, +5 % reputation with
 //! its faction) as defaults, and base rarity 3. The patch of
-//! `scripts/content-edit/premium-armour-1.json` takes the two premium
+//! `scripts/content-edit/armor.tsv` takes the two premium
 //! bonuses off and sets the base rarity to 0: the plain piece's default
 //! stays a default, as the plain piece has it; the two bonuses are the
 //! piece's own first modifications, given when it is made and, once, to
@@ -277,7 +277,7 @@ pub fn starting_modifications(dict_id: u16) -> Vec<(u32, bool)> {
 pub const WEAPONS_PATCH: &str = "scripts/content-edit/golden-weapons-1.json";
 
 /// The patch that takes a premium armour piece's premium bonuses off.
-pub const ARMOUR_PATCH: &str = "scripts/content-edit/premium-armour-1.json";
+pub const ARMOUR_PATCH: &str = "scripts/content-edit/armor.tsv";
 
 /// The golden items of `data` made without their patch, each as
 /// `(<name> (<config>), the patch)`: a golden weapon whose config still

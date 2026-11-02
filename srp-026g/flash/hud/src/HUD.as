@@ -124,13 +124,16 @@ package
       private var _chatTyping:Boolean = false;
 
       private var _artefactOfferKey:String = "";
+      // The offer text's value (%1$s): the dropped gun's name for patch 85's pickup.
+      private var _artefactOfferValue:String = "";
       private var _nativeContext:Object = {text:"",value:0,visible:true};
 
       // One owner for the existing collection widget. Native context updates
       // may arrive after the carry hint; retain them without erasing its text.
-      public function show_artefact_offer(key:String) : void
+      public function show_artefact_offer(key:String, value:String = "") : void
       {
          this._artefactOfferKey = key == null ? "" : key;
+         this._artefactOfferValue = value == null ? "" : value;
          this.refresh_context();
       }
 
@@ -143,7 +146,7 @@ package
          var value:int = offer ? 0 : this._nativeContext.value;
          var frame:int = value == 0 ? 1 : 2;
          if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
-         if(offer) this.contextInfo.contextText.text = LocalizationData.getName(this._artefactOfferKey);
+         if(offer) this.contextInfo.contextText.text = LocalizationData.format(this._artefactOfferKey, this._artefactOfferValue);
          else this.contextInfo.contextText.text = this._nativeContext.text;
          if(value != 0)
          {
@@ -802,7 +805,9 @@ package
 
       // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
       // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
-      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
+      // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
+      // player can use, an artefact container or an ammo stash, and fills it while used); while
       // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
       // alive, the intact player-info panel (ammo and body state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
@@ -827,7 +832,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo];
+         return [this.pregameInfo,this.contextInfo];
       }
 
       private function keptOnTab() : Array
@@ -1952,6 +1957,7 @@ package
       {
          trace("HUD::reset");
          this._artefactOfferKey = "";
+         this._artefactOfferValue = "";
          this._nativeContext = {text:"",value:0,visible:true};
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65

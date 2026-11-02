@@ -10,11 +10,17 @@
 #      it; --test: any, from patch_026g.py's REVISION). Nothing is edited:
 #      the revision is passed to the build;
 #   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
-#      SKHID_REVISION=<n>: their version resource says it), then
+#      SKHID_REVISION=<n>: their version resource says it;
+#      SKHID_BUILTIN_PATCHES and SKHID_BUILTIN_GAME: the list's /patches and
+#      /game, which the updater uses when the server cannot be reached), then
 #      make_client_026g.py $SKHID_GAME ... --pack-zip --revision=<n>
-#      --required-patches=<the list's> --server=$SKHID_GAME_SERVER
-#      --site=$SKHID_SITE (no language: the game keeps its own, patch 79; no
-#      resources.db regions: patches come from the server's /patches), and
+#      --required-patches=<the list's> --downloads=<release/game.tsv>
+#      --downloads=<the list>
+#      --server=$SKHID_GAME_SERVER --site=$SKHID_SITE (no language: the game
+#      keeps its own, patch 79; no resources.db regions: patches come from
+#      the server's /patches; --downloads: the list's files and URLs written
+#      into Skhid-without-updater.bat, for when the server cannot be
+#      reached), and
 #      patch_026g.py --revision=<n> --required-patches=<the list's> without
 #      a server, for the record's second hash (both in the dev shell: the
 #      exe's arena is linked from source with its gcc, ld and NASM 2.16,
@@ -57,7 +63,7 @@ while (($#)); do
     *) die "unknown argument $1 (--help)" ;;
     esac
 done
-need_cmds git nix curl sha256sum od
+need_cmds git nix curl sha256sum od jq
 [[ -z $revision ]] || is_revision "$revision" || die "--revision $revision: a revision is 1 to 255"
 lower_priority
 load_env SKHID_GAME SKHID_SITE
@@ -74,6 +80,8 @@ if [[ -n $patches ]]; then PATCH_LIST=$patches; fi
 read_patch_list
 required=$(list_numbers)
 [[ -n $required ]] || die "$PATCH_LIST names no patch: the exe would require none (patch 49)"
+[[ -n $GAME_ROW ]] || say "WARNING: $GAME_LIST has no row of $GAME_NAME: the updater and Skhid-without-updater.bat get no address of the game built in"
+builtin_patches=$(list_patches_json) builtin_game=$(list_game_json)
 [[ -d $SKHID_GAME ]] || die "SKHID_GAME: $SKHID_GAME is not a folder"
 if [[ -z $work ]]; then
     work=$(mktemp -d "${TMPDIR:-/tmp}/skhid-zip.XXXXXX")
@@ -119,7 +127,8 @@ fi
 say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
 # SKHID_REVISION: their version resource says this release's revision
 # (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).
-if ! (cd "$work/src" && SKHID_REVISION=$revision nix develop ./srp-026g -c bash -c \
+if ! (cd "$work/src" && SKHID_REVISION=$revision SKHID_BUILTIN_PATCHES=$builtin_patches \
+    SKHID_BUILTIN_GAME=$builtin_game nix develop ./srp-026g -c bash -c \
     'client/bugtrap/build.sh && bash client/updater/build.sh') >"$work/build.log" 2>&1; then
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"
@@ -137,7 +146,8 @@ if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.e
 # In the checkout's dev shell (client_patches_python): the exe's arena
 # (`.srpx`) is linked from its sources there, with the lock's tools.
 { client_patches_python "$work/src" make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip \
-    --revision="$revision" --required-patches="$required" --server="$server" --site="$site" &&
+    --revision="$revision" --required-patches="$required" --downloads="$GAME_LIST" --downloads="$PATCH_LIST" \
+    --server="$server" --site="$site" &&
     client_patches_python "$work/src" patch_026g.py "$original" "$work/without-server.exe" \
         --revision="$revision" --required-patches="$required"; } >"$work/make_client.log" 2>&1 || {
     tail -n 30 "$work/make_client.log" >&2

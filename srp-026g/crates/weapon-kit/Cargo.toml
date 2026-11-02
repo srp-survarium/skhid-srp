@@ -1,0 +1,12 @@
+[package]
+name = "weapon-kit"
+version.workspace = true
+edition.workspace = true
+description = "A 0.26g weapon's six upgrade slots in the client's three upgrade records (the weapon kit); shared by srp's servers and the client's arena (no_std, no alloc)"
+
+[lints]
+workspace = true
+
+# No dependencies, and no path dev-dependency: link_026g.py builds every
+# crate this manifest names by path into the game's arena.
+[dependencies]

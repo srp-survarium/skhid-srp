@@ -5,7 +5,7 @@ upgrades or rerolls an item; equipment wear was removed (#35), so it does nothin
 roll. The same day: the items it left with two types to roll get a third. Code:
 `survarium::v026g::modifications` (`Modification::rolls`, `Modifications::candidates`),
 `session::v026g::items_rules` (`craft`, `reroll`, `roll_modifications`); the edit list
-`scripts/content-edit/third-mod-1.json`.
+`scripts/content-edit/armor.tsv` (the `mods` masks).
 
 - **Which:** the modifications that change nothing but wear (`degrade_per_match`, `_per_use`,
   `_per_death`): 1200..1204 on gear (type 32) and 2090..2094 on weapons (type 10), name
@@ -30,7 +30,7 @@ roll. The same day: the items it left with two types to roll get a third. Code:
 - **With it, every live item that rolls has three types or more** (checked on the game data
   `release/build-content` makes): an upgrade is never refused for "nothing to roll", and a full
   item's reliability always has another type to turn into. The other five backpacks had a third
-  already (Regeneration, `backpacks-1.json`).
+  already (Regeneration, `armor.tsv`).
 - **The guards stay:** an upgrade of an item with nothing left to roll is refused before anything
   is taken; a reroll with nothing to offer is refused, nothing paid. Neither happens on live data.
   The stock data the unit tests read (no edit lists) still has such items, and its tests keep

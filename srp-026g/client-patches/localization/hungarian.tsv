@@ -1382,14 +1382,14 @@ st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyul
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
 st_login_button_label	Belépés
-st_login_default_text	E-mail
+st_login_default_text	Becenév
 st_login_eula_label	Licencszerződés
 st_login_menu_accept	Elfogadás
 st_login_menu_cancel	Mégse
 st_login_menu_status_access_level_restriction	Nincs megfelelő hozzáférésed a belépéshez.
 st_login_menu_status_connecting	Bejelentkezés…
 st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Engedélyezd a játékot a tűzfalon (Skhid-network-setup.cmd). Oroszországban használj VPN-t, és add hozzá a játék .exe fájljait (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Hibás e-mail vagy jelszó
+st_login_menu_status_invalid_user_or_password	Hibás becenév vagy jelszó
 st_login_menu_status_invalid_version	Elavult játékverziót használsz.
 st_login_menu_status_sign_in_already_online	 A felhasználó már játékban van
 st_login_menu_status_sign_in_attempt_interval_violated	Túl sok bejelentkezési kísérlet. Próbáld újra 10 másodperc múlva.
@@ -1937,9 +1937,9 @@ st_rpd_description	A leírás még nem érhető el.
 st_rpd_name	RPD
 st_rpk_description	A leírás még nem érhető el.
 st_rpk_name	RPK-74M
-st_saiga_12_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. A K változat rövid csövű, behajtható tussal. 5 lőszeres szekrénytár, csak egyes lövés.
+st_saiga_12_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. A K változat rövid csövű, behajtható tussal. Szekrénytáras, csak egyes lövés.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. Az S változat behajtható tusú. 5 lőszeres szekrénytár, csak egyes lövés.
+st_saiga_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. Az S változat behajtható tusú. Szekrénytáras, csak egyes lövés.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Jelszó mentése
 st_scav_back_1_desc	Házilag készített artefaktumtároló hátizsák formájában. Hasznos felszerelés artefaktumvadászathoz.
@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	A meccs elérte a játékoskorlátot. A következőhöz 
 st_srp_rooms_joined_room	%1$s belépett a szobába
 st_srp_rooms_late_hint	Az új belépők előbb a szobát látják, majd belépnek a meccsbe.
 st_srp_rooms_leave	Kilépés
-st_srp_rooms_leave_queue	Sor elhagyása
-st_srp_rooms_leave_room	Szoba elhagyása
+st_srp_rooms_leave_queue	Kilépés
+st_srp_rooms_leave_room	Kilépés
 st_srp_rooms_left_room	%1$s kilépett a szobából
 st_srp_rooms_level	Szint
 st_srp_rooms_map	Pálya
@@ -2620,6 +2620,8 @@ st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a 
 st_srp_rooms_waiting_short	Várakozás
 st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
 st_srp_scope_slot	Irányzék
+st_srp_shop_not_owned	Meglévők elrejtése
+st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s
@@ -2659,7 +2661,7 @@ st_srp_weapon_minimum_damage	Minimális sebzés
 st_srp_weapon_minimum_damage_from	Minimális sebzés kezdete
 st_srp_weapon_recoil_heading	Visszarúgás, szórás, kilengés
 st_srp_weapon_reload	Újratöltés
-st_srp_weapon_shift_hint	Részletek: tartsd a Shiftet
+st_srp_weapon_shift_hint	Shift: több · Alt: meccsben
 st_srp_weapon_spread_growth	Szórás növekedési sebessége
 st_srp_weapon_spread_max	Maximális többletszórás
 st_srp_weapon_spread_per_shot	Szórásnövekedés lövésenként
@@ -2669,6 +2671,8 @@ st_srp_weapon_stats	A fegyver statisztikái
 st_srp_weapon_sway_cycle	Kilengési ciklus
 st_srp_weapon_sway_horizontal	Vízszintes kilengés
 st_srp_weapon_sway_vertical	Függőleges kilengés
+st_srp_weapon_with_kit	Összeállítással
+st_srp_weapon_with_kit_skills	Összeállítással és képességekkel
 st_srp_weather_before_rain	eső előtt
 st_srp_weather_day	nappal
 st_srp_weather_evening	este
@@ -2863,9 +2867,16 @@ st_walther_competition2_collimator_desc	Német Walther vöröspontos irányzék,
 st_walther_competition2_collimator_name	Competition II irányzék
 st_wasted	Fogyasztás
 st_weapon_aim_action	Célzás (nyomva tartva)
+st_weapon_already_taken	Már felvették
+st_weapon_cannot_carry	Nem vihetsz második puskát
+st_weapon_cannot_pick_up	Ezt nem veheted fel
 st_weapon_could_not_be_used	Sérült karok! Nem használhatsz fegyvert
 st_weapon_fire_action	Lövés
+st_weapon_no_gun_in_hands	Végy fegyvert a kezedbe a cseréhez
+st_weapon_one_gun_only	Csak egy fegyvert vihetsz
+st_weapon_pick_up	%1$s felvétele ({USE})
 st_weapon_reload_action	Újratöltés
+st_weapon_switching	Várd meg a fegyverváltást
 st_wear	Alkalmazás
 st_weight_booster_description	Fehérje az izomnövekedéshez és erősödéshez szükséges tápanyagokkal. Fizikai terhelés nélkül azonban hatástalan.
 st_weight_booster_name	Anomális Erő fehérje

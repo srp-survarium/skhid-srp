@@ -51,6 +51,13 @@ class Run(InventoryGame):
         stub = STOP + 0x900
         self.word(0x870118, stub)
         self.emu.mem_write(stub, bytes.fromhex('b801000000 c3'))
+        # The log's imports (patch 85 logs a pickup command it refuses: two
+        # merged quick bits spell one): GetCurrentProcessId, CreateFileA,
+        # WriteFile, CloseHandle.
+        for n, (iat, code) in enumerate(((0x8701B8, 'b82a000000 c3'), (0x870048, 'b844000000 c21c00'),
+                                         (0x870108, 'b801000000 c21400'), (0x870040, 'b801000000 c20400'))):
+            self.word(iat, stub + 0x10 * (n + 1))
+            self.emu.mem_write(stub + 0x10 * (n + 1), bytes.fromhex(code))
         self.emu.hook_add(UC_HOOK_CODE, self.stop_at)
         for at in (0x1F3DE0, 0x75E20, 0x21CD0, 0x21F40, 0x22280):
             self.emu.hook_add(UC_HOOK_CODE, self.fixture, begin=at, end=at)
