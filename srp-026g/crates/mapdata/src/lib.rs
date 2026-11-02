@@ -137,6 +137,9 @@ pub const RUN_UPS_AFTER_EROSION_ALGO: u32 = 1;
 /// The same for the walks up off steep ground measured from where the climb began ([`Body::steep_walk_base`],
 /// `WalkGrid::cut_steep_climbs`), in [`grid_key_with_links`] only for a body that asks for it.
 pub const STEEP_WALK_BASE_ALGO: u32 = 1;
+/// The same for the pockets shut by the exits a body can take ([`Body::pocket_exits_walled`], `WalkGrid::mark_no_exit`), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const POCKET_EXITS_WALLED_ALGO: u32 = 0x5270_0001;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -174,12 +177,13 @@ impl World {
 
     /// [`Self::build`] with the off-mesh links `links` in its grid.
     pub fn build_with_links(map: MapData, cell: f32, body: Body, links: OffMeshLinks) -> Self {
-        Self::build_with(map, cell, body, links, false)
+        Self::build_with(map, cell, body, links, false, None)
     }
 
     /// [`Self::build_with_links`], with the grid's table of wall clearances ([`WalkGrid::wall_clearance`]) when `wall_clearance`
-    /// is set (0.5-1.7 s a map).
-    pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool) -> Self {
+    /// is set (0.5-1.7 s a map), and its table of open sides ([`WalkGrid::open_toward`]) for a capsule held `support_m` past a
+    /// floor's centre at a ledge when `open_sides` is `Some(support_m)`.
+    pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool, open_sides: Option<f32>) -> Self {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let walker = map.walker_triangles();
         let (grid, _) = WalkGrid::build_kept_with_links(
@@ -192,6 +196,10 @@ impl World {
             links,
         );
         let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+        let grid = match open_sides {
+            Some(support_m) => grid.with_open_sides(&walker, support_m),
+            None => grid,
+        };
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }
@@ -280,6 +288,10 @@ pub fn grid_key_with_links(
     // The walks up off steep ground from where the climb began too.
     if body.steep_walk_base {
         digest.u32(STEEP_WALK_BASE_ALGO);
+    }
+    // And the pockets shut by the exits a body can take.
+    if body.pocket_exits_walled {
+        digest.u32(POCKET_EXITS_WALLED_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

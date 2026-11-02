@@ -1682,8 +1682,8 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
     assert_eq!(repository.all_admin_actions().len(), 1);
 }
 
-/// A bots' desk in memory: two groups (one with a shown-only knob), and
-/// what it was asked.
+/// A bots' desk in memory: two groups (one with a shown-only knob), the
+/// expected rates of two classes (one not measured), and what it was asked.
 struct Desk {
     view: Mutex<session::v026g::bot_desk::DeskView>,
     asked: Mutex<Vec<String>>,
@@ -1691,7 +1691,9 @@ struct Desk {
 
 impl Desk {
     fn new() -> Self {
-        use session::v026g::bot_desk::{DeskView, Group, Kept, Knob, KnobState, Text};
+        use session::v026g::bot_desk::{
+            ClassLine, ClassRates, DeskView, Group, Kept, Knob, KnobState, RatePoint, Rates, Text,
+        };
         let knob = |key: &str, state: KnobState, value: &str| Knob {
             key: key.to_owned(),
             label: Text {
@@ -1749,6 +1751,55 @@ impl Desk {
                     ],
                 },
             ],
+            rates: Rates {
+                method: Text {
+                    en: "On the <line>.",
+                    uk: "На лінії.",
+                },
+                source: "PR #1089 <bench>".to_owned(),
+                points: vec![
+                    RatePoint {
+                        band: Text {
+                            en: "Skill",
+                            uk: "Навичка",
+                        },
+                        what: None,
+                        skill: 1.0,
+                    },
+                    RatePoint {
+                        band: Text {
+                            en: "Equipment 6-10",
+                            uk: "Спорядження 6–10",
+                        },
+                        what: Some(Text {
+                            en: "ceiling",
+                            uk: "стеля",
+                        }),
+                        skill: 0.8,
+                    },
+                ],
+                classes: vec![
+                    ClassRates {
+                        label: Text {
+                            en: "Rifles",
+                            uk: "Гвинтівки",
+                        },
+                        line: ClassLine::Pooled(vec![18.6, 18.2]),
+                        bar: Some("bar at skill 1: 18–20 %".to_owned()),
+                    },
+                    ClassRates {
+                        label: Text {
+                            en: "Pistols",
+                            uk: "Пістолети",
+                        },
+                        line: ClassLine::Unknown(Text {
+                            en: "not <measured>",
+                            uk: "не виміряно",
+                        }),
+                        bar: None,
+                    },
+                ],
+            },
             audit: Vec::new(),
         };
         Self {
@@ -1795,6 +1846,53 @@ impl session::v026g::bot_desk::BotDesk for Desk {
         Ok(made)
     }
 
+    /// The edits a set would make; the rifles' rate at skill 1 is the value
+    /// typed, and their 0.8 point moves by 0.6 of the change.
+    fn preview(
+        &self,
+        changes: &[(String, String)],
+    ) -> Result<session::v026g::bot_desk::Preview, String> {
+        use session::v026g::bot_desk::{ClassLine, Edit, Preview};
+        self.asked.locked().push(format!("preview {changes:?}"));
+        if let Some((key, _)) = changes.iter().find(|(_, text)| text == "<bad>") {
+            return Err(format!("{key}: `<bad>` is not a number"));
+        }
+        let view = self.view.locked();
+        let mut edits = Vec::new();
+        let mut after = view.rates.clone();
+        for (key, text) in changes {
+            let knob = view
+                .groups
+                .iter()
+                .flat_map(|group| &group.knobs)
+                .find(|knob| &knob.key == key)
+                .ok_or("no such knob")?;
+            if &knob.value != text {
+                edits.push(Edit {
+                    key: key.clone(),
+                    old: knob.value.clone(),
+                    new: text.clone(),
+                });
+            }
+            if key == "aim.class_aim.rifle" {
+                let new: f32 = text.parse().map_err(|_| "not a number")?;
+                if let ClassLine::Pooled(at) = &mut after.classes[0].line {
+                    let old = at[0];
+                    at[0] = new;
+                    at[1] += 0.6 * (new - old);
+                }
+                if new > 20.0 {
+                    after.classes[0].bar = Some(format!("{new:.1} % at skill 1, above its bar 18–20 %"));
+                }
+            }
+        }
+        Ok(Preview {
+            edits,
+            before: view.rates.clone(),
+            after,
+        })
+    }
+
     fn reset(
         &self,
         group: Option<&str>,
@@ -1828,7 +1926,7 @@ impl session::v026g::bot_desk::BotDesk for Desk {
 }
 
 #[test]
-fn the_bots_tab_sets_what_was_changed_and_resets_after_a_confirm() {
+fn the_bots_tab_previews_a_save_sets_it_on_apply_and_resets_after_a_confirm() {
     let mut world = world();
     // A server without the bots' tuning says so.
     let off = world.admin(&[("tab", "bots")]);
@@ -1852,10 +1950,61 @@ fn the_bots_tab_sets_what_was_changed_and_resets_after_a_confirm() {
     assert!(shown.contains("name=\"bot.aim.class_aim.rifle\" value=\"18.5\""), "{shown}");
     assert!(shown.contains("<small>factor at skill 1: 1.32</small>"), "{shown}");
     assert!(shown.contains("Calibration: PR #1089 &lt;bench&gt;"), "{shown}");
+    // [A266] The expected rates: a class a row, the bands over their points, the method and the source, escaped; a
+    // class not measured says why.
+    assert!(shown.contains("<h2>Expected hits a shot, by class and skill</h2>"), "{shown}");
+    assert!(
+        shown.contains("<th colspan=1>Skill</th><th colspan=1>Equipment 6-10</th></tr><tr><th>1</th><th>ceiling 0.8</th></tr>"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("<tr><td>Rifles<br><small>not measured on its own yet: partly the pool's numbers</small><br><small>bar at skill 1: 18–20 %</small></td><td>18.6</td><td>18.2</td></tr>"),
+        "{shown}"
+    );
+    assert!(shown.contains("<td colspan=2><small>not &lt;measured&gt;</small></td>"), "{shown}");
+    assert!(shown.contains("On the &lt;line&gt;.") && shown.contains("Source: PR #1089 &lt;bench&gt;"), "{shown}");
     assert!(desk.asked.locked().is_empty());
-    // Only the field changed is set; the message says what changed and from when.
+    // A save first shows what changes and the expected rates old → new, the values typed kept in their fields (with
+    // what they showed); only the fields changed are asked, and nothing is set.
+    let rifles = [
+        ("tab", "bots"),
+        ("bot.aim.class_aim.rifle", "19"),
+        ("was.aim.class_aim.rifle", "18.5"),
+        ("bot.skill.step", "0.15"),
+        ("was.skill.step", "0.15"),
+    ];
+    let previewed = world.admin(&rifles);
+    assert!(
+        previewed.contains("Not applied yet: check the change and the expected hit rates, then apply. aim.class_aim.rifle 18.5 → 19"),
+        "{previewed}"
+    );
+    assert!(
+        previewed.contains("</small></td><td><b>18.6 → 19.0</b></td><td><b>18.2 → 18.4</b></td></tr>"),
+        "{previewed}"
+    );
+    assert!(previewed.contains("value=apply") && previewed.contains("value=cancel"), "{previewed}");
+    assert!(previewed.contains("name=\"bot.aim.class_aim.rifle\" value=\"19\""), "{previewed}");
+    assert!(previewed.contains("name=\"was.aim.class_aim.rifle\" value=\"18.5\""), "{previewed}");
+    assert!(!previewed.contains("by class and skill"), "the preview's table stands in for the standing one");
+    assert_eq!(
+        desk.asked.locked().as_slice(),
+        [r#"preview [("aim.class_aim.rifle", "19")]"#]
+    );
+    // Apply sets the same fields; the message says what changed and from when.
+    let mut apply = rifles.to_vec();
+    apply.push(("bots_do", "apply"));
+    let applied = world.admin(&apply);
+    assert!(
+        applied.contains("Saved, from the next match: aim.class_aim.rifle 18.5 → 19"),
+        "{applied}"
+    );
+    assert_eq!(
+        desk.asked.locked().last().unwrap(),
+        r#"set [("aim.class_aim.rifle", "19")] from t"#
+    );
     let saved = world.admin(&[
         ("tab", "bots"),
+        ("bots_do", "apply"),
         ("bot.skill.step", "0.2"),
         ("was.skill.step", "0.15"),
         ("bot.skill.every_s", "30"),
@@ -1866,29 +2015,34 @@ fn the_bots_tab_sets_what_was_changed_and_resets_after_a_confirm() {
         "{saved}"
     );
     assert_eq!(
-        desk.asked.locked().as_slice(),
-        [r#"set [("skill.step", "0.2")] from t"#]
+        desk.asked.locked().last().unwrap(),
+        r#"set [("skill.step", "0.2")] from t"#
     );
     // The audit, the newest first.
     assert!(saved.contains("2025-11-01 12:00"), "{saved}");
-    // A refused value changes nothing, and the reason is escaped.
-    let refused = world.admin(&[
-        ("tab", "bots"),
-        ("bot.skill.every_s", "<bad>"),
-        ("was.skill.every_s", "30"),
-    ]);
-    assert!(
-        refused.contains("Refused, nothing changed: skill.every_s: `&lt;bad&gt;`"),
-        "{refused}"
-    );
+    // A refused value changes nothing, at the preview or the apply, and the reason is escaped.
+    for pressed in ["save", "apply"] {
+        let refused = world.admin(&[
+            ("tab", "bots"),
+            ("bots_do", pressed),
+            ("bot.skill.every_s", "<bad>"),
+            ("was.skill.every_s", "30"),
+        ]);
+        assert!(
+            refused.contains("Refused, nothing changed: skill.every_s: `&lt;bad&gt;`"),
+            "{refused}"
+        );
+        assert!(!refused.contains("value=apply"), "{refused}");
+    }
     // A reset shows what goes back and waits for its confirm.
+    let before = desk.asked.locked().len();
     let asked = world.admin(&[("tab", "bots"), ("bots_do", "reset:balance")]);
     assert!(
         asked.contains("Confirm below to put these back to their defaults: skill.step 0.2 → 0.15"),
         "{asked}"
     );
     assert!(asked.contains("value=\"confirm:balance\""), "{asked}");
-    assert_eq!(desk.asked.locked().len(), 2);
+    assert_eq!(desk.asked.locked().len(), before);
     let cancelled = world.admin(&[("tab", "bots"), ("bots_do", "cancel")]);
     assert!(!cancelled.contains("confirm:balance"));
     let done = world.admin(&[("tab", "bots"), ("bots_do", "confirm:balance")]);
@@ -1900,11 +2054,13 @@ fn the_bots_tab_sets_what_was_changed_and_resets_after_a_confirm() {
         desk.asked.locked().last().unwrap(),
         r#"reset Some("balance") from t"#
     );
-    // Nothing left to reset; the whole tab's reset asks for no group.
-    let nothing = world.admin(&[("tab", "bots"), ("bots_do", "reset:all")]);
-    assert!(nothing.contains("Nothing to reset"), "{nothing}");
+    // The whole tab's reset asks for no group; then nothing is left to reset.
+    let all = world.admin(&[("tab", "bots"), ("bots_do", "reset:all")]);
+    assert!(all.contains("aim.class_aim.rifle 19 → 18.5"), "{all}");
     world.admin(&[("tab", "bots"), ("bots_do", "confirm:all")]);
     assert_eq!(desk.asked.locked().last().unwrap(), "reset None from t");
+    let nothing = world.admin(&[("tab", "bots"), ("bots_do", "reset:all")]);
+    assert!(nothing.contains("Nothing to reset"), "{nothing}");
     // Without the token nothing is asked.
     let before = desk.asked.locked().len();
     let wrong = world.web.route(

@@ -104,6 +104,12 @@ pub struct GridTuning {
     /// 614 -> 503, falls off 326 -> 283, stuck notes 178 -> 180; its no_way bursts have the same grid paths on and off); the all-off arm
     /// keeps it (its old value is the proven walk). A grid is the map's (see `gap_links`).
     pub steep_walk_base: bool,
+    /// [A270] Whether the maps' walk grids count a pocket's exit toward its way out only where a body can take it: no wall above
+    /// the landing between take-off and landing, and a sprint exit with a 1.5 m straight run-up inside the pocket
+    /// (`mapdata::Body::pocket_exits_walled`). A pocket with none is shut, and no route is planned into it. Chemical Plant day 2's
+    /// pocket counted exits through a 3.9 m wall and Cologne day 2's two-floor slot sprint exits with 0.25 m to run; routes dropped
+    /// bots into both (fx-grid's A257). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    pub pocket_exits_walled: bool,
 }
 
 impl Default for GridTuning {
@@ -124,6 +130,7 @@ impl Default for GridTuning {
             slip_landings: false,
             run_ups_after_erosion: true,
             steep_walk_base: true,
+            pocket_exits_walled: false,
         }
     }
 }
@@ -152,6 +159,7 @@ impl GridTuning {
             slip_landings: self.slip_landings,
             run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
+            pocket_exits_walled: self.pocket_exits_walled,
             ..body
         }
     }

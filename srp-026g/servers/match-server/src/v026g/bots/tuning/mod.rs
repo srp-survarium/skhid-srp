@@ -70,8 +70,8 @@ pub struct Tuning {
     pub smoke: SmokeTuning,
     /// What the bots' kits are built with (`kit.rs`).
     pub kit: KitTuning,
-    /// [A246] The bench's calibration of each gun class's skill-1 aim factor to a hit rate, which the admin page sets
-    /// the factor by ([`AimCalibration`]). Data only: nothing the bots do reads it.
+    /// [A246, A266] The bench's calibration of each gun class's aim to a hit rate, which the admin page sets the skill-1
+    /// factor by and shows the expected rates with ([`AimCalibration`]). Data only: nothing the bots do reads it.
     pub calibration: AimCalibration,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
@@ -106,9 +106,11 @@ pub use aim::AimCalibration;
 pub use aim::AimTuning;
 pub use aim::Calibration;
 pub use aim::ClassAim;
+pub use aim::ClassCalibration;
 pub use aim::SkillCurve;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;
+pub use aim::TypeCalibration;
 pub use cover::BulletPierce;
 pub use cover::CoverRule;
 pub use cover::CoverTuning;
@@ -299,6 +301,12 @@ impl Tuning {
     /// 0.5-1.7 s of CPU a map, which a tuning without `think.wall_clear_corners` does not spend.
     pub fn needs_wall_clearance(&self) -> bool {
         self.think.wall_clear_corners
+    }
+
+    /// The support at a ledge the maps' grids make their table of open sides for (`mapdata::WalkGrid::open_toward`), if this tuning
+    /// needs it ([`super::kin::Edge::ClientWalksOff`]): the one place that says it, as [`Self::needs_wall_clearance`].
+    pub fn needs_open_sides(&self) -> Option<f32> {
+        (self.kin.edge == super::kin::Edge::ClientWalksOff).then_some(super::body::SUPPORT_M)
     }
 
     /// The hash of the tuning as it runs (its JSON), for the traces.
@@ -731,6 +739,7 @@ mod tests {
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
             "/unstick/drop_shut_from_top",
+            "/unstick/escape_floor",
         ];
         // Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
         // "smarter, never cheaters"): the patch never names them either, so the all-off arm keeps the default.

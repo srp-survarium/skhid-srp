@@ -282,7 +282,7 @@ mod tests {
         let dir_xz = nums("SRP_CLIMB_DIR", "-1,0");
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
         let links = bench_tuning().off_mesh_links();
-        let world = World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, false);
+        let world = World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, false, None);
         let grid = &world.grid;
         let start = grid.locate(Vec3::new(at[0], at[1], at[2]), 0.3).expect("a floor at the point");
         let p0 = grid.position(start);

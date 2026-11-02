@@ -283,6 +283,12 @@ fn bench_wall_clearance() -> bool {
     bench_tuning().needs_wall_clearance() || (bench_settings().flag("SRP_BENCH_ONE_SIDE") && bench_tuning_of(true).needs_wall_clearance())
 }
 
+/// The support of the maps' table of open sides when either side's tuning needs it ([`Tuning::needs_open_sides`]).
+fn bench_open_sides() -> Option<f32> {
+    let side1 = bench_settings().flag("SRP_BENCH_ONE_SIDE").then(|| bench_tuning_of(true));
+    bench_tuning().needs_open_sides().or_else(|| side1?.needs_open_sides())
+}
+
 /// [`tuning_from`] of the environment.
 pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     tuning_from(bench_settings(), side1)
@@ -723,7 +729,7 @@ pub(crate) fn real_bot_cost() {
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
-        let world = Arc::new(World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, bench_wall_clearance()));
+        let world = Arc::new(World::build_with(map, mapdata::CELL, bench_tuning().grid_body(), links, bench_wall_clearance(), bench_open_sides()));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {
@@ -1011,6 +1017,8 @@ pub(crate) fn real_bot_cost() {
             // Carriers killed with a battery, by the shooter's play and by
             // the carrier's team; and every play taken (F3: churn).
             let mut carrier_kills: std::collections::BTreeMap<String, u32> = Default::default();
+            // How many of the match's carrier kills (`Game::carrier_kills`, which grows over the match) are read.
+            let mut carrier_kills_read = 0;
             // Living bots' ticks and deaths by their play and team
             // (`Kind/team`).
             let mut play_ticks: std::collections::BTreeMap<String, u64> = Default::default();
@@ -1410,7 +1418,9 @@ pub(crate) fn real_bot_cost() {
                             side[2] += n;
                         }
                     }
-                    for (shooter, carrier) in std::mem::take(&mut game.carrier_kills) {
+                    let new_carrier_kills = game.carrier_kills[carrier_kills_read..].to_vec();
+                    carrier_kills_read = game.carrier_kills.len();
+                    for (shooter, carrier) in new_carrier_kills {
                         *carrier_kills.entry(play_of(shooter)).or_default() += 1;
                         carriers_killed[usize::from(game.bodies[carrier].team)] += 1;
                         carrier_deaths.add(game.bodies[shooter].team, &game.bodies[carrier]);

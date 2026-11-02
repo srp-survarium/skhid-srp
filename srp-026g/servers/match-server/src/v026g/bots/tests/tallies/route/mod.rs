@@ -36,8 +36,9 @@ pub(super) struct RouteRun {
     /// Each body's pickup (the tick, the battery) while it carries.
     carry_from: Vec<Option<(u32, usize)>>,
     /// Each body's feet at the edge it walked off, while it falls on at its walk speed (the stand-in's walk-off,
-    /// `SRP_BENCH_STAND_IN_WALKOFF`): such a fall takes many ticks, so it is told where it lands.
-    walk_off_from: Vec<Option<Vec3>>,
+    /// `SRP_BENCH_STAND_IN_WALKOFF`), and whether its route dropped there: such a fall takes many ticks, so it is told where
+    /// it lands.
+    walk_off_from: Vec<Option<(Vec3, bool)>>,
 }
 
 /// A fall of a metre or more in a tick: where it began, and whether the bot's route drops there (a corner over
@@ -161,6 +162,8 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         sprint_turns(),
         Box::new(turns::Turns::new(bodies)),
         Box::new(flights::Flights::new(bodies)),
+        escape_floors(),
+        open_walks(),
     ]
 }
 
@@ -195,32 +198,36 @@ impl RouteTally {
             let before = std::mem::replace(&mut run.feet[place], body.alive.then_some(body.feet));
             let exact_now = bot.is_some_and(|bot| bot.motor.exact_end.is_some());
             let exact = std::mem::replace(&mut run.exact_was[place], exact_now) || exact_now;
-            // A walk-off's fall is told where it lands, from the edge; any other in the tick it drops a metre or more.
+            // Its route drops at `at`: a corner over a metre under the one before, within a metre of it (with `top`, the
+            // corner before it too), or a drop the planner recorded (a drop link under a metre, onto a shelf above the
+            // floor the body lands on: Mamayev Kurgan's spawn deck).
+            let drops_at = |at: Vec3, top: bool| {
+                bot.and_then(|bot| bot.route.as_ref()).is_some_and(|(route, _)| {
+                    route.points().windows(2).any(|w| {
+                        w[0].at.y - w[1].at.y >= 1.0
+                            && (w[1].at.distance_xz(at) <= 1.0 || top && w[0].at.distance_xz(at) <= 1.0)
+                    }) || route.drops_near(at, 1.0)
+                })
+            };
+            // A walk-off's fall is told where it lands, from the edge; any other in the tick it drops a metre or more. Whether
+            // the route dropped there is asked at the edge, of the route it walked off by (A271: the route is planned again in
+            // the air, and 186 of the 196 falls the walk-off turned unplanned were drops the one-tick arm counted planned there).
             let walk_off = body.flight.as_ref().filter(|f| body.alive && f.carry != [0.0; 2]).map(|f| f.from);
-            let (from, walked_off) = match (walk_off, run.walk_off_from[place]) {
-                (Some(edge), _) => {
-                    run.walk_off_from[place] = Some(edge);
+            let (from, planned_at_edge) = match (walk_off, run.walk_off_from[place]) {
+                (Some(edge), None) => {
+                    run.walk_off_from[place] = Some((edge, drops_at(edge, true)));
                     (None, false)
                 }
-                (None, Some(edge)) => {
+                (Some(_), Some(_)) => (None, false),
+                (None, Some((edge, planned))) => {
                     run.walk_off_from[place] = None;
-                    (body.alive.then_some(edge), true)
+                    (body.alive.then_some(edge), planned)
                 }
                 (None, None) => (before, false),
             };
-            let fall = from.filter(|from| body.alive && from.y - body.feet.y >= 1.0).map(|from| {
-                // Its route drops there: a corner over a metre under the one before, within a metre of where
-                // it landed (or, for a walk-off that carried it on, the corner before within a metre of the edge
-                // it walked off), or a drop the planner recorded (a drop link under a metre, onto a shelf above
-                // the floor the body lands on: Mamayev Kurgan's spawn deck).
-                let planned = bot.and_then(|bot| bot.route.as_ref()).is_some_and(|(route, _)| {
-                    route.points().windows(2).any(|w| {
-                        w[0].at.y - w[1].at.y >= 1.0
-                            && (w[1].at.distance_xz(body.feet) <= 1.0 || walked_off && w[0].at.distance_xz(from) <= 1.0)
-                    }) || route.drops_near(body.feet, 1.0)
-                });
-                Fall { from, planned, exact }
-            });
+            let fall = from
+                .filter(|from| body.alive && from.y - body.feet.y >= 1.0)
+                .map(|from| Fall { from, planned: planned_at_edge || drops_at(body.feet, false), exact });
             let carry = match (run.carry_from[place], body.carrying) {
                 (None, Some(battery)) => {
                     run.carry_from[place] = Some((time, battery));

@@ -23,6 +23,9 @@ pub trait BotDesk: Send + Sync {
     /// reason. `from` is who asked (the page's client address), for the audit. Gives the changes made (none when every
     /// value was already so).
     fn set(&self, changes: &[(String, String)], from: &str) -> Result<Vec<Change>, String>;
+    /// [A266] What [`BotDesk::set`] would make of the same `changes`, and the expected hit rates before and after,
+    /// changing nothing: refused as `set` refuses them.
+    fn preview(&self, changes: &[(String, String)]) -> Result<Preview, String>;
     /// Puts back the defaults of one group's knobs ([`Group::key`]), or of every group's (`None`): what the server's
     /// tuning (its file, else the shipped defaults) says without the page's changes. Audited like a change.
     fn reset(&self, group: Option<&str>, from: &str) -> Result<Vec<Change>, String>;
@@ -38,8 +41,69 @@ pub struct DeskView {
     /// Why the matches do not run on what the files say now (a file refused: the last good tuning is kept).
     pub refused: Option<Refused>,
     pub groups: Vec<Group>,
+    /// The expected hit rates of the next match's tuning.
+    pub rates: Rates,
     /// The latest changes, the newest first.
     pub audit: Vec<Change>,
+}
+
+/// [A266] What a set would make, not made yet ([`BotDesk::preview`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Preview {
+    /// Each knob it changes (none: every value was so already).
+    pub edits: Vec<Edit>,
+    /// The expected hit rates now, and with the edits.
+    pub before: Rates,
+    pub after: Rates,
+}
+
+/// A knob's value, old and new, as the page shows them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Edit {
+    pub key: String,
+    pub old: String,
+    pub new: String,
+}
+
+/// [A266] The expected hit rate a shot of each gun class at the skills that matter: 0, 0.5 and 1, and each band's floor,
+/// start and ceiling. Estimates from the bench, weighed to the live humans' shots, not live measurements.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Rates {
+    /// How a rate is had from the bench's numbers, as the page says it.
+    pub method: Text,
+    /// Where the numbers come from.
+    pub source: String,
+    pub points: Vec<RatePoint>,
+    pub classes: Vec<ClassRates>,
+}
+
+/// A skill a rate is shown at.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RatePoint {
+    /// The skill's own, or a band of the players' equipment.
+    pub band: Text,
+    /// In a band: its floor, start or ceiling.
+    pub what: Option<Text>,
+    pub skill: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClassRates {
+    pub label: Text,
+    pub line: ClassLine,
+    /// [A267] The owner's bar at skill 1, as the page says it, and where the line's end sits when it is off it.
+    pub bar: Option<String>,
+}
+
+/// A class's expected rates.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ClassLine {
+    /// At each of [`Rates::points`], %, from the class's own numbers.
+    Own(Vec<f32>),
+    /// The same from a pool's numbers (the automatics'): the class is not measured on its own yet.
+    Pooled(Vec<f32>),
+    /// None, and why (pistols: not measured).
+    Unknown(Text),
 }
 
 /// A file the matches do not run on, and why.

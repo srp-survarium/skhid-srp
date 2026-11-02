@@ -99,6 +99,19 @@ pub enum Edge {
     /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
     #[default]
     Client,
+    /// [`Self::Client`], and over an open side of its floor (`WalkGrid::open_toward`: no link that way, no floor of its level
+    /// beside, no wall) the body goes on as the client's capsule does: on while a floor of its level holds it within
+    /// [`super::body::SUPPORT_M`], then straight down onto the floor under it (`body::walk_off_open`; `step_down` 0x7E1B0, PROVEN,
+    /// the stand-in's `past_edge`). [`Self::Client`] holds it there as at a wall, since it moves a body past its floor only toward
+    /// a drop link or along a lip: the reckoning stood while the body walked on, and the lip guard's stop forecast never fell, so
+    /// the guard let keys walk the body off. A269: every entry into the Vector Laboratory middle pit (a 5.3 m edge, deeper than
+    /// the harmless drop: no link) and into the Tarakanovsky Fort shut pocket at (-8, -20) (a walkway edge 1.7 m over it, no link)
+    /// was over such an edge. The lip guard also watches the floors near an open side. Needs the grids' table of open sides
+    /// ([`crate::v026g::bots::tuning::Tuning::needs_open_sides`]); a grid without it is [`Self::Client`]. Not the default: in
+    /// A269's bench (160 pairs) falls off the route went -28 % (past open sides -46 %), but the guard changed the keys on 9.5 % of the
+    /// ticks (0.5 % with [`Self::Client`]) in runs of 1-2 ticks, flipping 3 times a second, and stuck cases went +48 %, kills -13 %:
+    /// it waits for a guard that holds its brake.
+    ClientWalksOff,
 }
 
 /// [POCKETS (b)] Where the reckoned body ([`Edge::Client`]) comes down when it goes off a ledge whose drop is an off-mesh walk-off
