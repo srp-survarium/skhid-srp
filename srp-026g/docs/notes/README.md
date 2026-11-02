@@ -79,6 +79,7 @@ given), LIKELY or GUESS.
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |
 | [hide-hit-markers-scores.md](hide-hit-markers-scores.md) | The Settings' HUD group: crosshair list (Dynamic, Static, Hidden), hide hit markers, hide player scores, hide quests, static minimap (the owner, 2026-10-30): two Settings checkboxes kept in user.cfg, off by default, at once; the crosshair without its hit marker, the Tab list names only by name; with the Interface level, F11 and Blackout (exe patch 83) |
 | [kill-feed-icons.md](kill-feed-icons.md) | The kill feed's wall, ricochet and pain icons (the owner, 2026-10-25): weapon, wall or ricochet (0.69d0's icons and rules), pain (a white lightning bolt for pain shock), cause; when each shows (exe patch 67, the hud movie) |
+| [kill_weapon.md](kill_weapon.md) | Which weapon a kill, a shot and a hit were made with (research, 2026-11-02): nothing the server gets names it (statistics per kit only); the statistics handler is told the dict id at a kill and the item instance id at a kill, hit and shot, and drops them; a proposed Rust patch counting kills, shots and hits per (place, dict id) in the world |
 | [baked-textures.md](baked-textures.md) | Freezes in a match from camouflage and decal bakes (2026-10-25): why every game baked again (the stock delete of `streamed_textures`) and each player object baked the same textures again; the rules of exe patch 70 (the folder kept per revision, one bake or load for many queries) |
 | [renderer.md](renderer.md) | The renderer as a light bake needs it: stage order and targets, the scene's models and lights, vertex layouts (static, four-bone, terrain), G-buffer material parameters (Fresnel and roughness, the specular scale, wetness), emission and its flicker, sun, point and spot lights, water, the sky dome and scattering tables |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
@@ -105,7 +106,7 @@ given), LIKELY or GUESS.
 | [download-mirrors.md](download-mirrors.md) | Download mirrors (the owner, 2026-11-01, after Google Drive's quota stopped new players): the game's archive and the patches from many addresses in order, srp's `/game` and `mirrors.tsv`, `release/add-mirror`, resume at the next address, the addresses built into the updater and the .bat, one log line a try |
 | [armour-params.md](armour-params.md) | Armour configs: what each key does |
 | [artefact-score.md](artefact-score.md) | Match score for an artefact put into a slot |
-| [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts-1 edit list |
+| [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts table |
 | [blackout.md](blackout.md) | Blackout: the mode with the UI off |
 | [breakable_lamps.md](breakable_lamps.md) | Breakable lamps |
 | [buy-gold.md](buy-gold.md) | "Get Gold" opens the exchange |

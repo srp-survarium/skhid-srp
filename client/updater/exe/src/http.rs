@@ -9,6 +9,7 @@ use core::ffi::c_void;
 use core::ptr::{null, null_mut};
 
 use updater_logic::download::{self, PAGE_HEAD, Speed};
+use updater_logic::problem::{Fault, Miss, Probe, Stage};
 use updater_logic::url::{self, MAX_REDIRECTS, Url};
 use windows_sys::Win32::Networking::WinHttp::{
     WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
@@ -53,6 +54,59 @@ pub enum HttpError {
     Slow(u64),
     /// A `206 Partial Content` of another range than the one asked for.
     BadRange,
+}
+
+/// The step of a network error while the body came, after the answer's
+/// headers: the address answered.
+const READ_STEP: &str = "read";
+
+impl HttpError {
+    /// How an address failed, for the player's box (`updater_logic::problem`):
+    /// not reached, or an answer that is not the file (one that broke off
+    /// while the file came is cut short).
+    pub fn miss(&self) -> Miss {
+        match self {
+            Self::Network(step, code) => Miss::of_network(
+                if *step == READ_STEP {
+                    Stage::Reading
+                } else {
+                    Stage::Asking
+                },
+                *code,
+            ),
+            Self::Status(status) => Miss::Answered(Fault::Status(*status)),
+            Self::Cut { .. } => Miss::Answered(Fault::CutShort),
+            Self::Html(..) => Miss::Answered(Fault::WebPage),
+            Self::Slow(_) => Miss::Answered(Fault::TooSlow),
+            Self::TooLarge
+            | Self::Stopped
+            | Self::Redirects
+            | Self::BadRedirect(_)
+            | Self::BadRange => Miss::Answered(Fault::Other),
+        }
+    }
+}
+
+/// Windows' own test of its internet connection (its network icon asks the
+/// same address): a site that is always up, plain HTTP, a few bytes.
+const PROBE: &str = "http://www.msftconnecttest.com/connecttest.txt";
+
+/// After nothing of ours answered: whether a site that is always up does
+/// (any HTTP answer), within a few seconds. Asked once, only then.
+pub fn probe() -> Probe {
+    let Some(url) = url::patch(PROBE) else {
+        return Probe::Silent;
+    };
+    let Ok(session) = open_session() else {
+        return Probe::Silent;
+    };
+    unsafe {
+        WinHttpSetTimeouts(session.0, 5_000, 5_000, 5_000, 5_000);
+    }
+    match ask(&session, &url, &url.prefix, 0) {
+        Ok(_) => Probe::Answered,
+        Err(_) => Probe::Silent,
+    }
 }
 
 /// What a download slower than `download::MIN_SPEED` over a stretch of
@@ -442,7 +496,7 @@ fn receive(
             )
         };
         if ok == 0 {
-            return Err(HttpError::Network("read", last_error()));
+            return Err(HttpError::Network(READ_STEP, last_error()));
         }
         if read == 0 {
             break;
