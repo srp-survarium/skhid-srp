@@ -2584,7 +2584,7 @@ fn grazes_near(eye: Vec3, (yaw, pitch): (f32, f32), margin_m: f32, c: &CombatTun
         .into_iter()
         .filter(|dir| ground.cast(hand, *dir * (1.0 / dir.length()), dir.length() * margin_m).is_none())
         .any(|dir| {
-            arc::Flight::thrown(eye + *dir * margin_m, yaw, pitch)
+            arc::Flight::thrown(eye + dir * margin_m, yaw, pitch)
                 .first_contact(ground, within_s)
                 .is_some()
         })
