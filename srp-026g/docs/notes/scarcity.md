@@ -39,6 +39,12 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
   (a game without patch 94 would refill at the crates in a Scarcity match and leave its world).
 - **Open for the owner:** the name; whether a shotgun's or a bolt-action's "magazine" (2 shells of a
   double barrel, 5 rounds of a Mosin) is meant as their whole ammo for a life.
+- **Open: the rooms' pool holds 160 entries at most** (`lobby::rooms::POOL_BITS`, 8 chunks of 20
+  bits; the bits' request ids end just below the create's, so more chunks is a wire change). The
+  game data of revision 41 and main has 112 playable entries and 30 plain battery maps: 142 with
+  Blackout, 172 with Scarcity, so with every map in the pool (no `SRP_MATCH_MAPS`) `room_entries`
+  keeps the first 160 and the last 12 Scarcity maps (by id) are not offered. Either more pool bits
+  or fewer variant maps; the owner's call.
 
 ## How
 
