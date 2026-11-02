@@ -9,11 +9,17 @@ as mc_value, card sections and the profile's CLIK controls. Supply
 visibility=false, clear the classless image flag and place a class by its
 symbol's character id in a COPY for Ruffle. All graphics, transforms, names
 and ActionScript stay intact.
+
+--slider-labels: the lobby's ammo sliders (one frame, no labels) also get the
+labels AmmoSlider.draw goes to (default, disabled, focused). Scaleform goes on
+past a label a clip lacks, Ruffle throws, and the lobby's own root stops there
+in its setup, before the item cards' listeners.
 """
 from pathlib import Path
 import sys,struct
 sys.path.insert(0,str(Path(__file__).resolve().parents[3] / 'tools/actionscript'));import swf
 src=Path(sys.argv[1]);out=Path(sys.argv[2]);count=0
+SLIDERS=['SrvSliderAmmo2','SrvSliderAmmoPD','SrvSliderAmmoCh'] if '--slider-labels' in sys.argv[3:] else []
 def nested(data):
  pos=0;tags=[]
  while pos<len(data):
@@ -37,4 +43,13 @@ def rewrite(tags,symbols):
    r=swf.tag(k,b)
   out.append((k,r))
  return out
-h,t=swf.split(src.read_bytes());out.write_bytes(swf.join(h,rewrite(t,{n:c for c,n in swf.symbol_classes(t)})));print('Adapted native Scaleform image placements for Ruffle:',count)
+def labelled(tags,symbols):
+ ids={symbols[n] for n in SLIDERS}
+ out=[]
+ for k,r in tags:
+  if k==39 and struct.unpack_from('<H',swf.payload(r),0)[0] in ids:
+   b=swf.payload(r);r=swf.tag(k,b[:4]+b''.join(swf.tag(43,l+b'\0') for l in (b'default',b'disabled',b'focused'))+b[4:])
+  out.append((k,r))
+ return out
+h,t=swf.split(src.read_bytes());symbols={n:c for c,n in swf.symbol_classes(t)}
+out.write_bytes(swf.join(h,labelled(rewrite(t,symbols),symbols)));print('Adapted native Scaleform image placements for Ruffle:',count)
