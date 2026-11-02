@@ -345,18 +345,10 @@ class WeaponTable(unittest.TestCase):
                 (table(good, list(WEAPON['columns'])[1:]), {'wpn_a': weapon(0.55, '55')}),          # missing
                 (table(good), {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.4, '40')}),           # no row
                 (table({'wpn_a': {**good['wpn_a'], 'melee': ''}}), {'wpn_a': weapon(0.55, '55')}),  # key kept
-                (table({'wpn_a': {**good['wpn_a'], 'recoil': '1'}}), {'wpn_a': weapon(0.55, '55')})):  # no table
+                (table({'wpn_a': {**good['wpn_a'], 'pierce': '0.3'}}), {'wpn_a': weapon(0.55, '55')})):  # none
             result, out = self.run_table(text, weapons)
             self.assertNotEqual(result.returncode, 0, text)
             self.assertFalse(out.exists())
-
-    def test_a_cell_of_a_key_the_config_lacks_adds_it_to_its_table(self):
-        result, out = self.run_table(table({'wpn_a': {**cells_of('0.55'), 'pierce': '0.3'}}), {'wpn_a': weapon(0.55, '55')})
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('0 unexpected differences', result.stdout)
-        a = self.out(out, 'wpn_a')
-        self.assertEqual(ce.rec(a, ce.find(a, 'parameters/bullet_pierce'))[3], ce.T_FLOAT)
-        self.assertTrue(ce.same(value(a, 'parameters/bullet_pierce'), 0.3))
 
     def test_the_dump_reads_back_as_its_configs(self):
         weapons = {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.1 + 0.2, '30')}
@@ -482,6 +474,20 @@ class OtherTables(unittest.TestCase):
             (Path(folder) / 'projects/l2/rain/client_project').write_bytes(bytes(level(2)))
             with self.assertRaisesRegex(SystemExit, 'row l2 protect: 2 \\| 6'):
                 ce.dump_stats('t', folder)
+
+
+    def test_only_an_add_column_adds_a_key_the_config_lacks(self):
+        category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim'},
+                    'columns': {'aim': 'data/active/aim_time_mod', 'speed': 'data/active/speed_mod'}}
+        columns, rows = read_table(category, 'name\taim\tspeed\nspring\t-0.1\t\n')
+        files = {'a/spring.options': config({'data': {'active': {'duration': 10}}})}
+        self.assertEqual(ce.stats_write(category, columns, rows, files, 't')[0], {'a/spring.options': ['/data/active/aim_time_mod']})
+        b = files['a/spring.options']
+        self.assertEqual((ce.rec(b, ce.find(b, 'data/active/aim_time_mod'))[3], ce.cell_text(b, ce.find(b, 'data/active/aim_time_mod'))),
+                         (ce.T_FLOAT, '-0.1'))
+        columns, rows = read_table(category, 'name\taim\tspeed\nspring\t-0.1\t0.1\n')
+        with self.assertRaisesRegex(ValueError, 'no such key'):
+            ce.stats_write(category, columns, rows, files, 't')
 
 
 if __name__ == '__main__':

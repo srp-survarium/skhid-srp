@@ -719,8 +719,8 @@ def weapon_card(buf):
 #   'file'             no `columns`: a key/value table (`key  value`), a row a key path; the config is
 #                      made anew when no archive has it
 # `columns`: their key paths; `[*]` every item, `[field=cell]` the entries whose field reads so, `[i]`.
-# A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key; a cell
-# of a key the config lacks adds it to its table (a number as a float).
+# A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key. A cell
+# of a key the config lacks is refused, but in an `add` column: added to its table (a number as a float).
 # `match`: the columns (of a key/value table: keys) a match computes with: a change needs the `next`
 # row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
 STATS = {
@@ -783,6 +783,7 @@ STATS = {
                   'passive_pierce_mul', 'passive_damage_add', 'passive_pierce_add', 'active_damage_mul',
                   'active_pierce_mul', 'active_damage_add', 'active_pierce_add', 'absorb', 'regen', 'regen_timeout',
                   'regen_threshold'},
+        'add': {'passive_aim', 'active_aim', 'active_stopping'},  # Spring's, for client patch 54
     },
 }
 
@@ -983,7 +984,8 @@ def stats_write(category, columns, rows, data, table):
                 spots = resolve(b, key, off)
                 parent, _, name = key.rpartition('/')
                 tables = resolve(b, parent, off) if parent else [('', off)]
-                if not cell or not spots and ('[' in key or len(tables) != 1 or rec(b, tables[0][1])[3] != T_NAMED):
+                if not cell or not spots and (column not in category.get('add', ()) or len(tables) != 1 or
+                                              rec(b, tables[0][1])[3] != T_NAMED):
                     raise ValueError('%s %s (%s): the row says %r, the config %r (an empty cell: no such key)'
                                      % (stats_label(category, row, p), column, key, cell, have))
                 if not spots:  # a key the config lacks, in its table: a float, true/false or a text
