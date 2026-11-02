@@ -119,5 +119,7 @@ edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun
 edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
 edit	weapon-stats.tsv	-	the weapons' stats, and their cards
 edit	dead-keys-1.json	-	the dead duplicate keys out (parameters/ copies of what the game reads in dispersion/, data/ and hit_params/); the unused exo back piece follows the armour rule
+edit	ammo.tsv	-	the ammo's stats, and their cards
+edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

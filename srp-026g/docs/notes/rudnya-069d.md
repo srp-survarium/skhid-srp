@@ -94,6 +94,10 @@ port imports (the probes aside), 415 have a 0.26g file at the same path:
 - Models: 46 are 0.26g's own (same collision, render bounds within 5 cm); the 209 imported
   ones with a 0.26g namesake differ in render geometry (0.69d's are denser), and about 85 of those
   share its collision. Materials are 0.69d's converted onto 0.26 templates (224, 5 MiB).
+- Terrain collision: 0.69d's, the same as native Rudnya's. Its walker mesh lies a median 4 cm
+  under the drawn ground (10 cm at the 90th percentile); the collision bullets hit follows it
+  within 2 cm, and the ragdolls rest on that one (ragdoll.md section 17). East of the play area
+  a mud field is drawn 30 cm above both, as in 0.69d and native Rudnya.
 
 ## Building the pack
 

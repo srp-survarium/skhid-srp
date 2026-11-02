@@ -276,7 +276,7 @@ pub fn game_download_failed(failures: &str) -> String {
 /// (`client/bugtrap/src/crash_text.rs`): said after every failure the
 /// player ends on ([`reported`]).
 pub const SEND_LOG: &str = "Send game\\binaries\\x86\\updater_skhid.log to #bugreports in \
-                            Discord (tag: install): discord.gg/Pxa4prXfwu";
+                            Discord (tag: install): discord.gg/QUmJg3gBhg";
 
 /// The longest line the launcher shows (`updater_logic::pipe`).
 const LINE: usize = 255;

@@ -123,7 +123,7 @@ echo connection and the free space (about 10 GB for a new game), close the
 echo game if it is open, then start this file again: it goes on from where
 echo it stopped.
 echo Still failing? Send skhid-download.log (beside this file) to #bugreports
-echo in Discord (tag: install): https://discord.gg/Pxa4prXfwu
+echo in Discord (tag: install): https://discord.gg/QUmJg3gBhg
 pause
 exit /b 1
 

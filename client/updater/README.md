@@ -356,7 +356,7 @@ remains: the last one is waited for, however slow), `cut short at byte <n> of
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
 it: `Send game\binaries\x86\updater_skhid.log to #bugreports in Discord
-(tag: install): discord.gg/Pxa4prXfwu`; the reason is cut to leave it room
+(tag: install): discord.gg/QUmJg3gBhg`; the reason is cut to leave it room
 in the launcher's 255 characters, the log has the whole). So does every
 other failure the run ends on.
 

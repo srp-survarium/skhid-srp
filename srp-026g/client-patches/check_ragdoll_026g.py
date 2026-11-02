@@ -23,8 +23,9 @@ vtable 0x9FFB14) on a made-up client, world core and match options; the
 players are made up with the fields the step reads (ragdoll.md section 8),
 their skeleton is scavengers_01 in the cook's order (ragdoll.md section 8,
 `add_bone` 0x3ACDA0), the bones a standing body. Stubs: ray_test (0x75E20,
-a floor at y = 0; the filter checked: group 424h, mask 202h, no delegate:
-the level and the batteries), QueryPerformanceCounter / -Frequency (60
+a walker floor at y = 0 and the hittable floor 4 cm over it, as Rudnya's
+collision over its walker mesh; the filter checked: group 434h, mask 20Ah,
+no delegate: the level's two collisions and the batteries), QueryPerformanceCounter / -Frequency (60
 frames a second), GetCurrentThreadId (the patches' lock: one thread),
 and the bullet manager's play_particle (0x3223E0) and
 play_sound (0x3222F0), which record their arguments. The material pair
@@ -47,8 +48,10 @@ Checked:
   the ragdoll as it was (no new start from the clip); another death (a new
   life) starts from the clip again;
 - a skeleton that is not ours (a bone missing) gets no ragdoll;
-- the ragdoll falls onto the floor and settles there; the level is read
-  only through ray_test with the level's filter;
+- the ragdoll falls onto the floor and settles there, on the hittable
+  floor over the walker one, through the grenades' and the players' slabs
+  (their groups and masks the game's: the filter meets neither); the level
+  is read only through ray_test with the level's filter;
 - a bullet's ray: the build's hook does the original's two moves (the same
   registers, frame and XMM0 as the original exe's code from the same
   state) and changes no byte of the bullet, its result or the frame; with
@@ -98,6 +101,7 @@ CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
 CHANGE_TRAJECTORY = 0x32EE20
 PLAY_PARTICLE, PLAY_SOUND = 0x3223E0, 0x3222F0
 CLIENT_VTABLE = 0x9FFB14
+HITTABLE_FLOOR = 0.04                         # the collision bullets hit, over the walker floor at 0
 ZF = 1 << 6
 
 # made-up memory
@@ -179,11 +183,18 @@ class Game:
         for at in (STUBS, STACK - 0x100000, RET):
             emu.mem_map(at, 0x100000, UC_PROT_ALL)
         self.ticks, self.rays, self.hits = 0, [], {}
-        # the level's floor at y = 0 (walkable, hittable: what the foot IK's
-        # 24h/2 hits), and batteries lying around x = 20 (a slab 0.3 m high
+        # the level: its walker collision at y = 0 (cgroup 2, cmask 4) and the
+        # collision bullets hit 4 cm over it (cgroup 8, cmask 16), as Rudnya's
+        # drawn ground over its walker mesh; a grenade's (818h/8) and a
+        # player's (824h/3) slabs where the body falls, which it must not meet;
+        # and batteries lying around x = 20 (a slab 0.3 m high
         # with a gap where the player stands: group 0A18h, mask 418h,
         # victory_item_core 0x301CB0)
-        self.objects = [("floor", (0x0A, 0x24), 0.0, lambda p: True),
+        near = lambda p: abs(p[0]) < 5 and abs(p[2]) < 5
+        self.objects = [("walker floor", (0x02, 0x04), 0.0, lambda p: True),
+                        ("hittable floor", (0x08, 0x10), HITTABLE_FLOOR, lambda p: True),
+                        ("grenade", (0x818, 0x08), 0.3, near),
+                        ("player", (0x824, 0x03), 0.5, near),
                         ("battery", (0xA18, 0x418), 0.3,
                          lambda p: 18 <= p[0] <= 22 and -2 <= p[2] <= 2
                          and not (19.6 < p[0] < 20.4 and -0.4 < p[2] < 0.5))]
@@ -291,7 +302,7 @@ class Game:
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
         group, mask, delegate, unflipped = (self.u32(esp + 20 + 4 * i) for i in range(4))
         assert emu.reg_read(UC_X86_REG_ECX) == PHYSICS, "ray_test on the player's physics world"
-        assert (group, mask, delegate) == (0x424, 0x202, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
+        assert (group, mask, delegate) == (0x434, 0x20A, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
         o = self.floats(origin, 3)
         d = self.floats(direction, 3)
         assert abs(math.sqrt(sum(x * x for x in d)) - 1) < 1e-3, "a unit direction"
@@ -615,6 +626,8 @@ def main():
     check(rays > 0 and all(r[2] > 0 for r in game.rays), f"the level read through ray_test ({len(game.rays)} rays)")
     check(hip < 0.5 and min(lowest) > -0.12, f"the body fell onto the floor (the hip at {hip:.2f} m, the lowest "
           f"bone at {min(lowest):.2f} m)")
+    check(game.hits.get("hittable floor", 0) > 0 and not game.hits.get("grenade") and not game.hits.get("player"),
+          f"it fell onto the hittable floor, through the grenade's and the player's slabs ({game.hits})")
     settled = len(game.rays)
     for _ in range(10):
         game.step()
