@@ -174,24 +174,80 @@ const BEFORE_MS: u32 = 6_000;
 const FIRING_MS: u32 = 1_000;
 const STAGES: usize = Stage::ALL.len();
 
-/// [A274] The stages of the episodes of one kind (the stand-in human's hits or the bots'): ticks in each stage before the hit
-/// (from the bot's own first sight of him) and after it (to the first shot at him, the death or the window's end), the
-/// episodes, the stage each ended in when it never fired at him, and the turn's speed (view degrees a tick, summed, and the
-/// ticks).
-#[derive(Clone, Debug, Default)]
-struct StageCounts {
+/// [A274] What an episode is: it had shot at him already in its sight before the hit (a fight under way), it had not and shot at
+/// him in the window (it fired back), or it had not and never did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Engaged,
+    FiredBack,
+    Never,
+}
+
+impl Kind {
+    const ALL: [Kind; 3] = [Kind::Engaged, Kind::FiredBack, Kind::Never];
+
+    fn name(self) -> &'static str {
+        match self {
+            Kind::Engaged => "engaged",
+            Kind::FiredBack => "fired_back",
+            Kind::Never => "never",
+        }
+    }
+
+    fn of(hit: &Open) -> Kind {
+        match (hit.engaged, hit.fire_him_at) {
+            (true, _) => Kind::Engaged,
+            (false, Some(_)) => Kind::FiredBack,
+            (false, None) => Kind::Never,
+        }
+    }
+}
+
+/// [A274] The episodes of one [`Kind`]: ticks in each stage before the hit (from the bot's own first sight of him to the hit, or
+/// to its first shot at him before it) and after it (to the first shot at him, the death or the window's end); the stage of the
+/// last tick and the deaths of those that never shot at him after the hit; the turn's view degrees and ticks; how many saw him
+/// and targeted him, the ticks it fired at another; the times to its first shot at him after the hit, from its own first sight
+/// and from the hit.
+#[derive(Clone, Debug)]
+struct KindCounts {
     episodes: u64,
     before: [u64; STAGES],
     after: [u64; STAGES],
-    /// The episodes with a shot at him: their ticks by stage, before the hit and after (to the shot).
-    shot_before: [u64; STAGES],
-    shot_after: [u64; STAGES],
-    shots: u64,
-    /// The episodes with no shot at him: the stage of their last tick, and whether they died.
     ended_in: [u64; STAGES],
     ended_dead: [u64; STAGES],
     turn_deg: f64,
     turn_ticks: u64,
+    seen: u64,
+    targeted: u64,
+    fired_other_ticks: u64,
+    sight_to_shot: [u64; BINS],
+    hit_to_shot: [u64; BINS],
+}
+
+impl Default for KindCounts {
+    fn default() -> Self {
+        Self {
+            episodes: 0,
+            before: [0; STAGES],
+            after: [0; STAGES],
+            ended_in: [0; STAGES],
+            ended_dead: [0; STAGES],
+            turn_deg: 0.0,
+            turn_ticks: 0,
+            seen: 0,
+            targeted: 0,
+            fired_other_ticks: 0,
+            sight_to_shot: [0; BINS],
+            hit_to_shot: [0; BINS],
+        }
+    }
+}
+
+/// [A274] The episodes of one shooter's side (the stand-in human's hits or the bots'), by [`Kind`]; each gate's ticks; those not
+/// firing just before the hit.
+#[derive(Clone, Debug, Default)]
+struct StageCounts {
+    kinds: [KindCounts; 3],
     /// The gates' bits, ticks each failed with him the target (`reflex::gate::NAMES`' order).
     gate_ticks: Vec<u64>,
     /// The episodes not firing in the [`FIRING_MS`] before the hit (as the live tables' `live_firstshot.py`): those that pressed
@@ -204,23 +260,26 @@ struct StageCounts {
 
 impl StageCounts {
     fn add(&mut self, hit: &Open, died: bool) {
-        self.episodes += 1;
+        let k = &mut self.kinds[Kind::of(hit) as usize];
+        k.episodes += 1;
         for (s, (b, a)) in hit.before.iter().zip(&hit.after).enumerate() {
-            self.before[s] += u64::from(*b);
-            self.after[s] += u64::from(*a);
-            if hit.fire_him_at.is_some() {
-                self.shot_before[s] += u64::from(*b);
-                self.shot_after[s] += u64::from(*a);
-            }
+            k.before[s] += u64::from(*b);
+            k.after[s] += u64::from(*a);
         }
-        if hit.fire_him_at.is_some() {
-            self.shots += 1;
-        } else if let Some(last) = hit.last_stage {
-            self.ended_in[last as usize] += 1;
-            self.ended_dead[last as usize] += u64::from(died);
+        if hit.fire_him_at.is_none()
+            && let Some(last) = hit.last_stage
+        {
+            k.ended_in[last as usize] += 1;
+            k.ended_dead[last as usize] += u64::from(died);
         }
-        self.turn_deg += f64::from(hit.turn_deg);
-        self.turn_ticks += u64::from(hit.turn_ticks);
+        k.turn_deg += f64::from(hit.turn_deg);
+        k.turn_ticks += u64::from(hit.turn_ticks);
+        let seen = hit.seen_before.or(hit.seen_after);
+        k.seen += u64::from(seen.is_some());
+        k.targeted += u64::from(hit.target_at.is_some());
+        k.fired_other_ticks += u64::from(hit.fired_other_ticks);
+        k.sight_to_shot[bin(seen.zip(hit.fire_him_at).map(|(s, f)| f.saturating_sub(s)))] += 1;
+        k.hit_to_shot[bin(hit.fire_him_at.map(|f| f.saturating_sub(hit.at)))] += 1;
         if !hit.firing_before {
             self.fresh += 1;
             self.fresh_fired += u64::from(hit.fire_at.is_some());
@@ -275,6 +334,10 @@ struct Open {
     turn_ticks: u32,
     /// [A274] It pressed fire in the [`FIRING_MS`] before the hit (the live tables' split).
     firing_before: bool,
+    /// [A274] It had shot at him in its sight before the hit ([`Kind::Engaged`]); its ticks firing at another after the hit (to
+    /// the first shot at him).
+    engaged: bool,
+    fired_other_ticks: u32,
 }
 
 /// The first hits of one play (the play at the hit), by the stand-in human's or a bot's.
@@ -361,11 +424,11 @@ struct Deaths {
 pub(super) struct UnderFireCounts {
     human: Option<Place>,
     /// Each place's reflex target, its last fire gates and its own sights (who, since, noticing delay), at this tick's read;
-    /// [A274] its last [`BEFORE_MS`] of ticks (tick, target, gates).
+    /// [A274] its last [`BEFORE_MS`] of ticks (tick, target, gates, fire key).
     target: Vec<Option<Place>>,
     gates: Vec<Gates>,
     sights: Vec<Vec<(Place, u32, u32)>>,
-    log: Vec<VecDeque<(u32, Option<Place>, Gates)>>,
+    log: Vec<VecDeque<(u32, Option<Place>, Gates, bool)>>,
     /// The open first hit of each place's life; whether it has had one; its last fire key; its life's first hit.
     open: Vec<Option<Open>>,
     hit_this_life: Vec<bool>,
@@ -446,11 +509,6 @@ impl Topic for UnderFireCounts {
         self.grow(place + 1);
         self.target[place] = bot.and_then(|b| b.reflex.target());
         self.gates[place] = bot.map(|b| b.reflex.gates()).unwrap_or_default();
-        let log = &mut self.log[place];
-        log.push_back((tick, self.target[place], self.gates[place]));
-        while log.front().is_some_and(|&(t, _, _)| tick.saturating_sub(t) > BEFORE_MS) {
-            log.pop_front();
-        }
         let sights = &mut self.sights[place];
         sights.clear();
         if let Some(bot) = bot {
@@ -473,10 +531,15 @@ impl Topic for UnderFireCounts {
             self.last_fire[place] = None;
             self.prior_fire[place] = None;
         }
+        let firing = rec.keys & key::FIRE != 0;
+        let log = &mut self.log[place];
+        log.push_back((tick, self.target[place], self.gates[place], rec.alive && firing));
+        while log.front().is_some_and(|&(t, _, _, _)| tick.saturating_sub(t) > BEFORE_MS) {
+            log.pop_front();
+        }
         if !rec.alive || !run.is_bot.get(place).copied().unwrap_or(false) || self.human == Some(place) {
             return;
         }
-        let firing = rec.keys & key::FIRE != 0;
         if firing {
             if self.last_fire[place] != Some(tick) {
                 self.prior_fire[place] = self.last_fire[place];
@@ -500,6 +563,7 @@ impl Topic for UnderFireCounts {
             let stage = Stage::of(target, hit.shooter, sight_notice, gates, tick);
             hit.after[stage as usize] += 1;
             hit.last_stage = Some(stage);
+            hit.fired_other_ticks += u32::from(firing && target.is_some());
             if stage == Stage::Turn {
                 let d = ((rec.yaw - at.prev.yaw + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI).abs();
                 hit.turn_deg += d.to_degrees();
@@ -570,18 +634,26 @@ impl Topic for UnderFireCounts {
                 turn_deg: 0.0,
                 turn_ticks: 0,
                 firing_before: fired_before.is_some_and(|f| f < t && t - f <= FIRING_MS),
+                engaged: false,
+                fired_other_ticks: 0,
             });
-            // [A274] Before the hit: its logged ticks from its own first sight of him (the sight unbroken since then).
+            // [A274] Before the hit: its logged ticks from its own first sight of him (the sight unbroken since then) to the hit, or
+            // to its first shot at him before it (then the fight was under way: `Kind::Engaged`).
             if let Some(sight) = self.sight_notice(victim, shooter) {
-                let before: Vec<Stage> = self.log[victim]
-                    .iter()
-                    .filter(|&&(lt, _, _)| lt >= sight.0 && lt < t)
-                    .map(|&(lt, target, gates)| Stage::of(target, shooter, Some(sight), fresh(gates, lt), lt))
-                    .collect();
+                let mut before = Vec::new();
+                let mut engaged = false;
+                for &(lt, target, gates, firing) in self.log[victim].iter().filter(|e| e.0 >= sight.0 && e.0 < t) {
+                    if firing && target == Some(shooter) {
+                        engaged = true;
+                        break;
+                    }
+                    before.push(Stage::of(target, shooter, Some(sight), fresh(gates, lt), lt));
+                }
                 if let Some(open) = self.open[victim].as_mut() {
                     for stage in before {
                         open.before[stage as usize] += 1;
                     }
+                    open.engaged = engaged;
                 }
             }
         }
@@ -669,30 +741,42 @@ impl Topic for UnderFireCounts {
                 .filter(|(_, n)| **n > 0)
                 .map(|((_, name), n)| ((*name).to_owned(), serde_json::Value::from(*n)))
                 .collect();
-            let stages = serde_json::json!({
-                "episodes": st.episodes, "shots": st.shots, "before": by_stage(&st.before), "after": by_stage(&st.after),
-                "shot_before": by_stage(&st.shot_before), "shot_after": by_stage(&st.shot_after), "ended_in": by_stage(&st.ended_in),
-                "ended_dead": by_stage(&st.ended_dead), "turn_deg": (st.turn_deg * 1000.0).round() / 1000.0, "turn_ticks": st.turn_ticks,
-                "gate_ticks": gate_ticks,
-                "fresh": {"episodes": st.fresh, "fired": st.fresh_fired, "died_first": st.fresh_died_first,
-                    "to_fire": st.fresh_to_fire},
-            });
             let top = |a: &[u64; STAGES]| {
                 let mut v: Vec<(Stage, u64)> = Stage::ALL.iter().copied().zip(a.iter().copied()).filter(|(_, n)| *n > 0).collect();
                 v.sort_by_key(|&(s, n)| (std::cmp::Reverse(n), s as usize));
                 v.iter().map(|(s, n)| format!("{} {n}", s.name())).collect::<Vec<_>>().join(", ")
             };
-            lines.push(format!(
-                "  {who} stages (A274): episodes {}, shot at him {}; ticks before the hit: {}; after: {}; never shot, ended in: {}; \
-                 turn {:.1} deg over {} ticks",
-                st.episodes,
-                st.shots,
-                top(&st.before),
-                top(&st.after),
-                top(&st.ended_in),
-                st.turn_deg,
-                st.turn_ticks
-            ));
+            let mut kinds = serde_json::Map::new();
+            for (kind, c) in Kind::ALL.iter().zip(&st.kinds) {
+                kinds.insert(
+                    kind.name().to_owned(),
+                    serde_json::json!({
+                        "episodes": c.episodes, "before": by_stage(&c.before), "after": by_stage(&c.after),
+                        "ended_in": by_stage(&c.ended_in), "ended_dead": by_stage(&c.ended_dead),
+                        "turn_deg": (c.turn_deg * 1000.0).round() / 1000.0, "turn_ticks": c.turn_ticks, "seen": c.seen,
+                        "targeted": c.targeted, "fired_other_ticks": c.fired_other_ticks, "sight_to_shot": c.sight_to_shot.to_vec(),
+                        "hit_to_shot": c.hit_to_shot.to_vec(),
+                    }),
+                );
+                lines.push(format!(
+                    "  {who} stages (A274) {}: episodes {}, seen {}, targeted {}; ticks before the hit: {}; after: {}; ended in: {}; \
+                     turn {:.1} deg over {} ticks",
+                    kind.name(),
+                    c.episodes,
+                    c.seen,
+                    c.targeted,
+                    top(&c.before),
+                    top(&c.after),
+                    top(&c.ended_in),
+                    c.turn_deg,
+                    c.turn_ticks
+                ));
+            }
+            let stages = serde_json::json!({
+                "kinds": kinds, "gate_ticks": gate_ticks,
+                "fresh": {"episodes": st.fresh, "fired": st.fresh_fired, "died_first": st.fresh_died_first,
+                    "to_fire": st.fresh_to_fire},
+            });
             json.insert((*who).to_owned(), serde_json::json!({ "first_hits": hits, "deaths": dead, "stages": stages }));
         }
         vec![("under_fire", Part::new(serde_json::json!({ "under_fire": json }), lines.join("\n")))]
@@ -729,6 +813,8 @@ mod tests {
             turn_deg: 0.0,
             turn_ticks: 0,
             firing_before: false,
+            engaged: false,
+            fired_other_ticks: 0,
         };
         let mut c = ByPlay::default();
         c.add(&hit, Some(1_800));
@@ -741,6 +827,17 @@ mod tests {
         c.add(&switched, None);
         assert_eq!((c.hits, c.died, c.died_same_play, c.switched, c.switched_to.get(&5)), (2, 1, 1, 1, Some(&1)));
         assert_eq!(c.to_switch[10], 1, "2.5 s after the hit");
+        // [A274] The episode's kind and its times: fired back 600 ms after the hit, 1.2 s after its own sight.
+        let mut st = StageCounts::default();
+        st.add(&hit, true);
+        st.add(&Open { engaged: true, ..hit }, false);
+        st.add(&Open { fire_him_at: None, last_stage: Some(Stage::OtherTarget), ..hit }, true);
+        let [engaged, back, never] = &st.kinds;
+        assert_eq!((engaged.episodes, back.episodes, never.episodes), (1, 1, 1));
+        assert_eq!((back.hit_to_shot[2], back.sight_to_shot[4]), (1, 1));
+        assert_eq!((never.ended_in[Stage::OtherTarget as usize], never.ended_dead[Stage::OtherTarget as usize]), (1, 1));
+        assert_eq!(never.hit_to_shot[BINS - 1], 1, "never shot at him");
+        assert_eq!((st.fresh, st.fresh_fired), (3, 3), "none fired in the second before the hit");
     }
 
     #[test]
