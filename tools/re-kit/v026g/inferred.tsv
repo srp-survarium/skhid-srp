@@ -881,6 +881,7 @@ va	status	ref_021d	name
 0x0014ea60	inferred-medium	0x000f282a	vostok::render::material::initialize_nomaterial_material
 0x0014ee20	inferred-medium	0x000f29cf	vostok::render::base_basis::set
 0x0014f0b0	inferred-medium	0x000f2b68	vostok::render::initialize_base_particle_light_properties
+0x0014fe60	inferred-medium		vostok::render::scene::add_model
 0x00150220	inferred-medium	0x000f353b	vostok::render::moved_object_predicate_helper::check_object
 0x00150240	inferred-medium	0x000f355b	vostok::render::calculate_screen_factors_task
 0x001516c0	inferred-medium	0x000f4190	vostok::buffer_vector<unsigned short>::resize
@@ -895,6 +896,7 @@ va	status	ref_021d	name
 0x00153410	inferred-medium	0x000f5015	stlp_std::find_if<vostok::render::ambient_volume * *,vostok::render::find_by_id_predicate<vostok::render::ambient_volume> >
 0x001539d0	inferred-high		vostok::memory::doug_lea_allocator::free_impl
 0x00153b50	inferred-medium	0x000f5a6d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::render::moved_object_predicate_helper,vostok::collision::object const &>,boost::_bi::list2<boost::_bi::value<vostok::render::moved_object_predicate_helper *>,boost::arg<1> > > >::manager
+0x00153d90	inferred-medium		vostok::render::streaming_texture_instance::streaming_texture_instance
 0x00153ea0	inferred-medium	0x00130690	vostok::render::remove_texture_predicate::operator()
 0x00155f60	inferred-medium	0x001319cf	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back
 0x00156120	inferred-medium	0x00131adf	vostok::buffer_vector<vostok::render::streaming_ready_texture>::push_back
@@ -996,6 +998,7 @@ va	status	ref_021d	name
 0x001c8040	inferred-medium	0x0013959b	vostok::buffer_vector<vostok::math::float4>::push_back
 0x001c80c0	inferred-medium	0x00139611	vostok::buffer_vector<vostok::math::float3>::push_back
 0x001c81c0	inferred-medium	0x001396b8	vostok::buffer_vector<vostok::render::culling::aab_rect>::push_back
+0x001c8640	inferred-medium		vostok::render::calculate_needed_texture_mip_levels
 0x001c92f0	inferred-medium	0x001397c3	vostok::math::curve_line_color::evaluate
 0x001cbb70	inferred-medium	0x0013afad	vostok::render::pack_direction
 0x001cd400	inferred-medium	0x0013c698	vostok::render::skeleton_mesh_gpu_skinning_4weights::load

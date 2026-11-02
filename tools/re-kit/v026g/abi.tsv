@@ -439,6 +439,7 @@ va	name	source	ret_cleanup	result
 0x0014f500	vostok::render::scene::scene	manual	8	
 0x0014faa0	vostok::render::scene::`scalar deleting destructor'	manual	4	
 0x0014fac0	vostok::render::scene::~scene	manual		
+0x0014fe60	vostok::render::scene::add_model	manual	4	
 0x0014ff60	vostok::render::scene::remove_model	manual	8	
 0x00150270	vostok::render::scene::calculate_screen_factors	manual	12	
 0x00150560	vostok::render::scene::select_models	manual	20	
