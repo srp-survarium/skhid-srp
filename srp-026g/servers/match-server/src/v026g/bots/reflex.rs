@@ -1023,6 +1023,8 @@ pub struct CombatTuning {
     /// camper) the outcomes were level (score +0.2 % z +0.1, -0.1 % z -0.0) and the hits from a shooter not sensed faced
     /// within 1 s 50 vs 58 % and 53 vs 52 % (`traces-20261028/a227-hit-bearing.md`).
     pub hit_at_shot: Option<HitAtShot>,
+    /// [A274] Which enemy a hit is taken from when some enemy was sensed firing ([`HitShooter`]). `Nearest` by default.
+    pub hit_shooter: HitShooter,
     /// With `hit_cover`, it takes cover from the marker's direction: a
     /// spot whose rays from the standing eyes along it (and the marker's
     /// error either side) meet the world within `hit_cover_m`, metres.
@@ -1098,6 +1100,24 @@ impl Default for HitAtShot {
     fn default() -> Self {
         Self { line_m: 0.6, delay_ms: 350 }
     }
+}
+
+/// [A274] Which enemy a hit is taken from when some enemy was sensed firing lately ([`Reflex::threats`]). The HUD's hit marker
+/// (`game_world_ui::on_hit_from_pos`, see [`HitAtShot`]) shows every player the direction each hit came from; the trace of
+/// `traces-20261028/a274-fire-back.md` found that 46 % of the bots hit by an enemy they were not already shooting never shot at
+/// him in 10 s, their first threat after the hit on him in only 6-13 % (another enemy their target 0.9-2.2 s, he out of
+/// their sight 1.7-2.4 s).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HitShooter {
+    /// The nearest enemy sensed firing lately; none if that is the target it sees (it keeps on it).
+    #[default]
+    Nearest,
+    /// The marker's direction ([`hit_bearing`]: the enemy who fired at it with his view on it, the direction only, drawn
+    /// within `hit_bearing_error_deg`): the threat along it, so a seen enemy within `hit_match_deg` of it is the target before
+    /// any other; none seen there, the look along it, unless a seen target is kept (`hit_bearing_with_target` off). No marker
+    /// (no such shot): as `Nearest`.
+    Marked,
 }
 
 /// [A227b] A hit marker taken from a shot ([`CombatTuning::hit_at_shot`]): none; due at `shows`, along `toward` (the shot's
@@ -1583,6 +1603,7 @@ impl Default for CombatTuning {
             hit_aim_deg: 8.0,
             hit_match_deg: 15.0,
             hit_at_shot: None,
+            hit_shooter: HitShooter::Nearest,
             hit_cover: true,
             hit_cover_m: 30.0,
             hit_cover_reach: true,
@@ -2962,10 +2983,16 @@ pub mod hit_marks {
         /// ... and a taken one that a health drop confirmed within `SHOT_MARK_CONFIRM_MS`, or not.
         ShotConfirmed,
         ShotUnconfirmed,
+        /// [A274] `hit_shooter` marked, a hit with a shooter sensed: the marker had a seen enemy along it, none (looked along
+        /// it), none and a seen target kept; and the marker's enemy was not the nearest one sensed firing (the pick changed).
+        MarkSeen,
+        MarkLook,
+        MarkKept,
+        MarkNotNearest,
     }
 
     /// The marks in order, and their names in the tally.
-    pub const MARKS: [(Mark, &str); 19] = [
+    pub const MARKS: [(Mark, &str); 23] = [
         (Mark::Unsensed, "unsensed_hits"),
         (Mark::UnsensedCarrying, "unsensed_hits_carrying"),
         (Mark::Marked, "marked"),
@@ -2985,6 +3012,10 @@ pub mod hit_marks {
         (Mark::ShotNotShown, "shot_not_shown"),
         (Mark::ShotConfirmed, "shot_confirmed"),
         (Mark::ShotUnconfirmed, "shot_unconfirmed"),
+        (Mark::MarkSeen, "mark_seen"),
+        (Mark::MarkLook, "mark_look"),
+        (Mark::MarkKept, "mark_kept"),
+        (Mark::MarkNotNearest, "mark_not_nearest"),
     ];
 
     #[cfg(test)]
@@ -4972,6 +5003,47 @@ impl Reflex {
         }
     }
 
+    /// [A274] A hit with a shooter sensed under `hit_shooter` marked: the threat along the marker's direction `toward`, so the
+    /// target choice takes a seen enemy within `hit_match_deg` of it before any other; with none seen there, the look along it,
+    /// unless a seen target is kept (`hit_bearing_with_target` off). The concede's hit is the sensed shooter nearest along it.
+    fn marked_hit(
+        &mut self,
+        me: &PlaceView,
+        memory: &Memory,
+        clock: u32,
+        now: u32,
+        (toward, shooters, target_seen): (f32, &[(Place, Vec3, f32, bool)], bool),
+        c: &CombatTuning,
+    ) {
+        use hit_marks::Mark;
+        let d = |at: Vec3| at.distance_xz(me.feet);
+        let on_mark = |at: Vec3| wrap(bearing(me.feet, at) - toward).abs() <= c.hit_match_deg.to_radians();
+        let marked = shooters.iter().filter(|s| on_mark(s.1)).min_by(|a, b| d(a.1).total_cmp(&d(b.1)));
+        let nearest = shooters.iter().min_by(|a, b| d(a.1).total_cmp(&d(b.1)));
+        if marked.map(|s| s.0) != nearest.map(|s| s.0) {
+            hit_marks::add(me.team, Mark::MarkNotNearest);
+        }
+        if let Some(&(_, at, _, _)) = marked {
+            self.last_hit = Some(super::concede::Hit { shooter_at: at, from: me.feet, at: now });
+            super::concede::tally(me.team, super::concede::Tally::LoneHit);
+        }
+        let seen_along = memory.all_seen(now, clock).iter().any(|t| on_mark(t.at()));
+        if !(seen_along || c.hit_bearing_with_target || !target_seen) {
+            hit_marks::add(me.team, Mark::MarkKept);
+            return;
+        }
+        self.threat = Some(Threat {
+            at: along(me.feet, toward, c.hit_look_m),
+            error_m: 0.0,
+            until: now + c.threat_ms,
+            hit: true,
+            bearing: Some(toward),
+        });
+        self.next_threat = now + c.threat_ms + c.threat_again_ms;
+        self.hit_note = Some((me.feet, toward));
+        hit_marks::add(me.team, if seen_along { Mark::MarkSeen } else { Mark::MarkLook });
+    }
+
     /// The threat to turn to at this think (`CombatTuning::threat_*`): hit,
     /// the nearest enemy it sensed firing lately unless that is the target
     /// it sees; not hit, a shot heard near from outside its view and nearer
@@ -5025,6 +5097,15 @@ impl Reflex {
             .target
             .and_then(|target| memory.seen(target, now, view.clock))
             .map(|t| t.at());
+        // [A274] Hit with a shooter sensed: the HUD's marker shows where it came from, and the shooter is the one along it.
+        if hit
+            && !shooters.is_empty()
+            && c.hit_shooter == HitShooter::Marked
+            && let Some(toward) = hit_bearing(me, view, now, c, rng)
+        {
+            self.marked_hit(me, memory, view.clock, now, (toward, &shooters, target_at.is_some()), c);
+            return;
+        }
         let pick = if hit {
             shooters
                 .iter()
@@ -13475,6 +13556,42 @@ mod tests {
         };
         assert_eq!(hides(true), 0, "a wall it shoots through is no cover");
         assert!(hides(false) >= 5, "the mesh alone: any surface is cover");
+    }
+
+    /// [A274] Hit from aside while the nearer enemy it targets fires too (at someone else): by default the hit goes to the
+    /// nearest enemy sensed firing, its own seen target, so nothing changes; with `hit_shooter` marked the HUD marker's
+    /// direction makes the enemy along it, the one whose view is on it, the target.
+    #[test]
+    fn a_hit_goes_to_the_enemy_along_the_marker_with_hit_shooter_marked() {
+        let near_at = Vec3::new(0.0, 0.0, 15.0);
+        let far_at = Vec3::new(30.0, 0.0, 0.0);
+        let near = body(1, 1, near_at, bearing(near_at, Vec3::new(0.0, 0.0, 100.0)));
+        let far = body(2, 1, far_at, bearing(far_at, Vec3::ZERO));
+        let target_at_hit = |hit_shooter: HitShooter| {
+            let aim = AimTuning { combat: CombatTuning { hit_shooter, ..CombatTuning::default() }, ..AimTuning::default() };
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            facing(&mut me, near.chest());
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(7);
+            let mut before = None;
+            for k in 0..=10u32 {
+                let now = 1_000 + k * 50;
+                sense(&mut memory, &[percept(1, near_at, now, Source::Seen), percept(2, far_at, now, Source::Seen)], now);
+                let mut view = view_of(vec![me.clone(), near.clone(), far.clone()]);
+                if k == 10 {
+                    view.sounds = vec![shot(1, near_at, now - 100), shot(2, far_at, now - 50)];
+                    me.health = 0.7;
+                    before = reflex.target();
+                }
+                if k % 5 == 0 {
+                    reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.5, &mut rng);
+                }
+            }
+            (before, reflex.target())
+        };
+        assert_eq!(target_at_hit(HitShooter::Nearest), (Some(1), Some(1)), "the nearest firing is its own target: kept");
+        assert_eq!(target_at_hit(HitShooter::Marked), (Some(1), Some(2)), "the marker's direction: the one aside");
     }
 
     /// The far-shooter case (match report section 10): hit from 120 m by
