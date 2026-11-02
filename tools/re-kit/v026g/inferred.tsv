@@ -1791,6 +1791,7 @@ va	status	ref_021d	name
 0x002aed70	inferred-high	0x001b4ad0	Scaleform::MemoryFile::SkipBytes
 0x002aee70	inferred-medium	0x001b4b7e	Scaleform::MemoryFile::MemoryFile
 0x002aefa0	inferred-high	0x001b4c9d	survarium::scaleform_render_command_queue_impl::GetRenderInterfaces
+0x002af0f0	inferred-medium	0x001b4dbb	survarium::flash_renderer::present
 0x002af2e0	inferred-high	0x001b5012	Scaleform::Render::Matrix3x4<float>::SetIdentity
 0x002af310	inferred-high	0x001b503a	Scaleform::Render::Matrix3x4<float>::Matrix3x4<float>
 0x002af340	inferred-high	0x001b5064	Scaleform::Render::Matrix2x4<float>::SetIdentity
@@ -3043,6 +3044,8 @@ va	status	ref_021d	name
 0x00408cb0	inferred-medium	0x00282eb0	stlp_std::basic_istream<char,stlp_std::char_traits<char> >::basic_istream<char,stlp_std::char_traits<char> >
 0x0040d6d0	inferred-medium	0x00198f59	stlp_std::priv::_String_base<wchar_t,stlp_std::allocator<wchar_t> >::_M_allocate_block
 0x00420f22	inferred-medium	0x002b031e	_purecall
+0x0050d670	inferred-high	0x00371010	Scaleform::Render::Renderer2D::BeginFrame
+0x0050fec0	inferred-high	0x00373770	Scaleform::Render::ContextImpl::RTHandle::NextCapture
 0x00543cb0	inferred-medium	0x0023721c	stlp_std::basic_streambuf<char,stlp_std::char_traits<char> >::showmanyc
 0x006ac5b0	inferred-medium	0x002372ea	stlp_std::basic_streambuf<char,stlp_std::char_traits<char> >::underflow
 0x008521a0	inferred-medium	0x0068cde5	`dynamic initializer for 's_net_stats_match_sent_messages_previous''
@@ -3109,6 +3112,9 @@ va	status	ref_021d	name
 0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
 0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
 0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
+0x00331ff0	inferred-medium		survarium::weapon_recoil_calculator::serialize
+0x003320b0	inferred-medium		survarium::weapon_recoil_calculator::deserialize
+0x00332140	inferred-medium		survarium::weapon_recoil_calculator::reset
 0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
 0x00299d40	inferred-medium		survarium::post_process_game_effect_emitter::emit
 0x0029a220	inferred-medium		survarium::particle_game_effect_emitter::emit
