@@ -4684,3 +4684,12 @@ va	name	location	role	basis
 0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	entry ESP+8	float[3]* the move of this sweep	observed
 0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	entry ESP+12	int the depth (0 to 2)	observed
 0x002e3cb0	survarium::weapon_core::fire_pred	ECX	the weapon_core (player +8h, state +5ECh, rounds +5E5h, chambered +5F1h)	observed
+0x002e3840	survarium::weapon_core::computed_horizontal_recoil_time	ECX	weapon	observed
+0x002e3840	survarium::weapon_core::computed_horizontal_recoil_time	stack+4	the channel's animation length	observed
+0x002e3900	survarium::weapon_core::computed_vertical_recoil_time	ECX	weapon	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	EDI	breath calculator (weapon+288h; +38h the weapon, +3Ch the character)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	stack+8	the tick's dt, ms (int)	observed
+0x0031d970	survarium::breath_vibration_calculator::restart_on_aim	EAX	breath calculator (weapon+288h)	observed
+0x00331c50	survarium::recoil_calculator::fire	EDI	the weapon's kick (weapon+468h: +0Ch side, +10h vertical, +14h shake)	observed
+0x00331c50	survarium::recoil_calculator::fire	EAX	the shot's time	observed
+0x002e1b50	survarium::weapon_core::instant_aim_start	ECX	weapon: sets [weapon+5E8h] = 1 (aiming) and restarts the breath sway	observed

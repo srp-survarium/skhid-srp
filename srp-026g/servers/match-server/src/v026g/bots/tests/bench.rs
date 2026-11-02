@@ -885,6 +885,12 @@ pub(crate) fn real_bot_cost() {
             game.nudge = bench_settings().number("SRP_BENCH_NUDGE")
                 .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
+            // [A241] The client's aim sway on the stand-in's aimed automatic shots.
+            game.aim_sway = match bench_settings().var("SRP_BENCH_AIM_SWAY").ok().as_deref() {
+                None | Some("off") => false,
+                Some("live") => true,
+                Some(other) => panic!("SRP_BENCH_AIM_SWAY={other:?}: live or off"),
+            };
             game.volume = HitVolume::bench();
             // The client's bullet flies (standin.rs `nearest_shape_flown`) in every hit model that tests shapes, unless `SRP_BENCH_HIT_FLIGHT=0`.
             game.flight = standin_hitbox::BulletPath::bench();
@@ -2149,6 +2155,23 @@ pub(crate) fn real_bot_cost() {
             each.sort_by(f32::total_cmp);
             let at = |q: f64| each[((each.len() - 1) as f64 * q) as usize];
             let kills: u32 = game.stats.iter().map(|s| s.0).sum();
+            // [A241] The aim sway: the stand-in's shots it turned and the bots' shots that took it back, by team.
+            let taken = bots.sway_taken();
+            if game.aim_sway || taken.iter().any(|t| t.0 > 0) {
+                let mean = |(n, deg): (u32, f32)| if n > 0 { deg / n as f32 } else { 0.0 };
+                eprintln!(
+                    "  aim sway (A241): aimed automatic shots turned by the sway by team [{}, {}] (mean {:.2} / {:.2} deg); \
+                     shots with it taken back by team [{}, {}] (mean {:.2} / {:.2} deg)",
+                    game.swayed[0].0,
+                    game.swayed[1].0,
+                    mean(game.swayed[0]),
+                    mean(game.swayed[1]),
+                    taken[0].0,
+                    taken[1].0,
+                    mean(taken[0]),
+                    mean(taken[1]),
+                );
+            }
             eprintln!(
                 "{project} {per_team}v{per_team}: world built in {built_s:.2} s, map_ready {ready_ms:.1} ms ({summary})\n  \
                  {limit_s} s of play: bots {:.1} ms a second = {:.2} % of a core; per bot {:.3} %\n  \

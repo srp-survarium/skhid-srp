@@ -649,6 +649,17 @@ impl super::Bots {
         )
     }
 
+    /// [measure] [A241] Each team's shots with the aim sway taken back (`aim_sway_counter`), and the degrees taken back in all.
+    pub fn sway_taken(&self) -> [(u32, f32); 2] {
+        let mut out = [(0, 0.0); 2];
+        for bot in self.bots.iter().flatten() {
+            let team = &mut out[usize::from(bot.team.min(1))];
+            team.0 += bot.sway_taken.0 + bot.reflex.sway_taken().0;
+            team.1 += bot.sway_taken.1 + bot.reflex.sway_taken().1;
+        }
+        out
+    }
+
     /// Rolls for a grenade the bots refused because their kit held no frag (`CombatTuning::grenade_kit_cap`): `[team][role]`,
     /// by [`BotRole::ALL`], the lives over.
     pub fn frag_rolls_refused(&self) -> [[u32; BotRole::ALL.len()]; 2] {

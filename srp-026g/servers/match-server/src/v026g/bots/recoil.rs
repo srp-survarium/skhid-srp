@@ -380,10 +380,73 @@ impl Cadence {
     }
 }
 
+/// [A241] An aimed shot's drift off the view to the right, degrees, by the time since the aim began, ms: the mean over the live
+/// bots' aimed bullets of each band (fx-struct's A233 table: 90,193 bullets of the 407 PvB recordings of 2026-10-29..31, each one's
+/// ground direction against its shooter's view; joined with the shooters' AIM key by fx-fights' `a241_aim_drift.py`), at the band's
+/// middle; bullets per band 21,959 / 18,954 / 18,911 / 10,600 / 5,944 / 5,420 / 1,757 / 1,016 / 140. Not aiming they drift 0.10
+/// degrees left (5,234). PROVEN as measured; it follows the aim, not the trigger (the first shots alone: +0.12 at 0-100 ms of aim,
+/// +0.38 at 2-3 s).
+///
+/// Read in the client (LIKELY the cause; the sway's period and amplitude in the configs are not read): while the aim key is down
+/// (`[weapon+0x5E8]`, set by `instant_aim_start` 0x2E1B50, cleared by `instant_aim_end` 0x2E1BF0) the breath sway's horizontal term
+/// `[weapon+0x2CC]` is added to the side kick in the recoil animation's horizontal channel (`get_recoil_expression` 0x2E1210,
+/// `computed_horizontal_recoil_time` 0x2E3840: time `0.5 - clamp(x / 2 + sway)`). The term is `cos(2π phase)` times its amplitude
+/// (`breath_vibration_calculator::tick` 0x31D6E0, `base_horizontal_amplitude`, `base_period`), its phase restarted at 0.25 on each
+/// aim (`restart_on_aim` 0x31D970), so every aim begins the same swing. A player sees it: the camera turns with the head the bullet
+/// leaves from (`instant_fire` 0x2E23A0), and his crosshair stays on the shot.
+pub const AIM_SWAY_DEG: [(u32, f32); 9] = [
+    (50, 0.164),
+    (175, 0.070),
+    (375, 0.180),
+    (625, 0.281),
+    (875, 0.308),
+    (1250, 0.278),
+    (1750, 0.277),
+    (2500, 0.413),
+    (3500, 0.351),
+];
+
+/// [A241] [`AIM_SWAY_DEG`] at `aim_ms` since the aim began, degrees to the right: linear between its points, held at the ends.
+pub fn aim_sway_deg(aim_ms: u32) -> f32 {
+    let (first, last) = (AIM_SWAY_DEG[0], AIM_SWAY_DEG[AIM_SWAY_DEG.len() - 1]);
+    if aim_ms <= first.0 {
+        return first.1;
+    }
+    AIM_SWAY_DEG
+        .windows(2)
+        .find(|w| aim_ms <= w[1].0)
+        .map_or(last.1, |w| {
+            let f = (aim_ms - w[0].0) as f32 / (w[1].0 - w[0].0) as f32;
+            w[0].1 + f * (w[1].1 - w[0].1)
+        })
+}
+
+/// [A241] Whether `gun`'s aimed shots drift as [`AIM_SWAY_DEG`] measured: the automatics (rifles, submachine guns, machine guns),
+/// whose bullets the table is; a shotgun's pellets drifted otherwise (A233: the SPAS-12 -0.65 in bursts), the scoped single shots
+/// were not measured.
+pub fn sways(gun: &crate::v026g::bots::guns::Gun) -> bool {
+    use crate::v026g::bots::guns::WeaponClass;
+    matches!(gun.by_category, WeaponClass::Rifle | WeaponClass::Smg | WeaponClass::MachineGun)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::v026g::bots::guns::guns;
+
+    /// [A241] The aim sway is the live table at its points, linear between them and held at the ends; only the automatics sway.
+    #[test]
+    fn the_aim_sway_follows_the_live_table() {
+        assert_eq!(aim_sway_deg(0), 0.164);
+        assert_eq!(aim_sway_deg(625), 0.281);
+        assert!((aim_sway_deg(750) - 0.2945).abs() < 1e-4, "{}", aim_sway_deg(750));
+        assert_eq!(aim_sway_deg(10_000), 0.351);
+        assert!(AIM_SWAY_DEG.windows(2).all(|w| w[0].0 < w[1].0));
+        for gun in guns() {
+            let auto = matches!(gun.class(), "rifle" | "smg" | "mg");
+            assert_eq!(sways(gun), auto, "{}", gun.item);
+        }
+    }
 
     #[test]
     fn every_bot_weapon_has_its_kick_at_its_rate_of_fire() {

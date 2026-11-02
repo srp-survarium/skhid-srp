@@ -417,6 +417,9 @@ pub struct Bot {
     /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
     /// reflex (which counts its own).
     frag_rolls_refused: u32,
+    /// [measure] [A241] Its shots with the aim sway taken back and the degrees taken back, the lives before this one's reflex
+    /// (which counts its own).
+    sway_taken: (u32, f32),
     /// The frags its lives carried and threw (the lives over; the present life's throws are the reflex's).
     frag_lives: live_grenades::FragLives,
     /// The kit of this life, and the one it picked for its next (a kit
@@ -579,6 +582,7 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
+            sway_taken: (0, 0.0),
             frag_lives: live_grenades::FragLives::default(),
             kit: 0,
 
@@ -630,6 +634,8 @@ impl Bot {
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.sway_taken.0 += self.reflex.sway_taken().0;
+        self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
@@ -816,6 +822,8 @@ impl Bot {
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.sway_taken.0 += self.reflex.sway_taken().0;
+        self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = match self.kits.get(self.kit) {
             Some(&(arms, left)) => {
