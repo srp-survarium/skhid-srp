@@ -203,7 +203,8 @@ pub(super) fn zone_way_out(
     objective: bool,
 ) -> Option<Vec3> {
     let from = tactics.world.grid.locate(feet, 1.5)?;
-    if tactics.hazards.allowed(from, time) {
+    // A dry island is walked off as a zone's floor is ([`Tactics::on_island`]).
+    if tactics.hazards.allowed(from, time) && !tactics.on_island(from) {
         bot.stuck.zone_out = None;
         return None;
     }
@@ -1077,9 +1078,16 @@ fn drive_tick_inner(
                 // (`Tactics::escape`); the goal is planned from there. Even
                 // on the goal's floor: no standing in a fire.
                 // Not off a floor of the zones its crossing walks.
+                // [hazard.leave_islands] Off a dry island too: no route leads off it but over the zones' ring
+                // (`Tactics::on_island`); a crossing walks on over it.
                 let escaping = ends.is_some_and(|(from, _)| {
-                    !tactics.allowed(from, time, side, objective)
-                        && !(crossing && tactics.hazards.only_fixed_at(from))
+                    let island = tactics.on_island(from);
+                    let refused = !tactics.allowed(from, time, side, objective);
+                    #[cfg(test)]
+                    if island && !refused && !crossing {
+                        super::tactics::islands::count(super::tactics::islands::PLANS);
+                    }
+                    (refused || island) && !(crossing && (island || tactics.hazards.only_fixed_at(from)))
                 });
                 let (floors, overdraft) = (&mut grant.floors, &mut grant.overdraft);
                 // Left under way past this poll's floors: whether round the

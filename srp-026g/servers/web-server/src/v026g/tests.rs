@@ -1702,6 +1702,7 @@ impl Desk {
             value: value.to_owned(),
             default: value.to_owned(),
             limits: "0.01–0.5".to_owned(),
+            beside: None,
         };
         let view = DeskView {
             source: "the shipped defaults".to_owned(),
@@ -1718,7 +1719,21 @@ impl Desk {
                         en: "Shown only.",
                         uk: "Лише показано.",
                     }),
+                    source: None,
                     knobs: vec![knob("skill.max", KnobState::Shown, "1")],
+                },
+                Group {
+                    key: "hits",
+                    title: Text {
+                        en: "Hits a shot at skill 1",
+                        uk: "Влучання",
+                    },
+                    note: None,
+                    source: Some("PR #1089 <bench>".to_owned()),
+                    knobs: vec![Knob {
+                        beside: Some("factor at skill 1: 1.32".to_owned()),
+                        ..knob("aim.class_aim.rifle", KnobState::Settable, "18.5")
+                    }],
                 },
                 Group {
                     key: "balance",
@@ -1727,6 +1742,7 @@ impl Desk {
                         uk: "Самобалансування",
                     },
                     note: None,
+                    source: None,
                     knobs: vec![
                         knob("skill.step", KnobState::Settable, "0.15"),
                         knob("skill.every_s", KnobState::Settable, "30"),
@@ -1832,6 +1848,10 @@ fn the_bots_tab_sets_what_was_changed_and_resets_after_a_confirm() {
     assert!(shown.contains("Shown only.") && shown.contains("A &lt;knob&gt;") && shown.contains("0.01–0.5"));
     assert!(shown.contains("value=\"reset:balance\"") && !shown.contains("value=\"reset:brackets\""));
     assert!(shown.contains("value=\"reset:all\"") && shown.contains("No changes yet."));
+    // A hit rate's row: its factor beside the value, the group's calibration source, escaped.
+    assert!(shown.contains("name=\"bot.aim.class_aim.rifle\" value=\"18.5\""), "{shown}");
+    assert!(shown.contains("<small>factor at skill 1: 1.32</small>"), "{shown}");
+    assert!(shown.contains("Calibration: PR #1089 &lt;bench&gt;"), "{shown}");
     assert!(desk.asked.locked().is_empty());
     // Only the field changed is set; the message says what changed and from when.
     let saved = world.admin(&[

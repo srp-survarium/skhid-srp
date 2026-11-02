@@ -78,6 +78,19 @@ pub struct HazardTuning {
     /// out at 2.3-3.5 m/s over 8-10 m of its floors; a plain `Pace::Run` did not help, 19 deaths against 20: it does not sprint on a short route), and a player runs out of a
     /// toxic cloud. Not in the reflex's fight legs, not crouched. Off: the play's pace.
     pub run_out: bool,
+    /// A dry island, a floor of the walked map (no grid pocket) no zone on all match marks but that no walk from a spawn
+    /// reaches without crossing one (`Tactics::dry_island`, `past_fixed_zones`), is never where a way out of zones ends, and a
+    /// body on one walks out over the ring to the floors the spawns reach (`Tactics::on_island`). School's fruit cloud rings
+    /// 48-52 floors (2 m) at y 13.6 at
+    /// four corners: its level 2 zone counts as on all match, its levels 3-5 switch. A bot walking out of the cloud took
+    /// the nearest dry floor, one of these, and no route left it (the ring is no crossing: its floors are the switching
+    /// levels' too). 42 of 51 such stands of 60 s or more began with that walk-out (A257, the WAVE 13 camper cells, 61 % of
+    /// all the stuck seconds). Off: a way out ends on the nearest dry floor, as it was: a body left standing there to the
+    /// match's end, PROVEN by the probe of the server's grid and hazards (no path off without the ring's floors, no crossing,
+    /// the escape ending on the island), so the all-off arm keeps it on (`KEPT_RIGHT`). Whole matches (A257, 2 x 256 pairs, 10
+    /// a side, the 16 offered map-days): bot-ticks on dry islands -85 % / -95 %, standing still there -94 % / -99 %, "no way"
+    /// -6.5 % / -11.9 %, kills, deliveries, zone deaths and stuck cases level.
+    pub leave_islands: bool,
 }
 
 /// How a battery no straight walk crosses to is offered a crossing by the motor's own route over the zones' floors
@@ -164,6 +177,7 @@ impl Default for HazardTuning {
             escort_reach: true,
             zone_intensity: true,
             run_out: true,
+            leave_islands: true,
         }
     }
 }

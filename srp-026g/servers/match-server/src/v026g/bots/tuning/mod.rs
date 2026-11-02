@@ -70,6 +70,9 @@ pub struct Tuning {
     pub smoke: SmokeTuning,
     /// What the bots' kits are built with (`kit.rs`).
     pub kit: KitTuning,
+    /// [A246] The bench's calibration of each gun class's skill-1 aim factor to a hit rate, which the admin page sets
+    /// the factor by ([`AimCalibration`]). Data only: nothing the bots do reads it.
+    pub calibration: AimCalibration,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
 }
@@ -99,7 +102,9 @@ mod teams;
 mod traps;
 mod unstick;
 
+pub use aim::AimCalibration;
 pub use aim::AimTuning;
+pub use aim::Calibration;
 pub use aim::ClassAim;
 pub use aim::SkillCurve;
 pub use aim::SkillTuning;
@@ -273,6 +278,7 @@ impl Tuning {
     pub fn validate(&self) -> Result<(), String> {
         self.aim.check()?;
         self.avoid.check()?;
+        self.calibration.check()?;
         self.feel.check()?;
         self.grid.check()?;
         self.heal.check()?;
@@ -710,6 +716,7 @@ mod tests {
             "/grid/drop_room",
             "/grid/run_ups_after_erosion",
             "/grid/steep_walk_base",
+            "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
             "/heal/drug_stops",
