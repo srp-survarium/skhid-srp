@@ -134,7 +134,9 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     assert!(Ragdoll::new(&input).unwrap().headwear_pose().is_none());
     input.headwear = Some(HeadwearShape);
     let mut body = Ragdoll::new(&input).unwrap();
-    assert!((body.headwear_pose().unwrap().position - now[HEAD.index()].position).length() < 1e-5);
+    assert!(
+        (body.headwear_pose().unwrap().0.position - now[HEAD.index()].position).length() < 1e-5
+    );
     let mut ground = Ground::flat();
     run(&mut body, &mut ground, None, |r| {
         let hat = r.headwear.unwrap();
@@ -153,7 +155,7 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     let (parts, gun) = body.poses();
     body.rig().draw(&parts, gun, &mut drawn);
     assert!(
-        (body.headwear_pose().unwrap().position - drawn[HEAD.index()].position).length() > 0.15
+        (body.headwear_pose().unwrap().0.position - drawn[HEAD.index()].position).length() > 0.15
     );
     assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
 }

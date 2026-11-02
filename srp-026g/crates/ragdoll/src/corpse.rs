@@ -404,8 +404,9 @@ impl Corpses {
     }
 
     /// A shot's push on a place's ragdoll part, if that place still has the
-    /// same death's ragdoll drawn: a settled one wakes. What the push did,
-    /// None if nothing was pushed.
+    /// same death's ragdoll drawn: a settled one wakes; a shot into the head
+    /// knocks off the headwear still on it, if the content gives the body
+    /// one (`headwear`). What the push did, None if nothing was pushed.
     pub fn push(
         &mut self,
         place: usize,
@@ -413,6 +414,7 @@ impl Corpses {
         part: Part,
         point: Vec3,
         j: Vec3,
+        headwear: Option<HeadwearShape>,
     ) -> Option<Knock> {
         let Some(Corpse::Body { death: d, slot }) = self.places.get(place).copied() else {
             return None;
@@ -422,11 +424,11 @@ impl Corpses {
         }
         let current = &mut self.pool[slot.index()];
         match current {
-            Slot::Ragdoll { ragdoll, .. } => ragdoll.push(part, point, j),
+            Slot::Ragdoll { ragdoll, .. } => ragdoll.push(part, point, j, headwear),
             Slot::Settled { ragdoll, .. } => {
                 let mut ragdoll = *ragdoll;
                 ragdoll.wake();
-                let knock = ragdoll.push(part, point, j);
+                let knock = ragdoll.push(part, point, j, headwear);
                 *current = Slot::Ragdoll {
                     ragdoll,
                     clip: None,

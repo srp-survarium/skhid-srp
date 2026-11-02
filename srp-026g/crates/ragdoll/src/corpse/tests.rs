@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::math::Quat;
+use crate::ragdoll::HeadwearOff;
 use crate::ragdoll::tests::{Ground, standing};
 use crate::shot::Shot;
 use crate::skeleton::BONE_COUNT;
@@ -24,7 +25,13 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
     let Corpse::Body { slot, .. } = corpses.place(0) else {
         panic!("missing body")
     };
-    let pose = corpses.slot(slot).body().unwrap().headwear_pose().unwrap();
+    let pose = corpses
+        .slot(slot)
+        .body()
+        .unwrap()
+        .headwear_pose()
+        .unwrap()
+        .0;
     frame(&mut corpses, &places, None, &mut ground);
     assert!(
         (corpses
@@ -33,6 +40,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
             .unwrap()
             .headwear_pose()
             .unwrap()
+            .0
             .position
             - pose.position)
             .length()
@@ -53,6 +61,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
             .unwrap()
             .headwear_pose()
             .unwrap()
+            .0
             .position
             .y
             > 1.5
@@ -536,7 +545,7 @@ fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() 
     let j = crate::shot::impulse(along, 0.02, 800.0);
     assert!(
         corpses
-            .push(0, DeathKey(7), hit.hit.part, hit.hit.point, j)
+            .push(0, DeathKey(7), hit.hit.part, hit.hit.point, j, None)
             .is_some()
     );
     assert_eq!(stage(&corpses, 0), "ragdoll", "woken");
@@ -557,6 +566,117 @@ fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() 
     assert!(frames < 6 * 60, "settled again in {frames} frames");
     // still on the ground, not through it
     assert!(part_pose(&corpses, 0, Part::Head).position.y > 0.05);
+}
+
+/// Place 0's headwear pose and what took it off, once off the head.
+fn hat(corpses: &Corpses) -> Option<(Pose, HeadwearOff)> {
+    let Corpse::Body { slot, .. } = corpses.place(0) else {
+        return None;
+    };
+    corpses.slot(slot).body()?.headwear_pose()
+}
+
+/// Place 0's ragdoll's drawn Head bone.
+fn head_bone(corpses: &Corpses) -> Pose {
+    let Corpse::Body { slot, .. } = corpses.place(0) else {
+        panic!("no body")
+    };
+    let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+    assert_eq!(corpses.slot(slot).draw_alone(&mut skeleton), Drawn::Ragdoll);
+    skeleton[HEAD.index()]
+}
+
+/// A shot into place 0's `part` along `along`, pushed as the arena does:
+/// the part the trace met (asserted), with or without the content's
+/// headwear channel.
+fn shoot(corpses: &mut Corpses, part: Part, along: Vec3, headwear: Option<HeadwearShape>) {
+    let hit = corpses.trace(&shot_at(corpses, part, along)).expect("hit");
+    assert_eq!(hit.hit.part, part);
+    let j = crate::shot::impulse(along, 0.02, 800.0);
+    assert!(
+        corpses
+            .push(0, hit.death, part, hit.hit.point, j, headwear)
+            .is_some()
+    );
+}
+
+#[test]
+fn a_shot_into_a_corpses_head_knocks_its_headwear_off() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    // a body shot's death: the headwear stays on the head
+    let d = [dead(7)];
+    until_settled(&mut corpses, &d, &mut ground);
+    assert_eq!(hat(&corpses), None, "worn: its bone follows Head");
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    // a shot into another part leaves it on
+    shoot(&mut corpses, Part::Torso, along, Some(HeadwearShape));
+    assert_eq!(hat(&corpses), None, "a shot into the torso");
+    // the head: off, from where it sat on the head
+    let head = head_bone(&corpses);
+    shoot(&mut corpses, Part::Head, along, Some(HeadwearShape));
+    let (at, off) = hat(&corpses).expect("knocked off");
+    assert_eq!(off, HeadwearOff::Shot);
+    assert!(
+        (at.position - head.position).length() < 1e-4,
+        "it leaves the head where it sat"
+    );
+    for _ in 0..60 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    let (at, _) = hat(&corpses).unwrap();
+    let gone = at.position - head_bone(&corpses).position;
+    assert!(
+        gone.dot(along) > 0.2,
+        "thrown along the shot, off the head: {gone:?}"
+    );
+    assert!(at.position.y > 0.0, "above the ground: {:?}", at.position);
+    // it settles again, and a second shot into the head knocks nothing more
+    until_settled(&mut corpses, &d, &mut ground);
+    let (lying, _) = hat(&corpses).unwrap();
+    shoot(&mut corpses, Part::Head, -along, Some(HeadwearShape));
+    assert_eq!(
+        hat(&corpses),
+        Some((lying, HeadwearOff::Shot)),
+        "the same body, where it lay"
+    );
+}
+
+#[test]
+fn a_head_hit_knocks_nothing_off_without_the_channel_or_a_corpse() {
+    let mut ground = Ground::flat();
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    // no headwear channel (the stock content): nothing to knock off
+    let d = [dead(7)];
+    let mut corpses = Corpses::new();
+    until_settled(&mut corpses, &d, &mut ground);
+    shoot(&mut corpses, Part::Head, along, None);
+    assert_eq!(hat(&corpses), None);
+    // a living place: no ragdoll, nothing pushed, nothing knocked off
+    let point = head_bone(&corpses).position;
+    let j = crate::shot::impulse(along, 0.02, 800.0);
+    let mut living = Corpses::new();
+    frame(&mut living, &[Seen::Alive], None, &mut ground);
+    assert_eq!(
+        living.push(0, DeathKey(7), Part::Head, point, j, Some(HeadwearShape)),
+        None
+    );
+    assert_eq!(living.place(0), Corpse::Alive);
+    // a shot of an earlier death of the place: nothing
+    assert_eq!(
+        corpses.push(0, DeathKey(6), Part::Head, point, j, Some(HeadwearShape)),
+        None
+    );
+    assert_eq!(hat(&corpses), None);
+    // the killing headshot's headwear stays the death's
+    let Seen::Dead(mut death) = dead(8) else {
+        unreachable!()
+    };
+    death.headwear = Some(HeadwearShape);
+    let mut headshot = Corpses::new();
+    until_settled(&mut headshot, &[Seen::Dead(death)], &mut ground);
+    shoot(&mut headshot, Part::Head, along, Some(HeadwearShape));
+    assert_eq!(hat(&headshot).map(|(_, off)| off), Some(HeadwearOff::Death));
 }
 
 #[test]
@@ -581,7 +701,7 @@ fn a_shot_pushes_a_moving_ragdoll_and_a_miss_does_nothing() {
     // the wrong death (the place died again since): nothing pushed
     assert!(
         corpses
-            .push(0, DeathKey(8), Part::LeftForearm, arm, along)
+            .push(0, DeathKey(8), Part::LeftForearm, arm, along, None)
             .is_none()
     );
     // the forearm, along +Z
@@ -601,6 +721,7 @@ fn a_shot_pushes_a_moving_ragdoll_and_a_miss_does_nothing() {
         hit.hit.part,
         hit.hit.point,
         crate::shot::impulse(along, 0.02, 800.0),
+        None,
     );
     for _ in 0..10 {
         frame(&mut pushed, &d, None, &mut ground);
@@ -637,6 +758,7 @@ fn the_same_shot_traced_again_pushes_once() {
                     hit.hit.part,
                     hit.hit.point,
                     impulse(shot.direction, 0.02, 800.0),
+                    None,
                 )
                 .is_some()
     };
@@ -724,6 +846,7 @@ fn cost_of_shots_at_twenty_ragdolls() {
                     hit.hit.part,
                     hit.hit.point,
                     crate::shot::impulse(along, 0.02, 800.0),
+                    None,
                 );
             }
         }
@@ -894,6 +1017,7 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
                         hit.hit.part,
                         hit.hit.point,
                         crate::shot::impulse(along, 0.02, 800.0),
+                        None,
                     );
                 }
             }

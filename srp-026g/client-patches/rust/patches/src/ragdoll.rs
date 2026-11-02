@@ -12,7 +12,8 @@
 //!   player's own ragdoll's eye;
 //! - `on_ray` (bullet::check_collision, the bullet's ray traced): the
 //!   segment tested against the ragdolls; a hit corpse's part is pushed at
-//!   the next step (once a bullet) and the game's body-hit particle and
+//!   the next step (once a bullet; a head hit knocks off the headwear still
+//!   on it) and the game's body-hit particle and
 //!   sound play at the hit; a living player's hit is kept for its death's
 //!   push (once a bullet: its first segment through the body);
 //! - `on_held_item` (mt_draw, before the held item is read): a corpse of
@@ -35,7 +36,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
+use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearOff, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
@@ -448,10 +449,17 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     state.time += dt;
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
     // the pushes of the shots since the last step (the bullets' threads
-    // are done: the simulation's move has returned)
+    // are done: the simulation's move has returned); a shot into a corpse's
+    // head knocks off the headwear still on it, if its model has the
+    // content's headwear channel
     for push in state.shots.pushes.iter_mut() {
-        if let Some(p) = push.take()
-            && let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse)
+        let Some(p) = push.take() else { continue };
+        let headwear = (p.part == Part::Head)
+            .then(|| client?.player(p.place as u32))
+            .flatten()
+            .and_then(|player| headwear::of_player(&player))
+            .map(|_| HeadwearShape);
+        if let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse, headwear)
             && (knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED)
         {
             spike_of_push(&mut state.trace, thread, state.time, p.place, &p.round, &knock);
@@ -828,13 +836,17 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The rendered accessory pose of the same death, in the player's model space.
+/// The rendered accessory pose of the same death, in the player's model space:
+/// knocked off by the killing headshot while the death event still says so,
+/// or by a later shot into the corpse's head.
 fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
     let (key, slot, _) = draw_of(state, player)?;
-    if *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot)) {
+    let (pose, off) = state.corpses.slot(slot).body()?.headwear_pose()?;
+    if off == HeadwearOff::Death
+        && *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot))
+    {
         return None;
     }
-    let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
     Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
 }
 
