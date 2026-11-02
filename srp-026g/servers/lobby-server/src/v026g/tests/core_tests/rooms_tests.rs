@@ -181,6 +181,13 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(header(&counting)[NEXT], "0");
     let voted_cards = cards(&counting);
     assert_eq!(voted_cards.len(), 3);
+    // The third card is Blackout (the owner's of 2026-11-02), the others not.
+    assert!(maps::blackout_played(voted_cards[2]).is_some());
+    assert!(
+        voted_cards[..2]
+            .iter()
+            .all(|&card| maps::blackout_played(card).is_none())
+    );
     // Alice changes her mind: one vote, the last.
     rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
     rows(&mut world, alice, ROOM_VOTE_BASE + 1, 1);
@@ -221,13 +228,13 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    let blackout_map = maps::blackout_played(voted_cards[2]);
+    // The third card won: its battery map, played as Blackout.
     assert_eq!(
-        setup.map_id,
-        blackout_map.unwrap_or(voted_cards[2]),
+        Some(setup.map_id),
+        maps::blackout_played(voted_cards[2]),
         "the vote's winner when it started"
     );
-    assert_eq!(setup.blackout, blackout_map.is_some());
+    assert!(setup.blackout);
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");

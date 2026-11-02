@@ -121,6 +121,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
+  - **The third card is Blackout** (the owner's of 2026-11-02: "offers blackout in voting
+    always as a third choice"): cards 1 and 2 drawn from the rest of the pool, card 3 one of
+    its Blackout maps, on another map than theirs while there is one; a pool without
+    Blackout or of Blackout alone draws its three as before (`blackout.md`).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the

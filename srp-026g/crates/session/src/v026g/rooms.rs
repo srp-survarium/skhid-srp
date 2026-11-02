@@ -20,7 +20,8 @@
 //!   soon as a match starts (its players vote during it); a member may
 //!   change its vote. Each card is a map with its weather and mode
 //!   (a `maps_dict` id); the card with the most votes is played, a tie and no
-//!   vote at all are drawn at random.
+//!   vote at all are drawn at random. The third card is Blackout while the
+//!   pool has it (the owner's of 2026-11-02, `Rooms::draw`).
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
 //! - A squad (two at most) comes together, by its commander alone: a join
@@ -56,6 +57,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use survarium::v026g::drops::Rng;
+use survarium::v026g::maps;
 
 use super::level_stats;
 use crate::Strength;
@@ -1247,13 +1249,40 @@ impl Rooms {
         })
     }
 
-    /// Three cards from the pool, all different while the pool has as many.
+    /// The vote's cards from the pool, all different while the pool has as
+    /// many, each drawn at random: the third a Blackout map (the owner's of
+    /// 2026-11-02: "offers blackout in voting always as a third choice"),
+    /// on a map the first two are not while the pool's Blackout has one;
+    /// the first two of the rest of the pool. A pool without Blackout (a
+    /// private room's maker left it out) or of Blackout alone: three of it.
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
         left.sort_unstable();
         left.dedup();
+        let (blackout, rest): (Vec<u8>, Vec<u8>) = left
+            .iter()
+            .partition(|&&id| maps::blackout_played(id).is_some());
+        if blackout.is_empty() || rest.is_empty() {
+            return Self::pick(left, CARDS, below);
+        }
+        let mut cards = Self::pick(rest, CARDS - 1, below);
+        let shown: Vec<Option<u8>> = cards.iter().map(|&id| location(id)).collect();
+        let (elsewhere, same): (Vec<u8>, Vec<u8>) = blackout
+            .into_iter()
+            .partition(|&id| !shown.contains(&location(id)));
+        let third = if elsewhere.is_empty() {
+            same
+        } else {
+            elsewhere
+        };
+        cards.extend(Self::pick(third, 1, below));
+        cards
+    }
+
+    /// `count` of `left` at random, all different while it has as many.
+    fn pick(mut left: Vec<u8>, count: usize, below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut cards = Vec::new();
-        while cards.len() < CARDS && !left.is_empty() {
+        while cards.len() < count && !left.is_empty() {
             let pick = below(left.len()).min(left.len() - 1);
             cards.push(left.swap_remove(pick));
         }
@@ -1599,6 +1628,12 @@ fn fill(mut parties: Vec<(Vec<u32>, Strength)>, size: usize) -> [Vec<u32>; 2] {
     }
     let [(a, _), (b, _)] = sides;
     [a, b]
+}
+
+/// The map (`maps::MapMode::level`) a card is played on, whatever its
+/// weather and mode: a Blackout card's is its battery map's.
+fn location(id: u8) -> Option<u8> {
+    maps::map_mode(maps::blackout_played(id).unwrap_or(id)).map(|map| map.level)
 }
 
 #[cfg(test)]
@@ -2166,6 +2201,102 @@ mod tests {
         assert_eq!(
             rooms.create(3, 0, spec(8, None), &entries, &[99], 50, now, &mut first),
             Err(Refused::Bad)
+        );
+    }
+
+    /// Three battery maps of three different places, by id, and their
+    /// Blackout twins.
+    fn battery_maps() -> ([u8; 3], [u8; 3]) {
+        let mut places = Vec::new();
+        let mut plain = Vec::new();
+        for map in maps::playable_in(maps::BLACKOUT_RULES) {
+            if !places.contains(&map.level) && plain.len() < 3 {
+                places.push(map.level);
+                plain.push(map.id);
+            }
+        }
+        let plain: [u8; 3] = plain.try_into().expect("three battery places");
+        (plain, plain.map(|id| maps::blackout_id(id).unwrap()))
+    }
+
+    /// The owner's of 2026-11-02 ("offers blackout in voting always as a
+    /// third choice"): the first two cards of the rest of the pool, the
+    /// third Blackout, on a map the first two are not while there is one.
+    #[test]
+    fn the_third_card_is_blackout_on_another_map() {
+        let (plain, blackout) = battery_maps();
+        let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
+        // The first choice each time: the lowest plain id, then the highest
+        // (the draw takes out what it picks); Blackout of the third map only
+        // is elsewhere.
+        assert_eq!(
+            Rooms::draw(&pool, &mut first),
+            vec![plain[0], plain[2], blackout[1]]
+        );
+        // Whatever is drawn.
+        for seed in 0..32 {
+            let mut turn = seed;
+            let mut below = |bound: usize| {
+                turn = turn * 7 + 3;
+                turn % bound
+            };
+            let cards = Rooms::draw(&pool, &mut below);
+            assert_eq!(cards.len(), CARDS);
+            assert!(cards[..2].iter().all(|id| plain.contains(id)), "{cards:?}");
+            assert!(blackout.contains(&cards[2]), "{cards:?}");
+            assert!(
+                !cards[..2]
+                    .iter()
+                    .any(|&id| location(id) == location(cards[2]))
+            );
+        }
+        // No other map left: Blackout of one shown.
+        let pool = [plain[0], plain[1], blackout[0]];
+        assert_eq!(
+            Rooms::draw(&pool, &mut first),
+            vec![plain[0], plain[1], blackout[0]]
+        );
+    }
+
+    /// A pool without Blackout (a private room's maker left it out) draws
+    /// as before; so does one of Blackout alone.
+    #[test]
+    fn a_pool_without_blackout_or_of_it_alone_draws_three_of_it() {
+        assert_eq!(Rooms::draw(&POOL, &mut first), vec![61, 118, 117]);
+        let (plain, blackout) = battery_maps();
+        assert_eq!(
+            Rooms::draw(&plain, &mut first),
+            vec![plain[0], plain[2], plain[1]]
+        );
+        let mut alone = blackout.to_vec();
+        alone.sort_unstable();
+        assert_eq!(
+            Rooms::draw(&blackout, &mut first),
+            vec![alone[0], alone[2], alone[1]]
+        );
+    }
+
+    /// A room's vote won by its third card starts its match on that
+    /// Blackout card (the lobby plays it as Blackout: `blackout_played`).
+    #[test]
+    fn the_third_card_won_starts_the_blackout_match() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let (plain, blackout) = battery_maps();
+        let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
+        let key = rooms
+            .create(1, 0, spec(6, None), &pool, &pool, 50, now, &mut first)
+            .unwrap();
+        rooms.join(2, 0, key, now).unwrap();
+        let third = rooms.get(key).unwrap().cards[2];
+        assert!(maps::blackout_played(third).is_some());
+        rooms.vote(1, 2);
+        rooms.vote(2, 2);
+        rooms.tick(now, &mut first, |_| true);
+        let wait = Duration::from_secs(30);
+        assert_eq!(
+            rooms.tick(now + VOTE + wait, &mut first, |_| true),
+            vec![Due::Start { key, map_id: third }]
         );
     }
 
