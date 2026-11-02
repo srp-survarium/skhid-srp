@@ -38,5 +38,9 @@ clips they replace; the sound lists the clips' events index are ours; at
 the idle's start the gun's parts sit in the hands where our idle has them (5 mm, 0.02 rad).
 Accepted: the ammo box's lid (`magazin_door`) 4 degrees from ours in the idle.
 
-The match computes the same: the reload and hide clips keep their lengths (the reload's
-speed is its clip over `reload_time`), the fire clip's shot event is at its first frame as ours.
+The timings stay: the reload and hide clips keep their lengths (the reload's speed is its clip
+over `reload_time`), the fire clip's shot event is at its first frame as ours. The pose does not:
+the weapon's states play its clips on the simulation's animation player (+750h), from which
+`base_player::recompute_damage_collision_bones` (0x2DA5B0) sets the hit model's bones, so a PKP
+holder's arms (the new left-hand grip) are hit where the new clips put them: a simulation change
+(`simulation_changes.tsv`).
