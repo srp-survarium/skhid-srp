@@ -341,6 +341,18 @@ fn update_record(thread: &Thread, world: WorldKey, place: Place, f: impl FnOnce(
     update_placed(thread, world, place, |record, _| f(record));
 }
 
+/// A destroyed player's place no longer owns a record. The native world
+/// address can be reused by the next match, so leaving even an empty
+/// pickup list here would let its old drop become that match's drop.
+fn forget_placed(thread: &Thread, world: WorldKey, place: Place) {
+    RECORDS.with(thread, |records| {
+        let slot = &mut records[usize::from(place.get())];
+        if slot.is_some_and(|placed| placed.world == world) {
+            *slot = None;
+        }
+    });
+}
+
 /// The player's place and match.
 fn located(player: &Player<'_>) -> Option<(WorldKey, Place)> {
     Some((player.world_key()?, Place::new(player.place())?))
@@ -1306,7 +1318,7 @@ pub fn on_destroy(ctx: &mut Context<'_>) -> Flow<NoExit> {
             unpick(&player, thread, slot, Unpick::LetGo, "its destruction");
         }
         if let Some((world, place)) = located(&player) {
-            update_record(thread, world, place, |r| r.picks = [None; 2]);
+            forget_placed(thread, world, place);
         }
         // Its untaken drops' guns, and every copy it was the last holder of
         // (let go, or back in a drop): the game destroys its own objects

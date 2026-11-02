@@ -930,6 +930,44 @@ query):
 - **Expected:** a cooked gun costs the per-instance objects (weapon, states, pose,
   ammo) and not the mesh or textures. The cook's log measures it.
 
+## Revision 42 resyncs: records surviving their owners (2026-11-02)
+
+The reported first match of rambalbi, `0x30e6dd21` (15:39:38–15:55:05 UTC),
+had 78 out-of-sync resyncs across 17 places; his place 11 had six. Several
+groups disagreed from the same tick (six places from about 400550 ms).
+Victorianbeauty's place 2 in `0x17dde519` had eight resyncs, with a final
+round trip of 9 ms. The profile selector appearing was a resync symptom.
+
+The saved equal-tick worlds of `0x30e6dd21` and `0x67ea552c` isolate the
+difference to the pickup record: state offsets 3 and 30, its drop tag and
+recipe. At 100550–100950 ms in the former, rambalbi's own world has no drop
+for place 11; the accepted world has an open, detached slot-7 gun of place
+11, kit 0. All other bytes agree. This also occurs at later joins. At
+3750 ms, before combat, clients already disagree over several places'
+drop recipes (kit 0, 1 or 2).
+
+Victorianbeauty's own rejected worlds in `0x17dde519` have the same
+two-byte difference: at 36250–36700 ms and 38100 ms, the accepted world
+has a detached slot-7 drop of place 8, kit 1, and his world has none.
+At 38700 ms the difference moves to newly joined place 9's drop, and at
+54550 ms to place 10's. Other saved pairs also have broader differences;
+this finding isolates the stale-drop failures, not every disagreement.
+
+`on_destroy` used to clear only `picks`, leaving the drop and body in
+`RECORDS`. Its `WorldKey` is the native core's address, which does not
+identify a new allocation at that address. Proven with the built patch
+under Unicorn: a death, respawn, destruction, then a new player and world
+at the same addresses saves the old drop; a fresh client saves none.
+This mechanism matches the live stale-drop differences. The server logs
+and snapshots do not contain the clients' native addresses.
+
+Destruction now forgets the whole place record for that world. Respawn
+and departure still use `on_remove` and retain their drop. The regression
+`a_destroyed_places_record_does_not_reach_the_next_match` runs those hooks,
+including serialization, and checks that address reuse starts empty.
+The fix requires a client release; the live observations alone do not
+prove every reported close-range frame stall has this cause.
+
 ## 83b's and 83c's freeze (2026-10-31, fixed in 83f)
 
 The test builds keep the name they had while this was patch 83 (main took 83 for the HUD options in
