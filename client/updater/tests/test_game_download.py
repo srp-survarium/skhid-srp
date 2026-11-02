@@ -141,7 +141,7 @@ class GameDownloadTest(unittest.TestCase):
         self.assertEqual(self.extractor.read_bytes(), EXTRACTOR.read_bytes())
         # Where to send the log, after the reason.
         self.assertIn("Send game\\binaries\\x86\\updater_skhid.log to #bugreports in Discord "
-                      "(tag: install): discord.gg/Pxa4prXfwu", self.log)
+                      "(tag: install): discord.gg/QUmJg3gBhg", self.log)
 
     def test_every_address_failing_says_each_ones_reason(self):
         # Google Drive's quota page, a refusal, and a download cut short.

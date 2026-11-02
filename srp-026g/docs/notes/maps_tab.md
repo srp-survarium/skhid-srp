@@ -24,7 +24,7 @@ served by `servers/web-server/src/maps.rs`.
   "Damage calculator".
 - Containers and stashes stand where their collision zone is, never at the object's pivot.
 - Each kind is toggled on its own; one toggle per artefact.
-- The map underneath is either the top-down render ("From above") or the game's minimap. Nothing else.
+- The map underneath is the game's minimap, or the top-down render ("From above") on the player's pick. Nothing else.
 - Data-driven, per release, never stale:
   - everything is read from the released patches;
   - a live release rebuilds it from the patches it offers (`release/build-site`), never on a "don't forget"

@@ -412,7 +412,8 @@ class OtherTables(unittest.TestCase):
         files = {'mods.options': mods}
         players = {'mods.options': bytearray(mods)}
         columns, rows = read_table(MODS, 'id\tvalue\tname\n1030\t0.1\ta\n1031\t0.25\tc\n')
-        ce.stats_write(MODS, columns, rows, files, 't')
+        self.assertEqual(ce.stats_write(MODS, columns, rows, files, 't')[0],
+                         {'mods.options': ['/modifications[1]/modifiers[0]/value', '/modifications[1]/ui/name']})
         self.assertEqual((value(mods, 'modifications[1]/ui/name'), ce.cell_text(mods, ce.find(mods, 'modifications[1]/modifiers[0]/value'))),
                          ('c', '0.25'))
         self.assertEqual(ce.stats_moved(MODS, columns, players, files), ['mods.options#modifications[id=1031] modifiers[0]/value'])
@@ -474,6 +475,40 @@ class OtherTables(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, 'row l2 protect: 2 \\| 6'):
                 ce.dump_stats('t', folder)
 
+
+    def test_a_list_of_files_names_a_row_by_each_and_an_absent_list_is_no_such_key(self):
+        category = {'configs': ['w/rgd-5.options', 'd/trap.options'], 'match': set(),
+                    'columns': {'radius': 'data/splash_radius', 'damage': 'data/hits[*]/amount'}}
+        files = {'w/rgd-5.options': config({'data': {'splash_radius': 10}}),
+                 'd/trap.options': config({'data': {'hits': [{'amount': 0.6}, {'amount': 0.6}]}})}
+        columns, rows = read_table(category, 'name\tradius\tdamage\nrgd-5\t10\t\ntrap\t\t0.6\n')
+        self.assertEqual(ce.stats_problems(category, columns, rows, ce.stats_targets(category, files), files, 't'), [])
+        self.assertEqual(ce.stats_label(category, 'gone'), 'gone')
+
+    def test_an_ammo_card_counts_every_pellet(self):
+        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2},
+                       'parameters': {'clip_size': 15, 'clip_weight': 0.45}})
+        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5'})
+
+    def test_a_grenade_card_counts_every_body_and_a_trap_card_its_foot(self):
+        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1]},
+                          'parameters': {'weight': 0.35}})
+        trap = config({'data': {'damage_parameters': [{'amount': 0.6}, {'amount': 0.6}]}, 'parameters': {'weight': 0.8}})
+        self.assertEqual(ce.throwable_card(grenade), {1: '390', 23: '10', 15: '0.4'})
+        self.assertEqual(ce.throwable_card(trap), {1: '60', 15: '0.8'})
+
+    def test_only_an_add_column_adds_a_key_the_config_lacks(self):
+        category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim'},
+                    'columns': {'aim': 'data/active/aim_time_mod', 'speed': 'data/active/speed_mod'}}
+        columns, rows = read_table(category, 'name\taim\tspeed\nspring\t-0.1\t\n')
+        files = {'a/spring.options': config({'data': {'active': {'duration': 10}}})}
+        self.assertEqual(ce.stats_write(category, columns, rows, files, 't')[0], {'a/spring.options': ['/data/active/aim_time_mod']})
+        b = files['a/spring.options']
+        self.assertEqual((ce.rec(b, ce.find(b, 'data/active/aim_time_mod'))[3], ce.cell_text(b, ce.find(b, 'data/active/aim_time_mod'))),
+                         (ce.T_FLOAT, '-0.1'))
+        columns, rows = read_table(category, 'name\taim\tspeed\nspring\t-0.1\t0.1\n')
+        with self.assertRaisesRegex(ValueError, 'no such key'):
+            ce.stats_write(category, columns, rows, files, 't')
 
     def test_a_key_value_dump_is_the_configs_numbers_and_a_prefix_gates_every_key_under_it(self):
         player = {'configs': 'player.options', 'match': {'player/fall'}}

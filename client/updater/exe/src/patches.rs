@@ -46,6 +46,7 @@ use updater_logic::patches::{
     parse_list, todo, write_list,
 };
 use updater_logic::pipe::{ToLauncher, state, step};
+use updater_logic::problem::{self, Fault};
 use updater_logic::sha256::to_hex;
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
@@ -387,8 +388,8 @@ enum Miss {
         reason: String,
         /// For the log.
         why: String,
-        /// It sent a file with another SHA-256.
-        wrong: bool,
+        /// How: not reached, or what it sent (another SHA-256: damaged).
+        miss: problem::Miss,
         /// A second round may do better (the network, a cut, a 5xx).
         again: bool,
     },
@@ -564,10 +565,11 @@ impl Run<'_> {
         let target = place(self.layout, &name);
         let part = format!("{target}{PART}");
         let count = patch.addresses.len();
-        // Which addresses a second round tries, and the first failure's
-        // words.
+        // Which addresses a second round tries, the first failure's words,
+        // and how each address failed last.
         let mut again = alloc::vec![true; count];
-        let mut first: Option<(String, bool, &Address)> = None;
+        let mut first: Option<(String, problem::Miss, &Address)> = None;
+        let mut misses: Vec<Option<problem::Miss>> = alloc::vec![None; count];
         for round in 1..=FETCH_TRIES {
             if round > 1 {
                 if !again.contains(&true) {
@@ -611,7 +613,7 @@ impl Run<'_> {
                             Miss::There {
                                 reason,
                                 why,
-                                wrong,
+                                miss,
                                 again: worth,
                             } => {
                                 log!(
@@ -621,8 +623,9 @@ impl Run<'_> {
                                     address.text
                                 );
                                 again[at] = worth && round < FETCH_TRIES;
+                                misses[at] = Some(miss);
                                 if first.is_none() {
-                                    first = Some((reason, wrong, address));
+                                    first = Some((reason, miss, address));
                                 }
                                 continue;
                             }
@@ -663,10 +666,12 @@ impl Run<'_> {
                 return Ok(kept.is_some());
             }
         }
-        let (reason, wrong, address) = first.expect("an address failed");
+        let (reason, miss, address) = first.expect("an address failed");
+        let misses: Vec<problem::Miss> = misses.into_iter().flatten().collect();
+        self.session.failed(&name, &misses);
         let message = if count > 1 {
             text::patches_no_address(&name, count, &reason)
-        } else if wrong {
+        } else if miss == problem::Miss::Answered(Fault::Damaged) {
             text::patches_wrong(&address.url, &name)
         } else {
             text::patches_download(&name, &reason)
@@ -762,7 +767,7 @@ impl Run<'_> {
                 return Err(Miss::There {
                     why: message.clone(),
                     reason: message,
-                    wrong: false,
+                    miss: error.miss(),
                     again,
                 });
             }
@@ -784,9 +789,20 @@ impl Run<'_> {
                     hex(&sha256),
                     hex(&patch.sha256)
                 ),
-                wrong: true,
+                miss: problem::Miss::Answered(Fault::Damaged),
                 again: false,
             }),
+            // Gone or denied the moment it was written: an antivirus took it.
+            Err(code) if Stop::after_write(code) == Some(Stop::Virus) => {
+                Err(Miss::Here(Fail::Stop(
+                    Stop::Virus,
+                    patch.file_name(),
+                    format!(
+                        "{part} cannot be read back ({}, error {code}): an antivirus took it",
+                        win::error_text(code)
+                    ),
+                )))
+            }
             Err(code) => Err(Miss::Here(file_fail(part, code, "read back"))),
         }
     }
