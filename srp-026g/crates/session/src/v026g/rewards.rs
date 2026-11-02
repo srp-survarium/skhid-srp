@@ -1623,6 +1623,10 @@ impl<'a> Shared<'a> {
                         } else {
                             0
                         },
+                        // Every artefact taken from an anomaly, the
+                        // results' explorer count; not patch 80's
+                        // empty-slot bonus (event 16).
+                        artefacts: count(event::ARTEFACT),
                     },
                 },
             });

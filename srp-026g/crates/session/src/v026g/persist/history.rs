@@ -59,6 +59,8 @@ pub(super) const MIGRATION: &str = "
         batteries     INTEGER NOT NULL,
         -- Research's captures, in hundredths of one.
         captures      INTEGER NOT NULL,
+        -- Artefacts taken from an anomaly.
+        artefacts     INTEGER NOT NULL,
         PRIMARY KEY (match_id, account_id)
     ) WITHOUT ROWID;
     CREATE INDEX g26_match_players_by_account ON g26_match_players (account_id, match_id);
@@ -77,7 +79,8 @@ pub(super) const MIGRATION: &str = "
         grenade_kills INTEGER NOT NULL,
         melee_kills   INTEGER NOT NULL,
         batteries     INTEGER NOT NULL,
-        captures      INTEGER NOT NULL
+        captures      INTEGER NOT NULL,
+        artefacts     INTEGER NOT NULL
     );
     CREATE INDEX g26_player_totals_matches ON g26_player_totals (matches);
     CREATE INDEX g26_player_totals_wins ON g26_player_totals (wins);
@@ -85,6 +88,7 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_player_totals_score ON g26_player_totals (score);
     CREATE INDEX g26_player_totals_headshots ON g26_player_totals (headshots);
     CREATE INDEX g26_player_totals_batteries ON g26_player_totals (batteries);
+    CREATE INDEX g26_player_totals_artefacts ON g26_player_totals (artefacts);
     -- A match counts once for a clan, however many of its members played:
     -- a win if one of them was on the winning team; score, kills and the
     -- counters are the members' rows added up.
@@ -100,7 +104,8 @@ pub(super) const MIGRATION: &str = "
         grenade_kills INTEGER NOT NULL,
         melee_kills   INTEGER NOT NULL,
         batteries     INTEGER NOT NULL,
-        captures      INTEGER NOT NULL
+        captures      INTEGER NOT NULL,
+        artefacts     INTEGER NOT NULL
     );
     -- What the site looks a player up by, and a player's clan.
     CREATE INDEX g26_accounts_by_name ON g26_accounts (name COLLATE NOCASE);
@@ -216,6 +221,8 @@ pub struct Counters {
     pub batteries: u64,
     /// Research's captures, in hundredths of one.
     pub capture_hundredths: u64,
+    /// Artefacts taken from an anomaly (event 5, every pickup).
+    pub artefacts: u64,
 }
 
 /// A player's line of one match.
@@ -285,6 +292,7 @@ pub enum TotalsKey {
     Score,
     Headshots,
     Batteries,
+    Artefacts,
 }
 
 impl TotalsKey {
@@ -297,6 +305,7 @@ impl TotalsKey {
             Self::Score => "score",
             Self::Headshots => "headshots",
             Self::Batteries => "batteries",
+            Self::Artefacts => "artefacts",
         }
     }
 }
@@ -441,8 +450,9 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                 batteries, captures, artefacts)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                 ?17)",
             params![
                 match_id,
                 player.account_id,
@@ -460,6 +470,7 @@ pub(super) fn record(
                 counters.melee_kills as i64,
                 counters.batteries as i64,
                 counters.capture_hundredths as i64,
+                counters.artefacts as i64,
             ],
         )?;
         if record.kind == MatchKind::Public {
@@ -516,6 +527,7 @@ impl Totals {
                 melee_kills: own.melee_kills + more.melee_kills,
                 batteries: own.batteries + more.batteries,
                 capture_hundredths: own.capture_hundredths + more.capture_hundredths,
+                artefacts: own.artefacts + more.artefacts,
             },
         }
     }
@@ -533,8 +545,8 @@ fn add_totals(
     transaction.execute(
         &format!(
             "INSERT INTO {table} ({key}, matches, wins, score, kills, deaths, assists, headshots,
-                 grenade_kills, melee_kills, batteries, captures)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 grenade_kills, melee_kills, batteries, captures, artefacts)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
              ON CONFLICT({key}) DO UPDATE SET
                  matches = matches + excluded.matches, wins = wins + excluded.wins,
                  score = score + excluded.score, kills = kills + excluded.kills,
@@ -543,7 +555,8 @@ fn add_totals(
                  grenade_kills = grenade_kills + excluded.grenade_kills,
                  melee_kills = melee_kills + excluded.melee_kills,
                  batteries = batteries + excluded.batteries,
-                 captures = captures + excluded.captures"
+                 captures = captures + excluded.captures,
+                 artefacts = artefacts + excluded.artefacts"
         ),
         params![
             id,
@@ -558,6 +571,7 @@ fn add_totals(
             counters.melee_kills as i64,
             counters.batteries as i64,
             counters.capture_hundredths as i64,
+            counters.artefacts as i64,
         ],
     )?;
     Ok(())
@@ -576,12 +590,12 @@ const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
 const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
      m.winner, m.team0_points, m.team1_points,
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id)";
-/// The columns of a [`PlayerLine`] of `p` (thirteen).
+/// The columns of a [`PlayerLine`] of `p` (fourteen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
-     p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures";
-/// The columns of [`Totals`] of `t` (eleven).
+     p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts";
+/// The columns of [`Totals`] of `t` (twelve).
 const TOTALS: &str = "t.matches, t.wins, t.score, t.kills, t.deaths, t.assists, t.headshots,
-     t.grenade_kills, t.melee_kills, t.batteries, t.captures";
+     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts";
 
 fn bad(what: &str, text: &str) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
@@ -644,6 +658,7 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
             melee_kills: u64_at(row, at + 10)?,
             batteries: u64_at(row, at + 11)?,
             capture_hundredths: u64_at(row, at + 12)?,
+            artefacts: u64_at(row, at + 13)?,
         },
     })
 }
@@ -663,6 +678,7 @@ fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
             melee_kills: u64_at(row, at + 8)?,
             batteries: u64_at(row, at + 9)?,
             capture_hundredths: u64_at(row, at + 10)?,
+            artefacts: u64_at(row, at + 11)?,
         },
     })
 }
@@ -772,7 +788,8 @@ impl MatchHistory {
                  SUM(CASE WHEN (m.winner = 'team0' AND p.team = 0)
                            OR (m.winner = 'team1' AND p.team = 1) THEN 1 ELSE 0 END),
                  SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
-                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures)
+                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
+                 SUM(p.artefacts)
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1 AND m.kind = 'public' AND m.ended_at >= ?2
                AND p.match_id >= IFNULL((SELECT id FROM g26_matches WHERE ended_at >= ?2
@@ -957,7 +974,8 @@ impl MatchHistory {
                      ORDER BY c.clan_id LIMIT 1"
                 ),
                 [value],
-                |row| Ok((clan_line(row)?, row.get::<_, u32>(16)?)),
+                // c.leader: after the five of the clan and the twelve of TOTALS.
+                |row| Ok((clan_line(row)?, row.get::<_, u32>(17)?)),
             )
             .optional()?;
         let Some((clan, leader_id)) = found else {
@@ -1077,6 +1095,7 @@ mod tests {
                 melee_kills: 0,
                 batteries: 1,
                 capture_hundredths: 50,
+                artefacts: 3,
             },
         }
     }
@@ -1224,6 +1243,7 @@ mod tests {
                     melee_kills: 0,
                     batteries: 2,
                     capture_hundredths: 100,
+                    artefacts: 6,
                 },
             }
         );
@@ -1467,6 +1487,7 @@ mod tests {
                     melee_kills: 0,
                     batteries: 8,
                     capture_hundredths: 400,
+                    artefacts: 24,
                 },
             }
         );

@@ -3948,7 +3948,12 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
     let mut players = alice_and_bob();
     // Carol (team 0) scored less than Alice and left; Dan never came in; a
     // server's bot played for team 1.
-    let mut carol = player(2, 0, "Carol", counters_of(1, &[(event::HEADSHOT_KILL, 2)]));
+    let mut carol = player(
+        2,
+        0,
+        "Carol",
+        counters_of(1, &[(event::HEADSHOT_KILL, 2), (event::ARTEFACT, 1)]),
+    );
     carol.present_at_end = false;
     carol.left = true;
     carol.score = 1;
@@ -3968,6 +3973,9 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
             (event::GRENADE_KILL, 1),
             (event::MELEE_KILL, 1),
             (event::PUT_VICTORY_ITEM_IN_CONTAINER, 2),
+            (event::ARTEFACT, 2),
+            // Patch 80's empty-slot bonus: not an artefact of its own.
+            (event::WINNING_TEAM_VI_BONUS, 1),
         ],
     ));
     let store = accounts(&players);
@@ -4015,11 +4023,16 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
             melee_kills: 1,
             batteries: 2,
             capture_hundredths: 0,
+            artefacts: 2,
         }
     );
     let carol = &record.players[2].line;
     assert_eq!((carol.place, carol.presence), (2, history::Presence::Left));
-    assert_eq!(carol.counters.headshots, 2, "every kit counts");
+    assert_eq!(
+        (carol.counters.headshots, carol.counters.artefacts),
+        (2, 1),
+        "every kit counts"
+    );
     assert_eq!(record.players[1].line.place, 1);
     assert!(record.players.iter().all(|player| player.clan_id.is_none()));
 }
