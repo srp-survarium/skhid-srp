@@ -458,8 +458,12 @@ impl Server {
                 game.sync_roster(formed, now);
             }
             datagrams.extend(game.poll(now));
-            // A player removed as idle (anti-AFK) gives its place up there.
+            // A player removed as idle (anti-AFK) gives its place up there,
+            // and the chat says so (the lobby, through srp).
             release_quits(game, &self.registry, &self.store);
+            for removed in game.take_idle_removed() {
+                self.results.idle_removed(removed);
+            }
             for (place, account_id) in game.take_rejected_joins() {
                 if self.registry.release_place(game.id, place) {
                     self.store.matchmaking().join_failed(account_id);

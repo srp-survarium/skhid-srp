@@ -7,9 +7,13 @@ The owner, 2026-11-01: the simplest version first.
 - A player who gives no input for **3 minutes** of play is removed from the match at once.
 - Input: a key or action pressed or let go, or the view turned (the mouse). Held keys and a still
   mouse are no input.
-- No warning, no message, no client change.
+- No warning before, no client change.
 - Removed as a player who leaves by its own word: its place is given up, its game is told it left
   (the match closes on it), the others see it leave. No other punishment, no ban.
+- **The chat says so** (2026-11-02: "both in general chat and in a match"): one line
+  "`<name>` was kicked for being AFK" in the match's chat, to everyone still in it, and the same
+  line in the general chat, to everyone who listens to it, the removed player too (its lobby has
+  it when it is back). Once a removal; nothing for a player who leaves.
 - **Private rooms (a PIN): never.** Public rooms and Play: yes.
 - **Matches against bots ("Player vs Bots"): never.** The owner, 2026-11-02: "it should also be
   fine to afk w/bots".
@@ -28,6 +32,21 @@ The owner, 2026-11-01: the simplest version first.
 - "With bots" read as Player vs Bots, the only matches the lobby puts the server's bots in;
   every PvP match stays watched.
 
+## The chat line (picks)
+
+- A server's line: an account line of id 0 with no name, as the rooms' own lines and the old
+  queue lines. Not seen in a game yet: how the HUD's chat draws a line with no name.
+- In each receiver's language, by the language its game gave the lobby (English, Russian,
+  Ukrainian, German, Polish; English otherwise), as the replay refusals are:
+  - en: `<name> was kicked for being AFK`
+  - ru: `<name> исключён из матча за AFK`
+  - uk: `<name> виключений з матчу за AFK`
+  - de: `<name> wurde wegen AFK aus dem Match entfernt`
+  - pl: `<name> został wyrzucony z meczu za AFK`
+- The name is the character's, as the match shows it.
+- A player with "Hide chat in match" on does not see the match's line (patch 58 hides channel 5);
+  the general line is the lobby's.
+
 ## The setting
 
 - `SRP_ANTI_AFK`: seconds, default 180, at least 60; `off` turns it off.
@@ -44,4 +63,6 @@ The owner, 2026-11-01: the simplest version first.
   setting.
 - `servers/match-server/src/v026g/game/afk_watch.rs`: what each player is doing at a poll, the
   removal.
+- The chat: the match server's `ResultsSink::idle_removed`, srp's `Settler`, the lobby's
+  `Inbox::idle_removed` and `Core::idle_removed` (`servers/lobby-server/src/v026g/social.rs`).
 - Not run in a game.

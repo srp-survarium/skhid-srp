@@ -8,7 +8,7 @@ use survarium::v026g::match_msgs::ServerMessage;
 use survarium::v026g::match_msgs::rules;
 
 use super::afk::{Action, Presence};
-use super::{Game, Stage, afk, farewell_tick, send};
+use super::{Game, IdleRemoved, Stage, afk, farewell_tick, send};
 
 /// A player's alive or dead is read from the newest trusted world while
 /// that world is at most this far behind the match clock (worlds come
@@ -64,13 +64,24 @@ impl Game {
         }
     }
 
+    /// The players removed as idle since the last call: the lobby's chat
+    /// says so (`ResultsSink::idle_removed`).
+    pub fn take_idle_removed(&mut self) -> Vec<IdleRemoved> {
+        std::mem::take(&mut self.idle_removed)
+    }
+
     /// The player at `index` gave no input for the limit: out of the match
     /// as a player who leaves by its own word (0xE0) is, its place given up
     /// (`take_quits`), and its game told it left (0xEA with its own index,
-    /// as at the end), which closes the match on it.
+    /// as at the end), which closes the match on it. The chat is told once
+    /// (`take_idle_removed`).
     fn remove_idle(&mut self, index: usize, now: Instant) {
         let clock = self.clock(now);
-        let account_id = self.formed.places.get(index).map(|place| place.account_id);
+        let place = self
+            .formed
+            .places
+            .get(index)
+            .map(|place| (place.account_id, place.name.clone()));
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -87,8 +98,13 @@ impl Game {
             player: index as u8,
         };
         peer.farewell = send(peer, &message).map(|serial| (serial, message));
-        if let Some(account_id) = account_id {
+        if let Some((account_id, name)) = place {
             self.quits.push((peer.session_id, account_id));
+            self.idle_removed.push(IdleRemoved {
+                match_id: self.id,
+                account_id,
+                name,
+            });
         }
         self.give_up(index);
         self.leave(index, now);

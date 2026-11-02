@@ -401,6 +401,12 @@ pub(crate) enum Notice {
     Broadcast {
         messages: Vec<ServerMessage>,
     },
+    /// [`Inbox::idle_removed`].
+    IdleRemoved {
+        match_id: u32,
+        account_id: u32,
+        name: String,
+    },
 }
 
 /// What the other servers tell the lobby. The lobby's thread takes the
@@ -440,6 +446,18 @@ impl Inbox {
         self.notices
             .locked()
             .push(Notice::AccountChanged { account_id });
+    }
+
+    /// The match server removed the player of `account_id` (`name` in the
+    /// match) from its match `match_id` (the id the clients were told) for
+    /// being idle (anti-AFK): the match's chat and the general chat say so,
+    /// once.
+    pub fn idle_removed(&self, match_id: u32, account_id: u32, name: &str) {
+        self.notices.locked().push(Notice::IdleRemoved {
+            match_id,
+            account_id,
+            name: name.to_owned(),
+        });
     }
 
     /// Send messages to every client in the lobby now, in order. A client

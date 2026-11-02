@@ -979,6 +979,22 @@ pub struct MatchResult {
 /// to another thread: a `std::sync::mpsc::Sender<MatchResult>` is a sink.
 pub trait ResultsSink: Send {
     fn match_ended(&mut self, result: MatchResult);
+
+    /// A player was removed from a match in play for being idle (anti-AFK,
+    /// `docs/notes/anti-afk.md`): srp has the lobby say so in the match's
+    /// chat and the general chat. Called once a removal, on the match
+    /// server's thread. A sink of results alone takes no notice.
+    fn idle_removed(&mut self, _removed: IdleRemoved) {}
+}
+
+/// A player the anti-AFK rule removed from a match in play.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IdleRemoved {
+    /// The match's id ([`MatchTicket::match_id`]).
+    pub match_id: u32,
+    pub account_id: u32,
+    /// Its character's name, as the match shows it.
+    pub name: String,
 }
 
 impl ResultsSink for std::sync::mpsc::Sender<MatchResult> {

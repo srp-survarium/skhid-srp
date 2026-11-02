@@ -1332,6 +1332,76 @@ fn player_menu_mute_by_name_and_unmute_filter_incoming_chat() {
     world.assert_clean();
 }
 
+/// Anti-AFK (`docs/notes/anti-afk.md`; the owner's of 2026-11-02): a player
+/// the match server removed as idle is named once in the match's chat, to
+/// the others in that match, and once in the general chat, to everyone who
+/// listens to it, the removed player too.
+#[test]
+fn a_player_removed_as_idle_is_named_in_the_match_and_the_general_chat() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    for client in [alice, bob, carol] {
+        world.ask(client, request::subscribe());
+        world.take(client);
+    }
+    world.ask(alice, request::play(1));
+    world.ask(bob, request::play(1));
+    world.advance(PLAY_TO_MATCH);
+    let (match_id, _) = sent_to_match(&world.take(alice)).unwrap();
+    world.take(bob);
+    world.take(carol);
+    let lines = |decoded: Vec<Decoded>| -> Vec<(u8, u32, String, u8, String)> {
+        decoded
+            .into_iter()
+            .filter_map(|message| match message {
+                Decoded::ChatText {
+                    sender_type,
+                    sender_id,
+                    sender_name,
+                    channel,
+                    body,
+                    ..
+                } => Some((sender_type, sender_id, sender_name, channel, body)),
+                _ => None,
+            })
+            .collect()
+    };
+    let line = |channel: u8| {
+        (
+            5,
+            0,
+            String::new(),
+            channel,
+            "Alice was kicked for being AFK".to_owned(),
+        )
+    };
+
+    world
+        .inbox
+        .idle_removed(match_id, world.ids[alice].0, "Alice");
+    world.settle();
+    assert_eq!(
+        lines(world.take(bob)),
+        [line(channel::MATCH), line(channel::GENERAL)]
+    );
+    assert_eq!(lines(world.take(alice)), [line(channel::GENERAL)]);
+    assert_eq!(lines(world.take(carol)), [line(channel::GENERAL)]);
+
+    // In each receiver's language.
+    use crate::v026g::social::idle_removed_text;
+    for (language, text) in [
+        (Some(1), "Alice исключён из матча за AFK"),
+        (Some(2), "Alice виключений з матчу за AFK"),
+        (Some(9), "Alice was kicked for being AFK"),
+        (None, "Alice was kicked for being AFK"),
+    ] {
+        assert_eq!(idle_removed_text("Alice", language), text);
+    }
+    world.assert_clean();
+}
+
 #[test]
 fn players_in_a_match_talk_on_its_channels() {
     let mut world = World::new();

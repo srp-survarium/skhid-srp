@@ -303,10 +303,12 @@ impl Settler {
             rng: Rng::from_time(),
         }
     }
+}
 
+impl matches::ResultsSink for Settler {
     /// One finished match: called on the match server's thread, before its
     /// clients hear the end.
-    pub fn match_ended(&mut self, result: matches::MatchResult) {
+    fn match_ended(&mut self, result: matches::MatchResult) {
         // Each account's latest place: one it left and came back from is
         // nobody's (the rewards take the same, `settle`).
         let result = match_result(result).latest_places();
@@ -350,6 +352,13 @@ impl Settler {
             match_id,
             not_made: result.end == rewards::MatchEnd::NotMade,
         });
+    }
+
+    /// A player removed as idle (anti-AFK): the lobby says so in the
+    /// match's chat and the general chat.
+    fn idle_removed(&mut self, removed: matches::IdleRemoved) {
+        self.inbox
+            .idle_removed(removed.match_id, removed.account_id, &removed.name);
     }
 }
 
@@ -585,7 +594,7 @@ impl Stack {
                     Some(socket) => socket,
                     None => UdpSocket::bind(match_addr)?,
                 };
-                let mut settler = Settler::new(
+                let settler = Settler::new(
                     store.clone(),
                     accounts.clone(),
                     results.clone(),
@@ -595,7 +604,7 @@ impl Stack {
                     &socket,
                     registry.clone(),
                     store.clone(),
-                    move |result| settler.match_ended(result),
+                    settler,
                     &flag,
                     Some(replays.clone()),
                 )

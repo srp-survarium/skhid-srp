@@ -5,8 +5,8 @@ use survarium::v026g::match_msgs::players::PlayerState;
 use survarium::v026g::match_msgs::rules::state;
 
 use super::{Bench, MAP_BATTERIES, session_of, setup};
-use crate::v026g::Settings;
 use crate::v026g::afk::Setting;
+use crate::v026g::{IdleRemoved, Settings};
 
 /// Three players, all alive in every world; `bots` places are test bots'.
 fn bench_of(settings: Settings, private: bool, bots: &[usize]) -> Bench {
@@ -82,13 +82,28 @@ fn a_player_without_input_for_three_minutes_of_play_is_removed() {
     let play_at = until_play(&mut bench);
     play(&mut bench, 175_000, &[1, 2]);
     assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
     play(&mut bench, 15_000, &[1, 2]);
     assert!(removed(&bench, 0), "{}", bench.stages());
     assert!(bench.ms - play_at <= 190_000);
+    // srp is told once, with its character's name: the chat says so.
+    let told: Vec<IdleRemoved> = bench.idle_removed.try_iter().collect();
+    assert_eq!(
+        told,
+        [IdleRemoved {
+            match_id: bench.match_id,
+            account_id: 100,
+            name: "player0".to_owned(),
+        }]
+    );
     // The others play on, the match with them.
     assert!(!bench.clients[1].told_to_leave && !bench.clients[2].told_to_leave);
     play(&mut bench, 200_000, &[1, 2]);
     assert!(!bench.clients[1].told_to_leave && !bench.clients[2].told_to_leave);
+    assert!(
+        bench.idle_removed.try_recv().is_err(),
+        "one removal, told once"
+    );
     assert!(bench.results.try_recv().is_err());
     bench.assert_no_faults();
 }
@@ -102,6 +117,7 @@ fn an_input_starts_the_three_minutes_again() {
     play(&mut bench, 2_000, &[0, 1, 2]);
     play(&mut bench, 170_000, &[1, 2]);
     assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
     play(&mut bench, 20_000, &[1, 2]);
     assert!(removed(&bench, 0));
 }
@@ -114,6 +130,7 @@ fn time_dead_does_not_count() {
     alive(&mut bench, [false, true, true]);
     play(&mut bench, 400_000, &[1, 2]);
     assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
 }
 
 #[test]
@@ -132,6 +149,7 @@ fn time_its_game_is_not_heard_does_not_count() {
     // 100 s counted before: three minutes are reached 80 s on, not at once.
     play(&mut bench, 60_000, &[1, 2]);
     assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
     play(&mut bench, 40_000, &[1, 2]);
     assert!(removed(&bench, 0));
     assert!(bench.ms - play_at >= 300_000);
@@ -143,6 +161,7 @@ fn a_private_rooms_match_removes_nobody() {
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
+    assert!(bench.idle_removed.try_recv().is_err());
 }
 
 #[test]
@@ -155,6 +174,7 @@ fn the_setting_off_removes_nobody() {
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
+    assert!(bench.idle_removed.try_recv().is_err());
 }
 
 #[test]
@@ -164,6 +184,7 @@ fn a_bot_is_never_removed() {
     until_play(&mut bench);
     play(&mut bench, 400_000, &[0, 1]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
+    assert!(bench.idle_removed.try_recv().is_err());
     assert!(bench.registry.seat(session_of(2)).is_some());
 }
 
@@ -176,6 +197,19 @@ fn a_match_against_bots_removes_nobody() {
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
     assert!(bench.registry.seat(session_of(0)).is_some());
     assert!(bench.results.try_recv().is_err());
+}
+
+#[test]
+fn a_player_who_leaves_is_no_idle_removal() {
+    let mut bench = bench_of(Settings::default(), false, &[]);
+    until_play(&mut bench);
+    play(&mut bench, 30_000, &[0, 1, 2]);
+    // By its own word (0xE0): it leaves, nobody is told it was idle.
+    bench.clients[0].leave();
+    play(&mut bench, 30_000, &[1, 2]);
+    assert!(bench.registry.seat(session_of(0)).is_none());
+    assert!(bench.idle_removed.try_recv().is_err());
 }

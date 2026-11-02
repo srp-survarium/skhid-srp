@@ -119,7 +119,7 @@ use super::afk::{self, Watch};
 use super::battery_cap;
 use super::kill_cap;
 use super::record::{Recorder, Recording};
-use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
+use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
 mod afk_watch;
@@ -922,6 +922,9 @@ pub(crate) struct Game {
     /// The players who left by their own word (0xE0) and were not asked
     /// about yet ([`Game::take_quits`]): session and account.
     quits: Vec<(u32, u32)>,
+    /// The players removed as idle (anti-AFK) and not told of yet
+    /// ([`Game::take_idle_removed`]): the chat says so.
+    idle_removed: Vec<IdleRemoved>,
     /// By place: its player left by its own word (0xE0); the place never
     /// comes back ([`start`]).
     given_up: Vec<bool>,
@@ -992,6 +995,7 @@ impl Game {
             result: None,
             result_made: false,
             quits: Vec::new(),
+            idle_removed: Vec::new(),
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
