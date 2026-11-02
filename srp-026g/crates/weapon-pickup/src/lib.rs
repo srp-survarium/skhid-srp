@@ -7,8 +7,9 @@
 //!   patch 78 already reads as no carry command and keeps from the game;
 //! - the server's check of it and the client's twin ([`allowed`],
 //!   [`sane`]): the client never sends what the server would drop;
-//! - a drop, open until its gun leaves the world with its body (the place's
-//!   player removed: its respawn or its departure), and the one synced
+//! - a drop, open until it is taken, the place's until its player dies
+//!   again (its removal from the world leaves the gun alone where it lay),
+//!   and the one synced
 //!   record a player carries in its state ([`Record`]): its own drop (open or
 //!   taken) and, for each of its two weapon slots, the gun picked into it
 //!   (its own gun then hidden);
@@ -155,26 +156,105 @@ pub fn sane(actions: u32, sender: Place, places: u8) -> bool {
     command(actions).is_none_or(|target| allowed(sender, target, places))
 }
 
-/// A player's own drop: the gun it held at its death, while its body (and
-/// the gun on it) is in the world. The place's player taken out of the world
-/// (base_player::remove(1): its respawn, its departure) ends it: the drop is
-/// [`Drop::None`] again.
+/// A player's own drop: the gun it held at its death (the owner,
+/// 2026-11-02: "until that player dies again"): open until it is taken,
+/// and either way the place's until its next death replaces it; its
+/// player's removal from the world (base_player::remove(1): a respawn, a
+/// departure) leaves the gun alone where it lay. At most one a place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Drop {
-    /// No drop: not dead holding a gun of its two, or its body gone.
+    /// No drop: not dead holding a gun of its two since it came in.
     None,
-    /// Died holding `slot`'s gun of `kit`.
-    Open { kit: Kit, slot: WeaponSlot },
-    /// That gun was taken (once only).
-    Taken,
+    Open(Dropped),
+    /// That gun was taken (once only); a cancelled pickup opens it again
+    /// as it was.
+    Taken(Dropped),
+}
+
+/// A drop's gun: the recipe its copy is cooked from (the gun in the dead
+/// player's hands: one it picked, or its own), the weapon slot it held it
+/// in, and where it lies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dropped {
+    pub recipe: Recipe,
+    pub held: WeaponSlot,
+    pub lying: Lying,
+}
+
+/// Where a drop's gun lies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lying {
+    /// In its body's hands, the body in the world (the gun's magazine is
+    /// the body's gun's).
+    OnBody,
+    /// Alone where it lay: the body left the world (its player respawned);
+    /// a pickup gets a full magazine.
+    Alone,
 }
 
 impl Drop {
-    /// The kit and slot that can be taken: an open drop's (each death has
-    /// its own gun).
-    pub fn available(self) -> Option<(Kit, WeaponSlot)> {
+    /// What can be taken: an open drop's gun.
+    pub fn available(self) -> Option<Dropped> {
         match self {
-            Drop::Open { kit, slot } => Some((kit, slot)),
+            Drop::Open(gun) => Some(gun),
+            _ => None,
+        }
+    }
+
+    /// The gun of the place's drop, open or taken.
+    pub fn gun(self) -> Option<Dropped> {
+        match self {
+            Drop::Open(gun) | Drop::Taken(gun) => Some(gun),
+            Drop::None => None,
+        }
+    }
+
+    /// An open drop taken; anything else as it is.
+    pub fn taken(self) -> Drop {
+        match self {
+            Drop::Open(gun) => Drop::Taken(gun),
+            other => other,
+        }
+    }
+
+    /// A taken drop open again as it was; anything else as it is.
+    pub fn reopened(self) -> Drop {
+        match self {
+            Drop::Taken(gun) => Drop::Open(gun),
+            other => other,
+        }
+    }
+
+    /// Its body left the world (the player respawned): its gun alone.
+    pub fn left_alone(self) -> Drop {
+        let alone = |gun: Dropped| Dropped { lying: Lying::Alone, ..gun };
+        match self {
+            Drop::Open(gun) => Drop::Open(alone(gun)),
+            Drop::Taken(gun) => Drop::Taken(alone(gun)),
+            Drop::None => Drop::None,
+        }
+    }
+
+    fn encode(self) -> [u8; 2] {
+        let (tag, gun) = match self {
+            Drop::None => return [0, 0],
+            Drop::Open(gun) => (1, gun),
+            Drop::Taken(gun) => (2, gun),
+        };
+        [tag | gun.held.bit() << 2 | u8::from(gun.lying == Lying::Alone) << 3, Record::recipe_byte(gun.recipe)]
+    }
+
+    /// None for bytes [`encode`](Self::encode) does not write.
+    fn decode(tag: u8, recipe: u8) -> Option<Drop> {
+        let gun = || Some(Dropped {
+            recipe: Record::recipe_of(recipe)?,
+            held: WeaponSlot::from_bit(tag >> 2 & 1),
+            lying: if tag & 8 != 0 { Lying::Alone } else { Lying::OnBody },
+        });
+        match (tag & 3, tag >> 4) {
+            (0, 0) if tag == 0 && recipe == 0 => Some(Drop::None),
+            (1, 0) => Some(Drop::Open(gun()?)),
+            (2, 0) => Some(Drop::Taken(gun()?)),
             _ => None,
         }
     }
@@ -200,12 +280,15 @@ pub struct Pick {
 
 /// A pickup waiting for its weapon switch: the gun of `pick` is the
 /// picker's pending object (its own registry id), the gun in hands of
-/// `slot` holstering; the game's own switch puts it into `slot`. The
+/// `slot` holstering; the game's own switch puts it into `slot`. `from` is
+/// the place whose drop it was taken from (a picked gun's drop is its last
+/// holder's, not its recipe's place): a cancel opens that drop again. The
 /// donor's magazine and chamber it gets then (None: a full magazine, the
 /// donor's gun not there at the command) are fixed at the command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pending {
     pub slot: WeaponSlot,
+    pub from: Place,
     pub pick: Pick,
     pub magazine: Option<(u8, bool)>,
 }
@@ -264,17 +347,21 @@ pub struct Record {
 
 impl Record {
     pub const EMPTY: Record = Record { drop: Drop::None, picks: [None; 2], pending: None };
-    /// Its bytes in a player's state: the version, the drop (its tag, kit
-    /// and slot in one byte), then for slot 7 and slot 10 a byte (0 none,
-    /// else the recipe's place + 1, its kit << 5, its slot << 7) and the
-    /// tick (u32); then the pending pickup: its weapon slot (0 none, 1
-    /// slot 7, 2 slot 10), its pick as a slot's, the magazine and a byte
-    /// (bit 0 the donor's magazine known, bit 1 its chamber); then for
-    /// slot 7 and slot 10 the own gun's wear its pick hides (the f32's
-    /// bits, 0 without a pick). Version 6 (5 had no wear; 4 had the own
-    /// kit's counts, 28 bytes more).
-    pub const BYTES: usize = 28;
-    const VERSION: u8 = 6;
+    /// Its bytes in a player's state: the version, the drop's byte (its tag,
+    /// 0 none, 1 open, 2 taken; the slot its gun was held in << 2; 1 << 3
+    /// alone, its body gone), then for slot 7 and
+    /// slot 10 a byte (0 none, else the recipe's place + 1, its kit << 5,
+    /// its slot << 7) and the tick (u32); then the pending pickup: its
+    /// weapon slot (0 none, 1 slot 7, 2 slot 10) with the place it was taken
+    /// from << 2, its pick as a slot's, the magazine and a byte (bit 0 the
+    /// donor's magazine known, bit 1 its chamber); then for slot 7 and slot
+    /// 10 the own gun's wear its pick hides (the f32's bits, 0 without a
+    /// pick); last the drop's recipe (as a pick's byte, 0 without a drop).
+    /// Version 8 (7 ended a drop at its body's removal and had no recipe
+    /// for it; 6 had no pending pickup's place; 5 had no wear; 4 had the own
+    /// kit's counts).
+    pub const BYTES: usize = 29;
+    const VERSION: u8 = 8;
 
     pub fn pick(&self, slot: WeaponSlot) -> Option<Pick> {
         self.held(slot).map(|h| h.pick)
@@ -288,9 +375,38 @@ impl Record {
         self.picks[usize::from(slot.bit())] = held;
     }
 
+    /// The drop of `place`'s death with `kit` holding `slot`'s gun: that
+    /// gun, the one picked into the slot if one was (the owner, 2026-11-02:
+    /// a player who dies holding a picked gun drops that gun, of the pick's
+    /// recipe), else the slot's own gun of `kit`; on its body.
+    pub fn death_drop(&self, place: Place, kit: Kit, slot: WeaponSlot) -> Drop {
+        let recipe = self.pick(slot).map_or(Recipe { place, kit, slot }, |pick| pick.recipe);
+        Drop::Open(Dropped { recipe, held: slot, lying: Lying::OnBody })
+    }
+
+    /// The record after base_player::remove(1) (a respawn, a snapshot's
+    /// kit change, a departure): its picks and a pickup waiting end (the own
+    /// guns back), its drop stays, the gun alone where it lay.
+    pub fn respawned(self) -> Record {
+        Record { drop: self.drop.left_alone(), ..Record::EMPTY }
+    }
+
+    /// A recipe's byte: its place + 1, its kit << 5, its slot << 7.
+    fn recipe_byte(r: Recipe) -> u8 {
+        (r.place.0 + 1) | r.kit.0 << 5 | r.slot.bit() << 7
+    }
+
+    /// The recipe of a nonzero [`recipe_byte`](Self::recipe_byte).
+    fn recipe_of(b: u8) -> Option<Recipe> {
+        Some(Recipe {
+            place: Place::new((b & 0x1F).checked_sub(1)?)?,
+            kit: Kit::new(b >> 5 & 3)?,
+            slot: WeaponSlot::from_bit(b >> 7),
+        })
+    }
+
     fn encode_pick(out: &mut [u8], pick: Pick) {
-        let r = pick.recipe;
-        out[0] = (r.place.0 + 1) | r.kit.0 << 5 | r.slot.bit() << 7;
+        out[0] = Self::recipe_byte(pick.recipe);
         out[1..5].copy_from_slice(&pick.taken.0.to_le_bytes());
     }
 
@@ -301,22 +417,14 @@ impl Record {
         let taken = Ms(u32::from_le_bytes([bytes[1], bytes[2], bytes[3], bytes[4]]));
         match bytes[0] {
             0 => (taken.0 == 0).then_some(None),
-            b => Some(Some(Pick { taken, recipe: Recipe {
-                place: Place::new((b & 0x1F).checked_sub(1)?)?,
-                kit: Kit::new(b >> 5 & 3)?,
-                slot: WeaponSlot::from_bit(b >> 7),
-            } })),
+            b => Some(Some(Pick { taken, recipe: Self::recipe_of(b)? })),
         }
     }
 
     pub fn encode(self) -> [u8; Self::BYTES] {
         let mut out = [0u8; Self::BYTES];
         out[0] = Self::VERSION;
-        out[1] = match self.drop {
-            Drop::None => 0,
-            Drop::Open { kit, slot } => 1 | kit.0 << 2 | slot.bit() << 4,
-            Drop::Taken => 2,
-        };
+        [out[1], out[28]] = self.drop.encode();
         for ((at, wear), held) in [2, 7].into_iter().zip([20, 24]).zip(self.picks) {
             if let Some(h) = held {
                 Self::encode_pick(&mut out[at..at + 5], h.pick);
@@ -324,7 +432,7 @@ impl Record {
             }
         }
         if let Some(p) = self.pending {
-            out[12] = 1 + p.slot.bit();
+            out[12] = (1 + p.slot.bit()) | p.from.0 << 2;
             Self::encode_pick(&mut out[13..18], p.pick);
             if let Some((loaded, chamber)) = p.magazine {
                 out[18] = loaded;
@@ -341,16 +449,12 @@ impl Record {
         if bytes[0] != Self::VERSION {
             return None;
         }
-        let drop = match (bytes[1] & 3, bytes[1] >> 2) {
-            (0, 0) => Drop::None,
-            (1, rest) if rest < 8 => Drop::Open { kit: Kit::new(rest & 3)?, slot: WeaponSlot::from_bit(rest >> 2) },
-            (2, 0) => Drop::Taken,
-            _ => return None,
-        };
-        let pending = match (bytes[12], Self::decode_pick(&bytes[13..18])?, bytes[18], bytes[19]) {
-            (0, None, 0, 0) => None,
-            (tag @ 1..=2, Some(pick), loaded, flags) => Some(Pending {
+        let drop = Drop::decode(bytes[1], bytes[28])?;
+        let pending = match (bytes[12] & 3, bytes[12] >> 2, Self::decode_pick(&bytes[13..18])?, bytes[18], bytes[19]) {
+            (0, 0, None, 0, 0) => None,
+            (tag @ 1..=2, from, Some(pick), loaded, flags) => Some(Pending {
                 slot: WeaponSlot::from_bit(tag - 1),
+                from: Place::new(from)?,
                 pick,
                 magazine: match flags {
                     0 if loaded == 0 => None,
@@ -461,7 +565,7 @@ pub enum Refusal {
 /// `incoming` gives the drop's gun's handedness (asked only when the other
 /// slot holds a double-handed gun).
 pub fn decide(picker: Picker, target: Place, drop: Drop,
-              incoming: impl FnOnce(Kit, WeaponSlot) -> Handedness) -> Result<WeaponSlot, Refusal> {
+              incoming: impl FnOnce(Recipe) -> Handedness) -> Result<WeaponSlot, Refusal> {
     if !picker.alive {
         return Err(Refusal::Dead);
     }
@@ -473,13 +577,13 @@ pub fn decide(picker: Picker, target: Place, drop: Drop,
     if target == picker.place {
         return Err(Refusal::NotAvailable);
     }
-    let (kit, slot) = drop.available().ok_or(Refusal::NotAvailable)?;
+    let gun = drop.available().ok_or(Refusal::NotAvailable)?;
     match picker.rule {
         CarryRule::OneWeapon if own == WeaponSlot::Second || picker.other.is_some() => {
             return Err(Refusal::SecondWeaponDisabled);
         }
         CarryRule::OneDoubleHanded
-            if picker.other == Some(Handedness::Two) && incoming(kit, slot) == Handedness::Two => {
+            if picker.other == Some(Handedness::Two) && incoming(gun.recipe) == Handedness::Two => {
             return Err(Refusal::TwoDoubleHanded);
         }
         _ => {}
@@ -628,51 +732,95 @@ mod tests {
     }
 
     #[test]
-    fn a_drop_is_open_until_it_ends() {
-        let drop = Drop::Open { kit: Kit::new(1).unwrap(), slot: WeaponSlot::Second };
-        assert_eq!(drop.available(), Some((Kit::new(1).unwrap(), WeaponSlot::Second)));
-        assert_eq!(Drop::Taken.available(), None);
+    fn a_drop_is_open_until_it_is_taken_and_stays_until_the_next_death() {
+        let recipe = Recipe { place: Place::new(5).unwrap(), kit: Kit::new(1).unwrap(), slot: WeaponSlot::Second };
+        let gun = Dropped { recipe, held: WeaponSlot::Second, lying: Lying::OnBody };
+        let drop = Drop::Open(gun);
+        assert_eq!(drop.available(), Some(gun));
+        assert_eq!(drop.taken(), Drop::Taken(gun));
+        assert_eq!(drop.taken().available(), None);
+        assert_eq!(drop.taken().gun(), Some(gun));
+        assert_eq!(drop.taken().reopened(), drop, "a cancelled pickup opens it as it was");
+        let alone = Dropped { lying: Lying::Alone, ..gun };
+        assert_eq!(drop.left_alone(), Drop::Open(alone), "the respawn leaves it, alone");
+        assert_eq!(drop.taken().left_alone(), Drop::Taken(alone));
+        assert_eq!(Drop::None.taken(), Drop::None);
+        assert_eq!(Drop::None.reopened(), Drop::None);
+        assert_eq!(Drop::None.left_alone(), Drop::None);
         assert_eq!(Drop::None.available(), None);
         assert_eq!(Ms(5).since(Ms(u32::MAX - 4)), 10, "time wraps");
+    }
+
+    #[test]
+    fn a_dead_players_drop_is_the_gun_in_its_hands() {
+        let (me, donor) = (Place::new(3).unwrap(), Place::new(5).unwrap());
+        let (own_kit, donor_kit) = (Kit::new(0).unwrap(), Kit::new(1).unwrap());
+        let picked = Recipe { place: donor, kit: donor_kit, slot: WeaponSlot::Second };
+        let pick = Some(Held { pick: Pick { taken: Ms(9), recipe: picked }, own: Wear::of(1.0) });
+        let holding = Record { drop: Drop::None, picks: [None, pick], pending: None };
+        let open = |recipe, held| Drop::Open(Dropped { recipe, held, lying: Lying::OnBody });
+        assert_eq!(holding.death_drop(me, own_kit, WeaponSlot::Second), open(picked, WeaponSlot::Second),
+                   "the gun picked into the slot held");
+        assert_eq!(holding.death_drop(me, own_kit, WeaponSlot::First),
+                   open(Recipe { place: me, kit: own_kit, slot: WeaponSlot::First }, WeaponSlot::First), "the other slot's own gun");
+        let picked_into_7 = Record { picks: [pick, None], ..holding };
+        assert_eq!(picked_into_7.death_drop(me, own_kit, WeaponSlot::First), open(picked, WeaponSlot::First),
+                   "a slot-10 gun picked into slot 7: cooked in slot 10");
+        // The respawn: the picks end, the drop stays alone, its recipe its own.
+        let dead = Record { drop: holding.death_drop(me, own_kit, WeaponSlot::Second), ..holding };
+        let respawned = dead.respawned();
+        assert_eq!(respawned.picks, [None; 2]);
+        assert_eq!(respawned.drop, Drop::Open(Dropped { recipe: picked, held: WeaponSlot::Second, lying: Lying::Alone }));
+        assert_eq!(Record::decode(respawned.encode()), Some(respawned));
     }
 
     #[test]
     fn records_round_trip_and_refuse_anything_else() {
         let recipe = Recipe { place: Place::new(19).unwrap(), kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second };
         let pick = Pick { taken: Ms(78_112), recipe };
-        let waiting = |slot, magazine| Some(Pending { slot, pick: Pick { taken: Ms(90_001), recipe }, magazine });
+        let waiting = |slot, magazine| Some(Pending { slot, from: Place::new(7).unwrap(), pick: Pick { taken: Ms(90_001), recipe },
+                                                      magazine });
+        let gun = |held, lying| Dropped { recipe: Recipe { place: Place::new(4).unwrap(), kit: Kit::new(1).unwrap(), slot: held },
+                                          held, lying };
         let cases = [
             Record::EMPTY,
-            Record { drop: Drop::Taken, picks: [Some(Held { pick, own: Wear::of(0.9) }), None], pending: None },
-            Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(Held { pick, own: Wear::of(1.0) })],
+            Record { drop: Drop::Taken(gun(WeaponSlot::Second, Lying::OnBody)), picks: [Some(Held { pick, own: Wear::of(0.9) }), None],
+                     pending: None },
+            Record { drop: Drop::Open(gun(WeaponSlot::Second, Lying::Alone)), picks: [None, Some(Held { pick, own: Wear::of(1.0) })],
                      pending: None },
             Record { drop: Drop::None, picks: [Some(Held { pick, own: Wear::of(0.5) }), Some(Held { pick: Pick { taken: Ms(1), recipe }, own: Wear::of(0.0) })], pending: None },
             Record { drop: Drop::None, picks: [None, Some(Held { pick, own: Wear::of(1.0) })], pending: waiting(WeaponSlot::Second, Some((17, true))) },
-            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, None) },
-            Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, Some((0, false))) },
+            Record { drop: Drop::Taken(gun(WeaponSlot::First, Lying::Alone)), picks: [None; 2], pending: waiting(WeaponSlot::First, None) },
+            Record { drop: Drop::Open(gun(WeaponSlot::First, Lying::OnBody)), picks: [None; 2], pending: waiting(WeaponSlot::First, Some((0, false))) },
         ];
         for record in cases {
             assert_eq!(Record::decode(record.encode()), Some(record));
         }
+        assert_eq!(Record::BYTES, 29);
+        assert_eq!([cases[1].encode()[1], cases[1].encode()[28]], [2 | 1 << 2, 5 | 1 << 5 | 1 << 7], "taken, held in slot 10, its recipe");
+        assert_eq!([cases[2].encode()[1], cases[2].encode()[28]], [1 | 1 << 2 | 1 << 3, 5 | 1 << 5 | 1 << 7], "open, alone");
         assert_eq!(cases[1].encode()[2], 20 | 2 << 5 | 1 << 7, "place + 1, kit, slot");
-        assert_eq!(cases[4].encode()[12..20], [2, 20 | 2 << 5 | 1 << 7, 0x91, 0x5F, 1, 0, 17, 3], "slot 10, the pick, 17 + chamber");
-        assert_eq!(Record::BYTES, 28);
+        assert_eq!(cases[4].encode()[12..20], [2 | 7 << 2, 20 | 2 << 5 | 1 << 7, 0x91, 0x5F, 1, 0, 17, 3],
+                   "slot 10 from place 7, the pick, 17 + chamber");
         assert_eq!(cases[1].encode()[20..28], [0x66, 0x66, 0x66, 0x3F, 0, 0, 0, 0], "slot 7's own wear 0.9, slot 10 none");
         let mut old = cases[1].encode();
-        old[0] = 5;
-        assert_eq!(Record::decode(old), None, "version 5 (no wear) is not read");
+        old[0] = 7;
+        assert_eq!(Record::decode(old), None, "version 7 (a drop ended at its body's removal) is not read");
         let mut stray = cases[1].encode();
         stray[24] = 1;
         assert_eq!(Record::decode(stray), None, "a wear without its pick");
         let good = cases[1].encode();
-        for (at, value) in [(0, 2), (1, 3), (1, 6), (1, 1 | 3 << 2), (2, 0x60), (2, 21), (7, 0x60), (8, 1),
-                            (12, 1), (13, 1), (18, 5), (19, 1)] {
+        for (at, value) in [(0, 4), (1, 3), (1, 2 | 1 << 4), (1, 0x80), (28, 0), (28, 21), (28, 0x60), (2, 0x60), (2, 21), (7, 0x60),
+                            (8, 1), (12, 1), (13, 1), (18, 5), (19, 1)] {
             let mut bad = good;
             bad[at] = value;
             assert_eq!(Record::decode(bad), None, "byte {at} = {value}");
         }
+        let mut none = Record::EMPTY.encode();
+        none[28] = 5;
+        assert_eq!(Record::decode(none), None, "a recipe without a drop");
         let pending = cases[4].encode();
-        for (at, value) in [(12, 0), (12, 3), (13, 0), (19, 2), (19, 4)] {
+        for (at, value) in [(12, 0), (12, 3), (12, 2 | 20 << 2), (12, 7 << 2), (13, 0), (19, 2), (19, 4)] {
             let mut bad = pending;
             bad[at] = value;
             assert_eq!(Record::decode(bad), None, "pending byte {at} = {value}");
@@ -686,10 +834,11 @@ mod tests {
                               rule: CarryRule::OneDoubleHanded };
         let donor = Place::new(4).unwrap();
         let kit = Kit::new(2).unwrap();
-        let drop = Drop::Open { kit, slot: WeaponSlot::First };
-        let rifle = |_, _| Handedness::Two;
+        let drop = Drop::Open(Dropped { recipe: Recipe { place: donor, kit, slot: WeaponSlot::First }, held: WeaponSlot::First,
+                                        lying: Lying::OnBody });
+        let rifle = |_| Handedness::Two;
         assert_eq!(decide(picker, donor, drop, rifle), Ok(WeaponSlot::Second), "the slot in hands");
-        assert_eq!(decide(picker, donor, Drop::Taken, rifle), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, donor, drop.taken(), rifle), Err(Refusal::NotAvailable));
         assert_eq!(decide(picker, donor, Drop::None, rifle), Err(Refusal::NotAvailable), "its body gone");
         assert_eq!(decide(picker, me, drop, rifle), Err(Refusal::NotAvailable));
         assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, rifle), Err(Refusal::Dead));
@@ -702,8 +851,9 @@ mod tests {
         let picker = Picker { place: Place::new(1).unwrap(), alive: true, hands: Hands::Gun(WeaponSlot::Second),
                               other: Some(Handedness::One), rule: CarryRule::OneDoubleHanded };
         let (donor, kit) = (Place::new(4).unwrap(), Kit::new(0).unwrap());
-        let drop = Drop::Open { kit, slot: WeaponSlot::First };
-        let (rifle, pistol) = (|_, _| Handedness::Two, |_, _| Handedness::One);
+        let drop = Drop::Open(Dropped { recipe: Recipe { place: donor, kit, slot: WeaponSlot::First }, held: WeaponSlot::First,
+                                        lying: Lying::OnBody });
+        let (rifle, pistol) = (|_| Handedness::Two, |_| Handedness::One);
         // Any gun for any gun: a rifle for the held pistol beside a pistol.
         assert_eq!(decide(picker, donor, drop, rifle), Ok(WeaponSlot::Second));
         // Beside a rifle: a pistol yes, a rifle no, unless modifier 25.
