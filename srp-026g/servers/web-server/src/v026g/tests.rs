@@ -497,7 +497,7 @@ fn the_pages_are_the_026g_ones() {
     // The exe has the server and memory built in and its language in Settings.
     assert!(!home.contains("-localization") && !home.contains("-mt_allocator"));
     assert!(!home.contains("-client") && !home.contains("0.21d") && !home.contains("0.21D"));
-    assert!(home.contains("Survarium 0.26g client"));
+    assert!(home.contains("SURVARIUM 0.26G"));
     assert!(!home.contains("/exchange"));
     let admin = world.web.route(&get("/hidden"), "t");
     assert_eq!(admin.status, "200 OK");

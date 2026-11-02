@@ -161,8 +161,6 @@ impl Web {
             ("GET", "/") => page(
                 lang,
                 Form::Home(Stats {
-                    registered: self.store.registered_accounts(),
-                    online: self.store.players_present(),
                     maintenance: self.store.minutes_to_maintenance(),
                     registrations_open: self.store.registrations_open(),
                     v026g: true,
@@ -172,7 +170,6 @@ impl Web {
                 "",
             ),
             ("GET", "/exchange") => page(lang, Form::InTheGame26(launcher_code(request)), ""),
-            ("GET", crate::faq::PATH) => page(lang, Form::Faq26, ""),
             ("GET", path) if self.is_admin_page(path, request) => page(
                 lang,
                 Form::Admin(Box::new(AdminView {

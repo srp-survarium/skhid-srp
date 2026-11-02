@@ -42,7 +42,6 @@
 
 mod damage;
 mod equipment;
-mod faq;
 mod icons;
 pub mod item_tables;
 mod launcher;
@@ -168,11 +167,9 @@ impl Lang {
     }
 }
 
-/// What the home page counts.
+/// What the home page says besides its steps, and which steps.
 #[derive(Clone, Copy)]
 struct Stats {
-    registered: usize,
-    online: usize,
     /// The minutes to a planned maintenance.
     maintenance: Option<u32>,
     registrations_open: bool,
@@ -196,15 +193,13 @@ enum Form {
     /// The 0.26g page's `/exchange`: in the game now, in the launcher's
     /// language ([`v026g::launcher_code`]).
     InTheGame26(&'static str),
-    /// The 0.26g page's `/faq` ([`faq`]).
-    Faq26,
 }
 
 impl Form {
     fn is_026g(&self) -> bool {
         match self {
             Self::None => false,
-            Self::None26 | Self::InTheGame26(_) | Self::Faq26 => true,
+            Self::None26 | Self::InTheGame26(_) => true,
             Self::Home(stats) => stats.v026g,
             Self::Admin(view) => view.g26,
         }
@@ -1011,8 +1006,6 @@ impl Web {
             ("GET", "/") => page(
                 request.lang,
                 Form::Home(Stats {
-                    registered: self.store.registered_accounts(),
-                    online: self.store.players_present(),
                     maintenance: self.store.minutes_to_maintenance(),
                     registrations_open: self.store.registrations_open(),
                     v026g: false,
@@ -1696,7 +1689,7 @@ fn site_header(
     };
     let home_link = tab("/", &lang.tr("Home", "Головна"));
     let wiki_link = if v026g {
-        tab(wiki::PATH, &lang.tr("Wiki", "Вікі")) + &tab(faq::PATH, "FAQ")
+        tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
     } else {
         String::new()
     };
@@ -1718,17 +1711,16 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
     };
     let code = lang.code();
     let version = if form.is_026g() { "0.26g" } else { "0.21d" };
-    let current = match form {
-        Form::Home(_) => "/",
-        Form::Faq26 => faq::PATH,
-        _ => "",
+    let current = if matches!(form, Form::Home(_)) {
+        "/"
+    } else {
+        ""
     };
     let (header, test_notice) = site_header(lang, form.is_026g(), test, other_url, current);
     let body = match form {
         Form::InTheGame26(code) => v026g::in_the_game_now(code),
         Form::Admin(view) => admin_form(lang, &view),
         Form::Home(stats) => home(lang, stats),
-        Form::Faq26 => faq::body(lang),
         Form::None | Form::None26 => String::new(),
     };
     let disclaimer = lang.tr(
@@ -1774,8 +1766,7 @@ h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-transform:uppe
 ol{padding-left:1.3rem;margin:0}.rules{padding-left:1.1rem;margin:0}.opts{font-size:.85rem;color:var(--ink-2);padding-left:1.1rem}li{margin:.6rem 0}li>p{margin:.4rem 0}\
 pre,code{background:var(--code);border:1px solid var(--rule);border-radius:2px;color:var(--ink);font:.85rem var(--data)}pre{padding:.6rem .8rem;margin:.4rem 0;white-space:pre-wrap;word-break:break-all}code{padding:.05rem .3rem;word-break:break-all}\
 .dl{display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;margin:.6rem 0}.dl .button{margin:0}.hash{display:block;max-width:100%;font-size:.78rem;padding:.35rem .5rem}\
-.card .note{margin:.2rem 0 0}.stats{display:flex;gap:2rem;padding-top:10px;border-top:1px solid var(--rule)}.stats div{display:flex;flex-direction:column}\
-.stats b{font:400 1.9rem/1.1 var(--data);color:var(--accent)}.stats span{font:700 .72rem var(--display);color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em}\
+.card .note{margin:.2rem 0 0}\
 label{display:block;margin:.9rem 0 .25rem;font:700 .74rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
 input{width:100%;padding:.5rem .6rem;background:var(--bg);color:inherit;border:1px solid var(--rule);border-radius:2px;font:inherit}\
 input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}\
@@ -1793,9 +1784,49 @@ table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
 footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid var(--rule);font-size:.75rem;color:var(--ink-3)}";
 
+/// The home page's "if something goes wrong", after the steps, for a
+/// download with the launcher (whose ZIP has these files: `make_client_026g.py`):
+/// a problem and what to run, a line each; the Discord link once.
+fn faq(lang: Lang) -> String {
+    let cases = [
+        lang.tr(
+            "<b>Windows Defender deleted files</b> → run <code>Skhid-defender-setup.cmd</code>.",
+            "<b>Windows Defender видалив файли</b> → запустіть <code>Skhid-defender-setup.cmd</code>.",
+        ),
+        lang.tr(
+            "<b>Download stuck or failed</b> → start <code>Skhid.bat</code> again.",
+            "<b>Завантаження зависло чи не вдалося</b> → запустіть <code>Skhid.bat</code> знову.",
+        ),
+        lang.tr(
+            "<b>Can't connect</b> → run <code>Skhid-network-setup.cmd</code>.",
+            "<b>Немає з'єднання</b> → запустіть <code>Skhid-network-setup.cmd</code>.",
+        ),
+        lang.tr(
+            "<b>Works only with a VPN, or only without one</b> → see <code>VPN.txt</code>.",
+            "<b>Працює лише з VPN або лише без нього</b> → див. <code>VPN.txt</code>.",
+        ),
+        lang.tr(
+            "<b>Nothing works</b> → run <code>Skhid-collect-logs.cmd</code> and send the zip it makes.",
+            "<b>Нічого не працює</b> → запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить.",
+        ),
+    ];
+    format!(
+        "<section class=card><h2>{}</h2><ul class=rules>{}</ul><p>{}</p></section>",
+        lang.tr("If something goes wrong", "Якщо щось не так"),
+        cases
+            .iter()
+            .map(|case| format!("<li>{case}</li>"))
+            .collect::<String>(),
+        lang.tr(
+            "Send files to us on Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
+            "Файли надсилайте нам у Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
+        ),
+    )
+}
+
 /// The home page: what the server is, then the steps a player follows
-/// (download, start, sign in) and nothing more; what to do when something
-/// goes wrong is the FAQ's ([`faq`]).
+/// (download, start, sign in) and nothing more, then, with the launcher,
+/// what to do when something goes wrong ([`faq`]).
 fn home(lang: Lang, stats: Stats) -> String {
     let v026g = stats.v026g;
     let with_launcher = stats.launcher;
@@ -1895,14 +1926,6 @@ fn home(lang: Lang, stats: Stats) -> String {
             )
         );
     }
-    let stats = format!(
-        "{notices}<div class=stats><div><b>{}</b><span>{}</span></div><div><b>{}</b><span>{}</span></div></div>",
-        stats.online,
-        lang.tr("players online", "гравців онлайн"),
-        stats.registered,
-        lang.tr("registered", "зареєстровано"),
-    );
-    let version = if v026g { "0.26g" } else { "0.21d" };
     // With the launcher a player starts that and types nothing. 0.21d: the
     // start command, typed by hand (0.26g's exe has the server and the memory
     // sizes built in, so its page names no command line).
@@ -1956,22 +1979,13 @@ fn home(lang: Lang, stats: Stats) -> String {
             ),
         )
     };
+    let faq = if with_launcher {
+        faq(lang)
+    } else {
+        String::new()
+    };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>",
-        lang.tr("Skhid", "Схід"),
-        lang.tr(
-            &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
-            &format!("Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.")
-        ),
-        lang.tr(
-            "Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
-            "Discord проєкту: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"
-        ),
-        lang.tr("Early test server.", "Тестовий сервер."),
-        lang.tr(
-            "It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.",
-            "Можливі помилки та збої. Ваш прогрес, предмети й акаунти можуть зникнути або бути скинуті будь-коли, а сервер можуть зупинити будь-коли. Граючи, ви з цим погоджуєтесь."
-        ),
+        "{notices}<section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.tr("How to play", "Як зіграти"),
         if installs_game {
             format!(
@@ -3205,48 +3219,8 @@ mod tests {
     }
 
     #[test]
-    fn the_home_page_counts_registered_and_online_players() {
-        let web = web(None);
-        let count = |web: &Web| {
-            let body = web
-                .route(
-                    &Request {
-                        method: "GET".into(),
-                        path: "/".into(),
-                        target: "/".into(),
-                        lang: Lang::En,
-                        forwarded: String::new(),
-                        range: String::new(),
-                        client: None,
-                        form: Vec::new(),
-                    },
-                    "t",
-                )
-                .body;
-            body.split("<div class=stats>")
-                .nth(1)
-                .unwrap()
-                .split("</div></div>")
-                .next()
-                .unwrap()
-                .replace("</b><span>", " ")
-                .replace("</span></div><div><b>", " | ")
-                .replace("<div><b>", "")
-        };
-        assert!(count(&web).starts_with("0 players online | 0 registered"));
-        let first = web.store.sign_in("a", b"secret").unwrap();
-        web.store.sign_in("b", b"secret").unwrap();
-        let session = web.store.create_session(first);
-        assert!(web.store.hold(session).is_some());
-        let shown = count(&web);
-        assert!(shown.contains("| 2 registered"), "{shown}");
-    }
-
-    #[test]
     fn the_home_page_says_how_to_start_what_the_download_holds() {
         let stats = |launcher| Stats {
-            registered: 0,
-            online: 0,
             maintenance: None,
             registrations_open: true,
             v026g: true,
@@ -3254,14 +3228,29 @@ mod tests {
             installs_game: false,
         };
         // With the launcher: one file to start, nothing to type, and the
-        // download is needed once. Nothing but the steps: no other way to
-        // start, no language line, no matchmaking rules.
+        // download is needed once. Nothing but the steps and, after them,
+        // what to run when something goes wrong: no intro, no counters, no
+        // other way to start, no language line, no matchmaking rules.
         for (lang, press, once) in [
             (Lang::En, "press <b>PLAY</b>", "You do this only once"),
             (Lang::Uk, "натисніть <b>PLAY</b>", "лише один раз"),
         ] {
             let page = home(lang, stats(true));
-            let steps = page.split("<ol>").nth(1).unwrap();
+            let (steps, faq) = page.split_once("</ol>").unwrap();
+            let steps = steps.split("<ol>").nth(1).unwrap();
+            assert_eq!(faq.matches("<li>").count(), 5, "{faq}");
+            for file in [
+                "Skhid-defender-setup.cmd",
+                "Skhid.bat",
+                "Skhid-network-setup.cmd",
+                "VPN.txt",
+                "Skhid-collect-logs.cmd",
+            ] {
+                assert!(faq.contains(file), "{file}: {faq}");
+            }
+            assert_eq!(page.matches("discord.gg").count(), 2, "{page}");
+            assert!(faq.contains("href=\"https://discord.gg/pxywZfaxRQ\""));
+            assert!(!page.contains("<h1>") && !page.contains("class=stats"));
             assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
             assert!(steps.contains(press), "{steps}");
             assert!(steps.contains(once), "{steps}");
@@ -3335,33 +3324,15 @@ mod tests {
         );
         assert!(page.contains("Get the original Survarium"));
         assert!(!page.contains("empty folder"));
-        // Without it: the start script.
+        // Without it: the start script, and no FAQ (its files are the
+        // launcher's download's).
         let page = home(Lang::En, stats(false));
         assert!(!page.contains("launcher_skhid.exe"));
+        assert!(!page.contains("Skhid-defender-setup.cmd"));
         assert!(!page.contains("command line"));
         assert!(!page.contains("-localization"));
         assert!(page.contains("<code>play_skhid.bat</code>"));
         assert!(!page.contains("<b>Language</b>"));
-    }
-
-    #[test]
-    fn the_faq_is_in_the_026g_sites_header() {
-        for lang in [Lang::En, Lang::Uk] {
-            let link = format!("<a href=\"/faq?lang={}\"", lang.code());
-            let faq = page_as(lang, Form::Faq26, "", false, None).body;
-            assert!(
-                faq.contains(&format!("{link} aria-current=page>FAQ</a>")),
-                "{faq}"
-            );
-            assert!(faq.contains("Skhid-defender-setup.cmd"));
-            let home = page_as(lang, Form::None26, "", false, None).body;
-            assert!(home.contains(&format!("{link}>FAQ</a>")), "{home}");
-            assert!(
-                !page_as(lang, Form::None, "", false, None)
-                    .body
-                    .contains(&link)
-            );
-        }
     }
 
     #[test]
