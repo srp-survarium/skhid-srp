@@ -187,6 +187,19 @@ impl ClassAim {
         Self { pistol: same, smg: same, rifle: same, mg: same, shotgun: same, marksman: same, bolt: same }
     }
 
+    /// The class's factors, to change.
+    pub fn of_mut(&mut self, class: WeaponClass) -> &mut (f32, f32, f32) {
+        match class {
+            WeaponClass::Pistol => &mut self.pistol,
+            WeaponClass::Smg => &mut self.smg,
+            WeaponClass::Rifle => &mut self.rifle,
+            WeaponClass::MachineGun => &mut self.mg,
+            WeaponClass::Shotgun => &mut self.shotgun,
+            WeaponClass::Marksman => &mut self.marksman,
+            WeaponClass::Bolt => &mut self.bolt,
+        }
+    }
+
     pub fn of(&self, class: WeaponClass) -> (f32, f32, f32) {
         match class {
             WeaponClass::Pistol => self.pistol,

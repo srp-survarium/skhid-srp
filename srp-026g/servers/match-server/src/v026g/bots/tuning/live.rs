@@ -35,6 +35,7 @@ use session::v026g::bot_desk::Refused;
 use session::v026g::bot_desk::Text;
 
 use super::BotTier;
+use super::Check;
 use crate::v026g::bots::guns::WeaponClass;
 use super::LoadedTuning;
 use super::Tuning;
@@ -208,6 +209,12 @@ impl Knob {
         if !(x > 0.0 && x <= cap) {
             return Err(format!("{x} % is over the class's cap of {cap} % (or not over 0)"));
         }
+        if let Some((low, _)) = self.usable(file).filter(|&(low, _)| x < f64::from(low)) {
+            let (_, middle, _) = file.aim.class_aim.of(class);
+            return Err(format!(
+                "{x} % is under {low:.1} %, the lowest that keeps the class's line rising with its skill-0.5 factor {middle}"
+            ));
+        }
         let points = file.calibration.of(class).ok_or("the class has no bench points")?;
         let factor = points.factor_for(x as f32).ok_or_else(|| {
             let (low, high) = points.rates().unwrap_or_default();
@@ -256,15 +263,47 @@ impl Knob {
         self.unit.value(leaf.as_f64().ok_or("not a number")?)
     }
 
-    /// The values it takes, over the tuning `file` (a rate: its calibration's span, up to the cap).
+    /// The values it takes, over the tuning `file` (a rate: the class's usable span, [`Knob::usable`]).
     fn limits(&self, file: &Tuning) -> String {
         match self.unit {
-            Unit::Hits { class, cap } => match file.calibration.of(class).and_then(|points| points.rates()) {
-                Some((low, high)) => format!("{low}–{} % (cap {cap})", f64::from(high).min(cap)),
+            Unit::Hits { cap, .. } => match self.usable(file) {
+                Some((low, high)) => format!("{low:.1}–{high:.1} % (cap {cap})"),
                 None => "—".to_owned(),
             },
             unit => unit.limits(),
         }
+    }
+
+    /// The rates a class's row can be set to over the tuning `file`: from the rate at the widest skill-1 factor that
+    /// keeps its line rising with the file's skill-0 and 0.5 factors ([`super::AimTuning`]'s check: within a half the
+    /// factor may grow at most as fast as the wander shrinks; fx-gear, 2026-11-02) to the calibration's top, at most the
+    /// cap. `None`: no points, or not even the calibration's narrowest factor keeps it rising.
+    fn usable(&self, file: &Tuning) -> Option<(f32, f32)> {
+        let Unit::Hits { class, cap } = self.unit else {
+            return None;
+        };
+        let points = file.calibration.of(class)?;
+        let (narrowest, widest) = (points.0.first()?.0, points.0.last()?.0);
+        let rises = |factor: f32| {
+            let mut aim = file.aim.clone();
+            aim.class_aim.of_mut(class).2 = factor;
+            aim.check().is_ok()
+        };
+        if !rises(narrowest) {
+            return None;
+        }
+        let widest = if rises(widest) {
+            widest
+        } else {
+            let (mut good, mut bad) = (narrowest, widest);
+            for _ in 0..32 {
+                let middle = (good + bad) / 2.0;
+                if rises(middle) { good = middle } else { bad = middle }
+            }
+            good
+        };
+        let (_, top) = points.rates()?;
+        Some((points.rate_at(widest)?, top.min(cap as f32)))
     }
 
     /// What the page shows beside the value: a class's factors in `tuning`.
@@ -1054,7 +1093,11 @@ mod tests {
         let group = view.groups.iter().find(|group| group.key == "hits").unwrap();
         assert_eq!(group.source.as_deref(), Some(shipped.calibration.source.as_str()));
         let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
-        assert_eq!((rifle.value.as_str(), rifle.default.as_str(), rifle.limits.as_str()), ("18.5", "18.5", "13.6–20 % (cap 20)"));
+        assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.5", "18.5"));
+        // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
+        // to ~1.49, ~17.4 %) to the cap.
+        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–20.0 % (cap 20)"), "{}", rifle.limits);
+        let low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
         assert_eq!(rifle.beside.as_deref(), Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"));
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
         assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
@@ -1072,9 +1115,11 @@ mod tests {
         let kept: serde_json::Value = serde_json::from_slice(&std::fs::read(&changes).unwrap()).unwrap();
         assert_eq!(kept["aim"]["class_aim"]["rifle"].as_array().map(Vec::len), Some(3));
         assert_eq!(LiveTuning::new(LoadedTuning::default(), Some(changes.clone())).for_match(), next);
-        // Refused whole: over the cap, outside the points, the pistols, not a number, a line that would fall (the bolt at
-        // 27 %: a factor near 4.5 over its skill-0.5 one).
+        // Refused whole: over the cap, outside the points, the pistols, not a number, a line that would fall (under the
+        // usable span: the rifles just under it, the bolt at 27 %, a factor near 4.5 over its skill-0.5 one).
+        let under = format!("{:.1}", low - 0.2);
         for bad in [
+            ("aim.class_aim.rifle", under.as_str()),
             ("aim.class_aim.rifle", "21"),
             ("aim.class_aim.rifle", "13"),
             ("aim.class_aim.marksman", "33"),
@@ -1085,7 +1130,11 @@ mod tests {
             assert!(set(&live, &[bad]).is_err(), "{bad:?}");
             assert_eq!(live.for_match(), next, "{bad:?}");
         }
-        // The bolts at their cap and the DMRs inside their scope's flat stretch.
+        let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
+        assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
+        // The rifles at the bottom of their span, the bolts at their cap and the DMRs inside their scope's flat stretch.
+        let at_low = format!("{:.1}", low + 0.1);
+        set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
         set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "29.4")]).unwrap();
         let next = live.for_match();
         assert!((next.tuning().aim.class_aim.bolt.2 - shipped.calibration.bolt.factor_for(40.0).unwrap()).abs() < 1e-4);
