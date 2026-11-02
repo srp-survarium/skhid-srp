@@ -73,6 +73,15 @@ pub struct UnstickTuning {
     /// Plant's spawn ledge: 9 live bots held 1-9 minutes). On by default: the by-side bench of the 16 offered maps (192
     /// pairs) had 16.6 stuck notes a bot-hour against 19.6 (z -4.8), no self-kill either side, no cost to score or deliveries.
     pub drop_shut: Option<DropShut>,
+    /// A drop shut ([`Self::drop_shut`]) keeps a search off its landing only while the body stands over the landing by more than
+    /// the least a drop off a top falls below the feet (`stuck::DROP_SHUT_BELOW_M`, 0.2 m): the drop was shut at its top, and a
+    /// body that got down to the landing's height anyway (a fall, a slide, another way) walks on those floors. A251, PROVEN by
+    /// the route search's checks one by one: Vector Laboratory, a body at 11.6 whose only way out lay over the landings of the
+    /// drops it had shut (11.59; each new shut lengthened them, to 184 s) had no way for 63 s, 635 of the 64 matches' 4,311
+    /// no-way ticks. On by default (A251's bench, both switches, 64 matches: no-way ticks 4,311 -> 2,970, Vector Laboratory day 2
+    /// 720 -> 144, stuck notes 146 -> 143); the all-off arm keeps it (its old value is the proven trap). Off: every shut drop's
+    /// landing is kept off, wherever the body is.
+    pub drop_shut_from_top: bool,
 }
 
 /// How a drop the body was held at the top of is shut ([`UnstickTuning::drop_shut`]).
@@ -112,6 +121,7 @@ impl Default for UnstickTuning {
             home_no_way_ms: Some(20_000),
             home_gate_max_ms: Some(90_000),
             drop_shut: Some(DropShut::default()),
+            drop_shut_from_top: true,
         }
     }
 }

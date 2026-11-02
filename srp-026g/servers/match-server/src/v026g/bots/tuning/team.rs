@@ -115,6 +115,12 @@ pub struct Concede {
     pub lone_peek: Option<LonePeek>,
     /// A shooter's death keeps the tries on his areas for a while ([`KeepAfterDeath`]); none: his death opens them.
     pub keep_after_death: Option<KeepAfterDeath>,
+    /// The fight side ([`RefuseFights`]): fight and roam plays aimed into a conceded area, or like the last failed try,
+    /// are refused, no K2 job opens on such an area, and a job on an area conceded ends. None (the default, A256 look 4
+    /// P1): only the objective's plays are weighed. Off by its benches against the live-like camper (look 3, 256 pairs: the
+    /// camper's kills 307 vs 315, z -0.33, while its Roam fallback stood with a goal and no route +15.8 %, z +3.4; look 4
+    /// with [`RoamAvoid`], 256 pairs: camper kills 327 vs 327, the stand +6.5 %, z +1.6).
+    pub refuse_fights: Option<RefuseFights>,
 }
 
 impl Default for Concede {
@@ -127,7 +133,46 @@ impl Default for Concede {
             objective_weight: 0.5,
             lone_peek: None,
             keep_after_death: Some(KeepAfterDeath::default()),
+            refuse_fights: None,
         }
+    }
+}
+
+/// [`Concede::refuse_fights`]: the fight side of no feeding. Look 3 (A253, `fx-threat-obj-nofeed-bench.md`): the like-last
+/// rule refused 1.19 M fight and roam candidates, and a bot whose fight plays it refused fell back to a Roam of a side's
+/// route (`Roam None`, never weighed): the team held Roam 53.5 % longer, its Roams ended "the route turned bad" 489 vs 231
+/// times (a route's next point by a mate's death of the last 10 s, `plays/roam.rs`), and it stood with a goal and no
+/// route 15.8 % more (z +3.4).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RefuseFights {
+    /// [A256 P2] A Roam the team draws skips the routes through a mate's recent death ([`RoamAvoid`]). None: as before (only
+    /// a route whose first point is by a death of the last 10 s is skipped; deaths of the last 20 s weigh a route down).
+    pub roam_avoid: Option<RoamAvoid>,
+}
+
+/// [A256 P2] While the team refuses fights into its tried areas, a Roam's route is drawn only among the routes with no point
+/// within the step's turned-bad reach of a mate's death of the last `window_s`: the bot whose fight plays were refused goes
+/// another way, as a human team does after a pick (no second swing at the same angle: another position, or wait), instead of
+/// walking a route into the ground it was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RoamAvoid {
+    /// How long a mate's death keeps the routes by it out of the draw, s: the like-last rule's window (`Concede::retry_s`;
+    /// humans' re-entry into a camper's lane p75 32 s). LIKELY.
+    pub window_s: f32,
+}
+
+impl Default for RoamAvoid {
+    fn default() -> Self {
+        Self { window_s: 30.0 }
+    }
+}
+
+impl RoamAvoid {
+    /// [`Self::window_s`] in ms.
+    pub fn window_ms(&self) -> u32 {
+        (self.window_s.max(0.0) * 1000.0) as u32
     }
 }
 
@@ -534,8 +579,13 @@ pub struct ThreatTuning {
     /// did not replicate. Its detours (+46-59 %) pass known enemies no more than the ways they replace, and die no more.
     pub sniper_memory: Option<SniperMemory>,
     /// design-p1c §3 "no feeding" and items 11, 15 ([`Concede`], `concede.rs`): a team's failed tries on a shooter's area
-    /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. OFF by
-    /// default: not built into the jobs yet (the memory and its rules only).
+    /// counted per area; after enough, the area is conceded for a while; a retry must differ from the last. ON by default
+    /// with its objective side only (`Concede::refuse_fights` none, A256 look 4 P1): an objective play aimed into a
+    /// conceded area, or like the last failed try there (the same lane within 30 s of a mate's death), is weighed down,
+    /// never refused. By side against the live-like camper (`camper-cell-live.env`, 256 pairs, 512 matches): collectors
+    /// dying with their battery in a held lane of their team 198 vs 263 (-24.7 %, paired z -2.65; look 3, with the fight
+    /// side too: 168 vs 268, z -4.0), deliveries 853 vs 856, score -0.1 % (z -0.2), no guard flagged, stood with a goal and
+    /// no route +4.7 % (z +1.5); the camper's kills 364 vs 368 (z -0.23).
     pub concede: Option<Concede>,
     /// design-p1c §1, items 13, 14, 16, 18 ([`Breach`], `breach.rs`): the group push on a held spot whose Flank failed or
     /// found no flank spot. OFF by default until its by-side bench.
@@ -720,7 +770,7 @@ impl Default for ThreatTuning {
             answer_sniper: false,
             sniper_lanes: false,
             sniper_memory: Some(SniperMemory::default()),
-            concede: None,
+            concede: Some(Concede::default()),
             breach: None,
             pair_target: None,
             walk_watch: None,
@@ -889,6 +939,14 @@ pub struct ThinkTuning {
     /// the first leg of its route is the drop off the edge. Off: it has
     /// no start floor, so no route, and it stands (`no_way`).
     pub stranded_start: bool,
+    /// A goal on no floor near it (none within `path::GOAL_REACH_M` across and `path::GOAL_RISE_M` up or down: no search
+    /// can reach it) is learned as no way, from a start floor, as a goal whose search found none (`Bot::no_way_to`): its
+    /// play is asked again (`goal_shut`). A251, PROVEN by the route search's checks: Vostok Radar Station day 4, goals 3.4 m
+    /// from the nearest floor (at the height of the floors round them) ran no search, were never learned, and held one body
+    /// 20-35 s at a time. On by default (A251's bench, both switches, 64 matches: no-way ticks 4,311 -> 2,970, Vostok Radar
+    /// Station day 4 690 -> 106); the all-off arm keeps it (its old value is the proven hold). Off: such a goal is asked every
+    /// 0.5 s while the play keeps it.
+    pub goal_off_floor_no_way: bool,
     /// A walked leg of a bot's route that crosses a doorway gets a corner at the middle of the opening
     /// ([`super::super::doors::centre_of`], `Route::door_centred`) and the walk steers at it before the corner after it
     /// (`Route::gate_within`): the walk's look-ahead cuts the corner before a doorway and the body arrives off the route,
@@ -924,6 +982,7 @@ impl Default for ThinkTuning {
             shut_in_gate: true,
             rest_off_lip: true,
             stranded_start: true,
+            goal_off_floor_no_way: true,
             door_centres: false,
             wall_clear_corners: false,
             stamina: true,

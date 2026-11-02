@@ -152,6 +152,8 @@ pub use team::Personalities;
 pub use team::Personality;
 pub use team::PinFromCover;
 pub use team::PinRule;
+pub use team::RefuseFights;
+pub use team::RoamAvoid;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
 pub use team::SniperMemory;
@@ -598,18 +600,30 @@ mod tests {
         assert_eq!(off.feel.carrier_jump_m, None);
         assert_eq!(off.sense.sprint_body_mps, None);
         assert_eq!(off.unstick.unknown_meant_needs_keys, defaults.unstick.unknown_meant_needs_keys);
-        // Under a section that is none in the defaults (`threat.concede`): a `null` inside it is none too, a field
-        // left out is the section's own default, and a `null` for the section is none. (`keep_after_death`: on in the
-        // section's default, so its `null` is the case.)
-        assert_eq!(defaults.threat.concede, None);
+        // Under a section that is none in the defaults (`threat.walk_watch`): a `null` inside it is none too, a field
+        // left out is the section's own default, and a `null` for the section is none. (`known`: on in the section's
+        // default, so its `null` is the case.)
+        assert_eq!(defaults.threat.walk_watch, None);
+        let known_off = Tuning::parse(r#"{"threat":{"walk_watch":{"known":null}}}"#).unwrap();
+        assert_eq!(known_off.threat.walk_watch, Some(WalkWatch { known: None, ..WalkWatch::default() }));
+        let none = Tuning::parse(r#"{"threat":{"walk_watch":null}}"#).unwrap();
+        assert_eq!(none.hash(), defaults.hash());
+        // A section on in the defaults (`threat.concede`, A256): a `null` inside it is none, a field left out keeps the
+        // default, a `null` for the section is none.
+        assert_eq!(defaults.threat.concede, Some(Concede::default()));
         let keep_off = Tuning::parse(r#"{"threat":{"concede":{"keep_after_death":null}}}"#).unwrap();
         assert_eq!(keep_off.threat.concede, Some(Concede { keep_after_death: None, ..Concede::default() }));
         let fails = Tuning::parse(r#"{"threat":{"concede":{"fails":3}}}"#).unwrap();
         assert_eq!(fails.threat.concede, Some(Concede { fails: 3, ..Concede::default() }));
+        // [A256] The look 4 arms: P1 the fight side off; P2 its roam avoid on.
+        let p1 = Tuning::parse(r#"{"threat":{"concede":{"refuse_fights":null}}}"#).unwrap();
+        assert_eq!(p1.threat.concede, Some(Concede { refuse_fights: None, ..Concede::default() }));
+        let p2 = Tuning::parse(r#"{"threat":{"concede":{"refuse_fights":{"roam_avoid":{}}}}}"#).unwrap();
+        let avoid = RefuseFights { roam_avoid: Some(RoamAvoid::default()) };
+        assert_eq!(p2.threat.concede, Some(Concede { refuse_fights: Some(avoid), ..Concede::default() }));
         assert!(Concede::default().keep_after_death.is_some());
-        let none = Tuning::parse(r#"{"threat":{"concede":null}}"#).unwrap();
-        assert_eq!(none.hash(), defaults.hash());
-        // The same through `apply_patch` over another base (the bench's way): over all-off too.
+        assert_eq!(Tuning::parse(r#"{"threat":{"concede":null}}"#).unwrap().threat.concede, None);
+        // The same through `apply_patch` over another base (the bench's way): over all-off too, where the section is none.
         let mut value = serde_json::to_value(Tuning::all_off()).unwrap();
         Tuning::apply_patch(&mut value, serde_json::json!({"threat": {"concede": {"keep_after_death": null}}})).unwrap();
         let read = Tuning::from_value(value).unwrap();
@@ -705,7 +719,9 @@ mod tests {
             "/sense/shots",
             "/sense/sprint_body_mps",
             "/sense/use_ray_m",
+            "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/unstick/drop_shut_from_top",
         ];
         // Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
         // "smarter, never cheaters"): the patch never names them either, so the all-off arm keeps the default.

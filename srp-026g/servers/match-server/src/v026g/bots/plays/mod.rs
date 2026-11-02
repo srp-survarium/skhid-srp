@@ -1041,7 +1041,8 @@ impl Ctx<'_> {
 
     /// [threat.concede] A play's share of its score for aiming into a conceded area (design-p1c §3: its target within the
     /// shooter's area or in his lanes, `Picture::conceded_at`): a fight or roam play is refused (0), so the bot plays
-    /// elsewhere; an objective or alarm play is weighed by `Concede::objective_weight`, never refused, so another objective
+    /// elsewhere (with `Concede::refuse_fights` on; off, it is not weighed); an objective or alarm play is weighed by
+    /// `Concede::objective_weight`, never refused, so another objective
     /// goes first and the only one is not stalled (item 13). 1 with the switch off, nothing conceded, no place for the
     /// target, or a play for the bot itself (Retreat, Heal, Resupply).
     ///
@@ -1096,6 +1097,8 @@ impl Ctx<'_> {
                 tally(self.me.team, weighed);
                 concede.objective_weight()
             }
+            // The fight side off (A256 P1): the objective's plays only are weighed.
+            Rank::Fight | Rank::Roam if concede.refuse_fights.is_none() => 1.0,
             Rank::Fight | Rank::Roam => {
                 tally(self.me.team, refused);
                 0.0
