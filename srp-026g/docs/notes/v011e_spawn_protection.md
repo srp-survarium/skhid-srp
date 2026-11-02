@@ -2,7 +2,7 @@
 
 The owner's rule and what it changes. Data: `projects/<map>/<project>/client_project`
 `server_objects/respawn_points[i]/invulnerability_time`; the change ships as a resources.db patch
-(`scripts/content-edit/v011e-spawn-protection-1.json`, one `set` a respawn point).
+(`scripts/content-edit/maps.tsv`, the `spawn_protection_s` column).
 
 - **Decision (the owner, 2026-10-21):** after "v0.11 maps have very fast protection drop off
   compared to other maps": "just make it 6 s and that's it".

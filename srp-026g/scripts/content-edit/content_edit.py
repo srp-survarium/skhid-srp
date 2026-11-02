@@ -748,7 +748,8 @@ def throwable_card(buf):
 
 # <table>.tsv, a row each of what `configs` names, a column a stat:
 #   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
-#                      files, each the row's (a level's projects of every weather); a list of such globs or
+#                      files, each the row's (a level's projects of every weather: a cell goes into those
+#                      that have its key, and one at least must); a list of such globs or
 #                      of files (a row each, by its name)
 #   'file#list[key]'   a row per entry of the indexed table `list`, named by its `key`
 #   'file'             no `columns`: a key/value table (`key  value`), a row a key path; the config is
@@ -857,6 +858,19 @@ STATS = {
                   'active_pierce_mul', 'active_damage_add', 'active_pierce_add', 'absorb', 'regen', 'regen_timeout',
                   'regen_threshold'},
         'add': {'passive_aim', 'active_aim', 'active_stopping'},  # Spring's, for client patch 54
+    },
+    'maps': {
+        'configs': 'projects/*/*/client_project',
+        'columns': {
+            'spawn_protection_s': 'server_objects/respawn_points[*]/invulnerability_time',
+            'spawn_zone_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_duration',
+            'spawn_zone_fade_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_attenuation',
+            'resupply_ms': 'client_objects[game_object_type=resupply_zone]/resupply_time_in_ms',
+            'artefact_search_s': 'client_objects[game_object_type=artefact_container]/artefacts_search_time_sec',
+            'artefact_cooldown_s': 'client_objects[game_object_type=artefact_container]/artefacts_cooldown_time_sec',
+        },
+        'match': {'spawn_protection_s', 'spawn_zone_ms', 'spawn_zone_fade_ms', 'resupply_ms', 'artefact_search_s',
+                  'artefact_cooldown_s'},
     },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
@@ -1012,12 +1026,12 @@ def write_cell(buf, off, cell):
 
 
 def stats_values(buf, off, columns, row):
-    """{column: [cell of each value its key path selects under `off`, in order]}; a selector that selects
-    nothing of a list the config has is refused."""
+    """{column: [cell of each value its key path selects under `off`, in order]}; `[*]` or `[i]` that
+    selects nothing of a list the config has is refused (`[field=cell]` selects the entries there are)."""
     out = {}
     for c, key in columns.items():
         out[c] = [cell_text(buf, o) for _, o in resolve(buf, key, off)]
-        if not out[c] and '[' in key and resolve(buf, key[:key.index('[')], off):
+        if not out[c] and re.search(r'\[(\*|\d+)\]', key) and resolve(buf, key[:key.index('[')], off):
             raise ValueError('row %s: %s matches nothing' % (row, key))
     return out
 
@@ -1027,10 +1041,17 @@ def stats_cells(buf, off, columns, row):
     return {c: '|'.join(sorted(set(v))) for c, v in stats_values(buf, off, columns, row).items()}
 
 
-def stats_differences(buf, off, columns, cells, row):
-    """[(column, key path, cell, config value)] where the values under `off` disagree with the row."""
+def stats_differences(buf, off, columns, cells, row, present=()):
+    """[(column, key path, cell, config value)] where the values under `off` disagree with the row; a
+    column of `present` (one another file of the row has) this file lacks is none."""
     have = stats_cells(buf, off, columns, row)
-    return [(c, key, cells[c], have[c]) for c, key in columns.items() if not same_cell(cells[c], have[c])]
+    return [(c, key, cells[c], have[c]) for c, key in columns.items()
+            if not same_cell(cells[c], have[c]) and (have[c] or c not in present)]
+
+
+def stats_present(files, places, columns, row):
+    """The columns some file of a row has: a row of several files writes a key into those that have it."""
+    return {c for p, off in places for c, v in stats_values(files[p], off, columns, row).items() if v}
 
 
 def stats_unmatched(category, rows, targets, table):
@@ -1046,9 +1067,11 @@ def stats_problems(category, columns, rows, targets, files, table):
     for row, places in targets.items():
         for p, off in places if row in rows else ():
             try:
+                present = stats_present(files, places, columns, row)
                 out += ['%s: %s (%s) is %s, its row says %s' % (stats_label(category, row, p), column, key,
                                                                 have or 'absent', cell or 'nothing')
-                        for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row)]
+                        for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row,
+                                                                         present)]
             except ValueError as why:
                 out.append('%s: %s' % (stats_label(category, row, p), why))
     return out
@@ -1067,10 +1090,11 @@ def stats_write(category, columns, rows, data, table):
         raise ValueError(unmatched[0])
     written = {p: [] for p in made}
     for row, places in sorted(targets.items()):
+        present = stats_present(data, places, columns, row)
         for p, off in places:
             b = data[p]
             root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
-            for column, key, cell, have in stats_differences(b, off, columns, rows[row], row):
+            for column, key, cell, have in stats_differences(b, off, columns, rows[row], row, present):
                 spots = resolve(b, key, off)
                 parent, _, name = key.rpartition('/')
                 tables = resolve(b, parent, off) if parent else [('', off)]
@@ -1087,7 +1111,7 @@ def stats_write(category, columns, rows, data, table):
                         write_cell(b, o, cell)
                         written.setdefault(p, []).append(root + at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
-            if stats_differences(b, off, columns, rows[row], row):
+            if stats_differences(b, off, columns, rows[row], row, present):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
                 written.setdefault(p, []).append(set_prop(b, prop_id, text, want))
@@ -1161,9 +1185,9 @@ def dump_stats(name, live):
         cells = {c: set() for c in category['columns']}
         for p, off in places:
             for c, v in stats_values(data[p], off, category['columns'], row).items():
-                cells[c].update(v or [''])
+                cells[c].update(v)
         mixed += ['row %s %s: %s' % (row, c, ' | '.join(sorted(v))) for c, v in cells.items() if len(v) > 1]
-        lines.append('\t'.join([row] + [v.pop() for v in cells.values()]))
+        lines.append('\t'.join([row] + [v.pop() if v else '' for v in cells.values()]))
     if mixed:
         sys.exit('values that differ within a row (a cell unifies them: pick one):\n' + '\n'.join(mixed))
     print('\n'.join(lines))

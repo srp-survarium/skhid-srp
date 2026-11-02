@@ -270,25 +270,13 @@ Applied to the live configs (the stock resources.db and patches 12 to 27; the ga
 stock db's and patches 14, 20 and 22's): 56 files edited, 0 unexpected differences, one byte each.
 The simulation changes (the `next` row of `simulation_changes.tsv`).
 
-## v011e-spawn-protection-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `server_objects/respawn_points[i]/invulnerability_time` 2 -> 6 (an int, kept) on every respawn point of `projects/v011e_level_03/{day_2,day_4}/client_project` (43 each) and `projects/v011e_level_04/{day_2,day_4}/client_project` (44 each): 174 values | the owner: the v0.11 maps' spawn protection drops off too fast, "just make it 6 s and that's it". The respawn point's loader reads it as an int in seconds (0x2F4580, kept in ms); 0.26g's maps author 6, the 0.11e source 2 s ([`../../docs/notes/v011e_spawn_protection.md`](../../docs/notes/v011e_spawn_protection.md)). No base zone, no check radii |
-
-Applied to the live projects (`v011e_level_03`'s from patch 23, `v011e_level_04`'s from patch 22;
-no later patch has them): 4 files edited, 174 values, 0 unexpected differences, one byte a point;
-in `release/build-content 28` (2026-10-22): the same, the four projects packed and the server game
-data with 6 on all 174 points.
-The simulation changes (its words in the `next` row of `simulation_changes.tsv`).
-
 ## premium-armour-1.json (2026-10-22)
 
 | change | why |
 |---|---|
 | The four premium armour pieces (`blackmarket_torso_4_premium`, `blackmarket_legs_4_premium`, `scavenger_torso_4_premium`, `scavenger_legs_4_premium`: every armour config with a base rarity): 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market) taken off `default_modifications` (`remove_item`; the plain piece's one default, 1030, 1050 or 1160, stays), `parameters/base_rarity_level` 3 -> 0 | the owner: the golden weapons' treatment for the premium armour, so that the Modification button works on it. srp gives each piece both bonuses as modifications of its own, the first two ([`../../docs/notes/premium_armour.md`](../../docs/notes/premium_armour.md)): the client never offers a default for a reroll, and a base of 3 forbade every craft |
 
-Applied in `release/build-content 28` (2026-10-22, a dry run after v011e-spawn-protection-1): 4
+Applied in `release/build-content 28` (2026-10-22, a dry run): 4
 files edited, 0 unexpected differences (the four configs are patch 21's); the server game data built
 with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse data without it
 (`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
