@@ -246,6 +246,13 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
     for group in &desk.groups {
         let settable = group.knobs.iter().any(|knob| knob.state == KnobState::Settable);
         let note = group.note.map_or(String::new(), |why| format!("<p><small>{}</small></p>", text(why)));
+        let source = group.source.as_ref().map_or(String::new(), |source| {
+            format!(
+                "<p><small>{} {}</small></p>",
+                lang.tr("Calibration:", "Калібрування:"),
+                escape(source)
+            )
+        });
         let rows: String = group
             .knobs
             .iter()
@@ -260,6 +267,10 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
                 } else {
                     escape(&knob.value)
                 };
+                let beside = knob.beside.as_ref().map_or(String::new(), |beside| {
+                    format!("<br><small>{}</small>", escape(beside))
+                });
+                let value = format!("{value}{beside}");
                 format!(
                     "<tr><td>{}<br><small>{}</small></td><td>{value}</td><td>{}</td><td>{}</td></tr>",
                     text(knob.label),
@@ -289,7 +300,7 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
         } else {
             String::new()
         };
-        groups.push_str(&format!("<h2>{}</h2>{note}{table}{reset}", text(group.title)));
+        groups.push_str(&format!("<h2>{}</h2>{note}{source}{table}{reset}", text(group.title)));
     }
     let confirm = confirm.map_or(String::new(), |reset| {
         format!(
