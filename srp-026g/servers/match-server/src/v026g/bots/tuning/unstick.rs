@@ -78,7 +78,9 @@ pub struct UnstickTuning {
     /// body that got down to the landing's height anyway (a fall, a slide, another way) walks on those floors. A251, PROVEN by
     /// the route search's checks one by one: Vector Laboratory, a body at 11.6 whose only way out lay over the landings of the
     /// drops it had shut (11.59; each new shut lengthened them, to 184 s) had no way for 63 s, 635 of the 64 matches' 4,311
-    /// no-way ticks. Off: every shut drop's landing is kept off, wherever the body is.
+    /// no-way ticks. On by default (A251's bench, both switches, 64 matches: no-way ticks 4,311 -> 2,970, Vector Laboratory day 2
+    /// 720 -> 144, stuck notes 146 -> 143); the all-off arm keeps it (its old value is the proven trap). Off: every shut drop's
+    /// landing is kept off, wherever the body is.
     pub drop_shut_from_top: bool,
 }
 
@@ -119,7 +121,7 @@ impl Default for UnstickTuning {
             home_no_way_ms: Some(20_000),
             home_gate_max_ms: Some(90_000),
             drop_shut: Some(DropShut::default()),
-            drop_shut_from_top: false,
+            drop_shut_from_top: true,
         }
     }
 }

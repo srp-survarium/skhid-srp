@@ -705,7 +705,9 @@ mod tests {
             "/sense/shots",
             "/sense/sprint_body_mps",
             "/sense/use_ray_m",
+            "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/unstick/drop_shut_from_top",
         ];
         // Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
         // "smarter, never cheaters"): the patch never names them either, so the all-off arm keeps the default.
