@@ -241,9 +241,8 @@ pub struct BodyTrack {
     /// before to the last one (by the bot's own keys, on the walk grid):
     /// how far it meant to go while the worlds show how far it went.
     last_meant: Option<f32>,
-    /// The bench's: where the reckoning took the body from the world before to the last one, the net of
-    /// [`Self::last_meant`]'s way (a way out and back nets nothing).
-    #[cfg(test)]
+    /// Where the reckoning took the body from the world before to the last one: the net of [`Self::last_meant`]'s way (a way out
+    /// and back nets nothing).
     last_meant_net: Option<Vec3>,
     /// The last accepted world's tick and the time since the world before it
     /// of the same life ([`Self::gap_of`]).
@@ -320,10 +319,9 @@ impl BodyTrack {
         self.last_meant
     }
 
-    /// The bench's: the net of [`Self::last_meant`]'s way, and the last world's tick.
-    #[cfg(test)]
-    pub fn last_meant_net(&self) -> Option<(u32, Vec3)> {
-        self.fix.as_ref().map(|fix| fix.time).zip(self.last_meant_net)
+    /// Where the body was reckoned to move between the last two worlds of this life, net ([`Self::last_meant`]'s way's ends).
+    pub fn last_meant_net(&self) -> Option<Vec3> {
+        self.last_meant_net
     }
 
     /// The time, ms, between the world of tick `time` and the one before it
@@ -478,10 +476,7 @@ impl BodyTrack {
             }
             way
         });
-        #[cfg(test)]
-        {
-            self.last_meant_net = reckoned.zip(before).map(|(reckoned, from)| reckoned - from);
-        }
+        self.last_meant_net = reckoned.zip(before).map(|(reckoned, from)| reckoned - from);
         let node = grid.and_then(|grid| {
             let nearest = || grid.locate(feet, LOCATE_M);
             let under = || grid.locate_within(feet, LOCATE_M, FIX_ABOVE_M).or_else(nearest);

@@ -308,7 +308,7 @@ impl RouteTopic for Stuck {
                 && self.nets[place].back().is_none_or(|n| n.0 < time)
             {
                 let ring = &mut self.nets[place];
-                ring.push_back((time, track.last_meant_net().filter(|n| n.0 == time).map(|n| n.1)));
+                ring.push_back((time, track.last_meant_net()));
                 while ring.front().is_some_and(|n| n.0 + NETS_KEPT_MS < time) {
                     ring.pop_front();
                 }

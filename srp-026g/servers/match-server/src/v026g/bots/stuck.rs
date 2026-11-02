@@ -59,7 +59,7 @@ use mapdata::Vec3;
 
 use super::hazards::ZoneSet;
 use super::path::Route;
-use super::tuning::UnstickTuning;
+use super::tuning::{StuckWindow, UnstickTuning};
 use crate::v026g::drive::key;
 
 /// Worlds this far apart in time…
@@ -204,9 +204,8 @@ pub enum Recovery {
 
 #[derive(Clone, Debug, Default)]
 pub struct Stuck {
-    /// The last world's feet and time while walking, and how far its keys
-    /// meant to move it since (none: not known).
-    walked_from: Option<(u32, Vec3, Option<f32>)>,
+    /// The reckoned watch's window ([`Self::reckoned`]).
+    walked_from: Option<WalkWindow>,
     /// How far its keys meant to move it over the last window the reckoned watch checked (none: not known).
     meant_checked: Option<f32>,
     /// The bench's: the first world of the last window the reckoned watch checked (time, feet).
@@ -254,6 +253,16 @@ pub struct Stuck {
     fall_lock_until: u32,
     /// The progress watch's window ([`Self::no_progress`]).
     progress: Option<ProgressWindow>,
+}
+
+/// The window of the reckoned watch: its first world's time and feet, and how far the bot's keys meant to move the body since, the
+/// way's length and its net (none: not known).
+#[derive(Clone, Copy, Debug)]
+struct WalkWindow {
+    at: u32,
+    from: Vec3,
+    way: Option<f32>,
+    net: Option<Vec3>,
 }
 
 /// The window of the progress watch: since when, how far along the route the body was then, and which route (its goal and length).
@@ -356,7 +365,7 @@ impl Stuck {
     /// A world showed the body at `feet` while it had a route since the
     /// last one, and its keys meant to move it `meant` metres between the
     /// two worlds (none: not known, as at a life's first world; then it is
-    /// taken as walking); `keys`: the keys the world shows held. `Some`
+    /// taken as walking), `net` of that way's ends; `keys`: the keys the world shows held. `Some`
     /// when it is stuck: what to do about it, and whether the held keys
     /// alone told ([`HELD_AFTER_MS`]; the reckoning meant no walk).
     ///
@@ -370,7 +379,7 @@ impl Stuck {
         meant: Option<f32>,
         keys: u32,
     ) -> Option<(Recovery, bool)> {
-        self.walking_in(time, feet, meant, keys, &crate::v026g::bots::tuning::Tuning::all_off().unstick)
+        self.walking_in(time, feet, meant, None, keys, &crate::v026g::bots::tuning::Tuning::all_off().unstick)
     }
 
     /// [`Self::walking`] under `rule`.
@@ -379,6 +388,7 @@ impl Stuck {
         time: u32,
         feet: Vec3,
         meant: Option<f32>,
+        net: Option<Vec3>,
         keys: u32,
         rule: &UnstickTuning,
     ) -> Option<(Recovery, bool)> {
@@ -390,7 +400,7 @@ impl Stuck {
             return None;
         }
         let by_keys = self.held(time, feet, keys);
-        let by_reckoning = self.reckoned(time, feet, meant, keys, rule);
+        let by_reckoning = self.reckoned(time, feet, meant, net, keys, rule);
         if !(by_keys || by_reckoning) {
             return None;
         }
@@ -434,8 +444,8 @@ impl Stuck {
         Some((recovery, by_keys && !by_reckoning))
     }
 
-    /// For a note of a stuck body the reckoned watch told of: how far its keys meant to move it over the window
-    /// (none: not known, taken as walking).
+    /// For a note of a stuck body the reckoned watch told of: how far its keys meant to move it over the window, as
+    /// [`UnstickTuning::window`] judges it (none: not known, taken as walking).
     pub fn meant_checked(&self) -> Option<f32> {
         self.meant_checked
     }
@@ -447,12 +457,14 @@ impl Stuck {
     }
 
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
-    /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`].
+    /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`]: the way's length, or under
+    /// [`StuckWindow::Walked`] its net (`net`: this world's; none: not known, then the way's length).
     fn reckoned(
         &mut self,
         time: u32,
         feet: Vec3,
         meant: Option<f32>,
+        net: Option<Vec3>,
         keys: u32,
         rule: &UnstickTuning,
     ) -> bool {
@@ -465,18 +477,25 @@ impl Stuck {
             }
             known => known,
         };
-        let Some((at, from, meant_since)) = self.walked_from else {
-            self.walked_from = Some((time, feet, Some(0.0)));
+        let fresh = WalkWindow { at: time, from: feet, way: Some(0.0), net: Some(Vec3::ZERO) };
+        let Some(window) = self.walked_from else {
+            self.walked_from = Some(fresh);
             self.unknown_in_window = false;
             return false;
         };
         self.unknown_in_window |= unknown;
-        let meant_since = meant_since.zip(meant).map(|(a, b)| a + b);
+        let way = window.way.zip(meant).map(|(a, b)| a + b);
+        let net = window.net.zip(net).map(|(a, b)| a + b);
+        let (at, from) = (window.at, window.from);
         if time < at + STUCK_AFTER_MS {
-            self.walked_from = Some((at, from, meant_since));
+            self.walked_from = Some(WalkWindow { way, net, ..window });
             return false;
         }
-        self.walked_from = Some((time, feet, Some(0.0)));
+        self.walked_from = Some(fresh);
+        let meant_since = match rule.window {
+            StuckWindow::SinceAsked => way,
+            StuckWindow::Walked => net.map(|net| net.x.hypot(net.z)).or(way),
+        };
         self.meant_checked = meant_since;
         #[cfg(test)]
         {
@@ -1545,9 +1564,9 @@ mod tests {
         let run = |rule: &UnstickTuning, keys: u32, meant: Option<f32>| {
             let mut stuck = Stuck::default();
             // The first world starts the watch; the second has no reckoning.
-            let first = stuck.walking_in(0, spot, Some(0.0), keys, rule);
-            let second = stuck.walking_in(1_000, spot, meant, keys, rule);
-            let third = stuck.walking_in(1_600, spot, Some(0.0), keys, rule);
+            let first = stuck.walking_in(0, spot, Some(0.0), None, keys, rule);
+            let second = stuck.walking_in(1_000, spot, meant, None, keys, rule);
+            let third = stuck.walking_in(1_600, spot, Some(0.0), None, keys, rule);
             assert_eq!((first, second), (None, None));
             third.map(|(recovery, _)| recovery)
         };
@@ -1574,15 +1593,15 @@ mod tests {
         };
         let before = unknown_meant::counts();
         let mut stuck = Stuck::default();
-        stuck.walking_in(0, spot, Some(0.0), 0, &rule);
-        stuck.walking_in(1_000, spot, None, 0, &rule);
-        assert_eq!(stuck.walking_in(1_600, spot, Some(0.0), 0, &rule), None);
+        stuck.walking_in(0, spot, Some(0.0), None, 0, &rule);
+        stuck.walking_in(1_000, spot, None, None, 0, &rule);
+        assert_eq!(stuck.walking_in(1_600, spot, Some(0.0), None, 0, &rule), None);
         assert!(stuck.ended_at.is_some());
         // Walk keys held at the spot for 3 s: stuck by the keys.
         for time in [2_000, 3_000, 4_000] {
-            assert_eq!(stuck.walking_in(time, spot, Some(0.0), key::FORWARD, &rule), None);
+            assert_eq!(stuck.walking_in(time, spot, Some(0.0), None, key::FORWARD, &rule), None);
         }
-        assert!(stuck.walking_in(5_000, spot, Some(0.0), key::FORWARD, &rule).is_some());
+        assert!(stuck.walking_in(5_000, spot, Some(0.0), None, key::FORWARD, &rule).is_some());
         let after = unknown_meant::counts();
         // Other tests run at once and count too: at least ours.
         assert!(after[0] > before[0] && after[1] > before[1], "{before:?} {after:?}");
@@ -1737,6 +1756,43 @@ mod tests {
             Some(Recovery::BackOff),
             "meant 3 m"
         );
+    }
+
+    /// A body that went 1.6 m out and came back on a new route, its keys meaning that way: as it was, stuck (a walk's length meant,
+    /// the body no further than it was); with the walked window, not (the keys meant to end where it is). A body whose keys meant
+    /// 1.6 m on, twice, is stuck either way.
+    #[test]
+    fn a_way_out_and_back_is_no_stuck_with_the_walked_window() {
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let out = Vec3::new(1.6, 0.0, 0.0);
+        let run = |window: StuckWindow, back: Vec3| {
+            let mut rule = crate::v026g::bots::tuning::Tuning::all_off().unstick;
+            rule.window = window;
+            let mut stuck = Stuck::default();
+            assert_eq!(stuck.walking_in(0, spot, Some(0.0), Some(Vec3::ZERO), 0, &rule), None);
+            assert_eq!(stuck.walking_in(1_000, spot + out, Some(1.6), Some(out), 0, &rule), None);
+            stuck.walking_in(2_000, spot + out + back, Some(1.6), Some(back), 0, &rule).map(|(recovery, _)| recovery)
+        };
+        let back = Vec3::new(-1.6, 0.0, 0.0);
+        assert_eq!(run(StuckWindow::SinceAsked, back), Some(Recovery::BackOff), "as it was");
+        assert_eq!(run(StuckWindow::Walked, back), None, "out and back");
+        let pinned = |window: StuckWindow| {
+            let mut rule = crate::v026g::bots::tuning::Tuning::all_off().unstick;
+            rule.window = window;
+            let mut stuck = Stuck::default();
+            stuck.walking_in(0, spot, Some(0.0), Some(Vec3::ZERO), 0, &rule);
+            stuck.walking_in(1_000, spot, Some(1.6), Some(out), 0, &rule);
+            stuck.walking_in(2_000, spot, Some(1.6), Some(out), 0, &rule).map(|(recovery, _)| recovery)
+        };
+        assert_eq!(pinned(StuckWindow::SinceAsked), Some(Recovery::BackOff));
+        assert_eq!(pinned(StuckWindow::Walked), Some(Recovery::BackOff), "pinned");
+        // A world with no reckoning: the way's length decides, as it was.
+        let mut rule = crate::v026g::bots::tuning::Tuning::all_off().unstick;
+        rule.window = StuckWindow::Walked;
+        let mut stuck = Stuck::default();
+        stuck.walking_in(0, spot, Some(0.0), Some(Vec3::ZERO), 0, &rule);
+        stuck.walking_in(1_000, spot + out, Some(1.6), None, 0, &rule);
+        assert!(stuck.walking_in(2_000, spot, Some(1.6), Some(back), 0, &rule).is_some(), "net not known");
     }
 
     /// Each time again at the spot it backs off another way.

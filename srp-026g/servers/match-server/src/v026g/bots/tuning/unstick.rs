@@ -73,6 +73,24 @@ pub struct UnstickTuning {
     /// Plant's spawn ledge: 9 live bots held 1-9 minutes). On by default: the by-side bench of the 16 offered maps (192
     /// pairs) had 16.6 stuck notes a bot-hour against 19.6 (z -4.8), no self-kill either side, no cost to score or deliveries.
     pub drop_shut: Option<DropShut>,
+    /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
+    /// meant 1.2 m) judges a window by (A240b).
+    pub window: StuckWindow,
+}
+
+/// What the reckoned stuck watch judges a window by ([`UnstickTuning::window`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StuckWindow {
+    /// As it was: from the first world it was asked at since its last check, however long before (a world with no route to walk
+    /// does not ask it), against the length of the way the keys meant.
+    #[default]
+    SinceAsked,
+    /// The walk's own: a world with no route starts it again (a pause, as the watch's doc has it), and what the keys meant is
+    /// their net move over it, the reckoning's from each world to the next (a way out and back means none, however long). The
+    /// bench's tip (A240b, defaults, 16 maps x 6/8/10, seeds 5-7): the keys meant under 1.2 m net in most of the stuck notes, the
+    /// body's own way over the window out and back or walked on, the window spanning a route that began inside it.
+    Walked,
 }
 
 /// How a drop the body was held at the top of is shut ([`UnstickTuning::drop_shut`]).
@@ -112,6 +130,7 @@ impl Default for UnstickTuning {
             home_no_way_ms: Some(20_000),
             home_gate_max_ms: Some(90_000),
             drop_shut: Some(DropShut::default()),
+            window: StuckWindow::SinceAsked,
         }
     }
 }

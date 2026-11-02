@@ -25,6 +25,7 @@ mod walking;
 mod zones;
 
 use counters::*;
+pub(crate) use flights::StairFloors;
 
 /// What the topics share of the run: each body's feet at the last tick and its team.
 pub(super) struct RouteRun {
