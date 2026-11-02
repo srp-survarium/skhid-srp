@@ -996,9 +996,13 @@ impl WalkGrid {
     /// (`Body::slip_landings`): it goes over where a walk-off does ([`Self::walk_off_edge`], half a cell on) or where the
     /// capsule stops being held by the edge ([`WALK_OFF_REACH_M`] past the floor's centre), whichever is further, and falls about
     /// straight down, onto the highest floor lower than a step and within the harmless drop whose cell overlaps the square of the
-    /// body's radius and half a cell around that point: the bots' reckoning's slip (`body::under_edge` from `body::SUPPORT_M`
-    /// under `kin.walk_off_landing = by_speed`). Vector Laboratory's 20.6 lip: the walk-off lands 2.5 m out on 17.80, a slip on the
-    /// 16.22 ledge under the edge (two bots' FALL lines, `fx-smoke-pockets.md` §1).
+    /// body's radius and half a cell around that point, and whose free space reaches above the take-off ([`Self::open_to`]): the bots'
+    /// reckoning's slip (`body::under_edge` from `body::SUPPORT_M` under `kin.walk_off_landing = by_speed`).
+    ///
+    /// [A247] A floor with a slab, a plate or the take-off's own overhang between it and the edge is not one a falling capsule
+    /// comes down on (the client sweeps the capsule straight down, `step_down_sweep_test_impl` 0x7EA80). Taking the highest floor
+    /// of the square alone put Vector Laboratory's slips on the floors under the 20.6 walkway and under the 17.78 plate over the
+    /// 16.21 pillar top, none of which a body falling past the edge meets.
     fn slip_landing(&self, a: usize, d: usize, solids: &Solids) -> Option<u32> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
@@ -1012,7 +1016,7 @@ impl WalkGrid {
         self.floors_in([px - r, pz - r, px + r, pz + r])
             .filter(|&f| {
                 let fy = self.height[f as usize];
-                fy < h - self.body.step && fy >= h - self.body.max_drop
+                fy < h - self.body.step && fy >= h - self.body.max_drop && self.open_to(f, h)
             })
             .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
     }
@@ -1518,6 +1522,38 @@ mod tests {
         // The lip itself is as it was: still reached, still returning.
         let lip = on.locate(Vec3::new(9.875, 4.0, 2.0), 0.3).unwrap();
         assert!(on.reached(lip) && on.returns(lip));
+    }
+
+    /// [A247] A slip comes down only on a floor open above the take-off: with a shelf under the lip's own top (Vector
+    /// Laboratory's floors under the 20.6 walkway and under the 17.78 plate), higher than the ledge and in the square under the
+    /// edge, the slip still lands on the ledge past the edge, as a body falling past it does.
+    #[test]
+    fn a_slip_does_not_come_down_on_a_shelf_under_the_lip() {
+        let walker = WalkerBehaviour::BySlope;
+        let mut t: Vec<Triangle> = Vec::new();
+        // The lip, and a shelf under it reaching to 0.05 m short of its edge, 1.5 m down.
+        t.extend(quad(0.0, 0.0, 10.0, 8.0, 4.0));
+        t.extend(quad(8.5, 0.0, 9.95, 4.0, 2.5));
+        t.extend(quad(10.75, 0.0, 11.0, 4.0, 0.5));
+        t.extend(quad(11.8, 0.0, 20.0, 4.0, 2.0));
+        t.push(Triangle { v: [Vec3::new(20.0, 2.0, 0.0), Vec3::new(24.0, 4.0, 0.0), Vec3::new(24.0, 4.0, 4.0)], walker });
+        t.push(Triangle { v: [Vec3::new(20.0, 2.0, 0.0), Vec3::new(24.0, 4.0, 4.0), Vec3::new(20.0, 2.0, 4.0)], walker });
+        t.extend(quad(24.0, 0.0, 26.0, 8.0, 4.0));
+        t.extend(quad(10.0, 6.0, 24.0, 8.0, 4.0));
+        let start = [Vec3::new(5.0, 4.0, 2.0)];
+        let body = Body { slip_landings: true, ..Body::default() };
+        let area = [0.0, -1.0, 27.0, 9.0];
+        let at = |grid: &WalkGrid, x: f32, y: f32| grid.locate(Vec3::new(x, y, 2.0), 0.3).filter(|&n| (grid.position(n).y - y).abs() < 0.05);
+        // Every floor: the shelf is one, under the lip's top; the ledge is open above it.
+        let all = WalkGrid::build_with_links(&t, area, 0.25, body, OffMeshLinks::Gaps);
+        let shelf = at(&all, 9.875, 2.5).expect("the shelf is a floor under the lip");
+        assert!(!all.open_to(shelf, 4.0), "the lip is over the shelf");
+        assert!(all.open_to(at(&all, 10.875, 0.5).expect("the ledge"), 4.0), "nothing is over the ledge");
+        // The reached floors: the slip lands on the ledge; the shelf, higher and in the square, is not reached, so not kept.
+        let kept = WalkGrid::build_kept_with_links(&t, area, 0.25, body, &start, &start, OffMeshLinks::Gaps).0;
+        let ledge = at(&kept, 10.875, 0.5).expect("the ledge is kept");
+        assert!(kept.reached(ledge) && kept.in_pocket(ledge), "the slip lands on the ledge");
+        assert!(at(&kept, 9.875, 2.5).is_none_or(|n| !kept.reached(n)), "and not on the shelf");
     }
 
     fn block(x0: f32, x1: f32, y: f32, ground: f32) -> Vec<Triangle> {

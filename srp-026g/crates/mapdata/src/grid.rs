@@ -162,7 +162,8 @@ pub struct Body {
     /// edge (a face, not a floor) leaves a Drop link the client's capsule cannot walk (A206). A build input: in the key when set.
     pub drop_room: bool,
     /// [A238] Whether the floor a body comes down on when it slips off a walk-off gap drop's take-off slower than any walk-off is
-    /// flown for (`gap::WALK_OFF_SPEEDS`) is reached: the highest floor under the edge ([`WalkGrid::slip_landing`]), where the
+    /// flown for (`gap::WALK_OFF_SPEEDS`) is reached: the highest floor under the edge open above the take-off
+    /// ([`WalkGrid::slip_landing`], [`WalkGrid::open_to`]), where the
     /// link's flight lands cells out. The reach and the pockets are flooded along it too (`Wide::slips`); it is no link, so no
     /// route plans a slip and the pieces and searches are as before. A floor only a slip gets to is then reached, and a pocket
     /// when no walk returns: Vector Laboratory's 16.22 ledge under the 20.6 lip, where two bots that slipped in a fight stood
@@ -2698,6 +2699,13 @@ impl WalkGrid {
     /// The free height above the floor (`f32::MAX` under the open sky).
     pub fn headroom(&self, node: NodeId) -> f32 {
         self.ceiling[node as usize] - self.height[node as usize]
+    }
+
+    /// [A247] Whether the floor's free space reaches above `top`: no slab, plate or overhang between it and a body at that
+    /// height, so a body falling straight down from there past an edge can come down on it (a slip's landing,
+    /// [`gap`]'s `slip_landing` and the bots' reckoning's `body::under_edge`).
+    pub fn open_to(&self, node: NodeId, top: f32) -> bool {
+        self.ceiling[node as usize] > top + SAME_TOP
     }
 
     /// Whether a standing body fits (else only a crouched one).

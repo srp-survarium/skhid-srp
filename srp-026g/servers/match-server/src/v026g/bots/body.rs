@@ -740,7 +740,7 @@ pub fn slide_supported_by(
                 None => match dropped_to(grid, node, at, (mx, mz)).or_else(|| dropped_past(grid, node, point, (mx, mz))) {
                     // Too slow for a walk-off's flight: straight down onto the floor under the body, its feet where they went
                     // over; none found there (yet), over the edge all the same.
-                    Some(next) if offs == WalkOffs::Under && is_walk_off(grid, node, next) => under_edge(grid, point, base - fall_below)
+                    Some(next) if offs == WalkOffs::Under && is_walk_off(grid, node, next) => under_edge(grid, point, base, base - fall_below)
                         .map_or(Down::Unseen, |under| Down::Onto(under, Vec3::new(point.x, grid.position(under).y, point.z))),
                     Some(next) => Down::Onto(next, grid.position(next)),
                     None => Down::None,
@@ -861,13 +861,15 @@ fn walk_off_drops(grid: &WalkGrid, node: NodeId) -> impl Iterator<Item = NodeId>
         .map(|(next, _)| next)
 }
 
-/// The floor a body too slow for a walk-off's flight comes down on when it falls straight ([`WalkOffs::Under`]): the highest
-/// floor lower than `below` whose cell overlaps the square of the body's radius and half a cell around `point`, a floor of the
-/// grid whether a walk reaches it or not (Vector Laboratory's 16.22 ledge under the 20.6 lip, `fx-smoke-pockets.md`).
-fn under_edge(grid: &WalkGrid, point: Vec3, below: f32) -> Option<NodeId> {
+/// The floor a body too slow for a walk-off's flight comes down on when it falls straight ([`WalkOffs::Under`]) from the edge
+/// of a floor `top` high: the highest floor lower than `below` whose cell overlaps the square of the body's radius and half a
+/// cell around `point` and whose free space reaches above `top` ([`WalkGrid::open_to`]: no slab, plate or overhang between it
+/// and the edge, A247), a floor of the grid whether a walk reaches it or not; the grid's `slip_landing` with
+/// `grid.slip_landings`.
+fn under_edge(grid: &WalkGrid, point: Vec3, top: f32, below: f32) -> Option<NodeId> {
     let r = grid.body().radius + grid.cell_size() * 0.5;
     grid.floors_in([point.x - r, point.z - r, point.x + r, point.z + r])
-        .filter(|&n| grid.position(n).y < below)
+        .filter(|&n| grid.position(n).y < below && grid.open_to(n, top))
         .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
 }
 

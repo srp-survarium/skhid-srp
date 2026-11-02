@@ -77,11 +77,13 @@ pub struct GridTuning {
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub drop_room: bool,
     /// [A238] Whether the floor a body comes down on when it slips off a walk-off's take-off (slower than a walk-off is flown
-    /// for) is reached in the maps' walk grids (`mapdata::Body::slip_landings`): the highest floor under the edge, where the
-    /// walk-off's flight lands cells out. No link, so no route plans a slip; but a floor only a slip gets to is reached, so a
-    /// pocket when no walk returns, which the pocket marks, the escape (and its minute's self-kill) and the bench's pocket counts
-    /// then see. Vector Laboratory's 16.22 ledge under the 20.6 lip held 173-326 bot-s of the all-maps bench unseen by them
-    /// (`fx-smoke-pockets.md`, #980's bench). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    /// for) is reached in the maps' walk grids (`mapdata::Body::slip_landings`): the highest floor under the edge open above the
+    /// take-off (A247: no slab, plate or overhang between them), where the walk-off's flight lands cells out. No link, so no
+    /// route plans a slip; but a floor only a slip gets to is reached, so a pocket when no walk returns, which the pocket marks,
+    /// the escape (and its minute's self-kill) and the bench's pocket counts then see. Vector Laboratory's 16.22 ledge held
+    /// 173-326 bot-s of the all-maps bench unseen by them (#980's bench), but its walk-off ran through the walkway's 0.97 m
+    /// parapet, which `drop_room` now cuts, and the ledge lies under a plate (A247). Off (the default) until its bench. A grid
+    /// is the map's (see `gap_links`).
     pub slip_landings: bool,
     /// Whether the maps' walk grids ask a sprint jump's run-up (1.5 m straight behind its take-off) after the erosion, of the
     /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes

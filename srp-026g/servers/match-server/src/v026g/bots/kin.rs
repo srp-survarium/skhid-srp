@@ -110,11 +110,13 @@ pub enum WalkOffLanding {
     /// On the link's landing at any speed. A body that slips off slowly falls almost straight down, onto another floor: Vector
     /// Laboratory's 20.6 m lip, whose walk-off lands 2.5 m out on the 17.80 floor, put two fighting bots there at 0.03-0.12 m/s
     /// while their bodies fell onto the 16.22 ledge under the edge; believing they stood 2 m away, they walked off the ledge into
-    /// the shut pit (`fx-smoke-pockets.md` §1, PROVEN from their FALL lines).
+    /// the shut pit (`fx-smoke-pockets.md` §1, from their FALL lines in the bench's stand-in game: the walker mesh has a 0.97 m
+    /// parapet along that edge and a plate over the ledge, so the client's body does neither, A247).
     #[default]
     Link,
     /// On the link's landing only at the slowest of `gap::WALK_OFF_SPEEDS` or more; slower, on the highest floor under the body
-    /// (within its radius and half a cell, lower than a step), else held at the edge until a world shows where it is.
+    /// (within its radius and half a cell, lower than a step) open above the edge (A247: no slab, plate or overhang between
+    /// them, `WalkGrid::open_to`), else held at the edge until a world shows where it is.
     BySpeed,
 }
 
