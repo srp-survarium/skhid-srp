@@ -43,8 +43,8 @@ use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
     damage, parse_installed, parse_manifest, verdict, write_installed,
 };
-use updater_logic::network::{self, Failure};
 use updater_logic::pipe::{FromLauncher, ToLauncher, state, step};
+use updater_logic::problem::{Failed, Fault, Miss, Problem, Removal, Where};
 use updater_logic::sha256::{digest, to_hex};
 use updater_logic::url::{self, Url};
 use updater_logic::zip;
@@ -52,7 +52,7 @@ use windows_sys::Win32::System::Environment::GetCommandLineW;
 use windows_sys::Win32::System::Threading::ExitProcess;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL, MB_SETFOREGROUND, MB_TOPMOST,
-    MessageBoxW,
+    MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
 };
 
 use crate::http::HttpError;
@@ -120,22 +120,29 @@ struct Session {
     named_file: bool,
     /// What the server said that this run acted on, for [`gate::watch`].
     seen: Option<gate::Seen>,
-    /// The update server could not be reached at its last request, and
-    /// how (its host): the run's failure, if it ends in one, is said in the
-    /// box of `updater_logic::network`, in the launcher's language.
-    unreachable: Option<(Failure, String)>,
+    /// The last thing of the run whose every address failed: the update
+    /// server not reached at its last request, or a file none of whose
+    /// addresses gave it. The run's failure, if it ends in one, is said in
+    /// its box (`updater_logic::problem`), in the launcher's language.
+    trouble: Option<Failed>,
 }
 
 impl Session {
     /// Notes how the update server answered a request: not reached
     /// (`updater_logic::network`) or otherwise.
     fn reached(&mut self, server: &Url, result: Result<(), &HttpError>) {
-        self.unreachable = match result {
-            Err(HttpError::Network(_, code)) => {
-                Failure::of(*code).map(|failure| (failure, server.host.clone()))
-            }
+        self.trouble = match result.map_err(HttpError::miss) {
+            Err(Miss::Unreached(failure)) => Some(Failed::Unreached {
+                what: Where::Server(server.host.clone()),
+                failure,
+            }),
             _ => None,
         };
+    }
+
+    /// Every address of `file` failed, each as `misses` says.
+    fn failed(&mut self, file: &str, misses: &[Miss]) {
+        self.trouble = Failed::of_file(file, misses);
     }
 
     fn send(&mut self, message: ToLauncher) {
@@ -256,33 +263,33 @@ impl Session {
     }
 }
 
-fn message_box(message: &str) {
-    let title = win::wide(text::TITLE);
+/// One of the updater's own boxes, on top: Windows' answer (the button).
+fn show_box(caption: &str, message: &str, style: MESSAGEBOX_STYLE) -> MESSAGEBOX_RESULT {
+    let title = win::wide(caption);
     let body = win::wide(message);
     unsafe {
         MessageBoxW(
             core::ptr::null_mut(),
             body.as_ptr(),
             title.as_ptr(),
-            MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST,
-        );
+            style | MB_SETFOREGROUND | MB_TOPMOST,
+        )
     }
 }
 
-/// A stop's box (`updater_logic::file_error`): Windows' Retry and Cancel.
-/// `true`: Retry.
-fn retry_box(message: &str) -> bool {
-    let title = win::wide(text::TITLE);
-    let body = win::wide(message);
-    let answer = unsafe {
-        MessageBoxW(
-            core::ptr::null_mut(),
-            body.as_ptr(),
-            title.as_ptr(),
-            MB_RETRYCANCEL | MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST,
-        )
-    };
-    answer == IDRETRY
+fn message_box(message: &str) {
+    show_box(text::TITLE, message, MB_OK | MB_ICONERROR);
+}
+
+/// A box of `updater_logic::problem` that needs no answer: OK.
+fn warning_box(caption: &str, message: &str) {
+    show_box(caption, message, MB_OK | MB_ICONWARNING);
+}
+
+/// A stop's box (`updater_logic::problem`, `updater_logic::file_error`):
+/// Windows' Retry and Cancel. `true`: Retry.
+fn retry_box(caption: &str, message: &str) -> bool {
+    show_box(caption, message, MB_RETRYCANCEL | MB_ICONWARNING) == IDRETRY
 }
 
 /// The server to ask: the one named in `updater_skhid.url`, else the one of
@@ -384,6 +391,8 @@ fn download(
     manifest: &mut Manifest,
 ) -> Result<Vec<u8>, Option<String>> {
     let mut last = String::new();
+    // How the last try failed, for the player's box.
+    let mut miss = Miss::Answered(Fault::Other);
     for attempt in 1..=DOWNLOAD_TRIES {
         session.begin_progress();
         session.state(state::DOWNLOADING);
@@ -405,6 +414,7 @@ fn download(
                 // Not the archive that was announced: the server may have
                 // been given another one between the two requests.
                 last = text::checksum_mismatch(server);
+                miss = Miss::Answered(Fault::Damaged);
                 if let Ok(body) = http::get(server, "/api/client-files", 4096, &mut |_, _| true)
                     && let Ok(now) = parse_manifest(&body)
                 {
@@ -414,9 +424,13 @@ fn download(
             Err(HttpError::Stopped) => return Err(None),
             Err(HttpError::Status(503)) => {
                 last = text::busy(server);
+                miss = Miss::Answered(Fault::Status(503));
                 pause = BUSY_PAUSE_MS;
             }
-            Err(error) => last = text::http(server, "/download", &error),
+            Err(error) => {
+                last = text::http(server, "/download", &error);
+                miss = error.miss();
+            }
         }
         log!("download {attempt} of {DOWNLOAD_TRIES} failed: {last}");
         if !session.pump() {
@@ -428,6 +442,11 @@ fn download(
                 return Err(None);
             }
         }
+    }
+    // Not reached: the server's box ([`Session::reached`]); else the
+    // download's.
+    if let Miss::Answered(_) = miss {
+        session.failed(&format!("{}/download", server.host), &[miss]);
     }
     Err(Some(last))
 }
@@ -457,9 +476,12 @@ fn unpack(archive: &[u8]) -> Result<Vec<NewFile>, String> {
 enum Done {
     /// The files are the server's; nothing was changed.
     UpToDate,
-    /// The files were changed; `restart`: the launcher too.
+    /// The files were changed; `restart`: the launcher too. `put_back`: a
+    /// program file this updater had installed was gone at the start (its
+    /// name): an antivirus removes them, and the player is told so.
     Installed {
         restart: bool,
+        put_back: Option<String>,
     },
     /// The server could not be asked (why), and what is installed is whole:
     /// the game can be started with it (the words for the player).
@@ -479,7 +501,7 @@ enum Done {
 /// restore of resources.db and the patch step, all under the installation
 /// lock.
 fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> Done {
-    session.unreachable = None;
+    session.trouble = None;
     let _lock = match win::install_lock(&layout.exe_dir) {
         Ok(lock) => lock,
         Err(code) => {
@@ -505,9 +527,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
     // updater or the launcher was replaced, the new ones start at once and
     // do them.
     let server = match &done {
-        Done::UpToDate | Done::Installed { restart: false } => Ok(&server),
+        Done::UpToDate | Done::Installed { restart: false, .. } => Ok(&server),
         Done::Offline(_, reason) => Err(reason.as_str()),
-        Done::Installed { restart: true } => {
+        Done::Installed { restart: true, .. } => {
             log!(
                 "the updater or the launcher was replaced: the rest of the update is done by the new one"
             );
@@ -643,7 +665,10 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
             // The Skhid files are the server's and the extractor is not
             // among them: this says so.
             return match game::ensure(session, layout, Some(server)) {
-                Ok(_) => Done::Installed { restart: false },
+                Ok(_) => Done::Installed {
+                    restart: false,
+                    put_back: None,
+                },
                 Err(None) => Done::Stopped,
                 Err(Some(message)) => Done::Failed(message),
             };
@@ -655,6 +680,12 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     if let Reason::Changed(name) | Reason::Missing(name) | Reason::Unreadable(name, _) = &reason {
         log!("{}", text::repairing(name));
     }
+    // A program this updater installed and that is gone: what antivirus
+    // programs do to the patched files. The player is told once it is back.
+    let put_back = match &reason {
+        Reason::Missing(name) if is_program(name) => Some(name.clone()),
+        _ => None,
+    };
 
     let archive = match download(session, server, &mut manifest) {
         Ok(archive) => archive,
@@ -714,6 +745,15 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     };
     for name in &outcome.written {
         log!("installed {name}");
+    }
+    // A file gone the moment it was put in place: an antivirus took it.
+    if let Some(name) = outcome
+        .written
+        .iter()
+        .find(|name| !win::exists(&layout.place(name)))
+    {
+        log!("{name} is gone right after it was installed");
+        return Done::Stop(Stop::Virus, name.clone());
     }
 
     // What the archive before had and this one has not goes, if it is still
@@ -780,7 +820,14 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     }
     Done::Installed {
         restart: outcome.restart,
+        put_back,
     }
+}
+
+/// A file of the archive that is run: the files antivirus programs remove.
+fn is_program(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.ends_with(".exe") || name.ends_with(".dll")
 }
 
 struct Options {
@@ -924,7 +971,7 @@ fn run() -> u32 {
         started: 0,
         named_file: false,
         seen: None,
-        unreachable: None,
+        trouble: None,
     };
 
     if options.copy {
@@ -946,8 +993,19 @@ fn run() -> u32 {
     // Said in a box of the updater's own, in the launcher's language: the
     // launcher is not told it again.
     let mut said = false;
+    let language = win::game_language();
+    let log_path = format!("{}\\{LOG_FILE}", layout.exe_dir);
+    let antivirus = |name: &str, removal| {
+        let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
+        let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
+        Problem::Antivirus {
+            file: file.into(),
+            folder: folder.into(),
+            removal,
+        }
+    };
     loop {
-        let message = match (&done, session.unreachable.clone()) {
+        let (caption, message) = match (&done, session.trouble.clone()) {
             // A file blocked by Windows Security or held by another program:
             // PLAY stays off; the box says what to do, and Retry runs the
             // update again.
@@ -961,31 +1019,59 @@ fn run() -> u32 {
                     }
                 );
                 session.state(state::ERROR);
-                let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
-                file_error::message(win::game_language(), *stop, file, folder)
+                match stop {
+                    Stop::Virus => {
+                        let problem = antivirus(name, Removal::Blocked);
+                        (problem.caption(), problem.message(language, &log_path))
+                    }
+                    Stop::InUse => (text::TITLE.into(), file_error::in_use(language, file)),
+                }
             }
-            // The update server could not be reached: the box says why it
-            // may not be and what to do (a VPN's split tunnelling, the
-            // firewall); Retry runs the update again. Cancel: what the run
-            // came to (an error, or PLAY with the files installed).
-            (Done::Failed(_) | Done::Offline(..), Some((failure, host))) => {
-                log!("{host} could not be reached ({failure:?}): the player is told what to try");
+            // Every address of the server, or of a file, failed: the box
+            // says what (a download that failed, no connection, a server
+            // this network blocks) and what to run; Retry runs the update
+            // again. Cancel: what the run came to (an error, or PLAY with
+            // the files installed).
+            (Done::Failed(_) | Done::Offline(..), Some(failed)) => {
+                log!("every address failed: {failed:?}");
                 if let Done::Failed(_) = done {
                     session.state(state::ERROR);
                 }
-                network::message(win::game_language(), failure, &host)
+                if session.quiet || session.stopped {
+                    break;
+                }
+                let problem = Problem::of(failed, || {
+                    let probe = http::probe();
+                    log!("a site that is always up, asked: {probe:?}");
+                    probe
+                });
+                log!("the player is told: {}", problem.title(None));
+                (problem.caption(), problem.message(language, &log_path))
             }
             _ => break,
         };
         if session.quiet || session.stopped {
             break;
         }
-        if !retry_box(&message) || !session.pump() {
+        if !retry_box(&caption, &message) || !session.pump() {
             said = true;
             break;
         }
         log!("the player asks to try again");
         done = update(&mut session, &layout, options.look);
+    }
+    // A program file was gone at the start and is back: the player is told
+    // what removes it, before PLAY.
+    if let Done::Installed {
+        put_back: Some(name),
+        ..
+    } = &done
+    {
+        log!("{name} was gone at the start and is put back: an antivirus may remove it again");
+        if !session.quiet && !session.stopped {
+            let problem = antivirus(name, Removal::PutBack);
+            warning_box(&problem.caption(), &problem.message(language, &log_path));
+        }
     }
     let (code, watch) = match done {
         Done::UpToDate => {
@@ -997,7 +1083,7 @@ fn run() -> u32 {
             session.state(state::LATEST);
             (exit::OK, true)
         }
-        Done::Installed { restart: true } => match product {
+        Done::Installed { restart: true, .. } => match product {
             // The launcher or this updater was replaced: the launcher
             // closes, and its new file is started, which starts the new
             // updater: that one restores resources.db and does the patch
@@ -1012,7 +1098,7 @@ fn run() -> u32 {
             // patch step ran.
             _ => (finish_by_new(&mut session, &layout, options.quiet), false),
         },
-        Done::Installed { restart: false } => {
+        Done::Installed { restart: false, .. } => {
             // "Checking" clears the launcher's file name line.
             session.state(state::CHECKING);
             session.state(state::LATEST);

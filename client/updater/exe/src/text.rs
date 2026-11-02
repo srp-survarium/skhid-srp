@@ -1,7 +1,8 @@
 //! Every sentence the updater shows a player. Each says what went wrong
 //! and, where there is one, what to do about it. English only (but the
-//! box of a file blocked or held, `updater_logic::file_error`, and the box
-//! of a server not reached, `updater_logic::network`); the
+//! boxes of `updater_logic::problem`: game files an antivirus removed, a
+//! download that failed, no connection, a server this network blocks; and
+//! the box of a file held, `updater_logic::file_error`); the
 //! launcher's own states and its progress bar are in the launcher's
 //! language. A message goes to the launcher as at most 255 ASCII characters,
 //! so the sentences are short and name files by their last parts.
@@ -160,9 +161,9 @@ pub fn repairing(name: &str) -> String {
 }
 
 /// After the first sentence of a server that could not be reached
-/// (`updater_logic::network`): the short form of the box's advice, for the
-/// launcher's line and the log.
-const BLOCKED: &str = "Your provider (common in Russia) or a firewall may block it: see VPN.txt.";
+/// (`updater_logic::network`): the short form of the box's advice
+/// (`updater_logic::problem`), for the launcher's line and the log.
+const BLOCKED: &str = "A firewall or this network may block it: see Skhid-network-setup.cmd and VPN.txt.";
 
 pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
     let host = &server.host;
@@ -343,6 +344,11 @@ pub fn install(error: &InstallError) -> String {
             "{} did not read back as it was written. An antivirus may have changed it, or the \
              disk is failing. Nothing was installed.",
             short(path)
+        ),
+        InstallError::Removed { path, code } => format!(
+            "{} was gone right after it was written ({}, error {code}): an antivirus took it.",
+            short(path),
+            win::error_text(*code)
         ),
         InstallError::Replace { path, code } => format!(
             "Cannot replace {}: {} (error {code}). Nothing was changed.{}",

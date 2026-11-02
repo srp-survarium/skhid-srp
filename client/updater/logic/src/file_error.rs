@@ -16,15 +16,20 @@
 //! - Anything else (`ERROR_ACCESS_DENIED`, a disk error): the file is
 //!   repaired, the archive installed again; when that fails, the install's
 //!   error names the file and Windows' words.
+//! - A file the updater has just written that is gone or denied to it when
+//!   read back ([`Stop::after_write`]): an antivirus took it as it was
+//!   written, the same stop as Windows Security's.
 //!
 //! A stop is said in a box of the updater's own with Retry and Cancel:
-//! Retry runs the update again.
+//! Retry runs the update again. Windows Security's is the box of
+//! `crate::problem` (`Problem::Antivirus`); a held file's is [`in_use`].
 
 use alloc::format;
 use alloc::string::String;
 
 pub const ERROR_FILE_NOT_FOUND: u32 = 2;
 pub const ERROR_PATH_NOT_FOUND: u32 = 3;
+pub const ERROR_ACCESS_DENIED: u32 = 5;
 pub const ERROR_SHARING_VIOLATION: u32 = 32;
 pub const ERROR_LOCK_VIOLATION: u32 = 33;
 /// "Operation did not complete successfully because the file contains a
@@ -74,6 +79,18 @@ impl Stop {
             Kind::Missing | Kind::Other => None,
         }
     }
+
+    /// The stop an error of reading back a file the updater has just
+    /// written is: gone, or access denied, is an antivirus that acted on
+    /// it as it was written, as Windows Security's own codes are.
+    pub fn after_write(code: u32) -> Option<Self> {
+        match kind(code) {
+            Kind::Missing | Kind::Virus => Some(Self::Virus),
+            Kind::Other if code == ERROR_ACCESS_DENIED => Some(Self::Virus),
+            Kind::InUse => Some(Self::InUse),
+            Kind::Other => None,
+        }
+    }
 }
 
 /// The folder Windows Security is to leave alone for a blocked `file` (its
@@ -91,62 +108,27 @@ pub fn exclusion_folder<'a>(file: &str, programs: &'a str, game: &'a str) -> &'a
     }
 }
 
-/// The words of the updater's box for a stop, in the launcher's language
-/// (`crate::replay::LANGUAGES` order; English for an unknown one). `file`:
-/// the file's name alone; `folder`: the one to exclude ([`exclusion_folder`]).
-/// The box's buttons are Windows' own Retry and Cancel, in Windows' language,
-/// which may not be the launcher's: the words do not name them.
-pub fn message(language: Option<u32>, stop: Stop, file: &str, folder: &str) -> String {
-    let language = language.filter(|&n| n < 5).unwrap_or(0);
-    match (language, stop) {
-        (1, Stop::Virus) => format!(
-            "Безопасность Windows заблокировала {file}: это ложное срабатывание.\n\
-             1. Безопасность Windows > Журнал защиты > этот элемент > Разрешить на устройстве (или Восстановить).\n\
-             2. Добавьте эту папку в исключения (Защита от вирусов и угроз > Управление настройками > Исключения):\n\
-             {folder}\n\
-             Затем попробуйте снова. До этого игра не запустится."
-        ),
-        (2, Stop::Virus) => format!(
-            "Безпека Windows заблокувала {file}: це хибне спрацювання.\n\
-             1. Безпека Windows > Журнал захисту > цей елемент > Дозволити на пристрої (або Відновити).\n\
-             2. Додайте цю теку до винятків (Захист від вірусів і загроз > Керування параметрами > Винятки):\n\
-             {folder}\n\
-             Потім спробуйте знову. Доти гра не запуститься."
-        ),
-        (3, Stop::Virus) => format!(
-            "Windows-Sicherheit hat {file} blockiert: ein Fehlalarm.\n\
-             1. Windows-Sicherheit > Schutzverlauf > dieser Eintrag > Auf Gerät zulassen (oder Wiederherstellen).\n\
-             2. Füge diesen Ordner als Ausschluss hinzu (Viren- & Bedrohungsschutz > Einstellungen verwalten > Ausschlüsse):\n\
-             {folder}\n\
-             Versuche es dann erneut. Bis dahin startet das Spiel nicht."
-        ),
-        (4, Stop::Virus) => format!(
-            "Zabezpieczenia Windows zablokowały {file}: to fałszywy alarm.\n\
-             1. Zabezpieczenia Windows > Historia ochrony > ten element > Zezwalaj na urządzeniu (lub Przywróć).\n\
-             2. Dodaj ten folder do wykluczeń (Ochrona przed wirusami i zagrożeniami > Zarządzaj ustawieniami > Wykluczenia):\n\
-             {folder}\n\
-             Następnie spróbuj ponownie. Do tego czasu gra się nie uruchomi."
-        ),
-        (_, Stop::Virus) => format!(
-            "Windows Security blocked {file}: a false positive.\n\
-             1. Windows Security > Protection history > this item > Allow on device (or Restore).\n\
-             2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
-             {folder}\n\
-             Then try again. PLAY stays off until then."
-        ),
-        (1, Stop::InUse) => format!(
+/// The words of the updater's box for a file another program holds, in the
+/// launcher's language (`crate::replay::LANGUAGES` order; English for an
+/// unknown one). `file`: the file's name alone. A file Windows Security
+/// blocked is told in the box of `crate::problem` (`Problem::Antivirus`).
+/// The box's buttons are Windows' own Retry and Cancel, in Windows'
+/// language, which may not be the launcher's: the words do not name them.
+pub fn in_use(language: Option<u32>, file: &str) -> String {
+    match language.filter(|&n| n < 5).unwrap_or(0) {
+        1 => format!(
             "{file} занят другой программой. Закройте игру, затем попробуйте снова. До этого игра не запустится."
         ),
-        (2, Stop::InUse) => format!(
+        2 => format!(
             "{file} зайнятий іншою програмою. Закрийте гру, потім спробуйте знову. Доти гра не запуститься."
         ),
-        (3, Stop::InUse) => format!(
+        3 => format!(
             "{file} wird von einem anderen Programm verwendet. Schließe das Spiel und versuche es dann erneut. Bis dahin startet das Spiel nicht."
         ),
-        (4, Stop::InUse) => format!(
+        4 => format!(
             "{file} jest używany przez inny program. Zamknij grę, następnie spróbuj ponownie. Do tego czasu gra się nie uruchomi."
         ),
-        (_, Stop::InUse) => format!(
+        _ => format!(
             "{file} is in use by another program. Close the game, then try again. PLAY stays off until then."
         ),
     }
@@ -176,6 +158,17 @@ mod tests {
     }
 
     #[test]
+    fn a_file_just_written_and_gone_or_denied_is_an_antivirus() {
+        for code in [2, 3, 5, 225, 226] {
+            assert_eq!(Stop::after_write(code), Some(Stop::Virus), "{code}");
+        }
+        assert_eq!(Stop::after_write(32), Some(Stop::InUse));
+        for code in [19, 23, 1117, 0] {
+            assert_eq!(Stop::after_write(code), None, "{code}");
+        }
+    }
+
+    #[test]
     fn the_folder_excluded_is_the_programs_or_for_a_patch_the_games() {
         let (programs, game) = ("E:\\S\\game\\binaries\\x86", "E:\\S\\game");
         for file in [
@@ -194,40 +187,19 @@ mod tests {
     }
 
     #[test]
-    fn every_language_names_the_file_the_folder_and_the_way_out() {
-        let folder = "E:\\Survarium_SkhidSRP_0_26\\game\\binaries\\x86";
-        let english = message(None, Stop::Virus, "survarium_skhid.exe", folder);
+    fn every_language_names_the_file_held() {
+        let english = in_use(None, "survarium_skhid.exe");
         assert_eq!(
             english,
-            "Windows Security blocked survarium_skhid.exe: a false positive.\n\
-             1. Windows Security > Protection history > this item > Allow on device (or Restore).\n\
-             2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
-             E:\\Survarium_SkhidSRP_0_26\\game\\binaries\\x86\n\
-             Then try again. PLAY stays off until then."
+            "survarium_skhid.exe is in use by another program. Close the game, then try again. \
+             PLAY stays off until then."
         );
-        assert_eq!(
-            message(Some(9), Stop::Virus, "survarium_skhid.exe", folder),
-            english
-        );
-        for stop in [Stop::Virus, Stop::InUse] {
-            let english = message(Some(0), stop, "survarium_skhid.exe", folder);
-            for language in 1..5 {
-                let text = message(Some(language), stop, "survarium_skhid.exe", folder);
-                assert_ne!(text, english, "{language} {stop:?}");
-                assert!(
-                    text.starts_with("survarium_skhid.exe")
-                        || text.contains(" survarium_skhid.exe"),
-                    "{text}"
-                );
-                assert_eq!(text.contains(folder), stop == Stop::Virus, "{text}");
-                // Two steps, one line each, for Windows Security.
-                assert_eq!(
-                    text.contains("\n1. ") && text.contains("\n2. "),
-                    stop == Stop::Virus,
-                    "{text}"
-                );
-                assert_eq!(text.lines().count(), english.lines().count(), "{text}");
-            }
+        assert_eq!(in_use(Some(9), "survarium_skhid.exe"), english);
+        for language in 1..5 {
+            let text = in_use(Some(language), "survarium_skhid.exe");
+            assert_ne!(text, english, "{language}");
+            assert!(text.starts_with("survarium_skhid.exe "), "{text}");
+            assert_eq!(text.lines().count(), 1, "{text}");
         }
     }
 }
