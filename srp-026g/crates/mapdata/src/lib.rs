@@ -174,7 +174,7 @@ impl World {
 
     /// [`Self::build`] with the off-mesh links `links` in its grid.
     pub fn build_with_links(map: MapData, cell: f32, body: Body, links: OffMeshLinks) -> Self {
-        Self::build_with(map, cell, body, links, false)
+        Self::build_with(map, cell, body, links, false, None)
     }
 
     /// [`Self::build_with_links`], with the grid's table of wall clearances ([`WalkGrid::wall_clearance`]) when `wall_clearance`
