@@ -5387,3 +5387,5 @@ va	name	location	role	basis
 0x0026d6a0	survarium::base_local_network_client::get_active_player	ECX	the local/replay client; world pointer at +578BCh, unlike the live network client	observed
 0x0026d6a0	survarium::base_local_network_client::get_active_player	entry ESP+4	out player pointer; reference added when nonnull	observed
 0x0026d6a0	survarium::base_local_network_client::get_active_player	entry ESP+8	roster place (low byte)	observed
+0x00288cd0	survarium::lobby_menu::autobuy_changed	ECX	lobby menu; game +9Ch, network holder at game+53ACh	observed
+0x00288cd0	survarium::lobby_menu::autobuy_changed	entry ESP+4	callback params; +8 is GFx argument array, first argument union at +8; Boolean required for off/on	observed

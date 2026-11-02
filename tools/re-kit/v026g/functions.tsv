@@ -2104,3 +2104,4 @@ va	status	ref_021d	name
 0x0026d6a0	verified		survarium::base_local_network_client::get_active_player
 0x00219990	verified	0x0016c901	survarium::network_client::match_options
 0x0027a9c0	verified	0x001a259b	survarium::network_client::get_active_player
+0x00288cd0	observed		survarium::lobby_menu::autobuy_changed
