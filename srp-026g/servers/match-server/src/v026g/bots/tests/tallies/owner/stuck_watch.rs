@@ -1,8 +1,9 @@
 //! The owner counts of the stuck watch (A240b, `unstick.window`), by team: its notes (and those the held keys alone told); of
 //! them, the notes whose body walked [`WALKED_M`] or more over the watch's 1.5 s before it and ended [`NET_M`] or more from
-//! where it began (`moved`: it went on), or came back within [`NET_M`] (`out_back`); the seconds a living bot with a route
-//! held a walk key for [`PINNED_MS`] while its body stayed within [`PINNED_M`] of where it was then (`pinned_s`: stuck by the
-//! body, whatever the watch said); and the seconds a living bot with no target stood on a stair's flight past the first
+//! where it began (`moved`: it went on), or came back within [`NET_M`] (`out_back`); the seconds a living bot with a route, no
+//! target and no designed hold held a walk key for [`PINNED_MS`] while its body stayed within [`PINNED_M`] of where it was then
+//! (`pinned_s`: stuck by the body, whatever the watch said; the bench's own stuck episodes are the owner topic `moves`'
+//! `stuck_by_team`); and the seconds a living bot with no target stood on a stair's flight past the first
 //! [`WAIT_MS`] of a stand (`flight_wait_s`, `route::StairFloors`).
 
 use super::*;
@@ -90,7 +91,9 @@ impl Topic for StuckWatchCounts {
         while track.ticks.front().is_some_and(|t| t.0 + PINNED_MS + TICK_MS < at.tick) {
             track.ticks.pop_front();
         }
-        if !rec.alive || !rec.has_route || rec.keys & crate::v026g::bots::stuck::HELD_KEYS == 0 {
+        // Not in a fight (a strafe's dance stays within half a metre too) nor in a designed hold.
+        let fighting = at.game.bodies[at.place].target.is_some() || rec.hold;
+        if !rec.alive || !rec.has_route || fighting || rec.keys & crate::v026g::bots::stuck::HELD_KEYS == 0 {
             track.loose = at.tick;
             return;
         }
