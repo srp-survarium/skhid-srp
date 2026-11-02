@@ -95,6 +95,11 @@ const CHAT_PER_SECOND: f32 = 1.0;
 pub(super) const FRIEND_REQUEST_BURST: u32 = 5;
 pub(super) const FRIEND_REQUEST_EVERY: Duration = Duration::from_secs(10);
 
+/// The sender's name of the server's own chat lines (anti-AFK's): "System"
+/// in every language (the owner's of 2026-11-02: "System can stay system
+/// everywhere").
+pub(super) const SYSTEM_NAME: &str = "System";
+
 /// The chat line of a player removed for being idle (anti-AFK), in the
 /// game's language (`4F`'s byte: 0 English, 1 Russian, 2 Ukrainian, 3
 /// German, 4 Polish; English for any other, or none yet), as
@@ -398,8 +403,9 @@ impl Core<'_> {
     /// the lobby sent to that match but the removed player, and one on the
     /// general channel to everyone who subscribed to it, the removed player
     /// too (its lobby has it when it is back). A server's line: an account
-    /// line of id 0 with no name, as the rooms' own lines, in each
-    /// receiver's language ([`idle_removed_text`]).
+    /// line of id 0 named "System" (the owner's of 2026-11-02: "it can be
+    /// System name"; [`SYSTEM_NAME`], the same in every language), its
+    /// text in each receiver's language ([`idle_removed_text`]).
     pub(super) fn idle_removed(&mut self, match_id: u32, account_id: u32, name: &str) {
         let running = self.running_id(match_id);
         let subscribed = |id: u32| id != 0 && id != u32::MAX;
@@ -408,23 +414,22 @@ impl Core<'_> {
             let Some(player) = self.player(addr) else {
                 continue;
             };
-            let text = idle_removed_text(name, player.language);
+            let language = player.language;
             if running.is_some() && player.in_match == running && player.account_id != account_id {
-                lines.push((addr, channel::MATCH, text.clone()));
+                lines.push((addr, channel::MATCH, language));
             }
             if subscribed(player.channel_ids[usize::from(channel::GENERAL)]) {
-                lines.push((addr, channel::GENERAL, text));
+                lines.push((addr, channel::GENERAL, language));
             }
         }
         log::info!(
             "{name} was removed from match {match_id:#x} as idle; {} chat line(s) say so",
             lines.len()
         );
-        for (addr, channel, text) in lines {
-            self.send(
-                addr,
-                lobby::chat_text(sender::ACCOUNT, 0, "", "", channel, &text),
-            );
+        for (addr, channel, language) in lines {
+            let text = idle_removed_text(name, language);
+            let line = lobby::chat_text(sender::ACCOUNT, 0, SYSTEM_NAME, "", channel, &text);
+            self.send(addr, line);
         }
     }
 

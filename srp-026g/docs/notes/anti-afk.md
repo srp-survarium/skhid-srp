@@ -14,6 +14,8 @@ The owner, 2026-11-01: the simplest version first.
   "`<name>` was kicked for being AFK" in the match's chat, to everyone still in it, and the same
   line in the general chat, to everyone who listens to it, the removed player too (its lobby has
   it when it is back). Once a removal; nothing for a player who leaves.
+- **Its sender is "System"**, the same word in every language (2026-11-02: "it can be System
+  name", "System can stay system everywhere"): `System: <name> was kicked for being AFK`.
 - **Private rooms (a PIN): never.** Public rooms and Play: yes.
 - **Matches against bots ("Player vs Bots"): never.** The owner, 2026-11-02: "it should also be
   fine to afk w/bots".
@@ -34,9 +36,9 @@ The owner, 2026-11-01: the simplest version first.
 
 ## The chat line (picks)
 
-- A server's line: an account line of id 0 with no name, as the rooms' own lines and the old
-  queue lines. Not seen in a game yet: how the HUD's chat draws a line with no name.
-- In each receiver's language, by the language its game gave the lobby (English, Russian,
+- A server's line: an account line (sender type 5) of id 0, named "System", no clan tag: the
+  type the client reads a name for and draws as a player's line, id 0 in nobody's ignore list.
+- The text in each receiver's language, by the language its game gave the lobby (English, Russian,
   Ukrainian, German, Polish; English otherwise), as the replay refusals are:
   - en: `<name> was kicked for being AFK`
   - ru: `<name> исключён из матча за AFK`

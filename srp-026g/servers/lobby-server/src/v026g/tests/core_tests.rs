@@ -1335,17 +1335,23 @@ fn player_menu_mute_by_name_and_unmute_filter_incoming_chat() {
 /// Anti-AFK (`docs/notes/anti-afk.md`; the owner's of 2026-11-02): a player
 /// the match server removed as idle is named once in the match's chat, to
 /// the others in that match, and once in the general chat, to everyone who
-/// listens to it, the removed player too.
+/// listens to it, the removed player too. Its sender is "System" in every
+/// language; its text is in the receiver's.
 #[test]
 fn a_player_removed_as_idle_is_named_in_the_match_and_the_general_chat() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
-    for client in [alice, bob, carol] {
+    for client in [alice, bob] {
         world.ask(client, request::subscribe());
         world.take(client);
     }
+    // Carol's game is Russian (`4F`'s last byte).
+    let (subscribe, mut russian) = request::subscribe();
+    *russian.last_mut().unwrap() = 1;
+    world.ask(carol, (subscribe, russian));
+    world.take(carol);
     world.ask(alice, request::play(1));
     world.ask(bob, request::play(1));
     world.advance(PLAY_TO_MATCH);
@@ -1368,15 +1374,8 @@ fn a_player_removed_as_idle_is_named_in_the_match_and_the_general_chat() {
             })
             .collect()
     };
-    let line = |channel: u8| {
-        (
-            5,
-            0,
-            String::new(),
-            channel,
-            "Alice was kicked for being AFK".to_owned(),
-        )
-    };
+    let line = |channel: u8, text: &str| (5, 0, "System".to_owned(), channel, text.to_owned());
+    let english = "Alice was kicked for being AFK";
 
     world
         .inbox
@@ -1384,10 +1383,13 @@ fn a_player_removed_as_idle_is_named_in_the_match_and_the_general_chat() {
     world.settle();
     assert_eq!(
         lines(world.take(bob)),
-        [line(channel::MATCH), line(channel::GENERAL)]
+        [line(channel::MATCH, english), line(channel::GENERAL, english)]
     );
-    assert_eq!(lines(world.take(alice)), [line(channel::GENERAL)]);
-    assert_eq!(lines(world.take(carol)), [line(channel::GENERAL)]);
+    assert_eq!(lines(world.take(alice)), [line(channel::GENERAL, english)]);
+    assert_eq!(
+        lines(world.take(carol)),
+        [line(channel::GENERAL, "Alice исключён из матча за AFK")]
+    );
 
     // In each receiver's language.
     use crate::v026g::social::idle_removed_text;
