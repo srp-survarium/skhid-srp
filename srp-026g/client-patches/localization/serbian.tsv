@@ -1945,9 +1945,9 @@ st_rpd_description	Opis još nije dostupan.
 st_rpd_name	RPD
 st_rpk_description	Opis još nije dostupan.
 st_rpk_name	RPK-74M
-st_saiga_12_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija K ima kratku cev i preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
+st_saiga_12_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija K ima kratku cev i preklopni kundak. Napaja se iz kutijastog okvira. Samo pojedinačna paljba.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija S ima preklopni kundak. Okvir prima 5 patrona. Samo pojedinačna paljba.
+st_saiga_12_premium_description	Ruska poluautomatska sačmarica kalibra 12, razvijena devedesetih u Ižmašu na sistemu Kalašnjikova za lov i obezbeđenje. Verzija S ima preklopni kundak. Napaja se iz kutijastog okvira. Samo pojedinačna paljba.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Sačuvaj lozinku
 st_scar_h_description	Belgijska borbena puška kalibra 7,62x51, teška verzija SCAR-a fabrike FN Herstal, koju su specijalne snage SAD usvojile 2000-ih. Okvir prima 20 metaka. Pojedinačna i automatska paljba.

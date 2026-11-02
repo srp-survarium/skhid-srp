@@ -45,6 +45,9 @@
 //!   the gun in its hands drawn (its own or a picked one); an open drop's gun
 //!   kept by place (its transform, its copy's model box: the same gun), a
 //!   taken drop's gun hidden as patch 78 hides a carrier's;
+//! - the drop's gun ([`draw_drops`], each frame after the ragdolls' step):
+//!   its copy drawn at the ragdoll's gun from the death until the drop ends,
+//!   the body's own gun hidden; every other copy hidden;
 //! - the prompt, at artefact_carry's on_hud after patch 78's own targets
 //!   ([`aim`]): the gun the local player looks at (2.2 m, its box padded by
 //!   15 cm, in sight) that a pickup would take now, "Pick up <gun> (E)";
@@ -1430,7 +1433,8 @@ fn resupply(ctx: &mut Context<'_>, site: Site) -> Flow<NoExit> {
 const REACH: f32 = 2.2;
 const PAD: f32 = 0.15;
 
-/// A drop's gun as its donor's ragdoll last drew it (by place).
+/// A drop's gun as its donor's ragdoll last drew it (by place), or, its
+/// copy drawn, as [`draw_drops`] draws it.
 #[derive(Clone, Copy)]
 struct Seen {
     body: Body,
@@ -1451,8 +1455,8 @@ pub enum RagdollGun {
 
 /// `carry.weapon` for a dead player (composed from artefact_carry's
 /// on_weapon; locks only, no GameCell: mt_draw may run in a task): the gun
-/// in its hands is drawn, its own or a picked one; the gun of a drop taken
-/// is hidden on its ragdoll; the gun of an open drop is kept for the prompt
+/// in its hands is drawn, its own or a picked one; hidden where its drop's
+/// copy is drawn ([`draw_drops`]) and when the drop is taken; the gun of an open drop is kept for the prompt
 /// (the site's transform and its copy's box: the same gun, of the record's
 /// recipe), the body being that drop's death's. Nothing of the body's own
 /// objects is read.
@@ -1463,6 +1467,10 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
     let (record, last) = placed_at(thread, world, place);
     if last != Some(body) {
         return RagdollGun::Shown;
+    }
+    // Its drop's copy is drawn in its place (its pose the prompt's).
+    if DRAWN.with(thread, |drawn| drawn[usize::from(place.get())]) == Some(body) {
+        return RagdollGun::Hidden;
     }
     match record.drop {
         // Taken: hidden, and nothing left to aim at there.
@@ -1477,6 +1485,89 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
         }
         DropState::None => RagdollGun::Shown,
     }
+}
+
+/// Where a place's dropped gun is, as the ragdoll steps it
+/// (`ragdoll::corpse::Corpses::gun`: on its ragdoll, or alone once its body
+/// went away): the life whose death dropped it and the world transform the
+/// game draws the held item at (its `Weapon` bone's).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DroppedGun {
+    pub life: u32,
+    pub transform: [f32; 16],
+}
+
+/// Each place's body whose drop's copy [`draw_drops`] drew this frame (its
+/// own gun hidden by [`ragdoll_gun`]); read on the draw path (a Lock).
+static DRAWN: Lock<[Option<Body>; PLACES as usize]> = Lock::new([None; PLACES as usize]);
+
+/// Once a frame after the ragdolls' step (composed from ragdoll's
+/// `game_world.after_move`; `guns` each place's dropped gun): from the death
+/// on, a drop's gun is its copy, drawn at the ragdoll's gun (falling until it
+/// rests, on the body or alone after its respawn), while the drop is open,
+/// or taken with its pickup waiting for the switch (the install hides it
+/// then), of the death this client saw and its copy made here; the body's
+/// own gun is hidden ([`ragdoll_gun`]) and the prompt's pose is the copy's.
+/// Only the place's next death, the pickup and the copy's free end it; a
+/// departed place's is hidden (as it is not offered: `peer`), drawn again if
+/// the place comes back. Every other copy is hidden. Nothing synced: a
+/// rollback just reconciles here.
+pub fn draw_drops(ctx: &Context<'_>, guns: &[Option<DroppedGun>; PLACES as usize]) {
+    let thread = ctx.thread();
+    let world = GameWorld::at_after_move(ctx);
+    let key = world.as_ref().and_then(gun_cook::world_key);
+    let client = world.as_ref().and_then(GameWorld::network_client);
+    let viewer = client.as_ref().and_then(|c| c.local_player()
+        .or_else(|| (0..u32::from(PLACES)).find_map(|place| c.player(place))));
+    let mut drawn = [None; PLACES as usize];
+    let mut bodies = [None; PLACES as usize];
+    for (n, (room, body)) in drawn.iter_mut().zip(bodies.iter_mut()).enumerate() {
+        let (Some(key), Some(viewer), Some(place), Some(gun)) = (key, viewer.as_ref(), Place::new(n as u8), guns[n])
+        else { continue };
+        if peer(viewer, place).is_none() {
+            continue;
+        }
+        let Some((cook, slot, of)) = dropped(thread, key, place, gun) else { continue };
+        if gun_cook::show(thread, cook, slot, &gun.transform) {
+            (*room, *body) = (Some(cook), Some(of));
+        }
+    }
+    DRAWN.with(thread, |all| *all = bodies);
+    let copies = CACHE.with(thread, |cache| cache.each_ref().map(|e| e.as_ref().map(|e| e.gun.id())));
+    for id in copies.iter().flatten().filter(|id| !drawn.contains(&Some(**id))) {
+        gun_cook::hide(thread, *id);
+    }
+}
+
+/// Whether a pickup of the match waits for its switch with the gun of
+/// `place`'s drop (the synced records' pending pickups).
+fn switching_from(thread: &Thread, world: WorldKey, place: Place) -> bool {
+    RECORDS.with(thread, |records| records.iter().flatten()
+        .any(|p| p.world == world && p.record.pending.is_some_and(|w| w.from == place)))
+}
+
+/// The copy of `place`'s drop to draw at `gun` (see [`draw_drops`]), its
+/// slot and its body; the prompt's pose made that one.
+fn dropped(thread: &Thread, world: WorldKey, place: Place, gun: DroppedGun) -> Option<(CookId, WeaponSlot, Body)> {
+    let (record, last) = placed_at(thread, world, place);
+    let body = last.filter(|body| body.spawned == gun.life)?;
+    let drop = match record.drop {
+        DropState::Open(drop) => drop,
+        DropState::Taken(drop) if switching_from(thread, world, place) => drop,
+        _ => return None,
+    };
+    // Its copy: in its drop, or the pending pickup's taken from it.
+    let ours = |d: DropOf| d.place == place && d.body == body.player && d.life == Some(body.spawned) && d.lies == Lies::Current;
+    let cook = CACHE.with(thread, |cache| cache.iter().flatten().find_map(|e| match e.at {
+        At::Drop(d) | At::Pending(Waiting { from: d, .. }) | At::Overdue(Waiting { from: d, .. })
+            if e.recipe == drop.recipe && ours(d) && matches!(e.report, Report::Logged { model: Some(_) }) => Some(e.gun.id()),
+        _ => None,
+    }))?;
+    // Taken: nothing to aim at.
+    let pose = record.drop.available().and_then(|_| drop_box(thread, place, drop.recipe))
+        .and_then(|model| GunPose::at(gun.transform, model));
+    SEEN.with(thread, |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
+    Some((cook, drop.recipe.slot, body))
 }
 
 /// The pickup Use would send now: the place whose gun the local player
@@ -1558,19 +1649,19 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
     let mut best: Option<(f32, Place, Offered)> = None;
     let mut sights = [None; PLACES as usize];
     for (n, seen) in seen.iter().enumerate() {
-        let (Some(seen), Some(target)) = (seen, Place::new(n as u8)) else { continue };
+        let (Some(Seen { body, pose }), Some(target)) = (*seen, Place::new(n as u8)) else { continue };
         // A departed place's drop (core_active_player refuses its place, as
         // the pickup's `peer` does): no prompt at all.
         if peer(viewer, target).is_none() {
             continue;
         }
-        let sight = match enters(&seen.pose, eye, forward, REACH, PAD) {
-            None if within(&seen.pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
+        let sight = match enters(&pose, eye, forward, REACH, PAD) {
+            None if within(&pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
             None => Err(Sight::OutOfReach),
             Some(distance) if distance > 0.01 && physics.ray_test(eye, forward, distance, 0x24, 2).is_some() => {
                 Err(Sight::Blocked)
             }
-            Some(distance) => Ok((distance, offer(thread, viewer, world, sender, target, seen.body))),
+            Some(distance) => Ok((distance, offer(thread, viewer, world, sender, target, body))),
         };
         let logged = match sight {
             Ok((distance, offered)) => {
@@ -1581,7 +1672,7 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
             }
             Err(why) => why,
         };
-        sights[n] = Some((seen.body, logged, seen.pose));
+        sights[n] = Some((body, logged, pose));
     }
     log_sights(thread, viewer, sights);
     let (_, target, offered) = best?;

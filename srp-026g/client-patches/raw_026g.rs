@@ -135,6 +135,8 @@ unsafe extern "C" {
     pub fn engine_core_active_player(world: Option<CoreWorld>, place: u32, out: *mut Option<Player>) -> *mut c_void;
     /// 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
     pub fn engine_add_model(renderer: Option<SceneRenderer>, model: Option<SceneModelRef>, scene: Option<SceneReference>, first: *const f32, second: *const f32);
+    /// 0x243bc0 survarium::weapon::calculate_locator: output_matrix EDI, locator ESP+4, transform ESP+8, bones ESP+12, extra ESP+16; pops 16; EAX
+    pub fn engine_weapon_locator(output_matrix: *mut f32, locator: Option<WeaponLocator>, transform: *const f32, bones: *const f32, extra: *const f32) -> *mut f32;
     /// 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
     pub fn engine_remove_model(renderer: Option<SceneRenderer>, model: Option<SceneModelRef>, scene: Option<SceneReference>);
     /// 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
@@ -5210,6 +5212,15 @@ impl Weapon {
         unsafe { self.0.byte_add(0x660).cast::<f32>().as_ptr() }
     }
 
+    /// +0x744 (obj<survarium::weapon_locator>): the scope's locator (calculate_locator's first argument for the scope: weapon::draw 0x244E87, its result kept at +660h, the scope's model placed there 0x244FEF..0x245012)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_locator(self) -> WeaponLocator {
+        WeaponLocator(unsafe { self.0.byte_add(0x744) })
+    }
+
     /// +0x1808 (ptr<survarium::weapon_optics>): optional optics object, mt_draw 0x244F66
     ///
     /// # Safety
@@ -5511,6 +5522,39 @@ impl WeaponHideFrame {
     #[inline(always)]
     pub unsafe fn was_visible(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::weapon_locator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponLocator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponLocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x60 (u16): the bone it hangs on (the bones' index; FFFFh none), calculate_locator 0x243C01
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bone(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x60).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x20 (f32): its place on that bone, a row-vector 4x4 (calculate_locator 0x243C25)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn offset(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x20).cast::<f32>().as_ptr() }
     }
 }
 
@@ -6336,6 +6380,15 @@ impl SceneModel {
     pub unsafe fn render_instance(self) -> SceneModelRef {
         SceneModelRef(unsafe { self.0.byte_add(0x108) })
     }
+
+    /// +0x108 (obj<vostok::render::render_model_instance>): the same reference as update_skeleton takes it (weapon::draw 0x244F4E..0x244F5A: &[weapon+1810h]+108h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skinned(self) -> RenderModelInstance {
+        RenderModelInstance(unsafe { self.0.byte_add(0x108) })
+    }
 }
 
 /// A vostok::render::scene_model_ref (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -6392,6 +6445,24 @@ impl ModelInstance {
     #[inline(always)]
     pub unsafe fn in_scene(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x10d).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x114 (u8): drawn in the first-person pass, after the world and over it (weapon::set_foreground 0x243D40 for the gun, its optic's two models; weapon::on_show 0x243F63 sets it to [user+0F4E1h] == 0); 0: a world model
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn foreground(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x114).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x115 (u8): a movable model (weapon::set_movable_static 0x243CB0, 1 at every on_show 0x243F6A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn movable(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x115).cast::<u8>().as_ptr() }
     }
 
     /// +0x0 (obj<vostok::static_model_instance>): only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)

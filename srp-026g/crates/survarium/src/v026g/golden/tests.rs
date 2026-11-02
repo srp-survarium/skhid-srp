@@ -321,7 +321,7 @@ fn data_without_the_golden_patches_is_refused() {
         assert!(error.contains(&format!("{name} (")), "{error}");
     }
     assert!(error.contains("golden-weapons-1.json"), "{error}");
-    assert!(error.contains("premium-armour-1.json"), "{error}");
+    assert!(error.contains("armor.tsv"), "{error}");
 
     let dictionary = Dictionary::shared();
     let config_of = |name: &str| dictionary.item_named(name).unwrap().cfg_name.clone();
@@ -340,7 +340,7 @@ fn data_without_the_golden_patches_is_refused() {
     );
     let error = check(&data).unwrap_err().to_string();
     assert!(!error.contains("golden-weapons-1.json"), "{error}");
-    assert!(error.contains("premium-armour-1.json"), "{error}");
+    assert!(error.contains("armor.tsv"), "{error}");
     let found: Vec<&'static str> = unpatched(&data, dictionary)
         .unwrap()
         .into_iter()
