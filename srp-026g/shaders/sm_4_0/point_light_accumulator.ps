@@ -1,0 +1,242 @@
+// point_light_accumulator.ps for Survarium 0.26g, reconstructed from the shipped blobs.
+// Permutation string ____A_B___________________C : A = shadow quality (0..3), B = SSDO, C = shadowed.
+// Compile: fxc /Zpr /O3 /T ps_4_0 /E main /D SHADOW_QUALITY=A /D USE_SSDO=B /D SHADOWED=C [/D PCSS=1]
+// Without PCSS it compiles to the shipped blobs (12 of 16 byte-identical, 4 differ in the place of one mov).
+#ifndef SHADOW_QUALITY
+#define SHADOW_QUALITY 3
+#endif
+#ifndef USE_SSDO
+#define USE_SSDO 1
+#endif
+#ifndef SHADOWED
+#define SHADOWED 1
+#endif
+
+cbuffer static_globals
+{
+	float4x4	m_P;
+	float4x4	m_VP;
+	float3x4	m_V;
+	float3x4	m_V2W;
+	float4		screen_res;
+	float4		atmosphere_parameters0;
+	float4		atmosphere_parameters1;
+	float4		atmosphere_parameters2;
+	float4		atmosphere_parameters3;
+	float4		near_far_invn_invf;
+	float3		eye_position;
+	float3		eye_direction;
+	float3		to_sun_direction;
+	float3		to_sun_direction_view_space;
+	float3		sun_color;
+	float		cascaded_shadow_map_pixel_size;
+	float		scene_time;
+}
+
+cbuffer positional_lights_constants
+{
+	float3		light_position;
+	float		light_attenuation_power;
+	float		light_range;
+}
+
+uniform float3		light_color;
+uniform float		light_intensity;
+uniform float		light_diffuse_influence_factor;
+uniform float		light_specular_influence_factor;
+uniform int			lighting_model;
+uniform float4x4	view_to_light_matrix;
+uniform float		shadow_z_bias;
+uniform float		shadow_transparency;
+uniform float		shadow_map_size;
+uniform float		is_shadower;
+
+uniform sampler		s_position;
+uniform sampler		s_normal;
+uniform sampler		s_accumulator;
+uniform sampler		s_material1;
+
+Texture2D			t_normal;
+Texture2D			t_parameters;
+Texture2D			t_position;
+Texture2D			shadowmap_texture;
+Texture2D			t_ssdo_result;
+
+uniform float3		s_eye_ray_corner;
+
+SamplerComparisonState	s_shmap_local;
+
+static const float2 kernel_offset_4[4] =
+{
+	float2( -1.0f, -1.0f ),
+	float2(  1.0f, -1.0f ),
+	float2( -1.0f,  1.0f ),
+	float2(  1.0f,  1.0f )
+};
+
+static const float2 poisson_disk[16] = {
+	float2( -0.94201624, -0.39906216 ),
+	float2( 0.94558609, -0.76890725 ),
+	float2( -0.094184101, -0.92938870 ),
+	float2( 0.34495938, 0.29387760 ),
+	float2( -0.91588581, 0.45771432 ),
+	float2( -0.81544232, -0.87912464 ),
+	float2( -0.38277543, 0.27676845 ),
+	float2( 0.97484398, 0.75648379 ),
+	float2( 0.44323325, -0.97511554 ),
+	float2( 0.53742981, -0.47373420 ),
+	float2( -0.26496911, -0.41893023 ),
+	float2( 0.79197514, 0.19090188 ),
+	float2( -0.24188840, 0.99706507 ),
+	float2( -0.81409955, 0.91437590 ),
+	float2( 0.19984126, 0.78641367 ),
+	float2( 0.14383161, -0.14100790 ),
+};
+
+float ssdo_light_occlusion( float3 light_direction, float2 tc )
+{
+	float4 ssdo				= t_ssdo_result.SampleLevel( s_material1, tc, 0 )*float4( 2.0f, 2.0f, 2.0f, 1.0f ) + float4( -1.0f, -1.0f, -1.0f, 0.0f );
+	return					pow( saturate( 1.0f - ( dot( float4( light_direction, 1.0f ), ssdo )*0.5f + 0.5f ) ) + 0.5f, 6.0f );
+}
+
+#if PCSS && SHADOW_QUALITY >= 1
+#include "pcss.h"
+#endif
+
+struct pixel_shader_input
+{
+	float4	position			: SV_POSITION;
+	float4	texture_coordinates	: TEXCOORD0;
+};
+
+struct light_accumulator
+{
+	float4	diffuse		: SV_TARGET0;
+	float4	specular	: SV_TARGET1;
+};
+
+float pow5( float x )
+{
+	float x2	= x*x;
+	return		x*( x2*x2 );
+}
+
+float pow5_r( float x )
+{
+	float x2	= x*x;
+	return		( x2*x2 )*x;
+}
+
+float sample_shadow_map( float2 tc, float depth )
+{
+	float result	= 0.0f;
+#if SHADOW_QUALITY >= 2
+	[unroll]
+	for ( int i = 0; i < 16; i++ )
+		result	+= shadowmap_texture.SampleCmpLevelZero( s_shmap_local, tc + poisson_disk[i]/shadow_map_size, depth ).r;
+	return		result*0.0625f;
+#else
+	[unroll]
+	for ( int i = 0; i < 4; i++ )
+		result	+= shadowmap_texture.SampleCmpLevelZero( s_shmap_local, tc + kernel_offset_4[i]/shadow_map_size, depth ).r;
+	return		result*0.25f;
+#endif
+}
+
+float shadow_factor( float3 view_space_position )
+{
+	float4 world_position	= float4( mul( m_V2W, float4( view_space_position, 1.0f ) ), 1.0f );
+	float4 projection		= mul( view_to_light_matrix, world_position );
+	projection.xyz			/= projection.w;
+	float depth				= projection.z - shadow_z_bias;
+	float result			= 1.0f;
+	if ( depth >= 0.0f && depth <= 1.0f ) {
+		float2 tc			= projection.xy*float2( 0.5f, -0.5f ) + 0.5f;
+		result				= saturate( sample_shadow_map( tc, depth ) + shadow_transparency );
+	}
+	return					result;
+}
+
+light_accumulator main( pixel_shader_input input )
+{
+	float2 tc				= input.position.xy*screen_res.zw;
+
+	float2 eye_ray_xy		= s_eye_ray_corner.xy*( 1.0f - tc*2.0f );
+	float depth				= t_position.SampleLevel( s_position, tc, 0 ).x;
+	float3 eye_ray;
+	eye_ray.xy				= eye_ray_xy/s_eye_ray_corner.z;
+	eye_ray.z				= 1.0f;
+	float3 position			= eye_ray*depth;
+
+	float2 encoded			= t_normal.SampleLevel( s_normal, tc, 0 ).xy*4.0f - 2.0f;
+	float f					= dot( encoded, encoded );
+	float3 normal;
+	normal.xy				= encoded*sqrt( abs( 1.0f - f*0.25f ) );
+	normal.z				= -( 1.0f - f*0.5f );
+	normal					= clamp( normalize( normal ), -1.0f, 1.0f );
+
+	float4 parameters		= t_parameters.SampleLevel( s_accumulator, tc, 0 );
+	float f0				= parameters.x;
+	float roughness			= parameters.y;
+
+	float3 to_light			= light_position - position;
+	float square_distance	= dot( to_light, to_light );
+	float3 light_direction	= to_light/sqrt( square_distance );
+	float3 view_direction	= -position/max( length( position ), 0.00001f );
+	float attenuation		= pow( max( 1.0f - min( square_distance/( light_range*light_range ), 1.0f ), 0.001f ), light_attenuation_power );
+
+	float3 halfway			= normalize( light_direction + view_direction );
+	float v_dot_h			= dot( view_direction, halfway );
+	float n_dot_v			= saturate( dot( normal, view_direction ) );
+	float n_dot_l			= saturate( dot( light_direction, normal ) );
+	float n_dot_h			= dot( normal, halfway );
+
+	float fresnel_h			= f0 + ( 1.0f - f0 )*pow5( 1.0f - v_dot_h );
+	float fresnel_l			= f0 + ( 1.0f - f0 )*pow5( 1.0f - n_dot_l );
+	float visibility		= min( 1.0f/( max( n_dot_v*n_dot_l, 0.000001f )*4.0f ), 1.0f );
+	float r2				= roughness*roughness;
+	float alpha				= r2*( r2*r2 )*0.5f + roughness*0.1f;
+	float alpha2			= alpha*alpha;
+	float d					= ( n_dot_h*alpha2 - n_dot_h )*n_dot_h + 1.0f;
+	float distribution		= alpha2/( 3.14159265f*d*d );
+	float k					= roughness*0.5f;
+	float g_v				= n_dot_v/( n_dot_v*( 1.0f - k ) + k );
+	float g_l				= n_dot_l/( n_dot_l*( 1.0f - k ) + k );
+	float geometry			= saturate( ( g_v*g_l )*visibility );
+	float diffuse_term		= saturate( n_dot_l*( 1.0f - fresnel_l ) );
+	float specular_term		= ( ( fresnel_h*min( distribution, 1000.0f ) )*geometry )*n_dot_l;
+
+	float diffuse			= diffuse_term*attenuation;
+	float specular			= specular_term*attenuation;
+
+#if USE_SSDO
+	diffuse					= diffuse*ssdo_light_occlusion( normalize( to_light ), tc );
+#endif
+
+#if SHADOWED
+	float3 offset			= normalize( normal*0.75f + normalize( to_light ) )*24.0f/shadow_map_size;
+#if PCSS && SHADOW_QUALITY >= 1
+	float n_dot_l_shadow	= saturate( dot( normal, normalize( to_light ) ) );
+	// tan of the receiver's angle to the light, clamped to 2 (63 degrees): a steeper bias would push the
+	// compared depth behind a blocker that sits close to its receiver (a shelf on a wall) and lose its shadow
+	float slope				= min( sqrt( 1.0f - n_dot_l_shadow*n_dot_l_shadow )/max( n_dot_l_shadow, 0.1f ), 2.0f );
+	// the normal offset: along the normal only and 1.5 shadow-map texels at the receiver, not the stock
+	// 24 / shadow_map_size metres towards the light (9 cm for a 256 map): moved that far towards a
+	// grazing light, a wall's receiver passes in front of a shelf on it and loses its shadow
+	float4 world_position	= float4( mul( m_V2W, float4( position, 1.0f ) ), 1.0f );
+	float texel_metres		= 2.0f*dot( view_to_light_matrix[3], world_position )/( length( view_to_light_matrix[0].xyz )*shadow_map_size );
+	float3 pcss_position	= position + normal*( 1.5f*texel_metres );
+	float shadow			= pcss_shadow( mul( view_to_light_matrix, float4( mul( m_V2W, float4( pcss_position, 1.0f ) ), 1.0f ) ), input.position.xy, slope );
+#else
+	float shadow			= shadow_factor( position + offset );
+#endif
+	diffuse					= diffuse*shadow;
+	specular				= specular*shadow;
+#endif
+
+	float3 light			= light_color*light_intensity;
+	light_accumulator		result;
+	result.diffuse			= float4( light*diffuse, 0.0f );
+	result.specular			= float4( light*max( specular, 0.0f ), 0.0f );
+	return					result;
+}

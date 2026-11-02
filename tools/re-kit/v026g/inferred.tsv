@@ -3166,6 +3166,12 @@ va	status	ref_021d	name
 0x000ddff0	inferred-high		vostok::command_line::key::initialize(pcstr)
 0x000de0c0	inferred-high		vostok::command_line::key_initializator::operator()
 0x000df020	inferred-high		vostok::command_line::iterate_keys<key_initializator>
+0x00181660	inferred-medium	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
+0x001858e0	inferred-medium		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
+0x003cd440	inferred-high		vostok::render::options::use_ssdo
+0x00290930	inferred-high	0x001a7008	survarium::object_ambient_light::insert
+0x001c3c90	inferred-medium		vostok::render::environment_probe_properties::operator=
+0x001ba090	inferred-medium		stlp_std::priv::__insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
 0x002e26b0	inferred-medium		survarium::weapon_core::ammo_ordinal
 0x002e2750	inferred-medium		survarium::weapon_core::ammo_by_ordinal
 0x003046f0	inferred-high	0x001e9cc8	survarium::booby_trap_core::load
