@@ -1816,8 +1816,8 @@ fn faq(lang: Lang) -> String {
                 "“Game download failed: …” або “game\\resources.db.patch_… could not be downloaded …”",
             ),
             lang.tr(
-                "Start <code>Skhid.bat</code> again.",
-                "Запустіть <code>Skhid.bat</code> знову.",
+                "Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.",
+                "Запустіть <code>Skhid.bat</code> знову. Не допомогло? Запустіть <code>Skhid-without-updater.bat</code>: він завантажує гру та оновлення без лаунчера й запускає її.",
             ),
         ),
         (
@@ -1826,16 +1826,9 @@ fn faq(lang: Lang) -> String {
                 "«skhid.link не відповідає.», «skhid.link відхилив з'єднання.», «Не вдається знайти skhid.link.» або «З'єднання з skhid.link перервано.»",
             ),
             lang.tr(
-                "Run <code>Skhid-network-setup.cmd</code>.",
-                "Запустіть <code>Skhid-network-setup.cmd</code>.",
+                "Run <code>Skhid-network-setup.cmd</code>. Still the same? Your provider may block skhid.link: use a VPN, see <code>VPN.txt</code>.",
+                "Запустіть <code>Skhid-network-setup.cmd</code>. Не допомогло? Можливо, ваш провайдер блокує skhid.link: скористайтеся VPN, див. <code>VPN.txt</code>.",
             ),
-        ),
-        (
-            lang.tr(
-                "Works only with a VPN, or only without one.",
-                "Працює лише з VPN або лише без нього.",
-            ),
-            lang.tr("See <code>VPN.txt</code>.", "Див. <code>VPN.txt</code>."),
         ),
         (
             lang.tr("Nothing works.", "Нічого не працює."),
@@ -3338,10 +3331,10 @@ mod tests {
             };
             assert_eq!(
                 faq.matches(&format!("<dt class=q>{q}</dt>")).count(),
-                5,
+                4,
                 "{faq}"
             );
-            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 5, "{faq}");
+            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 4, "{faq}");
             assert!(!faq.contains("<li>"), "{faq}");
             for said in [
                 "Skhid-defender-setup.cmd",
@@ -3349,6 +3342,7 @@ mod tests {
                 "Skhid-network-setup.cmd",
                 "VPN.txt",
                 "Skhid-collect-logs.cmd",
+                "Skhid-without-updater.bat",
                 "“Game download failed: …”",
                 unanswered,
             ] {
