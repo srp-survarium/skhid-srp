@@ -70,6 +70,7 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
             melee_kills: 0,
             batteries: 2,
             capture_hundredths: 0,
+            artefacts: 1,
         },
     }
 }
@@ -210,7 +211,8 @@ fn keys(value: &Value) -> Vec<&str> {
     keys
 }
 
-const TOTALS: [&str; 15] = [
+const TOTALS: [&str; 16] = [
+    "artefacts",
     "assists",
     "batteries",
     "captures",
@@ -241,7 +243,8 @@ const SUMMARY: [&str; 10] = [
     "winner",
 ];
 
-const LINE: [&str; 15] = [
+const LINE: [&str; 16] = [
+    "artefacts",
     "assists",
     "batteries",
     "captures",
@@ -286,6 +289,7 @@ fn a_player_is_its_card_and_totals_of_public_matches() {
         (Some(3), Some(3))
     );
     assert_eq!(totals["kills"], 42);
+    assert_eq!(totals["artefacts"], 3);
     assert_eq!(totals["kd"], 2.33);
     assert_eq!(totals["win_rate"], 1.0);
     assert_eq!(totals["score_avg"], 310.0);
@@ -400,6 +404,7 @@ fn the_top_lists_leave_out_the_banned() {
     assert_eq!(keys(&players[0]), ["level", "player", "rating", "totals"]);
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/top")["by"], "rating");
+    assert_eq!(world.ok("/api/history/top?by=artefacts")["by"], "artefacts");
 
     world.store.ban_account(
         world.alice,

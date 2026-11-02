@@ -178,6 +178,7 @@ fn totals_key(text: &str) -> Option<TotalsKey> {
         "score" => TotalsKey::Score,
         "headshots" => TotalsKey::Headshots,
         "batteries" => TotalsKey::Batteries,
+        "artefacts" => TotalsKey::Artefacts,
         _ => return None,
     })
 }
@@ -190,6 +191,7 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
         TotalsKey::Score => "score",
         TotalsKey::Headshots => "headshots",
         TotalsKey::Batteries => "batteries",
+        TotalsKey::Artefacts => "artefacts",
     }
 }
 
@@ -470,6 +472,7 @@ fn counters(counters: &Counters) -> Value {
         "melee_kills": counters.melee_kills,
         "batteries": counters.batteries,
         "captures": counters.capture_hundredths as f64 / 100.0,
+        "artefacts": counters.artefacts,
     })
 }
 
