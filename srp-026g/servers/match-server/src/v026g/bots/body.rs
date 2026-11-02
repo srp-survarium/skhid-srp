@@ -170,11 +170,15 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
                 at.feet.y,
                 at.feet.z + at.velocity[1] / speed * RECKONING_M,
             );
-            let (_, margin, _) = match kin.margin_edge {
+            let (margin_node, margin, _) = match kin.margin_edge {
                 MarginEdge::Lattice => slide(grid, node, at.feet, to),
                 MarginEdge::Body => slide_edge(kin, grid, node, at.feet, to, WalkOffs::Landings),
             };
-            if falls(margin) {
+            // [`Edge::ClientWalksOff`]: the lattice holds the margin at an open side as at a wall; there it goes over.
+            let over_open = kin.edge == Edge::ClientWalksOff
+                && margin.distance_xz(to) > 1e-3
+                && grid.open_toward(margin_node, to.x - margin.x, to.z - margin.z) == Some(true);
+            if falls(margin) || over_open {
                 return false;
             }
         }
@@ -629,11 +633,72 @@ fn advance(
     at
 }
 
-/// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, or the client's held to [`SUPPORT_M`].
+/// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
+/// the client's walk off an open side ([`walk_off_open`]).
 fn slide_edge(kin: &Kinematics, grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, offs: WalkOffs) -> (NodeId, Vec3, bool) {
     match kin.edge {
         Edge::Lattice => slide(grid, node, from, to),
         Edge::Client => slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs),
+        Edge::ClientWalksOff => {
+            let slid = slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs);
+            walk_off_open(grid, slid.0, slid.1, to).map_or(slid, |(node, feet)| (node, feet, false))
+        }
+    }
+}
+
+/// [`Edge::ClientWalksOff`]: a body the slide stopped short of `to` (on `node`, at `feet`) at an open side of its floor
+/// ([`WalkGrid::open_toward`]: no link that way, no floor of its level beside, no wall) goes on as the client's capsule: to `to`
+/// while a floor of its level within [`SUPPORT_M`] still holds it, else straight down onto the highest floor under `to` open above the
+/// edge ([`under_edge`]). `None` at a side that is not open (a wall, a grid without the table) and over no floor (held at the edge
+/// until a world shows where the body is). The stand-in's `past_edge`, with the grid's table for its ray against the walker's
+/// triangles.
+fn walk_off_open(grid: &WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<(NodeId, Vec3)> {
+    if feet.distance_xz(to) <= 1e-3 || grid.open_toward(node, to.x - feet.x, to.z - feet.z) != Some(true) {
+        return None;
+    }
+    let (base, step) = (grid.position(node).y, grid.body().step);
+    let held = std::iter::once(node)
+        .chain(grid.links(node).filter(|(_, kind)| !kind.is_leap()).map(|(next, _)| next))
+        .filter(|&n| (grid.position(n).y - base).abs() <= step && grid.position(n).distance_xz(to) <= SUPPORT_M)
+        .min_by(|&a, &b| grid.position(a).distance_xz(to).total_cmp(&grid.position(b).distance_xz(to)));
+    let moved = match held {
+        Some(n) => Some((n, Vec3::new(to.x, grid.position(n).y, to.z))),
+        None => under_edge(grid, to, base, base - step).map(|n| (n, Vec3::new(to.x, grid.position(n).y, to.z))),
+    };
+    #[cfg(test)]
+    open_walks::count(match (held, moved) {
+        (Some(_), _) => open_walks::Kind::Held,
+        (None, Some(_)) => open_walks::Kind::Down,
+        (None, None) => open_walks::Kind::NoFloor,
+    });
+    moved
+}
+
+/// The model's walks off open sides ([`walk_off_open`]), the reckoning's and the stop forecasts' alike, for the bench.
+#[cfg(test)]
+pub(crate) mod open_walks {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    /// How a walk off an open side went.
+    #[derive(Clone, Copy)]
+    pub(crate) enum Kind {
+        /// On, held by a floor of its level.
+        Held,
+        /// Down onto the floor under it.
+        Down,
+        /// No floor under it: held at the edge.
+        NoFloor,
+    }
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub(crate) fn count(kind: Kind) {
+        COUNTS[kind as usize].fetch_add(1, Relaxed);
+    }
+
+    /// Held, down, no floor.
+    pub(crate) fn counts() -> Vec<u64> {
+        COUNTS.iter().map(|c| c.load(Relaxed)).collect()
     }
 }
 
@@ -1437,6 +1502,41 @@ pub(super) mod tests {
         let (lattice, client) = (first_down(Edge::Lattice).expect("falls"), first_down(Edge::Client).expect("falls"));
         assert!(lattice < 0.3, "the lattice drops the reckoned body at the boundary: {lattice}");
         assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
+    }
+
+    /// [`Edge::ClientWalksOff`] (A269): a ledge 6 m high, deeper than the harmless drop, has no link off it. The reckoned body walking
+    /// out stays on the top with [`Edge::Client`], as at a wall, while the client's capsule walks off; with the grid's open sides it is
+    /// held to the support and comes down as the capsule does. A grid without the table is [`Edge::Client`].
+    #[test]
+    fn the_reckoned_body_walks_off_an_open_side_with_no_link_as_the_capsule_does() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 6.0));
+        let bare = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let last = (0..bare.len() as NodeId).map(|n| bare.position(n)).filter(|p| p.y > 5.9 && (p.z - 5.0).abs() < 0.2).map(|p| p.x).fold(f32::MIN, f32::max);
+        let rim = bare.locate(Vec3::new(last, 6.0, 5.0), 0.3).unwrap();
+        assert!(bare.links(rim).all(|(b, _)| bare.position(b).y > 5.0), "no link off the 6 m edge");
+        let open = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_open_sides(&triangles, SUPPORT_M);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        // The overhang past the last centre the tick before the feet are down (None: never), walking out +x.
+        let first_down = |edge: Edge, grid: &WalkGrid| {
+            let kin = Kinematics { blend_ticks: 1, edge, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(8.0, 6.0, 5.0), yaw), &kin, Some(grid));
+            let mut before = 8.0;
+            for time in (50..=4_000).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(grid));
+                let at = track.estimate().unwrap().feet;
+                if at.y < 1.0 {
+                    return Some(before - last);
+                }
+                before = at.x;
+            }
+            None
+        };
+        assert_eq!(first_down(Edge::Client, &open), None, "held on the top as at a wall");
+        assert_eq!(first_down(Edge::ClientWalksOff, &bare), None, "no table: as the client edge");
+        let walks_off = first_down(Edge::ClientWalksOff, &open).expect("walks off");
+        assert!(walks_off > 0.125 && walks_off <= SUPPORT_M, "held to the support, a tick short of the fall: {walks_off}");
     }
 
     /// [`FixFloor::Under`]: a world that shows the body in the air at a ledge's face (a jump against it) puts it on the floor

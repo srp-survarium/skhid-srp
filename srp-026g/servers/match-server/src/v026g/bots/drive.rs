@@ -2190,7 +2190,9 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
     let speed = me.velocity[0].hypot(me.velocity[1]);
     // On a lip's floors, or about to be (the glide of a stop is a stride or more).
     let ahead = Vec3::new(me.feet.x + me.velocity[0] * LIP_LOOK_S, me.feet.y, me.feet.z + me.velocity[1] * LIP_LOOK_S);
-    let on_lip = |node: Option<NodeId>| node.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node));
+    // With [`kin::Edge::ClientWalksOff`] the floors near an open side count as a lip's: the body walks off there too.
+    let open = kin.edge == kin::Edge::ClientWalksOff;
+    let on_lip = |node: Option<NodeId>| node.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node) || (open && grid.near_open_side(node)));
     let glide = full && keys & MOVE == 0 && speed > LIP_GLIDE_MPS;
     if (keys & MOVE == 0 && !glide) || hold == 0 {
         return LipGuard::Clear;
@@ -2205,12 +2207,21 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
     if !(plain || about) {
         return LipGuard::Clear;
     }
+    // Asked only because of an open side: no lip's floor under the body, ahead of it or about it.
+    #[cfg(test)]
+    let open_only = open && {
+        let lip = |node: Option<NodeId>| node.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node));
+        !lip(node) && !lip(grid.locate(ahead, 1.0))
+    };
     #[cfg(test)]
     {
         if glide {
             motor::counts::lip_gap(0);
         } else if about {
             motor::counts::lip_gap(2);
+        }
+        if open_only {
+            motor::counts::open_guard(false);
         }
     }
     let at = body::Estimate::of_view(me, node);
@@ -2267,6 +2278,9 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
             motor::counts::lip_gap(1);
         } else if about {
             motor::counts::lip_gap(3);
+        }
+        if open_only {
+            motor::counts::open_guard(true);
         }
     }
     guard
@@ -2642,6 +2656,28 @@ mod tests {
         assert_eq!(swapped(guard(&at_rim, &[Vec3::new(40.0, 0.0, 10.0)])), Some(key::BACK));
         // With no keys held there is nothing to let go of.
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear);
+    }
+
+    /// [`kin::Edge::ClientWalksOff`] (A269): a slab 6 m over the field, deeper than the harmless drop, so no link leaves its rim and
+    /// no floor of it is a lip. With the client edge the guard does not look (the body model holds the body there as at a wall); with
+    /// the grid's open sides it looks and holds a walk whose stop carries the body over, and leaves one walking away alone.
+    #[test]
+    fn a_walk_off_a_rim_with_no_link_is_held_with_the_open_sides() {
+        let floor = crate::v026g::bots::body::tests::floor;
+        let mut triangles: Vec<mapdata::Triangle> = floor(40.0, 20.0, 70.0, 46.0, 0.0).to_vec();
+        triangles.extend(floor(50.0, 30.0, 56.0, 36.0, 6.0));
+        let grid = mapdata::WalkGrid::build(&triangles, [40.0, 20.0, 70.0, 46.0], 0.25, mapdata::Body::default())
+            .with_open_sides(&triangles, crate::v026g::bots::body::SUPPORT_M);
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let at_rim = PlaceView { feet: Vec3::new(55.4, 6.0, 33.0), ..on_the_slab(55.4, toward, 3.5) };
+        let rim = grid.locate(Vec3::new(55.875, 6.0, 33.125), 0.1).unwrap();
+        assert!(!grid.is_lip(rim) && !grid.near_lip(rim) && grid.near_open_side(rim), "an open rim, no lip");
+        let client = kin::Kinematics::default();
+        assert_eq!(lip_guard(&grid, &client, &at_rim, 0.0, key::FORWARD, &[], HOLD), LipGuard::Clear);
+        let walks_off = kin::Kinematics { edge: kin::Edge::ClientWalksOff, ..client };
+        assert!(matches!(lip_guard(&grid, &walks_off, &at_rim, 0.0, key::FORWARD, &[], HOLD), LipGuard::Swapped(_) | LipGuard::Braked(_)));
+        let away = PlaceView { feet: Vec3::new(55.4, 6.0, 33.0), ..on_the_slab(55.4, -toward, 3.5) };
+        assert_eq!(lip_guard(&grid, &walks_off, &away, 0.0, key::FORWARD, &[], HOLD), LipGuard::Safe);
     }
 
     /// A sprint at a rim is slowed to a walk or a creep before it is stopped, and the walk goes on where a
