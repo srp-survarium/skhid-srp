@@ -66,7 +66,7 @@ LOCALIZE = 0x1FEF90                      # its text's last step: eax = the text,
 from localization_026g import CATALOG, LANGUAGES, read_translations
 HINTS = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
          for language, *_ in LANGUAGES]
-# The release's Onyx (artefacts-1.json): passive x0.95, active x0.25 for 3 s,
+# The release's Onyx (artefacts.tsv): passive x0.95, active x0.25 for 3 s,
 # absorb_total 5; its loader's fields at +C7Ch (+26Ch.. of 0x33B780).
 ONYX = {0xEE8: 7, 0xEF0: 0.95, 0xEF8: 0.95, 0xF00: 0.25, 0xF08: 0.25, 0xF0C: 5.0, 0xF10: 3000}
 
@@ -75,7 +75,7 @@ HINT, GAME = 0x22000800, 0x22001000      # an activation hint's text, the game (
 HOLDER, HOLDER_VT, PLAYER, KITS, CONFIG, POOLS, DM, NAMES = (MEMORY + 0x10000 * i for i in range(1, 9))
 GET_PLAYER, GET_DM, ENABLE_ACTIVE, RET4, RET8 = (STUB + 0x10 * i for i in range(5))
 
-# The release's numbers (srp-026g/scripts/content-edit/artefacts-1.json).
+# The release's numbers (srp-026g/scripts/content-edit/artefacts.tsv).
 SPRING = {"passive": {"movement_speed_mod": 0.05, "max_carried_weight_mod": 0.0, "aim_time_mod": -0.05},
           "active": {"movement_speed_mod": 0.1, "stamina_regen_mod": 5, "stamina_spend_mod": -5,
                      "duration": 10, "aim_time_mod": -0.1, "stopping_power_mod": -1.0}}

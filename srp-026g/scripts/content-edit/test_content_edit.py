@@ -345,10 +345,18 @@ class WeaponTable(unittest.TestCase):
                 (table(good, list(WEAPON['columns'])[1:]), {'wpn_a': weapon(0.55, '55')}),          # missing
                 (table(good), {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.4, '40')}),           # no row
                 (table({'wpn_a': {**good['wpn_a'], 'melee': ''}}), {'wpn_a': weapon(0.55, '55')}),  # key kept
-                (table({'wpn_a': {**good['wpn_a'], 'pierce': '0.3'}}), {'wpn_a': weapon(0.55, '55')})):  # none
+                (table({'wpn_a': {**good['wpn_a'], 'recoil': '1'}}), {'wpn_a': weapon(0.55, '55')})):  # no table
             result, out = self.run_table(text, weapons)
             self.assertNotEqual(result.returncode, 0, text)
             self.assertFalse(out.exists())
+
+    def test_a_cell_of_a_key_the_config_lacks_adds_it_to_its_table(self):
+        result, out = self.run_table(table({'wpn_a': {**cells_of('0.55'), 'pierce': '0.3'}}), {'wpn_a': weapon(0.55, '55')})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('0 unexpected differences', result.stdout)
+        a = self.out(out, 'wpn_a')
+        self.assertEqual(ce.rec(a, ce.find(a, 'parameters/bullet_pierce'))[3], ce.T_FLOAT)
+        self.assertTrue(ce.same(value(a, 'parameters/bullet_pierce'), 0.3))
 
     def test_the_dump_reads_back_as_its_configs(self):
         weapons = {'wpn_a': weapon(0.55, '55'), 'wpn_b': weapon(0.1 + 0.2, '30')}
@@ -412,7 +420,8 @@ class OtherTables(unittest.TestCase):
         files = {'mods.options': mods}
         players = {'mods.options': bytearray(mods)}
         columns, rows = read_table(MODS, 'id\tvalue\tname\n1030\t0.1\ta\n1031\t0.25\tc\n')
-        ce.stats_write(MODS, columns, rows, files, 't')
+        self.assertEqual(ce.stats_write(MODS, columns, rows, files, 't')[0],
+                         {'mods.options': ['/modifications[1]/modifiers[0]/value', '/modifications[1]/ui/name']})
         self.assertEqual((value(mods, 'modifications[1]/ui/name'), ce.cell_text(mods, ce.find(mods, 'modifications[1]/modifiers[0]/value'))),
                          ('c', '0.25'))
         self.assertEqual(ce.stats_moved(MODS, columns, players, files), ['mods.options#modifications[id=1031] modifiers[0]/value'])

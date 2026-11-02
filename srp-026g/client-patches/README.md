@@ -3218,7 +3218,7 @@ fixed in pack 2). **Not yet run in a game since.**
 
 The owner's decision (2026-10-22): the three combat artefacts buffed, best one of each, a stack
 of one kind still adding up. The rules: `../docs/notes/artefacts.md`. The numbers are in the
-configs (`../scripts/content-edit/artefacts-1.json`: Spring's passive speed, the two new
+configs (`../scripts/content-edit/artefacts.tsv`: Spring's passive speed, the two new
 `aim_time_mod` keys and `active/stopping_power_mod`, Lifebone's regeneration delay); the patch
 does what no config of 0.26g could.
 
@@ -3251,7 +3251,7 @@ does what no config of 0.26g could.
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
   fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
 - **Onyx: a stack is a longer burst, not a stronger one** (the owner, 2026-10-25; its numbers,
-  -75 % for 3 s, in `artefacts-1.json`). Its enable_active (0x3128C0) sets the active's time left
+  -75 % for 3 s, in `artefacts.tsv`). Its enable_active (0x3128C0) sets the active's time left
   (+F14h, ms) from `active/duration`; the press above, when the kind's enable_active is Onyx's,
   first counts the ready ones it fires (n) and adds (n - 1) x 1000 ms to each fired one's +F14h,
   so they are active 3 s + (n - 1) s and end and cool down together. Each Onyx protects its
