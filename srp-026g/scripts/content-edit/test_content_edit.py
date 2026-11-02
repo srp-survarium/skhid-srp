@@ -485,8 +485,16 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.stats_label(category, 'gone'), 'gone')
 
     def test_an_ammo_card_counts_every_pellet(self):
-        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2}, 'parameters': {'clip_size': 15}})
-        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15'})
+        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2},
+                       'parameters': {'clip_size': 15, 'clip_weight': 0.45}})
+        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.4'})
+
+    def test_a_grenade_card_counts_every_body_and_a_trap_card_its_foot(self):
+        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1]},
+                          'parameters': {'weight': 0.35}})
+        trap = config({'data': {'damage_parameters': [{'amount': 0.6}, {'amount': 0.6}]}, 'parameters': {'weight': 0.8}})
+        self.assertEqual(ce.throwable_card(grenade), {1: '390', 23: '10', 15: '0.3'})
+        self.assertEqual(ce.throwable_card(trap), {1: '60', 15: '0.8'})
 
 
 if __name__ == '__main__':

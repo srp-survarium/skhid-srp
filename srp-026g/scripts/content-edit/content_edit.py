@@ -713,11 +713,31 @@ def weapon_card(buf):
 
 
 def ammo_card(buf):
-    """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip."""
+    """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip,
+    15 a clip's weight (as the weapon card's weight)."""
     def number(path):
         return value_of(buf, find(buf, path))
     return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
-            22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size'))}
+            22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size')),
+            15: '%.1f' % number('parameters/clip_weight')}
+
+
+def throwable_card(buf):
+    """{prop_id: text} of a grenade's or a trap's card: 1 damage x100 (a grenade's on every body it
+    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight (as the weapon card's)."""
+    def number(path):
+        try:
+            return value_of(buf, find(buf, path))
+        except KeyError:
+            return None
+    out = {15: '%.1f' % number('parameters/weight')}
+    if number('data/splash_max_damage') is not None:
+        bodies = len(children(buf, find(buf, 'data/splash_affected_bodies')))
+        out.update({1: number_text(number('data/splash_max_damage') * 100 * bodies),
+                    23: number_text(number('data/splash_radius'))})
+    if number('data/damage_parameters[0]/amount') is not None:
+        out[1] = number_text(number('data/damage_parameters[0]/amount') * 100)
+    return out
 
 
 # <table>.tsv, a row each of what `configs` names, a column a stat:
@@ -803,6 +823,7 @@ STATS = {
         'match': {'splash_damage', 'splash_min', 'splash_pierce', 'splash_radius', 'stopping', 'stamina_damage',
                   'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
                   'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
+        'cards': throwable_card,
     },
 }
 
