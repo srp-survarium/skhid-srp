@@ -161,6 +161,8 @@ impl Web {
             ("GET", "/") => page(
                 lang,
                 Form::Home(Stats {
+                    registered: self.store.registered_accounts(),
+                    online: self.store.players_present(),
                     maintenance: self.store.minutes_to_maintenance(),
                     registrations_open: self.store.registrations_open(),
                     v026g: true,

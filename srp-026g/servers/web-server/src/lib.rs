@@ -167,9 +167,11 @@ impl Lang {
     }
 }
 
-/// What the home page says besides its steps, and which steps.
+/// What the home page counts.
 #[derive(Clone, Copy)]
 struct Stats {
+    registered: usize,
+    online: usize,
     /// The minutes to a planned maintenance.
     maintenance: Option<u32>,
     registrations_open: bool,
@@ -1006,6 +1008,8 @@ impl Web {
             ("GET", "/") => page(
                 request.lang,
                 Form::Home(Stats {
+                    registered: self.store.registered_accounts(),
+                    online: self.store.players_present(),
                     maintenance: self.store.minutes_to_maintenance(),
                     registrations_open: self.store.registrations_open(),
                     v026g: false,
@@ -1766,7 +1770,8 @@ h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-transform:uppe
 ol{padding-left:1.3rem;margin:0}.rules{padding-left:1.1rem;margin:0}.opts{font-size:.85rem;color:var(--ink-2);padding-left:1.1rem}li{margin:.6rem 0}li>p{margin:.4rem 0}\
 pre,code{background:var(--code);border:1px solid var(--rule);border-radius:2px;color:var(--ink);font:.85rem var(--data)}pre{padding:.6rem .8rem;margin:.4rem 0;white-space:pre-wrap;word-break:break-all}code{padding:.05rem .3rem;word-break:break-all}\
 .dl{display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;margin:.6rem 0}.dl .button{margin:0}.hash{display:block;max-width:100%;font-size:.78rem;padding:.35rem .5rem}\
-.card .note{margin:.2rem 0 0}\
+.card .note{margin:.2rem 0 0}.stats{display:flex;gap:2rem;padding-top:10px;border-top:1px solid var(--rule)}.stats div{display:flex;flex-direction:column}\
+.stats b{font:400 1.9rem/1.1 var(--data);color:var(--accent)}.stats span{font:700 .72rem var(--display);color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em}\
 label{display:block;margin:.9rem 0 .25rem;font:700 .74rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
 input{width:100%;padding:.5rem .6rem;background:var(--bg);color:inherit;border:1px solid var(--rule);border-radius:2px;font:inherit}\
 input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}\
@@ -1786,20 +1791,24 @@ footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid v
 
 /// The home page's "if something goes wrong", after the steps, for a
 /// download with the launcher (whose ZIP has these files: `make_client_026g.py`):
-/// a problem and what to run, a line each; the Discord link once.
+/// what the player sees, quoted as the updater words it today
+/// (`client/updater`: `logic/src/file_error.rs`, `exe/src/text.rs`,
+/// `logic/src/network.rs`; in the launcher's language where the updater has
+/// one, else its English), and what to run, a line each; then where to send
+/// files, once.
 fn faq(lang: Lang) -> String {
     let cases = [
         lang.tr(
-            "<b>Windows Defender deleted files</b> → run <code>Skhid-defender-setup.cmd</code>.",
-            "<b>Windows Defender видалив файли</b> → запустіть <code>Skhid-defender-setup.cmd</code>.",
+            "<b>“Windows Security blocked …: a false positive.”</b> or <b>“Cannot start updater_skhid.exe.”</b> → run <code>Skhid-defender-setup.cmd</code>.",
+            "<b>«Безпека Windows заблокувала …: це хибне спрацювання.»</b> або <b>“Cannot start updater_skhid.exe.”</b> → запустіть <code>Skhid-defender-setup.cmd</code>.",
         ),
         lang.tr(
-            "<b>Download stuck or failed</b> → start <code>Skhid.bat</code> again.",
-            "<b>Завантаження зависло чи не вдалося</b> → запустіть <code>Skhid.bat</code> знову.",
+            "<b>“Game download failed: …”</b> or <b>“game\\resources.db.patch_… could not be downloaded …”</b> → start <code>Skhid.bat</code> again.",
+            "<b>“Game download failed: …”</b> або <b>“game\\resources.db.patch_… could not be downloaded …”</b> → запустіть <code>Skhid.bat</code> знову.",
         ),
         lang.tr(
-            "<b>Can't connect</b> → run <code>Skhid-network-setup.cmd</code>.",
-            "<b>Немає з'єднання</b> → запустіть <code>Skhid-network-setup.cmd</code>.",
+            "<b>“skhid.link didn't answer.”</b>, <b>“skhid.link refused the connection.”</b>, <b>“Couldn't find skhid.link.”</b> or <b>“The connection to skhid.link was cut off.”</b> → run <code>Skhid-network-setup.cmd</code>.",
+            "<b>«skhid.link не відповідає.»</b>, <b>«skhid.link відхилив з'єднання.»</b>, <b>«Не вдається знайти skhid.link.»</b> або <b>«З'єднання з skhid.link перервано.»</b> → запустіть <code>Skhid-network-setup.cmd</code>.",
         ),
         lang.tr(
             "<b>Works only with a VPN, or only without one</b> → see <code>VPN.txt</code>.",
@@ -1818,8 +1827,8 @@ fn faq(lang: Lang) -> String {
             .map(|case| format!("<li>{case}</li>"))
             .collect::<String>(),
         lang.tr(
-            "Send files to us on Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
-            "Файли надсилайте нам у Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
+            "Send files to us on Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>",
+            "Файли надсилайте нам у Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>",
         ),
     )
 }
@@ -1863,22 +1872,10 @@ fn home(lang: Lang, stats: Stats) -> String {
         None => String::new(),
     };
     // 0.26g: the game itself comes from elsewhere (step one); this server
-    // hands out only the files that go over it.
-    // With a download whose launcher brings the game there is no such
-    // step: the link is the way out, in the small print of the download.
-    let game_url = connect.and_then(|connect| connect.game_url.as_deref());
-    let game_link = game_url.map_or_else(
-        || lang.tr("the original game", "оригінальну гру"),
-        |url| {
-            format!(
-                "<a href=\"{}\" rel=noopener>{}</a>",
-                escape(url),
-                lang.tr("the original game", "оригінальну гру")
-            )
-        },
-    );
+    // hands out only the files that go over it. A download whose launcher
+    // brings the game has no such step.
     let original = if v026g && !installs_game {
-        let link = match game_url {
+        let link = match connect.and_then(|connect| connect.game_url.as_deref()) {
             Some(url) => format!(
                 "<div class=dl><a class=button href=\"{}\" rel=noopener>{}</a></div>",
                 escape(url),
@@ -1926,6 +1923,14 @@ fn home(lang: Lang, stats: Stats) -> String {
             )
         );
     }
+    let stats = format!(
+        "{notices}<div class=stats><div><b>{}</b><span>{}</span></div><div><b>{}</b><span>{}</span></div></div>",
+        stats.online,
+        lang.tr("players online", "гравців онлайн"),
+        stats.registered,
+        lang.tr("registered", "зареєстровано"),
+    );
+    let version = if v026g { "0.26g" } else { "0.21d" };
     // With the launcher a player starts that and types nothing. 0.21d: the
     // start command, typed by hand (0.26g's exe has the server and the memory
     // sizes built in, so its page names no command line).
@@ -1985,19 +1990,26 @@ fn home(lang: Lang, stats: Stats) -> String {
         String::new()
     };
     format!(
-        "{notices}<section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        lang.tr("Skhid", "Схід"),
+        lang.tr(
+            &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
+            &format!("Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.")
+        ),
+        lang.tr(
+            "Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
+            "Discord проєкту: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"
+        ),
+        lang.tr("Early test server.", "Тестовий сервер."),
+        lang.tr(
+            "It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.",
+            "Можливі помилки та збої. Ваш прогрес, предмети й акаунти можуть зникнути або бути скинуті будь-коли, а сервер можуть зупинити будь-коли. Граючи, ви з цим погоджуєтесь."
+        ),
         lang.tr("How to play", "Як зіграти"),
         if installs_game {
-            format!(
-                "{}<p><small>{}</small></p>",
-                lang.tr(
-                    "Download our files and unpack them into an empty folder. <b>You do this only once.</b>",
-                    "Завантажте наші файли й розпакуйте їх у порожню теку. <b>Це робиться лише один раз.</b>"
-                ),
-                lang.tr(
-                    &format!("Already have Survarium 0.26g (build 2777)? Unpack into its folder, the one with the <code>game</code> folder. Launcher can't get the game? Get {game_link} and do the same."),
-                    &format!("Уже маєте Survarium 0.26g (збірка 2777)? Розпакуйте в її теку, ту, де лежить тека <code>game</code>. Лаунчер не може отримати гру? Завантажте {game_link} і зробіть так само.")
-                ),
+            lang.tr(
+                "Download our files and unpack them into an empty folder. <b>You do this only once.</b>",
+                "Завантажте наші файли й розпакуйте їх у порожню теку. <b>Це робиться лише один раз.</b>"
             )
         } else if with_launcher {
             lang.tr(
@@ -3219,38 +3231,92 @@ mod tests {
     }
 
     #[test]
+    fn the_home_page_counts_registered_and_online_players() {
+        let web = web(None);
+        let count = |web: &Web| {
+            let body = web
+                .route(
+                    &Request {
+                        method: "GET".into(),
+                        path: "/".into(),
+                        target: "/".into(),
+                        lang: Lang::En,
+                        forwarded: String::new(),
+                        range: String::new(),
+                        client: None,
+                        form: Vec::new(),
+                    },
+                    "t",
+                )
+                .body;
+            body.split("<div class=stats>")
+                .nth(1)
+                .unwrap()
+                .split("</div></div>")
+                .next()
+                .unwrap()
+                .replace("</b><span>", " ")
+                .replace("</span></div><div><b>", " | ")
+                .replace("<div><b>", "")
+        };
+        assert!(count(&web).starts_with("0 players online | 0 registered"));
+        let first = web.store.sign_in("a", b"secret").unwrap();
+        web.store.sign_in("b", b"secret").unwrap();
+        let session = web.store.create_session(first);
+        assert!(web.store.hold(session).is_some());
+        let shown = count(&web);
+        assert!(shown.contains("| 2 registered"), "{shown}");
+    }
+
+    #[test]
     fn the_home_page_says_how_to_start_what_the_download_holds() {
         let stats = |launcher| Stats {
+            registered: 0,
+            online: 0,
             maintenance: None,
             registrations_open: true,
             v026g: true,
             launcher,
             installs_game: false,
         };
-        // With the launcher: one file to start, nothing to type, and the
-        // download is needed once. Nothing but the steps and, after them,
-        // what to run when something goes wrong: no intro, no counters, no
-        // other way to start, no language line, no matchmaking rules.
-        for (lang, press, once) in [
-            (Lang::En, "press <b>PLAY</b>", "You do this only once"),
-            (Lang::Uk, "натисніть <b>PLAY</b>", "лише один раз"),
+        // With the launcher: what the server is, the steps (one file to
+        // start, nothing to type, the download needed once) and, after
+        // them, what to run when something goes wrong, each case by the
+        // words the player sees. No other way to start, no language line,
+        // no matchmaking rules.
+        for (lang, press, once, unanswered) in [
+            (
+                Lang::En,
+                "press <b>PLAY</b>",
+                "You do this only once",
+                "“skhid.link didn't answer.”",
+            ),
+            (
+                Lang::Uk,
+                "натисніть <b>PLAY</b>",
+                "лише один раз",
+                "«skhid.link не відповідає.»",
+            ),
         ] {
             let page = home(lang, stats(true));
             let (steps, faq) = page.split_once("</ol>").unwrap();
             let steps = steps.split("<ol>").nth(1).unwrap();
             assert_eq!(faq.matches("<li>").count(), 5, "{faq}");
-            for file in [
+            for said in [
                 "Skhid-defender-setup.cmd",
                 "Skhid.bat",
                 "Skhid-network-setup.cmd",
                 "VPN.txt",
                 "Skhid-collect-logs.cmd",
+                "“Game download failed: …”",
+                unanswered,
             ] {
-                assert!(faq.contains(file), "{file}: {faq}");
+                assert!(faq.contains(said), "{said}: {faq}");
             }
-            assert_eq!(page.matches("discord.gg").count(), 2, "{page}");
-            assert!(faq.contains("href=\"https://discord.gg/pxywZfaxRQ\""));
-            assert!(!page.contains("<h1>") && !page.contains("class=stats"));
+            assert!(faq.contains("href=\"https://discord.gg/QUmJg3gBhg\""));
+            assert!(!faq.contains("Russia") && !faq.contains("Росії"), "{faq}");
+            assert!(page.contains("<h1>") && page.contains("class=stats"));
+            assert!(!page.contains("How matches start") && !page.contains("Як починаються"));
             assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
             assert!(steps.contains(press), "{steps}");
             assert!(steps.contains(once), "{steps}");
@@ -3264,27 +3330,21 @@ mod tests {
             assert!(!steps.contains("<pre>"), "{steps}");
             assert!(!page.contains("<details>"), "{page}");
             assert!(!page.contains("<b>Language</b>") && !page.contains("<b>Мова</b>"));
-            assert_eq!(page.matches("<section").count(), 2, "{page}");
+            assert_eq!(page.matches("<section").count(), 3, "{page}");
         }
         // A download whose launcher brings the game: no step that sends a
         // player for the game first; an empty folder, and that the first
-        // start downloads. The game's own archive is named only as the way
-        // out, and the folder of a game a player has already. No size, no
-        // host.
-        for (lang, empty, first, have, way_out) in [
+        // start downloads. No size, no host, no game a player has already.
+        for (lang, empty, first) in [
             (
                 Lang::En,
                 "into an empty folder.",
                 "The first start downloads the game",
-                "Already have Survarium 0.26g",
-                "Launcher can't get the game?",
             ),
             (
                 Lang::Uk,
                 "у порожню теку.",
                 "Під час першого запуску лаунчер завантажує гру",
-                "Уже маєте Survarium 0.26g",
-                "Лаунчер не може отримати гру?",
             ),
         ] {
             let page = home(
@@ -3302,10 +3362,18 @@ mod tests {
             assert!(first_step.contains("class=dl"), "{first_step}");
             assert!(!steps.contains("Get the original Survarium"), "{steps}");
             assert!(!steps.contains("Отримайте оригінальну"), "{steps}");
-            for said in [empty, first, have, way_out] {
+            for said in [empty, first] {
                 assert!(steps.contains(said), "{said}: {steps}");
             }
-            for unsaid in ["2.9", "2,9", "GB", "ГБ", "Google Drive"] {
+            for unsaid in [
+                "2.9",
+                "2,9",
+                "GB",
+                "ГБ",
+                "Google Drive",
+                "Already have",
+                "Уже маєте",
+            ] {
                 assert!(!steps.contains(unsaid), "{unsaid}: {steps}");
             }
             assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
