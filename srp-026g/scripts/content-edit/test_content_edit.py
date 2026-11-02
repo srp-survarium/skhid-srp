@@ -635,6 +635,31 @@ class OtherTables(unittest.TestCase):
                           ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['1', '1'])
         self.assertEqual(ce.medicine_card(medkit), {18: '3.0', 19: '2.0', 15: '0.2', 135: '100', 137: '40'})
 
+    def test_an_items_row_gives_a_copy_its_plain_item_and_starting_ids(self):
+        dictionary = config({'items_dict': [{'dict_id': 1, 'name': 'jacket', 'base_cost': 900, 'is_premium': 0},
+                                            {'dict_id': 2, 'name': 'jacket_premium', 'base_cost': 500, 'is_premium': 1}]})
+        text = 'items\tname\tbase_cost\tgold\tlike\tstart\n1\tjacket\t900\t0\t\t\n2\tjacket_premium\t500\t1\tjacket\t1240 1250\n'
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live/gameplay').mkdir(parents=True)
+            (root / 'live' / ce.DICTIONARY).write_bytes(bytes(dictionary))
+            (root / 'items.tsv').write_text(text)
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), str(root / 'items.tsv'),
+                                     str(root / 'live'), str(root / 'out')], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            out = bytearray((root / 'out' / ce.DICTIONARY).read_bytes())
+        self.assertEqual((value(out, 'items_dict[1]/srp_like'), ce.items_of(out, 'items_dict[1]/srp_start')),
+                         ('jacket', [1240, 1250]))
+        self.assertEqual(ce.resolve(out, 'items_dict[0]/srp_like'), [])
+        category = ce.STATS['items']
+        columns, rows = read_table(category, text)
+        files = {ce.DICTIONARY: out}
+        self.assertEqual(ce.stats_problems(category, columns, rows, ce.stats_targets(category, files), files, 't'), [])
+        rows['2']['start'] = '1240'
+        with self.assertRaisesRegex(ValueError, 'srp_start: written only into an entry without it'):
+            ce.stats_write(category, columns, rows, files, 't')
+
 
 if __name__ == '__main__':
     unittest.main()

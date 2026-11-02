@@ -129,17 +129,14 @@ impl GameData {
     }
 
     /// The data of tests and tools ([`TEST_ARCHIVE`]), with srp's own
-    /// configs made from the repository's tables ([`SRP_TABLES`]), as a
-    /// release's content patch has them.
+    /// configs and keys made from the repository's tables
+    /// ([`with_srp_tables`]), as a release's content patch has them.
     pub fn test_archive() -> Self {
         let mut archive =
             Archive::new(Cursor::new(TEST_ARCHIVE)).expect("the test archive is an archive");
         let mut data =
             Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads");
-        for (path, table) in SRP_TABLES {
-            data.files
-                .insert((*path).to_owned(), key_value_config(table));
-        }
+        with_srp_tables(&mut data.files);
         data
     }
 
@@ -240,6 +237,56 @@ const SRP_TABLES: &[(&str, &str)] = &[
         include_str!("../../../../scripts/content-edit/new-account.tsv"),
     ),
 ];
+
+/// srp's keys of the dictionary's entries, `srp_like` and `srp_start`, which
+/// `scripts/content-edit/items.tsv` writes into the content patch.
+const ITEMS_TABLE: &str = include_str!("../../../../scripts/content-edit/items.tsv");
+
+/// `files` with srp's own configs ([`SRP_TABLES`]) and its keys of the
+/// dictionary's entries ([`ITEMS_TABLE`]), for the entries the dictionary
+/// has.
+fn with_srp_tables(files: &mut BTreeMap<String, Vec<u8>>) {
+    for (path, table) in SRP_TABLES {
+        files.insert((*path).to_owned(), key_value_config(table));
+    }
+    let mut lines = ITEMS_TABLE
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'));
+    let head: Vec<&str> = lines.next().expect("a header").split('\t').collect();
+    let column = |name| head.iter().position(|c| *c == name).expect(name);
+    let (like, start) = (column("like"), column("start"));
+    let rows: BTreeMap<i32, Vec<&str>> = lines
+        .map(|line| {
+            let cells: Vec<&str> = line.split('\t').collect();
+            (cells[0].parse().expect("a dict id"), cells)
+        })
+        .collect();
+    let path = super::dictionary::PATH;
+    let mut dictionary = ConfigValue::parse(&files[path]).expect("the dictionary parses");
+    let ConfigValue::Named(sections) = &mut dictionary else {
+        panic!("the dictionary is a named table")
+    };
+    let Some((_, ConfigValue::Indexed(entries))) =
+        sections.iter_mut().find(|(name, _)| name == "items_dict")
+    else {
+        panic!("the dictionary has items_dict")
+    };
+    for entry in entries {
+        let id = entry.get("dict_id").and_then(ConfigValue::as_i32);
+        let (Some(row), ConfigValue::Named(keys)) = (id.and_then(|id| rows.get(&id)), entry) else {
+            continue;
+        };
+        if !row[like].is_empty() {
+            keys.push(("srp_like".into(), ConfigValue::String(row[like].into())));
+        }
+        if !row[start].is_empty() {
+            let ids = row[start].split(' ').map(|id| id.parse().expect("an id"));
+            let ids = ids.map(ConfigValue::Integer).collect();
+            keys.push(("srp_start".into(), ConfigValue::Indexed(ids)));
+        }
+    }
+    files.insert(path.to_owned(), dictionary.to_bytes().expect("a config"));
+}
 
 /// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
 /// in a key, `/` goes into a named table and `[i]` to an item of an indexed

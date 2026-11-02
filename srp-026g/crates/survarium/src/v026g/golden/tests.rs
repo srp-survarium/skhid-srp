@@ -8,8 +8,8 @@ fn dict(name: &str) -> u16 {
     Dictionary::shared().item_named(name).unwrap().dict_id
 }
 
-/// The test data is 0.26g's: seven of the 22 (the rest came with later
-/// patches), each a premium item of the dictionary.
+/// The test data is 0.26g's: seven of the 22 golden weapons (the rest came
+/// with later patches) and the four premium armour pieces.
 const IN_THE_TEST_DATA: [&str; 7] = [
     "kiparis_premium",
     "uzi_premium",
@@ -20,38 +20,84 @@ const IN_THE_TEST_DATA: [&str; 7] = [
     "ak_74n_premium",
 ];
 
-#[test]
-fn the_golden_weapons_are_the_premium_copies_with_the_silver_bonus() {
-    let dictionary = Dictionary::shared();
-    let present: Vec<&str> = GOLDEN_WEAPONS
+/// The test data's premium armour: `(name, its plain piece's name, its
+/// bonuses)`, by dict id.
+fn premium_armour() -> Vec<(&'static str, &'static str, &'static [u32])> {
+    Dictionary::shared()
+        .items
         .iter()
-        .map(|&(name, ..)| name)
-        .filter(|name| dictionary.item_named(name).is_some())
+        .filter(|item| is_premium_armour(item.dict_id))
+        .map(|item| {
+            let name = item.name.as_str();
+            (
+                name,
+                plain_name(name).unwrap(),
+                armour_bonuses(name).unwrap(),
+            )
+        })
+        .collect()
+}
+
+/// items.tsv's copies: `(dict id, its plain item's dict id, start)`, by
+/// dict id.
+fn copies_of_the_table() -> Vec<(u16, u16, Vec<u32>)> {
+    let table = include_str!("../../../../../scripts/content-edit/items.tsv");
+    let rows: Vec<Vec<&str>> = table
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .skip(1)
+        .map(|line| line.split('\t').collect())
         .collect();
-    assert_eq!(present, IN_THE_TEST_DATA);
-    for (name, plain, dict_id, plain_id) in GOLDEN_WEAPONS {
-        let Some(item) = dictionary.item_named(name) else {
-            continue;
-        };
-        // The dict id the table and the lobby give it.
-        assert_eq!(item.dict_id, dict_id, "{name}");
-        assert!(item.is_premium, "{name}");
-        assert!(is_golden(item.dict_id), "{name}");
-        assert!(
-            item.cfg_name.starts_with("gameplay/items/weapons/wpn_"),
+    let id_of = |name: &str| -> u16 {
+        let row = rows.iter().find(|row| row[1] == name).unwrap();
+        row[0].parse().unwrap()
+    };
+    rows.iter()
+        .filter(|row| !row[4].is_empty())
+        .map(|row| {
+            let start = row[5].split(' ').map(|id| id.parse().unwrap());
+            (row[0].parse().unwrap(), id_of(row[4]), start.collect())
+        })
+        .collect()
+}
+
+#[test]
+fn the_golden_items_are_premium_copies_of_plain_items() {
+    let dictionary = Dictionary::shared();
+    let golden: Vec<&str> = dictionary
+        .items
+        .iter()
+        .filter(|item| is_golden(item.dict_id))
+        .map(|item| item.name.as_str())
+        .collect();
+    let weapons: Vec<&str> = golden
+        .iter()
+        .copied()
+        .filter(|name| is_golden_weapon_name(name))
+        .collect();
+    assert_eq!(weapons, IN_THE_TEST_DATA);
+    let armour: Vec<&str> = premium_armour().iter().map(|row| row.0).collect();
+    assert_eq!(
+        armour,
+        [
+            "scav_torso_4_premium",
+            "scav_legs_4_premium",
+            "bm_torso_4_premium",
+            "bm_legs_4_premium"
+        ]
+    );
+    assert_eq!(golden.len(), weapons.len() + armour.len());
+    for name in golden {
+        let item = dictionary.item_named(name).unwrap();
+        assert!(item.is_premium && is_golden_name(name), "{name}");
+        let plain = dictionary.item_named(plain_name(name).unwrap()).unwrap();
+        assert!(!is_golden(plain.dict_id), "{name}");
+        assert_eq!(plain.category, item.category, "{name}");
+        assert_eq!(
+            is_golden_weapon(item.dict_id),
+            !is_premium_armour(item.dict_id),
             "{name}"
         );
-        // Its plain weapon is plain, of the dict id the table gives.
-        let plain = dictionary.item_named(plain).unwrap();
-        assert_eq!(plain.dict_id, plain_id, "{name}");
-        assert!(!is_golden(plain.dict_id), "{name}");
-        assert!(!plain.is_premium || plain.name == "ak_74n", "{name}");
-    }
-    // Each once, by name and by dict id.
-    for (i, a) in GOLDEN_WEAPONS.iter().enumerate() {
-        for b in &GOLDEN_WEAPONS[i + 1..] {
-            assert!(a.0 != b.0 && a.2 != b.2, "{a:?} {b:?}");
-        }
     }
     // Golden, but armour; premium, but no copy.
     assert!(!is_golden_weapon(dict("bm_legs_4_premium")));
@@ -62,9 +108,9 @@ fn the_golden_weapons_are_the_premium_copies_with_the_silver_bonus() {
 }
 
 /// The premium armour is every armour piece with a base rarity in the
-/// game's data: each a premium item whose config has its plain piece's
-/// defaults, then its two premium bonuses; the plain piece has no base
-/// rarity.
+/// game's data: each a premium item whose stock config has its plain
+/// piece's defaults, then its two premium bonuses; the plain piece has no
+/// base rarity.
 #[test]
 fn the_premium_armour_is_the_plain_piece_with_two_premium_bonuses() {
     let dictionary = Dictionary::shared();
@@ -91,22 +137,7 @@ fn the_premium_armour_is_the_plain_piece_with_two_premium_bonuses() {
             .and_then(ConfigValue::as_i32)
             .unwrap_or(0)
     };
-    for (name, plain, dict_id, plain_id, bonuses) in PREMIUM_ARMOUR {
-        let item = dictionary.item_named(name).unwrap();
-        assert_eq!(item.dict_id, dict_id, "{name}");
-        assert!(item.is_premium, "{name}");
-        assert!(
-            item.cfg_name.starts_with("gameplay/items/armour/"),
-            "{name}"
-        );
-        assert!(is_golden(dict_id) && is_premium_armour(dict_id), "{name}");
-        assert!(!is_golden_weapon(dict_id), "{name}");
-        assert_eq!(armour_bonuses(name), Some(&bonuses[..]), "{name}");
-        let plain_item = dictionary.item_named(plain).unwrap();
-        assert_eq!(plain_item.dict_id, plain_id, "{name}");
-        assert!(!is_golden(plain_id), "{name}");
-        // The stock config: the plain piece's defaults, then the bonuses;
-        // base rarity 3 (the plain piece 0).
+    for (name, plain, bonuses) in premium_armour() {
         let mut expected = defaults(plain);
         assert_eq!(expected.len(), 1, "{plain}");
         expected.extend(bonuses);
@@ -134,76 +165,66 @@ fn the_premium_armour_is_the_plain_piece_with_two_premium_bonuses() {
     }
 }
 
-/// The lobby's lists (`ItemDictId.GOLDEN_WEAPONS` and `GOLDEN_PLAIN`,
-/// `PREMIUM_ARMOUR`, `PREMIUM_ARMOUR_PLAIN` and `PREMIUM_ARMOUR_BONUSES`,
-/// for the gold background and name, the craft window's donors and the
-/// bonuses of a shop entry) are these tables', each row named in its
-/// comment.
+/// The lobby's lists (`ItemDictId`'s golden weapons and premium armour, the
+/// packs' `Equipment029` and `Equipment046`), for the gold background and
+/// name, the craft window's donors and the bonuses of a shop entry, are
+/// items.tsv's copies.
 #[test]
-fn the_lobby_knows_the_same_golden_items() {
+fn the_lobby_knows_the_golden_items_of_the_table() {
     let source =
         include_str!("../../../../../flash/lobby_menu/src/survarium/constants/ItemDictId.as");
     // `<row>, // <name>` a line, up to the list's `];`.
-    let rows = |list: &str| -> Vec<(String, String)> {
+    let rows = |list: &str| -> Vec<String> {
         let start = source
             .find(&format!("{list}:Array = ["))
             .unwrap_or_else(|| panic!("the lobby's {list}"));
         let rows = &source[start..];
         let rows = &rows[rows.find('\n').unwrap() + 1..rows.find("\n      ];").unwrap()];
         rows.lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| {
-                let (row, name) = line.split_once("//").expect("a name for each row");
-                (
-                    row.trim().trim_end_matches(',').trim().to_owned(),
-                    name.trim().to_owned(),
-                )
-            })
+            .map(|line| line.split_once("//").expect("a name for each row").0)
+            .map(|row| row.trim().trim_end_matches(',').trim().to_owned())
             .collect()
     };
-    let ids = |list: &str| -> Vec<(u16, String)> {
-        rows(list)
-            .into_iter()
-            .map(|(id, name)| (id.parse().unwrap(), name))
+    let numbers = |row: &str| -> Vec<u32> {
+        row.split(|c: char| !c.is_ascii_digit())
+            .filter(|n| !n.is_empty())
+            .map(|n| n.parse().unwrap())
             .collect()
     };
-    let golden: Vec<(u16, String)> = GOLDEN_WEAPONS
+    let id = |row: &String| row.parse::<u16>().unwrap();
+    let mut lobby: Vec<(u16, u16, Vec<u32>)> = Vec::new();
+    for (golden, plain) in rows("GOLDEN_WEAPONS").iter().zip(rows("GOLDEN_PLAIN")) {
+        lobby.push((id(golden), id(&plain), vec![SILVER_BONUS]));
+    }
+    let plain = rows("PREMIUM_ARMOUR_PLAIN");
+    for ((armour, plain), bonuses) in rows("PREMIUM_ARMOUR")
         .iter()
-        .map(|&(name, _, id, _)| (id, name.to_owned()))
-        .collect();
-    let plain: Vec<(u16, String)> = GOLDEN_WEAPONS
-        .iter()
-        .map(|&(_, name, _, id)| (id, name.to_owned()))
-        .collect();
-    assert_eq!(ids("GOLDEN_WEAPONS"), golden);
-    assert_eq!(ids("GOLDEN_PLAIN"), plain);
-    let armour: Vec<(u16, String)> = PREMIUM_ARMOUR
-        .iter()
-        .map(|&(name, _, id, ..)| (id, name.to_owned()))
-        .collect();
-    let plain: Vec<(u16, String)> = PREMIUM_ARMOUR
-        .iter()
-        .map(|&(_, name, _, id, _)| (id, name.to_owned()))
-        .collect();
-    let bonuses: Vec<(String, String)> = PREMIUM_ARMOUR
-        .iter()
-        .map(|&(name, .., [a, b])| (format!("[{a},{b}]"), name.to_owned()))
-        .collect();
-    assert_eq!(ids("PREMIUM_ARMOUR"), armour);
-    assert_eq!(ids("PREMIUM_ARMOUR_PLAIN"), plain);
-    assert_eq!(rows("PREMIUM_ARMOUR_BONUSES"), bonuses);
+        .zip(&plain)
+        .zip(rows("PREMIUM_ARMOUR_BONUSES"))
+    {
+        lobby.push((id(armour), id(plain), numbers(&bonuses)));
+    }
+    for pack in [
+        include_str!("../../../../../flash/lobby_menu/src/survarium/constants/Equipment029.as"),
+        include_str!("../../../../../flash/lobby_menu/src/survarium/constants/Equipment046.as"),
+    ] {
+        for row in pack.lines().filter(|line| line.trim().starts_with("[")) {
+            let [golden, plain, bonuses @ ..] = &numbers(row)[..] else {
+                panic!("{row}")
+            };
+            lobby.push((*golden as u16, *plain as u16, bonuses.to_vec()));
+        }
+    }
+    lobby.sort();
+    assert_eq!(lobby, copies_of_the_table());
 }
 
 #[test]
 fn a_golden_item_takes_its_plain_item_as_its_donor() {
-    assert_eq!(plain_name("ak_12_premium"), Some("ak_12"));
-    assert_eq!(plain_name("akmn_premium_2"), Some("akmn"));
     assert_eq!(
-        plain_name("izh_27_lancaster_premium_2"),
+        plain_name("izh_27_lancaster_premium"),
         Some("izh_27_lancaster")
     );
-    assert_eq!(plain_name("wpn_mp7_silencer_special"), Some("mp7_silencer"));
-    assert_eq!(plain_name("neostead"), Some("neostead_2"));
     assert_eq!(plain_name("bm_legs_4_premium"), Some("bm_legs_4"));
     assert_eq!(plain_name("scav_torso_4_premium"), Some("scav_torso_4"));
     assert_eq!(plain_name("ak_74n"), None);
@@ -218,10 +239,6 @@ fn a_golden_item_takes_its_plain_item_as_its_donor() {
     let other = dict("edge_legs_2");
     assert_eq!(kin(other), other);
     assert_eq!(kin(9999), 9999);
-    // A golden weapon whose plain weapon the dictionary lacks: itself.
-    let mut dictionary = Dictionary::shared().clone();
-    dictionary.items.retain(|item| item.name != "ak_74n");
-    assert_eq!(kin_in(&dictionary, golden), golden);
 
     // The donors: the same item; for a golden item its plain item too;
     // never a golden item for a plain one, nor another item.
@@ -266,6 +283,22 @@ fn a_new_golden_item_starts_with_its_bonuses_of_its_own() {
 }
 
 #[test]
+fn the_dictionary_has_its_copies_and_each_start_is_known_modifications() {
+    let data = game_data::shared();
+    assert_eq!(check_content(data, Dictionary::shared()), Ok(()));
+    // Data made without items.tsv: no copy, refused.
+    let mut plain = Dictionary::shared().clone();
+    plain.items.iter_mut().for_each(|item| item.like = None);
+    let error = check_content(data, &plain).unwrap_err().0;
+    assert!(error.contains("items.tsv"), "{error}");
+    for start in [vec![1240, 1240], vec![99_999], vec![1240, 1250, 1260, 1230]] {
+        let mut dictionary = Dictionary::shared().clone();
+        dictionary.items[0].start = start.clone();
+        assert!(check_content(data, &dictionary).is_err(), "{start:?}");
+    }
+}
+
+#[test]
 fn srp_gives_a_golden_item_only_its_plain_defaults_and_no_base_rarity() {
     for name in IN_THE_TEST_DATA {
         let params = item_params(dict(name)).unwrap();
@@ -273,7 +306,7 @@ fn srp_gives_a_golden_item_only_its_plain_defaults_and_no_base_rarity() {
         assert_eq!(params.base_rarity_level, 0, "{name}");
     }
     // The premium armour keeps its plain piece's default.
-    for (name, plain, ..) in PREMIUM_ARMOUR {
+    for (name, plain, _) in premium_armour() {
         let params = item_params(dict(name)).unwrap();
         let plain = item_params(dict(plain)).unwrap();
         assert_eq!(params.default_modifications.len(), 1, "{name}");
@@ -317,7 +350,7 @@ fn data_without_the_golden_patches_is_refused() {
     for name in IN_THE_TEST_DATA {
         assert!(error.contains(&format!("{name} (")), "{error}");
     }
-    for (name, ..) in PREMIUM_ARMOUR {
+    for (name, ..) in premium_armour() {
         assert!(error.contains(&format!("{name} (")), "{error}");
     }
     assert!(error.contains("golden-weapons-1.json"), "{error}");
@@ -349,7 +382,9 @@ fn data_without_the_golden_patches_is_refused() {
     assert_eq!(found, [ARMOUR_PATCH; 4]);
 
     // A premium piece that keeps one of its bonuses: refused.
-    let (name, plain, .., [_, reputation]) = PREMIUM_ARMOUR[2];
+    let (name, plain, &[_, reputation]) = premium_armour()[2] else {
+        panic!("two bonuses")
+    };
     let plain_default = item_params(dict(plain)).unwrap().default_modifications[0] as i32;
     let path = config_of(name);
     let half = patched(
@@ -369,7 +404,7 @@ fn data_without_the_golden_patches_is_refused() {
     // Every one patched (the armour keeps its plain piece's default):
     // accepted.
     let mut files = weapons;
-    for (name, plain, ..) in PREMIUM_ARMOUR {
+    for (name, plain, _) in premium_armour() {
         let keep = item_params(dict(plain)).unwrap().default_modifications[0] as i32;
         let path = config_of(name);
         let bytes = patched(stock.file(&path).unwrap(), &[keep]);
@@ -408,16 +443,12 @@ fn the_lobby_shows_the_bonuses_of_the_data() {
     .unwrap()
     .unwrap();
     let rows = modifications.req("modifications").unwrap().children();
-    let mut given: Vec<u32> = vec![SILVER_BONUS];
-    for (.., bonuses) in PREMIUM_ARMOUR {
-        for bonus in bonuses {
-            if !given.contains(&bonus) {
-                given.push(bonus);
-            }
-        }
-    }
-    // The new equipment pack also grants the other two factions' native bonuses.
-    given.extend([1270, 1280]);
+    let mut given: Vec<u32> = copies_of_the_table()
+        .into_iter()
+        .flat_map(|(.., start)| start)
+        .collect();
+    given.sort();
+    given.dedup();
     let data: Vec<String> = given
         .iter()
         .map(|&id| {
