@@ -422,7 +422,13 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     crate::weapon_pickup::after_move(ctx);
     let thread = ctx.thread();
     let client = GameWorld::at_after_move(ctx).and_then(|world| world.network_client());
-    STATE.with(thread, |state| step(state, client.as_ref(), thread));
+    let guns = STATE.with(thread, |state| {
+        step(state, client.as_ref(), thread);
+        // each place's dropped gun, for patch 85's drops drawn as their copies
+        core::array::from_fn(|place| state.corpses.gun(place)
+            .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
+    });
+    crate::weapon_pickup::draw_drops(ctx, &guns);
     Flow::Continue
 }
 

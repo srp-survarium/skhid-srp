@@ -205,7 +205,7 @@ impl Scene {
             Some(Self { renderer: renderer.scene_renderer()?, reference: world.scene() })
         }
     }
-    unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
+    pub(super) unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
         // SAFETY: model holder and scene are retained by the live caller.
         unsafe {
             let reference = model.render_instance();
@@ -215,6 +215,22 @@ impl Scene {
             } else {
                 raw::engine_update_model(Some(self.renderer), Some(reference), Some(self.reference), matrix.as_ptr(), matrix.as_ptr());
             }
+        }
+    }
+    /// Whether the model is in the scene (its render instance's own bit).
+    pub(super) unsafe fn has(model: raw::SceneModel) -> bool {
+        // SAFETY: a model holder retained by the live caller.
+        unsafe { model.render_instance().instance().is_some_and(|instance| read(instance.in_scene()) != 0) }
+    }
+    /// A skinned model's bones (model space, rows), as weapon::draw gives
+    /// its own after update_model (0x244F5A): update_skeleton copies them.
+    pub(super) unsafe fn skin(&self, model: raw::SceneModel, bones: &[[f32; 16]]) {
+        let count = bones.len().min(super::draw::MAX_BONES) as u32;
+        // SAFETY: the model holder retained by the live caller, our
+        // matrices, `count` of them, copied into the command.
+        unsafe {
+            raw::engine_update_skeleton(Some(self.renderer), Some(model.skinned()), bones.as_ptr().cast(),
+                                        bones.as_ptr().cast(), count)
         }
     }
     pub(super) unsafe fn remove(&self, model: raw::SceneModel) -> bool {

@@ -320,6 +320,9 @@ void *engine_core_active_player(struct core_world *world, unsigned int place, st
 /* 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
 void engine_add_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second);
 
+/* 0x243bc0 survarium::weapon::calculate_locator: output_matrix EDI, locator ESP+4, transform ESP+8, bones ESP+12, extra ESP+16; pops 16; EAX */
+float *engine_weapon_locator(float *output_matrix, const float *locator, const float *transform, const float *bones, const float *extra);
+
 /* 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8 */
 void engine_remove_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene);
 
