@@ -1508,15 +1508,25 @@ static DRAWN: Lock<[Option<Body>; PLACES as usize]> = Lock::new([None; PLACES as
 /// or taken with its pickup waiting for the switch (the install hides it
 /// then), of the death this client saw and its copy made here; the body's
 /// own gun is hidden ([`ragdoll_gun`]) and the prompt's pose is the copy's.
-/// Only the place's next death, the pickup and the copy's free end it. Every
-/// other copy is hidden. Nothing synced: a rollback just reconciles here.
+/// Only the place's next death, the pickup and the copy's free end it; a
+/// departed place's is hidden (as it is not offered: `peer`), drawn again if
+/// the place comes back. Every other copy is hidden. Nothing synced: a
+/// rollback just reconciles here.
 pub fn draw_drops(ctx: &Context<'_>, guns: &[Option<DroppedGun>; PLACES as usize]) {
     let thread = ctx.thread();
-    let key = GameWorld::at_after_move(ctx).as_ref().and_then(gun_cook::world_key);
+    let world = GameWorld::at_after_move(ctx);
+    let key = world.as_ref().and_then(gun_cook::world_key);
+    let client = world.as_ref().and_then(GameWorld::network_client);
+    let viewer = client.as_ref().and_then(|c| c.local_player()
+        .or_else(|| (0..u32::from(PLACES)).find_map(|place| c.player(place))));
     let mut drawn = [None; PLACES as usize];
     let mut bodies = [None; PLACES as usize];
     for (n, (room, body)) in drawn.iter_mut().zip(bodies.iter_mut()).enumerate() {
-        let (Some(key), Some(place), Some(gun)) = (key, Place::new(n as u8), guns[n]) else { continue };
+        let (Some(key), Some(viewer), Some(place), Some(gun)) = (key, viewer.as_ref(), Place::new(n as u8), guns[n])
+        else { continue };
+        if peer(viewer, place).is_none() {
+            continue;
+        }
         let Some((cook, slot, of)) = dropped(thread, key, place, gun) else { continue };
         if gun_cook::show(thread, cook, slot, &gun.transform) {
             (*room, *body) = (Some(cook), Some(of));

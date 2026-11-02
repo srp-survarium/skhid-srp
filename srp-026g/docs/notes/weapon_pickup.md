@@ -170,8 +170,8 @@
 
 The owner (2026-11-02): the gun that drops from a player is the drop's copy at
 once, with its ragdoll, and stays drawn until that player dies again or it is
-picked up (a respawn, a timer or a ragdoll slot given up change nothing; a
-departed player's stays too; the match's end frees it). Visual only and
+picked up (a respawn, a timer or a ragdoll slot given up change nothing; the
+match's end frees it); a departed player's is hidden (the owner). Visual only and
 local: nothing synced, no `simulation_changes` row.
 
 - **Where the gun is** (`crates/ragdoll`: `Corpses::gun`). The ragdoll's
@@ -213,14 +213,14 @@ local: nothing synced, no `simulation_changes` row.
   game shows the gun) and in the cooked inventory's drop before its reference
   is given back (every free: the 10 s margin after the next death, the
   match's end). The next death and a rollback are the next frame's.
-- **A departed player's drop** is drawn, but its pickup stays refused (and
-  not offered), the same in every game: a departed place leaves the world's
-  active mask (core+18FD8h), so its player state, and the record in it, is
-  no longer in any world a game saves or loads. A pickup would change that
-  record (the drop taken) where no rollback, resync or late join can carry
-  it: a rollback undoing the pickup would not reopen the drop, a joiner would
-  not know the drop was open. Taking it needs that record kept outside the
-  departed player (not built).
+- **A departed player's drop** is hidden (the owner, 2026-11-02), from the
+  frame its place leaves, by the offer's own test (`peer`: core_active_player
+  refuses a place out of the world's active mask, core+18FD8h); not offered,
+  its pickup refused, the same in every game; drawn again if the place comes
+  back. The refusal is needed: a departed place's player state, and the record
+  in it, is in no world a game saves or loads any more, so a pickup's change
+  of it (the drop taken) could not reach a rollback, a resync or a late
+  joiner, and the games would differ.
 - **Late joiner:** no ragdoll of that death, nothing drawn, no prompt (as
   before). No cheap pose exists (the ragdoll is local).
 - **How fast a respawn can be:** `respawn_time` 8 s in Team Deathmatch, 10 s
@@ -241,8 +241,9 @@ local: nothing synced, no `simulation_changes` row.
   rests, offered there; a pickup drawn on through the holster (not offered),
   a rollback undoing and replaying it changing nothing, out at the switch,
   once; the next death takes it out, a rollback across it and the replay
-  draw nothing stale; a departed donor's drawn on, its pickup refused, the
-  free removing its model first; a scope at its locator, out with the gun.
+  draw nothing stale; a departure hides it at the next frame (no prompt, its
+  pickup refused), the place back draws it again, the free then has nothing
+  to remove; a scope at its locator, out with the gun.
   Not run in a game.
 
 ## The live desyncs of rev41 (match 0x1c0ebd31, 2026-11-01) and their fixes

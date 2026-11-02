@@ -3461,28 +3461,35 @@ def drawn_alone(patched):
     print("ok the next death takes the old copy out at the next frame, once; a rollback across it and the death "
           "replayed draw nothing stale; freed past the margin with nothing to remove")
 
-    # A departure: the drop stays drawn (its pickup refused, as in every game); the match's end frees the
-    # copy, its model out of the scene first.
+    # A departure: hidden at the next frame, no prompt, its pickup refused (as in every game); drawn again
+    # if the place comes back; the match's end frees the copy with nothing stale left to remove.
     d = Alone(patched)
     d.setup()
     copy = d.copy()
     d.fallen()
     d.respawn()
+    d.took()
     left_match(d, PLACE, PLAYER, KIT, RESPAWN + 100)
     d.step()
+    d.took(("remove", copy))
     d.pick(now=RESPAWN + 200, switch=False)
     d.step()
     d.took()
-    assert d.in_scene(copy) and any("refused, the place to cook it from has no player" in l for l in d.log)
+    assert not d.in_scene(copy) and any("refused, the place to cook it from has no player" in l for l in d.log)
+    assert d.hud() in ([("",)], []) and d.hud() == [], "no prompt"
+    d.roster[PLACE] = PLAYER
+    d.step()
+    d.took(("add", copy), ("skin", copy))
+    d.roster.pop(PLACE)
+    d.step()
+    d.took(("remove", copy))
     references = d.read(d.cooked + 0xD0)
     d.destroy_player(PLAYER)
-    assert d.scene == [("remove", copy, references)], (d.scene, references)
-    assert d.read(d.cooked + 0xD0) == references - 1 and not d.in_scene(copy), "freed after its model left"
-    d.scene = []
+    assert d.scene == [] and d.read(d.cooked + 0xD0) == references - 1, (d.scene, references)
     d.step()
     d.took()
-    print("ok a departed donor's drop stays drawn (its pickup refused in every game); the copy's free takes its "
-          "model out of the scene first, once")
+    print("ok a departure hides the drop's copy at the next frame, no prompt, its pickup refused; the place back, "
+          "drawn again; the free at the match's end has nothing left to remove")
 
     # A scoped gun: its scope at the scope's locator (on the bind pose), out with the gun.
     o = Alone(patched)
