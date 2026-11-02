@@ -59,7 +59,7 @@ server's dumps (SRP_SNAPSHOT_DIR: match026g_<id>_<tick>_..bin, the body; the
 tick is the world's time); the whole match's 501:
 private/live-worlds-1c0ebd31/ in the owner's checkout. A world recorded with
 another version of patch 85's record than the exe writes stops the check, but
-for rev41's version 4 (the corpus): `from_v4` reads it as version 7 writes it.
+for rev41's version 4 (the corpus): `from_v4` reads it as version 8 writes it.
 The record is otherwise opaque: its version and size are what the exe saves.
 --exe runs a built exe instead of this tree's build (rev41's: the check then
 finds what it wrote from its own objects).
@@ -135,26 +135,30 @@ CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",
 # Patch 85's record by version: its size; and how a recorded state's record becomes the next version's.
 # The record is opaque bytes here: its version and size are what the exe's own save writes (`record_version`), and
 # each hook must read as many bytes as it writes. The one layout this check knows is the recorded corpus's: rev41's
-# version 4 (48 bytes: the drop, the picks and the pending pickup in bytes 1..20, as every version since, then the
-# 28 of the own kit set aside), read as version 7 (28 bytes) writes it: those 20 bytes, then the own gun's wear each
-# pick hides (slot 7's, slot 10's). Rev41's record had none, and after the swap the world no longer carries the own
+# version 4 (48 bytes: the drop, the picks and the pending pickup in bytes 1..20, then the 28 of the own kit set
+# aside), read as version 8 (29 bytes) writes it: those 20 bytes (the drop's byte and the pending pickup's slot byte
+# as `from_v4` says), the own gun's wear each pick hides (slot 7's, slot 10's), the drop's recipe. Rev41's record had none, and after the swap the world no longer carries the own
 # gun (it is hidden in the cooked inventory, which the world does not save), so a recorded world cannot give it:
 # V4_WEAR, a condition no own gun of the check's games has (OWN_KITS), so a save taking it from the game's own gun
-# differs. A record of another version, or an exe writing another than 4 or 7, stops the check here.
+# differs. A record of another version, or an exe writing another than 4 or 8, stops the check here.
 V4, V4_BYTES = 4, 48
 V4_WEAR = struct.pack("<f", 0.75)
 
 
-def from_v4(record, version, size):
-    """A recorded version 4 record as the exe's (version, size) has it. Version 7 keeps a taken drop's kit and slot
-    (rev41's kept none: it reads as no drop, a cancel then reopening nothing in every game alike) and names the
-    place a pending pickup was taken from (rev41's was its recipe's)."""
-    if (version, size) != (7, 28):
-        sys.exit(f"the exe writes record version {version} ({size} bytes): from_v4 knows version 7 (28 bytes) only")
-    drop = record[1] if record[1] & 3 == 1 else 0
+def from_v4(record, place, version, size):
+    """A recorded version 4 record of `place` as the exe's (version, size) has it. Version 8 (29 bytes) moves the
+    drop's recipe to its own byte (28): rev41's open drop was always its body's own gun (place, kit, slot, held in
+    that slot, on its body); a taken drop kept nothing of it there, so it reads as none (a cancel then reopens
+    nothing, in every game alike). A pending pickup names the place it was taken from: rev41's was its recipe's."""
+    if (version, size) != (8, 29):
+        sys.exit(f"the exe writes record version {version} ({size} bytes): from_v4 knows version 8 (29 bytes) only")
+    drop, recipe = 0, 0
+    if record[1] & 3 == 1:
+        kit, slot = record[1] >> 2 & 3, record[1] >> 4 & 1
+        drop, recipe = 1 | slot << 2, (place + 1) | kit << 5 | slot << 7
     pending = record[12] | ((record[13] & 0x1F) - 1) << 2 if record[12] else 0
     wears = b"".join(V4_WEAR if record[at] else bytes(4) for at in (2, 7))
-    return bytes([7, drop]) + record[2:12] + bytes([pending]) + record[13:20] + wears
+    return bytes([8, drop]) + record[2:12] + bytes([pending]) + record[13:20] + wears + bytes([recipe])
 
 
 NOT_MATCHING = re.compile(r"NOT (installed|registered|made)|does not decode|FAILED")
@@ -233,7 +237,7 @@ def migrate(body, version, size):
     for place, start, end in walk(body):
         state = bytes(body[start:end])
         if state[2] == V4 != version:
-            state = state[:2] + from_v4(state[2:2 + V4_BYTES], version, size) + state[2 + V4_BYTES:]
+            state = state[:2] + from_v4(state[2:2 + V4_BYTES], place, version, size) + state[2 + V4_BYTES:]
         elif state[2] != version:
             sys.exit(f"a world's record of version {state[2]}: the exe writes {version}, from_v4 converts 4 only")
         out += body[at:start - 2] + struct.pack("<H", len(state)) + state

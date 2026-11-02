@@ -668,8 +668,9 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
-                7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record (version 7), empty
+                8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record (version 8), empty
                 0, 0, 0, 0, 0, 0, 0, 0, // no pick, no own wear
+                0, // no drop's recipe
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store

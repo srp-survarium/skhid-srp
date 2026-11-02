@@ -328,11 +328,28 @@ pub fn read_record(ctx: &Context<'_>) -> Option<[u8; weapon_pickup::Record::BYTE
     super::carry_runtime::read_bytes(unsafe { raw::site::pickup_load::reader(ctx) }?)
 }
 
-/// Whether `pickup.remove`'s call is the death/respawn removal (flag 1):
-/// held deactivated, the inventory unloaded into the profile.
-pub fn removing(ctx: &Context<'_>) -> bool {
-    // SAFETY: base_player::remove's entry frame, its first argument's low byte.
-    unsafe { raw::site::pickup_remove::frame(ctx).is_some_and(|frame| read(frame.unload()) != 0) }
+/// What `pickup.remove`'s full removal (flag 1: held deactivated, the
+/// inventory unloaded into the profile) is, by its caller.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Removal {
+    /// The place's player leaves the match (player_respawn_rule_base::
+    /// on_player_left_match 0x316BE0).
+    Departure,
+    /// Out of the world for its next life: the respawn tick (0x3169A0) or a
+    /// snapshot's kit change (0x2D2A68, the new kit's state read next).
+    Respawn,
+}
+
+/// `pickup.remove`'s call when it is a full removal (flag 1), else None (a
+/// snapshot's same-kit removal, flag 0).
+pub fn removal(ctx: &Context<'_>) -> Option<Removal> {
+    // SAFETY: base_player::remove's entry frame: its return address and its
+    // first argument's low byte.
+    let (unload, caller) = unsafe {
+        let frame = raw::site::pickup_remove::frame(ctx)?;
+        (read(frame.unload()), read(frame.caller()))
+    };
+    (unload != 0).then_some(if caller == raw::image::REMOVE_ON_DEPARTURE { Removal::Departure } else { Removal::Respawn })
 }
 
 /// Sets EAX or ECX (the inventory the native resupply is about to be

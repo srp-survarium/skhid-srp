@@ -10189,6 +10189,15 @@ impl RemoveFrame {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x0 (u32): the return address of the virtual call (vtable +24h): REMOVE_ON_DEPARTURE a departure, REMOVE_ON_RESPAWN the respawn tick, REMOVE_ON_KIT_CHANGE a snapshot's kit change
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
     /// +0x4 (u8): base_player::remove's flag (low byte): 1 the death/respawn removal (deactivate, unload_to_profile), 0 a snapshot's same-kit removal
     ///
     /// # Safety
@@ -10883,6 +10892,15 @@ pub mod image {
 
     /// 0xa042ac (u32, survarium::image): victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
     pub const VICTORY_ITEM_VTABLE: u32 = 0xa042ac;
+
+    /// 0x316c14 (u8, survarium::image): (code, its first byte) the return address of base_player::remove(1) (vtable +24h, call 0x316C12) in player_respawn_rule_base::on_player_left_match 0x316BE0: the place's player leaves the match
+    pub const REMOVE_ON_DEPARTURE: u32 = 0x316c14;
+
+    /// 0x3169a2 (u8, survarium::image): (code, its first byte) the return address of base_player::remove(1) (vtable +24h, call 0x3169A0) in the respawn tick: the dead place's player out of the world before its spawn
+    pub const REMOVE_ON_RESPAWN: u32 = 0x3169a2;
+
+    /// 0x2d2a6a (u8, survarium::image): (code, its first byte) the return address of base_player::remove (vtable +24h, call 0x2D2A68) in the snapshot apply when the place's kit changes, before the new kit's deserialize 0x2D2AA0
+    pub const REMOVE_ON_KIT_CHANGE: u32 = 0x2d2a6a;
 
     /// 0xa1c79c (u32, survarium::image): medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
     pub const MEDKIT_VTABLE: u32 = 0xa1c79c;
