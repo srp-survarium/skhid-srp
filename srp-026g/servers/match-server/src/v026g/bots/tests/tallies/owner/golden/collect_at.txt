@@ -1,12 +1,28 @@
-owner-test collect at (A231: deaths of collectors of a lying battery; per battery ["deaths", "at_battery", "in_team_lane", "in_killer_lane", "by_human", "by_human_in_his_lane"]): deaths 0, at_battery 0, in_team_lane 0, in_killer_lane 0, by_human 0, by_human_in_his_lane 0
+owner-test collect at (A231: deaths of collectors of a lying battery; per battery ["deaths", "at_battery", "in_team_lane", "in_killer_lane", "by_stand_in", "by_stand_in_in_his_lane"]): deaths 0, at_battery 0, in_team_lane 0, in_killer_lane 0, by_stand_in 0, by_stand_in_in_his_lane 0
 {
   "collect_at": {
     "at_battery": 0,
     "by_battery": {},
-    "by_human": 0,
-    "by_human_in_his_lane": 0,
+    "by_stand_in": 0,
+    "by_stand_in_in_his_lane": 0,
     "deaths": 0,
     "in_killer_lane": 0,
-    "in_team_lane": 0
+    "in_team_lane": 0,
+    "team0": {
+      "at_battery": 0,
+      "by_stand_in": 0,
+      "by_stand_in_in_his_lane": 0,
+      "deaths": 0,
+      "in_killer_lane": 0,
+      "in_team_lane": 0
+    },
+    "team1": {
+      "at_battery": 0,
+      "by_stand_in": 0,
+      "by_stand_in_in_his_lane": 0,
+      "deaths": 0,
+      "in_killer_lane": 0,
+      "in_team_lane": 0
+    }
   }
 }
