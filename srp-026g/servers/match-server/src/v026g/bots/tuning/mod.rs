@@ -70,8 +70,8 @@ pub struct Tuning {
     pub smoke: SmokeTuning,
     /// What the bots' kits are built with (`kit.rs`).
     pub kit: KitTuning,
-    /// [A246] The bench's calibration of each gun class's skill-1 aim factor to a hit rate, which the admin page sets
-    /// the factor by ([`AimCalibration`]). Data only: nothing the bots do reads it.
+    /// [A246, A266] The bench's calibration of each gun class's aim to a hit rate, which the admin page sets the skill-1
+    /// factor by and shows the expected rates with ([`AimCalibration`]). Data only: nothing the bots do reads it.
     pub calibration: AimCalibration,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
@@ -106,6 +106,7 @@ pub use aim::AimCalibration;
 pub use aim::AimTuning;
 pub use aim::Calibration;
 pub use aim::ClassAim;
+pub use aim::ClassCalibration;
 pub use aim::SkillCurve;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;

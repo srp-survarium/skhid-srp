@@ -28,9 +28,15 @@ use session::LockExt;
 use session::v026g::bot_desk;
 use session::v026g::bot_desk::BotDesk;
 use session::v026g::bot_desk::Change;
+use session::v026g::bot_desk::ClassLine;
+use session::v026g::bot_desk::ClassRates;
 use session::v026g::bot_desk::DeskView;
+use session::v026g::bot_desk::Edit;
 use session::v026g::bot_desk::KnobState;
 use session::v026g::bot_desk::Kept;
+use session::v026g::bot_desk::Preview;
+use session::v026g::bot_desk::RatePoint;
+use session::v026g::bot_desk::Rates;
 use session::v026g::bot_desk::Refused;
 use session::v026g::bot_desk::Text;
 
@@ -104,8 +110,8 @@ enum Unit {
     Number { min: f64, max: f64 },
     Whole { min: u32, max: u32 },
     /// A class's hit rate a shot at skill 1, %, up to its cap (the owner's bar), set as its skill-1 factor through the
-    /// bench's calibration ([`super::AimCalibration`], the `calibration` section).
-    Hits { class: WeaponClass, cap: f64 },
+    /// bench's calibration ([`super::AimCalibration`], the `calibration` section, which has the cap too).
+    Hits { class: WeaponClass },
 }
 
 /// A knob's value, within its limits.
@@ -139,7 +145,7 @@ impl Unit {
         match self {
             Unit::Number { min, max } => format!("{min}–{max}"),
             Unit::Whole { min, max } => format!("{min}–{max}"),
-            Unit::Hits { cap, .. } => format!("up to {cap} %"),
+            Unit::Hits { .. } => "%".to_owned(),
         }
     }
 
@@ -203,10 +209,12 @@ impl Knob {
     /// its class's cap and the calibration's points, as the factor that gives it.
     fn value_of(&self, text: &str, file: &Tuning) -> Result<Value, String> {
         let x = Unit::number(text)?;
-        let Unit::Hits { class, cap } = self.unit else {
+        let Unit::Hits { class } = self.unit else {
             return self.unit.value(x);
         };
-        if !(x > 0.0 && x <= cap) {
+        let calibration = file.calibration.of(class).ok_or("the class has no bench points")?;
+        let cap = calibration.cap;
+        if !(x > 0.0 && x <= f64::from(cap)) {
             return Err(format!("{x} % is over the class's cap of {cap} % (or not over 0)"));
         }
         if let Some((low, _)) = self.usable(file).filter(|&(low, _)| x < f64::from(low)) {
@@ -215,10 +223,9 @@ impl Knob {
                 "{x} % is under {low:.1} %, the lowest that keeps the class's line rising with its skill-0.5 factor {middle}"
             ));
         }
-        let points = file.calibration.of(class).ok_or("the class has no bench points")?;
-        let factor = points.factor_for(x as f32).ok_or_else(|| {
-            let (low, high) = points.rates().unwrap_or_default();
-            format!("{x} % is outside the bench's points ({low}–{high} %)")
+        let factor = calibration.factor_for(x as f32).ok_or_else(|| {
+            let (low, high) = calibration.rates().unwrap_or_default();
+            format!("{x} % is outside the bench's points ({low:.1}–{high:.1} %)")
         })?;
         Ok(Value::Factor(factor))
     }
@@ -226,8 +233,8 @@ impl Knob {
     /// `value` as the page shows it, over the tuning `file` (a factor as the rate it gives).
     fn shown_value(&self, value: Value, file: &Tuning) -> String {
         match (self.unit, value) {
-            (Unit::Hits { class, .. }, Value::Factor(factor)) => {
-                let rate = file.calibration.of(class).and_then(|points| points.rate_at(factor));
+            (Unit::Hits { class }, Value::Factor(factor)) => {
+                let rate = file.calibration.of(class).and_then(|calibration| calibration.at_skill_1(factor));
                 self.unit.shown(rate.map_or(f64::NAN, f64::from))
             }
             (unit, value) => unit.shown(value.x()),
@@ -238,7 +245,7 @@ impl Knob {
     /// with it at skill 1, so the class's line keeps its lower points.
     fn json(&self, value: Value, file: &Tuning) -> serde_json::Value {
         match (self.unit, value) {
-            (Unit::Hits { class, .. }, Value::Factor(factor)) => {
+            (Unit::Hits { class }, Value::Factor(factor)) => {
                 let (low, middle, _) = file.aim.class_aim.of(class);
                 serde_json::Value::Array(vec![short(low), short(middle), short(factor)])
             }
@@ -263,12 +270,12 @@ impl Knob {
         self.unit.value(leaf.as_f64().ok_or("not a number")?)
     }
 
-    /// The values it takes, over the tuning `file` (a rate: the class's usable span, [`Knob::usable`]).
+    /// The values it takes, over the tuning `file` (a rate: the class's usable span, [`Knob::usable`], and its cap).
     fn limits(&self, file: &Tuning) -> String {
         match self.unit {
-            Unit::Hits { cap, .. } => match self.usable(file) {
-                Some((low, high)) => format!("{low:.1}–{high:.1} % (cap {cap})"),
-                None => "—".to_owned(),
+            Unit::Hits { class } => match (self.usable(file), file.calibration.of(class)) {
+                (Some((low, high)), Some(calibration)) => format!("{low:.1}–{high:.1} % (cap {})", calibration.cap),
+                _ => "—".to_owned(),
             },
             unit => unit.limits(),
         }
@@ -279,10 +286,11 @@ impl Knob {
     /// factor may grow at most as fast as the wander shrinks; fx-gear, 2026-11-02) to the calibration's top, at most the
     /// cap. `None`: no points, or not even the calibration's narrowest factor keeps it rising.
     fn usable(&self, file: &Tuning) -> Option<(f32, f32)> {
-        let Unit::Hits { class, cap } = self.unit else {
+        let Unit::Hits { class } = self.unit else {
             return None;
         };
-        let points = file.calibration.of(class)?;
+        let calibration = file.calibration.of(class)?;
+        let points = &calibration.points;
         let (narrowest, widest) = (points.0.first()?.0, points.0.last()?.0);
         let rises = |factor: f32| {
             let mut aim = file.aim.clone();
@@ -302,13 +310,13 @@ impl Knob {
             }
             good
         };
-        let (_, top) = points.rates()?;
-        Some((points.rate_at(widest)?, top.min(cap as f32)))
+        let (_, top) = calibration.rates()?;
+        Some((calibration.at_skill_1(widest)?, top.min(calibration.cap)))
     }
 
     /// What the page shows beside the value: a class's factors in `tuning`.
     fn beside(&self, tuning: &Tuning) -> Option<String> {
-        let Unit::Hits { class, .. } = self.unit else {
+        let Unit::Hits { class } = self.unit else {
             return None;
         };
         let (low, middle, high) = tuning.aim.class_aim.of(class);
@@ -322,7 +330,74 @@ impl Knob {
 /// A class's rate at skill 1 in a tuning: its calibration's at its skill-1 factor (NaN for none).
 fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
     let (_, _, factor) = tuning.aim.class_aim.of(class);
-    tuning.calibration.of(class).and_then(|points| points.rate_at(factor)).map_or(f64::NAN, f64::from)
+    tuning.calibration.of(class).and_then(|calibration| calibration.at_skill_1(factor)).map_or(f64::NAN, f64::from)
+}
+
+/// [A266] How the page's expected rates are had from the bench's numbers.
+const METHOD: Text = Text {
+    en: "Expected hits a shot, % (a shotgun: a pellet), on each class's line: the bench's ladder (A243, measured at skill 0, 0.2, 0.4, 0.6, 0.8 and 1 with the shipped factors), straight between its steps; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). SMGs, rifles and machine guns share one calibration. Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements.",
+    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного класу: драбина стенду (A243, виміряна на навичці 0, 0.2, 0.4, 0.6, 0.8 і 1 з типовими факторами), пряма між її кроками; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Пістолети-кулемети, гвинтівки й кулемети мають одне калібрування. Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри.",
+};
+
+/// A band of the players' equipment, as the page names it.
+fn band(tier: BotTier) -> Text {
+    match tier {
+        BotTier::Low => Text { en: "Equipment 0-5", uk: "Спорядження 0–5" },
+        BotTier::Mid => Text { en: "Equipment 6-10", uk: "Спорядження 6–10" },
+        BotTier::High => Text { en: "Equipment 11-15", uk: "Спорядження 11–15" },
+    }
+}
+
+/// [A266] The expected hit rates a shot in `tuning`, at skill 0, 0.5 and 1 and at each band's floor, start and ceiling,
+/// by class (the hits' knobs, in their order), each on its line ([`super::ClassCalibration::line`]).
+fn rates(tuning: &Tuning) -> Rates {
+    let skill = Text { en: "Skill", uk: "Навичка" };
+    let mut points: Vec<RatePoint> =
+        [0.0, 0.5, 1.0].into_iter().map(|at| RatePoint { band: skill, what: None, skill: at }).collect();
+    for tier in BotTier::ALL {
+        let row = tuning.skill.of_tier(tier);
+        points.extend(
+            [
+                (Text { en: "floor", uk: "мінімум" }, row.min),
+                (Text { en: "start", uk: "старт" }, row.start),
+                (Text { en: "ceiling", uk: "стеля" }, row.max),
+            ]
+            .map(|(what, at)| RatePoint { band: band(tier), what: Some(what), skill: at }),
+        );
+    }
+    let classes = KNOBS
+        .iter()
+        .filter_map(|knob| match knob.unit {
+            Unit::Hits { class } => Some(ClassRates { label: knob.label, line: line_of(tuning, class, &points) }),
+            _ => None,
+        })
+        .collect();
+    Rates { method: METHOD, source: tuning.calibration.source.clone(), points, classes }
+}
+
+/// A class's expected rates at `points` in `tuning`.
+fn line_of(tuning: &Tuning, class: WeaponClass, points: &[RatePoint]) -> ClassLine {
+    let Some(calibration) = tuning.calibration.of(class) else {
+        return ClassLine::Unknown(Text { en: "not measured (no bench kit)", uk: "не виміряно (немає набору на стенді)" });
+    };
+    match calibration.line(tuning.aim.skill_curve, tuning.aim.class_aim.of(class)) {
+        Some(line) => ClassLine::Expected(points.iter().map(|point| line.at(point.skill)).collect()),
+        None => ClassLine::Unknown(Text {
+            en: "not calibrated: the bench measured this class's line with the geometric curve and other skill-0 and 0.5 factors, or the skill-1 factor is outside its points",
+            uk: "не калібровано: стенд виміряв лінію цього класу з геометричною кривою та іншими факторами навичок 0 і 0.5, або фактор навички 1 поза його точками",
+        }),
+    }
+}
+
+/// The knobs whose value as the page shows it differs from `old` to `new`.
+fn edits(old: &Tuning, new: &Tuning) -> Vec<Edit> {
+    KNOBS
+        .iter()
+        .filter_map(|knob| {
+            let (old, new) = (knob.shown(old), knob.shown(new));
+            (old != new).then(|| Edit { key: knob.key.to_owned(), old, new })
+        })
+        .collect()
 }
 
 /// The skill's 0 to 1.
@@ -479,7 +554,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Page,
         label: Text { en: "SMGs", uk: "Пістолети-кулемети" },
-        unit: Unit::Hits { class: WeaponClass::Smg, cap: 20.0 },
+        unit: Unit::Hits { class: WeaponClass::Smg },
         read: |t| hits(t, WeaponClass::Smg),
     },
     Knob {
@@ -487,7 +562,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Page,
         label: Text { en: "Rifles (automatic)", uk: "Автоматичні гвинтівки" },
-        unit: Unit::Hits { class: WeaponClass::Rifle, cap: 20.0 },
+        unit: Unit::Hits { class: WeaponClass::Rifle },
         read: |t| hits(t, WeaponClass::Rifle),
     },
     Knob {
@@ -495,7 +570,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Page,
         label: Text { en: "Machine guns", uk: "Кулемети" },
-        unit: Unit::Hits { class: WeaponClass::MachineGun, cap: 20.0 },
+        unit: Unit::Hits { class: WeaponClass::MachineGun },
         read: |t| hits(t, WeaponClass::MachineGun),
     },
     Knob {
@@ -503,7 +578,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Page,
         label: Text { en: "Shotguns (a pellet)", uk: "Дробовики (за дробину)" },
-        unit: Unit::Hits { class: WeaponClass::Shotgun, cap: 20.0 },
+        unit: Unit::Hits { class: WeaponClass::Shotgun },
         read: |t| hits(t, WeaponClass::Shotgun),
     },
     Knob {
@@ -511,7 +586,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Page,
         label: Text { en: "DMRs", uk: "Марксманські гвинтівки" },
-        unit: Unit::Hits { class: WeaponClass::Marksman, cap: 32.0 },
+        unit: Unit::Hits { class: WeaponClass::Marksman },
         read: |t| hits(t, WeaponClass::Marksman),
     },
     Knob {
@@ -519,7 +594,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Page,
         label: Text { en: "Bolt actions", uk: "Гвинтівки з ковзним затвором" },
-        unit: Unit::Hits { class: WeaponClass::Bolt, cap: 40.0 },
+        unit: Unit::Hits { class: WeaponClass::Bolt },
         read: |t| hits(t, WeaponClass::Bolt),
     },
     Knob {
@@ -527,7 +602,7 @@ const KNOBS: &[Knob] = &[
         group: Group::Hits,
         set: Set::Later,
         label: Text { en: "Pistols", uk: "Пістолети" },
-        unit: Unit::Hits { class: WeaponClass::Pistol, cap: 25.0 },
+        unit: Unit::Hits { class: WeaponClass::Pistol },
         read: |t| hits(t, WeaponClass::Pistol),
     },
 ];
@@ -696,6 +771,24 @@ impl State {
         log::warn!("Bots tuning: {why}; the matches keep tuning {:08x}", self.good.tuning().hash());
         self.refused = Some(Refused { at: unix_now(), why });
     }
+
+    /// The page's `asked` values over the changes kept, each within its limits; a knob set to its default is no change.
+    fn proposed(&self, asked: &[(String, String)]) -> Result<Changes, String> {
+        let mut changes = self.changes.clone();
+        for (key, text) in asked {
+            let knob = knob(key).ok_or_else(|| format!("{key}: no such knob"))?;
+            if !knob.settable() {
+                return Err(format!("{key}: not settable yet"));
+            }
+            let value = knob.value_of(text, self.file.tuning()).map_err(|why| format!("{key}: {why}"))?;
+            if knob.shown_value(value, self.file.tuning()) == knob.shown(self.file.tuning()) {
+                changes.remove(knob.key);
+            } else {
+                changes.insert(knob.key, value);
+            }
+        }
+        Ok(changes)
+    }
 }
 
 impl Default for LiveTuning {
@@ -802,23 +895,26 @@ impl LiveTuning {
         state.good.clone()
     }
 
+    /// What the next match would run on with `changes` over the file, if a match can.
+    fn checked(&self, state: &State, changes: &Changes) -> Result<LoadedTuning, String> {
+        let good = combine(&state.file, changes)?;
+        fits(self.start.tuning(), good.tuning())?;
+        Ok(good)
+    }
+
     /// `changes` made what the next match runs on, kept and audited; nothing changes if they cannot be used.
     fn commit(&self, state: &mut State, changes: Changes, from: &str) -> Result<Vec<Change>, String> {
         if changes == state.changes {
             return Ok(Vec::new());
         }
-        let good = combine(&state.file, &changes)?;
-        fits(self.start.tuning(), good.tuning())?;
+        let good = self.checked(state, &changes)?;
         if let Some(path) = &self.changes_file {
             write_changes(path, &changes, state.file.tuning())?;
         }
         let at = unix_now();
-        let made: Vec<Change> = KNOBS
-            .iter()
-            .filter_map(|knob| {
-                let (old, new) = (knob.shown(state.good.tuning()), knob.shown(good.tuning()));
-                (old != new).then(|| Change { at, from: from.to_owned(), key: knob.key.to_owned(), old, new })
-            })
+        let made: Vec<Change> = edits(state.good.tuning(), good.tuning())
+            .into_iter()
+            .map(|Edit { key, old, new }| Change { at, from: from.to_owned(), key, old, new })
             .collect();
         for change in &made {
             log::info!(
@@ -893,26 +989,26 @@ impl BotDesk for LiveTuning {
             },
             refused: state.refused.clone(),
             groups,
+            rates: rates(state.good.tuning()),
             audit: state.audit.iter().cloned().collect(),
         }
     }
 
     fn set(&self, asked: &[(String, String)], from: &str) -> Result<Vec<Change>, String> {
         let mut state = self.state.locked();
-        let mut changes = state.changes.clone();
-        for (key, text) in asked {
-            let knob = knob(key).ok_or_else(|| format!("{key}: no such knob"))?;
-            if !knob.settable() {
-                return Err(format!("{key}: not settable yet"));
-            }
-            let value = knob.value_of(text, state.file.tuning()).map_err(|why| format!("{key}: {why}"))?;
-            if knob.shown_value(value, state.file.tuning()) == knob.shown(state.file.tuning()) {
-                changes.remove(knob.key);
-            } else {
-                changes.insert(knob.key, value);
-            }
-        }
+        let changes = state.proposed(asked)?;
         self.commit(&mut state, changes, from)
+    }
+
+    fn preview(&self, asked: &[(String, String)]) -> Result<Preview, String> {
+        let state = self.state.locked();
+        let changes = state.proposed(asked)?;
+        let next = if changes == state.changes { state.good.clone() } else { self.checked(&state, &changes)? };
+        Ok(Preview {
+            edits: edits(state.good.tuning(), next.tuning()),
+            before: rates(state.good.tuning()),
+            after: rates(next.tuning()),
+        })
     }
 
     fn reset(&self, group: Option<&str>, from: &str) -> Result<Vec<Change>, String> {
@@ -1093,7 +1189,7 @@ mod tests {
         let group = view.groups.iter().find(|group| group.key == "hits").unwrap();
         assert_eq!(group.source.as_deref(), Some(shipped.calibration.source.as_str()));
         let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
-        assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.5", "18.5"));
+        assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.6", "18.6"));
         // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
         // to ~1.49, ~17.4 %) to the cap.
         assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–20.0 % (cap 20)"), "{}", rifle.limits);
@@ -1104,7 +1200,7 @@ mod tests {
         // 19 % for the rifles: their skill-1 factor from the calibration, the lower two kept; the next match runs on it.
         let made = set(&live, &[("aim.class_aim.rifle", "19 %")]).unwrap();
         let said: Vec<_> = made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())).collect();
-        assert_eq!(said, [("aim.class_aim.rifle", "18.5", "19.0")]);
+        assert_eq!(said, [("aim.class_aim.rifle", "18.6", "19.0")]);
         let factor = shipped.calibration.automatics.factor_for(19.0).unwrap();
         let next = live.for_match();
         let (low, middle, high) = next.tuning().aim.class_aim.rifle;
@@ -1132,17 +1228,137 @@ mod tests {
         }
         let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
         assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
-        // The rifles at the bottom of their span, the bolts at their cap and the DMRs inside their scope's flat stretch.
+        // The rifles at the bottom of their span, the bolts at their cap and the DMRs inside their narrow span (on the
+        // line, 28.1-28.9 %: the sweep's flat 29.5 % is the ladder's 28.9 at skill 1).
         let at_low = format!("{:.1}", span_low + 0.1);
         set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
-        set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "29.4")]).unwrap();
+        set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "28.5")]).unwrap();
         let next = live.for_match();
         assert!((next.tuning().aim.class_aim.bolt.2 - shipped.calibration.bolt.factor_for(40.0).unwrap()).abs() < 1e-4);
-        assert!((next.tuning().aim.class_aim.marksman.2 - shipped.calibration.marksman.factor_for(29.4).unwrap()).abs() < 1e-4);
+        assert!((next.tuning().aim.class_aim.marksman.2 - shipped.calibration.marksman.factor_for(28.5).unwrap()).abs() < 1e-4);
+        assert!(set(&live, &[("aim.class_aim.marksman", "29.4")]).unwrap_err().contains("outside the bench's points (28.1–28.9 %)"));
         // The group's reset puts the shipped factors back.
         assert_eq!(live.reset(Some("hits"), "192.0.2.4").unwrap().len(), 3);
         assert_eq!(live.for_match(), LoadedTuning::default());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A class's expected rates at the page's points (panics on a class with none).
+    fn line(rates: &Rates, label: &str) -> Vec<f32> {
+        match &rates.classes.iter().find(|class| class.label.en == label).unwrap().line {
+            ClassLine::Expected(at) => at.clone(),
+            unknown => panic!("{label}: {unknown:?}"),
+        }
+    }
+
+    /// [A266] The page's expected rates for the shipped tuning are A243's measured line (PR #1089's "after" rows,
+    /// weighed; the two tiers' mean where both ran) within its rounding at each skill step it measured, straight between
+    /// them; the class rows' skill-1 values are their lines' ends; the pistols are not measured.
+    #[test]
+    fn the_rates_shown_for_the_defaults_are_a243s_line() {
+        let measured: [(&str, &[[f32; 6]]); 6] = [
+            ("SMGs", &[[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], [10.1, 12.0, 13.9, 15.8, 18.4, 18.8]]),
+            ("Rifles (automatic)", &[[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], [10.1, 12.0, 13.9, 15.8, 18.4, 18.8]]),
+            ("Machine guns", &[[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], [10.1, 12.0, 13.9, 15.8, 18.4, 18.8]]),
+            ("Shotguns (a pellet)", &[[11.1, 12.9, 14.1, 16.6, 18.3, 19.2], [11.1, 13.0, 15.1, 17.1, 18.4, 18.4]]),
+            ("DMRs", &[[18.7, 19.8, 22.3, 25.2, 28.4, 28.9]]),
+            ("Bolt actions", &[[32.4, 29.2, 33.4, 35.2, 35.2, 39.1]]),
+        ];
+        let view = LiveTuning::default().view();
+        let rates = &view.rates;
+        assert_eq!(rates.source, Tuning::default().calibration.source);
+        let skills: Vec<f32> = rates.points.iter().map(|point| point.skill).collect();
+        assert_eq!(skills, [0.0, 0.5, 1.0, 0.0, 0.3, 0.6, 0.2, 0.5, 0.8, 0.3, 0.6, 0.9]);
+        let hits = view.groups.iter().find(|group| group.key == "hits").unwrap();
+        let mut steps = 0;
+        for (label, rows) in measured {
+            let shown = line(rates, label);
+            let mean = |step: usize| rows.iter().map(|row| row[step]).sum::<f32>() / rows.len() as f32;
+            for (point, rate) in rates.points.iter().zip(&shown) {
+                let step = point.skill * 5.0;
+                let expected = if (step - step.round()).abs() < 1e-4 {
+                    steps += 1;
+                    mean(step.round() as usize)
+                } else {
+                    let below = step.floor() as usize;
+                    mean(below) + (mean(below + 1) - mean(below)) * (step - step.floor())
+                };
+                assert!((rate - expected).abs() <= 0.05 + 1e-4, "{label} at {}: {rate} vs {expected}", point.skill);
+            }
+            let knob = hits.knobs.iter().find(|knob| knob.label.en == label).unwrap();
+            assert_eq!(knob.value, format!("{:.1}", shown[2]), "{label}");
+        }
+        assert_eq!(steps, 6 * 7, "0, 1 and the bands' 0.0, 0.6, 0.2, 0.8, 0.6: a class's points on the ladder's steps");
+        let pistols = rates.classes.iter().find(|class| class.label.en == "Pistols").unwrap();
+        assert!(matches!(pistols.line, ClassLine::Unknown(_)));
+        // On `all_off.json`'s factors (every class 1, the straight curve) the bench's line is not the class's: none shown.
+        let mut off = Tuning::default();
+        off.aim.class_aim = super::super::ClassAim::same();
+        off.aim.skill_curve = super::super::SkillCurve::Linear;
+        assert!(super::rates(&off).classes.iter().all(|class| matches!(class.line, ClassLine::Unknown(_))));
+    }
+
+    /// [A266] A preview says what a set would change and the expected rates before and after, and changes nothing: a
+    /// class's skill-1 target moves its line's upper half by the dial's weight; a band's bracket moves its points, each
+    /// class's rate read there. It refuses what a set refuses, with the same reason, and the set then makes what it said.
+    #[test]
+    fn a_preview_shows_the_change_and_its_rates_and_changes_nothing() {
+        let live = LiveTuning::default();
+        let asked = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+            pairs.iter().map(|(key, text)| ((*key).to_owned(), (*text).to_owned())).collect()
+        };
+        let edit = |key: &str, old: &str, new: &str| Edit { key: key.to_owned(), old: old.to_owned(), new: new.to_owned() };
+        // A target: 19 % for the rifles at skill 1, 0.4 over their line's end; at each point its weight of it.
+        let rifles = asked(&[("aim.class_aim.rifle", "19")]);
+        let preview = live.preview(&rifles).unwrap();
+        assert_eq!(preview.edits, [edit("aim.class_aim.rifle", "18.6", "19.0")]);
+        assert_eq!(preview.before, live.view().rates);
+        assert_eq!(preview.after.points, preview.before.points);
+        let (before, after) = (line(&preview.before, "Rifles (automatic)"), line(&preview.after, "Rifles (automatic)"));
+        let weights = [0.0, 0.0, 1.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.6, 0.0, 0.2, 0.8];
+        for ((old, new), weight) in before.iter().zip(&after).zip(weights) {
+            assert!((new - old - 0.4 * weight).abs() < 1e-3, "{before:?} -> {after:?}");
+        }
+        for other in ["SMGs", "Machine guns", "Shotguns (a pellet)", "DMRs", "Bolt actions"] {
+            assert_eq!(line(&preview.after, other), line(&preview.before, other), "{other}");
+        }
+        // Nothing changed: the next match, the view, the audit.
+        assert_eq!(live.for_match(), LoadedTuning::default());
+        assert_eq!(live.view().rates, preview.before);
+        assert!(live.view().audit.is_empty());
+        // A bracket: the 6-10 band's ceiling 0.8 -> 0.9, each class read there (as at the 11-15 ceiling, 0.9).
+        let preview = live.preview(&asked(&[("skill.tiers.9-10.max", "0.9")])).unwrap();
+        assert_eq!(preview.edits, [edit("skill.tiers.9-10.max", "0.8", "0.9")]);
+        let ceiling = 8;
+        assert_eq!((preview.before.points[ceiling].skill, preview.after.points[ceiling].skill), (0.8, 0.9));
+        for class in ["SMGs", "Shotguns (a pellet)", "DMRs", "Bolt actions"] {
+            let (before, after) = (line(&preview.before, class), line(&preview.after, class));
+            assert_eq!(after[ceiling], after[11], "{class}");
+            assert_ne!(after[ceiling], before[ceiling], "{class}");
+            let others = |at: &[f32]| -> Vec<f32> { at.iter().enumerate().filter(|(i, _)| *i != ceiling).map(|(_, x)| *x).collect() };
+            assert_eq!(others(&after), others(&before), "{class}");
+        }
+        // Refused as a set refuses them, with the same reason; nothing changes.
+        for bad in [
+            &[("aim.class_aim.rifle", "21")][..],
+            &[("aim.class_aim.rifle", "13")],
+            &[("skill.tiers.9-10.max", "0.4")],
+            &[("aim.class_aim.pistol", "20")],
+            &[("skill.step", "a lot")],
+            &[("skill.kd_low", "2"), ("skill.kd_high", "1.9")],
+        ] {
+            let bad = asked(bad);
+            assert_eq!(live.preview(&bad).unwrap_err(), live.set(&bad, "192.0.2.5").unwrap_err(), "{bad:?}");
+        }
+        assert_eq!(live.for_match(), LoadedTuning::default());
+        // The set makes what the preview said; the same values again preview no edit.
+        let preview = live.preview(&rifles).unwrap();
+        let made = live.set(&rifles, "192.0.2.5").unwrap();
+        let said: Vec<Edit> = made.into_iter().map(|c| Edit { key: c.key, old: c.old, new: c.new }).collect();
+        assert_eq!(said, preview.edits);
+        assert_eq!(live.view().rates, preview.after);
+        let again = live.preview(&rifles).unwrap();
+        assert!(again.edits.is_empty() && again.before == again.after);
     }
 
     #[test]
