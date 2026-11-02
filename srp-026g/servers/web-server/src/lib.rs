@@ -2289,7 +2289,10 @@ fn admin_extras_026g(
          <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
         lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
-        lang.tr("Set the level (0 to 50)", "Встановити рівень (0–50)"),
+        lang.tr(
+            &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
+            &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)
+        ),
         lang.tr("Experience, + or -", "Досвід, + або -"),
         lang.tr("Faction (1 to 4)", "Фракція (1–4)"),
         lang.tr("Reputation with it, + or -", "Репутація в ній, + або -"),
