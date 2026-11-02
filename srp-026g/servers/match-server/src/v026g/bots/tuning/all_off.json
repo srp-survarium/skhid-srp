@@ -26,6 +26,7 @@
       "grenade_lead_s": 4.0,
       "grenade_push_tracks": true,
       "grenade_repick": false,
+      "grenade_commit": false,
       "grenade_search": false,
       "grenade_track_chance": 0.08,
       "grenade_tracks": false,

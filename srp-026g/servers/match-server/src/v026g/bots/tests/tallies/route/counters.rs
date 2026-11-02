@@ -350,6 +350,17 @@ pub(super) fn edge_falls() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The stand-in's walk-offs (`SRP_BENCH_STAND_IN_WALKOFF`, `standin_jump::stand_in_walk_off`): falls started from an edge, those
+/// that came down, and the metres across they carried in all.
+pub(super) fn walk_offs() -> Box<dyn RouteTopic> {
+    Delta::of(
+        crate::v026g::bots::tests::standin_jump::walk_off_stats,
+        |d, line| {
+            line.ends.push(format!("stand_in_walk_offs started/landed/across_m {}/{}/{:.1}", d[0], d[1], d[2] as f64 / 10.0));
+        },
+    )
+}
+
 /// The stand-in's air control (`SRP_BENCH_STAND_IN_AIR`, `standin_jump::air_control`): airborne ticks steered, airborne ticks with
 /// none, jumps come down, and of them those it moved 0.25 m or more.
 pub(super) fn air_steers() -> Box<dyn RouteTopic> {

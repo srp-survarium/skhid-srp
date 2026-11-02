@@ -68,6 +68,8 @@ pub(super) struct GrenadeCounts {
     pub(super) throws: Vec<Throw>,
     /// By bot: the tick of the press whose hold (to [`HELD_MS`]) is on.
     pub(super) holds: BTreeMap<Place, u32>,
+    /// [A260] With `SRP_BENCH_GRENADE_LET_GO=throws`: the throws given up after their key went down, launched all the same.
+    pub(super) given_up_thrown: u32,
     /// Throws whose first contact fell within [`SHORT_M`] of a thrower who
     /// aimed beyond it, from his view at the launch.
     pub(super) short: u32,
@@ -210,6 +212,29 @@ pub(super) struct CloseBlasts {
 pub(crate) fn held_back(text: &str) -> Option<&str> {
     let rest = text.strip_prefix("holds a grenade back at (")?;
     rest.split_once("): ").map(|(_, why)| why)
+}
+
+/// "holds a grenade back at (x, y, z): <reason>": the place.
+pub(crate) fn held_back_at(text: &str) -> Option<Vec3> {
+    let rest = text.strip_prefix("holds a grenade back at (")?;
+    let (xyz, _) = rest.split_once("): ")?;
+    let mut v = xyz.split(", ").map(|n| n.parse::<f32>().ok());
+    Some(Vec3::new(v.next()??, v.next()??, v.next()??))
+}
+
+#[test]
+pub(crate) fn a_held_back_note_gives_its_place_and_reason() {
+    let text = "holds a grenade back at (1.5, -2.0, 3.2): teammate 3";
+    assert_eq!(held_back(text), Some("teammate 3"));
+    assert_eq!(held_back_at(text), Some(Vec3::new(1.5, -2.0, 3.2)));
+    assert_eq!(held_back_at("throws a grenade at (1, 2, 3), blast at 4000"), None);
+}
+
+/// [A260] `SRP_BENCH_GRENADE_LET_GO=throws`: a throw given up after its key went down is launched all the same.
+pub(crate) fn let_go_throws() -> bool {
+    crate::v026g::bots::tests::settings::bench_settings()
+        .var("SRP_BENCH_GRENADE_LET_GO")
+        .is_ok_and(|v| v == "throws")
 }
 
 /// The blast's damage at `d` m (linear, `blast_max()` to `blast_min()`).
@@ -665,6 +690,13 @@ impl Topic for GrenadeCounts {
             NoteKind::Closed { blast } => self.close.noted.push((note.place, blast)),
             NoteKind::HeldBack(why) => {
                 self.grenade_refused(why);
+                // [A260] The key went down: the client's throw has started, and the grenade leaves at the launch.
+                if let (true, Some(&press)) = (let_go_throws(), self.holds.get(&note.place)) {
+                    let team = game.bodies.get(note.place).map_or(0, |b| b.team);
+                    let aim = held_back_at(&note.text).unwrap_or(Vec3::ZERO);
+                    self.given_up_thrown += 1;
+                    self.throws.push(Throw { thrower: note.place, team, aim, press });
+                }
                 // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
                 self.grenade_given_up(note.place);
             }
@@ -1032,6 +1064,9 @@ impl GrenadeCounts {
                 "near": s.near,
                 "fire_hidden_throw": hidden_throw,
             });
+            if s.committed != [0; 5] {
+                json["grenade_commit"] = serde_json::json!(s.committed);
+            }
         }
         let counted = logic.sum.close != [0; 7] || logic.sum.close_gate != [0; 20] || self.close.gone > 0;
         if counted {
@@ -1111,6 +1146,13 @@ impl GrenadeCounts {
             game.team_kills,
             game.team_hits,
         );
+        if let_go_throws() {
+            json["grenade_given_up_thrown"] = serde_json::json!(self.given_up_thrown);
+            text.push_str(&format!(
+                "; given up after the press and thrown all the same (SRP_BENCH_GRENADE_LET_GO=throws) {}",
+                self.given_up_thrown
+            ));
+        }
         if modelled {
             text.push_str(&format!(
                 "; carried: throws with a grenade in the kit {}, phantom throws with none {} (not blasted)",
@@ -1123,6 +1165,12 @@ impl GrenadeCounts {
                 "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard, held spot] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, alive minutes by the nearest enemy [<8 m, 8-30 m, farther, none] {:.1?}, thrown by the same {:?}, volley [windows, rolls, chance said no, second grenades, rolls with evidence, rolls without] {:?}, near floor [weighed again, way out found, thrown] {:?}, held spots by think [with a spot, sensed lately, in range, outside his lanes, no mate or other place, unclaimed, a frag in the kit] {:?}, stopped before the roll with a sensed spot [throw under way, target in sight, all thrown, lockout] {:?}, throws given up for a dropped spot [before the key, in the hold] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
                 logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, self.alive_by_enemy_ms.map(|ms| ms as f64 / 60_000.0), self.thrown_by_enemy, s.volley, s.near, s.held_funnel, s.held_busy, s.held_dropped, hidden_throw,
             ));
+            if s.committed != [0; 5] {
+                text.push_str(&format!(
+                    "; committed throws (grenade_commit) [refused in the hold, refused from the let-go to the launch, arc found again, away arc, view kept] {:?}",
+                    s.committed
+                ));
+            }
         }
         if counted {
             let close = &self.close;
