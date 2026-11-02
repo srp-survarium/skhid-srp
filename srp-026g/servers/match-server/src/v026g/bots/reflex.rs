@@ -13575,11 +13575,12 @@ mod tests {
             let mut reflex = Reflex::default();
             let mut rng = Rng::new(7);
             let mut before = None;
-            for k in 0..=10u32 {
+            // Both seen for 2 s (past the noticing), then the hit.
+            for k in 0..=40u32 {
                 let now = 1_000 + k * 50;
                 sense(&mut memory, &[percept(1, near_at, now, Source::Seen), percept(2, far_at, now, Source::Seen)], now);
                 let mut view = view_of(vec![me.clone(), near.clone(), far.clone()]);
-                if k == 10 {
+                if k == 40 {
                     view.sounds = vec![shot(1, near_at, now - 100), shot(2, far_at, now - 50)];
                     me.health = 0.7;
                     before = reflex.target();
