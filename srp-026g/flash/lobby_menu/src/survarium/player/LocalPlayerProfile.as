@@ -13,7 +13,6 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.text.TextFormat;
-   import flash.text.TextFieldAutoSize;
    import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
@@ -27,6 +26,7 @@ package survarium.player
    import survarium.Util;
    import survarium.controls.Message;
    import survarium.controls.Transient;
+   import survarium.controls.UnfocusedCheckBox;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
@@ -389,6 +389,30 @@ package survarium.player
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
+      // The selected kit's own player modifiers (the skills), from the exe; null until it sends them.
+      private var _kitModifiers:KitModifiers;
+
+      public function setKitModifiers(kit:KitModifiers) : void
+      {
+         _kitModifiers = kit;
+      }
+
+      // What a match adds to a weapon's stats in the selected kit: its skills and its armour.
+      public function matchEffects() : MatchEffects
+      {
+         var items:DataProvider = profileItems.dataProvider as DataProvider;
+         var kit:Array = [];
+         for(var i:uint = 0; items != null && i < items.length; i++) kit.push(items[i]);
+         return new MatchEffects(_kitModifiers,kit);
+      }
+
+      // The selected kit's effects while Alt is held over a weapon's card; null otherwise (the
+      // card shows the weapon's own stats).
+      public static function heldMatchEffects(item:Object) : MatchEffects
+      {
+         return MainScene.isAlt && me != null && item != null && item.isWeapon ? me.matchEffects() : null;
+      }
+
       public function enableSecondWeapon(value:Boolean) : void
       {
          this._playerPaperDoll.enableSecondWeapon(value);
@@ -674,10 +698,8 @@ package survarium.player
          // its place at the row's start, no gap left.
          this.checkbox_autorepair.visible = false;
          this.checkbox_autobuy.x = this.checkbox_autorepair.x;
-         // Its label as long as its text: the symbol's fixed width cut longer ones
-         // ("Automatikus vásá…"); the row has room up to the speed and weight.
-         this.checkbox_autobuy.textField.wordWrap = false;
-         this.checkbox_autobuy.textField.autoSize = TextFieldAutoSize.LEFT;
+         // Its label as long as its text; the row has room up to the speed and weight.
+         (this.checkbox_autobuy as UnfocusedCheckBox).fitLabel();
          this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;

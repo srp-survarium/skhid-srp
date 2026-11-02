@@ -814,3 +814,81 @@ update changes what a match computes.
 - TODO: #919 Rudnya (v0.69): ammo only at the bases
 - TODO: #916 Lobby packs: textures 0.26g already has drawn from its own files (hangar @9, camp @17)
 - TODO: #920 Drops: no camouflage or decal the player already has
+
+## 1 Nov, 22:38 — TODO: the owner's words (update required)
+
+<!-- Revision 41 (026g-rev41), released 2026-11-01 22:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #921 Remove dead Rust code
+- TODO: #922 Remove stale docs, unused 0.100b tools and unused example files
+- TODO: #923 Remove the dead tutorial code from the lobby and hud movies
+- TODO: #924 Small audit fixes: Blackout in Matches, one on/off switch, one mask length, RUST_PATCHES
+- TODO: #926 Remove old notes and one-off audits
+- TODO: #946 Rudnya (v0.69): each base ammo crate refills its own team only
+- TODO: #991 Notes: the 0.26g renderer as a light bake needs it
+- TODO: #999 Login: ask for the nickname, not the e-mail
+- TODO: #983 Shop: a check mark on owned items, and a Hide owned box
+- TODO: #985 Rooms: rejoin the room's running match through the room after a relaunch
+- TODO: #982 Queue of a full room offers a loadout as Join does
+- TODO: #1000 Batteries: points for a battery's new progress toward its container (patch 92)
+- TODO: #984 Lobby: buying an item owned asks first; only the inventory's right-click Buy skips it
+- TODO: #1002 Player vs Bots: drops roll at match level 7 at most, drop cards too
+- TODO: #893 Weapon kit, step A: the kit transport and a second decal on weapons (patch 68, Rust)
+- TODO: #996 Patch 91: a weapon shown while aimed keeps its body
+- TODO: #1004 Upgrade window: a double click puts a camouflage, decal or scope in its slot
+- TODO: #1003 Shop: a consumable's buy starts at 30
+- TODO: #1009 Download mirrors: the game's archive and the patches from many addresses, resumed, logged
+- TODO: #990 build-content: files an earlier version of a pack left stay, listed
+- TODO: #1013 Setup scripts: English as well as Russian; the Defender setup puts back deleted files
+- TODO: #1017 release/test.sh: Ctrl-C tests signal a release.sh that can be interrupted
+- TODO: #1018 Crash dumps: referenced memory live, full memory for local tests
+- TODO: #939 Balance the sides by K/D at the match's equipment level
+- TODO: #1023 Battery points: progress paid at the delivery; found 5, delivery share 5
+- TODO: #1024 Patch 85: pick up a dead player's gun
+- TODO: #951 Patch 19's 0.29a3 weapons: melee k_damage 1.5, as every native weapon's
+- TODO: #1001 Content: 0.31a2's lower screen shake (shake-031-1)
+- TODO: #1011 Content: HK416 and M4A1 kick nearer the AK-12 (recoil-hk416-m4a1-1)
+- TODO: #1031 Revert #1011 (HK416/M4A1 recoil) for revision 41
+
+## 2 Nov, 03:58 — TODO: the owner's words (update required)
+
+<!-- Revision 42 (026g-rev42), released 2026-11-02 03:58 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1026 Admin chat mute: a muted account's lines reach nobody, it is told why
+- TODO: #1037 Put #1011 (HK416/M4A1 recoil) back after revision 41
+- TODO: #1032 Weapon stats as a table (weapon-stats.tsv); cards written from the configs
+- TODO: #1041 Readers of content.tsv edit rows skip stats tables
+- TODO: #1044 Admin page: the level field's label says 0 to 100
+- TODO: #1028 Scaleform: the render thread's capture walk never reaches a queue being destroyed (patch 93)
+- TODO: #1034 Weapon reload rolls: checked, they work as the card shows (notes + re-kit)
+- TODO: #1046 Shotguns: Saiga-12 and Vepr-12 armour piercing 0.1 -> 0.3
+- TODO: #1043 Dead duplicate keys out of the item configs (dead-keys-1)
+- TODO: #1048 A-545: damage 50 and 900 rounds a minute again
+- TODO: #1047 Stats tables: list rows, several files a row, entry selectors, key/value tables
+- TODO: #1033 Lobby: hold Alt to see a weapon's stats with kit and skills
+- TODO: #988 Room lobby: camp @18, no hard-edged ambient boxes at the ceiling
+- TODO: #1052 Site: serve every file of damage/ (Rudnya's render was not served)
+- TODO: #1045 Patch 85: fix the rev41 late-join desync, simplify the pickup's ammo
+- TODO: #1049 Fit the rooms' Leave on Play in every language
+- TODO: #1050 re-kit: one name for the weapon states' get_weapon_lexeme
+- TODO: #1054 Home page: trimmed download steps, then a short FAQ
+- TODO: #1063 Check that a resync converges: world load+save round trip
+- TODO: #1040 Shop: smooth Hide owned tick, Hide owned beside Comparing items, no sort (always by level)
+- TODO: #1061 Skhid-collect-logs.cmd: logs and the game folder's state in one ZIP to send
+- TODO: #1056 Bug-report Discord invite: discord.gg/QUmJg3gBhg
+- TODO: #1065 Ragdolls: rest on the bullet collision too (dropped guns no longer sink on Rudnya)
+- TODO: #1055 Ammo and throwables as tables (ammo.tsv, throwables.tsv)
+- TODO: #1066 Maps: the game's minimap by default, the render on the player's pick
+- TODO: #1067 Self-test ragdoll: the arena bounds the Rust statics; replayed calls allowed
+- TODO: #1062 Updater: a box per problem of the site's list, its title what failed
+- TODO: #1069 Home page: quote the launcher's new box titles
+- TODO: #1058 Artefacts as a table (artefacts.tsv); artefacts-1 goes
+- TODO: #1068 re-kit 0.26g: the weapon of a kill, a hit and a shot (research)
+- TODO: #1059 Character and battery item as tables (character.tsv, battery.tsv)
+- TODO: #1051 SR-3M 850 rounds a minute and +5 % movement; Vector armour piercing 0.3
+- TODO: #1030 Renderer study: 0.26g frame reference, light shader sources and PCSS prototype
+- TODO: #1070 MSBS: full damage to 35 m, 60 % from 70 m (was 20 / 50)
+- TODO: #1073 Saiga-12 and Vepr-12: slugs take three, buckshot two only with every pellet
+- TODO: #1076 ASh-12: 425 rounds a minute (was 400)
+- TODO: #1075 MP7: armour piercing 0.3 -> 0.35
+- TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death

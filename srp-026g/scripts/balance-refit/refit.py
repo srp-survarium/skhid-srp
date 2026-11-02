@@ -52,9 +52,10 @@ import re
 import sys
 from pathlib import Path
 
-PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches\)"
+# Since 2026-11-01 the parts go on with the K/D at the match's level.
+PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches(?:, [^)]*)?\)"
 LINE = re.compile(r"^(\d\d:\d\d:\d\d(?:\.\d+)?)Z ")
-SIDES = re.compile(r"Match (0x[0-9a-f]+) sides: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")
+SIDES = re.compile(r"Match (0x[0-9a-f]+) sides(?: \(equipment level \d+\))?: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")
 PLAYER = re.compile(r"(?:^|, )(.*?) (-?\d+\.\d+) " + PARTS)
 LATE = re.compile(r"Match (0x[0-9a-f]+) late join: (.*); with them team 0 counts ")
 # The parts are in the line since 2026-10-14; a line from before has none.

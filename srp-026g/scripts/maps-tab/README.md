@@ -81,7 +81,7 @@ What comes from where:
 | top-down render | `srp-026g/scripts/damage-calc/assets/maps/` (its README) and the site copy in `servers/web-server/damage/maps/`: the one input not read from the game |
 
 A map without a render stops the build. Render it first, add it to
-`damage/maps/` and `damage.rs`, then build again.
+`damage/maps/` (the server serves the folder), then build again.
 
 The build also stops in these cases, rather than guess:
 

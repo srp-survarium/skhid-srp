@@ -351,7 +351,8 @@ Every finding is in the re-kit (`tools/re-kit/v026g`, the rows of this change).
    length, group, mask, delegate, unflipped; `ret 20h`). The result: +0 the point, +0Ch the
    fraction, +10h the normal (toward the ray's start when the last argument is 0), +1Ch the
    object (0: no hit; then the rest is not written). **The level alone: group 24h, mask 2**
-   (the foot IK's filter: walkers' geometry, no players, hit models, grenades or items).
+   (the foot IK's filter: walkers' geometry, no players, hit models, grenades or items;
+   section 17 adds the collision bullets hit, group 10h, mask 8).
    `object_query` 0x76920 is a convex sweep but **not usable**: its callback keeps every
    hit (no closest), its vector grows through an allocator, and a hit on a bare convex
    object dereferences a null shape info (0x77403). A sweep would call
@@ -662,9 +663,9 @@ waits for them; the hook is thread safe (below).
   IK's) did not hit batteries: a battery's dynamic body is put into the world by
   `victory_item_core` 0x301CB0 (its vtable+0ACh) with group 0A18h, mask 418h, and Bullet's
   filter (needsCollision 0x75BD0: the object's group has a bit of the ray's mask and its mask
-  a bit of the ray's group) fails both ways. The rays now use group 424h, mask 202h: the
-  level as before, and the batteries (bits 400h and 200h; no other object put in with an
-  immediate group has them: character controllers 824h/3, hit models 40h/11h, grenades
+  a bit of the ray's group) fails both ways. The rays now use group 424h, mask 202h (434h and
+  20Ah since section 17): the level as before, and the batteries (bits 400h and 200h; no
+  other object put in with an immediate group has them: character controllers 824h/3, hit models 40h/11h, grenades
   818h/8, the lobby's 800h/800h and 20h/20h). The rays only read: a body lies on a battery
   or against it, and the battery is never moved or woken. A dropped battery (a dying
   carrier's, at the simulation's "Weapon" bone, 0x300E50) is a dynamic body that the
@@ -1090,6 +1091,47 @@ are unchanged. Offline, 26 of 80 headshot scenes launched before and none
 after. Tests: `exp_neg` against the real exponential over 0..80, never
 growing; a headshot body on flat ground keeps every part below 0.6 m after
 1.5 s (it was 0.83 m and rising at 3.77 s).
+
+## 17. Guns in Rudnya's ground (2026-11-01)
+
+The owner: "on Rudnya, weapons quite often fall under the textures"; the dropped gun lies
+partly or wholly under the ground, hard to see.
+
+**Why (PROVEN, on the data).** The rays met the walker collision alone (cgroup 2 / cmask 4,
+the foot IK's filter). On other maps that mesh is about the drawn ground (level 04's terrain: a
+median 0 cm, 4 cm at the 90th percentile). Rudnya's (native level_01's `terrain.model` and the v0.69 port's
+`terrain_game_*`, the same geometry) is coarse and lies under the drawn ground: over the
+play area the drawn ground (its base surfaces and the blend overlays `*_vc`, the dirt,
+earth and grass drawn over 57 % of it) is a median 4.1 cm above it, 9.7 cm at the 90th
+percentile, 17 cm at the 99th; more than the gun's radius (4 cm) on 51 % of the ground. The
+gun's axis rested 4 cm over the walker mesh: at the drawn ground or under it, the gun half
+or wholly hidden; the bodies' thinner parts (forearms, r 5 cm) partly. The level's other
+collision, the one bullets hit (cgroup 8 / cmask 16), follows the drawn ground: within
+2.2 cm at the 90th percentile, 3.4 cm at the 99th.
+
+**The fix.** The rays meet that collision too: group 434h, mask 20Ah (added group 10h, mask
+8, as the lobby's camera ray 0x2844D0). The nearer surface is met, so nothing lies lower
+than before. Nothing else in the world has those bits both ways: grenades (818h/8) have
+group 8 but none of 434h in their mask; players 824h/3, hit models 40h/11h, the lobby's,
+the client objects' geometries (80h/100h, 1/20h) neither. Visual only: no data, no
+simulation change.
+
+**The mud field.** East of the play area (x 95 to 144, z -24 to 31, about 950 m2) the
+dirt overlay is drawn 30 to 48 cm above both collisions, in 0.26g's native Rudnya, in
+0.69d's own `terrain_game_07` and so in the port (0.69d had no collision at that surface
+either; 0.26g's `hq_collision`, in no project, follows it). A body or gun there would sink out of
+sight, and players' feet sink there as they always did; it lies outside the play area
+(the site's `play_area_px` for level_01: x -86 to 86), so nothing was changed for it.
+
+**Checked.** `cargo test -p ragdoll`: on 6 x 6 m of Rudnya's ground by the decent house
+(`ragdoll/rudnya_floor.rs`, the three meshes' triangles), five deaths: on the walker mesh
+alone the gun's axis settles 5.8 to 6.3 cm under the drawn ground (deeper than its radius),
+the bodies' 2 to 4 cm; with the collision bullets hit, 3 cm above it, the bodies' 4 cm.
+The patches' test: the filter meets the walker collision, the hittable one, a collision of
+both and the batteries, and none of the others above. `check_ragdoll_026g.py`: a walker
+floor at 0 and the hittable one 4 cm over it, a grenade's and a player's slab where the
+body falls; the filter is 434h/20Ah and the body lands on the hittable floor, through both
+slabs.
 
 ## Addresses (re-kit rows added in this change)
 

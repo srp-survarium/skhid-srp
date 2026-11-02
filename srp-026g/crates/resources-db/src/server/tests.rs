@@ -191,7 +191,7 @@ fn the_server_data_is_the_files_srp_reads_of_the_patches_over_the_db() {
     let folder = Folder::new("build");
     let (db, two, fourteen) = game(&folder);
     // Given out of order: laid in the game's order all the same.
-    let built = build(&db, &[patch(&fourteen), patch(&two)]).unwrap();
+    let built = build(&db, &[patch(&fourteen), patch(&two)], None).unwrap();
     let files = all_files(&built.bytes);
     let mut expected: BTreeMap<String, Vec<u8>> = [
         ("gameplay/db_static_dictionaries", "dictionary 0"),
@@ -283,17 +283,17 @@ fn the_server_data_is_the_files_srp_reads_of_the_patches_over_the_db() {
 fn the_same_inputs_give_the_same_bytes_and_other_inputs_other_bytes() {
     let folder = Folder::new("determinism");
     let (db, two, fourteen) = game(&folder);
-    let first = build(&db, &[patch(&two), patch(&fourteen)]).unwrap();
-    let again = build(&db, &[patch(&fourteen), patch(&two)]).unwrap();
+    let first = build(&db, &[patch(&two), patch(&fourteen)], None).unwrap();
+    let again = build(&db, &[patch(&fourteen), patch(&two)], None).unwrap();
     assert_eq!(first.bytes, again.bytes);
     // Another URL: the same files, another provenance.
     let mut moved = patch(&two);
     moved.urls = vec!["https://patches.example/resources.db.patch_2".into()];
-    let other = build(&db, &[moved, patch(&fourteen)]).unwrap();
+    let other = build(&db, &[moved, patch(&fourteen)], None).unwrap();
     assert_ne!(other.bytes, first.bytes);
     assert_eq!(all_files(&other.bytes).len(), all_files(&first.bytes).len());
     // A patch of other bytes, even of no file the server reads.
-    let alone = build(&db, &[patch(&fourteen)]).unwrap();
+    let alone = build(&db, &[patch(&fourteen)], None).unwrap();
     std::fs::write(
         &two,
         archive_of(&[
@@ -302,7 +302,7 @@ fn the_same_inputs_give_the_same_bytes_and_other_inputs_other_bytes() {
         ]),
     )
     .unwrap();
-    let changed = build(&db, &[patch(&two), patch(&fourteen)]).unwrap();
+    let changed = build(&db, &[patch(&two), patch(&fourteen)], None).unwrap();
     assert_ne!(changed.provenance, first.provenance);
     assert_ne!(
         changed.provenance.patches[0].input.sha256,
@@ -317,7 +317,7 @@ fn the_same_inputs_give_the_same_bytes_and_other_inputs_other_bytes() {
     assert_eq!(without(&changed.bytes), without(&alone.bytes));
     assert_ne!(changed.bytes, alone.bytes);
     // No patch at all.
-    let bare = build(&db, &[]).unwrap();
+    let bare = build(&db, &[], None).unwrap();
     assert!(bare.provenance.patches.is_empty());
     assert_eq!(bare.gameplay, 3);
 }
@@ -331,7 +331,9 @@ fn a_project_that_is_not_a_config_is_refused() {
             "resources.db.patch_3",
             &archive_of_bytes(&[("projects/level_03/day/client_project", bytes)]),
         );
-        let message = build(&db, &[self::patch(&patch)]).unwrap_err().to_string();
+        let message = build(&db, &[self::patch(&patch)], None)
+            .unwrap_err()
+            .to_string();
         assert!(
             message.contains("resources.db.patch_3: projects/level_03/day/client_project:"),
             "{message}"
@@ -350,12 +352,14 @@ fn what_the_game_would_not_mount_or_the_players_could_not_fetch_is_refused() {
     let folder = Folder::new("refused");
     let (db, two, fourteen) = game(&folder);
     let renamed = folder.file("patch_15.db", &std::fs::read(&two).unwrap());
-    let message = build(&db, &[patch(&renamed)]).unwrap_err().to_string();
+    let message = build(&db, &[patch(&renamed)], None)
+        .unwrap_err()
+        .to_string();
     assert!(message.contains("resources.db.patch_<n>"), "{message}");
 
     let other = Folder::new("refused-other");
     let again = other.file("resources.db.patch_2", &std::fs::read(&two).unwrap());
-    let message = build(&db, &[patch(&two), patch(&again)])
+    let message = build(&db, &[patch(&two), patch(&again)], None)
         .unwrap_err()
         .to_string();
     assert!(message.contains("two patches of one number"), "{message}");
@@ -372,7 +376,7 @@ fn what_the_game_would_not_mount_or_the_players_could_not_fetch_is_refused() {
             path: fourteen.clone(),
             urls: vec![url.into()],
         };
-        assert!(build(&db, &[bad]).is_err(), "{url:?}");
+        assert!(build(&db, &[bad], None).is_err(), "{url:?}");
     }
 
     // A file unlike its table, named with its archive.
@@ -380,7 +384,9 @@ fn what_the_game_would_not_mount_or_the_players_could_not_fetch_is_refused() {
     let at = damaged.windows(8).position(|w| w == b"fourteen").unwrap();
     damaged[at] = b'F';
     std::fs::write(&fourteen, damaged).unwrap();
-    let message = build(&db, &[patch(&fourteen)]).unwrap_err().to_string();
+    let message = build(&db, &[patch(&fourteen)], None)
+        .unwrap_err()
+        .to_string();
     assert!(message.contains("resources.db.patch_14"), "{message}");
     assert!(
         message.contains("gameplay/items/armour/mask/new.options"),
@@ -392,12 +398,12 @@ fn what_the_game_would_not_mount_or_the_players_could_not_fetch_is_refused() {
         "resources.db.patch_20",
         &archive_of(&[("gameplay/items", "x")]),
     );
-    assert!(build(&db, &[patch(&clash)]).is_err());
+    assert!(build(&db, &[patch(&clash)], None).is_err());
 
     // No gameplay/.
     let none = folder.file("resources.db.patch_21", &archive_of(&[("x/y", "x")]));
     assert!(
-        build(&none, &[])
+        build(&none, &[], None)
             .unwrap_err()
             .to_string()
             .contains("no gameplay/")
@@ -460,7 +466,7 @@ fn a_patch_may_have_mirrors_in_its_order() {
     mirrored
         .urls
         .push("http://198.51.100.7:8090/resources.db.patch_14".into());
-    let built = build(&db, &[patch(&two), mirrored.clone()]).unwrap();
+    let built = build(&db, &[patch(&two), mirrored.clone()], None).unwrap();
     assert_eq!(built.provenance.patches[1].urls, mirrored.urls);
     let text = built.provenance.text();
     let lines: Vec<&str> = text.lines().collect();
@@ -479,7 +485,7 @@ fn a_patch_may_have_mirrors_in_its_order() {
     let offered: Vec<(String, &str, &[String])> = data.provenance.offered().collect();
     assert_eq!(offered[1].2, mirrored.urls.as_slice());
     // Mirrors change the provenance, not the files.
-    let plain = build(&db, &[patch(&two), patch(&fourteen)]).unwrap();
+    let plain = build(&db, &[patch(&two), patch(&fourteen)], None).unwrap();
     let without = |bytes: &[u8]| {
         let mut files = all_files(bytes);
         files.remove(PROVENANCE);
@@ -493,15 +499,94 @@ fn a_patch_may_have_mirrors_in_its_order() {
         .map(|n| format!("http://m{n}.example/p14"))
         .collect();
     assert_eq!(
-        build(&db, &[eight.clone()]).unwrap().provenance.patches[0].urls,
+        build(&db, &[eight.clone()], None)
+            .unwrap()
+            .provenance
+            .patches[0]
+            .urls,
         eight.urls
     );
     eight.urls.push("http://m9.example/p14".into());
-    let message = build(&db, &[eight]).unwrap_err().to_string();
+    let message = build(&db, &[eight], None).unwrap_err().to_string();
     assert!(
         message.contains("9 URLs; the players' updater takes at most 8"),
         "{message}"
     );
+}
+
+/// The game's archive the release pins: named, offered, not made of.
+#[test]
+fn the_games_archive_is_named_with_its_urls_and_not_read() {
+    let folder = Folder::new("game-archive");
+    let (db, two, fourteen) = game(&folder);
+    let sha = "7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028";
+    let row = format!(
+        "survarium-026g.7z {sha} 2906544103 http://203.0.113.5:8090/survarium-026g.7z \
+         https://archive.org/download/x/survarium_full_026g0.7z"
+    );
+    let archive = GameArchive::parse_row(&row).unwrap();
+    assert_eq!(
+        (
+            archive.input.name.as_str(),
+            archive.input.size,
+            archive.urls.len()
+        ),
+        ("survarium-026g.7z", 2_906_544_103, 2)
+    );
+    let built = build(&db, &[patch(&two), patch(&fourteen)], Some(&archive)).unwrap();
+    assert_eq!(built.provenance.game.as_ref(), Some(&archive));
+    let text = built.provenance.text();
+    assert_eq!(
+        text.lines().nth(2).unwrap(),
+        format!(
+            "game survarium-026g.7z 2906544103 {sha} http://203.0.113.5:8090/survarium-026g.7z \
+             https://archive.org/download/x/survarium_full_026g0.7z"
+        )
+    );
+    let data = read(&mut Archive::new(Cursor::new(built.bytes.clone())).unwrap()).unwrap();
+    assert_eq!(data.provenance, built.provenance);
+    // Only the provenance changes: no file of it is read.
+    let plain = build(&db, &[patch(&two), patch(&fourteen)], None).unwrap();
+    let without = |bytes: &[u8]| {
+        let mut files = all_files(bytes);
+        files.remove(PROVENANCE);
+        files
+    };
+    assert_eq!(without(&built.bytes), without(&plain.bytes));
+    assert_eq!(plain.provenance.game, None);
+    for bad in [
+        String::new(),
+        format!("survarium-026g.7z {sha} 2906544103"),
+        format!("survarium-026g.7z {sha} 0 http://h/g"),
+        format!("survarium-026g.7z {sha} 02906544103 http://h/g"),
+        format!(
+            "survarium-026g.7z {} 2906544103 http://h/g",
+            sha.to_uppercase()
+        ),
+        format!("survarium-026g.7z {sha} 2906544103 ftp://h/g"),
+        format!("survarium-026g.7z {sha} 2906544103 http://h/g http://h/g"),
+        format!("survarium-026g.7z {sha} 2906544103  http://h/g"),
+        format!("resources.db.patch_3 {sha} 2906544103 http://h/g"),
+        format!("resources.db {sha} 2906544103 http://h/g"),
+        format!("a/b {sha} 2906544103 http://h/g"),
+    ] {
+        assert!(GameArchive::parse_row(&bad).is_err(), "{bad:?}");
+    }
+    let nine: Vec<String> = (1..=9).map(|n| format!("http://m{n}.example/g")).collect();
+    assert!(GameArchive::parse_row(&format!("g.7z {sha} 1 {}", nine.join(" "))).is_err());
+    // A game line right after the db's, once; anything else of it is
+    // refused.
+    let db_line = format!("{FORMAT}\ndb resources.db 10 {sha}\n");
+    for wrong in [
+        format!("{db_line}game g.7z 1 {sha}\n"),
+        format!("{db_line}game g.7z 1 {sha} http://h/g\ngame g.7z 1 {sha} http://h/g\n"),
+        format!(
+            "{db_line}patch resources.db.patch_3 5 {sha} http://h/p\ngame g.7z 1 {sha} http://h/g\n"
+        ),
+        format!("{db_line}game resources.db.patch_3 1 {sha} http://h/g\n"),
+    ] {
+        assert!(Provenance::parse(&wrong).is_err(), "{wrong:?}");
+    }
 }
 
 #[test]
@@ -523,7 +608,7 @@ fn a_patch_needs_a_url_and_none_twice() {
             path: fourteen.clone(),
             urls,
         };
-        let message = build(&db, &[bad]).unwrap_err().to_string();
+        let message = build(&db, &[bad], None).unwrap_err().to_string();
         assert!(message.contains(why), "{message}");
     }
 }
@@ -654,7 +739,7 @@ fn a_build_refuses_a_url_the_updater_refuses() {
             path: patch.clone(),
             urls: vec![url.clone()],
         }];
-        match build(&db, &patches) {
+        match build(&db, &patches, None) {
             Ok(built) => {
                 assert!(taken, "{url:?}");
                 assert_eq!(built.provenance.patches[0].urls, [url]);
@@ -690,7 +775,7 @@ fn the_server_data_of_0_26g_with_its_patches() {
         })
         .collect();
     let started = std::time::Instant::now();
-    let built = build(&db, &patches).unwrap();
+    let built = build(&db, &patches, None).unwrap();
     eprintln!(
         "{} bytes in {:?}, {} gameplay files, {} projects, {:?}",
         built.bytes.len(),
@@ -739,7 +824,7 @@ fn the_server_data_of_0_26g_with_its_patches() {
         built.provenance.text().into_bytes()
     );
     assert_eq!(files, expected);
-    assert_eq!(build(&db, &patches).unwrap().bytes, built.bytes);
+    assert_eq!(build(&db, &patches, None).unwrap().bytes, built.bytes);
     if let Ok(out) = std::env::var("SRP_TEST_GAME_DATA_OUT") {
         std::fs::write(out, &built.bytes).unwrap();
     }

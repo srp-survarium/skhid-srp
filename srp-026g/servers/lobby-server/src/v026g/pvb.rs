@@ -50,7 +50,6 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
-//! | `SRP_PVB_MAX_GEAR` | 15 | the highest equipment level let in, 0 to 15 (the bots wear the player's level, `play::server_bot`) | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
@@ -62,6 +61,7 @@ use std::time::{Duration, Instant};
 use session::v026g::{matchmaking, quests};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::requests::id;
+use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
 use survarium::v026g::maps::{self, MapMode};
 
@@ -81,29 +81,20 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 pub const MAPS: [u8; 16] = [
     61, 67, 73, 79, 85, 91, 97, 103, 117, 120, 123, 126, 129, 132, 135, 138,
 ];
-/// The team sizes offered: each side's players.
-pub const SIZES: [u8; 3] = [6, 8, 10];
-/// What the movie shows first.
-pub const DEFAULT_SIZE: u8 = 8;
+/// The map the movie shows first (the team sizes and the size it shows first: `PvbRules`).
 pub const DEFAULT_MAP: u8 = 61;
 /// How long a choice is held for the player's Play.
 pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
 /// bots: refused, never into a room.
 pub const EXPIRED_REFUSED: Duration = Duration::from_secs(30);
-/// `SRP_PVB_MAX_GEAR` when unset: every level (the bots wear the player's,
-/// `session::v026g::bot_kits`; the owner's of 2026-10-26, which replaces
-/// "5 or lower" of 2026-10-16).
-pub const DEFAULT_MAX_GEAR: u8 = MOST_GEAR;
-/// The highest equipment level there is (`items_levels_modifiers`).
-const MOST_GEAR: u8 = 15;
 
 /// The mode's settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// `SRP_PVB` (default off).
     pub enabled: bool,
-    /// `SRP_PVB_MAX_GEAR` (default 15): the highest equipment level let in.
+    /// The highest equipment level let in (`PvbRules::max_gear`).
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
@@ -114,7 +105,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: false,
-            max_gear: DEFAULT_MAX_GEAR,
+            max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
         }
     }
@@ -123,19 +114,9 @@ impl Default for Config {
 impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
-        let max_gear = match std::env::var("SRP_PVB_MAX_GEAR") {
-            Ok(value) => parse_max_gear(&value).unwrap_or_else(|| {
-                log::error!(
-                    "SRP_PVB_MAX_GEAR is `{value}`; it must be 0 to {MOST_GEAR}. Using \
-                     {DEFAULT_MAX_GEAR}"
-                );
-                DEFAULT_MAX_GEAR
-            }),
-            Err(_) => DEFAULT_MAX_GEAR,
-        };
         let config = Self {
             enabled: session::v026g::pvb::enabled(),
-            max_gear,
+            max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::max_matches(),
         };
         if config.enabled {
@@ -149,11 +130,6 @@ impl Config {
         }
         config
     }
-}
-
-/// `SRP_PVB_MAX_GEAR`: 0 to [`MOST_GEAR`].
-fn parse_max_gear(value: &str) -> Option<u8> {
-    value.trim().parse().ok().filter(|gear| *gear <= MOST_GEAR)
 }
 
 /// The offered maps as the dictionary has them.
@@ -302,8 +278,8 @@ impl Core<'_> {
         let status = PvbStatus {
             code,
             numbers,
-            sizes: SIZES.to_vec(),
-            default_size: DEFAULT_SIZE,
+            sizes: rules().pvb.sizes.clone(),
+            default_size: rules().pvb.default_size,
             default_map: DEFAULT_MAP,
         };
         log::debug!(
@@ -325,7 +301,7 @@ impl Core<'_> {
         self.pvb_forget_old(now);
         self.pvb_holds.remove(&who.account_id);
         let choice = lobby::pvb_choice(start)
-            .filter(|(size, map_id)| SIZES.contains(size) && MAPS.contains(map_id));
+            .filter(|(size, map_id)| rules().pvb.sizes.contains(size) && MAPS.contains(map_id));
         let fit = match choice {
             None => Err(PvbCode::UnknownChoice),
             Some(choice) => self.pvb_fit(who, now).map(|()| choice),
@@ -474,7 +450,7 @@ mod tests {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }
-        assert!(MAPS.contains(&DEFAULT_MAP) && SIZES.contains(&DEFAULT_SIZE));
+        assert!(MAPS.contains(&DEFAULT_MAP));
         let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
         assert_eq!((rudnya.level, rudnya.mode), (1, maps::mode::BATTERIES));
     }
@@ -483,9 +459,9 @@ mod tests {
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!((config.max_gear, config.max_matches), (15, 5));
-        assert_eq!(parse_max_gear(" 4 "), Some(4));
-        assert_eq!(parse_max_gear("16"), None);
-        assert_eq!(parse_max_gear("x"), None);
+        assert_eq!(
+            (config.max_gear, config.max_matches),
+            (rules().pvb.max_gear, 5)
+        );
     }
 }
