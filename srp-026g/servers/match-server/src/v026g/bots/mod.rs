@@ -1589,9 +1589,8 @@ impl Bots {
             // walk, the sidestep's jump: `stuck::ESCAPE_REACH`), not over an edge or into a wall (A271).
             let floor = self.tunings.of(bot.team).unstick.escape_floor;
             let escape = match (self.tactics.as_ref(), yaw) {
-                (Some(tactics), Some(yaw)) => escapes
-                    .into_iter()
-                    .find(|&keys| {
+                (Some(tactics), Some(yaw)) => {
+                    let found = escapes.into_iter().find(|&keys| {
                         let way = unstick_step(keys, yaw);
                         tactics.zone_free_step(feet, feet + way, time) && {
                             let floored = !floor || tactics.floor_free_step(feet, feet + way * stuck::ESCAPE_REACH);
@@ -1601,14 +1600,13 @@ impl Bots {
                             }
                             floored
                         }
-                    })
-                    .unwrap_or_else(|| {
-                        #[cfg(test)]
-                        if floor {
-                            stuck::escape_floors::count(2);
-                        }
-                        0
-                    }),
+                    });
+                    #[cfg(test)]
+                    if floor && found.is_none() {
+                        stuck::escape_floors::count(2);
+                    }
+                    found.unwrap_or(0)
+                }
                 _ => escapes[0],
             };
             #[cfg(test)]
