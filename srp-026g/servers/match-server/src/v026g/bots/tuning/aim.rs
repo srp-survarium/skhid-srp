@@ -273,8 +273,9 @@ impl Default for AimCalibration {
         };
         // [A267] A type's skill-1 sweep down to factor 0.40 (fx-fights, A267(a) part 1, 2026-11-02, A243's settings, seeds
         // 1-4, weighed, the cap's reading; tiers' mean where both ran), #1089's points kept above its last factor, made
-        // non-increasing; and its line at skill 0, 0.5 and 1 at the shipped factors (A267(a)'s `forced0` ladder, the
-        // rushers on MGs at 9-10 and pistols at 13-15, the same estimator; the MGs' and pistols' sweeps too, `forced1`).
+        // non-increasing; and its line at skill 0, 0.5 and 1 at the shipped factors (part 2: skill 0 and 0.5 from the
+        // control rushers' `lines` ladder, skill 1 part 1's; the MGs and pistols from the `forced0` / `forced1` ladders, the
+        // rushers on MGs at 9-10 and pistols at 13-15; the same estimator).
         let line = |r0: f32, r05: f32, r1: f32| vec![(0.0, r0), (0.5, r05), (1.0, r1)];
         Self {
             source: "PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; \
@@ -291,18 +292,18 @@ impl Default for AimCalibration {
                 ladder: line(18.4, 21.1, 22.5),
                 ..automatics.clone()
             }),
-            // 9-10 only (13-15's flanker carries a rifle): 1.32 18.5, 0.85 24.1, 0.70 24.9, 0.55 28.5, 0.40 30.3. Line 11.6
-            // 16.1 19.2.
+            // 9-10 only (13-15's flanker carries a rifle): 1.32 18.5, 0.85 24.1, 0.70 24.9, 0.55 28.5, 0.40 30.3. Line 12.3
+            // 15.8 18.5.
             smg: TypeCalibration::Own(ClassCalibration {
                 points: points(&[(0.4, 30.3), (0.55, 28.5), (0.7, 24.9), (0.85, 24.1), (1.32, 18.5), (1.6, 16.5), (2.0, 13.6)]),
-                ladder: line(11.6, 16.1, 19.2),
+                ladder: line(12.3, 15.8, 18.5),
                 ..automatics.clone()
             }),
-            // 9-10: 1.32 19.1, 0.85 24.6, 0.70 27.1, 0.55 29.4, 0.40 31.9; 13-15: 18.5, 23.5, 25.5, 27.8, 29.7. Line 9-10 8.7
-            // 15.1 20.5, 13-15 10.2 15.1 18.4.
+            // 9-10: 1.32 19.1, 0.85 24.6, 0.70 27.1, 0.55 29.4, 0.40 31.9; 13-15: 18.5, 23.5, 25.5, 27.8, 29.7. Line 9-10 7.9
+            // 14.0 19.1, 13-15 10.1 15.0 18.5.
             rifle: TypeCalibration::Own(ClassCalibration {
                 points: points(&[(0.4, 30.8), (0.55, 28.6), (0.7, 26.3), (0.85, 24.05), (1.32, 18.8), (1.6, 16.5), (2.0, 13.6)]),
-                ladder: line(9.45, 15.1, 19.45),
+                ladder: line(9.0, 14.5, 18.8),
                 ..automatics.clone()
             }),
             // 9-10 on the forced kit (the rushers' MGs): 0.85 27.0, 0.70 29.9, 0.55 32.6, 0.40 35.0; line 8.7 15.0 21.6, over
@@ -333,7 +334,8 @@ impl Default for AimCalibration {
                     (1.6, 17.77),
                     (2.0, 15.4),
                 ]),
-                ladder: ladder([11.1, 12.95, 14.6, 16.85, 18.35, 18.8]),
+                // Line 9-10 11.0 16.2 19.3, 13-15 10.7 15.5 18.3.
+                ladder: line(10.85, 15.85, 18.8),
                 ladder_factors: (0.94, 1.04, 1.30),
             }),
             // 13-15 only. Part 1: 0.72 29.9, 0.55 28.2, 0.40 31.3, 0.30 29.4, 0.20 29.5: flat ~29-31 %, the VSK-94's subsonic
@@ -351,7 +353,8 @@ impl Default for AimCalibration {
                     (0.85, 29.25),
                     (1.0, 28.75),
                 ]),
-                ladder: line(18.2, 25.1, 30.0),
+                // Line 19.5 23.8 29.9.
+                ladder: line(19.5, 23.8, 29.9),
                 ladder_factors: (1.18, 1.24, 0.72),
             }),
             // 9-10 only; its spreads are 1.4-5.3 points (1.5-2 k shots a step), hence the dip at 0.2. Part 1: 1.40 38.9, 0.85
@@ -370,7 +373,8 @@ impl Default for AimCalibration {
                     (3.0, 32.4),
                     (4.5, 26.9),
                 ]),
-                ladder: line(34.4, 37.2, 41.6),
+                // Line 31.9 33.2 38.9.
+                ladder: line(31.9, 33.2, 38.9),
                 ladder_factors: (0.74, 0.97, 1.4),
             }),
         }

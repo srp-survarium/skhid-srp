@@ -356,8 +356,8 @@ fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
 
 /// [A266] How the page's expected rates are had from the bench's numbers.
 const METHOD: Text = Text {
-    en: "Expected hits a shot, % (a shotgun: a pellet), on each type's line: the bench's measured rates with the shipped factors (at skill 0, 0.5 and 1; the MGs and pistols on forced kits; the shotgun at A243's 0, 0.2, ... 1), straight between them; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements. A default line may sit off its bar: the row says so.",
-    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного типу: виміряні стендом ставки з типовими факторами (на навичці 0, 0.5 і 1; дробовик — на кроках A243 0, 0.2, ... 1), пряма між ними; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри. Типова лінія може бути поза планкою: рядок про це каже.",
+    en: "Expected hits a shot, % (a shotgun: a pellet), on each type's line: the bench's measured rates with the shipped factors (at skill 0, 0.5 and 1; the MGs and pistols on forced kits), straight between them; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements. A default line may sit off its bar: the row says so.",
+    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного типу: виміряні стендом ставки з типовими факторами (на навичці 0, 0.5 і 1; кулемети й пістолети — на примусових наборах), пряма між ними; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри. Типова лінія може бути поза планкою: рядок про це каже.",
 };
 
 /// A band of the players' equipment, as the page names it.
@@ -1324,22 +1324,21 @@ mod tests {
 
     /// [A266, A267] The page's expected rates for the shipped tuning are the bench's measured lines (weighed; the two
     /// tiers' mean where both ran) within their rounding at each step measured, straight between them: A267(a)'s
-    /// (fx-fights, 2026-11-02) at skill 0, 0.5 and 1, the shotgun still A243's (#1089's "after", skill 0, 0.2, ... 1); the
-    /// type rows' skill-1 values are their lines' ends.
+    /// (fx-fights, 2026-11-02) at skill 0, 0.5 and 1 (skill 0 and 0.5 the control rushers', skill 1 part 1's; the MGs and
+    /// pistols on the forced kits); the type rows' skill-1 values are their lines' ends.
     #[test]
     fn the_rates_shown_for_the_defaults_are_the_benchs_lines() {
         let halves: &[f32] = &[0.0, 0.5, 1.0];
-        let fifths: &[f32] = &[0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
         /// A type's label, its steps and the rows measured at them (a tier a row).
         type Measured<'a> = (&'a str, &'a [f32], &'a [&'a [f32]]);
         let measured: [Measured; 7] = [
-            ("SMGs", halves, &[&[11.6, 16.1, 19.2]]),
-            ("Rifles (automatic)", halves, &[&[8.7, 15.1, 20.5], &[10.2, 15.1, 18.4]]),
+            ("SMGs", halves, &[&[12.3, 15.8, 18.5]]),
+            ("Rifles (automatic)", halves, &[&[7.9, 14.0, 19.1], &[10.1, 15.0, 18.5]]),
             ("Machine guns", halves, &[&[8.7, 15.0, 21.6]]),
             ("Pistols", halves, &[&[18.4, 21.1, 22.5]]),
-            ("Shotguns (a pellet)", fifths, &[&[11.1, 12.9, 14.1, 16.6, 18.3, 19.2], &[11.1, 13.0, 15.1, 17.1, 18.4, 18.4]]),
-            ("DMRs", halves, &[&[18.2, 25.1, 30.0]]),
-            ("Bolt actions", halves, &[&[34.4, 37.2, 41.6]]),
+            ("Shotguns (a pellet)", halves, &[&[11.0, 16.2, 19.3], &[10.7, 15.5, 18.3]]),
+            ("DMRs", halves, &[&[19.5, 23.8, 29.9]]),
+            ("Bolt actions", halves, &[&[31.9, 33.2, 38.9]]),
         ];
         let view = LiveTuning::default().view();
         let rates = &view.rates;
@@ -1364,9 +1363,8 @@ mod tests {
             let knob = hits.knobs.iter().find(|knob| knob.label.en == label).unwrap();
             assert_eq!(knob.value, format!("{:.1}", shown[2]), "{label}");
         }
-        // On the steps: 0, 0.5, 1 and the bands' 0.0, 0.5 a type on halves; 0, 1 and the bands' 0.0, 0.6, 0.2, 0.8, 0.6 on
-        // fifths.
-        assert_eq!(on_steps, 6 * 5 + 7);
+        // On the steps: 0, 0.5, 1 and the bands' 0.0 and 0.5, a type.
+        assert_eq!(on_steps, 7 * 5);
         // Every type on its own numbers; the MGs' line ends over their bar, said so in the rates table too.
         assert!(rates.classes.iter().all(|class| matches!(class.line, ClassLine::Own(_))), "{rates:?}");
         let mg = rates.classes.iter().find(|class| class.label.en == "Machine guns").unwrap();
