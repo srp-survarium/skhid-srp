@@ -6447,6 +6447,24 @@ impl ModelInstance {
         unsafe { self.0.byte_add(0x10d).cast::<u8>().as_ptr() }
     }
 
+    /// +0x114 (u8): drawn in the first-person pass, after the world and over it (weapon::set_foreground 0x243D40 for the gun, its optic's two models; weapon::on_show 0x243F63 sets it to [user+0F4E1h] == 0); 0: a world model
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn foreground(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x114).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x115 (u8): a movable model (weapon::set_movable_static 0x243CB0, 1 at every on_show 0x243F6A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn movable(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x115).cast::<u8>().as_ptr() }
+    }
+
     /// +0x0 (obj<vostok::static_model_instance>): only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
     ///
     /// # Safety

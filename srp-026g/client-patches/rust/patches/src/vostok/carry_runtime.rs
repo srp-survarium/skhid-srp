@@ -217,6 +217,20 @@ impl Scene {
             }
         }
     }
+    /// The model drawn as a world model, as weapon::on_show draws a gun not
+    /// in first person (0x243F54..0x243F6A: set_foreground with 0,
+    /// set_movable_static): depth-tested against the world. A cooked gun
+    /// keeps the first-person flag (the cook's default) until its on_show.
+    pub(super) unsafe fn as_world(model: raw::SceneModel) {
+        // SAFETY: a model holder retained by the live caller; the two bytes
+        // set_foreground and set_movable_static write.
+        unsafe {
+            if let Some(instance) = model.render_instance().instance() {
+                instance.foreground().write(0);
+                instance.movable().write(1);
+            }
+        }
+    }
     /// Whether the model is in the scene (its render instance's own bit).
     pub(super) unsafe fn has(model: raw::SceneModel) -> bool {
         // SAFETY: a model holder retained by the live caller.

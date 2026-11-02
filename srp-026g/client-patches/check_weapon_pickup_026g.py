@@ -3267,6 +3267,7 @@ class Alone(Death):
         elif address in (ADD_MODEL, UPDATE_MODEL):  # EAX the model's reference, renderer, scene, first, second
             instance = self.read(emu.reg_read(UC_X86_REG_EAX))
             assert self.in_scene(instance) == (address == UPDATE_MODEL), "added twice, or moved out of the scene"
+            assert self.read(instance + 0x114, 2) == b"\0\1", "a world model (not foreground), movable, as on_show's"
             emu.mem_write(instance + 0x10D, b"\1")
             self.scene.append(("add" if address == ADD_MODEL else "update", instance, matrix(arg(3))))
             self.ret(16)
@@ -3300,6 +3301,7 @@ class Alone(Death):
         super().setup(double_handed)
         import check_ragdoll_026g as rag
         self.word(self.new_gun + 0x180C, WORLD)         # the cooked gun's world, as the recipe's
+        self.emu.mem_write(self.copy() + 0x114, b"\1\0")  # the cook's flags: foreground, not movable
         resource, binds = self.blk(0x150), self.blk(64 * 2)
         self.emu.mem_write(resource + 0x108, struct.pack("<6f", -0.05, -0.05, -0.5, 0.05, 0.05, 0.5))
         self.emu.mem_write(binds, b"".join(struct.pack("<16f", *m) for m in INVERSE_BINDS))
@@ -3423,9 +3425,13 @@ def drawn_alone(patched):
     r.step()
     r.took()
     assert r.in_scene(copy)
+    r.native = []
     r.tick(now=taken + 300)
     r.installed()
     r.took(("remove", copy))
+    # In the same call the game shows it in hands (activate -> on_show adds its first-person model): the shared
+    # textures keep a streaming instance throughout (no frame between our removal and the add).
+    assert ("activate", r.new_gun, 1) in r.native, r.native
     r.step()
     r.took()
     print("ok a pickup of it: drawn on through the holster (not offered), a rollback undoing and replaying it "
@@ -3499,6 +3505,7 @@ def drawn_alone(patched):
     o.word(o.new_gun + 0x1808, optics)
     o.word(optics + 0x108, scope_model)
     o.word(scope_model + 0x108, scope)
+    o.emu.mem_write(scope + 0x114, b"\1\0")
     events, _ = o.fallen()
     assert [(e[0], e[1]) for e in events] == [("add", copy), ("skin", copy), ("add", scope)], events
     assert events[2][2] == SCOPE_AT

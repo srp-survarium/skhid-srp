@@ -1622,6 +1622,7 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         }
         let bones = &bones[..count];
         let mut now = ours.0;
+        Scene::as_world(model);
         scene.present(model, transform);
         if !ours.has(Models::BODY) {
             scene.skin(model, bones);
@@ -1633,6 +1634,7 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
             raw::engine_weapon_locator(at.as_mut_ptr(), Some(weapon.scope_locator()), transform.as_ptr(),
                                        bones.as_ptr().cast(), IDENTITY.as_ptr());
             if at.iter().all(|v| v.is_finite()) {
+                Scene::as_world(scope);
                 scene.present(scope, &at);
                 now |= Models::SCOPE;
             }

@@ -269,6 +269,8 @@ survarium::scene_model	render_instance	0x108	obj<vostok::render::scene_model_ref
 survarium::scene_model	skinned	0x108	obj<vostok::render::render_model_instance>	the same reference as update_skeleton takes it (weapon::draw 0x244F4E..0x244F5A: &[weapon+1810h]+108h)
 vostok::render::scene_model_ref	instance	0x0	ptr<vostok::render::model_instance>	the retained render model instance
 vostok::render::model_instance	in_scene	0x10D	u8	renderer add/remove bookkeeping, 0x244EE7
+vostok::render::model_instance	foreground	0x114	u8	drawn in the first-person pass, after the world and over it (weapon::set_foreground 0x243D40 for the gun, its optic's two models; weapon::on_show 0x243F63 sets it to [user+0F4E1h] == 0); 0: a world model
+vostok::render::model_instance	movable	0x115	u8	a movable model (weapon::set_movable_static 0x243CB0, 1 at every on_show 0x243F6A)
 vostok::render::model_instance	static_model	0x0	obj<vostok::static_model_instance>	only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
 survarium::artefact_container_core	world_core	0x54	ptr<survarium::core_world>	its world's core: use_execute 0x31C838 reads the statistics handler from it
 survarium::core_world	statistics	0x18FA8	ptr<survarium::base_game_statistics_handler>	the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)

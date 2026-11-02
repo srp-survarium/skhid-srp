@@ -198,7 +198,11 @@ local: nothing synced, no `simulation_changes` row.
   reconciled each frame: a rollback just reconciles.
 - **The engine calls** (patch 78's `Scene`, as weapon::on_show and
   weapon::draw place a held gun, 0x243EC7..0x243F37, 0x244F27..0x245012):
-  add_model 0x21CD0 of the copy's model (+1810h) at the transform, then
+  add_model 0x21CD0 of the copy's model (+1810h) at the transform, as a
+  world model (its render instance's +114h foreground 0, +115h movable 1, as
+  on_show does for a gun not in first person, 0x243F54..0x243F6A: the cook
+  leaves +114h set, and a foreground model is drawn after the world, over
+  it: the gun through grass and walls in 1096's first test), then
   update_model 0x22280 each frame as weapon::draw does; update_skeleton
   0x22490 once with its bind pose (each bone the inverse of its model's
   inverse bind, render model +140h..+144h: the mesh as authored); the scope
