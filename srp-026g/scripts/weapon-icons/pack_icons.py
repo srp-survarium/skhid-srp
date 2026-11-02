@@ -23,12 +23,15 @@ def main():
     ap.add_argument('--packs', type=Path, required=True)
     ap.add_argument('--icons', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)
+    ap.add_argument('--pack', choices=['weapons-031','weapons-046','weapons-069'], help='build only this pack')
     args = ap.parse_args()
     records = json.loads((args.icons / 'rendered.json').read_text())
     assert len(records) == 20 and len({r['name'] for r in records}) == 20
     with (HERE / 'sources.tsv').open() as f:
         sources = list(csv.DictReader(f, delimiter='\t'))
     for source in sources:
+        if args.pack and source['id'] != args.pack:
+            continue
         src = args.packs / f"{source['id']}-{source['from']}"
         dst = args.out / f"{source['id']}-{source['to']}"
         assert digest(src/'pack.json') == source['sha256'], f'{src}: unexpected pack'

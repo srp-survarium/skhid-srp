@@ -19,6 +19,7 @@ from PIL import Image, ImageDraw
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import renderer
+import magazine_pose
 sys.path.insert(0, str(HERE.parent / 'content-edit'))
 import content_edit
 
@@ -94,6 +95,7 @@ def main():
             icon_path = by_cell[cell]['source']
             model = 'models/' + renderer.config_strings(config)['object.model'] + '.skinned_model'
             parts = renderer.rifle_parts(packdir / 'files', model)
+            magazine_pose.apply(packdir / 'files', model, parts)
             view = renderer.RIGHT
             pistol = item['item_category'] == 17
             size = (114,55) if pistol else (171,73)
