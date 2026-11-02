@@ -661,6 +661,21 @@ impl Stuck {
         self.shut_landings.iter().copied().filter(move |shut| shut.until > time)
     }
 
+    /// [`Self::shut_landings`] for a search from `feet`; with `from_top` (`unstick.drop_shut_from_top`) a drop's
+    /// landing only while the body stands over it by more than [`DROP_SHUT_BELOW_M`]: the drop was shut at its top, and a
+    /// body that got down to its landing's height anyway walks on those floors (A251: Vector Laboratory, a body at 11.6 with
+    /// the landings of the drops it had shut at 11.59, each new shut lengthening them, had no way for 63 s).
+    pub fn shut_landings_from(&self, time: u32, feet: Vec3, from_top: bool) -> impl Iterator<Item = Shut> + '_ {
+        self.shut_landings(time).filter(move |shut| {
+            let below = shut.kind == ShutKind::Drop && feet.y - shut.landing.y < DROP_SHUT_BELOW_M;
+            #[cfg(test)]
+            if from_top && below {
+                drop_shuts::count(drop_shuts::LIFTED);
+            }
+            !(from_top && below)
+        })
+    }
+
     /// The bench's watch of a drop shut ([`drop_shuts`]): a world at `time` showed the body at `feet`, `stuck` if the
     /// ladder fired on it. Stuck again at the spot within [`drop_shuts::AGAIN_MS`], or off it (gone down, or
     /// [`SPOT_M`] away), or neither within [`drop_shuts::WATCH_MS`].
@@ -821,6 +836,10 @@ pub fn drops_off(grid: &mapdata::grid::WalkGrid, feet: Vec3, near_m: f32) -> Vec
 /// A floor this far up or down of the feet is the one they stand on, for [`drops_off`], metres: a step.
 pub const DROP_TOP_M: f32 = 0.8;
 
+/// A drop shut off a top ([`drops_off`]) lands a lip's drop under its top, and the top is within [`DROP_TOP_M`] of the feet: a
+/// body at that top stands at least this high over the landing, metres ([`Stuck::shut_landings_from`]).
+pub const DROP_SHUT_BELOW_M: f32 = mapdata::grid::LIP_DROP_M - DROP_TOP_M;
+
 /// The bench's counts of the drops shut ([`Stuck::failed_drop`]) and what followed in the watch: stuck again at the
 /// spot within [`AGAIN_MS`], off the spot (down, or [`SPOT_M`] away), still there after [`WATCH_MS`], or killed
 /// itself first. Fires less the four are the watches a new life or a new shut ended.
@@ -834,12 +853,14 @@ pub mod drop_shuts {
     pub const LEFT: usize = 3;
     pub const STILL: usize = 4;
     pub const SELF_KILL: usize = 5;
+    /// A drop's landing a search was not kept off: the body stands at its height or under it ([`super::Stuck::shut_landings_from`]).
+    pub const LIFTED: usize = 6;
     /// Stuck again at the spot this soon, ms: the coordinator's 10 s.
     pub const AGAIN_MS: u32 = 10_000;
     /// Neither within this, ms: still there.
     pub const WATCH_MS: u32 = 30_000;
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
 
     pub fn count(kind: usize) {
         add(kind, 1);
@@ -849,7 +870,7 @@ pub mod drop_shuts {
         COUNTS[kind].fetch_add(n, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 6] {
+    pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -1372,6 +1393,23 @@ mod tests {
         other.failed_jump(1_000, take_off, None);
         assert_eq!(other.shut_landings(1_000).count(), 0);
         assert_eq!(other.tell(), [(take_off, true)]);
+    }
+
+    /// `unstick.drop_shut_from_top` (A251): a drop's landing is kept off a search from the top it was shut at, and not from
+    /// its own height or under it (the body got down anyway and walks there); a jump's landing stays shut wherever the body is.
+    #[test]
+    fn a_shut_drops_landing_is_kept_off_only_from_above_it_with_drop_shut_from_top() {
+        let top = Vec3::new(12.5, 12.6, -29.0);
+        let landing = Vec3::new(12.5, 11.59, -30.5);
+        let mut stuck = Stuck::default();
+        stuck.failed_drop(1_000, top, &[landing], 45_000);
+        stuck.failed_jump(1_000, top, Some(Vec3::new(14.0, 11.59, -30.5)));
+        let shut = |feet: Vec3, from_top: bool| stuck.shut_landings_from(2_000, feet, from_top).count();
+        assert_eq!(shut(top, true), 2, "at the top: both");
+        let down = Vec3::new(12.5, 11.6, -29.0);
+        assert_eq!(shut(down, false), 2, "off: both, wherever the body is");
+        assert_eq!(shut(down, true), 1, "at the landing's height: the jump's only");
+        assert_eq!(shut(Vec3::new(12.5, 11.0, -29.0), true), 1, "under it too");
     }
 
     /// A drop the body was held at the top of: its landings shut for the tuned time, beside a jump's of the same place

@@ -27,10 +27,10 @@ switches OFF grid: capsule_steps keep_last_resorts slip_landings
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
 switches OFF spacing: apart_ease apart_tie lane
-switches OFF think: door_centres wall_clear_corners
+switches OFF think: door_centres goal_off_floor_no_way wall_clear_corners
 switches OFF threat: answer_sniper breach concede job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes walk_watch
 switches OFF traps: at_cleared at_defeated
-switches OFF unstick: fix_gap_ms
+switches OFF unstick: drop_shut_from_top fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0}
 switch values feel: drop_truth=links past_drop=window

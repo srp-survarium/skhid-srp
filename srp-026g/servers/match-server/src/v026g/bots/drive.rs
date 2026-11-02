@@ -1049,7 +1049,7 @@ fn drive_tick_inner(
                 // through them (a second search only when there are any).
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
-                let landings = bot.stuck.shut_landings(time).collect();
+                let landings = bot.stuck.shut_landings_from(time, me.feet, tuning.unstick.drop_shut_from_top).collect();
                 let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
                 // A body that cannot sprint takes no jump link above its standing jump.
                 if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
@@ -1447,9 +1447,16 @@ fn drive_tick_inner(
                         );
                     }
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
+                    // With `think.goal_off_floor_no_way`: a goal on no floor near it (`path::goal_floor`), from a start floor,
+                    // has no way either: no search reaches it.
+                    let off_floor = tuning.think.goal_off_floor_no_way && start_floor.is_some() && ends.is_none();
+                    #[cfg(test)]
+                    if off_floor && route.is_none() && bot.stuck.no_way_is_proof(time) {
+                        path::off_floor_goals::count();
+                    }
                     // Both ends on floors, from one it may walk on, and no way:
                     // proven, for the plays.
-                    if route.is_none() && ends.is_some() && !escaping && !there && bot.stuck.no_way_is_proof(time) {
+                    if route.is_none() && (ends.is_some() || off_floor) && !escaping && !there && bot.stuck.no_way_is_proof(time) {
                         bot.no_way_to.retain(|&(goal, until)| {
                             time < until && goal.distance_xz(at) > REPLAN_MOVED_M
                         });

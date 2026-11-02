@@ -889,6 +889,12 @@ pub struct ThinkTuning {
     /// the first leg of its route is the drop off the edge. Off: it has
     /// no start floor, so no route, and it stands (`no_way`).
     pub stranded_start: bool,
+    /// A goal on no floor near it (none within `path::GOAL_REACH_M` across and `path::GOAL_RISE_M` up or down: no search
+    /// can reach it) is learned as no way, from a start floor, as a goal whose search found none (`Bot::no_way_to`): its
+    /// play is asked again (`goal_shut`). A251, PROVEN by the route search's checks: Vostok Radar Station day 4, goals 3.4 m
+    /// from the nearest floor (at the height of the floors round them) ran no search, were never learned, and held one body
+    /// 20-35 s at a time. Off: such a goal is asked every 0.5 s while the play keeps it.
+    pub goal_off_floor_no_way: bool,
     /// A walked leg of a bot's route that crosses a doorway gets a corner at the middle of the opening
     /// ([`super::super::doors::centre_of`], `Route::door_centred`) and the walk steers at it before the corner after it
     /// (`Route::gate_within`): the walk's look-ahead cuts the corner before a doorway and the body arrives off the route,
@@ -924,6 +930,7 @@ impl Default for ThinkTuning {
             shut_in_gate: true,
             rest_off_lip: true,
             stranded_start: true,
+            goal_off_floor_no_way: false,
             door_centres: false,
             wall_clear_corners: false,
             stamina: true,
