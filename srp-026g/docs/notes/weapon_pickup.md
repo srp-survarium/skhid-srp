@@ -219,6 +219,11 @@
   its tick only for a death a client neither saw nor loaded (none known), or
   when the death's cook is not made by the pickup (milliseconds against the
   walk to the body).
+- **The general check:** `check_world_roundtrip_026g.py` (client_patch.md,
+  "World round trip") has games load each of the match's 501 worlds and save
+  it at once. With rev41's build, 421 of them differ (record bytes 20..23,
+  the own kit set aside) and 36 departed donors' picks are not installed.
+  With #1045's build, none differ.
 
 ## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
 
