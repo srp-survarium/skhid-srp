@@ -126,7 +126,7 @@
 //!   `docs/notes/no-reliability-roll.md`): no drop, upgrade or reroll offer
 //!   gives a modification that only changes wear (items wear nothing since
 //!   #35); one an item has stays, and rerolls into another. Every live item
-//!   rolls three types or more (`third-mod-1.json`); an upgrade of
+//!   rolls three types or more (`armor.tsv`'s masks); an upgrade of
 //!   an item with nothing left to roll is still refused, nothing taken.
 
 use survarium::v026g::dictionary::Dictionary;
@@ -839,7 +839,7 @@ pub fn craft(
     let table = Modifications::shared();
     let dict_id = item.dict_id;
     // [srp, 2026-10-23] Nothing left that may roll (every type besides
-    // reliability held; none on live data, `third-mod-1.json`): an upgrade
+    // reliability held; none on live data, `armor.tsv`'s masks): an upgrade
     // could gain nothing, so none is made and nothing is taken.
     if table.candidates(dict_id, &held).is_empty() {
         return Err("nothing left to roll for the item");
