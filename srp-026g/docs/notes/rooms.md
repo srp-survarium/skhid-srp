@@ -20,7 +20,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     the same queue position.
   - Six ready Play users waiting across that bracket's queues open another room;
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
-    three-plus-one limit. The operator's existing `SRP_ROOMS_MAX` still applies;
+    three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
   - Explicitly chosen queues do not count toward expansion and never move with it.
     Disconnected games, restarted games not yet told their queue, and unplayable

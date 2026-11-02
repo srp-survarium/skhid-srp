@@ -213,6 +213,8 @@ unsafe extern "cdecl" {
     pub fn engine_save_user_config();
     /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
     pub fn engine_store_first_resource(result: Option<QueriesResult>, value: *mut c_void);
+    /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+    pub fn engine_store_first_config(result: Option<QueriesResult>, value: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -4471,6 +4473,24 @@ impl EngineCfg {
     #[inline(always)]
     pub unsafe fn set_text(self, value: *mut u8) {
         unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): a named table's child's name, a C string, its offset relocated to an address by the loader (cfg_child 0xF6B10 compares it with the key asked, 0xF6BB5); an indexed table's items have an empty one
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): a named table's child's name, a C string, its offset relocated to an address by the loader (cfg_child 0xF6B10 compares it with the key asked, 0xF6BB5); an indexed table's items have an empty one
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
     }
 
     /// 0x18 bytes: binary config record stride, cfg_child 0xF6B10
@@ -9169,6 +9189,24 @@ impl QueriesResult {
     #[inline(always)]
     pub unsafe fn set_emitter(self, value: Option<SoundEmitter>) {
         unsafe { self.0.byte_add(0x12c).cast::<Option<SoundEmitter>>().write_volatile(value) }
+    }
+
+    /// +0x12c (ptr<vostok::binary_config>): the first query's unmanaged resource, a binary config for a class 1Fh request (lobby_menu::on_render_scenes_ready reads its seventh, default.player, at +126Ch, 0x22108B, then the root +108h, 0x2210CE): 0 when the file is missing
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<BinaryConfig> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<BinaryConfig>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<vostok::binary_config>): the first query's unmanaged resource, a binary config for a class 1Fh request (lobby_menu::on_render_scenes_ready reads its seventh, default.player, at +126Ch, 0x22108B, then the root +108h, 0x2210CE): 0 when the file is missing
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<BinaryConfig>) {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<BinaryConfig>>().write_volatile(value) }
     }
 
     /// +0x12c (obj<vostok::query_result>): the first result; the player cook reads results 0..4 at +12Ch, +40Ch, +6ECh, +9CCh, +0CACh, nine more from +0F8Ch (0x2030C8..0x20318F) and with +B1h one at +296Ch: never one past those

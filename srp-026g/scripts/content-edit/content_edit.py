@@ -759,6 +759,8 @@ STATS = {
                   'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
         'cards': weapon_card,
     },
+    # srp's lobby reads it, and the lobby movie through exe patch 94: nothing a match computes.
+    'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
 }
 
 

@@ -354,6 +354,12 @@ impl<'t> DrawnLobby<'t> {
     pub fn reset_eye_adaptation(&self) {
         reset_eye_adaptation(self.thread);
     }
+
+    /// The lobby movie, for this frame.
+    pub fn movie(&self) -> Option<super::ui::Movie<'t>> {
+        // SAFETY: as shade.
+        unsafe { lobby_movie(self.menu) }
+    }
 }
 
 /// srp's two bytes of a `0xA1`: the receiver's lobby pick and its squad

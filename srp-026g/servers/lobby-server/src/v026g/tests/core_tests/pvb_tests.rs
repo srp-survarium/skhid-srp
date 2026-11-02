@@ -168,7 +168,12 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
 #[test]
 fn every_size_has_its_bots_on_both_sides() {
     let mut world = world_with(5);
-    for (n, size) in pvb::SIZES.into_iter().enumerate() {
+    for (n, &size) in survarium::v026g::lobby::rooms::rules()
+        .pvb
+        .sizes
+        .iter()
+        .enumerate()
+    {
         let player = world.connect(&format!("P{n}"));
         let (ticket, _) = play_vs_bots(&mut world, player, size, 117);
         let made = world.host.made.locked();

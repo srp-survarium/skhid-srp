@@ -135,13 +135,11 @@ services:
       # bots may hold a bots' map of its own in memory (35-150 MB, up to
       # SRP_PVB_MAX_MATCHES maps): raise SRP26_MEMORY with it.
       - SRP_PVB=${SRP_PVB:-on}
-      - SRP_PVB_MAX_GEAR
       - SRP_PVB_MAX_MATCHES
       - SRP_PVB_PAY
       - SRP_PVB_STALL_S
       # Rooms, the players' "servers" (servers/lobby-server/src/v026g/rooms.rs):
       # every PvP match is a room's; they need the lobby movie that has them.
-      - SRP_ROOMS_MAX
       - SRP_ROOMS_EXTRA_MAPS
       # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
       # <project>.mapdata files, game data copied by hand into the data

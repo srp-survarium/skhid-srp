@@ -558,7 +558,7 @@ at a time. A player who waits in the queue does not see JOIN on.
 ### 9.8 A match against the server's bots ("Player vs Bots", 2026-10-16)
 
 The owner's decisions of 2026-10-16 (and of 2026-10-26: every equipment
-level). A player of any equipment level (at most `SRP_PVB_MAX_GEAR`, 15;
+level). A player of any equipment level (at most `pvb/max_gear` of `rooms.tsv`, 15;
 5 until 2026-10-26), alone (no squad), not searching, not in a
 match, chooses a size (6, 8 or 10 a side) and a map in the changed lobby
 movie (`lobby.md` §2.16.2); its Play then makes the match at once:

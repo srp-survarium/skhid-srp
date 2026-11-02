@@ -324,6 +324,10 @@ extern engine_add_active_scene
 ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_store_first_resource
+; void engine_store_first_config(struct queries_result *result, void *value)
+; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_store_first_config
 ; void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)
 ; 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16
 extern engine_comment_about_user

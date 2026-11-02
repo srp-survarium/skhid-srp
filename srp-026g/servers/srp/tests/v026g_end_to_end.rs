@@ -1635,7 +1635,7 @@ fn a_new_login_joins_a_running_match_through_the_lobby_and_receives_results() {
     );
     let syncs = [alice.of_match().model.syncs, bob.of_match().model.syncs];
     charlie.ask(request::play(1));
-    // Into the room first: the match 15 s later (`LATE_JOIN_WAIT`).
+    // Into the room first: the match 15 s later (`RoomRules::late_join_wait`).
     until(
         &mut [&mut alice, &mut bob, &mut charlie],
         SOON + Duration::from_secs(15),

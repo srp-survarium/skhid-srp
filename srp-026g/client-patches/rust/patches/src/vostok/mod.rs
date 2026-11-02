@@ -76,7 +76,7 @@ mod generated {
     #[allow(unused_imports)]
     use super::{RenderVisual, ObjectLight, GameScene};
     #[allow(unused_imports)]
-    use super::resources::{QueryResults, QueryTag};
+    use super::resources::{ConfigQuery, ConfigTag, QueryResults, QueryTag};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
@@ -95,7 +95,7 @@ pub use options::OptionsRead;
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
-pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
+pub use ui::{GameWorldUi, MAX_STRINGS, Movie, NameVisibility, DetachedTextInput};
 
 pub mod consumable;
 pub mod drawable_image;
