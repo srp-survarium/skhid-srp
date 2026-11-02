@@ -213,66 +213,236 @@ impl ClassAim {
     }
 }
 
-/// [A246] The bench's calibration of each class's skill-1 factor ([`ClassAim`]): the factor at skill 1 -> the hit rate a
-/// shot at skill 1, %, weighed to the live humans' shots: A243's ladder (PR #1089, "A246: skill-1 calibration points",
-/// 2026-11-02; the geometric curve, `combat.zoom_error` all, `combat.settle_k_low` 2.0). Each class's points are its
-/// tiers' runs pooled at each factor (the mean of each tier's mean) and made non-increasing in the factor by
-/// pool-adjacent-violators (a wider aim never hits more; the shotgun's and the scoped marksman's flat stretches are the
-/// bench's noise pooled), so a rate maps back to a factor ([`Calibration::factor_for`]). The admin page sets a class's
-/// skill-1 hit rate through it (`tuning/live.rs`); nothing the bots do reads it. The automatics (rifles, SMGs, machine
-/// guns) share one table; pistols have no bench kit, so no points. A rerun of the ladder replaces them.
+/// [A246, A266] The bench's calibration of each gun class's aim, from A243 (PR #1089, 2026-11-02; the geometric curve,
+/// `combat.zoom_error` all, `combat.settle_k_low` 2.0; every rate a shot on the target's line, weighed to the live humans'
+/// shots by distance band and target speed): per gun type ([`ClassCalibration`], as [`ClassAim`]'s) the owner's bar, the
+/// skill-1 sweep (factor at skill 1 -> rate at skill 1) and the line the bench measured at the shipped factors (rate at
+/// skill 0, 0.2, ..., 1). The admin page sets a type's skill-1 target through it and shows the expected rate at any skill
+/// (`tuning/live.rs`); nothing the bots do reads it. Each type's are its own, a pool's until its own are measured (the
+/// rifles, SMGs and machine guns: the automatics'), or none (the pistols, no bench kit): [`TypeCalibration`].
+/// Bench-measured estimates, not live measurements; a rerun of A243's ladders replaces them, and a wider range is sweep
+/// points beyond the ones here, not new code (A267: the page sets up to the points' reach, over the bar too).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AimCalibration {
-    /// Where the points come from, as the page shows it.
+    /// Where the numbers come from, as the page shows it.
     pub source: String,
-    pub automatics: Calibration,
-    pub shotgun: Calibration,
-    pub marksman: Calibration,
-    pub bolt: Calibration,
+    pub pistol: TypeCalibration,
+    pub smg: TypeCalibration,
+    pub rifle: TypeCalibration,
+    pub mg: TypeCalibration,
+    pub shotgun: TypeCalibration,
+    pub marksman: TypeCalibration,
+    pub bolt: TypeCalibration,
+}
+
+/// [A267] Whose numbers a gun type's calibration holds.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TypeCalibration {
+    /// None: the page shows the type's factors only.
+    NotMeasured,
+    /// A pool's (the automatics'), until the type's own are measured: the page uses them and says so.
+    Pooled(ClassCalibration),
+    /// The type's own.
+    Own(ClassCalibration),
+}
+
+impl TypeCalibration {
+    /// Its numbers, its own or the pool's.
+    pub fn numbers(&self) -> Option<&ClassCalibration> {
+        match self {
+            TypeCalibration::NotMeasured => None,
+            TypeCalibration::Pooled(numbers) | TypeCalibration::Own(numbers) => Some(numbers),
+        }
+    }
 }
 
 impl Default for AimCalibration {
     fn default() -> Self {
         let points = |points: &[(f32, f32)]| Calibration(points.to_vec());
+        // A243's steps of the skill, and each class's rates at them ("after", weighed; two tiers' rows: their mean).
+        let ladder = |rates: [f32; 6]| [0.0, 0.2, 0.4, 0.6, 0.8, 1.0].into_iter().zip(rates).collect();
+        // Rifles and SMGs pooled (the bench's automatics); 13-15: 10.0 11.9 14.1 15.7 17.7 18.4; 9-10: 10.1 12.0 13.9 15.8
+        // 18.4 18.8.
+        let automatics = ClassCalibration {
+            bar: (18.0, 20.0),
+            points: points(&[(1.0, 21.5), (1.1, 21.4), (1.25, 18.9), (1.32, 18.53), (1.6, 16.5), (2.0, 13.6)]),
+            ladder: ladder([10.05, 11.95, 14.0, 15.75, 18.05, 18.6]),
+            ladder_factors: (0.40, 0.77, 1.32),
+        };
         Self {
-            source: "PR #1089 (A243's skill-1 ladder, 2026-11-02; tiers pooled, made non-increasing)".to_owned(),
-            automatics: points(&[(1.0, 21.5), (1.1, 21.4), (1.25, 18.9), (1.32, 18.53), (1.6, 16.5), (2.0, 13.6)]),
-            shotgun: points(&[
-                (0.8, 21.4),
-                (1.0, 20.4),
-                (1.1, 20.4),
-                (1.25, 19.45),
-                (1.3, 18.8),
-                (1.35, 18.8),
-                (1.6, 17.77),
-                (2.0, 15.4),
-            ]),
-            marksman: points(&[(0.72, 29.52), (0.75, 29.52), (0.8, 29.52), (0.85, 29.3), (1.0, 28.75)]),
-            bolt: points(&[(1.0, 42.4), (1.1, 40.1), (1.4, 39.1), (2.0, 35.4), (3.0, 32.4), (4.5, 26.9)]),
+            source: "PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; \
+                     tiers pooled, the sweep made non-increasing; rifles, SMGs and machine guns pooled)"
+                .to_owned(),
+            pistol: TypeCalibration::NotMeasured,
+            smg: TypeCalibration::Pooled(automatics.clone()),
+            rifle: TypeCalibration::Pooled(automatics.clone()),
+            mg: TypeCalibration::Pooled(automatics),
+            // Per pellet. 13-15: 11.1 12.9 14.1 16.6 18.3 19.2; 9-10: 11.1 13.0 15.1 17.1 18.4 18.4.
+            // The owner's bar: ~20 %.
+            shotgun: TypeCalibration::Own(ClassCalibration {
+                bar: (20.0, 20.0),
+                points: points(&[
+                    (0.8, 21.4),
+                    (1.0, 20.4),
+                    (1.1, 20.4),
+                    (1.25, 19.45),
+                    (1.3, 18.8),
+                    (1.35, 18.8),
+                    (1.6, 17.77),
+                    (2.0, 15.4),
+                ]),
+                ladder: ladder([11.1, 12.95, 14.6, 16.85, 18.35, 18.8]),
+                ladder_factors: (0.94, 1.04, 1.30),
+            }),
+            // 13-15 only.
+            marksman: TypeCalibration::Own(ClassCalibration {
+                bar: (30.0, 32.0),
+                points: points(&[(0.72, 29.52), (0.75, 29.52), (0.8, 29.52), (0.85, 29.3), (1.0, 28.75)]),
+                ladder: ladder([18.7, 19.8, 22.3, 25.2, 28.4, 28.9]),
+                ladder_factors: (1.18, 1.24, 0.72),
+            }),
+            // 9-10 only; its spreads are 1.4-5.3 points (1.5-2 k shots a step), hence the dip at 0.2.
+            bolt: TypeCalibration::Own(ClassCalibration {
+                bar: (38.0, 40.0),
+                points: points(&[(1.0, 42.4), (1.1, 40.1), (1.4, 39.1), (2.0, 35.4), (3.0, 32.4), (4.5, 26.9)]),
+                ladder: ladder([32.4, 29.2, 33.4, 35.2, 35.2, 39.1]),
+                ladder_factors: (0.74, 0.97, 1.4),
+            }),
         }
     }
 }
 
 impl Check for AimCalibration {
-    /// Every table in order ([`Calibration::is_ordered`]).
+    /// Every type's numbers in order ([`ClassCalibration::is_ordered`]).
     fn check(&self) -> Result<(), String> {
-        let tables = [&self.automatics, &self.shotgun, &self.marksman, &self.bolt];
-        check(tables.iter().all(|points| points.is_ordered()), "calibration")
+        let types = [&self.pistol, &self.smg, &self.rifle, &self.mg, &self.shotgun, &self.marksman, &self.bolt];
+        check(types.iter().all(|of| of.numbers().is_none_or(ClassCalibration::is_ordered)), "calibration")
     }
 }
 
 impl AimCalibration {
+    /// The numbers of `class`'s guns, their own or the pool's; `None`: not measured.
+    pub fn of(&self, class: WeaponClass) -> Option<&ClassCalibration> {
+        self.type_of(class).numbers()
+    }
 
-    /// The points of `class`'s guns; `None` for a class with none (pistols).
-    pub fn of(&self, class: WeaponClass) -> Option<&Calibration> {
+    /// Whose numbers `class`'s guns have.
+    pub fn type_of(&self, class: WeaponClass) -> &TypeCalibration {
         match class {
-            WeaponClass::Pistol => None,
-            WeaponClass::Smg | WeaponClass::Rifle | WeaponClass::MachineGun => Some(&self.automatics),
-            WeaponClass::Shotgun => Some(&self.shotgun),
-            WeaponClass::Marksman => Some(&self.marksman),
-            WeaponClass::Bolt => Some(&self.bolt),
+            WeaponClass::Pistol => &self.pistol,
+            WeaponClass::Smg => &self.smg,
+            WeaponClass::Rifle => &self.rifle,
+            WeaponClass::MachineGun => &self.mg,
+            WeaponClass::Shotgun => &self.shotgun,
+            WeaponClass::Marksman => &self.marksman,
+            WeaponClass::Bolt => &self.bolt,
         }
+    }
+}
+
+/// One class's calibration (see [`AimCalibration`]).
+///
+/// The rate at skill 1 for a skill-1 factor is the sweep's, put on the ladder ([`ClassCalibration::at_skill_1`]: the
+/// two measure the same point, and the ladder's end is the line's). The expected rate at a lower skill follows the
+/// class's line ([`Line::at`]): the measured ladder, straight between its steps, with the skill-1 rate's change from the
+/// ladder's end added on the upper half by the dial's own weight of its skill-1 point there, `2 * skill - 1` (it mixes
+/// each half's two points by it): none of it under 0.5, all of it at 1. It holds for the factors and the curve the
+/// ladder was measured with ([`ClassCalibration::line`]).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClassCalibration {
+    /// The owner's bar at skill 1, % (from, to): where the defaults keep the class, shown beside the page's limits (a
+    /// target may go over it, A267).
+    pub bar: (f32, f32),
+    /// The skill-1 sweep: the factor at skill 1 -> the rate at skill 1.
+    pub points: Calibration,
+    /// The line measured at `ladder_factors` with the geometric curve: (skill, rate %), the skill rising from 0 to 1.
+    pub ladder: Vec<(f32, f32)>,
+    /// The class factors (skill 0, 0.5, 1) the ladder was measured with.
+    pub ladder_factors: (f32, f32, f32),
+}
+
+impl ClassCalibration {
+    /// The ladder's rate at `skill` (0 to 1), on the straight lines between its steps.
+    fn on_ladder(&self, skill: f32) -> f32 {
+        let skill = skill.clamp(0.0, 1.0);
+        self.ladder
+            .windows(2)
+            .find_map(|pair| {
+                let ((s0, r0), (s1, r1)) = (pair[0], pair[1]);
+                (s0..=s1).contains(&skill).then(|| r0 + (r1 - r0) * (skill - s0) / (s1 - s0))
+            })
+            .unwrap_or(f32::NAN)
+    }
+
+    /// The ladder's end less the sweep's rate at the ladder's skill-1 factor: what puts a sweep's rate on the line.
+    fn offset(&self) -> f32 {
+        self.on_ladder(1.0) - self.points.rate_at(self.ladder_factors.2).unwrap_or(f32::NAN)
+    }
+
+    /// The rate at skill 1 with the skill-1 factor `high`; `None` outside the sweep.
+    pub fn at_skill_1(&self, high: f32) -> Option<f32> {
+        Some(self.points.rate_at(high)? + self.offset())
+    }
+
+    /// The skill-1 factor whose rate at skill 1 is `rate` (the inverse of [`ClassCalibration::at_skill_1`]; on a flat
+    /// stretch of the sweep, its first factor); `None` outside the sweep.
+    pub fn factor_for(&self, rate: f32) -> Option<f32> {
+        self.points.factor_for(rate - self.offset())
+    }
+
+    /// The rates at skill 1 the sweep reaches: (lowest, highest).
+    pub fn rates(&self) -> Option<(f32, f32)> {
+        let (low, high) = self.points.rates()?;
+        Some((low + self.offset(), high + self.offset()))
+    }
+
+    /// The class's line with `factors` (skill 0, 0.5, 1) mixed by `curve`: `None` unless the ladder was measured so (the
+    /// geometric curve, its skill-0 and 0.5 factors) and the skill-1 factor is within the sweep.
+    pub fn line(&self, curve: SkillCurve, (low, middle, high): (f32, f32, f32)) -> Option<Line<'_>> {
+        let same = |a: f32, b: f32| (a - b).abs() <= 1e-5;
+        let (ladder_low, ladder_middle, _) = self.ladder_factors;
+        if curve != SkillCurve::Geometric || !same(low, ladder_low) || !same(middle, ladder_middle) {
+            return None;
+        }
+        let shift = self.at_skill_1(high)? - self.on_ladder(1.0);
+        Some(Line { calibration: self, shift })
+    }
+
+    /// A bar within 0-100 % in order, the sweep in order ([`Calibration::is_ordered`]) and reaching the ladder's skill-1 factor,
+    /// the ladder's skills rising from 0 to 1 with rates within 0-100 %, its factors finite and over 0.
+    fn is_ordered(&self) -> bool {
+        let ladder = &self.ladder;
+        let (low, middle, high) = self.ladder_factors;
+        self.bar.0 > 0.0
+            && self.bar.0 <= self.bar.1
+            && self.bar.1 <= 100.0
+            && self.points.is_ordered()
+            && self.points.rate_at(high).is_some()
+            && ladder.len() >= 2
+            && ladder.first().is_some_and(|&(skill, _)| skill == 0.0)
+            && ladder.last().is_some_and(|&(skill, _)| skill == 1.0)
+            && ladder.windows(2).all(|pair| pair[0].0 < pair[1].0)
+            && ladder.iter().all(|&(_, rate)| (0.0..=100.0).contains(&rate))
+            && [low, middle, high].iter().all(|f| f.is_finite() && *f > 0.0)
+    }
+}
+
+/// A class's expected line at its factors ([`ClassCalibration::line`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Line<'a> {
+    calibration: &'a ClassCalibration,
+    /// The skill-1 rate less the ladder's end.
+    shift: f32,
+}
+
+impl Line<'_> {
+    /// The expected rate at `skill` (0 to 1), %.
+    pub fn at(&self, skill: f32) -> f32 {
+        let weight = (2.0 * skill - 1.0).clamp(0.0, 1.0);
+        self.calibration.on_ladder(skill) + weight * self.shift
     }
 }
 
@@ -499,28 +669,51 @@ mod tests {
     fn the_calibration_maps_a_rate_to_its_factor_and_back() {
         let near = |got: Option<f32>, want: f32| got.is_some_and(|got| (got - want).abs() < 1e-4);
         let calibration = AimCalibration::default();
-        assert_eq!(calibration.check(), Ok(()), "the shipped points are in order");
+        assert_eq!(calibration.check(), Ok(()), "the shipped calibration is in order");
         let automatics = calibration.of(WeaponClass::Rifle).unwrap();
         assert_eq!(calibration.of(WeaponClass::Smg), Some(automatics));
+        assert_eq!(calibration.of(WeaponClass::MachineGun), Some(automatics));
         assert_eq!(calibration.of(WeaponClass::Pistol), None);
-        // At a point and between two.
-        assert!(near(automatics.factor_for(18.9), 1.25));
-        assert!(near(automatics.rate_at(1.25), 18.9));
-        let twenty = automatics.factor_for(20.0).unwrap();
+        // The automatics pooled, the others their own, the pistols not measured.
+        let kinds: Vec<_> = [WeaponClass::Pistol, WeaponClass::Smg, WeaponClass::Rifle, WeaponClass::MachineGun, WeaponClass::Shotgun, WeaponClass::Marksman, WeaponClass::Bolt]
+            .map(|class| match calibration.type_of(class) {
+                TypeCalibration::NotMeasured => "none",
+                TypeCalibration::Pooled(_) => "pooled",
+                TypeCalibration::Own(_) => "own",
+            })
+            .to_vec();
+        assert_eq!(kinds, ["none", "pooled", "pooled", "pooled", "own", "own", "own"]);
+        // The sweep: at a point and between two.
+        let points = &automatics.points;
+        assert!(near(points.factor_for(18.9), 1.25));
+        assert!(near(points.rate_at(1.25), 18.9));
+        let twenty = points.factor_for(20.0).unwrap();
         assert!((1.1..1.25).contains(&twenty), "{twenty}");
-        assert!(near(automatics.rate_at(twenty), 20.0));
+        assert!(near(points.rate_at(twenty), 20.0));
         // Monotone: a higher rate never takes a wider factor.
         let rates: Vec<f32> = (136..=215).map(|tenth| tenth as f32 / 10.0).collect();
-        let factors: Vec<f32> = rates.iter().map(|&rate| automatics.factor_for(rate).unwrap()).collect();
+        let factors: Vec<f32> = rates.iter().map(|&rate| points.factor_for(rate).unwrap()).collect();
         assert!(factors.windows(2).all(|pair| pair[1] <= pair[0]), "{factors:?}");
         // Outside the points.
-        assert_eq!(automatics.factor_for(21.6), None);
-        assert_eq!(automatics.factor_for(13.5), None);
-        assert_eq!(automatics.rate_at(0.9), None);
-        assert_eq!(automatics.rate_at(2.1), None);
+        assert_eq!(points.factor_for(21.6), None);
+        assert_eq!(points.factor_for(13.5), None);
+        assert_eq!(points.rate_at(0.9), None);
+        assert_eq!(points.rate_at(2.1), None);
         // A flat stretch (the marksman's scope): its first factor.
-        assert_eq!(calibration.marksman.factor_for(29.52), Some(0.72));
-        assert!(near(calibration.shotgun.factor_for(20.4), 1.0));
+        let (marksman, shotgun) = (calibration.of(WeaponClass::Marksman).unwrap(), calibration.of(WeaponClass::Shotgun).unwrap());
+        assert_eq!(marksman.points.factor_for(29.52), Some(0.72));
+        assert!(near(shotgun.points.factor_for(20.4), 1.0));
+        // On the line: the shipped skill-1 factor gives the ladder's end, and a rate maps to its factor and back.
+        assert!(near(automatics.at_skill_1(1.32), 18.6));
+        assert!(near(automatics.factor_for(18.6), 1.32));
+        let nineteen = automatics.factor_for(19.0).unwrap();
+        assert!(near(automatics.at_skill_1(nineteen), 19.0));
+        assert!(near(marksman.rates().map(|(_, top)| top), 28.9));
+        // Every class ships on the factors its ladder was measured with.
+        let shipped = ClassAim::default();
+        for class in [WeaponClass::Smg, WeaponClass::Rifle, WeaponClass::MachineGun, WeaponClass::Shotgun, WeaponClass::Marksman, WeaponClass::Bolt] {
+            assert_eq!(calibration.of(class).map(|class| class.ladder_factors), Some(shipped.of(class)), "{class:?}");
+        }
         // Out of order: refused.
         for bad in [
             vec![(1.0, 20.0)],
@@ -529,10 +722,66 @@ mod tests {
             vec![(1.0, 20.0), (1.2, 20.0)],
             vec![(0.0, 20.0), (1.2, 18.0)],
             vec![(1.0, 120.0), (1.2, 18.0)],
+            vec![(1.5, 40.0), (2.0, 35.0)],
         ] {
-            let calibration = AimCalibration { bolt: Calibration(bad.clone()), ..AimCalibration::default() };
+            let mut calibration = AimCalibration::default();
+            numbers(&mut calibration.bolt).points = Calibration(bad.clone());
             assert_eq!(calibration.check(), Err("calibration".to_owned()), "{bad:?}");
         }
+        // A ladder not from 0 to 1, a skill twice, a bar over 100 or out of order: refused. A type not measured is in order.
+        fn numbers(of: &mut TypeCalibration) -> &mut ClassCalibration {
+            match of {
+                TypeCalibration::Pooled(numbers) | TypeCalibration::Own(numbers) => numbers,
+                TypeCalibration::NotMeasured => panic!("not measured"),
+            }
+        }
+        let changed = |change: fn(&mut AimCalibration)| {
+            let mut calibration = AimCalibration::default();
+            change(&mut calibration);
+            calibration
+        };
+        for bad in [
+            changed(|c| {
+                numbers(&mut c.bolt).ladder.pop();
+            }),
+            changed(|c| numbers(&mut c.shotgun).ladder[2].0 = 0.2),
+            changed(|c| numbers(&mut c.mg).bar = (18.0, 120.0)),
+            changed(|c| numbers(&mut c.marksman).bar = (32.0, 30.0)),
+        ] {
+            assert_eq!(bad.check(), Err("calibration".to_owned()), "{bad:?}");
+        }
+        assert_eq!(changed(|c| c.rifle = TypeCalibration::NotMeasured).check(), Ok(()));
+        // As JSON: a type's kind is its key.
+        let json = serde_json::to_value(&calibration).unwrap();
+        assert_eq!(json["pistol"], "not_measured");
+        assert!(json["smg"]["pooled"]["points"].is_array() && json["bolt"]["own"]["ladder"].is_array(), "{json}");
+        assert_eq!(serde_json::from_value::<AimCalibration>(json).unwrap(), calibration);
+    }
+
+    /// [A266] The expected line is the bench's ladder at the factors it was measured with; a skill-1 rate set otherwise
+    /// moves its upper half by the dial's weight there, and nothing at 0.5 and under.
+    #[test]
+    fn the_line_is_the_ladder_at_its_factors_and_moves_its_upper_half_with_skill_1() {
+        let calibration = AimCalibration::default();
+        let automatics = calibration.of(WeaponClass::Rifle).unwrap();
+        let line = |high: f32| automatics.line(SkillCurve::Geometric, (0.40, 0.77, high)).unwrap();
+        let shipped = line(1.32);
+        for &(skill, rate) in &automatics.ladder {
+            assert!((shipped.at(skill) - rate).abs() < 1e-4, "{skill}: {}", shipped.at(skill));
+        }
+        assert!((shipped.at(0.3) - (11.95 + 14.0) / 2.0).abs() < 1e-4);
+        // 19 % at skill 1: +0.4 there, +0.24 at 0.8 (its weight 0.6), none at 0.5 and under.
+        let nineteen = line(automatics.factor_for(19.0).unwrap());
+        assert!((nineteen.at(1.0) - 19.0).abs() < 1e-3);
+        assert!((nineteen.at(0.8) - shipped.at(0.8) - 0.24).abs() < 1e-3);
+        for skill in [0.0, 0.2, 0.4, 0.5] {
+            assert_eq!(nineteen.at(skill), shipped.at(skill), "{skill}");
+        }
+        // The straight curve, other factors at skill 0 or 0.5 (`all_off.json`'s), a skill-1 factor outside the sweep: none.
+        assert!(automatics.line(SkillCurve::Linear, (0.40, 0.77, 1.32)).is_none());
+        assert!(automatics.line(SkillCurve::Geometric, (1.0, 1.0, 1.0)).is_none());
+        assert!(automatics.line(SkillCurve::Geometric, (0.40, 0.8, 1.32)).is_none());
+        assert!(automatics.line(SkillCurve::Geometric, (0.40, 0.77, 2.5)).is_none());
     }
 
     #[test]
