@@ -148,7 +148,7 @@ should mix them just as retail does")
   max(0, 1 + the sum), floored at 0 by the game itself; scope-in 0x2E1B50 and scope-out 0x2E1BF0
   use it. Sources on real data: Spring -0.05 passive / -0.10 active each (artefact slots 13..18),
   the skill tree up to -0.10 and gloves (modifications 1080..1084) up to -0.10. A weapon's own
-  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 it scales the
+  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 (now modifications.tsv) it scales the
   weapon's `aim_time` in the item cook, so it multiplies the result (weapon-rolls.md).
 - The sum reaches -100 % only with five or six Springs all active and the other sources; the
   passives alone stop at -0.30 (-0.60 with all others). At 0 the scope is instant for those
