@@ -4227,9 +4227,11 @@ mod tests {
         let (route, clear) = hump();
         let motor = |feel: Feel| Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3));
         let s = 9.0;
-        // As it was: the point at the chord's height is not clear, off and with the rule on its retry finds the floor's.
-        assert!(matches!(motor(feel_off()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
-        assert!(matches!(motor(Feel { unclear_aim: true, ..feel_off() }).aim_point(&route, s, 3.0, &clear), Aim::Clear(_)));
+        // As it was (the chord's heights; the all-off arm keeps the floor's since A261): the point at the chord's height is
+        // not clear, off and with the rule on its retry finds the floor's.
+        let chord = Feel { floor_height_clear: false, ..feel_off() };
+        assert!(matches!(motor(chord.clone()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
+        assert!(matches!(motor(Feel { unclear_aim: true, ..chord }).aim_point(&route, s, 3.0, &clear), Aim::Clear(_)));
         // The floor heights: clear at once, at the look-ahead's full length, with the rule off too.
         match motor(Feel { floor_height_clear: true, ..feel_off() }).aim_point(&route, s, 3.0, &clear) {
             Aim::Clear(point) => assert!((point.x - 12.0).abs() < 1e-3 && (point.y - 1.6).abs() < 1e-3, "{point:?}"),
