@@ -977,6 +977,65 @@ def check_headwear(built):
     restored = post()
     check(restored[69] == restored[44], 'a rolled-back headshot does not authorize a later death')
 
+    # a shot into a corpse's head knocks its helmet off (a body shot's death:
+    # still worn); not without the content's channel, not a living player's
+    head_index = [n for n, _ in COOKED].index("Head")
+
+    def through_head(bullet):
+        """A ray into the corpse's head (player's, at the origin: its model
+        space is the world's) from beyond it, away from the hip."""
+        drawn, _ = game.draw(player)
+        head, hip = drawn[head_index][12:15], drawn[1][12:15]
+        away = (head[0] - hip[0], 0.0, head[2] - hip[2])
+        size = math.hypot(away[0], away[2])
+        away = (away[0] / size, 0.0, away[2] / size) if size > 0.05 else (1.0, 0.0, 0.0)
+        game.u32(BULLET + 0x4, bullet)
+        return tuple(h + 1.5 * a for h, a in zip(head, away)), tuple(-a for a in away)
+
+    def settle(victim, frames=40):
+        for _ in range(frames):
+            game.step()
+            game.draw(victim)
+
+    # the living player's head (the game's ray hit its hit model there)
+    game.set_alive(player, True, 1000)
+    game.step()
+    game.shoot((-3.0, 1.62, 0.0), (1.0, 0.0, 0.0), 6.0, hit=(-0.1, 1.62, 0.0), body=game.hit_body(player))
+    settle(player)
+    alive = post()
+    check(alive[69] == alive[44], 'a living player shot in the head keeps the helmet on Head')
+
+    game.set_alive(player, False, 1000)
+    killed(0)
+    settle(player)
+    worn = post()
+    check(worn[69] == worn[44], 'a body shot corpse wears its helmet')
+    game.u32(model + 0x144, binds + 69 * 64)
+    hits = len(game.particles)
+    game.shoot(*through_head(9002), 3.0)
+    check(len(game.particles) == hits + 1, 'the stock content corpse is hit in the head')
+    settle(player)
+    game.u32(model + 0x144, binds + 70 * 64)
+    stock = post()
+    check(stock[69] == stock[44], 'without the content headwear channel a head hit knocks nothing off')
+    hits = len(game.particles)
+    game.shoot(*through_head(9003), 3.0)
+    check(len(game.particles) == hits + 1, 'the corpse is hit in the head again')
+    settle(player)
+    off = post()
+    check(math.dist(off[69][12:15], off[44][12:15]) > 0.15,
+          'a head hit knocks the helmet off the corpse, though its death was no headshot')
+    game.u32(player + HELD, 0)
+    calls = game.held_item(player)[2]
+    check(len(calls) == 1 and calls[0][4] == 70
+          and math.dist(calls[0][5][69][12:15], calls[0][5][44][12:15]) > 0.15,
+          'the knocked-off helmet stays off on a corpse holding nothing')
+    game.u32(player + HELD, WEAPON_ITEM)
+    game.set_alive(player, True, 1000)
+    game.step()
+    restored = post()
+    check(restored[69] == restored[44], 'the respawn wears the helmet again')
+
 
 if __name__ == "__main__":
     main()

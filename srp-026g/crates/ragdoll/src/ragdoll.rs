@@ -266,11 +266,42 @@ impl GunShape {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HeadwearShape;
 
+/// What took the headwear off the head.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeadwearOff {
+    /// The killing headshot (the game's death event said so: patch 76 draws
+    /// it on the head again if a rollback corrects that event).
+    Death,
+    /// A shot into the corpse's head after the death.
+    Shot,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Headwear {
     body: Body,
     /// The Head-equivalent render bone relative to the body's centre.
     bone: Pose,
+    off: HeadwearOff,
+}
+
+impl Headwear {
+    /// The headwear leaving the head drawn at `head` (the Head bone's world
+    /// pose), where it sits on it, at rest.
+    fn leaving(head: Pose, up: Vec3, off: HeadwearOff) -> Headwear {
+        let pose = Pose::new(head.rotation, head.position + up * 0.10);
+        Headwear {
+            body: Body::new(
+                pose,
+                Capsule {
+                    half: 0.04,
+                    radius: 0.10,
+                },
+                1.0,
+            ),
+            bone: pose.inverse().then(head),
+            off,
+        }
+    }
 }
 
 /// The unit axis of `frame` (one of its six) nearest `toward`.
@@ -696,21 +727,9 @@ impl Ragdoll {
         let mut ragdoll = Ragdoll {
             bodies,
             gun,
-            headwear: start.headwear.map(|_| {
-                let head = now[HEAD.index()];
-                let pose = Pose::new(head.rotation, head.position + up * 0.10);
-                Headwear {
-                    body: Body::new(
-                        pose,
-                        Capsule {
-                            half: 0.04,
-                            radius: 0.10,
-                        },
-                        1.0,
-                    ),
-                    bone: pose.inverse().then(head),
-                }
-            }),
+            headwear: start
+                .headwear
+                .map(|_| Headwear::leaving(now[HEAD.index()], up, HeadwearOff::Death)),
             joints,
             at_death: [Pose::IDENTITY; PARTS],
             rig,
@@ -858,9 +877,10 @@ impl Ragdoll {
         (out, self.gun.map(|g| g.pose))
     }
 
-    /// The dedicated render bone, in world space, if the content supplies it.
-    pub fn headwear_pose(&self) -> Option<Pose> {
-        self.headwear.map(|h| h.body.pose.then(h.bone))
+    /// The dedicated render bone in world space, and what took the headwear
+    /// off, once it is off the head (while worn the bone follows Head).
+    pub fn headwear_pose(&self) -> Option<(Pose, HeadwearOff)> {
+        self.headwear.map(|h| (h.body.pose.then(h.bone), h.off))
     }
 
     fn all_poses(&self) -> (PartPoses, Option<Pose>, Option<Pose>) {
@@ -1096,14 +1116,28 @@ impl Ragdoll {
     }
 
     /// A shot's push on `part`: the impulse `j` (N s) at the world `point`,
-    /// the body's speed and spin changes capped. The ragdoll moves again from
-    /// here (and settles again by the same rules). What it did, if anything.
-    pub fn push(&mut self, part: Part, point: Vec3, j: Vec3) -> Option<Knock> {
+    /// the body's speed and spin changes capped. A shot into the head knocks
+    /// off the headwear still on it, if the content gives the body one
+    /// (`headwear`). The ragdoll moves again from here (and settles again by
+    /// the same rules). What it did, if anything.
+    pub fn push(
+        &mut self,
+        part: Part,
+        point: Vec3,
+        j: Vec3,
+        headwear: Option<HeadwearShape>,
+    ) -> Option<Knock> {
         if !point.is_finite() || !j.is_finite() {
             return None;
         }
+        let along = j.direction();
         let j = j + self.up * (j.length() * tuning::SHOT_LIFT);
         let capped = self.knock(part, point, j);
+        if let (Part::Head, Some(HeadwearShape), None, Some(along)) =
+            (part, headwear, self.headwear, along)
+        {
+            self.knock_off_headwear(along);
+        }
         self.rest = Rest::Moving;
         self.moving_for = 0.0;
         self.grace = tuning::SHOT_GRACE;
@@ -1115,6 +1149,29 @@ impl Ragdoll {
             speed: body.velocity.length(),
             capped,
         })
+    }
+
+    /// The headwear on the head knocked off by a shot along `along` (unit):
+    /// it leaves the head where it sits now, with the head's motion there
+    /// (the shot's push in), thrown along the shot and up, tumbling over.
+    fn knock_off_headwear(&mut self, along: Vec3) {
+        let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+        let (parts, gun) = self.poses();
+        self.rig.draw(&parts, gun, &mut skeleton);
+        let mut hat = Headwear::leaving(skeleton[HEAD.index()], self.up, HeadwearOff::Shot);
+        let head = &self.bodies[Part::Head.index()];
+        hat.body.velocity = limit_length(
+            head.point_velocity(hat.body.pose.position - head.pose.position)
+                + along * tuning::HEADWEAR_SHOT_SPEED
+                + self.up * tuning::HEADWEAR_SHOT_LIFT,
+            START_SPEED,
+        );
+        hat.body.spin = limit_length(
+            self.up.cross(along) * tuning::HEADWEAR_SHOT_SPIN,
+            START_SPIN,
+        );
+        hat.body.contacts = head.contacts;
+        self.headwear = Some(hat);
     }
 
     /// A settled ragdoll made to move again: at rest where it lay, limp.

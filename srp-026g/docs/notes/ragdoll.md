@@ -1147,6 +1147,38 @@ core changes: a death's key is a time of its match, so a later match's death
 at the same time must not find it). The patch hands the poses to
 `weapon_pickup::draw_drops` after each step. Visual only.
 
+## 19. A shot into a corpse's head knocks its hat off (2026-11-02)
+
+- **The owner's rule (2026-11-02):** "shooting dead bodies in the head makes their hat fly off
+  (if it is fliable off)". A corpse whose death left its headwear on (any death but the
+  killing headshot of section 15) loses it to the first bullet that meets the ragdoll's head
+  capsule. Headwear that can fly off is section 15's list: the content puts those surfaces
+  on the extra bone 69. Other headwear (Pilgrim, the Novice's cap, hoods, closed helmets)
+  stays on Head's bone 44 and never moves. A model without the extra bone (stock content)
+  has nothing to knock off.
+- **How:** the corpse's hit is section 11's (the bullet's segment against the ragdolls in
+  `on_ray`, once a shot, queued). The step pushes it. For a push on the head, the step reads
+  the corpse's model (`headwear::of_player`) and hands the channel to `Corpses::push`.
+  `Ragdoll::knock_off_headwear` then makes the hat's body from the head as drawn now, as at
+  a headshot death (`Headwear::leaving`). It leaves with the head's motion there plus
+  `tuning::HEADWEAR_SHOT_SPEED` along the bullet and `HEADWEAR_SHOT_LIFT` up, tumbling
+  (`HEADWEAR_SHOT_SPIN`). Once off, it stays off until the body goes (a respawn, a rollback
+  that undoes the death, its slot given up). Later shots do not touch it.
+- **The death event's correction still applies only to a hat the death took off**
+  (`HeadwearOff::Death`). A hat a later shot took off (`HeadwearOff::Shot`) stays off.
+- **Visual only, no `simulation_changes.tsv` row:** the bullet is only read (section 11),
+  the hat is a ragdoll body in no physics world, and nothing is random. Nothing the
+  simulation keeps, hashes or saves is written, so replays play out as before.
+- **Checked:** `cargo test -p ragdoll`: a head shot on a body-shot corpse knocks the hat off
+  from where it sat, along the shot, above the ground; a torso shot does not; a second head
+  shot leaves it lying; no channel, a living place, an earlier death: nothing; a headshot
+  death's hat stays the death's. `check_ragdoll_026g.py`: a living player's head shot keeps
+  69 on 44; a body-shot corpse's head shot without the channel knocks nothing off, with it
+  knocks the hat off (drawn and unheld), and a respawn wears it again.
+- **In the game:** kill someone with a body shot, then shoot the corpse's head. A Biker's
+  helmet or a Scout's helmet should fly off along the shot and land near the head. A
+  Pilgrim or the Novice's cap stays on. Shooting the torso leaves the hat on.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |
