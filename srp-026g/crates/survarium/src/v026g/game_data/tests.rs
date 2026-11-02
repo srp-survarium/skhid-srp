@@ -5,8 +5,9 @@ fn the_test_archive_is_0_26g_with_the_test_patches() {
     let data = shared();
     assert_eq!(data.origin, TEST_ORIGIN);
     // 0.26g's 508, the Bandit balaclava's config of patch 15, the English
-    // and Ukrainian localizations, and srp's own configs (SRP_TABLES).
-    assert_eq!(data.len(), 511 + SRP_TABLES.len());
+    // and Ukrainian localizations, and srp's own configs (SRP_TABLES and the
+    // shop's).
+    assert_eq!(data.len(), 511 + SRP_TABLES.len() + 1);
     assert!(data.file("localization/ukrainian/localization").is_some());
     assert!(
         data.file("gameplay/items/armour/mask/bandit_026.options")

@@ -773,15 +773,15 @@ mod tests {
         )
         .unwrap();
         assert!(heaviest.fits_carry_limit());
-        // All are free and of level 0 in 0.26g's data, and they are all the
-        // weapons and ammo that are.
+        // All are of level 0; the ammo is free (the weapons have the owner's
+        // prices), and it is all the ammo of level 0 that is.
         let mut owned: Vec<u16> = starter.items.iter().map(|item| item.dict_id).collect();
         owned.extend(stash.iter().map(|&(dict_id, _)| dict_id));
         owned.sort_unstable();
         for &dict_id in &owned {
-            assert_eq!(dictionary.item(dict_id).unwrap().base_cost, 0);
             assert_eq!(item_params::item_params(dict_id).unwrap().item_level, 0);
         }
+        owned.retain(|&dict_id| dictionary.is_stack(dict_id));
         let free: Vec<u16> = dictionary
             .items
             .iter()

@@ -2305,9 +2305,9 @@ mod tests {
         let pistol = account.inventory[0].clone();
         let ammo = account.inventory[1].clone();
         let revision = account.kits[0].revision;
-        // The pistol costs nothing, so it sells for nothing.
+        // The pistol (500) sells for a quarter.
         let sold = sell(&mut account, pistol.item_id, 1).unwrap();
-        assert_eq!((sold.amount, sold.money), (1, 0));
+        assert_eq!((sold.amount, sold.money), (1, 125));
         assert_eq!(account.kits[0].slots[7], None);
         assert_eq!(account.kits[0].revision, revision + 1);
         // Selling none of a stack is refused.

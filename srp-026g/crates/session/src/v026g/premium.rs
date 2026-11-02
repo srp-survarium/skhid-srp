@@ -680,7 +680,7 @@ mod tests {
         assert_eq!(account, before);
     }
 
-    /// `prices::NOT_SOLD` (2026-10-18): the Russian and Belarusian flags
+    /// `prices::is_not_sold` (2026-10-18): the Russian and Belarusian flags
     /// and coats of arms, the flag of the USSR and the red star are bought
     /// neither for gold nor for silver.
     #[test]

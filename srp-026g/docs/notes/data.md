@@ -541,22 +541,19 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
     flagged premium, `base_cost` 0): an event camouflage, unavailable by the owner's
     decision. Its price of 0 would make it free.
   - **The PP-19-01 Vityaz (19) and the MP-27M Lancaster (108) are sold to everyone**: seller
-    0, level 0 (`EXCEPTIONS`; their configs name no faction, so the rule sold them nowhere).
-    The Lancaster for its `base_cost`, 2,500; **the Vityaz for 25,000, the owner's price**
-    (`OWNER_PRICES`; its `base_cost` is 12,000 and stays so in the data). Both still drop,
-    and their premium copies stay in gold bundles 12 and 10. The VSS, the SR-3M and the
-    SOCOM 16 stay unsold. The shop shows the record's cost (`GangShop.setupShopItems`:
-    `item.cost = p[i].cost`), but the item's descriptor keeps the game's (`descrData.cost`
-    is set from the record only when the exe gave none): an owned Vityaz shows 12,000, sells
-    for a quarter of it times its condition (at most 3,000; the lobby shows it so and the
-    server pays it so, `prices::sell_price` takes `base_cost`), and is repaired by it. So
-    buying for 25,000 and selling back cannot make silver. PROVEN in the ActionScript and
-    the code; not yet seen in a running game, nor the camouflages in the factions' tabs.
-  - **The starting weapons are sold to everyone** at the owner's prices (`OWNER_PRICES`,
-    seller 0, level 0; the game prices all three at 0): the Mosin carbine and the PPSh-41
+    0, level 0 (their configs name no faction: gear of no faction is everyone's). The
+    Lancaster for its `base_cost`, 2,500; **the Vityaz for 25,000, the owner's price**, its
+    `base_cost` (`scripts/content-edit/items.tsv`; the game's was 12,000). Both still drop,
+    and their premium copies stay in gold bundles 12 and 10. The VSS, the SR-3M, the SOCOM
+    16 and the plain Neostead stay unsold (`shop.tsv` `not_sold`). An owned one sells for a
+    quarter of its `base_cost` times its condition and is repaired by it, as the lobby
+    shows (`descrData.cost`, the exe's `base_cost`). Not yet seen in a running game, nor
+    the camouflages in the factions' tabs.
+  - **The starting weapons are sold to everyone** at the owner's prices, their `base_cost`
+    (seller 0, level 0; the game priced all three at 0): the Mosin carbine and the PPSh-41
     1,000 each (2026-10-18), the TT-33 500 (2026-10-23: "it should be there and cost
-    500"; before it, it was in no shop, so no Buy anywhere). Selling one back pays a quarter
-    of the game's 0. Their free ammo is listed at no cost.
+    500"; before it, it was in no shop, so no Buy anywhere). Selling one back pays a
+    quarter. Their free ammo is listed at no cost.
 - **What a new account owns (2026-10-12, `loadouts.rs`):** the TT-33, the Mosin carbine and
   the PPSh-41 with a clip of each free ammo (7.62x25, 7.62x54R): the wiki of February 2015
   names the three as every new player's, and they are the only weapons and ammo with

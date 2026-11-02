@@ -1125,8 +1125,9 @@ STATS = {
     },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
-    # srp reads it from its game data (RoomRules): nothing a match computes.
+    # srp reads them from its game data (RoomRules, ShopRules): nothing a match computes.
     'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
+    'shop': {'configs': 'gameplay/srp/shop.options', 'match': set()},
     # `like`: the plain item a golden or premium one is a copy of (its name); `start`: the modifications
     # of its own a new item comes with. srp reads both from the dictionary.
     'items': {
