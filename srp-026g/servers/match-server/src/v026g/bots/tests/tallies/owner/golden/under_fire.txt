@@ -1606,6 +1606,11 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0
             ],
             "targeted": 0,
+            "threat_on": {
+              "hitter": 0,
+              "none": 0,
+              "other": 0
+            },
             "turn_deg": 0.0,
             "turn_ticks": 0
           },
@@ -1704,6 +1709,11 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0
             ],
             "targeted": 0,
+            "threat_on": {
+              "hitter": 0,
+              "none": 0,
+              "other": 0
+            },
             "turn_deg": 0.0,
             "turn_ticks": 0
           },
@@ -1808,6 +1818,11 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               18
             ],
             "targeted": 0,
+            "threat_on": {
+              "hitter": 0,
+              "none": 18,
+              "other": 0
+            },
             "turn_deg": 0.0,
             "turn_ticks": 0
           }
@@ -1921,6 +1936,11 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0
             ],
             "targeted": 0,
+            "threat_on": {
+              "hitter": 0,
+              "none": 0,
+              "other": 0
+            },
             "turn_deg": 0.0,
             "turn_ticks": 0
           },
@@ -2019,6 +2039,11 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0
             ],
             "targeted": 0,
+            "threat_on": {
+              "hitter": 0,
+              "none": 0,
+              "other": 0
+            },
             "turn_deg": 0.0,
             "turn_ticks": 0
           },
@@ -2117,6 +2142,11 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0
             ],
             "targeted": 0,
+            "threat_on": {
+              "hitter": 0,
+              "none": 0,
+              "other": 0
+            },
             "turn_deg": 0.0,
             "turn_ticks": 0
           }
