@@ -71,12 +71,6 @@ package survarium.player
 
       private var _weightC:Number = 0;
       
-      // autobuy_changed's state: whether the autobuy (ammo) box is ticked
-      // (bit 1 was the auto-repair box, gone).
-      private static const AUTOBUY_NONE:uint = 0;
-      
-      private static const AUTOBUY_AMMO:uint = 1;
-      
       private var _weightM:Number = 0;
       
       // The exe's weight effects, before the kit's items are added to the speed.
@@ -719,7 +713,11 @@ package survarium.player
       
       private function onAutoBuy(e:Event) : void
       {
-         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected ? AUTOBUY_AMMO : AUTOBUY_NONE);
+         // 0x288CD0 reads the first byte of the GFx value's union, without
+         // converting a Number to an integer. Send the Boolean itself:
+         // true has byte 1; the double representation of 1 has byte 0.
+         // The auto-repair control is gone, so only the autobuy bit is sent.
+         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void
