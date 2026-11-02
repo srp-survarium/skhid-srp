@@ -14,6 +14,7 @@ mod counters;
 mod exact;
 mod falls;
 mod fields;
+mod flights;
 mod passes;
 mod pockets;
 mod probe;
@@ -24,6 +25,7 @@ mod walking;
 mod zones;
 
 use counters::*;
+pub(crate) use flights::StairFloors;
 
 /// What the topics share of the run: each body's feet at the last tick and its team.
 pub(super) struct RouteRun {
@@ -154,6 +156,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         wall_clear_kept(),
         sprint_turns(),
         Box::new(turns::Turns::new(bodies)),
+        Box::new(flights::Flights::new(bodies)),
     ]
 }
 

@@ -82,6 +82,25 @@ pub struct UnstickTuning {
     /// 720 -> 144, stuck notes 146 -> 143); the all-off arm keeps it (its old value is the proven trap). Off: every shut drop's
     /// landing is kept off, wherever the body is.
     pub drop_shut_from_top: bool,
+    /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
+    /// meant 1.2 m) judges a window by (A240b).
+    pub window: StuckWindow,
+}
+
+/// What the reckoned stuck watch judges a window by ([`UnstickTuning::window`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StuckWindow {
+    /// As it was: from the first world it was asked at since its last check, however long before (a world with no route to walk
+    /// does not ask it), against the length of the way the keys meant.
+    #[default]
+    SinceAsked,
+    /// The walk's own: a world with no route starts it again (a pause, as the watch's doc has it), and what the keys meant is
+    /// their net move over it, the reckoning's from each world to the next (a way out and back means none, however long), unless
+    /// every world between showed the body still (keys that turned on the spot: the way's length, as it was). The
+    /// bench's tip (A240b, defaults, 16 maps x 6/8/10, seeds 5-7): the keys meant under 1.2 m net in most of the stuck notes, the
+    /// body's own way over the window out and back or walked on, the window spanning a route that began inside it.
+    Walked,
 }
 
 /// How a drop the body was held at the top of is shut ([`UnstickTuning::drop_shut`]).
@@ -122,6 +141,7 @@ impl Default for UnstickTuning {
             home_gate_max_ms: Some(90_000),
             drop_shut: Some(DropShut::default()),
             drop_shut_from_top: true,
+            window: StuckWindow::SinceAsked,
         }
     }
 }

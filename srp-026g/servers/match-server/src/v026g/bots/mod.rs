@@ -1466,11 +1466,20 @@ impl Bots {
             );
             return notes;
         }
-        let (Some(feet), Some((_, goal))) = (feet, bot.route.as_ref()) else {
+        let Some(feet) = feet else {
+            return notes;
+        };
+        let Some((_, goal)) = bot.route.as_ref() else {
+            // No route to walk at this world: a pause. Under `unstick.window` walked the stuck watch starts again at the next
+            // walk's world; else its window keeps its first world from before the pause.
+            if self.tunings.of(bot.team).unstick.window == tuning::StuckWindow::Walked {
+                bot.stuck.reset();
+            }
             return notes;
         };
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
+        let meant_net = self.tracker.body(place).and_then(|body| body.last_meant_net());
         // The time since the world before: a long one is noted with the notes that follow it, counted, and (tuned)
         // ends the stuck check, as the bot was not shown the body for that long.
         let gap = self.tracker.body(place).and_then(|body| body.gap_of(time));
@@ -1501,7 +1510,7 @@ impl Bots {
             stuck::fix_gaps::count(3);
             bot.stuck.reset();
         } else if bot.control.reacts()
-            && let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, keys, &self.tunings.of(bot.team).unstick)
+            && let Some((recovery, by_keys)) = bot.stuck.walking_in(time, feet, meant, meant_net, keys, &self.tunings.of(bot.team).unstick)
         {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             #[cfg(test)]

@@ -69,6 +69,7 @@ mod eye;
 mod false_walls;
 mod fights;
 mod fix_gap;
+mod flight_look;
 mod hump_deck;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
