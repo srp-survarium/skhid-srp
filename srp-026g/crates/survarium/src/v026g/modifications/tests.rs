@@ -245,7 +245,7 @@ fn a_weapon_wears_its_camouflage_beside_its_scope() {
 }
 
 #[test]
-fn a_weapon_wears_one_decal_beside_its_camouflage_and_scope() {
+fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
     // A weapon config with `camo_available` and `decal_available` (the data
     // patches of weapon-camo-1 and weapon-decals-1).
     let rifle = ItemMods {
@@ -255,21 +255,23 @@ fn a_weapon_wears_one_decal_beside_its_camouflage_and_scope() {
         camo: true,
         decal: true,
     };
-    assert_eq!(cosmetic_slots(&rifle, "wpn_aslt", "drp_decl"), [0]);
-    assert_eq!(cosmetic_slots(&rifle, "wpn_pistol", "prm_decl"), [0]);
-    // No second decal: the client keeps three upgrade records an item.
-    assert!(!cosmetic_slots(&rifle, "wpn_aslt", "drp_decl").contains(&1));
+    assert_eq!(cosmetic_slots(&rifle, "wpn_aslt", "drp_decl"), [0, 1]);
+    assert_eq!(cosmetic_slots(&rifle, "wpn_pistol", "prm_decl"), [0, 1]);
     assert_eq!(
         cosmetic_slots(&rifle, "wpn_aslt", "drp_camo"),
         [WEAPON_CAMO_SLOT]
     );
-    // The three slots of a weapon's upgrade window are apart, as many as
-    // an item's upgrade records.
+    // The window's four slots are apart, logical slots of the weapon kit,
+    // and go to the client in at most three records (super::weapon_kit).
     let mut slots = vec![SCOPE_SLOT, WEAPON_CAMO_SLOT];
     slots.extend(WEAPON_DECAL_SLOTS);
     slots.sort_unstable();
-    assert_eq!(slots, [0, 2, 3]);
-    assert_eq!(slots.len(), crate::v026g::lobby::limits::UPGRADES);
+    assert_eq!(slots, [0, 1, 2, 3]);
+    assert!(
+        slots
+            .iter()
+            .all(|slot| crate::v026g::weapon_kit::WEAPON_SLOTS.contains(slot))
+    );
     // Armour as before; nothing without the config's flags.
     let vest = ItemMods {
         dict_id: 2,
@@ -1003,6 +1005,9 @@ fn edited_masks() -> (
     let mut third = Vec::new();
     for line in manifest.lines().filter(|line| line.starts_with("edit\t")) {
         let list = line.split('\t').nth(1).unwrap();
+        if !list.ends_with(".json") {
+            continue;
+        }
         let path = root.join("srp-026g/scripts/content-edit").join(list);
         let text = std::fs::read_to_string(&path).unwrap();
         let edits: serde_json::Value = serde_json::from_str(&text).unwrap();

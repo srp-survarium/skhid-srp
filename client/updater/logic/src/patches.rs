@@ -177,7 +177,7 @@ pub fn parse_list(bytes: &[u8]) -> Result<List, ListError> {
             reader.space();
             let name = core::str::from_utf8(key).map_err(|_| ListError::Syntax(reader.at))?;
             let number = parse_name(name).ok_or_else(|| ListError::BadName(name.into()))?;
-            let entry = reader.entry().map_err(|error| match error {
+            let entry = reader.entry(false).map_err(|error| match error {
                 ListError::BadEntry(_) => ListError::BadEntry(name.into()),
                 other => other,
             })?;
@@ -185,21 +185,7 @@ pub fn parse_list(bytes: &[u8]) -> Result<List, ListError> {
                 return Err(ListError::BadEntry(name.into()));
             };
             let sha256 = from_hex(sha256).ok_or_else(|| ListError::BadHash(name.into()))?;
-            let mut addresses: Vec<Address> = Vec::new();
-            for text in texts {
-                let text = core::str::from_utf8(text)
-                    .ok()
-                    .filter(|text| text.len() <= 1024)
-                    .ok_or_else(|| ListError::BadUrl(name.into()))?;
-                let url = url::patch(text).ok_or_else(|| ListError::BadUrl(name.into()))?;
-                if addresses.iter().any(|address| address.text == text) {
-                    return Err(ListError::SameUrl(name.into()));
-                }
-                addresses.push(Address {
-                    text: text.into(),
-                    url,
-                });
-            }
+            let addresses = addresses(name, texts)?;
             if list.get(number).is_some() {
                 return Err(ListError::Duplicate(name.into()));
             }
@@ -250,11 +236,76 @@ pub fn write_list(list: &List) -> Vec<u8> {
     out
 }
 
-/// A list's value as it was read: its checksum and its addresses, either
-/// form.
+/// The addresses of the entry `name`: each one [`url::patch`] takes, none
+/// twice.
+fn addresses(name: &str, texts: Vec<&[u8]>) -> Result<Vec<Address>, ListError> {
+    let mut addresses: Vec<Address> = Vec::new();
+    for text in texts {
+        let text = core::str::from_utf8(text)
+            .ok()
+            .filter(|text| text.len() <= 1024)
+            .ok_or_else(|| ListError::BadUrl(name.into()))?;
+        let url = url::patch(text).ok_or_else(|| ListError::BadUrl(name.into()))?;
+        if addresses.iter().any(|address| address.text == text) {
+            return Err(ListError::SameUrl(name.into()));
+        }
+        addresses.push(Address {
+            text: text.into(),
+            url,
+        });
+    }
+    Ok(addresses)
+}
+
+/// The game's archive as the server offers it, `GET <site>/game`
+/// (`client/updater/README.md`, "Mirrors"): its SHA-256, its size and its
+/// addresses, tried in their order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Download {
+    pub sha256: [u8; 32],
+    pub size: u64,
+    /// 1 to [`MAX_URLS`], none twice.
+    pub addresses: Vec<Address>,
+}
+
+/// What the game's archive is called in a list's errors.
+const GAME: &str = "game";
+
+/// Reads `GET /game`: `{"sha256": "<64 hex>", "size": <bytes>, "urls":
+/// ["<address>", ...]}`, the members in any order and nothing else, each
+/// address one a patch may have ([`url::patch`]), 1 to [`MAX_URLS`], none
+/// twice: an entry of the patch list with its size.
+pub fn parse_game(bytes: &[u8]) -> Result<Download, ListError> {
+    if bytes.len() > MAX_LIST {
+        return Err(ListError::TooLarge);
+    }
+    let mut reader = Reader { bytes, at: 0 };
+    reader.space();
+    let entry = reader.entry(true).map_err(|error| match error {
+        ListError::BadEntry(_) => ListError::BadEntry(GAME.into()),
+        other => other,
+    })?;
+    reader.space();
+    if reader.at != bytes.len() {
+        return Err(ListError::Syntax(reader.at));
+    }
+    let (Some(sha256), Some(size), Some(texts)) = (entry.sha256, entry.size, entry.addresses)
+    else {
+        return Err(ListError::BadEntry(GAME.into()));
+    };
+    Ok(Download {
+        sha256: from_hex(sha256).ok_or_else(|| ListError::BadHash(GAME.into()))?,
+        size,
+        addresses: addresses(GAME, texts)?,
+    })
+}
+
+/// A list's value as it was read: its checksum, its size (the game's
+/// alone) and its addresses, either form.
 #[derive(Default)]
 struct Entry<'a> {
     sha256: Option<&'a [u8]>,
+    size: Option<u64>,
     addresses: Option<Vec<&'a [u8]>>,
 }
 
@@ -296,9 +347,10 @@ impl<'a> Reader<'a> {
     }
 
     /// A list's value: `{"sha256": "...", "urls": ["...", ...]}` or
-    /// `{"sha256": "...", "url": "..."}`, the members in either order,
-    /// nothing else. `BadEntry` (named by the caller) for another value.
-    fn entry(&mut self) -> Result<Entry<'a>, ListError> {
+    /// `{"sha256": "...", "url": "..."}`, the members in either order, and
+    /// with `sized` a `"size"` (a number of bytes) among them; nothing else.
+    /// `BadEntry` (named by the caller) for another value.
+    fn entry(&mut self, sized: bool) -> Result<Entry<'a>, ListError> {
         let bad = || ListError::BadEntry(String::new());
         if !self.take(b'{') {
             return Err(bad());
@@ -326,6 +378,7 @@ impl<'a> Reader<'a> {
                     entry.addresses = Some(alloc::vec![self.string()?]);
                 }
                 b"urls" if entry.addresses.is_none() => entry.addresses = Some(self.strings()?),
+                b"size" if sized && entry.size.is_none() => entry.size = Some(self.number()?),
                 _ => return Err(bad()),
             }
             self.space();
@@ -356,6 +409,22 @@ impl<'a> Reader<'a> {
             }
             self.expect(b',')?;
         }
+    }
+
+    /// A size: decimal digits, more than 0, no sign, no leading zero, no
+    /// fraction, at most 18 digits. `BadEntry` for another value.
+    fn number(&mut self) -> Result<u64, ListError> {
+        let start = self.at;
+        while self.bytes.get(self.at).is_some_and(u8::is_ascii_digit) {
+            self.at += 1;
+        }
+        let digits = &self.bytes[start..self.at];
+        if digits.is_empty() || digits.len() > 18 || digits[0] == b'0' {
+            return Err(ListError::BadEntry(String::new()));
+        }
+        Ok(digits
+            .iter()
+            .fold(0, |n, digit| n * 10 + u64::from(digit - b'0')))
     }
 
     /// A string without escapes or control characters: its bytes.
@@ -1136,6 +1205,92 @@ mod tests {
         assert_eq!(
             overlay_patch(&["game/resources.db", "game/resources.db.skhid-keep"]),
             None
+        );
+    }
+
+    #[test]
+    fn the_games_archive_is_an_entry_with_its_size() {
+        let h = hex(b"7z");
+        let game = parse_game(
+            alloc::format!(
+                " {{\"urls\": [\"http://203.0.113.5:8090/survarium-026g.7z\", \
+                 \"https://archive.org/download/x/survarium_full_026g0.7z\"],\n\
+                 \"size\" : 2906544103, \"sha256\": \"{h}\"}}\r\n"
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        assert_eq!((game.sha256, game.size), (digest(b"7z"), 2_906_544_103));
+        assert_eq!(
+            game.addresses
+                .iter()
+                .map(|address| address.text.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "http://203.0.113.5:8090/survarium-026g.7z",
+                "https://archive.org/download/x/survarium_full_026g0.7z"
+            ]
+        );
+        let bad_entry = Err(ListError::BadEntry("game".into()));
+        for (text, expected) in [
+            // No size, or one that is no size.
+            (
+                alloc::format!("{{\"sha256\": \"{h}\", \"urls\": [\"http://h/g\"]}}"),
+                bad_entry.clone(),
+            ),
+            (
+                alloc::format!("{{\"sha256\": \"{h}\", \"size\": 0, \"urls\": [\"http://h/g\"]}}"),
+                bad_entry.clone(),
+            ),
+            (
+                alloc::format!(
+                    "{{\"sha256\": \"{h}\", \"size\": 012, \"urls\": [\"http://h/g\"]}}"
+                ),
+                bad_entry.clone(),
+            ),
+            (
+                alloc::format!(
+                    "{{\"sha256\": \"{h}\", \"size\": \"12\", \"urls\": [\"http://h/g\"]}}"
+                ),
+                bad_entry.clone(),
+            ),
+            (
+                alloc::format!(
+                    "{{\"sha256\": \"{h}\", \"size\": 1, \"size\": 1, \"urls\": [\"http://h/g\"]}}"
+                ),
+                bad_entry.clone(),
+            ),
+            (
+                alloc::format!("{{\"sha256\": \"{h}\", \"size\": 1, \"urls\": [\"ftp://h/g\"]}}"),
+                Err(ListError::BadUrl("game".into())),
+            ),
+            (
+                alloc::format!(
+                    "{{\"sha256\": \"{h}\", \"size\": 1, \"urls\": [\"http://h/g\", \"http://h/g\"]}}"
+                ),
+                Err(ListError::SameUrl("game".into())),
+            ),
+            (
+                "{\"sha256\": \"x\", \"size\": 1, \"urls\": [\"http://h/g\"]}".into(),
+                Err(ListError::BadHash("game".into())),
+            ),
+            (
+                alloc::format!(
+                    "{{\"sha256\": \"{h}\", \"size\": 1, \"urls\": [\"http://h/g\"]}} x"
+                ),
+                Err(ListError::Syntax(114)),
+            ),
+        ] {
+            assert_eq!(parse_game(text.as_bytes()), expected, "{text}");
+        }
+        // A patch of the list has no size: its updaters before take an
+        // entry of exactly two members.
+        let sized = alloc::format!(
+            "{{\"patch_3\": {{\"sha256\": \"{h}\", \"size\": 1, \"urls\": [\"http://h/g\"]}}}}"
+        );
+        assert_eq!(
+            parse_list(sized.as_bytes()),
+            Err(ListError::BadEntry("patch_3".into()))
         );
     }
 }

@@ -8,13 +8,28 @@
 //!   maps in memory at most when the mode is on;
 //! - `SRP_PVB_PAY` (default 0.5, 0 to 1): what a match against bots pays of
 //!   a match's silver and experience;
-//! - PvE reward multipliers and silver rates use at most tier 7.
+//! - PvE reward multipliers and silver rates use at most tier 7, and its
+//!   end-of-match drop at most match level 7.
 
 /// `SRP_PVB_MAX_MATCHES` when unset.
 pub const DEFAULT_MAX_MATCHES: usize = 5;
 /// Highest reward-table level for PvE; equipment and bot difficulty still
 /// use their normal levels. Owner's choice, 2026-10-28.
 pub const MAX_REWARD_LEVEL: u16 = 7;
+/// Highest drop-table level for PvE; equipment and bot difficulty still
+/// use their normal levels. Owner's choice, 2026-11-01.
+pub const MAX_DROP_LEVEL: u16 = 7;
+
+/// The match level a match's drops are rolled at: the end-of-match drop and
+/// a drop card used on its results screen. At most [`MAX_DROP_LEVEL`]
+/// against bots.
+pub fn drop_level(match_level: u16, vs_bots: bool) -> u16 {
+    if vs_bots {
+        match_level.min(MAX_DROP_LEVEL)
+    } else {
+        match_level
+    }
+}
 /// `SRP_PVB_PAY` when unset: half.
 pub const DEFAULT_PAY: f64 = 0.5;
 /// The most `SRP_PVB_MAX_MATCHES` may be.

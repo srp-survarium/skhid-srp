@@ -197,7 +197,7 @@ class LocalizationTests(unittest.TestCase):
         (edits / 'item.json').write_text(json.dumps({'set_entry': [
             {'file': 'gameplay/item', 'to': {'name': 'st_new_item'}}]}))
         manifest = release / 'content.tsv'
-        manifest.write_text('edit\titem.json\t-\titem\nedit\tcatalog.json\t-\ttranslations\n')
+        manifest.write_text('edit\titem.json\t-\titem\nedit\tweapon-stats.tsv\t-\tstats\nedit\tcatalog.json\t-\ttranslations\n')
         self.assertEqual(checker.audit_content_sources(self.root, {'st_new_item'}), [])
         self.assertTrue(any('st_new_item' in issue for issue in checker.audit_content_sources(self.root, set())))
         manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\titem.json\t-\titem\n')

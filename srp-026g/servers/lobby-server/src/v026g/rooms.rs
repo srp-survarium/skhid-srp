@@ -32,6 +32,9 @@
 //!   otherwise it waits for the next match. While it waits it is told why it
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
+//!   A member whose place in the match is kept (its game started anew, or
+//!   back from it) goes back to it the same way, as Play does, whatever
+//!   the match takes now (the owner's of 2026-11-01).
 //! - **After.** The match over, its players are in the lobby again and in
 //!   the room, whose next vote and wait begin: every member alike, however
 //!   it came in (Play or a join; the owner's of 2026-10-31).
@@ -77,6 +80,7 @@
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
 use std::collections::{HashMap, HashSet};
+use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
@@ -84,7 +88,7 @@ use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
 use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
 use session::v026g::{matchmaking, quests, rules};
-use session::{LockExt, QueuePool};
+use session::{LockExt, QueuePool, Strength};
 use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
     self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, OfferRoom,
@@ -235,10 +239,12 @@ fn code_of(refused: Refused) -> RoomCode {
     }
 }
 
-/// A free member of a room, ready for its match.
+/// A free member of a room, ready for its match, and the gear level it
+/// would bring (`matchmaking::gear_level`): a match's equipment level is
+/// the highest of its players' (`docs/notes/kd-balance.md`).
 struct Ready {
     player: session::Player,
-    strength: i32,
+    gear: u8,
 }
 
 impl Core<'_> {
@@ -551,55 +557,7 @@ impl Core<'_> {
             RoomRequest::Join { key } => self.room_join(who, key, now),
             RoomRequest::Offer { key } => self.room_offer(who, key),
             RoomRequest::PresetJoin { preset, key } => self.room_preset_join(who, preset, key, now),
-            // A full room's queue (the owner's of 2026-10-17): from the lobby
-            // only, one at a time; a room with a place is joined at once.
-            // A squad mate free in the lobby waits with it (`room_mate`).
-            RoomRequest::Queue { key } => {
-                let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
-                let mate = self.room_mate(who.account_id);
-                let free = self.rooms.get(key).is_some_and(|room| {
-                    let comes = mate.is_some_and(|(mate, _)| !room.members.contains(&mate));
-                    let beside = self
-                        .store
-                        .squads()
-                        .mate_of(who.account_id)
-                        .filter(|mate| room.members.contains(mate));
-                    room.has_places(1 + usize::from(comes), beside)
-                });
-                if free && self.room_enter_fit(who).is_ok() {
-                    // Places for all: a join (`room_join` answers it).
-                    self.room_join(who, key, now);
-                    return;
-                }
-                let code = match self.room_enter_fit(who) {
-                    Err(code) => code,
-                    Ok(()) => {
-                        let before = self.rooms.queue_place(who.account_id);
-                        match self.room_enqueue_party(
-                            who,
-                            gear,
-                            mate,
-                            key,
-                            QueueChoice::Chosen,
-                            now,
-                        ) {
-                            Ok(place) => {
-                                // Queue stays lit while queued: a press again
-                                // is logged only when the place moved.
-                                if before != Some((key, place)) {
-                                    log::info!(
-                                        "{}: waits in room {key}'s queue, place {place}",
-                                        who.name
-                                    );
-                                }
-                                RoomCode::None
-                            }
-                            Err(refused) => code_of(refused),
-                        }
-                    }
-                };
-                self.send_room_state(who, code, now);
-            }
+            RoomRequest::Queue { key } => self.room_queue(who, key, now),
             RoomRequest::JoinMatch => {
                 // The member does not wait: into its room's match now.
                 self.room_join_at.insert(who.account_id, now);
@@ -648,17 +606,8 @@ impl Core<'_> {
     fn room_play_pressed(&mut self, who: &Who, now: Instant) {
         // A place in a match (closed early, or signed in again): back to it,
         // as the game's own Play does (`play`).
-        let player = session::Player {
-            session_id: who.session_id,
-            account_id: who.account_id,
-            profile_id: who.account.locked().active_kit,
-        };
-        if self.store.matchmaking().back_to_seat(player) {
+        if self.back_to_seat(who.addr, now) {
             log::info!("{} pressed Play: back to its seat", who.name);
-            if let Some(state) = self.player_mut(who.addr) {
-                state.queued_since = Some(now);
-            }
-            self.queue_status(who.addr, now);
         } else {
             self.room_quick(who, now);
         }
@@ -681,6 +630,47 @@ impl Core<'_> {
             }
             Err(refused) => log::info!("{}: Start in a room: refused ({refused:?})", who.name),
         }
+    }
+
+    /// A full room's queue (the owner's of 2026-10-17): from the lobby
+    /// only, one at a time; a room with a place is joined at once
+    /// ([`Self::room_join`]). A squad mate free in the lobby waits with it
+    /// (`room_mate`). The state answers it.
+    fn room_queue(&mut self, who: &Who, key: u32, now: Instant) {
+        let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
+        let mate = self.room_mate(who.account_id);
+        let free = self.rooms.get(key).is_some_and(|room| {
+            let comes = mate.is_some_and(|(mate, _)| !room.members.contains(&mate));
+            let beside = self
+                .store
+                .squads()
+                .mate_of(who.account_id)
+                .filter(|mate| room.members.contains(mate));
+            room.has_places(1 + usize::from(comes), beside)
+        });
+        if free && self.room_enter_fit(who).is_ok() {
+            // Places for all: a join (`room_join` answers it).
+            self.room_join(who, key, now);
+            return;
+        }
+        let code = match self.room_enter_fit(who) {
+            Err(code) => code,
+            Ok(()) => {
+                let before = self.rooms.queue_place(who.account_id);
+                match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
+                    Ok(place) => {
+                        // Queue stays lit while queued: a press again
+                        // is logged only when the place moved.
+                        if before != Some((key, place)) {
+                            log::info!("{}: waits in room {key}'s queue, place {place}", who.name);
+                        }
+                        RoomCode::None
+                    }
+                    Err(refused) => code_of(refused),
+                }
+            }
+        };
+        self.send_room_state(who, code, now);
     }
 
     /// Join the room with that key, a commander's mate along (`room_mate`);
@@ -813,8 +803,9 @@ impl Core<'_> {
     }
 
     /// "Switch and enter": preset `preset` the active one (its kits put on),
-    /// then the join of the room with `key` (0: Play). A preset that could
-    /// not be chosen joins nothing (code 14).
+    /// then the room with `key` as its Queue takes it (a join with places,
+    /// else its queue: a Join's or a full room's Queue's offer), or Play
+    /// (`key` 0). A preset that could not be chosen joins nothing (code 14).
     fn room_preset_join(&mut self, who: &Who, preset: u8, key: u32, now: Instant) {
         // A soldier's join is its commander's: its loadout stays.
         if self.squad_soldier(who.account_id) {
@@ -827,7 +818,7 @@ impl Core<'_> {
                 if key == 0 {
                     self.room_play_pressed(who, now);
                 } else {
-                    self.room_join(who, key, now);
+                    self.room_queue(who, key, now);
                 }
             }
             Err(_) => self.send_room_state(who, RoomCode::PresetRefused, now),
@@ -1381,7 +1372,7 @@ impl Core<'_> {
         }
         let anyone = Worth {
             players: 1,
-            strength: 0,
+            strength: Strength::ZERO,
         };
         if policy::place_joiner(sides, anyone, None, &rule).is_none() {
             return Err(Some(JoinHold::Full));
@@ -1416,12 +1407,26 @@ impl Core<'_> {
         let Stage::InMatch { match_id, .. } = room.stage else {
             return Ok(None);
         };
-        if room.in_match.contains(&who.account_id) || self.member_fit(who.account_id) != Fit::Yes {
-            return Ok(None);
-        }
         let Some(running) = self.matches.get(&match_id) else {
             return Ok(None);
         };
+        let left = || {
+            let at = self
+                .room_join_at
+                .get(&who.account_id)
+                .copied()
+                .unwrap_or(now + LATE_JOIN_WAIT);
+            at.saturating_duration_since(now).as_millis().div_ceil(1000) as u32
+        };
+        // Its place in the match is kept (its game started anew, or came
+        // back from it): free in the lobby, it goes back to it as Play
+        // takes it, whatever the match takes now (`room_late_join`).
+        if room.in_match.contains(&who.account_id) {
+            return Ok(self.room_free(who.account_id).map(|_| left()));
+        }
+        if self.member_fit(who.account_id) != Fit::Yes {
+            return Ok(None);
+        }
         match self.late_hold(match_id, running, usize::from(room.spec.size), now) {
             Ok(()) => {}
             Err(Some(hold)) => return Err(hold),
@@ -1435,13 +1440,7 @@ impl Core<'_> {
                 return Err(JoinHold::Full);
             }
         }
-        let at = self
-            .room_join_at
-            .get(&who.account_id)
-            .copied()
-            .unwrap_or(now + LATE_JOIN_WAIT);
-        let left = at.saturating_duration_since(now);
-        Ok(Some(left.as_millis().div_ceil(1000) as u32))
+        Ok(Some(left()))
     }
 
     /// A room the member may switch to with one click (the owner's of
@@ -1852,18 +1851,24 @@ impl Core<'_> {
         }
     }
 
-    /// The member as its room's match takes it: free in the lobby, its
-    /// active kit one Play would take, its game of the pool.
-    fn room_ready(&self, account_id: u32) -> Option<Ready> {
+    /// The member's link if it is free in the lobby: its game told its
+    /// room, in no match, not on its way to one.
+    fn room_free(&self, account_id: u32) -> Option<SocketAddr> {
         // Its game started anew and does not know of the room yet.
         if self.room_unseen.contains_key(&account_id) {
             return None;
         }
         let addr = *self.by_account.get(&account_id)?;
         let player = self.player(addr)?;
-        if player.in_match.is_some() || player.connect.is_some() || player.queued_since.is_some() {
-            return None;
-        }
+        (player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none())
+            .then_some(addr)
+    }
+
+    /// The member as its room's match takes it as a new place: free in the
+    /// lobby, with no place kept in a match, its active kit one Play would
+    /// take, its game of the pool.
+    fn room_ready(&self, account_id: u32) -> Option<Ready> {
+        let player = self.player(self.room_free(account_id)?)?;
         if self
             .store
             .matchmaking()
@@ -1884,15 +1889,17 @@ impl Core<'_> {
         if self.member_fit(account_id) != Fit::Yes {
             return None;
         }
-        let kit_id = player.account.locked().active_kit;
-        let level = self.level_of(account_id, unix);
+        let (kit_id, gear) = {
+            let account = player.account.locked();
+            (account.active_kit, matchmaking::gear_level(&account, unix))
+        };
         Some(Ready {
             player: session::Player {
                 session_id,
                 account_id,
                 profile_id: kit_id,
             },
-            strength: self.strength_of(account_id, level),
+            gear,
         })
     }
 
@@ -1984,14 +1991,16 @@ impl Core<'_> {
             .flat_map(|room| {
                 room.members
                     .iter()
-                    .filter(|member| !room.in_match.contains(member))
+                    .filter(|&&member| {
+                        !room.in_match.contains(&member) || self.room_free(member).is_some()
+                    })
                     .copied()
                     .collect::<Vec<_>>()
             })
             .collect();
         // Each goes into the match `LATE_JOIN_WAIT` after it came (or at
-        // once on its ask): the room shows first (the owner's of
-        // 2026-10-19).
+        // once on its ask), back to its place if the match keeps one: the
+        // room shows first (the owner's of 2026-10-19).
         self.room_join_at
             .retain(|account_id, _| waiting.contains(account_id));
         for account_id in waiting {
@@ -2060,9 +2069,14 @@ impl Core<'_> {
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
             .collect();
+        // The match's equipment level: the highest gear level of the
+        // players placed (the owner's of 2026-11-01); each counts for its
+        // K/D there.
+        let match_gear = ready.iter().map(|each| each.gear).max().unwrap_or(0);
+        let strength = |account_id: u32| self.strength_of(account_id, match_gear, false);
         // Squads of the room's members, each a party; any other member alone.
         let mut seen = HashSet::new();
-        let mut parties: Vec<(Vec<u32>, i64)> = Vec::new();
+        let mut parties: Vec<model::Party> = Vec::new();
         for each in &ready {
             if !seen.insert(each.player.account_id) {
                 continue;
@@ -2079,29 +2093,29 @@ impl Core<'_> {
                         && ready.iter().any(|other| other.player.account_id == *mate)
                 })
                 .collect();
-            let mut party = vec![each.player.account_id];
-            let mut strength = i64::from(each.strength);
+            let mut party = vec![(each.player.account_id, strength(each.player.account_id))];
             for mate in mates {
-                if seen.insert(mate)
-                    && let Some(other) = ready.iter().find(|other| other.player.account_id == mate)
-                {
-                    party.push(mate);
-                    strength += i64::from(other.strength);
+                if seen.insert(mate) && ready.iter().any(|other| other.player.account_id == mate) {
+                    party.push((mate, strength(mate)));
                 }
             }
-            parties.push((party, strength));
+            parties.push(model::Party::new(party));
         }
         // A squad alone plays no match against itself (the owner's of
         // 2026-10-31): the room waits for a third.
-        if arranged.is_none() && parties.len() == 1 && parties[0].0.len() > 1 {
+        if arranged.is_none() && parties.len() == 1 && parties[0].members().len() > 1 {
             log::info!("Room {key}: no match yet: only a squad can play");
             self.rooms.not_started(key, now);
             return;
         }
-        let player_value = i64::from(self.settings.balance.player_value());
+        // The strengths are shaken a little by a seed of this start (the
+        // owner's "small noise"), so the same players do not always play
+        // together.
+        let seed = self.rng.below(u32::MAX);
+        let player_value = self.settings.balance.player_value();
         let sides = match &arranged {
             Some(arranged) => arranged.clone(),
-            None => model::sides(&parties, size, player_value),
+            None => model::sides(&parties, size, player_value, seed),
         };
         let player_of = |account_id: &u32| {
             ready
@@ -2132,7 +2146,11 @@ impl Core<'_> {
         // Each squad of two or more is a squad in the match too.
         let mut squad_ids: std::collections::HashMap<u32, u8> = std::collections::HashMap::new();
         let mut next_squad = 0_u8;
-        for (party, _) in parties.iter().filter(|(party, _)| party.len() > 1) {
+        for party in parties
+            .iter()
+            .map(model::Party::members)
+            .filter(|party| party.len() > 1)
+        {
             // In a private room a squad may be on both teams: a squad in the
             // match is its members on one team, two at least.
             let groups: Vec<Vec<u32>> = match arranged {
@@ -2146,7 +2164,7 @@ impl Core<'_> {
                             .collect()
                     })
                     .collect(),
-                None => vec![party.clone()],
+                None => vec![party.to_vec()],
             };
             for group in groups.iter().filter(|group| group.len() > 1) {
                 next_squad = next_squad.saturating_add(1);
@@ -2234,8 +2252,10 @@ impl Core<'_> {
         self.queue_status(addr, now);
     }
 
-    /// The member goes into its room's match being played, if it is free
-    /// and the match admits it now; otherwise it waits for the next one.
+    /// The member goes into its room's match being played, if it is free:
+    /// back to its place if the match keeps one (its game started anew, or
+    /// came back from it), as Play does (`back_to_seat`); else as a new
+    /// place if the match admits it now, or it waits for the next one.
     fn room_late_join(&mut self, account_id: u32, now: Instant) {
         let Some(room) = self.rooms.of(account_id) else {
             return;
@@ -2244,9 +2264,26 @@ impl Core<'_> {
             return;
         };
         let key = room.key;
-        let Some(running) = self.matches.get(&match_id) else {
+        let Some(ticket) = self
+            .matches
+            .get(&match_id)
+            .map(|running| running.ticket.match_id)
+        else {
             return;
         };
+        if room.in_match.contains(&account_id) {
+            if let Some(addr) = self.room_free(account_id)
+                && self.back_to_seat(addr, now)
+            {
+                self.room_join_at.remove(&account_id);
+                log::info!(
+                    "Room {key}: {} went back to its place in its match {ticket:#x}",
+                    self.name_of(account_id).unwrap_or_default()
+                );
+            }
+            return;
+        }
+        let running = &self.matches[&match_id];
         if !self.late_admission(running, now) || self.maintenance_is_near() {
             return;
         }
@@ -2268,7 +2305,6 @@ impl Core<'_> {
         {
             return;
         }
-        let ticket = running.ticket.match_id;
         let Late {
             placement,
             lead,
@@ -2312,7 +2348,7 @@ impl Core<'_> {
         if !admitted {
             return;
         }
-        let joined: Vec<(session::Player, u8, i32)> = party
+        let joined: Vec<(session::Player, u8, Strength)> = party
             .iter()
             .map(|each| (each.player, team, each.strength))
             .collect();
@@ -2377,14 +2413,29 @@ impl Core<'_> {
                 mate_side.is_none() && room.members.contains(mate) && !room.in_match.contains(mate)
             })
             .and_then(|mate| self.room_ready(mate));
-        let mut party = vec![Ready {
-            player: ready.player,
-            strength: ready.strength,
-        }];
-        party.extend(waiting_mate);
+        let going: Vec<(session::Player, u8)> = std::iter::once((ready.player, ready.gear))
+            .chain(waiting_mate.map(|mate| (mate.player, mate.gear)))
+            .collect();
+        // Each counts for its K/D at the match's equipment level,
+        // which a joiner of higher gear raises (the owner's of 2026-11-01);
+        // a squad's members 1.3 times.
+        let squad = mate_side.is_some() || going.len() > 1;
+        let match_gear = going.iter().map(|(_, gear)| *gear).fold(
+            self.results
+                .match_gear(running.ticket.match_id)
+                .unwrap_or(0),
+            u8::max,
+        );
+        let party: Vec<Joiner> = going
+            .into_iter()
+            .map(|(player, _)| Joiner {
+                player,
+                strength: self.strength_of(player.account_id, match_gear, squad),
+            })
+            .collect();
         let worth = Worth {
             players: party.len(),
-            strength: party.iter().map(|each| i64::from(each.strength)).sum(),
+            strength: party.iter().map(|each| each.strength).sum(),
         };
         // One who played this match before (left it, or its game was gone
         // for good) goes back to its side when the sides have as many
@@ -2399,19 +2450,25 @@ impl Core<'_> {
         Late {
             placement,
             lead: rule.lead,
-            squad: mate_side.is_some() || party.len() > 1,
+            squad,
             party,
         }
     }
+}
+
+/// One who goes into a match being played, and what it counts for there.
+struct Joiner {
+    player: session::Player,
+    strength: Strength,
 }
 
 /// [`Core::late_placement`]'s answer.
 struct Late {
     /// The side, or none now.
     placement: Option<policy::LatePlacement>,
-    lead: [i64; 2],
+    lead: [Strength; 2],
     /// Who goes in: the member, and its squad mate waiting with it.
-    party: Vec<Ready>,
+    party: Vec<Joiner>,
     /// Whether its squad decided the side (its mate in the match, or
     /// going in with it).
     squad: bool,
