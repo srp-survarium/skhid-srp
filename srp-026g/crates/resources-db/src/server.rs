@@ -20,7 +20,10 @@
 //! sha256 and the URLs the players download it from, in the order they try
 //! them: the patches server, and mirrors). The server tells the players'
 //! updater which patches to fetch from it ([`Provenance::offered`]): it can
-//! only offer the patches it runs on. The same inputs give the same bytes.
+//! only offer the patches it runs on. It may name the game's archive too
+//! ([`GameArchive`]): not made of, and not read, but pinned with the
+//! release, which the server offers at `GET /game`. The same inputs give the
+//! same bytes.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
@@ -273,6 +276,66 @@ impl Input {
     }
 }
 
+/// The game's archive, from which the players' updater installs the
+/// original game (`client/updater/README.md`, "Mirrors"): its file name,
+/// size and sha256, pinned with the release (`release/game.tsv`), and the
+/// URLs it is downloaded from, in their order. The data is not made of it:
+/// it is named so that the server offers it (`GET /game`) as it offers the
+/// patches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GameArchive {
+    pub input: Input,
+    /// 1 to [`MAX_URLS`], each one the updater takes ([`check_urls`]).
+    pub urls: Vec<String>,
+}
+
+impl GameArchive {
+    /// A row of the release's list as one argument: `<name> <sha256>
+    /// <size> <url> [<url>...]`, one space apart. The name is of letters,
+    /// digits, `.`, `_` and `-`, and not one the game mounts.
+    pub fn parse_row(row: &str) -> Result<Self, String> {
+        let words: Vec<&str> = row.split(' ').collect();
+        let [name, sha256, size, urls @ ..] = &words[..] else {
+            return Err(format!("{row:?} is not <name> <sha256> <size> <url>..."));
+        };
+        let urls: Vec<String> = urls.iter().map(|url| (*url).to_owned()).collect();
+        let archive = Self::of(name, size, sha256, urls)?;
+        Ok(archive)
+    }
+
+    fn of(name: &str, size: &str, sha256: &str, urls: Vec<String>) -> Result<Self, String> {
+        if name.is_empty()
+            || name == RESOURCES_DB
+            || name.starts_with(PATCH_PREFIX)
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        {
+            return Err(format!(
+                "{name:?}: the game's archive is named of letters, digits, . _ -, and not as an \
+                 archive the game mounts"
+            ));
+        }
+        let size = size_of(size)
+            .filter(|&size| size > 0)
+            .ok_or_else(|| format!("{name}: {size:?} is not a size"))?;
+        if !is_sha256(sha256) {
+            return Err(format!(
+                "{name}: {sha256:?} is not a sha256 (64 lowercase hex)"
+            ));
+        }
+        check_urls(&urls).map_err(|why| format!("{name}: {why}"))?;
+        Ok(Self {
+            input: Input {
+                name: name.to_owned(),
+                size,
+                sha256: sha256.to_owned(),
+            },
+            urls,
+        })
+    }
+}
+
 /// A patch the data was made of.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Patch {
@@ -292,25 +355,29 @@ impl Patch {
 }
 
 /// What server game data was made of: `resources.db`, and the patches over
-/// it in the game's order (ascending n).
+/// it in the game's order (ascending n); and the game's archive the release
+/// pins, when it names one.
 ///
-/// As text ([`PROVENANCE`]), the [`FORMAT`] line, a line for `resources.db`
-/// and a line for each patch, fields by one space, the patch's URLs last
-/// (a URL has no space):
+/// As text ([`PROVENANCE`]), the [`FORMAT`] line, a line for `resources.db`,
+/// one for the game's archive when there is one, and a line for each patch,
+/// fields by one space, the URLs last (a URL has no space):
 ///
 /// ```text
 /// skhid server game data 3
 /// db resources.db 6285533906 <sha256>
+/// game survarium-026g.7z 2906544103 <sha256> http://203.0.113.5/survarium-026g.7z https://mirror.example/g
 /// patch resources.db.patch_14 43691157 <sha256> http://203.0.113.5/resources.db.patch_14
 /// patch resources.db.patch_15 1048576 <sha256> http://203.0.113.5/resources.db.patch_15 https://mirror.example/p15
 /// ```
 ///
 /// A patch of one URL is written as before mirrors were (the data of a
 /// patch with one URL is the same bytes); an srp before them refuses a
-/// line of more (loudly: "a wrong line").
+/// line of more (loudly: "a wrong line"), as an srp before the game's line
+/// refuses that line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Provenance {
     pub db: Input,
+    pub game: Option<GameArchive>,
     pub patches: Vec<Patch>,
 }
 
@@ -332,6 +399,16 @@ impl Provenance {
     pub fn text(&self) -> String {
         let db = &self.db;
         let mut text = format!("{FORMAT}\ndb {} {} {}\n", db.name, db.size, db.sha256);
+        if let Some(game) = &self.game {
+            let input = &game.input;
+            text.push_str(&format!(
+                "game {} {} {} {}\n",
+                input.name,
+                input.size,
+                input.sha256,
+                game.urls.join(" ")
+            ));
+        }
         for patch in &self.patches {
             let input = &patch.input;
             text.push_str(&format!(
@@ -367,6 +444,22 @@ impl Provenance {
             _ => None,
         }
         .ok_or_else(|| wrong(line))?;
+        let mut lines = lines.peekable();
+        let game = match lines
+            .peek()
+            .copied()
+            .map(|line| line.split(' ').collect::<Vec<_>>())
+        {
+            Some(words) if words.first() == Some(&"game") => {
+                let line = lines.next().unwrap_or_default();
+                let [_, name, size, sha256, ref urls @ ..] = words[..] else {
+                    return Err(wrong(line));
+                };
+                let urls = urls.iter().map(|url| (*url).to_owned()).collect();
+                Some(GameArchive::of(name, size, sha256, urls).map_err(|_| wrong(line))?)
+            }
+            _ => None,
+        };
         let mut patches: Vec<Patch> = Vec::new();
         for line in lines {
             let patch = match line.split(' ').collect::<Vec<_>>()[..] {
@@ -387,7 +480,7 @@ impl Provenance {
             .ok_or_else(|| wrong(line))?;
             patches.push(patch);
         }
-        Ok(Self { db, patches })
+        Ok(Self { db, game, patches })
     }
 
     /// What the server offers the players' updater: each patch, in the
@@ -465,15 +558,25 @@ fn in_order(patches: &[PatchFile]) -> Result<Vec<(u32, &PatchFile)>, Error> {
     Ok(numbered)
 }
 
-/// What the data of `db` and `patches` says it was made of: the patches in
-/// the game's order. Each file is read through once, to hash it.
-pub fn provenance_of(db: &Path, patches: &[PatchFile]) -> Result<Provenance, Error> {
-    provenance_in_order(db, &in_order(patches)?)
+/// What the data of `db` and `patches` (and the game's archive `game`) says
+/// it was made of: the patches in the game's order. Each file is read
+/// through once, to hash it.
+pub fn provenance_of(
+    db: &Path,
+    patches: &[PatchFile],
+    game: Option<&GameArchive>,
+) -> Result<Provenance, Error> {
+    provenance_in_order(db, &in_order(patches)?, game)
 }
 
-fn provenance_in_order(db: &Path, patches: &[(u32, &PatchFile)]) -> Result<Provenance, Error> {
+fn provenance_in_order(
+    db: &Path,
+    patches: &[(u32, &PatchFile)],
+    game: Option<&GameArchive>,
+) -> Result<Provenance, Error> {
     Ok(Provenance {
         db: Input::of(db)?,
+        game: game.cloned(),
         patches: patches
             .iter()
             .map(|&(number, patch)| {
@@ -488,11 +591,12 @@ fn provenance_in_order(db: &Path, patches: &[(u32, &PatchFile)]) -> Result<Prove
 }
 
 /// The server's game data of `db` with `patches` over it in the game's
-/// order ([`provenance_of`]). Only the archives' tables and the server's
-/// files are read from them, and each file once more to hash it.
-pub fn build(db: &Path, patches: &[PatchFile]) -> Result<Built, Error> {
+/// order ([`provenance_of`]), naming the game's archive `game` when given.
+/// Only the archives' tables and the server's files are read from them, and
+/// each file once more to hash it.
+pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Result<Built, Error> {
     let patches = in_order(patches)?;
-    let provenance = provenance_in_order(db, &patches)?;
+    let provenance = provenance_in_order(db, &patches, game)?;
     let paths: Vec<&Path> = std::iter::once(db)
         .chain(patches.iter().map(|(_, patch)| patch.path.as_path()))
         .collect();

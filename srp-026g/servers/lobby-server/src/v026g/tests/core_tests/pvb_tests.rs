@@ -168,7 +168,12 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
 #[test]
 fn every_size_has_its_bots_on_both_sides() {
     let mut world = world_with(5);
-    for (n, size) in pvb::SIZES.into_iter().enumerate() {
+    for (n, &size) in survarium::v026g::lobby::rooms::rules()
+        .pvb
+        .sizes
+        .iter()
+        .enumerate()
+    {
         let player = world.connect(&format!("P{n}"));
         let (ticket, _) = play_vs_bots(&mut world, player, size, 117);
         let made = world.host.made.locked();
@@ -450,22 +455,16 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
             }
         );
     }
-    // Each bot counts for its gear level, as a player of level 0.
+    // Each bot counts for an average player.
     let running = world
         .core
         .matches
         .values()
         .find(|running| running.ticket.match_id == ticket)
         .unwrap();
-    let bot_strength = world.core.settings.balance.strength(
-        matchmaking::level_of(15, 0).min,
-        0,
-        Default::default(),
-    );
-    assert!(bot_strength > 0);
     assert!(
         running.strengths[1..]
             .iter()
-            .all(|&each| each == bot_strength)
+            .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
     );
 }

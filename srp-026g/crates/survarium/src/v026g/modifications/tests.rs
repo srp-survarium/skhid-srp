@@ -245,7 +245,7 @@ fn a_weapon_wears_its_camouflage_beside_its_scope() {
 }
 
 #[test]
-fn a_weapon_wears_one_decal_beside_its_camouflage_and_scope() {
+fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
     // A weapon config with `camo_available` and `decal_available` (the data
     // patches of weapon-camo-1 and weapon-decals-1).
     let rifle = ItemMods {
@@ -255,21 +255,23 @@ fn a_weapon_wears_one_decal_beside_its_camouflage_and_scope() {
         camo: true,
         decal: true,
     };
-    assert_eq!(cosmetic_slots(&rifle, "wpn_aslt", "drp_decl"), [0]);
-    assert_eq!(cosmetic_slots(&rifle, "wpn_pistol", "prm_decl"), [0]);
-    // No second decal: the client keeps three upgrade records an item.
-    assert!(!cosmetic_slots(&rifle, "wpn_aslt", "drp_decl").contains(&1));
+    assert_eq!(cosmetic_slots(&rifle, "wpn_aslt", "drp_decl"), [0, 1]);
+    assert_eq!(cosmetic_slots(&rifle, "wpn_pistol", "prm_decl"), [0, 1]);
     assert_eq!(
         cosmetic_slots(&rifle, "wpn_aslt", "drp_camo"),
         [WEAPON_CAMO_SLOT]
     );
-    // The three slots of a weapon's upgrade window are apart, as many as
-    // an item's upgrade records.
+    // The window's four slots are apart, logical slots of the weapon kit,
+    // and go to the client in at most three records (super::weapon_kit).
     let mut slots = vec![SCOPE_SLOT, WEAPON_CAMO_SLOT];
     slots.extend(WEAPON_DECAL_SLOTS);
     slots.sort_unstable();
-    assert_eq!(slots, [0, 2, 3]);
-    assert_eq!(slots.len(), crate::v026g::lobby::limits::UPGRADES);
+    assert_eq!(slots, [0, 1, 2, 3]);
+    assert!(
+        slots
+            .iter()
+            .all(|slot| crate::v026g::weapon_kit::WEAPON_SLOTS.contains(slot))
+    );
     // Armour as before; nothing without the config's flags.
     let vest = ItemMods {
         dict_id: 2,
@@ -925,8 +927,8 @@ fn no_roll_gives_reliability() {
 /// and respirators, oxygen packs) have two left, so they reach two
 /// modifications of their own by rolls, and none is left to offer for the
 /// reliability of a full one. No item that took a roll before has none now.
-/// On live, `third-mod-1.json` gives them a third type
-/// ([`every_item_rolls_three_types_with_the_edit_lists`]).
+/// On live, `armor.tsv`'s masks give them a third type
+/// ([`every_item_rolls_three_types_with_the_tables_masks`]).
 #[test]
 fn items_of_few_types_roll_two() {
     let data = Modifications::shared();
@@ -989,63 +991,30 @@ fn rollable_types(data: &Modifications, mask: u64, defaults: &[u32]) -> u32 {
     (mask & rolling & !data.kinds_of(defaults.iter().copied())).count_ones()
 }
 
-/// The masks the manifest's edit lists set, in its order: by config, the
-/// first `from` and the last `to` of each, and the configs of `third-mod-1.json`
-/// with their `from`.
-#[allow(clippy::type_complexity)]
-fn edited_masks() -> (
-    std::collections::BTreeMap<String, (String, String)>,
-    Vec<(String, String)>,
-) {
+/// The masks of `armor.tsv` (its `mods` column), by config.
+fn table_masks() -> std::collections::BTreeMap<String, String> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let manifest = std::fs::read_to_string(root.join("release/content.tsv")).unwrap();
-    let mut chain = std::collections::BTreeMap::<String, (String, String)>::new();
-    let mut third = Vec::new();
-    for line in manifest.lines().filter(|line| line.starts_with("edit\t")) {
-        let list = line.split('\t').nth(1).unwrap();
-        let path = root.join("srp-026g/scripts/content-edit").join(list);
-        let text = std::fs::read_to_string(&path).unwrap();
-        let edits: serde_json::Value = serde_json::from_str(&text).unwrap();
-        let entries = edits.get("edit_text").and_then(|value| value.as_array());
-        for edit in entries.into_iter().flatten() {
-            if edit["path"] != "parameters/available_modifications_mask" {
-                continue;
-            }
-            let text = |key: &str| edit[key].as_str().unwrap().to_owned();
-            let (file, from, to) = (text("file"), text("from"), text("to"));
-            match chain.get_mut(&file) {
-                Some(link) => {
-                    assert_eq!(
-                        link.1, from,
-                        "{list}: {file} starts where the last edit left it"
-                    );
-                    link.1 = to;
-                }
-                None => {
-                    chain.insert(file.clone(), (from.clone(), to));
-                }
-            }
-            if list == "third-mod-1.json" {
-                third.push((file, from));
-            }
-        }
-    }
-    (chain, third)
+    let text = std::fs::read_to_string(root.join("srp-026g/scripts/content-edit/armor.tsv")).unwrap();
+    let mut lines = text.lines().filter(|line| !line.starts_with('#'));
+    let head: Vec<&str> = lines.next().unwrap().split('\t').collect();
+    let mods = head.iter().position(|column| *column == "mods").unwrap();
+    lines
+        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .map(|row| (format!("gameplay/items/armour/{}.options", row[0]), row[mods].to_owned()))
+        .collect()
 }
 
 /// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md): with
-/// reliability out, every item that rolls has at least three types once the
-/// manifest's edit lists are on (`third-mod-1.json`: masks Armor, oxygen
-/// packs Weight limit and Energy costs, the Pilgrim container Energy costs),
-/// so an upgrade is never refused for nothing to roll and a full item's
-/// reliability always has another type to turn into. The stock test archive
-/// with the edit lists' masks laid on in order (the live masks are that
-/// chain's end); the masks of items the packs add (1812-1816, 1823, not in
-/// the archive) are in it as their edit's `from`.
+/// reliability out, every item that rolls has at least three types once
+/// `armor.tsv`'s masks are on (masks Armor, oxygen packs Weight limit and
+/// Energy costs, the Pilgrim container Energy costs), so an upgrade is never
+/// refused for nothing to roll and a full item's reliability always has
+/// another type to turn into. The stock test archive's items with the table's
+/// masks laid on.
 #[test]
-fn every_item_rolls_three_types_with_the_edit_lists() {
+fn every_item_rolls_three_types_with_the_tables_masks() {
     let data = Modifications::shared();
-    let (chain, third) = edited_masks();
+    let masks = table_masks();
     let bits = |mask: &str| mask_bits(mask, "available_modifications_mask").unwrap();
     let dictionary = Dictionary::shared();
     let defaults_of = |file: &str| {
@@ -1056,25 +1025,12 @@ fn every_item_rolls_three_types_with_the_edit_lists() {
             .and_then(|entry| item_params(entry.dict_id))
             .map_or(&[][..], |params| params.default_modifications)
     };
-    let mut in_archive = std::collections::BTreeSet::new();
     let mut rolling = 0;
     for entry in &dictionary.items {
         let Some(item) = item_mods(entry.dict_id) else {
             continue;
         };
-        let mask = match chain.get(&entry.cfg_name) {
-            Some((from, to)) => {
-                assert_eq!(
-                    item.modifications,
-                    bits(from),
-                    "{}: the chain's start",
-                    entry.name
-                );
-                in_archive.insert(entry.cfg_name.clone());
-                bits(to)
-            }
-            None => item.modifications,
-        };
+        let mask = masks.get(&entry.cfg_name).map_or(item.modifications, |mask| bits(mask));
         let types = rollable_types(data, mask, defaults_of(&entry.cfg_name));
         assert!(
             types == 0 || types >= 3,
@@ -1084,39 +1040,27 @@ fn every_item_rolls_three_types_with_the_edit_lists() {
         rolling += usize::from(types > 0);
     }
     assert!(rolling > 150, "{rolling}");
-    for (file, (_, to)) in chain.iter().filter(|(file, _)| !in_archive.contains(*file)) {
-        assert!(file.starts_with("gameplay/items/armour/mask/"), "{file}");
-        assert!(rollable_types(data, bits(to), &[]) >= 3, "{file}");
+    // The pieces the packs add (not in the test archive): their table masks alone.
+    let known: std::collections::BTreeSet<&str> = dictionary
+        .items
+        .iter()
+        .map(|entry| entry.cfg_name.as_str())
+        .collect();
+    let mut packs = 0;
+    // The Duty exoskeleton's old back piece: no dictionary row names it (the body moved to torso/).
+    let unnamed = "gameplay/items/armour/back/duty_exo_026.options";
+    for (file, mask) in masks
+        .iter()
+        .filter(|(file, _)| !known.contains(file.as_str()) && file.as_str() != unnamed)
+    {
+        let types = rollable_types(data, bits(mask), &[]);
+        assert!(types == 0 || types >= 3, "{file} rolls {types} types");
+        packs += 1;
     }
-
-    // third-mod-1.json: the 20 that reliability left with two, each with
-    // three or more now.
-    let (mut masks, mut oxygen, mut pilgrim) = (0, 0, 0);
-    for (file, from) in &third {
-        let defaults = defaults_of(file);
-        assert_eq!(rollable_types(data, bits(from), defaults), 2, "{file}");
-        assert_ne!(bits(from) & (1 << 32), 0, "{file} took reliability");
-        let to = bits(&chain[file].1);
-        let added = to & !bits(from);
-        if file.starts_with("gameplay/items/armour/mask/") {
-            masks += 1;
-            assert_eq!(added, 1 << 13, "{file}: Armor");
-        } else if file.ends_with("/edge_back_6.options") {
-            pilgrim += 1;
-            assert_eq!(added, 1 << 28, "{file}: Energy costs");
-        } else {
-            oxygen += 1;
-            assert_eq!(
-                added,
-                1 << 24 | 1 << 28,
-                "{file}: Weight limit, Energy costs"
-            );
-        }
-    }
-    assert_eq!((masks, oxygen, pilgrim), (15, 4, 1));
+    assert!(packs > 50, "{packs}");
 }
 
-/// [`every_item_rolls_three_types_with_the_edit_lists`] on a server game
+/// [`every_item_rolls_three_types_with_the_tables_masks`] on a server game
 /// data file as `release/build-content` makes it (`SRP_TEST_GAME_DATA`):
 /// every item that rolls there has three types or more.
 #[test]

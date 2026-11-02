@@ -25,7 +25,7 @@ number from the game data, the rules as the client's hit code applies them. Buil
   armour on each part it covers (after the bonuses; the part being hit marked).
 - Armour slots pick as the weapons do: the lobby icons, by level, with search.
 - A closed helmet (or an exo suit) takes the slots its model covers: their cards are locked.
-- Map: every map the Maps tab has (its names, its order), the top-down render or the game's minimap (a toggle), cropped to the play area (the native minimap's), at most 75% of the
+- Map: every map the Maps tab has (its names, its order), the game's minimap or the top-down render (a toggle, the minimap first), cropped to the play area (the native minimap's), at most 75% of the
   window's height; two clicks for the distance; the distance slider moves the target along the
   same line. On a wide screen (1700 px and up) it sits between shooter and target.
 - Healing, at the bottom: recovering by itself, the Larkspur (Живокіст) carried and activated,

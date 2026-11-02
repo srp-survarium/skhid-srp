@@ -1,7 +1,7 @@
 # Artefacts (the owner, 2026-10-22)
 
-Client patch 54 (README section 54, client_patch.md section 3.51) and the edit list
-`scripts/content-edit/artefacts-1.json`. The stock code and numbers:
+Client patch 54 (README section 54, client_patch.md section 3.51) and the table
+`scripts/content-edit/artefacts.tsv`. The stock code and numbers:
 `tools/re-kit/v026g` and the decoded retail configs (`gameplay/items/artefacts/*.options`).
 
 ## The idea
@@ -39,7 +39,7 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 - Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
   at once.
 - Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
-  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts-1.json`.
+  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts.tsv`.
 - Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into
   +274h, the active's end (0x3135EC) starts the cooldown from it (times the holder's modifier 38),
   and the HUD slot's fill (0x313880) is 100 - time left x 100 / it. Patch 54 only reads the time
@@ -148,7 +148,7 @@ should mix them just as retail does")
   max(0, 1 + the sum), floored at 0 by the game itself; scope-in 0x2E1B50 and scope-out 0x2E1BF0
   use it. Sources on real data: Spring -0.05 passive / -0.10 active each (artefact slots 13..18),
   the skill tree up to -0.10 and gloves (modifications 1080..1084) up to -0.10. A weapon's own
-  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 it scales the
+  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 (now modifications.tsv) it scales the
   weapon's `aim_time` in the item cook, so it multiplies the result (weapon-rolls.md).
 - The sum reaches -100 % only with five or six Springs all active and the other sources; the
   passives alone stop at -0.30 (-0.60 with all others). At 0 the scope is instant for those

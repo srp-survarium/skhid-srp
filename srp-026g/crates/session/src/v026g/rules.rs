@@ -1713,6 +1713,39 @@ mod tests {
         assert_eq!(poor, before);
     }
 
+    /// A consumable bought onto a pocket at more than the pocket takes
+    /// (`docs/notes/items.md` §8): the lobby names the units wanted in all
+    /// (those owned and the 30 bought) and the pocket's. The 30 are bought,
+    /// the pocket holds its share, the rest stays in the inventory.
+    #[test]
+    fn a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory() {
+        const POCKET: u8 = 14;
+        let dictionary = Dictionary::shared();
+        let mut account = rich_and_known(10_000);
+        let medkit = dict("medkit");
+        let owned = account.add_item(medkit, 4);
+        let cost = step_cost(&account, dictionary, medkit).unwrap();
+        let money = account.generic_money;
+        let dialog = [Relocation {
+            item_id: 0,
+            dict_id: medkit,
+            source_slot: SHOP_SLOT,
+            target_slot: POCKET,
+            count: 3,
+            count_in_inventory: 4 + 30,
+        }];
+        move_items(&mut account, 1, &dialog, NOW).unwrap();
+        assert_eq!(account.item(owned).unwrap().condition_or_stack, 34);
+        assert_eq!(
+            account.kits[0].slots[usize::from(POCKET)],
+            Some(KitSlot {
+                item_id: owned,
+                count: 3
+            })
+        );
+        assert_eq!(account.generic_money, money - 30 * cost);
+    }
+
     /// One pocket an item type (`docs/notes/one-pocket-a-type.md`).
     #[test]
     fn an_item_type_goes_into_one_pocket() {
@@ -1877,6 +1910,7 @@ mod tests {
     #[test]
     fn the_starting_ammo_is_refilled_for_its_price_of_nothing() {
         let mut account = account();
+        account.generic_money = 2_000;
         let ammo = account.inventory[1].clone();
         // Listed for nothing by seller 0 (so the client lets it be added to).
         let record = prices::price(ammo.dict_id).unwrap();
@@ -2450,8 +2484,9 @@ mod tests {
     fn a_reset_frees_one_branch_for_its_price() {
         let mut account = account();
         account.add_experience(100_000);
-        // A new account has no gold.
+        // A new account has no money.
         account.premium_money = 10;
+        account.generic_money = 2_000;
         set_skills(&mut account, &[(101, 2), (102, 3), (201, 1)]).unwrap();
         let money = account.generic_money;
         // The second tab: skills 201 and on.

@@ -21,10 +21,6 @@ use survarium::v026g::quests::FACTIONS;
 pub const KITS: usize = limits::KITS;
 /// Slots of a kit.
 pub const KIT_SLOTS: usize = limits::KIT_SLOTS;
-/// A new 0.26g account's silver and gold (the owner's choice, 2026-10-12:
-/// 2,000 silver and no gold; no source of the time gives the numbers).
-pub const STARTING_MONEY: u32 = 2_000;
-pub const STARTING_PREMIUM_MONEY: u32 = 0;
 /// The highest level (PROVEN: the game's knowledge base, "the highest
 /// possible level of a character is the hundredth", and the wiki's reward
 /// table of February 2015, which ends at 100).
@@ -158,10 +154,13 @@ pub struct Account {
     /// moved it.
     pub rating: u16,
     pub rating_before: u16,
-    /// What the sides of a match are made with, beside its gear and its
-    /// level: not the ranking's rating, and shown to nobody
-    /// ([`super::balance`]).
+    /// A rating of its wins and losses against what was expected: not the
+    /// ranking's, shown to nobody, kept for the log and its refit
+    /// ([`super::balance`]); the sides no longer count it.
     pub balance: super::balance::Balance,
+    /// Its kills and deaths by the equipment level of the matches: what
+    /// the sides of a match are made with ([`super::level_stats`]).
+    pub level_stats: super::level_stats::LevelStats,
     pub kits: Vec<Kit>,
     /// The id of the kit it plays.
     pub active_kit: u32,
@@ -248,11 +247,13 @@ pub fn cap_name(name: &str) -> String {
 }
 
 impl Account {
-    /// A new account: three kits, the first wearing the game's starter
-    /// loadout ([`loadouts::starter`]: the TT-33 and a clip for it), and
-    /// the rest of what every new player owned in the inventory
-    /// ([`loadouts::starter_stash`]: the Mosin carbine, a clip for it and
-    /// the PPSh-41).
+    /// The stock account, the tests' (and [`super::GameAccounts::get_or_create`]'s):
+    /// three kits, the first wearing the game's free pistol
+    /// ([`loadouts::starter`]: the TT-33 and a clip for it), the Mosin
+    /// carbine, a clip for it and the PPSh-41 owned
+    /// ([`loadouts::starter_stash`]), no money. A player's account is made
+    /// from nothing and what the game data's table gives
+    /// ([`super::GameAccounts::sign_up`], `tutorial::NewAccount`).
     pub fn new(name: &str) -> Self {
         let mut account = Self::with_loadout(name, loadouts::starter());
         let dictionary = Dictionary::shared();
@@ -269,8 +270,8 @@ impl Account {
         let mut account = Self {
             name: cap_name(name),
             clan_tag: String::new(),
-            generic_money: STARTING_MONEY,
-            premium_money: STARTING_PREMIUM_MONEY,
+            generic_money: 0,
+            premium_money: 0,
             premium_until: 0,
             exp_total: 0,
             skills: Vec::new(),
@@ -279,6 +280,7 @@ impl Account {
             rating: super::pay::START_RATING,
             rating_before: super::pay::START_RATING,
             balance: Default::default(),
+            level_stats: Default::default(),
             kits: (1..=KITS as u32).map(Kit::empty).collect(),
             active_kit: 1,
             // On for a new account (the owner's of 2026-10-23); the player
@@ -677,7 +679,10 @@ impl Account {
             // What the client's tables lack would crash it.
             super::items_rules::make_safe(item);
             item.modifications.truncate(limits::MODIFICATIONS);
-            item.upgrades.truncate(limits::UPGRADES);
+            // A weapon's six logical slots go to the client packed into
+            // three records (wire::item_descr_at); any other item's three.
+            item.upgrades
+                .truncate(super::items_rules::upgrade_capacity(item.dict_id));
         }
         let next_item = self.inventory.iter().map(|item| item.item_id + 1).max();
         self.next_item_id = self.next_item_id.max(next_item.unwrap_or(1)).max(1);
@@ -789,11 +794,8 @@ mod tests {
         assert!(dictionary.compatible(ppsh, ammo));
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.next_item_id, 6);
-        assert_eq!(
-            (account.generic_money, account.premium_money),
-            (STARTING_MONEY, STARTING_PREMIUM_MONEY)
-        );
-        assert_eq!((account.generic_money, account.premium_money), (2_000, 0));
+        // No money: what a player starts with is the grant's (`tutorial`).
+        assert_eq!((account.generic_money, account.premium_money), (0, 0));
         assert_eq!((account.rating, account.rating_before), (100, 100));
         assert_eq!(account.reputations, [(1, 0), (2, 0), (3, 0), (4, 0)]);
         // No faction chosen: the client asks.

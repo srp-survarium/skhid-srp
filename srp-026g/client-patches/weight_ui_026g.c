@@ -38,17 +38,38 @@ static float kit_float(const void *modifiers, u32 index)
 {
     return *(const float *)((const u8 *)modifiers + index * 4);
 }
+/* The selected kit's 68 player modifier floats: the lobby profile (+6A0h),
+ * its kit index (+4632h), the kit's block (+0F4h + kit x 704h). */
+enum { KIT_MODIFIERS = 68 };
+static const void *selected_kit_modifiers(const void *menu)
+{
+    const void *profile = pointer(menu, 0x6a0);
+    const u32 kit = *((const u8 *)profile + 0x4632);
+    return (const u8 *)profile + 0xf4 + kit * 0x704;
+}
+/* The weapon card's in-match view (docs/notes/alt-weapon-stats.md): every one
+ * of the kit's own floats, by index (srp sends the skills' sums there,
+ * session wire.rs); the kit's items are the movie's to add, as for the weight.
+ * Sent with every weight callback (update_player_items_weight 0x2221E0, from
+ * on_profile_changed 0x222CDD and an inventory action 0x2759EB). */
+static void send_kit_modifiers(const void *menu, void *movie)
+{
+    const void *modifiers = selected_kit_modifiers(menu);
+    struct gfx_value args[KIT_MODIFIERS];
+    for (u32 index = 0; index < KIT_MODIFIERS; index++)
+        args[index] = value(kit_float(modifiers, index));
+    engine_movie_invoke(movie, "root.set_kit_modifiers", 0, args, KIT_MODIFIERS);
+}
 /* Sprint eligibility due to weight/Heavyweight only, not stamina or injury. */
 enum sprint { WEIGHT_PERMITS_SPRINT, WEIGHT_BLOCKS_SPRINT, HEAVYWEIGHT_BLOCKS_SPRINT };
 u32 weight_ui_invoke(const void *menu, void *movie, const struct gfx_value *original)
 {
     const char *method = "root.update_player_items_weight";
+    send_kit_modifiers(menu, movie);
     if (configuration.kind != LOADED || configuration.as.loaded.menu != menu)
         return engine_movie_invoke(movie, method, 0, original, 2);
     const struct parameters p = configuration.as.loaded;
-    const void *profile = pointer(menu, 0x6a0);
-    const u32 kit = *((const u8 *)profile + 0x4632);
-    const void *modifiers = (const u8 *)profile + 0xf4 + kit * 0x704;
+    const void *modifiers = selected_kit_modifiers(menu);
     const float current = (float)original[0].number, maximum = (float)original[1].number;
     /* Boundary parsing: a bad config never produces a fictional penalty. */
     if (!(maximum > p.minimum))

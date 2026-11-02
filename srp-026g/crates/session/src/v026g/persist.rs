@@ -19,7 +19,7 @@ use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgr
 use super::clans::Clan;
 use super::moderation::AdminAction;
 use crate::LockExt;
-use crate::persist::{DATA_DIR_VAR, DB_FILE, DB_VAR, DEFAULT_DATA_DIR, PersistError};
+use crate::persist::{DB_FILE, DB_VAR, PersistError};
 
 mod admin_actions;
 mod balance;
@@ -27,6 +27,7 @@ mod clans;
 mod drop_cards;
 mod extras;
 mod items;
+mod level_stats;
 mod map_plays;
 mod presets;
 mod results;
@@ -139,6 +140,9 @@ const MIGRATIONS: &[&str] = &[
     drop_cards::MIGRATION,
     // 11: an account's kit presets and the active one (`presets`).
     presets::MIGRATION,
+    // 12: an account's kills and deaths by the matches' equipment level
+    // (`level_stats`).
+    level_stats::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -437,13 +441,7 @@ impl SqliteGameRepository {
                 return Ok(None);
             }
         }
-        let dir = std::env::var_os(DATA_DIR_VAR)
-            .filter(|dir| !dir.is_empty())
-            .map_or_else(
-                || std::path::PathBuf::from(DEFAULT_DATA_DIR),
-                std::path::PathBuf::from,
-            );
-        Self::open_in(&dir).map(Some)
+        Self::open_in(&crate::persist::data_dir()).map(Some)
     }
 
     /// The schema version of the 0.26g tables.
@@ -603,6 +601,7 @@ impl GameRepository for SqliteGameRepository {
                         rating: row.get(8)?,
                         rating_before: row.get(9)?,
                         balance: Default::default(),
+                        level_stats: Default::default(),
                         kits: Vec::new(),
                         active_kit: row.get(10)?,
                         autobuy: row.get(11)?,
@@ -631,6 +630,7 @@ impl GameRepository for SqliteGameRepository {
             account.extras = extras::load(&transaction, account_id)?;
             account.map_plays = map_plays::load(&transaction, account_id)?;
             account.balance = balance::load(&transaction, account_id)?;
+            account.level_stats = level_stats::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
             account.presets = presets::load(&transaction, account_id)?;
@@ -878,6 +878,7 @@ fn write_account(
     extras::save(transaction, account_id, &account.extras)?;
     map_plays::save(transaction, account_id, &account.map_plays)?;
     balance::save(transaction, account_id, account.balance)?;
+    level_stats::save(transaction, account_id, &account.level_stats)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
     presets::save(transaction, account_id, &account.presets)?;
@@ -1248,7 +1249,7 @@ mod tests {
     #[test]
     fn an_account_loaded_from_the_file_is_not_given_the_starter_kit_again() {
         use crate::v026g::GameAccounts;
-        use crate::v026g::tutorial::{SIGNUP_ROUNDS, SIGNUP_SILVER};
+        let grant = crate::v026g::tutorial::new_account();
 
         let temp = TempDb::new("starter-once");
         let open = || {
@@ -1261,12 +1262,12 @@ mod tests {
         // It spends silver and rounds, and its respirator is gone.
         let played = {
             let mut account = account.locked();
-            assert_eq!(account.generic_money, SIGNUP_SILVER);
+            assert_eq!(account.generic_money, grant.silver);
             account.generic_money = 1_234;
             let stack = account
                 .inventory
                 .iter_mut()
-                .find(|item| item.condition_or_stack == SIGNUP_ROUNDS)
+                .find(|item| item.condition_or_stack == grant.rounds)
                 .unwrap();
             stack.condition_or_stack = 7;
             let respirator = account.kits[0].slots[1].unwrap().item_id;

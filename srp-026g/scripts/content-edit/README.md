@@ -100,6 +100,22 @@ the capture units' `capture_zones`). Moving spawns or capture units, or changing
 stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
 list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
+## Stats tables
+
+A table, `<table>.tsv` (`weapon-stats.tsv`): a row per config (or per level's projects, or per entry
+of a list), a column per stat; or `key  value`, a row per key of one config, which the build makes
+when no archive has it (`gameplay/srp/<name>.options`). An empty cell means no such key. To retune,
+edit the cell. `content_edit.py` `STATS` says what a row is and maps each column to its key path
+(`[*]` every entry of a list, `[field=cell]` the matching ones); the build writes the cells and the
+cards, refuses a config that differs from its row, and a changed match column without the `next` row.
+`content_edit.py --dump-stats <table> <folder>` prints a table from configs; values that differ within a
+row are refused there (a cell unifies them).
+
+A key/value table is read by srp's server from its game data; the client is told what it shows in
+srp's messages, so no copy is kept in code. `rooms.tsv` (`gameplay/srp/rooms.options`): the rooms'
+and Player vs Bots' settings (`RoomRules`); `new-account.tsv` (`gameplay/srp/new_account.options`):
+what a new account is given (`survarium::v026g::new_account`). Each header says each key.
+
 ## weapon-balance-1.json (2026-10-18)
 
 Scored against the recorded live matches since revision 19 (about 10,000 gun kills):
@@ -124,34 +140,15 @@ weapon / kills the same players get with their other weapons.
 
 | a magazine line on every weapon card (83): `ui_properties` line 134 "Magazine" (a new text in the six localization tables), a `props_list` entry after the rate of fire with the weapon's `magazine_capacity` | the card did not say how many rounds a magazine holds; it draws eight comparable lines and every weapon had eight, so the patch also carries the lobby movie with a ninth row (`srp-026g/docs/notes/items.md` §7) |
 
-The lobby card shows text kept in each config (`ui_desc/props_list`), not the
-values: the list changes that text with each value (`set_prop`).
-
 The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4fe7`) is patch 20's
 (sha256 `f21eac03…e117`) with two tags changed and every other tag byte-identical: sprite 1538
 (`SrvItemCompareHintG`) places a ninth row `diff_9` (sprite 1537, depth 33, 22.6 px under `diff_8`),
 and `survarium.controls.ItemCompare`'s constructor, re-imported as FFDec p-code, adds
 `getChildByName("diff_9")` to its rows when there is one.
 
-## backpacks-1.json (2026-10-19)
-
-| change | why |
-|---|---|
-| The six backpacks (`bm_back_1` Marauder, `scavenger_back_1`, `ren_back_1`, `edge_back_1`, `edge_back_5`, `edge_back_6`) may also roll health regeneration: modification type 21 (+5 % to +15 %, ids 1090-1094), character 20 of `parameters/available_modifications_mask` set (`0000000000000011110000010000100100000000` -> `0000000000000011110010010000100100000000`) | they rolled three types only (weight, carried weight, durability); the owner's choice of a fourth. Only srp reads the masks (the client draws whatever modification the server sends), so the patch changes what the server rolls on upgrades, rerolls and drops. The oxygen tanks and the exo back pieces keep theirs |
-
-Applied to revision 22's live files: 6 files edited, 0 unexpected differences. Weapon balance 1 is in patch 22, so nothing else waits for the same files.
-
 ## duty-name-uk-1.json (2026-10-20)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## battery-pickup-1.json (2026-10-20)
-
-| change | why |
-|---|---|
-| `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
-
-Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
 
 ## weapon-camo-1.json (2026-10-20)
 
@@ -164,31 +161,6 @@ content pack `weapon-camo@1`, `release/content.tsv`). Applied to revision 24's l
 game data): 83 files edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21,
 after golden-weapons-1 and the other lists of the manifest): 83 files edited, 0 unexpected
 differences.
-
-## weapon-balance-2.json (2026-10-20)
-
-| change | why |
-|---|---|
-| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 40 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here"; then, shown the table below: "50 35 for ak-12" (piercing between 0.27d0's 40 and 0.28a2's 30; 0.28a2 rebalanced the whole game, so only the AK-12's own change is taken); 2026-10-21: "ak12 to have 40 penet" |
-| premium AK-12: `default_modifications` [1230, 2044, 2094] -> [1230] (a new edit, `remove_item`) | the owner: a premium weapon gives silver and nothing else. 1230 is +10 % silver; 2044 (reload time -15 %) and 2094 (reliability +25 %) go. The defaults are not on the wire: the client and srp both read them from the config |
-| Socom16 (`wpn_socom16`): `bullet_damage` 0.8 -> 0.7; the card's damage 80 -> 70 | the owner: "and also Socom16 75 → 50" (0.28a2's cut); then, shown the table below: "seems like socom is nerfed too much, let's make it 60" (0.31a2's value); 2026-10-21: "socom16 is fine if it has 70 damage". Live has 0.26g's 0.8 (0.27d0 had cut it to 0.75). Piercing stays 0.45: 0.28a2 also cut it to 0.35, the owner named the damage only |
-| A-545 (`wpn_a545`): `bullet_damage` 0.5 -> 0.45, `bullet_pierce` 0.3 -> 0.25, `rounds_per_minute` 900 -> 800; the card's props 1, 3, 4 to match | the owner, 2026-10-21, shown its history: yes to 0.28a's nerf (0.28a2's values; its recoil change not taken) |
-
-The two weapons in the builds at hand (damage / piercing; the card shows them x100):
-
-| build | AK-12 | premium AK-12 | Socom16 |
-|---|---|---|---|
-| 0.26g stock | 0.55 / 0.45 | - | 0.80 / 0.45 |
-| live, revision 25 | 0.55 / 0.45 | 0.55 / 0.45 | 0.80 / 0.45 |
-| 0.27d0 (no 0.27a at hand) | 0.55 / 0.40 | 0.50 / 0.40 | 0.75 / 0.45 |
-| 0.28a2 | 0.50 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
-| 0.28d0 | 0.45 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
-| 0.31a2 | 0.35 / 0.55 | 0.35 / 0.55 | 0.60 / 0.40 |
-| 0.46c2 (`material_pierce` 6, another scale) | 0.26 / - | 0.26 / - | 0.65 / - |
-| **here** | 0.50 / 0.40 | 0.50 / 0.40 | 0.70 / 0.45 |
-
-Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
-`wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
 
 ## grenade-bounce-1.json (2026-10-21)
 
@@ -210,11 +182,6 @@ Applied to revision 26's server game data (`gameplay/items/weapons/`): 22 files 
 unexpected differences; server data built with it and the patches before passes `srp-check-game-data`. srp and
 `release/build-server-db` refuse data without it (`golden::check`). The patch also
 carries the lobby movie built from the tree (the craft result shows the item upgraded, not the donor).
-
-`wpn_ak_12_premium.options` is also weapon-balance-2's: a patch carries a file whole, so in one
-release apply this list to weapon-balance-2's output, not to the live file beside it (checked on
-revision 24's files: weapon-balance-2, then this list over its output: 22 files edited, 0
-unexpected differences).
 
 ## death-poses-1.json (2026-10-21)
 
@@ -290,40 +257,6 @@ edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, aft
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
 
-## battery-respawn-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `mode/parameters/respawn_time` 8 -> 10 (an int, kept) in the 56 configs of `gameplay/game_modes/` whose `mode/mode` is 2 or 3 ("Protective device", "Protective device: chargers"): levels 1 to 8 in every weather (level_08's night too), London, the 0.21d and v0.11e maps | the owner: "in batteries mode respawns should take 10 seconds". The respawn rule reads it from the config (0x316700, in ms), the base the kit's modifiers scale (the radio's -20 %: 8 s); the HUD's countdown is the rule's ([`../../docs/notes/battery_respawn.md`](../../docs/notes/battery_respawn.md)). Team Deathmatch (mode 4) and the test maps keep theirs |
-
-Applied to the live configs (the stock resources.db and patches 12 to 27; the game modes are the
-stock db's and patches 14, 20 and 22's): 56 files edited, 0 unexpected differences, one byte each.
-The simulation changes (the `next` row of `simulation_changes.tsv`).
-
-## v011e-spawn-protection-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `server_objects/respawn_points[i]/invulnerability_time` 2 -> 6 (an int, kept) on every respawn point of `projects/v011e_level_03/{day_2,day_4}/client_project` (43 each) and `projects/v011e_level_04/{day_2,day_4}/client_project` (44 each): 174 values | the owner: the v0.11 maps' spawn protection drops off too fast, "just make it 6 s and that's it". The respawn point's loader reads it as an int in seconds (0x2F4580, kept in ms); 0.26g's maps author 6, the 0.11e source 2 s ([`../../docs/notes/v011e_spawn_protection.md`](../../docs/notes/v011e_spawn_protection.md)). No base zone, no check radii |
-
-Applied to the live projects (`v011e_level_03`'s from patch 23, `v011e_level_04`'s from patch 22;
-no later patch has them): 4 files edited, 174 values, 0 unexpected differences, one byte a point;
-in `release/build-content 28` (2026-10-22): the same, the four projects packed and the server game
-data with 6 on all 174 points.
-The simulation changes (its words in the `next` row of `simulation_changes.tsv`).
-
-## premium-armour-1.json (2026-10-22)
-
-| change | why |
-|---|---|
-| The four premium armour pieces (`blackmarket_torso_4_premium`, `blackmarket_legs_4_premium`, `scavenger_torso_4_premium`, `scavenger_legs_4_premium`: every armour config with a base rarity): 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market) taken off `default_modifications` (`remove_item`; the plain piece's one default, 1030, 1050 or 1160, stays), `parameters/base_rarity_level` 3 -> 0 | the owner: the golden weapons' treatment for the premium armour, so that the Modification button works on it. srp gives each piece both bonuses as modifications of its own, the first two ([`../../docs/notes/premium_armour.md`](../../docs/notes/premium_armour.md)): the client never offers a default for a reroll, and a base of 3 forbade every craft |
-
-Applied in `release/build-content 28` (2026-10-22, a dry run after v011e-spawn-protection-1): 4
-files edited, 0 unexpected differences (the four configs are patch 21's); the server game data built
-with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse data without it
-(`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
-shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
-simulation change.
 
 ## lobby-scene-2.json (2026-10-22)
 
@@ -404,21 +337,6 @@ scene, which the game does not read) is left as it is.
 
 Removed: its text is in `client-patches/localization/*.tsv`.
 
-## third-mod-1.json (2026-10-23)
-
-| change | why |
-|---|---|
-| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
-| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
-| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
-
-Only srp reads the masks: the client shows whatever modification the server sends, from its own
-`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
-29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
-rolls has three types or more besides reliability
-(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
-game data). No simulation change: a match applies only the modifications an item has.
-
 ## artefact-texts-1.json (2026-10-23)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
@@ -455,29 +373,9 @@ Removed: its text is in `client-patches/localization/*.tsv`.
 Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`).
 
-## socom-nerf-1.json (2026-10-25)
-
-| change | why |
-|---|---|
-| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
-| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
-
-Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
-edited, 0 unexpected differences. The simulation changes (the `next` row of
-`simulation_changes.tsv`).
-
 ## network-texts-1.json (2026-10-25)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## svd-level-1.json (2026-10-25)
-
-| change | why |
-|---|---|
-| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
-
-Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
-differences. Not a simulation change.
 
 ## kill-feed-weapons-1.json (2026-10-26)
 
@@ -522,3 +420,21 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## weapon-camo-031-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The four configs of pack weapons-031 (the 0.31a2 guns, `../../docs/notes/weapons-031.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-031-camo (`../weapons-031/camo.tsv`), so no shared list or pack changes |
+
+## weapon-camo-046-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The ten configs of pack weapons-046 (the 0.46c2 guns, `../../docs/notes/weapons-046.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for these configs); their `_aoac` masks are the pack weapons-046-camo, made by `../weapon-camo/weapon_camo.py` from `../weapons-046/camo.tsv` (the parts it suggests: no premium copy to learn from; the picker chooses others) |
+
+## weapon-camo-069-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The six configs of pack weapons-069 (the 0.69d0 guns, `../../docs/notes/weapons-069.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-069-camo (`../weapons-069/camo.tsv`), so no shared list or pack changes |

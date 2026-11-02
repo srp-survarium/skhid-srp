@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Popis zatím není k dispozici.
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Sovětský náboj středního výkonu s ocelovým jádrem a nízkým zpětným rázem. Lehká střela má vysokou počáteční rychlost a plochou dráhu letu. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Pás se 100 náboji 5.56x45 pro FN Minimi. Zabírá dvě sumky na střelivo.
+st_ammo_556x45_belt_name	5.56x45 pás
 st_ammo_556x45_description	Náboj NATO středního výkonu, vyvinutý z amerického .223 Remington a standardizovaný v roce 1980. Lehká, rychlá střela s plochou dráhou letu a nízkým zpětným rázem.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Náboj vyvinutý FN Herstal kolem roku 1990 pro P90 a později pistoli Five-seveN. Lehká a rychlá střela určená k průniku neprůstřelnými vestami.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	Náboj 7.62x39 vyvinutý v roce 1943, považovaný za
 st_ammo_762x39_m_description	Popis zatím není k dispozici.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	Puškové náboje 7.62x51 v zásobnících po 20 kusech pro FN SCAR-H a H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, zásobník na 20
 st_ammo_762x51_M59_description	Průbojná varianta vojenského puškového náboje 7.62x51 M61. Střela má ocelové jádro s pláštěm.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	Puškový náboj NATO v pásu po 100 kusech pro kulomety.
+st_ammo_762x51_belt_name	7,62x51, pás
 st_ammo_762x51_description	Rozšířený vojenský náboj s celoplášťovou střelou. Určený pro odstřelovačské i civilní zbraně. 
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Náboj nalezený ve skladech patří k nejstarším dosud používaným puškovým nábojům. Stáří a skladování snížily jeho účinnost.
@@ -303,6 +309,8 @@ st_base_trap_description	Běžná lovecká past se silnou pružinou. Při sklapn
 st_base_trap_name	Past
 st_benelli_description	Italská samonabíjecí brokovnice ráže 12. Benelli ji vyvinulo koncem 90. let s plynovým mechanismem. Americká námořní pěchota ji přijala jako M1014. Trubicový zásobník pod hlavní. Pouze jednotlivé rány.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italská samočinná pistole, náboj: 9x19. Jednotlivé rány nebo dávky po třech; sklopná přední rukojeť.
+st_beretta93r_name	Beretta 93R
 st_best	Nejlepší
 st_best_explorer	PRŮZKUMNÍK
 st_best_explorer_artefacts	Artefakty:
@@ -841,6 +849,8 @@ st_clan_window_label	Registrace klanu
 st_clear	Vymazat
 st_close	Zavřít
 st_collect_statistics_option	Povolit sběr statistik
+st_colt_m1911_description	Americká pistole, náboj: .45 ACP. Sedm desetiletí služební pistole americké armády.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Dosáhl jsi denního limitu pochval.
 st_compliment_count_per_user_owerflow	Stejného hráče nemůžeš pochválit dvakrát za den!
 st_compliment_player	Pochválit
@@ -865,6 +875,8 @@ st_crouch_action	Přikrčení (držet)
 st_crouch_toggle_action	Přikrčit se
 st_ct_max_members_count_error	Nelze přidat další hráče. Klanový tým už je plný.
 st_current_value	\nAktuální hodnota:
+st_cz_75_description	Česká samonabíjecí pistole, náboj: 9x19. Jedna z nejkopírovanějších pistolí studené války.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Hraj každý den a za <highlight>první tři</highlight> výhry získáš <highlight>x2</highlight> zkušenosti i pověst.
 st_daily_bonus_hint	Zobrazit uvítací obrazovku
 st_daily_bonus_label	Vítej zpátky
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Zbraň 1
 st_fix	Opravit
 st_fn_fnc_description	Belgická útočná puška na náboje 5.56x45. Vyvinutá FN Herstal v 70. letech, zavedená v belgické armádě. Licenční verze slouží ve Švédsku a Indonésii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgický lehký kulomet na náboje 5.56x45. Družstvová zbraň FN Herstal ze 70. let, v americké armádě jako M249. Schránka na 100 nábojů. Jednotlivá i automatická střelba.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgická zbraň osobní obrany na náboje 5.7x28. FN Herstal ji kolem roku 1990 vyvinulo společně s vlastním nábojem. Bullpup se zásobníkem na 50 nábojů podél horní části. Používá ji policie a speciální síly mnoha zemí. Střílí jednotlivě i automaticky.
 st_fn_p90_name	FN P90
 st_fort_17_description	Ukrajinská samonabíjecí pistole na náboje 9x18. Výroba začala v roce 2004. Používala ji vnitřní vojska a některé speciální jednotky. Zásobník na 12 nábojů. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrajinský lehký kulomet, náboj: 7,62x51. Licenční Negev z Vinnycji, plněný ze schránky na 100 nábojů.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Těžké obrněné boty v barvách Svobody, nošené k těžké zbroji.
 st_freedom_026_boots_name	Boty Svobody
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Celá obrazovka
 st_general_volume_option	Celková
 st_generic_money_name	Rubly
 st_geometry_quality_option	Kvalita geometrie
+st_glock_17_description	Rakouská pistole s polymerovým rámem, náboj: 9x19. Tato je upravena pro samočinnou palbu.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Znalostní báze se otevře v novém okně prohlížeče.
 st_go_to_online_store_message	Online obchod se otevře v prohlížeči. Pokračovat?
 st_go_to_video_tutorial_message	Videonávod se otevře v prohlížeči. Pokračovat?
@@ -1324,6 +1342,8 @@ st_izh27_description	Popis zatím není k dispozici.
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Ruská kozlice ráže 12, vyráběná Iževským mechanickým závodem pod značkou Baikal. Jedna z nejrozšířenějších loveckých a sportovních dvouhlavňových brokovnic. Dvě hlavně, každá na jednu ránu. Lze střílet zvlášť nebo oběma naráz. Prémiová verze se zvláštní kamufláží.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	Americká automatická brokovnice, náboj: 12/70. Bullpup s bubnem na 10 nábojů, střílí jen dávkami.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Skok
 st_kedr_description	Sovětský samopal na náboje 9x18 PM. Navrhl ho Jevgenij Dragunov začátkem 70. let, sériová výroba ale začala až v 90. letech pro ruské ministerstvo vnitra a policii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1369,8 @@ st_knw_synergy_desc	Síla artefaktů roste s jejich počtem.
 st_knw_synergy_name	Synergie
 st_kriss_vector_description	Americký samopal na náboje .45 ACP. KRISS ho uvedl v 00. letech. Systém zpětného rázu vede závěr dolů a omezuje zdvih ústí. Tato verze má kolimátor Walther Competition II. Zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Britská útočná puška typu bullpup, náboj: 5,56x45. Standardní puška britské armády.
+st_l85a2_name	L85A2
 st_label_invites	Pozvánky
 st_label_leave_queue_btn	Opustit frontu
 st_label_quenue	Čekání na hráče:
@@ -1382,14 +1404,14 @@ st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění v
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
 st_login_button_label	Přihlásit
-st_login_default_text	E-mail
+st_login_default_text	Přezdívka
 st_login_eula_label	Licenční smlouva
 st_login_menu_accept	Přijmout
 st_login_menu_cancel	Zrušit
 st_login_menu_status_access_level_restriction	Nemáš dostatečné oprávnění ke vstupu.
 st_login_menu_status_connecting	Přihlašování…
 st_login_menu_status_error_connection	Server Skhid není dostupný. Povol hru ve firewallu (Skhid-network-setup.cmd). V Rusku použij VPN a přidej do ní soubory .exe hry (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Nesprávný e-mail nebo heslo
+st_login_menu_status_invalid_user_or_password	Nesprávná přezdívka nebo heslo
 st_login_menu_status_invalid_version	Používáš zastaralou verzi hry.
 st_login_menu_status_sign_in_already_online	 Uživatel už je ve hře
 st_login_menu_status_sign_in_attempt_interval_violated	Příliš mnoho pokusů o přihlášení. Zkus to za 10 sekund.
@@ -1511,6 +1533,10 @@ st_movement_speed_when_aiming_description	Rychlost pohybu při míření:
 st_movement_speed_when_aiming_name	Bojový postoj
 st_mp153_description	Ruská samonabíjecí brokovnice na náboje 12x70. Nízká cena a spolehlivost jí zajistily oblibu mezi lovci a sportovními střelci. Trubicový zásobník pod hlavní na 4 náboje.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Ruská armádní pistole, náboj: 9x19. Zavedena v roce 2003 jako náhrada Makarova.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	Německý samopal, náboj: 9x19. Klasika policie a speciálních jednotek, s válečkovým závěrem.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polská modulární karabina na náboje 5.56x45. Vyvinutá v 10. letech varšavskou vojenskou technickou univerzitou a zbrojovkou v Radomi. Polská armáda ji přijala jako Grot. Zaměřovač EOTech 552, zásobník na 30 nábojů. Jednotlivé rány, dávky i automatická střelba.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Chvění mířidel
@@ -1596,6 +1622,8 @@ st_options_video	Grafika
 st_options_voice	Hlas:
 st_options_volume	Hlasitost:
 st_other	Ostatní
+st_ots14_description	Ruská útočná puška typu bullpup na náboje 9x39. Postavená v CKIB SOO v 90. letech na základě AKS-74U pro speciální jednotky. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
+st_ots14_name	OC-14 "Groza"
 st_oust_commander	Změnit velitele
 st_overweight_penalty_description	Vliv hmotnosti na rychlost pohybu:
 st_overweight_penalty_name	Sběrač
@@ -1937,11 +1965,13 @@ st_rpd_description	Popis zatím není k dispozici.
 st_rpd_name	RPD
 st_rpk_description	Popis zatím není k dispozici.
 st_rpk_name	RPK-74M
-st_saiga_12_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze K má krátkou hlaveň a sklopnou pažbu. Schránkový zásobník na 5 nábojů. Jen jednotlivé rány.
+st_saiga_12_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze K má krátkou hlaveň a sklopnou pažbu. Schránkový zásobník. Jen jednotlivé rány.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze S má sklopnou pažbu. Schránkový zásobník na 5 nábojů. Jen jednotlivé rány.
+st_saiga_12_premium_description	Ruská samonabíjecí brokovnice ráže 12. Ižmaš ji v 90. letech postavil na systému Kalašnikov pro lov a bezpečnostní služby. Verze S má sklopnou pažbu. Schránkový zásobník. Jen jednotlivé rány.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Uložit heslo
+st_scar_h_description	Belgická bojová puška na náboje 7.62x51. Těžká verze SCAR od FN Herstal, zavedená u amerických speciálních sil v 00. letech. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Podomácku vyrobený kontejner na artefakty v podobě batohu. Užitečný při výpravách za artefakty.
 st_scav_back_1_name	Batoh s kontejnerem
 st_scav_boots_1_desc	Hrubé boty ze skládky nebo z mrtvoly. Chrání nohy před zraněním a na náročných cestách často zachrání situaci.
@@ -2150,6 +2180,8 @@ st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 náb
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.
+st_srp_ammo069_23mm_r_name	23x75R, broky
 st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač
 st_srp_crosshair_hidden	Skrytý zaměřovač
@@ -2562,8 +2594,8 @@ st_srp_rooms_join_why_7	Zápas dosáhl limitu hráčů. Připojíš se k další
 st_srp_rooms_joined_room	%1$s se připojuje do místnosti
 st_srp_rooms_late_hint	Noví hráči uvidí místnost a pak vstoupí do zápasu.
 st_srp_rooms_leave	Odejít
-st_srp_rooms_leave_queue	Opustit frontu
-st_srp_rooms_leave_room	Opustit místnost
+st_srp_rooms_leave_queue	Odejít
+st_srp_rooms_leave_room	Odejít
 st_srp_rooms_left_room	%1$s opouští místnost
 st_srp_rooms_level	Úroveň
 st_srp_rooms_map	Mapa
@@ -2620,6 +2652,8 @@ st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
 st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
 st_srp_scope_slot	Optika
+st_srp_shop_not_owned	Skrýt vlastněné
+st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost
 st_srp_speed_title	Rychlost pohybu: %1$s
@@ -2629,6 +2663,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Zkrácený AKMS se sklopnou pažbou na náboje 7.62x39. Střílí jednotlivě i automaticky.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Francouzská útočná puška bullpup na náboje 5.56x45. Střílí jednotlivě, dávkou po třech i automaticky.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Německá puška pro určeného střelce na náboje 7.62x51. Střílí jednotlivě a dávkou po třech.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Ruský opakovací karabinový brokovník na náboje 23x75R. Trubicový zásobník na 4 náboje.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Německá samočinná pistole na náboje 7.62x25. Střílí jednotlivě i automaticky.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Špaginův samopal s bubnovým zásobníkem na 71 nábojů, náboje 7.62x25. Střílí jednotlivě i automaticky.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Buben“
 st_srp_weapon_aim_zoom	Základní zvětšení
 st_srp_weapon_chamber	Nabití do komory
 st_srp_weapon_draw_time	Doba tasení
@@ -2643,7 +2689,7 @@ st_srp_weapon_minimum_damage	Minimální poškození
 st_srp_weapon_minimum_damage_from	Minimální poškození od
 st_srp_weapon_recoil_heading	Zpětný ráz, rozptyl a chvění
 st_srp_weapon_reload	Přebíjení
-st_srp_weapon_shift_hint	Podrž Shift pro podrobnosti
+st_srp_weapon_shift_hint	Shift: více · Alt: v zápase
 st_srp_weapon_spread_growth	Rychlost růstu rozptylu
 st_srp_weapon_spread_max	Maximální přídavný rozptyl
 st_srp_weapon_spread_per_shot	Rozptyl za výstřel
@@ -2653,6 +2699,8 @@ st_srp_weapon_stats	Statistiky zbraně
 st_srp_weapon_sway_cycle	Perioda chvění
 st_srp_weapon_sway_horizontal	Vodorovné chvění
 st_srp_weapon_sway_vertical	Svislé chvění
+st_srp_weapon_with_kit	S výbavou
+st_srp_weapon_with_kit_skills	S výbavou a dovednostmi
 st_srp_weather_before_rain	před deštěm
 st_srp_weather_day	den
 st_srp_weather_evening	večer
@@ -2745,6 +2793,8 @@ st_sv_98_description	Popis zatím není k dispozici.
 st_sv_98_name	SV-98
 st_svd_description	Samonabíjecí odstřelovačská puška Dragunov na náboje 7.62x54. Po léta hlavní odstřelovačská puška sovětské armády. Zásobník na 5 nábojů. 
 st_svd_name	SVD
+st_svu_a_description	Ruská odstřelovačská puška typu bullpup, náboj: 7,62x54R. Zkrácená SVD pro boj zblízka, samonabíjecí.
+st_svu_a_name	SVU
 st_swear_clan_string	Text obsahuje vulgarity
 st_swearing_claim	Vulgární jazyk
 st_team_already_has_commander	Klanový tým už má velitele.
@@ -2820,6 +2870,8 @@ st_vepr_description	Popis zatím není k dispozici.
 st_vepr_name	Vepr
 st_vepr_premium_description	Ruská karabina řady Vepr na náboje 5.45x39. Molot ve Vjatských Poljanách ji vyrábí na zesíleném pouzdře kulometu RPK-74. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Chorvatská útočná puška typu bullpup na náboje 5.56x45. Vyrábí ji HS Produkt, chorvatská armáda ji používá od 10. let. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
+st_vhs_2_name	VHS-2
 st_victory	Vítězství
 st_victory_screen_no_dropped_item	Na bojišti jsi nic nenašel.
 st_vityaz_bundle_descr	<white>Obsahuje:\n- Vylepšený PP-19-01 Vityaz.\n- 2000 nábojů 9x19 Parabellum.</white>
@@ -2847,9 +2899,16 @@ st_walther_competition2_collimator_desc	Německý kolimátor Walther s červený
 st_walther_competition2_collimator_name	Kolimátor Competition II
 st_wasted	Spotřeba
 st_weapon_aim_action	Míření (držet)
+st_weapon_already_taken	Už sebráno
+st_weapon_cannot_carry	Druhou pušku neuneseš
+st_weapon_cannot_pick_up	Tohle nelze sebrat
 st_weapon_could_not_be_used	Ruce zraněny! Nelze používat zbraně
 st_weapon_fire_action	Střílet
+st_weapon_no_gun_in_hands	Vezmi zbraň do ruky a vyměň ji
+st_weapon_one_gun_only	Uneseš jen jednu zbraň
+st_weapon_pick_up	Sebrat %1$s ({USE})
 st_weapon_reload_action	Přebít
+st_weapon_switching	Počkej na výměnu zbraně
 st_wear	Nasadit
 st_weight_booster_description	Protein s nezbytnými živinami pro růst svalů a síly. Bez fyzické námahy ale neúčinkuje.
 st_weight_booster_name	Protein Anomální síla

@@ -144,6 +144,7 @@ package
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.WeightEffects;
+   import survarium.player.KitModifiers;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
@@ -359,7 +360,14 @@ package
       
       private var _inventoryHighlight:Boolean = false;
       
+      // The item card's owner: the list row it shows (_pdTarget, followed as the list scrolls) or
+      // the kit slot (_hintSlot), at most one of them; neither for a craft slot's card. A change of
+      // the kit shows the slot's item as it is then (updateHintItem), never the slot an item's
+      // slotId names: only the kit's own items carry their slot, an inventory item and the copy a
+      // drop puts in a slot until the server answers carry 0, the helmet's.
       private var _pdTarget:MovieClip;
+      
+      private var _hintSlot:IPaperDollSlot;
       
       private var _wheelBack:MovieClip = new FadeBackground();
       
@@ -1344,6 +1352,9 @@ package
          {
             return;
          }
+         // the card is this slot's now: no list row's card or comparison left over
+         this.hideItemHint(null);
+         _hintSlot = e.itemRenderer as IPaperDollSlot;
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
@@ -1370,44 +1381,42 @@ package
          }
       }
       
+      // The kit changed: a kit slot's card shows the slot's item now (none: the card goes); a list
+      // row's card compared with the kit's item of its kind (showItemHint) is compared with that
+      // item as the kit has it now. The craft window's comparison is its own.
       private function updateHintItem(e:Event) : void
       {
-         trace("updateHintItem",this.itemHintRendererSec.data);
-         var hintTarget:ItemInfoRenderer = (this.itemHintRendererSec.parent) ? this.itemHintRendererSec : this.itemHintRenderer;
-         var oldData:ItemData;
-         var curerrentSlot:IPaperDollSlot;
-         var newData:ItemData;
-         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         if(this.itemHintRenderer.parent == null)
          {
-            // The craft window's item, not an equipped one: the paper doll does not change it.
             return;
          }
-         if((hintTarget.parent) && (hintTarget.data))
+         if(this._hintSlot != null)
          {
-            oldData = hintTarget.data as ItemData;
-            curerrentSlot = this.player_profile.profileItems.getSlotAt(oldData.slotId);
-            newData = curerrentSlot.data as ItemData;
-            trace("newData",newData);
-            if(!newData)
+            var held:ItemData = this._hintSlot.data as ItemData;
+            if(held == null)
             {
-               hintTarget.data = null;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
-               }
-               removeChild(hintTarget);
+               this.hideItemHint(null);
                return;
             }
-            trace("CompareData::",oldData.name,newData.name,newData.slotId,oldData.slotId,newData.descriptor,oldData.descriptor,newData.tipText);
-            if(oldData.slotId == newData.slotId)
-            {
-               hintTarget.data = newData;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(newData);
-               }
-            }
+            this.itemHintRenderer.data = held;
+            return;
          }
+         if(this.itemHintRendererSec.parent == null || this.craftOpen())
+         {
+            return;
+         }
+         var equipped:Object = this.player_profile.getRelativeData(this.itemHintRenderer.data);
+         if(equipped == null)
+         {
+            this._cards.removeChild(this.itemHintRendererSec);
+            this.itemHintRenderer.displaylabel(false);
+            this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
+            this.itemHintRenderer.alignComparisonHeader(null);
+            return;
+         }
+         this.itemHintRendererSec.data = equipped;
+         this.itemHintRendererSec.itemCompare.setSecondaryWeapon(this.itemHintRenderer.data);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(equipped);
       }
       
       // Whether the craft (Upgrade) window is open.
@@ -1433,6 +1442,7 @@ package
             _pdTarget = null;
          }
          _pdTarget = e.itemRenderer as MovieClip;
+         _hintSlot = null;
          this._pdTarget.addEventListener(Event.RENDER,this.onHintTargetRender);
          this._cards.addChild(this.itemHintRenderer);
          if(e.target is ScrollingList)
@@ -1596,6 +1606,7 @@ package
             this._pdTarget.removeEventListener(Event.RENDER,this.onHintTargetRender);
             _pdTarget = null;
          }
+         _hintSlot = null;
          trace("hideItemHint");
          if(this._cards.contains(this.itemHintRenderer))
          {
@@ -3330,7 +3341,7 @@ package
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
       }
       
-      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null) : Boolean
+      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null, ownItemMenu:Boolean = false) : Boolean
       {
          trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
          var _obj:Object = new Object();
@@ -3360,7 +3371,8 @@ package
          _obj.seller = seller != Faction.ANY ? seller : this.shop_list.getItemSeller(dict_uid);
          _obj.faction = _obj.seller;
          _obj.sellers = _descr.sellers;
-         _obj.category = _descr.sellers;
+         // the buy dialog's starting count reads it (MessageAsk.startCount); a bundle has none
+         _obj.category = _descr.category;
          _obj.uid = dict_uid;
          _obj.name = _descr.name;
          _obj.is_stack = _descr.is_stack;
@@ -3431,7 +3443,12 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != ItemCategory.CAMOUFLAGES && (sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid)))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction). An item owned already,
+         // not a stack, is asked first (the shop, the card's Buy, a drop, the craft and attachment
+         // windows), but for Buy from the right-click menu of an item the player owns (ownItemMenu:
+         // ItemCard.buyFromOwnMenu), a wish for another. A bundle's id is no item's
+         // (docs/notes/items.md §6).
+         if(!ownItemMenu && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -3468,8 +3485,20 @@ package
             if(!id)
             {
                new_data = this.inventory_list.createItem(dict_id);
-               new_data.value = count;
-               new_data.count = count;
+               if(ProfileSlot.isPocket(targetSlot))
+               {
+                  // A buy dropped on a pocket: the stack holds what is owned and what is bought (the
+                  // ammo window's units wanted in all: the server buys what is beyond the stack,
+                  // move_items), the pocket as many of them as it takes; the rest stays in the
+                  // inventory (docs/notes/items.md §8).
+                  new_data.count = uint(relocate_object.condition_or_stack) + count;
+                  new_data.value = int(Math.min(new_data.count,value.quick_slot_item_size == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize));
+               }
+               else
+               {
+                  new_data.value = count;
+                  new_data.count = count;
+               }
                new_data.slotId = targetSlot;
                trace("createNewData::",dict_id,"inv::",count,"|",new_data.count);
             }
@@ -3604,6 +3633,13 @@ package
          PlayerInfo.maxWeight = max;
          PlayerInfo.curWeight = cur;
          this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat,spending19,spending67));
+      }
+      
+      // The selected kit's own player modifiers (the skills' sums), sent before each weight
+      // callback (client-patches/weight_ui_026g.c); a weapon card's Alt view adds them.
+      public function set_kit_modifiers(... values) : void
+      {
+         this.player_profile.setKitModifiers(KitModifiers.parse(values));
       }
       
       public function set_minimum_ammo(value1:uint, value2:uint) : void
@@ -5842,6 +5878,10 @@ package
          {
             MainScene.isCtrl = true;
          }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = true;
+         }
          if(e.keyCode == Keyboard.R || e.keyCode == Keyboard.ENTER)
          {
             this.lobbyKey(e);
@@ -6040,6 +6080,10 @@ package
          {
             MainScene.isCtrl = false;
          }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = false;
+         }
          if(e.keyCode == this._lobbyKeyDown)
          {
             _lobbyKeyDown = 0;
@@ -6073,6 +6117,7 @@ package
       {
          MainScene.isShift = false;
          MainScene.isCtrl = false;
+         MainScene.isAlt = false;
       }
       
       public function allow_use_two_double_handed_weapons(boolean:Boolean) : void

@@ -12,6 +12,7 @@ pub mod loadouts;
 pub mod localization;
 pub mod maps;
 pub mod modifications;
+pub mod new_account;
 pub mod prices;
 pub mod quests;
 pub mod scopes;
@@ -20,6 +21,7 @@ pub mod skills;
 pub mod tables;
 pub mod ui_properties;
 pub mod weapon;
+pub mod weapon_kit;
 
 // Wire helpers.
 pub mod lzma2;

@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Апісанне пакуль недаступн
 st_ammo_545x39_7n22_name	5.45x39 7Н22
 st_ammo_545x39_7n6m_description	Савецкі малаімпульсны прамежкавы патрон, аснашчаны куляй са стальным асяродкам. Малакаліберная куля з высокай пачатковай хуткасцю забяспечвае высокую настыльнасць траекторыі.
 st_ammo_545x39_7n6m_name	5.45x39 7Н6М
+st_ammo_556x45_belt_description	Стужка на 100 патронаў 5.56х45 для FN Minimi. Займае два падсумкі.
+st_ammo_556x45_belt_name	5.56x45 стужка
 st_ammo_556x45_description	Прамежкавы вінтовачны патрон НАТА, створаны на аснове амерыканскага .223 Remington і стандартызаваны НАТА ў 1980 годзе. Лёгкая хуткая куля з настыльнай траекторыяй і невялікай аддачай.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Патрон, распрацаваны кампаніяй FN Herstal каля 1990 года для P90, а пазней і для пісталета Five-seveN. Лёгкая хуткая куля, створаная для прабіцця бронекамізэлек.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	7.62-мм патрон узору 1943 года, лі
 st_ammo_762x39_m_description	Апісанне пакуль недаступнае.
 st_ammo_762x39_m_name	7.62х39 РПД
 st_ammo_762x39_name	7.62х39
+st_ammo_762x51_20_description	Вінтовачныя патроны 7.62х51 у магазінах на 20 патронаў для FN SCAR-H і H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, магазін на 20
 st_ammo_762x51_M59_description	Бранябойная мадыфікацыя армейскага вінтовачнага патрона калібра 7.62. Куля аснашчана стальным асяродкам.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	Вінтовачны патрон НАТА ў стужцы на 100 патронаў для кулямётаў.
+st_ammo_762x51_belt_name	7.62x51, стужка
 st_ammo_762x51_description	Папулярны армейскі патрон з цэльнаабалонкавай стальной куляй, прызначаны для выкарыстання ў снайперскай і грамадзянскай зброі.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Знойдзены на складзе, гэты патрон з'яўляецца адным з найстарэйшых вінтовачных патронаў сучаснасці. Узрост і ўмовы захоўвання зрабілі гэты патрон менш эфектыўным.
@@ -303,6 +309,8 @@ st_base_trap_description	Звычайны паляўнічы капкан з м�
 st_base_trap_name	Пастка
 st_benelli_description	Італьянская самазарадная стрэльба 12 калібра. Распрацавана кампаніяй Benelli ў канцы 90-х гадоў з газаадводнай аўтаматыкай і прынята на ўзбраенне Корпуса марской пяхоты ЗША пад назвай M1014. Зараджаецца ў трубчасты магазін пад ствалом. Толькі адзіночны агонь.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Італьянскі аўтаматычны пісталет, патрон: 9x19. Адзіночныя стрэлы або чэргі па тры; адкідная ручка.
+st_beretta93r_name	Beretta 93R
 st_best	Лепшы
 st_best_explorer	ДАСЛЕДЧЫК
 st_best_explorer_artefacts	Артэфактаў:
@@ -841,6 +849,8 @@ st_clan_window_label	Рэгістрацыя клана
 st_clear	Ачысціць
 st_close	Закрыць
 st_collect_statistics_option	Дазволіць збор статыстыкі
+st_colt_m1911_description	Амерыканскі пісталет, патрон: .45 ACP. Табельная зброя арміі ЗША на працягу сямі дзесяцігоддзяў.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Выкарыстана максімальная колькасць пахвал за дзень.
 st_compliment_count_per_user_owerflow	Вы не можаце двойчы пахваліць аднаго чалавека за дзень!
 st_compliment_player	Пахваліць
@@ -865,6 +875,8 @@ st_crouch_action	Прысесці (утрым.)
 st_crouch_toggle_action	Прысесці
 st_ct_max_members_count_error	Памылка дадавання. У кланавай камандзе ўжо знаходзіцца максімальная колькасць гульцоў.
 st_current_value	\nБягучае значэнне:
+st_cz_75_description	Чэшскі самазарадны пісталет, патрон: 9x19. Адзін з самых капіяваных пісталетаў халоднай вайны.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Заходзь кожны дзень і атрымлівай <highlight>x2</highlight> досведу і рэпутацыі за <highlight>першыя тры</highlight> перамогі.
 st_daily_bonus_hint	Паказаць акно прывітання
 st_daily_bonus_label	З вяртаннем
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Зброя 1
 st_fix	Палагодзіць
 st_fn_fnc_description	Бельгійская штурмавая вінтоўка пад боепрыпас 5.56х45. Распрацавана FN Herstal у 70-х гадах для бельгійскай арміі; ліцэнзійныя версіі служаць у Швецыі і Інданезіі. Магазін на 30 патронаў. Агонь: адзіночны і аўтаматычны.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Бельгійскі ручны кулямёт пад боепрыпас 5.56х45. Створаны FN Herstal у 1970-х, у арміі ЗША вядомы як M249. Скрыня на 100 патронаў. Агонь: адзіночны і аўтаматычны.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгійская зброя самаабароны пад боепрыпас 5.7х28. Створана FN Herstal каля 1990 года разам з уласным патронам; «булпап» з магазінам на 50 патронаў уздоўж верху зброі. Служыць у спецназе і паліцыі многіх краін. Агонь: адзіночны і аўтаматычны.
 st_fn_p90_name	FN P90
 st_fort_17_description	Украінскі самазарадны пісталет пад калібр 9х18. У серыйную вытворчасць запушчаны ў 2004 годзе. Выкарыстоўваўся ўнутранымі войскамі і некаторымі спецпадраздзяленнямі. Абсталяваны магазінам на 12 патронаў.
 st_fort_17_name	Форт 17
+st_fort_401_description	Украінскі ручны кулямёт, патрон: 7,62x51. Ліцэнзійны Negev з Вінніцы, сілкаванне са скрынкі на 100 патронаў.
+st_fort_401_name	Форт-401
 st_fov_option	Поле зроку
 st_freedom_026_boots_desc	Цяжкія браніраваныя боты ў колерах "Свабоды", іх носяць з цяжкай бранёй.
 st_freedom_026_boots_name	Боты "Свабоды"
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Поўнаэкранны рэжым
 st_general_volume_option	Агульны
 st_generic_money_name	Рублі
 st_geometry_quality_option	Якасць геаметрыі
+st_glock_17_description	Аўстрыйскі пісталет з палімернай рамкай, патрон: 9x19. Гэты перароблены для аўтаматычнага агню.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	База ведаў будзе адкрыта ў акне браўзера
 st_go_to_online_store_message	Анлайн-крама будзе адкрыта ў акне браўзера. Працягнуць?
 st_go_to_video_tutorial_message	Навучальнае відэа будзе адкрыта ў акне браўзера. Працягнуць?
@@ -1324,6 +1342,8 @@ st_izh27_description	Апісанне пакуль недаступнае.
 st_izh27_name	МР-27М "Ланкастэр"
 st_izh27_premium_2_description	Расійская стрэльба 12 калібра з вертыкальнымі стваламі. Выпускаецца ў Іжэўску пад маркай «Байкал»; адна з самых распаўсюджаных паляўнічых і спартыўных двухстволак. Страляе з аднаго ствала або з абодвух адразу. Прэміум-версія ў асаблівым камуфляжы.
 st_izh27_premium_2_name	МР-27М "Грамабой"
+st_jackhammer_description	Амерыканскі аўтаматычны дробавік, патрон: 12/70. Булпап з барабанам на 10 патронаў, страляе толькі чэргамі.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Скачок
 st_kedr_description	Савецкі пісталет-кулямёт пад боепрыпас 9х18 ПМ. Распрацаваны Яўгенам Драгуновым у пачатку 70-х гадоў, серыйна выпускаецца толькі з 90-х для МУС Расіі і паліцыі. Аснашчаны магазінам на 30 патронаў. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
 st_kedr_name	ПП-91 "Кедр"
@@ -1349,6 +1369,8 @@ st_knw_synergy_desc	Сіла артэфактаў расце прапарцыя�
 st_knw_synergy_name	Сінергія
 st_kriss_vector_description	Амерыканскі пісталет-кулямёт пад боепрыпас .45 ACP. Прадстаўлены KRISS у 2000-х; затвор пры аддачы адыходзіць уніз, што памяншае падкідванне ствала. Каліматар Walther Competition II. Магазін на 30 патронаў. Агонь: адзіночны, з адсечкай чаргі і аўтаматычны.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Брытанская штурмавая вінтоўка схемы булпап, патрон: 5,56x45. Штатная вінтоўка брытанскай арміі.
+st_l85a2_name	L85A2
 st_label_invites	Запрашэнні
 st_label_leave_queue_btn	Пакінуць чаргу
 st_label_quenue	Месца ў чарзе:
@@ -1382,14 +1404,14 @@ st_lifebone_activation_hint	Жывакост актываваны! Усе кры
 st_lifebone_pickup_hint	Артэфакт Жывакост. Паскарае рэгенерацыю здароўя.
 st_lightning_quality_option	Якасць асвятлення
 st_login_button_label	Увайсці
-st_login_default_text	E-mail
+st_login_default_text	Нікнэйм
 st_login_eula_label	Ліцэнзійнае пагадненне\n з канчатковым карыстальнікам гульні «Survarium»
 st_login_menu_accept	Прыняць
 st_login_menu_cancel	Скасаваць
 st_login_menu_status_access_level_restriction	Недастатковы ўзровень доступу для ўваходу.
 st_login_menu_status_connecting	Аўтарызацыя...
 st_login_menu_status_error_connection	Няма сувязі з серверам Skhid. Дазвольце гульню ў брандмаўэры (Skhid-network-setup.cmd). У Расіі ўключыце VPN і дадайце ў яго .exe-файлы гульні (VPN.txt).
-st_login_menu_status_invalid_user_or_password	Няправільны email або пароль
+st_login_menu_status_invalid_user_or_password	Няправільны нікнэйм або пароль
 st_login_menu_status_invalid_version	Вы карыстаецеся састарэлай версіяй гульні.
 st_login_menu_status_sign_in_already_online	Карыстальнік ужо ў гульні
 st_login_menu_status_sign_in_attempt_interval_violated	Перавышана дапушчальная колькасць спроб уваходу. Паспрабуйце яшчэ раз праз 10 секунд.
@@ -1511,6 +1533,10 @@ st_movement_speed_when_aiming_description	Хуткасць перамяшчэн�
 st_movement_speed_when_aiming_name	Баявая стойка
 st_mp153_description	Расійская гладкаствольная паўаўтаматычная стрэльба пад боепрыпас 12х70. Дзякуючы невысокай цане і добрай надзейнасці атрымала шырокае распаўсюджанне як паляўнічая і спартыўная зброя. Аснашчана трубчастым магазінам на 4 патроны.
 st_mp153_name	МР-153 "Байкал"
+st_mp443_description	Расійскі армейскі пісталет, патрон: 9x19. Прыняты на ўзбраенне ў 2003 годзе на змену ПМ.
+st_mp443_name	МР-443 «Грач»
+st_mp5a1_description	Нямецкі пісталет-кулямёт, патрон: 9x19. Класіка паліцыі і спецпадраздзяленняў з ролікавым затворам.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Польскі модульны карабін пад боепрыпас 5.56х45. Створаны ў 2010-х Ваенна-тэхнічнай акадэміяй і заводам Fabryka Broni; на ўзбраенні польскай арміі як Grot. Прыцэл EOTech 552. Магазін на 30 патронаў. Агонь: адзіночны, з адсечкай чаргі і аўтаматычны.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Разгойдванне прыцэла
@@ -1596,6 +1622,8 @@ st_options_video	Графіка
 st_options_voice	Голас:
 st_options_volume	Гучнасць:
 st_other	Іншае
+st_ots14_description	Расійскі аўтамат схемы булпап пад боепрыпас 9х39. Створаны ў ЦКІБ СОО ў 1990-х на аснове АКС-74У для спецпадраздзяленняў. Магазін на 20 патронаў. Агонь: адзіночны і аўтаматычны.
+st_ots14_name	АЦ-14 "Навальніца"
 st_oust_commander	Змяніць камандзіра
 st_overweight_penalty_description	Уплыў вагі на хуткасць перамяшчэння:
 st_overweight_penalty_name	Пакавальшчык
@@ -1937,11 +1965,13 @@ st_rpd_description	Апісанне пакуль недаступнае.
 st_rpd_name	РПД
 st_rpk_description	Апісанне пакуль недаступнае.
 st_rpk_name	РПК-74М
-st_saiga_12_description	Расійская самазарадная стрэльба 12 калібра. Створана на «Іжмашы» на аснове сістэмы Калашнікава ў 90-х гадах для палявання і службаў аховы; версія К мае кароткі ствол і складны прыклад. Абсталявана скрынкавым магазінам на 5 патронаў. Толькі адзіночны агонь.
+st_saiga_12_description	Расійская самазарадная стрэльба 12 калібра. Створана на «Іжмашы» на аснове сістэмы Калашнікава ў 90-х гадах для палявання і службаў аховы; версія К мае кароткі ствол і складны прыклад. Абсталявана скрынкавым магазінам. Толькі адзіночны агонь.
 st_saiga_12_name	Сайга-12К
-st_saiga_12_premium_description	Расійская самазарадная стрэльба 12 калібра. Створана на «Іжмашы» на аснове сістэмы Калашнікава ў 90-х гадах для палявання і службаў аховы; версія С мае складны прыклад. Абсталявана скрынкавым магазінам на 5 патронаў. Толькі адзіночны агонь.
+st_saiga_12_premium_description	Расійская самазарадная стрэльба 12 калібра. Створана на «Іжмашы» на аснове сістэмы Калашнікава ў 90-х гадах для палявання і службаў аховы; версія С мае складны прыклад. Абсталявана скрынкавым магазінам. Толькі адзіночны агонь.
 st_saiga_12_premium_name	Сайга-12С
 st_save_password_str	Запомніць пароль
+st_scar_h_description	Бельгійская аўтаматычная вінтоўка пад боепрыпас 7.62х51. Цяжкі варыянт SCAR ад FN Herstal, прыняты спецназам ЗША ў 2000-х. Магазін на 20 патронаў. Агонь: адзіночны і аўтаматычны.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Самаробны кантэйнер для захоўвання артэфактаў, абсталяваны пад заплечнік. Карысная рэч, калі выпраўляешся на паляванне за артэфактамі.
 st_scav_back_1_name	Заплечнік з кантэйнерам
 st_scav_boots_1_desc	Простыя боты, знойдзеныя на сметніку або знятыя з трупа. Абараняюць ногі ад ран і пашкоджанняў, не раз выручаць падчас складаных пераходаў.
@@ -2150,6 +2180,8 @@ st_sr3m_bundle_descr	<white>Змяшчае наступныя прадметы:\
 st_sr3m_bundle_name	Набор СР-3М "Віхор"
 st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
+st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
+st_srp_ammo069_23mm_r_name	23x75R, шрот
 st_srp_attachments	Абвес
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
@@ -2562,8 +2594,8 @@ st_srp_rooms_join_why_7	Гэты матч дасягнуў ліміту гуль
 st_srp_rooms_joined_room	%1$s увайшоў у пакой
 st_srp_rooms_late_hint	Хто зойдзе зараз, убачыць пакой, потым трапіць у матч.
 st_srp_rooms_leave	Выйсці
-st_srp_rooms_leave_queue	Выйсці з чаргі
-st_srp_rooms_leave_room	Выйсці з пакоя
+st_srp_rooms_leave_queue	Выйсці
+st_srp_rooms_leave_room	Выйсці
 st_srp_rooms_left_room	%1$s пакінуў пакой
 st_srp_rooms_level	Узровень
 st_srp_rooms_map	Карта
@@ -2620,6 +2652,8 @@ st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік п�
 st_srp_rooms_waiting_short	Чаканне
 st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
 st_srp_scope_slot	Прыцэл
+st_srp_shop_not_owned	Схаваць наяўныя
+st_srp_shop_not_owned_hint	Паказваць толькі тое, чаго ў вас няма
 st_srp_skills	Навыкі
 st_srp_speed_label	Хуткасць
 st_srp_speed_title	Хуткасць руху: %1$s
@@ -2629,6 +2663,18 @@ st_srp_unit_meters	%1$sм
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Укарочаны АКМС са складным прыкладам пад патрон 7.62×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weapon069_akmsu_name	АКМСУ
+st_srp_weapon069_famas_desc	Французская штурмавая вінтоўка схемы булпап пад боепрыпас 5.56х45. Падтрымлівае адзіночны рэжым, чэргі па тры стрэлы і аўтаматычны рэжым стральбы.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Нямецкая марксманская вінтоўка пад патрон 7.62×51. Падтрымлівае адзіночны рэжым і чэргі па тры стрэлы.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Расійскі помпавы карабін пад патрон 23×75R. Аснашчаны трубчастым магазінам на 4 патроны.
+st_srp_weapon069_ks_23m_name	КС-23М
+st_srp_weapon069_mauser_m712_desc	Нямецкі аўтаматычны пісталет пад патрон 7.62×25. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weapon069_mauser_m712_name	Маўзер M.712
+st_srp_weapon069_ppsh_drum_desc	Пісталет-кулямёт Шпагіна з дыскавым магазінам на 71 патрон, патрон 7.62×25. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weapon069_ppsh_drum_name	ППШ-41 «Дыск»
 st_srp_weapon_aim_zoom	Базавае павелічэнне
 st_srp_weapon_chamber	Дасыланне патрона
 st_srp_weapon_draw_time	Час даставання
@@ -2643,7 +2689,7 @@ st_srp_weapon_minimum_damage	Мінімальная шкода
 st_srp_weapon_minimum_damage_from	Мінімальная шкода ад
 st_srp_weapon_recoil_heading	Аддача, раскід, гойданне
 st_srp_weapon_reload	Перазарадка
-st_srp_weapon_shift_hint	Трымайце Shift: падрабязней
+st_srp_weapon_shift_hint	Shift: дэталі · Alt: у баі
 st_srp_weapon_spread_growth	Хуткасць росту раскіду
 st_srp_weapon_spread_max	Мяжа росту раскіду
 st_srp_weapon_spread_per_shot	Раскід ад стрэлу
@@ -2653,6 +2699,8 @@ st_srp_weapon_stats	Характарыстыкі зброі
 st_srp_weapon_sway_cycle	Перыяд разгойдвання
 st_srp_weapon_sway_horizontal	Разгойдванне ў бакі
 st_srp_weapon_sway_vertical	Разгойдванне ўверх-уніз
+st_srp_weapon_with_kit	З камплектам
+st_srp_weapon_with_kit_skills	З камплектам і навыкамі
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
 st_srp_weather_evening	вечар
@@ -2745,6 +2793,8 @@ st_sv_98_description	Апісанне пакуль недаступнае.
 st_sv_98_name	СВ-98
 st_svd_description	Самазарадная снайперская вінтоўка Драгунова пад патрон 7.62х54. Доўгія гады была асноўнай снайперскай вінтоўкай арміі СССР. Абсталявана магазінам на 5 патронаў.
 st_svd_name	СВД
+st_svu_a_description	Расійская снайперская вінтоўка схемы булпап, патрон: 7,62x54R. Укарочаная СВД для блізкага бою, самазарадная.
+st_svu_a_name	СВУ
 st_swear_clan_string	Радок змяшчае нецэнзурную лексіку
 st_swearing_claim	Нецэнзурная лексіка
 st_team_already_has_commander	У кланавай каманды ўжо ёсць камандзір.
@@ -2820,6 +2870,8 @@ st_vepr_description	Апісанне пакуль недаступнае.
 st_vepr_name	Вепр
 st_vepr_premium_description	Расійскі карабін сямейства «Вепр» пад боепрыпас 5.45х39. Выпускаецца заводам «Молот» на ўзмоцненай скрынцы кулямёта РПК-74. Магазін на 30 патронаў. Агонь: адзіночны і аўтаматычны. Прэміум-версія ў асаблівым камуфляжы.
 st_vepr_premium_name	Вепр "Вандроўнік"
+st_vhs_2_description	Харвацкі аўтамат схемы булпап пад боепрыпас 5.56х45. Вытворчасці HS Produkt, на ўзбраенні Харватыі з 2010-х. Магазін на 30 патронаў. Агонь: адзіночны і аўтаматычны.
+st_vhs_2_name	VHS-2
 st_victory	Перамога
 st_victory_screen_no_dropped_item	Вы нічога не знайшлі на полі бою.
 st_vityaz_bundle_descr	<white>Змяшчае наступныя прадметы:\n— Палепшаны ПП-19-01 "Віцязь".\n— 2000 патронаў 9х19 Парабелум.</white>
@@ -2847,9 +2899,16 @@ st_walther_competition2_collimator_desc	Нямецкі каліматарны п
 st_walther_competition2_collimator_name	Каліматар Competition II
 st_wasted	Расход
 st_weapon_aim_action	Прыцэльванне (утрым.)
+st_weapon_already_taken	Ужо падабрана
+st_weapon_cannot_carry	Нельга несці другую вінтоўку
+st_weapon_cannot_pick_up	Гэта нельга падабраць
 st_weapon_could_not_be_used	Раненне рук! Немагчыма выкарыстоўваць зброю
 st_weapon_fire_action	Стральба
+st_weapon_no_gun_in_hands	Вазьміце зброю ў рукі, каб абмяняць
+st_weapon_one_gun_only	Можна несці толькі адну зброю
+st_weapon_pick_up	Падабраць %1$s ({USE})
 st_weapon_reload_action	Перазарадка
+st_weapon_switching	Пачакайце змены зброі
 st_wear	Надзець
 st_weight_booster_description	Пратэін, які змяшчае неабходныя рэчывы для росту мышцаў і павышэння сілы. Аднак без фізічнай нагрузкі ўжываць яго бессэнсоўна.
 st_weight_booster_name	Пратэін "Анамальная сіла"
