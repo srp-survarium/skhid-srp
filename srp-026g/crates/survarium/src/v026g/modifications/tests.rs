@@ -1040,6 +1040,24 @@ fn every_item_rolls_three_types_with_the_tables_masks() {
         rolling += usize::from(types > 0);
     }
     assert!(rolling > 150, "{rolling}");
+    // The pieces the packs add (not in the test archive): their table masks alone.
+    let known: std::collections::BTreeSet<&str> = dictionary
+        .items
+        .iter()
+        .map(|entry| entry.cfg_name.as_str())
+        .collect();
+    let mut packs = 0;
+    // The Duty exoskeleton's old back piece: no dictionary row names it (the body moved to torso/).
+    let unnamed = "gameplay/items/armour/back/duty_exo_026.options";
+    for (file, mask) in masks
+        .iter()
+        .filter(|(file, _)| !known.contains(file.as_str()) && file.as_str() != unnamed)
+    {
+        let types = rollable_types(data, bits(mask), &[]);
+        assert!(types == 0 || types >= 3, "{file} rolls {types} types");
+        packs += 1;
+    }
+    assert!(packs > 50, "{packs}");
 }
 
 /// [`every_item_rolls_three_types_with_the_tables_masks`] on a server game

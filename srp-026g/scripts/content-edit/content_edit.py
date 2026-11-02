@@ -1288,7 +1288,7 @@ def stats_problems(category, columns, rows, targets, files, table):
 def stats_write(category, columns, rows, data, table):
     """The rows' cells and the card lines they make written into `data` ({path: buf}; a key/value
     table's config made when it is not there): ({path: [walk paths written]}, {paths made},
-    {path: {list: [its items taken out]}})."""
+    {path: {lists a Derived column rewrote}})."""
     made = set()
     if 'columns' not in category and category['configs'] not in data:
         data[category['configs']] = new_config(rows[''])
@@ -1297,7 +1297,7 @@ def stats_write(category, columns, rows, data, table):
     unmatched = stats_unmatched(category, rows, targets, table)
     if unmatched:
         raise ValueError(unmatched[0])
-    written, gone = {p: [] for p in made}, {}
+    written, lists = {p: [] for p in made}, {}
     for row, places in sorted(targets.items()):
         present = stats_present(data, places, columns, row)
         for p, off in places:
@@ -1308,8 +1308,8 @@ def stats_write(category, columns, rows, data, table):
                     for at, o in resolve(b, key, off):
                         changed, taken = key.write(b, o, cell)
                         written.setdefault(p, []).extend(root + at + q for q in changed)
-                        if taken:
-                            gone.setdefault(p, {}).setdefault(root + at, []).extend(root + at + q for q in taken)
+                        if taken or rec(b, o)[3] == T_INDEXED:
+                            lists.setdefault(p, set()).add(root + at)
                     print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
                     continue
                 spots = resolve(b, key, off)
@@ -1333,10 +1333,10 @@ def stats_write(category, columns, rows, data, table):
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
                 written.setdefault(p, []).append(set_prop(b, prop_id, text, want))
                 print('card %s %d: %s -> %s' % (p, prop_id, text, want))
-    for p in gone:
+    for p in lists:
         written.setdefault(p, [])
     print('%s: %d rows, %d files written' % (table, len(rows), len(written)))
-    return written, made, gone
+    return written, made, lists
 
 
 def stats_moved(category, columns, players, now):
@@ -1890,17 +1890,20 @@ def main():
     if stats is not None:
         category, columns, rows = stats
         data = {p: bytearray(open(files[p], 'rb').read()) for p in stats_paths(category, files)}
-        written, made, taken = stats_write(category, columns, rows, data, os.path.basename(edits_file))
+        written, made, lists = stats_write(category, columns, rows, data, os.path.basename(edits_file))
         bufs.update({p: data[p] for p in written})
-        for p, lists in taken.items():
-            for lst, items in lists.items():
-                gone.setdefault(p, []).extend(items)
-                grown.setdefault(p, {}).setdefault(lst, 0)
-                grown[p][lst] -= len(items)
+        for p, touched in lists.items():  # a rewritten list: its items past the old count added, past the new gone
+            source = bytearray(open(files[p], 'rb').read())
+            for lst in touched:
+                was, now = rec(source, find(source, lst[1:]))[4], rec(data[p], find(data[p], lst[1:]))[4]
+                grown.setdefault(p, {})[lst] = now - was
+                added.setdefault(p, []).extend('%s[%d]' % (lst, k) for k in range(was, now))
+                gone.setdefault(p, []).extend('%s[%d]' % (lst, k) for k in range(now, was))
         for p, paths in written.items():
             had = set() if p in made else {q for q, _, _ in walk(bytearray(open(files[p], 'rb').read()))}
             allowed.setdefault(p, set()).update(q for q in paths if q in had or p in made)
-            for q in (q for q in paths if q not in had and p not in made):
+            for q in (q for q in paths if q not in had and p not in made and
+                      not any(q.startswith(lst + '[') for lst in lists.get(p, ()))):
                 table = q[:q.rindex('[')] if q.endswith(']') else q.rpartition('/')[0]
                 added.setdefault(p, []).append(q)
                 grown.setdefault(p, {}).setdefault(table, 0)
