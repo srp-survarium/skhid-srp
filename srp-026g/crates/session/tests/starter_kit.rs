@@ -60,8 +60,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     }
 
     // Owned: the TT-33 (18), the PPSh-41 (106) and the Mosin (107), 50
-    // medkits (67), 50 antitoxins (82), 20 bandages (66) and 20 traps
-    // (68), the kits' pockets taking theirs from these stacks.
+    // medkits (67), 50 antitoxins (82) and 20 bandages (66), the kits'
+    // pockets taking theirs from these stacks.
     for (dict_id, owned) in [
         (18, FULL_CONDITION),
         (106, FULL_CONDITION),
@@ -69,13 +69,19 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
         (67, 50),
         (82, 50),
         (66, 20),
-        (68, 20),
     ] {
         assert_eq!(stacks(dict_id), [owned], "{dict_id}");
     }
 
-    // No SOK-94 (the owner's of 2026-10-24).
-    assert!(account.inventory.iter().all(|item| item.dict_id != 2215));
+    // No SOK-94 (the owner's of 2026-10-24), no trap (68, the owner's of
+    // 2026-11-02).
+    let none = [2215, 68];
+    assert!(
+        account
+            .inventory
+            .iter()
+            .all(|item| !none.contains(&item.dict_id))
+    );
 
     // Every kit, `(slot, dict id, count, modifications)`: the same gear,
     // the Novice's backpack (1869) on the back, its own one weapon in
@@ -114,7 +120,7 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 (8, ammo, rounds, vec![]),
                 (13, 67, 3, vec![]),
                 (14, 66, 3, vec![]),
-                (15, 68, 3, vec![]),
+                (15, 82, 3, vec![]),
             ],
             "kit {}",
             kit.id

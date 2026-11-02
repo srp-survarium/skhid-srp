@@ -22,7 +22,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
     sell is buyable; they are its quest faction (never neutral);
   - owned: the TT-33, the Mosin and the PPSh-41 (the game's free weapons), 50 medkits, 50
-    antitoxins, 20 bandages and 20 traps (the owner's of 2026-11-02). The kits' pockets take
+    antitoxins and 20 bandages (the owner's of 2026-11-02). The kits' pockets take
     theirs from these stacks: the inventory shows 20 bandages, each kit's pocket 3 of them;
   - its three kits (the owner's of 2026-10-24) wearing, each the item of its English name,
     new, full condition, one item worn by all three (the kits share the inventory):
@@ -36,7 +36,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
       12x70 smallshot (22);
     - rounds: the ammo slot full, as the ammo window fills it: the player's 3 ammo bags (no
       bag modification on the gear) × one clip a bag: 150, 30 and 45;
-    - pockets: 3 medkits, 3 bandages and 3 traps (the owner's of 2026-11-02; before, 2
+    - pockets: 3 medkits, 3 bandages and 3 antitoxins (the owner's of 2026-11-02; before, 2
       medkits and 2 antitoxins): a player's one pocket of one unit, +1 pocket from the
       jacket's 1030, +1 pocket and +1 unit from the backpack's, +1 unit from the pants' 1170:
       three pockets of three;
@@ -48,10 +48,14 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   - autobuy on (`premium.md` §3).
 - **The kits' levels are 4, 4 and 4** (`match_making_level`: the Novice's backpack 4, the MP-153 4;
   with the Oxygen tank they were 3, 3 and 4).
-- **srp refuses to start** on game data without the table, a key of it, or an item,
-  modification or faction level it names, or with an item that does not fit its slot or a
-  pocket the gear does not open or that takes fewer units (`known::check_code`, naming each).
-  The test data lacks the knit cap and the backpack; the whole kit on released data:
+- **srp refuses to start**, and `srp-check-game-data` refuses the release's data
+  (`game_data::init`, `survarium::v026g::new_account`, naming each), on data without the
+  table or a key of it, with a key it does not know, a faction whose quests the lobby does
+  not show (only 1 to 4), an item, modification or faction level the data lacks, an item
+  that does not fit its slot, a pocket the gear does not open or that takes fewer units, a
+  pocket item owned with fewer units than a pocket's, or a modification of a type its item
+  does not take, on a stack or on an item no kit wears. The test data lacks the knit cap and
+  the backpack; the whole kit on released data:
   `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test starter_kit --
   --ignored`.
 - **New player** (the first match's drop table): no more experience than an account starts

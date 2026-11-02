@@ -21,7 +21,7 @@
 //! is shown while `a >> 3 & 1` (notes 0, "prepare to battle", step 3) or
 //! `a >> 2 & 1` (notes 1, "items", step 2) is clear, 0x2833F1; for 4: the
 //! match's own tutorial is skipped when `a & 0x10`, 0x27AE46; for 1:
-//! `a >> 1 & 1` opens `state_choose_faction`, 0x28E9AD). Bit 0 is a
+//! `a >> 1 & 1` opens `state_choose_        .find(|row| row.id == faction)`, 0x28E9AD). Bit 0 is a
 //! nickname chosen and bit 5 the tutorial skipped (`4B 02`), LIKELY.
 //!
 //! So srp sends [`ALL_DONE`]: `a & 0x22` puts the lobby in its
@@ -36,26 +36,24 @@
 //! `gameplay/awards/unique_awards.options` ([`survarium::v026g::awards`]):
 //! `tutorial_completed` 1000 silver and 250 experience, the two notes
 //! 25 gold each, the match's tutorial 50 gold. **A new account starts**
-//! with what the game data's table says ([`PATH`], [`NewAccount`]): its
+//! with what the game data's table says
+//! ([`survarium::v026g::new_account`]): its
 //! money, premium, the rounds of every ammo ([`starter_ammo`]), its
 //! reputation and quest faction, what it owns and what its three kits
 //! wear; and the steps' experience (the owner's of 2026-10-19 and
 //! 2026-10-24, `docs/notes/no-tutorial.md`). It is the account's state
 //! when the client first hears of it: no window, no notice.
 
-use std::sync::OnceLock;
-
-use binary_config_parser::tree::ConfigValue;
 use survarium::v026g::awards::{Awards, kind, name};
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::game_data;
 use survarium::v026g::item_params::{self, shop_unit};
-use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
+use survarium::v026g::loadouts::POCKET_SLOTS;
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
 use survarium::v026g::lobby::{self, FULL_CONDITION, ServerMessage};
 use survarium::v026g::modifications::Modifications;
+pub use survarium::v026g::new_account::shared as new_account;
 
-use super::account::{Account, KIT_SLOTS, KITS};
+use super::account::{Account, KITS};
 
 /// The bits of the tutorial's state (`a` of `9D`).
 pub mod flag {
@@ -85,219 +83,6 @@ pub const AWARDS: [&str; 4] = [
 
 /// Where the ammo lives: every item of the dictionary under it is ammo.
 pub const AMMO_CONFIGS: &str = "gameplay/items/weapons/ammo/";
-
-/// What a new account is given, in the game's files: made by
-/// `scripts/content-edit/new-account.tsv` (its header says each key).
-pub const PATH: &str = game_data::NEW_ACCOUNT_PATH;
-
-/// An item worn in a kit, `(slot, item)`: the item by its `items_dict` name.
-pub type Worn = (u8, String);
-
-/// What a new account is given ([`PATH`]): [`new_account`]. Its items are
-/// names; that the game data has each, that it fits its slot and that the
-/// pockets take what they are given is [`NewAccount::check`]'s, at start.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NewAccount {
-    pub silver: u32,
-    pub gold: u32,
-    /// Premium from the account's making, added as every premium is
-    /// (`premium::add_premium`).
-    pub premium_days: u32,
-    /// The rounds it owns of every ammo ([`starter_ammo`]).
-    pub rounds: u32,
-    /// The faction it takes quests from, at [`Self::reputation_level`].
-    pub faction: u8,
-    pub reputation_level: u8,
-    /// What it owns besides the kits, `(item, units)`: units of a stack,
-    /// else that many items. The kits' pockets take theirs from these
-    /// stacks.
-    pub own: Vec<(String, u32)>,
-    /// What each kit wears: one item, worn by all of them.
-    pub all_kits: Vec<Worn>,
-    /// What each kit wears more, kit by kit: its weapon and its ammo.
-    pub kits: [Vec<Worn>; KITS],
-    /// The units of each pocket's item.
-    pub pocket_units: u32,
-    /// Modifications of their own worn items have, `(item, modification)`.
-    pub modifications: Vec<(String, u32)>,
-}
-
-impl NewAccount {
-    /// The grant of `config` ([`PATH`]); a key missing or unknown, or a
-    /// value that is not of its key, is an error naming it.
-    pub fn parse(config: &[u8]) -> Result<Self, String> {
-        let root = ConfigValue::parse(config).map_err(|cause| format!("{PATH}: {}", cause.0))?;
-        let ConfigValue::Named(entries) = &root else {
-            return Err(format!("{PATH}: not a table of keys"));
-        };
-        let at = |key: &str| root.get(key).ok_or_else(|| format!("{PATH}: no `{key}`"));
-        fn number<T: TryFrom<i32>>(key: &str, value: &ConfigValue) -> Result<T, String> {
-            match value {
-                ConfigValue::Integer(n) => {
-                    T::try_from(*n).map_err(|_| format!("{PATH}: `{key}` is {n}, out of range"))
-                }
-                other => Err(format!("{PATH}: `{key}` is {other:?}, not a whole number")),
-            }
-        }
-        fn table<'a>(
-            key: &str,
-            value: &'a ConfigValue,
-        ) -> Result<&'a [(String, ConfigValue)], String> {
-            match value {
-                ConfigValue::Named(entries) => Ok(entries),
-                other => Err(format!("{PATH}: `{key}` is {other:?}, not a table")),
-            }
-        }
-        fn text(key: &str, value: &ConfigValue) -> Result<String, String> {
-            match value {
-                ConfigValue::String(text) => Ok(text.clone()),
-                other => Err(format!("{PATH}: `{key}` is {other:?}, not an item's name")),
-            }
-        }
-        let worn = |key: &str, value: &ConfigValue| -> Result<Vec<Worn>, String> {
-            table(key, value)?
-                .iter()
-                .map(|(slot, item)| {
-                    let at = format!("{key}/{slot}");
-                    let slot = slot
-                        .parse::<u8>()
-                        .ok()
-                        .filter(|&slot| usize::from(slot) < KIT_SLOTS)
-                        .ok_or_else(|| format!("{PATH}: `{at}`: no slot of a kit"))?;
-                    Ok((slot, text(&at, item)?))
-                })
-                .collect()
-        };
-        let by_item = |key: &str| -> Result<Vec<(String, u32)>, String> {
-            table(key, at(key)?)?
-                .iter()
-                .map(|(item, value)| Ok((item.clone(), number(&format!("{key}/{item}"), value)?)))
-                .collect()
-        };
-        let mut kits: [Vec<Worn>; KITS] = Default::default();
-        for (key, value) in entries {
-            let kit = key
-                .strip_prefix("kit_")
-                .and_then(|n| n.parse::<usize>().ok())
-                .filter(|n| (1..=KITS).contains(n));
-            match (key.as_str(), kit) {
-                (_, Some(n)) => kits[n - 1] = worn(key, value)?,
-                (
-                    "silver" | "gold" | "premium_days" | "rounds" | "faction" | "reputation_level"
-                    | "own" | "all_kits" | "pocket_units" | "own_modifications",
-                    None,
-                ) => {}
-                _ => return Err(format!("{PATH}: `{key}` is no key of it")),
-            }
-        }
-        let num = |key: &str| at(key).and_then(|value| number::<u32>(key, value));
-        let byte = |key: &str| at(key).and_then(|value| number::<u8>(key, value));
-        Ok(Self {
-            silver: num("silver")?,
-            gold: num("gold")?,
-            premium_days: num("premium_days")?,
-            rounds: num("rounds")?,
-            faction: byte("faction")?,
-            reputation_level: byte("reputation_level")?,
-            own: by_item("own")?,
-            all_kits: worn("all_kits", at("all_kits")?)?,
-            kits,
-            pocket_units: num("pocket_units")?,
-            modifications: by_item("own_modifications")?,
-        })
-    }
-
-    /// What kit `kit` (0 on) wears: [`Self::all_kits`], then its own.
-    pub fn kit(&self, kit: usize) -> impl Iterator<Item = (u8, &str)> {
-        self.all_kits
-            .iter()
-            .chain(&self.kits[kit])
-            .map(|(slot, name)| (*slot, name.as_str()))
-    }
-
-    /// What of the grant `dictionary` and `modifications` lack or do not
-    /// take, each in a line: an item, a slot it does not fit, a pocket the
-    /// kit does not open or that does not take its units, a modification,
-    /// the faction's level. srp does not start with any
-    /// (`known::check_code`).
-    pub fn check(&self, dictionary: &Dictionary, modifications: &Modifications) -> Vec<String> {
-        let mut wrong: Vec<String> = Vec::new();
-        let worn = (0..KITS).flat_map(|kit| self.kit(kit).map(|(_, name)| name));
-        let mut names: Vec<&str> = self.own.iter().map(|(name, _)| name.as_str()).collect();
-        names.extend(worn);
-        names.extend(self.modifications.iter().map(|(name, _)| name.as_str()));
-        for name in names {
-            let line = format!("no item `{name}`");
-            if dictionary.item_named(name).is_none() && !wrong.contains(&line) {
-                wrong.push(line);
-            }
-        }
-        if !wrong.is_empty() {
-            return wrong;
-        }
-        for kit in 0..KITS {
-            let loadout = match Loadout::from_names(dictionary, self.kit(kit)) {
-                Ok(loadout) => loadout,
-                Err(why) => {
-                    wrong.push(format!("kit {}: {}", kit + 1, why.0));
-                    continue;
-                }
-            };
-            let (count, size) = loadouts::pockets(&loadout);
-            for item in loadout
-                .items
-                .iter()
-                .filter(|item| POCKET_SLOTS.contains(&item.slot))
-            {
-                let open = POCKET_SLOTS[..count as usize].contains(&item.slot);
-                let whole = item_params::item_params(item.dict_id)
-                    .is_some_and(|params| params.fills_whole_pocket);
-                let takes = if whole { 1 } else { size };
-                if !open || self.pocket_units > takes {
-                    wrong.push(format!(
-                        "kit {}: slot {}: the gear opens {count} pockets of {size} units, \
-                         {} of `{}` asked",
-                        kit + 1,
-                        item.slot,
-                        self.pocket_units,
-                        dictionary
-                            .item(item.dict_id)
-                            .map_or("?", |item| item.name.as_str())
-                    ));
-                }
-            }
-        }
-        for (name, id) in &self.modifications {
-            if modifications.modification(*id).is_none() {
-                wrong.push(format!("no modification {id}"));
-            }
-            if !(0..KITS).any(|kit| self.kit(kit).any(|(_, worn)| worn == name)) {
-                wrong.push(format!("modification {id} of `{name}`, which no kit wears"));
-            }
-        }
-        let level = dictionary
-            .factions
-            .iter()
-            .find(|faction| faction.id == self.faction)
-            .and_then(|faction| faction.levels.get(usize::from(self.reputation_level)));
-        if level.is_none() {
-            wrong.push(format!(
-                "no faction {} with a reputation level {}",
-                self.faction, self.reputation_level
-            ));
-        }
-        wrong
-    }
-}
-
-/// The grant of the game's files ([`game_data::shared`]), read when first
-/// used; `srp` reads it at start (`known::check_code`).
-pub fn new_account() -> &'static NewAccount {
-    static GRANT: OnceLock<NewAccount> = OnceLock::new();
-    GRANT.get_or_init(|| {
-        NewAccount::parse(game_data::file(PATH)).unwrap_or_else(|why| panic!("{why}"))
-    })
-}
 
 /// Every ammo a player can own: the dictionary's stacks under
 /// [`AMMO_CONFIGS`], ported weapons' too, by dict id.
@@ -336,7 +121,7 @@ pub fn full_rounds(ammo: u16, bags: u32) -> u32 {
 }
 
 /// [`ammo_bags`] of kit `kit` (0 on) of the grant: its worn items'
-/// default modifications and their own ([`NewAccount::modifications`]).
+/// default modifications and their own ([`survarium::v026g::new_account::NewAccount::modifications`]).
 pub fn starter_ammo_bags(dictionary: &Dictionary, kit: usize) -> u32 {
     let grant = new_account();
     let worn: Vec<&str> = grant.kit(kit).map(|(_, name)| name).collect();
@@ -381,21 +166,19 @@ pub fn signup_grant(account: &mut Account, now: u64) {
 /// `starter_kit` (off only in the lobby's tests, `GameAccounts::set_starter_kit`).
 pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     let grant = new_account();
+    let faction = grant.faction.id();
     let dictionary = Dictionary::shared();
     // The reputation first: the quests are given by its level.
     let points = dictionary
         .factions
         .iter()
-        .find(|faction| faction.id == grant.faction)
-        .and_then(|faction| faction.levels.get(usize::from(grant.reputation_level)))
-        .expect("the faction's level is there (known::check_code)")
+        .find(|row| row.id == faction)
+        .and_then(|row| row.levels.get(usize::from(grant.reputation_level)))
+        .expect("the faction's level is there (new_account::check_data)")
         .value;
-    account.add_reputation(
-        grant.faction,
-        points.saturating_sub(account.reputation(grant.faction)),
-    );
-    super::quests::choose_faction(account, grant.faction)
-        .expect("every faction is open to a new account");
+    account.add_reputation(faction, points.saturating_sub(account.reputation(faction)));
+    // A faction whose quests the lobby shows (`QuestFaction`).
+    super::quests::choose_faction(account, faction).expect("every quest faction is open");
     account.generic_money = grant.silver;
     account.premium_money = grant.gold;
     if starter_kit {
@@ -420,12 +203,12 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     account.tutorial_done = true;
 }
 
-/// What the grant owns ([`NewAccount::own`]), then its kits worn by the
+/// What the grant owns (`NewAccount::own`), then its kits worn by the
 /// lobby's own rule of a kit put on (`rules::fill_kit`). Each item worn is
 /// bought once and the kits that wear it name that one, as a player's own
 /// kits share the inventory; a stack worn is the one owned: an ammo slot
 /// filled to the most the kit's bags take ([`full_rounds`]), a pocket with
-/// [`NewAccount::pocket_units`]. An item the game data lacks is left out:
+/// `NewAccount::pocket_units`. An item the game data lacks is left out:
 /// srp starts only on data with all of them (`known::check_code`); the test
 /// data predates the knit cap and the Novice's backpack.
 pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
@@ -527,110 +310,6 @@ mod tests {
         assert_eq!(super::message(false).body()[0], 0);
     }
 
-    /// The table as the game data has it (`new-account.tsv`): the owner's
-    /// numbers; the Novice's backpack on the back, three pockets of three.
-    #[test]
-    fn the_grant_is_the_tables() {
-        let grant = new_account();
-        assert_eq!(
-            (grant.silver, grant.gold, grant.premium_days),
-            (15_000, 150, 30)
-        );
-        assert_eq!(
-            (grant.rounds, grant.faction, grant.reputation_level),
-            (1000, 1, 5)
-        );
-        // A month of premium, the shop's (`PREMIUM_OFFERS` id 3).
-        let month = (3, grant.premium_days);
-        assert!(survarium::v026g::shop_offers::PREMIUM_OFFERS.contains(&month));
-        let at = |slot: u8| {
-            grant
-                .all_kits
-                .iter()
-                .find(|(at, _)| *at == slot)
-                .map(|(_, name)| name.as_str())
-        };
-        assert_eq!(at(3), Some("stk2_novice_026_back"));
-        let pockets: Vec<(u8, &str)> = POCKET_SLOTS
-            .iter()
-            .filter_map(|&slot| at(slot).map(|name| (slot, name)))
-            .collect();
-        assert_eq!(
-            pockets,
-            [(13, "medkit"), (14, "bandages"), (15, "base_trap")]
-        );
-        assert_eq!(grant.pocket_units, 3);
-        let own: Vec<(&str, u32)> = grant
-            .own
-            .iter()
-            .map(|(name, units)| (name.as_str(), *units))
-            .collect();
-        assert_eq!(
-            own,
-            [
-                ("tt_33", 1),
-                ("mosin_nagant", 1),
-                ("ppsh", 1),
-                ("medkit", 50),
-                ("antitoxin", 50),
-                ("bandages", 20),
-                ("base_trap", 20)
-            ]
-        );
-    }
-
-    /// A key missing, one it has not, a slot no kit has: refused, named.
-    #[test]
-    fn a_table_of_other_keys_is_refused_naming_them() {
-        let table = |entries: Vec<(&str, ConfigValue)>| {
-            let entries = entries
-                .into_iter()
-                .map(|(key, value)| (key.to_owned(), value))
-                .collect();
-            NewAccount::parse(&ConfigValue::Named(entries).to_bytes().unwrap())
-        };
-        assert_eq!(
-            table(vec![("silver", ConfigValue::Integer(1))]),
-            Err(format!("{PATH}: no `gold`"))
-        );
-        assert_eq!(
-            table(vec![("kit_4", ConfigValue::Named(Vec::new()))]),
-            Err(format!("{PATH}: `kit_4` is no key of it"))
-        );
-        let worn = ConfigValue::Named(vec![("23".into(), ConfigValue::String("ppsh".into()))]);
-        assert_eq!(
-            table(vec![("kit_1", worn)]),
-            Err(format!("{PATH}: `kit_1/23`: no slot of a kit"))
-        );
-    }
-
-    /// Pockets the gear does not open, or that take fewer units than the
-    /// table gives, are named: without the Novice's backpack (the test
-    /// data's), the gear opens two pockets of two.
-    #[test]
-    fn pockets_the_gear_does_not_give_are_named() {
-        let mut grant = new_account().clone();
-        grant.all_kits.retain(|(slot, _)| *slot != 0);
-        grant
-            .all_kits
-            .iter_mut()
-            .find(|(slot, _)| *slot == 3)
-            .unwrap()
-            .1 = "scav_oxygen_1".into();
-        let table = Modifications::shared();
-        let wrong = grant.check(Dictionary::shared(), table);
-        assert_eq!(wrong.len(), 3 * 3, "{wrong:?}");
-        assert!(wrong.contains(
-            &"kit 1: slot 15: the gear opens 2 pockets of 2 units, 3 of `base_trap` asked".into()
-        ));
-        grant.pocket_units = 2;
-        grant.all_kits.retain(|(slot, _)| *slot != 15);
-        assert_eq!(
-            grant.check(Dictionary::shared(), table),
-            Vec::<String>::new()
-        );
-    }
-
     /// A fresh account on the test data, made as `GameAccounts::sign_up`
     /// makes it: everything, but the knit cap and the Novice's backpack of
     /// patches the test data predates (srp refuses such data,
@@ -644,7 +323,10 @@ mod tests {
         let grant = new_account();
         assert_eq!(experience(), 250);
         const NOW: u64 = 1_800_000_000;
-        let mut account = Account::with_loadout("Alice", &Loadout { items: Vec::new() });
+        let mut account = Account::with_loadout(
+            "Alice",
+            &survarium::v026g::loadouts::Loadout { items: Vec::new() },
+        );
         signup_grant(&mut account, NOW);
         assert_eq!(
             (account.generic_money, account.premium_money),
@@ -658,13 +340,13 @@ mod tests {
         assert_eq!(account.premium_hours(NOW), Some(720));
         assert_eq!(account.exp_total, 250);
         assert_eq!(account.level(), 0);
-        assert_eq!(account.quest_faction, grant.faction);
+        assert_eq!(account.quest_faction, grant.faction.id());
         assert_eq!(account.extras.tutorial_flags, ALL_DONE);
 
         // The Scavengers at 3000 points: level 5, their highest.
         let dictionary = Dictionary::shared();
-        assert_eq!(account.reputation(grant.faction), 3000);
-        assert_eq!(account.reputation_level(grant.faction), 5);
+        assert_eq!(account.reputation(grant.faction.id()), 3000);
+        assert_eq!(account.reputation_level(grant.faction.id()), 5);
         let scavengers = dictionary.factions.iter().find(|f| f.id == 1).unwrap();
         assert_eq!(scavengers.levels.len(), 6);
         for faction in [2, 3, 4] {

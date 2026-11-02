@@ -28,7 +28,6 @@ own/ppsh	1
 own/medkit	50
 own/antitoxin	50
 own/bandages	20
-own/base_trap	20
 all_kits/0	novice_026_helmet
 all_kits/1	scav_resp_1
 all_kits/2	scav_torso_4
@@ -38,7 +37,7 @@ all_kits/5	scav_gloves_2
 all_kits/6	scav_boots_2
 all_kits/13	medkit
 all_kits/14	bandages
-all_kits/15	base_trap
+all_kits/15	antitoxin
 kit_1/7	kiparis
 kit_1/8	ammo_9x18_makarov
 kit_2/7	toz_122

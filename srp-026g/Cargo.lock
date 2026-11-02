@@ -779,7 +779,6 @@ name = "session"
 version = "0.1.0"
 dependencies = [
  "argon2",
- "binary-config-parser",
  "log",
  "password-hash",
  "rusqlite",

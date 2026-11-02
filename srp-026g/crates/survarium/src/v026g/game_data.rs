@@ -236,14 +236,10 @@ const SRP_TABLES: &[(&str, &str)] = &[
         include_str!("../../../../scripts/content-edit/rooms.tsv"),
     ),
     (
-        NEW_ACCOUNT_PATH,
+        super::new_account::PATH,
         include_str!("../../../../scripts/content-edit/new-account.tsv"),
     ),
 ];
-
-/// What a new account is given (`session::v026g::tutorial::NewAccount`),
-/// made by `scripts/content-edit/new-account.tsv`.
-pub const NEW_ACCOUNT_PATH: &str = "gameplay/srp/new_account.options";
 
 /// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
 /// in a key, `/` goes into a named table and `[i]` to an item of an indexed
@@ -379,6 +375,7 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     }
     let data = shared();
     super::tables::check(data)?;
+    super::new_account::check_data(data)?;
     super::golden::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \

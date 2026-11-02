@@ -36,7 +36,6 @@ use survarium::v026g::tables::{self, Named};
 
 use super::account::Account;
 use super::rewards::MatchReport;
-use super::tutorial::{self, NewAccount};
 
 /// How many accounts a line names before it says how many more.
 const NAMED: usize = 5;
@@ -206,8 +205,8 @@ pub fn named_items() -> Vec<Named> {
 /// the data of this process ([`survarium::v026g::game_data::shared`]):
 /// the items of [`named_items`], the dict ids of silver and gold the
 /// rewards and the daily bonus give, and the tutorial's awards a new
-/// account is given; and what a new account is given
-/// ([`tutorial::NewAccount`], read and checked). Else an error that
+/// account is given (what else a new account is given is checked by
+/// `game_data::init`, `survarium::v026g::new_account`). Else an error that
 /// lists every one it lacks: srp does not start (`survarium`'s own names
 /// are checked by `game_data::init`, `tables::named_items`). Each is
 /// otherwise looked up when used, and one the data lacks would be
@@ -234,25 +233,10 @@ pub fn check_code() -> Result<(), GameDataError> {
             missing.push(format!("tutorial award {name}"));
         }
     }
-    if !missing.is_empty() {
-        return Err(tables::lacking_error(&data.origin, &missing));
-    }
-    let grant = data
-        .file(tutorial::PATH)
-        .ok_or_else(|| format!("no {}", tutorial::PATH))
-        .and_then(NewAccount::parse)
-        .map_err(|why| GameDataError(format!("{}: {why}", data.origin)))?;
-    let wrong = grant.check(dictionary, Modifications::shared());
-    if wrong.is_empty() {
+    if missing.is_empty() {
         Ok(())
     } else {
-        Err(GameDataError(format!(
-            "{}: {}: {}. Build the data with every patch released (srp-game-data build), or \
-             change scripts/content-edit/new-account.tsv",
-            data.origin,
-            tutorial::PATH,
-            wrong.join(", ")
-        )))
+        Err(tables::lacking_error(&data.origin, &missing))
     }
 }
 
@@ -260,24 +244,9 @@ pub fn check_code() -> Result<(), GameDataError> {
 mod tests {
     use super::*;
 
-    /// All the code names. Of what a new account is given, all but the
-    /// knit cap and the Novice's backpack, of patches the test data
-    /// predates: srp refuses such data, naming them. The released data has
-    /// them (`tests/starter_kit.rs`).
     #[test]
     fn what_the_lobby_code_names_is_in_the_data() {
-        assert_eq!(
-            tables::lacking(Dictionary::shared(), &named_items()),
-            Vec::<String>::new()
-        );
-        let error = check_code().unwrap_err().to_string();
-        assert!(
-            error.contains(
-                "gameplay/srp/new_account.options: no item `novice_026_helmet`, no item \
-                 `stk2_novice_026_back`. "
-            ),
-            "{error}"
-        );
+        assert_eq!(check_code(), Ok(()));
     }
 
     /// Data without the drop card or a voucher: named, with where.
