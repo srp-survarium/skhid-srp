@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Ten mecz osiągnął limit graczy. Dołączysz do nastę
 st_srp_rooms_joined_room	%1$s dołączył do pokoju
 st_srp_rooms_late_hint	Kto dołączy teraz, zobaczy pokój, potem trafi do meczu.
 st_srp_rooms_leave	Opuść
-st_srp_rooms_leave_queue	Opuść kolejkę
-st_srp_rooms_leave_room	Opuść pokój
+st_srp_rooms_leave_queue	Opuść
+st_srp_rooms_leave_room	Opuść
 st_srp_rooms_left_room	%1$s opuścił pokój
 st_srp_rooms_level	Poziom
 st_srp_rooms_map	Mapa

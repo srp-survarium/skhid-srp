@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Ottelun pelaajaraja on täynnä. Liityt seuraavaan ottel
 st_srp_rooms_joined_room	%1$s liittyi huoneeseen
 st_srp_rooms_late_hint	Uudet liittyjät näkevät ensin huoneen ja siirtyvät sitten otteluun.
 st_srp_rooms_leave	Poistu
-st_srp_rooms_leave_queue	Poistu jonosta
-st_srp_rooms_leave_room	Poistu huoneesta
+st_srp_rooms_leave_queue	Poistu
+st_srp_rooms_leave_room	Poistu
 st_srp_rooms_left_room	%1$s poistui huoneesta
 st_srp_rooms_level	Taso
 st_srp_rooms_map	Kartta

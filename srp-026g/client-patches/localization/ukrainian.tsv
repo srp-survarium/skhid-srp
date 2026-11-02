@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Цей матч досяг ліміту гравців. 
 st_srp_rooms_joined_room	%1$s приєднався до кімнати
 st_srp_rooms_late_hint	Хто зайде зараз, побачить кімнату, потім потрапить у матч.
 st_srp_rooms_leave	Вийти
-st_srp_rooms_leave_queue	Вийти з черги
-st_srp_rooms_leave_room	Вийти з кімнати
+st_srp_rooms_leave_queue	Вийти
+st_srp_rooms_leave_room	Вийти
 st_srp_rooms_left_room	%1$s вийшов з кімнати
 st_srp_rooms_level	Рівень
 st_srp_rooms_map	Карта
