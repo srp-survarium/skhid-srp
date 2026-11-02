@@ -84,11 +84,11 @@ impl AimTuning {
         self.skill_curve.mix(range, skill) * self.class_factor(skill, class)
     }
 
-    /// The class's factor at `skill` ([`ClassAim`], mixed by the curve). It also scales a scoped gun's settle bound
-    /// (`CombatTuning::settle_k`): the shot waits until the error it expects fits that bound, so a factor on the angles
+    /// The class's factor at `skill` ([`ClassAim`], mixed by the curve on each half). It also scales a scoped gun's settle
+    /// bound (`CombatTuning::settle_k`): the shot waits until the error it expects fits that bound, so a factor on the angles
     /// alone would only lengthen the wait; on both, it is the error at the shot that the factor scales, for every class.
     pub fn class_factor(&self, skill: f32, class: WeaponClass) -> f32 {
-        self.skill_curve.mix(self.class_aim.of(class), skill)
+        self.skill_curve.mix_halves(self.class_aim.of(class), skill)
     }
 }
 
@@ -118,11 +118,23 @@ impl SkillCurve {
             Self::Linear | Self::Geometric => super::super::signals::mix(range, skill),
         }
     }
+
+    /// A value given at skill 0, 0.5 and 1: the curve's mix on each half. A middle on the curve between the ends (the
+    /// geometric one's `sqrt(low * high)`) gives the same values as [`Self::mix`] of the ends.
+    pub fn mix_halves(self, (low, middle, high): (f32, f32, f32), skill: f32) -> f32 {
+        let skill = skill.clamp(0.0, 1.0);
+        if skill <= 0.5 {
+            self.mix((low, middle), skill * 2.0)
+        } else {
+            self.mix((middle, high), skill * 2.0 - 1.0)
+        }
+    }
 }
 
-/// [A243] Factors on the aim's angles by the gun's class, at skill 0 and at
-/// skill 1 (1.0: the shared numbers, [`ClassAim::same`], `all_off.json`'s). The
-/// class is the bots' own (`CombatTuning::class_of`).
+/// [A243] Factors on the aim's angles by the gun's class, at skill 0, 0.5 and
+/// 1 (1.0: the shared numbers, [`ClassAim::same`], `all_off.json`'s), mixed by
+/// the skill curve on each half ([`SkillCurve::mix_halves`]). The class is the
+/// bots' own (`CombatTuning::class_of`).
 ///
 /// The defaults put each class on the owner's line (2026-11-01): skill 0 the
 /// class's live median, skill 1 its bar, a straight line of hit rates between,
@@ -132,36 +144,38 @@ impl SkillCurve {
 /// rates weighed to the live humans' shots by distance and target speed
 /// (`a243-read.py`; the live shares and the bench's rates in the A243 PR):
 /// rifles, SMGs, MGs 10.2 -> 18-20 %; shotgun ~11 -> ~20 %; marksman 18.6 ->
-/// 30-32 %; bolt 31.1 -> 38-40 %. Pistols have no bench kit and take the
-/// automatics' factors (their bar, 10.7 -> up to 25 %, is not measured). The
-/// bolt's skill-1 factor is over 1 because its scope zooms the error by 0.25
-/// (`combat.zoom_error`): at 1.0 its aim leaves within his chest's half-width
-/// on 95 % of its shots and it hits ~43 %, over the bar; the bench's skill-1
-/// sweep (factor 1.1 / 2.0 / 3.0 / 4.5: 40.1 / 35.4 / 32.4 / 26.9 %) puts 1.4
-/// in the bar.
+/// 30-32 %; bolt 31.1 -> 38-40 %. The middle point is there because two ends
+/// alone bend the line by up to 1.2 points, beyond the bench's run-to-run
+/// spread (automatics over it at 0.6, marksman over at 0.2-0.6, shotgun under
+/// at 0.4-0.6). Pistols have no bench kit and take the automatics' factors
+/// (their bar, 10.7 -> up to 25 %, is not measured). The bolt's skill-1 factor
+/// is over 1 because its scope zooms the error by 0.25 (`combat.zoom_error`): at
+/// 1.0 its aim leaves within his chest's half-width on 95 % of its shots and it
+/// hits ~43 %, over the bar; the bench's skill-1 sweep (factor 1.1 / 2.0 / 3.0 /
+/// 4.5: 40.1 / 35.4 / 32.4 / 26.9 %) puts 1.4 in the bar.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClassAim {
-    pub pistol: (f32, f32),
-    pub smg: (f32, f32),
-    pub rifle: (f32, f32),
-    pub mg: (f32, f32),
-    pub shotgun: (f32, f32),
-    pub marksman: (f32, f32),
-    pub bolt: (f32, f32),
+    pub pistol: (f32, f32, f32),
+    pub smg: (f32, f32, f32),
+    pub rifle: (f32, f32, f32),
+    pub mg: (f32, f32, f32),
+    pub shotgun: (f32, f32, f32),
+    pub marksman: (f32, f32, f32),
+    pub bolt: (f32, f32, f32),
 }
 
 impl Default for ClassAim {
     fn default() -> Self {
-        let automatic = (0.40, 1.32);
+        let automatic = (0.40, 0.78, 1.32);
         Self {
             pistol: automatic,
             smg: automatic,
             rifle: automatic,
             mg: automatic,
-            shotgun: (1.0, 1.35),
-            marksman: (1.25, 0.80),
-            bolt: (0.8, 1.4),
+            shotgun: (0.94, 1.04, 1.30),
+            marksman: (1.25, 1.29, 0.75),
+            bolt: (0.8, 1.058, 1.4),
         }
     }
 }
@@ -169,11 +183,11 @@ impl Default for ClassAim {
 impl ClassAim {
     /// Every class on the shared numbers (before A243).
     pub fn same() -> Self {
-        let same = (1.0, 1.0);
+        let same = (1.0, 1.0, 1.0);
         Self { pistol: same, smg: same, rifle: same, mg: same, shotgun: same, marksman: same, bolt: same }
     }
 
-    pub fn of(&self, class: WeaponClass) -> (f32, f32) {
+    pub fn of(&self, class: WeaponClass) -> (f32, f32, f32) {
         match class {
             WeaponClass::Pistol => self.pistol,
             WeaponClass::Smg => self.smg,
@@ -298,8 +312,27 @@ impl Check for AimTuning {
         check(
             [c.pistol, c.smg, c.rifle, c.mg, c.shotgun, c.marksman, c.bolt]
                 .iter()
-                .all(|&(low, high)| low.is_finite() && high.is_finite() && low > 0.0 && high > 0.0),
+                .all(|&(low, middle, high)| [low, middle, high].iter().all(|f| f.is_finite() && *f > 0.0)),
             "aim.class_aim",
+        )?;
+        // Every class's aim angles shrink at every step of the skill, so its hit rate can only rise with it (the owner's rule).
+        let classes = [
+            WeaponClass::Pistol,
+            WeaponClass::Smg,
+            WeaponClass::Rifle,
+            WeaponClass::MachineGun,
+            WeaponClass::Shotgun,
+            WeaponClass::Marksman,
+            WeaponClass::Bolt,
+        ];
+        check(
+            classes.iter().all(|&class| {
+                [self.error_deg, self.wander_deg, self.settled_wander_deg].iter().all(|&range| {
+                    let steps: Vec<f32> = (0..=10).map(|i| self.angle(range, i as f32 / 10.0, class)).collect();
+                    steps.windows(2).all(|w| w[1] <= w[0])
+                })
+            }),
+            "aim.class_aim (an aim angle grows with the skill)",
         )?;
         let c = &self.combat;
         check(
@@ -341,13 +374,33 @@ mod tests {
 
     #[test]
     fn a_class_factor_scales_only_its_own_class() {
-        let aim = AimTuning { class_aim: ClassAim { bolt: (2.0, 0.5), ..ClassAim::same() }, ..AimTuning::default() };
+        let aim = AimTuning { class_aim: ClassAim { bolt: (2.0, 1.0, 0.5), ..ClassAim::same() }, ..AimTuning::default() };
         assert!((aim.angle(aim.error_deg, 1.0, WeaponClass::Rifle) - 0.9).abs() < 1e-5);
         assert!((aim.angle(aim.error_deg, 1.0, WeaponClass::Bolt) - 0.45).abs() < 1e-5);
         assert!((aim.angle(aim.error_deg, 0.0, WeaponClass::Bolt) - 12.0).abs() < 1e-5);
         assert!(aim.check().is_ok());
-        let bad = AimTuning { class_aim: ClassAim { pistol: (0.0, 1.0), ..ClassAim::same() }, ..AimTuning::default() };
+        let bad = AimTuning { class_aim: ClassAim { pistol: (0.0, 1.0, 1.0), ..ClassAim::same() }, ..AimTuning::default() };
         assert!(bad.check().is_err());
+        // A factor that grows faster than the aim tightens makes the angle grow with the skill: refused.
+        let growing = AimTuning { class_aim: ClassAim { rifle: (0.5, 1.0, 4.0), ..ClassAim::same() }, ..AimTuning::default() };
+        assert!(growing.check().is_err());
+    }
+
+    #[test]
+    fn the_middle_factor_bends_each_half_and_on_the_curve_changes_nothing() {
+        let curve = SkillCurve::Geometric;
+        // A middle on the geometric curve between the ends: the same as the two ends alone at every skill.
+        let (low, high) = (0.4f32, 1.32f32);
+        for i in 0..=10 {
+            let s = i as f32 / 10.0;
+            assert!((curve.mix_halves((low, (low * high).sqrt(), high), s) - curve.mix((low, high), s)).abs() < 1e-5, "{s}");
+        }
+        // Off the curve: the ends and the middle are kept, each half its own geometric mix.
+        assert!((curve.mix_halves((0.4, 0.8, 1.6), 0.0) - 0.4).abs() < 1e-6);
+        assert!((curve.mix_halves((0.4, 0.8, 1.6), 0.5) - 0.8).abs() < 1e-6);
+        assert!((curve.mix_halves((0.4, 0.8, 1.6), 0.25) - 0.4 * 2f32.sqrt()).abs() < 1e-5);
+        assert!((curve.mix_halves((0.4, 0.8, 1.6), 0.75) - 0.8 * 2f32.sqrt()).abs() < 1e-5);
+        assert!((curve.mix_halves((0.4, 0.8, 1.6), 1.0) - 1.6).abs() < 1e-6);
     }
 
     #[test]
