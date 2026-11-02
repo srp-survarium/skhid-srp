@@ -1197,7 +1197,7 @@ pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
 }
 
 /// [`stand_in_walk_off`]'s fall: a body that leaves a 2 m top's edge at a walk (3.5 m/s) keeps it across while it falls and comes down
-/// on a walkway 1.1 m lower that starts 1.4 m out (J0 g2a's bridge: the walk-off lands on it); with no speed kept it comes down at the
+/// on a walkway 1.1 m lower that starts 0.9 m out (J0 g2a's bridge: the walk-off lands on it); with no speed kept it comes down at the
 /// foot of the face, on the ground.
 #[test]
 fn a_walk_off_falls_on_at_its_walk_speed() {
@@ -1213,7 +1213,8 @@ fn a_walk_off_falls_on_at_its_walk_speed() {
     let walls = mapdata::RayTree::build(&triangles);
     let fall = |carry: [f32; 2]| {
         let mut body = honest_body(&grid, Vec3::new(10.2, 2.0, 5.0));
-        body.feet = Vec3::new(9.9, 2.0, 5.0);
+        // Past the top's floors by more than the body's radius: it is falling.
+        body.feet = Vec3::new(9.5, 2.0, 5.0);
         body.flight = Some(Flight {
             at: 1_000,
             from: body.feet,
