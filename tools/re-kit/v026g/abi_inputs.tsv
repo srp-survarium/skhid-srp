@@ -5383,3 +5383,7 @@ va	name	location	role	basis
 0x003921a0	vostok::animation::animation_player::unsubscribe_event_channel	entry ESP+4	the event channels (animation player +750h)	observed
 0x003921a0	vostok::animation::animation_player::unsubscribe_event_channel	entry ESP+8	the subscriber (the state, or its sound handler at +141h from 0x310147)	observed
 0x0033aa40	survarium::weapon_core_fire_state_base::finalize	ECX	this; unsubscribes its "shoot" channel (the item clips' shot event), so no other state's clip fires through it	observed
+0x002189e0	survarium::replay_network_client::match_options	ECX	the replay client (constructor 0x218A40 installs vtable 0x9FF344; options inline at +1Ch)	observed
+0x0026d6a0	survarium::base_local_network_client::get_active_player	ECX	the local/replay client; world pointer at +578BCh, unlike the live network client	observed
+0x0026d6a0	survarium::base_local_network_client::get_active_player	entry ESP+4	out player pointer; reference added when nonnull	observed
+0x0026d6a0	survarium::base_local_network_client::get_active_player	entry ESP+8	roster place (low byte)	observed

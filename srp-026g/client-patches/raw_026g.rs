@@ -101,6 +101,10 @@ unsafe extern "C" {
     pub fn engine_play_particle(position: *const f32, manager: Option<BulletManager>, particle: Option<ParticleSlot>, direction: *const f32, normal: *const f32, parameter: u32);
     /// 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
     pub fn engine_user_data_directory() -> *const u8;
+    /// virtual survarium::base_network_client+0x34 (2 vtables of vtables.tsv: 0x2189e0, 0x219990): client ECX; pops 0; EAX
+    pub fn engine_match_options(client: Option<NetworkClient>) -> Option<MatchOptions>;
+    /// virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
+    pub fn engine_active_player(client: Option<NetworkClient>, out: *mut Option<Player>, place: u32) -> *mut Option<Player>;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: Option<SceneRenderer>, instance: Option<RenderModelInstance>, bones: *const f32, second: *const f32, count: u32);
     /// 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
@@ -219,10 +223,6 @@ unsafe extern "cdecl" {
 
 #[allow(dead_code)]
 unsafe extern "thiscall" {
-    /// 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
-    pub fn engine_match_options(client: Option<NetworkClient>) -> Option<MatchOptions>;
-    /// 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
-    pub fn engine_active_player(client: Option<NetworkClient>, out: *mut Option<Player>, place: u32) -> *mut Option<Player>;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: Option<TextTranslator>, key: *const u8, out: *mut u8);
     /// 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly

@@ -95,6 +95,10 @@ unsafe extern "C" {
     pub fn engine_play_particle(position: *const f32, manager: *mut c_void, particle: *const c_void, direction: *const f32, normal: *const f32, parameter: u32);
     /// 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
     pub fn engine_user_data_directory() -> *const u8;
+    /// virtual survarium::base_network_client+0x34 (2 vtables of vtables.tsv: 0x2189e0, 0x219990): client ECX; pops 0; EAX
+    pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
+    /// virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
+    pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
     /// 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
@@ -213,10 +217,6 @@ unsafe extern "cdecl" {
 
 #[allow(dead_code)]
 unsafe extern "thiscall" {
-    /// 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
-    pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
-    /// 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
-    pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
     /// 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, out ESP+8; pops 8; thiscall, called directly
     pub fn engine_translate_text(translator: *mut c_void, key: *const u8, out: *mut u8);
     /// 0x2f8720 survarium::simple_game_project::on_inserted: project ECX; pops 0; thiscall, called directly
