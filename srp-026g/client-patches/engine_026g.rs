@@ -207,6 +207,8 @@ unsafe extern "cdecl" {
     pub fn engine_save_user_config();
     /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
     pub fn engine_store_first_resource(result: *mut c_void, value: *mut c_void);
+    /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+    pub fn engine_store_first_config(result: *mut c_void, value: *mut c_void);
 }
 
 #[allow(dead_code)]

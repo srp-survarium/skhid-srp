@@ -10,6 +10,12 @@
 //! The rows' names are ASCII fields with `;` between them, the first the
 //! version [`ROOMS_VERSION`] and the second the kind of the answer.
 
+use std::ops::RangeInclusive;
+use std::sync::OnceLock;
+use std::time::Duration;
+
+use binary_config_parser::tree::ConfigValue;
+
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, at_most};
 
@@ -109,15 +115,6 @@ pub const ROOMS_VERSION: &str = "S1";
 pub const ROOM_KEY_MAX: u32 = 99_999;
 /// The largest PIN.
 pub const PIN_MAX: u16 = 9999;
-/// The team sizes, each side's players.
-pub const SIZES: std::ops::RangeInclusive<u8> = 6..=10;
-/// The highest max level.
-pub const LEVEL_MAX: u8 = 15;
-/// The waits before a match, in seconds: 15 to 60 by 5.
-pub const WAITS: [u8; 10] = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-/// The players a side a room needs before its vote begins: 1 v 1 to 3 v 3
-/// (the owner's of 2026-10-17).
-pub const MIN_SIDES: std::ops::RangeInclusive<u8> = 1..=3;
 /// The pool entries one bits request carries.
 pub const BITS_PER_CHUNK: u32 = 20;
 /// The most chunks: a pool of 160 entries at the most.
@@ -141,21 +138,282 @@ pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
 /// in the game (`limits::NAME` is the buffer's).
 const ROW_NAME: usize = 32;
 
+/// The rooms' settings in the game's files, made by
+/// `scripts/content-edit/rooms.tsv` (its header says each key); the lobby
+/// movie reads the same file through exe patch 94.
+pub const RULES_PATH: &str = "gameplay/srp/rooms.options";
+
+/// The rooms' and Player vs Bots' settings ([`RULES_PATH`]): [`rules`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoomRules {
+    /// Each side's players a room may have.
+    pub sizes: RangeInclusive<u8>,
+    /// The players a side a room may need before its vote begins: 1 v 1 up.
+    pub min_sides: RangeInclusive<u8>,
+    /// The highest max level a room may have: the highest equipment level.
+    pub level_most: u8,
+    /// The waits before a match a room may have, seconds, ascending.
+    pub waits: Vec<u8>,
+    /// The create window's settings before a player has made a room, and
+    /// the room Play makes.
+    pub default: RoomSpecDefault,
+    /// The vote's own time before each match, whatever the room's wait.
+    pub vote: Duration,
+    /// What the vote after a match has more: its players come back from
+    /// the results screen first.
+    pub after_match: Duration,
+    /// How long a member who comes while its room's match is played sees
+    /// the room before it is put into the match, unless it asks first.
+    pub late_join_wait: Duration,
+    /// This many ready Play users waiting in one equipment bracket open
+    /// another room.
+    pub scale_players: usize,
+    /// The most rooms at once.
+    pub rooms_most: usize,
+    /// With no countdown this long after a match's first entry (match ms),
+    /// it starts with who is in.
+    pub match_start_wait_ms: u32,
+    pub pvb: PvbRules,
+}
+
+/// What the create window starts with, and Play makes a room with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomSpecDefault {
+    pub size: u8,
+    pub min_side: u8,
+    /// 0: any.
+    pub max_level: u8,
+    pub wait: u8,
+}
+
+/// "Player vs Bots" in the lobby.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PvbRules {
+    /// The team sizes offered, each side's players.
+    pub sizes: Vec<u8>,
+    /// The one the window shows first.
+    pub default_size: u8,
+    /// The highest equipment level let in (the bots wear the player's).
+    pub max_gear: u8,
+}
+
+impl RoomRules {
+    /// The settings of `config` ([`RULES_PATH`]); a key missing, or a value
+    /// out of what the rooms can take, is an error naming it.
+    pub fn parse(config: &[u8]) -> Result<Self, String> {
+        let root =
+            ConfigValue::parse(config).map_err(|cause| format!("{RULES_PATH}: {}", cause.0))?;
+        let at = |path: &str| -> Result<&ConfigValue, String> {
+            path.split('/').try_fold(&root, |table, key| {
+                table
+                    .get(key)
+                    .ok_or_else(|| format!("{RULES_PATH}: no `{path}`"))
+            })
+        };
+        let int = |path: &str| -> Result<i64, String> {
+            match at(path)? {
+                ConfigValue::Integer(n) => Ok(i64::from(*n)),
+                other => Err(format!(
+                    "{RULES_PATH}: `{path}` is {other:?}, not a whole number"
+                )),
+            }
+        };
+        fn fit<T: TryFrom<i64>>(path: &str, n: i64) -> Result<T, String> {
+            T::try_from(n).map_err(|_| format!("{RULES_PATH}: `{path}` is {n}, out of range"))
+        }
+        let byte = |path: &str| int(path).and_then(|n| fit::<u8>(path, n));
+        let bytes = |path: &str| -> Result<Vec<u8>, String> {
+            match at(path)? {
+                ConfigValue::Indexed(items) => items
+                    .iter()
+                    .map(|item| match item {
+                        ConfigValue::Integer(n) => fit(path, i64::from(*n)),
+                        other => Err(format!("{RULES_PATH}: `{path}` holds {other:?}")),
+                    })
+                    .collect(),
+                other => Err(format!("{RULES_PATH}: `{path}` is {other:?}, not a list")),
+            }
+        };
+        let seconds = |path: &str| {
+            int(path)
+                .and_then(|n| fit::<u64>(path, n))
+                .map(Duration::from_secs)
+        };
+        let rules = RoomRules {
+            sizes: byte("size_least")?..=byte("size_most")?,
+            min_sides: 1..=byte("min_side_most")?,
+            level_most: byte("level_most")?,
+            waits: bytes("waits")?,
+            default: RoomSpecDefault {
+                size: byte("default_size")?,
+                min_side: byte("default_min_side")?,
+                max_level: byte("default_max_level")?,
+                wait: byte("default_wait")?,
+            },
+            vote: seconds("vote_s")?,
+            after_match: seconds("after_match_s")?,
+            late_join_wait: seconds("late_join_wait_s")?,
+            scale_players: int("scale_players").and_then(|n| fit("scale_players", n))?,
+            rooms_most: int("rooms_most").and_then(|n| fit("rooms_most", n))?,
+            match_start_wait_ms: int("match_start_wait_ms")
+                .and_then(|n| fit("match_start_wait_ms", n))?,
+            pvb: PvbRules {
+                sizes: bytes("pvb/sizes")?,
+                default_size: byte("pvb/default_size")?,
+                max_gear: byte("pvb/max_gear")?,
+            },
+        };
+        rules
+            .check()
+            .map_err(|why| format!("{RULES_PATH}: {why}"))?;
+        Ok(rules)
+    }
+
+    /// What the rooms' code relies on: the ranges not empty and within a
+    /// match's sides, the defaults within them, and the largest create code
+    /// within the rooms' starts.
+    fn check(&self) -> Result<(), String> {
+        let side_most = (MEMBERS_MAX / 2) as u8;
+        let default = self.default;
+        let problems = [
+            (
+                self.sizes.is_empty() || *self.sizes.start() == 0 || *self.sizes.end() > side_most,
+                format!("sizes {:?}: 1 to {side_most} a side", self.sizes),
+            ),
+            (
+                self.min_sides.is_empty() || self.min_sides.end() > self.sizes.start(),
+                format!("min sides {:?}: 1 to the least size", self.min_sides),
+            ),
+            (
+                self.waits.is_empty() || !self.waits.is_sorted() || self.waits.contains(&0),
+                format!("waits {:?}: some seconds, ascending", self.waits),
+            ),
+            (
+                !self.sizes.contains(&default.size)
+                    || !self.min_sides.contains(&default.min_side)
+                    || default.max_level > self.level_most
+                    || !self.waits.contains(&default.wait),
+                format!("the defaults {default:?} are not the rooms'"),
+            ),
+            (self.rooms_most == 0, "rooms_most 0: no room".into()),
+            (
+                self.pvb.sizes.is_empty()
+                    || self
+                        .pvb
+                        .sizes
+                        .iter()
+                        .any(|size| !(1..=side_most).contains(size))
+                    || !self.pvb.sizes.contains(&self.pvb.default_size),
+                format!(
+                    "pvb sizes {:?} (default {}): 1 to {side_most} a side",
+                    self.pvb.sizes, self.pvb.default_size
+                ),
+            ),
+            (
+                self.pvb.max_gear > self.level_most,
+                format!(
+                    "pvb max gear {} over level_most {}",
+                    self.pvb.max_gear, self.level_most
+                ),
+            ),
+        ];
+        if let Some((_, why)) = problems.into_iter().find(|(wrong, _)| *wrong) {
+            return Err(why);
+        }
+        let most = RoomSpec {
+            size: *self.sizes.end(),
+            max_level: self.level_most,
+            wait: *self.waits.last().expect("checked"),
+            pin: true,
+            min_side: *self.min_sides.end(),
+        };
+        if self.create_code(most) > ROOMS_LAST - ROOM_CREATE_BASE {
+            return Err(format!("{most:?}'s create code is past the rooms' starts"));
+        }
+        Ok(())
+    }
+
+    /// A create's code (`create_start`): `((((size − least size) × levels
+    /// + max level) × waits + wait index) × 2 + PIN) × min sides + (min side − 1)`,
+    /// `levels` 0 to [`Self::level_most`], `waits` and `min sides`
+    /// their counts (the lobby movie's RoomsCreate counts the same from the
+    /// same file). A wait none of [`Self::waits`] is the default's.
+    fn create_code(&self, spec: RoomSpec) -> u32 {
+        let index = |wait| self.waits.iter().position(|&w| w == wait);
+        let wait = index(spec.wait)
+            .or_else(|| index(self.default.wait))
+            .unwrap_or(0) as u32;
+        let size =
+            u32::from(spec.size.clamp(*self.sizes.start(), *self.sizes.end()) - self.sizes.start());
+        let max_level = u32::from(spec.max_level.min(self.level_most));
+        let min_side = u32::from(
+            spec.min_side
+                .clamp(*self.min_sides.start(), *self.min_sides.end())
+                - self.min_sides.start(),
+        );
+        (((size * self.levels() + max_level) * self.waits.len() as u32 + wait) * 2
+            + u32::from(spec.pin))
+            * self.min_side_count()
+            + min_side
+    }
+
+    /// The spec of a create's code, if it is one.
+    fn create_spec(&self, code: u32) -> Option<RoomSpec> {
+        let min_side = self.min_sides.start() + (code % self.min_side_count()) as u8;
+        let code = code / self.min_side_count();
+        let pin = code % 2 == 1;
+        let rest = code / 2;
+        let wait = self.waits[(rest % self.waits.len() as u32) as usize];
+        let rest = rest / self.waits.len() as u32;
+        let max_level = (rest % self.levels()) as u8;
+        let size = rest / self.levels();
+        if size > u32::from(self.sizes.end() - self.sizes.start()) {
+            return None;
+        }
+        Some(RoomSpec {
+            size: self.sizes.start() + size as u8,
+            max_level,
+            wait,
+            pin,
+            min_side,
+        })
+    }
+
+    /// The max levels a room may have: 0 (any) to [`Self::level_most`].
+    fn levels(&self) -> u32 {
+        u32::from(self.level_most) + 1
+    }
+
+    fn min_side_count(&self) -> u32 {
+        u32::from(self.min_sides.end() - self.min_sides.start()) + 1
+    }
+}
+
+/// The rooms' settings of the game's files ([`super::super::game_data::shared`]),
+/// read when first used; `srp` reads them at start (`tables::check`).
+pub fn rules() -> &'static RoomRules {
+    static RULES: OnceLock<RoomRules> = OnceLock::new();
+    RULES.get_or_init(|| {
+        RoomRules::parse(super::super::game_data::file(RULES_PATH))
+            .unwrap_or_else(|why| panic!("{why}"))
+    })
+}
+
 /// What a room is made with (the create window).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RoomSpec {
-    /// Each side's players, one of [`SIZES`].
+    /// Each side's players, one of [`RoomRules::sizes`].
     pub size: u8,
-    /// The highest equipment level let in, 1 to [`LEVEL_MAX`]; 0: any. A
+    /// The highest equipment level let in, 1 to [`RoomRules::level_most`]; 0: any. A
     /// private room has none: its window's is kept for the next open room.
     pub max_level: u8,
-    /// Seconds from the second player to the match, one of [`WAITS`].
+    /// Seconds from the second player to the match, one of [`RoomRules::waits`].
     pub wait: u8,
     /// Joining asks for a PIN: the one the creator gave with its PIN
     /// request just before ([`ROOM_PIN_BASE`]).
     pub pin: bool,
     /// The players a side it needs before its vote begins, one of
-    /// [`MIN_SIDES`].
+    /// [`RoomRules::min_sides`].
     pub min_side: u8,
 }
 
@@ -218,20 +476,10 @@ pub enum RoomRequest {
     Create(RoomSpec),
 }
 
-/// The code of a create: `((((size − 6) × 16 + max level) × 10 + wait index)
-/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one. A room has no level of its
-/// own to make: the server works it out from its players.
+/// The start of a create (`RoomRules::create_code`), PIN 1 when joining asks for one. A room has no
+/// level of its own to make: the server works it out from its players.
 pub fn create_start(spec: RoomSpec) -> u32 {
-    let wait = WAITS
-        .iter()
-        .position(|&wait| wait == spec.wait)
-        .unwrap_or(3) as u32;
-    let size = u32::from(spec.size.clamp(*SIZES.start(), *SIZES.end()) - SIZES.start());
-    let max_level = u32::from(spec.max_level.min(LEVEL_MAX));
-    let min_side =
-        u32::from(spec.min_side.clamp(*MIN_SIDES.start(), *MIN_SIDES.end()) - MIN_SIDES.start());
-    let code = (((size * 16 + max_level) * 10 + wait) * 2 + u32::from(spec.pin)) * 3 + min_side;
-    ROOM_CREATE_BASE + code
+    ROOM_CREATE_BASE + rules().create_code(spec)
 }
 
 /// The start of a kick of the member at `place` of a state of `serial`.
@@ -335,26 +583,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
                 bits: offset & ((1 << BITS_PER_CHUNK) - 1),
             }
         }
-        _ if start >= ROOM_CREATE_BASE => {
-            let code = start - ROOM_CREATE_BASE;
-            let min_side = MIN_SIDES.start() + (code % 3) as u8;
-            let code = code / 3;
-            let pin = code % 2 == 1;
-            let rest = code / 2;
-            let wait = WAITS.get((rest % 10) as usize).copied()?;
-            let max_level = rest / 10 % 16;
-            let size = rest / 160;
-            if size > u32::from(SIZES.end() - SIZES.start()) {
-                return None;
-            }
-            R::Create(RoomSpec {
-                size: SIZES.start() + size as u8,
-                max_level: max_level as u8,
-                wait,
-                pin,
-                min_side,
-            })
-        }
+        _ if start >= ROOM_CREATE_BASE => R::Create(rules().create_spec(start - ROOM_CREATE_BASE)?),
         _ => return None,
     };
     Some(request)
@@ -616,13 +845,13 @@ pub struct RoomSwitch {
 pub struct RoomForm {
     /// The settings are the asker's own (false: the defaults).
     pub saved: bool,
-    /// One of [`SIZES`].
+    /// One of [`RoomRules::sizes`].
     pub size: u8,
-    /// One of [`MIN_SIDES`].
+    /// One of [`RoomRules::min_sides`].
     pub min_side: u8,
-    /// 0 (any) to [`LEVEL_MAX`].
+    /// 0 (any) to [`RoomRules::level_most`].
     pub max_level: u8,
-    /// One of [`WAITS`].
+    /// One of [`RoomRules::waits`].
     pub wait: u8,
     /// By the pool's entries ([`room_pool`]'s order): the entry's map and
     /// weather (its tile in the window) are in. An entry is in the pool made
@@ -1168,11 +1397,12 @@ mod tests {
 
     #[test]
     fn a_create_code_carries_its_spec_and_back() {
-        for size in SIZES {
-            for max_level in [0, 5, LEVEL_MAX] {
-                for wait in WAITS {
+        let rules = rules();
+        for size in rules.sizes.clone() {
+            for max_level in [0, 5, rules.level_most] {
+                for wait in rules.waits.iter().copied() {
                     for pin in [false, true] {
-                        for min_side in MIN_SIDES {
+                        for min_side in rules.min_sides.clone() {
                             let spec = RoomSpec {
                                 size,
                                 max_level,
@@ -1188,6 +1418,72 @@ mod tests {
                 }
             }
         }
+        // The codes of the revision-41 movie: 8 v 8, any level, 30 s, a PIN, from 1 v 1.
+        let spec = RoomSpec {
+            size: 8,
+            max_level: 0,
+            wait: 30,
+            pin: true,
+            min_side: 1,
+        };
+        assert_eq!(
+            create_start(spec),
+            ROOM_CREATE_BASE + ((2 * 16 * 10 + 3) * 2 + 1) * 3
+        );
+    }
+
+    #[test]
+    fn the_rules_name_a_missing_key_and_refuse_defaults_out_of_range() {
+        use binary_config_parser::tree::ConfigValue as V;
+        let config = |drop: &str, default_size: i32| {
+            let mut entries: Vec<(String, V)> = [
+                ("size_least", 6),
+                ("size_most", 10),
+                ("min_side_most", 3),
+                ("level_most", 15),
+                ("default_size", default_size),
+                ("default_min_side", 1),
+                ("default_max_level", 0),
+                ("default_wait", 30),
+                ("vote_s", 15),
+                ("after_match_s", 10),
+                ("late_join_wait_s", 15),
+                ("scale_players", 6),
+                ("rooms_most", 50),
+                ("match_start_wait_ms", 30_000),
+            ]
+            .into_iter()
+            .map(|(key, n)| (key.to_owned(), V::Integer(n)))
+            .collect();
+            entries.push((
+                "waits".into(),
+                V::Indexed(vec![V::Integer(15), V::Integer(30)]),
+            ));
+            entries.push((
+                "pvb".into(),
+                V::Named(vec![
+                    ("sizes".into(), V::Indexed(vec![V::Integer(8)])),
+                    ("default_size".into(), V::Integer(8)),
+                    ("max_gear".into(), V::Integer(15)),
+                ]),
+            ));
+            entries.retain(|(key, _)| key != drop);
+            V::Named(entries).to_bytes().expect("a config")
+        };
+        let rules = RoomRules::parse(&config("", 8)).expect("rules");
+        assert_eq!(
+            (rules.sizes, rules.min_sides, rules.vote),
+            (6..=10, 1..=3, Duration::from_secs(15))
+        );
+        assert_eq!(
+            RoomRules::parse(&config("vote_s", 8)),
+            Err(format!("{RULES_PATH}: no `vote_s`"))
+        );
+        assert!(
+            RoomRules::parse(&config("", 11))
+                .unwrap_err()
+                .contains("the defaults")
+        );
     }
 
     #[test]

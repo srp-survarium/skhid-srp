@@ -1,0 +1,50 @@
+# The rooms' settings (docs/notes/rooms.md) and Player vs Bots' (docs/notes/player_bots.md), one
+# config: gameplay/srp/rooms.options. srp reads it from its game data at start (a key missing stops
+# it), the lobby movie through exe patch 94 (SrpData.rooms). A list is a row per item ([0], [1], ...).
+#   size_least, size_most    each side's players a room may have
+#   min_side_most            the players a side a room may need before its vote begins: 1 v 1 to this
+#   level_most               the highest max level a room may have (the highest equipment level)
+#   waits[]                  the waits before a match a room may have, seconds, ascending
+#   default_*                the create window's settings before a player has made a room, and the
+#                            room Play makes (max level 0: any; Play's is its equipment bracket's)
+#   vote_s                   the vote's own time before each match, whatever the wait
+#   after_match_s            what the vote after a match has more (its players back from the results)
+#   late_join_wait_s         a member who comes while its room's match is played sees the room this
+#                            long before it is put into the match
+#   scale_players            this many ready Play users waiting in one equipment bracket open a room
+#   rooms_most               the most rooms at once
+#   match_start_wait_ms      with no countdown this long after a match's first entry, it starts with
+#                            who is in (match ms)
+#   pvb/sizes[]              Player vs Bots: the team sizes offered
+#   pvb/default_size         the one the window shows first
+#   pvb/max_gear             the highest equipment level let in (the bots wear the player's)
+key	value
+size_least	6
+size_most	10
+min_side_most	3
+level_most	15
+waits[0]	15
+waits[1]	20
+waits[2]	25
+waits[3]	30
+waits[4]	35
+waits[5]	40
+waits[6]	45
+waits[7]	50
+waits[8]	55
+waits[9]	60
+default_size	8
+default_min_side	1
+default_max_level	0
+default_wait	30
+vote_s	15
+after_match_s	10
+late_join_wait_s	15
+scale_players	6
+rooms_most	50
+match_start_wait_ms	30000
+pvb/sizes[0]	6
+pvb/sizes[1]	8
+pvb/sizes[2]	10
+pvb/default_size	8
+pvb/max_gear	15

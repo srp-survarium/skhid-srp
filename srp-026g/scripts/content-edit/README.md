@@ -111,6 +111,10 @@ cards, refuses a config that differs from its row, and a changed match column wi
 `content_edit.py --dump-stats <table> <folder>` prints a table from configs; values that differ within a
 row are refused there (a cell unifies them).
 
+A key/value table is read by srp's server from its game data and by the lobby movie through exe
+patch 94 (`SrpData`): one data for both, no copy in code. `rooms.tsv` (`gameplay/srp/rooms.options`):
+the rooms' and Player vs Bots' settings (`RoomRules`); its header says each key.
+
 ## weapon-balance-1.json (2026-10-18)
 
 Scored against the recorded live matches since revision 19 (about 10,000 gun kills):

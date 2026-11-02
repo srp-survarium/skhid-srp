@@ -15,15 +15,7 @@
 //! player's equipment now (never under it), when the window asks
 //! ([`form`]).
 
-use survarium::v026g::lobby::rooms::{LEVEL_MAX, MIN_SIDES, PoolEntry, RoomForm, SIZES, WAITS};
-
-/// The window's defaults (and a room Play makes): 8 v 8, from 1 v 1, any
-/// max level, a wait of 30 s, the match pool without the experimental maps,
-/// every mode (Blackout too, when the server offers it).
-pub const DEFAULT_SIZE: u8 = 8;
-pub const DEFAULT_MIN_SIDE: u8 = 1;
-pub const DEFAULT_MAX_LEVEL: u8 = 0;
-pub const DEFAULT_WAIT: u8 = 30;
+use survarium::v026g::lobby::rooms::{PoolEntry, RoomForm, rules};
 
 /// A map (`maps::MapMode::level`) and a weather: a tile of the window.
 pub type Tile = (u8, u8);
@@ -117,15 +109,17 @@ impl RoomSettings {
     }
 }
 
-/// The window's defaults for the pool offered now.
+/// The window's defaults for the pool offered now: the rules' (`RoomRules::default`), the
+/// match pool without the experimental maps, every mode (Blackout too, when the server offers it).
 pub fn defaults(entries: &[PoolEntry]) -> RoomForm {
     let tiles = tiles(entries);
+    let default = rules().default;
     RoomForm {
         saved: false,
-        size: DEFAULT_SIZE,
-        min_side: DEFAULT_MIN_SIDE,
-        max_level: DEFAULT_MAX_LEVEL,
-        wait: DEFAULT_WAIT,
+        size: default.size,
+        min_side: default.min_side,
+        max_level: default.max_level,
+        wait: default.wait,
         tiles_on: entries
             .iter()
             .map(|entry| {
@@ -175,8 +169,8 @@ pub fn form(saved: Option<&RoomSettings>, entries: &[PoolEntry], gear: u8) -> Ro
     };
     RoomForm {
         saved: true,
-        size: saved.size.clamp(*SIZES.start(), *SIZES.end()),
-        min_side: saved.min_side.clamp(*MIN_SIDES.start(), *MIN_SIDES.end()),
+        size: saved.size.clamp(*rules().sizes.start(), *rules().sizes.end()),
+        min_side: saved.min_side.clamp(*rules().min_sides.start(), *rules().min_sides.end()),
         max_level: max_level(saved.max_level, gear),
         wait: nearest_wait(saved.wait),
         tiles_on,
@@ -184,23 +178,21 @@ pub fn form(saved: Option<&RoomSettings>, entries: &[PoolEntry], gear: u8) -> Ro
     }
 }
 
-/// A max level within the rules: at most [`LEVEL_MAX`]; one under the
+/// A max level within the rules: at most `level_most`; one under the
 /// player's equipment (a room it could not make) raised to it; 0 (any)
 /// stays.
 fn max_level(saved: u8, gear: u8) -> u8 {
-    match saved.min(LEVEL_MAX) {
+    let most = rules().level_most;
+    match saved.min(most) {
         0 => 0,
-        level => level.max(gear.min(LEVEL_MAX)),
+        level => level.max(gear.min(most)),
     }
 }
 
-/// The wait of [`WAITS`] nearest `wait`.
+/// The rules' wait nearest `wait`.
 fn nearest_wait(wait: u8) -> u8 {
-    WAITS
-        .iter()
-        .copied()
-        .min_by_key(|&each| each.abs_diff(wait))
-        .unwrap_or(DEFAULT_WAIT)
+    let waits = &rules().waits;
+    waits.iter().copied().min_by_key(|&each| each.abs_diff(wait)).unwrap_or(rules().default.wait)
 }
 
 #[cfg(test)]
@@ -372,30 +364,18 @@ mod tests {
         assert_eq!(fitted(kept(8, 1, 3, 30), 20).2, 15);
     }
 
-    /// The lobby movie's create window opens with these defaults while it
-    /// has no form yet (and a first-time player's form is them): the same,
-    /// so nothing changes when the form is in. It asks for the form as the
-    /// lobby comes up (`RoomsWindow`), not as the window opens (the owner's
-    /// of 2026-10-25: no settings applied after the window is drawn).
+    /// The lobby movie's create window opens with the rules' defaults
+    /// (`SrpData.rooms`, the same file as [`rules`]) while it has no form yet
+    /// (and a first-time player's form is them), so nothing changes when the
+    /// form is in. It asks for the form as the lobby comes up (`RoomsWindow`),
+    /// not as the window opens (the owner's of 2026-10-25: no settings
+    /// applied after the window is drawn).
     #[test]
     fn the_movie_opens_with_the_same_defaults_and_has_the_form_before() {
         let create =
             include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsCreate.as");
         let window =
             include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWindow.as");
-        let wire = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
-        for (name, value) in [
-            ("DEFAULT_SIZE", DEFAULT_SIZE),
-            ("DEFAULT_MIN_SIDE", DEFAULT_MIN_SIDE),
-            ("DEFAULT_WAIT", DEFAULT_WAIT),
-        ] {
-            assert!(
-                create.contains(&format!("const {name}:int = {value};")),
-                "{name}"
-            );
-        }
-        assert_eq!(DEFAULT_MAX_LEVEL, 0);
-        assert!(wire.contains("const LEVEL_ANY:int = 0;"));
         // New room opens from the window's copy; `start` takes the copy, or
         // with none every default.
         let on_new = function(create, "internal function onNew(");
@@ -406,10 +386,10 @@ mod tests {
             .expect("start: the defaults, then the copy");
         assert!(none.contains("if (form == null)"), "{start}");
         for line in [
-            "_size = DEFAULT_SIZE;",
-            "_minSide = DEFAULT_MIN_SIDE;",
-            "_max = RoomsWire.LEVEL_ANY;",
-            "_wait = DEFAULT_WAIT;",
+            "_size = rooms.default_size;",
+            "_minSide = rooms.default_min_side;",
+            "_max = rooms.default_max_level;",
+            "_wait = rooms.default_wait;",
             "_modesOff = {};",
             "defaultPool();",
         ] {

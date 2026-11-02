@@ -666,6 +666,21 @@ pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- srp_data (patch 94) ----
+
+/// The entry `srp_data_on_frame` (0x2840f2, lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_srp_data_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `srp_data_on_frame` calls this, from the game's jump at 0x2840f2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::srp_data::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- consumable_activity (patch 77) ----
 
 /// The entry `consumable_activity_on_update` (0x23b7a0, update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer) calls this with the saved machine.
@@ -1578,6 +1593,42 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- srp_data (patch 94) ----
+
+/// The entry `srp_data_on_configs` (0x1ea312, on_configs_loaded after load_text_localization (the call at 0x1EA30D), before it asks the renderer for its window (mov ecx,[edi+5348h]): the configs run, the dictionary loaded, the resources mounted) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_srp_data_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `srp_data_on_configs` calls this, from the game's jump at 0x1ea312,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::srp_data::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- srp_data (patch 94) ----
+
+/// The convention of engine_store_first_config (0x14730), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigStoreFirstConfig;
+
+/// The entry `srp_data_on_config` (a callback in engine_store_first_config's convention, the convention of resources.query_done, for a callback the patch hands a binary config's query (class 1Fh): its result is the config)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `srp_data_on_config`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_srp_data_on_config(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `srp_data_on_config` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { ConfigQuery::from_raw(&thread, a0) };
+    let tag = ConfigTag::from_raw(a1 as usize as u32);
+    { crate::srp_data::on_config(result, tag); 0 }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
@@ -2048,6 +2099,8 @@ pub extern "C" fn hook_weapon_flight_on_view_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_tick(frame);
     if flow != 0 { return flow; }
+    let flow = hook_srp_data_on_frame(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -2107,6 +2160,15 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn srp_data_on_config(); }
+/// The entry `srp_data_on_config`, in engine_store_first_config's convention (the convention of resources.query_done, for a callback the patch hands a binary config's query (class 1Fh): its result is the config): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn srp_data_on_config_entry() -> super::hook::CallbackEntry<OrigStoreFirstConfig> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_config, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(srp_data_on_config as *const () as *const c_void) }
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

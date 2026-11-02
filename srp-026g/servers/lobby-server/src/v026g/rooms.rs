@@ -24,7 +24,7 @@
 //!   whoever is in, 1 v 0 too (`room_start_pressed`; the owner's of
 //!   2026-10-26).
 //! - **Late.** A member in the lobby while the room's match is played sees
-//!   the room first and goes into it `LATE_JOIN_WAIT` later (or at once on
+//!   the room first and goes into it `RoomRules::late_join_wait` later (or at once on
 //!   its ask) if the match admits players (from its countdown until
 //!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
 //!   alike in that, the side it played on in that match before, then the
@@ -76,12 +76,11 @@
 //!
 //! | variable | default | meaning |
 //! |---|---|---|
-//! | `SRP_ROOMS_MAX` | 50 | the most rooms at once, 1 to 1000 |
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
@@ -101,15 +100,6 @@ use survarium::v026g::maps;
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
 use super::play::{MatchPlayer, Running, match_profile};
-
-/// `SRP_ROOMS_MAX` when unset.
-pub const DEFAULT_MAX_ROOMS: usize = 50;
-/// What a room Play makes is made with (its bracket's cap, the standard pool):
-/// 8 a side, the owner's word of 2026-10-18 ("8vs8 not 10vs10").
-const QUICK_SIZE: u8 = 8;
-const QUICK_WAIT: u8 = 30;
-/// Six ready Play users waiting in one equipment bracket open another room.
-const SCALE_PLAYERS: usize = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublicBracket {
@@ -144,15 +134,10 @@ impl PublicBracket {
         room.is_open() && room.max_level() == self.max_level()
     }
 }
-/// How long a member who comes while its room's match is played sees the
-/// room before it is put into the match, unless it asks first (the owner's
-/// of 2026-10-19).
-pub const LATE_JOIN_WAIT: Duration = Duration::from_secs(15);
-
 /// The rooms' settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// `SRP_ROOMS_MAX` (default 50).
+    /// The most rooms at once (`RoomRules::rooms_most`).
     pub max_rooms: usize,
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
@@ -162,7 +147,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_rooms: DEFAULT_MAX_ROOMS,
+            max_rooms: wire::rules().rooms_most,
             extra_maps: Vec::new(),
         }
     }
@@ -172,15 +157,7 @@ impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
         let var = |name: &str| std::env::var(name).ok();
-        let max_rooms = match var("SRP_ROOMS_MAX") {
-            Some(value) => parse_max(&value).unwrap_or_else(|| {
-                log::error!(
-                    "SRP_ROOMS_MAX is `{value}`; it must be 1 to 1000. Using {DEFAULT_MAX_ROOMS}"
-                );
-                DEFAULT_MAX_ROOMS
-            }),
-            None => DEFAULT_MAX_ROOMS,
-        };
+        let max_rooms = wire::rules().rooms_most;
         let extra_maps = match var("SRP_ROOMS_EXTRA_MAPS") {
             Some(value) => parse_extra(&value).unwrap_or_else(|| {
                 log::error!(
@@ -200,15 +177,6 @@ impl Config {
             extra_maps,
         }
     }
-}
-
-/// `SRP_ROOMS_MAX`: 1 to 1000.
-fn parse_max(value: &str) -> Option<usize> {
-    value
-        .trim()
-        .parse()
-        .ok()
-        .filter(|most| (1..=1000).contains(most))
 }
 
 /// `SRP_ROOMS_EXTRA_MAPS`: playable ids, comma-separated; empty is none.
@@ -710,7 +678,7 @@ impl Core<'_> {
             log::info!("{}: join room {key}: refused ({code:?})", who.name);
         }
         // Into the room first: its match, if one is played, after
-        // `LATE_JOIN_WAIT` or on the member's ask (the tick).
+        // `RoomRules::late_join_wait` or on the member's ask (the tick).
         self.send_room_state(who, code, now);
     }
 
@@ -1081,11 +1049,11 @@ impl Core<'_> {
         let key = self.room_create(
             who,
             RoomSpec {
-                size: QUICK_SIZE,
+                size: wire::rules().default.size,
                 max_level: bracket.max_level(),
-                wait: QUICK_WAIT,
+                wait: wire::rules().default.wait,
                 pin: false,
-                min_side: 1,
+                min_side: wire::rules().default.min_side,
             },
             now,
         )?;
@@ -1145,7 +1113,7 @@ impl Core<'_> {
                     .iter()
                     .map(|(_, _, mate)| 1 + usize::from(mate.is_some()))
                     .sum();
-                if players < SCALE_PLAYERS {
+                if players < wire::rules().scale_players {
                     break;
                 }
                 let Ok(key) = self.room_create_public(&waiting[0].0, bracket, now) else {
@@ -1415,7 +1383,7 @@ impl Core<'_> {
                 .room_join_at
                 .get(&who.account_id)
                 .copied()
-                .unwrap_or(now + LATE_JOIN_WAIT);
+                .unwrap_or(now + wire::rules().late_join_wait);
             at.saturating_duration_since(now).as_millis().div_ceil(1000) as u32
         };
         // Its place in the match is kept (its game started anew, or came
@@ -1722,7 +1690,7 @@ impl Core<'_> {
 
     /// The account's game was told its room (a request answered with its
     /// state, or Play): the room plays with it again. One that comes while
-    /// its room's match is played sees the room first (`LATE_JOIN_WAIT`).
+    /// its room's match is played sees the room first (`RoomRules::late_join_wait`).
     fn room_shown(&mut self, account_id: u32) {
         if self.room_unseen.remove(&account_id).is_some() {
             self.room_join_at.remove(&account_id);
@@ -1798,7 +1766,7 @@ impl Core<'_> {
                 continue;
             };
             self.rooms.join_failed(key, account_id);
-            // Its next turn: `LATE_JOIN_WAIT` from now.
+            // Its next turn: `RoomRules::late_join_wait` from now.
             self.room_join_at.remove(&account_id);
             log::info!(
                 "{}: did not get into match {match_id:#x}; it waits in room {key} again",
@@ -1998,7 +1966,7 @@ impl Core<'_> {
                     .collect::<Vec<_>>()
             })
             .collect();
-        // Each goes into the match `LATE_JOIN_WAIT` after it came (or at
+        // Each goes into the match `RoomRules::late_join_wait` after it came (or at
         // once on its ask), back to its place if the match keeps one: the
         // room shows first (the owner's of 2026-10-19).
         self.room_join_at
@@ -2007,7 +1975,7 @@ impl Core<'_> {
             let at = *self
                 .room_join_at
                 .entry(account_id)
-                .or_insert(now + LATE_JOIN_WAIT);
+                .or_insert(now + wire::rules().late_join_wait);
             if at <= now {
                 self.room_late_join(account_id, now);
             }
@@ -2504,10 +2472,7 @@ mod tests {
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
-        assert_eq!(config.max_rooms, 50);
-        assert_eq!(parse_max(" 7 "), Some(7));
-        assert_eq!(parse_max("0"), None);
-        assert_eq!(parse_max("1001"), None);
+        assert_eq!(config.max_rooms, wire::rules().rooms_most);
         assert_eq!(parse_extra(""), Some(vec![]));
         assert_eq!(parse_extra("61, 117"), Some(vec![61, 117]));
         // 107: level_08 night, which has no project.

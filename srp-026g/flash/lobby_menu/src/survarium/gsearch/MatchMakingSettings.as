@@ -20,6 +20,7 @@ package survarium.gsearch
    import survarium.constants.GameMode;
    import survarium.constants.MessageId;
    import survarium.constants.PvbCode;
+   import survarium.data.SrpData;
    import survarium.rooms.RoomsText;
    
    public class MatchMakingSettings extends MovieClip
@@ -73,21 +74,11 @@ package survarium.gsearch
       // a bot match's start request: PVB_CHOOSE + size * PVB_SIZE_STEP + map (the server's B2 rows)
       public static const PVB_SIZE_STEP:int = 1000;
       
-      // the team sizes offered when the server gives none, and the one picked first
-      public static const PVB_SIZE_SMALL:int = 6;
-      
-      public static const PVB_SIZE_DEFAULT:int = 8;
-      
-      public static const PVB_SIZE_LARGE:int = 10;
-      
       // meaning unknown: pvbData drops team sizes above it
       public static const PVB_SIZE_MAX:int = 20;
       
       // the map level picked first: Rudnya (pvbLevelName)
       public static const PVB_LEVEL_DEFAULT:int = 1;
-      
-      // the most gear level shown when the server gives none (the server's default SRP_PVB_MAX_GEAR)
-      public static const PVB_MAX_GEAR_DEFAULT:String = "5";
       
       // the rows of the size, mode and map menus (the server offers 16 bot maps)
       public static const PVB_SIZE_ROWS:int = 3;
@@ -443,11 +434,12 @@ package survarium.gsearch
             this.pvbMax = -1;
             this.pvbRunning = -1;
             this.pvbRunMax = -1;
-            this.pvbSizes = [MatchMakingSettings.PVB_SIZE_SMALL,MatchMakingSettings.PVB_SIZE_DEFAULT,MatchMakingSettings.PVB_SIZE_LARGE];
+            // the team sizes and the size picked first: the server's status's (pvbStatus)
+            this.pvbSizes = [];
             this.pvbMaps = [];
             this.pvbMapKey = "";
             this.pvbSizeKey = "";
-            this.pvbSize = MatchMakingSettings.PVB_SIZE_DEFAULT;
+            this.pvbSize = 0;
             this.pvbMap = 0;
             this.pvbMode = GameMode.GATHER_VICTORY_ITEMS;
             this.pvbLevel = MatchMakingSettings.PVB_LEVEL_DEFAULT;
@@ -605,7 +597,7 @@ package survarium.gsearch
       {
          if(why == PvbCode.GEAR_TOO_HIGH)
          {
-            var most:String = this.pvbMax >= 0 ? String(this.pvbMax) : MatchMakingSettings.PVB_MAX_GEAR_DEFAULT;
+            var most:String = String(this.pvbMax >= 0 ? this.pvbMax : SrpData.rooms.pvb.max_gear);
             return this.pvbGear >= 0 ? LocalizationData.format("st_srp_pvb_gear_max_yours",most,this.pvbGear)
                : LocalizationData.format("st_srp_pvb_gear_max",most);
          }
@@ -1292,9 +1284,9 @@ package survarium.gsearch
          }
          if(sizes.length == 0)
          {
-            sizes = [MatchMakingSettings.PVB_SIZE_SMALL,MatchMakingSettings.PVB_SIZE_DEFAULT,MatchMakingSettings.PVB_SIZE_LARGE];
+            sizes = SrpData.rooms.pvb.sizes.concat();
          }
-         defSize = f.length > 5 ? this.pvbNumber(f[5]) : -1;
+         defSize = f.length > 5 ? this.pvbNumber(f[5]) : int(SrpData.rooms.pvb.default_size);
          defMap = f.length > 6 ? this.pvbNumber(f[6]) : -1;
          this.pvbRunning = f.length > 7 ? this.pvbNumber(f[7]) : -1;
          this.pvbRunMax = f.length > 8 ? this.pvbNumber(f[8]) : -1;

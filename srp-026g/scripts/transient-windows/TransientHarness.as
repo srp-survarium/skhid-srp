@@ -100,6 +100,8 @@ package
             domain = loader.contentLoaderInfo.applicationDomain;
             step = "the texts";
             domain.getDefinition("survarium.data.LocalizationData").setData(HarnessText.DATA.english);
+            // srp's tables, as exe patch 94 gives them (root.srp_data).
+            domain.getDefinition("survarium.data.SrpData").take(HarnessText.SRP_DATA.rooms);
             Transient = domain.getDefinition("survarium.controls.Transient");
             MainScene = domain.getDefinition("MainScene");
             lobby = loader.content;

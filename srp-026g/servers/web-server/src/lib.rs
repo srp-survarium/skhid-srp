@@ -1803,7 +1803,7 @@ fn file_size(bytes: u64) -> String {
 /// the players' "servers" (`lobby_server::v026g::rooms`; the owner's of
 /// 2026-10-17).
 fn room_rules(lang: Lang) -> String {
-    let vote = session::v026g::rooms::VOTE.as_secs();
+    let vote = survarium::v026g::lobby::rooms::rules().vote.as_secs();
     let cards = session::v026g::rooms::CARDS;
     let items = [
         lang.tr(

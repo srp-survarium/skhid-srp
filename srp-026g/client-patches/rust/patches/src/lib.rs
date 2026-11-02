@@ -60,6 +60,7 @@ pub mod hud_options;
 pub mod tab_cursor;
 pub mod scaleform_capture;
 pub mod map_names;
+pub mod srp_data;
 pub mod world_check;
 pub mod weapon_kit;
 pub mod music;

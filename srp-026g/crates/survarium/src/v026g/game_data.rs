@@ -128,11 +128,19 @@ impl GameData {
         })
     }
 
-    /// The data of tests and tools ([`TEST_ARCHIVE`]).
+    /// The data of tests and tools ([`TEST_ARCHIVE`]), with srp's own
+    /// configs made from the repository's tables ([`SRP_TABLES`]), as a
+    /// release's content patch has them.
     pub fn test_archive() -> Self {
         let mut archive =
             Archive::new(Cursor::new(TEST_ARCHIVE)).expect("the test archive is an archive");
-        Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads")
+        let mut data =
+            Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads");
+        for (path, table) in SRP_TABLES {
+            data.files
+                .insert((*path).to_owned(), key_value_config(table));
+        }
+        data
     }
 
     /// The server's game data in the file `data`.
@@ -217,6 +225,90 @@ fn read<R: Read + Seek>(archive: &mut Archive<R>, path: &str) -> Result<Vec<u8>,
         .read(path)
         .map_err(|cause| error(format!("{path}: {cause}")))
         .map(|bytes| bytes.expect("a listed file"))
+}
+
+/// srp's own configs, each made by a key/value table of
+/// `scripts/content-edit` (`content_edit.py` STATS) into the content patch:
+/// the test data's are the repository's.
+const SRP_TABLES: &[(&str, &str)] = &[(
+    super::lobby::rooms::RULES_PATH,
+    include_str!("../../../../scripts/content-edit/rooms.tsv"),
+)];
+
+/// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
+/// in a key, `/` goes into a named table and `[i]` to an item of an indexed
+/// one; a cell is a whole number, a number with a point, true/false or a text.
+fn key_value_config(table: &str) -> Vec<u8> {
+    enum Node {
+        Leaf(ConfigValue),
+        Table(Vec<(String, Node)>),
+    }
+    fn into_value(node: Node) -> ConfigValue {
+        match node {
+            Node::Leaf(value) => value,
+            Node::Table(entries) if entries.iter().all(|(step, _)| step.starts_with('[')) => {
+                ConfigValue::Indexed(
+                    entries
+                        .into_iter()
+                        .map(|(_, node)| into_value(node))
+                        .collect(),
+                )
+            }
+            Node::Table(entries) => ConfigValue::Named(
+                entries
+                    .into_iter()
+                    .map(|(step, node)| (step, into_value(node)))
+                    .collect(),
+            ),
+        }
+    }
+    let mut root = Vec::new();
+    let rows = table
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'));
+    for row in rows.skip(1) {
+        let (key, cell) = row
+            .split_once('\t')
+            .expect("a key/value table's row: key, value");
+        let value = match cell {
+            "true" | "false" => ConfigValue::Boolean(cell == "true"),
+            _ => cell.parse().map(ConfigValue::Integer).unwrap_or_else(|_| {
+                cell.parse()
+                    .map_or_else(|_| ConfigValue::String(cell.to_owned()), ConfigValue::Float)
+            }),
+        };
+        // `pvb/sizes[0]`: pvb, sizes, [0]
+        let steps: Vec<String> = key
+            .split('/')
+            .flat_map(|part| {
+                let (name, items) = part.split_once('[').unwrap_or((part, ""));
+                let items = items
+                    .split('[')
+                    .filter(|i| !i.is_empty())
+                    .map(|i| format!("[{i}"));
+                std::iter::once(name.to_owned())
+                    .filter(|n| !n.is_empty())
+                    .chain(items)
+            })
+            .collect();
+        let (last, path) = steps.split_last().expect("a key");
+        let mut table = &mut root;
+        for step in path {
+            let at = match table.iter().position(|(name, _)| name == step) {
+                Some(at) => at,
+                None => {
+                    table.push((step.clone(), Node::Table(Vec::new())));
+                    table.len() - 1
+                }
+            };
+            let Node::Table(inner) = &mut table[at].1 else {
+                panic!("{key}: under a value")
+            };
+            table = inner;
+        }
+        table.push((last.clone(), Node::Leaf(value)));
+    }
+    into_value(Node::Table(root)).to_bytes().expect("a config")
 }
 
 static SHARED: OnceLock<GameData> = OnceLock::new();
