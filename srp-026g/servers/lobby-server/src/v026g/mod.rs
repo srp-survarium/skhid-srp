@@ -87,11 +87,12 @@
 //!   (0: it ends with the link);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log (the sign-in's
 //!   session id is left out of it);
-//! - `SRP_PVB` (default off), `SRP_PVB_MAX_GEAR` (15), `SRP_PVB_MAX_MATCHES`
-//!   (5), `SRP_PVB_PAY` (0.5), `SRP_PVB_STALL_S` (60): "Player vs Bots"
-//!   (`pvb`, whose module says what each does and which server reads it).
-//! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
-//!   players' "servers" (`rooms`, whose module says what each does).
+//! - `SRP_PVB` (default off), `SRP_PVB_MAX_MATCHES` (5), `SRP_PVB_PAY` (0.5),
+//!   `SRP_PVB_STALL_S` (60): "Player vs Bots" (`pvb`, whose module says what
+//!   each does and which server reads it).
+//! - `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the players' "servers" (`rooms`,
+//!   whose module says what each does). Their numbers are game data:
+//!   `gameplay/srp/rooms.options` (`RoomRules`).
 
 mod away;
 mod clans;
@@ -192,10 +193,10 @@ pub struct Settings {
     /// What a player counts for when the sides of a match are made
     /// (`SRP_BALANCE_*`; `session::v026g::balance`).
     pub balance: Weights,
-    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_GEAR`,
-    /// `SRP_PVB_MAX_MATCHES`; `pvb`).
+    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_MATCHES`, `RoomRules::pvb`;
+    /// `pvb`).
     pub pvb: pvb::Config,
-    /// Rooms (`SRP_ROOMS_MAX`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
+    /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
 }
 
