@@ -272,6 +272,45 @@ pub fn tallied() -> [[u64; TALLIES.len()]; 2] {
     TALLIED.with(|cell| cell.get())
 }
 
+/// One change of a team's spot memory, for the bench's events (`tests/bench.rs`, its `"concede"` lines; nothing live): when,
+/// the team, the area's shooter, what caused it (a death to him before his hold, a counted failure, his death, his return),
+/// the change, the area's centre and when its concede or kept tries end.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub struct Logged {
+    pub at: u32,
+    pub team: u8,
+    pub shooter: Place,
+    pub cause: &'static str,
+    pub change: Change,
+    pub centre: Vec3,
+    pub until: Option<u32>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static LOGGED: std::cell::RefCell<Vec<Logged>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Team `team`'s memory `memory` changed `area` by `change` (none: nothing logged).
+#[cfg(test)]
+fn log(memory: &SpotMemory, team: u8, shooter: Place, area: AreaId, cause: &'static str, change: Change, now: u32) {
+    let Some(a) = memory.get(area).filter(|_| change != Change::None) else {
+        return;
+    };
+    let until = match a.state {
+        SpotState::Conceded { until, .. } | SpotState::Down { until, .. } => Some(until),
+        SpotState::Open | SpotState::Tried { .. } => None,
+    };
+    LOGGED.with(|log| log.borrow_mut().push(Logged { at: now, team, shooter, cause, change, centre: a.at, until }));
+}
+
+/// The changes logged since the last call.
+#[cfg(test)]
+pub fn take_logged() -> Vec<Logged> {
+    LOGGED.with(|log| std::mem::take(&mut *log.borrow_mut()))
+}
+
 /// [item 15] A hit a bot took from a shooter it sensed (`Reflex::last_hit`): where it sensed him, where the bot stood, when.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
@@ -384,6 +423,8 @@ pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shoote
     let area = memory.area_of(at, Some(shooter), now);
     let retry = !matches!(memory.state(area, now), SpotState::Open);
     let change = memory.apply(area, SpotEvent::Failed { kind, from, why }, now, rules);
+    #[cfg(test)]
+    log(memory, team, shooter, area, "failed", change, now);
     let job = role.is_some();
     tally(team, if job { Tally::DeathJob } else { Tally::DeathPeek });
     if retry {
@@ -401,7 +442,9 @@ pub fn died(threat: &mut TeamThreat, team: u8, victim: Place, from: Vec3, shoote
 pub fn found(threat: &mut TeamThreat, team: u8, from: Vec3, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) {
     let memory = &mut threat.spot_memory;
     let area = memory.area_of(at, Some(shooter), now);
-    memory.apply(area, SpotEvent::Found { from }, now, rules);
+    let _change = memory.apply(area, SpotEvent::Found { from }, now, rules);
+    #[cfg(test)]
+    log(memory, team, shooter, area, "found", _change, now);
     tally(team, Tally::DeathBeforeHold);
 }
 
@@ -425,7 +468,14 @@ pub fn like_last(picture: &Picture, to: Vec3, feet: Vec3, kind: TryKind, now: u3
 
 /// Enemy `shooter` died at `now`: team `team`'s areas of his are open again, or keep their tries ([`SpotState::Down`]).
 pub fn shooter_died(threat: &mut TeamThreat, team: u8, shooter: Place, now: u32, rules: &ConcedeRules) {
-    for change in threat.spot_memory.shooter_died(shooter, now, rules) {
+    #[cfg(test)]
+    let areas = threat.spot_memory.areas_of(shooter);
+    let changes = threat.spot_memory.shooter_died(shooter, now, rules);
+    #[cfg(test)]
+    for (&area, &change) in areas.iter().zip(&changes) {
+        log(&threat.spot_memory, team, shooter, area, "his_death", change, now);
+    }
+    for change in changes {
         match change {
             Change::Opened => tally(team, Tally::Opened),
             Change::Downed => tally(team, Tally::Downed),
@@ -437,7 +487,14 @@ pub fn shooter_died(threat: &mut TeamThreat, team: u8, shooter: Place, now: u32,
 /// Team `team` sensed enemy `shooter` at `at` at `now` (its own senses, as K1's `ThreatSpots::shooter_sensed`): an area of
 /// his that keeps its tries since his death, with `at` in it, takes them up ([`SpotEvent::Returned`]).
 pub fn shooter_sensed(threat: &mut TeamThreat, team: u8, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) {
-    match threat.spot_memory.shooter_sensed(shooter, at, now, rules) {
+    #[cfg(test)]
+    let area = threat.spot_memory.back_area(shooter, at, now);
+    let change = threat.spot_memory.shooter_sensed(shooter, at, now, rules);
+    #[cfg(test)]
+    if let Some(area) = area {
+        log(&threat.spot_memory, team, shooter, area, "his_return", change, now);
+    }
+    match change {
         Change::BackConceded => tally(team, Tally::BackConceded),
         Change::BackTried => tally(team, Tally::BackTried),
         _ => {}
@@ -535,21 +592,28 @@ impl SpotMemory {
     /// Shooter `shooter` died at `now`: each area of his is open again (a death of his traded or ended the try), or keeps
     /// its tries ([`ConcedeRules::keep_ms`]); what each changed.
     pub fn shooter_died(&mut self, shooter: Place, now: u32, rules: &ConcedeRules) -> Vec<Change> {
-        let ids: Vec<AreaId> = self.areas.iter().filter(|a| a.shooter == Some(shooter)).map(|a| a.id).collect();
-        ids.into_iter().map(|id| self.apply(id, SpotEvent::Succeeded, now, rules)).collect()
+        self.areas_of(shooter).into_iter().map(|id| self.apply(id, SpotEvent::Succeeded, now, rules)).collect()
+    }
+
+    /// The areas of shooter `shooter`, in order.
+    fn areas_of(&self, shooter: Place) -> Vec<AreaId> {
+        self.areas.iter().filter(|a| a.shooter == Some(shooter)).map(|a| a.id).collect()
     }
 
     /// Shooter `shooter` was sensed at `at` at `now`: the area of his that keeps its tries since his death and holds `at`
     /// takes them up ([`SpotEvent::Returned`]); what it changed.
     pub fn shooter_sensed(&mut self, shooter: Place, at: Vec3, now: u32, rules: &ConcedeRules) -> Change {
-        let back = self
-            .areas
+        self.back_area(shooter, at, now).map_or(Change::None, |id| self.apply(id, SpotEvent::Returned, now, rules))
+    }
+
+    /// The area of shooter `shooter` that keeps its tries since his death at `now` and holds `at`, the nearest.
+    fn back_area(&self, shooter: Place, at: Vec3, now: u32) -> Option<AreaId> {
+        self.areas
             .iter()
             .filter(|a| a.shooter == Some(shooter) && matches!(settled(a.state, now), SpotState::Down { .. }))
             .filter(|a| a.at.distance_xz(at) <= AREA_M)
             .min_by(|a, b| a.at.distance_xz(at).total_cmp(&b.at.distance_xz(at)))
-            .map(|a| a.id);
-        back.map_or(Change::None, |id| self.apply(id, SpotEvent::Returned, now, rules))
+            .map(|a| a.id)
     }
 
     /// A job's failure on `area`, its bot (or the try's) approaching from `from`.
