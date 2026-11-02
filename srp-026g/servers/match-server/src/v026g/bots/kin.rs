@@ -107,7 +107,10 @@ pub enum Edge {
     /// the guard let keys walk the body off. A269: every entry into the Vector Laboratory middle pit (a 5.3 m edge, deeper than
     /// the harmless drop: no link) and into the Tarakanovsky Fort shut pocket at (-8, -20) (a walkway edge 1.7 m over it, no link)
     /// was over such an edge. The lip guard also watches the floors near an open side. Needs the grids' table of open sides
-    /// ([`crate::v026g::bots::tuning::Tuning::needs_open_sides`]); a grid without it is [`Self::Client`].
+    /// ([`crate::v026g::bots::tuning::Tuning::needs_open_sides`]); a grid without it is [`Self::Client`]. Not the default: in
+    /// A269's bench (160 pairs) falls off the route went -28 % (past open sides -46 %), but the guard changed the keys on 9.5 % of the
+    /// ticks (0.5 % with [`Self::Client`]) in runs of 1-2 ticks, flipping 3 times a second, and stuck cases went +48 %, kills -13 %:
+    /// it waits for a guard that holds its brake.
     ClientWalksOff,
 }
 
