@@ -1937,9 +1937,9 @@ st_rpd_description	A leírás még nem érhető el.
 st_rpd_name	RPD
 st_rpk_description	A leírás még nem érhető el.
 st_rpk_name	RPK-74M
-st_saiga_12_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. A K változat rövid csövű, behajtható tussal. 5 lőszeres szekrénytár, csak egyes lövés.
+st_saiga_12_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. A K változat rövid csövű, behajtható tussal. Szekrénytáras, csak egyes lövés.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. Az S változat behajtható tusú. 5 lőszeres szekrénytár, csak egyes lövés.
+st_saiga_12_premium_description	Orosz öntöltő sörétes puska, 12-es kaliberrel. Az Izsmas az 1990-es években készítette Kalasnyikov-alapon vadászatra és biztonsági szolgálatoknak. Az S változat behajtható tusú. Szekrénytáras, csak egyes lövés.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Jelszó mentése
 st_scav_back_1_desc	Házilag készített artefaktumtároló hátizsák formájában. Hasznos felszerelés artefaktumvadászathoz.

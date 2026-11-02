@@ -1937,9 +1937,9 @@ st_rpd_description	Description is not ready!!!
 st_rpd_name	RPD
 st_rpk_description	RPD
 st_rpk_name	RPK-74M
-st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Passwort Speichern
 st_scav_back_1_desc	Selbst gemachter Artefakten Container, eignet sich für Rücksäcke. Sehr nützlich wenn man Artefakten jagen geht.
