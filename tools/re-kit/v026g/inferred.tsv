@@ -3165,3 +3165,7 @@ va	status	ref_021d	name
 0x000df020	inferred-high		vostok::command_line::iterate_keys<key_initializator>
 0x002e26b0	inferred-medium		survarium::weapon_core::ammo_ordinal
 0x002e2750	inferred-medium		survarium::weapon_core::ammo_by_ordinal
+0x003046f0	inferred-high	0x001e9cc8	survarium::booby_trap_core::load
+0x0031ff60	inferred-high	0x001f9af9	survarium::create_hit_type_parameters
+0x00323a10	inferred-high	0x001ff6fb	survarium::game_material::load_from_config
+0x00332330	inferred-high	0x00207b50	survarium::weapon_damage_params::weapon_damage_params
