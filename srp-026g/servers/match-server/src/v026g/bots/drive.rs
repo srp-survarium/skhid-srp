@@ -435,6 +435,7 @@ fn drive_tick_inner(
     ));
     #[cfg(test)]
     super::smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
+    bot.reflex.set_client_sway(bot.client_sway);
     let over = bot.reflex.tick(
         aiming_me,
         view,

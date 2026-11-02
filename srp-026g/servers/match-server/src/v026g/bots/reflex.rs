@@ -684,6 +684,13 @@ pub struct CombatTuning {
     /// bots take back twice what the weakest do.
     pub recoil_pull: f32,
     pub recoil_pull_low: f32,
+    /// [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway
+    /// ([`super::recoil::AIM_SWAY_DEG`], the live bots' bullets: +0.16 degrees in an aim's first 100 ms to +0.4 after 2 s), which a
+    /// player sees as his crosshair turns with the camera; with this on the bot turns left by it, the share it takes back of the
+    /// kick (`recoil_pull_low` to `recoil_pull` by the skill). Only a sway the client makes ([`super::recoil::ClientSway`]: the
+    /// live server's bots; a bench with `SRP_BENCH_AIM_SWAY=live`), never more than the table: the hit rate comes back to the
+    /// no-sway one, not above it (A241: skill 1 17.6 % with the sway, 19.3 % with this, 18.5 % without the sway; the line 18-20).
+    pub aim_sway_counter: bool,
     /// Aiming down the sights at a seen target: always from `ads_near_m`
     /// on, nearer with this chance (drawn per target); with a bolt action
     /// always.
@@ -1476,6 +1483,7 @@ impl Default for CombatTuning {
             press_gap_ms: 50,
             recoil_pull: 1.0,
             recoil_pull_low: 0.5,
+            aim_sway_counter: true,
             ads_near_m: 10.0,
             ads_near_chance: 0.85,
             aim_in_first: true,
@@ -3201,6 +3209,11 @@ pub struct Reflex {
     last_fire: Option<(Place, u32)>,
     /// [measure] Its own numbers at its last shot ([`FireAim`], A228).
     fire_aim: Option<FireAim>,
+    /// [measure] [A241] Its ticks with the trigger held and the aim sway taken back (`aim_sway_counter`; an automatic fires at
+    /// its own cadence, about every other tick), and the degrees taken back in all.
+    sway_taken: (u32, f32),
+    /// [A241] Whether the client sways its aimed automatic shots, as its host says ([`Self::set_client_sway`]).
+    client_sway: super::recoil::ClientSway,
     /// The aim's last fresh look found its target behind smoke; the aim sprays at the last point seen now (each
     /// a note when it begins); the notes not yet taken.
     smoke_lost: bool,
@@ -3734,6 +3747,16 @@ impl Reflex {
     /// [measure] Its own numbers at its last shot, if any (A228).
     pub fn fire_aim(&self) -> Option<FireAim> {
         self.fire_aim
+    }
+
+    /// [measure] [A241] Its ticks with the trigger held and the aim sway taken back, and the degrees taken back in all.
+    pub fn sway_taken(&self) -> (u32, f32) {
+        self.sway_taken
+    }
+
+    /// [A241] What its host says of the client's aim sway, each tick before [`Self::tick`].
+    pub fn set_client_sway(&mut self, sway: super::recoil::ClientSway) {
+        self.client_sway = sway;
     }
 
     /// [measure] The end of the last round-by-round reload's loop, if any: the
@@ -7032,6 +7055,18 @@ impl Reflex {
             (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
             (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
         );
+        // [A241] The aim sway taken back (`aim_sway_counter`), only where the client sways: left by the share of it its hand takes
+        // back of the kick.
+        let sway_deg = match aim_since {
+            Some(since)
+                if c.aim_sway_counter && self.client_sway == super::recoil::ClientSway::Live && super::recoil::sways(gun) =>
+            {
+                super::recoil::aim_sway_deg(now.saturating_sub(since)) * mix((c.recoil_pull_low, c.recoil_pull), skill)
+            }
+            _ => 0.0,
+        };
+        let drawn = error;
+        let error = (error.0 + sway_deg.to_radians(), error.1);
         // What a player knows of his own hand: the error to expect, not this tick's draw (`aim_settle`).
         let expected_deg = aim_settle::error_rms_deg(aim.angle(aim.error_deg, skill, class), fade, wander_deg, zoom);
         // [recoil] The kick's rise of the view this tick, taken back by the
@@ -7198,8 +7233,12 @@ impl Reflex {
                 distance,
                 off_deg: off.to_degrees(),
                 within_deg,
-                error_deg: error.0.abs().max(error.1.abs()).to_degrees(),
+                error_deg: drawn.0.abs().max(drawn.1.abs()).to_degrees(),
             });
+            if sway_deg > 0.0 {
+                self.sway_taken.0 += 1;
+                self.sway_taken.1 += sway_deg;
+            }
             #[cfg(test)]
             if spraying {
                 super::smoke::tally::add(me.team, super::smoke::tally::Event::Spray);
@@ -8883,6 +8922,44 @@ mod tests {
     /// A bot of `role` facing an enemy `distance` ahead from 1 s for
     /// `ticks` ticks, at skill 1, with the view kept on the aim: each
     /// tick's override.
+    /// [A241] With `aim_sway_counter` a bot down the sights with an automatic takes the aim sway back at its shots, by the share of
+    /// the kick it takes back (all of it at skill 1); off, or where the client does not sway, it takes none.
+    #[test]
+    fn with_the_sway_counter_its_aimed_shots_take_the_sway_back() {
+        use super::super::recoil::ClientSway;
+        let taken = |counter: bool, sway: ClientSway| {
+            let aim = AimTuning {
+                combat: CombatTuning { aim_sway_counter: counter, ..CombatTuning::default() },
+                ..AimTuning::default()
+            };
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            let at = Vec3::new(0.0, 0.0, 20.0);
+            let enemy = body(1, 1, at, 0.0);
+            facing(&mut me, enemy.chest());
+            let view = view_of(vec![me.clone(), enemy]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::armed(Arms::of_test_role("support"));
+            let mut rng = Rng::new(11);
+            for k in 0..200 {
+                let now = 1_000 + k * 50;
+                sense(&mut memory, &[percept(1, at, now, Source::Seen)], now);
+                if k % 5 == 0 {
+                    reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 1.0, &mut rng);
+                }
+                reflex.set_client_sway(sway);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            }
+            reflex.sway_taken()
+        };
+        assert_eq!(taken(false, ClientSway::Live), (0, 0.0));
+        assert_eq!(taken(true, ClientSway::Absent), (0, 0.0), "no sway, nothing taken back");
+        let (shots, deg) = taken(true, ClientSway::Live);
+        assert!(shots > 0, "shots with the sway taken back: {shots}");
+        let mean = deg / shots as f32;
+        let (low, high) = super::super::recoil::AIM_SWAY_DEG.iter().fold((f32::MAX, 0.0f32), |(l, h), &(_, d)| (l.min(d), h.max(d)));
+        assert!((low..=high).contains(&mean), "mean taken back {mean} deg, the table {low}-{high}");
+    }
+
     fn facing_fight(
         role: &str,
         distance: f32,
