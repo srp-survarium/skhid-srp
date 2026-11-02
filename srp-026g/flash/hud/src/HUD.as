@@ -805,7 +805,9 @@ package
 
       // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
       // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
-      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
+      // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
+      // player can use, an artefact container or an ammo stash, and fills it while used); while
       // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
       // alive, the intact player-info panel (ammo and body state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
@@ -830,7 +832,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo];
+         return [this.pregameInfo,this.contextInfo];
       }
 
       private function keptOnTab() : Array
