@@ -1,5 +1,8 @@
 # Weapons batch 1: OTs-14, SCAR-H, VHS-2, Minimi (0.31a2)
 
+Balance retune: [Zubr +8 comparison and proposed roles](imported_weapon_balance.md).
+The balance figures below describe the initial import.
+
 Four guns of Survarium 0.31a2 (2015) for release 41, the content pack `weapons-031@5` (its row in
 `release/content.tsv`). The owner's scope (2026-11-01): four batches of ported weapons, this one
 from 0.31a2; no premium or skin copies; machine-gun ammunition is the rifle round (no belt items);
