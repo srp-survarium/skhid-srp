@@ -177,6 +177,28 @@ class MapEditorEdits(unittest.TestCase):
             data = bytearray((root / 'out/suit').read_bytes())
             self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1113, 1103, 1094])
 
+    def test_cli_removes_keys_and_refuses_one_no_file_has(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live/ammo').mkdir(parents=True)
+            (root / 'live/ammo/a').write_bytes(bytes(config(
+                {'parameters': {'arp': 1.2, 'damage': 1.1, 'weight': 0.3, 'item_level': 4}, 'data': {'k_arp': 1.2}})))
+            (root / 'live/ammo/b').write_bytes(bytes(config({'parameters': {'weight': 0.2}})))
+
+            def run(keys, out):
+                (root / 'edits.json').write_text(json.dumps({'remove_key': [{'files': 'ammo/*', 'keys': keys}]}))
+                return subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                       str(root / 'edits.json'), str(root / 'live'), str(root / out)],
+                                      capture_output=True, text=True)
+            result = run(['parameters/arp', 'parameters/damage'], 'out')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('1 files edited, 0 unexpected differences', result.stdout)
+            data = bytearray((root / 'out/ammo/a').read_bytes())
+            self.assertEqual({p for p, _, _ in ce.walk(data)},
+                             {'', '/data', '/data/k_arp', '/parameters', '/parameters/weight', '/parameters/item_level'})
+            self.assertEqual(value(data, 'parameters/item_level'), 4)
+            self.assertNotEqual(run(['parameters/buckshot'], 'out2').returncode, 0)
+
     def test_cli_promotes_rolled_defaults_of_equipment_only(self):
         """Built-in bonuses of a kind that rolls are raised to its second-strongest row, on equipment
         only; a stronger one, a kind that never rolls and a wear-only one stay; the check afterwards
