@@ -24,3 +24,7 @@ vtable	slot	va	class	base	basis
 0x00a029a8	0x0	0x002f8850	survarium::static_collision	survarium::static_collision	observed: made by new_array_helper<static_collision> (0x22F9A6); insert, on_render_scenes_ready 0x22196D
 0x00a029a8	0x4	0x002f8970	survarium::static_collision	survarium::static_collision	observed: remove, lobby_menu::clear_resources 0x21D0BE
 0x009fac8c	0x10	0x001ed030	survarium::game	survarium::game	observed: game::clear_resources (the game closing; it deactivates the active scene and clears the lobby menu)
+0x009ffb14	0x34	0x00219990	survarium::network_client	survarium::base_network_client	observed: match_options; revision-42 replay crash investigation, ragdoll.md section 16
+0x009ffb14	0x50	0x0027a9c0	survarium::network_client	survarium::base_network_client	observed: get_active_player; revision-42 replay crash investigation, ragdoll.md section 16
+0x009ff344	0x34	0x002189e0	survarium::replay_network_client	survarium::base_network_client	observed: match_options; revision-42 replay crash investigation, ragdoll.md section 16
+0x009ff344	0x50	0x0026d6a0	survarium::replay_network_client	survarium::base_network_client	observed: get_active_player; revision-42 replay crash investigation, ragdoll.md section 16
