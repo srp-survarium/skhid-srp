@@ -909,15 +909,23 @@ pub enum RusherKit {
     /// are switched on by the setting once a bench train has chosen them.
     #[default]
     Control,
+    /// [A267] Bench only ([`Self::bench_only`]): the tier's machine gun, `rpd` at 9-10 and `rpk` at 13-15, with the SMG
+    /// kit's helmet, so the aim's calibration has a machine gun's shots (no tier's kit carries one). The lobby refuses it.
+    Mg,
+    /// [A267] Bench only: a pistol, `fort_17` at 9-10 and `aps` at 13-15, with the SMG kit's helmet, for the pistols'
+    /// calibration (no tier's kit gives a bot a pistol to fire). The lobby refuses it.
+    Pistol,
 }
 
 impl RusherKit {
-    pub const ALL: [RusherKit; 5] = [
+    pub const ALL: [RusherKit; 7] = [
         RusherKit::Smg,
         RusherKit::Alt,
         RusherKit::Slug,
         RusherKit::Helmet,
         RusherKit::Control,
+        RusherKit::Mg,
+        RusherKit::Pistol,
     ];
 
     /// The word of the settings (`SRP_PVB_RUSHER_KIT`, `SRP_BENCH_RUSHER`).
@@ -928,7 +936,14 @@ impl RusherKit {
             RusherKit::Slug => "slug",
             RusherKit::Helmet => "helmet",
             RusherKit::Control => "control",
+            RusherKit::Mg => "mg",
+            RusherKit::Pistol => "pistol",
         }
+    }
+
+    /// [A267] A kit only the bench wears (`SRP_BENCH_RUSHER`): the lobby refuses it (`SRP_PVB_RUSHER_KIT`).
+    pub fn bench_only(self) -> bool {
+        matches!(self, RusherKit::Mg | RusherKit::Pistol)
     }
 
     pub fn parse(word: &str) -> Option<Self> {
@@ -1322,6 +1337,22 @@ pub const TIER_9_10: TierGear = TierGear {
                 armour: RUSHER_ARMOUR_9_10,
             },
         ),
+        (
+            RusherKit::Mg,
+            RoleGear {
+                weapon: "rpd",
+                ammo: "ammo_7.62x39_m",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
+        (
+            RusherKit::Pistol,
+            RoleGear {
+                weapon: "fort_17",
+                ammo: "ammo_9x18_pbm",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
     ],
     camper: RoleGear {
         weapon: "sv_98",
@@ -1429,6 +1460,22 @@ pub const TIER_13_15: TierGear = TierGear {
             RoleGear {
                 weapon: "spas_12",
                 ammo: "ammo_12mm_buck",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
+        (
+            RusherKit::Mg,
+            RoleGear {
+                weapon: "rpk",
+                ammo: "ammo_5.45x39_7n10",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
+        (
+            RusherKit::Pistol,
+            RoleGear {
+                weapon: "aps",
+                ammo: "ammo_9x18_pbm",
                 armour: RUSHER_ARMOUR_13_15,
             },
         ),
@@ -3542,6 +3589,31 @@ mod tests {
 
     /// The settings' words: one kit for both tiers, or a kit a tier; the
     /// default is the old table in both; a wrong word is an error that names it.
+    /// [A267] The bench-only kits (an MG, a pistol) are the rusher's weapon 1 with ammo that fits it, in each tier whose data
+    /// has them; only they are bench-only.
+    #[test]
+    fn the_bench_only_kits_carry_a_gun_and_its_ammo() {
+        let dictionary = Dictionary::shared();
+        for tier in [BotTier::Mid, BotTier::High] {
+            for kit in [RusherKit::Mg, RusherKit::Pistol] {
+                assert!(kit.bench_only());
+                let gear = tier.gear().rusher_gear(kit);
+                assert_ne!(gear.weapon, tier.gear().rusher.weapon, "{tier} {kit:?} has its own table");
+                if kit.worn_in(tier) != kit {
+                    continue;
+                }
+                let weapon = dictionary.item_named(gear.weapon).unwrap();
+                let ammo = dictionary.item_named(gear.ammo).unwrap();
+                assert!(dictionary.compatible(weapon.dict_id, ammo.dict_id), "{tier} {kit:?}");
+                let equipment = BotEquipment { tier, rusher: kit, mask: BotMask::Table };
+                let made = bot_kit(equipment, BotRole::Rusher);
+                assert_eq!(made.slot(7).map(|item| item.dict_id), Some(weapon.dict_id), "{tier} {kit:?}");
+                assert_eq!(made.slot(8).map(|item| item.dict_id), Some(ammo.dict_id), "{tier} {kit:?}");
+            }
+        }
+        assert!(RusherKit::ALL.into_iter().filter(|kit| kit.bench_only()).eq([RusherKit::Mg, RusherKit::Pistol]));
+    }
+
     #[test]
     fn the_choice_is_read_from_a_setting() {
         let both = RusherKits::both(RusherKit::Control);

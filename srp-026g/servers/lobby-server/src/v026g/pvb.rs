@@ -195,7 +195,12 @@ fn parse_rusher_kits(value: &str) -> Result<RusherKits, String> {
     if value.trim().is_empty() {
         return Ok(RusherKits::owners());
     }
-    RusherKits::parse(value)
+    let kits = RusherKits::parse(value)?;
+    // [A267] The bench's calibration kits are not the players' opponents'.
+    match [kits.mid, kits.high].into_iter().find(|kit| kit.bench_only()) {
+        Some(kit) => Err(format!("`{}` is a bench-only kit", kit.name())),
+        None => Ok(kits),
+    }
 }
 
 /// The offered maps as the dictionary has them.
@@ -556,5 +561,8 @@ mod tests {
         assert_eq!(one_tier.of(BotTier::Mid), RusherKit::Control);
         assert_eq!(one_tier.of(BotTier::High), RusherKit::Smg);
         assert!(parse_rusher_kits("9-10=nope").is_err());
+        // [A267] The bench's calibration kits are refused.
+        assert!(parse_rusher_kits("mg").is_err());
+        assert!(parse_rusher_kits("13-15=pistol").is_err());
     }
 }
