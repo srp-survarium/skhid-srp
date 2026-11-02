@@ -275,9 +275,7 @@ impl Knob {
         match self.unit {
             Unit::Hits { class } => match (self.usable(file), file.calibration.of(class)) {
                 (Some((low, high)), Some(calibration)) => {
-                    let (from, to) = calibration.bar;
-                    let bar = if from == to { format!("{to}") } else { format!("{from}–{to}") };
-                    format!("{low:.1}–{high:.1} % (default bar {bar} %)")
+                    format!("{low:.1}–{high:.1} % (default bar {} %)", calibration.bar_text())
                 }
                 _ => "—".to_owned(),
             },
@@ -324,14 +322,30 @@ impl Knob {
             return None;
         };
         let (low, middle, high) = tuning.aim.class_aim.of(class);
-        Some(match tuning.calibration.type_of(class) {
-            TypeCalibration::Own(_) => format!("factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle})"),
-            TypeCalibration::Pooled(_) => format!(
-                "factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle}); not measured on its own yet: the pool's numbers"
-            ),
-            TypeCalibration::NotMeasured => format!("factors {low} / {middle} / {high} (skill 0 / 0.5 / 1); no bench points"),
+        let factors = format!("factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle})");
+        let calibration = match tuning.calibration.type_of(class) {
+            TypeCalibration::NotMeasured => {
+                return Some(format!("factors {low} / {middle} / {high} (skill 0 / 0.5 / 1); no bench points"));
+            }
+            TypeCalibration::Own(numbers) => numbers,
+            TypeCalibration::Pooled(numbers) => {
+                let off = bar_note(numbers, high).map_or(String::new(), |note| format!("; {note}"));
+                return Some(format!("{factors}; not measured on its own yet: partly the pool's numbers{off}"));
+            }
+        };
+        Some(match bar_note(calibration, high) {
+            Some(note) => format!("{factors}; {note}"),
+            None => factors,
         })
     }
+}
+
+/// [A267] What the page says of a class's rate at skill 1 with the skill-1 factor `high` against its bar, when it is off it
+/// (a default line may be: the page keeps and says it, never refuses it): `21.6 % at skill 1, above its bar 18–20 %`.
+fn bar_note(calibration: &super::ClassCalibration, high: f32) -> Option<String> {
+    let rate = calibration.at_skill_1(high)?;
+    let side = calibration.against_bar(rate)?;
+    Some(format!("{rate:.1} % at skill 1, {side} its bar {} %", calibration.bar_text()))
 }
 
 /// A class's rate at skill 1 in a tuning: its calibration's at its skill-1 factor (NaN for none).
@@ -375,7 +389,14 @@ fn rates(tuning: &Tuning) -> Rates {
     let classes = KNOBS
         .iter()
         .filter_map(|knob| match knob.unit {
-            Unit::Hits { class } => Some(ClassRates { label: knob.label, line: line_of(tuning, class, &points) }),
+            Unit::Hits { class } => Some(ClassRates {
+                label: knob.label,
+                line: line_of(tuning, class, &points),
+                bar: tuning.calibration.of(class).map(|calibration| {
+                    let note = bar_note(calibration, tuning.aim.class_aim.of(class).2);
+                    note.unwrap_or_else(|| format!("bar at skill 1: {} %", calibration.bar_text()))
+                }),
+            }),
             _ => None,
         })
         .collect();
@@ -1205,15 +1226,20 @@ mod tests {
         let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
         assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.6", "18.6"));
         // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
-        // to ~1.49, ~17.4 %) to the sweep's top (21.5 % at 1.0, on the line 21.6), the owner's bar beside.
-        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–21.6 % (default bar 18–20 %)"), "{}", rifle.limits);
+        // to ~1.49, ~17.2 %) to the sweep's top (A267(a): 30.8 % at 0.40, on the line 30.6), the owner's bar beside.
+        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–30.6 % (default bar 18–20 %)"), "{}", rifle.limits);
         let span_low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
         assert_eq!(
             rifle.beside.as_deref(),
-            Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77); not measured on its own yet: the pool's numbers")
+            Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77); not measured on its own yet: partly the pool's numbers")
         );
         let shotgun = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.shotgun").unwrap();
         assert!(shotgun.limits.ends_with("(default bar 20 %)") && !shotgun.beside.as_deref().unwrap().contains("pool"), "{shotgun:?}");
+        // A default line off its bar is kept and said plainly (A267): the shotgun's 18.8 and the DMR's 28.9 under theirs.
+        assert!(shotgun.beside.as_deref().unwrap().ends_with("; 18.8 % at skill 1, under its bar 20 %"), "{shotgun:?}");
+        let dmr = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.marksman").unwrap();
+        assert!(dmr.beside.as_deref().unwrap().ends_with("; 28.9 % at skill 1, under its bar 30–32 %"), "{dmr:?}");
+        assert_eq!(dmr.value, dmr.default);
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
         assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
         // 19 % for the rifles: their skill-1 factor from the calibration, the lower two kept; the next match runs on it.
@@ -1235,7 +1261,7 @@ mod tests {
         let under = format!("{:.1}", span_low - 0.2);
         for bad in [
             ("aim.class_aim.rifle", under.as_str()),
-            ("aim.class_aim.rifle", "22"),
+            ("aim.class_aim.rifle", "31"),
             ("aim.class_aim.rifle", "13"),
             ("aim.class_aim.rifle", "0"),
             ("aim.class_aim.rifle", "NaN"),
@@ -1250,7 +1276,7 @@ mod tests {
         let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
         assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
         // The rifles at the bottom of their span, the bolts at their bar and the DMRs inside their narrow span (on the
-        // line, 28.1-28.9 %: the sweep's flat 29.5 % is the ladder's 28.9 at skill 1).
+        // line, 28.4-29.7 %: the sweep's 29.25 % at the shipped 0.72 is the ladder's 28.9 at skill 1).
         let at_low = format!("{:.1}", span_low + 0.1);
         set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
         set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "28.5")]).unwrap();
@@ -1258,7 +1284,7 @@ mod tests {
         let factor_for = |class: WeaponClass, rate: f32| shipped.calibration.of(class).unwrap().factor_for(rate).unwrap();
         assert!((next.tuning().aim.class_aim.bolt.2 - factor_for(WeaponClass::Bolt, 40.0)).abs() < 1e-4);
         assert!((next.tuning().aim.class_aim.marksman.2 - factor_for(WeaponClass::Marksman, 28.5)).abs() < 1e-4);
-        assert!(set(&live, &[("aim.class_aim.marksman", "29.4")]).unwrap_err().contains("outside the bench's points (28.1–28.9 %)"));
+        assert!(set(&live, &[("aim.class_aim.marksman", "29.8")]).unwrap_err().contains("outside the bench's points (28.4–29.7 %)"));
         // Over the owner's bar, within the points (A267): the SMGs at 21 % and the bolts at 42 %.
         set(&live, &[("aim.class_aim.smg", "21"), ("aim.class_aim.bolt", "42")]).unwrap();
         let over = live.for_match();
@@ -1370,7 +1396,7 @@ mod tests {
         }
         // Refused as a set refuses them, with the same reason; nothing changes.
         for bad in [
-            &[("aim.class_aim.rifle", "22")][..],
+            &[("aim.class_aim.rifle", "31")][..],
             &[("aim.class_aim.rifle", "13")],
             &[("skill.tiers.9-10.max", "0.4")],
             &[("aim.class_aim.pistol", "20")],
