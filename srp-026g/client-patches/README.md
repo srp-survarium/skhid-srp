@@ -3784,7 +3784,9 @@ stays red at the carry limit. Its native warning tooltip shows the weight's
 movement and sprint-stamina penalties, including the selected kit's skills,
 and explains when weight or Heavyweight prevents sprinting. This is UI only.
 `weight_ui_026g.c`/`.asm` extend the existing weight callback from the same
-player config and native profile evaluator. See the carried-weight section of
+player config and native profile evaluator. Before it, they send the movie the
+selected kit's 68 player modifier floats (`root.set_kit_modifiers`: the skills),
+which a weapon card adds while Alt is held (`docs/notes/alt-weapon-stats.md`). See the carried-weight section of
 `docs/notes/data.md`, `check_weight_ui_026g.py`, and
 `scripts/weight-ui/check_ui.sh` for evidence and targeted checks.
 

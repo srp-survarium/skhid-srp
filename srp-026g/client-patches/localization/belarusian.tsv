@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Мінімальная шкода
 st_srp_weapon_minimum_damage_from	Мінімальная шкода ад
 st_srp_weapon_recoil_heading	Аддача, раскід, гойданне
 st_srp_weapon_reload	Перазарадка
-st_srp_weapon_shift_hint	Трымайце Shift: падрабязней
+st_srp_weapon_shift_hint	Shift: дэталі · Alt: у баі
 st_srp_weapon_spread_growth	Хуткасць росту раскіду
 st_srp_weapon_spread_max	Мяжа росту раскіду
 st_srp_weapon_spread_per_shot	Раскід ад стрэлу
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Характарыстыкі зброі
 st_srp_weapon_sway_cycle	Перыяд разгойдвання
 st_srp_weapon_sway_horizontal	Разгойдванне ў бакі
 st_srp_weapon_sway_vertical	Разгойдванне ўверх-уніз
+st_srp_weapon_with_kit	З камплектам
+st_srp_weapon_with_kit_skills	З камплектам і навыкамі
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
 st_srp_weather_evening	вечар

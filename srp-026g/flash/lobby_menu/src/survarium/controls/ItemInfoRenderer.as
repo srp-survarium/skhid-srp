@@ -13,6 +13,8 @@ package survarium.controls
    import survarium.item.ItemFactory;
    import survarium.item.WeaponDetails;
    import survarium.item.WeaponDetailsView;
+   import survarium.player.LocalPlayerProfile;
+   import survarium.player.MatchEffects;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
@@ -106,12 +108,13 @@ package survarium.controls
          dispatchEvent(new Event(Event.RESIZE));
       }
 
+      // What the card shows: its rows (none, compact or expanded with Shift), neutral colours
+      // (Ctrl), a weapon's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
       private function detailsMode() : String
       {
          if(_data == null) return "none";
-         if(_weaponDetails == null) return MainScene.isCtrl ? "none-neutral" : "none";
-         if(!MainScene.isShift) return MainScene.isCtrl ? "compact-neutral" : "compact";
-         return MainScene.isCtrl ? "expanded-neutral" : "expanded";
+         var rows:String = _weaponDetails == null ? "none" : MainScene.isShift ? "expanded" : "compact";
+         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && _data.isWeapon ? "-match" : "");
       }
 
       private function updateDetailsText() : void
@@ -125,7 +128,8 @@ package survarium.controls
          if(_detailsText != null)
          {
             _detailsText.visible = _weaponDetails != null;
-            _detailsText.show(_weaponDetails,_detailsMode == "expanded" || _detailsMode == "expanded-neutral",itemCompare);
+            var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(_data);
+            _detailsText.show(effects == null ? _weaponDetails : WeaponDetails.read(_data,effects),MainScene.isShift,itemCompare,effects);
          }
       }
 

@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Vähimmäisvahinko
 st_srp_weapon_minimum_damage_from	Vähimmäisvahinko alkaa
 st_srp_weapon_recoil_heading	Rekyyli, hajonta ja heilunta
 st_srp_weapon_reload	Lataaminen
-st_srp_weapon_shift_hint	Lisätiedot: pidä Shift pohjassa
+st_srp_weapon_shift_hint	Shift: lisää · Alt: ottelussa
 st_srp_weapon_spread_growth	Hajonnan kasvunopeus
 st_srp_weapon_spread_max	Suurin lisähajonta
 st_srp_weapon_spread_per_shot	Hajonta laukausta kohden
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Asetilastot
 st_srp_weapon_sway_cycle	Heiluntajakso
 st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
+st_srp_weapon_with_kit	Varustesetillä
+st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
 st_srp_weather_evening	ilta
