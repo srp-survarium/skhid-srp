@@ -14,6 +14,7 @@ mod counters;
 mod exact;
 mod falls;
 mod fields;
+mod flights;
 mod passes;
 mod pockets;
 mod probe;
@@ -153,6 +154,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         wall_clear_kept(),
         sprint_turns(),
         Box::new(turns::Turns::new(bodies)),
+        Box::new(flights::Flights::new(bodies)),
     ]
 }
 

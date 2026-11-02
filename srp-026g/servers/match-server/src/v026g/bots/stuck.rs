@@ -209,6 +209,9 @@ pub struct Stuck {
     walked_from: Option<(u32, Vec3, Option<f32>)>,
     /// How far its keys meant to move it over the last window the reckoned watch checked (none: not known).
     meant_checked: Option<f32>,
+    /// The bench's: the first world of the last window the reckoned watch checked (time, feet).
+    #[cfg(test)]
+    checked_from: Option<(u32, Vec3)>,
     /// The first of the worlds since that showed the walk keys held and
     /// the body near where it was then: time and feet ([`HELD_AFTER_MS`]).
     held_from: Option<(u32, Vec3)>,
@@ -437,6 +440,12 @@ impl Stuck {
         self.meant_checked
     }
 
+    /// The bench's: the first world of the last window the reckoned watch checked (time, feet).
+    #[cfg(test)]
+    pub fn checked_from(&self) -> Option<(u32, Vec3)> {
+        self.checked_from
+    }
+
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
     /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`].
     fn reckoned(
@@ -469,6 +478,10 @@ impl Stuck {
         }
         self.walked_from = Some((time, feet, Some(0.0)));
         self.meant_checked = meant_since;
+        #[cfg(test)]
+        {
+            self.checked_from = Some((at, from));
+        }
         let still = from.distance_xz(feet) < STUCK_MOVED_M;
         let stuck = still && meant_since.is_none_or(|m| m >= MEANT_M);
         // The window the old rule would have called stuck for a way it did not
