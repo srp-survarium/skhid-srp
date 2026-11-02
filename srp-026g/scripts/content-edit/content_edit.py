@@ -29,6 +29,10 @@ Edits (edits.json):
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
+  "remove_key":     [{"files" (glob on the game path), "keys"}]
+                    each key path (`parameters/arp`) taken out of every matching file that has it: its
+                    table's later records move down in place, the count drops by 1; a key no matching
+                    file has is refused
   "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
@@ -276,6 +280,27 @@ def rename_key(buf, table, frm, to):
     recs = sorted((bytes(buf[c:c + 24]) for c in kids), key=lambda r: REC.unpack(r)[2])
     for c, r in zip(kids, recs):
         buf[c:c + 24] = r
+    return True
+
+
+def remove_key(buf, path):
+    """The key at `path` taken out of its named table: the later records move down one place in the
+    table's own array (the CRC order holds), its count drops by one. False when there is no such key."""
+    table, _, key = path.rpartition('/')
+    try:
+        toff = find(buf, table) if table else 0
+    except KeyError:
+        return False
+    if rec(buf, toff)[3] != T_NAMED:
+        return False
+    kids = children(buf, toff)
+    hit = [i for i, c in enumerate(kids) if name_at(buf, rec(buf, c)[1]) == key.encode()]
+    if not hit:
+        return False
+    for dst, src in zip(kids[hit[0]:], kids[hit[0] + 1:]):
+        buf[dst:dst + 24] = buf[src:src + 24]
+    d, i, crc, t, cnt = rec(buf, toff)
+    REC.pack_into(buf, toff, d, i, crc, t, cnt - 1)
     return True
 
 
@@ -1349,6 +1374,22 @@ def main():
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    gone = {}
+    for e in edits.get('remove_key', []):
+        for key in e['keys']:
+            n = 0
+            for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+                b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
+                if remove_key(b, key):
+                    bufs[p] = b
+                    gone.setdefault(p, []).append('/' + key)
+                    table = '/' + key.rpartition('/')[0] if '/' in key else ''
+                    grown.setdefault(p, {}).setdefault(table, 0)
+                    grown[p][table] -= 1
+                    n += 1
+            if not n:
+                sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
+            print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
@@ -1602,6 +1643,7 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
+                (n is None and any(q == g or q.startswith(g + '/') or q.startswith(g + '[') for g in gone.get(p, ()))) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
