@@ -224,6 +224,13 @@ match). A build of before refuses the file once the step is made.
 
 ## 8. The sides: what a player counts for — choice (2026-10-13)
 
+**Replaced on 2026-11-01** (the owner's): a player now counts for its K/D at the match's
+equipment level, a squad's members 1.3 times, with a small noise
+([kd-balance.md](kd-balance.md)). §8.2's weights of gear level, account level and the overall
+balance rating are no longer counted; the overall rating (§8.3) is still moved and logged, and the
+late-join rule (§9) and the lead are as they were, in K/Ds. Kept below for the record and the
+refit.
+
 Code: `crates/session/src/v026g/balance.rs` (the weights, the balance rating),
 `crates/session/src/matchmaking.rs` (`seat_balanced`, `set_strengths`,
 `set_player_value`), `servers/lobby-server/src/v026g/play.rs` (`strength_of`, the
@@ -409,7 +416,6 @@ thrown (§3.14).
   **The sides are made as the standard queue makes them** (§8.2,
   `seat_balanced`): by what each player counts for.
 - Players left over wait a new window, or join the match just made.
-- The home page ("How matches start") tells these rules, and the running-match rules of §9.2, when every game that can press Play is of this queue: `SRP_MIN_PATCH_REVISION` is 5 or more (`web-server`'s `only_growing_games`). Otherwise it still tells the standard queue's (§3), whose games are then the other queue.
 
 ### 9.2 A match being played: who joins, and where
 

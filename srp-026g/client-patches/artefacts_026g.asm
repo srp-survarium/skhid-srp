@@ -1,7 +1,7 @@
 ; Patch 54: the artefacts (build 2777): Spring's aim time and stopping power,
 ; Lifebone's heal, one press fires every artefact of its kind, Onyx fired
 ; together 1 s longer each and reducing a hit once (2026-10-25). Its numbers
-; are in the artefacts' configs (release/content.tsv artefacts-1.json); this
+; are in the artefacts' configs (release/content.tsv artefacts.tsv); this
 ; is what the stock code could not read or do.
 ; The arena's block artefacts.code (link_026g.py links it; patch_026g.py's
 ; ARTEFACTS_HOOKS jump to the six entries by their names).

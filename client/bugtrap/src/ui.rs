@@ -253,7 +253,7 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             let result = ShellExecuteW(
                 window,
                 windows_sys::w!("open"),
-                windows_sys::w!("https://discord.gg/Pxa4prXfwu"),
+                windows_sys::w!("https://discord.gg/QUmJg3gBhg"),
                 core::ptr::null(),
                 core::ptr::null(),
                 SW_SHOWNORMAL,

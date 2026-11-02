@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway
 st_srp_weapon_reload	Reload
-st_srp_weapon_shift_hint	Hold Shift for details
+st_srp_weapon_shift_hint	Shift: details · Alt: in a match
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
 st_srp_weapon_spread_per_shot	Spread added per shot
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Weapon stats
 st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weapon_with_kit	With kit
+st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
 st_srp_weather_evening	evening
@@ -2849,9 +2851,16 @@ st_walther_competition2_collimator_desc	German red dot collimator sight made by 
 st_walther_competition2_collimator_name	Competition II collimator
 st_wasted	Consumption
 st_weapon_aim_action	Aim (hold)
+st_weapon_already_taken	Already taken
+st_weapon_cannot_carry	Can't carry a second rifle
+st_weapon_cannot_pick_up	Can't pick this up
 st_weapon_could_not_be_used	Arms wounded! Unable to use weapons
 st_weapon_fire_action	Shoot
+st_weapon_no_gun_in_hands	Hold a gun to swap it
+st_weapon_one_gun_only	You can carry one gun only
+st_weapon_pick_up	Pick up %1$s ({USE})
 st_weapon_reload_action	Reload
+st_weapon_switching	Wait for the weapon switch
 st_wear	Apply
 st_weight_booster_description	Protein containing essential nutrients for muscle growth and strength improvement. However using it without physical exertion is ineffective.
 st_weight_booster_name	Anomalous Force Protein

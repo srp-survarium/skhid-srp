@@ -52,6 +52,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 38 | Released 2026-10-29 20:32 UTC (tag `026g-rev38`, `main` ff4fe0a). Shipped: #698 Changelog: revision 37 for players, including rewards and solo replays; #727 Add weapons wiki, recoil comparison and detailed game tooltips; #739 Shop: buy an item by dropping it on its slot; #721 Game languages: ten dictionaries as TSVs, Belarusian, Czech/Hungarian/Finnish/Serbian, Language in Settings; #741 Rust patches: typed raw handles, layout only in raw; #745 Weapon rolls: recoil and aim time take effect; chamber time on the card; #716 Flag of Serbia decal: red over blue over white; #746 Site: the wiki takes the calculator and the maps, and gets a modifiers page; #750 Equipment through 0.29: 84 pieces, balanced against native gear; #752 Weapons wiki: shots at their own moments, views hold at their last shot, no Next shot; #699 Detach selected helmets on fatal headshots; #754 Equipment: its texts in all ten languages (release 38 content build); #753 Weapons wiki: sideways kick at a degree a unit; smooth camera shake; #757 Wiki: Equipment, every armour piece with its protection, weight and bonuses; #755 Notes: what the 0.26g armour parameters do; #756 Headwear: the 0.29 helmets fly off on fatal headshots; the knit cap doesn't; #758 Wiki modifiers: Can roll leaves out what an item comes with; #760 Exoskeleton boots and gloves without their black areas (pack exo-gear@1); #763 Exo boots' lobby icons at the stock boots' angle (exo-gear@2); #762 Release: per-release item tables (equipment, weapons) in the record; #761 Wiki equipment: flying off only in the card's details; #759 Built-in bonuses at the second-strongest strength; exoskeleton suits buffed; #751 Carry and share artefacts with animated hand poses and death drops; #765 Match: an anomaly artefact pickup scores 15 (5 with full containers); #770 Equipment 0.29: no donor placeholder descriptions; #771 Equipment 0.29: German placeholder descriptions too; #773 Weapon card: chambering time shows only the new value; #774 Exoskeleton gloves keep their stock icons (exo-gear@3); #775 Equipment 0.29: no shader 0.26g lacks (Watchman gloves crash); #777 Artefact carry: H held, then a quick key, raises the artefact; #779 Artefact carry: H's up comes from the key handler (stuck carry key). Without a server sha256 `955e2208d3b05ddf117ffafc66cca041edb8093ad66c7ef1cfa764e05744032b`, with `--server=skhid.link:1234` `a9da4ad1428b8b6e55cf2ee12c879aecddf247b1cc589072ab9d8fc511608e78`. The ZIP: 7197600 bytes, sha256 `53d273e95594a50ae4a3c86afd2512930d9b0ce55afcebfb064c148c8e435708`; the server data: sha256 `e30f7b12cacbe4147745fb5af0cf95d43e816a74bb9d9f3b8022fa6bf7553c44`. Its content: `resources.db.patch_38` (390848411 bytes, sha256 `307cd527ac6cfaeb1085ba156f4d45f81308e8189def3c18ecb6d0e245850823`) |
 | Revision 39 | Released 2026-10-30 17:44 UTC (tag `026g-rev39`, `main` e3c9a01). Shipped: #804 caddy26: plain TCP only (net.mptcp.enabled=0); #787 Launcher: the language is the game's, every language, kept in user.cfg; #783 Artefact carry: H's key states as the engine defines them; #790 Artefact carry: no gun falls from a carrier's death; #792 Late join: a loaded world puts its alive players into it (patch 82); #806 Equipment from 0.31a2 and 0.46c2: 35 of the owner's 38 picks (pack equipment-046@4); #825 Backpacks from 0.69: the Medic's bag and the Soldier's backpack (pack equipment-069@1), into main; #793 Rooms: the chosen room's card keeps one layout through the vote; #786 Release: build and stage before the go, then the maintenance and a quick swap; #789 Lobby: the kit's movement speed beside the weight; #828 Release: close four gaps found in releases 36-38; #831 Minimap: a late joiner's allies get the ally's icon; #832 Revert #792: the world load already inserts its players (patch 82 never acts); #829 Hud: the Double cylinder's quick-slot icon; #834 Wear the exoskeleton boots under full-length trousers; #781 Artefact carry: the held hand breathes and flexes its fingers; #835 Ragdoll: no headshot launch (exp_neg is 0 from 20); #764 Add breakable map lamps with the Rust patch framework; #838 Wiki icons: read the shop filters from FiltersWindow's list functions. Without a server sha256 `24e6ceb4c2e0897e18e89b7a7fe061e58be7c4dbee53a24967bc54c14f0a3e77`, with `--server=skhid.link:1234` `b0da71a57d786d2d2971bd3fe618ec25a877d68a049f6f08b6e9cca1345a70c9`. The ZIP: 7211382 bytes, sha256 `f1ff487017770366b8275e314dd78da33729ab41a3b370f205637c5443917f46`; the server data: sha256 `a19b64cef5a49374b0b0fce9189834c97c9547a63bb68ca0422800488c402f10`. Its content: `resources.db.patch_39` (355552277 bytes, sha256 `b1fde5c35b09764f8a1292ef3ece295251b975f0516acd73cd397649d6a93036`) |
 | Revision 40 | Released 2026-10-31 19:04 UTC (tag `026g-rev40`, `main` 2a8e9d4). Shipped: #842 Shop filters: one table the lobby build and the wiki read; #843 Lamps: orient each shatter burst in a frame the game can build; #841 Rooms: drop the vote sentence from the room's bar; #845 Lobby: a right-click menu's Buy buys the item it was opened on; #852 Play that would queue offers the other bracket's room as Join does; #857 Tab map: names over the player icons while Alt is held (patch 82); #860 Tab list: Ctrl shows a cursor, and a row's menu sends a friend request (patch 86); #876 Rooms: members by Play stay after the match; the results stay up under room changes; #863 Settings: Hide hit markers, Hide player scores (exe patch 83); #862 Lobby: transient windows (History closes when anything else opens; PvP/bots list over Rooms); #879 Settings HUD group: "Hidden minimap" as "Hidden crosshair"; #878 Mute chat: two state-dependent entries in the lobby's player menu and the Tab list's row menu (patch 86); #880 World frame check: the match server and the game refuse a world no game could load (patch 87, crate world-frame); #895 Short scope slot label and stock scope names that fit the upgrade window; #884 Squads of two: Play and Join take the mate along, marked in the rooms; #881 Music: the menus' and maps' themes, 15 s past the start (patch 88, pack music@1); #851 STK2 outfits: the bandit's, the Novice's and the loner's pieces (packs stk2-bandit, stk2-novice, stk2-loner); #883 Patch 84: a bullet that hits a player stops the healing drug in use; #901 Blackout: show teammates' markers all match, not only on Tab; #882 Medicines: three coloured medkits, all five made from one table; #805 Rudnya (v0.69): 0.69d's Rudnya as map 204 and its battery and Research modes (216-218); #909 Launcher: read the installer's values without opening any key; #778 Lobby scene picked in a lobby window, the squad commander's in a squad, shown at once behind a fade (patch 81); patch 45 round 7; #776 Content: the 0.46c2 hangar and 0.69d tent-camp lobbies (lobby-hangar-046@7, lobby-camp-069@9); #802 STK2 bomb shelter lobby (lobby-stk2-bunker@4): relit warm, the whole shelter; the Bar dropped; #915 Lobby selection review: keep the lobby under the upgrade window, drop content-rev40; #899 Start Skhid without the updater; split the Defender exclusion from the network setup; #913 Lobby button: drawn at its box's size (it vanished in the game); #919 Rudnya (v0.69): ammo only at the bases; #916 Lobby packs: textures 0.26g already has drawn from its own files (hangar @9, camp @17); #920 Drops: no camouflage or decal the player already has. Without a server sha256 `c957be5a4b67e03e628cf0c2b8b7362943b8b238498947117a789b86a5d7c312`, with `--server=skhid.link:1234` `87e3c688db81c2da61ffd034f6319a59c50279df0a134fd5bc50206eadaf5687`. The ZIP: 7236315 bytes, sha256 `b7d2d029bd53e4166e983a9d3ac1f633dbd94f7eeb928b6c4bbb8498163a0583`; the server data: sha256 `141b4d3f1e61340ca863cf1082525c145630f244d216ff1092d8be78679eef20`. Its content: `resources.db.patch_40` (1151219934 bytes, sha256 `6c549e77a18d07d7226d460072ea940e3329f7fed3f07316e00abcd10a7011e8`) |
+| Revision 41 | Released 2026-11-01 22:38 UTC (tag `026g-rev41`, `main` 958eaa8). Shipped: #921 Remove dead Rust code; #922 Remove stale docs, unused 0.100b tools and unused example files; #923 Remove the dead tutorial code from the lobby and hud movies; #924 Small audit fixes: Blackout in Matches, one on/off switch, one mask length, RUST_PATCHES; #926 Remove old notes and one-off audits; #946 Rudnya (v0.69): each base ammo crate refills its own team only; #991 Notes: the 0.26g renderer as a light bake needs it; #999 Login: ask for the nickname, not the e-mail; #983 Shop: a check mark on owned items, and a Hide owned box; #985 Rooms: rejoin the room's running match through the room after a relaunch; #982 Queue of a full room offers a loadout as Join does; #1000 Batteries: points for a battery's new progress toward its container (patch 92); #984 Lobby: buying an item owned asks first; only the inventory's right-click Buy skips it; #1002 Player vs Bots: drops roll at match level 7 at most, drop cards too; #893 Weapon kit, step A: the kit transport and a second decal on weapons (patch 68, Rust); #996 Patch 91: a weapon shown while aimed keeps its body; #1004 Upgrade window: a double click puts a camouflage, decal or scope in its slot; #1003 Shop: a consumable's buy starts at 30; #1009 Download mirrors: the game's archive and the patches from many addresses, resumed, logged; #990 build-content: files an earlier version of a pack left stay, listed; #1013 Setup scripts: English as well as Russian; the Defender setup puts back deleted files; #1017 release/test.sh: Ctrl-C tests signal a release.sh that can be interrupted; #1018 Crash dumps: referenced memory live, full memory for local tests; #939 Balance the sides by K/D at the match's equipment level; #1023 Battery points: progress paid at the delivery; found 5, delivery share 5; #1024 Patch 85: pick up a dead player's gun; #951 Patch 19's 0.29a3 weapons: melee k_damage 1.5, as every native weapon's; #1001 Content: 0.31a2's lower screen shake (shake-031-1); #1011 Content: HK416 and M4A1 kick nearer the AK-12 (recoil-hk416-m4a1-1); #1031 Revert #1011 (HK416/M4A1 recoil) for revision 41. Without a server sha256 `d17482fc54393068eb1aaf4a9476c0c4f7e38f636c4743731e76ddee3172352f`, with `--server=skhid.link:1234` `985acc388f212dcdc063a77ba9a80c1ff8929fba93acba9f84d1e61e208af2e7`. The ZIP: 7294307 bytes, sha256 `569832a70e9a3d694fca524fd2b7a8bb6b897f2f9b12e757c6198fc9fe6ebb82`; the server data: sha256 `618462254d8865cff465a99feca3a5501dad0974da7603ef72b00ac17427272e`. Its content: `resources.db.patch_41` (69553610 bytes, sha256 `8e12593edb9efb5037fc0a6769d319f50d0c674ee1a3486e1301977994005faf`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -111,6 +112,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
+| `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -118,6 +120,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
+| `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -3216,7 +3219,7 @@ fixed in pack 2). **Not yet run in a game since.**
 
 The owner's decision (2026-10-22): the three combat artefacts buffed, best one of each, a stack
 of one kind still adding up. The rules: `../docs/notes/artefacts.md`. The numbers are in the
-configs (`../scripts/content-edit/artefacts-1.json`: Spring's passive speed, the two new
+configs (`../scripts/content-edit/artefacts.tsv`: Spring's passive speed, the two new
 `aim_time_mod` keys and `active/stopping_power_mod`, Lifebone's regeneration delay); the patch
 does what no config of 0.26g could.
 
@@ -3249,7 +3252,7 @@ does what no config of 0.26g could.
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
   fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
 - **Onyx: a stack is a longer burst, not a stronger one** (the owner, 2026-10-25; its numbers,
-  -75 % for 3 s, in `artefacts-1.json`). Its enable_active (0x3128C0) sets the active's time left
+  -75 % for 3 s, in `artefacts.tsv`). Its enable_active (0x3128C0) sets the active's time left
   (+F14h, ms) from `active/duration`; the press above, when the kind's enable_active is Onyx's,
   first counts the ready ones it fires (n) and adds (n - 1) x 1000 ms to each fired one's +F14h,
   so they are active 3 s + (n - 1) s and end and cool down together. Each Onyx protects its
@@ -3782,7 +3785,9 @@ stays red at the carry limit. Its native warning tooltip shows the weight's
 movement and sprint-stamina penalties, including the selected kit's skills,
 and explains when weight or Heavyweight prevents sprinting. This is UI only.
 `weight_ui_026g.c`/`.asm` extend the existing weight callback from the same
-player config and native profile evaluator. See the carried-weight section of
+player config and native profile evaluator. Before it, they send the movie the
+selected kit's 68 player modifier floats (`root.set_kit_modifiers`: the skills),
+which a weapon card adds while Alt is held (`docs/notes/alt-weapon-stats.md`). See the carried-weight section of
 `docs/notes/data.md`, `check_weight_ui_026g.py`, and
 `scripts/weight-ui/check_ui.sh` for evidence and targeted checks.
 
@@ -3838,15 +3843,19 @@ of event 5 and `take_artefact`'s own slot search.
 
 ## Battery progress (patch 92, unreleased)
 
-A battery's carrier scores a point for each 10 m the battery comes nearer its team's container than
-it has been in its life, from the match's start or its last delivery, whoever carried it (the owner,
-2026-11-01; `docs/notes/battery_credit.md`). The Rust `battery_progress` hook in `base_player::tick`
-(0x2DAAD3) counts 10 hundredths of event 6 a step in the carrier's place and kit cell and tells the
-statistics' listener; each battery's record keeps the nearest steps per team in its unused
-+FEh/+FFh, untouched again at start_match (0x334999) and at a put-in (0x334CEA), and saved after the
-record's own fields (0x334F66, 0x3350D0). A match's computation and the world's statistics change:
-every client of a match needs it, and the server reads two more bytes a battery.
-`check_battery_progress_026g.py` runs the hooks and the game's own serialize and deserialize.
+A battery's carriers earn 2 points for each 10 m the battery comes nearer their team's container
+than it has been in its life, from the match's start or its last delivery, whoever carried it; the
+points are held on the battery and paid when it is put into that team's container, to every carrier
+at once, and dropped when the other team delivers it (the owner, 2026-11-01: the score ticking up
+mid-carry told the enemy who brings a battery in; `docs/notes/battery_credit.md`). The Rust
+`battery_progress` hook in `base_player::tick` (0x2DAAD3) holds the steps for the carrier's place
+and kit; at a put-in (0x334CEA) the container team's carriers are counted 40 hundredths of event 6
+a step and the statistics' listener told; each battery's life (its nearest band per team and the
+held steps) is the patch's own state, begun again at start_match (0x334999) and at a put-in, and
+saved after the record's own fields (0x334F66, 0x3350D0). A match's computation and the world's
+statistics change: every client of a match needs it, and the server reads 3 bytes and 2 a carrier
+more a battery. `check_battery_progress_026g.py` runs the hooks and the game's own serialize and
+deserialize.
 
 ## Names on the Tab map (patch 82, unreleased)
 
@@ -3981,6 +3990,86 @@ time, the active time and between them.
 The stopped drug's quick slot shows red for a second of game time (display
 only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
 `../scripts/consumable-activity/check.sh`).
+## Dropped-weapon pickup (patch 85)
+
+A player takes the gun a dead player dropped: Use on the gun lying on the
+body, within 2.2 m. The spec and the evidence: `docs/notes/weapon_pickup.md`.
+`rust/patches/src/weapon_pickup.rs` (the records, the decisions, the log)
+over `vostok/pickup.rs` (the native moves) and `vostok/gun_cook.rs` (the
+cooked gun); the shared rules (`crates/weapon-pickup`) are the server's too.
+
+**The copy.** At a death that drops a gun (the held client weapon in slot 7
+or 10), on every client at the same tick, that gun alone is cooked: one
+query of the player cook's own inventory request (41h) from a copy of the
+player's profile keeping that weapon slot and the ammunition slots, its
+completion a boost member callback (0x27D280). A replayed death finds it; a
+copy is never freed mid-match once it was registered or in hands (the
+engine keeps raw pointers to a weapon, e.g. a bullet's +0Ch/+40h): it lives
+until its last holder is destroyed, and an idle one is its donor's next
+drop's gun with the same kit and slot. An untaken copy is freed at the frame
+after its body left the world (base_player::remove(1)). 192 tickets: 120
+recipes at most plus 60 in use. A pickup whose gun is not in yet waits on
+dispatch_callbacks (0xE5AB0), at most 2 s.
+
+**The record** (`weapon_pickup::Record`, 48 bytes, version 4) after each
+player state's two kit indices (`pickup.save` 0x2DAF70, `pickup.load`
+0x2DB4CF): its drop (open with kit and slot, or taken), the gun picked into
+each weapon slot (tick and recipe), the pickup waiting for its switch (slot,
+pick, the donor's magazine) and, for the server, what each pick parks of
+the own kit (the own gun's magazine, up to four own stacks: slot and
+rounds). The server reads the native fields from `FIELDS_AT` and counts a
+borrower's own ammunition from the parked part (borrowed ammunition is
+never charged).
+
+**The pickup** (artefact_carry's `carry.filter` calls `on_filter` with the
+raw actions first): the command (patch 78's bit 29 with two or more quick
+bits) is decided by `weapon_pickup::decide` (any gun for the gun in hands,
+as the carry rules after modifiers 64 and 25 allow); every check of the
+install is made, the drop taken, the gun registered under a reserved
+registry id of its own (core+18B4Ch ids 195..254, three a place) as the
+pending object, and m_need_to_select_animations (+33Eh) set as a weapon
+key's changed input does: the game's own switch (tick_active_object 0x2D7650)
+holsters the gun in hands on that tick. Fire and reload are cleared from
+the applied actions until the swap (E interrupts the firing; the gun ends
+its shot). Weapon keys meanwhile are ignored (`pickup.tick_active`);
+only the picker's death cancels; past 3 s the game is asked each tick to
+look at the switch, never forced. At the switch (`pickup.switch`
+0x2D76D0) the gun in hands is put away as the native switch does
+(deactivate(1), forget_active_object, in its slot), then the slots are
+swapped (set_item 0x2FC620), the gun's ammunition moved into the own gun's
+slots (the own stacks parked in the copy's inventory) and rebound, the gun
+bound to the core under the slot's reserved id, and set_user, initialize,
+the donor's magazine, activate(1). base_player::remove(1) and a loaded
+record put back what the record does not name (the held pick put away
+first); a re-installed copy that was in hands here gets no weapon call of
+ours (the reader set_users and activates it). The crate's checks and use
+(`pickup.can_use`, `pickup.use_hint`, `pickup.resupply`,
+`pickup.client_resupply`) see the own kit and refill the borrowed gun's
+loaded stack by the game's bags rule, for free.
+
+**The bullets.** A bullet record names its weapon by the shooter's slot and
+the ammo's ordinal; after a swap the slot holds another gun. Its quiet byte
+(+80h) is always written and read (`bullet.save_quiet` 0x32C148,
+`bullet.load_quiet` 0x32BE12), and an ordinal past the loading gun's ammo is
+its none (`bullet.load_ordinal` 0x32BDBA).
+
+**The local client** (nothing a match computes). At `carry.weapon`
+(0x2477C8) the gun of an open drop is kept by place (its transform and the
+copy's model box); a taken drop's gun and a picked gun on a dead holder are
+taken out of the scene. At `player_icons.update_start` (artefact_carry's
+on_hud) the eye's 2.2 m segment into a kept box padded by 15 cm, patch 78's
+ray clear, gives `show_artefact_offer("st_weapon_pick_up", name)`; a gun
+aimed at that cannot be taken says why (`st_weapon_cannot_carry`,
+`st_weapon_one_gun_only`, `st_weapon_no_gun_in_hands`,
+`st_weapon_switching`, `st_weapon_already_taken`,
+`st_weapon_cannot_pick_up`). At `input_builder.end` Use's press on it is
+sent as the command (`weapon_pickup::encode`, `sane`), and stays the
+pickup's until Use is let go.
+
+Every decision and every copy's address at each step are logged to
+`srp_patches.log`. `check_weapon_pickup_026g.py` runs the hooks on the
+game's own code (set_item, remove_item, set_owner, tick_active_object, the
+bullet record's branch sites). A row of `simulation_changes.tsv`.
 
 ## A weapon shown while aimed keeps its body (patch 91, unreleased)
 
@@ -4007,3 +4096,42 @@ Checked: `selftest_026g.py` check 91; `check_weapon_show_026g.py` runs on_show a
 models with the game's code for the scope (the renderer stubbed with its in-scene byte): the
 original loses the body in first person with a red dot, the build keeps it, every other case
 ends each draw as the original. **Not run in a game.**
+
+## The render thread never reaches a Scaleform queue being destroyed (patch 93, unreleased)
+
+Two players' crash reports of revision 40, the same stack, at the switch from a match to the
+lobby: the render thread's `flash_renderer::present` (0x2AF0F0) -> `RTHandle::NextCapture`
+(0x50FEC0) -> `DrawableImageContext::OnNextCapture` (0x572660) -> `DICommandQueue::OnNextCapture`
+(0x5EE080) -> `updateCPUModifiedImagesRT` (0x5ED340), whose EnterCriticalSection of the queue's
+lock (+44h) wrote to 0x14: the queue was freed. A stock Scaleform race (0.21d's bodies are the
+same): a DrawableImageContext keeps a list of its command queues guarded by its lock (+24h), which
+Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) take, but OnNextCapture walks the list without it,
+and a queue whose last reference goes on the main thread is destroyed (its destructor 0x5ED1E0
+removes it, then frees it) while the walk is at it or about to go to it.
+
+**The patch** (the Rust patch `scaleform_capture`, two lohooks, `sites_026g.tsv`):
+
+- `scaleform.di_next_capture` (0x572675, after OnNextCapture's own ExecuteNextCapture, its
+  vtable+4): our walk instead of the stock loop, then its epilogue (0x57269C). Each queue of the
+  list whose count is not 0 gets `DICommandQueue::OnNextCapture` with the capture's notify, in the
+  list's order, with a reference of ours held across the call; the context's lock is held only to
+  read the list and take that reference (a compare-exchange from a count not 0), and the reference
+  is let go after the lock is left (`vostok/drawable_image.rs`).
+- `scaleform.di_queue_destroy` (0x5ED1E0, the destructor's start): the queue leaves its context's
+  list (RemoveCaptureNotify) while its count is still 0; the stock body then writes the count 2
+  and removes it again, which finds it gone. So a queue in the list has its true count, and one at
+  0 is being destroyed: the walk passes it over.
+
+The lock is not held around the walk's calls (the shape that only locks the stock loop): the main
+thread takes it with a queue's own lock held (mergeQueueWith 0x5731F0 releases the other image's
+queue with its own queue's lock held, and a last release runs the destructor, which takes the
+context's lock), while the walk's call takes each queue's lock: that order would deadlock. Here the
+context's lock stays a leaf, as in the stock code. Drawing only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section 3.61
+has the evidence.
+
+Checked: `check_scaleform_capture_026g.py` runs OnNextCapture from its start and the destructor
+past its own removal, the game's Release and RemoveCaptureNotify, on made-up contexts of three,
+none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
+the freed queue), and the walk's own reference the last; the lock never held across a call, every
+list read made with it, the references and registers as they were. **Not run in a game.**

@@ -205,7 +205,7 @@ va	name	source	ret_cleanup	result
 0x000e5140	vostok::memory::doug_lea_allocator::call_realloc	manual	24	
 0x000e5160	vostok::memory::doug_lea_allocator::call_free	manual	16	
 0x000e51a0	vostok::memory::doug_lea_allocator::total_size	manual	0	
-0x000e5270	vostok::memory::doug_lea_allocator::allocated_size	manual	0	
+0x000e5270	vostok::memory::doug_lea_allocator::allocated_size	manual	0	EAX: the bytes allocated (ECX the allocator; 0x0E5300..0x0E5310)
 0x000e7d20	vostok::resources::mount_by_config_helper::mount_by_config_helper	manual	0	EAX: the helper
 0x000e7d90	vostok::resources::mount_by_config_helper::query_db	manual	0	
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
@@ -1010,7 +1010,7 @@ va	name	source	ret_cleanup	result
 0x00244ab0		auto	4	
 0x00244b60	survarium::weapon::add_aimed_rifle_scope_to_scene	manual	0	
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
-0x00244e10		auto	16	
+0x00244e10	survarium::weapon::draw	manual	16	ECX client weapon, four stack arguments world transform/bones/count/optional UI state; world transform forwarded unchanged to renderer22280
 0x00245250		auto	0	
 0x002474a0	survarium::player::mt_draw	manual	0	the held item (+128h) drawn by its vtable+48h with [ebp-0A8h] (the hand) or [ebp-0E8h] (the decal pose, translate(0, -10, 0)) at 0x2477C8; [ebp-0F0h] = the caller's EBX; at 0x247716 (`mov ecx,[ebx+0F290h]`, the je target from 0x2476FF, no relocation): EBX = the player, ESI = [ebp-14h] = the bones' model-space matrices (count EDI = [ebp-1Ch], skeleton index - 1), ESP = [ebp-0Ch] = the held item's matrices (count [ebp-18h]); EAX, ECX, EDX, ESI, EDI dead; [ebp-1] = the world's own player. With mt_player_draw (byte 0x1F1D9D2) set, game_world::tick runs it as a task per place, waited for at 0x1F7D7F
 0x00248ad0	survarium::step_manager::on_step	manual	12	
@@ -1087,7 +1087,7 @@ va	name	source	ret_cleanup	result
 0x002849f0	survarium::lobby_character::update	manual	12	gives its player (+D2B8h) the upgrade mode (+F49Ch) and the decal transform (+F4A0h), updates it (0x2DA9A0) and draws it (call 0x2474A0 at 0x284A7E, return 0x284A83)
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
 0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
-0x00284dc0	survarium::player_profile::copy_body	manual	8	
+0x00284dc0	survarium::player_profile::copy_body	manual	8	EAX: destination; copies only the 45FCh body, preserving destination inline-vector storage; run under Unicorn (2026-10)
 0x00284ea0	survarium::player_profile::copy_kit	manual	4	
 0x00284f20	survarium::lobby_character::on_player_ready	manual	4	the new player at +D2B8h; +D2C4h (the player query) back to -1 (0x284F86); setup_profile again when +D2C8h was set
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
@@ -1145,11 +1145,13 @@ va	name	source	ret_cleanup	result
 0x002d2180		auto	8	
 0x002d21e0		auto	12	
 0x002d2570		auto	8	
+0x002d2570	survarium::game_world_core::serialize	manual	8	Clears history buffers at 2D257E then captures live world into the record; distinct from wire serialization at 324BE0
 0x002d2770		auto	12	
 0x002d2e10		auto	0	
 0x002d2e40	survarium::game_world_core::move	manual	4	
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
+0x002d77c0	survarium::base_player::on_player_death	manual	4	none; remove_alive(this, 1) at2D77C6, inventory on_death2FCA50 at2D77D1, pending flags at2D77EE/2D77F5; ret4 at2D77FD; ECX still owns profile before either callback
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
@@ -1367,6 +1369,8 @@ va	name	source	ret_cleanup	result
 0x00323f10	survarium::player_serialized_state::clear	manual	0	
 0x00324010	survarium::bullet_manager_history_item::clear	manual	0	
 0x00324390	survarium::statistics_history_item::clear	manual	0	
+0x00324510	survarium::game_state_history_item::construct	manual	0	ESI record; EAX returns record; initializes 20 player records and self-relative section buffers; pool checkout 2D3FEF and in-place rebuild 3252AC
+0x00324910	survarium::game_state_history_item::destroy	manual	4	stack+4 record; releases owned sections/player animation refs without freeing record allocation; pool return 2D4034 and in-place rebuild 3252A7
 0x00324ad0	survarium::game_state_history_item::clear_buffers	manual	4	
 0x00324be0	survarium::game_state_history_item::serialize	manual	12	
 0x00324d80	survarium::game_state_history_item::deserialize	manual	8	
@@ -2009,6 +2013,75 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
+0x002f8080	survarium::resupply_zone_core::can_use	manual	4	EAX: 1 when team permits and inventory can resupply
+0x002f80c0	survarium::resupply_zone_core::use_hint	manual	4	EAX: localization key
+0x002f8120	survarium::resupply_zone_core::update_use	manual	12	AL: interaction still running
+0x002f81a0	survarium::resupply_zone_core::finish_use	manual	4	not used by caller
+0x002fdc10	survarium::inventory::resupply_from_profile	manual	12	not used by caller; inventory argument only reads slots 10C..168 and writes weight_dirty 184; other-item callbacks use real item owners (slots table 925FD8); check_weapon_pickup.py verifies borrowed slot view
+0x002fdf50	survarium::inventory::check_resupply	manual	8	EAX: 0 available; 1 storage empty; 2 full; inventory argument only reads slot pointers; check_weapon_pickup.py verifies temporary original-loadout view and balanced weapon refs
+0x0030ab40	survarium::weapon_core::load_config_parameters	manual	8	not used by caller
+0x000e5c20	vostok::resources::query_resources_and_wait	manual	0	not used by caller
+0x00205c60	vostok::type_to_int<survarium::inventory_cooker_data *>	manual	0	EAX: process-local variant type id
+0x002c7170	survarium::register_inventory_cook_and_dependencies	manual	0	EAX: static inventory cook 09261E8Ch; class 41h, reuse policy +0Ch = 0; descriptive label
+0x0030a800	survarium::register_weapon_core_cook	manual	0	EAX: static weapon cook 02261AE4h; class 46h, reuse policy +0Ch = 0; descriptive label
+0x00102cd0	vostok::resources::find_cook_by_class	manual	0	EAX: registered cook or null; native pickup-cook harness exercises lookup
+0x00108a00	vostok::resources::query_result::consider_with_name_registry	manual	8	EAX: 1 when cook reuse policy is not 1; skips name lookup; native pickup-cook harness verifies both branches
+0x002f7c50	survarium::player_profile::construct_body	manual	0	EAX: this; constructs the 45FCh profile body including three kits and 69 inline item descriptors; descriptive label
+0x0031f2e0	survarium::register_inventory_item_cook	manual	0	EAX: cook 2261A60h; class 48h, reuse policy zero; registration setup run under Unicorn (2026-10)
+0x0031f660	survarium::inventory_item_cook::create_from_config	manual	8	Publishes fresh inventory item; ammo branch 31F7B7 allocates 2C0h bytes, constructs inventory_item and ammo_data, sets vtable A1C9BCh
+0x002e30f0	survarium::weapon_core::bind_to_game_core	manual	4	Appends active-object pointer to core+18B4Ch registry; writes active+4 and active+258 core, active+Ch byte ID; run under Unicorn (2026-10)
+0x002d4540	vostok::buffer_vector<survarium::active_object *>::push_back	manual	4	Writes one pointer at end then advances end by 4; asserts end below capacity before write
+0x002e2db0	survarium::weapon_core::deactivate	manual	4	Unsubscribes animation callbacks, finalizes state, and when clear_user is set clears active+8 at 2E2EE0; tail-calls weapon state deactivation at vtable+0Ch
+0x00244860	survarium::weapon::deactivate	manual	4	Calls weapon_core deactivation with the same flag, then stops/releases client effect object +80Ch and clears +810h
+0x002449e0	survarium::weapon::initialize	manual	0	Calls weapon_core initialize 2E2A30 and clears client byte +181Eh
+0x002445e0	survarium::weapon::set_user	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002449e0	survarium::weapon::initialize	manual	0	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x00244610	survarium::weapon::activate	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x00244860	survarium::weapon::deactivate	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002e2990	survarium::weapon_core::set_user	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002e2a30	survarium::weapon_core::initialize	manual	0	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002e2cc0	survarium::weapon_core::activate	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002e2db0	survarium::weapon_core::deactivate	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x00243590	survarium::inventory_item::set_owner	manual	8	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002fc620	survarium::inventory::set_item	manual	4	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x003919e0	animation::player::forget_active_object	manual	0	Native weapon switch 2D76D0..2D772F; standard C ABI DF=0 for initialization
+0x002febc0	survarium::weapon_controller_core::construct	manual	4	Observed descriptive label: writes vtable A1386C; core weapon cook 30AAD4 stores the result at weapon+278
+0x0024a400	survarium::weapon_controller_client::construct	manual	4	Observed descriptive label: calls 295560 then writes A04C34; client weapon constructor 24A7DF stores result at weapon+278
+0x002fee50	survarium::weapon_controller_core::set_user	manual	4	A1386C slot 0; core weapon set_user tail 2E2A24; all reachable returns pop 4
+0x002985d0	survarium::weapon_controller_client::set_user	manual	4	A04C34 slot 0; core weapon set_user tail 2E2A24; all reachable returns pop 4
+0x002ff4a0	survarium::weapon_controller_core::deactivate	manual	4	A1386C and A04C34 slot 0Ch; weapon deactivate tail 2E2EF8; all reachable returns pop 4
+0x002da790	survarium::base_player::remove	manual	4	Flag zero preserves held/user but clears pending; flag one deactivates held at 2DA7FD then nulls held and resets inventory at 2DA840
+0x002e44f0	vostok::inventory_item_ptr::assign	manual	0	EAX: destination cell; retains incoming item at +D0, swaps and releases previous; real body covered by check_weapon_pickup.py snapshot binding
+0x00318400	survarium::player_input::deserialize	manual	4	not established
+0x003184a0	survarium::player_input::serialize	manual	4	not established
+0x002c5b60	survarium::player_input_state::merge	manual	0	EAX = destination
+0x001f0be0	survarium::replay_match_reader::read_record	manual	0	EAX = record type
+0x001fab50	survarium::game_world_core::change_player_input	manual	36	EAX status: 0 accepted; 1 duplicate; 2/3 retimed; 4 skipped; 6 before resync; for network original status0 on non-server core, corrected flag after placement equals its prior value (new node false): copy1FB4D4, local original1FB4FB, remote corrected merge1FB59C; server branch sets flag but always merges. Thus completed-node corrected flag suffices for original replacement policy
+0x0027d2d0	survarium::game_world_core::move_player_input	manual	12	EAX status; 1 no exact original; 5 missing source; 4/6 source rejected OR destination refused after source original was removed; 0/2/3 destination accepted/retimed; inner 1FAB50 at 27D7FD writes effective time to local output; 27D802 receipt has source identity EBX, status EAX, core EBP+8, place EBP+C, effective time ESP+1C; early refusal bypasses receipt
+0x0027d820	survarium::game_world_core::discard_player_input	manual	8	EAX status; 0 removed whole node; 1 no exact input; 4 no preceding history; 5 missing source; 6 at/before resync; nonzero leaves inputs unchanged; success-only 27DCB7 after unlink/pool return/dirty notification has EBX removed identity, EBP+8 core, EBP+C place; overwritten epilogue sets EAX=0
+0x001fcb60	survarium::player_input_list::allocate_node	manual	0	EAX node; evicts oldest if pool full, pops free list and resets node links/flags; native fixture covers checkout and reuse
+0x002d48b0	survarium::player_input_list::evict_oldest	manual	0	not established; unlinks oldest and returns storage to pool, decrements counts; requires nonempty list
+0x002d4e40	survarium::game_world_core::snap_player_inputs	manual	8	not established; snaps local first-bank input nodes to simulation grid; 2D4F3B has EBX core, EDI node, ESI effective time before store; fixture covers wait/retime
+0x002cfe90	survarium::game_world_core::game_world_core	manual	68	EAX core; inputs are two 5A0Ch list vectors initialized at 2CFEF3; core embedded at wrapper+1F8 from 2D56ED
+0x002d02a0	survarium::game_world_core::~game_world_core	manual	4	not established; EBP core after 2D02A2, before any cleanup at 2D02A6; destroys input lists at 2D0478 and history at 2D0483
+0x0027c280	survarium::network_client::receive_player_input	manual	8	not established; EB/EC input dispatcher; network_client+1F1C40 wrapper, wrapper+1F8 core, wrapper+191B8 input clock; null wrapper consumes reader without placement
+0x00279670	survarium::match_messages::get_message_length	manual	24	AX payload length; FFFF variable; ok initialized1 at279691; ESI unsigned id at279694; fixed-return epilogue2796A6
+0x00279a60	survarium::match_messages::get_sending_info	manual	0	EAX output pointer preserved; writes lifetime u32, retry u16, flags u8; DC branch279A95 =500/50/9F
+0x00279b10	survarium::match_messages::get_received_info	manual	0	EAX output pointer preserved; writes lifetime u32, retry u16, flags u8; EB branch279B67 =250/50/9F
+0x003fa240	vostok::network_core::udp_match_connection::try_parse_single_message	manual	0	AL accepted; constructs/appends 1Ch message_data to output vector and advances reader; false does not append
+0x003527e0	vostok::network_core::received_message_stats::select	manual	0	EAX output; two pointers (individual, aggregate); regular index=id-min+5, stride6168h, aggregate+E1408h; low-level index=id-FA, aggregate+185A0h
+0x00352830	vostok::network_core::sending_message_stats::select	manual	0	EAX output; two pointers (individual, aggregate); regular index=id-min+5, stride6174h, aggregate+E15C4h; low-level index=id-FA, aggregate+185D0h
+0x00279fe0	survarium::match_client::new_packet	manual	4	EAX packet; tail37A0E0 after client+578B0; concrete vtable A08864+18
+0x0027a2a0	survarium::match_client::enqueue	manual	4	sets client+4 queued flag; calls379640 with client+578B0 and packet; vtable A08864+1C
+0x0027e9f0	survarium::send_changed_player_inputs	manual	4	iterates history input-change mask; selects node at history time and original/combined action component; packet DC/DD at27EB2B; serialize3184A0; enqueue27EB4B
+0x00202500	survarium::player_cook::on_config_loaded	manual	4	Descriptive label: callback bound at202458 by class54 player cook202400; constructs 27Ch stage, extracts 18h creation data atstage+9C, builds inventory recipe20284C..2028A9, submits subresource query at202A38, ret4 at202AC7
+0x002058a0	survarium::player_cook::extract_creation_data	manual	0	Descriptive label: validates variant type via205BA0; copies exactly18h fromvariant+8 toEDI at205925..20593D; AL1 success, AL0 mismatch; no retained ownership
+0x00074950	vostok::physics::bullet_physics_world::bullet_physics_world	manual	4	EAX this/result, 60h object; vtable9E2EBC; map cook allocates at2CC2D2 then constructs at2CC2DE; pointer passed into player creation data and inventory recipe+0C; nearby diagnostics name bullet_physics_world.cpp
+0x002c6f90	survarium::inventory_cook::append_item_query	manual	0	Descriptive label: inventory recipe inEAX, slot plus request/user/variant vectors on stack; empty indexFFFF returns; config data.type2 ->class49 and physics/world pointers,5 ->class4D,9 ->class4B,other ->class48; caller cleans16 bytes
+0x002cbbe0	survarium::pvp_match_core_cook::destroy_resource	manual	4	Descriptive cook label: wrapper+19238 scene cleanup, wrapper virtual destructor, then physics at+130 virtual+0C finalize, virtual+0 destroy and allocator free; the order run under Unicorn with endpoint stubs (2026-10)
+0x002cbc60	survarium::pvp_match_core_cook::on_subresources_loaded	manual	44	Descriptive callback label: ECX cook; query result plus eight map words, physics pointer and config pointer; assembles19 constructor arguments; physics becomes constructor arg8, options arg4; run under Unicorn (2026-10)
+0x002cc270	survarium::pvp_match_core_cook::translate_query	manual	4	Descriptive cook label: builds bullet physics world, submits scene/players; bound callback2CC9D0/2CCCD0 passes physics as callback stack+28; native player recipe flag set0 at2CC6F5
+0x002d55b0	survarium::pvp_match_core::pvp_match_core	manual	76	EAX wrapper; constructor arg4 match options stored+124 at2D563B, arg8 physics stored+130 at2D567B, embedded core at+1F8; original field writes checked under Unicorn (2026-10)
 0x0015a000	vostok::render::skeleton_render_model::load_bind_pose	manual	0	void
 0x00426ae1	setlocale	manual	0	EAX: the locale's name, or 0 (MSVC CRT setlocale: SEH frame 0x42DA08, category above 5 refused with errno 22)
 0x000e3c10	vostok::core::preinitialize	manual		
@@ -2030,7 +2103,6 @@ va	name	source	ret_cleanup	result
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	
 0x0016e420	vostok::render::static_render_model_instance::get_aabb	manual	4	EAX: destination 24-byte model-local bounds (min float3, max float3), copied from original resource [ECX+290h]+108h; independent of instance transform
 0x00243fa0	survarium::weapon::on_hide	manual	4	no result used
-0x002d77c0	survarium::base_player::on_player_death	manual	4	ECX live player; remove_alive(this, 1) at 0x2D77C6, inventory death at 0x2D77D1; ret 4
 0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	manual	8	EAX: encoded slot ((external array - inventory - 0x10c) SAR 2) + container ordinal, or fixed slot; 23 when absent
 0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	no result used
 0x00313470	survarium::artefact_base::on_taken	manual	0	no result used
@@ -2060,6 +2132,9 @@ va	name	source	ret_cleanup	result
 0x00331a50	survarium::weapon_recoil_calculator::tick	manual	4	Recoil object in ESI (weapon_core+468h): until 60/rpm after the last shot moves side x (+0Ch), top y (+10h) and shake z (+14h) at their speeds (+18h, +1Ch, +20h); for the rest of the tick the PID 0x3321E0 pulls all three to 0. Clamps x and y to -1..1, z to 0..1.
 0x00331c50	survarium::weapon_recoil_calculator::on_shot	manual	0	A shot (recoil object in EDI, weapon in [EDI]): x += (R - L)(1 - |x|^p), y += T(1 - max(y,0)^p), z += S(1 - z^p), S uniform in min/max_shake_recoil (weapon +448h/+44Ch, raw), R, L, T as the side/top ranges (+430h..+444h), p = recoil_power (+454h), each times apply_modifier (0x2D5AE0, index 12h); x, y clamped -1..1, z 0..1; speeds = (new - old) / (60/rpm) (+464h). Generator: [EDI+4] = [EDI+4] * 8088405h + 1.
 0x003321e0	survarium::weapon_recoil_calculator::compensation_pid	manual	4	One PID over the three axes (x, y, z at EDX, state at ECX = recoil object +24h: integrals +18h..+20h, previous errors +0Ch..+14h, gains Kp/Ki/Kd +24h/+28h/+2Ch); XMM4 = dt. Writes the three outputs at [EAX] (the tick negates them into the speeds).
+0x00331ff0	survarium::weapon_recoil_calculator::serialize	manual	0	none; writes the recoil object (EDI, weapon_core+468h) to the writer (ESI): u32 +4 (the generator), u32 +8 (the last shot time, -1 none), and only if it is not -1: x, y, z +0Ch, their speeds +18h, the PID previous errors and integrals +30h, +3Ch (3 floats each). Called by weapon_core::serialize at 0x2E32BC, so the shake z is in the hashed world
+0x003320b0	survarium::weapon_recoil_calculator::deserialize	manual	0	none; reads what 0x331FF0 writes (reader ECX, cursor +4) into the recoil object EAX; last shot time -1: jumps to reset 0x332140. Called by weapon_core::deserialize at 0x2E35FB
+0x00332140	survarium::weapon_recoil_calculator::reset	manual	0	none; recoil object EAX: x, y, z, speeds and PID state 0, last shot time +8 := -1
 0x0033e680	survarium::oxygen_tank::find_influence	manual	8	EAX the influence row {body_part at +70h, hit_type, hit_coeff +84h, threshold +88h} matching the hit's body part and type, or 0 (observed)
 0x00299d40	survarium::post_process_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect (count +1Ch taken) or 0
 0x00299ff0	survarium::hud_game_effect_emitter::emit	manual	12	EAX out (ESP+4), *out the made effect (count +1Ch taken) or 0 (0x29A079)
@@ -2137,6 +2212,26 @@ va	name	source	ret_cleanup	result
 0x00304370	survarium::hit_type	manual	0	EAX: the hit_type_enum of the name, its index in the names at 0x9257E0 (0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock; 0.21d's table 0x73E7A0 the same); no bound: a name not there reads past the table
 0x001b9390	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Sorts the visible probes by radius (+0x320) descending, from stage_visibility::execute_stage 0x1B6B54 (filter_and_sort_env_probes inlined); returns at once for 16 or fewer, leaving them to the final insertion sort.
 0x001b9460	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	manual	0	Stable for equal radii: probes of one radius keep the probe tree query order (frustum_culling), which changes from run to run (the probes reach the scene as their cubemaps load). render_environment_probes draws them in this order, each over the ones before.
+0x00202dd0	survarium::player_cook::on_subresources_loaded	manual	12	the boost callback 0x202500 binds at 0x2029A5 (cook, stage, recipe) for its subresource batch: reads results 0..4 (queries_result +12Ch, +40Ch, +6ECh, +9CCh, +0CACh), nine from +0F8Ch (0x2030C8..0x20318F) and with stage+B1h one at +296Ch, never one past them; frees the recipe (0x202E04); ret 0Ch at 0x2034B1
+0x0024a780	survarium::weapon_cook::allocate_weapon	manual		EAX: weapon (0x4710 + 4x(EAX + byte entry ESP+0Ch + byte entry ESP+10h) bytes, survarium arena)
+0x002d7650	survarium::base_player::tick_active_object	manual	4	EAX the player, one stack argument; the held switch: when held +128h != pending +12Ch and held vtable+30h (is_ready_to_be_deactivated) is true, 0x2D76D0..0x2D772F: old +1Ch(1), forget_active_object 0x3919E0, held = pending, new +10h(player), +14h, +18h(1), +2Ch; called only at 0x2D96A1
+0x002d8210	survarium::base_player::set_new_active_item	manual	4	ECX the player+108h (inventory holder), [esp+4] the active object: writes pending +12Ch only (inventory::action 0x2FCAA0 calls it through holder vtable+4)
+0x002d7570	survarium::base_player::set_bullet_manager	manual		sets weapon active+5A0h (the bullet manager, pvp_match_core+138h) for the slot 7 and 10 weapons of a roster player, from the pvp_match_core constructor (0x2D5714 -> 0x3218A0); a weapon the constructor 0x2DF3FC leaves at 0 crashes its first shot (instant_fire passes it to emit_bullet 0x322830); descriptive label
+0x002954d0	survarium::resupply_zone::finish_use	manual		the client override (referenced from 0xA02A34, slot +48h inferred): resupply_from_profile at 0x2954F8, then a sound and the hud message; descriptive label
+0x0027d280	boost::function<void (vostok::resources::queries_result &)>::assign_member	manual	16	EAX: EDI, filled: +0 0xA09374 | 1 (manager 0x27E890, invoker 0x202300), +8 the four stack words (store 0x2FFB20); late join's query_players binds query_completed so
+0x00202300	boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke	manual	0	cdecl (entry ESP+4 the functor {member, adjustment, object}, ESP+8 the queries_result): calls the member with ECX = object + adjustment and the result pushed; the member is thiscall, ret 4
+0x000e5ab0	vostok::resources::dispatch_callbacks	manual	0	no arguments: with g_debug_single_thread (0x1F1D688) the resources tick first, then resources_manager::dispatch_callbacks 0x102370 for the calling thread: its translations, creations and finished queries' callbacks (0.10b resources_impl.cpp); query_resources_and_wait 0xE5C20 loops on it (0xE5D01), so does process_static_match_info (0x27BEE7)
+0x002db490	survarium::base_player::deserialize	manual	28	no result; the held id at 0x2DB626 resolves through core+18B4Ch: when the object differs from the old +128h, old vtable+1Ch(1) deactivate and new vtable+10h set_user only (0x2DB662..0x2DB67B; no initialize); pending id 0x2DB796 written as is; inventory::deserialize 0x2DB7D8 from the second reader [ebp+0Ch]; after the inventory the animation player is read (0x395B50 at 0x2DB7EE, EAX player+750h) and the held object activated: vtable+18h(held changed ? 1 : 0) (0x2DB7F3..0x2DB80D); no forget_active_object of the old held object
+0x002fc680	survarium::inventory::remove_item	manual	0	no result; the slot item's vtable+34h, then +28h set_owner(0, 17h), the slot cleared, its reference released (0x0E0210 at 0), +184h set (patch 85 moves a cooked gun's ammunition with it)
+0x002fc620	survarium::inventory::set_item	manual	4	no result; [esp+4] points at the item pointer (inventory_item*: a weapon's active+10h); its reference added first, the old one's released (0x0E0210 at 0), then the new one's vtable+28h set_owner(inventory, slot); a null item faults (use remove_item)
+0x00279e10	vostok::memory::multi_threading_single_size_allocator_policy<vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::node>::allocate	manual	0	EAX the node, 0 when the free list is empty: then the assert "single_size_buffer_allocator - out of memory!" (logged at most 10 times, counter 0xAD8E2C); the 704-byte pool is the network match client's packets (match_client_impl+0B0000h), not items
+0x00279d80	vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::malloc_impl	manual	0	EAX the 704-byte node or 0 (allocate 0x279E10 on ESI+20h); callers network::match_client::new_packet 0x37A0E0, match_client_impl::clone_packet 0x3860F0, udp_match_connection's packets, journaling::match_client
+0x00279c40	vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator	manual	8	EAX this; capacity +34h = arena size / 2C0h (0xB0000 -> 1024 packets), in use +30h = 0, arena +38h, the free list built over the arena
+0x00019ff0	vostok::engine::engine_world::logic_dispatch_callbacks	manual	0	the logic thread's callbacks: resources::dispatch_callbacks 0xE5AB0 (every query the logic thread made: patch 85's gun cooks complete here), the sound logic user (+2C8h), the network world (+2C4h), the render logic channel's processed items (0x173D0)
+0x0001a390	vostok::engine::engine_world::logic	manual	0	the logic thread's loop: GetCurrentThreadId into apc logic, then logic_tick 0x1A030 (or 0x1A140) for ever; while logic frame +2ECh > renderer frame + 1 it loops dispatching callbacks with Sleep(1) (0x1A2B0..0x1A35F): a stuck render thread holds the logic thread there, silent
+0x00288d60	survarium::lobby_menu::process_default_relocate_item	manual	4	the ammo slots of a weapon put in a kit: each from the profile item of an ammo category (+228h 9, 12h..15h) its weapon takes, its count (bags div parameters/required_bags) x parameters/clip_size of its dictionary entry's config (0x289EB2..0x289EF3, low bytes; one weapon 0x28A035..0x28A04F), capped by the rounds owned; two weapons split the bags (0x28A09F..0x28A10C): slot 7's weapon min(int(0.7 x bags + 0.5), its ammo's clips owned) into slot 8, slot 10's the rest into slot 9; one weapon, or one item for both, all bags into slot 8; bags = int(apply_kit_parameter 0x2F7660 of modifier 16 on lobby+311Ch, player/ammo_bags_count read at 0x22112B) (0x288E4B..0x288E65); the pick of an item: the lowest entry+384h byte, at least a clip owned; the crate later fills each slot to that count (resupply_from_profile)
+0x00313f50	survarium::gather_victory_items_rule::set_game_world_core	manual	4	no result; registers each victory item (rule+110h..+114h) in core+18B4Ch as 0.21d register_interactive_object did (push_back 0x2D4540, item+0Ch its index, item+4 the core, item+2C0h keyed from core+18FB0h); with bind_to_game_core 0x2E30F0 the registry's only appenders; called once per rule (0x314CD9)
+0x000e1370	vostok::memory::dump_statistics	manual	0	no result; cdecl, one byte argument (0x0E13E6 tests [ebp+8]); logs every registered allocator's statistics (the list at [0xA808FC])
 0x00243940	survarium::weapon::is_first_person_view	manual	0	AL: 1 when the weapon's user (+8) has +F4E3h 0 and the place (+114h) of the game's network client's local player ([[user+F478h]+53ACh]+4); 0.10b's !m_is_third_view (on_show, on_hide, tick, draw, the scope add)
 0x002996c0	survarium::rifle_scope::rifle_scope	manual	24	EAX: this; +108h idle model, +10Ch aimed model, +110h change_scope_factor, +114h fov_factor, +118h near_plane_factor, +11Ch hide_weapon_on_aim (0.10b rifle_scope.h)
 0x00118430	vostok::render::engine::world::add_model	manual	16	
@@ -2162,3 +2257,25 @@ va	name	source	ret_cleanup	result
 0x000de0c0	vostok::command_line::key_initializator::operator()	manual	4	
 0x000df020	vostok::command_line::iterate_keys<key_initializator>	manual	0	
 0x000eee30	vostok::math::create_perspective_projection	manual	0	
+0x002e26b0	survarium::weapon_core::ammo_ordinal	manual	0	AL: the ordinal in the weapon's ammo slots (+5ACh, +5B0h, its inventory +260h) of the stack whose ammo data (+268h) is EDI; its count (+5B0h) when none (0x2E2721)
+0x002e2750	survarium::weapon_core::ammo_by_ordinal	manual	0	EAX: the ammo data of ordinal CL (its slot's stack +268h); the weapon's own none (+53Ch) for CL = +5B0h; no bound check (0x2E276D reads +5ACh[CL])
+0x00505ca0	Scaleform::RefCountImpl::AddRef	manual	0	void; InterlockedExchangeAdd(this+4, 1)
+0x00505cb0	Scaleform::RefCountImpl::Release	manual	0	void; InterlockedExchangeAdd(this+4, -1), at 0 its vtable+0 (scalar deleting destructor) with 1
+0x005725f0	Scaleform::Render::DrawableImageContext::ExecuteNextCapture	manual	4	void; the context's vtable+4: the inner render Context's NextCapture (0x50F920) when context+18h is set
+0x00572660	Scaleform::Render::DrawableImageContext::OnNextCapture	manual	4	void; ContextCaptureNotify's vtable+4 (RTHandle::NextCapture 0x50FEC0's call eax at 0x5100CB), render thread
+0x005726b0	Scaleform::Render::DrawableImageContext::AddCaptureNotify	manual	4	void; appends the queue to the context's list under the context's lock (+24h)
+0x005726f0	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify	manual	4	void; unlinks the queue under the context's lock (+24h) and zeroes its links; a queue already unlinked (next 0) is left as is
+0x005ed1e0	Scaleform::Render::DICommandQueue::~DICommandQueue	manual	0	void; writes its count 2, removes itself from its context (0x5ED1F4), releases the context, frees its commands, writes its count 0
+0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	manual	4	void; AddRef, updateCPUModifiedImagesRT (takes the queue's lock +44h), ExecuteNextCapture, Release
+0x0030d750	survarium::computed_reload_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time; the reload states (0x30E000, 0x30F310, 0x30FC50) keep it at +138h with time = parameters/reload_time (block +10h): a shorter reload_time plays the clip faster
+0x0030e1f0	survarium::weapon_core_reload_state::get_weapon_lexeme	manual	12	EAX: the lexeme out-param; the hands clip speed it hands 0x31EBD0 (stack float) is +138h through 0x2D5AE0 index 13 with k 1: clip / reload_time x max(0, 1 + S13), so a reload lasts reload_time / max(0, 1 + S13)
+0x0030ee40	survarium::computed_shotgun_reload_animation_time_scale	manual	0	ST0: (end - start) x (1/30) x rounds / time: one round of a tube reload, time = parameters/reload_time (block +10h) for the whole tube; reload_start_time (+14h) and reload_end_time (+18h) go through 0x30D750 unchanged by it
+0x0030df10	survarium::weapon_core_show_state_base::get_weapon_lexeme	manual	12	the show or hide animation (called by the shared weapon_and_hands_expression 0x30D9C0) at time scale apply_modifier(+150h, k 1, index 22 change_weapon_speed) = anim/show_time (or hide_time) x max(0, 1 + S22): the draw or holster lasts show_time / max(0, 1 + S22)
+0x0030e510	survarium::weapon_core_chamber_a_round_state::get_weapon_lexeme	manual	12	the chambering animation at time scale apply_modifier(+138h, k 1, index 21 chamber_a_round); +138h = anim length / chamber_a_round_time (ctor 0x30E2B0, params+24h): chambering lasts chamber_a_round_time / max(0, 1 + S21)
+0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
+0x0026da50	survarium::base_game_statistics_handler::on_player_damaged	manual	40	
+0x0026da80	survarium::base_game_statistics_handler::on_player_weapon_firing	manual	20	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x002f5450	survarium::shared_statistics::on_player_damaged	manual	16	
+0x002f5500	survarium::shared_statistics::on_player_weapon_firing	manual	8	
+0x002d7800	survarium::base_player::on_fire	manual	4	

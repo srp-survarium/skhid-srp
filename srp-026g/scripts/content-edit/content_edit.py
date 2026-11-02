@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """content_edit.py: make a resources.db patch folder by editing game configs in place.
 
-usage: python3 -I content_edit.py <edits.json> <live folder> <out folder> [--check]
+usage: python3 -I content_edit.py <edits.json | <table>.tsv> <live folder> <out folder> [--check]
 
 <live folder>  the live game files, at their game paths (gameplay/items/...) or flattened as
                `dbgrab <server-game-data.db> get gameplay/ <dir>` writes them (gameplay__items__...).
@@ -22,13 +22,17 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
+  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
+                                                       live three numbers, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
-  "set_prop":       [{"file", "prop_id", "from", "to"}] the lobby card's text of a stat (ui_desc/props_list:
-                                                       1 damage x100, 3 armour piercing x100, 4 rate of fire)
+  "remove_key":     [{"files" (glob on the game path), "keys"}]
+                    each key path (`parameters/arp`) taken out of every matching file that has it: its
+                    table's later records move down in place, the count drops by 1; a key no matching
+                    file has is refused
   "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
@@ -118,6 +122,8 @@ Edits (edits.json):
                        "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
                                                        allow_bones: this surface's other native bones
                                                        (indices), which then follow the head too
+A table (<table>.tsv, see STATS): its cells are written into its configs, then their card lines.
+`--dump-stats <table> <folder>` prints the table of the configs there.
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -128,11 +134,13 @@ that grows gets a new array and the old one stays, unreferenced.
 Every edited file is read back with an independent walk: only the intended values, names and order
 may differ from the live file (the check prints each difference).
 """
+import decimal
 import fnmatch
 import json
 import hashlib
 import math
 import os
+import re
 import struct
 import sys
 import zlib
@@ -226,6 +234,17 @@ def set_number(buf, path, frm, to, as_float=False):
     REC.pack_into(buf, off, (data & ~0xffffffff) | raw, idoff, crc, t, cnt)
 
 
+def set_vector(buf, path, frm, to):
+    """A float3 value's three numbers, in place."""
+    at, _, _, t, _ = rec(buf, find(buf, path))
+    if t != 7 or len(frm) != 3 or len(to) != 3:
+        raise TypeError('%s: a float3 and three numbers each' % path)
+    old = struct.unpack_from('<3f', buf, at)
+    if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    struct.pack_into('<3f', buf, at, *to)
+
+
 def set_bool(buf, path, frm, to):
     """Set a native boolean without interpreting it as an integer or changing its type."""
     if type(frm) is not bool or type(to) is not bool:
@@ -262,6 +281,27 @@ def rename_key(buf, table, frm, to):
     recs = sorted((bytes(buf[c:c + 24]) for c in kids), key=lambda r: REC.unpack(r)[2])
     for c, r in zip(kids, recs):
         buf[c:c + 24] = r
+    return True
+
+
+def remove_key(buf, path):
+    """The key at `path` taken out of its named table: the later records move down one place in the
+    table's own array (the CRC order holds), its count drops by one. False when there is no such key."""
+    table, _, key = path.rpartition('/')
+    try:
+        toff = find(buf, table) if table else 0
+    except KeyError:
+        return False
+    if rec(buf, toff)[3] != T_NAMED:
+        return False
+    kids = children(buf, toff)
+    hit = [i for i, c in enumerate(kids) if name_at(buf, rec(buf, c)[1]) == key.encode()]
+    if not hit:
+        return False
+    for dst, src in zip(kids[hit[0]:], kids[hit[0] + 1:]):
+        buf[dst:dst + 24] = buf[src:src + 24]
+    d, i, crc, t, cnt = rec(buf, toff)
+    REC.pack_into(buf, toff, d, i, crc, t, cnt - 1)
     return True
 
 
@@ -346,12 +386,21 @@ def matches(buf, entry, want):
     return True
 
 
+def weight_text(v):
+    """A weight as the cards write it: one decimal, half up, of the value to 3 decimals (0.25 -> 0.3)."""
+    return str(decimal.Decimal(repr(round(v, 3))).quantize(decimal.Decimal('0.1'), decimal.ROUND_HALF_UP))
+
+
+def number_text(v):
+    """A number as the game's cards write it: 50, 0.45, 3.167."""
+    return str(int(v)) if v == int(v) else '%g' % v
+
+
 def filled(buf, text):
     """`{a/b}` in a value: that number of the same file, as the game's cards write numbers."""
     if not (isinstance(text, str) and text.startswith('{') and text.endswith('}')):
         return text
-    v = value_of(buf, find(buf, text[1:-1]))
-    return str(int(v)) if v == int(v) else '%g' % v
+    return number_text(value_of(buf, find(buf, text[1:-1])))
 
 
 def add_entry(buf, path, after, like, values):
@@ -447,6 +496,12 @@ def value_record(buf, name_off, key, value):
     """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
     texts are appended."""
     crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, dict) and value and all(isinstance(k, int) for k in value):
+        if sorted(value) != list(range(len(value))):
+            raise ValueError('%s: items %s, not 0 to %d' % (key, sorted(value), len(value) - 1))
+        empty = append(buf, b'\0')
+        kids = [value_record(buf, empty, '', value[k]) for k in range(len(value))]
+        return REC.pack(append_array(buf, kids), name_off, crc, T_INDEXED, len(kids))
     if isinstance(value, dict):
         kids = sorted((value_record(buf, append(buf, k.encode() + b'\0'), k, v) for k, v in value.items()),
                       key=lambda r: REC.unpack(r)[2])
@@ -623,6 +678,495 @@ def set_prop(buf, prop_id, frm, to):
         REC.pack_into(buf, off, noff, i2, c, t, len(to.encode()) + 1)
         return '/ui_desc/props_list[%d]/prop_value' % i
     raise KeyError('prop %d' % prop_id)
+
+
+# Weapon card lines (ui_desc/props_list) that show a config value: prop_id: (key path, factor).
+WEAPON_CARD = {
+    1: ('parameters/bullet_damage', 100), 2: ('dispersion/base_dispersion', 1),
+    3: ('parameters/bullet_pierce', 100), 24: ('parameters/min_damage_distance', 1),
+    105: ('parameters/movement_speed_modifier', 1), 132: ('parameters/stopping_power', 100),
+    133: ('parameters/aim_time', 1), 134: ('parameters/magazine_capacity', 1),
+    138: ('parameters/reload_time', 1), 139: ('parameters/max_damage_distance', 1),
+    140: ('parameters/min_damage_distance', 1), 141: ('parameters/min_damage_amount', 1),
+    142: ('parameters/show_time', 1), 143: ('parameters/hide_time', 1),
+    144: ('parameters/aim_zoom_factor', 1), 145: ('parameters/stamina_damage', 1),
+    146: ('recoil/min_top_recoil', 1), 147: ('recoil/max_top_recoil', 1),
+    148: ('recoil/min_left_recoil', 1), 149: ('recoil/max_left_recoil', 1),
+    150: ('recoil/min_right_recoil', 1), 151: ('recoil/max_right_recoil', 1),
+    152: ('dispersion/from_the_hip_multiplier', 1), 153: ('dispersion/one_shoot_dispersion_amount', 1),
+    154: ('dispersion/speed_of_aiming', 1), 155: ('dispersion/growth_speed', 1),
+    156: ('breath_vibration/base_horizontal_amplitude', 1), 157: ('breath_vibration/base_vertical_amplitude', 1),
+    158: ('breath_vibration/base_period', 1), 159: ('dispersion/max_dispersion', 1),
+    160: ('parameters/chamber_a_round_time', 1), 161: ('ui_desc/combat_log_icon', 1),
+}
+
+
+def weapon_card(buf):
+    """{prop_id: text} of the card lines the weapon config `buf` makes (WEAPON_CARD)."""
+    def number(path):
+        try:
+            return value_of(buf, find(buf, path))
+        except KeyError:
+            return None
+    out = {p: number_text(number(k) * times) for p, (k, times) in WEAPON_CARD.items() if number(k) is not None}
+    rpm, chamber = number('parameters/rounds_per_minute'), number('parameters/chamber_a_round_time')
+    if rpm:
+        # the stock cards count a bolt or pump gun's chambering in its rate of fire
+        out[4] = number_text(rpm if chamber is None else math.floor(60 / (chamber + 60 / rpm) + 1e-3))
+    if number('parameters/weight') is not None:
+        out[15] = weight_text(number('parameters/weight'))
+    return out
+
+
+def ammo_card(buf):
+    """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip,
+    15 a clip's weight."""
+    def number(path):
+        return value_of(buf, find(buf, path))
+    return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
+            22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size')),
+            15: weight_text(number('parameters/clip_weight'))}
+
+
+def throwable_card(buf):
+    """{prop_id: text} of a grenade's or a trap's card: 1 damage x100 (a grenade's on every body it
+    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight."""
+    def number(path):
+        try:
+            return value_of(buf, find(buf, path))
+        except KeyError:
+            return None
+    out = {15: weight_text(number('parameters/weight'))}
+    if number('data/splash_max_damage') is not None:
+        bodies = len(children(buf, find(buf, 'data/splash_affected_bodies')))
+        out.update({1: number_text(number('data/splash_max_damage') * 100 * bodies),
+                    23: number_text(number('data/splash_radius'))})
+    if number('data/damage_parameters[0]/amount') is not None:
+        out[1] = number_text(number('data/damage_parameters[0]/amount') * 100)
+    return out
+
+
+# <table>.tsv, a row each of what `configs` names, a column a stat:
+#   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
+#                      files, each the row's (a level's projects of every weather); a list of such globs or
+#                      of files (a row each, by its name)
+#   'file#list[key]'   a row per entry of the indexed table `list`, named by its `key`
+#   'file'             no `columns`: a key/value table (`key  value`), a row a key path; the config is
+#                      made anew when no archive has it
+# `columns`: their key paths; `[*]` every item, `[field=cell]` the entries whose field reads so, `[i]`.
+# A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key. A cell
+# of a key the config lacks is refused, but in an `add` column: added to its table (a number as a float).
+# A key/value table never adds a key.
+# `match`: the columns (of a key/value table: keys, or a table: every key in it) a match computes with:
+# a change needs the `next` row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
+STATS = {
+    'weapon-stats': {
+        'configs': 'gameplay/items/weapons/wpn_*.options',
+        'columns': {
+            'damage': 'parameters/bullet_damage', 'pierce': 'parameters/bullet_pierce',
+            'rpm': 'parameters/rounds_per_minute', 'magazine': 'parameters/magazine_capacity',
+            'reload': 'parameters/reload_time', 'reload_start': 'parameters/reload_start_time',
+            'reload_end': 'parameters/reload_end_time', 'chamber': 'parameters/chamber_a_round_time',
+            'aim_time': 'parameters/aim_time', 'show_time': 'parameters/show_time',
+            'hide_time': 'parameters/hide_time', 'zoom': 'parameters/aim_zoom_factor',
+            'weight': 'parameters/weight', 'movement': 'parameters/movement_speed_modifier',
+            'stopping': 'parameters/stopping_power', 'stamina_damage': 'parameters/stamina_damage',
+            'near_m': 'parameters/max_damage_distance', 'far_m': 'parameters/min_damage_distance',
+            'far_damage': 'parameters/min_damage_amount',
+            'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
+            'spread': 'dispersion/base_dispersion', 'shot_spread': 'dispersion/one_shoot_dispersion_amount',
+            'max_spread': 'dispersion/max_dispersion', 'spread_growth': 'dispersion/growth_speed',
+            'aim_speed': 'dispersion/speed_of_aiming', 'hip_spread': 'dispersion/from_the_hip_multiplier',
+            'aim_spread': 'dispersion/aim_multiplier', 'reload_spread': 'dispersion/reload_dispersion_amount',
+            'recoil': 'recoil/recoil_power', 'top_min': 'recoil/min_top_recoil', 'top_max': 'recoil/max_top_recoil',
+            'left_min': 'recoil/min_left_recoil', 'left_max': 'recoil/max_left_recoil',
+            'right_min': 'recoil/min_right_recoil', 'right_max': 'recoil/max_right_recoil',
+            'pid_p': 'recoil/compensation_proportional_gain', 'pid_i': 'recoil/compensation_integral_gain',
+            'pid_d': 'recoil/compensation_derivational_gain',
+            'shake_min': 'recoil/min_shake_recoil', 'shake_max': 'recoil/max_shake_recoil',
+            'shake_time': 'recoil/shake_time_scale',
+            'sway_h': 'breath_vibration/base_horizontal_amplitude', 'sway_v': 'breath_vibration/base_vertical_amplitude',
+            'sway_period': 'breath_vibration/base_period', 'melee': 'melee/data/k_damage',
+        },
+        'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_start', 'reload_end', 'chamber',
+                  'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
+                  'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
+                  'aim_speed', 'hip_spread', 'aim_spread', 'reload_spread', 'recoil', 'top_min', 'top_max',
+                  'left_min', 'left_max', 'right_min', 'right_max', 'pid_p', 'pid_i', 'pid_d', 'shake_min',
+                  'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
+        'cards': weapon_card,
+    },
+    'ammo': {
+        'configs': 'gameplay/items/weapons/ammo/*.options',
+        'columns': {
+            'damage': 'data/k_damage', 'pierce': 'data/k_arp', 'near_k': 'data/k_max_damage_distance',
+            'far_k': 'data/k_min_damage_distance', 'far_damage_k': 'data/k_min_damage_amount',
+            'speed': 'data/muzzle_speed', 'mass': 'data/mass', 'pellets': 'data/buck_shot',
+            'pellet_spread': 'data/buck_dispersion', 'ricochet': 'data/ricochet_chance',
+            'ricochet_angle': 'data/ricochet_angle', 'ricochet_spread': 'data/ricochet_dispersion_angle',
+            'pierce_spread': 'data/pierce_dispersion_angle', 'clip': 'parameters/clip_size',
+            'clip_weight': 'parameters/clip_weight', 'bags': 'parameters/required_bags',
+            'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
+        },
+        'match': {'damage', 'pierce', 'near_k', 'far_k', 'far_damage_k', 'speed', 'mass', 'pellets', 'pellet_spread',
+                  'ricochet', 'ricochet_angle', 'ricochet_spread', 'pierce_spread', 'clip', 'clip_weight', 'bags'},
+        'cards': ammo_card,
+    },
+    'throwables': {
+        'configs': ['gameplay/items/weapons/rgd-5.options', 'gameplay/items/weapons/smoke_grenade.options',
+                    'gameplay/items/devices/blackmarket_trap.options'],
+        'columns': {
+            'splash_damage': 'data/splash_max_damage', 'splash_min': 'data/splash_min_damage',
+            'splash_pierce': 'data/splash_pierce', 'splash_radius': 'data/splash_radius',
+            'stopping': 'data/stopping_power', 'stamina_damage': 'data/stamina_damage',
+            'throw_power': 'data/throw_power', 'fuse_ms': 'data/ttl_ms', 'roll_ms': 'data/min_roll_time_ms',
+            'safe_ms': 'data/safe_time', 'contact': 'data/explode_on_contact',
+            'damage': 'data/damage_parameters[*]/amount', 'pierce': 'data/damage_parameters[*]/armor_piercing',
+            'defuse_s': 'data/defuse_time', 'armed_life_s': 'data/armed_life_time',
+            'disarmed_life_s': 'data/disarmed_life_time', 'fired_life_s': 'data/fired_life_time',
+            'deploy_m': 'data/max_deploy_distance', 'slope_deg': 'data/max_slope_angle',
+            'weight': 'parameters/weight', 'level': 'parameters/item_level',
+            'mm_level': 'parameters/match_making_level',
+        },
+        'match': {'splash_damage', 'splash_min', 'splash_pierce', 'splash_radius', 'stopping', 'stamina_damage',
+                  'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
+                  'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
+        'cards': throwable_card,
+    },
+    'artefacts': {
+        'configs': 'gameplay/items/artefacts/*.options',
+        'columns': {
+            'cooldown_s': 'data/cooldown_sec', 'active_s': 'data/active/duration', 'spawn_s': 'data/spawn_sec',
+            'weight': 'parameters/weight',
+            'passive_speed': 'data/passive/movement_speed_mod', 'passive_aim': 'data/passive/aim_time_mod',
+            'active_speed': 'data/active/movement_speed_mod', 'active_aim': 'data/active/aim_time_mod',
+            'active_stopping': 'data/active/stopping_power_mod',
+            'active_stamina_spend': 'data/active/stamina_spend_mod', 'active_stamina_regen': 'data/active/stamina_regen_mod',
+            'passive_damage_mul': 'data/passive/damage_mul', 'passive_pierce_mul': 'data/passive/armor_piercing_mul',
+            'passive_damage_add': 'data/passive/damage_add', 'passive_pierce_add': 'data/passive/armor_piercing_add',
+            'active_damage_mul': 'data/active/damage_mul', 'active_pierce_mul': 'data/active/armor_piercing_mul',
+            'active_damage_add': 'data/active/damage_add', 'active_pierce_add': 'data/active/armor_piercing_add',
+            'absorb': 'data/active/absorb_total',
+            'regen': 'data/passive/regeneration_modifiers[*]/regen_add',
+            'regen_timeout': 'data/passive/regeneration_modifiers[*]/timeout_add',
+            'regen_threshold': 'data/passive/regeneration_modifiers[*]/threshold_add',
+        },
+        'match': {'cooldown_s', 'active_s', 'spawn_s', 'weight', 'passive_speed', 'passive_aim', 'active_speed',
+                  'active_aim', 'active_stopping', 'active_stamina_spend', 'active_stamina_regen', 'passive_damage_mul',
+                  'passive_pierce_mul', 'passive_damage_add', 'passive_pierce_add', 'active_damage_mul',
+                  'active_pierce_mul', 'active_damage_add', 'active_pierce_add', 'absorb', 'regen', 'regen_timeout',
+                  'regen_threshold'},
+        'add': {'passive_aim', 'active_aim', 'active_stopping'},  # Spring's, for client patch 54
+    },
+    'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
+    'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
+}
+
+
+def stats_category(path):
+    name = os.path.basename(path)
+    if not name.endswith('.tsv') or name[:-len('.tsv')] not in STATS:
+        raise ValueError('%s: not <name>.tsv of a table of STATS (%s)' % (name, ', '.join(STATS)))
+    return STATS[name[:-len('.tsv')]]
+
+
+def stats_globs(category):
+    configs = category['configs']
+    return configs if isinstance(configs, list) else [configs.split('#')[0]]
+
+
+def stats_config(category, name):
+    """The glob of a row's files (a path when the glob has one `*`, or names the file)."""
+    for glob in stats_globs(category):
+        if '*' in glob:
+            star = glob.index('*')
+            return glob[:glob[:star].rindex('/') + 1] + name + glob[star + 1:]
+        if os.path.basename(glob).split('.')[0] == name:
+            return glob
+    return name
+
+
+def stats_paths(category, paths):
+    """The game paths of `paths` a category reads."""
+    return sorted({p for glob in stats_globs(category) for p in fnmatch.filter(paths, glob)})
+
+
+def stats_targets(category, files):
+    """{row: [(path, offset)]}: the values each row's cells are under, of `files` ({path: buf})."""
+    configs, out = category['configs'], {}
+    if 'columns' not in category:
+        return {'': [(configs, 0)]} if configs in files else {}
+    if isinstance(configs, str) and '#' in configs:
+        path, (lst, key) = configs.split('#')[0], configs.split('#')[1][:-1].split('[')
+        for _, entry in resolve(files[path], lst + '[*]') if path in files else []:
+            out.setdefault(cell_text(files[path], find(files[path], key, entry)), []).append((path, entry))
+        return out
+    for glob in stats_globs(category):
+        if '*' not in glob:
+            if glob in files:
+                out.setdefault(os.path.basename(glob).split('.')[0], []).append((glob, 0))
+            continue
+        star = glob.index('*')
+        head = glob[:glob[:star].rindex('/') + 1]
+        pattern = re.compile(re.escape(head) + '(' + re.escape(glob[len(head):star]) + '[^/]*)' +
+                             '.*'.join(map(re.escape, glob[star + 1:].split('*'))))
+        for path in sorted(files):
+            if pattern.fullmatch(path):
+                out.setdefault(pattern.fullmatch(path)[1], []).append((path, 0))
+    return out
+
+
+def stats_label(category, row, path=None):
+    """A row's config in messages: its file (one of a glob's), or the list entry."""
+    configs = category['configs']
+    if 'columns' not in category:
+        return configs
+    if isinstance(configs, str) and '#' in configs:
+        return '%s=%s]' % (configs[:-1], row)
+    return path or stats_config(category, row)
+
+
+def read_stats(path):
+    """(category, {column: key path}, {row: {column: cell}}) of a stats table; a key/value table
+    (`key  value`) is one row '', a column a key."""
+    category = stats_category(path)
+    with open(path, encoding='utf-8') as f:
+        lines = [l.split('\t') for l in f.read().splitlines() if l.strip() and not l.startswith('#')]
+    head, body = lines[0], lines[1:]
+    for fields in body:
+        if len(fields) != len(head):
+            raise ValueError('%s: %s: %d fields, not %d' % (path, fields[0], len(fields), len(head)))
+    names = [fields[0] for fields in body]
+    if len(set(names)) != len(names):
+        raise ValueError('%s: %s is there twice' % (path, sorted(n for n in names if names.count(n) > 1)[0]))
+    if 'columns' not in category:
+        if head != ['key', 'value']:
+            raise ValueError('%s: a key/value table: key, value' % path)
+        return category, {k: k for k in names}, {'': {k: v for k, v in body}}
+    columns, known = head[1:], category['columns']
+    unknown, missing = [c for c in columns if c not in known], [c for c in known if c not in columns]
+    if unknown or missing or len(set(columns)) != len(columns):
+        raise ValueError('%s: unknown columns %s, missing %s' % (path, unknown, missing))
+    return category, known, {fields[0]: dict(zip(columns, fields[1:])) for fields in body}
+
+
+def resolve(buf, path, off=0):
+    """[(walk path, offset)] of every value `path` selects under the value at `off`: `name` a key,
+    `[i]` item i, `[*]` every item, `[field=cell]` every entry whose field reads as that cell."""
+    out = [('', off)]
+    for part in path.split('/'):
+        name, *selectors = part.split('[')
+        if name:
+            out = [(at + '/' + name, c) for at, o in out if rec(buf, o)[3] == T_NAMED
+                   for c in [child(buf, o, name)] if c is not None]
+        for s in (s.rstrip(']') for s in selectors):
+            field, _, cell = s.partition('=')
+            out = [('%s[%d]' % (at, i), c) for at, o in out if rec(buf, o)[3] == T_INDEXED
+                   for i, c in enumerate(children(buf, o))
+                   if s in ('*', str(i)) or (cell and resolve(buf, field, c) and
+                                             cell_text(buf, resolve(buf, field, c)[0][1]) == cell)]
+    return out
+
+
+def cell_text(buf, off):
+    """A value as a table's cell: an int, the shortest float text, true/false, the text."""
+    d, _, _, t, cnt = rec(buf, off)
+    if t == T_BOOL:
+        return 'true' if d & 1 else 'false'
+    if t == T_STR:
+        return bytes(buf[d:d + cnt - 1]).decode()
+    if t == T_INT:
+        return str(as_number(t, d & 0xffffffff))
+    if t == T_FLOAT:
+        raw = d & 0xffffffff
+        for digits in range(6, 10):
+            text = '%.*g' % (digits, as_number(t, raw))
+            if struct.unpack('<I', struct.pack('<f', float(text)))[0] == raw:
+                return text
+    return '(a table)'
+
+
+NUMBER = re.compile(r'-?\d+(\.\d+)?(e-?\d+)?')
+
+
+def same_cell(cell, have):
+    if cell == have or not (NUMBER.fullmatch(cell) and NUMBER.fullmatch(have)):
+        return cell == have
+    return struct.pack('<f', float(cell)) == struct.pack('<f', float(have))
+
+
+def write_cell(buf, off, cell):
+    """The value at `off` becomes `cell`, its type kept (a fraction makes an int a float)."""
+    d, i, crc, t, cnt = rec(buf, off)
+    if t == T_STR:
+        REC.pack_into(buf, off, append(buf, cell.encode() + b'\0'), i, crc, t, len(cell.encode()) + 1)
+    elif t == T_BOOL and cell in ('true', 'false'):
+        REC.pack_into(buf, off, (d & ~0xffffffff) | (cell == 'true'), i, crc, t, cnt)
+    elif t in (T_INT, T_FLOAT) and NUMBER.fullmatch(cell):
+        number = float(cell)
+        t = T_INT if t == T_INT and number == int(number) else T_FLOAT
+        raw = int(number) & 0xffffffff if t == T_INT else struct.unpack('<I', struct.pack('<f', number))[0]
+        REC.pack_into(buf, off, (d & ~0xffffffff) | raw, i, crc, t, cnt)
+    else:
+        raise ValueError('%r does not fit a value of type %d' % (cell, t))
+
+
+def stats_values(buf, off, columns, row):
+    """{column: [cell of each value its key path selects under `off`, in order]}; a selector that selects
+    nothing of a list the config has is refused."""
+    out = {}
+    for c, key in columns.items():
+        out[c] = [cell_text(buf, o) for _, o in resolve(buf, key, off)]
+        if not out[c] and '[' in key and resolve(buf, key[:key.index('[')], off):
+            raise ValueError('row %s: %s matches nothing' % (row, key))
+    return out
+
+
+def stats_cells(buf, off, columns, row):
+    """{column: cell} of the values under `off` ('' none; values that differ: a|b)."""
+    return {c: '|'.join(sorted(set(v))) for c, v in stats_values(buf, off, columns, row).items()}
+
+
+def stats_differences(buf, off, columns, cells, row):
+    """[(column, key path, cell, config value)] where the values under `off` disagree with the row."""
+    have = stats_cells(buf, off, columns, row)
+    return [(c, key, cells[c], have[c]) for c, key in columns.items() if not same_cell(cells[c], have[c])]
+
+
+def stats_unmatched(category, rows, targets, table):
+    """A config without its row, a row without its config."""
+    return (['%s: no row in %s' % (stats_label(category, row, p), table)
+             for row, places in targets.items() if row not in rows for p, _ in places] +
+            ['%s: a row of %s, no such config' % (stats_label(category, row), table) for row in rows if row not in targets])
+
+
+def stats_problems(category, columns, rows, targets, files, table):
+    """Why the configs are not the table: stats_unmatched, and each cell its values are not."""
+    out = stats_unmatched(category, rows, targets, table)
+    for row, places in targets.items():
+        for p, off in places if row in rows else ():
+            try:
+                out += ['%s: %s (%s) is %s, its row says %s' % (stats_label(category, row, p), column, key,
+                                                                have or 'absent', cell or 'nothing')
+                        for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row)]
+            except ValueError as why:
+                out.append('%s: %s' % (stats_label(category, row, p), why))
+    return out
+
+
+def stats_write(category, columns, rows, data, table):
+    """The rows' cells and the card lines they make written into `data` ({path: buf}; a key/value
+    table's config made when it is not there): ({path: [walk paths written]}, {paths made})."""
+    made = set()
+    if 'columns' not in category and category['configs'] not in data:
+        data[category['configs']] = new_config(rows[''])
+        made.add(category['configs'])
+    targets = stats_targets(category, data)
+    unmatched = stats_unmatched(category, rows, targets, table)
+    if unmatched:
+        raise ValueError(unmatched[0])
+    written = {p: [] for p in made}
+    for row, places in sorted(targets.items()):
+        for p, off in places:
+            b = data[p]
+            root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
+            for column, key, cell, have in stats_differences(b, off, columns, rows[row], row):
+                spots = resolve(b, key, off)
+                parent, _, name = key.rpartition('/')
+                tables = resolve(b, parent, off) if parent else [('', off)]
+                if not cell or not spots and (column not in category.get('add', ()) or len(tables) != 1 or
+                                              rec(b, tables[0][1])[3] != T_NAMED):
+                    raise ValueError('%s %s (%s): the row says %r, the config %r (an empty cell: no such key)'
+                                     % (stats_label(category, row, p), column, key, cell, have))
+                if not spots:  # a key the config lacks, in its table: a float, true/false or a text
+                    add_value(b, (root + tables[0][0])[1:], name, cell == 'true' if cell in ('true', 'false') else
+                              float(cell) if NUMBER.fullmatch(cell) else cell)
+                    written.setdefault(p, []).append(root + tables[0][0] + '/' + name)
+                for at, o in spots:
+                    if not same_cell(cell, cell_text(b, o)):
+                        write_cell(b, o, cell)
+                        written.setdefault(p, []).append(root + at)
+                print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+            if stats_differences(b, off, columns, rows[row], row):
+                raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
+            for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
+                written.setdefault(p, []).append(set_prop(b, prop_id, text, want))
+                print('card %s %d: %s -> %s' % (p, prop_id, text, want))
+    print('%s: %d rows, %d files written' % (table, len(rows), len(written)))
+    return written, made
+
+
+def stats_moved(category, columns, players, now):
+    """[label key] of each match column whose values (each selected one, in order) differ between
+    players' configs and the new ones ({path: buf}; a config players lack has none)."""
+    match = {c: key for c, key in columns.items()
+             if any(c == m or c.startswith(m + '/') or c.startswith(m + '[') for m in category['match'])}
+
+    def values(files):
+        return {(row, p): stats_values(files[p], off, match, row)
+                for row, places in stats_targets(category, files).items() for p, off in places}
+    was, have = values(players), values(now)
+    return ['%s %s' % (stats_label(category, row, p), key) for row, p in sorted(was.keys() | have.keys())
+            for c, key in match.items() if was.get((row, p), {}).get(c, []) != have.get((row, p), {}).get(c, [])]
+
+
+def card_differences(buf, card):
+    """[(prop_id, card text, text from the config)] of the card lines that disagree with `card(buf)`."""
+    try:
+        lines = children(buf, find(buf, 'ui_desc/props_list'))
+    except KeyError:
+        return []
+    want, out = card(buf), []
+    for entry in lines:
+        prop_id, text = (value_of(buf, find(buf, k, entry)) for k in ('prop_id', 'prop_value'))
+        if prop_id in want and want[prop_id] != text:
+            out.append((prop_id, text, want[prop_id]))
+    return sorted(out)
+
+
+def new_config(cells):
+    """A config of key paths and cells: `/` a named table, `[i]` an indexed one (items from 0); a cell
+    an int, a float (with a point), true/false or a text."""
+    root = {}
+    for key, cell in cells.items():
+        steps = [int(i) if i else name for i, name in re.findall(r'\[(\d+)\]|([^/\[\]]+)', key)]
+        node = root
+        for step in steps[:-1]:
+            node = node.setdefault(step, {})
+        node[steps[-1]] = (cell == 'true' if cell in ('true', 'false') else int(cell) if re.fullmatch(r'-?\d+', cell)
+                           else float(cell) if NUMBER.fullmatch(cell) else cell)
+    buf = bytearray(24)
+    buf[:24] = value_record(buf, append(buf, b'\0'), '', root)
+    return buf
+
+
+def live_files(live):
+    """{game path: file} of a folder of files at their game paths or flattened (a__b)."""
+    return {game_path(os.path.relpath(os.path.join(root, n), live).replace(os.sep, '/')): os.path.join(root, n)
+            for root, _, names in os.walk(live) for n in names}
+
+
+def dump_stats(name, live):
+    category = STATS[name]
+    files = live_files(live)
+    data = {p: bytearray(open(files[p], 'rb').read()) for p in stats_paths(category, files)}
+    if 'columns' not in category:
+        buf = data.get(category['configs'], bytearray(24))
+        print('key\tvalue')
+        for q in sorted(q for q, t, _ in walk(buf) if t in (T_BOOL, T_INT, T_FLOAT)):
+            print('%s\t%s' % (q[1:], cell_text(buf, find(buf, q[1:]))))
+        return
+    lines, mixed = ['\t'.join([name] + list(category['columns']))], []
+    for row, places in sorted(stats_targets(category, data).items()):
+        cells = {c: set() for c in category['columns']}
+        for p, off in places:
+            for c, v in stats_values(data[p], off, category['columns'], row).items():
+                cells[c].update(v or [''])
+        mixed += ['row %s %s: %s' % (row, c, ' | '.join(sorted(v))) for c, v in cells.items() if len(v) > 1]
+        lines.append('\t'.join([row] + [v.pop() for v in cells.values()]))
+    if mixed:
+        sys.exit('values that differ within a row (a cell unifies them: pick one):\n' + '\n'.join(mixed))
+    print('\n'.join(lines))
 
 
 def prefix_strings(buf, key, prefix):
@@ -1024,20 +1568,19 @@ def require_headwear_bind(config, paths):
 
 
 def main():
+    if sys.argv[1:2] == ['--dump-stats']:
+        return dump_stats(*sys.argv[2:4])
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     check = '--check' in sys.argv
     if len(args) != 3:
         sys.exit(__doc__)
     edits_file, live, out = args
-    edits = json.load(open(edits_file, encoding='utf-8'))
+    stats = read_stats(edits_file) if edits_file.endswith('.tsv') else None
+    edits = json.load(open(edits_file, encoding='utf-8')) if stats is None else {}
     if not check and os.path.exists(out):
         sys.exit('%s: already there' % out)
-    files = {}
-    for root, _, names in os.walk(live):
-        for n in names:
-            rel = os.path.relpath(os.path.join(root, n), live).replace(os.sep, '/')
-            files[game_path(rel)] = os.path.join(root, n)
-    bufs = {}
+    files = live_files(live)
+    bufs, made = {}, set()
 
     def buf(p):
         if p not in bufs:
@@ -1090,15 +1633,28 @@ def main():
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_vector', []):
+        set_vector(buf(e['file']), e['path'], e['from'], e['to'])
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('set_bool', []):
         set_bool(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
-    for e in edits.get('set_prop', []):
-        q = set_prop(buf(e['file']), e['prop_id'], e['from'], e['to'])
-        allowed.setdefault(e['file'], set()).add(q)
+    shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    if stats is not None:
+        category, columns, rows = stats
+        data = {p: bytearray(open(files[p], 'rb').read()) for p in stats_paths(category, files)}
+        written, made = stats_write(category, columns, rows, data, os.path.basename(edits_file))
+        bufs.update({p: data[p] for p in written})
+        for p, paths in written.items():
+            had = set() if p in made else {q for q, _, _ in walk(bytearray(open(files[p], 'rb').read()))}
+            allowed.setdefault(p, set()).update(q for q in paths if q in had or p in made)
+            for q in (q for q in paths if q not in had and p not in made):
+                added.setdefault(p, []).append(q)
+                grown.setdefault(p, {}).setdefault(q.rpartition('/')[0], 0)
+                grown[p][q.rpartition('/')[0]] += 1
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
@@ -1119,7 +1675,22 @@ def main():
                 bufs[p] = b
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
-    shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    gone = {}
+    for e in edits.get('remove_key', []):
+        for key in e['keys']:
+            n = 0
+            for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+                b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
+                if remove_key(b, key):
+                    bufs[p] = b
+                    gone.setdefault(p, []).append('/' + key)
+                    table = '/' + key.rpartition('/')[0] if '/' in key else ''
+                    grown.setdefault(p, {}).setdefault(table, 0)
+                    grown[p][table] -= 1
+                    n += 1
+            if not n:
+                sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
+            print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
@@ -1331,6 +1902,9 @@ def main():
     strings = [(e['from'].encode(), e['to'].encode()) for e in edits.get('replace_string', [])]
     bad = same_copies = 0
     for p, b in sorted(bufs.items()):
+        if p in made:
+            print('%s: a new config, %d values' % (p, len(walk(b))))
+            continue
         source = bytearray(open(files[copies.get(p, p)], 'rb').read())
         if p in copies and b == source:
             same_copies += 1
@@ -1373,6 +1947,7 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
+                (n is None and any(q == g or q.startswith(g + '/') or q.startswith(g + '[') for g in gone.get(p, ()))) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

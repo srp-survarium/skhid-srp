@@ -19,6 +19,7 @@ use updater_logic::{
     game::{self, Pin},
     patches::{self as list, Address, Download},
     pipe::{ToLauncher, state, step},
+    problem::{Fault, Miss},
     url::Url,
 };
 use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
@@ -210,6 +211,7 @@ fn fetch(
     }
     let count = addresses.len();
     let mut failed: Vec<(String, String)> = Vec::new();
+    let mut misses: Vec<Miss> = Vec::new();
     for (at, address) in addresses.iter().enumerate() {
         if !session.pump() {
             return Err(None);
@@ -243,9 +245,12 @@ fn fetch(
             http::Slow::Wait
         };
         let (result, received) = get(session, address, path, have, pin, slow)?;
-        let why = match result {
+        let (why, miss) = match result {
             Ok(()) => match win::file_size(path).unwrap_or(0) {
-                size if size != pin.size => format!("cut short at byte {size} of {}", pin.size),
+                size if size != pin.size => (
+                    format!("cut short at byte {size} of {}", pin.size),
+                    Miss::Answered(Fault::CutShort),
+                ),
                 _ => match check(path, pin, session)? {
                     Some(file) => {
                         log!(
@@ -261,11 +266,14 @@ fn fetch(
                     }
                     None => {
                         let _ = win::delete(path);
-                        format!("wrong SHA-256 (not {})", pin.sha256)
+                        (
+                            format!("wrong SHA-256 (not {})", pin.sha256),
+                            Miss::Answered(Fault::Damaged),
+                        )
                     }
                 },
             },
-            Err(error) => text::reason(&error),
+            Err(error) => (text::reason(&error), error.miss()),
         };
         log!(
             "{}",
@@ -277,11 +285,13 @@ fn fetch(
             )
         );
         failed.push((host.into(), why));
+        misses.push(miss);
     }
     // Bytes got stay for the next start; no byte, no file.
     if win::file_size(path).is_ok_and(|size| size == 0) {
         let _ = win::delete(path);
     }
+    session.failed(game::ARCHIVE_NAME, &misses);
     Err(Some(text::game_download_failed(&download::failures(
         &failed,
     ))))

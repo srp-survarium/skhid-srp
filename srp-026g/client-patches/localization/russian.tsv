@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Этот матч достиг лимита игроко
 st_srp_rooms_joined_room	%1$s вошёл в комнату
 st_srp_rooms_late_hint	Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.
 st_srp_rooms_leave	Выйти
-st_srp_rooms_leave_queue	Выйти из очереди
-st_srp_rooms_leave_room	Выйти из комнаты
+st_srp_rooms_leave_queue	Выйти
+st_srp_rooms_leave_room	Выйти
 st_srp_rooms_left_room	%1$s покинул комнату
 st_srp_rooms_level	Уровень
 st_srp_rooms_map	Карта
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
-st_srp_weapon_shift_hint	Зажмите Shift: подробнее
+st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Характеристики оружия
 st_srp_weapon_sway_cycle	Период раскачивания
 st_srp_weapon_sway_horizontal	Раскачивание в стороны
 st_srp_weapon_sway_vertical	Раскачивание вверх-вниз
+st_srp_weapon_with_kit	С комплектом
+st_srp_weapon_with_kit_skills	С комплектом и навыками
 st_srp_weather_before_rain	перед дождём
 st_srp_weather_day	день
 st_srp_weather_evening	вечер
@@ -2849,9 +2851,16 @@ st_walther_competition2_collimator_desc	Немецкий коллиматорн�
 st_walther_competition2_collimator_name	Коллиматор Competition II
 st_wasted	Расход
 st_weapon_aim_action	Прицеливание (удерж.)
+st_weapon_already_taken	Уже подобрано
+st_weapon_cannot_carry	Нельзя нести вторую винтовку
+st_weapon_cannot_pick_up	Это нельзя подобрать
 st_weapon_could_not_be_used	Ранение рук! Невозможно использовать оружие
 st_weapon_fire_action	Стрельба
+st_weapon_no_gun_in_hands	Возьмите оружие в руки, чтобы обменять
+st_weapon_one_gun_only	Можно нести только одно оружие
+st_weapon_pick_up	Подобрать %1$s ({USE})
 st_weapon_reload_action	Перезарядка
+st_weapon_switching	Дождитесь смены оружия
 st_wear	Надеть
 st_weight_booster_description	Протеин, содержащий необходимые вещества для роста мышц и повышения силы. Однако без физической нагрузки употреблять бессмысленно.
 st_weight_booster_name	Протеин "Аномальная сила"

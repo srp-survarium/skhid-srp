@@ -18,5 +18,7 @@ ragdoll = { path = "../../../crates/ragdoll" }
 artefact-carry = { path = "../../../crates/artefact-carry" }
 # patch 87's world check: the match server's own parse of a world's frame
 world-frame = { path = "../../../crates/world-frame" }
+# patch 85's shared rules (the command, the record, the pickup and crate rules)
+weapon-pickup = { path = "../../../crates/weapon-pickup" }
 # patch 68's weapon kit: srp's servers pack it, the client reads the same crate
 weapon-kit = { path = "../../../crates/weapon-kit" }

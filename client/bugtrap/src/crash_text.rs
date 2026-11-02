@@ -71,7 +71,7 @@ const ENGLISH: Text = Text {
         "). Move it to a simple path like C:\\Games\\Survarium and start it from there.",
     ],
     browser_failed: "Could not open your browser.",
-    manual: "Open discord.gg/Pxa4prXfwu yourself and send the file, if saved, to #bugreports. Describe what happened.",
+    manual: "Open discord.gg/QUmJg3gBhg yourself and send the file, if saved, to #bugreports. Describe what happened.",
 };
 const RUSSIAN: Text = Text {
     title: "Survarium — отчёт о сбое",
@@ -94,7 +94,7 @@ const RUSSIAN: Text = Text {
         "). Перенесите её по простому пути, например C:\\Games\\Survarium, и запускайте оттуда.",
     ],
     browser_failed: "Не удалось открыть браузер.",
-    manual: "Откройте discord.gg/Pxa4prXfwu вручную и отправьте файл, если он сохранён, в канал #bugreports. Опишите, что произошло.",
+    manual: "Откройте discord.gg/QUmJg3gBhg вручную и отправьте файл, если он сохранён, в канал #bugreports. Опишите, что произошло.",
 };
 const UKRAINIAN: Text = Text {
     title: "Survarium — звіт про збій",
@@ -117,7 +117,7 @@ const UKRAINIAN: Text = Text {
         "). Перенесіть її за простим шляхом, наприклад C:\\Games\\Survarium, і запускайте звідти.",
     ],
     browser_failed: "Не вдалося відкрити браузер.",
-    manual: "Відкрийте discord.gg/Pxa4prXfwu вручну та надішліть файл, якщо його збережено, у канал #bugreports. Опишіть, що сталося.",
+    manual: "Відкрийте discord.gg/QUmJg3gBhg вручну та надішліть файл, якщо його збережено, у канал #bugreports. Опишіть, що сталося.",
 };
 const GERMAN: Text = Text {
     title: "Survarium — Absturzbericht",
@@ -140,7 +140,7 @@ const GERMAN: Text = Text {
         "). Verschiebe es in einen einfachen Pfad wie C:\\Games\\Survarium und starte es von dort.",
     ],
     browser_failed: "Der Browser konnte nicht geöffnet werden.",
-    manual: "Öffne discord.gg/Pxa4prXfwu selbst und sende die Datei, falls gespeichert, an #bugreports. Beschreibe, was passiert ist.",
+    manual: "Öffne discord.gg/QUmJg3gBhg selbst und sende die Datei, falls gespeichert, an #bugreports. Beschreibe, was passiert ist.",
 };
 const POLISH: Text = Text {
     title: "Survarium — raport o awarii",
@@ -163,5 +163,5 @@ const POLISH: Text = Text {
         "). Przenieś ją do prostej ścieżki, np. C:\\Games\\Survarium, i uruchamiaj stamtąd.",
     ],
     browser_failed: "Nie udało się otworzyć przeglądarki.",
-    manual: "Otwórz samodzielnie discord.gg/Pxa4prXfwu i wyślij plik, jeśli został zapisany, na kanał #bugreports. Opisz, co się stało.",
+    manual: "Otwórz samodzielnie discord.gg/QUmJg3gBhg i wyślij plik, jeśli został zapisany, na kanał #bugreports. Opisz, co się stało.",
 };

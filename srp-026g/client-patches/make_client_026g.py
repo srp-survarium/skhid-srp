@@ -109,11 +109,19 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         Windows Firewall outbound allow rules for the three programs; --undo
         removes them, --dry-run prints the commands. It asks Windows for
         administrator rights itself (the UAC prompt) and says everything in
-        Russian (Skhid-network-setup.cmd here).
+        Russian on a Windows in Russian, Ukrainian or Belarusian, in English
+        on any other (Skhid-network-setup.cmd here).
     <output>/Skhid-defender-setup.cmd
-        a Microsoft Defender exclusion of game\binaries\x86, with --undo and
-        --dry-run, the rights and the Russian the same way
-        (Skhid-defender-setup.cmd here).
+        a Microsoft Defender exclusion of game\binaries\x86, then the Skhid
+        files Defender deleted put back, with --undo and --dry-run, the
+        rights and the languages the same way (Skhid-defender-setup.cmd here).
+    <output>/Skhid-collect-logs.cmd
+        for a player for whom nothing works: the logs (credential lines
+        removed), the crash reports' text, the game folder's listing and
+        hashes, the servers' answers and Windows' state, in one ZIP on the
+        Desktop to send; changes nothing, takes no password, no user.cfg, no
+        dump; no administrator rights; the languages the same way
+        (Skhid-collect-logs.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
 
@@ -186,6 +194,9 @@ NETWORK_SETUP = "Skhid-network-setup.cmd"
 # For a player whose antivirus takes the game's files for a threat: the
 # Defender exclusion of game\binaries\x86 (beside Skhid.bat).
 DEFENDER_SETUP = "Skhid-defender-setup.cmd"
+# For a player for whom nothing works: the logs and the folder's state in one
+# ZIP to send (beside Skhid.bat).
+COLLECT_LOGS = "Skhid-collect-logs.cmd"
 # What a Linux unpacker makes executable.
 SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
 
@@ -374,7 +385,8 @@ def vpn_help():
 
 
 def russian_script(name):
-    """`Skhid-network-setup.cmd` or `Skhid-defender-setup.cmd`: kept in
+    """`Skhid-network-setup.cmd`, `Skhid-defender-setup.cmd` or
+    `Skhid-collect-logs.cmd`: kept in
     UTF-8, shipped in code page 866 (DOS Cyrillic) with CRLF line ends. cmd
     reads each line of a script in the console's code page at the time; the
     script switches it to 866 (`chcp 866`) before its first Russian line, so
@@ -428,8 +440,9 @@ def readme(server, description, files, embedded=False, site=None):
             "   which is in this archive.",
             "   If Windows warns about an unknown publisher, let it run:",
             "   these files are not signed.",
-            f"   If Microsoft Defender blocks or deletes the game's files, run {DEFENDER_SETUP}",
-            "   (in Russian): it excludes game\\binaries\\x86 from its scans.",
+            f"   If Microsoft Defender blocks or deletes the game's files, run {DEFENDER_SETUP}:",
+            "   it excludes game\\binaries\\x86 from its scans and puts back the files",
+            "   it deleted.",
             "   If your antivirus deletes updater_skhid.exe, start",
             f"   {WITHOUT_UPDATER} instead: it installs and updates the game itself.",
             "   Linux: install Wine and Winetricks, open a terminal in that folder and",
@@ -447,6 +460,11 @@ def readme(server, description, files, embedded=False, site=None):
             f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows, in",
             "Russian) and answer Yes when Windows asks for administrator rights. In",
             f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
+            "",
+            "STILL NOT WORKING?",
+            f"Run {COLLECT_LOGS}: it puts the game's logs and the state of its",
+            "folder into one ZIP on your Desktop (no password, nothing changed). Send",
+            "that file to us on Discord: https://discord.gg/QUmJg3gBhg",
             "",
             "WHAT THE ARCHIVE ADDS",
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",
@@ -634,6 +652,7 @@ def main():
             (VPN_HELP, vpn_help()),
             (NETWORK_SETUP, russian_script(NETWORK_SETUP)),
             (DEFENDER_SETUP, russian_script(DEFENDER_SETUP)),
+            (COLLECT_LOGS, russian_script(COLLECT_LOGS)),
         ]
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
                   for name, data in sorted(launcher_pages.pages(site).items())]

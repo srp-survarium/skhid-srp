@@ -1791,6 +1791,7 @@ va	status	ref_021d	name
 0x002aed70	inferred-high	0x001b4ad0	Scaleform::MemoryFile::SkipBytes
 0x002aee70	inferred-medium	0x001b4b7e	Scaleform::MemoryFile::MemoryFile
 0x002aefa0	inferred-high	0x001b4c9d	survarium::scaleform_render_command_queue_impl::GetRenderInterfaces
+0x002af0f0	inferred-medium	0x001b4dbb	survarium::flash_renderer::present
 0x002af2e0	inferred-high	0x001b5012	Scaleform::Render::Matrix3x4<float>::SetIdentity
 0x002af310	inferred-high	0x001b503a	Scaleform::Render::Matrix3x4<float>::Matrix3x4<float>
 0x002af340	inferred-high	0x001b5064	Scaleform::Render::Matrix2x4<float>::SetIdentity
@@ -3043,6 +3044,8 @@ va	status	ref_021d	name
 0x00408cb0	inferred-medium	0x00282eb0	stlp_std::basic_istream<char,stlp_std::char_traits<char> >::basic_istream<char,stlp_std::char_traits<char> >
 0x0040d6d0	inferred-medium	0x00198f59	stlp_std::priv::_String_base<wchar_t,stlp_std::allocator<wchar_t> >::_M_allocate_block
 0x00420f22	inferred-medium	0x002b031e	_purecall
+0x0050d670	inferred-high	0x00371010	Scaleform::Render::Renderer2D::BeginFrame
+0x0050fec0	inferred-high	0x00373770	Scaleform::Render::ContextImpl::RTHandle::NextCapture
 0x00543cb0	inferred-medium	0x0023721c	stlp_std::basic_streambuf<char,stlp_std::char_traits<char> >::showmanyc
 0x006ac5b0	inferred-medium	0x002372ea	stlp_std::basic_streambuf<char,stlp_std::char_traits<char> >::underflow
 0x008521a0	inferred-medium	0x0068cde5	`dynamic initializer for 's_net_stats_match_sent_messages_previous''
@@ -3109,6 +3112,9 @@ va	status	ref_021d	name
 0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
 0x00331c50	inferred-medium		survarium::weapon_recoil_calculator::on_shot
 0x003321e0	inferred-medium		survarium::weapon_recoil_calculator::compensation_pid
+0x00331ff0	inferred-medium		survarium::weapon_recoil_calculator::serialize
+0x003320b0	inferred-medium		survarium::weapon_recoil_calculator::deserialize
+0x00332140	inferred-medium		survarium::weapon_recoil_calculator::reset
 0x0033e680	inferred-medium		survarium::oxygen_tank::find_influence
 0x00299d40	inferred-medium		survarium::post_process_game_effect_emitter::emit
 0x0029a220	inferred-medium		survarium::particle_game_effect_emitter::emit
@@ -3140,6 +3146,16 @@ va	status	ref_021d	name
 0x00288180	inferred-medium		survarium::lobby_menu::fill_item_upgrades
 0x0028b0f0	inferred-medium		vostok::buffer_vector<std::pair<unsigned int,unsigned int>>::push_back
 0x0034f940	inferred-medium		vostok::render::load_props_impl
+0x001e8b50	inferred-medium		survarium::initialize_allocators
+0x00279d80	inferred-high		vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::malloc_impl
+0x00279c40	inferred-high		vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::single_size_buffer_allocator
+0x00019ff0	inferred-high		vostok::engine::engine_world::logic_dispatch_callbacks
+0x0001a390	inferred-high		vostok::engine::engine_world::logic
+0x0001a030	inferred-medium		vostok::engine::engine_world::logic_tick
+0x00297c50	inferred-medium		survarium::weapon_sound_effect::on_animation_event
+0x002981a0	inferred-medium		survarium::weapon_sound_effect::play_from_event
+0x002e0de0	inferred-medium		survarium::weapon_core::update_ammo_selection
+0x00013c40	inferred-medium		vostok::render::set_render_allocator
 0x001d1c60	inferred-high		vostok::render::sky_dome_geometry::sky_dome_geometry
 0x001d2150	inferred-high		vostok::render::sky_dome_geometry::draw
 0x003df370	inferred-high		vostok::render::parse_shader_resources
@@ -3156,3 +3172,13 @@ va	status	ref_021d	name
 0x00290930	inferred-high	0x001a7008	survarium::object_ambient_light::insert
 0x001c3c90	inferred-medium		vostok::render::environment_probe_properties::operator=
 0x001ba090	inferred-medium		stlp_std::priv::__insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x002e26b0	inferred-medium		survarium::weapon_core::ammo_ordinal
+0x002e2750	inferred-medium		survarium::weapon_core::ammo_by_ordinal
+0x003046f0	inferred-high	0x001e9cc8	survarium::booby_trap_core::load
+0x0031ff60	inferred-high	0x001f9af9	survarium::create_hit_type_parameters
+0x00323a10	inferred-high	0x001ff6fb	survarium::game_material::load_from_config
+0x00332330	inferred-high	0x00207b50	survarium::weapon_damage_params::weapon_damage_params
+0x0030df10	inferred-medium		survarium::weapon_core_hide_state_base::get_weapon_lexeme
+0x0030df10	inferred-medium		survarium::weapon_core_show_state_base::get_weapon_lexeme
+0x0030e510	inferred-medium		survarium::weapon_core_chamber_a_round_state::get_weapon_lexeme
+0x002f5500	inferred-medium		survarium::shared_statistics::on_player_weapon_firing

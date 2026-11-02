@@ -17,7 +17,8 @@ The manifest's rows, in this order of kinds (each kind's rows in their order):
          a record: the pack is in that published patch, nothing is applied
   edit   <file>.json             - | resources.db.patch_<n>
          srp-026g/scripts/content-edit/<file>.json applied by content_edit.py to the files as the
-         rows above (and the edits before it) leave them; or, with a base row's name, a record
+         rows above (and the edits before it) leave them; or, with a base row's name, a record;
+         (a <table>.tsv too: content_edit.py STATS)
 Every Flash tree of srp-026g/flash needs a movie row and every edit list of content-edit a row.
 
 Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
@@ -46,8 +47,11 @@ LOBBY = 'lobby_menu'
 # The value-type check's allowlist (content_type_check.py): a NEW key whose
 # type is not one 0.26g uses at that structural path, with the reason it is
 # right: {(game path, structural path): reason}. It never lets a key that
-# exists change its type. Empty: today's content needs none.
+# exists change its type (a number between int and float only where the base
+# configs have both there: content_type_check.number_either). Empty: today's content needs none.
 TYPE_ALLOWLIST = {}
+
+SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
 
 
 class Problem(Exception):
@@ -119,7 +123,8 @@ def read_manifest(path, offered, tree):
             raise Problem(f'{at}: edit {name}: no srp-026g/scripts/content-edit/{name} in {tree}')
         rows.append((kind, name, source, what, at))
     trees = sorted(p.parent.name for p in (tree / 'srp-026g' / 'flash').glob('*/movie.json'))
-    lists = sorted(p.name for p in edits_dir(tree).glob('*.json'))
+    lists = sorted(p.name for p in edits_dir(tree).glob('*.json')) + \
+        sorted(p.name for p in edits_dir(tree).glob('*.tsv'))
     for kind, names in (('movie', trees), ('edit', lists)):
         for name in names:
             if (kind, name) not in seen:
@@ -325,8 +330,11 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
     for kind, name, source, _, at in rows:
         if kind != 'edit' or source != '-':
             continue
-        edits = json.loads((edits_dir(tree) / name).read_text(encoding='utf-8'))
-        paths = edit_paths(edits, sorted(set(base_files) | set(world.bytes)))
+        known = sorted(set(base_files) | set(world.bytes))
+        if name.endswith('.tsv'):
+            paths = own_content_edit().stats_paths(own_content_edit().stats_category(name), known)
+        else:
+            paths = edit_paths(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')), known)
         movies = [p for p in paths if p.startswith('flash_movies/')]
         if movies:
             raise Problem(f'{at}: edit {name} names {movies[0]}: a movie changes in its source tree')
@@ -390,6 +398,63 @@ def type_check(base, base_files, game, world):
                       '(a key keeps its type; a new key uses a 0.26g type or an allowlist row in build_content.py; '
                       'a config parses)')
     print(f'value types: every key the base has keeps its type across {len(world.bytes)} file(s)')
+
+
+def own_content_edit():
+    """This checkout's content_edit.py (not --tree's)."""
+    import importlib.util
+    path = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'content-edit' / 'content_edit.py'
+    spec = importlib.util.spec_from_file_location('content_edit', str(path))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def stats_checks(rows, base, base_files, live, game, world, tree, compared):
+    """Per content_edit.STATS category: each config (or list entry) is its table row, its cards follow
+    it, and a changed match column needs the `next` row of SIMULATION_CHANGES."""
+    ce = own_content_edit()
+    tables = {name: edits_dir(tree) / name for kind, name, source, _, _ in rows
+              if kind == 'edit' and source == '-' and name.endswith('.tsv')}
+    problems, moved = [], []
+    for category_name, category in ce.STATS.items():
+        paths = ce.stats_paths(category, set(base_files) | set(world.bytes))
+        configs = {p: bytearray(b) for p, b in game.get(base, [p for p in paths if p not in world.bytes]).items()}
+        configs.update({p: bytearray(world.bytes[p]) for p in paths if p in world.bytes})
+        targets = ce.stats_targets(category, configs)
+        table = tables.get(f'{category_name}.tsv')
+        _, columns, table_rows = ce.read_stats(str(table)) if table else (None, category.get('columns', {}), None)
+        if table:
+            problems += ce.stats_problems(category, columns, table_rows, targets, configs, table.name)
+        if category.get('cards'):
+            problems += [f'{p}: card line {prop_id} says {text!r}, its config {want!r}'
+                         for p in paths for prop_id, text, want in ce.card_differences(configs[p], category['cards'])]
+        # A config players lack (a new key/value table's) has no values: each of its match values moved.
+        changed = [p for p in paths if p in world.bytes and compared[p][0] in ('differs', 'new')]
+        players = game.get(live, [p for p in changed if compared[p][0] == 'differs'])
+        try:
+            moved += ce.stats_moved(category, columns, {p: bytearray(b) for p, b in players.items()},
+                                    {p: configs[p] for p in changed})
+        except ValueError as why:
+            problems.append(f'{category_name}: {why}')
+        print(f'{category_name}: {len(targets)} row(s)' + (f', each its row of {table.name}' if table else '')
+              + (', every card line its number' if category.get('cards') else ''))
+    if problems:
+        print()
+        for problem in problems:
+            print(f'STATS: {problem}')
+        raise Problem(f'{len(problems)} stats problem(s): no patch made')
+    if not moved:
+        return
+    changes = tree / SIMULATION_CHANGES
+    marked = changes.is_file() and any(line.startswith('next\t') for line in changes.read_text().splitlines())
+    for line in moved:
+        print(f'  match value: {line}')
+    if not marked:
+        raise Problem(f'{len(moved)} value(s) a match computes with differ from what players have, and '
+                      f'{SIMULATION_CHANGES} has no `next` row')
+    print(f'{len(moved)} value(s) a match computes with differ from players\': {SIMULATION_CHANGES} has '
+          'its `next` row')
 
 
 def lamp_check(world):
@@ -457,6 +522,7 @@ def main():
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         compared = game.compare(live, folder) if world.bytes else {}
+        stats_checks(rows, base, base_files, live, game, world, args.tree, compared)
         problems = []
         live_files = game.files(live)
         unmade = sorted(p for p, name in live_files.items() if name not in base_names and p not in world.bytes)

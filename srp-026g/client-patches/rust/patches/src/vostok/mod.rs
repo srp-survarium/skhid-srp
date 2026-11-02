@@ -46,6 +46,8 @@ pub mod log;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod gun_cook;
+pub mod pickup;
 mod rt;
 pub mod sound;
 pub mod settings;
@@ -96,6 +98,7 @@ pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
 
 pub mod consumable;
+pub mod drawable_image;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;
@@ -112,4 +115,4 @@ pub mod drug;
 mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
-pub use statistics::{Band, BatteryCarry, Progress, ScoreEvent, Team};
+pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};

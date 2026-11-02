@@ -27,6 +27,7 @@ mod clans;
 mod drop_cards;
 mod extras;
 mod items;
+mod level_stats;
 mod map_plays;
 mod presets;
 mod results;
@@ -139,6 +140,9 @@ const MIGRATIONS: &[&str] = &[
     drop_cards::MIGRATION,
     // 11: an account's kit presets and the active one (`presets`).
     presets::MIGRATION,
+    // 12: an account's kills and deaths by the matches' equipment level
+    // (`level_stats`).
+    level_stats::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -597,6 +601,7 @@ impl GameRepository for SqliteGameRepository {
                         rating: row.get(8)?,
                         rating_before: row.get(9)?,
                         balance: Default::default(),
+                        level_stats: Default::default(),
                         kits: Vec::new(),
                         active_kit: row.get(10)?,
                         autobuy: row.get(11)?,
@@ -625,6 +630,7 @@ impl GameRepository for SqliteGameRepository {
             account.extras = extras::load(&transaction, account_id)?;
             account.map_plays = map_plays::load(&transaction, account_id)?;
             account.balance = balance::load(&transaction, account_id)?;
+            account.level_stats = level_stats::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
             account.presets = presets::load(&transaction, account_id)?;
@@ -872,6 +878,7 @@ fn write_account(
     extras::save(transaction, account_id, &account.extras)?;
     map_plays::save(transaction, account_id, &account.map_plays)?;
     balance::save(transaction, account_id, account.balance)?;
+    level_stats::save(transaction, account_id, &account.level_stats)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
     presets::save(transaction, account_id, &account.presets)?;
