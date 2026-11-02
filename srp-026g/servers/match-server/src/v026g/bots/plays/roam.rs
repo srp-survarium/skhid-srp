@@ -385,6 +385,13 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<(Vec<Vec3>, usize)> {
     let mine = cx.me.feet;
     let fresh_on = num("fresh_claims") > 0.5;
     let fresh_ms = (num("fresh_s") * 1000.0) as u32;
+    // [threat.concede.refuse_fights.roam_avoid, A256 P2] While the team refuses fights into its tried areas, no route by a
+    // mate's death of the window (the step's turned-bad reach): the bot it refused goes another way.
+    let avoid_ms = cx.tuning.threat.concede.and_then(|c| c.refuse_fights).and_then(|r| r.roam_avoid).map(|a| a.window_ms());
+    let by_death = |points: &[Vec3], ms: u32| {
+        let bad = on * 0.75;
+        cx.team.danger_within(cx.now, ms).any(|d| points.iter().any(|p| p.distance_xz(d.at) < bad))
+    };
     // Test only: each route's weight without the fresh claims, and the claims it counted.
     #[cfg(test)]
     let mut plain: Vec<(f32, usize)> = Vec::new();
@@ -400,6 +407,12 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<(Vec<Vec3>, usize)> {
                 return 0.0;
             };
             if turned_bad(cx, points[first]) {
+                #[cfg(test)]
+                plain.push((0.0, 0));
+                return 0.0;
+            }
+            if avoid_ms.is_some_and(|ms| by_death(&points[first..], ms)) {
+                crate::v026g::bots::concede::tally(cx.me.team, crate::v026g::bots::concede::Tally::RoamRouteAvoided);
                 #[cfg(test)]
                 plain.push((0.0, 0));
                 return 0.0;
@@ -462,6 +475,9 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<(Vec<Vec3>, usize)> {
         .collect();
     let total: f32 = weights.iter().sum();
     if total <= 0.0 {
+        if avoid_ms.is_some() {
+            crate::v026g::bots::concede::tally(cx.me.team, crate::v026g::bots::concede::Tally::RoamNoRouteLeft);
+        }
         return None;
     }
     let mut pick = rng.unit() * total;
@@ -932,6 +948,32 @@ mod tests {
         });
         let state = start(TargetRef::None, &s.cx(0), &mut Rng::new(1));
         assert!(!matches!(state, State::Route { .. }), "{state:?}");
+    }
+
+    /// [A256 P2, `threat.concede.refuse_fights.roam_avoid`] A mate's death 25 s ago by the north route's last point: past the
+    /// step's 10 s and the draw's 20 s it weighs nothing, so the north route is drawn by its reward; while the team refuses
+    /// fights with the roam avoid on, the route is not drawn; the death past the window, it is again.
+    #[test]
+    fn while_fights_are_refused_a_roam_skips_a_route_by_a_recent_death() {
+        use crate::v026g::bots::tuning::{Concede, RefuseFights, RoamAvoid};
+        let mut s = Scenario::field(Mode::Batteries);
+        with_routes(&mut s);
+        s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+        let now = s.view.clock.max(60_000);
+        s.view.clock = now;
+        s.team.danger.push(DangerSpot { at: Vec3::new(49.0, 0.0, 33.0), time: now - 25_000, victim: 3 });
+        let (north, _) = draws(&s, 200);
+        assert!(north > 100, "{north}");
+        let avoid = |window_s| Some(Concede { refuse_fights: Some(RefuseFights { roam_avoid: Some(RoamAvoid { window_s }) }), ..Concede::default() });
+        s.tuning.threat.concede = avoid(30.0);
+        assert_eq!(draws(&s, 200), (0, 200));
+        s.tuning.threat.concede = avoid(20.0);
+        let (north, _) = draws(&s, 200);
+        assert!(north > 100, "past the window: {north}");
+        // The fight side off: nothing avoided.
+        s.tuning.threat.concede = Some(Concede { refuse_fights: None, ..Concede::default() });
+        let (north, _) = draws(&s, 200);
+        assert!(north > 100, "{north}");
     }
 
     /// A bot that gets nowhere on its way for `headway_s` ends the run, so

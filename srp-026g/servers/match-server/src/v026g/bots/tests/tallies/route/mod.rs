@@ -135,6 +135,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         low_presses(),
         landings(),
         stranded(),
+        off_floor_goals(),
         stamina(),
         foliage(),
         grass(),
