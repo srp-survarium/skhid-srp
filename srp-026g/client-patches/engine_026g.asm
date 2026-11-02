@@ -137,8 +137,6 @@ engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
 engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
 engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
-engine_match_options equ 0x219990   ; 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
-engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)
 engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (an import, stdcall)
@@ -889,6 +887,40 @@ engine_user_data_directory:
     push esi
     push edi
     call 0x18bd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_match_options:
+    ; virtual survarium::base_network_client+0x34 (2 vtables of vtables.tsv: 0x2189e0, 0x219990): client ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; client
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x34]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_active_player:
+    ; virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; place -> 8
+    push dword [esp + 28]   ; out -> 4
+    mov ecx, [esp + 28]   ; client
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x50]
     pop edi
     pop esi
     pop ebx

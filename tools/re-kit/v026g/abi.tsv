@@ -2284,3 +2284,5 @@ va	name	source	ret_cleanup	result
 0x0023a430	survarium::game_world_ui::set_using_progress_message	manual	8	
 0x0023a560	survarium::game_world_ui::set_using_info_message	manual	4	
 0x00246f50	survarium::player::st_draw	manual	4	
+0x002189e0	survarium::replay_network_client::match_options	manual	0	EAX = client+1Ch, inline match options; replay vtable 0x9FF344 +34h. Live client uses a different implementation (0x219990).
+0x0026d6a0	survarium::base_local_network_client::get_active_player	manual	8	EAX = out pointer; active player with reference added, or 0. Core is [client+578BCh]+1F8h; slot +50h in 0xA074BC and replay 0x9FF344. Live 0x27A9C0 instead reads +1F1C40h.
