@@ -960,11 +960,14 @@ impl Tactics {
         bits
     }
 
-    /// Whether `node` is a dry island: no zone on all match marks it, and no walk from a spawn gets to it without crossing
-    /// one's floors ([`Self::past_fixed_zones`]). No route leads off it: the planner keeps off such zones, and a crossing does
-    /// not walk a floor zones that switch mark too (School's fruit cloud, levels 2-5 nested).
+    /// Whether `node` is a dry island: a floor a walk from a spawn gets to and back from (no grid pocket: those are
+    /// `escape.rs`'s), that no zone on all match marks, and that no walk from a spawn gets to without crossing one's floors
+    /// ([`Self::past_fixed_zones`]). No route leads off it: the planner keeps off such zones, and a crossing does not walk a
+    /// floor zones that switch mark too (School's fruit cloud, levels 2-5 nested). Floors no walk reaches (roofs, the
+    /// ground past the map's edge: 43 of Vector Laboratory's 124,702 floors past its zones are reached) are not islands.
     pub fn dry_island(&self, node: NodeId) -> bool {
-        !self.hazards.fixed_at(node) && !self.past_fixed_zones(node)
+        let grid = &self.world.grid;
+        grid.reached(node) && !grid.in_pocket(node) && !self.hazards.fixed_at(node) && !self.past_fixed_zones(node)
     }
 
     /// [`Self::dry_island`] with `Tuning::hazard.leave_islands` on: a floor no way out of zones ends on, and one a body walks
@@ -976,10 +979,14 @@ impl Tactics {
     /// [`Self::on_island`] for many floors: the regions read once.
     fn island_test(&self) -> impl Fn(NodeId) -> bool + '_ {
         let bits = self.leave_islands.then(|| self.past_fixed_regions());
+        let grid = &self.world.grid;
         move |node| {
             bits.as_ref().is_some_and(|bits| {
                 let region = self.base.regions.of(node) as usize;
-                !self.hazards.fixed_at(node) && !bits.get(region / 64).is_some_and(|word| word >> (region % 64) & 1 == 1)
+                grid.reached(node)
+                    && !grid.in_pocket(node)
+                    && !self.hazards.fixed_at(node)
+                    && !bits.get(region / 64).is_some_and(|word| word >> (region % 64) & 1 == 1)
             })
         }
     }
