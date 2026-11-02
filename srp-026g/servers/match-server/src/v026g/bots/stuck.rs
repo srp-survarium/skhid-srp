@@ -255,14 +255,16 @@ pub struct Stuck {
     progress: Option<ProgressWindow>,
 }
 
-/// The window of the reckoned watch: its first world's time and feet, and how far the bot's keys meant to move the body since, the
-/// way's length and its net (none: not known).
+/// The window of the reckoned watch: its first world's time and feet, how far the bot's keys meant to move the body since, the
+/// way's length and its net (none: not known), and the farthest the worlds between its first and the one that checks it showed
+/// the body from its first, metres (none: no world between).
 #[derive(Clone, Copy, Debug)]
 struct WalkWindow {
     at: u32,
     from: Vec3,
     way: Option<f32>,
     net: Option<Vec3>,
+    strayed: Option<f32>,
 }
 
 /// The window of the progress watch: since when, how far along the route the body was then, and which route (its goal and length).
@@ -458,7 +460,8 @@ impl Stuck {
 
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
     /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`]: the way's length, or under
-    /// [`StuckWindow::Walked`] its net (`net`: this world's; none: not known, then the way's length).
+    /// [`StuckWindow::Walked`] its net (`net`: this world's; none: not known, then the way's length), unless a world between
+    /// showed the body as near (it stayed while the keys turned on the spot: the way's length).
     fn reckoned(
         &mut self,
         time: u32,
@@ -477,7 +480,7 @@ impl Stuck {
             }
             known => known,
         };
-        let fresh = WalkWindow { at: time, from: feet, way: Some(0.0), net: Some(Vec3::ZERO) };
+        let fresh = WalkWindow { at: time, from: feet, way: Some(0.0), net: Some(Vec3::ZERO), strayed: None };
         let Some(window) = self.walked_from else {
             self.walked_from = Some(fresh);
             self.unknown_in_window = false;
@@ -488,12 +491,15 @@ impl Stuck {
         let net = window.net.zip(net).map(|(a, b)| a + b);
         let (at, from) = (window.at, window.from);
         if time < at + STUCK_AFTER_MS {
-            self.walked_from = Some(WalkWindow { way, net, ..window });
+            let strayed = Some(window.strayed.unwrap_or(0.0).max(from.distance_xz(feet)));
+            self.walked_from = Some(WalkWindow { way, net, strayed, ..window });
             return false;
         }
         self.walked_from = Some(fresh);
         let meant_since = match rule.window {
             StuckWindow::SinceAsked => way,
+            // A body every world between showed as still did not walk the way out and back: its keys turned on the spot.
+            StuckWindow::Walked if window.strayed.is_some_and(|m| m < STUCK_MOVED_M) => way,
             StuckWindow::Walked => net.map(|net| net.x.hypot(net.z)).or(way),
         };
         self.meant_checked = meant_since;
@@ -1758,9 +1764,15 @@ mod tests {
         );
     }
 
+    fn rule_walked() -> UnstickTuning {
+        let mut rule = crate::v026g::bots::tuning::Tuning::all_off().unstick;
+        rule.window = StuckWindow::Walked;
+        rule
+    }
+
     /// A body that went 1.6 m out and came back on a new route, its keys meaning that way: as it was, stuck (a walk's length meant,
     /// the body no further than it was); with the walked window, not (the keys meant to end where it is). A body whose keys meant
-    /// 1.6 m on, twice, is stuck either way.
+    /// 1.6 m on, twice, is stuck either way, and so is one the world between showed still while its keys turned on the spot.
     #[test]
     fn a_way_out_and_back_is_no_stuck_with_the_walked_window() {
         let spot = Vec3::new(10.0, 0.0, 10.0);
@@ -1786,6 +1798,15 @@ mod tests {
         };
         assert_eq!(pinned(StuckWindow::SinceAsked), Some(Recovery::BackOff));
         assert_eq!(pinned(StuckWindow::Walked), Some(Recovery::BackOff), "pinned");
+        // Pinned while the keys turned on the spot (a net of none), the world between showing it still: stuck by the way.
+        let mut stuck = Stuck::default();
+        stuck.walking_in(0, spot, Some(0.0), Some(Vec3::ZERO), 0, &rule_walked());
+        stuck.walking_in(1_000, spot, Some(1.6), Some(out), 0, &rule_walked());
+        assert!(stuck.walking_in(2_000, spot, Some(1.6), Some(back), 0, &rule_walked()).is_some(), "turned on the spot");
+        // Out and back with no world between (the live worlds, 2 s apart): the net decides.
+        let mut stuck = Stuck::default();
+        stuck.walking_in(0, spot, Some(0.0), Some(Vec3::ZERO), 0, &rule_walked());
+        assert_eq!(stuck.walking_in(2_000, spot, Some(3.2), Some(Vec3::ZERO), 0, &rule_walked()), None, "no world between");
         // A world with no reckoning: the way's length decides, as it was.
         let mut rule = crate::v026g::bots::tuning::Tuning::all_off().unstick;
         rule.window = StuckWindow::Walked;

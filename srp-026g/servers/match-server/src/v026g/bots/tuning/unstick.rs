@@ -87,7 +87,8 @@ pub enum StuckWindow {
     #[default]
     SinceAsked,
     /// The walk's own: a world with no route starts it again (a pause, as the watch's doc has it), and what the keys meant is
-    /// their net move over it, the reckoning's from each world to the next (a way out and back means none, however long). The
+    /// their net move over it, the reckoning's from each world to the next (a way out and back means none, however long), unless
+    /// every world between showed the body still (keys that turned on the spot: the way's length, as it was). The
     /// bench's tip (A240b, defaults, 16 maps x 6/8/10, seeds 5-7): the keys meant under 1.2 m net in most of the stuck notes, the
     /// body's own way over the window out and back or walked on, the window spanning a route that began inside it.
     Walked,
