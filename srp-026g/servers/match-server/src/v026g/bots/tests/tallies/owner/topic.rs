@@ -122,6 +122,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(SprintTables::default()),
         Box::new(LookCounts::new(n)),
         Box::new(CollectAtCounts::new(n)),
+        Box::new(StuckWatchCounts::new(n)),
     ]
 }
 
