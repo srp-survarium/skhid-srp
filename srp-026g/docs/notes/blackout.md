@@ -22,10 +22,16 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
 - **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
   room Play makes; Play puts players into rooms that offer it; a room's maker may untick it.
-- **How often:** each Blackout map is one more entry of the pool, as any map; the vote's three cards
-  are drawn from the pool's entries alike. With the live pool (100 entries, 25 of them plain
-  battery maps) Blackout adds 25 of 125: a card is Blackout 1 time in 5, and about half of the
-  votes (49 %) offer at least one Blackout card; the vote picks.
+- **Always the vote's third card** (the owner, 2026-11-02: "offers blackout in voting always as a
+  third choice"; before, each Blackout map was one more entry the three cards were drawn from
+  alike, so about half of the votes had a Blackout card, anywhere): every vote, public or
+  private, of a room whose pool has Blackout.
+  - Cards 1 and 2: drawn from the rest of the pool, as before; never Blackout.
+  - Card 3: one of the pool's Blackout maps at random, on a map cards 1 and 2 are not while
+    there is one; won, its match is Blackout (as any Blackout card's).
+  - No switch: Blackout is a mode like the others. A pool without it (a private room's maker
+    unticked it, or ticked no battery map) or of Blackout alone: its three cards drawn as
+    before. A public room's pool always has it (the live pool has 25 battery maps).
 - **Bots:** not offered (Play vs Bots lists its own maps).
 
 ## In the match
