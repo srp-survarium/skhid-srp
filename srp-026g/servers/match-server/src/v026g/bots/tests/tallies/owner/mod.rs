@@ -244,7 +244,7 @@ impl OwnerTally {
     pub(crate) fn set_scoreboard(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
         self.topic::<Feel>().set_human(human, camper);
         self.topic::<LookCounts>().set_human(human);
-        self.topic::<CollectAtCounts>().set_human(human);
+        self.topic::<CollectAtCounts>().set_stand_in(human.or(camper));
         self.topic::<Scoreboard>().set_context(context, mode, human, camper);
     }
 

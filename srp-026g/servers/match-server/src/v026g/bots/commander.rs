@@ -40,7 +40,8 @@ fn breach_tick(
     let mut killed = Vec::new();
     let (holds, held) = lines;
     threat.kills.retain(|k| now.saturating_sub(k.time) <= threat::DEATH_KEPT_MS);
-    let concede = tuning.threat.concede.map(|c| c.rules());
+    // A Breach is a fight try: the fight side's (`Concede::refuse_fights`).
+    let concede = tuning.threat.concede.filter(|c| c.refuse_fights.is_some()).map(|c| c.rules());
     // What the spot memory offers on each due spot, looked up before the tick (no area kept: any try).
     let offers: Vec<(u32, Offer)> = match concede {
         Some(_) => threat
@@ -286,8 +287,8 @@ fn threat_tick(
             .collect();
         let mut holds = threat::holds(&held, tuning.threat.job_kills);
         // [threat.concede] No job on a conceded area, nor a new one like the last failed try on a tried one (a Flank: the
-        // same kind, so only its time differs; design-p1c §3).
-        if let Some(concede) = tuning.threat.concede {
+        // same kind, so only its time differs; design-p1c §3). The fight side's (`Concede::refuse_fights`).
+        if let Some(concede) = tuning.threat.concede.filter(|c| c.refuse_fights.is_some()) {
             let (memory, jobs, rules) = (&threat.spot_memory, &threat.jobs, concede.rules());
             holds.retain(|l| {
                 let Some(area) = memory.area_at(l.at) else {
@@ -323,7 +324,9 @@ fn threat_tick(
         let size = view.team(team).count();
         let job_team = threat::JobTeam { mates: &flank_mates, size, objective_areas: &areas, breach_roles };
         let spots = &threat.spots;
-        let unheld = |id| if concede.is_conceded(id) { threat::JobEnd::Conceded } else { spots.unheld_why(id, now) };
+        // [threat.concede] A job on an area conceded ends: the fight side's (`Concede::refuse_fights`).
+        let ends_conceded = tuning.threat.concede.is_some_and(|c| c.refuse_fights.is_some());
+        let unheld = |id| if ends_conceded && concede.is_conceded(id) { threat::JobEnd::Conceded } else { spots.unheld_why(id, now) };
         // A role's bot stands out of every held line, or of the holds' only (the switch off).
         let lanes = if tuning.threat.job_out_of_all_lines { &held[..] } else { &holds[..] };
         let opening = if tuning.threat.job_open_staffed { threat::Opening::Staffed } else { threat::Opening::ThenDropped };
