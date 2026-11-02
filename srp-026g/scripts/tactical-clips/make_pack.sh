@@ -3,7 +3,7 @@
 #
 # The content pack tactical-clips-029@<version> or tactical-clips-069@<version>: live guns whose
 # reload is 0.26g's one-clip one (state type 303) given a donor's two-clip reload (314), as the live
-# vz. 58 and the other 0.29a3 ports reload (docs/notes/tactical-reload.md), into $SKHID_PACKS_DIR;
+# vz. 58 and the other 0.29a3 ports reload (docs/notes/tactical-clips.md), into $SKHID_PACKS_DIR;
 # prints its pack.json's sha256 for release/content.tsv.
 #   1. resource-porter's port-tactical-reload (src/weapons_026/tactical.rs) of
 #      ports/tactical-reload-<029a3|069d>.json from <donor> over what packs are composed over (the
