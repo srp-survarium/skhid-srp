@@ -304,3 +304,38 @@ against 10.1.
   `stk2-loner-12`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
+
+## Pinched shins and the shared fitter (2026-11-02)
+
+The owner's screenshot showed the Loner's calves squeezed above the boots,
+like the earlier exoskeleton problem. This time the boot class was valid:
+the porter fitted the trousers against an incomplete boot-cuff profile.
+`limb_fit` accepted only 12 of 48 angular samples as a complete ring and
+interpolated the missing circumference, including narrow inner cuff lips.
+That false constraint also narrowed visible cloth above the opening.
+
+The generic correction requires at least 36 samples with no missing arc
+over six samples; only small cracks interpolate. First/last reliable rings
+bound the profile and no constraint continues beyond its distal end. This
+applies to trousers, sleeves, glove cuffs and boot shafts. No item-specific
+fit exceptions were added. All three outfits were rebuilt, not just the
+Loner's pants: `stk2-bandit@14`, `stk2-novice@13`, `stk2-loner@13`.
+
+Measured on the Loner's right trouser leg at 35 cm above the ground, its
+medium-boot variant changes from 15.2 x 15.2 cm to 17.9 x 19.1 cm and its
+tall-boot variant from 9.8 x 9.7 cm to 14.7 x 15.2 cm. The full-length reference
+shape there is 18.0 x 20.3 cm. Item config operations, materials, textures
+and statistics are unchanged; this needs no simulation-change row.
+
+The distinct exoskeleton failure is guarded too: `release/build-content`
+measures each composed boot mesh against the native boots of the class its
+config selects. Medium/tall shafts more than 2 cm below that class's shortest
+native shaft stop the build. Full-length trousers can cover taller shafts,
+as with the Novice's boots. The audit covers 37 boot items from stock,
+equipment-029, equipment-046, the exoskeletons and the three STK2 outfits;
+none currently has that class/height mismatch. Later-build garments retain
+their donor geometry; they do not use the STK2 limb fitter.
+
+Checks and reproducible offline pair renders are in
+`scripts/clothing-fit/README.md`. These check geometry and native clip
+poses; they do not substitute for an in-game lobby/match fitting pass.
