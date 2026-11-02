@@ -746,6 +746,69 @@ def throwable_card(buf):
     return out
 
 
+class Derived(str):
+    """A column's key path whose cell code makes: `read(buf, value)` the cell of the value there,
+    `write(buf, value, cell)` -> (walk paths under it written, its list items taken out)."""
+    def __new__(cls, path, read, write):
+        self = super().__new__(cls, path)
+        self.read, self.write = read, write
+        return self
+
+
+BODY = ('body', 'back', 'front', 'head', 'brain', 'face', 'right_leg', 'left_leg', 'right_hip', 'left_hip',
+        'right_foot', 'left_foot', 'right_arm', 'left_arm', 'right_forearm', 'left_forearm', 'right_hand', 'left_hand')
+# A modification's kind: the keys its modifiers change. A kind of one key is its path.
+MODIFIER_KINDS = {
+    'damage_distance': ['parameters/min_damage_distance', 'parameters/max_damage_distance'],
+    'recoil': ['recoil/%s_%s_recoil' % (m, side) for side in ('left', 'right', 'top') for m in ('max', 'min')],
+    'reliability': ['parameters/degrade_per_use', 'parameters/degrade_per_death', 'parameters/degrade_per_match'],
+    'armor': ['hit_params/%s/hit_types/%s/armor' % (p, t) for p in BODY + ('pain',)
+              for t in ('ranged', 'explosive', 'slash', 'blunt')],
+    'ano_armor': ['hit_params/%s/hit_types/%s/armor' % (p, t) for p, types in
+                  [(p, ('radiation', 'shock', 'fire', 'toxic')) for p in BODY] +
+                  [('pain', ('shock', 'fire')), ('infection', ('toxic', 'radiation'))] for t in types],
+    'mask_ano_armor': ['hit_params/face/hit_types/%s/armor' % t for t in ('toxic', 'radiation', 'fire', 'shock')],
+}
+
+
+def modifier_paths(buf, modifiers):
+    return ['/'.join(cell_text(buf, o) for _, o in resolve(buf, 'path[*]', m)) for m in children(buf, modifiers)]
+
+
+def modifier_kind(buf, modifiers):
+    paths = modifier_paths(buf, modifiers)
+    if len(paths) == 1:
+        return paths[0]
+    kinds = [k for k, v in MODIFIER_KINDS.items() if sorted(v) == sorted(paths)]
+    return kinds[0] if kinds else '(%d keys of no kind)' % len(paths)
+
+
+def set_modifier_kind(buf, modifiers, kind):
+    """The modifiers become one a key of the kind, in its order: the first ones kept in place, their path
+    texts set where they differ, the rest taken out (later ones move down, the count drops)."""
+    want = MODIFIER_KINDS.get(kind, [kind] if '/' in kind else None)
+    items = children(buf, modifiers)
+    if want is None or len(want) > len(items):
+        raise ValueError('modifier kind %r: no such kind, or more keys than the %d modifiers' % (kind, len(items)))
+    written = []
+    for i, path in enumerate(want):
+        parts = resolve(buf, 'path[*]', items[i])
+        if len(parts) != len(path.split('/')):
+            raise ValueError('modifier kind %r: %s is not as deep as modifier %d' % (kind, path, i))
+        for (at, o), part in zip(parts, path.split('/')):
+            if cell_text(buf, o) != part:
+                write_cell(buf, o, part)
+                written.append('[%d]%s' % (i, at))
+    gone = ['[%d]' % i for i in range(len(want), len(items))]
+    for _ in gone:
+        kids = children(buf, modifiers)
+        for dst, src in zip(kids[len(want):], kids[len(want) + 1:]):
+            buf[dst:dst + 24] = buf[src:src + 24]
+        d, i, crc, t, cnt = rec(buf, modifiers)
+        REC.pack_into(buf, modifiers, d, i, crc, t, cnt - 1)
+    return written, gone
+
+
 # <table>.tsv, a row each of what `configs` names, a column a stat:
 #   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
 #                      files, each the row's (a level's projects of every weather: a cell goes into those
@@ -755,6 +818,7 @@ def throwable_card(buf):
 #   'file'             no `columns`: a key/value table (`key  value`), a row a key path; the config is
 #                      made anew when no archive has it
 # `columns`: their key paths; `[*]` every item, `[field=cell]` the entries whose field reads so, `[i]`.
+# A Derived key: code makes its cell from the value there (a modification's kind from its modifiers).
 # A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key. A cell
 # of a key the config lacks is refused, but in an `add` column: added to its table (a number as a float).
 # A key/value table never adds a key.
@@ -858,6 +922,38 @@ STATS = {
                   'active_pierce_mul', 'active_damage_add', 'active_pierce_add', 'absorb', 'regen', 'regen_timeout',
                   'regen_threshold'},
         'add': {'passive_aim', 'active_aim', 'active_stopping'},  # Spring's, for client patch 54
+    },
+    'modes': {
+        'configs': 'gameplay/game_modes/*.options',
+        'columns': {
+            'map_id': 'mode/match_making_params/map_id', 'weather': 'mode/match_making_params/map_weather_id',
+            'mode': 'mode/mode', 'match_s': 'mode/parameters/match_time', 'countdown_s': 'mode/parameters/countdown_time',
+            'respawn_s': 'mode/parameters/respawn_time', 'wait_s': 'mode/parameters/wait_time',
+            'wait_players': 'mode/parameters/wait_player_percent', 'tickets': 'mode/parameters/tickets_count',
+            'spawn_points': 'mode/parameters/spawn_points_count', 'batteries': 'mode/parameters/victory_items_count',
+            'battery_spawn_s': 'mode/parameters/vi_spawn_time', 'battery_spawn_var_s': 'mode/parameters/vi_spawn_variation',
+            'capture_award': 'mode/parameters/capture_award',
+            'capture_reach': 'mode/parameters/capture_reach', 'capture_half_height': 'mode/parameters/capture_half_height',
+            'resources': 'mode/parameters/resources_count',
+            'restore_mul': 'mode/parameters/restore_multiplier',
+            'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
+        },
+        'match': {'match_s', 'countdown_s', 'respawn_s', 'wait_s', 'wait_players', 'tickets', 'spawn_points', 'batteries',
+                  'battery_spawn_s', 'battery_spawn_var_s', 'capture_award', 'capture_reach',
+                  'capture_half_height', 'resources', 'restore_mul'},
+    },
+    'modifications': {
+        'configs': 'gameplay/items/modifications/modifications.options#modifications[id]',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+                    'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight'},
+        'match': {'kind', 'value', 'op'},
+    },
+    'defects': {
+        'configs': 'gameplay/items/modifications/modifications.options#defects[id]',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+                    'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight', 'fix_cost': 'fix_cost_general',
+                    'fix_gold': 'fix_cost_gold', 'fix_time': 'fix_time_general'},
+        'match': {'kind', 'value', 'op'},
     },
     'maps': {
         'configs': 'projects/*/*/client_project',
@@ -1030,6 +1126,9 @@ def stats_values(buf, off, columns, row):
     selects nothing of a list the config has is refused (`[field=cell]` selects the entries there are)."""
     out = {}
     for c, key in columns.items():
+        if isinstance(key, Derived):
+            out[c] = [key.read(buf, o) for _, o in resolve(buf, key, off)]
+            continue
         out[c] = [cell_text(buf, o) for _, o in resolve(buf, key, off)]
         if not out[c] and re.search(r'\[(\*|\d+)\]', key) and resolve(buf, key[:key.index('[')], off):
             raise ValueError('row %s: %s matches nothing' % (row, key))
@@ -1079,7 +1178,8 @@ def stats_problems(category, columns, rows, targets, files, table):
 
 def stats_write(category, columns, rows, data, table):
     """The rows' cells and the card lines they make written into `data` ({path: buf}; a key/value
-    table's config made when it is not there): ({path: [walk paths written]}, {paths made})."""
+    table's config made when it is not there): ({path: [walk paths written]}, {paths made},
+    {path: {list: [its items taken out]}})."""
     made = set()
     if 'columns' not in category and category['configs'] not in data:
         data[category['configs']] = new_config(rows[''])
@@ -1088,13 +1188,21 @@ def stats_write(category, columns, rows, data, table):
     unmatched = stats_unmatched(category, rows, targets, table)
     if unmatched:
         raise ValueError(unmatched[0])
-    written = {p: [] for p in made}
+    written, gone = {p: [] for p in made}, {}
     for row, places in sorted(targets.items()):
         present = stats_present(data, places, columns, row)
         for p, off in places:
             b = data[p]
             root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
             for column, key, cell, have in stats_differences(b, off, columns, rows[row], row, present):
+                if isinstance(key, Derived):
+                    for at, o in resolve(b, key, off):
+                        changed, taken = key.write(b, o, cell)
+                        written.setdefault(p, []).extend(root + at + q for q in changed)
+                        if taken:
+                            gone.setdefault(p, {}).setdefault(root + at, []).extend(root + at + q for q in taken)
+                    print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+                    continue
                 spots = resolve(b, key, off)
                 parent, _, name = key.rpartition('/')
                 tables = resolve(b, parent, off) if parent else [('', off)]
@@ -1116,8 +1224,10 @@ def stats_write(category, columns, rows, data, table):
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
                 written.setdefault(p, []).append(set_prop(b, prop_id, text, want))
                 print('card %s %d: %s -> %s' % (p, prop_id, text, want))
+    for p in gone:
+        written.setdefault(p, [])
     print('%s: %d rows, %d files written' % (table, len(rows), len(written)))
-    return written, made
+    return written, made, gone
 
 
 def stats_moved(category, columns, players, now):
@@ -1667,11 +1777,17 @@ def main():
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
+    gone = {}
     if stats is not None:
         category, columns, rows = stats
         data = {p: bytearray(open(files[p], 'rb').read()) for p in stats_paths(category, files)}
-        written, made = stats_write(category, columns, rows, data, os.path.basename(edits_file))
+        written, made, taken = stats_write(category, columns, rows, data, os.path.basename(edits_file))
         bufs.update({p: data[p] for p in written})
+        for p, lists in taken.items():
+            for lst, items in lists.items():
+                gone.setdefault(p, []).extend(items)
+                grown.setdefault(p, {}).setdefault(lst, 0)
+                grown[p][lst] -= len(items)
         for p, paths in written.items():
             had = set() if p in made else {q for q, _, _ in walk(bytearray(open(files[p], 'rb').read()))}
             allowed.setdefault(p, set()).update(q for q in paths if q in had or p in made)
@@ -1699,7 +1815,6 @@ def main():
                 bufs[p] = b
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
-    gone = {}
     for e in edits.get('remove_key', []):
         for key in e['keys']:
             n = 0

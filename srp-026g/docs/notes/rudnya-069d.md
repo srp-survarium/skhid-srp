@@ -74,7 +74,7 @@ own project and options, made by the porter from the manifest (`map.modes`):
     higher than native's, as in 0.69d's own battery project; Research unit C's props by the church
     on rubble that differs by up to 0.5 m (the props rest on one another); the six team-deathmatch
     covers near team 2's spawn (four half, two low), which native's battery modes do not have.
-- **Battery respawn** 10 s in both battery modes (`battery-respawn-1.json`, as every map).
+- **Battery respawn** 10 s in both battery modes (`modes.tsv`, as every map).
 
 ## What comes from 0.26g
 

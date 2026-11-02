@@ -398,7 +398,7 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.stats_cells(files['projects/l2/day/client_project'], 0, LEVELS['columns'], 'l2'),
                          {'protect': '2|6', 'zone': '1000'})
         columns, rows = read_table(LEVELS, 'level\tprotect\tzone\nl2\t6\t2000\nl3\t5\t1000\n')
-        written, made = ce.stats_write(LEVELS, columns, rows, files, 't')
+        written, made, _ = ce.stats_write(LEVELS, columns, rows, files, 't')
         self.assertEqual(written, {'projects/l2/day/client_project': ['/respawn_points[1]/time', '/zones[0]/ms'],
                                    'projects/l2/rain/client_project': ['/zones[0]/ms']})
         self.assertEqual(value(files['projects/l2/day/client_project'], 'zones[1]/ms'), 1000)
@@ -425,14 +425,14 @@ class OtherTables(unittest.TestCase):
         old = config({'quick': {'wait': 10.0, 'size': 6}, 'on': 0, 'name': 'x'})
         columns, rows = read_table(ROOMS, 'key\tvalue\nquick/wait\t12\nquick/size\t8\nname\ty\n')
         files = {'srp/rooms.options': old}
-        written, made = ce.stats_write(ROOMS, columns, rows, files, 't')
+        written, made, _ = ce.stats_write(ROOMS, columns, rows, files, 't')
         self.assertEqual((made, ce.rec(old, ce.find(old, 'quick/wait'))[3], value(old, 'quick/wait'), value(old, 'name')),
                          (set(), ce.T_FLOAT, 12.0, 'y'))
         with self.assertRaises(ValueError):
             ce.stats_write(ROOMS, *read_table(ROOMS, 'key\tvalue\nquick/size\tsix\n'), files, 't')
         columns, rows = read_table(ROOMS, 'key\tvalue\nwaits[0]\t10\nwaits[1]\t20\nquick/wait\t0.5\non\ttrue\nname\tx\n')
         files = {}
-        written, made = ce.stats_write(ROOMS, columns, rows, files, 't')
+        written, made, _ = ce.stats_write(ROOMS, columns, rows, files, 't')
         new = files['srp/rooms.options']
         self.assertEqual(made, {'srp/rooms.options'})
         self.assertEqual({q: t for q, t, _ in ce.walk(new)},
@@ -529,11 +529,33 @@ class OtherTables(unittest.TestCase):
             ce.stats_write(player, columns, rows, files, 't')
 
 
+    def test_a_modifications_kind_rewrites_its_modifiers_and_takes_the_rest_out(self):
+        mods = config({'modifications': [
+            {'id': 2070, 'modifiers': [{'path': ['parameters', 'aim_time_modifier'], 'type': 1, 'value': -0.02}]},
+            {'id': 2010, 'modifiers': [{'path': ['parameters', 'a'], 'type': 2, 'value': 0.1},
+                                       {'path': ['parameters', 'max_damage_distance'], 'type': 2, 'value': 0.1},
+                                       {'path': ['parameters', 'b'], 'type': 2, 'value': 0.1}]}]})
+        files = {'mods.options': mods}
+        category = ce.STATS['modifications']
+        self.assertEqual([ce.modifier_kind(mods, m) for _, m in ce.resolve(mods, 'modifications[*]/modifiers')],
+                         ['parameters/aim_time_modifier', '(3 keys of no kind)'])
+        columns, rows = read_table(category, 'id\tkind\tvalue\top\tdrop_weight\n2070\tparameters/aim_time\t-0.02\t2\t\n'
+                                             '2010\tdamage_distance\t0.1\t2\t\n')
+        category = {**category, 'configs': 'mods.options#modifications[id]'}
+        written, _, gone = ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(gone, {'mods.options': {'/modifications[1]/modifiers': ['/modifications[1]/modifiers[2]']}})
+        self.assertEqual(ce.modifier_paths(mods, ce.find(mods, 'modifications[1]/modifiers')),
+                         ['parameters/min_damage_distance', 'parameters/max_damage_distance'])
+        self.assertEqual((value(mods, 'modifications[0]/modifiers[0]/path[1]'), value(mods, 'modifications[0]/modifiers[0]/type')),
+                         ('aim_time', 2))
+        with self.assertRaisesRegex(ValueError, 'more keys'):
+            ce.set_modifier_kind(mods, ce.find(mods, 'modifications[0]/modifiers'), 'recoil')
+
     def test_a_row_of_several_files_writes_a_key_into_those_that_have_it(self):
         files = {'projects/l2/day_2/client_project': level(6),
                  'projects/l2/day_4/client_project': config({'respawn_points': [{'time': 2}], 'zones': []})}
         columns, rows = read_table(LEVELS, 'level\tprotect\tzone\nl2\t6\t2000\n')
-        written, _ = ce.stats_write(LEVELS, columns, rows, files, 't')
+        written, _, _ = ce.stats_write(LEVELS, columns, rows, files, 't')
         self.assertEqual(written, {'projects/l2/day_2/client_project': ['/zones[0]/ms'],
                                    'projects/l2/day_4/client_project': ['/respawn_points[0]/time']})
         self.assertEqual(ce.stats_problems(LEVELS, columns, rows, ce.stats_targets(LEVELS, files), files, 't'), [])

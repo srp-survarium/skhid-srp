@@ -86,7 +86,6 @@ edit	crouch-steps-1.json	-	crouched steps audible: the walking steps at 40 % for
 edit	weapon-camo-1.json	-	the 83 weapon configs take a camouflage: parameters/camo_available and a data table with camo_scale 4.0 (#244, client patch 44)
 edit	weapon-decals-1.json	-	the same 83 weapon configs take decals (two since client patch 68): parameters/decal_available and an empty data/decals (#244, client patch 47; after weapon-camo-1)
 edit	weapon-attachments-1.json	-	the weapon window says Attachments: st_srp_attachments in the six localization tables, the lobby's scope_window_title mapped to it; Ukrainian Appearance is Вигляд (#244)
-edit	battery-respawn-1.json	-	battery modes: respawn 10 s, respawn_time 8 -> 10 in the 58 configs of modes 2 and 3 (Team Deathmatch keeps 8)
 edit	premium-armour-1.json	-	premium armour: its experience and reputation bonuses rerollable modifications of its own, upgradable as the plain piece (after golden-weapons-1)
 edit	lobby-scene-2.json	-	the lobby without the New Year tree, its gifts and the Christmas sound; the bulb above the workbench lit (a point light of its own, the ceiling lamp's copied: its warm colour, intensity 3, range 5 m) and a second bulb as the bench one (level/lobby/bench_bulb of pack lobby-bulb@1, tilted on a drop wire, a wire_set) with its light (intensity 1.15, range 4 m, attenuation 2) over the artefact table, lighting the weapon from the camera's side; lobby-bench-light-1 (the fill light under the bench) withdrawn
 edit	crouch-steps-2.json	-	crouched steps fire: the 16 moving crouch clips get the player_sound_events channel run and sprint have (2 steps a cycle), so the crouch pairs of crouch-steps-1 play (T27)
@@ -100,7 +99,8 @@ edit	vegetation-runtime-1.json	-	runtime vegetation for the four supported early
 edit	weapon-movement-ui-1.json	-	Expose each weapon's own movement-speed parameter in its built-in bonuses, using the native speed icon; presentation only
 edit	weapon-details-ui-1.json	-	Weapon cards: base reload, chambering time and damage falloff, Shift for handling, recoil, spread and sway; presentation only
 edit	weapon-kill-icon-ui-1.json	-	The lobby tooltips show each weapon's kill feed icon: property 161 carries ui_desc/combat_log_icon to the item descriptors (not comparable); presentation only
-edit	weapon-rolls-1.json	-	weapon rolls take effect (the owner, 2026-10-29), the same percentages: recoil (2080-2084, defect 3060) on the six kick keys the game reads, min/max top, left and right recoil, not obsolete first/queue-shoot keys no weapon has; aim time (2070-2074) on the weapon's parameters/aim_time, type 2, not the player modifier aim_time_modifier a weapon never registers (docs/notes/weapon-rolls.md)
+edit	modifications.tsv	-	the modifications: a row each, its kind (the keys its modifiers change), value, op and drop weight (weapon rolls on keys the weapons have: recoil, aim time)
+edit	defects.tsv	-	the defects: a row each, its kind, value, op, drop weight and fix price and time
 edit	headwear-1.json	-	the eight approved stock helmets and eight 0.29 helmets (Viper, Mercenary, Nomad, Pathfinder, Combat, Metal; Omicron and Warrior whole, collar and guard with them) use a separate render bone for cosmetic fly-off on death (the shared character bind pose gains that bone); Pilgrim excluded, animation skeleton unchanged
 edit	lobby-scenes-1.json	-	the classic lobby's weapon spot as data: lobby_scene/day's project gets srp_lobby (weapon (4.25, 1.30, 3.05), weapon_view -pi/2), which client patch 45 reads for the weapon above the workbench, as every lobby scene's project carries its own (docs/notes/lobby-scenes.md)
 edit	built-in-bonuses-1.json	-	built-in bonuses at the second-strongest strength (the owner, 2026-10-29; docs/notes/built-in-bonuses.md): every equipment item's default of a kind that rolls is raised to that kind's second-strongest row (never lowered), computed from the data; weapons and never-rolling kinds untouched
@@ -121,5 +121,6 @@ edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
 edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
+edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
 edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, resupply, artefact search and cooldown
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
