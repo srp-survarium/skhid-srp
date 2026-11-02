@@ -416,7 +416,6 @@ thrown (§3.14).
   **The sides are made as the standard queue makes them** (§8.2,
   `seat_balanced`): by what each player counts for.
 - Players left over wait a new window, or join the match just made.
-- The home page ("How matches start") tells these rules, and the running-match rules of §9.2, when every game that can press Play is of this queue: `SRP_MIN_PATCH_REVISION` is 5 or more (`web-server`'s `only_growing_games`). Otherwise it still tells the standard queue's (§3), whose games are then the other queue.
 
 ### 9.2 A match being played: who joins, and where
 

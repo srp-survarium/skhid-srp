@@ -56,15 +56,17 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use core::ffi::CStr;
 
-use weapon_pickup::{Drop as DropState, Handedness, Hands, Ms, Pending, Pick, Picker, Place, Recipe, Record, WeaponSlot,
+use world_frame::Frame;
+
+use weapon_pickup::{Drop as DropState, Handedness, Hands, Held, Ms, Pending, Pick, Picker, Place, Recipe, Record, WeaponSlot,
                     PLACES};
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
 use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Installed, Mode, NameKey, Registered,
                             RegistryId, Role, Select, Site};
-use crate::vostok::world::{GameWorld, Player, PlayerId};
-use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread};
+use crate::vostok::world::{GameWorld, ItemId, Player, PlayerId, WorldKey};
+use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
 use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
                     WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
 
@@ -96,20 +98,31 @@ struct DropOf {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Lies {
     InWorld,
-    /// Its player was taken out of the world (base_player::remove(1)).
-    Gone,
+    /// Its player was taken out of the world (base_player::remove(1)) at
+    /// that simulation time: a rollback can still bring it back (a loaded
+    /// record with its drop open), so an untaken copy is kept
+    /// [`KEEP_GONE_MS`] past it.
+    Gone { at: Ms },
 }
+
+/// How long an untaken drop's copy outlives its body's removal: past any
+/// rollback (a client's history is 550 ms; 128 items with
+/// -debug_hash_mismatch, 6.4 s), so that a pickup replayed by a rollback
+/// across the respawn finds it on every client and never cooks or waits in
+/// a tick.
+const KEEP_GONE_MS: u32 = 10_000;
 
 /// Where a cooked gun is.
 #[derive(Clone, Copy)]
 enum At {
     /// A body's drop, not taken.
     Drop(DropOf),
-    /// `picker`'s pending object (registered), waiting for the weapon
-    /// switch into `pending.slot`; `from` the drop it was taken from, where
-    /// a cancel or a rollback undoing the pickup puts it back.
-    /// `nudged`: past the deadline, logged (runtime only).
-    Pending { picker: PlayerId, pending: Pending, registered: Registered, from: DropOf, nudged: bool },
+    /// A pickup waiting for the weapon switch, within its deadline.
+    Pending(Waiting),
+    /// A pickup waiting for the weapon switch past [`SWITCH_DEADLINE_MS`]:
+    /// the game is asked to look at the switch each tick (logged once, at
+    /// the move here; runtime only).
+    Overdue(Waiting),
     /// Picked into `picker`'s weapon slot `slot` (its own gun hidden in the
     /// cooked inventory); `from` the drop it was taken from, where a
     /// rollback undoing the pickup puts it back.
@@ -117,6 +130,17 @@ enum At {
     /// Let go (its picker died or took another): idle, kept for a rollback
     /// that names it again or the donor's next drop (never freed mid-match).
     LetGo { picker: PlayerId, slot: WeaponSlot, pick: Pick, from: DropOf },
+}
+
+/// A gun registered as `picker`'s pending object, waiting for the weapon
+/// switch into `pending.slot`; `from` the drop it was taken from, where a
+/// cancel or a rollback undoing the pickup puts it back.
+#[derive(Clone, Copy)]
+struct Waiting {
+    picker: PlayerId,
+    pending: Pending,
+    registered: Registered,
+    from: DropOf,
 }
 
 /// A gun of ours: its cook (the kit and weapon slot of its recipe, the gun's
@@ -174,7 +198,7 @@ struct Body {
 /// death's body.
 #[derive(Clone, Copy)]
 struct Placed {
-    world: u32,
+    world: WorldKey,
     record: Record,
     body: Option<Body>,
 }
@@ -268,19 +292,19 @@ impl Why {
 
 // ---- the records ------------------------------------------------------------------------------
 
-fn record_at(thread: &Thread, world: u32, place: Place) -> Record {
+fn record_at(thread: &Thread, world: WorldKey, place: Place) -> Record {
     placed_at(thread, world, place).0
 }
 
 /// The place's record and its last death's body.
-fn placed_at(thread: &Thread, world: u32, place: Place) -> (Record, Option<Body>) {
+fn placed_at(thread: &Thread, world: WorldKey, place: Place) -> (Record, Option<Body>) {
     RECORDS.with(thread, |records| match records[usize::from(place.get())] {
         Some(p) if p.world == world => (p.record, p.body),
         _ => (Record::EMPTY, None),
     })
 }
 
-fn update_placed(thread: &Thread, world: u32, place: Place, f: impl FnOnce(&mut Record, &mut Option<Body>)) {
+fn update_placed(thread: &Thread, world: WorldKey, place: Place, f: impl FnOnce(&mut Record, &mut Option<Body>)) {
     RECORDS.with(thread, |records| {
         let slot = &mut records[usize::from(place.get())];
         let (mut record, mut body) = match *slot {
@@ -292,12 +316,12 @@ fn update_placed(thread: &Thread, world: u32, place: Place, f: impl FnOnce(&mut 
     });
 }
 
-fn update_record(thread: &Thread, world: u32, place: Place, f: impl FnOnce(&mut Record)) {
+fn update_record(thread: &Thread, world: WorldKey, place: Place, f: impl FnOnce(&mut Record)) {
     update_placed(thread, world, place, |record, _| f(record));
 }
 
 /// The player's place and match.
-fn located(player: &Player<'_>) -> Option<(u32, Place)> {
+fn located(player: &Player<'_>) -> Option<(WorldKey, Place)> {
     Some((player.world_key()?, Place::new(player.place())?))
 }
 
@@ -313,7 +337,7 @@ fn held(thread: &Thread, player: PlayerId, slot: WeaponSlot) -> Option<(CookId, 
 /// its registration and the drop it came from.
 fn pending_of(thread: &Thread, player: PlayerId) -> Option<(CookId, Pending, Registered, DropOf)> {
     CACHE.with(thread, |cache| cache.iter().flatten().find_map(|e| match e.at {
-        At::Pending { picker, pending, registered, from, .. } if picker == player => Some((e.gun.id(), pending, registered, from)),
+        At::Pending(w) | At::Overdue(w) if w.picker == player => Some((e.gun.id(), w.pending, w.registered, w.from)),
         _ => None,
     }))
 }
@@ -329,7 +353,12 @@ fn cancel(player: &Player<'_>, thread: &Thread, why: Cancel) {
     if let Some((world, place)) = located(player) {
         update_record(thread, world, place, |r| r.pending = None);
         let r = pending.pick.recipe;
-        if why != Cancel::Loaded && from.lies == Lies::InWorld {
+        // Open again from synced state alone (this game's copy may have come
+        // from a loaded record): the donor's record still taken (its body's
+        // removal empties it) and the donor's life older than the pickup (a
+        // later death's drop is another one).
+        let same_body = peer(player, r.place).is_some_and(|d| pending.pick.taken.since(Ms(d.spawned())) < 1 << 31);
+        if why != Cancel::Loaded && same_body {
             update_record(thread, world, r.place, |d| {
                 if d.drop == DropState::Taken {
                     d.drop = DropState::Open { kit: r.kit, slot: r.slot };
@@ -407,12 +436,7 @@ fn unpick(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, how: Unpick, w
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, Site::Save) {
         let thread = ctx.thread();
-        let mut record = located(&player)
-            .map_or(Record::EMPTY, |(world, place)| placed_at(thread, world, place).0);
-        // What each pick keeps hidden of the own kit, as installed here.
-        record.parked = SLOTS.map(|slot| record.pick(slot)
-            .and_then(|_| held(thread, player.id(), slot))
-            .and_then(|(_, _, installed)| native::parked(&player, &installed)));
+        let record = located(&player).map_or(Record::EMPTY, |(world, place)| placed_at(thread, world, place).0);
         native::write_record(ctx, &record.encode());
     }
     Flow::Continue
@@ -436,6 +460,17 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some((world, place)) = located(&player) {
         update_record(thread, world, place, |r| *r = record);
     }
+    // A rollback to before its body's removal: its drop's copy in the world again.
+    if matches!(record.drop, DropState::Open { .. }) {
+        let body = player.id();
+        CACHE.with(thread, |cache| {
+            for e in cache.iter_mut().flatten() {
+                if let At::Drop(d) = &mut e.at && d.body == body {
+                    d.lies = Lies::InWorld;
+                }
+            }
+        });
+    }
     reconcile(&player, thread, record);
     Flow::Continue
 }
@@ -447,7 +482,7 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// registered (the reader resolves the pending id): taken back from what was
 /// let go, or cooked anew from its recipe.
 fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
-    let want = record.picks;
+    let want = SLOTS.map(|slot| record.pick(slot));
     let pending_differs = pending_of(thread, player.id()).map(|p| p.1) != record.pending;
     if pending_differs {
         cancel(player, thread, Cancel::Loaded);
@@ -482,13 +517,19 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
             Err(why) => log_pick("a loaded record's pick NOT installed (the state will not match)", player, slot, pick, why.text()),
         }
     }
+    // The own gun's wear each pick hides, as the record keeps it.
+    for slot in SLOTS {
+        if let (Some(h), Some((_, _, installed))) = (record.held(slot), held(thread, player.id(), slot)) {
+            native::set_own_wear(player, &installed, h.own);
+        }
+    }
     let Some(pending) = record.pending.filter(|_| pending_differs) else { return };
     let outcome = (|| {
         let (id, from) = gun_for(player, thread, pending.slot, pending.pick)?;
         let at = RegistryId::reserved(Place::new(player.place()).ok_or(Why::NoPlace)?, Role::Pending);
         let registered = native::register_pending(player, id, pending.pick.recipe.slot, at, Select::ByReader)
             .map_err(Why::Install)?;
-        move_to(thread, id, |_| At::Pending { picker: player.id(), pending, registered, from, nudged: false });
+        move_to(thread, id, |_| At::Pending(Waiting { picker: player.id(), pending, registered, from }));
         mark_held(thread, id, player.id(), false);
         Ok::<_, Why>(registered)
     })();
@@ -499,32 +540,179 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
     }
 }
 /// The gun a loaded record names for `player`'s `slot`: one this client has
-/// ([`let_go`]), else (a late join, a resync) cooked anew from its recipe
-/// and waited for.
+/// ([`let_go`]). A world sent (0xE8: a late join, a resync) had the guns it
+/// names that this client lacked cooked before its load
+/// ([`before_world_load`]); a rollback's are this client's own. Else (a
+/// replay's key frame, a cook that failed there) cooked anew from its recipe
+/// and waited for, refused while a player was made since the last move
+/// ([`Dispatch::Guarded`]: a late join's install must not run in a load);
+/// so is one found still cooking (not made by [`before_world_load`]'s
+/// deadline).
 fn gun_for(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, pick: Pick) -> Result<(CookId, DropOf), Why> {
-    if let Some(found) = let_go(thread, player.id(), slot, pick) {
-        return Ok(found);
-    }
-    let cook_from = peer(player, pick.recipe.place).ok_or(Why::NoDonor)?;
-    let from = DropOf { place: pick.recipe.place, body: cook_from.id(), lies: Lies::Gone };
-    let id = ask(&cook_from, thread, pick.recipe, At::Drop(from)).ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
-    Ok((wait_for(thread, id, pick.recipe).map_err(Why::Gun)?, from))
+    let world = located(player).map(|(world, _)| world);
+    let (id, from) = match let_go(thread, world, player.id(), slot, pick) {
+        Some(found) => found,
+        None => {
+            // The recipe's place's player of its kit, its place in the world or
+            // not (a departed donor's: in every game the lookup by place refuses it).
+            let cook_from = player.kit_player(pick.recipe.place, pick.recipe.kit)
+                .or_else(|| peer(player, pick.recipe.place)).ok_or(Why::NoDonor)?;
+            let from = DropOf { place: pick.recipe.place, body: cook_from.id(), lies: Lies::Gone { at: Ms(0) } };
+            let id = ask(&cook_from, thread, pick.recipe, At::Drop(from))
+                .ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
+            (id, from)
+        }
+    };
+    Ok((wait_for(thread, id, pick.recipe, Dispatch::Guarded, Deadline::from_now(thread)).map_err(Why::Gun)?, from))
 }
 
 /// A gun this client has for `player`'s `slot` that `pick` names: the one it
 /// let go, else an untaken drop's of the same recipe (the same gun: a
-/// rollback gave it back to its drop).
-fn let_go(thread: &Thread, player: PlayerId, slot: WeaponSlot, pick: Pick) -> Option<(CookId, DropOf)> {
-    CACHE.with(thread, |cache| {
+/// rollback gave it back to its drop; or one cooked for the world being
+/// loaded), else another idle copy of the recipe (let go by another picker).
+fn let_go(thread: &Thread, world: Option<WorldKey>, player: PlayerId, slot: WeaponSlot, pick: Pick)
+          -> Option<(CookId, DropOf)> {
+    // A copy lying in a drop that is open (its body in the world, nobody took
+    // it) is that drop's gun: taken for another pick only as the last resort
+    // (a rollback that gave a pickup back to its drop finds its gun there).
+    let open = |d: DropOf| world.is_some_and(|w| matches!(record_at(thread, w, d.place).drop, DropState::Open { .. }));
+    let idle_drops = CACHE.with(thread, |cache| {
         let flat = || cache.iter().flatten();
         flat().find_map(|e| match e.at {
             At::LetGo { picker, slot: s, pick: p, from, .. } if picker == player && s == slot && p == pick => Some((e.gun.id(), from)),
             _ => None,
         }).or_else(|| flat().find_map(|e| match e.at {
-            At::Drop(d) if e.recipe == pick.recipe => Some((e.gun.id(), d)),
+            At::Drop(d) if e.recipe == pick.recipe && d.lies != Lies::InWorld => Some((e.gun.id(), d)),
             _ => None,
-        }))
-    })
+        })).or_else(|| flat().find_map(|e| match e.at {
+            At::LetGo { from, .. } if e.recipe == pick.recipe => Some((e.gun.id(), from)),
+            _ => None,
+        })).map(Ok).or_else(|| {
+            // In the world: the ones whose drop is not open first (records read outside this lock).
+            let mut lying = [None; 4];
+            for (room, e) in lying.iter_mut().zip(flat().filter(|e| e.recipe == pick.recipe && matches!(e.at, At::Drop(_)))) {
+                if let At::Drop(d) = e.at {
+                    *room = Some((e.gun.id(), d));
+                }
+            }
+            Some(Err(lying))
+        })
+    })?;
+    match idle_drops {
+        Ok(found) => Some(found),
+        Err(lying) => lying.iter().flatten().find(|&&(_, d)| !open(d)).or_else(|| lying.iter().flatten().next()).copied(),
+    }
+}
+
+/// The most picks a world can name: each place's two weapon slots and its
+/// pickup waiting for its switch.
+const NAMED: usize = 3 * PLACES as usize;
+
+/// A world about to be loaded (0xE8: world_check's `world_load.unpacked` and
+/// `world_load.raw`, once it parses; the handler process_dynamic_match_info,
+/// outside any tick, before game_world_core::deserialize 0x2D0B70). Every
+/// gun its players' records name that this client has no copy for (a late
+/// joiner's first world: none) is cooked now from its recipe and waited for,
+/// so that the records' readers ([`reconcile`] at `pickup.load`, inside the
+/// load) find each one made ([`let_go`]) and never wait. A wait here runs the
+/// game's callbacks as its frame's dispatch would ([`Dispatch::BeforeLoad`]):
+/// a late join's install among them binds its slot before the world is
+/// installed, between simulation updates, as at any frame's dispatch.
+/// A named pick is one the reader keeps (the place's player holds it, or has
+/// it pending, as the record says) or takes from the idle copies of its recipe
+/// (in a drop or let go); the rest of each recipe is cooked.
+pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
+    let thread = load.thread();
+    let client = load.network_client();
+    let mut named = [None; NAMED];
+    let mut count = 0;
+    let mut drops = [None; PLACES as usize];
+    let mut dropped = 0;
+    // The places whose drop the world has open: their copies are those drops' guns, not idle.
+    let mut open = [false; PLACES as usize];
+    for (slot, state) in frame.states() {
+        let Some(place) = Place::new(slot.index()) else { continue };
+        let Some(record) = state.get(2..2 + Record::BYTES).and_then(|b| b.try_into().ok()).and_then(Record::decode)
+        else { continue };
+        open[usize::from(place.get())] = matches!(record.drop, DropState::Open { .. });
+        // An open drop this client has no copy of (a death it did not see):
+        // its gun, so that its pickup never cooks or waits in a tick.
+        if let (DropState::Open { kit, slot }, None) = (record.drop, body_drop(thread, place))
+            && let Some(body) = client.player(u32::from(place.get())) {
+            let recipe = Recipe { place, kit, slot };
+            let from = DropOf { place, body: body.id(), lies: Lies::InWorld };
+            log_recipe("a world to load has the open drop", recipe, &[Text(", which this client has no copy of: \
+                                                                            cooked before the load")]);
+            if let (Some(id), Some(room)) = (ask(&body, thread, recipe, At::Drop(from)), drops.get_mut(dropped)) {
+                *room = Some((id, recipe));
+                dropped += 1;
+            }
+        }
+        if record.picks.iter().all(Option::is_none) && record.pending.is_none() {
+            continue;
+        }
+        let holder = client.player(u32::from(place.get())).map(|p| p.id());
+        let keeps = |slot: WeaponSlot, pick: Pick| holder.is_some_and(|h| held(thread, h, slot).is_some_and(|(_, p, _)| p == pick));
+        let mut needs = SLOTS.map(|slot| record.pick(slot).filter(|&pick| !keeps(slot, pick)).map(|pick| pick.recipe));
+        let pending = record.pending
+            .filter(|&pending| !holder.is_some_and(|h| pending_of(thread, h).is_some_and(|p| p.1 == pending)))
+            .map(|pending| pending.pick.recipe);
+        for recipe in needs.iter_mut().map(Option::take).chain([pending]).flatten() {
+            if let Some(room) = named.get_mut(count) {
+                *room = Some(recipe);
+                count += 1;
+            }
+        }
+    }
+    let mut asked = [None; NAMED];
+    let mut n = 0;
+    for (k, recipe) in named.iter().enumerate() {
+        let Some(recipe) = *recipe else { continue };
+        // Each recipe once, at its first: how many it is named, how many idle copies there are.
+        if named[..k].contains(&Some(recipe)) {
+            continue;
+        }
+        let wanted = named.iter().filter(|&&r| r == Some(recipe)).count();
+        let idle = CACHE.with(thread, |cache| cache.iter().flatten()
+            .filter(|e| e.recipe == recipe && match e.at {
+                At::Drop(d) => !(d.lies == Lies::InWorld && open[usize::from(d.place.get())]),
+                At::LetGo { .. } => true,
+                _ => false,
+            }).count());
+        if wanted <= idle {
+            continue;
+        }
+        let local = client.local_player();
+        let Some(donor) = local.as_ref().and_then(|l| l.kit_player(recipe.place, recipe.kit))
+            .or_else(|| client.player(u32::from(recipe.place.get()))) else {
+            log_recipe("a world to load names", recipe, &[Text(": its place has no player to cook it from (the reader \
+                                                                 will not install it)")]);
+            continue;
+        };
+        for _ in idle..wanted {
+            let from = DropOf { place: recipe.place, body: donor.id(), lies: Lies::Gone { at: Ms(0) } };
+            log_recipe("a world to load names", recipe, &[Text(", which this client has no idle copy of: cooked before \
+                                                                 the load")]);
+            if let (Some(id), Some(room)) = (ask(&donor, thread, recipe, At::Drop(from)), asked.get_mut(n)) {
+                *room = Some((id, recipe));
+                n += 1;
+            }
+        }
+    }
+    if n == 0 && dropped == 0 {
+        return;
+    }
+    // One deadline for them all: the 0xE8 handler is held at most
+    // WAIT_CAP_MS however many guns the world names (the server drops a
+    // silent peer after 10 s).
+    let deadline = Deadline::from_now(thread);
+    for (id, recipe) in asked.iter().flatten().chain(drops.iter().flatten()) {
+        if let Err(refused) = wait_for(thread, *id, *recipe, Dispatch::BeforeLoad, deadline) {
+            log_recipe("NOT made before the world's load:", *recipe, &[
+                Text(" ("), Text(refused.text()), Text("; the record's reader waits for it, refused while a player \
+                                                           was made since the last move)")]);
+        }
+    }
 }
 
 /// `pickup.remove` (base_player::remove's entry): the removal of the
@@ -543,8 +731,19 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(player) = native::player(ctx, Site::Remove) else { return Flow::Continue };
     let thread = ctx.thread();
     cancel(&player, thread, Cancel::Removal);
+    let installs = SLOTS.map(|slot| held(thread, player.id(), slot).map(|h| h.2));
+    let wears = located(&player).map(|(world, place)| {
+        let record = record_at(thread, world, place);
+        SLOTS.map(|slot| record.held(slot).map(|h| h.own))
+    }).unwrap_or([None; 2]);
     for slot in SLOTS {
         unpick(&player, thread, slot, Unpick::Removed, "its removal (a respawn or a departure)");
+    }
+    // The own kit set aside comes back as the kit gives it, in every game alike.
+    for (installed, wear) in installs.iter().zip(wears) {
+        if let Some(installed) = installed {
+            native::give_back_the_kit(&player, installed, wear);
+        }
     }
     if let Some((world, place)) = located(&player) {
         let (record, _) = placed_at(thread, world, place);
@@ -561,9 +760,10 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let body = player.id();
     CACHE.with(thread, |cache| {
         for e in cache.iter_mut().flatten() {
-            let (At::Drop(d) | At::Pending { from: d, .. } | At::Held { from: d, .. } | At::LetGo { from: d, .. }) = &mut e.at;
+            let (At::Drop(d) | At::Pending(Waiting { from: d, .. }) | At::Overdue(Waiting { from: d, .. })
+                 | At::Held { from: d, .. } | At::LetGo { from: d, .. }) = &mut e.at;
             if d.body == body {
-                d.lies = Lies::Gone;
+                d.lies = Lies::Gone { at: Ms(player.time()) };
             }
         }
     });
@@ -598,7 +798,7 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
         let from = DropOf { place, body: player.id(), lies: Lies::InWorld };
         let recipe = Recipe { place, kit, slot };
         match reuse(thread, player.id(), recipe, from) {
-            Some(gun) => log_recipe("re-using a kept copy of", recipe, &[Text(": gun "), Hex(gun)]),
+            Some(gun) => log_recipe("re-using a kept copy of", recipe, &[Text(": gun "), Hex(gun.address())]),
             None => {
                 ask(player, thread, recipe, At::Drop(from));
             }
@@ -610,14 +810,14 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
 /// drop whose body left the world: in no one's hands, pending or live drop)
 /// becomes the drop `from`'s gun; its address. Its magazine and ammunition
 /// are set again by the pickup's switch (Ammo::grant), as for a new cook's.
-fn reuse(thread: &Thread, donor: PlayerId, recipe: Recipe, from: DropOf) -> Option<u32> {
+fn reuse(thread: &Thread, donor: PlayerId, recipe: Recipe, from: DropOf) -> Option<ItemId> {
     let id = CACHE.with(thread, |cache| {
         let e = cache.iter_mut().flatten().find(|e| e.donor == donor && e.recipe == recipe && e.history != History::Fresh
-            && matches!(e.at, At::LetGo { .. } | At::Drop(DropOf { lies: Lies::Gone, .. })))?;
+            && matches!(e.at, At::LetGo { .. } | At::Drop(DropOf { lies: Lies::Gone { .. }, .. })))?;
         e.at = At::Drop(from);
         Some(e.gun.id())
     })?;
-    native::gun_address(thread, id, recipe.slot)
+    native::gun_id(thread, id, recipe.slot)
 }
 
 /// The cook of the drop of `place`'s body in the world, if this client has it.
@@ -685,12 +885,12 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     let body = peer(player, target).ok_or(Why::NoDonor)?;
     let recipe = Recipe { place: target, kit, slot };
     let (cook, from) = match body_drop(thread, target) {
-        Some((id, _, from)) => (wait_for(thread, id, recipe).map_err(Why::Gun)?, from),
+        Some((id, _, from)) => (wait_for(thread, id, recipe, Dispatch::Guarded, Deadline::from_now(thread)).map_err(Why::Gun)?, from),
         // A death this client did not see (it joined after): cooked now.
         None => {
             let from = DropOf { place: target, body: body.id(), lies: Lies::InWorld };
             let id = ask(&body, thread, recipe, At::Drop(from)).ok_or(Why::Gun(Refused::NotAsked(Refusal::NoTicket)))?;
-            (wait_for(thread, id, recipe).map_err(Why::Gun)?, from)
+            (wait_for(thread, id, recipe, Dispatch::Guarded, Deadline::from_now(thread)).map_err(Why::Gun)?, from)
         }
     };
     let incoming = native::handedness(thread, cook, slot).ok_or(Why::Install(native::Refusal::NoCookedGun))?;
@@ -704,7 +904,7 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     // As a weapon key: the switch is looked at this tick (the hide starts now).
     player.select_animations_now();
     let pending = Pending { slot: into, pick: Pick { taken: Ms(player.time()), recipe }, magazine };
-    move_to(thread, cook, |_| At::Pending { picker: player.id(), pending, registered, from, nudged: false });
+    move_to(thread, cook, |_| At::Pending(Waiting { picker: player.id(), pending, registered, from }));
     mark_held(thread, cook, player.id(), false);
     update_record(thread, world, place, |r| r.pending = Some(pending));
     update_record(thread, world, target, |r| r.drop = DropState::Taken);
@@ -750,9 +950,9 @@ fn nudge(player: &Player<'_>, thread: &Thread) {
     player.select_animations_now();
     let mut first = false;
     move_to(thread, cook, |at| match at {
-        At::Pending { picker, pending, registered, from, nudged: false } => {
+        At::Pending(waiting) => {
             first = true;
-            At::Pending { picker, pending, registered, from, nudged: true }
+            At::Overdue(waiting)
         }
         other => other,
     });
@@ -817,7 +1017,7 @@ fn switch(player: &Player<'_>, thread: &Thread) -> Option<bool> {
     }
     move_to(thread, cook, |_| At::Held { picker: player.id(), slot: pending.slot, pick: pending.pick, installed, from });
     update_record(thread, world, place, |r| {
-        r.set_pick(pending.slot, Some(pending.pick));
+        r.set_pick(pending.slot, Some(Held { pick: pending.pick, own: installed.own_wear() }));
         r.pending = None;
     });
     log_pick("switched (the gun in hands holstered)", player, pending.slot, pending.pick, "");
@@ -877,7 +1077,38 @@ fn drop_box(thread: &Thread, place: Place) -> Option<GunBox> {
     }))
 }
 
-fn wait_for(thread: &Thread, id: CookId, recipe: Recipe) -> Result<CookId, Refused> {
+/// Where a wait for a cook runs the game's callbacks (`dispatch_callbacks`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Dispatch {
+    /// In a tick (the pickup's command) or inside a world's load (a loaded
+    /// record): refused while a player was made since the last move, a late
+    /// join's install (which must run between simulation updates, outside a
+    /// load) maybe among the callbacks.
+    Guarded,
+    /// In the 0xE8 handler before its load ([`before_world_load`]): outside
+    /// any tick and any load, where the frame's own dispatch could have run
+    /// them all.
+    BeforeLoad,
+}
+
+/// When waits give up: [`WAIT_CAP_MS`] after their start (one wait's, or
+/// shared by several).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Deadline {
+    since: u64,
+}
+
+impl Deadline {
+    fn from_now(thread: &Thread) -> Deadline {
+        Deadline { since: clock::counter(thread) }
+    }
+
+    fn passed(self, thread: &Thread) -> bool {
+        elapsed_ms(thread, self.since, clock::counter(thread)) >= WAIT_CAP_MS
+    }
+}
+
+fn wait_for(thread: &Thread, id: CookId, recipe: Recipe, how: Dispatch, deadline: Deadline) -> Result<CookId, Refused> {
     let start = clock::counter(thread);
     let mut waited = false;
     let outcome = loop {
@@ -887,10 +1118,10 @@ fn wait_for(thread: &Thread, id: CookId, recipe: Recipe) -> Result<CookId, Refus
             Cooked::Gone => break Err(Refused::Missing),
             Cooked::Cooking { .. } => {}
         }
-        if PLAYER_MADE.load(Ordering::Acquire) {
+        if how == Dispatch::Guarded && PLAYER_MADE.load(Ordering::Acquire) {
             break Err(Refused::LateJoin);
         }
-        if elapsed_ms(thread, start, clock::counter(thread)) >= WAIT_CAP_MS {
+        if deadline.passed(thread) {
             break Err(Refused::Timeout);
         }
         waited = true;
@@ -915,7 +1146,7 @@ fn release_where(thread: &Thread, mut gone: impl FnMut(&Entry) -> bool) {
         let taken = CACHE.with(thread, |cache| cache.iter_mut().find(|e| e.as_ref().is_some_and(&mut gone))?.take());
         match taken {
             Some(entry) => {
-                let address = native::gun_address(thread, entry.gun.id(), entry.recipe.slot).unwrap_or(0);
+                let address = native::gun_id(thread, entry.gun.id(), entry.recipe.slot).map_or(0, ItemId::address);
                 log_recipe("freeing the cook of", entry.recipe, &[Text(": gun "), Hex(address),
                     Text(match entry.history {
                         History::Used { .. } => " (was in hands)",
@@ -938,10 +1169,13 @@ pub fn after_move(ctx: &Context<'_>) {
     let thread = ctx.thread();
     PLAYER_MADE.store(false, Ordering::Release);
     log_finished(thread);
-    if let Some(key) = GameWorld::at_after_move(ctx).as_ref().and_then(gun_cook::world_key) {
+    let world = GameWorld::at_after_move(ctx);
+    if let Some(key) = world.as_ref().and_then(gun_cook::world_key) {
         diagnose_world(thread, key);
     }
-    release_where(thread, |e| e.history == History::Fresh && matches!(e.at, At::Drop(DropOf { lies: Lies::Gone, .. })));
+    let Some(now) = world.as_ref().and_then(gun_cook::world_time).map(Ms) else { return };
+    release_where(thread, |e| e.history == History::Fresh && matches!(e.at,
+        At::Drop(DropOf { lies: Lies::Gone { at }, .. }) if now.since(at) >= KEEP_GONE_MS));
 }
 
 fn log_finished(thread: &Thread) {
@@ -962,11 +1196,11 @@ fn log_finished(thread: &Thread) {
         let Some((id, recipe, before, cooked, boxed)) = found else { break };
         let after = gun_cook::memory(thread).map(|(used, _)| used);
         let (what, inventory, ms) = match cooked {
-            Cooked::Made { inventory, since, at } => ("made", inventory.0, elapsed_ms(thread, since, at)),
+            Cooked::Made { inventory, since, at } => ("made", inventory.address(), elapsed_ms(thread, since, at)),
             Cooked::Failed { since, at } => ("FAILED (empty result)", 0, elapsed_ms(thread, since, at)),
             Cooked::Cooking { .. } | Cooked::Gone => ("given back before it was made", 0, 0),
         };
-        let address = native::gun_address(thread, id, recipe.slot).unwrap_or(0);
+        let address = native::gun_id(thread, id, recipe.slot).map_or(0, ItemId::address);
         log_recipe("cook of", recipe, &[
             Text(": "), Text(what), Text(", inventory "), Hex(inventory), Text(", gun "), Hex(address), Text(", "), Dec(ms),
             Text(" ms after it was asked for, address space "), Dec(before.unwrap_or(0)), Text(" -> "),
@@ -1027,10 +1261,11 @@ fn diagnose(what: &str, thread: &Thread, statistics: bool) {
 }
 
 /// The world of the last move, for the diagnostics' log at a match's load.
-static WORLD_SEEN: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+static WORLD_SEEN: GameCell<Option<WorldKey>> = GameCell::new(None);
 
-fn diagnose_world(thread: &Thread, world: u32) {
-    if WORLD_SEEN.swap(world, Ordering::AcqRel) != world {
+fn diagnose_world(thread: &Thread, world: WorldKey) {
+    if WORLD_SEEN.get(thread) != Some(world) {
+        WORLD_SEEN.set(thread, Some(world));
         diagnose("a match loaded", thread, false);
     }
 }
@@ -1385,7 +1620,7 @@ fn log_sight(viewer: &Player<'_>, target: u8, sight: Sight) {
 /// body, the drop not open, the rule).
 type Offered = Result<Option<(CookId, WeaponSlot)>, Sight>;
 
-fn offer(thread: &Thread, viewer: &Player<'_>, world: u32, place: Place, target: Place, body: Body) -> Offered {
+fn offer(thread: &Thread, viewer: &Player<'_>, world: WorldKey, place: Place, target: Place, body: Body) -> Offered {
     let (theirs, last) = placed_at(thread, world, target);
     if last != Some(body) {
         return Err(Sight::NotItsBody);
@@ -1564,9 +1799,9 @@ fn log_pick(what: &str, player: &Player<'_>, slot: WeaponSlot, pick: Pick, why: 
 /// D (the owner, 2026-11-01): every picked gun's object address at each
 /// step, to match a crash's registers: `place P at T ms gun 0x...: <what>,
 /// registry id N, slot S (why)`.
-fn log_gun(player: &Player<'_>, what: &str, gun: u32, id: Option<RegistryId>, slot: WeaponSlot, why: &str) {
+fn log_gun(player: &Player<'_>, what: &str, gun: ItemId, id: Option<RegistryId>, slot: WeaponSlot, why: &str) {
     let id = id.map_or(0xFF, |id| u32::from(id.get()));
-    log(&[Text("place "), Dec(u32::from(player.place())), Text(" at "), Dec(player.time()), Text(" ms gun "), Hex(gun),
+    log(&[Text("place "), Dec(u32::from(player.place())), Text(" at "), Dec(player.time()), Text(" ms gun "), Hex(gun.address()),
           Text(": "), Text(what), Text(", registry id "), Dec(id), Text(", slot "), Dec(u32::from(slot.slot())),
           Text(if why.is_empty() { "" } else { " (" }), Text(why), Text(if why.is_empty() { "" } else { ")" })]);
 }

@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	A meccs elérte a játékoskorlátot. A következőhöz 
 st_srp_rooms_joined_room	%1$s belépett a szobába
 st_srp_rooms_late_hint	Az új belépők előbb a szobát látják, majd belépnek a meccsbe.
 st_srp_rooms_leave	Kilépés
-st_srp_rooms_leave_queue	Sor elhagyása
-st_srp_rooms_leave_room	Szoba elhagyása
+st_srp_rooms_leave_queue	Kilépés
+st_srp_rooms_leave_room	Kilépés
 st_srp_rooms_left_room	%1$s kilépett a szobából
 st_srp_rooms_level	Szint
 st_srp_rooms_map	Pálya
