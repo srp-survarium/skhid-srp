@@ -2100,3 +2100,7 @@ va	status	ref_021d	name
 0x0023a430	reviewed	0x001831ff	survarium::game_world_ui::set_using_progress_message
 0x0023a560	reviewed	0x0018329c	survarium::game_world_ui::set_using_info_message
 0x00246f50	reviewed	0x00186af7	survarium::player::st_draw
+0x002189e0	verified		survarium::replay_network_client::match_options
+0x0026d6a0	verified		survarium::base_local_network_client::get_active_player
+0x00219990	verified	0x0016c901	survarium::network_client::match_options
+0x0027a9c0	verified	0x001a259b	survarium::network_client::get_active_player

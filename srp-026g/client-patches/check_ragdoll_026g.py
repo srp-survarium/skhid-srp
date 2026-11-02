@@ -17,9 +17,11 @@ read; 0x24781E when it is 0), 0x24757C (the cull) and 0x247716 (the
 bones), update_camera 0x1F3643 (the eye), bullet::
 check_collision 0x32D627 (a bullet's ray; the original's code at the same
 site runs too, from the original exe, for the same state). The step reaches the
-places through the game's own network client code (match_options 0x219990,
-get_active_player 0x27A9C0 and active_player_ptr 0x2D0AB0, from the client's
-vtable 0x9FFB14) on a made-up client, world core and match options; the
+places through the game's own virtual methods: live-client vtable 0x9FFB14
+(match_options 0x219990, get_active_player 0x27A9C0), and replay vtable
+0x9FF344 (0x2189E0, 0x26D6A0). Both use active_player_ptr 0x2D0AB0 on a
+made-up world core. Replay tests poison the live-layout fields with both
+crash reports' values and also leave their page unmapped; the
 players are made up with the fields the step reads (ragdoll.md section 8),
 their skeleton is scavengers_01 in the cook's order (ragdoll.md section 8,
 `add_bone` 0x3ACDA0), the bones a standing body. Stubs: ray_test (0x75E20,
@@ -100,7 +102,7 @@ RAY_TEST, QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x75E20, 0x870158, 0x870150, 0x87011
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
 CHANGE_TRAJECTORY = 0x32EE20
 PLAY_PARTICLE, PLAY_SOUND = 0x3223E0, 0x3222F0
-CLIENT_VTABLE = 0x9FFB14
+CLIENT_VTABLE, REPLAY_CLIENT_VTABLE = 0x9FFB14, 0x9FF344
 HITTABLE_FLOOR = 0.04                         # the collision bullets hit, over the walker floor at 0
 ZF = 1 << 6
 
@@ -173,7 +175,7 @@ def matrix(position, turn=0.0):
 
 
 class Game:
-    def __init__(self, data):
+    def __init__(self, data, client_vtable=CLIENT_VTABLE):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
             start = base.IMAGE_BASE + rva
@@ -234,9 +236,15 @@ class Game:
         # the world, the game, the network client (the game's own vtable)
         self.u32(WORLD + 0x9C, GAME)
         self.u32(GAME + 0x53AC, CLIENT)
-        self.u32(CLIENT, CLIENT_VTABLE)
-        self.u32(CLIENT + 0x1F1C48, OPTIONS)
-        self.u32(CLIENT + 0x1F1C40, NC_CORE)
+        self.u32(CLIENT, client_vtable)
+        if client_vtable == REPLAY_CLIENT_VTABLE:
+            self.options = CLIENT + 0x1C
+            self.u32(CLIENT + 0x578BC, NC_CORE)
+        else:
+            assert client_vtable == CLIENT_VTABLE
+            self.options = OPTIONS + 0xC
+            self.u32(CLIENT + 0x1F1C48, OPTIONS)
+            self.u32(CLIENT + 0x1F1C40, NC_CORE)
         self.core = NC_CORE + 0x1F8
         # the skeleton: object_movement, then the cooked bones
         names = NAMES
@@ -445,7 +453,7 @@ class Game:
         self.u32(self.core + 0x18458, PLACES_ARRAY)
         self.u32(self.core + 0x1845C, PLACES_ARRAY + 0x30 * count)
         self.u32(self.core + 0x18FD8, (1 << count) - 1)
-        self.u8(OPTIONS + 0xC + 0x577B5, count)
+        self.u8(self.options + 0x577B5, count)
         return player
 
     def set_alive(self, player, alive, spawned):
@@ -862,8 +870,54 @@ def main():
     still = all(max(abs(a - b) for a, b in zip(m, n)) < 1e-5 for m, n in zip(frames[-1], frames[-2]))
     check(still and frames[0] != frames[-1] and min(m[13] for m in frames[-1]) > -0.2,
           f"held nothing, it falls and settles: the hip at {frames[-1][1][13]:.2f} m, the bones still")
+    check_replay(built)
     check_headwear(built)
     print("all checks passed")
+
+
+def check_replay(built):
+    """Real native dispatch from the built hook, including seek and exit states.
+
+    The replay client is smaller than the live client's +1F1C40h fields.
+    Nearby memory happened to hold 0 / 2 in the two revision-42 reports;
+    its accessibility must not matter. Do not stub either lookup.
+    """
+    for unrelated in (0, 2, None):
+        game = Game(built, REPLAY_CLIENT_VTABLE)
+        if unrelated is None:
+            game.emu.mem_unmap(CLIENT + 0x1F1000, 0x1000)
+        else:
+            game.u32(CLIENT + 0x1F1C40, unrelated)
+            game.u32(CLIENT + 0x1F1C48, unrelated)
+        first = game.add_player(0, 0.0, 0.0)
+        last = game.add_player(5, 10.0, 0.0)
+        # Sparse roster: the native lookup must also return no player for
+        # empty places, without leaking references or borrowing a stale out.
+        game.set_local(last)
+        game.step()
+        check(all(game.u32(p + REFS) == 1 for p in (first, last)),
+              f"replay start, unrelated live fields {unrelated}: players 0/5 and empty places, references balanced")
+        game.set_alive(last, False, 1000)
+        for _ in range(5):
+            game.step()
+            game.draw(last)
+        check(game.draw(last)[1] and not game.draw(first)[1],
+              "replay's own options and active-player methods find the dead player at place 5")
+        game.set_alive(last, True, 1000)
+        game.step()
+        check(not game.draw(last)[1] and game.eye(last) == last + EYE,
+              "a replay seek restoring the player alive clears the corpse and camera")
+        # Exit: the game no longer owns a network client. Re-enter the same
+        # replay afterwards; a later life must still get a ragdoll.
+        game.u32(GAME + 0x53AC, 0)
+        game.step()
+        game.u32(GAME + 0x53AC, CLIENT)
+        game.set_alive(last, False, 2000)
+        for _ in range(5):
+            game.step()
+            game.draw(last)
+        check(game.draw(last)[1] and all(game.u32(p + REFS) == 1 for p in (first, last)),
+              "replay exit/re-entry and a new death keep dispatch and references correct")
 
 
 def check_headwear(built):
