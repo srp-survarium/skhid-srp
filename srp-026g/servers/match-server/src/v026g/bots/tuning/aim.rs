@@ -272,21 +272,28 @@ impl Default for AimCalibration {
             ladder_factors: (0.40, 0.77, 1.32),
         };
         // [A267] A type's skill-1 sweep down to factor 0.40 (fx-fights, A267(a) part 1, 2026-11-02, A243's settings, seeds
-        // 1-4, weighed; tiers' mean where both ran), #1089's points kept above its last factor, made non-increasing.
+        // 1-4, weighed, the cap's reading; tiers' mean where both ran), #1089's points kept above its last factor, made
+        // non-increasing; and its line at skill 0, 0.5 and 1 at the shipped factors (A267(a)'s `forced0` ladder, the
+        // rushers on MGs at 9-10 and pistols at 13-15, the same estimator).
+        let line = |r0: f32, r05: f32, r1: f32| vec![(0.0, r0), (0.5, r05), (1.0, r1)];
         Self {
             source: "PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; \
                      tiers pooled, the sweep made non-increasing) and A267(a) (fx-fights, 2026-11-02: per-type skill-1 \
                      points down to factor 0.40, the same settings and estimator)"
                 .to_owned(),
             pistol: TypeCalibration::NotMeasured,
-            // 9-10 only (13-15's flanker carries a rifle): 1.32 18.5, 0.85 24.1, 0.70 24.9, 0.55 28.5, 0.40 30.3.
-            smg: TypeCalibration::Pooled(ClassCalibration {
+            // 9-10 only (13-15's flanker carries a rifle): 1.32 18.5, 0.85 24.1, 0.70 24.9, 0.55 28.5, 0.40 30.3. Line 11.6
+            // 16.1 19.2.
+            smg: TypeCalibration::Own(ClassCalibration {
                 points: points(&[(0.4, 30.3), (0.55, 28.5), (0.7, 24.9), (0.85, 24.1), (1.32, 18.5), (1.6, 16.5), (2.0, 13.6)]),
+                ladder: line(11.6, 16.1, 19.2),
                 ..automatics.clone()
             }),
-            // 9-10: 1.32 19.1, 0.85 24.6, 0.70 27.1, 0.55 29.4, 0.40 31.9; 13-15: 18.5, 23.5, 25.5, 27.8, 29.7.
-            rifle: TypeCalibration::Pooled(ClassCalibration {
+            // 9-10: 1.32 19.1, 0.85 24.6, 0.70 27.1, 0.55 29.4, 0.40 31.9; 13-15: 18.5, 23.5, 25.5, 27.8, 29.7. Line 9-10 8.7
+            // 15.1 20.5, 13-15 10.2 15.1 18.4.
+            rifle: TypeCalibration::Own(ClassCalibration {
                 points: points(&[(0.4, 30.8), (0.55, 28.6), (0.7, 26.3), (0.85, 24.05), (1.32, 18.8), (1.6, 16.5), (2.0, 13.6)]),
+                ladder: line(9.45, 15.1, 19.45),
                 ..automatics.clone()
             }),
             mg: TypeCalibration::Pooled(automatics),
@@ -328,7 +335,7 @@ impl Default for AimCalibration {
                     (0.85, 29.25),
                     (1.0, 28.75),
                 ]),
-                ladder: ladder([18.7, 19.8, 22.3, 25.2, 28.4, 28.9]),
+                ladder: line(18.2, 25.1, 30.0),
                 ladder_factors: (1.18, 1.24, 0.72),
             }),
             // 9-10 only; its spreads are 1.4-5.3 points (1.5-2 k shots a step), hence the dip at 0.2. Part 1: 1.40 38.9, 0.85
@@ -347,7 +354,7 @@ impl Default for AimCalibration {
                     (3.0, 32.4),
                     (4.5, 26.9),
                 ]),
-                ladder: ladder([32.4, 29.2, 33.4, 35.2, 35.2, 39.1]),
+                ladder: line(34.4, 37.2, 41.6),
                 ladder_factors: (0.74, 0.97, 1.4),
             }),
         }
@@ -735,11 +742,11 @@ mod tests {
         let calibration = AimCalibration::default();
         assert_eq!(calibration.check(), Ok(()), "the shipped calibration is in order");
         let automatics = calibration.of(WeaponClass::Rifle).unwrap();
-        // Each type its own sweep (A267(a)); the machine guns still the automatics' (#1089's).
+        // Each type its own sweep and line (A267(a)); the machine guns still the automatics' (#1089's, A243's six steps).
         assert_ne!(calibration.of(WeaponClass::Smg), Some(automatics));
-        assert_eq!(calibration.of(WeaponClass::MachineGun).map(|mg| &mg.ladder), Some(&automatics.ladder));
+        assert_eq!(calibration.of(WeaponClass::MachineGun).map(|mg| mg.ladder.len()), Some(6));
         assert_eq!(calibration.of(WeaponClass::Pistol), None);
-        // The automatics pooled, the others their own, the pistols not measured.
+        // The machine guns pooled, the others their own, the pistols not measured.
         let kinds: Vec<_> = [WeaponClass::Pistol, WeaponClass::Smg, WeaponClass::Rifle, WeaponClass::MachineGun, WeaponClass::Shotgun, WeaponClass::Marksman, WeaponClass::Bolt]
             .map(|class| match calibration.type_of(class) {
                 TypeCalibration::NotMeasured => "none",
@@ -747,7 +754,7 @@ mod tests {
                 TypeCalibration::Own(_) => "own",
             })
             .to_vec();
-        assert_eq!(kinds, ["none", "pooled", "pooled", "pooled", "own", "own", "own"]);
+        assert_eq!(kinds, ["none", "own", "own", "pooled", "own", "own", "own"]);
         // The sweep (the rifles': A267(a)'s down to 0.40, #1089's above 1.32): at a point and between two.
         let points = &automatics.points;
         assert!(near(points.factor_for(24.05), 0.85));
@@ -769,12 +776,16 @@ mod tests {
         assert_eq!(marksman.points.factor_for(30.07), Some(0.2));
         assert!(near(marksman.points.factor_for(29.25), 0.55));
         assert!(near(shotgun.points.factor_for(20.4), 1.0));
-        // On the line: the shipped skill-1 factor gives the ladder's end, and a rate maps to its factor and back.
-        assert!(near(automatics.at_skill_1(1.32), 18.6));
-        assert!(near(automatics.factor_for(18.6), 1.32));
+        // On the line: the shipped skill-1 factor gives the line's end, and a rate maps to its factor and back.
+        let end = automatics.ladder.last().unwrap().1;
+        assert!(near(automatics.at_skill_1(1.32), end));
+        assert!(near(automatics.factor_for(end), 1.32));
         let nineteen = automatics.factor_for(19.0).unwrap();
         assert!(near(automatics.at_skill_1(nineteen), 19.0));
-        assert!(near(marksman.rates().map(|(_, top)| top), 29.72));
+        // The sweep's reach, put on the line: its top is the first point's rate, moved by the line's end less the sweep's
+        // rate at the shipped factor.
+        let moved = marksman.ladder.last().unwrap().1 - marksman.points.rate_at(0.72).unwrap();
+        assert!(near(marksman.rates().map(|(_, top)| top), 30.07 + moved));
         // The owner's bar in words, and a rate against it (as the page shows it, to a tenth).
         assert_eq!((automatics.bar_text(), shotgun.bar_text()), ("18–20".to_owned(), "20".to_owned()));
         let pistol_bar = ClassCalibration { bar: (0.0, 25.0), ..automatics.clone() };
@@ -841,11 +852,13 @@ mod tests {
         for &(skill, rate) in &automatics.ladder {
             assert!((shipped.at(skill) - rate).abs() < 1e-4, "{skill}: {}", shipped.at(skill));
         }
-        assert!((shipped.at(0.3) - (11.95 + 14.0) / 2.0).abs() < 1e-4);
-        // 19 % at skill 1: +0.4 there, +0.24 at 0.8 (its weight 0.6), none at 0.5 and under.
+        let ((s0, r0), (s1, r1)) = (automatics.ladder[0], automatics.ladder[1]);
+        assert!((shipped.at((s0 + s1) / 2.0) - (r0 + r1) / 2.0).abs() < 1e-4, "straight between its steps");
+        // 19 % at skill 1: all of the change there, 0.6 of it at 0.8 (the dial's weight), none at 0.5 and under.
         let nineteen = line(automatics.factor_for(19.0).unwrap());
+        let change = 19.0 - shipped.at(1.0);
         assert!((nineteen.at(1.0) - 19.0).abs() < 1e-3);
-        assert!((nineteen.at(0.8) - shipped.at(0.8) - 0.24).abs() < 1e-3);
+        assert!((nineteen.at(0.8) - shipped.at(0.8) - 0.6 * change).abs() < 1e-3);
         for skill in [0.0, 0.2, 0.4, 0.5] {
             assert_eq!(nineteen.at(skill), shipped.at(skill), "{skill}");
         }

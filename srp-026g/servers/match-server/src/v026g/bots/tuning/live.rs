@@ -356,8 +356,8 @@ fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
 
 /// [A266] How the page's expected rates are had from the bench's numbers.
 const METHOD: Text = Text {
-    en: "Expected hits a shot, % (a shotgun: a pellet), on each class's line: the bench's ladder (A243, measured at skill 0, 0.2, 0.4, 0.6, 0.8 and 1 with the shipped factors), straight between its steps; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements.",
-    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного класу: драбина стенду (A243, виміряна на навичці 0, 0.2, 0.4, 0.6, 0.8 і 1 з типовими факторами), пряма між її кроками; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри.",
+    en: "Expected hits a shot, % (a shotgun: a pellet), on each type's line: the bench's measured rates with the shipped factors (at skill 0, 0.5 and 1; the shotgun at A243's 0, 0.2, ... 1), straight between them; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements. A default line may sit off its bar: the row says so.",
+    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного типу: виміряні стендом ставки з типовими факторами (на навичці 0, 0.5 і 1; дробовик — на кроках A243 0, 0.2, ... 1), пряма між ними; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри. Типова лінія може бути поза планкою: рядок про це каже.",
 };
 
 /// A band of the players' equipment, as the page names it.
@@ -1224,28 +1224,39 @@ mod tests {
         let group = view.groups.iter().find(|group| group.key == "hits").unwrap();
         assert_eq!(group.source.as_deref(), Some(shipped.calibration.source.as_str()));
         let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
-        assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.6", "18.6"));
+        let rifles = shipped.calibration.of(WeaponClass::Rifle).unwrap();
+        let shown = format!("{:.1}", rifles.at_skill_1(1.32).unwrap());
+        assert_eq!((rifle.value.as_str(), rifle.default.as_str()), (shown.as_str(), shown.as_str()));
         // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
-        // to ~1.49, ~17.2 %) to the sweep's top (A267(a): 30.8 % at 0.40, on the line 30.6), the owner's bar beside.
-        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–30.6 % (default bar 18–20 %)"), "{}", rifle.limits);
+        // to ~1.49) to the sweep's top (A267(a): 30.8 % at 0.40, put on the line), the owner's bar beside.
+        let top = rifles.rates().unwrap().1;
+        assert!(rifle.limits.ends_with(&format!("–{top:.1} % (default bar 18–20 %)")), "{}", rifle.limits);
         let span_low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
-        assert_eq!(
-            rifle.beside.as_deref(),
-            Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77); not measured on its own yet: partly the pool's numbers")
-        );
+        assert!((rifles.at_skill_1(1.6).unwrap().into()..rifles.at_skill_1(1.32).unwrap().into()).contains(&span_low), "{span_low}");
+        assert!(rifle.beside.as_deref().unwrap().starts_with("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"), "{rifle:?}");
         let shotgun = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.shotgun").unwrap();
         assert!(shotgun.limits.ends_with("(default bar 20 %)") && !shotgun.beside.as_deref().unwrap().contains("pool"), "{shotgun:?}");
-        // A default line off its bar is kept and said plainly (A267): the shotgun's 18.8 and the DMR's 28.9 under theirs.
-        assert!(shotgun.beside.as_deref().unwrap().ends_with("; 18.8 % at skill 1, under its bar 20 %"), "{shotgun:?}");
-        let dmr = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.marksman").unwrap();
-        assert!(dmr.beside.as_deref().unwrap().ends_with("; 28.9 % at skill 1, under its bar 30–32 %"), "{dmr:?}");
-        assert_eq!(dmr.value, dmr.default);
+        // A default line off its bar is kept and said plainly (A267), each type in its own words; one on it says nothing.
+        for knob in group.knobs.iter().filter(|knob| knob.state == KnobState::Settable) {
+            let Unit::Hits { class } = super::knob(&knob.key).unwrap().unit else { continue };
+            let numbers = shipped.calibration.of(class).unwrap();
+            let rate = numbers.at_skill_1(shipped.aim.class_aim.of(class).2).unwrap();
+            let beside = knob.beside.as_deref().unwrap();
+            match numbers.against_bar(rate) {
+                Some(side) => {
+                    let note = format!("{rate:.1} % at skill 1, {side} its bar {} %", numbers.bar_text());
+                    assert!(beside.ends_with(&note), "{beside}");
+                }
+                None => assert!(!beside.contains("its bar"), "{beside}"),
+            }
+            assert_eq!(knob.value, knob.default, "{}", knob.key);
+        }
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
         assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
         // 19 % for the rifles: their skill-1 factor from the calibration, the lower two kept; the next match runs on it.
         let made = set(&live, &[("aim.class_aim.rifle", "19 %")]).unwrap();
         let said: Vec<_> = made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())).collect();
-        assert_eq!(said, [("aim.class_aim.rifle", "18.6", "19.0")]);
+        assert_eq!(said, [("aim.class_aim.rifle", shown.as_str(), "19.0")]);
         let factor = shipped.calibration.of(WeaponClass::Rifle).unwrap().factor_for(19.0).unwrap();
         let next = live.for_match();
         let (low, middle, high) = next.tuning().aim.class_aim.rifle;
@@ -1261,7 +1272,7 @@ mod tests {
         let under = format!("{:.1}", span_low - 0.2);
         for bad in [
             ("aim.class_aim.rifle", under.as_str()),
-            ("aim.class_aim.rifle", "31"),
+            ("aim.class_aim.rifle", "35"),
             ("aim.class_aim.rifle", "13"),
             ("aim.class_aim.rifle", "0"),
             ("aim.class_aim.rifle", "NaN"),
@@ -1275,16 +1286,21 @@ mod tests {
         }
         let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
         assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
-        // The rifles at the bottom of their span, the bolts at their bar and the DMRs inside their narrow span (on the
-        // line, 28.4-29.7 %: the sweep's 29.25 % at the shipped 0.72 is the ladder's 28.9 at skill 1).
+        // The rifles at the bottom of their span, the bolts at their bar and the DMRs inside their narrow span (the
+        // sweep's ~1.3 points, put on the line).
         let at_low = format!("{:.1}", span_low + 0.1);
         set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
-        set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "28.5")]).unwrap();
+        let (dmr_low, dmr_top) = shipped.calibration.of(WeaponClass::Marksman).unwrap().rates().unwrap();
+        let dmr_in = format!("{:.2}", (dmr_low + dmr_top) / 2.0);
+        set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", dmr_in.as_str())]).unwrap();
         let next = live.for_match();
         let factor_for = |class: WeaponClass, rate: f32| shipped.calibration.of(class).unwrap().factor_for(rate).unwrap();
         assert!((next.tuning().aim.class_aim.bolt.2 - factor_for(WeaponClass::Bolt, 40.0)).abs() < 1e-4);
-        assert!((next.tuning().aim.class_aim.marksman.2 - factor_for(WeaponClass::Marksman, 28.5)).abs() < 1e-4);
-        assert!(set(&live, &[("aim.class_aim.marksman", "29.8")]).unwrap_err().contains("outside the bench's points (28.4–29.7 %)"));
+        let dmr_in: f32 = dmr_in.parse().unwrap();
+        assert!((next.tuning().aim.class_aim.marksman.2 - factor_for(WeaponClass::Marksman, dmr_in)).abs() < 1e-4);
+        let over_top = format!("{:.1}", dmr_top + 0.3);
+        let outside = format!("outside the bench's points ({dmr_low:.1}–{dmr_top:.1} %)");
+        assert!(set(&live, &[("aim.class_aim.marksman", over_top.as_str())]).unwrap_err().contains(&outside));
         // Over the owner's bar, within the points (A267): the SMGs at 21 % and the bolts at 42 %.
         set(&live, &[("aim.class_aim.smg", "21"), ("aim.class_aim.bolt", "42")]).unwrap();
         let over = live.for_match();
@@ -1304,18 +1320,22 @@ mod tests {
         }
     }
 
-    /// [A266] The page's expected rates for the shipped tuning are A243's measured line (PR #1089's "after" rows,
-    /// weighed; the two tiers' mean where both ran) within its rounding at each skill step it measured, straight between
-    /// them; the class rows' skill-1 values are their lines' ends; the pistols are not measured.
+    /// [A266, A267] The page's expected rates for the shipped tuning are the bench's measured lines (weighed; the two
+    /// tiers' mean where both ran) within their rounding at each step measured, straight between them: A267(a)'s
+    /// (fx-fights, 2026-11-02) at skill 0, 0.5 and 1, the shotgun and the machine guns still A243's (#1089's "after",
+    /// skill 0, 0.2, ... 1); the type rows' skill-1 values are their lines' ends.
     #[test]
-    fn the_rates_shown_for_the_defaults_are_a243s_line() {
-        let measured: [(&str, &[[f32; 6]]); 6] = [
-            ("SMGs", &[[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], [10.1, 12.0, 13.9, 15.8, 18.4, 18.8]]),
-            ("Rifles (automatic)", &[[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], [10.1, 12.0, 13.9, 15.8, 18.4, 18.8]]),
-            ("Machine guns", &[[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], [10.1, 12.0, 13.9, 15.8, 18.4, 18.8]]),
-            ("Shotguns (a pellet)", &[[11.1, 12.9, 14.1, 16.6, 18.3, 19.2], [11.1, 13.0, 15.1, 17.1, 18.4, 18.4]]),
-            ("DMRs", &[[18.7, 19.8, 22.3, 25.2, 28.4, 28.9]]),
-            ("Bolt actions", &[[32.4, 29.2, 33.4, 35.2, 35.2, 39.1]]),
+    fn the_rates_shown_for_the_defaults_are_the_benchs_lines() {
+        let halves: &[f32] = &[0.0, 0.5, 1.0];
+        let fifths: &[f32] = &[0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
+        let automatics: &[&[f32]] = &[&[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], &[10.1, 12.0, 13.9, 15.8, 18.4, 18.8]];
+        let measured: [(&str, &[f32], &[&[f32]]); 6] = [
+            ("SMGs", halves, &[&[11.6, 16.1, 19.2]]),
+            ("Rifles (automatic)", halves, &[&[8.7, 15.1, 20.5], &[10.2, 15.1, 18.4]]),
+            ("Machine guns", fifths, automatics),
+            ("Shotguns (a pellet)", fifths, &[&[11.1, 12.9, 14.1, 16.6, 18.3, 19.2], &[11.1, 13.0, 15.1, 17.1, 18.4, 18.4]]),
+            ("DMRs", halves, &[&[18.2, 25.1, 30.0]]),
+            ("Bolt actions", halves, &[&[34.4, 37.2, 41.6]]),
         ];
         let view = LiveTuning::default().view();
         let rates = &view.rates;
@@ -1323,30 +1343,31 @@ mod tests {
         let skills: Vec<f32> = rates.points.iter().map(|point| point.skill).collect();
         assert_eq!(skills, [0.0, 0.5, 1.0, 0.0, 0.3, 0.6, 0.2, 0.5, 0.8, 0.3, 0.6, 0.9]);
         let hits = view.groups.iter().find(|group| group.key == "hits").unwrap();
-        let mut steps = 0;
-        for (label, rows) in measured {
+        let mut on_steps = 0;
+        for (label, steps, rows) in measured {
             let shown = line(rates, label);
-            let mean = |step: usize| rows.iter().map(|row| row[step]).sum::<f32>() / rows.len() as f32;
+            let mean = |i: usize| rows.iter().map(|row| row[i]).sum::<f32>() / rows.len() as f32;
             for (point, rate) in rates.points.iter().zip(&shown) {
-                let step = point.skill * 5.0;
-                let expected = if (step - step.round()).abs() < 1e-4 {
-                    steps += 1;
-                    mean(step.round() as usize)
+                let i = steps.iter().rposition(|&step| step <= point.skill + 1e-4).unwrap();
+                let expected = if (steps[i] - point.skill).abs() < 1e-4 {
+                    on_steps += 1;
+                    mean(i)
                 } else {
-                    let below = step.floor() as usize;
-                    mean(below) + (mean(below + 1) - mean(below)) * (step - step.floor())
+                    mean(i) + (mean(i + 1) - mean(i)) * (point.skill - steps[i]) / (steps[i + 1] - steps[i])
                 };
                 assert!((rate - expected).abs() <= 0.05 + 1e-4, "{label} at {}: {rate} vs {expected}", point.skill);
             }
             let knob = hits.knobs.iter().find(|knob| knob.label.en == label).unwrap();
             assert_eq!(knob.value, format!("{:.1}", shown[2]), "{label}");
         }
-        assert_eq!(steps, 6 * 7, "0, 1 and the bands' 0.0, 0.6, 0.2, 0.8, 0.6: a class's points on the ladder's steps");
+        // On the steps: 0, 0.5, 1 and the bands' 0.0, 0.5 a type on halves; 0, 1 and the bands' 0.0, 0.6, 0.2, 0.8, 0.6 on
+        // fifths.
+        assert_eq!(on_steps, 4 * 5 + 2 * 7);
         let pistols = rates.classes.iter().find(|class| class.label.en == "Pistols").unwrap();
         assert!(matches!(pistols.line, ClassLine::Unknown(_)));
-        // The automatics on the pool's numbers, said so; the others their own.
+        // The machine guns on the pool's numbers (the automatics'), said so; the others their own.
         let pooled: Vec<_> = rates.classes.iter().filter(|class| matches!(class.line, ClassLine::Pooled(_))).map(|class| class.label.en).collect();
-        assert_eq!(pooled, ["SMGs", "Rifles (automatic)", "Machine guns"]);
+        assert_eq!(pooled, ["Machine guns"]);
         // On `all_off.json`'s factors (every class 1, the straight curve) the bench's line is not the class's: none shown.
         let mut off = Tuning::default();
         off.aim.class_aim = super::super::ClassAim::same();
@@ -1364,16 +1385,17 @@ mod tests {
             pairs.iter().map(|(key, text)| ((*key).to_owned(), (*text).to_owned())).collect()
         };
         let edit = |key: &str, old: &str, new: &str| Edit { key: key.to_owned(), old: old.to_owned(), new: new.to_owned() };
-        // A target: 19 % for the rifles at skill 1, 0.4 over their line's end; at each point its weight of it.
+        // A target: 19 % for the rifles at skill 1, its change from their line's end there; at each point its weight of it.
         let rifles = asked(&[("aim.class_aim.rifle", "19")]);
         let preview = live.preview(&rifles).unwrap();
-        assert_eq!(preview.edits, [edit("aim.class_aim.rifle", "18.6", "19.0")]);
+        let (before, after) = (line(&preview.before, "Rifles (automatic)"), line(&preview.after, "Rifles (automatic)"));
+        assert_eq!(preview.edits, [edit("aim.class_aim.rifle", &format!("{:.1}", before[2]), "19.0")]);
         assert_eq!(preview.before, live.view().rates);
         assert_eq!(preview.after.points, preview.before.points);
-        let (before, after) = (line(&preview.before, "Rifles (automatic)"), line(&preview.after, "Rifles (automatic)"));
+        let change = 19.0 - before[2];
         let weights = [0.0, 0.0, 1.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.6, 0.0, 0.2, 0.8];
         for ((old, new), weight) in before.iter().zip(&after).zip(weights) {
-            assert!((new - old - 0.4 * weight).abs() < 1e-3, "{before:?} -> {after:?}");
+            assert!((new - old - change * weight).abs() < 1e-3, "{before:?} -> {after:?}");
         }
         for other in ["SMGs", "Machine guns", "Shotguns (a pellet)", "DMRs", "Bolt actions"] {
             assert_eq!(line(&preview.after, other), line(&preview.before, other), "{other}");
@@ -1396,7 +1418,7 @@ mod tests {
         }
         // Refused as a set refuses them, with the same reason; nothing changes.
         for bad in [
-            &[("aim.class_aim.rifle", "31")][..],
+            &[("aim.class_aim.rifle", "35")][..],
             &[("aim.class_aim.rifle", "13")],
             &[("skill.tiers.9-10.max", "0.4")],
             &[("aim.class_aim.pistol", "20")],
