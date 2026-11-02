@@ -221,7 +221,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .stats-panels { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); border:1px solid var(--rule); background:var(--panel); margin-top:20px }
 .stats-heading { margin:26px 0 10px; font-size:1.1rem }
 .stats-table { border-collapse:collapse; width:100%; font:.82rem var(--data); background:var(--panel); border:1px solid var(--rule) }
-.stats-table th,.stats-table td { padding:6px 9px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:baseline }
+.stats-table th,.stats-table td { padding:6px 7px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:baseline }
 .stats-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }
 .stats-table .l { text-align:left; font-family:var(--body) }
 .stats-table .sorted { color:var(--accent) }

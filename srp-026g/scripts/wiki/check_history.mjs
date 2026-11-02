@@ -83,6 +83,8 @@ try {
   }
   const text = selector => evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent ?? null`);
   const count = selector => evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
+  const panel = label => evaluate(`[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === ${JSON.stringify(label)})?.nextSibling.textContent ?? null`);
+  const columns = async () => (await evaluate("[...document.querySelectorAll('.stats-table thead th')].map(th => th.textContent).join('\\n')")).split('\n');
   const top = selector => evaluate(`Math.round(document.querySelectorAll('.stats-heading')[${selector}].getBoundingClientRect().top)`);
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
 
@@ -107,6 +109,11 @@ try {
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-table tbody tr')].map(r => Number(r.children[7].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), 'kills');
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the board');
+  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Artefacts').click()");
+  await settled();
+  assert.equal(answered.top.by, 'artefacts');
+  assert.equal(await text('.stats-table thead th.sorted'), 'Artefacts');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-table tbody tr')].map(r => Number(r.children[13].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by artefacts');
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
   assert.equal(await count('.stats-table tbody tr'), 2);
@@ -138,13 +145,16 @@ try {
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/wiki/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 22, 'the panels are drawn before their data');
+  assert.equal(await count('.stats-panels dd'), 23, 'the panels are drawn before their data');
   const loading = await top(0);
   await settled();
   assert.equal(await top(0), loading, 'no layout jump');
   assert.equal(await text('#stats-title'), 'Sheep');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
   assert.equal(await count('.stats-table tbody tr'), 15);
+  assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
+  assert.ok((await columns()).includes('Artefacts'), 'a match line has its artefacts');
+  assert.equal(await evaluate("[...document.querySelectorAll('.table-scroll')].every(box => box.scrollWidth <= box.clientWidth)"), true, 'the matches fit the width');
   await screenshot('player');
   await evaluate("document.querySelector('.stats-paged button').click()");
   await settled();
@@ -183,6 +193,7 @@ try {
   assert.equal(await count('.stats-table'), 2);
   assert.equal(await count('.stats-table tbody tr'), 12);
   assert.match(await text('.stats-heading'), /^Team 1 · \d/);
+  assert.ok((await columns()).includes('Artefacts'));
   await screenshot('match');
   await navigate('/wiki/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
@@ -193,6 +204,8 @@ try {
   assert.equal(await count('.stats-table:first-of-type tbody tr'), 3 + 15);
   assert.match(await text('.stats-table tbody tr td'), /Sheep · Commander/);
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Members').nextSibling.textContent"), String(answered.clan.clan.members));
+  assert.equal(await panel('Artefacts'), String(answered.clan.totals.artefacts));
+  assert.ok((await columns()).includes('Artefacts'), 'the members have theirs');
   await screenshot('clan');
   await navigate('/wiki/stats?clan=NONE&lang=en');
   assert.equal(await text('.stats-empty'), 'No clan tagged [NONE].');
@@ -202,6 +215,7 @@ try {
   await navigate('/wiki/stats?player=Sheep&lang=uk');
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
   assert.equal(await text('.stats-heading'), 'Матчі');
+  assert.notEqual(await panel('Артефакти'), null);
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await screenshot('player-mobile-uk');

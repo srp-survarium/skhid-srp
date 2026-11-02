@@ -11,7 +11,7 @@ const random = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return Ma
 const round = (value, places) => Math.round(value * 10 ** places) / 10 ** places;
 const players = NAMES.map((name, i) => ({id: 1042 + i, name, level: name === 'Nova' ? 1 : 34 - 2 * i, experience: name === 'Nova' ? 0 : 1234567 - 90000 * i, rating: 1180 - 20 * i}));
 const ref = p => ({id: p.id, name: p.name, clan: CLAN_OF[p.name] ? {id: CLAN_OF[p.name], tag: CLANS.find(c => c.id === CLAN_OF[p.name]).tag} : null});
-const COUNTERS = ['matches', 'wins', 'losses', 'kills', 'deaths', 'assists', 'score', 'headshots', 'grenade_kills', 'melee_kills', 'batteries', 'captures'];
+const COUNTERS = ['matches', 'wins', 'losses', 'kills', 'deaths', 'assists', 'score', 'headshots', 'grenade_kills', 'melee_kills', 'batteries', 'captures', 'artefacts'];
 function totals(lines) {
   const t = Object.fromEntries(COUNTERS.map(k => [k, 0]));
   for (const l of lines) {
@@ -32,7 +32,9 @@ for (let i = 0; i < 23; i++) {
     return {player: ref(p), level: p.level, team, place: 0, won: winner !== 'draw' && winner === team, left: k === 11 && i % 5 === 0,
       rating: p.rating, score: 60 + 25 * kills + random(90), kills, deaths, kd: round(kills / deaths, 2), assists: random(6),
       headshots: random(Math.max(kills, 1)), grenade_kills: random(2), melee_kills: random(10) === 0 ? 1 : 0,
-      batteries: mode === 'Batteries' ? random(4) : 0, captures: mode === 'Research' ? round(random(300) / 100, 2) : 0};
+      batteries: mode === 'Batteries' ? random(4) : 0, captures: mode === 'Research' ? round(random(300) / 100, 2) : 0,
+      // Not drawn from `random`, so the other numbers stay as they were.
+      artefacts: (7 * i + 3 * k) % 4};
   });
   const lines = all.filter(l => l.player.name !== 'Yasen' || i >= 8);
   for (const team of [0, 1]) lines.filter(l => l.team === team).sort((a, b) => b.score - a.score).forEach((l, k) => { l.place = k + 1; });

@@ -16,7 +16,7 @@
       hour: 'Hour', day: 'Day', rank: '#', level: 'Level', experience: 'Experience', rating: 'Rating',
       wins: 'Wins', losses: 'Losses', winRate: 'Win rate', kills: 'Kills', deaths: 'Deaths', kd: 'K/D',
       assists: 'Assists', score: 'Score', scoreAvg: 'Avg score', headshots: 'Headshots', grenadeKills: 'Grenade kills',
-      meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', members: 'Members', commander: 'Commander',
+      meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', artefacts: 'Artefacts', members: 'Members', commander: 'Commander',
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
       win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches',
@@ -31,7 +31,7 @@
       hour: 'Година', day: 'День', rank: '#', level: 'Рівень', experience: 'Досвід', rating: 'Рейтинг',
       wins: 'Перемоги', losses: 'Поразки', winRate: 'Частка перемог', kills: 'Вбивства', deaths: 'Смерті', kd: 'В/С',
       assists: 'Допомоги', score: 'Очки', scoreAvg: 'Сер. очки', headshots: 'У голову', grenadeKills: 'Гранатами',
-      meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', members: 'Учасники', commander: 'Командир',
+      meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', artefacts: 'Артефакти', members: 'Учасники', commander: 'Командир',
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
       win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі',
@@ -42,13 +42,13 @@
   }[lang];
   const PAGE = 15, TOP = 50;
   const BOARDS = {
-    players: ['rating', 'matches', 'wins', 'kills', 'score', 'headshots', 'batteries'],
-    clans: ['score', 'matches', 'wins', 'kills', 'headshots', 'batteries'],
+    players: ['rating', 'matches', 'wins', 'kills', 'score', 'headshots', 'batteries', 'artefacts'],
+    clans: ['score', 'matches', 'wins', 'kills', 'headshots', 'batteries', 'artefacts'],
     best: ['day', 'hour'],
     latest: [],
   };
   const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score: 'score',
-    headshots: 'headshots', batteries: 'batteries', day: 'day', hour: 'hour'};
+    headshots: 'headshots', batteries: 'batteries', artefacts: 'artefacts', day: 'day', hour: 'hour'};
   const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
   const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
@@ -187,7 +187,7 @@
     const v = key => totals ? n(totals[key]) : null;
     return [[TEXT.kills, v('kills')], [TEXT.deaths, v('deaths')], [TEXT.kd, totals ? kd(totals.kd) : null], [TEXT.assists, v('assists')],
       [TEXT.headshots, v('headshots')], [TEXT.grenadeKills, v('grenade_kills')], [TEXT.meleeKills, v('melee_kills')],
-      [TEXT.batteries, v('batteries')], [TEXT.captures, v('captures')]];
+      [TEXT.batteries, v('batteries')], [TEXT.captures, v('captures')], [TEXT.artefacts, v('artefacts')]];
   }
   function record(totals) {
     const v = key => totals ? n(totals[key]) : null;
@@ -207,7 +207,8 @@
     const columns = [...MATCH_COLUMNS, [TEXT.result, result, 'l'], [TEXT.place, row => n(row.place)],
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.assists, row => n(row.assists)], [TEXT.headshots, row => n(row.headshots)],
-      [TEXT.batteries, row => n(row.batteries)], [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+      [TEXT.batteries, row => n(row.batteries)], [TEXT.captures, row => n(row.captures)], [TEXT.artefacts, row => n(row.artefacts)],
+      [TEXT.rating, row => n(row.rating)]];
     root.replaceChildren(head(null, null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
     const card = await api('player', {name});
     if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, name)), finder());
@@ -224,7 +225,7 @@
       [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.assists, row => n(row.assists)],
       [TEXT.headshots, row => n(row.headshots)], [TEXT.grenadeKills, row => n(row.grenade_kills)],
       [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.batteries, row => n(row.batteries)],
-      [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+      [TEXT.captures, row => n(row.captures)], [TEXT.artefacts, row => n(row.artefacts)], [TEXT.rating, row => n(row.rating)]];
     const view = data => {
       const m = data && data.match;
       const winner = !m ? null : m.winner === 'draw' ? TEXT.draw : m.winner === null ? '—' : `${TEXT.team} ${m.winner + 1} ${TEXT.won}`;
@@ -250,7 +251,8 @@
       [TEXT.level, row => n(row.level)], [TEXT.rating, row => n(row.rating)], [TEXT.matches, row => n(row.totals.matches)],
       [TEXT.winRate, row => row.totals.matches ? rate(row.totals.win_rate) : '—'], [TEXT.kd, row => kd(row.totals.kd)],
       [TEXT.scoreAvg, row => row.totals.matches ? n(row.totals.score_avg) : '—'], [TEXT.kills, row => n(row.totals.kills)],
-      [TEXT.headshots, row => n(row.totals.headshots)], [TEXT.batteries, row => n(row.totals.batteries)]];
+      [TEXT.headshots, row => n(row.totals.headshots)], [TEXT.batteries, row => n(row.totals.batteries)],
+      [TEXT.artefacts, row => n(row.totals.artefacts)]];
     const matchColumns = [...MATCH_COLUMNS, [TEXT.points, row => row.team_points.map(n).join(' : ')], [TEXT.players, row => n(row.players)]];
     const head = data => panels(
       [TEXT.clan, [[TEXT.level, data ? n(data.clan.level) : null], [TEXT.members, data ? n(data.clan.members) : null],
@@ -294,14 +296,16 @@
       [TEXT.winRate, row => rate(row.totals.win_rate)], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
       [TEXT.kd, row => kd(row.totals.kd)], [TEXT.score, row => n(row.totals.score), '', 'score'],
       [TEXT.scoreAvg, row => n(row.totals.score_avg)], [TEXT.headshots, row => n(row.totals.headshots), '', 'headshots'],
-      [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries']];
+      [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries'],
+      [TEXT.artefacts, row => n(row.totals.artefacts), '', 'artefacts']];
     const clanColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.clan, row => link({clan: row.tag}, `[${row.tag}] ${row.name}`), 'l'],
       [TEXT.level, row => n(row.level)], [TEXT.members, row => n(row.members)],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
       [TEXT.winRate, row => rate(row.totals.win_rate)], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
       [TEXT.kd, row => kd(row.totals.kd)], [TEXT.score, row => n(row.totals.score), '', 'score'],
       [TEXT.scoreAvg, row => n(row.totals.score_avg)], [TEXT.headshots, row => n(row.totals.headshots), '', 'headshots'],
-      [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries']];
+      [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries'],
+      [TEXT.artefacts, row => n(row.totals.artefacts), '', 'artefacts']];
     const bestColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
       [TEXT.score, row => n(row.score), 'sorted'], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.match, row => link({match: row.match}, `${row.match}`)], [TEXT.ended, row => when(row.ended_at), 'l'],
