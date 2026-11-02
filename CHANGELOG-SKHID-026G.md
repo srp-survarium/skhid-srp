@@ -9,6 +9,47 @@ release that made it what it is now.
 
 ---
 
+## 2 Nov, 19:46 — Game update 43: new weapons, reloads and fixes (update required)
+
+<!-- Revision 43 (026g-rev43), released 2026-11-02 19:46 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+**20 new weapons**
+
+- OTs-14 Groza, FN SCAR-H, VHS-2 and FN Minimi.
+- MP5, SVU-A, L85A2, Fort-401 and Jackhammer.
+- CZ 75, MP-443, Beretta 93R, Glock 17 and Colt M1911.
+- AKMSU, FAMAS, H&K G3SG/1, Mauser M712, KS-23M and PPSh-41 Drum.
+- Includes their ammunition and kill-feed icons. Fort-401 uses a 100-round belt.
+
+**New-weapon balance**
+
+- New primary weapons tuned for distinct roles, with damage, penetration, distance falloff, fire rate, recoil and kick considered against AK-12 and Zubr +8. Pistols remain weaker backup weapons.
+- Groza has high penetration: 55 base, 66 with SP-6. L85A2 is available at equipment level 10.
+
+**Existing weapons**
+
+- Separate tactical and empty reloads for AK-74M, AK-74N, AKS-74U, AKMN, RPK, Uzi, AS Val, VSS, AK-12, A-545, ASh-12, 9A-91, VSK-94, PP-2000 and Vityaz, including applicable premium variants.
+- PKP gets updated animations and left-hand grip. Kick multiplier reduced from 1.00 to 0.85.
+- SOCOM 16 fire rate increases from 300 to 330 RPM.
+- Saiga-12 and its premium variant: magazine increases from 5 to 6 rounds; fire rate stays at 350 RPM.
+- Saiga-12 and Vepr-12 buckshot: damage multiplier increases from 0.14 to 0.15 (about 7.1% stronger). Slugs are unchanged.
+
+**Fixes and other changes**
+
+- Autobuy can be switched off and back on correctly, and refill-list refreshes preserve its setting.
+- Fixed dropped-weapon lifetime and pickup records that could cause resyncs across consecutive matches.
+- Fixed a replay crash involving ragdolls and the replay client.
+- Fixed stale loadout tooltips after swapping equipment.
+- Blackout is always the third room-vote option; its use prompt and progress indicator display correctly.
+- Military Medkit takes 2 seconds to activate, followed by a 1-second heal.
+- London and Rudnya Team Deathmatch spawn protection is 6 seconds.
+- New accounts receive the Novice backpack equipped and antitoxin in place of traps.
+
+Additional collimator/scope fits are deferred from this release.
+Replays recorded before revision 43 are incompatible with the updated simulation.
+
 ## 28 Oct, 18:37 — Game update 37: matchmaking, Research warnings and map data (update required)
 
 <!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. Shipped: #691, #692, #463, #694, #695, #696. -->
@@ -892,39 +933,3 @@ update changes what a match computes.
 - TODO: #1076 ASh-12: 425 rounds a minute (was 400)
 - TODO: #1075 MP7: armour piercing 0.3 -> 0.35
 - TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
-
-## 2 Nov, 19:46 — TODO: the owner's words (update required)
-
-<!-- Revision 43 (026g-rev43), released 2026-11-02 19:46 UTC. To be worded for players; what it shipped: -->
-
-- TODO: #1071 Game modes as a table (modes.tsv); battery-respawn-1 goes
-- TODO: #1074 Modifications and defects as tables; weapon-rolls-1 goes
-- TODO: #1072 Maps' rules as a table (maps.tsv), one value a level; game changes 3-5, 10
-- TODO: #1064 Rooms: one table for the room settings (rooms.tsv, read by srp)
-- TODO: #1084 PKP: recoil power 1 -> 0.85 (kicks a little less)
-- TODO: #1082 Rooms: the vote's third card is always Blackout
-- TODO: #1096 Pickup: the drop's gun is its copy, from the death to the drop's end
-- TODO: #1080 Lobby: a kit slot's card stays that slot's item after a swap
-- TODO: #1085 Armour as a table (armor.tsv); five edit lists go
-- TODO: #1099 SOCOM 16: 330 rounds a minute (was 300)
-- TODO: #1097 Saiga-12 / Vepr-12 buckshot x0.14 -> x0.15; Saiga-12 magazine 5 -> 6
-- TODO: #1101 Saiga-12 descriptions: drop the magazine's round count
-- TODO: #1102 Blackout: show the use prompt and its progress
-- TODO: #1086 Medicines as a table (medicines.tsv)
-- TODO: #1103 Military Medkit: 2 s to activate, its heal 1 s as before
-- TODO: #1104 Medicines: one source for their numbers
-- TODO: #1108 New accounts: the grant in one table, the Novice's backpack on the back
-- TODO: #949 Weapons batch 1 from 0.31a2: OTs-14 Groza, FN SCAR-H, VHS-2, FN Minimi (pack weapons-031@1)
-- TODO: #948 Weapons from 0.46c2: MP5, SVU, L85A2, Fort-401, Jackhammer and five pistols (packs weapons-046, weapons-046-camo)
-- TODO: #947 Weapons from 0.69d0: AKMSU, FAMAS, G3SG/1, Mauser M.712, KS-23M, PPSH-41 "Drum" (pack weapons-069@1)
-- TODO: #989 Tactical reload for the live one-clip guns from 0.29a3's clips (pack tactical-clips-029@1)
-- TODO: #995 Tactical reload for the one-clip guns 0.29a3 lacks, from 0.69d0's clips (pack tactical-clips-069@1)
-- TODO: #993 PKP Pecheneg: 0.69d0's animations (pack pkp-animations-069@1)
-- TODO: #1117 Fix replay crash from live-client ragdoll lookups
-- TODO: #1118 Keep autobuy enabled across refill item refreshes
-- TODO: #1120 Balance imported weapons against Zubr +8 with distinct roles
-- TODO: #1113 Items as a table (items.tsv): golden and premium items are ordinary rows
-- TODO: #1115 Shop rules as a table (shop.tsv); one price, the item's base_cost
-- TODO: #1114 Golden weapons in the weapon table; golden-weapons-1 goes
-- TODO: #1122 Fix pickup state leaking between matches and causing resyncs
-- TODO: #1128 Fix Autobuy turning itself off when enabled
