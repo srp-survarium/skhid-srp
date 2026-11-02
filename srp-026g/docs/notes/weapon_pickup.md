@@ -94,9 +94,9 @@
 - Synced: only each player's record (its drop: open with its kit and slot,
   or taken; for each weapon slot the gun picked into it: the pickup's tick
   and the recipe, the profile kit slot it was cooked from, read only to
-  cook it anew on a client without it; the pickup waiting for its switch),
-  20 bytes at the start of its state; nothing of the own kit a pick sets
-  aside. The command rides in the input (patch 78's bit 29 with a pattern of
+  cook it anew on a client without it; the pickup waiting for its switch;
+  each pick's own gun's wear at the swap), 28 bytes at the start of its
+  state; nothing else of the own kit a pick sets aside. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
 - My picks for stage 2a (the owner: "just don't overcomplicate the
@@ -160,15 +160,21 @@
   set aside is no game's own: hidden, the own gun has no magazine and no
   chambered round and each own stack is as the kit gives it (its slot
   word's allowance), in every game (`set_aside`, at every install); at a
-  pick's end the unload finds the pick's slot gun empty and every slot the
-  install moved a stack into empty (`refund_nothing`), whatever object is
-  there, so it refunds nothing for them, in every game. Why the two live
-  cases cannot happen: the store a pick's end leaves is the store before
-  plus what the unload refunds, and the unload now reads only counts the
-  patch wrote as constants (0) in every game, not counts any game kept on its
-  own; the record has no byte a game fills from its own objects. Unicorn
-  (`the_end_refunds_nothing_set_aside`): hidden 90 against 76 and 120 against
-  0, and a restore refused against one done, end with the same store;
+  pick's end the own kit comes back as the kit gives it, neither charged nor
+  refunded (`give_back_the_kit`): the unload finds the pick's slot gun empty
+  (its wear the record's), each slot an own stack was set aside from at its
+  kit allowance and each slot only a borrowed stack went into empty,
+  whatever object is there, in every game; the store is the same life's
+  without a pickup (the spawn's 108 in the harness: 30 in the gun, 78 in the
+  slot). (7c26df867 and before emptied the own slots too: 99 rounds lost a
+  pick, while the match server read a pick held at the match's end as the
+  kit gives it; it does still, so they agree now.) Why the two live cases
+  cannot happen: the store a pick's end leaves is the store before plus what
+  the unload refunds, and the unload now reads only counts the patch wrote
+  from the synced kit in every game, not counts any game kept on its own;
+  the record has no byte a game fills from its own objects. Unicorn
+  (`the_end_gives_back_the_kit`): hidden 90 against 76 and 120 against 0,
+  and a restore refused against one done, end with the baseline's store;
   rev41's build (#1024) on the same scenario: 14, 120 and 51 rounds apart.
 - **A recipe's source can't change mid-match.** A pick names its gun by its
   recipe (place, kit, slot): a game without a copy cooks it from that
@@ -204,7 +210,12 @@
   removal (`KEEP_GONE_MS`, past any rollback) and a loaded record with its drop
   open puts it in the world again, so a pickup replayed across the donor's
   respawn finds it; a world loaded with an open drop this client has no copy of
-  has it cooked before the load (`before_world_load`). A pickup still cooks in
+  has it cooked before the load (`before_world_load`). A copy lying in a
+  drop the world has open is that drop's gun, never counted idle for a
+  pick of the same recipe (a holder's pick of D's gun while D's next drop,
+  same kit and slot, is open): the joiner cooks another before the load, and
+  the reader (`let_go`) takes copies in an open drop only as its last resort
+  (`an_open_drops_gun_is_not_idle`). A pickup still cooks in
   its tick only for a death a client neither saw nor loaded (none known), or
   when the death's cook is not made by the pickup (milliseconds against the
   walk to the body).
@@ -358,12 +369,20 @@ cooked gun).
   held a picked gun, which vanishes, or anything else), a pickup the
   picker's slot's pick and the donor's drop taken, base_player::remove(1)
   the whole record empty (the drop ends with the body, the picks with the
-  life), the player's destruction the picks none. Its bytes (20, version
-  5): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
+  life), the player's destruction the picks none. Its bytes (28, version
+  6): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
   slot 10 a byte (0 none, else the recipe's place + 1, kit << 5, slot << 7)
   and the pickup's tick (u32); the pending pickup (8 bytes, "The switch"
-  above). (Version 4 had 28 more bytes, the own kit each pick set aside,
-  written from each game's own objects: the rev41 late joins, below.) The
+  above); for slot 7 and slot 10 the own gun's wear its pick hides (the
+  condition's f32 bits, weapon+270h, read at the swap while the world
+  still carried it; 0 without a pick). The pick's end gives it back to
+  the gun in the slot, whatever gun is there, before remove(1)'s unload
+  adds it to the profile item (0x2FD375); a loaded record puts it on the
+  hidden own gun (a joiner's own one is made up from the static info).
+  (Version 4 had 28 bytes of the own kit's counts, written from each
+  game's own objects: the rev41 late joins, below; version 5 had no wear:
+  a joiner and a refused restore unloaded 990000 and 1000000 where the
+  picker's game unloaded 930000, `the_own_wear_comes_back`.) The
   server reads the native fields from `FIELDS_AT = 2 + Record::BYTES`; for
   a player holding a pick it reads the kit's stacks it does not find (set
   aside) as the kit gives them, so autobuy charges nothing for them.
