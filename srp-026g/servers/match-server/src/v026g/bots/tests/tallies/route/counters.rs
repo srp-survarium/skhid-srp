@@ -661,6 +661,14 @@ pub(super) fn stranded() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The goals on no floor near them learned as no way (`think.goal_off_floor_no_way`, `path::off_floor_goals`).
+pub(super) fn off_floor_goals() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::off_floor_goals::counts()],
+        |d, line| line.ends.push(format!("off_floor_goals_no_way {}", d[0])),
+    )
+}
+
 /// The sights begun, those through half a metre of bush or more, and the bush metres of all
 /// (`foliage::through`).
 pub(super) fn foliage() -> Box<dyn RouteTopic> {
@@ -705,14 +713,15 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
 
 /// The drops a body held at their top shut to its searches (`unstick.drop_shut`, `stuck::drop_shuts`): the shuts, the
 /// landings shut, and what followed each: stuck again at the spot within 10 s, off it (down, or 2 m away), still there
-/// after 30 s, killed itself first (the rest: a new life or another shut ended the watch).
+/// after 30 s, killed itself first (the rest: a new life or another shut ended the watch); and the landings a search was not
+/// kept off as the body stood at their height or under them (`unstick.drop_shut_from_top`).
 pub(super) fn drop_shuts() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::drop_shuts::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "drop_shuts {} drop_shut_landings {} drop_shut_again {} drop_shut_left {} drop_shut_still {} drop_shut_self_kills {}",
-                d[0], d[1], d[2], d[3], d[4], d[5]
+                "drop_shuts {} drop_shut_landings {} drop_shut_again {} drop_shut_left {} drop_shut_still {} drop_shut_self_kills {} drop_shut_lifted {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6]
             ));
         },
     )
