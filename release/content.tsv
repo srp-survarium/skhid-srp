@@ -79,8 +79,6 @@ pack	lobby-stk2-bunker@8	fdb36c8e3e9ec691769278f09c9b0e8f361d1049a1d36a1d707f613
 pack	tactical-clips-029@1	93c87de0dc2fc47fe082535e57fc75b1d655fac36c6af589a34f34d673f2c170	a tactical reload for the live one-clip guns 0.29a3 reloads with two clips, as the vz. 58 (state 314, [reload_tactic, reload], reload_time as it is): the AK-74M, AK-74N, AKS-74U, AKMN, RPK, Uzi, AS Val, VSS and their premiums, 0.29a3's tactical and empty clips; made by resource-porter port-tactical-reload (scripts/tactical-clips/make_pack.sh; docs/notes/tactical-clips.md)
 pack	tactical-clips-069@1	ade2c59ef4ff4754446c0f6be95a85fdffb25ad5e68a33aaa5851ba71975a7e4	a tactical reload for the live one-clip guns 0.29a3 has none for, from 0.69d0's two clips where they fit our rig (state 314, reload_time as it is): the AK-12, A-545, ASh-12, 9A-91, VSK-94, PP-2000, PP-19 Vityaz and their premiums; made by resource-porter port-tactical-reload (scripts/tactical-clips/make_pack.sh; docs/notes/tactical-clips.md)
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
-edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
-edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
 edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263)
 edit	death-poses-1.json	-	the face-down death pose out of the rifles' and pistols' death animations (the death camera looked into the arms)
@@ -88,7 +86,6 @@ edit	crouch-steps-1.json	-	crouched steps audible: the walking steps at 40 % for
 edit	weapon-camo-1.json	-	the 83 weapon configs take a camouflage: parameters/camo_available and a data table with camo_scale 4.0 (#244, client patch 44)
 edit	weapon-decals-1.json	-	the same 83 weapon configs take decals (two since client patch 68): parameters/decal_available and an empty data/decals (#244, client patch 47; after weapon-camo-1)
 edit	weapon-attachments-1.json	-	the weapon window says Attachments: st_srp_attachments in the six localization tables, the lobby's scope_window_title mapped to it; Ukrainian Appearance is Вигляд (#244)
-edit	premium-armour-1.json	-	premium armour: its experience and reputation bonuses rerollable modifications of its own, upgradable as the plain piece (after golden-weapons-1)
 edit	lobby-scene-2.json	-	the lobby without the New Year tree, its gifts and the Christmas sound; the bulb above the workbench lit (a point light of its own, the ceiling lamp's copied: its warm colour, intensity 3, range 5 m) and a second bulb as the bench one (level/lobby/bench_bulb of pack lobby-bulb@1, tilted on a drop wire, a wire_set) with its light (intensity 1.15, range 4 m, attenuation 2) over the artefact table, lighting the weapon from the camera's side; lobby-bench-light-1 (the fill light under the bench) withdrawn
 edit	crouch-steps-2.json	-	crouched steps fire: the 16 moving crouch clips get the player_sound_events channel run and sprint have (2 steps a cycle), so the crouch pairs of crouch-steps-1 play (T27)
 edit	protective-mask-1.json	-	the Protective mask (1816, the "hunter mask") is just a mask: it no longer covers the helmet slot, so a helmet is worn with it (T28; masks-pack.md)
@@ -105,8 +102,6 @@ edit	modifications.tsv	-	the modifications: a row each, its kind (the keys its m
 edit	defects.tsv	-	the defects: a row each, its kind, value, op, drop weight and fix price and time
 edit	headwear-1.json	-	the eight approved stock helmets and eight 0.29 helmets (Viper, Mercenary, Nomad, Pathfinder, Combat, Metal; Omicron and Warrior whole, collar and guard with them) use a separate render bone for cosmetic fly-off on death (the shared character bind pose gains that bone); Pilgrim excluded, animation skeleton unchanged
 edit	lobby-scenes-1.json	-	the classic lobby's weapon spot as data: lobby_scene/day's project gets srp_lobby (weapon (4.25, 1.30, 3.05), weapon_view -pi/2), which client patch 45 reads for the weapon above the workbench, as every lobby scene's project carries its own (docs/notes/lobby-scenes.md)
-edit	built-in-bonuses-1.json	-	built-in bonuses at the second-strongest strength (the owner, 2026-10-29; docs/notes/built-in-bonuses.md): every equipment item's default of a kind that rolls is raised to that kind's second-strongest row (never lowered), computed from the data; weapons and never-rolling kinds untouched
-edit	exo-suits-buff-1.json	-	the exoskeleton suits' built-in bonuses (the owner, 2026-10-29; docs/notes/exo-suits.md): Freedom movement +4 % (1113), energy costs -8 % (1163) and stamina regeneration +8 % (1103); Duty weight limit +5 kg (1124) and regeneration +15 % (1094)
 edit	artefact-carry-hint-1.json	-	the artifact take hint ("Take artifact (E)") in the existing collection widget; strings in the unified language catalog.
 edit	artefact-carry-flower-1.json	-	held-only Larkspur flower head; original ground model retains its stem
 edit	breakable-lamps-1.json	-	Shootable lamps including v0.11/v0.21 maps: bounds, intact/broken models, linked lights/cones and glass effect material; serialized by the client lamp patch (docs/notes/breakable_lamps.md)
@@ -126,4 +121,5 @@ edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
 edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
 edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, resupply, artefact search and cooldown
 edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
+edit	armor.tsv	-	the armour: a row a piece (slot/name), its armour numbers (hit_params by the armour rule), weight, oxygen, levels, rollable kinds and built-in bonuses, and its card
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

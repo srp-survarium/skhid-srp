@@ -4,7 +4,7 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
 ([golden_weapons.md](golden_weapons.md)), so that the Modification (reroll) button works on it. Code:
 `survarium::v026g::golden` (`PREMIUM_ARMOUR`), `session::v026g::items_rules`
 (`give_premium_armour_bonuses`), `Account::add_item`; the data:
-`scripts/content-edit/premium-armour-1.json`; the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
+`scripts/content-edit/armor.tsv` (rarity 0, no experience or reputation cell); the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
 `ItemFactory` (`isGolden`, `plainOf`, `startingModifiers`, `BONUS_UI`).
 
 - **The items:** every armour piece with a base rarity in the game's data, the jackets and trousers
