@@ -510,14 +510,14 @@ else
     echo "skip patch_026g.py in the dev shell (SRP_026G_EXE names no original survarium.exe)"
 fi
 
-# The stock db: an archive of a dictionary and a project.
+# The stock db: an archive of a dictionary and a project, each of nothing: a
+# binary config of an empty table (srp-game-data keeps a project cut to its
+# server objects, and refuses one that is not a config; build-content reads
+# the dictionary's items).
 mkdir -p "$T/stock/gameplay/items" "$T/stock/projects/p/day"
-echo "dictionary" >"$T/stock/gameplay/db_static_dictionaries"
-echo "old item" >"$T/stock/gameplay/items/a.txt"
-# A project of nothing: a binary config of an empty table (srp-game-data
-# keeps a project cut to its server objects, and refuses one that is not a
-# config).
 printf '\x18\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x03\0\0\0' >"$T/stock/projects/p/day/client_project"
+cp "$T/stock/projects/p/day/client_project" "$T/stock/gameplay/db_static_dictionaries"
+echo "old item" >"$T/stock/gameplay/items/a.txt"
 "$bin" pack --dir "$T/stock" --out "$T/resources.db" >/dev/null
 
 # build-patch
