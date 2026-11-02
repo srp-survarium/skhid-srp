@@ -222,6 +222,8 @@ impl ThreatOn {
 
 /// [A274] The threat's sensed place matches the shooter within this, m (`CombatTuning::threat_match_m`).
 const THREAT_MATCH_M: f32 = 6.0;
+/// [A274] The view's full width, degrees (`SenseTuning::view_deg`).
+const VIEW_DEG: f32 = 90.0;
 
 /// [A274] The episodes of one [`Kind`]: ticks in each stage before the hit (from the bot's own first sight of him to the hit, or
 /// to its first shot at him before it) and after it (to the first shot at him, the death or the window's end); the stage of the
@@ -242,6 +244,11 @@ struct KindCounts {
     fired_other_ticks: u64,
     /// By [`ThreatOn`].
     threat_on: [u64; 3],
+    /// The view band off him at the hit ([`BANDS_DEG`]); the ticks of [`Stage::Unseen`] with him inside the view's width (cover,
+    /// range or grass hid him) and outside it (a turn would have been needed).
+    band: [u64; BANDS_DEG.len() + 1],
+    unseen_in_view: u64,
+    unseen_out_of_view: u64,
     sight_to_shot: [u64; BINS],
     hit_to_shot: [u64; BINS],
 }
@@ -260,6 +267,9 @@ impl Default for KindCounts {
             targeted: 0,
             fired_other_ticks: 0,
             threat_on: [0; 3],
+            band: [0; BANDS_DEG.len() + 1],
+            unseen_in_view: 0,
+            unseen_out_of_view: 0,
             sight_to_shot: [0; BINS],
             hit_to_shot: [0; BINS],
         }
@@ -302,6 +312,9 @@ impl StageCounts {
         k.targeted += u64::from(hit.target_at.is_some());
         k.fired_other_ticks += u64::from(hit.fired_other_ticks);
         k.threat_on[hit.threat_on as usize] += 1;
+        k.band[hit.band] += 1;
+        k.unseen_in_view += u64::from(hit.unseen_in_view);
+        k.unseen_out_of_view += u64::from(hit.unseen_out_of_view);
         k.sight_to_shot[bin(seen.zip(hit.fire_him_at).map(|(s, f)| f.saturating_sub(s)))] += 1;
         k.hit_to_shot[bin(hit.fire_him_at.map(|f| f.saturating_sub(hit.at)))] += 1;
         if !hit.firing_before {
@@ -364,6 +377,9 @@ struct Open {
     fired_other_ticks: u32,
     /// [A274] Its first threat after the hit.
     threat_on: ThreatOn,
+    /// [A274] Its ticks of [`Stage::Unseen`] with him inside the view's width ([`VIEW_DEG`]) and outside it.
+    unseen_in_view: u32,
+    unseen_out_of_view: u32,
 }
 
 /// The first hits of one play (the play at the hit), by the stand-in human's or a bot's.
@@ -597,6 +613,15 @@ impl Topic for UnderFireCounts {
             hit.after[stage as usize] += 1;
             hit.last_stage = Some(stage);
             hit.fired_other_ticks += u32::from(firing && target.is_some());
+            if stage == Stage::Unseen
+                && let Some(him) = shooter_feet
+            {
+                if crate::v026g::bots::sense::in_view(rec.feet, rec.yaw, him, VIEW_DEG) {
+                    hit.unseen_in_view += 1;
+                } else {
+                    hit.unseen_out_of_view += 1;
+                }
+            }
             if stage == Stage::Turn {
                 let d = ((rec.yaw - at.prev.yaw + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI).abs();
                 hit.turn_deg += d.to_degrees();
@@ -679,6 +704,8 @@ impl Topic for UnderFireCounts {
                 engaged: false,
                 fired_other_ticks: 0,
                 threat_on: ThreatOn::Unset,
+                unseen_in_view: 0,
+                unseen_out_of_view: 0,
             });
             // [A274] Before the hit: its logged ticks from its own first sight of him (the sight unbroken since then) to the hit, or
             // to its first shot at him before it (then the fight was under way: `Kind::Engaged`).
@@ -800,7 +827,8 @@ impl Topic for UnderFireCounts {
                         "ended_in": by_stage(&c.ended_in), "ended_dead": by_stage(&c.ended_dead),
                         "turn_deg": (c.turn_deg * 1000.0).round() / 1000.0, "turn_ticks": c.turn_ticks, "seen": c.seen,
                         "targeted": c.targeted, "fired_other_ticks": c.fired_other_ticks,
-                        "threat_on": threat_on, "sight_to_shot": c.sight_to_shot.to_vec(),
+                        "threat_on": threat_on, "band": c.band, "unseen_in_view": c.unseen_in_view,
+                        "unseen_out_of_view": c.unseen_out_of_view, "sight_to_shot": c.sight_to_shot.to_vec(),
                         "hit_to_shot": c.hit_to_shot.to_vec(),
                     }),
                 );
@@ -862,6 +890,8 @@ mod tests {
             engaged: false,
             fired_other_ticks: 0,
             threat_on: ThreatOn::Unset,
+            unseen_in_view: 0,
+            unseen_out_of_view: 0,
         };
         let mut c = ByPlay::default();
         c.add(&hit, Some(1_800));
