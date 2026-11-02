@@ -3406,27 +3406,29 @@ def drawn_alone(patched):
     print("ok a respawn with the gun in the air: its copy drawn alone at the ragdoll's gun (bind pose), moved "
           "frame by frame as it falls on alone, at one place once it rests on the floor; offered there")
 
-    # The pickup: out of the scene at its registration (before the game may show it), once.
+    # The pickup: drawn on through the holster (nothing to aim at), out of the scene at the switch, once.
     alone, taken = r.save(PLAYER), r.now + 1_000
     r.pick(now=taken, switch=False)
-    r.took(("remove", copy))
-    r.step()
     r.step()
     r.took()
-    # A rollback undoing the pickup: drawn again; redone: out again; the swap removes nothing more.
+    assert r.in_scene(copy) and r.hud() == [("",)] and r.hud() == [], "holstering: still drawn, not offered"
+    # A rollback undoing the pickup: drawn on; replayed, still holstering: drawn on; the switch takes it out.
     r.load(PLAYER, alone)
     r.load(r.picker, record())
     r.reader(GUN_ID)
     r.step()
-    r.took(("add", copy), ("skin", copy))
     r.pick(now=taken, switch=False)
-    r.took(("remove", copy))
-    r.tick(now=taken + 300)
-    r.installed()
+    r.tick(ready=False, now=taken + 100)
     r.step()
     r.took()
-    print("ok the pickup takes it out at its registration, once; a rollback undoing it draws it again, the pickup "
-          "replayed takes it out again; the swap's install removes nothing more")
+    assert r.in_scene(copy)
+    r.tick(now=taken + 300)
+    r.installed()
+    r.took(("remove", copy))
+    r.step()
+    r.took()
+    print("ok a pickup of it: drawn on through the holster (not offered), as on a body, a rollback undoing and "
+          "replaying it changes nothing; out of the scene at the switch (the install), once")
 
     # The next death replaces the drop: out at the next frame; a rollback across it draws nothing stale.
     g = Alone(patched)
@@ -3491,6 +3493,8 @@ def drawn_alone(patched):
     assert [(e[0], e[1]) for e in events] == [("add", copy), ("skin", copy), ("add", scope)], events
     assert events[2][2] == SCOPE_AT
     o.pick(now=o.now + 1_000, switch=False)
+    o.took()
+    o.tick(now=o.now + 1_300)
     o.took(("remove", copy), ("remove", scope))
     print("ok a scoped gun's scope drawn at its locator (calculate_locator of +744h), out with the gun")
 

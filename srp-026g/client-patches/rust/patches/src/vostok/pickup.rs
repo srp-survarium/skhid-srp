@@ -834,8 +834,6 @@ unsafe fn registry_or(core: raw::CoreWorld, id: RegistryId, gun: raw::Item, repl
 /// (vtable+0, a weapon's 0x301CA0 says yes) and its id saved (0x2DB196).
 pub fn register_pending(player: &Player<'_>, cook: CookId, slot: WeaponSlot, id: RegistryId, select: Select)
                         -> Result<Registered, Refusal> {
-    // Drawn alone, its models are ours: out of the scene once the game has it.
-    gun_cook::hide(player.thread, cook);
     let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: the live player and its world core; the made cooked
     // inventory, its gun read as a weapon after its vtable.

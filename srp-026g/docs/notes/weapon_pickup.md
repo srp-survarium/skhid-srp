@@ -193,6 +193,8 @@ owner: "keep complexity down").
   its drop is open and alone (the record), of the death this client saw (the
   lone gun's life, the copy's drop), its cook made and its place in the world
   (`GameWorld::has_place`: a departed place's is neither offered nor drawn).
+  A taken one stays drawn while its pickup waits for the switch (as the
+  body's gun does: its textures keep their streaming instance), not offered.
   The prompt's pose is that one. Every other copy is hidden. One transition
   (`gun_cook::Drawn::to`: Hidden, or Lying with the models placed), reconciled
   each frame: a rollback just reconciles.
@@ -209,8 +211,8 @@ owner: "keep complexity down").
   would float off the gun. A model the game has in the scene is never touched.
 - **Lifetime.** The copy's ticket keeps which models it placed (`Drawn`): they
   leave the scene, each only while in it (a second removal does nothing), at
-  the start of `register_pending` and `install` (before the game may show the
-  gun: a pickup, the holster, a loaded record) and in the cooked inventory's
+  the start of `install` (before the game shows the gun: a pickup's switch, a
+  loaded record) and in the cooked inventory's
   drop before its reference is given back (every free: the 10 s margin, a
   departed player's destruction, the match's end). Everything else (taken,
   replaced by the next death, a departure, a rollback) is the next frame's.
@@ -232,9 +234,9 @@ owner: "keep complexity down").
   a gun or a ragdoll). `check_weapon_pickup_026g.py` (`drawn_alone`: the donor
   falls as patch 76's ragdoll, respawns 0.3 s after its death, the renderer's
   calls recorded): drawn at the hand-off in the air in its bind pose, moved
-  each frame until it rests on the floor, offered there; out at the pickup's
-  registration, once, a rollback undoing it draws it again, the swap removes
-  nothing more; the next death takes it out, a rollback across it and the
+  each frame until it rests on the floor, offered there; a pickup of it drawn
+  on through the holster (not offered), a rollback undoing and replaying it
+  changing nothing, out at the switch, once; the next death takes it out, a rollback across it and the
   replay draw nothing stale, its free removes nothing; a departure takes it
   out, a rollback across it draws it again, the destruction frees it with its
   model out first; a scope at its locator, out with the gun. Not run in a game.

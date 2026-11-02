@@ -19,8 +19,8 @@
 //!   completion frees what it made).
 //! - A made gun can be drawn alone ([`show`]: a drop's gun whose body left
 //!   the world); the ticket keeps which of its models it put in the scene,
-//!   and they come out ([`hide`]) before the game may show the gun (the
-//!   pickup's install and registration call it) and before it is freed (the
+//!   and they come out ([`hide`]) before the game shows the gun (the
+//!   pickup's install calls it: at the switch) and before it is freed (the
 //!   ticket's own drop): a model of a freed gun never stays in the scene.
 //!
 //! What to cook, when, and how long to wait is the patch's.

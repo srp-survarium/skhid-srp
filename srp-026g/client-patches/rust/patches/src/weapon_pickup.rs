@@ -1509,9 +1509,11 @@ pub struct LoneGun {
 /// Once a frame after the ragdolls' step (composed from ragdoll's
 /// `game_world.after_move`; `lone` each place's gun its body left): a
 /// place's copy is drawn alone at its lone gun while its drop is open and
-/// alone (the record: its body left), of the death this client saw, its copy
-/// made here and its place in the world (a departed place's is neither
-/// offered nor drawn); the prompt's pose follows. Every other copy is hidden.
+/// alone (the record: its body left), or taken with its pickup waiting for
+/// the switch (as on a body: the install hides it at the switch), of the
+/// death this client saw, its copy made here and its place in the world (a
+/// departed place's is neither offered nor drawn); the prompt's pose follows
+/// an open one. Every other copy is hidden.
 /// Nothing synced: a rollback just reconciles here.
 pub fn draw_alone(ctx: &Context<'_>, lone: &[Option<LoneGun>; PLACES as usize]) {
     let thread = ctx.thread();
@@ -1539,14 +1541,26 @@ pub fn draw_alone(ctx: &Context<'_>, lone: &[Option<LoneGun>; PLACES as usize]) 
 /// and its slot; the prompt's pose made that one.
 fn lying(thread: &Thread, world: WorldKey, place: Place, lone: LoneGun) -> Option<(CookId, WeaponSlot)> {
     let (record, last) = placed_at(thread, world, place);
-    let gun = record.drop.available().filter(|gun| gun.lying == Lying::Alone)?;
     let body = last.filter(|body| body.spawned == lone.life)?;
-    let (cook, from) = body_drop(thread, place, gun.recipe)?;
-    if from.body != body.player || from.life != Some(body.spawned) {
+    let gun = match record.drop {
+        DropState::Open(gun) => gun,
+        DropState::Taken(gun) if switching_from(thread, world, place) => gun,
+        _ => return None,
+    };
+    if gun.lying != Lying::Alone {
         return None;
     }
-    let pose = drop_box(thread, place, gun.recipe).and_then(|model| GunPose::at(lone.transform, model))?;
-    SEEN.with(thread, |seen| seen[usize::from(place.get())] = Some(Seen { body, pose }));
+    // Its copy: in its drop, or the pending pickup's taken from it.
+    let ours = |d: DropOf| d.place == place && d.body == body.player && d.life == Some(body.spawned) && d.lies == Lies::Current;
+    let cook = CACHE.with(thread, |cache| cache.iter().flatten().find_map(|e| match e.at {
+        At::Drop(d) | At::Pending(Waiting { from: d, .. }) | At::Overdue(Waiting { from: d, .. })
+            if e.recipe == gun.recipe && ours(d) => Some(e.gun.id()),
+        _ => None,
+    }))?;
+    // Taken: nothing to aim at (as ragdoll_gun).
+    let pose = record.drop.available().and_then(|_| drop_box(thread, place, gun.recipe))
+        .and_then(|model| GunPose::at(lone.transform, model));
+    SEEN.with(thread, |seen| seen[usize::from(place.get())] = pose.map(|pose| Seen { body, pose }));
     Some((cook, gun.recipe.slot))
 }
 
