@@ -335,8 +335,8 @@ fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
 
 /// [A266] How the page's expected rates are had from the bench's numbers.
 const METHOD: Text = Text {
-    en: "Expected hits a shot, % (a shotgun: a pellet), on each class's line: the bench's ladder (A243, measured at skill 0, 0.2, 0.4, 0.6, 0.8 and 1 with the shipped factors), straight between its steps; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). SMGs, rifles and machine guns share one calibration. Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements.",
-    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного класу: драбина стенду (A243, виміряна на навичці 0, 0.2, 0.4, 0.6, 0.8 і 1 з типовими факторами), пряма між її кроками; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Пістолети-кулемети, гвинтівки й кулемети мають одне калібрування. Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри.",
+    en: "Expected hits a shot, % (a shotgun: a pellet), on each class's line: the bench's ladder (A243, measured at skill 0, 0.2, 0.4, 0.6, 0.8 and 1 with the shipped factors), straight between its steps; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements.",
+    uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного класу: драбина стенду (A243, виміряна на навичці 0, 0.2, 0.4, 0.6, 0.8 і 1 з типовими факторами), пряма між її кроками; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри.",
 };
 
 /// A band of the players' equipment, as the page names it.
@@ -1201,7 +1201,7 @@ mod tests {
         let made = set(&live, &[("aim.class_aim.rifle", "19 %")]).unwrap();
         let said: Vec<_> = made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())).collect();
         assert_eq!(said, [("aim.class_aim.rifle", "18.6", "19.0")]);
-        let factor = shipped.calibration.automatics.factor_for(19.0).unwrap();
+        let factor = shipped.calibration.of(WeaponClass::Rifle).unwrap().factor_for(19.0).unwrap();
         let next = live.for_match();
         let (low, middle, high) = next.tuning().aim.class_aim.rifle;
         assert_eq!((low, middle), (0.40, 0.77));
@@ -1234,8 +1234,9 @@ mod tests {
         set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
         set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "28.5")]).unwrap();
         let next = live.for_match();
-        assert!((next.tuning().aim.class_aim.bolt.2 - shipped.calibration.bolt.factor_for(40.0).unwrap()).abs() < 1e-4);
-        assert!((next.tuning().aim.class_aim.marksman.2 - shipped.calibration.marksman.factor_for(28.5).unwrap()).abs() < 1e-4);
+        let factor_for = |class: WeaponClass, rate: f32| shipped.calibration.of(class).unwrap().factor_for(rate).unwrap();
+        assert!((next.tuning().aim.class_aim.bolt.2 - factor_for(WeaponClass::Bolt, 40.0)).abs() < 1e-4);
+        assert!((next.tuning().aim.class_aim.marksman.2 - factor_for(WeaponClass::Marksman, 28.5)).abs() < 1e-4);
         assert!(set(&live, &[("aim.class_aim.marksman", "29.4")]).unwrap_err().contains("outside the bench's points (28.1–28.9 %)"));
         // The group's reset puts the shipped factors back.
         assert_eq!(live.reset(Some("hits"), "192.0.2.4").unwrap().len(), 3);
