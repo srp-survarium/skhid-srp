@@ -387,13 +387,15 @@ impl Cadence {
 /// degrees left (5,234). PROVEN as measured; it follows the aim, not the trigger (the first shots alone: +0.12 at 0-100 ms of aim,
 /// +0.38 at 2-3 s).
 ///
-/// Read in the client (LIKELY the cause; the sway's period and amplitude in the configs are not read): while the aim key is down
+/// Read in the client (LIKELY the cause: the channel's value was not traced to degrees, so the table is the bullets'): while the aim key is down
 /// (`[weapon+0x5E8]`, set by `instant_aim_start` 0x2E1B50, cleared by `instant_aim_end` 0x2E1BF0) the breath sway's horizontal term
 /// `[weapon+0x2CC]` is added to the side kick in the recoil animation's horizontal channel (`get_recoil_expression` 0x2E1210,
 /// `computed_horizontal_recoil_time` 0x2E3840: time `0.5 - clamp(x / 2 + sway)`). The term is `cos(2π phase)` times its amplitude
 /// (`breath_vibration_calculator::tick` 0x31D6E0, `base_horizontal_amplitude`, `base_period`), its phase restarted at 0.25 on each
 /// aim (`restart_on_aim` 0x31D970), so every aim begins the same swing. A player sees it: the camera turns with the head the bullet
-/// leaves from (`instant_fire` 0x2E23A0), and his crosshair stays on the shot.
+/// leaves from (`instant_fire` 0x2E23A0), and his crosshair stays on the shot. The guns' `breath_vibration` (resources.db): the
+/// rifles `base_period` 5 s, `base_horizontal_amplitude` 0.05; the submachine guns 10 s, 0.02; the RPK 20 s, 0.04. The recoil's
+/// side kick has no side (`min/max_left_recoil` = `right` on every automatic but the A-91 and the VAL).
 pub const AIM_SWAY_DEG: [(u32, f32); 9] = [
     (50, 0.164),
     (175, 0.070),
@@ -427,6 +429,18 @@ pub fn aim_sway_deg(aim_ms: u32) -> f32 {
 pub fn sways(gun: &crate::v026g::bots::guns::Gun) -> bool {
     use crate::v026g::bots::guns::WeaponClass;
     matches!(gun.by_category, WeaponClass::Rifle | WeaponClass::Smg | WeaponClass::MachineGun)
+}
+
+/// [A241] Whether the client sways the bots' aimed automatic shots by [`AIM_SWAY_DEG`]: the bots' host says. The live server's
+/// players' clients do (`game/driven.rs`); a bench only when it models it (`SRP_BENCH_AIM_SWAY=live`); every other test has none.
+/// The bots' counter (`aim.combat.aim_sway_counter`) takes back only a sway that is there, so it is never measured without it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ClientSway {
+    /// No sway: the counter holds.
+    #[default]
+    Absent,
+    /// The live client's sway.
+    Live,
 }
 
 #[cfg(test)]

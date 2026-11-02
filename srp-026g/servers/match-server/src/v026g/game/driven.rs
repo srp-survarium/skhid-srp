@@ -200,6 +200,8 @@ impl Walkers {
                 trace,
             )
             .with_container_teams(formed.map.container_teams)
+            // [A241] The players' clients sway the bots' aimed automatic shots as their own.
+            .with_client_sway(crate::v026g::bots::recoil::ClientSway::Live)
             .with_tiers(&equipments),
             maps,
             project,

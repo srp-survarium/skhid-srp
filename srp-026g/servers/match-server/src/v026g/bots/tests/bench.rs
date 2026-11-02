@@ -253,6 +253,17 @@ pub(crate) fn bench_tuning() -> Tuning {
     bench_tuning_of(false)
 }
 
+/// [A241] `SRP_BENCH_AIM_SWAY`: `live`, the stand-in game sways aimed automatic shots as the client does and the bots are told
+/// so; `off` (the default), no sway, and the bots' counter holds.
+pub(crate) fn bench_client_sway() -> crate::v026g::bots::recoil::ClientSway {
+    use crate::v026g::bots::recoil::ClientSway;
+    match bench_settings().var("SRP_BENCH_AIM_SWAY").ok().as_deref() {
+        None | Some("off") => ClientSway::Absent,
+        Some("live") => ClientSway::Live,
+        Some(other) => panic!("SRP_BENCH_AIM_SWAY={other:?}: live or off"),
+    }
+}
+
 /// `SRP_BENCH_PING=<lo>-<hi>` (or one number), ms: a ping for each of
 /// `places`, drawn evenly between the two by `seed`.
 pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
@@ -766,7 +777,7 @@ pub(crate) fn real_bot_cost() {
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
-            bots = bots.with_tiers(&roster.equipments);
+            bots = bots.with_tiers(&roster.equipments).with_client_sway(bench_client_sway());
             bots.set_pantries(roster.profiles.iter().map(super::stock::Pantry::of_profile).collect());
             // The tracker reads every body's pockets from its profile, as the live server does for its bots
             // (`game/driven.rs`): a throw key lists a frag only from a kit that holds one, and the bots' frag rolls go by
@@ -898,11 +909,7 @@ pub(crate) fn real_bot_cost() {
                 .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
             // [A241] The client's aim sway on the stand-in's aimed automatic shots.
-            game.aim_sway = match bench_settings().var("SRP_BENCH_AIM_SWAY").ok().as_deref() {
-                None | Some("off") => false,
-                Some("live") => true,
-                Some(other) => panic!("SRP_BENCH_AIM_SWAY={other:?}: live or off"),
-            };
+            game.aim_sway = bench_client_sway();
             game.volume = HitVolume::bench();
             // The client's bullet flies (standin.rs `nearest_shape_flown`) in every hit model that tests shapes, unless `SRP_BENCH_HIT_FLIGHT=0`.
             game.flight = standin_hitbox::BulletPath::bench();
@@ -2171,7 +2178,7 @@ pub(crate) fn real_bot_cost() {
             let kills: u32 = game.stats.iter().map(|s| s.0).sum();
             // [A241] The aim sway: the stand-in's shots it turned and the bots' trigger ticks that took it back, by team.
             let taken = bots.sway_taken();
-            if game.aim_sway || taken.iter().any(|t| t.0 > 0) {
+            if game.aim_sway == crate::v026g::bots::recoil::ClientSway::Live || taken.iter().any(|t| t.0 > 0) {
                 let mean = |(n, deg): (u32, f32)| if n > 0 { deg / n as f32 } else { 0.0 };
                 eprintln!(
                     "  aim sway (A241): aimed automatic shots turned by the sway by team [{}, {}] (mean {:.2} / {:.2} deg); \
