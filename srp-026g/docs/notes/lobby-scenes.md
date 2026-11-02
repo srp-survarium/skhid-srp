@@ -16,7 +16,7 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 
   | id | card (dictionary key)              | project                                  |
   |----|------------------------------------|------------------------------------------|
-  | 1  | the Room (`st_srp_lobby_room`)     | `lobby_scene/camp_069`, the 0.69d camp; the default |
+  | 1  | the Room (`st_srp_lobby_room`)     | `lobby_scene/camp_069`, the 0.69d camp; the default; secretly also `camp_069_rain` and `camp_069_night`, its weather (room-weather.md) |
   | 2  | the Basement (`st_srp_lobby_basement`) | `lobby_scene/day`, the classic (stock) |
   | 3  | the Bunker (`st_srp_lobby_bunker`) | `lobby_scene/stk2_bunker`, S.T.A.L.K.E.R. 2 |
   | 4  | the Hangar (`st_srp_lobby_hangar`) | `lobby_scene/hangar_046`, the 0.46c2 hangar |
@@ -73,6 +73,10 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 
 ## When the pick is known
 
+- **What is shown is a `Scenery`:** the lobby picked, the Room's in the weather of the last entry
+  to the lobby (the start, a return from a match; room-weather.md). The machine holds that
+  weather and decides it at those two events alone (`Scene::step`'s `enter`): a pick or a squad
+  never rolls one.
 - **The start shows the saved pick.** The lobby menu asks for its scene at the game's start,
   before the sign-in (the network client is made in that query's own callback, on_render_scenes_
   ready 0x220B20 at 0x221C2F), so the saved pick is the start's lobby; srp learns it at the
@@ -107,7 +111,9 @@ against the original's code on the same objects; captured in a game, below):
   game closing (`game::clear_resources` 0x1ED030). The wanted lobby is `Squad::lobby` of the
   saved pick and the squad at each event (the lobby shown while a weapon's upgrade window has
   the camera, below): a pick changed, a squad changed, a load done or failed,
-  a fade done, a match entered and the close all come as those.
+  a fade done, a match entered and the close all come as those. The return from a match is an
+  entry: a Room of another weather wanted then has the black and the spinner on at once (no fade
+  from the old weather) and its project asked at the next frame (room-weather.md).
 - **A frame with another lobby wanted than the one shown: the black, then the load.** The scene
   fades to black (`FADE_OUT`, 0.25 s), the exe
   stepping it a frame each (`srp_scene_fade(per mille, loading)`, by at most a 30th of a second a

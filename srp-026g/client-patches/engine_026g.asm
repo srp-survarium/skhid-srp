@@ -55,6 +55,7 @@ global engine_match_options
 global engine_active_player
 global engine_query_performance_counter
 global engine_query_performance_frequency
+global engine_get_local_time
 global engine_get_current_thread_id
 global engine_update_skeleton
 global engine_point_to_screen
@@ -140,6 +141,7 @@ engine_match_options equ 0x219990   ; 0x219990 survarium::network_client::match_
 engine_active_player equ 0x27a9c0   ; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)
+engine_get_local_time equ 0x870184   ; the IAT slot 0x870184 (an import, stdcall)
 engine_get_current_thread_id equ 0x870118   ; the IAT slot 0x870118 (an import, stdcall)
 engine_setlocale equ 0x426ae1   ; 0x426ae1 setlocale: category ESP+4, locale ESP+8; pops 0; EAX; cdecl, called directly
 engine_save_user_config equ 0x1e9030   ; 0x1e9030 survarium::game::save_user_config: no arguments; pops 0; cdecl, called directly

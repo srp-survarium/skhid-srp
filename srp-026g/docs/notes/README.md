@@ -121,6 +121,7 @@ given), LIKELY or GUESS.
 | [lobby-packs-046-069.md](lobby-packs-046-069.md) | Lobby packs: the 0.46c2 hangar and the 0.69d camp |
 | [lobby-packs-stk2.md](lobby-packs-stk2.md) | Lobby pack: the STK2 bomb shelter |
 | [lobby-scenes.md](lobby-scenes.md) | Lobby scenes: the lobby selection window |
+| [room-weather.md](room-weather.md) | The Room lobby's weather: day, rain, night |
 | [lobby-source.md](lobby-source.md) | The Flash movies from source |
 | [masks-pack.md](masks-pack.md) | Ported masks: the Army balaclava and five 0.69d masks |
 | [match-hud-options.md](match-hud-options.md) | Match HUD options |

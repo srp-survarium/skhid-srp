@@ -77,6 +77,7 @@ struct sound_world;
 struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
+struct system_time;
 struct text_translator;
 struct world_user;
 
@@ -232,6 +233,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_co
 
 /* the IAT slot 0x870150 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_frequency)(unsigned int * frequency);
+
+/* the IAT slot 0x870184 (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_get_local_time)(struct system_time * time);
 
 /* the IAT slot 0x870118 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_id)(void);

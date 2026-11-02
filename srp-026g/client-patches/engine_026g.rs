@@ -267,6 +267,8 @@ unsafe extern "C" {
     pub static engine_query_performance_counter: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870150 (an import, stdcall): unsigned int engine_query_performance_frequency(unsigned int *frequency)
     pub static engine_query_performance_frequency: unsafe extern "stdcall" fn(*mut u32) -> u32;
+    /// the IAT slot 0x870184 (an import, stdcall): void engine_get_local_time(struct system_time *time)
+    pub static engine_get_local_time: unsafe extern "stdcall" fn(*mut c_void);
     /// the IAT slot 0x870118 (an import, stdcall): unsigned int engine_get_current_thread_id(void)
     pub static engine_get_current_thread_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87027c (an import, stdcall): unsigned int engine_get_user_default_lcid(void)

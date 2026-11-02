@@ -164,6 +164,10 @@ extern engine_query_performance_counter
 ; the IAT slot 0x870150 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_query_performance_frequency
+; void engine_get_local_time(struct system_time *time)
+; the IAT slot 0x870184 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_local_time
 ; unsigned int engine_get_current_thread_id(void)
 ; the IAT slot 0x870118 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments

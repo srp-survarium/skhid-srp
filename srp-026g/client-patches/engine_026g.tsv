@@ -50,6 +50,7 @@ engine_match_options	0x219990	ECX:client	struct match_options *engine_match_opti
 engine_active_player	0x27a9c0	ECX:client ESP+4:out ESP+8:place	struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)	thiscall	
 engine_query_performance_counter	0x870158	-	unsigned int engine_query_performance_counter(unsigned int *count)	import	
 engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performance_frequency(unsigned int *frequency)	import	
+engine_get_local_time	0x870184	-	void engine_get_local_time(struct system_time *time)	import	
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	
 engine_update_skeleton	0x022490	EDI:scene_renderer ESP+4:instance ESP+8:bones ESP+12:second ESP+16:count	void engine_update_skeleton(struct scene_renderer *scene_renderer, struct render_model_instance *instance, const float *bones, const float *second, unsigned int count)	thunk	
 engine_point_to_screen	0x23dec0	ESP+4:game ESP+8:point ESP+12:out	unsigned int engine_point_to_screen(void *game, const float *point, float *out)	thunk
