@@ -692,6 +692,7 @@ mod tests {
             "/grid/client_numbers",
             "/grid/drop_room",
             "/grid/run_ups_after_erosion",
+            "/grid/steep_walk_base",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
             "/heal/drug_stops",
