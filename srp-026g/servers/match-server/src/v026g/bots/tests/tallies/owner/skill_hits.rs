@@ -13,7 +13,8 @@
 //! ground speed>"` -> the same four, speed bins [`SPEED_LABELS`], the live table's: to weigh the bench's shots to the live humans'
 //! distances and target speeds), `error` (A243: every target, the shots the bot's own numbers came with (`reflex::FireAim`, within
 //! [`AIM_MATCH_MS`]), `"<class>:<its aim error in his chest's half-widths>"` -> the same four, bins [`ERROR_LABELS`], `fire_gate`'s:
-//! how many shots left with the error over the body) and `skill` (`[shots, the shooters' skill summed]`).
+//! how many shots left with the error over the body), `skill` (`[shots, the shooters' skill summed]`) and `skill_bins`
+//! (A244: the shots by the shooter's skill in bins of [`SKILL_BIN`], 0 to 1: where the self-balancing kept the team).
 
 use super::*;
 use crate::v026g::bots::guns::WeaponClass;
@@ -48,6 +49,9 @@ const ERROR_LABELS: [&str; 5] = ["on", "1-3", "3-10", "10-30", "30+"];
 const ERROR_CELLS: usize = CLASSES.len() * ERROR_LABELS.len();
 /// A shot takes the bot's numbers of its last shot when they are this near in time, ms (`fire_gate`'s).
 const AIM_MATCH_MS: u32 = 100;
+/// The skill bins' width (`skill_bins`: 0, 0.05, ... 1, each skill to its nearest).
+const SKILL_BIN: f32 = 0.05;
+const SKILL_BINS: usize = 21;
 
 /// Who a shot was at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,6 +71,8 @@ struct TeamCounts {
     error: Vec<[u32; 4]>,
     /// The shots counted and their shooters' skill summed.
     skill: (u32, f64),
+    /// The shots by their shooter's skill bin ([`SkillHits::skill_bin`]).
+    skill_bins: [u32; SKILL_BINS],
 }
 
 pub(super) struct SkillHits {
@@ -112,6 +118,11 @@ impl SkillHits {
         let class = CLASSES.iter().position(|&c| c == class).unwrap_or(0);
         let halves = error_deg / HALF_M.atan2(distance.max(0.5)).to_degrees();
         class * ERROR_LABELS.len() + ERROR_EDGES.iter().position(|&edge| halves <= edge).unwrap_or(ERROR_EDGES.len())
+    }
+
+    /// A skill's bin: the nearest of 0, 0.05, ... 1.
+    fn skill_bin(skill: f32) -> usize {
+        ((skill.clamp(0.0, 1.0) / SKILL_BIN).round() as usize).min(SKILL_BINS - 1)
     }
 
     fn error_label(cell: usize) -> String {
@@ -185,6 +196,7 @@ impl Topic for SkillHits {
             }
             if let Some(skill) = self.skills.get(s).copied().flatten() {
                 counts.skill = (counts.skill.0 + 1, counts.skill.1 + f64::from(skill));
+                counts.skill_bins[Self::skill_bin(skill)] += 1;
             }
         }
     }
@@ -211,7 +223,13 @@ impl Topic for SkillHits {
             }
             json.insert(
                 format!("team{team}"),
-                serde_json::json!({ "cells": cells, "speed": speed, "error": error, "skill": [counts.skill.0, counts.skill.1] }),
+                serde_json::json!({
+                    "cells": cells,
+                    "speed": speed,
+                    "error": error,
+                    "skill": [counts.skill.0, counts.skill.1],
+                    "skill_bins": counts.skill_bins,
+                }),
             );
             // The line: the bar's own cut (rifles + SMGs, 0-65 m) and its bands, then every other class over all bands (a shotgun's
             // pellets); at the stand-in human and at the bots.
@@ -275,6 +293,16 @@ mod tests {
         assert_eq!(at(WeaponClass::Smg, 10.0, 2.9), "smg:0-20:0.5-3");
         assert_eq!(at(WeaponClass::Bolt, 200.0, 5.0), "bolt:105+:3+");
         assert_eq!(SkillHits::speed_cell(WeaponClass::Bolt, SkillHits::band(200.0), 5.0), SPEED_CELLS - 1);
+    }
+
+    #[test]
+    fn a_skill_finds_its_nearest_bin() {
+        assert_eq!(SkillHits::skill_bin(0.0), 0);
+        assert_eq!(SkillHits::skill_bin(0.3), 6);
+        assert_eq!(SkillHits::skill_bin(0.62), 12);
+        assert_eq!(SkillHits::skill_bin(0.9), 18);
+        assert_eq!(SkillHits::skill_bin(1.0), SKILL_BINS - 1);
+        assert_eq!(SkillHits::skill_bin(1.3), SKILL_BINS - 1);
     }
 
     #[test]
