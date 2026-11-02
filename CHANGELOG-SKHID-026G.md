@@ -892,3 +892,39 @@ update changes what a match computes.
 - TODO: #1076 ASh-12: 425 rounds a minute (was 400)
 - TODO: #1075 MP7: armour piercing 0.3 -> 0.35
 - TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
+
+## 2 Nov, 19:46 — TODO: the owner's words (update required)
+
+<!-- Revision 43 (026g-rev43), released 2026-11-02 19:46 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1071 Game modes as a table (modes.tsv); battery-respawn-1 goes
+- TODO: #1074 Modifications and defects as tables; weapon-rolls-1 goes
+- TODO: #1072 Maps' rules as a table (maps.tsv), one value a level; game changes 3-5, 10
+- TODO: #1064 Rooms: one table for the room settings (rooms.tsv, read by srp)
+- TODO: #1084 PKP: recoil power 1 -> 0.85 (kicks a little less)
+- TODO: #1082 Rooms: the vote's third card is always Blackout
+- TODO: #1096 Pickup: the drop's gun is its copy, from the death to the drop's end
+- TODO: #1080 Lobby: a kit slot's card stays that slot's item after a swap
+- TODO: #1085 Armour as a table (armor.tsv); five edit lists go
+- TODO: #1099 SOCOM 16: 330 rounds a minute (was 300)
+- TODO: #1097 Saiga-12 / Vepr-12 buckshot x0.14 -> x0.15; Saiga-12 magazine 5 -> 6
+- TODO: #1101 Saiga-12 descriptions: drop the magazine's round count
+- TODO: #1102 Blackout: show the use prompt and its progress
+- TODO: #1086 Medicines as a table (medicines.tsv)
+- TODO: #1103 Military Medkit: 2 s to activate, its heal 1 s as before
+- TODO: #1104 Medicines: one source for their numbers
+- TODO: #1108 New accounts: the grant in one table, the Novice's backpack on the back
+- TODO: #949 Weapons batch 1 from 0.31a2: OTs-14 Groza, FN SCAR-H, VHS-2, FN Minimi (pack weapons-031@1)
+- TODO: #948 Weapons from 0.46c2: MP5, SVU, L85A2, Fort-401, Jackhammer and five pistols (packs weapons-046, weapons-046-camo)
+- TODO: #947 Weapons from 0.69d0: AKMSU, FAMAS, G3SG/1, Mauser M.712, KS-23M, PPSH-41 "Drum" (pack weapons-069@1)
+- TODO: #989 Tactical reload for the live one-clip guns from 0.29a3's clips (pack tactical-clips-029@1)
+- TODO: #995 Tactical reload for the one-clip guns 0.29a3 lacks, from 0.69d0's clips (pack tactical-clips-069@1)
+- TODO: #993 PKP Pecheneg: 0.69d0's animations (pack pkp-animations-069@1)
+- TODO: #1117 Fix replay crash from live-client ragdoll lookups
+- TODO: #1118 Keep autobuy enabled across refill item refreshes
+- TODO: #1120 Balance imported weapons against Zubr +8 with distinct roles
+- TODO: #1113 Items as a table (items.tsv): golden and premium items are ordinary rows
+- TODO: #1115 Shop rules as a table (shop.tsv); one price, the item's base_cost
+- TODO: #1114 Golden weapons in the weapon table; golden-weapons-1 goes
+- TODO: #1122 Fix pickup state leaking between matches and causing resyncs
+- TODO: #1128 Fix Autobuy turning itself off when enabled
