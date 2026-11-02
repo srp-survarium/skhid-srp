@@ -5331,3 +5331,16 @@ va	name	location	role	basis
 0x002e2750	survarium::weapon_core::ammo_by_ordinal	CL	the ordinal (a bullet record's, 0x32BDB4)	observed
 0x0032bec0	survarium::bullet::serialize	ESI	the bullet: its record, in order, +4 (u32, 0x1F48A0), +28h, +34h, +78h, +7Ch, +5Ch, +64h, +68h, +70h, +74h, +88h (byte), +84h (byte), +54h, +58h (0x32F190), its shooter's place ([+8]+4), +50h's place, its weapon item's slot (+0Ch -> +254h, 0x32C0B5), the ammo's ordinal (0x2E26B0, 0x32C0EE), +4Ch's id (+64h; 0 none), then +80h (the quiet byte) only when its ammo data's +44h (pellets) is above 1 (0x32C148..0x32C16C)	observed
 0x0032bbc0	survarium::bullet::bullet	EDI	the bullet loaded from a record (bullet_manager::deserialize 0x321CC7): the shooter by its place (0x32BD4E), the weapon item = the shooter's inventory slot of the record (0x32BDA1, no check that it is a weapon), the ammo by the ordinal (0x2E2750 at 0x32BDC8), then +80h read only when that ammo data's +44h is above 1 (0x32BE15): a record read with another gun's ammo than it was written with goes out of step	observed
+0x00505ca0	Scaleform::RefCountImpl::AddRef	ECX	the counted object (this; its count at +4)	observed
+0x00505cb0	Scaleform::RefCountImpl::Release	ECX	the counted object (this; its count at +4): a DICommandQueue at patch 93's release of the queue it held	observed
+0x005725f0	Scaleform::Render::DrawableImageContext::ExecuteNextCapture	ECX	the drawable image context (this)	observed
+0x005725f0	Scaleform::Render::DrawableImageContext::ExecuteNextCapture	entry ESP+4	the render notify of the capture	observed
+0x00572660	Scaleform::Render::DrawableImageContext::OnNextCapture	ECX	the context's ContextCaptureNotify base (context+8)	observed
+0x00572660	Scaleform::Render::DrawableImageContext::OnNextCapture	entry ESP+4	the render notify of the capture	observed
+0x005726b0	Scaleform::Render::DrawableImageContext::AddCaptureNotify	ECX	the drawable image context (this; its lock at +24h, its list's end at +40h)	observed
+0x005726b0	Scaleform::Render::DrawableImageContext::AddCaptureNotify	entry ESP+4	the queue to add (a DICommandQueue, its links prev +8, next +0Ch)	observed
+0x005726f0	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify	ECX	the drawable image context (this; its lock at +24h)	observed
+0x005726f0	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify	entry ESP+4	the queue to remove (a DICommandQueue, its links prev +8, next +0Ch)	observed
+0x005ed1e0	Scaleform::Render::DICommandQueue::~DICommandQueue	ECX	the command queue (this; its context at +34h)	observed
+0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	ECX	the command queue (this)	observed
+0x005ee080	Scaleform::Render::DICommandQueue::OnNextCapture	entry ESP+4	the render notify of the capture	observed
