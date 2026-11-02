@@ -476,6 +476,43 @@ def lamp_check(world):
     print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
 
 
+def clothing_check(base, base_files, game, world):
+    """Reject low boot shafts selecting the variants for medium/tall boots.
+    Measure the stock classes, then check the final composed meshes/configs,
+    after all edits (including exo-boots-1). No item ids or fixed heights."""
+    import importlib.util
+    path = (Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' /
+            'clothing-fit' / 'check_boot_classes.py')
+    spec = importlib.util.spec_from_file_location('check_boot_classes', path)
+    check = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = check
+    spec.loader.exec_module(check)
+    paths = sorted(p for p in set(base_files) | set(world.bytes) if check.is_boot(p))
+    if not paths:
+        return  # Small release-builder fixtures can contain no equipment.
+    stock = [base[0]]
+    native_paths = sorted(p for p in game.files(stock) if check.is_boot(p))
+    native = game.get(stock, native_paths)
+    native.update(game.get(stock, check.model_paths(native)))
+    effective = game.get(base, [p for p in paths if p not in world.bytes])
+    effective.update({p: world.bytes[p] for p in paths if p in world.bytes})
+    models = check.model_paths(effective)
+    effective.update(game.get(base, [p for p in models if p not in world.bytes]))
+    effective.update({p: world.bytes[p] for p in models if p in world.bytes})
+    try:
+        rows = check.audit(check.Resources(native), check.Resources(effective))
+    except (ValueError, KeyError) as error:
+        raise Problem(f'clothing fit: {error}') from error
+    failures = [r for r in rows if r['status'] != 'ok']
+    for row in failures:
+        print(f"CLOTHING: {row['path']}: {row['class']} shaft ends at "
+              f"{min(row['shaft_top_m']):.3f} m; native class begins at "
+              f"{row['native_class_min_m']:.3f} m")
+    if failures:
+        raise Problem(f'{len(failures)} boot shaft/class mismatch(es): no patch made')
+    print(f'clothing fit: {len(rows)} boot shafts cover their native trousers class')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for option in ('stock', 'patches', 'list', 'bin', 'tree', 'manifest', 'work'):
@@ -514,6 +551,7 @@ def main():
         # uses a type 0.26g files already use at that path or is allowlisted.
         type_check(base, base_files, game, world)
         lamp_check(world)
+        clothing_check(base, base_files, game, world)
 
         # What the sources make, against what players have.
         folder = work / 'world'
