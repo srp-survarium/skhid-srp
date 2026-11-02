@@ -151,7 +151,7 @@ pub(crate) fn force_fall(on: Option<bool>) {
 /// (the benches up to A265 are comparable only with it off).
 pub(crate) fn stand_in_walk_off() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").is_some_and(|v| v == "on" || v == "1"))
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").is_ok_and(|v| v == "on" || v == "1"))
 }
 
 /// What [`stand_in_walk_off`] did: walk-offs that fell from the edge, those that came down, and the metres across they carried in all
