@@ -106,6 +106,7 @@ given), LIKELY or GUESS.
 | [artefact-score.md](artefact-score.md) | Match score for an artefact put into a slot |
 | [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts-1 edit list |
 | [blackout.md](blackout.md) | Blackout: the mode with the UI off |
+| [scarcity.md](scarcity.md) | Scarcity: a battery mode whose lives start with a magazine and one more a gun (a machine gun its magazine) and no ammo crates; the match server cuts the kits, exe patch 94 refuses the crates |
 | [breakable_lamps.md](breakable_lamps.md) | Breakable lamps |
 | [buy-gold.md](buy-gold.md) | "Get Gold" opens the exchange |
 | [buy-modified.md](buy-modified.md) | Buy from a modified item's right-click menu |

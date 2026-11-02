@@ -108,6 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
 | `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the teammates' markers kept and their names on Tab: six `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
+| `rust/patches/src/scarcity.rs`, `src/scarcity.toml`, `check_scarcity_026g.py` | Patch 94: Scarcity, a battery match whose ammo crates refill no one: the options reads (patch 65's chains) and two `lohook`s at the starts of resupply_zone_core::can_use and use_hint; its check runs them from the game's code on made-up zones and players, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
@@ -3986,6 +3987,17 @@ time, the active time and between them.
 The stopped drug's quick slot shows red for a second of game time (display
 only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
 `../scripts/consumable-activity/check.sh`).
+## Scarcity: no ammo crates (patch 94, unreleased)
+
+In a Scarcity match (`../docs/notes/scarcity.md`: a battery mode whose lives start with a
+magazine and one more a gun, the server's cut kits) no ammo crate refills anyone and the hud
+shows no crate prompt. The Rust patch `scarcity` keeps the variant srp's block gives (tag 2, one
+byte 2, read at the two options reads) and, at the starts of resupply_zone_core::can_use
+(0x2F8080) and use_hint (0x2F80C0), answers as the game does for another team's crate: 0, and the
+empty key. Elsewhere nothing changes. A row of `../crates/session/src/v026g/simulation_changes.tsv`
+(a crate's use is the world's). `../docs/notes/client_patch.md` section 3.61 has the proof;
+`check_scarcity_026g.py` runs it.
+
 ## Dropped-weapon pickup (patch 85)
 
 A player takes the gun a dead player dropped: Use on the gun lying on the

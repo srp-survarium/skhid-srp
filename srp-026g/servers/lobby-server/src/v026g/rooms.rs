@@ -275,20 +275,26 @@ impl Core<'_> {
                 })
             })
             .collect::<Vec<_>>();
-        let blackout: Vec<PoolEntry> = entries
-            .iter()
-            .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
-            .filter_map(|entry| {
-                Some(PoolEntry {
-                    map_id: maps::blackout_id(entry.map_id)?,
-                    mode: maps::mode::BLACKOUT,
-                    ..*entry
-                })
+        // Each variant (Blackout, then Scarcity) offers every plain battery
+        // map of the pool once more, under its lobby id and mode.
+        let variants: Vec<PoolEntry> = maps::Variant::OFFERED
+            .into_iter()
+            .flat_map(|variant| {
+                entries
+                    .iter()
+                    .filter(|entry| entry.mode == maps::VARIANT_RULES)
+                    .filter_map(move |entry| {
+                        Some(PoolEntry {
+                            map_id: maps::variant_id(variant, entry.map_id)?,
+                            mode: variant.lobby_mode()?,
+                            ..*entry
+                        })
+                    })
             })
             .collect();
         entries
             .into_iter()
-            .chain(blackout)
+            .chain(variants)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()

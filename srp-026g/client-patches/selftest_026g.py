@@ -3993,6 +3993,51 @@ def test_blackout(original, image, before):
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
 
 
+def test_scarcity(original, image, before):
+    """Check 94: Scarcity (patch 94, the Rust patch `scarcity`, lohooks of
+    scarcity.toml: the options reads, patch 65's sites too, and the starts of
+    resupply_zone_core::can_use and use_hint, its own; ../docs/notes/
+    scarcity.md). check_scarcity_026g.py runs each from the game's code on
+    made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x2F8080, 0x1A) == ["mov eax,[esp+0x4]", "mov eax,[eax]", "mov edx,[eax+0x6b8]", "mov ecx,[ecx+0x54]",
+                                   "cmp [edx+0x45ec],ecx", "jz 0x2f809c", "cmp ecx,byte +0x2"]
+          and rows(0x2F80BB, 5) == ["xor eax,eax", "ret 0x4"]
+          and rows(0x2F80C0, 0x24) == ["mov eax,[esp+0x4]", "mov eax,[eax]", "mov edx,[eax+0x6b8]",
+                                       "mov ecx,[ecx+0x54]", "cmp [edx+0x45ec],ecx", "jz 0x2f80e4",
+                                       "cmp ecx,byte +0x2", "jz 0x2f80e4", "mov eax,0x9db708", "ret 0x4"]
+          and original[stock.offset(0x9DB708)] == 0,
+          "resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0) start with the record's player, then "
+          "compare the zone's team (+54h) with the profile's (+45ECh) or 2; another team's zone: xor eax,eax / "
+          "ret 4 (0x2F80BB) and the empty key 0x9DB708 / ret 4 (0x2F80DC)")
+    import hooks_026g
+    # a chain's members (the options reads, shared with patches 65, 83, 86 and 88) and the hooks alone
+    hooks = [m for h in hooks_026g.hooks() for m in h.get("chain", [h]) if m["patch"] == "scarcity"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    sites = {h["site_name"]: h for h in hooks}
+    check(sorted(sites) == ["replay.options_read", "resupply_zone.can_use", "resupply_zone.use_hint",
+                            "static_info.options_read"]
+          and all(h["kind"] == "lohook" for h in hooks),
+          "scarcity.toml's four hooks are lohooks at static_info.options_read, replay.options_read, "
+          "resupply_zone.can_use and resupply_zone.use_hint")
+    for h in hooks:
+        if h["site_name"].endswith("options_read"):
+            continue  # a chain of patch 65's sites: test_blackout checks its span
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_language(original, image, before):
     """Check 79: the game language is a setting kept in user.cfg (patch 79,
     the Rust patch `language`, three lohooks of language.toml;
@@ -6910,6 +6955,7 @@ def test_late_join(original, without, server, source):
     test_research(original, image, before)
     test_suicide_key(original, image, before)
     test_blackout(original, image, before)
+    test_scarcity(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
     test_weapon_show(original, image, before)

@@ -2470,6 +2470,7 @@ st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_research	Tutkimus
+st_srp_mode_scarcity	Suojalaite: niukkuus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_optics	Optiikka
 st_srp_options_hud	HUD:

@@ -2470,6 +2470,7 @@ st_srp_mode_blackout	Urządzenie ochronne: blackout
 st_srp_mode_chargers	Urządzenie ochronne: ładowarki
 st_srp_mode_protective_device	Urządzenie ochronne
 st_srp_mode_research	Badania
+st_srp_mode_scarcity	Urządzenie ochronne: niedobór
 st_srp_mode_team_deathmatch	Walka drużynowa
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:

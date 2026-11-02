@@ -52,54 +52,123 @@ pub mod mode {
     /// The modes whose maps have the teams' battery containers.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
     /// Blackout ("Protective device: blackout", `docs/notes/blackout.md`): a mode of
-    /// the lobby's only. A match of it is one of [`super::BLACKOUT_RULES`]
-    /// with the static info's Blackout flag; no config says 6.
+    /// the lobby's only. A match of it is one of [`super::VARIANT_RULES`]
+    /// with the static info's variant Blackout; no config says 6.
     pub const BLACKOUT: u8 = 6;
+    /// Scarcity ("Protective device: scarcity", `docs/notes/scarcity.md`): a
+    /// mode of the lobby's only, as Blackout. A match of it is one of
+    /// [`super::VARIANT_RULES`] with the static info's variant Scarcity.
+    pub const SCARCITY: u8 = 7;
 }
 
-/// The rules a Blackout match plays: the plain battery mode (no chargers).
-pub const BLACKOUT_RULES: u8 = mode::BATTERIES;
+/// What a battery match is beside its rules: the static info's variant
+/// (srp's block, tag 2: none for `Plain`, one byte 1 Blackout, 2 Scarcity).
+/// A lobby offers each but `Plain` as a mode of its own ([`Variant::OFFERED`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Variant {
+    /// The map's mode as its config says.
+    #[default]
+    Plain,
+    /// No interface but the teammates' markers (exe patch 65,
+    /// `docs/notes/blackout.md`).
+    Blackout,
+    /// A life's ammo is its guns' magazines and one more each (none more for
+    /// a machine gun), and no ammo crate refills (exe patch 94,
+    /// `docs/notes/scarcity.md`).
+    Scarcity,
+}
 
-/// Blackout's maps, `(the lobby's id, the maps_dict id played)`: one for
-/// each playable map of [`BLACKOUT_RULES`] in `rules_ids`, by id, each named
-/// by an id `maps_dict` (`dictionary_ids`) does not use, from 255 down (0
-/// never). The lobby's rooms pool, cards and rows carry the lobby's id; a
-/// match is made on the id played, with the flag.
-pub fn blackout_pairs_of(dictionary_ids: &[u8], rules_ids: &[u8]) -> Vec<(u8, u8)> {
+impl Variant {
+    /// The variants a lobby offers as modes of their own, in the order
+    /// their lobby ids are given ([`variant_pairs_of`]): Blackout's ids stay
+    /// those it had before Scarcity.
+    pub const OFFERED: [Variant; 2] = [Variant::Blackout, Variant::Scarcity];
+
+    /// The lobby's mode of it (the rooms' pool, cards and rows); none for
+    /// `Plain`, whose maps are of their configs' modes.
+    pub const fn lobby_mode(self) -> Option<u8> {
+        match self {
+            Self::Plain => None,
+            Self::Blackout => Some(mode::BLACKOUT),
+            Self::Scarcity => Some(mode::SCARCITY),
+        }
+    }
+
+    /// The static info's byte of it (srp's block, tag 2), none for `Plain`.
+    pub const fn wire(self) -> Option<u8> {
+        match self {
+            Self::Plain => None,
+            Self::Blackout => Some(1),
+            Self::Scarcity => Some(2),
+        }
+    }
+
+    /// The variant of a static info's byte, if it is one.
+    pub const fn from_wire(byte: u8) -> Option<Self> {
+        match byte {
+            1 => Some(Self::Blackout),
+            2 => Some(Self::Scarcity),
+            _ => None,
+        }
+    }
+
+    /// The variant a match of `mode` plays: itself on a battery map
+    /// ([`mode::WITH_BATTERIES`]), else `Plain` (a variant is the battery
+    /// mode's; the lobby makes one on [`VARIANT_RULES`]' maps only).
+    pub fn on_mode(self, mode: u8) -> Self {
+        if mode::WITH_BATTERIES.contains(&mode) { self } else { Self::Plain }
+    }
+}
+
+/// The rules a variant's match plays: the plain battery mode (no chargers).
+pub const VARIANT_RULES: u8 = mode::BATTERIES;
+
+/// The lobby's variant maps, `(variant, the lobby's id, the maps_dict id
+/// played)`: for each of [`Variant::OFFERED`] in its order, one for each
+/// playable map of [`VARIANT_RULES`] in `rules_ids`, by id, each named by an
+/// id `maps_dict` (`dictionary_ids`) does not use, from 255 down (0 never).
+/// The lobby's rooms pool, cards and rows carry the lobby's id; a match is
+/// made on the id played, with the variant.
+pub fn variant_pairs_of(dictionary_ids: &[u8], rules_ids: &[u8]) -> Vec<(Variant, u8, u8)> {
     let mut free = (1..=u8::MAX).rev().filter(|id| !dictionary_ids.contains(id));
     let mut played: Vec<u8> = rules_ids.to_vec();
     played.sort_unstable();
     played.dedup();
-    played
-        .into_iter()
-        .map_while(|id| free.next().map(|lobby| (lobby, id)))
-        .collect()
+    let mut pairs = Vec::new();
+    for variant in Variant::OFFERED {
+        for &id in &played {
+            let Some(lobby) = free.next() else { return pairs };
+            pairs.push((variant, lobby, id));
+        }
+    }
+    pairs
 }
 
-/// [`blackout_pairs_of`] the game data's dictionary and playable maps.
-pub fn blackout_pairs() -> &'static [(u8, u8)] {
-    static SHARED: std::sync::OnceLock<Vec<(u8, u8)>> = std::sync::OnceLock::new();
+/// [`variant_pairs_of`] the game data's dictionary and playable maps.
+pub fn variant_pairs() -> &'static [(Variant, u8, u8)] {
+    static SHARED: std::sync::OnceLock<Vec<(Variant, u8, u8)>> = std::sync::OnceLock::new();
     SHARED.get_or_init(|| {
         let dictionary: Vec<u8> = Dictionary::shared().maps.iter().map(|map| map.id).collect();
-        let rules: Vec<u8> = playable_in(BLACKOUT_RULES).map(|map| map.id).collect();
-        blackout_pairs_of(&dictionary, &rules)
+        let rules: Vec<u8> = playable_in(VARIANT_RULES).map(|map| map.id).collect();
+        variant_pairs_of(&dictionary, &rules)
     })
 }
 
-/// The `maps_dict` id a lobby's Blackout id plays, if it is one.
-pub fn blackout_played(id: u8) -> Option<u8> {
-    blackout_pairs()
+/// The variant and the `maps_dict` id a lobby's variant id plays, if it is
+/// one.
+pub fn variant_played(id: u8) -> Option<(Variant, u8)> {
+    variant_pairs()
         .iter()
-        .find(|(lobby, _)| *lobby == id)
-        .map(|&(_, played)| played)
+        .find(|(_, lobby, _)| *lobby == id)
+        .map(|&(variant, _, played)| (variant, played))
 }
 
-/// The lobby's Blackout id of a `maps_dict` id of [`BLACKOUT_RULES`].
-pub fn blackout_id(map_id: u8) -> Option<u8> {
-    blackout_pairs()
+/// The lobby's id of `variant` on a `maps_dict` id of [`VARIANT_RULES`].
+pub fn variant_id(variant: Variant, map_id: u8) -> Option<u8> {
+    variant_pairs()
         .iter()
-        .find(|(_, played)| *played == map_id)
-        .map(|&(lobby, _)| lobby)
+        .find(|(of, _, played)| *of == variant && *played == map_id)
+        .map(|&(_, lobby, _)| lobby)
 }
 
 /// `match_making_params.map_weather_id`.
@@ -462,22 +531,42 @@ mod tests {
     }
 
     #[test]
-    fn blackout_names_its_maps_by_free_ids_from_the_top() {
-        let pairs = blackout_pairs_of(&[1, 61, 63, 254, 252], &[63, 61, 61]);
-        assert_eq!(pairs, vec![(255, 61), (253, 63)]);
-        // No free id left: no more Blackout maps.
-        let all: Vec<u8> = (1..=254).collect();
-        assert_eq!(blackout_pairs_of(&all, &[61, 63]), vec![(255, 61)]);
-        // The data's: every plain battery map has one, none of them a maps_dict id.
-        let pairs = blackout_pairs();
-        assert_eq!(pairs.len(), playable_in(BLACKOUT_RULES).count());
-        for &(lobby, played) in pairs {
+    fn the_variants_name_their_maps_by_free_ids_from_the_top() {
+        use Variant::{Blackout, Scarcity};
+        let pairs = variant_pairs_of(&[1, 61, 63, 254, 252], &[63, 61, 61]);
+        // Blackout's first, as before Scarcity, then Scarcity's.
+        assert_eq!(
+            pairs,
+            vec![(Blackout, 255, 61), (Blackout, 253, 63), (Scarcity, 251, 61), (Scarcity, 250, 63)]
+        );
+        // No free id left: no more variant maps.
+        let all: Vec<u8> = (1..=253).collect();
+        assert_eq!(
+            variant_pairs_of(&all, &[61, 63]),
+            vec![(Blackout, 255, 61), (Blackout, 254, 63)]
+        );
+        // The data's: every plain battery map has one of each, none of them a maps_dict id.
+        let pairs = variant_pairs();
+        assert_eq!(pairs.len(), Variant::OFFERED.len() * playable_in(VARIANT_RULES).count());
+        for &(variant, lobby, played) in pairs {
             assert!(map_mode(lobby).is_none());
-            assert_eq!(map_mode(played).map(|map| map.mode), Some(BLACKOUT_RULES));
-            assert_eq!(blackout_played(lobby), Some(played));
-            assert_eq!(blackout_id(played), Some(lobby));
+            assert_eq!(map_mode(played).map(|map| map.mode), Some(VARIANT_RULES));
+            assert_eq!(variant_played(lobby), Some((variant, played)));
+            assert_eq!(variant_id(variant, played), Some(lobby));
         }
-        assert_eq!(blackout_played(61), None);
+        assert_eq!(variant_played(61), None);
+    }
+
+    #[test]
+    fn a_variant_is_the_battery_modes_and_its_byte_reads_back() {
+        for variant in [Variant::Plain, Variant::Blackout, Variant::Scarcity] {
+            assert_eq!(variant.wire().and_then(Variant::from_wire), variant.wire().map(|_| variant));
+            assert_eq!(variant.on_mode(mode::BATTERIES), variant);
+            assert_eq!(variant.on_mode(mode::TEAM_DEATHMATCH), Variant::Plain);
+        }
+        assert_eq!(Variant::from_wire(0), None);
+        assert_eq!(Variant::from_wire(3), None);
+        assert_eq!(Variant::Scarcity.lobby_mode(), Some(mode::SCARCITY));
     }
 
     #[test]

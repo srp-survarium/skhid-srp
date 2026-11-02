@@ -437,7 +437,7 @@ impl World {
             trusted_by: 2,
             vs_bots: false,
             private: false,
-            blackout: false,
+            variant: survarium::v026g::maps::Variant::Plain,
             players: vec![PlayerResult {
                 place: 0,
                 session_id,

@@ -161,7 +161,7 @@ impl MatchHost for RegistryHost {
             vs_bots: setup.vs_bots,
             private: setup.private,
             room_minimum: setup.room_minimum,
-            blackout: setup.blackout,
+            variant: setup.variant,
         };
         let ticket = match pool {
             session::QueuePool::Standard => self.0.create(setup),
@@ -250,7 +250,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
         private: result.private,
-        blackout: result.blackout,
+        variant: result.variant,
         players: result
             .players
             .into_iter()

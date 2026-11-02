@@ -305,10 +305,12 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
-    /// A Blackout match (`docs/notes/blackout.md`): every point a player
-    /// earns in it counts twice, in its score and in what the score pays
-    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
-    pub blackout: bool,
+    /// The battery match's variant (the match server's `Formed::variant`):
+    /// in a Blackout match (`docs/notes/blackout.md`) every point a player
+    /// earns counts twice, in its score and in what the score pays
+    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played. A
+    /// Scarcity match (`docs/notes/scarcity.md`) pays as a plain one.
+    pub variant: survarium::v026g::maps::Variant,
 }
 
 /// What a Blackout match's score and pay are worth: the owner's of
@@ -1619,7 +1621,7 @@ impl<'a> Shared<'a> {
 
     /// What a point is worth: twice in a Blackout match.
     fn points_factor(&self) -> f64 {
-        if self.result.blackout {
+        if self.result.variant == survarium::v026g::maps::Variant::Blackout {
             BLACKOUT_FACTOR
         } else {
             1.0

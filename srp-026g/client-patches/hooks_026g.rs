@@ -486,6 +486,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- scarcity (patch 94) ----
+
+/// The entry `scarcity_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -540,6 +555,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- scarcity (patch 94) ----
+
+/// The entry `scarcity_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1543,6 +1573,46 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- scarcity (patch 94) ----
+
+/// The named exits of scarcity::on_can_use (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ScarcityOnCanUseExit { Refused }
+/// The entry `scarcity_on_can_use` (0x2f8080, resupply_zone_core::can_use start (mov eax,[esp+4] / mov eax,[eax]; ECX the zone, [esp+4] the interaction record); refused: xor eax,eax / ret 4, the answer for another team's zone (zone+54h not the player's team +45ECh, not 2)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_can_use(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_can_use` calls this, from the game's jump at 0x2f8080,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_can_use(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- scarcity (patch 94) ----
+
+/// The named exits of scarcity::on_use_hint (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ScarcityOnUseHintExit { NoHint }
+/// The entry `scarcity_on_use_hint` (0x2f80c0, resupply_zone_core::use_hint start (mov eax,[esp+4] / mov eax,[eax]); no_hint: mov eax,0x9DB708 (the empty key) / ret 4, the answer for another team's zone) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_use_hint(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_use_hint` calls this, from the game's jump at 0x2f80c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_use_hint(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
@@ -1980,6 +2050,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_scarcity_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -1992,6 +2064,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_scarcity_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }

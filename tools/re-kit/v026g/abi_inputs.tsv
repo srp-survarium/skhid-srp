@@ -2897,6 +2897,7 @@ va	name	location	role	basis
 0x002fcb70	survarium::inventory::setup_from_profile	EDI	inventory receiver	inferred
 0x002fcb70	survarium::inventory::setup_from_profile	AL	profile index	inferred
 0x002fcb70	survarium::inventory::setup_from_profile	stack+4	profile	inferred
+0x002fcb70	survarium::inventory::setup_from_profile	stack+4	per stack slot of the kit (table 0x925FA0..): profile + kit x 704h + 98h + 4n the item u16 (FFFFh none), +9Ah + 4n the count u16: a count of 0 skips the slot (0x2FCC67), else the slot's m_amount (+260h) = min(count, the item's amount_in_storage +8 of its 0B4h record) and the store loses it (0x2FCC4A..0x2FCCBD)	observed
 0x002fd2d0	survarium::inventory::unload_to_profile	AL	profile index	inferred
 0x002fd2d0	survarium::inventory::unload_to_profile	stack+4	inventory receiver	inferred
 0x002fd2d0	survarium::inventory::unload_to_profile	stack+8	profile	inferred
@@ -4696,6 +4697,7 @@ va	name	location	role	basis
 0x0033d390	survarium::medkit::set_active	stack+4	the medkit, its activation delay: +2A4h configured delay ms; 0x33D45A..0x33D491 uses apply_modifier(profile+kit*704h+F4h,33,delay,1.0), truncates to u32 and stores +2ACh. Unlike effect duration, the delay does not use +2A0h skill weight.	observed
 0x002ffcc0	survarium::stackable_item::get_ui_description	medkit vtable+48h	medical items inherit this descriptor: writes item id at output+0 and stack count at +4; leaves cooldown byte +6 and timer word +2 zero. Medical activation needs its own native timing snapshot.	observed
 0x002f8080	survarium::resupply_zone_core::can_use	ECX	resupply zone	observed
+0x002f8080	survarium::resupply_zone_core::can_use	ECX+54h	the zone's team (0, 1; 2 both), compared with [[record]+6B8h]+45ECh	observed
 0x002f8080	survarium::resupply_zone_core::can_use	entry ESP+4	interaction record; first pointer is base_player	observed
 0x002f80c0	survarium::resupply_zone_core::use_hint	ECX	resupply zone	observed
 0x002f80c0	survarium::resupply_zone_core::use_hint	entry ESP+4	interaction record; first pointer is base_player	observed

@@ -95,7 +95,7 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         match_id: MATCH | 0x8000_0000,
         match_level: 1,
         score_weights: [0.0; SCORE_EVENTS],
-        blackout: false,
+        variant: survarium::v026g::maps::Variant::Plain,
     };
     let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
     let note =

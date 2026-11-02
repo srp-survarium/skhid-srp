@@ -92,9 +92,10 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 
 ## How
 
-- **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::blackout_pairs`:
-  ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows. A
-  room's match on such a card is made on the battery map with `MatchSetup::blackout`.
+- **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::variant_pairs`:
+  ids `maps_dict` does not use, from 255 down, Blackout's before Scarcity's), mode 6 in the rooms'
+  pool, cards and rows. A room's match on such a card is made on the battery map with
+  `MatchSetup::variant` Blackout (`maps::Variant`, `scarcity.md`).
 - **Rewards (srp):** the match server's result carries `blackout`; the rewards' score and each
   line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
   computes otherwise (the hud's score is hidden).

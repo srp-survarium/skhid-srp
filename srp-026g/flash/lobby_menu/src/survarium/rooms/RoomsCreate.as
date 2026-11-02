@@ -22,9 +22,9 @@ package survarium.rooms
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch and Research.
+        // The protective device's kinds together (the owner, 2026-10-26), then team deathmatch and Research.
         private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
-            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
+            GameMode.SCARCITY, GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
         private static const TRACK_X:Number = 14;
         // The wait index sent when the wait is none of WAITS: 30 s.
         private static const WAIT_INDEX_DEFAULT:int = 3;
@@ -222,7 +222,7 @@ package survarium.rooms
             look.text(look._content, win.say("st_srp_rooms_private_room"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
             y += 48;
             // The modes the server's pool offers, in MODE_ORDER: the three kinds
-            // of protective device apart (plain, chargers, blackout), team
+            // of protective device apart (plain, chargers, blackout, scarcity), team
             // deathmatch and Research; a mode out takes all its entries out of
             // the pool. Rows of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("st_srp_rooms_modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);

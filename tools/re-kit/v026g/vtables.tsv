@@ -24,3 +24,11 @@ vtable	slot	va	class	base	basis
 0x00a029a8	0x0	0x002f8850	survarium::static_collision	survarium::static_collision	observed: made by new_array_helper<static_collision> (0x22F9A6); insert, on_render_scenes_ready 0x22196D
 0x00a029a8	0x4	0x002f8970	survarium::static_collision	survarium::static_collision	observed: remove, lobby_menu::clear_resources 0x21D0BE
 0x009fac8c	0x10	0x001ed030	survarium::game	survarium::game	observed: game::clear_resources (the game closing; it deactivates the active scene and clears the lobby menu)
+0x00a1327c	0x30	0x002f8080	survarium::resupply_zone_core	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone_core@survarium@@ at -4; the slots read from the image (patch 94, scarcity.md)
+0x00a1327c	0x34	0x002f80c0	survarium::resupply_zone_core	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone_core@survarium@@ at -4; the slots read from the image (patch 94, scarcity.md)
+0x00a1327c	0x38	0x002f8120	survarium::resupply_zone_core	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone_core@survarium@@ at -4; the slots read from the image (patch 94, scarcity.md)
+0x00a1327c	0x48	0x002f81a0	survarium::resupply_zone_core	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone_core@survarium@@ at -4; the slots read from the image (patch 94, scarcity.md)
+0x00a029ec	0x30	0x002f8080	survarium::resupply_zone	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone@survarium@@ at -4, slots +30h..+38h the core's; the slots read from the image (patch 94, scarcity.md)
+0x00a029ec	0x34	0x002f80c0	survarium::resupply_zone	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone@survarium@@ at -4, slots +30h..+38h the core's; the slots read from the image (patch 94, scarcity.md)
+0x00a029ec	0x38	0x002f8120	survarium::resupply_zone	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone@survarium@@ at -4, slots +30h..+38h the core's; the slots read from the image (patch 94, scarcity.md)
+0x00a029ec	0x48	0x002954d0	survarium::resupply_zone	survarium::resupply_zone_core	observed: RTTI .?AVresupply_zone@survarium@@ at -4, slots +30h..+38h the core's; the slots read from the image (patch 94, scarcity.md)

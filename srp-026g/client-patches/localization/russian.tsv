@@ -2470,6 +2470,7 @@ st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
+st_srp_mode_scarcity	Защитное устройство: дефицит
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:

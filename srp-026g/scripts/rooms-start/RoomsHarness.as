@@ -155,8 +155,10 @@ package
          {
             var say:Object = HarnessText.DATA[language];
             Loc.setData(say);
-            // The pool the cards and rows name: long map names, the longest weather, every mode.
-            tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+            // The pool the cards and rows name: long map names, the longest weather, every mode (the
+            // create window's six mode rows).
+            tell(["S1;M;6;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;64;12;3;7;0","4;65;5;5;4;0",
+               "5;66;5;5;5;0"]);
             var states:Array = [
                ["private, owner", 1001, true, true, 0, "01010", 0, []],
                ["private, member", 1002, true, false, 0, "01010", 0, []],

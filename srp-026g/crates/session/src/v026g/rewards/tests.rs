@@ -78,7 +78,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         players,
         vs_bots: false,
         private: false,
-        blackout: false,
+        variant: survarium::v026g::maps::Variant::Plain,
     }
 }
 
@@ -3832,7 +3832,7 @@ fn a_blackout_match_pays_its_points_twice() {
     let players = alice_and_bob();
     let plain = result(players.clone());
     let mut blackout = result(players.clone());
-    blackout.blackout = true;
+    blackout.variant = survarium::v026g::maps::Variant::Blackout;
     let once = Results::new()
         .settle(&plain, &accounts(&players), &terms(), &mut Rng::new(1))
         .unwrap();

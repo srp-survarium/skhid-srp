@@ -65,3 +65,5 @@ pub mod music;
 pub mod drug_interrupt;
 
 pub mod weapon_pickup;
+
+pub mod scarcity;

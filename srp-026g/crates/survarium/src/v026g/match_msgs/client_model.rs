@@ -630,7 +630,7 @@ mod tests {
             match_id: 7,
             match_level: 0,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
+            variant: crate::v026g::maps::Variant::Plain,
         };
         StaticInfo::new(&options, dictionary()).unwrap()
     }

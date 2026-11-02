@@ -14,6 +14,7 @@ pub mod maps;
 pub mod modifications;
 pub mod prices;
 pub mod quests;
+pub mod scarcity;
 pub mod scopes;
 pub mod shop_offers;
 pub mod skills;

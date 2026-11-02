@@ -102,9 +102,20 @@ pub struct MatchSetup {
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
     /// (clan matches, against bots): the clients' rule alone.
     pub room_minimum: Option<u8>,
-    /// A Blackout match (the lobby's rooms, `docs/notes/blackout.md`): the
-    /// static info's flag (exe patch 65), on a battery map only.
-    pub blackout: bool,
+    /// The battery match's variant (the lobby's rooms): Blackout
+    /// (`docs/notes/blackout.md`, exe patch 65) or Scarcity
+    /// (`docs/notes/scarcity.md`, exe patch 94), the static info's tag 2, on a
+    /// battery map only ([`maps::Variant::on_mode`]).
+    pub variant: maps::Variant,
+}
+
+/// A player's profile as a match of `variant` gives it: in Scarcity its
+/// kits cut to Scarcity's ammo (`docs/notes/scarcity.md`).
+fn match_profile(mut profile: MatchProfile, variant: maps::Variant) -> MatchProfile {
+    if variant == maps::Variant::Scarcity {
+        survarium::v026g::scarcity::ration(&mut profile, Dictionary::shared());
+    }
+    profile
 }
 
 /// Where the players of a made match connect.
@@ -196,9 +207,11 @@ pub(crate) struct Formed {
     /// player blocks are read against.
     pub profiles: Vec<MatchProfile>,
     pub score_weights: [f32; SCORE_EVENTS],
-    /// Whether the static info says Blackout (exe patch 65), the same for a
-    /// late joiner's.
-    pub blackout: bool,
+    /// The variant the static info says, the same for a late joiner's: in
+    /// Scarcity every profile's kits are cut to its ammo
+    /// ([`survarium::v026g::scarcity::ration`]) before the static info is
+    /// made, so [`Self::profiles`] are the cut ones.
+    pub variant: maps::Variant,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -454,18 +467,18 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
-        let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
+        let variant = setup.variant.on_mode(map.mode);
         let options = MatchOptions {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile)
+                .map(|player| match_profile(player.profile, variant))
                 .collect(),
             map_id: setup.map_id,
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
-            blackout,
+            variant,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -491,7 +504,7 @@ impl MatchRegistry {
                 places,
                 profiles,
                 score_weights,
-                blackout: options.blackout,
+                variant: options.variant,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -597,8 +610,11 @@ impl MatchRegistry {
         }
         let mut next = (**formed).clone();
         let first = next.places.len();
-        next.profiles
-            .extend(players.iter().map(|player| player.profile.clone()));
+        next.profiles.extend(
+            players
+                .iter()
+                .map(|player| match_profile(player.profile.clone(), next.variant)),
+        );
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
@@ -606,7 +622,7 @@ impl MatchRegistry {
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
-                blackout: next.blackout,
+                variant: next.variant,
             },
             Dictionary::shared(),
         )
@@ -967,8 +983,8 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
-    /// A Blackout match ([`Formed::blackout`]): its scores pay twice.
-    pub blackout: bool,
+    /// [`Formed::variant`]: a Blackout match's scores pay twice.
+    pub variant: maps::Variant,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

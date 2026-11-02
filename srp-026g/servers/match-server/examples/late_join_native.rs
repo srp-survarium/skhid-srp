@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vs_bots: false,
         private: false,
         room_minimum: None,
-        blackout: false,
+        variant: survarium::v026g::maps::Variant::Plain,
     })?;
     let store = Arc::new(SessionStore::with_repository(
         Duration::from_secs(600),

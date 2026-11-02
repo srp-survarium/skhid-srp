@@ -260,9 +260,10 @@ pub struct MatchSetup {
     /// A room's match: the room's minimum of players (the match server's
     /// `MatchSetup::room_minimum`).
     pub room_minimum: Option<u8>,
-    /// A Blackout match (a room's card of mode 6, its `map_id` the map it
-    /// plays): the match server's `MatchSetup::blackout`.
-    pub blackout: bool,
+    /// The battery match's variant (a room's card of a variant's mode,
+    /// Blackout 6 or Scarcity 7, its `map_id` the map it plays): the match
+    /// server's `MatchSetup::variant`.
+    pub variant: maps::Variant,
 }
 
 /// Where the players of a made match connect.
@@ -1089,11 +1090,12 @@ impl Core<'_> {
             );
             players
         });
-        // A room's Blackout card names the map it plays by a lobby id.
-        let blackout = room_map.and_then(maps::blackout_played);
+        // A room's variant card (Blackout, Scarcity) names the map it plays
+        // by a lobby id.
+        let variant = room_map.and_then(maps::variant_played);
         let map_id = match (pvb, room_map) {
             (Some(choice), _) => choice.map_id,
-            (None, Some(map_id)) => blackout.unwrap_or(map_id),
+            (None, Some(map_id)) => variant.map_or(map_id, |(_, played)| played),
             (None, None) => match self.settings.maps.len() {
                 0 => maps::playable().next().map_or(0, |map| map.id),
                 count => self.settings.maps[self.rng.below(count as u32) as usize],
@@ -1112,7 +1114,7 @@ impl Core<'_> {
                 vs_bots: pvb.is_some(),
                 private: room.is_some_and(|(.., private)| private),
                 room_minimum: room.map(|(_, minimum, _)| minimum),
-                blackout: blackout.is_some(),
+                variant: variant.map_or(maps::Variant::Plain, |(variant, _)| variant),
             }),
             None => Err("a seated player is unavailable or uses an incompatible client".to_owned()),
         };
@@ -1528,7 +1530,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
+            variant: survarium::v026g::maps::Variant::Plain,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (index, read) = parse_payload(&info.payload(1).unwrap(), dictionary).unwrap();
@@ -1601,7 +1603,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
+            variant: survarium::v026g::maps::Variant::Plain,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
@@ -1706,7 +1708,7 @@ mod tests {
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
+            variant: survarium::v026g::maps::Variant::Plain,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();

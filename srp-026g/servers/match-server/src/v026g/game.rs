@@ -4890,7 +4890,7 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
-            blackout: self.formed.blackout,
+            variant: self.formed.variant,
         }
     }
 

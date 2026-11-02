@@ -16,9 +16,11 @@
 //!
 //! The client reads the fields above and nothing after them; srp's block
 //! after them ("SRPX", then tagged entries) is read by exe patches only:
-//! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
-//! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
-//! 0x1F096C); tag 1 is kept for team damage (#370).
+//! tag 2 is the battery match's variant ([`maps::Variant`]: one byte, 1
+//! Blackout, patch 65, `docs/notes/blackout.md`; 2 Scarcity, patch 94,
+//! `docs/notes/scarcity.md`; their readers are at the two calls of
+//! `match_options::deserialize`, 0x27B928 and 0x1F096C); tag 1 is kept for
+//! team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -332,17 +334,17 @@ pub struct MatchOptions {
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
-    /// A Blackout match (srp's block, tag 2; exe patch 65,
-    /// `docs/notes/blackout.md`): no interface for anyone, the players'
-    /// markers on Tab. `false`: the entry not sent.
-    pub blackout: bool,
+    /// The battery match's variant (srp's block, tag 2): Blackout (exe
+    /// patch 65, `docs/notes/blackout.md`) or Scarcity (exe patch 94,
+    /// `docs/notes/scarcity.md`). `Plain`: the entry not sent.
+    pub variant: maps::Variant,
 }
 
 /// srp's block after the options: its magic, then tagged entries
 /// `{u8 tag, u8 len, len bytes}`.
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
-/// The entry of [`MatchOptions::blackout`]: one byte, 1.
-pub const SRPX_BLACKOUT: u8 = 2;
+/// The entry of [`MatchOptions::variant`]: one byte, [`maps::Variant::wire`].
+pub const SRPX_VARIANT: u8 = 2;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -638,8 +640,8 @@ pub fn options_bytes(
     }
     out.extend(squads);
     let mut block = Vec::new();
-    if options.blackout {
-        block.extend([SRPX_BLACKOUT, 1, 1]);
+    if let Some(byte) = options.variant.wire() {
+        block.extend([SRPX_VARIANT, 1, byte]);
     }
     if !block.is_empty() {
         out.extend(SRPX_MAGIC);
@@ -877,7 +879,7 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let blackout = read_srp_block(&mut reader)?;
+    let variant = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -898,20 +900,20 @@ pub fn parse_options(
         match_id,
         match_level,
         score_weights,
-        blackout,
+        variant,
     })
 }
 
 /// srp's block after the options, if any: as patch 65's reader reads it, but
 /// strict (an unknown tag or a short entry is refused, so a test sees it).
-fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
+fn read_srp_block(reader: &mut Reader) -> Result<maps::Variant, StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(false);
+        return Ok(maps::Variant::Plain);
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    let mut blackout = false;
+    let mut variant = maps::Variant::Plain;
     while !reader.bytes.is_empty() {
         let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
         let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
@@ -921,11 +923,13 @@ fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
                 .map_err(|_| StaticInfoError::SrpBlock)?,
         };
         match (tag, len) {
-            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
+            (SRPX_VARIANT, 1) => {
+                variant = maps::Variant::from_wire(entry.u8()?).ok_or(StaticInfoError::SrpBlock)?
+            }
             _ => return Err(StaticInfoError::SrpBlock),
         }
     }
-    Ok(blackout)
+    Ok(variant)
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -1006,22 +1010,28 @@ mod tests {
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
+            variant: maps::Variant::Plain,
         }
     }
 
     #[test]
-    fn blackout_is_an_entry_of_the_block_and_reads_back() {
+    fn the_variant_is_an_entry_of_the_block_and_reads_back() {
         let mut with = options(vec![alice()]);
         let without = options_bytes(&with, dictionary()).unwrap();
-        with.blackout = true;
-        let bytes = options_bytes(&with, dictionary()).unwrap();
-        assert_eq!(bytes[..without.len()], without[..]);
-        assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01"[..]);
-        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        for (variant, entry) in [
+            (maps::Variant::Blackout, &b"SRPX\x02\x01\x01"[..]),
+            (maps::Variant::Scarcity, &b"SRPX\x02\x01\x02"[..]),
+        ] {
+            with.variant = variant;
+            let bytes = options_bytes(&with, dictionary()).unwrap();
+            assert_eq!(bytes[..without.len()], without[..]);
+            assert_eq!(bytes[without.len()..], *entry);
+            assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        }
         // Another value or length, an unknown tag, another magic: refused.
         for bad in [
             &b"SRPX\x02\x01\x00"[..],
+            &b"SRPX\x02\x01\x03"[..],
             &b"SRPX\x02\x02\x01\x01"[..],
             &b"SRPX\x09\x00"[..],
             &b"SRPY\x02\x01\x01"[..],

@@ -91,7 +91,7 @@ pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, U
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::OptionsRead;
+pub use options::{MatchVariant, OptionsRead};
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
