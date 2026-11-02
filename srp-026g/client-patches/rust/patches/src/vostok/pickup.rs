@@ -1000,15 +1000,25 @@ unsafe fn set_aside(player: raw::Player, own_gun: raw::Weapon, cooked: raw::Inve
     unsafe {
         *own_gun.loaded() = 0;
         *own_gun.chamber() = 0;
-        let kit = usize::from(read(player.kit()));
-        let words = player.profile().filter(|_| kit < 3).map(|profile| profile.kit_slots().at(kit).slots());
         for m in moved.iter().flatten() {
             let Some(stack) = cooked.slots().at(usize::from(m.from)).item().filter(|&i| Some(ItemId::of(i)) == m.displaced)
             else { continue };
-            let allowance = words.map(|w| w.at(usize::from(m.to)))
-                .filter(|&word| read(word.item()) != NO_ITEM).map_or(0, |word| read(word.allowance()));
-            *stack.count() = allowance;
+            *stack.count() = kit_allowance(player, m.to);
         }
+    }
+}
+
+/// The rounds `player`'s kit gives its slot `slot` (its slot word's
+/// allowance; none for no item): synced, the same in every game.
+///
+/// # Safety
+/// `player` is live.
+unsafe fn kit_allowance(player: raw::Player, slot: u8) -> u16 {
+    unsafe {
+        let kit = usize::from(read(player.kit()));
+        let Some(profile) = player.profile().filter(|_| kit < 3) else { return 0 };
+        let word = profile.kit_slots().at(kit).slots().at(usize::from(slot));
+        if read(word.item()) == NO_ITEM { 0 } else { read(word.allowance()) }
     }
 }
 
@@ -1030,12 +1040,14 @@ pub fn set_own_wear(player: &Player<'_>, installed: &Installed, own: Wear) {
 /// At the end of a pick (base_player::remove(1), before its unload,
 /// inventory::unload_to_profile 0x2FD2D0: each weapon's magazine and
 /// chamber into its retained stack, then each ammunition slot's count onto
-/// the profile item of the kit's slot word): the own kit set aside is not
-/// refunded, in every game alike, whatever item is where (restored, or a
-/// restore refused): the gun in the pick's slot with no magazine and no
-/// chambered round, each slot the install moved a stack into empty. The
-/// respawn's setup gives the new life's kit from the store as usual.
-pub fn refund_nothing(player: &Player<'_>, installed: &Installed, own: Option<Wear>) {
+/// the profile item of the kit's slot word): the own kit set aside comes
+/// back as the kit gives it, neither charged nor refunded, in every game
+/// alike, whatever item is where (restored, or a restore refused): the gun
+/// in the pick's slot with no magazine and no chambered round (its wear the
+/// record's), each slot an own stack was set aside from at its kit
+/// allowance ([`set_aside`]'s), each slot only a borrowed stack went into
+/// empty. The respawn's setup gives the new life's kit from the store.
+pub fn give_back_the_kit(player: &Player<'_>, installed: &Installed, own: Option<Wear>) {
     // SAFETY: the live player's inventory at remove's entry; an item read
     // as a weapon only after its vtable says so; counts written in place.
     unsafe {
@@ -1051,7 +1063,7 @@ pub fn refund_nothing(player: &Player<'_>, installed: &Installed, own: Option<We
         }
         for m in installed.moved.iter().flatten() {
             if let Some(item) = inventory.slots().at(usize::from(m.to)).item() {
-                *item.count() = 0;
+                *item.count() = if m.displaced.is_some() { kit_allowance(player.this, m.to) } else { 0 };
             }
         }
         *inventory.weight_dirty() = 1;

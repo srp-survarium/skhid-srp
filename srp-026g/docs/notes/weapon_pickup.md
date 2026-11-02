@@ -160,15 +160,21 @@
   set aside is no game's own: hidden, the own gun has no magazine and no
   chambered round and each own stack is as the kit gives it (its slot
   word's allowance), in every game (`set_aside`, at every install); at a
-  pick's end the unload finds the pick's slot gun empty and every slot the
-  install moved a stack into empty (`refund_nothing`), whatever object is
-  there, so it refunds nothing for them, in every game. Why the two live
-  cases cannot happen: the store a pick's end leaves is the store before
-  plus what the unload refunds, and the unload now reads only counts the
-  patch wrote as constants (0) in every game, not counts any game kept on its
-  own; the record has no byte a game fills from its own objects. Unicorn
-  (`the_end_refunds_nothing_set_aside`): hidden 90 against 76 and 120 against
-  0, and a restore refused against one done, end with the same store;
+  pick's end the own kit comes back as the kit gives it, neither charged nor
+  refunded (`give_back_the_kit`): the unload finds the pick's slot gun empty
+  (its wear the record's), each slot an own stack was set aside from at its
+  kit allowance and each slot only a borrowed stack went into empty,
+  whatever object is there, in every game; the store is the same life's
+  without a pickup (the spawn's 108 in the harness: 30 in the gun, 78 in the
+  slot). (7c26df867 and before emptied the own slots too: 99 rounds lost a
+  pick, while the match server read a pick held at the match's end as the
+  kit gives it; it does still, so they agree now.) Why the two live cases
+  cannot happen: the store a pick's end leaves is the store before plus what
+  the unload refunds, and the unload now reads only counts the patch wrote
+  from the synced kit in every game, not counts any game kept on its own;
+  the record has no byte a game fills from its own objects. Unicorn
+  (`the_end_gives_back_the_kit`): hidden 90 against 76 and 120 against 0,
+  and a restore refused against one done, end with the baseline's store;
   rev41's build (#1024) on the same scenario: 14, 120 and 51 rounds apart.
 - **A recipe's source can't change mid-match.** A pick names its gun by its
   recipe (place, kit, slot): a game without a copy cooks it from that

@@ -393,7 +393,7 @@ def main():
     late_join_after_player_made(patched)
     a_loaded_record_saves_the_same(patched)
     a_new_life(patched)
-    the_end_refunds_nothing_set_aside(patched)
+    the_end_gives_back_the_kit(patched)
     the_own_wear_comes_back(patched)
     no_cook_in_a_tick(patched)
     donor_left_then_a_late_join(patched)
@@ -1198,7 +1198,7 @@ STORE_8 = PROFILE + ITEMS + 0xB4 * 8 + 8    # amount_in_storage of the kit 0 slo
 STORE_10 = PROFILE + ITEMS + 0xB4 * 10 + 8  # the kit 0 slot 10 gun's profile item: its condition x 1e6
 
 
-def end_of_pick(patched, hidden=None, refused=False, own_wear=0.93, joins=None):
+def end_of_pick(patched, hidden=None, refused=False, own_wear=0.93, joins=None, pick=True):
     """A picker (place 3, kit 0, 4000 rounds of its slot-8 ammunition in store) takes the donor's gun over its
     own (its own slot-8 stack set aside), the hidden own stack then `hidden` rounds in this game (a game's own
     count: a late joiner's made-up kit, or whatever made it differ), the restore `refused` in this game or not;
@@ -1216,12 +1216,16 @@ def end_of_pick(patched, hidden=None, refused=False, own_wear=0.93, joins=None):
     r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 90))
     r.emu.mem_write(r.own_gun + 0x270, struct.pack("<f", own_wear))
     r.word(STORE_10, 0)
-    if joins is None:
+    if not pick:                                # the same life without a pickup, its kit as the spawn gave it
+        r.emu.mem_write(r.own_gun + 0x5E5, bytes([30]))
+        r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 108 - 30))
+    elif joins is None:
         r.pick()
+        r.installed()
     else:                                       # a game that loads the picker's record (a late join, a resync)
         r.load(r.picker, joins)
         r.reader(PICK_ID)
-    r.installed()
+        r.installed()
     saved = r.save(r.picker)
     if hidden is not None:
         r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", hidden))
@@ -1258,21 +1262,24 @@ def the_own_wear_comes_back(patched):
           "0.99 gun and a refused restore all unload %d into the profile item" % stores[0])
 
 
-def the_end_refunds_nothing_set_aside(patched):
-    """At a pick's end (base_player::remove(1)) the own kit set aside is not refunded, in every game alike: the
-    native unload then finds the pick's slot gun with no magazine and no chambered round and the slots the install
-    moved stacks into empty, whatever objects are there. Restored or refused, with any hidden count: the same store
-    (the live 0x1c0ebd31: the donor's game refunded 14, and in another pick 120 rounds less)."""
+def the_end_gives_back_the_kit(patched):
+    """At a pick's end (base_player::remove(1)) the own kit set aside comes back as the kit gives it (each own
+    stack's slot at its allowance, the gun empty): neither charged nor refunded, the same store as the same life
+    without a pickup (its kit as the spawn gave it: 30 in the gun, 78 in slot 8, the kit's 108), in every game
+    alike, whatever objects are there. Restored or refused, with any hidden count (the live 0x1c0ebd31: the donor's
+    game refunded 14, and in another pick 120 rounds less), the store is the baseline's."""
+    baseline = end_of_pick(patched, pick=False)[0]
+    assert baseline == 4_108, baseline
     (store, slots, _), (refused_store, refused_slots, f) = end_of_pick(patched), end_of_pick(patched, refused=True)
     assert any("FAILED to restore" in l for l in f.log), f.log
-    assert slots == refused_slots == (b"\0\0", b"\0", b"\0"), (slots, refused_slots)
-    assert store == refused_store == 4_000, (store, refused_store)
+    assert slots == refused_slots == (struct.pack("<H", 108), b"\0", b"\0"), (slots, refused_slots)
+    assert store == refused_store == baseline, (store, refused_store, baseline)
     # The two live cases: a hidden stack of 90 against 76 (14 rounds) and of 120 against 0 (120).
     for a, b in ((90, 76), (120, 0)):
-        assert end_of_pick(patched, a)[0] == end_of_pick(patched, b)[0] == 4_000, (a, b)
-    print("ok a pick's end refunds nothing set aside, in every game alike: restored or refused, the unload finds "
-          "slot 8 and the slot-10 gun empty; the store stays 4000; the live cases (hidden 90 vs 76, 120 vs 0) end "
-          "with the same store")
+        assert end_of_pick(patched, a)[0] == end_of_pick(patched, b)[0] == baseline, (a, b)
+    print("ok a pick's end gives the kit back, neither charged nor refunded, in every game alike: restored or "
+          "refused, the unload finds slot 8 at the kit's 108 and the slot-10 gun empty; the store %d is the same "
+          "life's without a pickup; the live cases (hidden 90 vs 76, 120 vs 0) end with it too" % baseline)
 
 
 def no_cook_in_a_tick(patched):

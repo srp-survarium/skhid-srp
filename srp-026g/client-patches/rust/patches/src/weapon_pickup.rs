@@ -713,10 +713,10 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     for slot in SLOTS {
         unpick(&player, thread, slot, Unpick::Removed, "its removal (a respawn or a departure)");
     }
-    // The own kit set aside is not refunded by the unload, in every game alike.
+    // The own kit set aside comes back as the kit gives it, in every game alike.
     for (installed, wear) in installs.iter().zip(wears) {
         if let Some(installed) = installed {
-            native::refund_nothing(&player, installed, wear);
+            native::give_back_the_kit(&player, installed, wear);
         }
     }
     if let Some((world, place)) = located(&player) {
