@@ -20,7 +20,7 @@
 #   edit   <file>.json   -   srp-026g/scripts/content-edit/<file>.json applied by content_edit.py,
 #          in order, to the files as the rows above leave them ("from" values are the base's).
 #          With a base row's name as the source: a record, applied in that patch. Every edit list
-#          of content-edit has a row, a <category>-stats.tsv too.
+#          of content-edit has a row, a <table>.tsv too.
 # A new pack or edit list: a row at the end of its kind. A retune of an edit list or a movie
 # change: no row to add (the source changed). A pack's new version: its row's name and sha256; the
 # files an earlier version added and it no longer makes stay live as they are (build-content lists

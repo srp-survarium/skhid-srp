@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """content_edit.py: make a resources.db patch folder by editing game configs in place.
 
-usage: python3 -I content_edit.py <edits.json | <category>-stats.tsv> <live folder> <out folder> [--check]
+usage: python3 -I content_edit.py <edits.json | <table>.tsv> <live folder> <out folder> [--check]
 
 <live folder>  the live game files, at their game paths (gameplay/items/...) or flattened as
                `dbgrab <server-game-data.db> get gameplay/ <dir>` writes them (gameplay__items__...).
@@ -122,8 +122,8 @@ Edits (edits.json):
                        "allow_bones", "why"]}]         geometry, UVs and indices stay byte for byte;
                                                        allow_bones: this surface's other native bones
                                                        (indices), which then follow the head too
-A stats table (<category>-stats.tsv, see STATS): its cells are written into its category's configs,
-then their card lines. `--dump-stats <category> <folder>` prints the table of the configs there.
+A table (<table>.tsv, see STATS): its cells are written into its configs, then their card lines.
+`--dump-stats <table> <folder>` prints the table of the configs there.
 A key of `where` may be a path in the entry too (`path[1]`: a modifier's target key).
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
@@ -712,7 +712,7 @@ def weapon_card(buf):
     return out
 
 
-# <category>-stats.tsv, a row each of what `configs` names, a column a stat:
+# <table>.tsv, a row each of what `configs` names, a column a stat:
 #   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
 #                      files, each the row's (a level's projects of every weather)
 #   'file#list[key]'   a row per entry of the indexed table `list`, named by its `key`
@@ -723,7 +723,7 @@ def weapon_card(buf):
 # `match`: the columns (of a key/value table: keys) a match computes with: a change needs the `next`
 # row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
 STATS = {
-    'weapon': {
+    'weapon-stats': {
         'configs': 'gameplay/items/weapons/wpn_*.options',
         'columns': {
             'damage': 'parameters/bullet_damage', 'pierce': 'parameters/bullet_pierce',
@@ -764,9 +764,9 @@ STATS = {
 
 def stats_category(path):
     name = os.path.basename(path)
-    if not name.endswith('-stats.tsv') or name[:-len('-stats.tsv')] not in STATS:
-        raise ValueError('%s: not <category>-stats.tsv of a category of STATS (%s)' % (name, ', '.join(STATS)))
-    return STATS[name[:-len('-stats.tsv')]]
+    if not name.endswith('.tsv') or name[:-len('.tsv')] not in STATS:
+        raise ValueError('%s: not <name>.tsv of a table of STATS (%s)' % (name, ', '.join(STATS)))
+    return STATS[name[:-len('.tsv')]]
 
 
 def stats_config(category, name):
@@ -895,14 +895,25 @@ def write_cell(buf, off, cell):
         raise ValueError('%r does not fit a value of type %d' % (cell, t))
 
 
-def stats_cells(buf, off, columns):
+def stats_values(buf, off, columns, row):
+    """{column: [cell of each value its key path selects under `off`, in order]}; a path whose selector
+    selects nothing is refused."""
+    out = {}
+    for c, key in columns.items():
+        out[c] = [cell_text(buf, o) for _, o in resolve(buf, key, off)]
+        if not out[c] and '[' in key:
+            raise ValueError('row %s: %s matches nothing' % (row, key))
+    return out
+
+
+def stats_cells(buf, off, columns, row):
     """{column: cell} of the values under `off` ('' none; values that differ: a|b)."""
-    return {c: '|'.join(sorted({cell_text(buf, o) for _, o in resolve(buf, key, off)})) for c, key in columns.items()}
+    return {c: '|'.join(sorted(set(v))) for c, v in stats_values(buf, off, columns, row).items()}
 
 
-def stats_differences(buf, off, columns, cells):
+def stats_differences(buf, off, columns, cells, row):
     """[(column, key path, cell, config value)] where the values under `off` disagree with the row."""
-    have = stats_cells(buf, off, columns)
+    have = stats_cells(buf, off, columns, row)
     return [(c, key, cells[c], have[c]) for c, key in columns.items() if not same_cell(cells[c], have[c])]
 
 
@@ -915,11 +926,16 @@ def stats_unmatched(category, rows, targets, table):
 
 def stats_problems(category, columns, rows, targets, files, table):
     """Why the configs are not the table: stats_unmatched, and each cell its values are not."""
-    return stats_unmatched(category, rows, targets, table) + [
-        '%s: %s (%s) is %s, its row says %s' % (stats_label(category, row, p), column, key, have or 'absent',
-                                                cell or 'nothing')
-        for row, places in targets.items() if row in rows for p, off in places
-        for column, key, cell, have in stats_differences(files[p], off, columns, rows[row])]
+    out = stats_unmatched(category, rows, targets, table)
+    for row, places in targets.items():
+        for p, off in places if row in rows else ():
+            try:
+                out += ['%s: %s (%s) is %s, its row says %s' % (stats_label(category, row, p), column, key,
+                                                                have or 'absent', cell or 'nothing')
+                        for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row)]
+            except ValueError as why:
+                out.append('%s: %s' % (stats_label(category, row, p), why))
+    return out
 
 
 def stats_write(category, columns, rows, data, table):
@@ -937,7 +953,7 @@ def stats_write(category, columns, rows, data, table):
     for row, places in sorted(targets.items()):
         for p, off in places:
             b = data[p]
-            for column, key, cell, have in stats_differences(b, off, columns, rows[row]):
+            for column, key, cell, have in stats_differences(b, off, columns, rows[row], row):
                 spots = resolve(b, key, off)
                 if not cell or not spots:
                     raise ValueError('%s %s (%s): the row says %r, the config %r (an empty cell: no such key)'
@@ -947,7 +963,7 @@ def stats_write(category, columns, rows, data, table):
                         write_cell(b, o, cell)
                         written.setdefault(p, []).append(at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
-            if stats_differences(b, off, columns, rows[row]):
+            if stats_differences(b, off, columns, rows[row], row):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
                 written.setdefault(p, []).append(set_prop(b, prop_id, text, want))
@@ -957,16 +973,16 @@ def stats_write(category, columns, rows, data, table):
 
 
 def stats_moved(category, columns, players, now):
-    """[label key] of each match column whose value differs between two versions ({path: buf}) of the
-    configs players have."""
+    """[label key] of each match column whose values (each selected one, in order) differ between
+    players' configs and the new ones ({path: buf}; a config players lack has none)."""
     match = {c: key for c, key in columns.items() if c in category['match']}
 
-    def cells(files):
-        return {(row, p): stats_cells(files[p], off, match)
+    def values(files):
+        return {(row, p): stats_values(files[p], off, match, row)
                 for row, places in stats_targets(category, files).items() for p, off in places}
-    was, have = cells(players), cells(now)
+    was, have = values(players), values(now)
     return ['%s %s' % (stats_label(category, row, p), key) for row, p in sorted(was.keys() | have.keys())
-            for c, key in match.items() if was.get((row, p), {}).get(c, '') != have.get((row, p), {}).get(c, '')]
+            for c, key in match.items() if was.get((row, p), {}).get(c, []) != have.get((row, p), {}).get(c, [])]
 
 
 def card_differences(buf, card):
@@ -1016,10 +1032,17 @@ def dump_stats(name, live):
             if t not in (T_NAMED, T_INDEXED):
                 print('%s\t%s' % (q[1:], cell_text(buf, find(buf, q[1:]))))
         return
-    print('\t'.join([name] + list(category['columns'])))
+    lines, mixed = ['\t'.join([name] + list(category['columns']))], []
     for row, places in sorted(stats_targets(category, data).items()):
-        cells = [stats_cells(data[p], off, category['columns']) for p, off in places]
-        print('\t'.join([row] + ['|'.join(sorted({c[column] for c in cells})) for column in category['columns']]))
+        cells = {c: set() for c in category['columns']}
+        for p, off in places:
+            for c, v in stats_values(data[p], off, category['columns'], row).items():
+                cells[c].update(v or [''])
+        mixed += ['row %s %s: %s' % (row, c, ' | '.join(sorted(v))) for c, v in cells.items() if len(v) > 1]
+        lines.append('\t'.join([row] + [v.pop() for v in cells.values()]))
+    if mixed:
+        sys.exit('values that differ within a row (a cell unifies them: pick one):\n' + '\n'.join(mixed))
+    print('\n'.join(lines))
 
 
 def prefix_strings(buf, key, prefix):
@@ -1428,7 +1451,7 @@ def main():
     if len(args) != 3:
         sys.exit(__doc__)
     edits_file, live, out = args
-    stats = read_stats(edits_file) if edits_file.endswith('-stats.tsv') else None
+    stats = read_stats(edits_file) if edits_file.endswith('.tsv') else None
     edits = json.load(open(edits_file, encoding='utf-8')) if stats is None else {}
     if not check and os.path.exists(out):
         sys.exit('%s: already there' % out)

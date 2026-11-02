@@ -2,6 +2,7 @@
 
 Run with: python3 -m unittest discover -s srp-026g/scripts/content-edit
 """
+import io
 import json
 from pathlib import Path
 import struct
@@ -269,9 +270,6 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 def weapon(damage, card_damage, rpm=600, chamber=None):
     """A weapon config with a card of three lines: damage x100, rate of fire, weight."""
@@ -284,7 +282,7 @@ def weapon(damage, card_damage, rpm=600, chamber=None):
                                               {'prop_id': 15, 'prop_value': '3.0'}]}})
 
 
-WEAPON = ce.STATS['weapon']
+WEAPON = ce.STATS['weapon-stats']
 
 
 def table(rows, columns=None):
@@ -338,7 +336,7 @@ class WeaponTable(unittest.TestCase):
         for name in ('wpn_a', 'wpn_b'):
             data = self.out(out, name)
             self.assertEqual(ce.card_differences(data, ce.weapon_card), [])
-            self.assertEqual(ce.stats_differences(data, 0, WEAPON['columns'], row_of(text, name)), [])
+            self.assertEqual(ce.stats_differences(data, 0, WEAPON['columns'], row_of(text, name), name), [])
 
     def test_a_table_the_configs_cannot_take_is_refused(self):
         good = {'wpn_a': cells_of('0.55')}
@@ -359,10 +357,10 @@ class WeaponTable(unittest.TestCase):
                 path = Path(folder) / ce.stats_config(WEAPON, name)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(bytes(data))
-            text = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), '--dump-stats', 'weapon',
+            text = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), '--dump-stats', 'weapon-stats',
                                    folder], capture_output=True, text=True, check=True).stdout
         for name, data in weapons.items():
-            self.assertEqual(ce.stats_differences(data, 0, WEAPON['columns'], row_of(text, name)), [])
+            self.assertEqual(ce.stats_differences(data, 0, WEAPON['columns'], row_of(text, name), name), [])
 
     def test_a_bolt_guns_rate_of_fire_counts_its_chambering(self):
         self.assertEqual(ce.weapon_card(weapon(1.1, '110', rpm=160, chamber=1.8))[4], '27')
@@ -380,8 +378,8 @@ ROOMS = {'configs': 'srp/rooms.options', 'match': {'quick/wait'}}
 
 def read_table(category, text):
     with tempfile.TemporaryDirectory() as folder, unittest.mock.patch.dict(ce.STATS, {'t': category}):
-        (Path(folder) / 't-stats.tsv').write_text(text)
-        return ce.read_stats(str(Path(folder) / 't-stats.tsv'))[1:]
+        (Path(folder) / 't.tsv').write_text(text)
+        return ce.read_stats(str(Path(folder) / 't.tsv'))[1:]
 
 
 def level(*times):
@@ -397,7 +395,7 @@ class OtherTables(unittest.TestCase):
         self.assertEqual({row: [p for p, _ in places] for row, places in ce.stats_targets(LEVELS, files).items()},
                          {'l2': ['projects/l2/day/client_project', 'projects/l2/rain/client_project'],
                           'l3': ['projects/l3/day/client_project']})
-        self.assertEqual(ce.stats_cells(files['projects/l2/day/client_project'], 0, LEVELS['columns']),
+        self.assertEqual(ce.stats_cells(files['projects/l2/day/client_project'], 0, LEVELS['columns'], 'l2'),
                          {'protect': '2|6', 'zone': '1000'})
         columns, rows = read_table(LEVELS, 'level\tprotect\tzone\nl2\t6\t2000\nl3\t5\t1000\n')
         written, made = ce.stats_write(LEVELS, columns, rows, files, 't')
@@ -439,4 +437,43 @@ class OtherTables(unittest.TestCase):
         self.assertEqual({q: t for q, t, _ in ce.walk(new)},
                          {'': ce.T_NAMED, '/waits': ce.T_INDEXED, '/waits[0]': ce.T_INT, '/waits[1]': ce.T_INT,
                           '/quick': ce.T_NAMED, '/quick/wait': ce.T_FLOAT, '/on': ce.T_BOOL, '/name': ce.T_STR})
-        self.assertEqual(ce.stats_cells(new, 0, columns), rows[''])
+        self.assertEqual(ce.stats_cells(new, 0, columns, ''), rows[''])
+
+    def test_the_gate_sees_a_reordered_list_and_a_dropped_duplicate(self):
+        columns = LEVELS['columns']
+        for was, now in ((level(2, 6), level(6, 2)), (level(6, 6), level(6))):
+            self.assertEqual(ce.stats_moved(LEVELS, columns, {'projects/l2/day/client_project': was},
+                                            {'projects/l2/day/client_project': now}),
+                             ['projects/l2/day/client_project respawn_points[*]/time'])
+
+    def test_a_new_config_moves_each_of_its_match_values(self):
+        columns, rows = read_table(ROOMS, 'key\tvalue\nquick/wait\t5\nname\tx\n')
+        files = {}
+        ce.stats_write(ROOMS, columns, rows, files, 't')
+        self.assertEqual(ce.stats_moved(ROOMS, columns, {}, files), ['srp/rooms.options quick/wait'])
+
+    def test_a_selector_that_selects_nothing_is_refused(self):
+        files = {'projects/l2/day/client_project': config({'respawn_points': [],
+                                                           'zones': [{'kind': 'resupply', 'ms': 1000}]})}
+        columns, rows = read_table(LEVELS, 'level\tprotect\tzone\nl2\t\t\n')
+        with self.assertRaisesRegex(ValueError, 'row l2: respawn_points\\[\\*\\]/time matches nothing'):
+            ce.stats_write(LEVELS, columns, rows, files, 't')
+        self.assertEqual(ce.stats_problems(LEVELS, columns, rows, ce.stats_targets(LEVELS, files), files, 't'),
+                         ['projects/l2/day/client_project: row l2: respawn_points[*]/time matches nothing'])
+
+    def test_the_dump_of_a_row_over_several_files_is_its_one_value_or_refused(self):
+        with tempfile.TemporaryDirectory() as folder, unittest.mock.patch.dict(ce.STATS, {'t': LEVELS}):
+            for weather, times in (('day', (6, 6)), ('rain', (6,))):
+                path = Path(folder) / 'projects/l2' / weather / 'client_project'
+                path.parent.mkdir(parents=True)
+                path.write_bytes(bytes(level(*times)))
+            with unittest.mock.patch('sys.stdout', new=io.StringIO()) as out:
+                ce.dump_stats('t', folder)
+            self.assertEqual(out.getvalue(), 't\tprotect\tzone\nl2\t6\t1000\n')
+            (Path(folder) / 'projects/l2/rain/client_project').write_bytes(bytes(level(2)))
+            with self.assertRaisesRegex(SystemExit, 'row l2 protect: 2 \\| 6'):
+                ce.dump_stats('t', folder)
+
+
+if __name__ == '__main__':
+    unittest.main()

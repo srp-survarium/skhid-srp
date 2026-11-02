@@ -2413,7 +2413,7 @@ import os, sys
 sys.path.insert(0, sys.argv[1])
 from test_content_edit import weapon, table, cells_of
 os.makedirs(os.path.dirname(sys.argv[2]), exist_ok=True)
-if sys.argv[2].endswith('-stats.tsv'):
+if sys.argv[2].endswith('.tsv'):
     open(sys.argv[2], 'w').write(table({'wpn_t': cells_of(sys.argv[3])} if sys.argv[3:] else {}))
 else:
     open(sys.argv[2], 'wb').write(weapon(float(sys.argv[3]), sys.argv[4]))
@@ -2427,7 +2427,7 @@ echo 1 >"$C/srp-026g/flash/m/src/version"
 cat >"$C/srp-026g/scripts/content-edit/content_edit.py" <<'EOF'
 import json, os, sys
 edits, live, out = sys.argv[1:4]
-if edits.endswith("-stats.tsv"):
+if edits.endswith(".tsv"):
     sys.exit(print("a stats table: nothing written"))
 for e in json.load(open(edits)).get("add_value", []):
     for f in e["files"]:
@@ -2588,7 +2588,7 @@ expect_refused "build-content: a weapon config without a row" "wpn_t.options: no
 mkgun "$stats" 0.4
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42s2" 2>&1) ||
     fail "build-content with a weapon stats table: $out"
-check "build-content: ... each its row, said" has "$out" "weapon stats: 1 row(s), each its row of weapon-stats.tsv"
+check "build-content: ... each its row, said" has "$out" "weapon-stats: 1 row(s), each its row of weapon-stats.tsv"
 rm -r "$C/srp-026g/crates" "$stats"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
