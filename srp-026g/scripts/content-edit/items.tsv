@@ -736,6 +736,30 @@ items	name	base_cost	gold	like	start
 2250	vssk_camo	165000	false		
 2251	izh_27_lancaster_premium_2	500	true	izh_27_lancaster	1230
 2252	uzi_premium_2	500	true	uzi	1230
+2253	ammo_23mm_r	20	false		
+2254	ammo_7.62x51_20	300	false		
+2261	ots14	80000	false		
+2262	scar_h	125000	false		
+2263	vhs_2	115000	false		
+2264	fn_minimi	120000	false		
+2265	ammo_5.56x45_belt	200	false		
+2270	mp5a1	15000	false		
+2271	svu_a	75000	false		
+2272	l85a2	72000	false		
+2273	fort_401	95000	false		
+2274	jackhammer	85000	false		
+2275	ammo_7.62x51_belt	300	false		
+2280	cz_75	13500	false		
+2281	mp443	13500	false		
+2282	beretta93r	14000	false		
+2283	glock_17	15000	false		
+2284	colt_m1911	4500	false		
+2290	akmsu	19000	false		
+2291	famas	100000	false		
+2292	g3sg1	80000	false		
+2293	mauser_m712	13000	false		
+2294	ks_23m	26000	false		
+2295	ppsh_drum	6000	false		
 2401	fitn_acog_ta31_hk416	0	false		
 2402	fitn_elcan_specterdr_hk416	0	false		
 2403	fitn_aimpoint_compm4_hk416	0	false		

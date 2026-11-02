@@ -283,9 +283,14 @@ fn a_new_golden_item_starts_with_its_bonuses_of_its_own() {
 }
 
 #[test]
-fn an_items_start_is_known_modifications_each_once_that_fit() {
+fn the_dictionary_has_its_copies_and_each_start_is_known_modifications() {
     let data = game_data::shared();
     assert_eq!(check_content(data, Dictionary::shared()), Ok(()));
+    // Data made without items.tsv: no copy, refused.
+    let mut plain = Dictionary::shared().clone();
+    plain.items.iter_mut().for_each(|item| item.like = None);
+    let error = check_content(data, &plain).unwrap_err().0;
+    assert!(error.contains("items.tsv"), "{error}");
     for start in [vec![1240, 1240], vec![99_999], vec![1240, 1250, 1260, 1230]] {
         let mut dictionary = Dictionary::shared().clone();
         dictionary.items[0].start = start.clone();
