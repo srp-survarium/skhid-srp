@@ -98,8 +98,8 @@ impl Group {
                 uk: "Для кожного рівня мінімум <= старт <= стеля, у межах верху шкали (лише показано); команда починає зі старту свого рівня, а самобалансування тримає її між мінімумом і стелею.",
             }),
             Group::Hits => Some(Text {
-                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused outside the bench's points, or under the lowest rate that keeps the line rising; the owner's bar is shown beside the limits, and a target may go over it. A type on the pool's numbers (the automatics') says so until its own are measured. Pistols have no bench points: their factors are shown only.",
-                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова поза точками стенду або нижче найменшої ставки, з якою лінія росте; планку власника показано біля меж, і ціль може бути вище неї. Тип на спільних числах (автоматичної зброї) так і позначено, доки його власні не виміряно. Пістолети не мають точок стенду: їхні фактори лише показано.",
+                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused outside the bench's points, or under the lowest rate that keeps the line rising; the owner's bar is shown beside the limits, and a target may go over it. A type on the pool's numbers says so until its own are measured; one with none shows its factors only.",
+                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова поза точками стенду або нижче найменшої ставки, з якою лінія росте; планку власника показано біля меж, і ціль може бути вище неї. Тип на спільних числах так і позначено, доки його власні не виміряно; тип без них лише показує свої фактори.",
             }),
         }
     }
@@ -356,7 +356,7 @@ fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
 
 /// [A266] How the page's expected rates are had from the bench's numbers.
 const METHOD: Text = Text {
-    en: "Expected hits a shot, % (a shotgun: a pellet), on each type's line: the bench's measured rates with the shipped factors (at skill 0, 0.5 and 1; the shotgun at A243's 0, 0.2, ... 1), straight between them; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements. A default line may sit off its bar: the row says so.",
+    en: "Expected hits a shot, % (a shotgun: a pellet), on each type's line: the bench's measured rates with the shipped factors (at skill 0, 0.5 and 1; the MGs and pistols on forced kits; the shotgun at A243's 0, 0.2, ... 1), straight between them; a skill-1 rate set otherwise moves the upper half by the dial's own weight there, 2 × skill − 1 (none of it at 0.5 and under, all of it at 1). Estimates from the bench, weighed to the live humans' shots by distance and target speed; not live measurements. A default line may sit off its bar: the row says so.",
     uk: "Очікувані влучання за постріл, % (дробовик: за дробину), на лінії кожного типу: виміряні стендом ставки з типовими факторами (на навичці 0, 0.5 і 1; дробовик — на кроках A243 0, 0.2, ... 1), пряма між ними; інша ставка на навичці 1 зсуває верхню половину з вагою самого регулятора, 2 × навичка − 1 (нічого на 0.5 і нижче, повністю на 1). Оцінки зі стенду, зважені за пострілами живих гравців за відстанню й швидкістю цілі; не живі виміри. Типова лінія може бути поза планкою: рядок про це каже.",
 };
 
@@ -635,7 +635,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "aim.class_aim.pistol",
         group: Group::Hits,
-        set: Set::Later,
+        set: Set::Page,
         label: Text { en: "Pistols", uk: "Пістолети" },
         unit: Unit::Hits { class: WeaponClass::Pistol },
         read: |t| hits(t, WeaponClass::Pistol),
@@ -1251,8 +1251,10 @@ mod tests {
             }
             assert_eq!(knob.value, knob.default, "{}", knob.key);
         }
+        // The pistols measured (A267(a)): settable as the others.
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
-        assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
+        assert_eq!(pistol.state, KnobState::Settable);
+        assert!(pistol.limits.ends_with("(default bar up to 25 %)"), "{pistol:?}");
         // 19 % for the rifles: their skill-1 factor from the calibration, the lower two kept; the next match runs on it.
         let made = set(&live, &[("aim.class_aim.rifle", "19 %")]).unwrap();
         let said: Vec<_> = made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())).collect();
@@ -1277,7 +1279,7 @@ mod tests {
             ("aim.class_aim.rifle", "0"),
             ("aim.class_aim.rifle", "NaN"),
             ("aim.class_aim.marksman", "33"),
-            ("aim.class_aim.pistol", "20"),
+            ("aim.class_aim.pistol", "40"),
             ("aim.class_aim.rifle", "a lot"),
             ("aim.class_aim.bolt", "27"),
         ] {
@@ -1322,17 +1324,19 @@ mod tests {
 
     /// [A266, A267] The page's expected rates for the shipped tuning are the bench's measured lines (weighed; the two
     /// tiers' mean where both ran) within their rounding at each step measured, straight between them: A267(a)'s
-    /// (fx-fights, 2026-11-02) at skill 0, 0.5 and 1, the shotgun and the machine guns still A243's (#1089's "after",
-    /// skill 0, 0.2, ... 1); the type rows' skill-1 values are their lines' ends.
+    /// (fx-fights, 2026-11-02) at skill 0, 0.5 and 1, the shotgun still A243's (#1089's "after", skill 0, 0.2, ... 1); the
+    /// type rows' skill-1 values are their lines' ends.
     #[test]
     fn the_rates_shown_for_the_defaults_are_the_benchs_lines() {
         let halves: &[f32] = &[0.0, 0.5, 1.0];
         let fifths: &[f32] = &[0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
-        let automatics: &[&[f32]] = &[&[10.0, 11.9, 14.1, 15.7, 17.7, 18.4], &[10.1, 12.0, 13.9, 15.8, 18.4, 18.8]];
-        let measured: [(&str, &[f32], &[&[f32]]); 6] = [
+        /// A type's label, its steps and the rows measured at them (a tier a row).
+        type Measured<'a> = (&'a str, &'a [f32], &'a [&'a [f32]]);
+        let measured: [Measured; 7] = [
             ("SMGs", halves, &[&[11.6, 16.1, 19.2]]),
             ("Rifles (automatic)", halves, &[&[8.7, 15.1, 20.5], &[10.2, 15.1, 18.4]]),
-            ("Machine guns", fifths, automatics),
+            ("Machine guns", halves, &[&[8.7, 15.0, 21.6]]),
+            ("Pistols", halves, &[&[18.4, 21.1, 22.5]]),
             ("Shotguns (a pellet)", fifths, &[&[11.1, 12.9, 14.1, 16.6, 18.3, 19.2], &[11.1, 13.0, 15.1, 17.1, 18.4, 18.4]]),
             ("DMRs", halves, &[&[18.2, 25.1, 30.0]]),
             ("Bolt actions", halves, &[&[34.4, 37.2, 41.6]]),
@@ -1362,12 +1366,11 @@ mod tests {
         }
         // On the steps: 0, 0.5, 1 and the bands' 0.0, 0.5 a type on halves; 0, 1 and the bands' 0.0, 0.6, 0.2, 0.8, 0.6 on
         // fifths.
-        assert_eq!(on_steps, 4 * 5 + 2 * 7);
-        let pistols = rates.classes.iter().find(|class| class.label.en == "Pistols").unwrap();
-        assert!(matches!(pistols.line, ClassLine::Unknown(_)));
-        // The machine guns on the pool's numbers (the automatics'), said so; the others their own.
-        let pooled: Vec<_> = rates.classes.iter().filter(|class| matches!(class.line, ClassLine::Pooled(_))).map(|class| class.label.en).collect();
-        assert_eq!(pooled, ["Machine guns"]);
+        assert_eq!(on_steps, 6 * 5 + 7);
+        // Every type on its own numbers; the MGs' line ends over their bar, said so in the rates table too.
+        assert!(rates.classes.iter().all(|class| matches!(class.line, ClassLine::Own(_))), "{rates:?}");
+        let mg = rates.classes.iter().find(|class| class.label.en == "Machine guns").unwrap();
+        assert_eq!(mg.bar.as_deref(), Some("21.6 % at skill 1, above its bar 18–20 %"));
         // On `all_off.json`'s factors (every class 1, the straight curve) the bench's line is not the class's: none shown.
         let mut off = Tuning::default();
         off.aim.class_aim = super::super::ClassAim::same();
@@ -1421,7 +1424,7 @@ mod tests {
             &[("aim.class_aim.rifle", "35")][..],
             &[("aim.class_aim.rifle", "13")],
             &[("skill.tiers.9-10.max", "0.4")],
-            &[("aim.class_aim.pistol", "20")],
+            &[("aim.class_aim.pistol", "40")],
             &[("skill.step", "a lot")],
             &[("skill.kd_low", "2"), ("skill.kd_high", "1.9")],
         ] {
@@ -1479,7 +1482,6 @@ mod tests {
             (r#"{"skill":{"step":0.2,"nope":1}}"#, "`skill.nope` is not a knob the page sets"),
             (r#"{"aim":{"error_deg":1}}"#, "`aim.error_deg` is not a knob the page sets"),
             (r#"{"skill":{"max":0.9}}"#, "`skill.max` is not a knob the page sets"),
-            (r#"{"aim":{"class_aim":{"pistol":[0.4,0.77,1.32]}}}"#, "`aim.class_aim.pistol` is not a knob the page sets"),
             (r#"{"aim":{"class_aim":{"rifle":[0.4,0.77]}}}"#, "aim.class_aim.rifle: not three factors"),
             (r#"{"skill":{"every_s":"60"}}"#, "skill.every_s: not a number"),
             (r#"{"skill":{"kd_low":2}}"#, "skill.kd_*"),

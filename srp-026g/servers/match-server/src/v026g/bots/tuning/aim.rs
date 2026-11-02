@@ -274,14 +274,23 @@ impl Default for AimCalibration {
         // [A267] A type's skill-1 sweep down to factor 0.40 (fx-fights, A267(a) part 1, 2026-11-02, A243's settings, seeds
         // 1-4, weighed, the cap's reading; tiers' mean where both ran), #1089's points kept above its last factor, made
         // non-increasing; and its line at skill 0, 0.5 and 1 at the shipped factors (A267(a)'s `forced0` ladder, the
-        // rushers on MGs at 9-10 and pistols at 13-15, the same estimator).
+        // rushers on MGs at 9-10 and pistols at 13-15, the same estimator; the MGs' and pistols' sweeps too, `forced1`).
         let line = |r0: f32, r05: f32, r1: f32| vec![(0.0, r0), (0.5, r05), (1.0, r1)];
         Self {
             source: "PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; \
                      tiers pooled, the sweep made non-increasing) and A267(a) (fx-fights, 2026-11-02: per-type skill-1 \
-                     points down to factor 0.40, the same settings and estimator)"
+                     points down to factor 0.40 and lines at skill 0 / 0.5 / 1, the same settings and estimator; MGs and \
+                     pistols on forced kits)"
                 .to_owned(),
-            pistol: TypeCalibration::NotMeasured,
+            // 13-15 on the forced kit (the rushers' pistols): 0.85 27.4, 0.70 29.0, 0.55 31.2, 0.40 33.8; line 18.4 21.1 22.5.
+            // No point over 1.32 yet: the automatics' 1.6 and 2.0 moved by the pistols' 3.97 over them at 1.32. The owner's
+            // bar: up to 25 %.
+            pistol: TypeCalibration::Own(ClassCalibration {
+                bar: (0.0, 25.0),
+                points: points(&[(0.4, 33.8), (0.55, 31.2), (0.7, 29.0), (0.85, 27.4), (1.32, 22.5), (1.6, 20.47), (2.0, 17.57)]),
+                ladder: line(18.4, 21.1, 22.5),
+                ..automatics.clone()
+            }),
             // 9-10 only (13-15's flanker carries a rifle): 1.32 18.5, 0.85 24.1, 0.70 24.9, 0.55 28.5, 0.40 30.3. Line 11.6
             // 16.1 19.2.
             smg: TypeCalibration::Own(ClassCalibration {
@@ -296,7 +305,14 @@ impl Default for AimCalibration {
                 ladder: line(9.45, 15.1, 19.45),
                 ..automatics.clone()
             }),
-            mg: TypeCalibration::Pooled(automatics),
+            // 9-10 on the forced kit (the rushers' MGs): 0.85 27.0, 0.70 29.9, 0.55 32.6, 0.40 35.0; line 8.7 15.0 21.6, over
+            // its bar at the shipped factors (the page says so). No point over 1.32 yet: the automatics' 1.6 and 2.0 moved by
+            // the MGs' 3.07 over them at 1.32.
+            mg: TypeCalibration::Own(ClassCalibration {
+                points: points(&[(0.4, 35.0), (0.55, 32.6), (0.7, 29.9), (0.85, 27.0), (1.32, 21.6), (1.6, 19.57), (2.0, 16.67)]),
+                ladder: line(8.7, 15.0, 21.6),
+                ..automatics
+            }),
             // Per pellet. 13-15: 11.1 12.9 14.1 16.6 18.3 19.2; 9-10: 11.1 13.0 15.1 17.1 18.4 18.4.
             // The owner's bar: ~20 %.
             // Part 1: 9-10 1.30 19.3, 0.65 23.1, 0.50 23.3, 0.35 24.7, 0.25 24.9; 13-15 18.3, 21.3, 23.3, 23.1, 24.7: the pellet
@@ -443,7 +459,7 @@ impl ClassCalibration {
     /// The owner's bar as the page says it: `18–20`, `20`, `up to 25` (%).
     pub fn bar_text(&self) -> String {
         match self.bar {
-            (from, to) if from == 0.0 => format!("up to {to}"),
+            (0.0, to) => format!("up to {to}"),
             (from, to) if from == to => format!("{to}"),
             (from, to) => format!("{from}–{to}"),
         }
@@ -742,11 +758,9 @@ mod tests {
         let calibration = AimCalibration::default();
         assert_eq!(calibration.check(), Ok(()), "the shipped calibration is in order");
         let automatics = calibration.of(WeaponClass::Rifle).unwrap();
-        // Each type its own sweep and line (A267(a)); the machine guns still the automatics' (#1089's, A243's six steps).
         assert_ne!(calibration.of(WeaponClass::Smg), Some(automatics));
-        assert_eq!(calibration.of(WeaponClass::MachineGun).map(|mg| mg.ladder.len()), Some(6));
-        assert_eq!(calibration.of(WeaponClass::Pistol), None);
-        // The machine guns pooled, the others their own, the pistols not measured.
+        assert_ne!(calibration.of(WeaponClass::MachineGun), Some(automatics));
+        // Every type its own (A267(a)).
         let kinds: Vec<_> = [WeaponClass::Pistol, WeaponClass::Smg, WeaponClass::Rifle, WeaponClass::MachineGun, WeaponClass::Shotgun, WeaponClass::Marksman, WeaponClass::Bolt]
             .map(|class| match calibration.type_of(class) {
                 TypeCalibration::NotMeasured => "none",
@@ -754,7 +768,7 @@ mod tests {
                 TypeCalibration::Own(_) => "own",
             })
             .to_vec();
-        assert_eq!(kinds, ["none", "own", "own", "pooled", "own", "own", "own"]);
+        assert_eq!(kinds, ["own"; 7]);
         // The sweep (the rifles': A267(a)'s down to 0.40, #1089's above 1.32): at a point and between two.
         let points = &automatics.points;
         assert!(near(points.factor_for(24.05), 0.85));
@@ -836,8 +850,10 @@ mod tests {
         assert_eq!(changed(|c| c.rifle = TypeCalibration::NotMeasured).check(), Ok(()));
         // As JSON: a type's kind is its key.
         let json = serde_json::to_value(&calibration).unwrap();
-        assert_eq!(json["pistol"], "not_measured");
-        assert!(json["mg"]["pooled"]["points"].is_array() && json["bolt"]["own"]["ladder"].is_array(), "{json}");
+        assert!(json["pistol"]["own"]["points"].is_array() && json["bolt"]["own"]["ladder"].is_array(), "{json}");
+        let pooled: AimCalibration = serde_json::from_str(r#"{"rifle": "not_measured", "mg": {"pooled": {"bar": [18.0, 20.0], "points": [[1.0, 21.5], [2.0, 13.6]], "ladder": [[0.0, 10.0], [1.0, 18.0]], "ladder_factors": [0.4, 0.77, 1.5]}}}"#).unwrap();
+        assert!(matches!((&pooled.rifle, &pooled.mg), (TypeCalibration::NotMeasured, TypeCalibration::Pooled(_))));
+        assert_eq!(pooled.check(), Ok(()));
         assert_eq!(serde_json::from_value::<AimCalibration>(json).unwrap(), calibration);
     }
 
