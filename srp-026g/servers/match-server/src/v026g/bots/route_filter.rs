@@ -371,6 +371,31 @@ mod tests {
     use super::*;
     use crate::v026g::bots::tactics::tests::field_with;
 
+    /// A269c: a filter weighing the open sides puts its weight on a floor near one (a slab 6 m over the field: its edge has no link
+    /// and no wall) and 1 on the others, the soft part's costs times it; nothing on a grid without the table of open sides; a weight
+    /// of 1 or less is none; both filters at once weigh with the larger.
+    #[test]
+    fn the_open_sides_weigh_only_the_floors_near_them() {
+        use crate::v026g::bots::body::tests::floor;
+        use crate::v026g::bots::tactics::tests::{field_with_open_sides, field_with_solids};
+        let slab = floor(50.0, 30.0, 56.0, 36.0, 6.0);
+        let world = field_with_open_sides(&slab);
+        let grid = &world.grid;
+        let at = |grid: &WalkGrid, x: f32| grid.locate(Vec3::new(x, 6.0, 33.0), 0.3).unwrap();
+        let (edge, middle) = (at(grid, 55.9), at(grid, 53.0));
+        assert!(grid.near_open_side(edge) && !grid.near_open_side(middle));
+        let open = RouteFilter::open().weighing_open_sides(3.0);
+        assert!(open.weighs() && !RouteFilter::open().weighs());
+        assert_eq!(open.weight(grid, edge), 3.0);
+        assert_eq!(open.weight(grid, middle), 1.0);
+        assert_eq!(open.clone().avoiding_floors(move |n| n != edge).weighing_threat(Arc::default(), Vec3::ZERO, Vec3::ZERO, 3.0).weight(grid, edge), SOFT_COST * 3.0);
+        assert!(!RouteFilter::open().weighing_open_sides(1.0).weighs());
+        assert_eq!(RouteFilter::open().weighing_open_sides(2.0).and(&open).weight(grid, edge), 3.0);
+        assert_eq!(open.without_soft().weight(grid, edge), 3.0, "a cost, not a soft rule");
+        let bare = field_with_solids(&slab, |_| {});
+        assert_eq!(open.weight(&bare.grid, at(&bare.grid, 55.9)), 1.0, "no table, no weight");
+    }
+
     /// A grid and its regions to test on.
     fn field() -> (Arc<mapdata::World>, Arc<Regions>) {
         let world = field_with(|_| {});

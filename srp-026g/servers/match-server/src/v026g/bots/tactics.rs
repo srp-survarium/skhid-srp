@@ -2889,6 +2889,18 @@ pub(super) mod tests {
         Arc::new(World::assemble(map, grid.into(), sight.into()))
     }
 
+    /// [`field_with_solids`] with the grid's table of open sides (`kin::Edge::ClientWalksOff`, at the support
+    /// [`crate::v026g::bots::body::SUPPORT_M`]).
+    pub fn field_with_open_sides(solids: &[mapdata::Triangle]) -> Arc<World> {
+        let base = field_with_solids(solids, |_| {});
+        let mut triangles = floor(0.0, 0.0, 80.0, 40.0, 0.0).to_vec();
+        triangles.extend(wall_x(40.0, 0.0, 25.0));
+        triangles.extend_from_slice(solids);
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 80.0, 40.0], 0.25, mapdata::Body::default())
+            .with_open_sides(&triangles, crate::v026g::bots::body::SUPPORT_M);
+        Arc::new(World::assemble(base.map.clone(), grid.into(), base.sight.clone()))
+    }
+
     /// [`MILD_HIT_PS`] is of a body's health, `[0, 1]`: a zone that kills
     /// a whole body within a crossing of 2 s (Vostok Radar Station's and
     /// Cologne's 1.2 a second, Tarakanovsky Fort's 0.8) is not mild; one that
