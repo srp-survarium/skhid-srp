@@ -42,7 +42,7 @@ them shows as one of the log lines above.
 Three games load each world: two fresh ones (a late joiner: nothing seen;
 every place's three kit players, each with its own guns in slots 7 and 10,
 the core's place table and registry), which differ in their own kits (30
-rounds in each own gun and 90 in its stack; 7 and 13), and one that loaded
+rounds in each own gun, 90 in its stack, condition 1.0; 7, 13 and 0.5), and one that loaded
 every world before it (a resync over its own state, the worlds in the order of
 their times). A byte one of them writes from its own objects differs from the
 loaded one in at least one of them.
@@ -58,11 +58,11 @@ kind of record and carry in it), or WORLD files and folders of the match
 server's dumps (SRP_SNAPSHOT_DIR: match026g_<id>_<tick>_..bin, the body; the
 tick is the world's time); the whole match's 501:
 private/live-worlds-1c0ebd31/ in the owner's checkout. A world recorded with
-another version of patch 85's record than the exe writes is read as the exe
-would write it (MIGRATIONS: version 4's 48 bytes, the 28 of the own kit set
-aside dropped, are version 5's 20); a version with no migration stops the
-check. --exe runs a built exe instead of this tree's build (rev41's: the
-check then finds what it wrote from its own objects).
+another version of patch 85's record than the exe writes stops the check, but
+for rev41's version 4 (the corpus): `from_v4` reads it as version 6 writes it.
+The record is otherwise opaque: its version and size are what the exe saves.
+--exe runs a built exe instead of this tree's build (rev41's: the check then
+finds what it wrote from its own objects).
 """
 import argparse
 import bisect
@@ -90,7 +90,8 @@ CARRY_LOAD, CARRY_LOAD_AFTER = 0x2DBAB5, 0x2DBABC
 CARRY = 32                                  # artefact_carry::Carry::SNAPSHOT_SIZE, the state's last bytes
 PLACES = 20
 EXTRA = wp.PICK + 0x100000                  # room for every place's kit players after the Pick's own
-OWN_KITS = {"fresh A": (30, 90), "fresh B": (7, 13)}   # (each own gun's magazine, its stack)
+# Each own gun's magazine, its stack's rounds, and its condition (weapon+270h, the wear a pick hides).
+OWN_KITS = {"fresh A": (30, 90, 1.0), "fresh B": (7, 13, 0.5)}
 
 # The sites this check runs (VA, span): the 0xE8 handler's preparation and the player state's hooks.
 RUN = {
@@ -132,8 +133,25 @@ CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",
               0x27BFF0: "survarium::network_client::process_dynamic_match_info (0xE8)"}
 
 # Patch 85's record by version: its size; and how a recorded state's record becomes the next version's.
-RECORD_BYTES = {4: 48, 5: 20}
-MIGRATIONS = {4: lambda record: bytes([5]) + record[1:20]}  # version 4: 20 bytes, then the 28 of the own kit set aside
+# The record is opaque bytes here: its version and size are what the exe's own save writes (`record_version`), and
+# each hook must read as many bytes as it writes. The one layout this check knows is the recorded corpus's: rev41's
+# version 4 (48 bytes: the drop, the picks and the pending pickup in bytes 1..20, as every version since, then the
+# 28 of the own kit set aside), read as version 6 (28 bytes) writes it: those 20 bytes, then the own gun's wear each
+# pick hides (slot 7's, slot 10's). Rev41's record had none, and after the swap the world no longer carries the own
+# gun (it is hidden in the cooked inventory, which the world does not save), so a recorded world cannot give it:
+# V4_WEAR, a condition no own gun of the check's games has (OWN_KITS), so a save taking it from the game's own gun
+# differs. A record of another version, or an exe writing another than 4 or 6, stops the check here.
+V4, V4_BYTES = 4, 48
+V4_WEAR = struct.pack("<f", 0.75)
+
+
+def from_v4(record, version, size):
+    """A recorded version 4 record as the exe's (version, size) has it."""
+    if (version, size) != (6, 28):
+        sys.exit(f"the exe writes record version {version} ({size} bytes): from_v4 knows version 6 (28 bytes) only")
+    return bytes([6]) + record[1:20] + b"".join(V4_WEAR if record[at] else bytes(4) for at in (2, 7))
+
+
 NOT_MATCHING = re.compile(r"NOT (installed|registered|made)|does not decode|FAILED")
 
 
@@ -203,18 +221,16 @@ def walk(body):
     return states
 
 
-def migrate(body, version):
-    """`body` with each state's record made `version`'s (MIGRATIONS), each state's length with it."""
+def migrate(body, version, size):
+    """`body` with each state's record the exe's (version, size): one recorded at version 4 converted
+    (`from_v4`), each state's length with it."""
     out, at = bytearray(body[:4]), 4
     for place, start, end in walk(body):
         state = bytes(body[start:end])
-        have = state[2]
-        while have != version:
-            if have not in MIGRATIONS or have not in RECORD_BYTES:
-                sys.exit(f"a recorded record of version {have}: no migration to {version} (MIGRATIONS)")
-            record = MIGRATIONS[have](state[2:2 + RECORD_BYTES[have]])
-            state = state[:2] + record + state[2 + RECORD_BYTES[have]:]
-            have = record[0]
+        if state[2] == V4 != version:
+            state = state[:2] + from_v4(state[2:2 + V4_BYTES], version, size) + state[2 + V4_BYTES:]
+        elif state[2] != version:
+            sys.exit(f"a world's record of version {state[2]}: the exe writes {version}, from_v4 converts 4 only")
         out += body[at:start - 2] + struct.pack("<H", len(state)) + state
         at = end
     return bytes(out + body[at:])
@@ -310,8 +326,9 @@ class Game(wp.Pick):
         return cooked
 
     def kit_player(self, place, kit, ids):
-        """A place's player of `kit`: its own guns in slots 7 (stack in 12) and 10 (stack in 8), slot 10's held."""
-        magazine, rounds = self.own_kit
+        """A place's player of `kit`: its own guns in slots 7 (stack in 12) and 10 (stack in 8), slot 10's held;
+        their magazines, stacks and conditions the game's own kit's."""
+        magazine, rounds, condition = self.own_kit
         player, inventory = self.blk(0x10000), self.blk(0x200)
         for slot, ammo_slot in ((7, 12), (10, 8)):
             gun, ammo = self.gun(ammo_slot=ammo_slot, loaded=magazine), self.stack(rounds)
@@ -326,6 +343,7 @@ class Game(wp.Pick):
                 self.word(item + 0x250, inventory)
                 self.word(item + 0x254, at)
             self.word(gun + 0x538, ammo)
+            self.emu.mem_write(gun + 0x270, struct.pack("<f", condition))
         self.word(player + 0xD0, 3)
         self.emu.mem_write(player + 0x114, bytes([place, kit]))
         self.word(player + 0x10C, inventory)
@@ -484,9 +502,8 @@ def main():
     failed += len(missing)
 
     version, size = record_version(patched)
-    assert RECORD_BYTES.get(version) == size, (version, size)
     recorded = worlds(args.worlds)
-    loaded = [(name, now, migrate(body, version)) for name, now, body in recorded]
+    loaded = [(name, now, migrate(body, version, size)) for name, now, body in recorded]
     games = {what: (lambda kit=kit: Game(patched, kit)) for what, kit in OWN_KITS.items()}
     resync = Game(patched, OWN_KITS["fresh A"])
     for what in [*games, "resync"]:
