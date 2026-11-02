@@ -176,19 +176,24 @@ and Windows' error code (`<name>: cannot be read: <words> (error <n>)`):
 | anything else (5, access denied; a disk error) | a repair: the archive downloaded and installed again; when that fails, the install's error names the file and Windows' words ("Cannot replace x86\survarium_skhid.exe: Access is denied (error 5). ..."), PLAY off |
 
 225 or 226 at the install's write, rename or a folder's making, and at a
-patch file's write, rename, delete or read back, is the same stop.
+patch file's write, rename, delete or read back, is the same stop. So is a
+file the updater has just written that is gone, or denied to it (5), when
+it reads it back, or gone the moment it was put in place
+(`file_error::Stop::after_write`): an antivirus took it. A program file
+(`.exe`, `.dll`) the state says is installed and that is gone at the start
+is put back by the repair, and then the same box (with OK) says the
+antivirus may remove it again.
 
 The stop's box is the updater's own (`MessageBoxW`, Windows' Retry and
 Cancel buttons), in the game's language (as "Watch replay"'s, below),
-the launcher's line saying "Error" meanwhile. It names the file alone and,
-for Windows Security, the way out, one line each:
+the launcher's line saying "Error" meanwhile. For Windows Security it is
+the box of "The player's boxes" below:
 
 ```text
-Windows Security blocked survarium_skhid.exe: a false positive.
-1. Windows Security > Protection history > this item > Allow on device (or Restore).
-2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
-E:\Survarium_SkhidSRP_0_26\game\binaries\x86
-Then try again. PLAY stays off until then.
+Game files removed by antivirus: survarium_skhid.exe
+Windows Security or another antivirus took it for a threat (a false positive). PLAY stays off until it is let through.
+Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this folder: E:\Survarium_SkhidSRP_0_26\game\binaries\x86
+Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.log
 ```
 
 ```text
@@ -209,39 +214,54 @@ place, read it (225 again). The updater took a file it could not read for
 one that was the same, said "up to date" and turned PLAY on, and the
 launcher crashed at PLAY a minute later.
 
-## A server not reached
+## The player's boxes
 
-When the update server, or its list of patches, cannot be reached at all
-(WinHTTP's 12007 name not resolved, 12029 cannot connect, 12002 timeout,
-12030 connection cut off: `logic/src/network.rs`), after the usual tries,
-and the run ends in an error or in PLAY without an update check, the player
-is told in the updater's own box, in the game's language, with Retry
-and Cancel, as a stop above. Players in Russia meet it most: their
-providers block the server, and a VPN with the game's three programs in its
-split tunnelling gets them through (`VPN.txt` beside `Skhid.bat`). Three
-lines: what failed, by the error, why it may have, and what to do:
+The problems players meet most each have a box of the updater's own
+(`logic/src/problem.rs`), whose first line is a title the site's "If
+something goes wrong" (the home page) quotes, so that a player matches the
+box to its line. The title begins with fixed words for the problem and goes
+on with what failed: the file, the host, how. Then what happened, one line
+of what to run (a file beside `Skhid.bat`), and the log's path. In the
+game's language (English, Russian, Ukrainian, German, Polish); the box's
+caption is `Skhid updater: <the fixed words>` in English always.
+
+| Title begins | When | What to run |
+|---|---|---|
+| `Game files removed by antivirus: <file>` | Windows Security's 225/226 on a Skhid file; a file just written that is gone or denied when read back, or gone once in place; a program file gone at the start (put back, OK box) | `Skhid-defender-setup.cmd` (or exclude the folder named); for a patch of resources.db, in `game`, which the script does not exclude: Windows Security > Protection history > Allow on device, and that folder as an exclusion |
+| `Download failed: <file>, <damaged / cut short / too slow / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
+| `No connection: <host> did not answer (<how>)`, `No connection: no address of <file> answered (<how>)` | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), and neither did Windows' own test site | `Skhid-network-setup.cmd` |
+| `Blocked on this network: <host> did not answer (<how>)`, `... no address of <file> answered (<how>)` | the same, but Windows' own test site answered | a VPN with the game's three programs in its split tunnelling, or none (`VPN.txt`) |
+
+No connection or blocked: after nothing answered, and only then, the updater
+asks `http://www.msftconnecttest.com/connecttest.txt` once (5 s at most each
+step), the address Windows' network icon asks: any answer is a PC that is
+online, so this network (the provider, or a VPN in use) blocks ours. A
+server that is down for everyone looks the same from here as one that is
+blocked.
 
 ```text
-skhid.link didn't answer.
-Your internet provider may be blocking it (common in Russia), or a firewall is blocking the game.
-Allow the game in your firewall (Skhid-network-setup.cmd); in Russia, use a VPN and add launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe to it (see VPN.txt). Then try again.
+Blocked on this network: skhid.link did not answer (timed out)
+Other sites answer: this network blocks it (the internet provider, or the VPN in use).
+Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.
+Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.log
 ```
 
-The first line is "Couldn't find skhid.link." (12007), "skhid.link refused
-the connection." (12029), "skhid.link didn't answer." (12002) or "The
-connection to skhid.link was cut off." (12030). Retry runs the update again
-from the start; Cancel ends the run as it came out (an error with PLAY off,
-or PLAY with what is installed), and the launcher is not told the English
-words again: the log has them ("No update check: skhid.link didn't answer.
-Your provider (common in Russia) or a firewall may block it: see VPN.txt.
-..."). `check quiet` shows no box. A patch file's download address that
-cannot be reached is not this box: the list was reached, and the patch
-step's error names the file.
+The box is shown when the run ends in an error, or in PLAY without an
+update check, after the usual tries, with Retry and Cancel, as a stop
+above. Retry runs the update again from the start; Cancel ends the run as
+it came out (an error with PLAY off, or PLAY with what is installed), and
+the launcher is not told the English words again: the log has them ("No
+update check: skhid.link didn't answer. A firewall or this network may
+block it: see Skhid-network-setup.cmd and VPN.txt. ...", and "every address
+failed: ..." with the probe's answer). `check quiet` shows no box and asks
+no other site.
 
-**Why.** On 2026-10-25 players in Russia saw "skhid.link did not answer in
-time. Check the internet connection and try again.", in English under a
-Russian launcher, and found the way out (the three programs in their VPN's
-split tunnelling) on Discord.
+**Why.** On 2026-10-25 players whose provider blocks the server saw
+"skhid.link did not answer in time. Check the internet connection and try
+again.", in English under a Russian launcher, and found the way out (the
+three programs in their VPN's split tunnelling) on Discord. On 2026-11-02
+the owner asked for a box per problem of the site's list, clear enough for
+a player to match.
 
 ## Watch replay
 
