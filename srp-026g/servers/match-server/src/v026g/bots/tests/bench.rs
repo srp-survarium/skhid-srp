@@ -2155,13 +2155,13 @@ pub(crate) fn real_bot_cost() {
             each.sort_by(f32::total_cmp);
             let at = |q: f64| each[((each.len() - 1) as f64 * q) as usize];
             let kills: u32 = game.stats.iter().map(|s| s.0).sum();
-            // [A241] The aim sway: the stand-in's shots it turned and the bots' shots that took it back, by team.
+            // [A241] The aim sway: the stand-in's shots it turned and the bots' trigger ticks that took it back, by team.
             let taken = bots.sway_taken();
             if game.aim_sway || taken.iter().any(|t| t.0 > 0) {
                 let mean = |(n, deg): (u32, f32)| if n > 0 { deg / n as f32 } else { 0.0 };
                 eprintln!(
                     "  aim sway (A241): aimed automatic shots turned by the sway by team [{}, {}] (mean {:.2} / {:.2} deg); \
-                     shots with it taken back by team [{}, {}] (mean {:.2} / {:.2} deg)",
+                     trigger ticks with it taken back by team [{}, {}] (mean {:.2} / {:.2} deg)",
                     game.swayed[0].0,
                     game.swayed[1].0,
                     mean(game.swayed[0]),

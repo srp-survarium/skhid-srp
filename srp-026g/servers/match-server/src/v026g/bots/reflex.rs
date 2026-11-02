@@ -3208,7 +3208,8 @@ pub struct Reflex {
     last_fire: Option<(Place, u32)>,
     /// [measure] Its own numbers at its last shot ([`FireAim`], A228).
     fire_aim: Option<FireAim>,
-    /// [measure] [A241] Its shots fired with the aim sway taken back (`aim_sway_counter`), and the degrees taken back in all.
+    /// [measure] [A241] Its ticks with the trigger held and the aim sway taken back (`aim_sway_counter`; an automatic fires at
+    /// its own cadence, about every other tick), and the degrees taken back in all.
     sway_taken: (u32, f32),
     /// The aim's last fresh look found its target behind smoke; the aim sprays at the last point seen now (each
     /// a note when it begins); the notes not yet taken.
@@ -3745,7 +3746,7 @@ impl Reflex {
         self.fire_aim
     }
 
-    /// [measure] [A241] Its shots fired with the aim sway taken back, and the degrees taken back in all.
+    /// [measure] [A241] Its ticks with the trigger held and the aim sway taken back, and the degrees taken back in all.
     pub fn sway_taken(&self) -> (u32, f32) {
         self.sway_taken
     }

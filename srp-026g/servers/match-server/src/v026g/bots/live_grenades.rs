@@ -649,7 +649,8 @@ impl super::Bots {
         )
     }
 
-    /// [measure] [A241] Each team's shots with the aim sway taken back (`aim_sway_counter`), and the degrees taken back in all.
+    /// [measure] [A241] Each team's trigger ticks with the aim sway taken back (`aim_sway_counter`), and the degrees taken back in
+    /// all.
     pub fn sway_taken(&self) -> [(u32, f32); 2] {
         let mut out = [(0, 0.0); 2];
         for bot in self.bots.iter().flatten() {

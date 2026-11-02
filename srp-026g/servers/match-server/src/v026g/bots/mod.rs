@@ -417,8 +417,8 @@ pub struct Bot {
     /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
     /// reflex (which counts its own).
     frag_rolls_refused: u32,
-    /// [measure] [A241] Its shots with the aim sway taken back and the degrees taken back, the lives before this one's reflex
-    /// (which counts its own).
+    /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
+    /// reflex (which counts its own).
     sway_taken: (u32, f32),
     /// The frags its lives carried and threw (the lives over; the present life's throws are the reflex's).
     frag_lives: live_grenades::FragLives,
