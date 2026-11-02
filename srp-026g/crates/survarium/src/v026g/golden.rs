@@ -57,10 +57,18 @@ pub fn is_golden_weapon_name(name: &str) -> bool {
     golden_named(name).is_some_and(is_weapon)
 }
 
-/// What [`super::tables::check`] asks before any table reads them: each
-/// item's `start` is modifications that exist, each once, that fit its
-/// places.
+/// What [`super::tables::check`] asks before any table reads them: the
+/// dictionary has its copies (data made without `items.tsv` has none, and
+/// would sell its golden items as plain ones), and each item's `start` is
+/// modifications that exist, each once, that fit its places.
 pub fn check_content(data: &GameData, dictionary: &Dictionary) -> Result<(), GameDataError> {
+    if !dictionary.items.iter().any(|item| item.like.is_some()) {
+        return Err(GameDataError(format!(
+            "{}: no item is a copy of another (srp_like): the data was made without \
+             scripts/content-edit/items.tsv; build it with every patch (srp-game-data build)",
+            dictionary::PATH
+        )));
+    }
     let mods = super::game_data::config(data, modifications::MODIFICATIONS_PATH)?
         .ok_or_else(|| GameDataError(format!("no {}", modifications::MODIFICATIONS_PATH)))?;
     let known: Vec<i32> = mods

@@ -3470,7 +3470,8 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
             .filter(|item| item.dict_id == dict_id)
             .map(|item| item.condition_or_stack)
             .sum();
-        assert_eq!(owned, session::v026g::tutorial::SIGNUP_ROUNDS, "{dict_id}");
+        let rounds = session::v026g::tutorial::new_account().rounds;
+        assert_eq!(owned, rounds, "{dict_id}");
     }
     drop(account);
     // Given once: the next sign-in gives nothing more.

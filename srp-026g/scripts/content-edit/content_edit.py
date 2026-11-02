@@ -1128,6 +1128,8 @@ STATS = {
     # srp reads them from its game data (RoomRules, ShopRules): nothing a match computes.
     'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
     'shop': {'configs': 'gameplay/srp/shop.options', 'match': set()},
+    # srp reads it from its game data (survarium v026g::new_account): a new account's grant.
+    'new-account': {'configs': 'gameplay/srp/new_account.options', 'match': set()},
     # `like`: the plain item a golden or premium one is a copy of (its name); `start`: the modifications
     # of its own a new item comes with. srp reads both from the dictionary.
     'items': {
