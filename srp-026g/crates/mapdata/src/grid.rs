@@ -177,10 +177,13 @@ pub struct Body {
     /// behind them, 290 of them jumps the erosion made (A236). A build input: in the key when set.
     pub run_ups_after_erosion: bool,
     /// Whether a walk up off a perched steep floor (steeper than [`Body::min_ground_normal_y`] by its neighbours, not a `walk` face, its
-    /// cell's centre over ground more than 0.3 m lower: the top of something in a corner of the cell) is measured from the walkable
-    /// ground its climb began on, whatever the floor it reaches, and a drop's or jump's landing on steep ground gives it no
-    /// base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not rest on such ground: it slides back to where it
-    /// stood. Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
+    /// cell's centre over ground more than 0.3 m lower: the top of something in a corner of the cell) is measured from where the body
+    /// stands, whatever the floor it reaches: the walkable ground its climb began on, or the ground under the floor if that is higher,
+    /// and a drop's or jump's landing on it gives it no base of its own ([`WalkGrid::cut_steep_climbs`]). The client's body does not
+    /// rest on such ground: it slides back to where it stood. Floors that are not perched are as without it (measured from no base at
+    /// all, a perched floor come to by a walk down or a landing, and a landing on a steep slope with no base, left pits: a floor
+    /// reached with every walk out cut, School 12 floors and Mamayev Kurgan day 4 23; A248).
+    /// Off: only a walk onto steep ground is so measured, and a landing is a base, so a steep floor a drop lands on walks onto a
     /// top a step over it however far over the ground it stands on that is: Mamayev Kurgan day 4's boulder floor (-2.90, 29.58,
     /// 105.38), 63 degrees by its neighbours, its base reset by a drop, walks 0.58-0.76 m onto the top; a live bot walked onto the
     /// boulder (29.33), held forward toward the top for 5 s with no jump and sank to 29.00, 0.9-1.2 m under the top, the height of the
@@ -1383,12 +1386,16 @@ impl WalkGrid {
         // With [`Body::steep_walk_base`]: whether a floor is perched, its height the top of something in a corner of its cell with
         // the ground under its centre more than [`PERCH_M`] lower (or none within [`PERCH_LOOK_M`]): a body there stands on that
         // ground. A stair's tread or a slope's cell is not (the ground under its centre is at most a slope's part of a cell lower).
-        let perched = |a: usize| {
-            ground.is_some_and(|ground| {
-                let at = self.position(a as NodeId);
-                let from = Vec3::new(at.x, self.height[a] + 0.05, at.z);
-                ground.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), 0.05 + PERCH_LOOK_M).is_none_or(|t| t - 0.05 > PERCH_M)
-            })
+        // The height of that ground (minus infinity: none within the look), or none when the floor is not perched.
+        let perched = |a: usize| -> Option<f32> {
+            let ground = ground?;
+            let at = self.position(a as NodeId);
+            let from = Vec3::new(at.x, self.height[a] + 0.05, at.z);
+            match ground.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), 0.05 + PERCH_LOOK_M) {
+                Some(t) if t - 0.05 <= PERCH_M => None,
+                Some(t) => Some(self.height[a] + 0.05 - t),
+                None => Some(f32::NEG_INFINITY),
+            }
         };
         let n = self.height.len();
         // The ground's slope at a floor, from its walk neighbours along x
@@ -1435,8 +1442,12 @@ impl WalkGrid {
         for a in 0..n {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                // With `steep_walk_base` a landing on steep ground is no base: the body slides off it.
-                if b != NONE && wide.kinds[a][d] != LinkKind::Walk && !(self.body.steep_walk_base && steep_floor[b as usize]) {
+                // With `steep_walk_base` a landing on a perched steep floor is no base: the body slides off it onto the ground
+                // under it (a landing on a steep slope's own cell stays one: a body that walked up the slope stands there too).
+                if b != NONE
+                    && wide.kinds[a][d] != LinkKind::Walk
+                    && !(self.body.steep_walk_base && steep_floor[b as usize] && perched(b as usize).is_some())
+                {
                     base[b as usize] = self.height[b as usize];
                 }
             }
@@ -1474,12 +1485,18 @@ impl WalkGrid {
                 let b = b as usize;
                 // Up onto walkable ground is a step; up onto steep ground
                 // only within a step of where the climb began, and with
-                // `steep_walk_base` up off it too (the body stands where the
-                // climb began, not on the steep floor).
+                // `steep_walk_base` up off a perched floor too, from where the
+                // body stands: where the climb began, or the ground under the
+                // floor if higher (a body that landed there has no climb's
+                // base, and stands on that ground), not on the steep floor.
+                let perch = (self.body.steep_walk_base && steep_floor[a] && !forced[a]).then(|| perched(a)).flatten();
+                let from = match perch {
+                    Some(under) => Some(base[a].max(under)),
+                    None => steep_floor[b].then_some(base[a]),
+                };
                 if on_steep(a, b)
-                    && (steep_floor[b] || (self.body.steep_walk_base && steep_floor[a] && !forced[a] && perched(a)))
                     && self.height[b] > self.height[a] + LEVEL_M
-                    && self.height[b] - base[a] > self.body.step
+                    && from.is_some_and(|from| self.height[b] - from > self.body.step)
                 {
                     wide.links[a][d] = NONE;
                     cut[a] |= 1 << d;
@@ -4950,6 +4967,33 @@ pub(crate) mod tests {
         assert!(walked_up(&crest, false), "off the crest's cell the top is a walk of 0.6 m");
         assert!(!walked_up(&crest, true), "the crest's cell is perched: from the ground the climb began on the top is 1.1 m up");
         assert!(walked_up(&tread, false) && walked_up(&tread, true), "a tread is stood on: two steps of 0.5 and 0.6 m");
+    }
+
+    /// [`Body::steep_walk_base`] (A248): a perched floor that no climb reaches (a trench 1 m deep before it, the top behind it) is
+    /// measured from the ground under it: a crest 0.45 m up in the corner of a cell whose centre stands on a slab at 0, beside a top
+    /// at 0.6, walks onto the top with the switch as without it. Measured from no base at all it was cut, and a body that came onto it
+    /// had no way on (School and Vector Laboratory's pits, the no_way bursts of #1014's bench).
+    #[test]
+    fn a_perched_floor_no_climb_reaches_walks_up_from_the_ground_under_it_with_steep_walk_base() {
+        let mut tris = floor(0.0, 0.0, 4.0, 10.0, -1.0).to_vec();
+        // The trench's wall, from -1 up to the slab.
+        tris.extend(wall_x(4.0, 0.0, 10.0, 1.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y -= 1.0);
+            t
+        }));
+        tris.extend(floor(4.0, 0.0, 4.25, 10.0, 0.0));
+        tris.extend(floor(4.2, 0.0, 4.25, 10.0, 0.45));
+        tris.extend(wall_x(4.2, 0.0, 10.0, 0.45));
+        tris.extend(wall_x(4.25, 0.0, 10.0, 0.6));
+        tris.extend(floor(4.25, 0.0, 10.0, 10.0, 0.6));
+        let crest_walks_on = |steep_walk_base: bool| {
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, Body { steep_walk_base, ..Body::client() });
+            let crest = grid.locate(Vec3::new(4.125, 0.45, 5.125), 0.05).expect("the crest's floor");
+            assert!((grid.position(crest).y - 0.45).abs() < 0.01, "the crest's cell is the crest's height");
+            grid.links(crest).any(|(to, kind)| kind == LinkKind::Walk && (grid.position(to).y - 0.6).abs() < 0.01)
+        };
+        assert!(crest_walks_on(false), "without the switch the crest walks onto the top");
+        assert!(crest_walks_on(true), "with it too: from the slab under the crest the top is 0.6 m up");
     }
 
     /// The clients walk ground up to 55° (`startup.cfg` `cc_max_slope_angle_cos 0.57358`), not the exe's 50°: a plane of
