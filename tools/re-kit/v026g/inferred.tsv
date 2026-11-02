@@ -3175,3 +3175,4 @@ va	status	ref_021d	name
 0x0030df10	inferred-medium		survarium::weapon_core_hide_state_base::get_weapon_lexeme
 0x0030df10	inferred-medium		survarium::weapon_core_show_state_base::get_weapon_lexeme
 0x0030e510	inferred-medium		survarium::weapon_core_chamber_a_round_state::get_weapon_lexeme
+0x002f5500	inferred-medium		survarium::shared_statistics::on_player_weapon_firing

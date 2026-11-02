@@ -2019,3 +2019,9 @@ va	status	ref_021d	name
 0x0030d750	reviewed	0x001b1cf4	survarium::computed_reload_animation_time_scale
 0x0030e1f0	reviewed	0x001f1795	survarium::weapon_core_reload_state::get_weapon_lexeme
 0x0030ee40	reviewed	0x001b1e1a	survarium::computed_shotgun_reload_animation_time_scale
+0x0026da00	reviewed	0x0019c1db	survarium::base_game_statistics_handler::on_player_killed
+0x0026da50	reviewed	0x0019c20a	survarium::base_game_statistics_handler::on_player_damaged
+0x0026da80	reviewed	0x0019c22d	survarium::base_game_statistics_handler::on_player_weapon_firing
+0x002f4eb0	reviewed	0x001ddc36	survarium::shared_statistics::on_player_killed
+0x002f5450	reviewed	0x001dde52	survarium::shared_statistics::on_player_damaged
+0x002d7800	reviewed	0x001d3980	survarium::base_player::on_fire
