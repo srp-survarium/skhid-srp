@@ -951,7 +951,9 @@ pub(crate) fn real_bot_cost() {
             let crossings_before = super::crossing::counts();
             let rays_before = super::aimpoint::rays_cast();
             let limit_ms = limit_s * 1000;
-            let (mut clock, mut next_world) = (0, 1_000);
+            // `SRP_BENCH_WORLD_MS`: how often a world reaches the bots (1 s; the live worlds of a match with one client, 2 s).
+            let world_ms: u32 = bench_settings().number("SRP_BENCH_WORLD_MS").unwrap_or(1_000);
+            let (mut clock, mut next_world) = (0, world_ms);
             // Living bots' ticks with a goal to walk to, and those of them
             // with no route: a bot standing where it means to walk. By team.
             let (mut goal_ticks, mut stood_ticks) = ([0u64; 2], [0u64; 2]);
@@ -1487,7 +1489,7 @@ pub(crate) fn real_bot_cost() {
                     }
                 }
                 if clock >= next_world {
-                    next_world += 1_000;
+                    next_world += world_ms;
                     events.world(clock, &mut game, &bots);
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
                     let hurts = game.hurts_at(world_tick).unwrap_or_default();
