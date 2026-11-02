@@ -63,6 +63,8 @@ pub(crate) struct Grounds {
     all: Arc<RayTree>,
     slope: RayTree,
     dont: RayTree,
+    /// The capsule's radius, m (`mapdata::Body::client`).
+    radius: f32,
     of: HashMap<NodeId, Option<Ground>>,
 }
 
@@ -74,14 +76,15 @@ impl Grounds {
             all,
             slope: class(WalkerBehaviour::BySlope),
             dont: class(WalkerBehaviour::DontWalk),
+            radius: mapdata::Body::client().radius,
             of: HashMap::new(),
         }
     }
 
     /// The ground of `node`, whose body's feet are at `feet` (none: no face under it).
     pub(crate) fn at(&mut self, node: NodeId, feet: Vec3) -> Option<Ground> {
-        let (all, slope, dont) = (&self.all, &self.slope, &self.dont);
-        *self.of.entry(node).or_insert_with(|| ground_under(all, slope, dont, feet))
+        let (all, slope, dont, radius) = (&self.all, &self.slope, &self.dont, self.radius);
+        *self.of.entry(node).or_insert_with(|| ground_under(all, slope, dont, radius, feet))
     }
 }
 
@@ -100,15 +103,21 @@ const SIDE_ABOVE_M: f32 = 0.1;
 /// How far under the feet a footprint ray looks, m: a floor of the lattice on a slope stands over its face, by the capsule's rest.
 const UNDER_M: f32 = 1.0;
 
-/// The highest face under the body's footprint ([`FOOTPRINT`]) and not over its feet by more than [`SIDE_ABOVE_M`] (rays down from
-/// there, [`UNDER_M`] under the feet at most), and its class.
-fn ground_under(all: &RayTree, slope: &RayTree, dont: &RayTree, feet: Vec3) -> Option<Ground> {
+/// The face under the body's footprint ([`FOOTPRINT`], rays down from [`SIDE_ABOVE_M`] over its feet, [`UNDER_M`] under them at most)
+/// its capsule comes to rest on, and its class: the one that holds the capsule's bottom highest, a face met `d` off the axis holding
+/// it `radius - sqrt(radius² - d²)` lower than its own height (the hemisphere rises that much there; the client's down sweep of the
+/// capsule, `step_down_sweep_test_impl` 0x7ea80, meets first the face whose rest is highest).
+///
+/// A240a: the highest face of the footprint alone took a steep face rising beside the body (a step's riser, a rock's foot up to
+/// 0.1 m over the feet 0.3 m off) for its ground while the capsule stood on the flat floor under its centre, which the hemisphere
+/// reaches 0.15 m lower: of 2,209 slides begun on a bench, 1,410 had flat ground (under 35 degrees) under the centre.
+fn ground_under(all: &RayTree, slope: &RayTree, dont: &RayTree, radius: f32, feet: Vec3) -> Option<Ground> {
     let down = Vec3::new(0.0, -1.0, 0.0);
-    let (from, first) = FOOTPRINT
+    let (from, first, _) = FOOTPRINT
         .iter()
-        .map(|&(dx, dz)| feet + Vec3::new(dx, SIDE_ABOVE_M, dz))
-        .filter_map(|from| all.ray_hit(from, down, SIDE_ABOVE_M + UNDER_M).map(|hit| (from, hit)))
-        .min_by(|a, b| a.1.t.total_cmp(&b.1.t))?;
+        .map(|&(dx, dz)| (feet + Vec3::new(dx, SIDE_ABOVE_M, dz), radius - (radius * radius - dx * dx - dz * dz).max(0.0).sqrt()))
+        .filter_map(|(from, rise)| all.ray_hit(from, down, SIDE_ABOVE_M + UNDER_M).map(|hit| (from, hit, rise)))
+        .min_by(|a, b| (a.1.t + a.2).total_cmp(&(b.1.t + b.2)))?;
     let same = |tree: &RayTree| tree.ray_hit(from, down, SIDE_ABOVE_M + UNDER_M).filter(|hit| (hit.t - first.t).abs() < 1e-4);
     let deg = |normal: Vec3| normal.y.abs().clamp(0.0, 1.0).acos().to_degrees();
     Some(if same(slope).is_some() {
@@ -216,7 +225,8 @@ mod tests {
         let tris: Vec<Triangle> = top(0.0, 10.0).into_iter().chain(face).collect();
         let all = Arc::new(RayTree::build(&tris));
         let mut g = Grounds::new(&tris, all);
-        // Feet at the top's level, the centre over the face 0.1 m out from the edge: the top 0.3 m back holds the capsule.
+        // Feet at the top's level, the centre over the face 0.1 m out from the edge: the top 0.3 m back holds the capsule (its
+        // rest there, 0.15 m under the top, is over the face's 0.27 m under it).
         assert_eq!(g.at(1, Vec3::new(10.1, 1.0, 5.0)), Some(Ground::Slope(0.0)));
         // Feet down on the face 0.1 m out: the top over them is beside the body, not under it.
         let Some(Ground::Slope(deg)) = g.at(3, Vec3::new(10.1, 0.72, 5.0)) else { panic!("a slope") };
@@ -224,6 +234,32 @@ mod tests {
         // Far out over the face (no top within 0.3 m): the face.
         let Some(Ground::Slope(deg)) = g.at(2, Vec3::new(10.33, 0.1, 5.0)) else { panic!("a slope") };
         assert!((deg - 70.0).abs() < 0.5, "{deg}");
+    }
+
+    /// A240a: a steep face rising beside a body on flat ground, 0.1 m over its feet 0.3 m off, is not its ground: the hemisphere
+    /// is 0.15 m up there, so the capsule rests on the floor under its centre.
+    #[test]
+    fn a_steep_face_rising_beside_the_feet_is_not_the_ground() {
+        let s = WalkerBehaviour::BySlope;
+        let p = |x: f32, y: f32, z: f32| Vec3::new(x, y, z);
+        let floor = [
+            Triangle { v: [p(0.0, 0.0, 0.0), p(20.0, 0.0, 0.0), p(20.0, 0.0, 10.0)], walker: s },
+            Triangle { v: [p(0.0, 0.0, 0.0), p(20.0, 0.0, 10.0), p(0.0, 0.0, 10.0)], walker: s },
+        ];
+        // A 79 degree face from x 10.29 up 1 m.
+        let run = 1.0 / 79f32.to_radians().tan();
+        let face = [
+            Triangle { v: [p(10.29, 0.0, 0.0), p(10.29 + run, 1.0, 0.0), p(10.29 + run, 1.0, 10.0)], walker: s },
+            Triangle { v: [p(10.29, 0.0, 0.0), p(10.29 + run, 1.0, 10.0), p(10.29, 0.0, 10.0)], walker: s },
+        ];
+        let tris: Vec<Triangle> = floor.into_iter().chain(face).collect();
+        let all = Arc::new(RayTree::build(&tris));
+        let mut g = Grounds::new(&tris, all);
+        // The footprint's point 0.3 m toward the face meets it 0.05 m over the feet: the highest face, but the floor holds the capsule.
+        assert_eq!(g.at(1, Vec3::new(10.0, 0.0, 5.0)), Some(Ground::Slope(0.0)));
+        // Standing on the face itself, 0.3 m up it: the face.
+        let Some(Ground::Slope(deg)) = g.at(2, Vec3::new(10.29 + 0.3 * run, 0.3, 5.0)) else { panic!("a slope") };
+        assert!((deg - 79.0).abs() < 0.5, "{deg}");
     }
 
     #[test]
