@@ -128,8 +128,6 @@ package survarium.controls
       
       public var item_compare:ItemCompare;
       
-      public var textField:TextField;
-      
       public var checkbox_all_traders:Button;
       
       public var _item_control:*;
@@ -137,8 +135,6 @@ package survarium.controls
       public var shop_lights:MovieClip;
       
       public var checkboxCompareItems:Button;
-      
-      public var sortTab:ButtonBarDynam;
       
       public var shopTab:ButtonBarDynam = new ButtonBarDynam();
       
@@ -158,6 +154,10 @@ package survarium.controls
       // its list, still owned.
       private var _craftSlotted:Array = [];
       
+      // The lists' one order (the owner, 2026-11-02: "it should always be per level"; there is no sort
+      // to choose): what can be bought first, then by level, the price last.
+      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","broken","price","factionId"];
+
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
       // centred between the grid's foot and the item panel's buttons (placeSearch),
@@ -276,14 +276,6 @@ package survarium.controls
       // The shop's "not owned" check box (makeOwnedToggle).
       private var _ownedToggle:CheckBoxShared;
 
-      // The sort's place on the timeline (its label's x, its choices' x and spacing), the last row's
-      // outside the shop (placeLastRow).
-      private var _sortLabelX:Number;
-
-      private var _sortTabX:Number;
-
-      private var _sortSpacing:Number;
-
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
 
@@ -298,7 +290,6 @@ package survarium.controls
          sellersTabPage.addEventListener(MouseEvent.MOUSE_UP,this.checkReskin);
          optionControl.shopTab = this.shopTab;
          optionControl.setCheckBox(this.checkbox_all_traders);
-         optionControl.setSortTab(this.sortTab);
          this._inventoryItemsDict = new Dictionary(true);
          label.mouseEnabled = false;
          LocalizationData.addTextField(label,"inventory_label");
@@ -365,7 +356,7 @@ package survarium.controls
          this.itemControlPanel.toggleShop(value);
          if(this._ownedToggle != null)
          {
-            this.placeLastRow();
+            this.placeOwnedToggle();
          }
       }
       
@@ -2196,7 +2187,12 @@ package survarium.controls
          mainTabBar.visible = false;
          itemsTileList.addEventListener(MouseEvent.CLICK,this.onMouseItemClick);
          itemsTileList.addEventListener(ListEvent.ITEM_DOUBLE_CLICK,this.onItemDoubleClick);
-         trace("configureInventoryTab::",this.shop_lights,this.textField,black_gradient,btnClose,this.sortTab);
+         trace("configureInventoryTab::",this.shop_lights,black_gradient,btnClose);
+         // The list has no sort to choose (the owner, 2026-11-02: "noone cares about sorting by
+         // price", "it should always be per level"): its order is LIST_ORDER. The timeline's sort
+         // (its label and its choices) is taken off the list.
+         removeChild(getChildByName("sortTab"));
+         removeChild(getChildByName("textField"));
          inventoryTabPage.buttonWidth = 95;
          (this.bundleList.list as ScrollingList).itemRendererName = itemRendererName;
          this.itemControlPanel.updateData(null);
@@ -2209,19 +2205,10 @@ package survarium.controls
          sellersTabPage.enabled = false;
          this.checkbox_all_traders.selected = true;
          this.checkbox_all_traders.toggle = true;
-         this.textField.defaultTextFormat = this.textField.getTextFormat();
-         this.textField.mouseEnabled = false;
-         LocalizationData.addTextField(this.textField,"sort");
          black_gradient.height -= 25;
          black_gradient.y += 25;
          black_gradient.alpha = 0.8;
          addChild(black_gradient);
-         this.sortTab.itemRendererName = "RadioSharedShort";
-         this.sortTab.buttonWidth = 110;
-         this.sortTab.y += 5;
-         this.sortTab.useRect = false;
-         this.sortTab.spacing = 10;
-         this.sortTab.setMaxFit(true);
          this.shopTab.visible = false;
          optionControl.addEventListener(Event.RESIZE,this.updateTileListSize);
          this.itemControlPanel.setInvenory(this);
@@ -2235,7 +2222,7 @@ package survarium.controls
       // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
       // (CheckBoxShared; Autobuy's, CheckBoxSharedPD, fills its bitmaps unsmoothed, pixelated once the
       // lobby is scaled to the screen), with Autobuy's label sizing and tooltip; on the compare box's
-      // row, at its right (placeLastRow); shown in the shop only. Off when the lobby opens.
+      // row, at its right (placeOwnedToggle); shown in the shop only. Off when the lobby opens.
       private function makeOwnedToggle() : void
       {
          _ownedToggle = new CheckBoxShared();
@@ -2247,49 +2234,19 @@ package survarium.controls
          this._ownedToggle.visible = this.isShop;
          this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
          addChild(this._ownedToggle);
-         // Above the compare box, below the sort's choices: each takes the presses on itself.
-         setChildIndex(this.sortTab,numChildren - 1);
-         _sortLabelX = this.textField.x;
-         _sortTabX = this.sortTab.x;
-         _sortSpacing = this.sortTab.spacing;
       }
 
-      // The window's last row in the shop (shop-owned-mark.md, the owner's of 2026-11-02), left to
-      // right: [Comparing items] [Hide owned] Sort [By level] [By price], from the window's margin
-      // (the compare box's) to the same margin at its right, the five evenly apart, each as wide as
-      // its text: a box or a choice from its square or circle to its label's end. Laid out when the
-      // shop opens and when the texts come; outside the shop the row is the timeline's.
-      private function placeLastRow() : void
+      // The window's last row in the shop (shop-owned-mark.md, the owner's of 2026-11-02): [Comparing
+      // items] [Hide owned], from the window's margin, "Hide owned" after the compare box's label as
+      // far as that box's label is from its square. Placed when the shop opens and when the texts
+      // come.
+      private function placeOwnedToggle() : void
       {
-         var sortLabel:TextField = this.textField;
-         if(!this.isShop)
-         {
-            sortLabel.x = this._sortLabelX;
-            this.sortTab.x = this._sortTabX;
-            this.sortTab.spacing = this._sortSpacing;
-            return;
-         }
          var compare:Button = this.checkboxCompareItems;
          compare.validateNow();
-         this._ownedToggle.validateNow();
-         this.sortTab.validateNow();
-         var level:Button = this.sortTab.getButtonAt(0);
-         var price:Button = this.sortTab.getButtonAt(1);
-         var margin:Number = compare.x;
-         var widths:Array = [this.textRight(compare.textField) - compare.x,this.textRight(this._ownedToggle.textField) - this._ownedToggle.x,this.textRight(sortLabel) - this.textLeft(sortLabel),this.textRight(level.textField) - this.leftOf(level),this.textRight(price.textField) - this.leftOf(price)];
-         var used:Number = 0;
-         for each(var w:Number in widths)
-         {
-            used += w;
-         }
-         var gap:Number = (background.width - margin * 2 - used) / (widths.length - 1);
-         this._ownedToggle.x = Math.round(margin + widths[0] + gap);
+         var label:TextField = compare.textField;
+         this._ownedToggle.x = Math.round(this.textRight(label) + this.textLeft(label) - compare.x);
          this._ownedToggle.y = compare.y;
-         sortLabel.x += Math.round(this._ownedToggle.x + widths[1] + gap - this.textLeft(sortLabel));
-         this.sortTab.x += Math.round(this.textRight(sortLabel) + gap - this.leftOf(level));
-         // The bar steps by a choice's width (its CLIK width, not its drawn one) and the spacing.
-         this.sortTab.spacing = Math.round(widths[3] + gap - level.width);
-         this.sortTab.validateNow();
       }
 
       // A text's ends (its first line), in the list's units.
@@ -2303,12 +2260,6 @@ package survarium.controls
       {
          var line:TextLineMetrics = field.getLineMetrics(0);
          return globalToLocal(field.localToGlobal(new Point(line.x + line.width,0))).x;
-      }
-
-      // A control's left edge (its square or circle), in the list's units.
-      private function leftOf(control:DisplayObject) : Number
-      {
-         return globalToLocal(control.localToGlobal(new Point(0,0))).x;
       }
 
       // Whether the shop's list leaves out this entry: the box is on and the account owns the item
@@ -2326,7 +2277,7 @@ package survarium.controls
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
-         this.placeLastRow();
+         this.placeOwnedToggle();
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,
@@ -3063,9 +3014,7 @@ package survarium.controls
          }
          if(this._ownedToggle != null)
          {
-            // Above the compare box, below the sort's choices: each takes the presses on itself.
             setChildIndex(this._ownedToggle,numChildren - 1);
-            setChildIndex(this.sortTab,numChildren - 1);
          }
       }
       
@@ -3381,7 +3330,7 @@ package survarium.controls
                }
             }
             shop.length = 0;
-            filteredItems.sortOn(["buyValue",options.sortFirst,"superCategory","category","dictId","rank","value","broken",options.sortSecond,"factionId"],Array.NUMERIC);
+            filteredItems.sortOn(LIST_ORDER,Array.NUMERIC);
          }
          function isEnabled(value:ItemData):Boolean
          {
@@ -3429,8 +3378,6 @@ package survarium.controls
             this.filterInventoryItems();
             return;
          }
-         var showWeapons:Boolean = category == SuperCategory.WEAPONS;
-         optionControl.showWeaponsSort(showWeapons);
          var currentItems:Array = this._activeItems == InventoryTab.SHOP ? this._shopItems : this._inventoryItems;
          var sellerId:int;
          var filteredItems:Array;

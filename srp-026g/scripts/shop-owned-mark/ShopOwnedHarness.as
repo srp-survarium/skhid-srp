@@ -26,9 +26,10 @@ package
    // - the rifle sold: unmarked; the scope it wore stays owned, marked.
    // The box (the compare box's symbol, CheckBoxShared): off at first, labelled; on, the owned items'
    // entries leave the list and the others stay; with the upgrades tab chosen too; the decal bought
-   // while it is on leaves the list; off, every entry is back. The last row in every language (the
-   // dictionaries' texts, HarnessText): [Comparing items] [Hide owned] Sort [By level] [By price],
-   // margin to margin, evenly apart, nothing cut, touching or outside the window.
+   // while it is on leaves the list; off, every entry is back. The list has no sort and is always in
+   // level order: after it opens, a buy, the box, a tab, and in the inventory. The last row in every
+   // language (the dictionaries' texts, HarnessText): [Comparing items] [Hide owned], nothing cut,
+   // touching or outside the window.
    // Prints "SHOPMARK ..." lines; "SHOPMARK SHOT <name>" when the list is drawn for a screenshot
    // (held a while); ends with "SHOPMARK RESULT pass" or "SHOPMARK RESULT fail: ...".
    public class ShopOwnedHarness extends Sprite
@@ -59,13 +60,6 @@ package
       private static const MARK_X:Number = 158;
 
       private static const MARK_Y:Number = 6;
-
-      // The last row: its smallest gap between two parts (the stock row's closest, the sort's label to
-      // its first choice, 12.5), and how far its gaps (and its end from the margin) may differ, by the
-      // whole units the row is placed in.
-      private static const ROW_GAP:Number = 12;
-
-      private static const ROW_EVEN:Number = 2;
 
       // A text field's gutters: its text is cut beyond its width less them.
       private static const TEXT_GUTTER:Number = 4;
@@ -136,7 +130,8 @@ package
             }
             at = "the items";
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("shop-owned-mark-check");
-            descriptor.setItemsDictionary([item(RIFLE,Category("ASSAULT_RIFLES"),"Rifle",false),item(MEDKIT,Category("MEDKITS"),"Medkit",true),item(HELMET,Category("HELMETS"),"Helmet",false),item(BANDAGE,Category("MEDKITS"),"Bandage",true),item(SCOPE,Category("SCOPES"),"Scope",false),item(SCOPE_WORN,Category("SCOPES"),"Worn scope",false),item(CAMO,Category("CAMOUFLAGES"),"Camo",false),item(DECAL,Category("DECALS"),"Decal",false)]);
+            // Levels of their own, so the list's order shows.
+            descriptor.setItemsDictionary([item(RIFLE,Category("ASSAULT_RIFLES"),"Rifle",false,5),item(MEDKIT,Category("MEDKITS"),"Medkit",true,2),item(HELMET,Category("HELMETS"),"Helmet",false,4),item(BANDAGE,Category("MEDKITS"),"Bandage",true,1),item(SCOPE,Category("SCOPES"),"Scope",false,3),item(SCOPE_WORN,Category("SCOPES"),"Worn scope",false,6),item(CAMO,Category("CAMOUFLAGES"),"Camo",false,2),item(DECAL,Category("DECALS"),"Decal",false,1)]);
             at = "the shop";
             var Shop:Class = C("survarium.controls.GangShop");
             shop = new Shop();
@@ -178,9 +173,8 @@ package
 
       // The lobby's texts in `language` as the exe gives them (set_localization_data): srp's and the
       // shop's stock ones from the dictionaries (HarnessText), a few others the shop shows. The game
-      // gives them once, before the list shows; the compare box's label (InventoryList.onLocal) and
-      // the sort's choices (OptionFilterControl.onLocal) take them then only, so a later language is
-      // given to them here as those do.
+      // gives them once, before the list shows; the compare box's label (InventoryList.onLocal) takes
+      // them then only, so a later language is given to it here as that does.
       private function texts(language:String) : void
       {
          var data:Object = {sell:"Sell",shop:"Shop",non_faction_items:"Any"};
@@ -197,14 +191,12 @@ package
          if(inventory != null)
          {
             inventory.checkboxCompareItems.label = data.checkbox_compare_items;
-            inventory.sortTab.dataProvider = new (C("scaleform.clik.data.DataProvider"))([data.sort_level,data.sort_cost]);
-            inventory.sortTab.selectedIndex = 0;
          }
       }
 
-      private static function item(dictId:int, category:int, name:String, stack:Boolean) : Object
+      private static function item(dictId:int, category:int, name:String, stack:Boolean, level:int) : Object
       {
-         return {dictId:dictId,category:category,name:name,level:1,icon_row:1,icon_column:1,is_stack:stack,modifiers:[],item_properties:[]};
+         return {dictId:dictId,category:category,name:name,level:level,icon_row:1,icon_column:1,is_stack:stack,modifiers:[],item_properties:[]};
       }
 
       private static function offer(dictId:int) : Object
@@ -271,6 +263,7 @@ package
                   // The tick: the compare box's symbol (Autobuy's, CheckBoxSharedPD, is pixelated).
                   require(getQualifiedClassName(toggle()) == getQualifiedClassName(inventory.checkboxCompareItems),"the box is the compare box's symbol (" + getQualifiedClassName(toggle()) + ")");
                   lastRow("english");
+                  inLevelOrder("the shop, opened");
                   shot("before");
                   break;
                case 2:
@@ -280,6 +273,7 @@ package
                case 3:
                   expect(HELMET,true,"the helmet just bought");
                   expect(RIFLE,true,"the rifle still owned");
+                  inLevelOrder("the shop, after a buy");
                   shot("bought");
                   break;
                case 4:
@@ -301,6 +295,7 @@ package
                   {
                      require(!marked(r),"the toggle on: no entry left has the mark (" + r.data.name + ")");
                   }
+                  inLevelOrder("the shop, the box on");
                   shot("not-owned");
                   break;
                case 7:
@@ -310,6 +305,7 @@ package
                case 8:
                   trace("SHOPMARK not owned only, upgrades: " + names());
                   listed([DECAL],[SCOPE,SCOPE_WORN,CAMO,RIFLE,BANDAGE],"the toggle on, the upgrades tab");
+                  inLevelOrder("the shop, the upgrades tab");
                   shot("upgrades");
                   break;
                case 9:
@@ -327,18 +323,25 @@ package
                   listed([DECAL,SCOPE,SCOPE_WORN,CAMO],[],"the toggle off, the upgrades tab");
                   expect(DECAL,true,"the decal just bought");
                   expect(SCOPE,true,"the scope in the stash, the upgrades tab");
+                  inLevelOrder("the shop, the upgrades tab, after a buy");
+                  // The inventory: every tab.
+                  inventory.toggleShopMode(false);
+                  inventory.inventoryTabPage.selectedIndex = 0;
                   break;
                case 12:
+                  require(!toggle().visible,"the inventory has no hide-owned box");
+                  inLevelOrder("the inventory");
+                  break;
+               case 13:
                   // Every language's texts, one after another; the window's title as the shop gives it.
                   texts(HarnessText.LANGUAGES[language]);
                   inventory.toggleShopMode(true);
                   break;
-               case 13:
+               case 14:
                   lastRow(HarnessText.LANGUAGES[language]);
-                  shot("row-" + HarnessText.LANGUAGES[language]);
                   if(++language < HarnessText.LANGUAGES.length)
                   {
-                     step = 12;
+                     step = 13;
                   }
                   break;
                default:
@@ -429,47 +432,54 @@ package
          box.dispatchEvent(new (C("scaleform.clik.events.ButtonEvent"))("buttonClick"));
       }
 
-      // The last row in `what`'s texts, left to right: [Comparing items] [Hide owned] Sort [By level]
-      // [By price], each from its square or circle to its label's end (the sort: its label); the
-      // box on the compare box's row; from the compare box's margin to the same margin at the
-      // window's right, the gaps even and at least ROW_GAP; every label whole in its field; the
-      // sort's choices above the box and the box above the compare box (each takes its presses).
+      // The last row in `what`'s texts: [Comparing items] [Hide owned], the box on the compare box's
+      // row, after its label as far as the compare box's label is from its square; both labels whole,
+      // the box's inside the window; the box above the compare box (it takes the presses on itself);
+      // no sort on the list (its label, its choices).
       private function lastRow(what:String) : void
       {
          var compare:* = inventory.checkboxCompareItems;
          var box:* = toggle();
-         var sort:* = inventory.sortTab;
-         for each(var it:* in [compare,box,sort])
+         compare.validateNow();
+         box.validateNow();
+         var own:Number = textLeft(compare.textField) - leftOf(compare);
+         var gap:Number = leftOf(box) - textRight(compare.textField);
+         var end:Number = textRight(box.textField);
+         trace("SHOPMARK " + what + ": \"" + compare.label + "\" to " + textRight(compare.textField).toFixed(1) + ", \"" + box.label + "\" " + leftOf(box) + "-" + end.toFixed(1) + ", gap " + gap.toFixed(1) + " / " + own.toFixed(1));
+         require(box.y == compare.y && gap > 0 && Math.abs(gap - own) <= 1,what + ": the box on the compare box's row, after its label by " + own + " (" + gap + ")");
+         require(end <= inventory.background.width - compare.x,what + ": the box's label inside the window's margin (" + end + ")");
+         whole(what,compare.label,compare.textField);
+         whole(what,box.label,box.textField);
+         require(inventory.getChildIndex(box) > inventory.getChildIndex(compare),what + ": the box above the compare box");
+         require(inventory.getChildByName("sortTab") == null && inventory.getChildByName("textField") == null,what + ": no sort on the list");
+      }
+
+      // The list's entries (not the bundles) in level order, those that can be bought first
+      // (InventoryList.LIST_ORDER); at least two levels among them when there are two entries.
+      private function inLevelOrder(what:String) : void
+      {
+         var bundle:int = place("BUNDLE");
+         var entries:Array = rows().map(function(r:*, i:int, a:Array):* { return r.data; }).filter(function(d:*, i:int, a:Array):Boolean { return d.descriptor != bundle; });
+         var levels:Object = {};
+         var ordered:Boolean = true;
+         for(var i:int = 0; i < entries.length; i++)
          {
-            it.validateNow();
-         }
-         var level:* = sort.getButtonAt(0);
-         var price:* = sort.getButtonAt(1);
-         var parts:Array = [["\"" + compare.label + "\"",leftOf(compare),textRight(compare.textField)],["\"" + box.label + "\"",leftOf(box),textRight(box.textField)],["\"" + inventory.textField.text + "\"",textLeft(inventory.textField),textRight(inventory.textField)],["\"" + level.label + "\"",leftOf(level),textRight(level.textField)],["\"" + price.label + "\"",leftOf(price),textRight(price.textField)]];
-         var said:String = "";
-         var gaps:Array = [];
-         for(var i:int = 0; i < parts.length; i++)
-         {
-            said += parts[i][0] + " " + parts[i][1].toFixed(1) + "-" + parts[i][2].toFixed(1) + "  ";
+            levels[entries[i].itemLevel] = true;
             if(i > 0)
             {
-               gaps.push(parts[i][1] - parts[i - 1][2]);
+               var a:* = entries[i - 1];
+               var b:* = entries[i];
+               ordered &&= int(a.buyValue) < int(b.buyValue) || int(a.buyValue) == int(b.buyValue) && a.itemLevel <= b.itemLevel;
             }
          }
-         gaps.sort(Array.NUMERIC);
-         var margin:Number = compare.x;
-         var end:Number = inventory.background.width - margin;
-         var right:Number = parts[parts.length - 1][2];
-         trace("SHOPMARK " + what + ": " + said + "gaps " + gaps.join(",") + ", ends " + right.toFixed(1) + " / " + end);
-         require(box.y == compare.y && parts[1][1] > parts[0][2],what + ": the box on the compare box's row, at its right");
-         require(gaps[0] >= ROW_GAP && gaps[gaps.length - 1] - gaps[0] <= ROW_EVEN,what + ": the row's gaps even and at least " + ROW_GAP + " (" + gaps.join(",") + ")");
-         require(Math.abs(right - end) <= ROW_EVEN,what + ": the row ends at the window's margin (" + right + " / " + end + ")");
-         for each(var labelled:* in [compare,box,level,price])
+         var count:int = 0;
+         for(var level:String in levels)
          {
-            whole(what,labelled.label,labelled.textField);
+            count++;
          }
-         whole(what,inventory.textField.text,inventory.textField);
-         require(inventory.getChildIndex(sort) > inventory.getChildIndex(box) && inventory.getChildIndex(box) > inventory.getChildIndex(compare),what + ": the sort's choices above the box, the box above the compare box");
+         var said:String = entries.map(function(d:*, i:int, a:Array):String { return d.name + ":" + d.itemLevel + (d.buyValue ? "x" : ""); }).join(", ");
+         trace("SHOPMARK " + what + ": " + said);
+         require(ordered && (entries.length < 2 || count >= 2),what + ": in level order (" + said + ")");
       }
 
       // A label whole in its field: its text no wider than the field less its gutters.

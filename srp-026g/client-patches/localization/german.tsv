@@ -759,7 +759,7 @@ st_checkbox_clan_change_rank_permission	Die Veränderung des Ranges des Spielers
 st_checkbox_clan_daily_message_permission	Nachricht des Tages wechseln
 st_checkbox_clan_invite_permission	Einladung
 st_checkbox_clan_member_kick_permission	Vertriebung
-st_checkbox_compare_items	Vergleich
+st_checkbox_compare_items	Objekt  Vergleich
 st_checkbox_compare_items_hint	Die Beschreibung von Ihnen bekleideten Objekt darstellen
 st_checkbox_players_live_search	Während der Eingabe suchen
 st_checkbox_show_locked_items	Nicht verfügbar

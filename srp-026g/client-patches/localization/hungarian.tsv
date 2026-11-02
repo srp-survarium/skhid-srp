@@ -759,7 +759,7 @@ st_checkbox_clan_change_rank_permission	Játékosrangok módosítása
 st_checkbox_clan_daily_message_permission	Napi üzenet módosítása
 st_checkbox_clan_invite_permission	Meghívás
 st_checkbox_clan_member_kick_permission	Kirúgás
-st_checkbox_compare_items	Összehasonlítás
+st_checkbox_compare_items	Tárgyak összehasonlítása
 st_checkbox_compare_items_hint	Felszerelt tárgy leírásának mutatása
 st_checkbox_players_live_search	Azonnali játékoskeresés
 st_checkbox_show_locked_items	Nem elérhető
@@ -2123,7 +2123,7 @@ st_soc_vepr_description	Orosz öntöltő Vepr-karabély, 7.62x39 lőszerrel. A v
 st_soc_vepr_name	SOK-94
 st_socom16_description	A leírás még nem érhető el.
 st_socom16_name	SOCOM 16
-st_sort	Sorrend
+st_sort	Rendezés
 st_sort_cost	Ár szerint
 st_sort_label	Szűrő
 st_sort_level	Szint szerint

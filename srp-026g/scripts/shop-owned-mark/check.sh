@@ -5,11 +5,12 @@
 # owned items (a weapon, a stack, a scope loose or worn on a weapon, a camouflage) have the mark, the
 # others (an item not owned, an empty stack, a bundle whose id is an owned item's) not; a bought item
 # gets it, a sold one loses it; the box on leaves the owned entries out (the upgrades tab too, and an
-# item bought while it is on), and off brings them back; the window's last row in every language:
-# [Comparing items] [Hide owned] Sort [By level] [By price], margin to margin, evenly apart.
+# item bought while it is on), and off brings them back; the list has no sort and stays in level
+# order (opened, a buy, the box, a tab, the inventory); the window's last row in every language:
+# [Comparing items] [Hide owned].
 # Screenshots into the work dir: before.png (the owned entries marked, the box off), bought.png (the
 # helmet bought too), not-owned.png (the box on: the owned entries gone), upgrades.png (the box on,
-# the upgrades tab), row-<language>.png (the last row in each language).
+# the upgrades tab).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, the shots,
 # Ruffle's log). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md),
 # or SRP_AS_TOOLS.
