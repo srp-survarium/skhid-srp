@@ -307,6 +307,10 @@ pub const EXCEPTIONS: &[(&str, &[(u8, u8)])] = {
         // The 7.62x51 in clips of 20: the FN SCAR-H (Renaissance, rank 10) and
         // batch 4's H&K G3SG/1 (Black Market, rank 5), which shares it.
         ("ammo_7.62x51_20", &[(REN, 10), (BM, 5)]),
+        // The 7.62x51 belt of 100 (pack weapons-046, docs/notes/weapons-046.md):
+        // the Fort-401's (Edge, level 14: rank 9), as the PKP's 7N13 belt is
+        // the PKP's.
+        ("ammo_7.62x51_belt", &[(EDGE, 9)]),
         // --- Drugs, the trap, grenades (the four faction pages and
         // `Items` W:9996; PROVEN) ---
         ("bandages", &[(SCAV, 1)]),
@@ -384,6 +388,8 @@ pub const AMMO_PRICES: &[(&str, u32, u32)] = &[
     ("ammo_5.56x45_belt", 200, 100),
     // A clip of 20 7.62x51 (the SCAR-H's, the G3SG/1's): the 7.62x51's price a round (15).
     ("ammo_7.62x51_20", 300, 150),
+    // The Fort-401's belt of 100, as the PKP's.
+    ("ammo_7.62x51_belt", 300, 150),
 ];
 
 /// Items the tables of this module name that come with a game patch not
@@ -401,6 +407,8 @@ pub const UNRELEASED: &[&str] = &[
     // Weapons batch 1's rounds (pack weapons-031).
     "ammo_5.56x45_belt",
     "ammo_7.62x51_20",
+    // The 7.62x51 belt of 100 (pack weapons-046).
+    "ammo_7.62x51_belt",
     // The STK2 Novice's cap (resource-porter pack novice-6).
     "novice_026_helmet",
     // The STK2 outfits (packs stk2-bandit, stk2-novice, stk2-loner).

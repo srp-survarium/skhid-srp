@@ -426,3 +426,9 @@ before they can ship on top of this list.
 | change | why |
 |---|---|
 | The four configs of pack weapons-031 (the 0.31a2 guns, `../../docs/notes/weapons-031.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-031-camo (`../weapons-031/camo.tsv`), so no shared list or pack changes |
+
+## weapon-camo-046-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The ten configs of pack weapons-046 (the 0.46c2 guns, `../../docs/notes/weapons-046.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for these configs); their `_aoac` masks are the pack weapons-046-camo, made by `../weapon-camo/weapon_camo.py` from `../weapons-046/camo.tsv` (the parts it suggests: no premium copy to learn from; the picker chooses others) |

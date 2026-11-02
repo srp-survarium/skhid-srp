@@ -85,6 +85,8 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
     clip with no bitmap shows the clip's last frame, as before. A bitmap is found by its class name
     (`CombatLogWeapon<n>`, `getDefinitionByName`; the lobby's `KillFeedWeapon<n>` the same way), so a
     ported weapon's icon is its bitmap and class, with no list to edit;
+  - weapons batch 2 (`weapons-046.md`, release 41's weapons): `make_weapon_icons_046.py` adds
+    0.46c2's 75, 77 to 80, 82 to 84, 0.69d0's 95 and the Colt M1911's 99, drawn from its lobby cell;
   - `content-edit/kill-feed-weapons-1.json`: the 21 configs take their builds' icons again (the
     premium Saiga and Vepr-12, the Neostead's second config and the MP7 Special their weapon's); the
     M4A1 21, the clip's own M4.

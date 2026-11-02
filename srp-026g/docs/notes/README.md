@@ -32,6 +32,7 @@ given), LIKELY or GUESS.
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [weapons-031.md](weapons-031.md) | Weapons batch 1 from 0.31a2 (release 41): the OTs-14 "Groza", FN SCAR-H, VHS-2 and FN Minimi (2261-2264), their balance against live peers, how resource-porter's weapon port made them, their 0.69d muzzle points for the muzzle step |
 | [weapon-kit.md](weapon-kit.md) | A weapon's six upgrades (two decals, camouflage, scope, muzzle device, grip) in the client's three records: the kit record's layout, client patch 68, the server's packing |
+| [weapons-046.md](weapons-046.md) | Weapons from 0.46c2 (packs weapons-046, weapons-046-camo; release 41, batches 2 and 2b): the MP5, SVU, L85A2, Fort-401, Jackhammer and five pistols, balanced around their live peers (the table), their default parts baked in, the muzzle data for the muzzle step |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |

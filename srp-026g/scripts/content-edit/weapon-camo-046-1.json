@@ -1,0 +1,75 @@
+{
+ "_about": "The ten 0.46c2 weapons of pack weapons-046 (docs/notes/weapons-046.md) wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them): parameters/camo_available and a data table with camo_scale 4.0 (client patch 44; their _aoac masks are pack weapons-046-camo, from scripts/weapons-046/camo.tsv), parameters/decal_available and an empty data/decals (client patch 47).",
+ "add_value": [
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_beretta93r.options",
+    "gameplay/items/weapons/wpn_colt_m1911.options",
+    "gameplay/items/weapons/wpn_cz_75.options",
+    "gameplay/items/weapons/wpn_fort_401.options",
+    "gameplay/items/weapons/wpn_glock_17.options",
+    "gameplay/items/weapons/wpn_jackhammer.options",
+    "gameplay/items/weapons/wpn_l85a2.options",
+    "gameplay/items/weapons/wpn_mp443.options",
+    "gameplay/items/weapons/wpn_mp5a1.options",
+    "gameplay/items/weapons/wpn_svu_a.options"
+   ],
+   "table": "parameters",
+   "key": "camo_available",
+   "value": true
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_beretta93r.options",
+    "gameplay/items/weapons/wpn_colt_m1911.options",
+    "gameplay/items/weapons/wpn_cz_75.options",
+    "gameplay/items/weapons/wpn_fort_401.options",
+    "gameplay/items/weapons/wpn_glock_17.options",
+    "gameplay/items/weapons/wpn_jackhammer.options",
+    "gameplay/items/weapons/wpn_l85a2.options",
+    "gameplay/items/weapons/wpn_mp443.options",
+    "gameplay/items/weapons/wpn_mp5a1.options",
+    "gameplay/items/weapons/wpn_svu_a.options"
+   ],
+   "table": "",
+   "key": "data",
+   "value": {
+    "camo_scale": 4.0
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_beretta93r.options",
+    "gameplay/items/weapons/wpn_colt_m1911.options",
+    "gameplay/items/weapons/wpn_cz_75.options",
+    "gameplay/items/weapons/wpn_fort_401.options",
+    "gameplay/items/weapons/wpn_glock_17.options",
+    "gameplay/items/weapons/wpn_jackhammer.options",
+    "gameplay/items/weapons/wpn_l85a2.options",
+    "gameplay/items/weapons/wpn_mp443.options",
+    "gameplay/items/weapons/wpn_mp5a1.options",
+    "gameplay/items/weapons/wpn_svu_a.options"
+   ],
+   "table": "parameters",
+   "key": "decal_available",
+   "value": true
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_beretta93r.options",
+    "gameplay/items/weapons/wpn_colt_m1911.options",
+    "gameplay/items/weapons/wpn_cz_75.options",
+    "gameplay/items/weapons/wpn_fort_401.options",
+    "gameplay/items/weapons/wpn_glock_17.options",
+    "gameplay/items/weapons/wpn_jackhammer.options",
+    "gameplay/items/weapons/wpn_l85a2.options",
+    "gameplay/items/weapons/wpn_mp443.options",
+    "gameplay/items/weapons/wpn_mp5a1.options",
+    "gameplay/items/weapons/wpn_svu_a.options"
+   ],
+   "table": "data",
+   "key": "decals",
+   "value": {}
+  }
+ ]
+}
