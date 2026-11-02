@@ -103,7 +103,7 @@ enum Unit {
     Number { min: f64, max: f64 },
     Whole { min: u32, max: u32 },
     /// A class's hit rate a shot at skill 1, %, up to its cap (the owner's bar), set as its skill-1 factor through the
-    /// bench's calibration ([`super::AimCalibration`]).
+    /// bench's calibration ([`super::AimCalibration`], the `calibration` section).
     Hits { class: WeaponClass, cap: f64 },
 }
 
@@ -208,7 +208,7 @@ impl Knob {
         if !(x > 0.0 && x <= cap) {
             return Err(format!("{x} % is over the class's cap of {cap} % (or not over 0)"));
         }
-        let points = file.aim.calibration.of(class).ok_or("the class has no bench points")?;
+        let points = file.calibration.of(class).ok_or("the class has no bench points")?;
         let factor = points.factor_for(x as f32).ok_or_else(|| {
             let (low, high) = points.rates().unwrap_or_default();
             format!("{x} % is outside the bench's points ({low}–{high} %)")
@@ -220,7 +220,7 @@ impl Knob {
     fn shown_value(&self, value: Value, file: &Tuning) -> String {
         match (self.unit, value) {
             (Unit::Hits { class, .. }, Value::Factor(factor)) => {
-                let rate = file.aim.calibration.of(class).and_then(|points| points.rate_at(factor));
+                let rate = file.calibration.of(class).and_then(|points| points.rate_at(factor));
                 self.unit.shown(rate.map_or(f64::NAN, f64::from))
             }
             (unit, value) => unit.shown(value.x()),
@@ -259,7 +259,7 @@ impl Knob {
     /// The values it takes, over the tuning `file` (a rate: its calibration's span, up to the cap).
     fn limits(&self, file: &Tuning) -> String {
         match self.unit {
-            Unit::Hits { class, cap } => match file.aim.calibration.of(class).and_then(|points| points.rates()) {
+            Unit::Hits { class, cap } => match file.calibration.of(class).and_then(|points| points.rates()) {
                 Some((low, high)) => format!("{low}–{} % (cap {cap})", f64::from(high).min(cap)),
                 None => "—".to_owned(),
             },
@@ -273,7 +273,7 @@ impl Knob {
             return None;
         };
         let (low, middle, high) = tuning.aim.class_aim.of(class);
-        Some(match tuning.aim.calibration.of(class) {
+        Some(match tuning.calibration.of(class) {
             Some(_) => format!("factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle})"),
             None => format!("factors {low} / {middle} / {high} (skill 0 / 0.5 / 1); no bench points"),
         })
@@ -283,7 +283,7 @@ impl Knob {
 /// A class's rate at skill 1 in a tuning: its calibration's at its skill-1 factor (NaN for none).
 fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
     let (_, _, factor) = tuning.aim.class_aim.of(class);
-    tuning.aim.calibration.of(class).and_then(|points| points.rate_at(factor)).map_or(f64::NAN, f64::from)
+    tuning.calibration.of(class).and_then(|points| points.rate_at(factor)).map_or(f64::NAN, f64::from)
 }
 
 /// The skill's 0 to 1.
@@ -827,7 +827,7 @@ impl BotDesk for LiveTuning {
                 key: group.key(),
                 title: group.title(),
                 note: group.note(),
-                source: (group == Group::Hits).then(|| state.file.tuning().aim.calibration.source.clone()),
+                source: (group == Group::Hits).then(|| state.file.tuning().calibration.source.clone()),
                 knobs: KNOBS
                     .iter()
                     .filter(|knob| knob.group == group)
@@ -1052,7 +1052,7 @@ mod tests {
         let shipped = Tuning::default();
         let view = live.view();
         let group = view.groups.iter().find(|group| group.key == "hits").unwrap();
-        assert_eq!(group.source.as_deref(), Some(shipped.aim.calibration.source.as_str()));
+        assert_eq!(group.source.as_deref(), Some(shipped.calibration.source.as_str()));
         let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
         assert_eq!((rifle.value.as_str(), rifle.default.as_str(), rifle.limits.as_str()), ("18.5", "18.5", "13.6–20 % (cap 20)"));
         assert_eq!(rifle.beside.as_deref(), Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"));
@@ -1062,7 +1062,7 @@ mod tests {
         let made = set(&live, &[("aim.class_aim.rifle", "19 %")]).unwrap();
         let said: Vec<_> = made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())).collect();
         assert_eq!(said, [("aim.class_aim.rifle", "18.5", "19.0")]);
-        let factor = shipped.aim.calibration.automatics.factor_for(19.0).unwrap();
+        let factor = shipped.calibration.automatics.factor_for(19.0).unwrap();
         let next = live.for_match();
         let (low, middle, high) = next.tuning().aim.class_aim.rifle;
         assert_eq!((low, middle), (0.40, 0.77));
@@ -1088,8 +1088,8 @@ mod tests {
         // The bolts at their cap and the DMRs inside their scope's flat stretch.
         set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "29.4")]).unwrap();
         let next = live.for_match();
-        assert!((next.tuning().aim.class_aim.bolt.2 - shipped.aim.calibration.bolt.factor_for(40.0).unwrap()).abs() < 1e-4);
-        assert!((next.tuning().aim.class_aim.marksman.2 - shipped.aim.calibration.marksman.factor_for(29.4).unwrap()).abs() < 1e-4);
+        assert!((next.tuning().aim.class_aim.bolt.2 - shipped.calibration.bolt.factor_for(40.0).unwrap()).abs() < 1e-4);
+        assert!((next.tuning().aim.class_aim.marksman.2 - shipped.calibration.marksman.factor_for(29.4).unwrap()).abs() < 1e-4);
         // The group's reset puts the shipped factors back.
         assert_eq!(live.reset(Some("hits"), "192.0.2.4").unwrap().len(), 3);
         assert_eq!(live.for_match(), LoadedTuning::default());

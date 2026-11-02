@@ -42,10 +42,6 @@ pub struct AimTuning {
     /// [A243] Each gun class's factors on the aim's angles at skill 0 and at
     /// skill 1: each class has its own bar (the owner, 2026-11-01).
     pub class_aim: ClassAim,
-    /// [A246] The bench's calibration of each class's skill-1 factor to a hit
-    /// rate, which the admin page sets the factor by ([`AimCalibration`]).
-    /// Data only: nothing the bots do reads it.
-    pub calibration: AimCalibration,
     /// The reflex's other numbers (plays 5, 7, 11, 19, 20, 21, reloads),
     /// the same at every skill.
     pub combat: super::super::reflex::CombatTuning,
@@ -75,7 +71,6 @@ impl Default for AimTuning {
             reaction_ms: (450.0, 120.0),
             skill_curve: SkillCurve::default(),
             class_aim: ClassAim::default(),
-            calibration: AimCalibration::default(),
             combat: super::super::reflex::CombatTuning::default(),
             friends: super::super::friends::FriendlyFireTuning::default(),
         }
@@ -246,10 +241,15 @@ impl Default for AimCalibration {
     }
 }
 
-impl AimCalibration {
-    fn is_ordered(&self) -> bool {
-        [&self.automatics, &self.shotgun, &self.marksman, &self.bolt].iter().all(|points| points.is_ordered())
+impl Check for AimCalibration {
+    /// Every table in order ([`Calibration::is_ordered`]).
+    fn check(&self) -> Result<(), String> {
+        let tables = [&self.automatics, &self.shotgun, &self.marksman, &self.bolt];
+        check(tables.iter().all(|points| points.is_ordered()), "calibration")
     }
+}
+
+impl AimCalibration {
 
     /// The points of `class`'s guns; `None` for a class with none (pistols).
     pub fn of(&self, class: WeaponClass) -> Option<&Calibration> {
@@ -455,7 +455,6 @@ impl Check for AimTuning {
             }),
             "aim.class_aim (an error floor or wander grows with the skill)",
         )?;
-        check(self.calibration.is_ordered(), "aim.calibration")?;
         let c = &self.combat;
         check(
             c.strafe_run_ms.0 > 0 && c.strafe_run_ms.0 <= c.strafe_run_ms.1,
@@ -487,7 +486,7 @@ mod tests {
     fn the_calibration_maps_a_rate_to_its_factor_and_back() {
         let near = |got: Option<f32>, want: f32| got.is_some_and(|got| (got - want).abs() < 1e-4);
         let calibration = AimCalibration::default();
-        assert!(calibration.is_ordered(), "the shipped points are in order");
+        assert_eq!(calibration.check(), Ok(()), "the shipped points are in order");
         let automatics = calibration.of(WeaponClass::Rifle).unwrap();
         assert_eq!(calibration.of(WeaponClass::Smg), Some(automatics));
         assert_eq!(calibration.of(WeaponClass::Pistol), None);
@@ -518,11 +517,8 @@ mod tests {
             vec![(0.0, 20.0), (1.2, 18.0)],
             vec![(1.0, 120.0), (1.2, 18.0)],
         ] {
-            let aim = AimTuning {
-                calibration: AimCalibration { bolt: Calibration(bad.clone()), ..AimCalibration::default() },
-                ..AimTuning::default()
-            };
-            assert_eq!(aim.check(), Err("aim.calibration".to_owned()), "{bad:?}");
+            let calibration = AimCalibration { bolt: Calibration(bad.clone()), ..AimCalibration::default() };
+            assert_eq!(calibration.check(), Err("calibration".to_owned()), "{bad:?}");
         }
     }
 
