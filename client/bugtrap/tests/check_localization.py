@@ -92,7 +92,7 @@ def main():
             if state == "dialog-failure":
                 [report] = new - set(texts)
                 assert report.name in controls[-1] and report.suffix == ".zip", controls
-                assert "discord.gg/Pxa4prXfwu" in controls[-1] and "#bugreports" in controls[-1], controls
+                assert "discord.gg/QUmJg3gBhg" in controls[-1] and "#bugreports" in controls[-1], controls
                 assert re.search(r"ACCESS_VIOLATION.*\s+at \S+\.(dll|exe)\+0x", controls[-1]), controls
                 assert button not in controls[-1], "fallback must not refer to a missing button"
                 for p in new:
@@ -145,7 +145,7 @@ def main():
                 text.unlink()
             if state == "browser-failure":
                 assert controls[-1].startswith(browser_error), controls
-                assert "discord.gg/Pxa4prXfwu" in controls[-1] and "#bugreports" in controls[-1]
+                assert "discord.gg/QUmJg3gBhg" in controls[-1] and "#bugreports" in controls[-1]
             print(f"PASS {language}: {state}, {'automatic despite game option' if args else 'automatic without game option'}", flush=True)
 
 

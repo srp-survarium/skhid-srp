@@ -22,7 +22,7 @@ fn every_report_state_has_localized_instructions_and_fits_its_buffers() {
         assert!(
             t.browser_failed.encode_utf16().count() + t.manual.encode_utf16().count() + 4 < 512
         );
-        assert!(t.manual.contains("discord.gg/Pxa4prXfwu") && t.manual.contains("#bugreports"));
+        assert!(t.manual.contains("discord.gg/QUmJg3gBhg") && t.manual.contains("#bugreports"));
         assert!(!t.manual.contains(t.discord));
         assert!(t.title.encode_utf16().count() < 128);
         assert!(t.discord.encode_utf16().count() < 64);
