@@ -21,10 +21,6 @@ use survarium::v026g::quests::FACTIONS;
 pub const KITS: usize = limits::KITS;
 /// Slots of a kit.
 pub const KIT_SLOTS: usize = limits::KIT_SLOTS;
-/// A new 0.26g account's silver and gold (the owner's choice, 2026-10-12:
-/// 2,000 silver and no gold; no source of the time gives the numbers).
-pub const STARTING_MONEY: u32 = 2_000;
-pub const STARTING_PREMIUM_MONEY: u32 = 0;
 /// The highest level (PROVEN: the game's knowledge base, "the highest
 /// possible level of a character is the hundredth", and the wiki's reward
 /// table of February 2015, which ends at 100).
@@ -251,11 +247,13 @@ pub fn cap_name(name: &str) -> String {
 }
 
 impl Account {
-    /// A new account: three kits, the first wearing the game's starter
-    /// loadout ([`loadouts::starter`]: the TT-33 and a clip for it), and
-    /// the rest of what every new player owned in the inventory
-    /// ([`loadouts::starter_stash`]: the Mosin carbine, a clip for it and
-    /// the PPSh-41).
+    /// The stock account, the tests' (and [`super::GameAccounts::get_or_create`]'s):
+    /// three kits, the first wearing the game's free pistol
+    /// ([`loadouts::starter`]: the TT-33 and a clip for it), the Mosin
+    /// carbine, a clip for it and the PPSh-41 owned
+    /// ([`loadouts::starter_stash`]), no money. A player's account is made
+    /// from nothing and what the game data's table gives
+    /// ([`super::GameAccounts::sign_up`], `tutorial::NewAccount`).
     pub fn new(name: &str) -> Self {
         let mut account = Self::with_loadout(name, loadouts::starter());
         let dictionary = Dictionary::shared();
@@ -272,8 +270,8 @@ impl Account {
         let mut account = Self {
             name: cap_name(name),
             clan_tag: String::new(),
-            generic_money: STARTING_MONEY,
-            premium_money: STARTING_PREMIUM_MONEY,
+            generic_money: 0,
+            premium_money: 0,
             premium_until: 0,
             exp_total: 0,
             skills: Vec::new(),
@@ -796,11 +794,8 @@ mod tests {
         assert!(dictionary.compatible(ppsh, ammo));
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.next_item_id, 6);
-        assert_eq!(
-            (account.generic_money, account.premium_money),
-            (STARTING_MONEY, STARTING_PREMIUM_MONEY)
-        );
-        assert_eq!((account.generic_money, account.premium_money), (2_000, 0));
+        // No money: what a player starts with is the grant's (`tutorial`).
+        assert_eq!((account.generic_money, account.premium_money), (0, 0));
         assert_eq!((account.rating, account.rating_before), (100, 100));
         assert_eq!(account.reputations, [(1, 0), (2, 0), (3, 0), (4, 0)]);
         // No faction chosen: the client asks.

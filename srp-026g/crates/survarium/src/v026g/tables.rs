@@ -16,6 +16,7 @@ use super::lobby::rooms::{RULES_PATH, RoomRules};
 use super::localization;
 use super::maps;
 use super::modifications::{self, Modifications};
+use super::new_account::{self, NewAccount};
 use super::quests::{self, Quests};
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
 use super::skills::{self, SkillsTree};
@@ -170,6 +171,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         Loadouts::parse(needed(data, loadouts::PATH)?, &dictionary),
     )?;
     RoomRules::parse(needed(data, RULES_PATH)?).map_err(GameDataError)?;
+    NewAccount::parse(needed(data, new_account::PATH)?).map_err(GameDataError)?;
     if let Some(pair) = dictionary
         .items
         .windows(2)

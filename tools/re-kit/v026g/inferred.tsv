@@ -274,6 +274,7 @@ va	status	ref_021d	name
 0x0005f3c0	inferred-medium	0x000446d5	vostok::memory::single_threading_single_size_allocator_policy<vostok::memory::single_size_buffer_allocator<88288,vostok::threading::single_threading_policy>::node>::allocate
 0x0005f600	inferred-medium	0x00044803	vostok::sound::sound_collection_cook::collection_config_loaded
 0x0005fcb0	inferred-medium	0x00044d79	vostok::buffer_vector<vostok::resources::request>::push_back
+0x000626d0	inferred-medium		vostok::sound::spl_query_finished_callback
 0x00062f10	inferred-medium	0x00046a49	vostok::sound::sound_scene_cook::translate_query
 0x000632a0	inferred-medium	0x00046d7c	vostok::sound::sound_voice::refill_buffers
 0x00063590	inferred-medium	0x00046f0b	vostok::sound::destroy_sound_instance_proxy_order::~destroy_sound_instance_proxy_order
@@ -1303,8 +1304,6 @@ va	status	ref_021d	name
 0x00239cc0	inferred-medium	0x00182f7c	survarium::game_world_ui::create_slot_value
 0x0023a1a0	inferred-high	0x0018313d	survarium::game_world_ui::show_stamina
 0x0023a380	inferred-high	0x00183183	survarium::game_world_ui::update_quick_slot
-0x0023a430	inferred-high	0x001831ff	survarium::game_world_ui::set_using_progress_message
-0x0023a560	inferred-high	0x0018329c	survarium::game_world_ui::set_using_info_message
 0x0023a720	inferred-high	0x00183336	survarium::game_world_ui::set_broken_connection_message
 0x0023a7f0	inferred-high	0x001833ce	survarium::game_world_ui::set_player_online_status
 0x0023a930	inferred-medium		survarium::game_world_ui::show_cursor

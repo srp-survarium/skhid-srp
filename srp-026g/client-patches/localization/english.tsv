@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	A Soviet low-impulse interim bullet equipped with steel core. The lightweight bullet has a high initial velocity which ensures a flat trajectory. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	A belt of 100 5.56x45 rounds for the FN Minimi. Takes two ammo bags.
+st_ammo_556x45_belt_name	5.56x45 belt
 st_ammo_556x45_description	NATO intermediate rifle cartridge, developed from the American .223 Remington and standardised by NATO in 1980. A light, fast bullet with a flat trajectory and low recoil.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Cartridge developed by FN Herstal around 1990 for the P90 and later the Five-seveN pistol. A light, fast bullet designed to penetrate body armour.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	7.62x39 cartridge designed in 1943, considered one of
 st_ammo_762x39_m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_762x39_m_name	7.62х39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	7.62x51 rifle cartridges in 20-round magazines, for the FN SCAR-H and the H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, 20-round magazine
 st_ammo_762x51_M59_description	An armor-piercing modification of the military 7.62x51 M61 rifle cartridge. The bullet is equipped with a jacketed steel core.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO rifle cartridge in a belt of 100 for machine guns.
+st_ammo_762x51_belt_name	7.62x51, belt
 st_ammo_762x51_description	A popular army cartridge with the full metal jacket bullet. Designed for use in sniper and civil weapons. 
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Found in warehouses, this ammo is one of the oldest rifle bullets of our time. Its age and storage conditions made it less effective.
@@ -303,6 +309,8 @@ st_base_trap_description	A common hunter's trap with a strong spring. When activ
 st_base_trap_name	Trap
 st_benelli_description	Italian self-loading shotgun, 12 gauge. Developed by Benelli in the late 1990s with a gas-operated action and adopted by the US Marine Corps as the M1014. Loaded from a tube magazine under the barrel. Single shots only.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italian machine pistol, ammo: 9x19. Single shots or three-round bursts; folding foregrip.
+st_beretta93r_name	Beretta 93R
 st_best	Best
 st_best_explorer	EXPLORER
 st_best_explorer_artefacts	Artifacts:
@@ -841,6 +849,8 @@ st_clan_window_label	Clan registration
 st_clear	Clear
 st_close	Close
 st_collect_statistics_option	Enable statistics collection
+st_colt_m1911_description	American pistol, ammo: .45 ACP. The US Army's service pistol for seven decades.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	You've used the maximum number of praises for one day.
 st_compliment_count_per_user_owerflow	You can't compliment a user twice a day!
 st_compliment_player	Praise
@@ -865,6 +875,8 @@ st_crouch_action	Crouch (hold)
 st_crouch_toggle_action	Crouch
 st_ct_max_members_count_error	Error adding new players. The clan team already has the maximum number of players.
 st_current_value	\nCurrent value:
+st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Weapon 1
 st_fix	Fix
 st_fn_fnc_description	Belgian assault rifle, ammo: 5.56x45. Developed by FN Herstal in the 1970s and adopted by the Belgian army; licence versions serve in Sweden and Indonesia. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgian light machine gun, ammo: 5.56x45. FN Herstal's squad automatic weapon of the 1970s, in US service as the M249. Box of 100 rounds. Single and automatic fire.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed by FN Herstal around 1990 together with its own cartridge; a bullpup with a 50-round magazine lying along the top of the weapon. Used by special forces and police in many countries. Supports single and automatic fire.
 st_fn_p90_name	FN P90
 st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrainian light machine gun, ammo: 7.62x51. A Negev made under licence in Vinnytsia, fed from a 100-round box.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Heavy armoured boots in Freedom colours, worn with heavy armour.
 st_freedom_026_boots_name	Freedom boots
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Full screen mode
 st_general_volume_option	Master
 st_generic_money_name	Rubles
 st_geometry_quality_option	Geometry quality
+st_glock_17_description	Austrian polymer-framed pistol, ammo: 9x19. This one is converted to fully automatic fire.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	The knowledge base will open in new browser window.
 st_go_to_online_store_message	Online store will open in a browser window. Continue?
 st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
@@ -1324,6 +1342,8 @@ st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Russian over-and-under shotgun, 12 gauge. Made by the Izhevsk Mechanical Plant under the Baikal name, one of the most widespread hunting and sporting double-barrel guns. Two barrels, one shot each. Fires one barrel at a time or both at once. Premium version in a special camouflage finish.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	American automatic shotgun, ammo: 12/70. A bullpup with a 10-round rotary cylinder; fully automatic only.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Jump
 st_kedr_description	Soviet submachine gun, ammo: 9x18 PM. Designed by Yevgeny Dragunov in the early 1970s; series production started only in the 1990s, for the Russian Interior Ministry and the police. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1369,8 @@ st_knw_synergy_desc	The power of artifacts grows in proportion to their amount.
 st_knw_synergy_name	Synergy
 st_kriss_vector_description	American submachine gun, ammo: .45 ACP. Introduced by KRISS in the 2000s; its recoil system moves the bolt downwards, which keeps the muzzle from climbing. This one carries a Walther Competition II collimator sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	British bullpup assault rifle, ammo: 5.56x45. The standard rifle of the British Army.
+st_l85a2_name	L85A2
 st_label_invites	Invites
 st_label_leave_queue_btn	Leave the queue
 st_label_quenue	Awaiting players:
@@ -1511,6 +1533,10 @@ st_movement_speed_when_aiming_description	The speed of movement while aiming:
 st_movement_speed_when_aiming_name	Battle stance
 st_mp153_description	Russian smooth-bore semi-automatic shotgun, ammo: 12x70. Owing to low price and good reliability, the weapon got widely accepted as a hunting and sports rifle. Equipped with underbarrel tube magazine of 4 rounds.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Russian army pistol, ammo: 9x19. Adopted in 2003 to replace the Makarov.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	German submachine gun, ammo: 9x19. The classic of police and special forces, with a roller-delayed bolt.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polish modular carbine, ammo: 5.56x45. Developed in the 2010s by the Military University of Technology in Warsaw and the Fabryka Broni in Radom; adopted by the Polish army as the Grot. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Sight sway
@@ -1596,6 +1622,8 @@ st_options_video	Graphics
 st_options_voice	Voice:
 st_options_volume	Volume:
 st_other	Other
+st_ots14_description	Russian bullpup assault rifle, ammo: 9x39. Built by TsKIB SOO in the 1990s on the AKS-74U for special units. Magazine of 20 rounds. Single and automatic fire.
+st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Change commander
 st_overweight_penalty_description	The influence of weight on movement speed:
 st_overweight_penalty_name	Packrat
@@ -1937,11 +1965,13 @@ st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpd_name	RPD
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpk_name	RPK-74M
-st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a box magazine. Single shots only.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a box magazine. Single shots only.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Save password
+st_scar_h_description	Belgian battle rifle, ammo: 7.62x51. The heavy SCAR of FN Herstal, adopted by US special forces in the 2000s. Magazine of 20 rounds. Single and automatic fire.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	A hand-made container for artifact storage, designed as backpack. A useful item when going out to hunt artifacts.
 st_scav_back_1_name	Backpack with container
 st_scav_boots_1_desc	Crude boots found at trash dump or removed from a dead body. Protect the legs from injuries and damage, frequently save the day at challenging trips.
@@ -2763,6 +2793,8 @@ st_sv_98_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sv_98_name	SV-98
 st_svd_description	Dragunov self-loading sniper rifle, ammo: 7.62х54. For years it was the main sniper rifle of the USSR army. Ammo clip supply: 5 rounds of shots. 
 st_svd_name	SVD
+st_svu_a_description	Russian bullpup marksman rifle, ammo: 7.62x54R. A shortened SVD for close quarters, self-loading.
+st_svu_a_name	SVU
 st_swear_clan_string	The line contains profanity
 st_swearing_claim	Obscene language
 st_team_already_has_commander	The clan team already has a leader.
@@ -2838,6 +2870,8 @@ st_vepr_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_vepr_name	Vepr
 st_vepr_premium_description	Russian carbine of the Vepr family, ammo: 5.45x39. Made by the Molot plant in Vyatskiye Polyany on the reinforced receiver of the RPK-74 machine gun. Equipped with a 30-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Croatian bullpup assault rifle, ammo: 5.56x45. Made by HS Produkt, in Croatian service since the 2010s. Magazine of 30 rounds. Single and automatic fire.
+st_vhs_2_name	VHS-2
 st_victory	Victory
 st_victory_screen_no_dropped_item	You haven't found anything on the battlefield.
 st_vityaz_bundle_descr	<white>Contains the following items:\n- Improved PP-19-01 "Vityaz".\n- 2000 rounds of 9x19 Parabellum ammo.</white>

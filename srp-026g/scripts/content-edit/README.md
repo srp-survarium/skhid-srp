@@ -113,7 +113,8 @@ row are refused there (a cell unifies them).
 
 A key/value table is read by srp's server from its game data; the client is told what it shows in
 srp's messages, so no copy is kept in code. `rooms.tsv` (`gameplay/srp/rooms.options`): the rooms'
-and Player vs Bots' settings (`RoomRules`); its header says each key.
+and Player vs Bots' settings (`RoomRules`); `new-account.tsv` (`gameplay/srp/new_account.options`):
+what a new account is given (`survarium::v026g::new_account`). Each header says each key.
 
 ## weapon-balance-1.json (2026-10-18)
 
@@ -144,14 +145,6 @@ The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4
 (`SrvItemCompareHintG`) places a ninth row `diff_9` (sprite 1537, depth 33, 22.6 px under `diff_8`),
 and `survarium.controls.ItemCompare`'s constructor, re-imported as FFDec p-code, adds
 `getChildByName("diff_9")` to its rows when there is one.
-
-## backpacks-1.json (2026-10-19)
-
-| change | why |
-|---|---|
-| The six backpacks (`bm_back_1` Marauder, `scavenger_back_1`, `ren_back_1`, `edge_back_1`, `edge_back_5`, `edge_back_6`) may also roll health regeneration: modification type 21 (+5 % to +15 %, ids 1090-1094), character 20 of `parameters/available_modifications_mask` set (`0000000000000011110000010000100100000000` -> `0000000000000011110010010000100100000000`) | they rolled three types only (weight, carried weight, durability); the owner's choice of a fourth. Only srp reads the masks (the client draws whatever modification the server sends), so the patch changes what the server rolls on upgrades, rerolls and drops. The oxygen tanks and the exo back pieces keep theirs |
-
-Applied to revision 22's live files: 6 files edited, 0 unexpected differences. Weapon balance 1 is in patch 22, so nothing else waits for the same files.
 
 ## duty-name-uk-1.json (2026-10-20)
 
@@ -265,19 +258,6 @@ tables and duty-name-uk-1): the same. Text only; the lobby movie of the same cha
 its tree.
 
 
-## premium-armour-1.json (2026-10-22)
-
-| change | why |
-|---|---|
-| The four premium armour pieces (`blackmarket_torso_4_premium`, `blackmarket_legs_4_premium`, `scavenger_torso_4_premium`, `scavenger_legs_4_premium`: every armour config with a base rarity): 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market) taken off `default_modifications` (`remove_item`; the plain piece's one default, 1030, 1050 or 1160, stays), `parameters/base_rarity_level` 3 -> 0 | the owner: the golden weapons' treatment for the premium armour, so that the Modification button works on it. srp gives each piece both bonuses as modifications of its own, the first two ([`../../docs/notes/premium_armour.md`](../../docs/notes/premium_armour.md)): the client never offers a default for a reroll, and a base of 3 forbade every craft |
-
-Applied in `release/build-content 28` (2026-10-22, a dry run): 4
-files edited, 0 unexpected differences (the four configs are patch 21's); the server game data built
-with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse data without it
-(`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
-shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
-simulation change.
-
 ## lobby-scene-2.json (2026-10-22)
 
 | change | why |
@@ -356,21 +336,6 @@ scene, which the game does not read) is left as it is.
 ## ban-texts-1.json (2026-10-22)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## third-mod-1.json (2026-10-23)
-
-| change | why |
-|---|---|
-| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
-| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
-| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
-
-Only srp reads the masks: the client shows whatever modification the server sends, from its own
-`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
-29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
-rolls has three types or more besides reliability
-(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
-game data). No simulation change: a match applies only the modifications an item has.
 
 ## artefact-texts-1.json (2026-10-23)
 
@@ -455,6 +420,18 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## weapon-camo-031-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The four configs of pack weapons-031 (the 0.31a2 guns, `../../docs/notes/weapons-031.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-031-camo (`../weapons-031/camo.tsv`), so no shared list or pack changes |
+
+## weapon-camo-046-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The ten configs of pack weapons-046 (the 0.46c2 guns, `../../docs/notes/weapons-046.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for these configs); their `_aoac` masks are the pack weapons-046-camo, made by `../weapon-camo/weapon_camo.py` from `../weapons-046/camo.tsv` (the parts it suggests: no premium copy to learn from; the picker chooses others) |
 
 ## weapon-camo-069-1.json (2026-11-01)
 
