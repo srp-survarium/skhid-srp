@@ -178,6 +178,7 @@
     "grenade_claim_m": 8.0,
     "grenade_claim_ms": 6000,
     "grenade_repick": true,
+    "grenade_commit": false,
     "grenade_push_tracks": false,
     "grenade_volley": false,
     "grenade_volley_chance": 0.2,

@@ -522,6 +522,15 @@ pub struct CombatTuning {
     /// for the same place, and the view turns to it, instead of the throw
     /// being given up. Off: given up, as before. Swept: this switch.
     pub grenade_repick: bool,
+    /// [A260] A throw is the client's once its key has gone down: the throw starts at the first weapon update with the
+    /// grenade wanted, the weapon in its ready mode (6 at +0x5EC: not sprinting) and not reloading (0x2E4090, PROVEN),
+    /// and the throw state's way out reads only its animation (0x33A650), not the key: a key let go after that does not
+    /// take the grenade back (LIKELY). So from the press to the launch (`grenade_launch_ms`) a refusal never gives the throw
+    /// up: the arc is found again for the place (`grenade_repick`), else an arc away from it that keeps the thrower and the
+    /// teammates out of the blast ([`away_arc`]), else the view is kept; and the view is weighed at every tick from the
+    /// let-go to the launch too. Off: as before (a refusal in the hold lets the key go and the view free, and nothing weighs
+    /// the view between the let-go and the launch).
+    pub grenade_commit: bool,
     /// After a throw the legs go at its place from the blast for 2 s
     /// (`grenade_push_after_blast`) also when the place came from a track
     /// (G1: where an enemy was last sensed), as for a held angle or a camp.
@@ -1451,6 +1460,7 @@ impl Default for CombatTuning {
             grenade_claim_m: 8.0,
             grenade_claim_ms: 6_000,
             grenade_repick: true,
+            grenade_commit: true,
             grenade_push_tracks: false,
             grenade_volley: false,
             grenade_volley_chance: 0.2,
@@ -2181,6 +2191,9 @@ enum ArcPick {
     Flat,
     Pitch { pitch: f32 },
     Yawed { dyaw: f32, pitch: f32 },
+    /// [A260] A throw that can no longer be taken back, sent away from its place ([`away_arc`]): weighed for the thrower
+    /// and the teammates only, not for where it lands.
+    Away { dyaw: f32, pitch: f32 },
 }
 
 impl ArcPick {
@@ -2188,17 +2201,17 @@ impl ArcPick {
     fn dyaw(self) -> f32 {
         match self {
             Self::Flat | Self::Pitch { .. } => 0.0,
-            Self::Yawed { dyaw, .. } => dyaw,
+            Self::Yawed { dyaw, .. } | Self::Away { dyaw, .. } => dyaw,
         }
     }
 
     /// The kind's place in [`GrenadeStats::passed`]: 0 the flat arc, 1 another
-    /// pitch at the yaw of the place, 2 another yaw.
+    /// pitch at the yaw of the place, 2 another yaw (an arc away from the place too).
     fn kind(self) -> usize {
         match self {
             Self::Flat => 0,
             Self::Pitch { .. } => 1,
-            Self::Yawed { .. } => 2,
+            Self::Yawed { .. } | Self::Away { .. } => 2,
         }
     }
 }
@@ -2287,6 +2300,10 @@ pub struct GrenadeStats {
     /// [A170] Throws at a held spot given up because the team's picture dropped the spot (`grenade_held_recheck`): before the key
     /// was pressed, in the hold.
     pub held_dropped: [u32; 2],
+    /// [A260] With `grenade_commit`, the refusals (a tick each) from the press to the launch (a throw that can no longer be
+    /// taken back): in the hold, between the let-go and the launch; and what followed one: the arc found again for the
+    /// place, an arc away from it ([`away_arc`]), none (the view kept).
+    pub committed: [u32; 5],
 }
 
 impl GrenadeStats {
@@ -2328,6 +2345,7 @@ impl GrenadeStats {
             held_funnel: sub(self.held_funnel, before.held_funnel),
             held_busy: sub(self.held_busy, before.held_busy),
             held_dropped: sub(self.held_dropped, before.held_dropped),
+            committed: sub(self.committed, before.committed),
         };
         (change, false)
     }
@@ -2366,6 +2384,7 @@ impl GrenadeStats {
         plus(&mut self.held_funnel, &other.held_funnel);
         plus(&mut self.held_busy, &other.held_busy);
         plus(&mut self.held_dropped, &other.held_dropped);
+        plus(&mut self.committed, &other.committed);
     }
 }
 
@@ -2403,7 +2422,7 @@ fn throw_view_of(
     match pick {
         ArcPick::Flat => throw_view(me, at, c),
         ArcPick::Pitch { pitch } => Some((bearing_to(me, at), pitch)),
-        ArcPick::Yawed { dyaw, pitch } => Some((bearing_to(me, at) + dyaw, pitch)),
+        ArcPick::Yawed { dyaw, pitch } | ArcPick::Away { dyaw, pitch } => Some((bearing_to(me, at) + dyaw, pitch)),
     }
 }
 
@@ -2494,11 +2513,11 @@ fn weigh_throw(
         return near.map_or(Ok(()), |mate| Err(Refuse::Mate(mate)));
     }
     let view_yp = throw_view(me, at, c).ok_or(Refuse::Reach)?;
-    weigh_view(me, view, at, view_yp, error, c, mates, ground, c.grenade_off_m)
+    weigh_view(me, view, at, view_yp, error, c, mates, ground, Some(c.grenade_off_m))
 }
 
 /// [play 20] The checks of [`weigh_throw`] for the view `(yaw, pitch)` of a
-/// throw at `at`, the first contact to be within `off_m` of the place.
+/// throw at `at`, the first contact to be within `off_m` of the place (none: anywhere, [`ArcPick::Away`]).
 #[allow(clippy::too_many_arguments)]
 fn weigh_view(
     me: &PlaceView,
@@ -2509,7 +2528,7 @@ fn weigh_view(
     c: &CombatTuning,
     mates: bool,
     ground: &dyn arc::Ground,
-    off_m: f32,
+    off_m: Option<f32>,
 ) -> Result<(), Refuse> {
     let landing = arc::Flight::thrown(me.eye(), yaw + error.0, pitch + error.1)
         .landing(ground)
@@ -2523,9 +2542,10 @@ fn weigh_view(
     if landing.contact.is_wall() && thrower < c.grenade_wall_m {
         return Err(Refuse::Wall);
     }
-    if landing.contact.point.distance_xz(at) > off_m
-        || c.grenade_off_y_m.is_some_and(|off_y| (landing.contact.point.y - at.y).abs() > off_y)
-    {
+    if off_m.is_some_and(|off_m| {
+        landing.contact.point.distance_xz(at) > off_m
+            || c.grenade_off_y_m.is_some_and(|off_y| (landing.contact.point.y - at.y).abs() > off_y)
+    }) {
         return Err(Refuse::Off);
     }
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
@@ -2591,7 +2611,7 @@ fn search_arc(
                 c,
                 true,
                 ground,
-                c.grenade_search_off_m,
+                Some(c.grenade_search_off_m),
             )
             .is_ok()
             {
@@ -2600,6 +2620,28 @@ fn search_arc(
         }
     }
     None
+}
+
+/// [A260] An arc away from the place, for a throw that can no longer be taken back (`grenade_commit`) and whose place no
+/// arc reaches now: the first view turned 0, ±45, ±90, ±135 or 180 degrees from the bearing to the place, at a lob of 35 then
+/// 20 degrees, whose landing passes [`weigh_view`] with no place (the thrower out of his own blast, no steep wall near him,
+/// no teammate in it). At most 16 traces.
+fn away_arc(
+    me: &PlaceView,
+    view: &MatchView,
+    at: Vec3,
+    error: (f32, f32),
+    c: &CombatTuning,
+    ground: &dyn arc::Ground,
+) -> Option<ArcPick> {
+    const DYAWS_DEG: [f32; 8] = [0.0, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0];
+    const PITCHES_DEG: [f32; 2] = [35.0, 20.0];
+    let bearing = bearing_to(me, at);
+    DYAWS_DEG
+        .iter()
+        .flat_map(|dyaw| PITCHES_DEG.iter().map(move |pitch| (dyaw.to_radians(), pitch.to_radians())))
+        .find(|&(dyaw, pitch)| weigh_view(me, view, at, (bearing + dyaw, pitch), error, c, true, ground, None).is_ok())
+        .map(|(dyaw, pitch)| ArcPick::Away { dyaw, pitch })
 }
 
 /// [play 20] The arc for one place: the flat arc if it passes every check;
@@ -6163,6 +6205,35 @@ impl Reflex {
         pick
     }
 
+    /// [A260] A refusal of a throw that can no longer be taken back (`grenade_commit`, its key pressed): the arc found again
+    /// for the place ([`Self::repick`]), else, when the view would hurt the thrower or a teammate (his blast, a steep wall
+    /// near him, a teammate in it), one away from the place ([`away_arc`]); none: the view is kept (a place gone out of reach
+    /// or a landing off it hurts nobody of the team). Counted a tick each in [`GrenadeStats::committed`] (`after`: between
+    /// the let-go and the launch).
+    #[allow(clippy::too_many_arguments)]
+    fn refind(
+        &mut self,
+        mesh: Option<&mapdata::RayTree>,
+        throw: &Throw,
+        me: &PlaceView,
+        view: &MatchView,
+        c: &CombatTuning,
+        why: Refuse,
+        after: bool,
+    ) -> Option<ArcPick> {
+        self.grenade_stats.committed[usize::from(after)] += 1;
+        let found = match self.repick(mesh, throw, me, view, c, why) {
+            Some(pick) => Some((pick, 2)),
+            None if matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Mate(_)) => {
+                over_ground(mesh, throw.at.y, |ground| away_arc(me, view, throw.at, throw.error, c, ground))
+                    .map(|pick| (pick, 3))
+            }
+            None => None,
+        };
+        self.grenade_stats.committed[found.map_or(4, |(_, k)| k)] += 1;
+        found.map(|(pick, _)| pick)
+    }
+
     /// [measure] A throw under way given up at the press or in the hold:
     /// counted by reason, then as [`Self::hold_back`].
     fn give_up(&mut self, at: Vec3, why: Refuse) {
@@ -6187,7 +6258,9 @@ impl Reflex {
     /// hands: turn to the view that lands the grenade at the place; once
     /// it is on it, weigh the throw again and press; hold the key
     /// `hold_ms` (weighing it every tick, the key let go on a refusal: the
-    /// client throws only once its weapon reaches the throw state); let go
+    /// client throws only once its weapon reaches the throw state; with
+    /// `grenade_commit` the throw has started and is never given up, the view
+    /// is turned to another arc instead, and weighed to the launch); let go
     /// of it, the throw counted; and keep the view, with the legs standing
     /// where the grenade leaves from, until it has left the hand
     /// (`grenade_launch_ms` after the press) and `grenade_look_after_ms`
@@ -6228,9 +6301,11 @@ impl Reflex {
         // stepped down in the hold, the place out of reach from there,
         // launched at the pitch of the walk after it: 1.1 m short in a
         // smoke).
-        let pitch = match (throw_view_of(me, throw.at, c, throw.pick), throw.pitch) {
+        // [A260] A pressed throw that can no longer be taken back keeps its last pitch too.
+        let committed = c.grenade_commit && throw.pressed.is_some();
+        let mut pitch = match (throw_view_of(me, throw.at, c, throw.pick), throw.pitch) {
             (Some((_, pitch)), _) => pitch,
-            (None, Some(last)) if throw.released => last,
+            (None, Some(last)) if throw.released || committed => last,
             (None, _) => {
                 self.give_up(throw.at, Refuse::Reach);
                 return None;
@@ -6244,20 +6319,14 @@ impl Reflex {
             let seen = if throw.close.is_some() { close_fresh(me, view, c) } else { Ok(()) };
             seen.and_then(|()| over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
                 ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, mates, ground),
-                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } => throw_view_of(me, throw.at, c, pick)
+                ArcPick::Pitch { .. } | ArcPick::Yawed { .. } | ArcPick::Away { .. } => throw_view_of(me, throw.at, c, pick)
                     .ok_or(Refuse::Reach)
                     .and_then(|v| {
-                        weigh_view(
-                            me,
-                            view,
-                            throw.at,
-                            v,
-                            throw.error,
-                            c,
-                            mates,
-                            ground,
-                            c.grenade_search_off_m,
-                        )
+                        let off_m = match pick {
+                            ArcPick::Away { .. } => None,
+                            _ => Some(c.grenade_search_off_m),
+                        };
+                        weigh_view(me, view, throw.at, v, throw.error, c, mates, ground, off_m)
                     }),
             }))
         };
@@ -6295,11 +6364,22 @@ impl Reflex {
                     // A teammate in the blast, or about to walk into it:
                     // the key let go before the throw starts.
                     if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
-                        let Some(pick) = self.repick(mesh.as_deref(), &throw, me, view, c, why) else {
-                            self.give_up(throw.at, why);
-                            return None;
-                        };
-                        throw.pick = pick;
+                        if committed {
+                            // [A260] The throw has started: it goes, where the view is at the launch.
+                            if let Some(pick) = self.refind(mesh.as_deref(), &throw, me, view, c, why, false) {
+                                throw.pick = pick;
+                                if let Some((_, turned)) = throw_view_of(me, throw.at, c, pick) {
+                                    pitch = turned;
+                                    throw.pitch = Some(turned);
+                                }
+                            }
+                        } else {
+                            let Some(pick) = self.repick(mesh.as_deref(), &throw, me, view, c, why) else {
+                                self.give_up(throw.at, why);
+                                return None;
+                            };
+                            throw.pick = pick;
+                        }
                     }
                     keys = key::GRENADE;
                 } else if !throw.released {
@@ -6359,6 +6439,18 @@ impl Reflex {
                             _ => String::new(),
                         }
                     ));
+                } else if committed && now < pressed + c.grenade_launch_ms {
+                    // [A260] Weighed to the launch: the grenade leaves along the view then, whatever the key does, and
+                    // the thrower's own step can have put a face before it since the let-go.
+                    if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
+                        if let Some(pick) = self.refind(mesh.as_deref(), &throw, me, view, c, why, true) {
+                            throw.pick = pick;
+                            if let Some((_, turned)) = throw_view_of(me, throw.at, c, pick) {
+                                pitch = turned;
+                                throw.pitch = Some(turned);
+                            }
+                        }
+                    }
                 }
                 if now >= pressed + c.grenade_launch_ms + c.grenade_look_after_ms && throw.released
                 {
@@ -10433,14 +10525,15 @@ mod tests {
         camper.keys = key::CROUCH | key::AIM;
         let fuse = grenade_fuse_ms().expect("the RGD-5's config");
         assert_eq!(fuse, 4_000);
-        // (walks in, recheck) -> (throws, held back, the legs' push from)
-        let run = |walks_in: bool, recheck: bool| {
+        // (walks in, recheck, commit) -> (throws, held back, the legs' push from, the first press, the grenade counts)
+        let run = |walks_in: bool, recheck: bool, commit: bool| {
             let mut me = body(0, 0, Vec3::ZERO, 0.0);
             let aim = AimTuning {
                 combat: CombatTuning {
                     grenade_chance: 1.0,
                     grenade_roll_ms: 500,
                     grenade_recheck: recheck,
+                    grenade_commit: commit,
                     ..CombatTuning::default()
                 },
                 ..AimTuning::default()
@@ -10508,18 +10601,26 @@ mod tests {
                     .count();
                 now += 50;
             }
-            (throws, held_back, pushed, first_press)
+            (throws, held_back, pushed, first_press, reflex.grenade_stats())
         };
-        let (throws, held_back, ..) = run(true, true);
+        let (throws, held_back, ..) = run(true, true, false);
         assert!(throws.is_empty(), "{throws:?}");
         assert!(held_back >= 1);
-        let (throws, held_back, ..) = run(true, false);
+        let (throws, held_back, ..) = run(true, false, false);
         assert_eq!(throws.len(), 2, "{throws:?}");
         assert_eq!(held_back, 0);
+        // [A260] Committed: the key went down, so the throw goes; the view is turned away from the teammate instead.
+        let (throws, held_back, .., stats) = run(true, true, true);
+        assert!(!throws.is_empty(), "{throws:?}");
+        assert_eq!(held_back, 0);
+        assert!(stats.committed[0] >= 1, "{:?}", stats.committed);
+        assert!(stats.committed[3] >= 1, "an arc away from the place: {:?}", stats.committed);
+        assert_eq!(stats.committed[0] + stats.committed[1], stats.committed[2..].iter().sum::<u32>());
         // Nobody near: thrown, and in only after the blast (the second
         // throw's push replaces the first's: the bounds are the first
         // press's).
-        let (throws, held_back, pushed, press) = run(false, true);
+        let (throws, held_back, pushed, press, stats) = run(false, true, true);
+        assert_eq!(stats.committed, [0; 5], "nothing refused");
         assert_eq!((throws.len(), held_back), (2, 0), "{throws:?}");
         let pushed = pushed.expect("the legs go in after the throw");
         let press = press.expect("the key goes down");
@@ -11395,6 +11496,45 @@ mod tests {
                 assert!(o.look_at.is_some() && o.legs.is_some(), "{now}: {o:?}");
             }
         }
+        // [A260] Weighed after the let-go: out of reach, which hurts nobody, so the look is kept.
+        assert!(run.stats.committed[1] >= 1 && run.stats.committed[4] >= 1, "{:?}", run.stats.committed);
+        assert_eq!(run.stats.committed[3], 0);
+    }
+
+    /// [A260] From the let-go to the launch the view is weighed again: a thrower who steps 0.8 m down behind a parapet
+    /// 1.2 m ahead after the let-go would launch into it at arm's reach. Committed, the view is turned to an arc over it
+    /// (away from the place, which no arc over it lands near); off, nothing weighs the view after the let-go.
+    #[test]
+    fn a_view_stepped_behind_a_parapet_after_the_let_go_is_turned_over_it() {
+        let (low, high) = (Vec3::new(-100.0, -1.0, 1.2), Vec3::new(100.0, 1.2, 1.2));
+        let parapet = [
+            [low, Vec3::new(high.x, low.y, low.z), high],
+            [low, high, Vec3::new(low.x, high.y, low.z)],
+        ];
+        let world = floor_and(&parapet);
+        let place = Vec3::new(0.0, 0.0, 20.0);
+        let run = |commit: bool| {
+            let c = CombatTuning {
+                grenade_commit: commit,
+                ..CombatTuning::default()
+            };
+            throw_run_stepping(&[place], &[], c, Some(&world), 6_000, Some((900, 0.8)))
+        };
+        let (on, off) = (run(true), run(false));
+        for r in [&on, &off] {
+            assert!(!r.thrown.is_empty(), "{:?}", r.notes);
+        }
+        assert_eq!(off.stats.committed, [0; 5]);
+        assert!(on.stats.committed[1] >= 1 && on.stats.committed[3] >= 1, "{:?}", on.stats.committed);
+        // The pitch of the look in the tick before the launch, from the stepped-down eye: on, a lob over the parapet.
+        let eye = still_eye(Vec3::new(0.0, -0.8, 0.0), false);
+        let pitch = |r: &ThrowRun| {
+            let (press, _) = pressed_at(r).unwrap();
+            let (_, o) = r.ticks.iter().find(|(t, _)| *t + 50 >= press + 1_100).unwrap();
+            let look = o.look_at.unwrap();
+            (look.y - eye.y).atan2(look.distance_xz(eye)).to_degrees()
+        };
+        assert!(pitch(&on) > pitch(&off) + 8.0, "{} {}", pitch(&on), pitch(&off));
     }
 
     /// [smoke] A smoke throw: refused with no smoke in the kit, or with a target unless it is the sniper's; begun, the
