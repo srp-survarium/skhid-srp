@@ -9,6 +9,7 @@ workspace = true
 [dependencies]
 survarium = { workspace = true }
 argon2 = { workspace = true }
+binary-config-parser = { workspace = true }
 log = { workspace = true }
 password-hash = { workspace = true }
 rusqlite = { workspace = true }

@@ -230,10 +230,20 @@ fn read<R: Read + Seek>(archive: &mut Archive<R>, path: &str) -> Result<Vec<u8>,
 /// srp's own configs, each made by a key/value table of
 /// `scripts/content-edit` (`content_edit.py` STATS) into the content patch:
 /// the test data's are the repository's.
-const SRP_TABLES: &[(&str, &str)] = &[(
-    super::lobby::rooms::RULES_PATH,
-    include_str!("../../../../scripts/content-edit/rooms.tsv"),
-)];
+const SRP_TABLES: &[(&str, &str)] = &[
+    (
+        super::lobby::rooms::RULES_PATH,
+        include_str!("../../../../scripts/content-edit/rooms.tsv"),
+    ),
+    (
+        NEW_ACCOUNT_PATH,
+        include_str!("../../../../scripts/content-edit/new-account.tsv"),
+    ),
+];
+
+/// What a new account is given (`session::v026g::tutorial::NewAccount`),
+/// made by `scripts/content-edit/new-account.tsv`.
+pub const NEW_ACCOUNT_PATH: &str = "gameplay/srp/new_account.options";
 
 /// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
 /// in a key, `/` goes into a named table and `[i]` to an item of an indexed

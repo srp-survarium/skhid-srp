@@ -1,8 +1,8 @@
 //! A new account's starter kit on the released game data, by its dict ids
-//! (the test data predates the knit cap; the unit test
-//! `tutorial::tests::a_new_account_starts_with_the_starter_kit` covers the
-//! rest on it). Its own binary: the data must be this process's before any
-//! table is used.
+//! (the test data predates the knit cap and the Novice's backpack; the unit
+//! test `tutorial::tests::a_new_account_starts_with_the_starter_kit` covers
+//! the rest on it). Its own binary: the data must be this process's before
+//! any table is used.
 //!
 //! `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test
 //! starter_kit -- --ignored`
@@ -11,6 +11,7 @@ use session::v026g::account::Account;
 use session::v026g::{known, rules, tutorial};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::game_data;
+use survarium::v026g::loadouts::{self, Loadout};
 use survarium::v026g::lobby::FULL_CONDITION;
 
 #[test]
@@ -21,7 +22,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     game_data::init_from(std::path::Path::new(&path)).unwrap();
     assert_eq!(known::check_code(), Ok(()));
 
-    let mut account = Account::new("Alice");
+    // As `GameAccounts::sign_up` makes it.
+    let mut account = Account::with_loadout("Alice", &Loadout { items: Vec::new() });
     tutorial::signup_grant(&mut account, 1_800_000_000);
     assert_eq!(
         (account.generic_money, account.premium_money),
@@ -45,38 +47,47 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
             .is_some_and(|params| params.kind == "ammo")
     });
     assert_eq!(kinds.count(), ammo.len());
-    for dict_id in ammo {
-        let stacks: Vec<u32> = account
+    let stacks = |dict_id: u16| -> Vec<u32> {
+        account
             .inventory
             .iter()
             .filter(|item| item.dict_id == dict_id)
             .map(|item| item.condition_or_stack)
-            .collect();
-        assert_eq!(stacks, [1000], "{dict_id}");
+            .collect()
+    };
+    for &dict_id in &ammo {
+        assert_eq!(stacks(dict_id), [1000], "{dict_id}");
     }
 
-    // 50 medkits (67) and 50 antitoxins (82) owned.
-    for dict_id in [67, 82] {
-        let stacks: Vec<u32> = account
-            .inventory
-            .iter()
-            .filter(|item| item.dict_id == dict_id)
-            .map(|item| item.condition_or_stack)
-            .collect();
-        assert_eq!(stacks, [50], "{dict_id}");
+    // Owned: the TT-33 (18), the PPSh-41 (106) and the Mosin (107), 50
+    // medkits (67), 50 antitoxins (82), 20 bandages (66) and 20 traps
+    // (68), the kits' pockets taking theirs from these stacks.
+    for (dict_id, owned) in [
+        (18, FULL_CONDITION),
+        (106, FULL_CONDITION),
+        (107, FULL_CONDITION),
+        (67, 50),
+        (82, 50),
+        (66, 20),
+        (68, 20),
+    ] {
+        assert_eq!(stacks(dict_id), [owned], "{dict_id}");
     }
 
     // No SOK-94 (the owner's of 2026-10-24).
     assert!(account.inventory.iter().all(|item| item.dict_id != 2215));
 
-    // Every kit, `(slot, dict id, count, modifications)`: the same gear and
-    // its own one weapon in weapon slot 1, weapon slot 2 empty.
+    // Every kit, `(slot, dict id, count, modifications)`: the same gear,
+    // the Novice's backpack (1869) on the back, its own one weapon in
+    // weapon slot 1, weapon slot 2 empty, and three pockets of three.
     type Worn = (usize, u16, u32, Vec<(u32, bool)>);
     // `(weapon, ammo, rounds, the kit's level)`.
     // The ammo slot full: three bags of one clip each (no ammo bag
     // modification on the gear).
-    assert_eq!(tutorial::starter_ammo_bags(dictionary), 3);
-    let weapons = [(88, 70, 150, 3), (12, 51, 30, 3), (110, 22, 45, 4)];
+    for kit in 0..3 {
+        assert_eq!(tutorial::starter_ammo_bags(dictionary, kit), 3);
+    }
+    let weapons = [(88, 70, 150, 4), (12, 51, 30, 4), (110, 22, 45, 4)];
     let mut item_ids: Vec<Vec<u32>> = Vec::new();
     for (kit, (weapon, ammo, rounds, level)) in account.kits.iter().zip(weapons) {
         let worn: Vec<Worn> = kit
@@ -95,14 +106,15 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 (0, 1821, 1, vec![]),
                 (1, 43, 1, vec![(1183, false)]),
                 (2, 325, 1, vec![]),
-                (3, 9, 1, vec![]),
+                (3, 1869, 1, vec![]),
                 (4, 46, 1, vec![]),
                 (5, 42, 1, vec![(1133, false)]),
                 (6, 38, 1, vec![]),
                 (7, weapon, 1, vec![]),
                 (8, ammo, rounds, vec![]),
-                (13, 67, 2, vec![]),
-                (14, 82, 2, vec![]),
+                (13, 67, 3, vec![]),
+                (14, 66, 3, vec![]),
+                (15, 68, 3, vec![]),
             ],
             "kit {}",
             kit.id
@@ -113,14 +125,24 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 assert_eq!(item.condition_or_stack, FULL_CONDITION);
             }
         }
+        // The gear opens three pockets of three units.
+        let gear = Loadout {
+            items: worn
+                .iter()
+                .map(|&(slot, dict_id, count, _)| loadouts::SlotItem {
+                    slot: slot as u8,
+                    dict_id,
+                    count,
+                })
+                .collect(),
+        };
+        assert_eq!(loadouts::pockets(&gear), (3, 3), "kit {}", kit.id);
         assert!(dictionary.compatible(weapon, ammo));
         assert_eq!(rules::check_play(&account, kit.id, 0), Ok(()));
         let weight = account.kit_weight(kit);
         assert!(weight <= 30.0, "kit {}: {weight}", kit.id);
         // The kit's level for the rooms, the bots (at most 5) and the
-        // matchmaking: the armour, the oxygen tank and the drugs are 2 and
-        // 3, the Kiparis and its ammo 2, the TOZ-122 and its ammo 3, the
-        // MP-153 4 and its ammo 1.
+        // matchmaking: 4, the Novice's backpack's (the MP-153 4 too).
         assert_eq!(
             session::v026g::matchmaking::kit_level(&account, kit),
             level,

@@ -113,7 +113,8 @@ row are refused there (a cell unifies them).
 
 A key/value table is read by srp's server from its game data; the client is told what it shows in
 srp's messages, so no copy is kept in code. `rooms.tsv` (`gameplay/srp/rooms.options`): the rooms'
-and Player vs Bots' settings (`RoomRules`); its header says each key.
+and Player vs Bots' settings (`RoomRules`); `new-account.tsv` (`gameplay/srp/new_account.options`):
+what a new account is given (`session` `tutorial::NewAccount`). Each header says each key.
 
 ## weapon-balance-1.json (2026-10-18)
 
