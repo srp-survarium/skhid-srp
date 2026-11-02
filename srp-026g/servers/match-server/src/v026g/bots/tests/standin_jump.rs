@@ -144,14 +144,14 @@ pub(crate) fn force_fall(on: Option<bool>) {
     FALL_FORCED.with(|f| f.set(on));
 }
 
-/// Whether a stand-in body that walks off an edge falls from it keeping the walk's speed across (`SRP_BENCH_STAND_IN_WALKOFF`, off
-/// unless `on`): the client's capsule leaves the edge at its walk speed and comes down along a ballistic arc, so a walk off a 1.2 m ledge
+/// Whether a stand-in body that walks off an edge falls from it keeping the walk's speed across (`SRP_BENCH_STAND_IN_WALKOFF`, on
+/// unless `off`): the client's capsule leaves the edge at its walk speed and comes down along a ballistic arc, so a walk off a 1.2 m ledge
 /// lands on a walkway 1.5 m ahead of it (J0 g2a at Chemical Plant's pedestrian bridge: 7 of 7 walk-offs on the walkway, PROVEN), where the
 /// stand-in puts the body on the floor straight below the edge in one tick ([`past_edge`], or a walk along a Drop link). Off: as before
-/// (the benches up to A265 are comparable only with it off).
+/// (the benches before it became the default, 2026-11-02, before A93, are comparable only with it off).
 pub(crate) fn stand_in_walk_off() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").is_ok_and(|v| v == "on" || v == "1"))
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").map_or(true, |v| v != "off"))
 }
 
 /// What [`stand_in_walk_off`] did: walk-offs that fell from the edge, those that came down, and the metres across they carried in all
