@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Description is not ready!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Die sowjetische Zwischenpatrone mit Stahlkern und niedriger Impulsionstärke ausgestattet ist. Das Kleinkalibergeschoss mit der hohen Anfangsgeschwindigkeit gewährleistet hoche Ebenheit der Schussbahn.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Ein Gurt mit 100 Patronen 5,56x45 für das FN Minimi. Belegt zwei Munitionstaschen.
+st_ammo_556x45_belt_name	5,56x45 Gurt
 st_ammo_556x45_description	NATO-Mittelpatrone für Gewehre, aus der amerikanischen .223 Remington entwickelt und 1980 von der NATO standardisiert. Ein leichtes, schnelles Geschoss mit gestreckter Flugbahn und geringem Rückstoß.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Um 1990 von FN Herstal für die P90 und später die Pistole Five-seveN entwickelte Patrone. Ein leichtes, schnelles Geschoss, das Schutzwesten durchschlagen soll.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	Die 7.62-mm Patrone des Musters von Jahr 1943, wird a
 st_ammo_762x39_m_description	Description is not ready!!!
 st_ammo_762x39_m_name	7.62x39 PRD
 st_ammo_762x39_name	7.62x39 
+st_ammo_762x51_20_description	Gewehrpatronen 7,62x51 in 20-Schuss-Magazinen für das FN SCAR-H und das H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, 20-Schuss-Magazin
 st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalibers 7.62 . Kugel ist mit dem Stahlkern ausgestattet.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO-Gewehrpatrone im 100-Schuss-Gurt für Maschinengewehre.
+st_ammo_762x51_belt_name	7,62x51, Gurt
 st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Gefunden im Lagerhaus ist diese Patrone eine der ältesten Gewehrpatronen der Gegenwart. Das Alter und die Bedingungen der Aufbewahrung haben diese Patrone weniger wirksam gemacht
@@ -303,6 +309,8 @@ st_base_trap_description	Das gewöhnliche Jagdfangeisen mit der mächtigen Feder
 st_base_trap_name	Falle
 st_benelli_description	Italienische Selbstladeflinte, Kaliber 12. Ende der 1990er Jahre von Benelli mit Gasdrucklader entwickelt und vom US Marine Corps als M1014 eingeführt. Geladen wird ein Röhrenmagazin unter dem Lauf. Nur Einzelfeuer.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italienische Reihenfeuerpistole, Munition: 9x19. Einzelfeuer oder Dreierfeuerstöße; klappbarer Vordergriff.
+st_beretta93r_name	Beretta 93R
 st_best	Beste
 st_best_explorer	FORSCHER
 st_best_explorer_artefacts	Artefakten:
@@ -841,6 +849,8 @@ st_clan_window_label	Klan Registrierung
 st_clear	Clear
 st_close	Schließen
 st_collect_statistics_option	Die Gebühr der Statistik zu erlauben
+st_colt_m1911_description	Amerikanische Pistole, Munition: .45 ACP. Sieben Jahrzehnte lang die Dienstpistole der US-Armee.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Es ist das Maximum des Lobes für den Tag verwendet.
 st_compliment_count_per_user_owerflow	Sie können ein Mensch nur einmal auf den Tag loben!
 st_compliment_player	Loben
@@ -865,6 +875,8 @@ st_crouch_action	Hocken (halt.)
 st_crouch_toggle_action	Hocken
 st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft befindet sich schon die Maximale Anzahl der Spieler.
 st_current_value	\nAktueller Wert
+st_cz_75_description	Tschechische Selbstladepistole, Munition: 9x19. Eine der meistkopierten Pistolen des Kalten Krieges.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Komm jeden Tag, und bekomm <highlight> x2 </highlight> der Erfahrung und der Reputation für <highlight> erste drei </highlight> die Siege.
 st_daily_bonus_hint	Begrüßungs Fenster zeigen
 st_daily_bonus_label	Willkommen zurück
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Waffe 1
 st_fix	Reparieren
 st_fn_fnc_description	Belgisches Sturmgewehr, Munition: 5,56x45. In den 1970er Jahren von FN Herstal entwickelt und von der belgischen Armee eingeführt; Lizenzversionen dienen in Schweden und Indonesien. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgisches leichtes Maschinengewehr, Munition: 5,56x45. Das Gruppen-MG von FN Herstal aus den 1970er Jahren, in den USA als M249 im Dienst. 100-Schuss-Kasten. Einzel- und Dauerfeuer.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgische Verteidigungswaffe (PDW), Munition: 5,7x28. Um 1990 von FN Herstal zusammen mit einer eigenen Patrone entwickelt; eine Bullpup-Waffe mit einem 50-Schuss-Magazin, das oben längs auf der Waffe liegt. Bei Spezialkräften und der Polizei vieler Länder im Einsatz. Einzel- und Dauerfeuer.
 st_fn_p90_name	FN P90
 st_fort_17_description	Die ukrainische Selbstladende Pistole mit dem Kaliber 9N...18. Die Serienfertigung ist in 2004 gestartet worden. Wurde von den Truppen des Innenministeriums und einigen Sondereinheiten verwendet.
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrainisches leichtes Maschinengewehr, Munition: 7,62x51. Ein in Lizenz in Winnyzja gebautes Negev mit 100-Schuss-Kasten.
+st_fort_401_name	Fort-401
 st_fov_option	Sichtfeld
 st_freedom_026_boots_desc	Schwere gepanzerte Stiefel in den Farben der Freiheit, zu schwerer Rüstung getragen.
 st_freedom_026_boots_name	Freiheit-Stiefel
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Voll Bild Modus
 st_general_volume_option	Allgemein
 st_generic_money_name	Rubeln
 st_geometry_quality_option	Geometrie Qualität
+st_glock_17_description	Österreichische Pistole mit Polymerrahmen, Munition: 9x19. Diese ist auf Dauerfeuer umgebaut.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Database wird in Browser geöffnet.
 st_go_to_online_store_message	Online-Shop wird im Fenster des Browsers geöffnet. Fortsetzen?
 st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
@@ -1324,6 +1342,8 @@ st_izh27_description	Description is not ready!!!
 st_izh27_name	MP-27M "Lankaster"
 st_izh27_premium_2_description	Russische Bockdoppelflinte, Kaliber 12. Vom Ischewsker Mechanischen Werk unter dem Namen Baikal gebaut, eine der verbreitetsten Jagd- und Sportdoppelflinten. Zwei Läufe mit je einer Patrone. Feuert einen Lauf oder beide zugleich. Premium-Version mit einer besonderen Tarnlackierung.
 st_izh27_premium_2_name	MP-27 "Donnerschlag"
+st_jackhammer_description	Amerikanische automatische Schrotflinte, Munition: 12/70. Ein Bullpup mit 10-Schuss-Trommel, nur Dauerfeuer.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Springen
 st_kedr_description	Sowjetische Maschinenpistole, Munition: 9x18 PM. Von Jewgeni Dragunow Anfang der 1970er Jahre entwickelt, in Serie gefertigt erst seit den 1990er Jahren, für das russische Innenministerium und die Polizei. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1369,8 @@ st_knw_synergy_desc	Stärke der Artefakten vergrößert sich proportional zu ihr
 st_knw_synergy_name	Synergie
 st_kriss_vector_description	Amerikanische Maschinenpistole, Munition: .45 ACP. In den 2000er Jahren von KRISS vorgestellt; ihr Rückstoßsystem lenkt den Verschluss nach unten ab und hält so die Mündung ruhig. Diese Waffe trägt ein Rotpunktvisier Walther Competition II. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Britisches Bullpup-Sturmgewehr, Munition: 5,56x45. Das Standardgewehr der britischen Armee.
+st_l85a2_name	L85A2
 st_label_invites	Einladung
 st_label_leave_queue_btn	Reihe verlassen
 st_label_quenue	Stelle in der Reihe:
@@ -1511,6 +1533,10 @@ st_movement_speed_when_aiming_description	Die  Bewegungs Geschwindigkeit im Sich
 st_movement_speed_when_aiming_name	Kampfhaltung
 st_mp153_description	Das Russischer halbautomatische Gewehr mit dem reibungslose Stamm nutzt Munition 12N...70. Dank dem nicht hohen Preis und der guten Zuverlässigkeit, hat den breiten Vertrieb wie die Jagd- und sportlichen Waffen bekommen. Es ist mit dem Rohrgeschäft auf 4 Patronen ausgestattet.
 st_mp153_name	MP-153 "Baikal"
+st_mp443_description	Russische Armeepistole, Munition: 9x19. 2003 als Ersatz für die Makarow eingeführt.
+st_mp443_name	MP-443 Gratsch
+st_mp5a1_description	Deutsche Maschinenpistole, Munition: 9x19. Der Klassiker von Polizei und Spezialeinheiten, mit Rollenverschluss.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polnischer modularer Karabiner, Munition: 5,56x45. In den 2010er Jahren von der Militärtechnischen Akademie in Warschau und der Fabryka Broni in Radom entwickelt; von der polnischen Armee als Grot eingeführt. Diese Waffe trägt ein holografisches Visier EOTech 552. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Verwackeln des Zielfernrohrs
@@ -1596,6 +1622,8 @@ st_options_video	Graphik:
 st_options_voice	Stimme:
 st_options_volume	Lautstärke:
 st_other	Andere
+st_ots14_description	Russisches Bullpup-Sturmgewehr, Munition: 9x39. In den 1990er Jahren vom ZKIB SOO auf Basis der AKS-74U für Spezialeinheiten gebaut. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_ots14_name	OZ-14 "Grosa"
 st_oust_commander	Kommandanten wechseln
 st_overweight_penalty_description	Einfluss des Gewichts auf die Bewegungs Geschwindigkeit
 st_overweight_penalty_name	Packer
@@ -1942,6 +1970,8 @@ st_saiga_12_name	Saiga-12K
 st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Passwort Speichern
+st_scar_h_description	Belgisches Kampfgewehr, Munition: 7,62x51. Die schwere SCAR von FN Herstal, in den 2000er Jahren von US-Spezialkräften eingeführt. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Selbst gemachter Artefakten Container, eignet sich für Rücksäcke. Sehr nützlich wenn man Artefakten jagen geht.
 st_scav_back_1_name	Rücksack mit Container
 st_scav_boots_1_desc	Die einfachen Schuhe, die auf dem Müllhaufen gefunden oder von der Leiche abgezogen worden sind. Schützen die Beine vor den Wunden und den Beschädigungen, hilft mehrmals bei den komplizierten Übergängen .
@@ -2150,6 +2180,8 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.
+st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
 st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
@@ -2631,6 +2663,18 @@ st_srp_unit_meters	%1$sm
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Französisches Bullpup-Sturmgewehr, Munition: 5,56x45. Einzelfeuer, Dreischussfeuerstöße und Dauerfeuer.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Deutsches Präzisionsgewehr, Munition: 7,62x51. Einzelfeuer und Dreischussfeuerstöße.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Russischer Vorderschaftrepetierer, Munition: 23x75R. Röhrenmagazin für 4 Patronen.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Deutsche Maschinenpistole, Munition: 7,62x25. Einzel- und Dauerfeuer.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Schpagin-Maschinenpistole mit Trommelmagazin für 71 Patronen, Munition: 7,62x25. Einzel- und Dauerfeuer.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Trommel“
 st_srp_weapon_aim_zoom	Basis-Zielzoom
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit
@@ -2749,6 +2793,8 @@ st_sv_98_description	Description is not ready!!!
 st_sv_98_name	SV-98
 st_svd_description	Das SWD (Scharfschätzengewehr von Dragunow) unter die Patrone 7.62N...54. Es war langen Jahre ein Hauptscharfschützengewehr der Armee der UdSSR. Ist mit dem Käfig für 5 Patronen ausgestattet.
 st_svd_name	SVD
+st_svu_a_description	Russisches Bullpup-Scharfschützengewehr, Munition: 7,62x54R. Ein verkürztes SWD für den Nahkampf, Selbstlader.
+st_svu_a_name	SWU
 st_swear_clan_string	Zeile enthält zensierte Sprache
 st_swearing_claim	Unflätige Lexik
 st_team_already_has_commander	Bei der Klan Mannschaft gibt es schon einen Kommandeur.
@@ -2824,6 +2870,8 @@ st_vepr_description	Description is not ready!!!
 st_vepr_name	Wildschwein
 st_vepr_premium_description	Russischer Karabiner der Wepr-Familie, Munition: 5,45x39. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-74-Maschinengewehrs gebaut. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
 st_vepr_premium_name	Vepr "Der Wanderer"
+st_vhs_2_description	Kroatisches Bullpup-Sturmgewehr, Munition: 5,56x45. Von HS Produkt gebaut, seit den 2010er Jahren bei der kroatischen Armee. 30-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_vhs_2_name	VHS-2
 st_victory	Sieg
 st_victory_screen_no_dropped_item	Sie haben auf dem Schlachtfeld nichts gefunden.
 st_vityaz_bundle_descr	<white> Enthält folgende Verbesserungen:\n- verbessert PP-19-01 "Vityaz"\n- 2000 9x19 Parabellum Patrone\nAmmo </white>

@@ -18,15 +18,17 @@
 //! [`Loadouts::usable`] gives the seven that fit. All ten stay readable in
 //! [`Loadouts::profiles`].
 //!
-//! **What a new account has.** "One of the starting weapons available to
+//! **What a 0.26 account had.** "One of the starting weapons available to
 //! all players when they first enter the world, along with the TT-33 and
 //! Mosin carbine" (the wiki's `PPSH-41` page of 2015-02-14, revision 9600,
 //! and `Mosin carbine` of 2015-02-24, revision 10011; 0.26i). PROVEN (wiki
 //! of the time). 0.26g's data agrees: the three weapons and their two
 //! kinds of ammo (7.62x25 for the TT-33 and the PPSh-41, 7.62x54R for the
 //! Mosin) are the only weapons and ammo with `base_cost` 0 and item
-//! level 0. [`STARTER`] is what of it the first kit wears and
-//! [`STARTER_STASH`] what lies in the inventory.
+//! level 0. [`STARTER`] is what of it the stock account's first kit wears
+//! and [`STARTER_STASH`] what lies in its inventory (`session`'s
+//! `Account::new`, the tests'; a player's new account is given what the
+//! game data's `gameplay/srp/new_account.options` says, those three too).
 //!
 //! [choice] Which of the three a new player wore is not known. srp's first
 //! kit wears what it always did, the TT-33 and a clip in weapon slot 1, and
@@ -49,12 +51,12 @@ use bot_gear::category;
 /// Its path in the archive.
 pub const PATH: &str = "gameplay/test_player_profiles.options";
 
-/// What a new account's first kit wears, `(slot, item)`: the TT-33 in
+/// What the stock account's first kit wears, `(slot, item)`: the TT-33 in
 /// weapon slot 1 and a clip of its free ammo in that weapon's first ammo
 /// slot. See the module.
 pub const STARTER: [(u8, &str); 2] = [(7, "tt_33"), (8, "ammo_7.62x25")];
 
-/// What a new account owns besides what it wears ([`STARTER`]): the Mosin
+/// What the stock account owns besides what it wears ([`STARTER`]): the Mosin
 /// carbine with a clip of its free ammo, and the PPSh-41, which fires the
 /// TT-33's ammo.
 pub const STARTER_STASH: [&str; 3] = ["mosin_nagant", "ammo_7.62x54r_old", "ppsh"];
@@ -773,15 +775,15 @@ mod tests {
         )
         .unwrap();
         assert!(heaviest.fits_carry_limit());
-        // All are free and of level 0 in 0.26g's data, and they are all the
-        // weapons and ammo that are.
+        // All are of level 0; the ammo is free (the weapons have the owner's
+        // prices), and it is all the ammo of level 0 that is.
         let mut owned: Vec<u16> = starter.items.iter().map(|item| item.dict_id).collect();
         owned.extend(stash.iter().map(|&(dict_id, _)| dict_id));
         owned.sort_unstable();
         for &dict_id in &owned {
-            assert_eq!(dictionary.item(dict_id).unwrap().base_cost, 0);
             assert_eq!(item_params::item_params(dict_id).unwrap().item_level, 0);
         }
+        owned.retain(|&dict_id| dictionary.is_stack(dict_id));
         let free: Vec<u16> = dictionary
             .items
             .iter()

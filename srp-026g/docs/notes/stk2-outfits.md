@@ -5,7 +5,7 @@ The owner (2026-10-30): "let's port what wasn't ported yet" of the STK2 characte
 `examples/build-stk2-outfits-026` (`src/stk2_outfits_026.rs`, its
 `docs/stk2-outfits-026.md`); one content pack per outfit. srp reads each item's faction
 (none), level, slots, stats and drop weight from its config in the server game data; its
-code only names the 14 in `prices::EXCEPTIONS` (sold as the knit cap, below).
+code names none of them (sold as the knit cap, below).
 
 ## What the export holds
 
@@ -52,9 +52,8 @@ code only names the 14 in `prices::EXCEPTIONS` (sold as the knit cap, below).
 - **No faction, sold as the knit cap, and dropped (the owner, 2026-10-31):** every item's
   `parameters.faction` is 0, as the Novice's knit cap's: the Independent traders' (the item
   tables show them so). First drop only; then "let's make them buyable the same way the
-  beanie is": each has a `prices::EXCEPTIONS` row `(0, 0)`, as the cap, so seller 0 sells it
-  to everyone at no rank, at its price (Stats, below); the 14 names are in
-  `prices::UNRELEASED` until the release that ships the packs. They also drop after
+  beanie is": gear of no faction is sold by seller 0 to everyone at no rank, as the cap, at
+  its price (Stats, below). They also drop after
   matches: each has its level's drop weight, its category is in the generic drop table, and
   the table's level rows roll its item level (`prices::tests::the_stk2_outfits_are_sold_to_everyone_at_no_rank`;
   on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).

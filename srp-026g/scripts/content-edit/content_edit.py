@@ -524,11 +524,15 @@ def value_record(buf, name_off, key, value):
 
 def add_value(buf, table, key, value):
     """A new key of the named table `table` ('' the root), in its place by name CRC."""
-    toff = find(buf, table) if table else 0
-    assert rec(buf, toff)[3] == T_NAMED, (table, 'not a named table')
+    insert_value(buf, find(buf, table) if table else 0, key, value)
+
+
+def insert_value(buf, toff, key, value):
+    """A new key of the named table at `toff`, in its place by name CRC."""
+    assert rec(buf, toff)[3] == T_NAMED, (key, 'not in a named table')
     kids = [bytes(buf[c:c + 24]) for c in children(buf, toff)]
     crc = zlib.crc32(key.encode()) & 0xffffffff
-    assert all(REC.unpack(r)[2] != crc for r in kids), (table, key, 'its CRC is taken')
+    assert all(REC.unpack(r)[2] != crc for r in kids), (key, 'its CRC is taken')
     record = value_record(buf, append(buf, key.encode() + b'\0'), key, value)
     new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
     d, i, c, ty, cnt = rec(buf, toff)
@@ -877,6 +881,21 @@ def default_modification(decade):
     return Derived('default_modifications', read, write)
 
 
+def id_list(key):
+    """An indexed table of ids `key` of a list entry (an items_dict entry's srp_start): its ids, a space
+    between; written into an entry that lacks it."""
+    def read(buf, entry):
+        off = child(buf, entry, key)
+        return '' if off is None else ' '.join(cell_text(buf, c) for c in children(buf, off))
+
+    def write(buf, entry, cell):
+        if child(buf, entry, key) is not None or not cell:
+            raise ValueError('%s: written only into an entry without it, from a cell of ids' % key)
+        insert_value(buf, entry, key, dict(enumerate(int(i) for i in cell.split())))
+        return ['/' + key], []
+    return Derived('', read, write)
+
+
 # A medicine's pools, for its card's % lines: a pool's health is 1, the head's 0.4 (0.26g's human_hit_params).
 POOLS = {'limbs': 1, 'body': 1, 'head': 0.4, 'pain': 1}
 
@@ -1115,8 +1134,20 @@ STATS = {
     },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
-    # srp reads it from its game data (RoomRules): nothing a match computes.
+    # srp reads them from its game data (RoomRules, ShopRules): nothing a match computes.
     'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
+    'shop': {'configs': 'gameplay/srp/shop.options', 'match': set()},
+    # srp reads it from its game data (survarium v026g::new_account): a new account's grant.
+    'new-account': {'configs': 'gameplay/srp/new_account.options', 'match': set()},
+    # `like`: the plain item a golden or premium one is a copy of (its name); `start`: the modifications
+    # of its own a new item comes with. srp reads both from the dictionary.
+    'items': {
+        'configs': DICTIONARY + '#items_dict[dict_id]',
+        'columns': {'name': 'name', 'base_cost': 'base_cost', 'gold': 'is_premium', 'like': 'srp_like',
+                    'start': id_list('srp_start')},
+        'add': {'like'},
+        'match': set(),
+    },
 }
 
 

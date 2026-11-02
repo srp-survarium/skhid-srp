@@ -3015,7 +3015,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
     world.assert_clean();
 }
 
-/// The owner's choice of 2026-10-18 (`prices::NOT_SOLD`): the Russian and
+/// The owner's choice of 2026-10-18 (`prices::is_not_sold`): the Russian and
 /// Belarusian flags and coats of arms, the flag of the USSR and the red
 /// star are in no price record the lobby is
 /// sent and a buy of one is refused, for gold as for silver; one already
@@ -3470,7 +3470,8 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
             .filter(|item| item.dict_id == dict_id)
             .map(|item| item.condition_or_stack)
             .sum();
-        assert_eq!(owned, session::v026g::tutorial::SIGNUP_ROUNDS, "{dict_id}");
+        let rounds = session::v026g::tutorial::new_account().rounds;
+        assert_eq!(owned, rounds, "{dict_id}");
     }
     drop(account);
     // Given once: the next sign-in gives nothing more.

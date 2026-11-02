@@ -31,7 +31,7 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 **Premium items one by one** [srp]: a 0x95 record cannot be a single item, so every premium item with a price that no bundle holds (vouchers, premium camouflages and decals, the AK-74N) is in the price list 0x8A under seller 0 at its gold `base_cost`; `47 00` for one takes gold. The lobby's shop list takes any category from 0x8A and its buy dialog pays gold for a premium item (`MessageAsk`: `_money_type = isPremium`). PROVEN for the window.
 
-**Not sold: the Russian and Belarusian flags and coats of arms, the flag of the USSR and the red star** (the owner's decision, 2026-10-18; `prices.rs` `NOT_SOLD`):
+**Not sold: the Russian and Belarusian flags and coats of arms, the flag of the USSR and the red star** (the owner's decision, 2026-10-18; `scripts/content-edit/shop.tsv` `not_sold`):
 - `decals_4_1` (dict 266) Flag of USSR, `decals_4_2` (267) Flag of Russia, `decals_4_4` (269) Flag of Belarus, `decals_5_1` (282) Red star, `decals_5_2` (283) Coat of arms of Russia, `decals_5_4` (285) Coat of arms of Belarus: premium decals, 300 gold each until then.
 - In no price record (0x8A), silver or gold; a `47 00` for one is refused (`st_cannot_buy_item`).
 - The Russian and Belarusian ones: found by name in all six localizations of stock 0.26g with patches 12..=20 and checked against their icons; nothing else names Russia or Belarus. The two Soviet ones: the owner's word. The coat of arms of Lithuania (`decals_5_7`, the Vytis) stays on sale, the owner's word too.

@@ -16,6 +16,8 @@ use super::lobby::rooms::{RULES_PATH, RoomRules};
 use super::localization;
 use super::maps;
 use super::modifications::{self, Modifications};
+use super::new_account::{self, NewAccount};
+use super::prices::{SHOP_PATH, ShopRules};
 use super::quests::{self, Quests};
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
 use super::skills::{self, SkillsTree};
@@ -33,6 +35,44 @@ fn parsed<T>(
     what: Result<T, binary_config_parser::tree::ConfigError>,
 ) -> Result<T, GameDataError> {
     what.map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))
+}
+
+/// The most entries (named values and list elements, at any depth) an item
+/// config may have. The client rebuilds an item's config with its upgrades
+/// (camouflage, decals, scope) in a 16 KB stack arena of 24-byte items that
+/// it never bounds (`create_binary_config_buffer`, exe 0x358AA0); past it the
+/// items overwrite the arena's allocator and `vostok::configs::free_memory`
+/// (0x358A10) calls through it. The KS-23M of weapons-069@9 had 587 and,
+/// camouflaged and with decals, crashed every match at load (2026-11-01).
+/// 565 is the largest stock weapon config's (the premium Remington 700's),
+/// which players run with camouflage and decals.
+pub const MAX_CONFIG_ENTRIES: usize = 565;
+
+/// The entries of a config: each named value and each list element.
+pub fn config_entries(value: &ConfigValue) -> usize {
+    match value {
+        ConfigValue::Named(entries) => entries.iter().map(|(_, v)| 1 + config_entries(v)).sum(),
+        ConfigValue::Indexed(items) => items.iter().map(|v| 1 + config_entries(v)).sum(),
+        _ => 0,
+    }
+}
+
+/// Every item config fits the client's arena ([`MAX_CONFIG_ENTRIES`]).
+fn check_config_entries(data: &GameData, dictionary: &Dictionary) -> Result<(), GameDataError> {
+    for item in &dictionary.items {
+        let Some(bytes) = data.file(&item.cfg_name) else {
+            continue;
+        };
+        let entries = config_entries(&parsed(&item.cfg_name, ConfigValue::parse(bytes))?);
+        if entries > MAX_CONFIG_ENTRIES {
+            return Err(GameDataError(format!(
+                "{}: {entries} entries, over the {MAX_CONFIG_ENTRIES} the client rebuilds an \
+                 upgraded item in (exe 0x358AA0); the client would crash at match load",
+                item.cfg_name
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Builds every table of `data` and checks what one file says of another:
@@ -86,6 +126,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         }
     }
     check_shop_camos(&dictionary, &params)?;
+    check_config_entries(data, &dictionary)?;
     let properties = parsed(
         ui_properties::PATH,
         UiProperties::parse(needed(data, ui_properties::PATH)?),
@@ -131,6 +172,8 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         Loadouts::parse(needed(data, loadouts::PATH)?, &dictionary),
     )?;
     RoomRules::parse(needed(data, RULES_PATH)?).map_err(GameDataError)?;
+    ShopRules::parse(needed(data, SHOP_PATH)?, &dictionary).map_err(GameDataError)?;
+    NewAccount::parse(needed(data, new_account::PATH)?).map_err(GameDataError)?;
     if let Some(pair) = dictionary
         .items
         .windows(2)
@@ -151,8 +194,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
 pub type Named = (&'static str, &'static str);
 
 /// Every item this crate's code names: the starter kit and stash, the
-/// shop's exceptions and ammo prices (but for [`super::prices::UNRELEASED`]),
-/// the bundles' contents. Each is
+/// bundles' contents. Each is
 /// looked up by name when used, and one the dictionary lacks would be
 /// skipped there, or panic: [`check`] refuses data that lacks any.
 pub fn named_items() -> Vec<Named> {
@@ -166,32 +208,6 @@ pub fn named_items() -> Vec<Named> {
         loadouts::STARTER_STASH
             .iter()
             .map(|&name| ("loadouts::STARTER_STASH", name)),
-    );
-    // Not the items of a patch not released yet: data may lack them.
-    let released = |name: &&str| !super::prices::UNRELEASED.contains(name);
-    named.extend(
-        super::prices::EXCEPTIONS
-            .iter()
-            .map(|&(name, _)| name)
-            .filter(released)
-            .map(|name| ("prices::EXCEPTIONS", name)),
-    );
-    named.extend(
-        super::prices::AMMO_PRICES
-            .iter()
-            .map(|&(name, _, _)| name)
-            .filter(released)
-            .map(|name| ("prices::AMMO_PRICES", name)),
-    );
-    named.extend(
-        super::prices::OWNER_PRICES
-            .iter()
-            .map(|&(name, _, _)| ("prices::OWNER_PRICES", name)),
-    );
-    named.extend(
-        super::prices::NOT_SOLD
-            .iter()
-            .map(|&(name, _)| ("prices::NOT_SOLD", name)),
     );
     for bundle in &super::shop_offers::BUNDLES {
         named.extend(
@@ -275,19 +291,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_config_counts_each_named_value_and_list_element() {
+        let pair = ConfigValue::Indexed(vec![
+            ConfigValue::Integer(257),
+            ConfigValue::String("weapons/x".into()),
+        ]);
+        let config = ConfigValue::Named(vec![
+            (
+                "parameters".into(),
+                ConfigValue::Named(vec![("weight".into(), ConfigValue::Float(3.0))]),
+            ),
+            (
+                "sounds".into(),
+                ConfigValue::Indexed(vec![pair.clone(), pair]),
+            ),
+        ]);
+        // parameters, weight, sounds, two pairs of two.
+        assert_eq!(config_entries(&config), 3 + 2 + 4);
+    }
+
+    #[test]
+    fn every_stock_item_config_fits_the_clients_arena() {
+        let data = super::super::game_data::shared();
+        let largest = Dictionary::shared()
+            .items
+            .iter()
+            .filter_map(|item| data.file(&item.cfg_name).map(|b| (item, b)))
+            .map(|(item, bytes)| {
+                (
+                    config_entries(&ConfigValue::parse(bytes).unwrap()),
+                    &item.name,
+                )
+            })
+            .max()
+            .unwrap();
+        assert!(largest.0 <= MAX_CONFIG_ENTRIES, "{largest:?}");
+    }
+
+    #[test]
     fn the_items_the_code_names_are_in_the_data() {
         let named = named_items();
         assert!(named.contains(&("loadouts::STARTER", "tt_33")));
         assert!(named.contains(&("shop_offers::BUNDLES", "vss_premium")));
-        assert!(named.contains(&("prices::EXCEPTIONS", "medkit")));
-        assert!(named.contains(&("prices::EXCEPTIONS", "vityaz")));
-        assert!(named.contains(&("prices::OWNER_PRICES", "vityaz")));
-        // The rows of a patch not released are not asked for.
-        assert!(
-            named
-                .iter()
-                .all(|(_, name)| !super::super::prices::UNRELEASED.contains(name))
-        );
         assert_eq!(lacking(Dictionary::shared(), &named), Vec::<String>::new());
         assert_eq!(check(super::super::game_data::shared()), Ok(()));
     }
@@ -305,7 +350,6 @@ mod tests {
             missing,
             [
                 "loadouts::STARTER tt_33",
-                "prices::OWNER_PRICES tt_33",
                 "shop_offers::BUNDLES vss_premium"
             ]
         );
@@ -313,7 +357,7 @@ mod tests {
         assert!(
             error.contains(
                 "server-game-data.db lacks what srp's code names: loadouts::STARTER tt_33, \
-                 prices::OWNER_PRICES tt_33, shop_offers::BUNDLES vss_premium."
+                 shop_offers::BUNDLES vss_premium."
             ),
             "{error}"
         );

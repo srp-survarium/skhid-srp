@@ -1910,6 +1910,7 @@ mod tests {
     #[test]
     fn the_starting_ammo_is_refilled_for_its_price_of_nothing() {
         let mut account = account();
+        account.generic_money = 2_000;
         let ammo = account.inventory[1].clone();
         // Listed for nothing by seller 0 (so the client lets it be added to).
         let record = prices::price(ammo.dict_id).unwrap();
@@ -2305,9 +2306,9 @@ mod tests {
         let pistol = account.inventory[0].clone();
         let ammo = account.inventory[1].clone();
         let revision = account.kits[0].revision;
-        // The pistol costs nothing, so it sells for nothing.
+        // The pistol (500) sells for a quarter.
         let sold = sell(&mut account, pistol.item_id, 1).unwrap();
-        assert_eq!((sold.amount, sold.money), (1, 0));
+        assert_eq!((sold.amount, sold.money), (1, 125));
         assert_eq!(account.kits[0].slots[7], None);
         assert_eq!(account.kits[0].revision, revision + 1);
         // Selling none of a stack is refused.
@@ -2483,8 +2484,9 @@ mod tests {
     fn a_reset_frees_one_branch_for_its_price() {
         let mut account = account();
         account.add_experience(100_000);
-        // A new account has no gold.
+        // A new account has no money.
         account.premium_money = 10;
+        account.generic_money = 2_000;
         set_skills(&mut account, &[(101, 2), (102, 3), (201, 1)]).unwrap();
         let money = account.generic_money;
         // The second tab: skills 201 and on.
