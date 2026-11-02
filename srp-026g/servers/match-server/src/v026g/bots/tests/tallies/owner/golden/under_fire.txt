@@ -1513,6 +1513,12 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
         "kinds": {
           "engaged": {
             "after": {},
+            "band": [
+              0,
+              0,
+              0,
+              0
+            ],
             "before": {},
             "ended_dead": {},
             "ended_in": {},
@@ -1612,10 +1618,18 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               "other": 0
             },
             "turn_deg": 0.0,
-            "turn_ticks": 0
+            "turn_ticks": 0,
+            "unseen_in_view": 0,
+            "unseen_out_of_view": 0
           },
           "fired_back": {
             "after": {},
+            "band": [
+              0,
+              0,
+              0,
+              0
+            ],
             "before": {},
             "ended_dead": {},
             "ended_in": {},
@@ -1715,12 +1729,20 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               "other": 0
             },
             "turn_deg": 0.0,
-            "turn_ticks": 0
+            "turn_ticks": 0,
+            "unseen_in_view": 0,
+            "unseen_out_of_view": 0
           },
           "never": {
             "after": {
               "unseen": 2833
             },
+            "band": [
+              0,
+              1,
+              11,
+              6
+            ],
             "before": {},
             "ended_dead": {
               "unseen": 6
@@ -1824,7 +1846,9 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               "other": 0
             },
             "turn_deg": 0.0,
-            "turn_ticks": 0
+            "turn_ticks": 0,
+            "unseen_in_view": 734,
+            "unseen_out_of_view": 2099
           }
         }
       }
@@ -1843,6 +1867,12 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
         "kinds": {
           "engaged": {
             "after": {},
+            "band": [
+              0,
+              0,
+              0,
+              0
+            ],
             "before": {},
             "ended_dead": {},
             "ended_in": {},
@@ -1942,10 +1972,18 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               "other": 0
             },
             "turn_deg": 0.0,
-            "turn_ticks": 0
+            "turn_ticks": 0,
+            "unseen_in_view": 0,
+            "unseen_out_of_view": 0
           },
           "fired_back": {
             "after": {},
+            "band": [
+              0,
+              0,
+              0,
+              0
+            ],
             "before": {},
             "ended_dead": {},
             "ended_in": {},
@@ -2045,10 +2083,18 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               "other": 0
             },
             "turn_deg": 0.0,
-            "turn_ticks": 0
+            "turn_ticks": 0,
+            "unseen_in_view": 0,
+            "unseen_out_of_view": 0
           },
           "never": {
             "after": {},
+            "band": [
+              0,
+              0,
+              0,
+              0
+            ],
             "before": {},
             "ended_dead": {},
             "ended_in": {},
@@ -2148,7 +2194,9 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               "other": 0
             },
             "turn_deg": 0.0,
-            "turn_ticks": 0
+            "turn_ticks": 0,
+            "unseen_in_view": 0,
+            "unseen_out_of_view": 0
           }
         }
       }
