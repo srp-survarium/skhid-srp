@@ -374,7 +374,9 @@ fn answer(
         }
         Endpoint::Best(period) => {
             let rows: Vec<Value> = history
-                .best(now.saturating_sub(period.seconds()), BEST)?
+                .best(now.saturating_sub(period.seconds()), BEST, &|account_id| {
+                    !banned(account_id)
+                })?
                 .iter()
                 .map(|best| {
                     let (map, mode) = names(best.summary.info.map_id, lang);
@@ -423,7 +425,7 @@ fn answer(
                     "tag": card.clan.tag,
                     "level": card.clan.level,
                     "members": card.clan.members,
-                    "leader": named(&card.leader),
+                    "leader": card.leader.as_ref().map(named),
                 },
                 "totals": totals(&card.clan.totals),
                 "members": members,

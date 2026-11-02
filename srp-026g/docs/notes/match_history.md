@@ -12,7 +12,10 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - The server's bots (account 0) and test bots (`SRP_BOT_ACCOUNTS`) are never kept.
 - Never served: login names, addresses, bans or their reasons, the hidden matchmaking rating
   (`g26_balance`). "Rating" is the visible one players see in the lobby.
-- Banned accounts are left out of the top lists.
+- Only players with at least one public match are ever named: most in-game names are still the
+  login (`v026g/names.rs`), so an account that never played one is answered as no account (`404`
+  for its card by id or name, left out of its clan's members), and counting ids lists no logins.
+- Banned accounts are left out of the top lists and the best scores.
 - Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows,
   totals kept up to date when a match is recorded, never added up per request.
 
@@ -69,7 +72,8 @@ Common objects:
 
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
-A player's card. `name` is the in-game name, exact (Latin letters in any case).
+A player's card. `name` is the in-game name, exact (Latin letters in any case). `404` for an
+account without a public match, as for no account.
 
 ```json
 {"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},
@@ -143,7 +147,8 @@ match only.
 
 ### `GET /api/history/best?period=<hour|day>`
 
-The 20 best single-match scores of public matches that ended in the period (default `day`).
+The 20 best single-match scores of public matches that ended in the period (default `day`), banned
+accounts left out.
 
 ```json
 {"period":"day",
@@ -166,8 +171,9 @@ Registered clans by their totals. `by`: `matches`, `wins`, `kills`, `score`, `he
 
 ### `GET /api/history/clan?id=<clan>` or `?tag=<tag>`
 
-A registered clan: its totals and its members, each with their own totals (all their public
-matches), commander first, then by score.
+A registered clan: its totals and its members with a public match, each with their own totals (all
+their public matches), commander first, then by score. `members` counts every member, listed or
+not; `leader` is `null` when the commander has no public match.
 
 ```json
 {"clan":{"id":7,"name":"Skhid","tag":"SKH","level":5,"members":18,

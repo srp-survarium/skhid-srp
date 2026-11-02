@@ -400,12 +400,13 @@ pub struct ClanMember {
     pub totals: Totals,
 }
 
-/// A registered clan: its totals and members, commander first, then by
-/// score.
+/// A registered clan: its totals and its members with a public match (a
+/// name is most often still the login), commander first, then by score.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClanCard {
     pub clan: ClanLine,
-    pub leader: Named,
+    /// `None` when the commander has no public match.
+    pub leader: Option<Named>,
     pub members: Vec<ClanMember>,
 }
 
@@ -663,7 +664,7 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
     })
 }
 
-/// [`Totals`] at `at`; all 0 for a row with none (a `LEFT JOIN`).
+/// [`Totals`] at `at`.
 fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
     Ok(Totals {
         matches: u64_at(row, at)?,
@@ -712,21 +713,26 @@ impl MatchHistory {
         })
     }
 
-    /// The account with this in-game name (Latin letters in any case).
+    /// The account with this in-game name (Latin letters in any case), of
+    /// those with a public match: a name is most often still the login, so
+    /// no other account is ever found.
     pub fn account_by_name(&self, name: &str) -> Result<Option<u32>, PersistError> {
         Ok(self
             .connection
             .locked()
             .query_row(
-                "SELECT account_id FROM g26_accounts WHERE name = ?1 COLLATE NOCASE
-                 ORDER BY account_id LIMIT 1",
+                "SELECT a.account_id FROM g26_accounts a
+                 JOIN g26_player_totals t ON t.account_id = a.account_id
+                 WHERE a.name = ?1 COLLATE NOCASE
+                 ORDER BY a.account_id LIMIT 1",
                 [name],
                 |row| row.get(0),
             )
             .optional()?)
     }
 
-    /// The account's card; `None` for no account.
+    /// The account's card; `None` for no account or one without a public
+    /// match (its name is most often still the login).
     pub fn player(&self, account_id: u32) -> Result<Option<PlayerCard>, PersistError> {
         Ok(self
             .connection
@@ -735,7 +741,7 @@ impl MatchHistory {
                 &format!(
                     "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
                      FROM g26_accounts a {CLAN_JOIN}
-                     LEFT JOIN g26_player_totals t ON t.account_id = a.account_id
+                     JOIN g26_player_totals t ON t.account_id = a.account_id
                      WHERE a.account_id = ?1"
                 ),
                 [account_id],
@@ -914,28 +920,36 @@ impl MatchHistory {
     }
 
     /// The best `limit` single-match scores of public matches that ended
-    /// at `since` or later.
-    pub fn best(&self, since: u64, limit: usize) -> Result<Vec<BestLine>, PersistError> {
+    /// at `since` or later, of the players that `keep` keeps (it is asked
+    /// of each in order until enough).
+    pub fn best(
+        &self,
+        since: u64,
+        limit: usize,
+        keep: &dyn Fn(u32) -> bool,
+    ) -> Result<Vec<BestLine>, PersistError> {
         let connection = self.connection.locked();
-        let mut statement = connection.prepare_cached(&format!(
-            "SELECT {NAMED}, {SUMMARY}, {LINE}
-             FROM g26_matches m JOIN g26_match_players p ON p.match_id = m.id
-             JOIN g26_accounts a ON a.account_id = p.account_id
-             {CLAN_JOIN}
-             WHERE m.ended_at >= ?1 AND m.kind = 'public'
-             ORDER BY p.score DESC, m.id DESC LIMIT ?2"
-        ))?;
-        let rows = statement.query_map(
-            params![since.min(i64::MAX as u64) as i64, bounded(limit)],
-            |row| {
-                Ok(BestLine {
-                    player: named_at(row, 0)?,
-                    summary: summary_at(row, 4)?,
-                    line: line_at(row, 14)?,
-                })
-            },
-        )?;
-        Ok(rows.collect::<Result<_, _>>()?)
+        let mut statement = connection.prepare_cached(&best_query())?;
+        // Room for the ones `keep` leaves out.
+        let mut rows = statement.query(params![
+            since.min(i64::MAX as u64) as i64,
+            bounded(limit) + MatchHistory::MAX_ROWS as i64
+        ])?;
+        let mut best = Vec::new();
+        while best.len() < bounded(limit) as usize
+            && let Some(row) = rows.next()?
+        {
+            let player = named_at(row, 0)?;
+            if !keep(player.account_id) {
+                continue;
+            }
+            best.push(BestLine {
+                player,
+                summary: summary_at(row, 4)?,
+                line: line_at(row, 14)?,
+            });
+        }
+        Ok(best)
     }
 
     /// The top `limit` registered clans by `by`.
@@ -981,14 +995,15 @@ impl MatchHistory {
         let Some((clan, leader_id)) = found else {
             return Ok(None);
         };
-        // Its accepted members and its commander (who is one of them).
+        // Its accepted members and its commander (who is one of them), of
+        // those with a public match.
         let mut statement = connection.prepare_cached(&format!(
             "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
              FROM g26_clan_members m JOIN g26_accounts a ON a.account_id = m.account_id
              {CLAN_JOIN}
-             LEFT JOIN g26_player_totals t ON t.account_id = a.account_id
+             JOIN g26_player_totals t ON t.account_id = a.account_id
              WHERE m.clan_id = ?1 AND (m.status = ?2 OR m.account_id = ?3)
-             ORDER BY a.account_id != ?3, IFNULL(t.score, 0) DESC, a.account_id"
+             ORDER BY a.account_id != ?3, t.score DESC, a.account_id"
         ))?;
         let rows = statement.query_map(params![clan.id, status::ACCEPTED, leader_id], |row| {
             let player = named_at(row, 0)?;
@@ -1001,21 +1016,10 @@ impl MatchHistory {
             })
         })?;
         let members: Vec<ClanMember> = rows.collect::<Result<_, _>>()?;
-        let leader = match members.iter().find(|member| member.commander) {
-            Some(member) => member.player.clone(),
-            None => Named {
-                account_id: leader_id,
-                name: connection
-                    .query_row(
-                        "SELECT name FROM g26_accounts WHERE account_id = ?1",
-                        [leader_id],
-                        |row| row.get(0),
-                    )
-                    .optional()?
-                    .unwrap_or_default(),
-                clan: None,
-            },
-        };
+        let leader = members
+            .iter()
+            .find(|member| member.commander)
+            .map(|member| member.player.clone());
         Ok(Some(ClanCard {
             clan,
             leader,
@@ -1034,6 +1038,20 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
         members: row.get(4)?,
         totals: totals_at(row, 5)?,
     })
+}
+
+/// [`MatchHistory::best`]'s query: from the matches that ended in the
+/// period (`g26_matches_by_end`) to their players, never the other way
+/// round, which reads every player row (`CROSS JOIN` keeps the order).
+fn best_query() -> String {
+    format!(
+        "SELECT {NAMED}, {SUMMARY}, {LINE}
+         FROM g26_matches m CROSS JOIN g26_match_players p ON p.match_id = m.id
+         JOIN g26_accounts a ON a.account_id = p.account_id
+         {CLAN_JOIN}
+         WHERE m.ended_at >= ?1 AND m.kind = 'public'
+         ORDER BY p.score DESC, m.id DESC LIMIT ?2"
+    )
 }
 
 /// A page's upper bound: everything with `None`.
@@ -1355,10 +1373,13 @@ mod tests {
             1
         );
 
-        let best = history.best(0, 20).unwrap();
+        let best = history.best(0, 20, &|_| true).unwrap();
         assert_eq!(best[0].player.name, "Alice");
         assert_eq!(best[0].line.score, 300);
-        assert!(history.best(101, 20).unwrap().is_empty());
+        assert!(history.best(101, 20, &|_| true).unwrap().is_empty());
+        let without_alice = history.best(0, 1, &|id| id != 10).unwrap();
+        assert_eq!(without_alice.len(), 1);
+        assert_eq!(without_alice[0].player.name, "Bob");
     }
 
     #[test]
@@ -1382,12 +1403,45 @@ mod tests {
         for key in [ClanKey::Id(7), ClanKey::Tag("skh")] {
             let card = history.clan(key).unwrap().unwrap();
             assert_eq!(card.clan.name, "Skhid");
-            assert_eq!(card.leader.name, "Alice");
+            assert_eq!(card.leader.unwrap().name, "Alice");
             assert_eq!(card.members.len(), 1);
             assert!(card.members[0].commander);
             assert_eq!(card.members[0].totals.kills, 14);
         }
         assert!(history.clan(ClanKey::Id(8)).unwrap().is_none());
+
+        // Carol (12), its commander now, has no public match: counted, but
+        // neither named nor listed.
+        repository.save(12, &Account::new("Carol")).unwrap();
+        let member = |account_id| Member {
+            account_id,
+            rank: 0,
+            status: status::ACCEPTED,
+        };
+        repository
+            .save_clan(&Clan {
+                id: 7,
+                name: "Skhid".to_owned(),
+                tag: "SKH".to_owned(),
+                registered: true,
+                leader: 12,
+                ranks: Vec::new(),
+                members: vec![member(10), member(12)],
+                daily_message: String::new(),
+                experience: 0,
+                money: 0,
+            })
+            .unwrap();
+        let card = history.clan(ClanKey::Id(7)).unwrap().unwrap();
+        assert_eq!(card.clan.members, 2);
+        assert_eq!(card.leader, None);
+        let names: Vec<&str> = card
+            .members
+            .iter()
+            .map(|member| member.player.name.as_str())
+            .collect();
+        assert_eq!(names, ["Alice"]);
+        assert!(!card.members[0].commander);
     }
 
     #[test]
@@ -1508,12 +1562,27 @@ mod tests {
     }
 
     #[test]
-    fn a_player_is_found_by_its_name() {
+    fn a_player_is_found_by_its_name_once_it_played_a_public_match() {
         let dir = TempDir::new("name");
-        let (_repository, history) = repository(&dir);
+        let (mut repository, history) = repository(&dir);
+        // No public match yet: names are most often logins, none is found.
+        assert_eq!(history.account_by_name("alice").unwrap(), None);
+        assert!(history.player(10).unwrap().is_none());
+        repository
+            .record_match(&record(MatchKind::Private, 100))
+            .unwrap();
+        assert_eq!(history.account_by_name("alice").unwrap(), None);
+        assert!(history.player(10).unwrap().is_none());
+        repository
+            .record_match(&record(MatchKind::Public, 200))
+            .unwrap();
         assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
         assert_eq!(history.account_by_name("Bob").unwrap(), Some(11));
         assert_eq!(history.account_by_name("Carol").unwrap(), None);
+        // Carol is an account, but has played no public match.
+        repository.save(12, &Account::new("Carol")).unwrap();
+        assert_eq!(history.account_by_name("Carol").unwrap(), None);
+        assert!(history.player(12).unwrap().is_none());
     }
 
     #[test]
@@ -1548,7 +1617,9 @@ mod tests {
                 "g26_player_totals_kills",
             ),
             (
-                "SELECT account_id FROM g26_accounts WHERE name = 'x' COLLATE NOCASE",
+                "SELECT a.account_id FROM g26_accounts a
+                 JOIN g26_player_totals t ON t.account_id = a.account_id
+                 WHERE a.name = 'x' COLLATE NOCASE ORDER BY a.account_id LIMIT 1",
                 "g26_accounts_by_name",
             ),
             (
@@ -1564,5 +1635,28 @@ mod tests {
             assert!(!plan.contains("TEMP B-TREE"), "{sql}: {plan}");
             assert!(plan.contains(index), "{sql}: {plan}");
         }
+    }
+
+    #[test]
+    fn the_best_scores_start_from_the_matches_of_the_period() {
+        let dir = TempDir::new("best-plan");
+        let (_repository, _history) = repository(&dir);
+        let connection = Connection::open(dir.db()).unwrap();
+        let mut statement = connection
+            .prepare(&format!("EXPLAIN QUERY PLAN {}", best_query()))
+            .unwrap();
+        let plan = statement
+            .query_map(params![0, 20], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .join("; ");
+        assert!(
+            plan.contains("SEARCH m USING INDEX g26_matches_by_end (ended_at>?)"),
+            "{plan}"
+        );
+        // The players of those matches only, by the primary key.
+        assert!(!plan.contains("SCAN p"), "{plan}");
+        assert!(plan.contains("SEARCH p USING PRIMARY KEY"), "{plan}");
     }
 }
