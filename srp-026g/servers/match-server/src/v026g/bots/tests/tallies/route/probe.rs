@@ -190,7 +190,7 @@ impl Probe {
             format!("walked={:.1}/{:.1} off={:.2} drop_ahead={:.1} goal_d={:.1}", walked, route.length(), off, ahead, goal.distance_xz(from))
         });
         // Down past a ledge's edge with no drop link ahead (the stand-in's `past_edge`, the client's capsule), or down a drop link.
-        let edge = if body.past_edge_down.is_some_and(|t| time.saturating_sub(t) <= 100) { "past" } else { "link" };
+        let edge = if body.past_edge_down.is_some_and(|t| time.saturating_sub(t) <= super::falls::PAST_EDGE_FALL_MS) { "past" } else { "link" };
         eprintln!(
             "{} t={} place={} drop={:.1} edge={edge} play={} step={} go={} legs={} why={:#x} unstick={} carrying={} strafe={} stepped={} est_v={:.2},{:.2} real_v={} est_dfeet={:.2} keys=[{}] speed={:.2} lip={} lip_m={:.2} route={} from={:.1},{:.1},{:.1} guard={} watch={:?} models=[{}] real_trail=[{}] est_trail=[{}]",
             if planned { "PLANNED" } else { "FALL" },

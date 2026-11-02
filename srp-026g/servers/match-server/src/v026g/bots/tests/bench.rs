@@ -756,6 +756,23 @@ pub(crate) fn real_bot_cost() {
                 world.grid.len()
             );
         }
+        // A269c: the floors near an open side (`WalkGrid::near_open_side`, with the table only) by the route cost they carry: a lip's
+        // (`near_lip` / `is_lip`), a deep fall's (`near_fall`), none.
+        if world.grid.has_open_sides() {
+            let grid = &world.grid;
+            let (mut near, mut lip, mut fall, mut bare) = (0, 0, 0, 0);
+            for node in (0..grid.len() as mapdata::NodeId).filter(|&n| grid.near_open_side(n)) {
+                near += 1;
+                if grid.near_lip(node) || grid.is_lip(node) {
+                    lip += 1;
+                } else if grid.near_fall(node) {
+                    fall += 1;
+                } else {
+                    bare += 1;
+                }
+            }
+            eprintln!("  open_side_floors {near} lip {lip} fall {fall} bare {bare} of {} floors", grid.len());
+        }
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];

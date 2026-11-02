@@ -347,10 +347,15 @@ pub(super) fn open_walks() -> Box<dyn RouteTopic> {
         || {
             let mut d = crate::v026g::bots::body::open_walks::counts();
             d.extend(super::super::motor::counts::open_guards());
+            d.extend(super::super::motor::counts::guard_froms());
             d
         },
         |d, line| {
             line.ends.push(format!("open_walk_offs held/down/no_floor {}/{}/{} open_guard asked/changed {}/{}", d[0], d[1], d[2], d[3], d[4]));
+            // A269c: the guard's changes by what made the keys (route, lane, aimed, side step, apart, keys, glide), on a lip's floors,
+            // an open side's with a fall's route cost, an open side's with none.
+            let row = |f: usize| d[5 + f * 7..5 + f * 7 + 7].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!("guard_from_lip {} guard_from_open_fall {} guard_from_open_bare {}", row(0), row(1), row(2)));
         },
     )
 }

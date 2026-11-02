@@ -1689,6 +1689,7 @@ fn drive_tick_inner(
     #[cfg(test)]
     {
         bot.bench_stepped = 0;
+        bot.bench_keys_from = 0;
     }
     let stepped = if aiming_still {
         Some(decision.keys | over.strafe)
@@ -1744,6 +1745,10 @@ fn drive_tick_inner(
         let _ = other_clear;
         if let Step::Own(keys) | Step::Slid(keys) = step {
             decision.keys = keys;
+            #[cfg(test)]
+            {
+                bot.bench_keys_from = 1;
+            }
         }
     }
     // [spacing.apart] A teammate inside the body (no collision between teammates): a step away from him, over the ground the fight's own test finds clear. Not while the reflex
@@ -1783,6 +1788,10 @@ fn drive_tick_inner(
                 decision.keys |= away.other_key();
             }
             stepped = clear || tied;
+            #[cfg(test)]
+            if stepped {
+                bot.bench_keys_from = 2;
+            }
             let eased = !held_off && !clear && !tied && tuning.spacing.apart_ease && apart::ease(me, view, tuning.spacing.apart_m.get());
             if eased {
                 decision.keys &= !(key::FORWARD | key::SPRINT);
@@ -2069,6 +2078,9 @@ thread_local! {
     /// feet falls, 2 only the same walk a reckoning's error to a side falls ([`Feel::lip_guard_full`]'s sides), plus 2 when the lip
     /// was seen only on the floors about the reckoned feet (3, 4).
     static GUARD_WHY: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+    /// The floors the lip guard's last ask was made for (A269c): 0 a lip's, 1 only an open side's with a deep fall's route cost
+    /// (`WalkGrid::near_fall`), 2 only an open side's with no route cost.
+    static GUARD_FLOOR: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// The lip guard's watch over its own hold on a bot: a guard that keeps changing a bot's keys has stopped its
@@ -2223,6 +2235,12 @@ pub(super) fn lip_guard_with(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me
         if open_only {
             motor::counts::open_guard(false);
         }
+        let fall = |node: Option<NodeId>| node.is_some_and(|node| grid.near_fall(node));
+        GUARD_FLOOR.set(match open_only {
+            false => 0,
+            true if fall(node) || fall(grid.locate(ahead, 1.0)) => 1,
+            true => 2,
+        });
     }
     let at = body::Estimate::of_view(me, node);
     let stop = body::Stop { kin, level: 1.0, grid, planned, hold };
@@ -2353,6 +2371,20 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             LipGuard::Swapped(_) => motor::counts::lip_guard(true),
             LipGuard::Braked(_) | LipGuard::Doomed => motor::counts::lip_guard(false),
             _ => {}
+        }
+        // A269c: what made the keys the guard changed, on what floors.
+        if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) {
+            const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+            let from = match (bot.bench_keys_from, bot.bench_walk) {
+                (1, _) => motor::counts::GuardFrom::SideStep,
+                (2, _) => motor::counts::GuardFrom::Apart,
+                _ if decision.keys & MOVE == 0 => motor::counts::GuardFrom::Glide,
+                (_, 2) => motor::counts::GuardFrom::RouteAimed,
+                (_, 1) if bot.bench_lane == apart::LaneUse::Applied => motor::counts::GuardFrom::RouteLane,
+                (_, 1) => motor::counts::GuardFrom::Route,
+                _ => motor::counts::GuardFrom::Keys,
+            };
+            motor::counts::guard_from(from, GUARD_FLOOR.get());
         }
     }
     if let LipGuard::Swapped(keys) | LipGuard::Braked(keys) = guard {

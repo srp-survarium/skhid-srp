@@ -3,6 +3,11 @@
 
 use super::*;
 
+/// A fall is past a ledge's edge with no drop link (the stand-in's `past_edge`) when the body went down there this long before it
+/// is told, ms: in the tick it drops, or, a walk-off falling on at its walk speed (`SRP_BENCH_STAND_IN_WALKOFF`), where it lands, a
+/// fall's flight later (1.0 s from 5 m, 1.4 s from 10 m).
+pub(super) const PAST_EDGE_FALL_MS: u32 = 3_000;
+
 #[derive(Default)]
 pub(super) struct Falls {
     /// Falls off the route, and taken by it.
@@ -42,7 +47,7 @@ impl RouteTopic for Falls {
             self.falls.1 += 1;
         } else {
             self.falls.0 += 1;
-            self.past_edge += u32::from(at.body.past_edge_down.is_some_and(|t| at.time.saturating_sub(t) <= 100));
+            self.past_edge += u32::from(at.body.past_edge_down.is_some_and(|t| at.time.saturating_sub(t) <= PAST_EDGE_FALL_MS));
             self.repeats.1 += u32::from(self.mark(run, at.place, fall.from));
             self.unsticking += u32::from(at.bots.bots[at.place].as_ref().is_some_and(|bot| bot.unstick.is_some()));
         }
