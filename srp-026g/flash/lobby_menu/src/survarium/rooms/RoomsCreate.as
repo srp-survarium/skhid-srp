@@ -26,22 +26,9 @@ package survarium.rooms
         private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
             GameMode.SCARCITY, GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
         private static const TRACK_X:Number = 14;
-        // The wait index sent when the wait is none of WAITS: 30 s.
-        private static const WAIT_INDEX_DEFAULT:int = 3;
-        // The window's defaults, the server's (room_settings::DEFAULT_*; a
-        // Rust test keeps them the same): 8 v 8, from 1 v 1, any max level,
-        // 30 s; every mode, the pool without the experimental maps.
-        public static const DEFAULT_SIZE:int = 8;
-        public static const DEFAULT_MIN_SIDE:int = 1;
-        public static const DEFAULT_WAIT:int = 30;
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
-        private var _size:int = DEFAULT_SIZE;
-        // The players a side the room needs before its vote: 1 v 1 to 3 v 3.
-        private var _minSide:int = DEFAULT_MIN_SIDE;
-        private var _max:int = RoomsWire.LEVEL_ANY;
-        private var _wait:int = DEFAULT_WAIT;
         // The pool's tiles out (by "level_weather") and the modes out.
         private var _off:Object = {};
         private var _modesOff:Object = {};
@@ -79,26 +66,16 @@ package survarium.rooms
 
         // The window's start: the settings of the player's last room made
         // by hand (`form`, RoomsWindow._form), or the defaults while the
-        // window has none. Not the PIN. A max level under the player's
-        // equipment now is raised to it, as the server's form does.
+        // window has none: every mode, the pool without the experimental maps.
+        // Not the PIN.
         private function start(form:Object):void
         {
             if (form == null)
             {
-                _size = DEFAULT_SIZE;
-                _minSide = DEFAULT_MIN_SIDE;
-                _max = RoomsWire.LEVEL_ANY;
-                _wait = DEFAULT_WAIT;
                 _modesOff = {};
                 defaultPool();
                 return;
             }
-            _size = form.size;
-            _minSide = form.min;
-            _wait = form.wait;
-            _max = form.max;
-            if (_max != RoomsWire.LEVEL_ANY && _max < win._gear)
-                _max = Math.min(win._gear, RoomsWire.LEVEL_MAX);
             _off = copy(form.off);
             _modesOff = copy(form.modesOff);
         }
@@ -112,16 +89,11 @@ package survarium.rooms
         }
 
         // `S1;F` as the window keeps it (RoomsWindow._form), read against
-        // the pool: the sliders (a value out of a slider's range: its
-        // default), the modes out, and a tile out unless an entry of it is
+        // the pool: the modes out, and a tile out unless an entry of it is
         // in (`bits`: entry `index` by bit `index % BITS_PER_CHUNK` of chunk
         // `index / BITS_PER_CHUNK`).
         internal function formOf(head:Array, bits:Array):Object
         {
-            var size:int = int(head[3]);
-            var min:int = int(head[4]);
-            var max:int = int(head[5]);
-            var wait:int = int(head[6]);
             var modesOff:Object = {};
             if (head.length > 7 && head[7] != "")
             {
@@ -144,11 +116,7 @@ package survarium.rooms
                 if (on[key] != true)
                     off[key] = true;
             }
-            return {"size": stops("size").indexOf(size) >= 0 ? size : DEFAULT_SIZE,
-                "min": stops("min").indexOf(min) >= 0 ? min : DEFAULT_MIN_SIDE,
-                "max": max >= 0 && max <= RoomsWire.LEVEL_MAX ? max : RoomsWire.LEVEL_ANY,
-                "wait": stops("wait").indexOf(wait) >= 0 ? wait : DEFAULT_WAIT,
-                "modesOff": modesOff, "off": off};
+            return {"modesOff": modesOff, "off": off};
         }
 
         // What the server keeps of the room being made (room_settings::
@@ -178,7 +146,7 @@ package survarium.rooms
                 if (modeIn[String(e.mode)] != true)
                     modesOff[String(e.mode)] = true;
             }
-            return {"size": _size, "min": _minSide, "max": _max, "wait": _wait, "modesOff": modesOff, "off": off};
+            return {"modesOff": modesOff, "off": off};
         }
 
         // RoomsWindow: a room new to us, ours, came while a create was on
@@ -411,26 +379,6 @@ package survarium.rooms
             win.render();
         }
 
-        // A slider's places: the values it stops at, in order.
-        private function stops(what:String):Array
-        {
-            var list:Array = [];
-            if (what == "size")
-                list = [6, 7, 8, 9, 10];
-            else if (what == "min")
-                list = [1, 2, 3];
-            else if (what == "wait")
-                list = RoomsWire.WAITS.concat();
-            else
-            {
-                // Any, then the player's own level up to 15: never below it.
-                list.push(RoomsWire.LEVEL_ANY);
-                for (var m:int = Math.max(1, win._gear); m <= RoomsWire.LEVEL_MAX; m++)
-                    list.push(m);
-            }
-            return list;
-        }
-
         // The modes of the pool's entries, in MODE_ORDER.
         private function poolModes():Array
         {
@@ -533,13 +481,7 @@ package survarium.rooms
             }
             var any:Boolean = picked.length > 0;
             win._steps = RoomsWire.poolSteps(picked, win._pool.length);
-            var wait:int = RoomsWire.WAITS.indexOf(_wait);
-            if (wait < 0)
-                wait = WAIT_INDEX_DEFAULT;
-            // Keep the form's legacy fields on the wire; the server ignores
-            // them for a private room and remembers its map/mode selection.
-            var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + 1) * RoomsWire.MIN_SIDES + (_minSide - 1);
-            win._steps.push(RoomsWire.CREATE + code);
+            win._steps.push(RoomsWire.CREATE + RoomsWire.CREATE_PIN);
             win._steps.unshift(RoomsWire.PIN + int(typedPin));
             if (!any)
             {

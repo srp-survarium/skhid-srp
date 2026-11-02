@@ -543,7 +543,7 @@ class OtherTables(unittest.TestCase):
                                              '2010\tdamage_distance\t0.1\t2\t\n')
         category = {**category, 'configs': 'mods.options#modifications[id]'}
         written, _, gone = ce.stats_write(category, columns, rows, files, 't')
-        self.assertEqual(gone, {'mods.options': {'/modifications[1]/modifiers': ['/modifications[1]/modifiers[2]']}})
+        self.assertEqual(gone, {'mods.options': {'/modifications[0]/modifiers', '/modifications[1]/modifiers'}})
         self.assertEqual(ce.modifier_paths(mods, ce.find(mods, 'modifications[1]/modifiers')),
                          ['parameters/min_damage_distance', 'parameters/max_damage_distance'])
         self.assertEqual((value(mods, 'modifications[0]/modifiers[0]/path[1]'), value(mods, 'modifications[0]/modifiers[0]/type')),
@@ -562,6 +562,69 @@ class OtherTables(unittest.TestCase):
         files = {'projects/l2/day_4/client_project': config({'respawn_points': [{'time': 6}], 'zones': []})}
         self.assertEqual(ce.stats_problems(LEVELS, columns, rows, ce.stats_targets(LEVELS, files), files, 't'),
                          ['projects/l2/day_4/client_project: zone (zones[kind=effect]/ms) is absent, its row says 2000'])
+
+
+    def test_an_armour_row_writes_its_hit_params_by_the_rule_and_its_bonuses_by_kind(self):
+        part = lambda phys, ano: {'hit_types': {'ranged': {'armor': phys}, 'slash': {'armor': phys},
+                                                'fire': {'armor': ano}}}
+        torso = config({'hit_params': {'front': part(0.5, 0.2), 'back': part(0.4, 0.2), 'left_forearm': part(0.3, 0.2)},
+                        'parameters': {'weight': 3.5}, 'default_modifications': [1030, 1240, 1112]})
+        category = {'configs': 'a/(*/*).options', 'match': set(),
+                    'columns': {'armor': ce.armour_values('armor'), 'back': ce.armour_values('back'),
+                                'arms': ce.armour_values('arms'), 'ano': ce.armour_values('ano'),
+                                'movement': ce.default_modification(111), 'experience': ce.default_modification(124),
+                                'regen': ce.default_modification(109)}}
+        files = {'a/torso/t.options': torso}
+        columns, rows = read_table(category, 'armor\tarmor\tback\tarms\tano\tmovement\texperience\tregen\n'
+                                             'torso/t\t0.55\t0.4\t0.3\t0.25\t1113\t\t1094\n')
+        written, _, gone = ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1030, 1113, 1094])
+        self.assertEqual(gone, {'a/torso/t.options': {'/default_modifications'}})
+        self.assertEqual((value(torso, 'hit_params/front/hit_types/slash/armor'), value(torso, 'hit_params/back/hit_types/ranged/armor')),
+                         (value(torso, 'hit_params/front/hit_types/ranged/armor'), value(torso, 'hit_params/back/hit_types/slash/armor')))
+        self.assertEqual(ce.stats_cells(torso, 0, columns, 'torso/t'),
+                         {'armor': '0.55', 'back': '0.4', 'arms': '0.3', 'ano': '0.25', 'movement': '1113',
+                          'experience': '', 'regen': '1094'})
+        self.assertEqual(ce.armour_card(torso)[6], '55')
+
+
+    def test_a_row_that_takes_a_bonus_out_and_puts_two_in_reads_back(self):
+        columns = list(ce.STATS['armor']['columns'])
+        cells = {'weight': '3', 'stamina_regen': '1103', 'experience': '1240'}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / 'live/gameplay/items/armour/torso/t.options'
+            path.parent.mkdir(parents=True)
+            path.write_bytes(bytes(config({'parameters': {'weight': 3.0}, 'default_modifications': [1030]})))
+            (root / 'armor.tsv').write_text('armor\t' + '\t'.join(columns) + '\ntorso/t\t' +
+                                            '\t'.join(cells.get(c, '') for c in columns) + '\n')
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), str(root / 'armor.tsv'),
+                                     str(root / 'live'), str(root / 'out')], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            out = bytearray((root / 'out/gameplay/items/armour/torso/t.options').read_bytes())
+            self.assertEqual(ce.items_of(out, 'default_modifications'), [1103, 1240])
+
+    def test_each_built_in_bonus_that_rolls_is_one_of_its_kinds_two_strongest(self):
+        """docs/notes/built-in-bonuses.md: a built-in bonus of a kind that rolls is that kind's second-
+        strongest row or its strongest (the strength: the drop weight, rarer is stronger)."""
+        here = Path(ce.__file__).resolve().parent
+        _, _, mods = ce.read_stats(str(here / 'modifications.tsv'))
+        _, columns, armour = ce.read_stats(str(here / 'armor.tsv'))
+        ranked = {}
+        for mid, row in mods.items():
+            if float(row['drop_weight'] or 0) > 0 and row['kind'] != 'reliability':
+                ranked.setdefault(row['kind'], []).append((-float(row['drop_weight']), int(mid)))
+        strongest = {kind: [mid for _, mid in sorted(rows)][-2:] for kind, rows in ranked.items()}
+        bonuses = [column for column, key in columns.items() if key == 'default_modifications']
+        checked = 0
+        for piece, cells in armour.items():
+            for column in bonuses:
+                kind = cells[column] and mods[cells[column]]['kind']
+                if kind in strongest:
+                    self.assertIn(int(cells[column]), strongest[kind], '%s %s' % (piece, column))
+                    checked += 1
+        self.assertGreater(checked, 50)
 
 
 if __name__ == '__main__':
