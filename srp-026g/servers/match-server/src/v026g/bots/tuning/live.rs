@@ -1097,7 +1097,7 @@ mod tests {
         // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
         // to ~1.49, ~17.4 %) to the cap.
         assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–20.0 % (cap 20)"), "{}", rifle.limits);
-        let low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
+        let span_low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
         assert_eq!(rifle.beside.as_deref(), Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"));
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
         assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
@@ -1117,7 +1117,7 @@ mod tests {
         assert_eq!(LiveTuning::new(LoadedTuning::default(), Some(changes.clone())).for_match(), next);
         // Refused whole: over the cap, outside the points, the pistols, not a number, a line that would fall (under the
         // usable span: the rifles just under it, the bolt at 27 %, a factor near 4.5 over its skill-0.5 one).
-        let under = format!("{:.1}", low - 0.2);
+        let under = format!("{:.1}", span_low - 0.2);
         for bad in [
             ("aim.class_aim.rifle", under.as_str()),
             ("aim.class_aim.rifle", "21"),
@@ -1133,7 +1133,7 @@ mod tests {
         let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
         assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
         // The rifles at the bottom of their span, the bolts at their cap and the DMRs inside their scope's flat stretch.
-        let at_low = format!("{:.1}", low + 0.1);
+        let at_low = format!("{:.1}", span_low + 0.1);
         set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
         set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "29.4")]).unwrap();
         let next = live.for_match();
