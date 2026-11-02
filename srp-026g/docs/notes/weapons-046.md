@@ -1,5 +1,7 @@
 # Weapons from 0.46c2 (pack weapons-046)
 
+Lobby icon update: [perpendicular profiles matching retail 0.26 references](../../scripts/weapon-icons/README.md). The import icon descriptions below record the earlier versions.
+
 Balance retune: [Zubr +8 comparison and proposed roles](imported_weapon_balance.md).
 The balance figures below describe the initial import.
 

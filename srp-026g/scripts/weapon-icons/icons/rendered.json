@@ -1,0 +1,222 @@
+[
+  {
+    "name": "ots14",
+    "pack": "weapons-031",
+    "cell": [
+      6,
+      5
+    ],
+    "model": "models/weapons/ots14/ots14.skinned_model",
+    "exposure": 1.247932,
+    "sha256": "7893b09cbe6e611cb6326b999eadc5d217bdca46369930525734519e47ee1394"
+  },
+  {
+    "name": "scar_h",
+    "pack": "weapons-031",
+    "cell": [
+      5,
+      5
+    ],
+    "model": "models/weapons/scar_h/scar_h.skinned_model",
+    "exposure": 0.192425,
+    "sha256": "5eca54d2f83fde21a3417c7e3c280eaf116a40620dc0a47ce17029e8151227b5"
+  },
+  {
+    "name": "vhs_2",
+    "pack": "weapons-031",
+    "cell": [
+      4,
+      5
+    ],
+    "model": "models/weapons/vhs_2/vhs_2.skinned_model",
+    "exposure": 0.950397,
+    "sha256": "89220e5232abcb0b207941d16261411a40ac7a08eaaae02b8b695738790b34ef"
+  },
+  {
+    "name": "fn_minimi",
+    "pack": "weapons-031",
+    "cell": [
+      8,
+      5
+    ],
+    "model": "models/weapons/fn_minimi/fn_minimi.skinned_model",
+    "exposure": 1.10107,
+    "sha256": "d22c1b99d1772f95b5dc2d2ea3ca902cfb8d338d921b412d58be345aa0c0f176"
+  },
+  {
+    "name": "mp5a1",
+    "pack": "weapons-046",
+    "cell": [
+      1,
+      6
+    ],
+    "model": "models/weapons/smg/mp5a1/mp5a1.skinned_model",
+    "exposure": 3.644995,
+    "sha256": "c2767bb45d49466161b95126456598ebe318891049808c7be31c3fb23f4188b8"
+  },
+  {
+    "name": "svu_a",
+    "pack": "weapons-046",
+    "cell": [
+      2,
+      6
+    ],
+    "model": "models/weapons/sniper/svu_a/svu_a.skinned_model",
+    "exposure": 1.697803,
+    "sha256": "2c7039a9533b5ab3daf44999d221846ac7d41f13f462e5b7581ddfc82d00462e"
+  },
+  {
+    "name": "l85a2",
+    "pack": "weapons-046",
+    "cell": [
+      3,
+      6
+    ],
+    "model": "models/weapons/assault/enfield_l85a2/enfield_l85a2.skinned_model",
+    "exposure": 0.845545,
+    "sha256": "9d47c1138ac57964c688902658f67f6035f16a8a90c84c7c67fdb0fe30620f4d"
+  },
+  {
+    "name": "fort_401",
+    "pack": "weapons-046",
+    "cell": [
+      4,
+      6
+    ],
+    "model": "models/weapons/lmg/fort_401/fort_401.skinned_model",
+    "exposure": 0.83396,
+    "sha256": "2e1764bd716de92af1a08c53a25d15e6fd34b6ef7264bfd19a13086e501ad2aa"
+  },
+  {
+    "name": "jackhammer",
+    "pack": "weapons-046",
+    "cell": [
+      5,
+      6
+    ],
+    "model": "models/weapons/shotguns/jackhammer/jackhammer.skinned_model",
+    "exposure": 2.243601,
+    "sha256": "2b2eaefbef22ea2e1026c119c17d4eccfb7166a412ef0af933405f855ce73f3e"
+  },
+  {
+    "name": "cz_75",
+    "pack": "weapons-046",
+    "cell": [
+      6,
+      6
+    ],
+    "model": "models/weapons/pistols/cz_75b.skinned_model",
+    "exposure": 2.312175,
+    "sha256": "b5e14896b9272bac8a4f5d6a0f2460a72e413fc4be04abe853026e2b4b48088b"
+  },
+  {
+    "name": "mp443",
+    "pack": "weapons-046",
+    "cell": [
+      7,
+      6
+    ],
+    "model": "models/weapons/pistols/mp_443.skinned_model",
+    "exposure": 2.76625,
+    "sha256": "ffc474c4a1afe84d201f2ecb0c5913f9d8f1f179ff1f41197627da660d9a2467"
+  },
+  {
+    "name": "beretta93r",
+    "pack": "weapons-046",
+    "cell": [
+      8,
+      6
+    ],
+    "model": "models/weapons/pistols/beretta_93r.skinned_model",
+    "exposure": 1.081479,
+    "sha256": "670a888a60cfe9275b1189d43763db39611a5b9d5ce719752143c026fec7de74"
+  },
+  {
+    "name": "glock_17",
+    "pack": "weapons-046",
+    "cell": [
+      9,
+      6
+    ],
+    "model": "models/weapons/pistols/glock_17/glock_17.skinned_model",
+    "exposure": 1.041124,
+    "sha256": "390c714684ca86a7d2386861458b7c9fe8fe3ebdb3026d050b5ce6cc449ad6c9"
+  },
+  {
+    "name": "colt_m1911",
+    "pack": "weapons-046",
+    "cell": [
+      10,
+      6
+    ],
+    "model": "models/weapons/pistols/colt_m1911/colt_m1911.skinned_model",
+    "exposure": 2.977117,
+    "sha256": "c091328b3f6152a0e47aecc80b2cc624fdf318d8299c04c98f641615bc2a1634"
+  },
+  {
+    "name": "akmsu",
+    "pack": "weapons-069",
+    "cell": [
+      17,
+      5
+    ],
+    "model": "models/weapons/assault/akmsu/akmsu.skinned_model",
+    "exposure": 1.917148,
+    "sha256": "b448d5a7dd10f22816e310b14e6abb5a9f6650210554e3e275d94cea1a68e367"
+  },
+  {
+    "name": "famas",
+    "pack": "weapons-069",
+    "cell": [
+      18,
+      5
+    ],
+    "model": "models/weapons/assault/famas/famas.skinned_model",
+    "exposure": 2.078913,
+    "sha256": "92bac2e2a0fb7bd3cb3a2f0c19d0e75d72929df8036be22aaa983818fc7e4f45"
+  },
+  {
+    "name": "g3sg1",
+    "pack": "weapons-069",
+    "cell": [
+      19,
+      5
+    ],
+    "model": "models/weapons/dmr/g3a3/g3a3.skinned_model",
+    "exposure": 2.783176,
+    "sha256": "e712374548ce1fd6f6f5b41f517595e1f38d3ec25c968adfa23b08fdc9f30e19"
+  },
+  {
+    "name": "mauser_m712",
+    "pack": "weapons-069",
+    "cell": [
+      20,
+      5
+    ],
+    "model": "models/weapons/pistols/mauser_m712/mauser.skinned_model",
+    "exposure": 2.208697,
+    "sha256": "6163fe585b93a6f3ee6f3ba080683a04d7aa285e7a43178c8afa86ee7c88f90b"
+  },
+  {
+    "name": "ks_23m",
+    "pack": "weapons-069",
+    "cell": [
+      21,
+      5
+    ],
+    "model": "models/weapons/shotguns/ks_23/ks_23.skinned_model",
+    "exposure": 2.575263,
+    "sha256": "56ac8ef1f882f1cf951cacb8743dca869eb62f5681ff00f474c0f34667818472"
+  },
+  {
+    "name": "ppsh_drum",
+    "pack": "weapons-069",
+    "cell": [
+      22,
+      5
+    ],
+    "model": "models/weapons/smg/ppsh/ppsh.skinned_model",
+    "exposure": 1.954634,
+    "sha256": "01ffaeb7b5e69f2b7a0af3a1604f9d7ea8b140aee00e7bf427bac74dfab85d5b"
+  }
+]
