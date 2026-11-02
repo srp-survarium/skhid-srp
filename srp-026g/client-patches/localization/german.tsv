@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst 
 st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
 st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
 st_srp_rooms_leave	Verlassen
-st_srp_rooms_leave_queue	Warteschlange verlassen
-st_srp_rooms_leave_room	Raum verlassen
+st_srp_rooms_leave_queue	Verlassen
+st_srp_rooms_leave_room	Verlassen
 st_srp_rooms_left_room	%1$s hat den Raum verlassen
 st_srp_rooms_level	Stufe
 st_srp_rooms_map	Karte
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
 st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
-st_srp_weapon_shift_hint	Shift halten: Details
+st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Waffenwerte
 st_srp_weapon_sway_cycle	Verwackelperiode
 st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
+st_srp_weapon_with_kit	Mit Loadout
+st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
 st_srp_weather_before_rain	vor dem Regen
 st_srp_weather_day	Tag
 st_srp_weather_evening	Abend
@@ -2849,9 +2851,16 @@ st_walther_competition2_collimator_desc	Deutsches Rotpunktvisier von Walther, ur
 st_walther_competition2_collimator_name	Competition II Kollimator
 st_wasted	Kosten
 st_weapon_aim_action	Zielen (halt.)
+st_weapon_already_taken	Bereits aufgehoben
+st_weapon_cannot_carry	Kein zweites Gewehr möglich
+st_weapon_cannot_pick_up	Kann nicht aufgehoben werden
 st_weapon_could_not_be_used	Verwundung der Hände! Es ist unmöglich, die Waffen zu verwenden
 st_weapon_fire_action	Schießen
+st_weapon_no_gun_in_hands	Waffe in die Hand nehmen zum Tauschen
+st_weapon_one_gun_only	Nur eine Waffe tragbar
+st_weapon_pick_up	%1$s aufheben ({USE})
 st_weapon_reload_action	Nachladen
+st_weapon_switching	Waffenwechsel abwarten
 st_wear	Anziehen
 st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.
 st_weight_booster_name	 Anomalie Starke

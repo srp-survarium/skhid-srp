@@ -1772,6 +1772,22 @@ The owner's screenshot (2026-11-01): after a resync the held rifle's body is gon
 - **Builds:** against the same build without WEAPON_SHOW the default build differs in file 0x233232..0x233237 (the site) and the PE checksum, and in nothing else (compared byte by byte).
 - **Checked:** selftest check 91 (`test_weapon_show`: the six bytes in the original, the build and the build without the late join; on_show's branch and body test, draw's scope test and add_aimed as listed above, read from the original; no write of +181Eh in on_show, draw or the scope's add and remove, the filter seeing deserialize's three; no relocation under the site, nothing aims inside; cert-only keeps the original; the allowed ranges of every variant); `check_weapon_show_026g.py` (Unicorn 2.1.4: on_show, draw from 0x244E99 to 0x245017, add_aimed, remove_aimed and 0x243940 run as they are, the renderer's add, remove, update, skeleton and set_model_visible stubbed with the in-scene byte kept as the renderer keeps it; a show, a draw with the scope view, a draw with it cleared, for the local player and another, no optic and both kinds: the original loses the body in first person with a red dot, the build keeps it, and in every other case each draw ends as the original's; no model added or removed twice; +181Eh unchanged; the three builds the same). **Not run:** a game.
 
+### 3.61 The render thread never reaches a Scaleform queue being destroyed (written 2026-11-01, README patch 93, the next release's revision) — PROVEN in the code, OnNextCapture and the queue's destructor run with Unicorn; not run in a game
+
+Two players' crash reports of revision 40, the same stack, at the switch from a match to the lobby (the render thread): `survarium::flash_renderer::present` 0x2AF0F0 -> `Scaleform::Render::ContextImpl::RTHandle::NextCapture` 0x50FEC0 -> (`call eax` at 0x5100CB) `DrawableImageContext::OnNextCapture` 0x572660 -> `DICommandQueue::OnNextCapture` 0x5EE080 -> `DICommandQueue::updateCPUModifiedImagesRT` 0x5ED340, whose EnterCriticalSection of the queue's lock (queue+44h) faults writing 0x14: the queue was freed. Every function named here byte-matches its 0.21d PDB body (re-kit `functions.tsv`, `reviewed`; mergeQueueWith differs by one DrawableImage field offset).
+
+- **The list** (PROVEN). A DrawableImageContext keeps its command queues in a list: a queue is its own link (Scaleform::ListNode: prev +8, next +0Ch), the list's end is in the context (+40h; its next +4Ch the first queue, its prev +48h the last), and a Scaleform::Lock (a CRITICAL_SECTION) at +24h guards it. AddCaptureNotify (0x5726B0, ECX the context, the queue at ESP+4, `ret 4`) appends a queue holding it; RemoveCaptureNotify (0x5726F0, the same) unlinks it holding it and zeroes its links, and leaves a queue whose next is already 0 alone. Nothing else is done under it. Enter/LeaveCriticalSection are the IAT slots 0x8700D0 / 0x8700CC.
+- **The walk** (PROVEN). OnNextCapture (ECX the context's ContextCaptureNotify base, context+8, kept in ESI; the notify at ESP+4, kept in EBX; `ret 4`) calls the context's vtable+4, ExecuteNextCapture (0x5725F0: the inner render Context's NextCapture 0x50F920, which takes that Context's own lock), then walks the list from [ESI+44h] to ESI+38h, reading each queue's next before calling `DICommandQueue::OnNextCapture` (0x5EE080: AddRef 0x505CA0, updateCPUModifiedImagesRT under the queue's lock, ExecuteNextCapture 0x5EDEA0, Release 0x505CB0), without the context's lock. OnCapture (0x5744E0, the main thread's Capture) walks it without the lock too, with plain AddRefs.
+- **The destructor** (PROVEN). A queue is counted (RefCountImpl: +4, InterlockedExchangeAdd 0x870094); Release at 0 calls its vtable+0, the scalar deleting destructor 0x5ED740, the destructor 0x5ED1E0's only caller. The destructor writes the count 2 (0x5ED1ED), removes the queue from its context (0x5ED1F4, RemoveCaptureNotify on [queue+34h], the context it holds a reference to since its constructor 0x5ED650 added it, 0x5ED72D), releases the context (0x5ED213) and the rest, and the memory is freed. So a queue whose last reference goes on the main thread is freed while the render thread's walk is inside it (it already called OnNextCapture: AddRef from 0 does not save it) or holds it as the next: the crash.
+- **Why the lock is not simply held around the stock loop** (PROVEN, a deadlock). The walk's call takes each queue's lock (updateCPUModifiedImagesRT, 0x5ED34E). The main thread takes the context's lock with a queue's lock held: DrawableImage::mergeQueueWith (0x5731F0) enters its own queue's lock (0x5732CB) and releases the other image's old queue under it (0x5732E4); a last release runs that queue's destructor, whose RemoveCaptureNotify enters the context's lock. Holding the context's lock across the walk's calls would order it before a queue's lock on the render thread and after on the main thread. Holding it only around ExecuteNextCapture is no better (it takes the inner Context's lock).
+- **The patch** (the Rust patch `scaleform_capture`, `rust/patches/src/scaleform_capture.rs`, `vostok/drawable_image.rs`): the context's lock is held only to read the list and to take a reference to a queue, never across a call into the game, so it stays the leaf it is in the stock code.
+  - `scaleform.di_next_capture`, a lohook at 0x572675 (the six bytes `mov ecx,[esi+44h] / lea edi,[esi+40h]`, after ExecuteNextCapture, which stays outside any lock of ours), exit `done` at the epilogue 0x57269C (`pop edi / pop esi / pop ebx / ret 4`: it pops what the entry pushed, whatever the registers hold; the entry restores ESP as the site had it, the stock loop leaves it the same). The handler, with the lock: from the end's next, the first queue whose count is not 0, its count raised by a compare-exchange (a queue at 0 is being destroyed and is passed over); without it: that queue's OnNextCapture with the notify; with it: the next live queue after it (its link is valid: our reference keeps it alive and so in the list); without it: Release of the queue before. The order and the notify are the stock walk's; the next is read after the call from a queue we hold rather than cached before it (the stock cached next could itself be freed during the call).
+  - `scaleform.di_queue_destroy`, a lohook at 0x5ED1E0 (`push esi / mov esi,ecx / mov ecx,[esi+34h]`, replayed): RemoveCaptureNotify(queue's context, queue) before the stock body writes the count 2. In the list a queue's count is its true one, so 0 there means a destructor waiting for the lock; the stock body's own removal finds the links 0 and changes nothing.
+  - The context stays alive through the walk: each queue holds a reference to it, and the walk touches it again only while it holds a queue. A last reference let go by the walk destroys the queue on the render thread, its destructor taking the context's lock, which the walk does not hold then (the stock OnNextCapture's own Release could already do that).
+- **Left as it is:** OnCapture's walk (0x5744E0, the main thread) still reads the list without the lock and takes plain AddRefs (from 0 too), racing a destructor run on the render thread (by a last Release in the walk, ours or the stock OnNextCapture's) as before; it is not in the reports, and the same walk would fix it with a third hook.
+- **What changes:** the interface's rendering alone: no row in `../../crates/session/src/v026g/simulation_changes.tsv`.
+- **Checked:** `check_scaleform_capture_026g.py` (Unicorn 2.1.4), the original beside: OnNextCapture from its start to its return, with the game's Release and RemoveCaptureNotify, kernel32's lock and InterlockedExchangeAdd, ExecuteNextCapture, DICommandQueue::OnNextCapture and the scalar deleting destructor stubbed (each section's depth kept; a destroyed queue unlinked and its memory poisoned). Three live queues; none; a queue at 0 (the original visits it); the next queue destroyed while the walk is at the one before (the original goes on to the freed queue); the walk's reference the last (destroyed once, after its visit, no lock held). In each: ExecuteNextCapture once, first, outside the lock; the queues in order with the notify, none with the lock held; every list read (context+4Ch, a queue's +0Ch and +4) with it; the lock balanced; the counts as before; EBX/ESI/EDI/EBP kept, the notify popped. The destructor from 0x5ED1E0 to 0x5ED1F9: the queue out of the list at the count's 2 (the original: still in it), then list, links, count and registers as the original's. `check_hooks_026g.py`, `check_engine_026g.py`, the self-test's hook, engine and arena functions; `cargo test`, `cargo clippy --all-targets` in `client-patches/rust`. **Not run:** a game.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
@@ -2483,6 +2499,9 @@ And the carry limit's parts: the menu's base limit (+3118h), the kit's floats
 of modifiers 5 (skills) and 26 (Packrat) (`data.md`, "The carry limit by
 source"): ten arguments in all.
 It retains the original two arguments if the config is unavailable or invalid.
+Before the weight, in every case, it calls `root.set_kit_modifiers` with the
+selected kit's 68 floats by index (the skills' sums), for a weapon card's stats
+in a match while Alt is held (`alt-weapon-stats.md`).
 The shim preserves registers, flags and floating-point state and returns with
 the original `ret 16` convention. `check_weight_ui_026g.py` executes both hooks,
 the original callback and kit evaluator; `data.md` records the formula evidence.
@@ -2510,7 +2529,9 @@ card replaces the ambiguous distance row with the full-damage distance and the
 minimum-damage distance/fraction, and adds base reload time. Holding Shift adds
 draw/holster time, zoom, stamina damage, hip spread where specified, recoil,
 spread/recovery and sway. Wear rates and reliability are deliberately excluded.
-Weapon-local modifiers are included; profile gear and skills are excluded.
+Weapon-local modifiers are included; profile gear and skills are excluded, but
+while Alt is held (`alt-weapon-stats.md`: the harness checks it, with an aim-time
+roll on a 0.2 s weapon, `0.2 -> 0.196s`).
 
 Recoil and spread are not labelled degrees: the native recoil loader at
 0x331840 divides horizontal config values by 21.48 and vertical values by
@@ -2636,15 +2657,21 @@ two branches on the same layouts.
 
 ### Battery progress (patch 92)
 
-`battery_progress` (Rust, `vostok::statistics`) pays a battery's carrier a point
-(10 hundredths of event 6) for each 10 m the battery comes nearer the carrier's
-team's container than it has been in its life (`battery_credit.md`). The game's
-own measure (`victory_item_event_manager` 0x334810: the projection on the line
-between the containers, `nearest_positions`, credited to `carried_distances` at
-events only) resets a team's nearest whenever the other team touches the
-battery, which two enemies passing it would farm, and the delivery shares
-depend on that reset; so the patch keeps its own nearest, in the record's
-unused +FEh/+FFh (a byte per team: 0 untouched in the life, else the steps + 1).
+`battery_progress` (Rust, `vostok::statistics`) holds on a battery, for each
+carrier, 2 points (40 hundredths of event 6, weighed 5) for each 10 m the
+battery comes nearer the carrier's team's container than it has been in its
+life, and pays them when the battery is put into that team's container
+(`battery_credit.md`). The game's own measure (`victory_item_event_manager`
+0x334810: the projection on the line between the containers,
+`nearest_positions`, credited to `carried_distances` at events only) resets a
+team's nearest whenever the other team touches the battery, which two enemies
+passing it would farm, and the delivery shares depend on that reset; so the
+patch keeps its own. The game's 100h-byte record has no byte free that every
+game keeps, so each battery's life (a byte per team: 0 untouched in the life,
+else the steps + 1; the steps held per cell, place x 3 + kit, as the game's
+`carried_distances`) is the patch's own state, the ten of one manager's
+records (keyed by the address of its first), and it travels in the world
+after each record.
 
 - `battery.carrier_tick` 0x2DAAD3 (`base_player::tick` after the held object's
   tick, `mov ecx,[esp+10h] / push edi`, 5 bytes): EBX the player. Its held
@@ -2654,22 +2681,29 @@ unused +FEh/+FFh (a byte per team: 0 untouched in the life, else the steps + 1).
   bands (the 3D distance from the transform's position [+40Ch+30h] to
   [manager+0A20h] and [+0A2Ch], over 10 m, at most 254) become the nearer of
   the kept and the current; the steps the carrier's own team's band came
-  nearer are counted in its cell and told to the listener as patch 80 counts.
-  The first carry of a life sets both and pays nothing.
-- `battery.match_start` 0x334999 (start_match once the containers' positions
-  are kept, `mov eax,[esi+0A38h]`, 6 bytes; ESI the manager): the ten
-  records untouched. `battery.delivered` 0x334CEA (on_event's put-in after the
-  shares and the record's reset, `mov [ebx+0F8h],eax`, 6 bytes; EBX the
-  record): the record untouched.
+  nearer are held for its cell. No count, no listener: nothing shows. The
+  first carry of a life sets both bands and holds nothing.
+- `battery.delivered` 0x334CEA (on_event's put-in after the shares and the
+  record's reset, `mov [ebx+0F8h],eax`, 6 bytes; EBX the record, ESI the
+  manager, EAX the putter's team, its [esp+8] from 0x334CC5): every held cell
+  of a place of that team is counted its steps x 40 of event 6 (the place's
+  record at the shared statistics, the manager - 2760h) and told to the
+  listener as patch 80 counts; the other team's are dropped; the life begins
+  again. `battery.match_start` 0x334999 (start_match once the containers'
+  positions are kept, `mov eax,[esi+0A38h]`, 6 bytes; ESI the manager): every
+  life begins again.
 - `battery.save` 0x334F66 (serialize after a record's first_finder, 10 bytes;
-  ESI the record, EDI the writer) writes the two bytes with w<u8> 0x1F3DE0;
-  `battery.load` 0x3350D0 (deserialize after first_finder, 6 bytes; ESI the
-  record, EDX the reader) reads them within the reader's size, untouched
-  without them. The server's decoder (`VictoryItemStatus::progress`) reads them.
+  ESI the record, EDI the writer) writes the life with w<u8> 0x1F3DE0: the
+  two progress bytes, a count, then each held cell's (cell, steps) in rising
+  cell order; `battery.load` 0x3350D0 (deserialize after first_finder, 6
+  bytes; ESI the record, EDX the reader, EBP the manager) reads it within the
+  reader's size, a new life without it or for a life no game writes. The
+  server's decoder (`VictoryItemStatus::progress`, `::held`) reads them.
 
-Simulation: the count and the bytes are in the world's statistics, so every
+Simulation: the payment and the lives are in the world's statistics, so every
 client of a match must run it. `check_battery_progress_026g.py` runs the five
-hooks in the patched exe on made-up objects, and the game's own serialize and
+hooks in the patched exe on made-up objects (a relay paid at its own team's
+delivery, steps dropped at the other team's), and the game's own serialize and
 deserialize of two records with the hooks inside.
 
 ### A bullet stops a drug (patch 84)
@@ -2845,6 +2879,135 @@ with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a ga
   closed.
 - **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
   `engine_close_current_match`) with reason 2, as match.md section 25 has it.
+
+### World round trip: a resync always converges (every patch)
+
+Written 2026-11-02; `check_world_roundtrip_026g.py` (Unicorn). The rule: a game that loads a world
+and saves it at once writes the bytes it loaded, whatever it held before. A late join and a
+resync load the majority's world (0xE8); a patch that writes a saved byte from this game's own
+objects makes this game's next world differ from the others', and the server resyncs it until it
+drops it. Rev41 did that: patch 85's record carried 28 bytes of the own kit a pick set aside,
+written from each game's objects (`weapon_pickup.md`, the live desyncs of rev41).
+
+- **What runs:** every patch site inside the world's load and save, with the exe's own code, in
+  the order the game reaches them, over the bytes it owns in a recorded world.
+  `world_load.unpacked` (0x27C0D0) runs over the whole world. In each place's state,
+  `pickup.load` (0x2DB4CF) runs at offset 2 and `carry.load` (0x2DBAB5) at the last 32 bytes.
+  Then each place's `pickup.save` (0x2DAF70) and `carry.save` (0x2DB47E) run with the game's byte
+  writer (0x1F3DE0). Each hook must read as many bytes as it writes, and write the bytes it read.
+  A patch log line saying the load is not this game's state (`NOT installed`, `NOT registered`,
+  `NOT made`, `does not decode`, `FAILED`) fails the check too, because the game's own fields
+  would differ after it.
+- **Not run: the native codec** around those hooks (game_world_core::deserialize 0x2D0B70 and
+  0x2D2770, serialize 0x2D2570; base_player 0x2DB490 and 0x2DAF60). It needs a live game's
+  objects (the animation player, physics, items cooked from their configs), which no made-up
+  world gives. Its fields are the game's own, and resyncs converged before the patches. So no
+  native field is compared, and none had to be excluded.
+- **Three games load each world:** two fresh ones (late joiners that saw nothing, with own
+  kits of 30 rounds in each gun, 90 in its stack and condition 1.0, or 7, 13 and 0.5), and one
+  that has loaded every earlier world in time order (a resync over its own state). A byte
+  written from the game's own objects differs in at least one of them. The games are
+  check_weapon_pickup_026g.py's made-up match, with every place's three kit players in the
+  core's place table and a cook that makes any recipe.
+- **Coverage:** every byte the build changes in a function of the world's codec must be in a
+  site the check runs, or in `OWN_CHECKS` with the check that runs its round trip. The codec's
+  functions are the re-kit names containing `::serialize` or `::deserialize`, plus the bullet
+  loader 0x32BBC0 and the 0xE8 handler. A new patch site there fails the check until it is one or
+  the other. The 15 sites in `OWN_CHECKS` fall into two kinds:
+  - Bytes in a section that no decoder in this repository locates: carry.ground (objects),
+    patch 75's lamp history and the bullet's quiet byte and ordinal (bullets), and patch 92's
+    battery lives (statistics; modes 2 and 3 only).
+  - No bytes of their own: world_load.raw (the same preparation), the first load's input and kit,
+    and shared_statistics' constant count.
+- **The worlds:** `worlds_026g/` holds 8 dumps from rev41's match 0x1c0ebd31 (41 KB): joiner
+  world 140950 and the majority's 134600 at the same pick, a pickup waiting for its switch
+  (714900), two picks of one recipe (713800), a departed donor (634100), an open drop (209650),
+  carries (671550) and the initial world. They hold no names, sessions or addresses (checked).
+  The whole match, 501 worlds, is in `private/live-worlds-1c0ebd31/` in the owner's checkout.
+  Any `SRP_SNAPSHOT_DIR` dumps can be given as arguments.
+- **The record is opaque bytes:** its version and size are what the exe's own save writes, so
+  a new record version needs no change to the check. The one layout it knows is the corpus's,
+  rev41's version 4 (48 bytes), read as version 6 writes it (`from_v4`). Bytes 1..20 are kept,
+  since every version since has the same drop, picks and pending pickup there. The 28 bytes of
+  the own kit set aside are dropped. Each pick gets the own-gun wear 0.75 (`V4_WEAR`). Rev41's
+  record had no wear, and after the swap the world no longer carries the own gun, which is
+  hidden in the cooked inventory that the world does not save. 0.75 is a condition no own gun
+  of the check's games has (1.0 and 0.5), so a save that took the wear from the game's own gun
+  would differ. Any other recorded version stops the check.
+- **Results (2026-11-02):**
+  - main with #1045 (record version 6, 28 bytes), all 501 worlds: every hook wrote what it
+    read, in all three games (140 s).
+  - Rev41's build (7b02040cc): 421 of the 501 worlds differ in each game. These are exactly the
+    worlds whose record holds a pick, and every differing byte is in record bytes 20..23: the
+    first set-aside block's tag, magazine, stack slot and count, written from the game's own kit.
+    The fresh games also log 36 departed-donor picks as `NOT installed`, the other rev41 bug
+    #1045 fixed.
+  - The default worlds take 4 s after the 33 s build.
+- `python check_world_roundtrip_026g.py <original survarium.exe> [WORLD or FOLDER ...]
+  [--exe BUILT]`: with `--exe`, a built exe (for example, a release's) runs instead of this
+  tree's build.
+
+### Dropped-weapon pickup (patch 85)
+
+The spec, the design and its evidence in full: `weapon_pickup.md`. The
+addresses it rests on (Unicorn: `check_weapon_pickup_026g.py`):
+
+- **The copy:** at `carry.client_death` (0x1F28E0) one query (0xE5B60) of
+  the player cook's inventory request (41h, 0x9FD55C) from a profile copy
+  (0x2F73F0, operator= 0x284D10) keeping the weapon slot and the ammunition
+  slots; the completion a boost member callback (0x27D280, invoker
+  0x202300). Never freed mid-match once registered or in hands (a bullet
+  keeps raw pointers to its weapon item and ammo, +0Ch/+40h, 0x32BB27): only
+  at its last holder's destruction (`player.destroy` 0x1F2100); re-used for
+  its donor's next drop; an untaken one freed after base_player::remove(1)
+  (`pickup.remove` 0x2DA790).
+- **The record** (48 bytes, version 4) at `pickup.save` (0x2DAF70) and
+  `pickup.load` (0x2DB4CF), before the held (0x2DB626) and pending
+  (0x2DB796) ids and the inventory (0x2DB7D8): drop, picks, the pending
+  pickup, the parked own kit (the server's count of own ammunition).
+- **The registry** (core+18B4Ch, an inline buffer_vector of 255 at +18B58h;
+  appended by bind_to_game_core 0x2E30F0 and the victory items 0x313F50,
+  never erased, never saved or loaded): ids 195..254 reserved, three a
+  place (slot 7's pick, slot 10's, the pending gun).
+- **The command** at `carry.filter` (0x2D876F): the drop taken, the copy
+  registered and made the pending object (+12Ch), m_need_to_select_animations
+  (+33Eh) set as set_input does for changed actions (0x2D899D), so this
+  tick's tick_animations (0x2D8F42) runs select_animations and
+  tick_active_object (0x2D7650); fire (0x20) and reload (0x40) cleared from
+  the applied actions (+330h, read by the weapon at 0x2E0E87) until the swap,
+  after patch 78's filter.
+- **The holster:** `pickup.tick_active` (0x2D7650's entry) puts back another
+  pending object and the inventory's selected slot (+170h, inventory::action
+  0x2FCB18); `pickup.switch` (0x2D76D0, once the held gun is ready to be
+  deactivated) puts the gun in hands away as the native switch does
+  (deactivate(1) 0x244860, forget_active_object 0x3919E0) before any slot
+  moves, installs the copy (set_item 0x2FC620, remove_item 0x2FC680,
+  set_user 0x2445E0, initialize 0x2449E0, activate 0x244610) and exits to
+  0x2D7724. Never a forced swap: a gun put away before it is ready keeps
+  intervals forget_active_object does not drop, whose sound events
+  (0x297C50 -> 0x2981A0) read its cleared user (+8, 0x2E2EE0) at 0x298252.
+- **A loaded record:** a held pick it does not name is put away (deactivate,
+  forget) before its restore, so the reader (0x2DB662) and remove (0x2DA7FD)
+  find no held object; the reader rebuilds the animation player
+  (0x395B50) and activates the held object (0x2DB80D). A re-installed copy
+  that was in hands here gets no weapon call of ours.
+- **The crate:** `pickup.can_use` (0x2F809C), `pickup.use_hint` (0x2F80E4),
+  `pickup.resupply` (0x2F81B8), `pickup.client_resupply` (0x2954EF): the
+  native resupply (0x2FDC10) and check_resupply (0x2FDF50) see a 188h view
+  with the own kit; the borrowed loaded stack refilled by the bags rule.
+- **The bullets:** a record names its weapon by the shooter's slot (+254h,
+  0x32C0B5) and the ammo's ordinal (0x2E26B0); the loader takes the slot's
+  gun (0x32BDA1) and its ammo (0x2E2750). The quiet byte (+80h) is always
+  written and read (`bullet.save_quiet` 0x32C148, `bullet.load_quiet`
+  0x32BE12; natively only for multi-pellet ammo, so a rifle's record read
+  with a shotgun in the slot went out of step), an ordinal past the loading
+  gun's ammo is its none (`bullet.load_ordinal` 0x32BDBA).
+- **The local client:** the ragdoll's gun at `carry.weapon` (0x2477C8; the
+  copy's model box weapon+1810h -> +108h -> +0 -> +62B4h -> +108h, turned by
+  Y(pi)); the prompt at `player_icons.update_start` (0x23AA10; the eye
+  player+44Ch, a 2.2 m segment into the box padded by 15 cm, patch 78's ray
+  0x24/2), `show_artefact_offer` with the name translated (0x1FF0F0) or the
+  refusal's key; the command at `input_builder.end` (0x2421B0).
 
 ### The weapon kit (patch 68)
 

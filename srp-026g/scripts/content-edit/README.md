@@ -100,6 +100,17 @@ the capture units' `capture_zones`). Moving spawns or capture units, or changing
 stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
 list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
+## Stats tables
+
+A table, `<table>.tsv` (`weapon-stats.tsv`): a row per config (or per level's projects, or per entry
+of a list), a column per stat; or `key  value`, a row per key of one config, which the build makes
+when no archive has it (`gameplay/srp/<name>.options`). An empty cell means no such key. To retune,
+edit the cell. `content_edit.py` `STATS` says what a row is and maps each column to its key path
+(`[*]` every entry of a list, `[field=cell]` the matching ones); the build writes the cells and the
+cards, refuses a config that differs from its row, and a changed match column without the `next` row.
+`content_edit.py --dump-stats <table> <folder>` prints a table from configs; values that differ within a
+row are refused there (a cell unifies them).
+
 ## weapon-balance-1.json (2026-10-18)
 
 Scored against the recorded live matches since revision 19 (about 10,000 gun kills):
@@ -123,9 +134,6 @@ weapon / kills the same players get with their other weapons.
 | the three glowing-dot materials of the sights ported from 0.51c5 (`material_instances/weapons/loc/collimator_glowing_dot_red`, `loc2/collimator_glowing_dot_red`, `loc2/collimator_glowing_dot_green`): `constant_transparency` 1 -> 0.3 | 0.51c5's value: the round-12 material merge of the scope port dropped it because its kind differed (float in 0.51c5, int 1 in the template), so every ported red-dot and ring reticle (Aimpoint, Cobra, Docter, EOTech, DeltaPoint) glowed 3.3 times brighter than in 0.51c5; the 0.29a3 stock sights are unchanged |
 
 | a magazine line on every weapon card (83): `ui_properties` line 134 "Magazine" (a new text in the six localization tables), a `props_list` entry after the rate of fire with the weapon's `magazine_capacity` | the card did not say how many rounds a magazine holds; it draws eight comparable lines and every weapon had eight, so the patch also carries the lobby movie with a ninth row (`srp-026g/docs/notes/items.md` §7) |
-
-The lobby card shows text kept in each config (`ui_desc/props_list`), not the
-values: the list changes that text with each value (`set_prop`).
 
 The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4fe7`) is patch 20's
 (sha256 `f21eac03…e117`) with two tags changed and every other tag byte-identical: sprite 1538
@@ -165,31 +173,6 @@ game data): 83 files edited, 0 unexpected differences; in `release/build-content
 after golden-weapons-1 and the other lists of the manifest): 83 files edited, 0 unexpected
 differences.
 
-## weapon-balance-2.json (2026-10-20)
-
-| change | why |
-|---|---|
-| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 40 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here"; then, shown the table below: "50 35 for ak-12" (piercing between 0.27d0's 40 and 0.28a2's 30; 0.28a2 rebalanced the whole game, so only the AK-12's own change is taken); 2026-10-21: "ak12 to have 40 penet" |
-| premium AK-12: `default_modifications` [1230, 2044, 2094] -> [1230] (a new edit, `remove_item`) | the owner: a premium weapon gives silver and nothing else. 1230 is +10 % silver; 2044 (reload time -15 %) and 2094 (reliability +25 %) go. The defaults are not on the wire: the client and srp both read them from the config |
-| Socom16 (`wpn_socom16`): `bullet_damage` 0.8 -> 0.7; the card's damage 80 -> 70 | the owner: "and also Socom16 75 → 50" (0.28a2's cut); then, shown the table below: "seems like socom is nerfed too much, let's make it 60" (0.31a2's value); 2026-10-21: "socom16 is fine if it has 70 damage". Live has 0.26g's 0.8 (0.27d0 had cut it to 0.75). Piercing stays 0.45: 0.28a2 also cut it to 0.35, the owner named the damage only |
-| A-545 (`wpn_a545`): `bullet_damage` 0.5 -> 0.45, `bullet_pierce` 0.3 -> 0.25, `rounds_per_minute` 900 -> 800; the card's props 1, 3, 4 to match | the owner, 2026-10-21, shown its history: yes to 0.28a's nerf (0.28a2's values; its recoil change not taken) |
-
-The two weapons in the builds at hand (damage / piercing; the card shows them x100):
-
-| build | AK-12 | premium AK-12 | Socom16 |
-|---|---|---|---|
-| 0.26g stock | 0.55 / 0.45 | - | 0.80 / 0.45 |
-| live, revision 25 | 0.55 / 0.45 | 0.55 / 0.45 | 0.80 / 0.45 |
-| 0.27d0 (no 0.27a at hand) | 0.55 / 0.40 | 0.50 / 0.40 | 0.75 / 0.45 |
-| 0.28a2 | 0.50 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
-| 0.28d0 | 0.45 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
-| 0.31a2 | 0.35 / 0.55 | 0.35 / 0.55 | 0.60 / 0.40 |
-| 0.46c2 (`material_pierce` 6, another scale) | 0.26 / - | 0.26 / - | 0.65 / - |
-| **here** | 0.50 / 0.40 | 0.50 / 0.40 | 0.70 / 0.45 |
-
-Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
-`wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
-
 ## grenade-bounce-1.json (2026-10-21)
 
 | change | why |
@@ -210,11 +193,6 @@ Applied to revision 26's server game data (`gameplay/items/weapons/`): 22 files 
 unexpected differences; server data built with it and the patches before passes `srp-check-game-data`. srp and
 `release/build-server-db` refuse data without it (`golden::check`). The patch also
 carries the lobby movie built from the tree (the craft result shows the item upgraded, not the donor).
-
-`wpn_ak_12_premium.options` is also weapon-balance-2's: a patch carries a file whole, so in one
-release apply this list to weapon-balance-2's output, not to the live file beside it (checked on
-revision 24's files: weapon-balance-2, then this list over its output: 22 files edited, 0
-unexpected differences).
 
 ## death-poses-1.json (2026-10-21)
 
@@ -455,29 +433,9 @@ Removed: its text is in `client-patches/localization/*.tsv`.
 Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`).
 
-## socom-nerf-1.json (2026-10-25)
-
-| change | why |
-|---|---|
-| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
-| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
-
-Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
-edited, 0 unexpected differences. The simulation changes (the `next` row of
-`simulation_changes.tsv`).
-
 ## network-texts-1.json (2026-10-25)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## svd-level-1.json (2026-10-25)
-
-| change | why |
-|---|---|
-| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
-
-Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
-differences. Not a simulation change.
 
 ## kill-feed-weapons-1.json (2026-10-26)
 

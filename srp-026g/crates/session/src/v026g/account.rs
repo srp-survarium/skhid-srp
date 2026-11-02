@@ -158,10 +158,13 @@ pub struct Account {
     /// moved it.
     pub rating: u16,
     pub rating_before: u16,
-    /// What the sides of a match are made with, beside its gear and its
-    /// level: not the ranking's rating, and shown to nobody
-    /// ([`super::balance`]).
+    /// A rating of its wins and losses against what was expected: not the
+    /// ranking's, shown to nobody, kept for the log and its refit
+    /// ([`super::balance`]); the sides no longer count it.
     pub balance: super::balance::Balance,
+    /// Its kills and deaths by the equipment level of the matches: what
+    /// the sides of a match are made with ([`super::level_stats`]).
+    pub level_stats: super::level_stats::LevelStats,
     pub kits: Vec<Kit>,
     /// The id of the kit it plays.
     pub active_kit: u32,
@@ -279,6 +282,7 @@ impl Account {
             rating: super::pay::START_RATING,
             rating_before: super::pay::START_RATING,
             balance: Default::default(),
+            level_stats: Default::default(),
             kits: (1..=KITS as u32).map(Kit::empty).collect(),
             active_kit: 1,
             // On for a new account (the owner's of 2026-10-23); the player

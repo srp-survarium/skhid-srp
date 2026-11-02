@@ -450,22 +450,16 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
             }
         );
     }
-    // Each bot counts for its gear level, as a player of level 0.
+    // Each bot counts for an average player.
     let running = world
         .core
         .matches
         .values()
         .find(|running| running.ticket.match_id == ticket)
         .unwrap();
-    let bot_strength = world.core.settings.balance.strength(
-        matchmaking::level_of(15, 0).min,
-        0,
-        Default::default(),
-    );
-    assert!(bot_strength > 0);
     assert!(
         running.strengths[1..]
             .iter()
-            .all(|&each| each == bot_strength)
+            .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
     );
 }

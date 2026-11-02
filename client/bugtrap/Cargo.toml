@@ -7,6 +7,11 @@ edition = "2024"
 name = "BugTrap"
 crate-type = ["cdylib"]
 
+[features]
+# Local test builds only: dumps of the whole process memory (src/dump.rs).
+# build.rs refuses it with SKHID_REVISION (a release); release/build-zip checks.
+full-memory-dumps = []
+
 [dependencies]
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Gdi", "Win32_System_SystemServices", "Win32_Storage_FileSystem", "Win32_System_DataExchange", "Win32_System_Diagnostics_Debug", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Environment","Win32_System_Kernel", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_IO", "Win32_System_Threading", "Win32_System_SystemInformation", "Win32_Security", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_UI_Controls"] }
 

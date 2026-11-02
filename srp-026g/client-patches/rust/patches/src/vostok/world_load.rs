@@ -14,11 +14,9 @@
 //! leave button does, and the site's exit `refused` is the handler's
 //! epilogue (0x27C1E0), past the post-load steps (world_frame_check.md).
 
-use core::marker::PhantomData;
-
 use super::context::Context;
 use super::hook::Thread;
-use super::world::read;
+use super::world::{read, NetworkClient};
 use crate::raw;
 
 /// `close_current_match`'s reason 2, "disconnected_by_initiator" (the
@@ -40,7 +38,7 @@ pub struct WorldLoad<'t> {
     client: raw::NetworkClient,
     state: &'t [u8],
     source: Source,
-    _thread: PhantomData<&'t Thread>,
+    thread: &'t Thread,
 }
 
 impl<'t> WorldLoad<'t> {
@@ -54,7 +52,7 @@ impl<'t> WorldLoad<'t> {
         // SAFETY: the buffer is alive for the hook, `size` bytes from its
         // begin (resize at 0x27C0A8 set it within its capacity).
         let state = unsafe { bytes(buffer.begin(), read(buffer.size()) as usize) };
-        Some(WorldLoad { client, state, source: Source::Unpacked, _thread: PhantomData })
+        Some(WorldLoad { client, state, source: Source::Unpacked, thread: ctx.thread() })
     }
 
     /// At `world_load.raw`.
@@ -72,12 +70,22 @@ impl<'t> WorldLoad<'t> {
         // SAFETY: begin..end are the packet's bytes, alive for the hook, and
         // cursor..end lies inside them.
         let state = unsafe { bytes(cursor as *const u8, end - cursor) };
-        Some(WorldLoad { client, state, source: Source::Packet(reader), _thread: PhantomData })
+        Some(WorldLoad { client, state, source: Source::Packet(reader), thread: ctx.thread() })
     }
 
     /// The world: its time (u32), then its body.
     pub fn state(&self) -> &'t [u8] {
         self.state
+    }
+
+    /// The handler's network client (its places' players).
+    pub fn network_client(&self) -> NetworkClient<'t> {
+        NetworkClient::of(self.client, self.thread)
+    }
+
+    /// The hook's thread.
+    pub fn thread(&self) -> &'t Thread {
+        self.thread
     }
 
     /// Leaves the match instead of loading the world: the packet read to its

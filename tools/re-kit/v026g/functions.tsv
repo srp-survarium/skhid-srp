@@ -1272,6 +1272,8 @@ va	status	ref_021d	name
 0x00323f10	reviewed	0x001fd951	survarium::player_serialized_state::clear
 0x00324010	reviewed	0x001fd9ac	survarium::bullet_manager_history_item::clear
 0x00324390	reviewed	0x001fda07	survarium::statistics_history_item::clear
+0x00324510	observed		survarium::game_state_history_item::construct
+0x00324910	observed		survarium::game_state_history_item::destroy
 0x00324ad0	reviewed	0x001fdd75	survarium::game_state_history_item::clear_buffers
 0x00324be0	reviewed	0x001fde3e	survarium::game_state_history_item::serialize
 0x00324d80	reviewed	0x001fe021	survarium::game_state_history_item::deserialize
@@ -1832,6 +1834,65 @@ va	status	ref_021d	name
 0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
 0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
 0x0079d360	verified		Scaleform::GFx::AS3::AvmTextField::OnCharEvent
+0x002f8080	verified		survarium::resupply_zone_core::can_use
+0x002f80c0	verified		survarium::resupply_zone_core::use_hint
+0x002f8120	verified		survarium::resupply_zone_core::update_use
+0x002f81a0	verified		survarium::resupply_zone_core::finish_use
+0x002fdc10	verified		survarium::inventory::resupply_from_profile
+0x002fdf50	verified		survarium::inventory::check_resupply
+0x0030ab40	verified		survarium::weapon_core::load_config_parameters
+0x000e5c20	verified	0x000b146f	vostok::resources::query_resources_and_wait
+0x00205c60	verified		vostok::type_to_int<survarium::inventory_cooker_data *>
+0x0026f3b0	verified		survarium::player_profile::~player_profile
+0x002c7170	verified		survarium::register_inventory_cook_and_dependencies
+0x0030a800	verified		survarium::register_weapon_core_cook
+0x00102cd0	verified		vostok::resources::find_cook_by_class
+0x00108a00	verified		vostok::resources::query_result::consider_with_name_registry
+0x00284dc0	verified		survarium::player_profile::copy_body
+0x002f7c50	verified		survarium::player_profile::construct_body
+0x0031f2e0	verified		survarium::register_inventory_item_cook
+0x0031f350	observed		survarium::inventory_item_cook::translate_query
+0x0031f660	observed		survarium::inventory_item_cook::create_from_config
+0x002e30f0	verified		survarium::weapon_core::bind_to_game_core
+0x002d4540	observed		vostok::buffer_vector<survarium::active_object *>::push_back
+0x00243590	observed		survarium::inventory_item::set_owner
+0x003919e0	observed		animation::player::forget_active_object
+0x002febc0	observed		survarium::weapon_controller_core::construct
+0x0024a400	observed		survarium::weapon_controller_client::construct
+0x002fee50	observed		survarium::weapon_controller_core::set_user
+0x002985d0	observed		survarium::weapon_controller_client::set_user
+0x002ff4a0	observed		survarium::weapon_controller_core::deactivate
+0x002e44f0	observed		vostok::inventory_item_ptr::assign
+0x00318400	verified		survarium::player_input::deserialize
+0x003184a0	verified		survarium::player_input::serialize
+0x002c5b60	verified		survarium::player_input_state::merge
+0x001f0be0	verified		survarium::replay_match_reader::read_record
+0x001fab50	verified		survarium::game_world_core::change_player_input
+0x0027d2d0	verified		survarium::game_world_core::move_player_input
+0x0027d820	verified		survarium::game_world_core::discard_player_input
+0x001fcb60	verified		survarium::player_input_list::allocate_node
+0x002d48b0	verified		survarium::player_input_list::evict_oldest
+0x002d4e40	verified		survarium::game_world_core::snap_player_inputs
+0x002cfe90	observed		survarium::game_world_core::game_world_core
+0x002d02a0	observed	0x001ca649	survarium::game_world_core::~game_world_core
+0x0027c280	verified		survarium::network_client::receive_player_input
+0x00279670	verified		survarium::match_messages::get_message_length
+0x00279a60	verified		survarium::match_messages::get_sending_info
+0x00279b10	verified		survarium::match_messages::get_received_info
+0x003fa240	verified		vostok::network_core::udp_match_connection::try_parse_single_message
+0x003527e0	verified		vostok::network_core::received_message_stats::select
+0x00352830	verified		vostok::network_core::sending_message_stats::select
+0x00279fe0	observed		survarium::match_client::new_packet
+0x0027a2a0	observed		survarium::match_client::enqueue
+0x0027e9f0	observed		survarium::send_changed_player_inputs
+0x00202500	observed		survarium::player_cook::on_config_loaded
+0x002058a0	observed		survarium::player_cook::extract_creation_data
+0x00074950	observed	0x00055d43	vostok::physics::bullet_physics_world::bullet_physics_world
+0x002c6f90	observed		survarium::inventory_cook::append_item_query
+0x002cbbe0	observed		survarium::pvp_match_core_cook::destroy_resource
+0x002cbc60	observed		survarium::pvp_match_core_cook::on_subresources_loaded
+0x002cc270	observed		survarium::pvp_match_core_cook::translate_query
+0x002d55b0	observed	0x001dc824	survarium::pvp_match_core::pvp_match_core
 0x0015a000	observed		vostok::render::skeleton_render_model::load_bind_pose
 0x00426ae1	verified		setlocale
 0x00329b20	verified		survarium::player_stamina::update_weight_modifiers
@@ -1917,6 +1978,17 @@ va	status	ref_021d	name
 0x00304370	reviewed	0x001e8da3	survarium::hit_type
 0x001b9390	reviewed	0x0012d02e	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
 0x001b9460	reviewed	0x0012d125	stlp_std::priv::__final_insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
+0x00202dd0	observed		survarium::player_cook::on_subresources_loaded
+0x001f2100	reviewed	0x001565f2	survarium::player::~player
+0x0030a800	inferred-high		survarium::weapon_core_cook::weapon_core_cook
+0x002d7570	observed		survarium::base_player::set_bullet_manager
+0x002954d0	observed		survarium::resupply_zone::finish_use
+0x0027d280	observed		boost::function<void (vostok::resources::queries_result &)>::assign_member
+0x00202300	observed		boost::detail::function::void_member_invoker<vostok::resources::queries_result &>::invoke
+0x000e5ab0	observed	0x000b13ab	vostok::resources::dispatch_callbacks
+0x00286410	observed		survarium::fill_items_dictionary_impl
+0x00279e10	observed		vostok::memory::multi_threading_single_size_allocator_policy<vostok::memory::single_size_buffer_allocator<704,vostok::threading::multi_threading_policy>::node>::allocate
+0x00313f50	reviewed	0x001fbcaf	survarium::gather_victory_items_rule::set_game_world_core
 0x00243940	verified		survarium::weapon::is_first_person_view
 0x002996c0	verified		survarium::rifle_scope::rifle_scope
 0x00118430	reviewed	0x000d5e2c	vostok::render::engine::world::add_model
@@ -1928,3 +2000,22 @@ va	status	ref_021d	name
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
+0x00505ca0	reviewed	0x00397b80	Scaleform::RefCountImpl::AddRef
+0x00505cb0	reviewed	0x003698c0	Scaleform::RefCountImpl::Release
+0x005725f0	reviewed	0x003d8200	Scaleform::Render::DrawableImageContext::ExecuteNextCapture
+0x00572610	reviewed	0x003d8220	Scaleform::Render::DICommandQueue::ExecuteCommandsAndWait
+0x00572660	reviewed	0x003d8270	Scaleform::Render::DrawableImageContext::OnNextCapture
+0x005726b0	reviewed	0x003d82c0	Scaleform::Render::DrawableImageContext::AddCaptureNotify
+0x005726f0	reviewed	0x003d8300	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify
+0x005731f0	reviewed	0x003d8e10	Scaleform::Render::DrawableImage::mergeQueueWith
+0x005744e0	reviewed	0x003da110	Scaleform::Render::DrawableImageContext::OnCapture
+0x005ed170	reviewed	0x004458d0	Scaleform::Render::DICommandQueue::OnCapture
+0x005ed1e0	reviewed	0x00445940	Scaleform::Render::DICommandQueue::~DICommandQueue
+0x005ed340	reviewed	0x00445aa0	Scaleform::Render::DICommandQueue::updateCPUModifiedImagesRT
+0x005ed650	reviewed	0x00445db0	Scaleform::Render::DICommandQueue::DICommandQueue
+0x005ed740	reviewed	0x00445ea0	Scaleform::Render::DICommandQueue::`scalar deleting destructor'
+0x005edea0	reviewed	0x00446600	Scaleform::Render::DICommandQueue::ExecuteNextCapture
+0x005ee080	reviewed	0x004467e0	Scaleform::Render::DICommandQueue::OnNextCapture
+0x0030d750	reviewed	0x001b1cf4	survarium::computed_reload_animation_time_scale
+0x0030e1f0	reviewed	0x001f1795	survarium::weapon_core_reload_state::get_weapon_lexeme
+0x0030ee40	reviewed	0x001b1e1a	survarium::computed_shotgun_reload_animation_time_scale

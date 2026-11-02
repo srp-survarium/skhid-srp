@@ -6,19 +6,21 @@
 # never changed (a published patch is never replaced: a fix is the next
 # revision); one removed stops offering it, safe only while no player owns
 # its items. The urls are the patch's addresses, one space apart, tried by
-# the players' updater in this order: the patches server's first, then
-# mirrors (release/add-mirror adds one; 8 at most), each checked by the
-# release's preflight.
+# the players' updater in this order: Google Drive's first (the owner's
+# rule), then the patches server's (always there: the release builds from
+# it), then the rest; 8 at most, each checked by the release's preflight. More at
+# once, without a release: release/add-mirror (srp's mirrors.tsv). The
+# original game's archive is in release/game.tsv.
 # One patch a line, in revision order, tabs between:
 # name	sha256	size	urls
-resources.db.patch_12	2b771e4b2040707434bb17aa27b1965aacba2ca355eb38634f504b61d6c8fab3	86199749	http://2.28.121.133:8090/resources.db.patch_12 https://drive.usercontent.google.com/download?id=1QOQ_EAjRR9vLYgE24LUvat49RxL3c4Ku&export=download&confirm=t
-resources.db.patch_14	60a69dcc6b661d09c3143fb74d6806f6f1ba6d465af3c29bfa669a58ce9a404c	848021018	http://2.28.121.133:8090/resources.db.patch_14 https://drive.usercontent.google.com/download?id=1oT7Z7CSvDWWLYFSoe0WDXRaCRjsedpma&export=download&confirm=t
-resources.db.patch_17	807b0e784c679a41009940d56ee76919d2bb5f14559154b927faf43405624081	76740663	http://2.28.121.133:8090/resources.db.patch_17 https://drive.usercontent.google.com/download?id=1GuiSQyQrcTKtyXgiwiT6I4gYBDsUtWS0&export=download&confirm=t
-resources.db.patch_19	8bb0e952014e8420ecd1b959631ec9e62e2f7c6ad04e14293fd8d726a6f9840b	721349999	http://2.28.121.133:8090/resources.db.patch_19 https://drive.usercontent.google.com/download?id=1cgijDe-nXdM2IXR_6tjFoHvicVaMlNCV&export=download&confirm=t
-resources.db.patch_20	7830ce1f175ea69c0e5fe34dbd3a47dfd6d606f102ff451422cf71471c723cc1	464470411	http://2.28.121.133:8090/resources.db.patch_20 https://drive.usercontent.google.com/download?id=1lDOFytvZsoH6flEbxlzj8uOE-aZSGW0s&export=download&confirm=t
-resources.db.patch_21	0db1c4bcb6f3257d56db8da93e9b918878de39d140ef6eb3bb2e75ce785a0de3	43910935	http://2.28.121.133:8090/resources.db.patch_21 https://drive.usercontent.google.com/download?id=1_rS-fpqsY15OEbMyMJv1UPgFP-5i3Ltx&export=download&confirm=t
-resources.db.patch_22	8d89d7a472d3659f370822212874aa237edb2257c8a3640d70c21c6fda0c65a5	845094613	http://2.28.121.133:8090/resources.db.patch_22 https://drive.usercontent.google.com/download?id=1tJrQ6DRjwQ79oclLUDCvjdOnv44yrq9K&export=download&confirm=t
-resources.db.patch_23	f504ed4ceba7642df009dede3405236a4774f728c500f736f5a4921fe33141b0	55877739	http://2.28.121.133:8090/resources.db.patch_23 https://drive.usercontent.google.com/download?id=1xqOrR2b6LTKCBcqEb6woWY2f7ueG6z0t&export=download&confirm=t
+resources.db.patch_12	2b771e4b2040707434bb17aa27b1965aacba2ca355eb38634f504b61d6c8fab3	86199749	https://drive.usercontent.google.com/download?id=1QOQ_EAjRR9vLYgE24LUvat49RxL3c4Ku&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_12
+resources.db.patch_14	60a69dcc6b661d09c3143fb74d6806f6f1ba6d465af3c29bfa669a58ce9a404c	848021018	https://drive.usercontent.google.com/download?id=1oT7Z7CSvDWWLYFSoe0WDXRaCRjsedpma&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_14
+resources.db.patch_17	807b0e784c679a41009940d56ee76919d2bb5f14559154b927faf43405624081	76740663	https://drive.usercontent.google.com/download?id=1GuiSQyQrcTKtyXgiwiT6I4gYBDsUtWS0&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_17
+resources.db.patch_19	8bb0e952014e8420ecd1b959631ec9e62e2f7c6ad04e14293fd8d726a6f9840b	721349999	https://drive.usercontent.google.com/download?id=1cgijDe-nXdM2IXR_6tjFoHvicVaMlNCV&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_19
+resources.db.patch_20	7830ce1f175ea69c0e5fe34dbd3a47dfd6d606f102ff451422cf71471c723cc1	464470411	https://drive.usercontent.google.com/download?id=1lDOFytvZsoH6flEbxlzj8uOE-aZSGW0s&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_20
+resources.db.patch_21	0db1c4bcb6f3257d56db8da93e9b918878de39d140ef6eb3bb2e75ce785a0de3	43910935	https://drive.usercontent.google.com/download?id=1_rS-fpqsY15OEbMyMJv1UPgFP-5i3Ltx&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_21
+resources.db.patch_22	8d89d7a472d3659f370822212874aa237edb2257c8a3640d70c21c6fda0c65a5	845094613	https://drive.usercontent.google.com/download?id=1tJrQ6DRjwQ79oclLUDCvjdOnv44yrq9K&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_22
+resources.db.patch_23	f504ed4ceba7642df009dede3405236a4774f728c500f736f5a4921fe33141b0	55877739	https://drive.usercontent.google.com/download?id=1xqOrR2b6LTKCBcqEb6woWY2f7ueG6z0t&export=download&confirm=t http://2.28.121.133:8090/resources.db.patch_23
 resources.db.patch_24	c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4	40387410	http://2.28.121.133:8090/resources.db.patch_24
 resources.db.patch_25	cf5078143de863dceefc3976575ac94f08b9e5672d95bbff7522bd1ef3b076ac	40649751	http://2.28.121.133:8090/resources.db.patch_25
 resources.db.patch_26	42d9161d2c1ee9cf89a04015f1b6daa071922bf6f72f6dfdaf3c63d0e76fa17c	40426564	http://2.28.121.133:8090/resources.db.patch_26
@@ -36,3 +38,4 @@ resources.db.patch_37	9a0d0b7b9e8ffbdab755baee10cb6f5d481cf3d818dfb2f82a1cb4133c
 resources.db.patch_38	307cd527ac6cfaeb1085ba156f4d45f81308e8189def3c18ecb6d0e245850823	390848411	http://2.28.121.133:8090/resources.db.patch_38
 resources.db.patch_39	b1fde5c35b09764f8a1292ef3ece295251b975f0516acd73cd397649d6a93036	355552277	http://2.28.121.133:8090/resources.db.patch_39
 resources.db.patch_40	6c549e77a18d07d7226d460072ea940e3329f7fed3f07316e00abcd10a7011e8	1151219934	http://2.28.121.133:8090/resources.db.patch_40
+resources.db.patch_41	8e12593edb9efb5037fc0a6769d319f50d0c674ee1a3486e1301977994005faf	69553610	http://2.28.121.133:8090/resources.db.patch_41

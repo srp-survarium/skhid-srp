@@ -398,7 +398,7 @@ pub extern "C" fn hook_battery_progress_on_match_start(frame: &mut Frame) -> u32
 
 // ---- battery_progress (patch 92) ----
 
-/// The entry `battery_progress_on_delivered` (0x334cea, victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record) calls this with the saved machine.
+/// The entry `battery_progress_on_delivered` (0x334cea, victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record, ESI the manager, EAX the team of the player who put it in (its [esp+8], 0x334CC5), whose container it is now in) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_battery_progress_on_delivered(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `battery_progress_on_delivered` calls this, from the game's jump at 0x334cea,
@@ -428,7 +428,7 @@ pub extern "C" fn hook_battery_progress_on_save(frame: &mut Frame) -> u32 {
 
 // ---- battery_progress (patch 92) ----
 
-/// The entry `battery_progress_on_load` (0x3350d0, victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader) calls this with the saved machine.
+/// The entry `battery_progress_on_load` (0x3350d0, victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader, EBP the manager (0x33505D)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `battery_progress_on_load` calls this, from the game's jump at 0x3350d0,
@@ -1543,6 +1543,41 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- scaleform_capture (patch 93) ----
+
+/// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ScaleformCaptureOnNextCaptureExit { Done }
+/// The entry `scaleform_capture_on_next_capture` (0x572675, DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scaleform_capture_on_next_capture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scaleform_capture_on_next_capture` calls this, from the game's jump at 0x572675,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scaleform_capture::on_next_capture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- scaleform_capture (patch 93) ----
+
+/// The entry `scaleform_capture_on_queue_destroy` (0x5ed1e0, DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scaleform_capture_on_queue_destroy` calls this, from the game's jump at 0x5ed1e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scaleform_capture::on_queue_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
@@ -1691,6 +1726,241 @@ pub extern "C" fn hook_weapon_kit_on_preview_apply(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::weapon_kit::on_preview_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_player_made` (0x202dd0, player_cook::on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): a player's subresource batch is in and the player is about to be made (a match's kit players, a late joiner's, the lobby's character)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_player_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_player_made` calls this, from the game's jump at 0x202dd0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_player_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_destroy` (0x1f2100, player::~player's entry (push ebp / mov ebp,esp / and esp,-8), ECX the player, before any of it is torn down; late join's player_destroyed_hook calls it from the scalar deleting destructor) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_destroy` calls this, from the game's jump at 0x1f2100,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_save` (0x2daf70, base_player::serialize before its first field (mov eax,[ebx+124h]; the profile's serialize_dynamic 0x2DAF81 follows): EBX the player, ESI the writer; patch 85's record goes here, state offset 2) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_save` calls this, from the game's jump at 0x2daf70,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_load` (0x2db4cf, base_player::deserialize before its first read (mov [ebx+344h],edx; EDX live; profile deserialize_dynamic 0x2DB4D5, held 0x2DB626, inventory 0x2DB7D8 follow): EBX the player, ESI the reader) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load` calls this, from the game's jump at 0x2db4cf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_remove` (0x2da790, base_player::remove's entry (push ebp / mov ebp,esp / and esp,-8; ret 4): ECX the player, [esp+4] the flag (1: held deactivated, unload_to_profile 0x2DA840)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_remove(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_remove` calls this, from the game's jump at 0x2da790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_remove(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_can_use (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnCanUseExit { Available }
+/// The entry `weapon_pickup_on_can_use` (0x2f809c, resupply_zone_core::can_use before check_resupply's inventory (mov ecx,[eax+10Ch]; EAX the player, EDX its profile; a je lands on its start); available: mov eax,1 / ret 4) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_can_use(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_can_use` calls this, from the game's jump at 0x2f809c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_can_use(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_use_hint (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnUseHintExit { Available }
+/// The entry `weapon_pickup_on_use_hint` (0x2f80e4, resupply_zone_core::use_hint before check_resupply's inventory (mov ecx,[eax+10Ch]; a je lands on its start); available: st_use_resupply_zone / ret 4) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_use_hint(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_use_hint` calls this, from the game's jump at 0x2f80e4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_use_hint(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_resupply` (0x2f81b8, resupply_zone_core::finish_use before resupply_from_profile's inventory (mov eax,[eax+10Ch]; ECX the kit, EDX the profile)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_resupply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_resupply` calls this, from the game's jump at 0x2f81b8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_resupply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_client_resupply` (0x2954ef, resupply_zone::finish_use (the client's) before resupply_from_profile's inventory (mov eax,[eax+10Ch])) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_client_resupply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_client_resupply` calls this, from the game's jump at 0x2954ef,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_client_resupply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_tick_active` (0x2d7650, base_player::tick_active_object's entry (push ecx / push ebx / push esi / mov esi,eax; ret 4, called only at 0x2D96A1): EAX the player, before the pending object (+12Ch) is asked or the held one updated) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_tick_active(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_tick_active` calls this, from the game's jump at 0x2d7650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_tick_active(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_switch (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnSwitchExit { Switched }
+/// The entry `weapon_pickup_on_switch` (0x2d76d0, tick_active_object's switch (mov ecx,[esi+128h], reached from 0x2D76B5 and 0x2D76C0 once the held object is ready to be deactivated and the pending one may be activated): ESI the player, held +128h the outgoing, pending +12Ch the incoming; switched is mov ecx,[esi+128h] before the new held object's update (0x2D772A)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_switch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_switch` calls this, from the game's jump at 0x2d76d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_switch(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_save_quiet (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnSaveQuietExit { Write }
+/// The entry `weapon_pickup_on_save_quiet` (0x32c148, bullet::serialize at its test of the ammo (mov eax,[esi+40h] / cmp byte [eax+44h],1, then jbe 0x32C171 past the write): the quiet byte (+80h) is written only for an ammo of more than one pellet; write is the write (0x32C151)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_save_quiet(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_save_quiet` calls this, from the game's jump at 0x32c148,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_save_quiet(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_load_quiet (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnLoadQuietExit { Read }
+/// The entry `weapon_pickup_on_load_quiet` (0x32be12, the loader storing the struck material (mov [edi+4Ch],eax) and testing its resolved ammo (cmp byte [ecx+44h],1, then jbe 0x32BE29 past the read): the quiet byte (+80h) is read only for an ammo of more than one pellet; read is the read (0x32BE1B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_quiet(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_quiet` calls this, from the game's jump at 0x32be12,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_quiet(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_pickup (patch 85) ----
+
+/// The entry `weapon_pickup_on_load_ordinal` (0x32bdba, bullet::bullet (the loader 0x32BBC0) with its weapon item resolved from the shooter's slot (+0Ch, 0x32BDAE) and the ammo ordinal read into CL (0x32BDB4), before 0x2E2750 indexes the weapon's ammo slots by it (mov eax,[edi+0Ch] / test eax,eax): EDI the bullet, CL the ordinal) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_ordinal` calls this, from the game's jump at 0x32bdba,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_ordinal(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},

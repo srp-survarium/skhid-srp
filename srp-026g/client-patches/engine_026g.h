@@ -17,6 +17,9 @@ struct cc_bool;
 struct cc_float;
 struct cc_string;
 struct core_world;
+struct critical_section;
+struct di_command_queue;
+struct drawable_image_context;
 struct engine_cfg;
 struct game_allocator;
 struct game_effect;
@@ -33,6 +36,8 @@ struct gfx_object;
 struct gfx_object_interface;
 struct gfx_value;
 struct inventory;
+struct inventory_recipe;
+struct item;
 struct item_entry;
 struct items_dictionary;
 struct lobby_camera;
@@ -52,10 +57,12 @@ struct player_params_modifiers_container;
 struct player_profile;
 struct pure_game_effect_emitter;
 struct queries_result;
+struct query_callback;
 struct query_function;
 struct query_user_data;
 struct ray_result;
 struct render_model_instance;
+struct render_notify;
 struct render_visual;
 struct resource_request;
 struct scene_model;
@@ -81,6 +88,12 @@ unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key);
 
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 void *engine_malloc(void *allocator, unsigned int size, const void *where);
+
+/* 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX */
+unsigned int engine_allocated_size(void *allocator);
+
+/* 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0 */
+void engine_dump_statistics(unsigned int flag);
 
 /* 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX */
 void *engine_match_rule_base(void *rule, unsigned int type);
@@ -128,10 +141,10 @@ void *engine_find_item_by_id(void *begin, void *end, const unsigned int *id);
 struct item_entry *engine_item_by_id(struct items_dictionary *dictionary, unsigned int id);
 
 /* 0x284d10 survarium::player_profile::operator=: destination ESI, source EDI; pops 0; EAX */
-void *engine_profile_assign(void *destination, const void *source);
+struct player_profile *engine_profile_assign(struct player_profile *destination, const struct player_profile *source);
 
 /* 0x2f73f0 survarium::player_profile::player_profile: profile ECX; pops 0; EAX */
-void *engine_profile_construct(void *profile);
+struct player_profile *engine_profile_construct(void *profile);
 
 /* 0x420789 (unnamed): where ECX; pops 0; EAX */
 const void *engine_allocation_name(const void *where);
@@ -387,5 +400,65 @@ void engine_set_listener(struct sound_scene *scene, const float *position, const
 
 /* 0x33d390 survarium::medkit::set_active: medkit ESP+4, active EAX, time ESP+8; pops 8 */
 void engine_medkit_set_active(struct medkit *medkit, unsigned int active, unsigned int time);
+
+/* 0x26f3b0 survarium::player_profile::~player_profile: profile ECX; pops 0 */
+void engine_profile_destroy(struct player_profile *profile);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_inventory(struct inventory *object, unsigned int *count);
+
+/* the IAT slot 0x870164 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_global_memory_status_ex)(void * status);
+
+/* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
+struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where);
+
+/* the IAT slot 0x8701b8 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_current_process_id)(void);
+
+/* 0x27d280 boost::function<void (vostok::resources::queries_result &)>::assign_member: callback EDI, member ESP+4, adjustment ESP+8, object ESP+12, padding ESP+16; pops 16; EAX */
+struct query_callback *engine_bind_member_callback(struct query_callback *callback, const void *member, unsigned int adjustment, unsigned int object, unsigned int padding);
+
+/* 0x205c60 vostok::type_to_int<survarium::inventory_cooker_data *>: no arguments; pops 0; EAX */
+unsigned int engine_inventory_variant_type(void);
+
+/* 0xe5ab0 vostok::resources::dispatch_callbacks: no arguments; pops 0 */
+void engine_dispatch_callbacks(void);
+
+/* 0x2fc620 survarium::inventory::set_item: inventory ESI, slot EDI, item ESP+4; pops 4 */
+void engine_inventory_set(struct inventory *inventory, unsigned int slot, struct item *const *item);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_inventory_item(struct item *object, unsigned int *count);
+
+/* 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0 */
+void engine_forget_active_object(void *animation, struct item *object);
+
+/* 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_weapon_set_user(struct item *weapon, struct player *player);
+
+/* 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_weapon_initialize(struct item *weapon);
+
+/* 0x244610 survarium::weapon::activate: weapon ECX, flag ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_weapon_activate(struct item *weapon, unsigned int flag);
+
+/* 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_weapon_deactivate(struct item *weapon, unsigned int clear);
+
+/* the IAT slot 0x8700d0 (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_enter_critical_section)(struct critical_section * section);
+
+/* the IAT slot 0x8700cc (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_leave_critical_section)(struct critical_section * section);
+
+/* 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue);
+
+/* 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify);
+
+/* 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_di_queue_release(struct di_command_queue *queue);
 
 #endif

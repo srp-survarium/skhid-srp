@@ -516,6 +516,7 @@ dependencies = [
  "survarium",
  "udp-transport",
  "vostok",
+ "weapon-pickup",
  "world-frame",
 ]
 
@@ -862,6 +863,7 @@ dependencies = [
  "serde_json",
  "udp-transport",
  "weapon-kit",
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -961,11 +963,16 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-pickup"
+version = "0.1.0"
+
+[[package]]
 name = "web-server"
 version = "0.1.0"
 dependencies = [
  "log",
  "openssl",
+ "resources-db 0.1.0",
  "session",
  "survarium",
  "vostok",

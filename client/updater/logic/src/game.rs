@@ -1,7 +1,11 @@
 //! Release pins: changing a mirror never changes which bytes are accepted.
 use crate::sha256::from_hex;
 
-pub const GAME_URL: &str = "https://drive.usercontent.google.com/download?id=1LTK2rzJPELLXxtTavZwdzr247NFwT_GK&export=download&confirm=t";
+/// What the game's archive is called in the release's list
+/// (`release/game.tsv`) and in the mirrors srp offers more of
+/// (`mirrors.tsv`); its addresses come from the server's `GET /game`, or
+/// from the list built into the updater when the server cannot be reached.
+pub const ARCHIVE_NAME: &str = "survarium-026g.7z";
 /// The extractor is a file of the Skhid archive, beside the updater. It is
 /// run only when it is the pinned file, as the downloaded one would be.
 pub const EXTRACTOR_NAME: &str = "7zr.exe";
@@ -83,7 +87,7 @@ mod tests {
             assert!(crate::zip::safe_name(path));
             assert!(*size > 0);
         }
-        assert!(crate::url::download(GAME_URL).unwrap().secure);
+        assert!(crate::zip::safe_name(ARCHIVE_NAME));
         assert!(crate::zip::safe_name(EXTRACTOR_NAME));
     }
 }

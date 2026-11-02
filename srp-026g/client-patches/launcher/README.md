@@ -161,7 +161,7 @@ The reference is the game's `game/launcher/index-en.html` and
 
 Skhid's rankings, counts, maintenance, and legal text replace the old news.
 A Discord link at the right of the legal caption opens the project's existing
-invite (`https://discord.gg/Pxa4prXfwu`, also used by BugTrap) in the player's
+invite (`https://discord.gg/QUmJg3gBhg`, also used by BugTrap) in the player's
 browser. It is available on the online, loading, and offline pages. The link
 markup is shared in `launcher-skin/discord-link.html`; no Discord content is
 loaded into the launcher.

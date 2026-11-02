@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Ottelun pelaajaraja on täynnä. Liityt seuraavaan ottel
 st_srp_rooms_joined_room	%1$s liittyi huoneeseen
 st_srp_rooms_late_hint	Uudet liittyjät näkevät ensin huoneen ja siirtyvät sitten otteluun.
 st_srp_rooms_leave	Poistu
-st_srp_rooms_leave_queue	Poistu jonosta
-st_srp_rooms_leave_room	Poistu huoneesta
+st_srp_rooms_leave_queue	Poistu
+st_srp_rooms_leave_room	Poistu
 st_srp_rooms_left_room	%1$s poistui huoneesta
 st_srp_rooms_level	Taso
 st_srp_rooms_map	Kartta
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Vähimmäisvahinko
 st_srp_weapon_minimum_damage_from	Vähimmäisvahinko alkaa
 st_srp_weapon_recoil_heading	Rekyyli, hajonta ja heilunta
 st_srp_weapon_reload	Lataaminen
-st_srp_weapon_shift_hint	Lisätiedot: pidä Shift pohjassa
+st_srp_weapon_shift_hint	Shift: lisää · Alt: ottelussa
 st_srp_weapon_spread_growth	Hajonnan kasvunopeus
 st_srp_weapon_spread_max	Suurin lisähajonta
 st_srp_weapon_spread_per_shot	Hajonta laukausta kohden
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Asetilastot
 st_srp_weapon_sway_cycle	Heiluntajakso
 st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
+st_srp_weapon_with_kit	Varustesetillä
+st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
 st_srp_weather_evening	ilta
@@ -2849,9 +2851,16 @@ st_walther_competition2_collimator_desc	Saksalainen Walther-punapistetähtäin, 
 st_walther_competition2_collimator_name	Competition II -punapistetähtäin
 st_wasted	Kulutus
 st_weapon_aim_action	Tähtää (pidä)
+st_weapon_already_taken	Jo poimittu
+st_weapon_cannot_carry	Et voi kantaa toista kivääriä
+st_weapon_cannot_pick_up	Tätä ei voi poimia
 st_weapon_could_not_be_used	Kädet haavoittuneet! Aseita ei voi käyttää
 st_weapon_fire_action	Ammu
+st_weapon_no_gun_in_hands	Ota ase käteen vaihtaaksesi
+st_weapon_one_gun_only	Voit kantaa vain yhtä asetta
+st_weapon_pick_up	Poimi %1$s ({USE})
 st_weapon_reload_action	Lataa
+st_weapon_switching	Odota aseen vaihtoa
 st_wear	Käytä
 st_weight_booster_description	Proteiinia, joka sisältää lihaskasvun ja voiman tarvitsemat ravintoaineet. Ilman fyysistä rasitusta se ei kuitenkaan tehoa.
 st_weight_booster_name	Anomaalinen voima -proteiini

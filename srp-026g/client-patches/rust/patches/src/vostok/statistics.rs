@@ -1,12 +1,13 @@
 //! The match's statistics: a place's score events (patches 80 and 92) and the
-//! batteries' records (patch 92). Every field is fields_026g.tsv's; this is
-//! what they mean.
+//! batteries (patch 92). Every field is fields_026g.tsv's; this is what they
+//! mean.
 //!
 //! A battery's record (victory_item_event_manager, the shared statistics'
-//! +2760h; snapshot_rules.md section 3.2) is the game's 100h bytes, of which
-//! it writes +F0h..+FDh only. Patch 92 keeps its [`Progress`] in the last two
-//! (+FEh, +FFh) and serializes them after the record's own fields, so a
-//! rollback, a late joiner and the server read them as every game has them.
+//! +2760h; snapshot_rules.md section 3.2) is the game's 100h bytes, every one
+//! of them the game's own. Patch 92 keeps each battery's [`Life`] (how near
+//! it has come to each container, the steps its carriers hold) itself, and
+//! serializes it after the record's own fields, so a rollback, a late joiner
+//! and the server read it as every game has it.
 
 use core::marker::PhantomData;
 
@@ -32,17 +33,19 @@ impl ScoreEvent {
 }
 
 /// A place of the match: the statistics hold 20 records.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Place(u8);
 
 impl Place {
+    const COUNT: usize = 20;
+
     fn parse(place: u8) -> Option<Place> {
-        (place < 20).then_some(Place(place))
+        (usize::from(place) < Self::COUNT).then_some(Place(place))
     }
 }
 
 /// A kit: a record counts each event for three.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Kit(u8);
 
 impl Kit {
@@ -53,12 +56,36 @@ impl Kit {
     }
 }
 
+/// A place and the kit it plays: one of the 60 cells a record counts each
+/// event in, numbered as the game numbers a battery's carried distances
+/// (place x 3 + kit).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Cell {
+    place: Place,
+    kit: Kit,
+}
+
+impl Cell {
+    pub const COUNT: usize = Place::COUNT * Kit::COUNT;
+
+    pub fn of(place: u8, kit: u8) -> Option<Cell> {
+        Some(Cell { place: Place::parse(place)?, kit: Kit::parse(kit)? })
+    }
+
+    fn index(self) -> usize {
+        usize::from(self.place.0) * Kit::COUNT + usize::from(self.kit.0)
+    }
+
+    fn at(index: usize) -> Option<Cell> {
+        (index < Self::COUNT).then_some(Cell { place: Place((index / Kit::COUNT) as u8), kit: Kit((index % Kit::COUNT) as u8) })
+    }
+}
+
 /// A player's cells of the match's statistics: its place's record, the
 /// kit it plays.
 pub(super) struct Score {
     statistics: raw::SharedStatistics,
-    place: Place,
-    kit: Kit,
+    cell: Cell,
 }
 
 impl Score {
@@ -70,12 +97,7 @@ impl Score {
     pub(super) unsafe fn of(statistics: raw::SharedStatistics, player: raw::Player) -> Option<Score> {
         // SAFETY: the caller's: the live player's place and kit bytes.
         let (place, kit) = unsafe { (read(player.place()), read(player.kit())) };
-        Some(Score { statistics, place: Place::parse(place)?, kit: Kit::parse(kit)? })
-    }
-
-    /// The place, one of the 20 records.
-    fn place(&self) -> usize {
-        usize::from(self.place.0)
+        Some(Score { statistics, cell: Cell::of(place, kit)? })
     }
 
     /// Counts `amount` of `event` for the place and kit as the game counts
@@ -83,15 +105,16 @@ impl Score {
     /// u16), then the listener told (place, event, amount) when it is set,
     /// so the scoreboard shows it at once.
     pub(super) fn count(&self, event: ScoreEvent, amount: u16) {
-        let cell = usize::from(event.0) * Kit::COUNT + usize::from(self.kit.0);
+        let Cell { place, kit } = self.cell;
+        let cell = usize::from(event.0) * Kit::COUNT + usize::from(kit.0);
         // SAFETY: the statistics are alive for the hook; the place is one of
         // the 20 records, the cell one of its 28 x 3.
         unsafe {
-            let count = self.statistics.players().at(usize::from(self.place.0)).events().at(cell).count();
+            let count = self.statistics.players().at(usize::from(place.0)).events().at(cell).count();
             count.write_volatile(read(count).wrapping_add(amount));
             let listener = self.statistics.listener();
             if read(listener.function()) != 0 {
-                raw::engine_statistics_notify(Some(listener), u32::from(self.place.0), u32::from(event.0),
+                raw::engine_statistics_notify(Some(listener), u32::from(place.0), u32::from(event.0),
                                               u32::from(amount));
             }
         }
@@ -122,6 +145,15 @@ impl Team {
     }
 }
 
+/// The team of `place` in the match's `options` (on_event's 0x334AD9).
+///
+/// # Safety
+/// `options` are the live match's.
+unsafe fn team_of(options: raw::MatchOptions, place: Place) -> Option<Team> {
+    // SAFETY: the caller's; the place is one of the 20.
+    Team::parse(unsafe { read(options.first_place().at(usize::from(place.0)).team()) })
+}
+
 /// How near a container a battery has come: whole steps, at most
 /// [`Band::FARTHEST`] (the byte keeps 0 for "untouched").
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -140,14 +172,13 @@ impl Band {
     }
 }
 
-/// A battery's progress in its life (from its match's start, or its last
-/// delivery): the nearest band it has come to each team's container, by
-/// team; None until it is first carried in the life.
+/// A battery's progress in its life: the nearest band it has come to each
+/// team's container, by team; None until it is first carried in the life.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Progress(pub [Option<Band>; 2]);
 
 impl Progress {
-    /// The record's two bytes: 0 untouched, else the band + 1.
+    /// Two bytes: 0 untouched, else the band + 1.
     fn parse(bytes: [u8; 2]) -> Progress {
         Progress(bytes.map(|byte| byte.checked_sub(1).map(Band)))
     }
@@ -157,31 +188,119 @@ impl Progress {
     }
 }
 
-/// A battery's record.
-struct Record(raw::VictoryItemStatus);
+/// The steps each cell has earned toward its own team's container in a
+/// battery's life, held unpaid until the battery is delivered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held([u8; Cell::COUNT]);
 
-impl Record {
-    fn progress(&self) -> Progress {
-        // SAFETY: the live record's own two bytes (Record is made only from
-        // a live manager's record or a site's).
-        Progress::parse(unsafe { [read(self.0.progress_0()), read(self.0.progress_1())] })
+impl Held {
+    pub const NONE: Held = Held([0; Cell::COUNT]);
+
+    /// `steps` more for `cell` (a life's steps are at most a band's 254).
+    pub fn add(self, cell: Cell, steps: u8) -> Held {
+        let mut held = self.0;
+        held[cell.index()] = held[cell.index()].saturating_add(steps);
+        Held(held)
     }
 
-    fn set_progress(&self, progress: Progress) {
-        let [zero, one] = progress.encode();
-        // SAFETY: as progress; the game's code never writes these two.
-        unsafe {
-            self.0.progress_0().write_volatile(zero);
-            self.0.progress_1().write_volatile(one);
+    /// The cells holding steps, by cell, and their steps.
+    pub fn cells(&self) -> impl Iterator<Item = (Cell, u8)> + '_ {
+        self.0.iter().enumerate().filter(|&(_, &steps)| steps > 0).filter_map(|(index, &steps)| Some((Cell::at(index)?, steps)))
+    }
+
+    /// `(cell, steps)` pairs: cells of the 60 in rising order, each with
+    /// steps.
+    fn parse(pairs: &[[u8; 2]]) -> Option<Held> {
+        let mut held = Held::NONE;
+        let mut last = None;
+        for &[cell, steps] in pairs {
+            let cell = Cell::at(usize::from(cell))?;
+            if steps == 0 || last.is_some_and(|last| last >= cell) {
+                return None;
+            }
+            held.0[cell.index()] = steps;
+            last = Some(cell);
         }
+        Some(held)
     }
 }
 
-/// A player carrying a battery, at `battery.carrier_tick`: its team, where it
-/// stands against both containers, the battery's record and its own score.
+/// A battery's life (from the match's start, or its last delivery): how
+/// near it has come to each container and what its carriers hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Life {
+    pub progress: Progress,
+    pub held: Held,
+}
+
+impl Life {
+    pub const NEW: Life = Life { progress: Progress([None; 2]), held: Held::NONE };
+
+    /// The most bytes a life takes after its record.
+    const MAX_BYTES: usize = 3 + 2 * Cell::COUNT;
+
+    /// The progress's two bytes, the count of cells holding steps, then
+    /// each one's (cell, steps), the cells in rising order
+    /// (snapshot_rules.md section 3.2).
+    fn encode(&self) -> ([u8; Self::MAX_BYTES], usize) {
+        let mut bytes = [0; Self::MAX_BYTES];
+        let [zero, one] = self.progress.encode();
+        bytes[0] = zero;
+        bytes[1] = one;
+        let mut length = 3;
+        for (cell, steps) in self.held.cells() {
+            bytes[length] = cell.index() as u8;
+            bytes[length + 1] = steps;
+            length += 2;
+            bytes[2] += 1;
+        }
+        (bytes, length)
+    }
+}
+
+/// Which statistics' batteries: the address of their first record (an id,
+/// never read through).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Batteries(u32);
+
+impl Batteries {
+    fn of(manager: raw::VictoryItemEventManager) -> Batteries {
+        // SAFETY: the address of the manager's first record, not read.
+        Batteries(unsafe { manager.records() }.address())
+    }
+
+    /// The battery whose record is `record`; None for a record that is
+    /// none of these ten.
+    fn battery(self, record: raw::VictoryItemStatus) -> Option<Battery> {
+        let offset = usize::try_from(record.address().checked_sub(self.0)?).ok()?;
+        let index = offset / raw::VictoryItemStatus::SIZE;
+        (offset % raw::VictoryItemStatus::SIZE == 0 && index < BATTERIES).then_some(Battery { of: self, index })
+    }
+}
+
+/// One of the ten batteries of some [`Batteries`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Battery {
+    of: Batteries,
+    index: usize,
+}
+
+impl Battery {
+    pub fn of(self) -> Batteries {
+        self.of
+    }
+
+    /// Its index, under [`BATTERIES`].
+    pub fn index(self) -> usize {
+        self.index
+    }
+}
+
+/// A player carrying a battery, at `battery.carrier_tick`: which battery,
+/// its cell, its team and where it stands against both containers.
 pub struct BatteryCarry<'t> {
-    record: Record,
-    score: Score,
+    battery: Battery,
+    cell: Cell,
     team: Team,
     distances: [f32; 2],
     thread: PhantomData<&'t Thread>,
@@ -205,19 +324,27 @@ impl<'t> BatteryCarry<'t> {
             let first = rule.items_begin()?;
             let count = rule.items_end()?.index_from(first)?.min(BATTERIES);
             let index = (0..count).find(|&i| first.at(i).item().is_some_and(|item| item == held))?;
-            let score = Score::of(shared, player)?;
-            let team = Team::parse(read(manager.options()?.first_place().at(score.place()).team()))?;
+            let Score { cell, .. } = Score::of(shared, player)?;
+            let team = team_of(manager.options()?, cell.place)?;
             let at: [f32; 16] = floats(player.transform());
             let position = [at[12], at[13], at[14]];
             let containers: [[f32; 3]; 2] = [floats(manager.container_0()), floats(manager.container_1())];
             Some(BatteryCarry {
-                record: Record(manager.records().at(index)),
-                score,
+                battery: Battery { of: Batteries::of(manager), index },
+                cell,
                 team,
                 distances: containers.map(|container| distance(position, container)),
                 thread: PhantomData,
             })
         }
+    }
+
+    pub fn battery(&self) -> Battery {
+        self.battery
+    }
+
+    pub fn cell(&self) -> Cell {
+        self.cell
     }
 
     pub fn team(&self) -> Team {
@@ -228,66 +355,124 @@ impl<'t> BatteryCarry<'t> {
     pub fn distances(&self) -> [f32; 2] {
         self.distances
     }
+}
 
-    pub fn progress(&self) -> Progress {
-        self.record.progress()
+/// A battery put into a container, at `battery.delivered`: which battery,
+/// whose container it is now in, and the cells its carriers are paid in.
+pub struct Delivery<'t> {
+    battery: Battery,
+    into: Option<Team>,
+    statistics: raw::SharedStatistics,
+    options: Option<raw::MatchOptions>,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> Delivery<'t> {
+    /// The put-in the site is at; None for a record that is none of the
+    /// manager's ten.
+    pub fn at(ctx: &'t Context<'_>) -> Option<Delivery<'t>> {
+        use raw::site::battery_delivered as site;
+        // SAFETY: on_event's record and manager (the shared statistics'
+        // +2760h), alive on the game's thread; EAX the putter's team.
+        unsafe {
+            let manager = site::manager(ctx)?;
+            Some(Delivery {
+                battery: Batteries::of(manager).battery(site::record(ctx)?)?,
+                into: Team::parse(site::team(ctx)),
+                statistics: manager.statistics(),
+                options: manager.options(),
+                thread: PhantomData,
+            })
+        }
     }
 
-    pub fn set_progress(&self, progress: Progress) {
-        self.record.set_progress(progress)
+    pub fn battery(&self) -> Battery {
+        self.battery
     }
 
-    /// Counts `amount` of `event` for the carrier.
-    pub fn count(&self, event: ScoreEvent, amount: u16) {
-        self.score.count(event, amount)
+    /// The team whose container the battery is now in; None for a team
+    /// that is neither (no game puts one in for it).
+    pub fn container(&self) -> Option<Team> {
+        self.into
+    }
+
+    /// The team of the place `cell` is.
+    pub fn team_of(&self, cell: Cell) -> Option<Team> {
+        // SAFETY: the manager's match options, alive with it.
+        unsafe { team_of(self.options?, cell.place) }
+    }
+
+    /// Counts `amount` of `event` for `cell`.
+    pub fn count(&self, cell: Cell, event: ScoreEvent, amount: u16) {
+        Score { statistics: self.statistics, cell }.count(event, amount)
     }
 }
 
 /// The batteries' records: ten (the clear 0x3348A0's loop).
-const BATTERIES: usize = 10;
+pub const BATTERIES: usize = 10;
 
 fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
     let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     ragdoll::math::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])
 }
 
-/// At `battery.match_start`: every record's progress untouched.
-pub fn forget_all(ctx: &Context<'_>) {
-    // SAFETY: start_match's manager, its ten records.
-    let Some(manager) = (unsafe { raw::site::battery_match_start::manager(ctx) }) else { return };
-    for index in 0..BATTERIES {
-        // SAFETY: one of the manager's ten records.
-        Record(unsafe { manager.records().at(index) }).set_progress(Progress::default());
+/// At `battery.match_start`: the batteries whose lives begin.
+pub fn started(ctx: &Context<'_>) -> Option<Batteries> {
+    // SAFETY: start_match's manager.
+    unsafe { raw::site::battery_match_start::manager(ctx) }.map(Batteries::of)
+}
+
+/// A battery's record being serialized, at `battery.save`.
+pub struct Saving<'t> {
+    record: raw::VictoryItemStatus,
+    writer: raw::BufferWriter,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> Saving<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<Saving<'t>> {
+        // SAFETY: serialize's record and live writer.
+        unsafe {
+            let site = (raw::site::battery_save::record(ctx)?, raw::site::battery_save::writer(ctx)?);
+            Some(Saving { record: site.0, writer: site.1, thread: PhantomData })
+        }
+    }
+
+    /// Which of `batteries` it is; None for a record that is none of
+    /// theirs.
+    pub fn battery(&self, batteries: Batteries) -> Option<Battery> {
+        batteries.battery(self.record)
+    }
+
+    /// Writes `life` after the record's own fields.
+    pub fn write(self, life: &Life) {
+        let (bytes, length) = life.encode();
+        super::carry_runtime::write_bytes(self.writer, &bytes[..length]);
     }
 }
 
-/// At `battery.delivered`: the delivered battery's progress untouched.
-pub fn forget_delivered(ctx: &Context<'_>) {
-    // SAFETY: on_event's record of the battery put in.
-    if let Some(record) = unsafe { raw::site::battery_delivered::record(ctx) } {
-        Record(record).set_progress(Progress::default());
-    }
-}
-
-/// At `battery.save`: the record's progress after its own fields.
-pub fn save(ctx: &Context<'_>) {
-    // SAFETY: serialize's record and live writer.
-    let (Some(record), Some(writer)) =
-        (unsafe { raw::site::battery_save::record(ctx) }, unsafe { raw::site::battery_save::writer(ctx) })
-    else {
-        return;
+/// At `battery.load`: the battery deserialized and its life as it was saved
+/// (a new life when the bytes are not there or are no life's).
+pub fn load(ctx: &Context<'_>) -> Option<(Battery, Life)> {
+    use super::carry_runtime::read_bytes;
+    use raw::site::battery_load as site;
+    // SAFETY: deserialize's record, manager and live reader.
+    let (battery, reader) = unsafe {
+        (Batteries::of(site::manager(ctx)?).battery(site::record(ctx)?)?, site::reader(ctx))
     };
-    super::carry_runtime::write_bytes(writer, &Record(record).progress().encode());
-}
-
-/// At `battery.load`: the record's progress as it was saved (untouched when
-/// the bytes are not there).
-pub fn load(ctx: &Context<'_>) {
-    // SAFETY: deserialize's record.
-    let Some(record) = (unsafe { raw::site::battery_load::record(ctx) }) else { return };
-    // SAFETY: deserialize's live reader.
-    let bytes = unsafe { raw::site::battery_load::reader(ctx) }.and_then(super::carry_runtime::read_bytes::<2>);
-    Record(record).set_progress(bytes.map_or(Progress::default(), Progress::parse));
+    let life = reader.and_then(|reader| {
+        let [zero, one, count] = read_bytes::<3>(reader)?;
+        let count = usize::from(count);
+        if count > Cell::COUNT {
+            return None;
+        }
+        let mut pairs = [[0; 2]; Cell::COUNT];
+        for pair in &mut pairs[..count] {
+            *pair = read_bytes::<2>(reader)?;
+        }
+        Some(Life { progress: Progress::parse([zero, one]), held: Held::parse(&pairs[..count])? })
+    });
+    Some((battery, life.unwrap_or(Life::NEW)))
 }
 
 #[cfg(test)]
@@ -300,6 +485,10 @@ mod tests {
         assert_eq!(Place::parse(20), None);
         assert_eq!(Kit::parse(2), Some(Kit(2)));
         assert_eq!(Kit::parse(3), None);
+        assert_eq!(Cell::of(19, 2).map(Cell::index), Some(59));
+        assert_eq!(Cell::at(59), Cell::of(19, 2));
+        assert_eq!(Cell::at(60), None);
+        assert!((0..Cell::COUNT).all(|index| Cell::at(index).map(Cell::index) == Some(index)));
     }
 
     #[test]
@@ -317,6 +506,23 @@ mod tests {
             assert_eq!(Progress::parse([byte, 0]).encode(), [byte, 0]);
         }
         assert_eq!(Band::new(u8::MAX), Band::FARTHEST);
+    }
+
+    #[test]
+    fn a_life_is_its_progress_then_the_cells_holding_steps() {
+        let cell = |place, kit| Cell::of(place, kit).unwrap();
+        let held = Held::NONE.add(cell(3, 1), 4).add(cell(0, 0), 2).add(cell(3, 1), 1);
+        let life = Life { progress: Progress::parse([5, 0]), held };
+        let (bytes, length) = life.encode();
+        assert_eq!(&bytes[..length], &[5, 0, 2, 0, 2, 10, 5]);
+        assert_eq!(Held::parse(&[[0, 2], [10, 5]]), Some(held));
+        assert_eq!(Life::NEW.encode().1, 3);
+        // Out of order, twice, no steps, no cell: none is a life's.
+        for pairs in [&[[10, 5], [0, 2]][..], &[[0, 2], [0, 2]], &[[0, 0]], &[[60, 1]]] {
+            assert_eq!(Held::parse(pairs), None, "{pairs:?}");
+        }
+        let all = (0..Cell::COUNT).fold(Held::NONE, |held, index| held.add(Cell::at(index).unwrap(), 255));
+        assert_eq!(Life { progress: Progress::default(), held: all }.encode().1, Life::MAX_BYTES);
     }
 
     #[test]

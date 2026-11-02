@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Гэты матч дасягнуў ліміту гуль
 st_srp_rooms_joined_room	%1$s увайшоў у пакой
 st_srp_rooms_late_hint	Хто зойдзе зараз, убачыць пакой, потым трапіць у матч.
 st_srp_rooms_leave	Выйсці
-st_srp_rooms_leave_queue	Выйсці з чаргі
-st_srp_rooms_leave_room	Выйсці з пакоя
+st_srp_rooms_leave_queue	Выйсці
+st_srp_rooms_leave_room	Выйсці
 st_srp_rooms_left_room	%1$s пакінуў пакой
 st_srp_rooms_level	Узровень
 st_srp_rooms_map	Карта
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Мінімальная шкода
 st_srp_weapon_minimum_damage_from	Мінімальная шкода ад
 st_srp_weapon_recoil_heading	Аддача, раскід, гойданне
 st_srp_weapon_reload	Перазарадка
-st_srp_weapon_shift_hint	Трымайце Shift: падрабязней
+st_srp_weapon_shift_hint	Shift: дэталі · Alt: у баі
 st_srp_weapon_spread_growth	Хуткасць росту раскіду
 st_srp_weapon_spread_max	Мяжа росту раскіду
 st_srp_weapon_spread_per_shot	Раскід ад стрэлу
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Характарыстыкі зброі
 st_srp_weapon_sway_cycle	Перыяд разгойдвання
 st_srp_weapon_sway_horizontal	Разгойдванне ў бакі
 st_srp_weapon_sway_vertical	Разгойдванне ўверх-уніз
+st_srp_weapon_with_kit	З камплектам
+st_srp_weapon_with_kit_skills	З камплектам і навыкамі
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
 st_srp_weather_evening	вечар
@@ -2849,9 +2851,16 @@ st_walther_competition2_collimator_desc	Нямецкі каліматарны п
 st_walther_competition2_collimator_name	Каліматар Competition II
 st_wasted	Расход
 st_weapon_aim_action	Прыцэльванне (утрым.)
+st_weapon_already_taken	Ужо падабрана
+st_weapon_cannot_carry	Нельга несці другую вінтоўку
+st_weapon_cannot_pick_up	Гэта нельга падабраць
 st_weapon_could_not_be_used	Раненне рук! Немагчыма выкарыстоўваць зброю
 st_weapon_fire_action	Стральба
+st_weapon_no_gun_in_hands	Вазьміце зброю ў рукі, каб абмяняць
+st_weapon_one_gun_only	Можна несці толькі адну зброю
+st_weapon_pick_up	Падабраць %1$s ({USE})
 st_weapon_reload_action	Перазарадка
+st_weapon_switching	Пачакайце змены зброі
 st_wear	Надзець
 st_weight_booster_description	Пратэін, які змяшчае неабходныя рэчывы для росту мышцаў і павышэння сілы. Аднак без фізічнай нагрузкі ўжываць яго бессэнсоўна.
 st_weight_booster_name	Пратэін "Анамальная сіла"

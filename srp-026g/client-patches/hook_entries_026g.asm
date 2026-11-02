@@ -960,7 +960,7 @@ battery_progress_on_match_start_replay:
     db 0x8b, 0x86, 0x38, 0x0a, 0x00, 0x00
     jmp 0x33499f
 
-; 0x334cea victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record: lohook -> battery_progress_on_delivered
+; 0x334cea victory_item_event_manager::on_event's put into a container, after the shares and the record's reset, as it writes the owner team (mov [ebx+0F8h],eax): EBX the battery's record, ESI the manager, EAX the team of the player who put it in (its [esp+8], 0x334CC5), whose container it is now in: lohook -> battery_progress_on_delivered
 global battery_progress_on_delivered
 extern hook_battery_progress_on_delivered
 battery_progress_on_delivered:
@@ -1038,7 +1038,7 @@ battery_progress_on_save_replay:
     db 0x8b, 0x44, 0x24, 0x24, 0x8b, 0x80, 0x38, 0x0a, 0x00, 0x00
     jmp 0x334f70
 
-; 0x3350d0 victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader: lohook -> battery_progress_on_load
+; 0x3350d0 victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader, EBP the manager (0x33505D): lohook -> battery_progress_on_load
 global battery_progress_on_load
 extern hook_battery_progress_on_load
 battery_progress_on_load:
@@ -2871,6 +2871,87 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
+; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
+global scaleform_capture_on_next_capture
+extern hook_scaleform_capture_on_next_capture
+scaleform_capture_on_next_capture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_scaleform_capture_on_next_capture
+    mov edx, scaleform_capture_on_next_capture_replay
+    cmp eax, 0
+    je scaleform_capture_on_next_capture_go
+    mov edx, 0x57267b
+    cmp eax, 1
+    je scaleform_capture_on_next_capture_go
+    mov edx, 0x57269c
+    cmp eax, 2
+    je scaleform_capture_on_next_capture_go
+    ud2
+scaleform_capture_on_next_capture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+scaleform_capture_on_next_capture_replay:
+    db 0x8b, 0x4e, 0x44, 0x8d, 0x7e, 0x40
+    jmp 0x57267b
+
+; 0x5ed1e0 DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4): lohook -> scaleform_capture_on_queue_destroy
+global scaleform_capture_on_queue_destroy
+extern hook_scaleform_capture_on_queue_destroy
+scaleform_capture_on_queue_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_scaleform_capture_on_queue_destroy
+    mov edx, scaleform_capture_on_queue_destroy_replay
+    cmp eax, 0
+    je scaleform_capture_on_queue_destroy_go
+    mov edx, 0x5ed1e6
+    cmp eax, 1
+    je scaleform_capture_on_queue_destroy_go
+    ud2
+scaleform_capture_on_queue_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+scaleform_capture_on_queue_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
+    jmp 0x5ed1e6
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
@@ -3150,6 +3231,567 @@ weapon_kit_on_preview_apply_go:
     popfd
     lea esp, [esp + 4]
     ret
+
+; 0x202dd0 player_cook::on_subresources_loaded's entry (push ebp / mov ebp,esp / and esp,-8; ret 0Ch): a player's subresource batch is in and the player is about to be made (a match's kit players, a late joiner's, the lobby's character): lohook -> weapon_pickup_on_player_made
+global weapon_pickup_on_player_made
+extern hook_weapon_pickup_on_player_made
+weapon_pickup_on_player_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_player_made
+    mov edx, weapon_pickup_on_player_made_replay
+    cmp eax, 0
+    je weapon_pickup_on_player_made_go
+    mov edx, 0x202dd6
+    cmp eax, 1
+    je weapon_pickup_on_player_made_go
+    ud2
+weapon_pickup_on_player_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_player_made_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x202dd6
+
+; 0x1f2100 player::~player's entry (push ebp / mov ebp,esp / and esp,-8), ECX the player, before any of it is torn down; late join's player_destroyed_hook calls it from the scalar deleting destructor: lohook -> weapon_pickup_on_destroy
+global weapon_pickup_on_destroy
+extern hook_weapon_pickup_on_destroy
+weapon_pickup_on_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_destroy
+    mov edx, weapon_pickup_on_destroy_replay
+    cmp eax, 0
+    je weapon_pickup_on_destroy_go
+    mov edx, 0x1f2106
+    cmp eax, 1
+    je weapon_pickup_on_destroy_go
+    ud2
+weapon_pickup_on_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_destroy_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1f2106
+
+; 0x2daf70 base_player::serialize before its first field (mov eax,[ebx+124h]; the profile's serialize_dynamic 0x2DAF81 follows): EBX the player, ESI the writer; patch 85's record goes here, state offset 2: lohook -> weapon_pickup_on_save
+global weapon_pickup_on_save
+extern hook_weapon_pickup_on_save
+weapon_pickup_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_save
+    mov edx, weapon_pickup_on_save_replay
+    cmp eax, 0
+    je weapon_pickup_on_save_go
+    mov edx, 0x2daf76
+    cmp eax, 1
+    je weapon_pickup_on_save_go
+    ud2
+weapon_pickup_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_save_replay:
+    db 0x8b, 0x83, 0x24, 0x01, 0x00, 0x00
+    jmp 0x2daf76
+
+; 0x2db4cf base_player::deserialize before its first read (mov [ebx+344h],edx; EDX live; profile deserialize_dynamic 0x2DB4D5, held 0x2DB626, inventory 0x2DB7D8 follow): EBX the player, ESI the reader: lohook -> weapon_pickup_on_load
+global weapon_pickup_on_load
+extern hook_weapon_pickup_on_load
+weapon_pickup_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load
+    mov edx, weapon_pickup_on_load_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_go
+    mov edx, 0x2db4d5
+    cmp eax, 1
+    je weapon_pickup_on_load_go
+    ud2
+weapon_pickup_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_replay:
+    db 0x89, 0x93, 0x44, 0x03, 0x00, 0x00
+    jmp 0x2db4d5
+
+; 0x2da790 base_player::remove's entry (push ebp / mov ebp,esp / and esp,-8; ret 4): ECX the player, [esp+4] the flag (1: held deactivated, unload_to_profile 0x2DA840): lohook -> weapon_pickup_on_remove
+global weapon_pickup_on_remove
+extern hook_weapon_pickup_on_remove
+weapon_pickup_on_remove:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_remove
+    mov edx, weapon_pickup_on_remove_replay
+    cmp eax, 0
+    je weapon_pickup_on_remove_go
+    mov edx, 0x2da796
+    cmp eax, 1
+    je weapon_pickup_on_remove_go
+    ud2
+weapon_pickup_on_remove_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_remove_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x2da796
+
+; 0x2f809c resupply_zone_core::can_use before check_resupply's inventory (mov ecx,[eax+10Ch]; EAX the player, EDX its profile; a je lands on its start); available: mov eax,1 / ret 4: lohook -> weapon_pickup_on_can_use
+global weapon_pickup_on_can_use
+extern hook_weapon_pickup_on_can_use
+weapon_pickup_on_can_use:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_can_use
+    mov edx, weapon_pickup_on_can_use_replay
+    cmp eax, 0
+    je weapon_pickup_on_can_use_go
+    mov edx, 0x2f80a2
+    cmp eax, 1
+    je weapon_pickup_on_can_use_go
+    mov edx, 0x2f80b3
+    cmp eax, 2
+    je weapon_pickup_on_can_use_go
+    ud2
+weapon_pickup_on_can_use_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_can_use_replay:
+    db 0x8b, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2f80a2
+
+; 0x2f80e4 resupply_zone_core::use_hint before check_resupply's inventory (mov ecx,[eax+10Ch]; a je lands on its start); available: st_use_resupply_zone / ret 4: lohook -> weapon_pickup_on_use_hint
+global weapon_pickup_on_use_hint
+extern hook_weapon_pickup_on_use_hint
+weapon_pickup_on_use_hint:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_use_hint
+    mov edx, weapon_pickup_on_use_hint_replay
+    cmp eax, 0
+    je weapon_pickup_on_use_hint_go
+    mov edx, 0x2f80ea
+    cmp eax, 1
+    je weapon_pickup_on_use_hint_go
+    mov edx, 0x2f8116
+    cmp eax, 2
+    je weapon_pickup_on_use_hint_go
+    ud2
+weapon_pickup_on_use_hint_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_use_hint_replay:
+    db 0x8b, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2f80ea
+
+; 0x2f81b8 resupply_zone_core::finish_use before resupply_from_profile's inventory (mov eax,[eax+10Ch]; ECX the kit, EDX the profile): lohook -> weapon_pickup_on_resupply
+global weapon_pickup_on_resupply
+extern hook_weapon_pickup_on_resupply
+weapon_pickup_on_resupply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_resupply
+    mov edx, weapon_pickup_on_resupply_replay
+    cmp eax, 0
+    je weapon_pickup_on_resupply_go
+    mov edx, 0x2f81be
+    cmp eax, 1
+    je weapon_pickup_on_resupply_go
+    ud2
+weapon_pickup_on_resupply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_resupply_replay:
+    db 0x8b, 0x80, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2f81be
+
+; 0x2954ef resupply_zone::finish_use (the client's) before resupply_from_profile's inventory (mov eax,[eax+10Ch]): lohook -> weapon_pickup_on_client_resupply
+global weapon_pickup_on_client_resupply
+extern hook_weapon_pickup_on_client_resupply
+weapon_pickup_on_client_resupply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_client_resupply
+    mov edx, weapon_pickup_on_client_resupply_replay
+    cmp eax, 0
+    je weapon_pickup_on_client_resupply_go
+    mov edx, 0x2954f5
+    cmp eax, 1
+    je weapon_pickup_on_client_resupply_go
+    ud2
+weapon_pickup_on_client_resupply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_client_resupply_replay:
+    db 0x8b, 0x80, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2954f5
+
+; 0x2d7650 base_player::tick_active_object's entry (push ecx / push ebx / push esi / mov esi,eax; ret 4, called only at 0x2D96A1): EAX the player, before the pending object (+12Ch) is asked or the held one updated: lohook -> weapon_pickup_on_tick_active
+global weapon_pickup_on_tick_active
+extern hook_weapon_pickup_on_tick_active
+weapon_pickup_on_tick_active:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_tick_active
+    mov edx, weapon_pickup_on_tick_active_replay
+    cmp eax, 0
+    je weapon_pickup_on_tick_active_go
+    mov edx, 0x2d7655
+    cmp eax, 1
+    je weapon_pickup_on_tick_active_go
+    ud2
+weapon_pickup_on_tick_active_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_tick_active_replay:
+    db 0x51, 0x53, 0x56, 0x8b, 0xf0
+    jmp 0x2d7655
+
+; 0x2d76d0 tick_active_object's switch (mov ecx,[esi+128h], reached from 0x2D76B5 and 0x2D76C0 once the held object is ready to be deactivated and the pending one may be activated): ESI the player, held +128h the outgoing, pending +12Ch the incoming; switched is mov ecx,[esi+128h] before the new held object's update (0x2D772A): lohook -> weapon_pickup_on_switch
+global weapon_pickup_on_switch
+extern hook_weapon_pickup_on_switch
+weapon_pickup_on_switch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_switch
+    mov edx, weapon_pickup_on_switch_replay
+    cmp eax, 0
+    je weapon_pickup_on_switch_go
+    mov edx, 0x2d76d6
+    cmp eax, 1
+    je weapon_pickup_on_switch_go
+    mov edx, 0x2d7724
+    cmp eax, 2
+    je weapon_pickup_on_switch_go
+    ud2
+weapon_pickup_on_switch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_switch_replay:
+    db 0x8b, 0x8e, 0x28, 0x01, 0x00, 0x00
+    jmp 0x2d76d6
+
+; 0x32c148 bullet::serialize at its test of the ammo (mov eax,[esi+40h] / cmp byte [eax+44h],1, then jbe 0x32C171 past the write): the quiet byte (+80h) is written only for an ammo of more than one pellet; write is the write (0x32C151): lohook -> weapon_pickup_on_save_quiet
+global weapon_pickup_on_save_quiet
+extern hook_weapon_pickup_on_save_quiet
+weapon_pickup_on_save_quiet:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_save_quiet
+    mov edx, weapon_pickup_on_save_quiet_replay
+    cmp eax, 0
+    je weapon_pickup_on_save_quiet_go
+    mov edx, 0x32c14f
+    cmp eax, 1
+    je weapon_pickup_on_save_quiet_go
+    mov edx, 0x32c151
+    cmp eax, 2
+    je weapon_pickup_on_save_quiet_go
+    ud2
+weapon_pickup_on_save_quiet_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_save_quiet_replay:
+    db 0x8b, 0x46, 0x40, 0x80, 0x78, 0x44, 0x01
+    jmp 0x32c14f
+
+; 0x32be12 the loader storing the struck material (mov [edi+4Ch],eax) and testing its resolved ammo (cmp byte [ecx+44h],1, then jbe 0x32BE29 past the read): the quiet byte (+80h) is read only for an ammo of more than one pellet; read is the read (0x32BE1B): lohook -> weapon_pickup_on_load_quiet
+global weapon_pickup_on_load_quiet
+extern hook_weapon_pickup_on_load_quiet
+weapon_pickup_on_load_quiet:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_quiet
+    mov edx, weapon_pickup_on_load_quiet_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_quiet_go
+    mov edx, 0x32be19
+    cmp eax, 1
+    je weapon_pickup_on_load_quiet_go
+    mov edx, 0x32be1b
+    cmp eax, 2
+    je weapon_pickup_on_load_quiet_go
+    ud2
+weapon_pickup_on_load_quiet_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_quiet_replay:
+    db 0x89, 0x47, 0x4c, 0x80, 0x79, 0x44, 0x01
+    jmp 0x32be19
+
+; 0x32bdba bullet::bullet (the loader 0x32BBC0) with its weapon item resolved from the shooter's slot (+0Ch, 0x32BDAE) and the ammo ordinal read into CL (0x32BDB4), before 0x2E2750 indexes the weapon's ammo slots by it (mov eax,[edi+0Ch] / test eax,eax): EDI the bullet, CL the ordinal: lohook -> weapon_pickup_on_load_ordinal
+global weapon_pickup_on_load_ordinal
+extern hook_weapon_pickup_on_load_ordinal
+weapon_pickup_on_load_ordinal:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_ordinal
+    mov edx, weapon_pickup_on_load_ordinal_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_ordinal_go
+    mov edx, 0x32bdbf
+    cmp eax, 1
+    je weapon_pickup_on_load_ordinal_go
+    ud2
+weapon_pickup_on_load_ordinal_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_ordinal_replay:
+    db 0x8b, 0x47, 0x0c, 0x85, 0xc0
+    jmp 0x32bdbf
 
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked

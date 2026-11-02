@@ -36,7 +36,8 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
 - The release builds the patch: `release/build-content <revision>` builds everything the manifest
   lists, compares it with what players have (the stock db and every listed patch), and packs only the
   files that differ, printing each one and why; anything live that the manifest does not make stops
-  it. Then `release/release.sh --resources <that patch>`.
+  it, save what an earlier version of a listed pack added and its new version no longer makes (left
+  as it is, listed). Then `release/release.sh --resources <that patch>`.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
 
@@ -101,6 +102,7 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   (`check_<patch>_026g.py`, and the equivalence gate while porting), the self-test functions for that
   patch called by name, `cargo test` and clippy for the crates you changed, and the movie's own Ruffle
   harness.
+- A change to what the exe saves or loads in a world also runs `check_world_roundtrip_026g.py` (a resync converges).
 - Before pushing, run the full set once: the whole `selftest_026g.py` (every build variant), every
   Unicorn check, `release/build-content` where content changed, clippy for the workspace. Never push
   or open a PR without the full run passing.

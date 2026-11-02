@@ -41,12 +41,12 @@
 //! of every change, `-server=`). `srp` starts the 0.26g one.
 
 mod damage;
+mod equipment;
 mod icons;
 pub mod item_tables;
 mod launcher;
 mod maps;
 mod moderation;
-mod equipment;
 mod modifiers;
 mod password_reset;
 mod patches;
@@ -54,7 +54,7 @@ mod stats;
 mod v026g;
 mod wiki;
 
-pub use patches::OfferedPatch;
+pub use patches::{Downloads, OfferedPatch};
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
 
 use std::collections::HashMap;
@@ -67,6 +67,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use session::utc::{clock as clock_utc, date as date_utc};
 use session::v026g::replays::{Refused, Replays};
 use session::{Ban, LockExt, Net, SessionStore};
 
@@ -963,7 +964,12 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
-                    "/patches" => return patches::response(&game.patches),
+                    "/patches" => return patches::response(&game.downloads),
+                    "/game" => {
+                        if let Some(response) = patches::game_response(&game.downloads) {
+                            return response;
+                        }
+                    }
                     "/api/client-files" => {
                         return launcher::client_files(game.min_patch_revision);
                     }
@@ -1050,7 +1056,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text" | "mute") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1096,6 +1102,7 @@ impl Web {
             "account" => self.admin_account_026g(request, peer),
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
+            "mute" => self.admin_chat_mute(request, peer),
             _ if g26 => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
@@ -1251,16 +1258,8 @@ impl Web {
         let lang = request.lang;
         let target = request.field("ban_user").trim();
         let hours = request.field("hours").trim();
-        let until = match hours.parse::<u64>() {
-            _ if hours.is_empty() => None,
-            Ok(0) => None,
-            Ok(hours) if hours <= MAX_BAN_HOURS => Some(unix_now() + hours * 3600),
-            _ => {
-                return lang.tr(
-                    &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
-                    &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
-                );
-            }
+        let Ok(until) = ban_until(hours, unix_now()) else {
+            return BadHours::text(lang);
         };
         let reason: String = request.field("reason").trim().chars().take(200).collect();
         let ban = Ban { until, reason };
@@ -1768,6 +1767,7 @@ main{max-width:46rem;margin:22px auto;padding:0 16px;display:grid;gap:22px}a{col
 h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}h1{font-size:1.35rem}h2{font-size:1.15rem}\
 .card{background:var(--panel);border:1px solid var(--rule);padding:16px;display:grid;gap:12px;align-content:start;min-width:0}\
 .card>h1:first-child,.card>h2:first-child{border-bottom:1px solid var(--rule);padding-bottom:8px}.card p{margin:0}\
+.qa{display:grid;grid-template-columns:max-content 1fr;gap:.2rem .7rem;margin:0}.qa dt{font:700 1em/1.55 var(--data);color:var(--accent)}.qa dd{margin:0;min-width:0}.qa dt.q:not(:first-child),.qa dt.q:not(:first-child)+dd{margin-top:.9rem}\
 ol{padding-left:1.3rem;margin:0}.rules{padding-left:1.1rem;margin:0}.opts{font-size:.85rem;color:var(--ink-2);padding-left:1.1rem}li{margin:.6rem 0}li>p{margin:.4rem 0}\
 pre,code{background:var(--code);border:1px solid var(--rule);border-radius:2px;color:var(--ink);font:.85rem var(--data)}pre{padding:.6rem .8rem;margin:.4rem 0;white-space:pre-wrap;word-break:break-all}code{padding:.05rem .3rem;word-break:break-all}\
 .dl{display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;margin:.6rem 0}.dl .button{margin:0}.hash{display:block;max-width:100%;font-size:.78rem;padding:.35rem .5rem}\
@@ -1784,85 +1784,91 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
-details{margin-top:.6rem}summary{cursor:pointer;font:700 .78rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}\
 footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid var(--rule);font-size:.75rem;color:var(--ink-3)}";
 
-/// A file's size as the download button shows it.
-fn file_size(bytes: u64) -> String {
-    if bytes >= 1_000_000_000 {
-        format!("{:.2} GB", bytes as f64 / 1e9)
-    } else {
-        format!("{:.1} MB", bytes as f64 / 1e6)
-    }
-}
-
-/// The list under "How matches start" for 0.26g: every match is a room's,
-/// the players' "servers" (`lobby_server::v026g::rooms`; the owner's of
-/// 2026-10-17).
-fn room_rules(lang: Lang) -> String {
-    let vote = session::v026g::rooms::VOTE.as_secs();
-    let cards = session::v026g::rooms::CARDS;
-    let items = [
-        lang.tr(
-            "Press Play for a public 8 v 8 room, join one from Rooms, or create a private room with a PIN and your choice of maps.",
-            "Натисніть «Грати» для відкритої кімнати 8 на 8, приєднайтеся через список кімнат або створіть приватну кімнату з PIN і вибраними мапами.",
-        ),
-        lang.tr(
-            "Play uses rooms capped at equipment level 10 or 15, creating the first room when needed. Full rooms have a queue; six waiting Play users in the same bracket open another room. Players up to level 10 can also choose a level-15 room from Rooms.",
-            "«Грати» підбирає кімнату з максимальним рівнем спорядження 10 або 15, створюючи першу за потреби. У повні кімнати є черга; шість гравців, що очікують через «Грати» в одній групі рівнів, відкривають нову кімнату. Гравці до 10-го рівня також можуть вибрати кімнату до 15-го через список кімнат.",
-        ),
-        lang.tr(
-            &format!(
-                "Once a room has its players, they vote for {vote} s between {cards} maps, and the match starts after the room's wait."
+/// The home page's "if something goes wrong", after the steps, for a
+/// download with the launcher (whose ZIP has these files: `make_client_026g.py`):
+/// a question and its answer a case, their labels in a column of their own.
+/// The question is what the player sees, quoted as the updater words it today
+/// (`client/updater`: `logic/src/file_error.rs`, `exe/src/text.rs`,
+/// `logic/src/network.rs`; in the launcher's language where the updater has
+/// one, else its English); the answer what to run, the last one where to
+/// send what it makes.
+fn faq(lang: Lang) -> String {
+    let cases = [
+        (
+            lang.tr(
+                "“Windows Security blocked …: a false positive.” or “Cannot start updater_skhid.exe.”",
+                "«Безпека Windows заблокувала …: це хибне спрацювання.» або “Cannot start updater_skhid.exe.”",
             ),
-            &format!(
-                "Коли в кімнаті досить гравців, вони {vote} с голосують за одну з {cards} мап, і матч починається після очікування кімнати."
+            lang.tr(
+                "Run <code>Skhid-defender-setup.cmd</code>.",
+                "Запустіть <code>Skhid-defender-setup.cmd</code>.",
             ),
         ),
-        lang.tr(
-            "Join a room while its match is played: you see the room, then go into the match (on the side with fewer players) until its last 30 s. After a match everyone is back in the room.",
-            "Хто приєднується до кімнати під час матчу, бачить кімнату, а потім потрапляє в матч (на сторону, де менше гравців) — до його останніх 30 с. Після матчу всі повертаються в кімнату.",
+        (
+            lang.tr(
+                "“Game download failed: …” or “game\\resources.db.patch_… could not be downloaded …”",
+                "“Game download failed: …” або “game\\resources.db.patch_… could not be downloaded …”",
+            ),
+            lang.tr(
+                "Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.",
+                "Запустіть <code>Skhid.bat</code> знову. Не допомогло? Запустіть <code>Skhid-without-updater.bat</code>: він завантажує гру та оновлення без лаунчера й запускає її.",
+            ),
         ),
-        lang.tr(
-            "Teams are balanced by gear, level and past results.",
-            "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
+        (
+            lang.tr(
+                "“skhid.link didn't answer.”, “skhid.link refused the connection.”, “Couldn't find skhid.link.” or “The connection to skhid.link was cut off.”",
+                "«skhid.link не відповідає.», «skhid.link відхилив з'єднання.», «Не вдається знайти skhid.link.» або «З'єднання з skhid.link перервано.»",
+            ),
+            lang.tr(
+                "Run <code>Skhid-network-setup.cmd</code>. Still the same? Your provider may block skhid.link: use a VPN, see <code>VPN.txt</code>.",
+                "Запустіть <code>Skhid-network-setup.cmd</code>. Не допомогло? Можливо, ваш провайдер блокує skhid.link: скористайтеся VPN, див. <code>VPN.txt</code>.",
+            ),
         ),
-        lang.tr(
-            "Private rooms (with a PIN) give no rewards. Their creator starts the match, with any number of players.",
-            "Приватні кімнати (з PIN) не дають нагород. Матч у них починає творець, з будь-якою кількістю гравців.",
-        ),
-        lang.tr(
-            "Squads are of two, led by their leader: the leader's Play or Join takes the squad mate along, into the same room and team; a room without two places on one team puts both in its queue.",
-            "Загони — по двоє, веде їх командир: його «Грати» чи приєднання бере напарника з собою, у ту саму кімнату й команду; якщо в кімнаті немає двох місць в одній команді, обоє стають у її чергу.",
+        (
+            lang.tr("Nothing works.", "Нічого не працює."),
+            lang.tr(
+                "Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>.",
+                "Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить, нам у Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>.",
+            ),
         ),
     ];
-    items
-        .iter()
-        .map(|item| format!("<li>{item}</li>"))
-        .collect()
+    let (q, a) = (lang.tr("Q:", "П:"), lang.tr("A:", "В:"));
+    format!(
+        "<section class=card><h2>{}</h2><dl class=qa>{}</dl></section>",
+        lang.tr("If something goes wrong", "Якщо щось не так"),
+        cases
+            .iter()
+            .map(|(question, answer)| {
+                format!("<dt class=q>{q}</dt><dd class=q><b>{question}</b></dd><dt>{a}</dt><dd>{answer}</dd>")
+            })
+            .collect::<String>(),
+    )
 }
 
+/// The home page: what the server is, then the steps a player follows
+/// (download, start, sign in) and nothing more, then, with the launcher,
+/// what to do when something goes wrong ([`faq`]).
 fn home(lang: Lang, stats: Stats) -> String {
     let v026g = stats.v026g;
     let with_launcher = stats.launcher;
     let installs_game = with_launcher && stats.installs_game;
     let connect = CONNECT.get();
     let address = connect.map_or("127.0.0.1:1234", |connect| connect.address.as_str());
-    let local = available_download().and_then(|file| std::fs::metadata(file).ok());
     let download_label = if v026g {
         lang.tr("Download the files", "Завантажити файли")
     } else {
         lang.tr("Download the game", "Завантажити гру")
     };
     let download = match connect.and_then(|connect| connect.download_url.as_deref()) {
-        _ if local.is_some() => format!(
-            "<a class=button href=\"/download\">{download_label} ({})</a>",
-            file_size(local.as_ref().map_or(0, |meta| meta.len()))
-        ),
+        _ if available_download().is_some() => {
+            format!("<a class=button href=\"/download\">{download_label}</a>")
+        }
         Some(url) => format!(
             "<a class=button href=\"{}\" rel=noopener>{download_label}</a>",
             escape(url),
@@ -1884,19 +1890,8 @@ fn home(lang: Lang, stats: Stats) -> String {
         None => String::new(),
     };
     // 0.26g: the game itself comes from elsewhere (step one); this server
-    // hands out only the files that go over it.
-    // With a download whose launcher brings the game there is no such
-    // step: the link is the way out, in the small print of the download.
-    let game_link = connect
-        .and_then(|connect| connect.game_url.as_deref())
-        .map(|url| {
-            format!(
-                "<a href=\"{}\" rel=noopener>{}</a>",
-                escape(url),
-                lang.tr("the original game", "оригінальну гру")
-            )
-        })
-        .unwrap_or_else(|| lang.tr("the original game", "оригінальну гру").to_string());
+    // hands out only the files that go over it. A download whose launcher
+    // brings the game has no such step.
     let original = if v026g && !installs_game {
         let link = match connect.and_then(|connect| connect.game_url.as_deref()) {
             Some(url) => format!(
@@ -1912,8 +1907,8 @@ fn home(lang: Lang, stats: Stats) -> String {
         format!(
             "<li>{}{link}</li>",
             lang.tr(
-                "Get the original Survarium 0.26g (build 2777) and unpack it (a .7z archive: 7-Zip opens it).",
-                "Отримайте оригінальну Survarium 0.26g (збірка 2777) і розпакуйте її (архів .7z: відкривається 7-Zip)."
+                "Get the original Survarium 0.26g (build 2777) and unpack it.",
+                "Отримайте оригінальну Survarium 0.26g (збірка 2777) і розпакуйте її."
             )
         )
     } else {
@@ -1954,48 +1949,21 @@ fn home(lang: Lang, stats: Stats) -> String {
         lang.tr("registered", "зареєстровано"),
     );
     let version = if v026g { "0.26g" } else { "0.21d" };
-    // 0.21d: the start command, typed by hand. 0.26g's exe has the server and
-    // the memory sizes built in and its language is chosen in its Settings, so
-    // its page names no command line.
-    let command_line = format!(
-        "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
-        lang.tr(
-            "Start it with this command line:",
-            "Запустіть гру з такою командою:"
-        ),
-        lang.tr("english", "ukrainian"),
-        escape(address),
-        lang.tr("server address", "адреса сервера"),
-        lang.tr(
-            "language: english, russian, ukrainian",
-            "мова: english, russian, ukrainian"
-        ),
-    );
-    let language = format!(
-        "<p>{}</p>",
-        lang.tr(
-            "Language: in the game, <b>Settings</b>, <b>Game</b>, <b>Language</b> (applies after a restart).",
-            "Мова: у грі, <b>Опції</b>, <b>Гра</b>, <b>Мова</b> (діє після перезапуску).",
-        )
-    );
-    let without_launcher = lang.tr(
-        "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
-        "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
-    );
-    // With the launcher in the download a player starts that and types
-    // nothing; the start script stays, folded away.
+    // With the launcher a player starts that and types nothing. 0.21d: the
+    // start command, typed by hand (0.26g's exe has the server and the memory
+    // sizes built in, so its page names no command line).
     let start = if with_launcher {
         format!(
-            "{}<p><small>{}</small></p>{language}<details><summary>{}</summary><p>{without_launcher}</p></details>",
+            "{}<p><small>{}</small></p>",
             if installs_game {
                 lang.tr(
-                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
-                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Першого разу лаунчер завантажує гру (2,9 ГБ, з Google Drive), на що потрібен час. Оновлюється він сам.",
+                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.",
+                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Під час першого запуску лаунчер завантажує гру.",
                 )
             } else {
                 lang.tr(
-                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The launcher keeps itself up to date.",
-                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Лаунчер оновлюється сам.",
+                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>.",
+                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>.",
                 )
             },
             if installs_game {
@@ -2009,50 +1977,38 @@ fn home(lang: Lang, stats: Stats) -> String {
                     "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh</code>, див. <code>LINUX.txt</code>.",
                 )
             },
-            lang.tr("Without the launcher", "Без лаунчера"),
         )
     } else if v026g {
-        format!("<p>{without_launcher}</p>{language}")
-    } else {
-        command_line
-    };
-    let window = session::gather_window_from_env()
-        .unwrap_or(session::DEFAULT_GATHER_WINDOW)
-        .as_secs();
-    let fill = session::fill_from_env();
-    let quiet = session::quiet_from_env().as_secs();
-    let max = session::MAX_PLAYERS_PER_MATCH;
-    let rules = if v026g {
-        room_rules(lang)
+        format!(
+            "<p>{}</p>",
+            lang.tr(
+                "Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.",
+                "Запустіть <code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code>.",
+            )
+        )
     } else {
         format!(
-            "<li>{}</li><li>{}</li><li>{}</li><li>{}</li>",
+            "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
             lang.tr(
-                &format!("{max} players: the match starts at once."),
-                &format!("{max} гравців: матч починається одразу.")
+                "Start it with this command line:",
+                "Запустіть гру з такою командою:"
             ),
+            lang.tr("english", "ukrainian"),
+            escape(address),
+            lang.tr("server address", "адреса сервера"),
             lang.tr(
-                &format!(
-                    "{fill} to {} players: it starts when nobody has pressed Play for {quiet} s, or when {window} s are up, whichever is first.",
-                    max - 1
-                ),
-                &format!(
-                    "від {fill} до {} гравців: матч починається, коли {quiet} с ніхто не натискав «Грати», або через {window} с, що настане раніше.",
-                    max - 1
-                )
-            ),
-            lang.tr(
-                &format!("2 to {} players: they wait the full {window} s.", fill - 1),
-                &format!("від 2 до {} гравців: чекають повні {window} с.", fill - 1)
-            ),
-            lang.tr(
-                "One player alone: no match starts until another joins.",
-                "Один гравець: матч не починається, доки не приєднається ще хтось."
+                "language: english, russian, ukrainian",
+                "мова: english, russian, ukrainian"
             ),
         )
     };
+    let faq = if with_launcher {
+        faq(lang)
+    } else {
+        String::new()
+    };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section> <section class=card><h2>{}</h2><ul class=rules>{rules}</ul></section>",
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.tr("Skhid", "Схід"),
         lang.tr(
             &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
@@ -2069,16 +2025,9 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         lang.tr("How to play", "Як зіграти"),
         if installs_game {
-            format!(
-                "{}<p><small>{}</small></p>",
-                lang.tr(
-                    "Download our files and unpack them into an empty folder with about 10 GB free. <b>You do this only once.</b>",
-                    "Завантажте наші файли й розпакуйте їх у порожню теку, де вільно близько 10 ГБ. <b>Це робиться лише один раз.</b>"
-                ),
-                lang.tr(
-                    &format!("Already have Survarium 0.26g (build 2777)? Unpack into its folder, the one with the <code>game</code> folder. Launcher can't get the game? Get {game_link} and do the same."),
-                    &format!("Уже маєте Survarium 0.26g (збірка 2777)? Розпакуйте в її теку, ту, де лежить тека <code>game</code>. Лаунчер не може отримати гру? Завантажте {game_link} і зробіть так само.")
-                ),
+            lang.tr(
+                "Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>",
+                "Завантажте наші файли й розпакуйте їх у порожню теку (напр. D:\\Survarium). <b>Це робиться лише один раз.</b>"
             )
         } else if with_launcher {
             lang.tr(
@@ -2087,8 +2036,8 @@ fn home(lang: Lang, stats: Stats) -> String {
             )
         } else if v026g {
             lang.tr(
-                "Download our files and unpack them over the game's <code>game</code> folder. They add <code>survarium_skhid.exe</code>, <code>play_skhid.bat</code> and, for Linux, <code>play_skhid.sh</code> beside the game's own exe, and replace two of the game's files: <code>bugtrap.dll</code> (the crash reporter) and one certificate. Keep copies of those two if you want the originals back; nothing else changes.",
-                "Завантажте наші файли й розпакуйте їх поверх теки <code>game</code> гри. Вони додають <code>survarium_skhid.exe</code>, <code>play_skhid.bat</code> і, для Linux, <code>play_skhid.sh</code> поруч із exe гри та замінюють два файли гри: <code>bugtrap.dll</code> (звіти про збої) і один сертифікат. Збережіть копії цих двох файлів, якщо хочете повернути оригінали; більше нічого не змінюється."
+                "Download our files and unpack them over the game's <code>game</code> folder.",
+                "Завантажте наші файли й розпакуйте їх поверх теки <code>game</code> гри."
             )
         } else {
             lang.tr("Download the patched game and unpack it.", "Завантажте пропатчену гру та розпакуйте її.")
@@ -2097,7 +2046,6 @@ fn home(lang: Lang, stats: Stats) -> String {
             "Sign in with any name and password: a new name registers itself. Remember the password.",
             "Увійдіть з будь-яким іменем і паролем: нове ім'я реєструється саме. Запам'ятайте пароль."
         ),
-        lang.tr("How matches start", "Як починаються матчі"),
     )
 }
 
@@ -2240,18 +2188,20 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     )
 }
 
-/// The 0.26g admin's own tabs and panels: the account, an item, the text.
+/// The 0.26g admin's own tabs and panels: the account, an item, the text,
+/// the chat mute.
 fn admin_extras_026g(
     lang: Lang,
     view: &AdminView,
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}",
+        "{}{}{}{}{}",
         tab("account", lang.tr("Account", "Акаунт")),
         tab("item", lang.tr("Give item", "Видати предмет")),
         tab("items", lang.tr("Take items", "Забрати предмети")),
         tab("text", lang.tr("Text", "Текст")),
+        tab("mute", lang.tr("Mute chat", "Вимкнути чат")),
     );
     let standing = match &view.admin_text {
         Some((first, second)) => format!(
@@ -2285,10 +2235,13 @@ fn admin_extras_026g(
          <label for=l1>{}</label><input id=l1 name=line1 maxlength={max}>\
          <label for=l2>{}</label><input id=l2 name=line2 maxlength={max}>\
          <small>{}</small><br>\
-         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}",
+         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
         lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
-        lang.tr("Set the level (0 to 50)", "Встановити рівень (0–50)"),
+        lang.tr(
+            &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
+            &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)
+        ),
         lang.tr("Experience, + or -", "Досвід, + або -"),
         lang.tr("Faction (1 to 4)", "Фракція (1–4)"),
         lang.tr("Reputation with it, + or -", "Репутація в ній, + або -"),
@@ -2316,14 +2269,9 @@ fn admin_extras_026g(
         lang.tr("Show", "Показати"),
         lang.tr("Clear", "Прибрати"),
         moderation::items_panel(lang, view),
+        moderation::mute_panel(lang),
     );
     (tabs, panels)
-}
-
-/// `HH:MM` (UTC) of a Unix time.
-fn clock_utc(at: u64) -> String {
-    let seconds = at % 86_400;
-    format!("{:02}:{:02}", seconds / 3600, seconds / 60 % 60)
 }
 
 /// What is planned, as a line for the admin and the home page.
@@ -2358,16 +2306,45 @@ fn maintenance_line(lang: Lang, store: &SessionStore) -> String {
     format!("<p class=note>{}</p>", escape(&text))
 }
 
-/// The bans in force, as two tables.
-fn bans_table(lang: Lang, store: &SessionStore) -> String {
-    let (accounts, nets) = store.bans();
-    let until = |ban: &Ban| match ban.until {
-        Some(until) => {
-            let hours = until.saturating_sub(unix_now()).div_ceil(3600);
-            lang.tr(&format!("{hours} h left"), &format!("ще {hours} год"))
+/// Hours the Ban and Mute chat tabs refuse ([`ban_until`]).
+struct BadHours;
+
+impl BadHours {
+    fn text(lang: Lang) -> String {
+        lang.tr(
+            &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
+            &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
+        )
+    }
+}
+
+/// When a ban or a chat mute of `hours` from `now` (Unix seconds) ends:
+/// empty or 0 is for good (`None`), else a whole number up to
+/// [`MAX_BAN_HOURS`].
+fn ban_until(hours: &str, now: u64) -> Result<Option<u64>, BadHours> {
+    let hours = hours.trim();
+    match hours.parse::<u64>() {
+        _ if hours.is_empty() => Ok(None),
+        Ok(0) => Ok(None),
+        Ok(hours) if hours <= MAX_BAN_HOURS => Ok(Some(now + hours * 3600)),
+        _ => Err(BadHours),
+    }
+}
+
+/// When a ban or a chat mute ends: `until <date> <time> UTC`, or `for good`.
+fn ban_end(lang: Lang, ban: &Ban) -> String {
+    match ban.until {
+        Some(at) => {
+            let at = format!("{} {}", date_utc(at), clock_utc(at));
+            lang.tr(&format!("until {at} UTC"), &format!("до {at} UTC"))
         }
         None => lang.tr("for good", "назавжди"),
-    };
+    }
+}
+
+/// The bans in force, as tables: accounts, addresses, chat mutes.
+fn bans_table(lang: Lang, store: &SessionStore) -> String {
+    let (accounts, nets) = store.bans();
     let none = format!("<p><small>{}</small></p>", lang.tr("None.", "Немає."));
     let mut html = format!("<h2>{}</h2>", lang.tr("Accounts", "Акаунти"));
     if accounts.is_empty() {
@@ -2385,7 +2362,7 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
                 "<tr><td>{}<br><small>{}</small></td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 escape(name),
                 escape(login),
-                until(ban),
+                ban_end(lang, ban),
                 escape(&ban.reason),
                 ip.map(|ip| ip.to_string()).unwrap_or_default(),
             );
@@ -2406,8 +2383,30 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
             html += &format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
                 ban.net,
-                until(&ban.ban),
+                ban_end(lang, &ban.ban),
                 escape(&ban.ban.reason),
+            );
+        }
+        html += "</table>";
+    }
+    let muted = store.chat_bans();
+    html += &format!("<h2>{}</h2>", lang.tr("Chat mutes", "Вимкнені чати"));
+    if muted.is_empty() {
+        html += &none;
+    } else {
+        html += &format!(
+            "<table><tr><th>{}</th><th>{}</th><th>{}</th></tr>",
+            lang.tr("Account", "Акаунт"),
+            lang.tr("Until", "Доки"),
+            lang.tr("Reason", "Причина"),
+        );
+        for (_, login, name, ban) in &muted {
+            html += &format!(
+                "<tr><td>{}<br><small>{}</small></td><td>{}</td><td>{}</td></tr>",
+                escape(name),
+                escape(login),
+                ban_end(lang, ban),
+                escape(&ban.reason),
             );
         }
         html += "</table>";
@@ -2593,6 +2592,31 @@ mod tests {
         // A wrong token keeps nothing.
         let refused = web.admin(&post("/hidden", &[("token", "bad"), ("tab", "bans")]), "t");
         assert!(!refused.body.contains("value=\"bad\""));
+    }
+
+    #[test]
+    fn ban_and_mute_hours_are_for_good_or_a_whole_number_up_to_the_limit() {
+        let now = 1_000;
+        assert!(matches!(ban_until("", now), Ok(None)));
+        assert!(matches!(ban_until(" 0 ", now), Ok(None)));
+        assert!(matches!(ban_until(" 2 ", now), Ok(Some(8_200))));
+        let most = MAX_BAN_HOURS.to_string();
+        assert!(matches!(ban_until(&most, now), Ok(Some(at)) if at == now + MAX_BAN_HOURS * 3600));
+        let over = (MAX_BAN_HOURS + 1).to_string();
+        for hours in ["-1", "1.5", "soon", over.as_str()] {
+            assert!(ban_until(hours, now).is_err(), "{hours}");
+        }
+        // 2026-10-18 12:34 UTC.
+        let timed = Ban {
+            until: Some(1_792_326_840),
+            reason: String::new(),
+        };
+        assert_eq!(ban_end(Lang::En, &timed), "until 2026-10-18 12:34 UTC");
+        let for_good = Ban {
+            until: None,
+            reason: String::new(),
+        };
+        assert_eq!(ban_end(Lang::En, &for_good), "for good");
     }
 
     #[test]
@@ -2957,25 +2981,6 @@ mod tests {
     }
 
     #[test]
-    fn the_rooms_are_told_as_they_are() {
-        let en = room_rules(Lang::En);
-        assert!(en.contains("vote for 15 s between 3 maps"));
-        assert!(en.contains("until its last 30 s"));
-        assert!(en.contains("Squads are of two, led by their leader"));
-        assert!(en.contains("Private rooms (with a PIN) give no rewards."));
-        // Nothing of the queue's rules is left in it.
-        assert!(!en.contains("countdown"));
-        assert!(!en.contains("JOIN"));
-        assert!(!en.contains("minutes are left"));
-
-        let uk = room_rules(Lang::Uk);
-        assert!(uk.contains("15 с голосують за одну з 3 мап"));
-        assert!(uk.contains("Загони — по двоє"));
-        assert!(uk.contains("Приватні кімнати (з PIN) не дають нагород."));
-        assert_eq!(en.matches("<li>").count(), uk.matches("<li>").count());
-    }
-
-    #[test]
     fn a_test_server_says_so_on_every_page() {
         let plain = page_as(Lang::En, Form::None, "", false, None).body;
         assert!(plain.contains("<title>Skhid · Survarium 0.21d community server</title>"));
@@ -3292,62 +3297,92 @@ mod tests {
             launcher,
             installs_game: false,
         };
-        // With the launcher: one file to start, nothing to type, and the
-        // download is needed once; how to change the language. The script
-        // is folded away below.
-        for (lang, press, once, folded) in [
+        // With the launcher: what the server is, the steps (one file to
+        // start, nothing to type, the download needed once) and, after
+        // them, what to run when something goes wrong, each case by the
+        // words the player sees. No other way to start, no language line,
+        // no matchmaking rules.
+        for (lang, press, once, unanswered) in [
             (
                 Lang::En,
                 "press <b>PLAY</b>",
                 "You do this only once",
-                "Without the launcher",
+                "“skhid.link didn't answer.”",
             ),
             (
                 Lang::Uk,
                 "натисніть <b>PLAY</b>",
                 "лише один раз",
-                "Без лаунчера",
+                "«skhid.link не відповідає.»",
             ),
         ] {
             let page = home(lang, stats(true));
-            let steps = page.split("<ol>").nth(1).unwrap();
-            let (shown, hidden) = steps.split_once("<details>").unwrap();
-            assert!(shown.contains("<code>Skhid.bat</code>"), "{shown}");
-            assert!(shown.contains(press), "{shown}");
-            assert!(shown.contains(once), "{shown}");
-            assert!(!shown.contains("binaries"), "{shown}");
+            let (steps, faq) = page.split_once("</ol>").unwrap();
+            let steps = steps.split("<ol>").nth(1).unwrap();
+            // A question and its answer a case, each label in its own cell.
+            let (q, a) = if lang == Lang::En {
+                ("Q:", "A:")
+            } else {
+                ("П:", "В:")
+            };
+            assert_eq!(
+                faq.matches(&format!("<dt class=q>{q}</dt>")).count(),
+                4,
+                "{faq}"
+            );
+            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 4, "{faq}");
+            assert!(!faq.contains("<li>"), "{faq}");
+            for said in [
+                "Skhid-defender-setup.cmd",
+                "Skhid.bat",
+                "Skhid-network-setup.cmd",
+                "VPN.txt",
+                "Skhid-collect-logs.cmd",
+                "Skhid-without-updater.bat",
+                "“Game download failed: …”",
+                unanswered,
+            ] {
+                assert!(faq.contains(said), "{said}: {faq}");
+            }
+            // The Discord invite is the last answer's, nothing after the pairs.
+            let last = faq.rsplit("<dd>").next().unwrap();
+            assert!(
+                last.contains("href=\"https://discord.gg/QUmJg3gBhg\""),
+                "{last}"
+            );
+            assert!(last.contains("Skhid-collect-logs.cmd"), "{last}");
+            assert!(faq.contains("</dl></section>"), "{faq}");
+            assert!(!faq.contains("Russia") && !faq.contains("Росії"), "{faq}");
+            assert!(page.contains("<h1>") && page.contains("class=stats"));
+            assert!(!page.contains("How matches start") && !page.contains("Як починаються"));
+            assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
+            assert!(steps.contains(press), "{steps}");
+            assert!(steps.contains(once), "{steps}");
+            assert!(!steps.contains("binaries"), "{steps}");
             // Where to unpack is said by what the folder holds, not by a
             // name a player may read as "inside game".
-            assert!(!shown.contains("over the game's"), "{shown}");
-            assert!(!shown.contains("поверх теки"), "{shown}");
-            assert!(!shown.contains("<pre>"), "{shown}");
-            assert!(!shown.contains("play_skhid.bat"), "{shown}");
-            assert!(hidden.contains(&format!("<summary>{folded}</summary>")));
-            assert!(hidden.contains("play_skhid.bat"));
-            assert!(shown.contains("<b>Language</b>") || shown.contains("<b>Мова</b>"), "{shown}");
+            assert!(!steps.contains("over the game's"), "{steps}");
+            assert!(!steps.contains("поверх теки"), "{steps}");
+            assert!(!steps.contains("play_skhid.bat"), "{steps}");
             assert!(!steps.contains("-localization"), "{steps}");
             assert!(!steps.contains("<pre>"), "{steps}");
-            assert_eq!(steps.matches("<details>").count(), 1);
-            assert_eq!(steps.matches("</details>").count(), 1);
+            assert!(!page.contains("<details>"), "{page}");
+            assert!(!page.contains("<b>Language</b>") && !page.contains("<b>Мова</b>"));
+            assert_eq!(page.matches("<section").count(), 3, "{page}");
         }
         // A download whose launcher brings the game: no step that sends a
-        // player for the game first; an empty folder, the room it needs, and
-        // that the first start downloads. The game's own archive is named
-        // only as the way out, and the folder of a game a player has already.
-        for (lang, empty, first, have, way_out) in [
+        // player for the game first; an empty folder, and that the first
+        // start downloads. No size, no host, no game a player has already.
+        for (lang, empty, first) in [
             (
                 Lang::En,
-                "into an empty folder with about 10 GB free",
-                "The first time, the launcher downloads the game",
-                "Already have Survarium 0.26g",
-                "Launcher can't get the game?",
+                "into an empty folder (e.g. D:\\Survarium).",
+                "The first start downloads the game",
             ),
             (
                 Lang::Uk,
-                "у порожню теку, де вільно близько 10 ГБ",
-                "Першого разу лаунчер завантажує гру",
-                "Уже маєте Survarium 0.26g",
-                "Лаунчер не може отримати гру?",
+                "у порожню теку (напр. D:\\Survarium).",
+                "Під час першого запуску лаунчер завантажує гру",
             ),
         ] {
             let page = home(
@@ -3365,20 +3400,25 @@ mod tests {
             assert!(first_step.contains("class=dl"), "{first_step}");
             assert!(!steps.contains("Get the original Survarium"), "{steps}");
             assert!(!steps.contains("Отримайте оригінальну"), "{steps}");
-            for said in [empty, first, have, way_out, "2.9", "Google Drive"] {
-                let said = if lang == Lang::Uk && said == "2.9" {
-                    "2,9"
-                } else {
-                    said
-                };
+            for said in [empty, first] {
                 assert!(steps.contains(said), "{said}: {steps}");
+            }
+            for unsaid in [
+                "2.9",
+                "2,9",
+                "GB",
+                "ГБ",
+                "Google Drive",
+                "Already have",
+                "Уже маєте",
+            ] {
+                assert!(!steps.contains(unsaid), "{unsaid}: {steps}");
             }
             assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
             assert!(
                 steps.contains("<code>bash Skhid.sh launcher</code>"),
                 "{steps}"
             );
-            assert_eq!(steps.matches("<details>").count(), 1);
         }
         // An archive with the extractor and no launcher is not such a one.
         let page = home(
@@ -3390,14 +3430,15 @@ mod tests {
         );
         assert!(page.contains("Get the original Survarium"));
         assert!(!page.contains("empty folder"));
-        // Without it: the page as it was.
+        // Without it: the start script, and no FAQ (its files are the
+        // launcher's download's).
         let page = home(Lang::En, stats(false));
         assert!(!page.contains("launcher_skhid.exe"));
-        assert!(!page.contains("<details>"));
+        assert!(!page.contains("Skhid-defender-setup.cmd"));
         assert!(!page.contains("command line"));
         assert!(!page.contains("-localization"));
         assert!(page.contains("<code>play_skhid.bat</code>"));
-        assert!(page.contains("<b>Settings</b>, <b>Game</b>, <b>Language</b>"));
+        assert!(!page.contains("<b>Language</b>"));
     }
 
     #[test]

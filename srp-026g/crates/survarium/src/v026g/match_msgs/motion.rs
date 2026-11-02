@@ -1,7 +1,8 @@
 //! Where a player is and how he moves, from his state in a world
 //! (`docs/notes/player_bots.md` §4).
 //!
-//! `base_player::serialize` 0x2DAF60 ends the state with:
+//! The state starts with the two kit indices and client patch 85's pickup
+//! record ([`FIELDS_AT`]); `base_player::serialize` 0x2DAF60 ends it with:
 //!
 //! ```text
 //! ... u8 jump_type, f32 m_linear_horizontal_speed          0x2DB27D, 0x2DB2A5
@@ -31,7 +32,7 @@
 
 use artefact_carry::carry::Carry;
 
-use super::players::PlayerState;
+use super::players::{FIELDS_AT, PlayerState};
 
 /// One player's movement state, as a world has it.
 #[derive(Clone, Debug, PartialEq)]
@@ -178,7 +179,7 @@ impl Motion {
         let state = native_state(state)?;
         let head_state = PlayerState::read(state, items)?;
         let head = PlayerState::head_len(items);
-        let time_ms = u32_at(state, 2 + 4 * items + 19)?;
+        let time_ms = u32_at(state, FIELDS_AT + 4 * items + 19)?;
         let len = state.len();
         flag(state, len.checked_sub(1)?)?;
         let mut found = None;
@@ -249,7 +250,7 @@ impl Motion {
     pub fn find(state: &[u8], time_ms: u32) -> Option<(usize, Self)> {
         let mut found = None;
         for items in 0..=MAX_ITEMS {
-            if u32_at(state, 2 + 4 * items + 19) != Some(time_ms) {
+            if u32_at(state, FIELDS_AT + 4 * items + 19) != Some(time_ms) {
                 continue;
             }
             if let Some(motion) = Self::read(state, items) {
@@ -352,7 +353,7 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
     let items = head.items.len();
     let mut out = super::players::state_bytes(head, inventory);
     let now = tail.time_ms;
-    out[2 + 4 * items + 19..2 + 4 * items + 23].copy_from_slice(&now.to_le_bytes());
+    out[FIELDS_AT + 4 * items + 19..FIELDS_AT + 4 * items + 23].copy_from_slice(&now.to_le_bytes());
     // Damage model.
     out.push(2); // jump_type
     out.extend(tail.speed.to_le_bytes());
@@ -404,6 +405,7 @@ mod tests {
         PlayerState {
             current_index: 0,
             target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
             items: (0..items as u32).map(|item| 1000 + item).collect(),
             alive,
             has_to_die: false,
