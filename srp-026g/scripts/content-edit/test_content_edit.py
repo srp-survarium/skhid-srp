@@ -475,5 +475,19 @@ class OtherTables(unittest.TestCase):
                 ce.dump_stats('t', folder)
 
 
+    def test_a_list_of_files_names_a_row_by_each_and_an_absent_list_is_no_such_key(self):
+        category = {'configs': ['w/rgd-5.options', 'd/trap.options'], 'match': set(),
+                    'columns': {'radius': 'data/splash_radius', 'damage': 'data/hits[*]/amount'}}
+        files = {'w/rgd-5.options': config({'data': {'splash_radius': 10}}),
+                 'd/trap.options': config({'data': {'hits': [{'amount': 0.6}, {'amount': 0.6}]}})}
+        columns, rows = read_table(category, 'name\tradius\tdamage\nrgd-5\t10\t\ntrap\t\t0.6\n')
+        self.assertEqual(ce.stats_problems(category, columns, rows, ce.stats_targets(category, files), files, 't'), [])
+        self.assertEqual(ce.stats_label(category, 'gone'), 'gone')
+
+    def test_an_ammo_card_counts_every_pellet(self):
+        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2}, 'parameters': {'clip_size': 15}})
+        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15'})
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -712,9 +712,18 @@ def weapon_card(buf):
     return out
 
 
+def ammo_card(buf):
+    """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip."""
+    def number(path):
+        return value_of(buf, find(buf, path))
+    return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
+            22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size'))}
+
+
 # <table>.tsv, a row each of what `configs` names, a column a stat:
 #   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
-#                      files, each the row's (a level's projects of every weather)
+#                      files, each the row's (a level's projects of every weather); a list of such globs or
+#                      of files (a row each, by its name)
 #   'file#list[key]'   a row per entry of the indexed table `list`, named by its `key`
 #   'file'             no `columns`: a key/value table (`key  value`), a row a key path; the config is
 #                      made anew when no archive has it
@@ -759,6 +768,42 @@ STATS = {
                   'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
         'cards': weapon_card,
     },
+    'ammo': {
+        'configs': 'gameplay/items/weapons/ammo/*.options',
+        'columns': {
+            'damage': 'data/k_damage', 'pierce': 'data/k_arp', 'near_k': 'data/k_max_damage_distance',
+            'far_k': 'data/k_min_damage_distance', 'far_damage_k': 'data/k_min_damage_amount',
+            'speed': 'data/muzzle_speed', 'mass': 'data/mass', 'pellets': 'data/buck_shot',
+            'pellet_spread': 'data/buck_dispersion', 'ricochet': 'data/ricochet_chance',
+            'ricochet_angle': 'data/ricochet_angle', 'ricochet_spread': 'data/ricochet_dispersion_angle',
+            'pierce_spread': 'data/pierce_dispersion_angle', 'clip': 'parameters/clip_size',
+            'clip_weight': 'parameters/clip_weight', 'bags': 'parameters/required_bags',
+            'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
+        },
+        'match': {'damage', 'pierce', 'near_k', 'far_k', 'far_damage_k', 'speed', 'mass', 'pellets', 'pellet_spread',
+                  'ricochet', 'ricochet_angle', 'ricochet_spread', 'pierce_spread', 'clip', 'clip_weight', 'bags'},
+        'cards': ammo_card,
+    },
+    'throwables': {
+        'configs': ['gameplay/items/weapons/rgd-5.options', 'gameplay/items/weapons/smoke_grenade.options',
+                    'gameplay/items/devices/blackmarket_trap.options'],
+        'columns': {
+            'splash_damage': 'data/splash_max_damage', 'splash_min': 'data/splash_min_damage',
+            'splash_pierce': 'data/splash_pierce', 'splash_radius': 'data/splash_radius',
+            'stopping': 'data/stopping_power', 'stamina_damage': 'data/stamina_damage',
+            'throw_power': 'data/throw_power', 'fuse_ms': 'data/ttl_ms', 'roll_ms': 'data/min_roll_time_ms',
+            'safe_ms': 'data/safe_time', 'contact': 'data/explode_on_contact',
+            'damage': 'data/damage_parameters[*]/amount', 'pierce': 'data/damage_parameters[*]/armor_piercing',
+            'defuse_s': 'data/defuse_time', 'armed_life_s': 'data/armed_life_time',
+            'disarmed_life_s': 'data/disarmed_life_time', 'fired_life_s': 'data/fired_life_time',
+            'deploy_m': 'data/max_deploy_distance', 'slope_deg': 'data/max_slope_angle',
+            'weight': 'parameters/weight', 'level': 'parameters/item_level',
+            'mm_level': 'parameters/match_making_level',
+        },
+        'match': {'splash_damage', 'splash_min', 'splash_pierce', 'splash_radius', 'stopping', 'stamina_damage',
+                  'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
+                  'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
+    },
 }
 
 
@@ -769,45 +814,60 @@ def stats_category(path):
     return STATS[name[:-len('.tsv')]]
 
 
+def stats_globs(category):
+    configs = category['configs']
+    return configs if isinstance(configs, list) else [configs.split('#')[0]]
+
+
 def stats_config(category, name):
-    """The glob of a row's files (a path when the glob has one `*`)."""
-    glob = category['configs']
-    star = glob.index('*')
-    return glob[:glob[:star].rindex('/') + 1] + name + glob[star + 1:]
+    """The glob of a row's files (a path when the glob has one `*`, or names the file)."""
+    for glob in stats_globs(category):
+        if '*' in glob:
+            star = glob.index('*')
+            return glob[:glob[:star].rindex('/') + 1] + name + glob[star + 1:]
+        if os.path.basename(glob).split('.')[0] == name:
+            return glob
+    return name
 
 
 def stats_paths(category, paths):
     """The game paths of `paths` a category reads."""
-    configs = category['configs'].split('#')[0]
-    return sorted(fnmatch.filter(paths, configs) if '*' in configs else {configs} & set(paths))
+    return sorted({p for glob in stats_globs(category) for p in fnmatch.filter(paths, glob)})
 
 
 def stats_targets(category, files):
     """{row: [(path, offset)]}: the values each row's cells are under, of `files` ({path: buf})."""
     configs, out = category['configs'], {}
-    if '#' in configs:
+    if 'columns' not in category:
+        return {'': [(configs, 0)]} if configs in files else {}
+    if isinstance(configs, str) and '#' in configs:
         path, (lst, key) = configs.split('#')[0], configs.split('#')[1][:-1].split('[')
         for _, entry in resolve(files[path], lst + '[*]') if path in files else []:
             out.setdefault(cell_text(files[path], find(files[path], key, entry)), []).append((path, entry))
-    elif '*' in configs:
-        star = configs.index('*')
-        head = configs[:configs[:star].rindex('/') + 1]
-        pattern = re.compile(re.escape(head) + '(' + re.escape(configs[len(head):star]) + '[^/]*)' +
-                             '.*'.join(map(re.escape, configs[star + 1:].split('*'))))
+        return out
+    for glob in stats_globs(category):
+        if '*' not in glob:
+            if glob in files:
+                out.setdefault(os.path.basename(glob).split('.')[0], []).append((glob, 0))
+            continue
+        star = glob.index('*')
+        head = glob[:glob[:star].rindex('/') + 1]
+        pattern = re.compile(re.escape(head) + '(' + re.escape(glob[len(head):star]) + '[^/]*)' +
+                             '.*'.join(map(re.escape, glob[star + 1:].split('*'))))
         for path in sorted(files):
             if pattern.fullmatch(path):
                 out.setdefault(pattern.fullmatch(path)[1], []).append((path, 0))
-    elif configs in files:
-        out[''] = [(configs, 0)]
     return out
 
 
 def stats_label(category, row, path=None):
     """A row's config in messages: its file (one of a glob's), or the list entry."""
     configs = category['configs']
-    if '#' in configs:
+    if 'columns' not in category:
+        return configs
+    if isinstance(configs, str) and '#' in configs:
         return '%s=%s]' % (configs[:-1], row)
-    return path or (stats_config(category, row) if '*' in configs else configs)
+    return path or stats_config(category, row)
 
 
 def read_stats(path):
@@ -896,12 +956,12 @@ def write_cell(buf, off, cell):
 
 
 def stats_values(buf, off, columns, row):
-    """{column: [cell of each value its key path selects under `off`, in order]}; a path whose selector
-    selects nothing is refused."""
+    """{column: [cell of each value its key path selects under `off`, in order]}; a selector that selects
+    nothing of a list the config has is refused."""
     out = {}
     for c, key in columns.items():
         out[c] = [cell_text(buf, o) for _, o in resolve(buf, key, off)]
-        if not out[c] and '[' in key:
+        if not out[c] and '[' in key and resolve(buf, key[:key.index('[')], off):
             raise ValueError('row %s: %s matches nothing' % (row, key))
     return out
 
