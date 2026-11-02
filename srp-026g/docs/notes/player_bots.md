@@ -514,7 +514,7 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   Deathmatch). Its teams are fixed: no late joiner.
   `MatchSetup::vs_bots` marks it for the match server and the rewards.
 - **Every equipment level (the owner's, 2026-10-26).** Any equipment
-  level plays (`SRP_PVB_MAX_GEAR`, 15; 5 before), and the bots wear kits
+  level plays (`pvb/max_gear` of `rooms.tsv`, 15; 5 before), and the bots wear kits
   of the player's (`matchmaking::gear_level`; a match of several players:
   their mean), the top players' (`session::v026g::bot_kits`):
   - whose: accounts put in a match 5 times or more, by rating; for each

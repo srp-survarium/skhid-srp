@@ -10,7 +10,7 @@
 //! - Once two players are in it who can play (a kit with a weapon and its
 //!   ammo, equipment within the max level; one who cannot is marked red in
 //!   the room, counts for nothing, and is taken out of the room when the
-//!   match starts without it), the vote runs for 15 s ([`VOTE`]) and the
+//!   match starts without it), the vote runs for 15 s (`RoomRules::vote`) and the
 //!   room's own wait together, always whole, a full room too: its players
 //!   may still be changing their equipment (the owner's of 2026-10-17). The
 //!   vote stays open until the match starts, and its winner then is the
@@ -57,6 +57,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use survarium::v026g::drops::Rng;
+use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::maps;
 
 use super::level_stats;
@@ -66,8 +67,6 @@ use crate::Strength;
 pub const DRAFT_LIFE: Duration = Duration::from_secs(120);
 /// How long a PIN given before a JOIN waits for that JOIN.
 pub const PIN_LIFE: Duration = Duration::from_secs(60);
-/// The fewest players an open room's vote (and so its match) starts with.
-pub const START_PLAYERS: usize = 2;
 /// A private room's team size: the most a match has, 10 v 10 (the owner's
 /// of 2026-10-26: no size to choose).
 pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
@@ -134,20 +133,13 @@ impl Door {
     }
 }
 
-/// The vote's own time before each match: always this long, whatever the
-/// room's wait (the owner's of 2026-10-17).
-pub const VOTE: Duration = Duration::from_secs(15);
-/// What the vote after a match has more: its players come back from the
-/// results screen first (the owner's of 2026-10-17).
-pub const AFTER_MATCH: Duration = Duration::from_secs(10);
-
 /// Where a room is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     /// Fewer than its `min_players` who can play: nothing runs.
     Waiting,
     /// The vote on the cards runs until `until`, when the match starts on
-    /// its winner: [`VOTE`] and the room's own wait together (the owner's
+    /// its winner: `RoomRules::vote` and the room's own wait together (the owner's
     /// of 2026-10-19: the vote goes on until the match starts, its time
     /// added to the wait).
     Vote { until: Instant },
@@ -187,7 +179,7 @@ pub struct Room {
     pub votes: HashMap<u32, u8>,
     /// The map of its last match; 0: none yet.
     pub last_map: u8,
-    /// Its match just ended: the next vote is [`AFTER_MATCH`] longer.
+    /// Its match just ended: the next vote is `RoomRules::after_match` longer.
     pub after_match: bool,
     /// The members in its match now.
     pub in_match: HashSet<u32>,
@@ -228,11 +220,11 @@ impl Room {
     }
 
     /// The players its match needs: an open room's before its vote begins
-    /// (two at least); a private room's one, its owner starting it with
+    /// (its min side a side: two at least); a private room's one, its owner starting it with
     /// whoever is in ([`Rooms::start`]).
     pub fn needs(&self) -> usize {
         if self.is_open() {
-            usize::from(self.spec.min_players).max(START_PLAYERS)
+            usize::from(self.spec.min_players)
         } else {
             1
         }
@@ -1290,7 +1282,7 @@ impl Rooms {
     }
 
     /// The pass of the lobby's tick. Two members who count begin the vote,
-    /// which runs [`VOTE`] and the room's own wait together; when it is
+    /// which runs `RoomRules::vote` and the room's own wait together; when it is
     /// over, with two who count, the room is due to start its match on the
     /// vote's winner then ([`Due::Start`]), which the lobby answers with
     /// [`Rooms::started`] or [`Rooms::not_started`]. Fewer than two members stop it; a member who
@@ -1326,13 +1318,16 @@ impl Rooms {
             match room.stage {
                 Stage::Waiting if enough && room.is_open() => {
                     let extra = if room.after_match {
-                        AFTER_MATCH
+                        rules().after_match
                     } else {
                         Duration::ZERO
                     };
                     room.after_match = false;
                     room.stage = Stage::Vote {
-                        until: now + VOTE + extra + Duration::from_secs(room.spec.wait.into()),
+                        until: now
+                            + rules().vote
+                            + extra
+                            + Duration::from_secs(room.spec.wait.into()),
                     };
                 }
                 Stage::Vote { .. } if !present => {
@@ -1368,13 +1363,13 @@ impl Rooms {
     }
 
     /// The room's match could not be made: its vote and wait run again,
-    /// whole ([`VOTE`] and the wait: the 30 s at the least hold), its votes
+    /// whole (`RoomRules::vote` and the wait: the 30 s at the least hold), its votes
     /// kept.
     pub fn not_started(&mut self, key: u32, now: Instant) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.stage = match room.stage {
                 Stage::Vote { .. } => Stage::Vote {
-                    until: now + VOTE + Duration::from_secs(room.spec.wait.into()),
+                    until: now + rules().vote + Duration::from_secs(room.spec.wait.into()),
                 },
                 _ => Stage::Waiting,
             };
@@ -1679,7 +1674,7 @@ mod tests {
         assert_eq!(
             room.stage,
             Stage::Vote {
-                until: now + VOTE + wait
+                until: now + rules().vote + wait
             }
         );
         assert_eq!(room.cards.len(), 3);
@@ -1691,7 +1686,7 @@ mod tests {
         assert!(!rooms.vote(2, 3));
         // Past its 15 s the vote is still open (the owner's of 2026-10-19):
         // both change to card 0.
-        let voted = now + VOTE;
+        let voted = now + rules().vote;
         assert!(rooms.tick(voted, &mut first, |_| true).is_empty());
         assert!(matches!(rooms.get(key).unwrap().stage, Stage::Vote { .. }));
         assert!(rooms.vote(1, 0));
@@ -1727,7 +1722,7 @@ mod tests {
         assert_eq!(
             room.stage,
             Stage::Vote {
-                until: back + VOTE + AFTER_MATCH + wait
+                until: back + rules().vote + rules().after_match + wait
             }
         );
         assert_eq!(room.votes.get(&2), Some(&1));
@@ -1856,7 +1851,7 @@ mod tests {
         rooms.tick(now, &mut first, |_| true);
         assert!(matches!(rooms.get(key).unwrap().stage, Stage::Vote { .. }));
         // Its kit is being changed: the vote and the wait run on.
-        rooms.tick(now + VOTE, &mut first, |member| member != 2);
+        rooms.tick(now + rules().vote, &mut first, |member| member != 2);
         let Stage::Vote { until } = rooms.get(key).unwrap().stage else {
             panic!("no vote");
         };
@@ -1880,7 +1875,7 @@ mod tests {
             panic!("no vote");
         };
         // Changing its kit in the middle of the vote: it runs on.
-        let middle = now + VOTE;
+        let middle = now + rules().vote;
         assert!(
             rooms
                 .tick(middle, &mut first, |member| member != 2)
@@ -1919,7 +1914,7 @@ mod tests {
         let cards = rooms.get(key).unwrap().cards.clone();
         assert!(rooms.vote(2, 1));
         let wait = Duration::from_secs(rooms.get(key).unwrap().spec.wait.into());
-        let due = now + VOTE + wait;
+        let due = now + rules().vote + wait;
         let first_due = rooms.tick(due, &mut first, |_| true);
         assert_eq!(
             first_due,
@@ -1935,15 +1930,19 @@ mod tests {
         assert_eq!(
             room.stage,
             Stage::Vote {
-                until: due + VOTE + wait
+                until: due + rules().vote + wait
             }
         );
         assert_eq!(room.votes.get(&2), Some(&1));
-        assert!(rooms.tick(due + VOTE, &mut first, |_| true).is_empty());
+        assert!(
+            rooms
+                .tick(due + rules().vote, &mut first, |_| true)
+                .is_empty()
+        );
         // A vote changed meanwhile changes the map.
         assert!(rooms.vote(2, 2));
         assert_eq!(
-            rooms.tick(due + VOTE + wait, &mut first, |_| true),
+            rooms.tick(due + rules().vote + wait, &mut first, |_| true),
             vec![Due::Start {
                 key,
                 map_id: cards[2]
@@ -1970,15 +1969,24 @@ mod tests {
         }
         assert_eq!(rooms.join(13, 0, key, now), Err(Refused::Full));
         rooms.tick(now, &mut first, |_| true);
-        rooms.tick(now + VOTE, &mut first, |_| true);
+        rooms.tick(now + rules().vote, &mut first, |_| true);
         // Full, but its players may still be changing their equipment.
         assert!(
             rooms
-                .tick(now + VOTE + Duration::from_secs(1), &mut first, |_| true)
+                .tick(
+                    now + rules().vote + Duration::from_secs(1),
+                    &mut first,
+                    |_| true
+                )
                 .is_empty()
         );
         let wait = Duration::from_secs(rooms.get(key).unwrap().spec.wait.into());
-        assert_eq!(rooms.tick(now + VOTE + wait, &mut first, |_| true).len(), 1);
+        assert_eq!(
+            rooms
+                .tick(now + rules().vote + wait, &mut first, |_| true)
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -2295,7 +2303,7 @@ mod tests {
         rooms.tick(now, &mut first, |_| true);
         let wait = Duration::from_secs(30);
         assert_eq!(
-            rooms.tick(now + VOTE + wait, &mut first, |_| true),
+            rooms.tick(now + rules().vote + wait, &mut first, |_| true),
             vec![Due::Start { key, map_id: third }]
         );
     }
