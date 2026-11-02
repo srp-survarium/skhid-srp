@@ -551,6 +551,18 @@ class OtherTables(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'more keys'):
             ce.set_modifier_kind(mods, ce.find(mods, 'modifications[0]/modifiers'), 'recoil')
 
+    def test_a_row_of_several_files_writes_a_key_into_those_that_have_it(self):
+        files = {'projects/l2/day_2/client_project': level(6),
+                 'projects/l2/day_4/client_project': config({'respawn_points': [{'time': 2}], 'zones': []})}
+        columns, rows = read_table(LEVELS, 'level\tprotect\tzone\nl2\t6\t2000\n')
+        written, _, _ = ce.stats_write(LEVELS, columns, rows, files, 't')
+        self.assertEqual(written, {'projects/l2/day_2/client_project': ['/zones[0]/ms'],
+                                   'projects/l2/day_4/client_project': ['/respawn_points[0]/time']})
+        self.assertEqual(ce.stats_problems(LEVELS, columns, rows, ce.stats_targets(LEVELS, files), files, 't'), [])
+        files = {'projects/l2/day_4/client_project': config({'respawn_points': [{'time': 6}], 'zones': []})}
+        self.assertEqual(ce.stats_problems(LEVELS, columns, rows, ce.stats_targets(LEVELS, files), files, 't'),
+                         ['projects/l2/day_4/client_project: zone (zones[kind=effect]/ms) is absent, its row says 2000'])
+
 
 if __name__ == '__main__':
     unittest.main()
