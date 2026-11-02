@@ -24,7 +24,7 @@ From the code and data (`player_bots.md` §4, §5):
 From the client code since (`player_bots.md` §2):
 - **Use** is bit 21, acting on the key going down: a pickup is seen in the inputs the moment it starts. PROVEN.
 - **Grenade** is bit 23, held until the throw starts. PROVEN.
-- **Pickup:** taking a battery is instant in code, with a hands-up animation time-scaled to last `take_time` (PROVEN, `battery_pickup.md`): 0.6 s, 0.5 s from content-edit battery-pickup-1. Players feel it takes time; the bots have no pick-up time in code (they press use every 1.2 s until they carry).
+- **Pickup:** taking a battery is instant in code, with a hands-up animation time-scaled to last `take_time` (PROVEN, `battery_pickup.md`): 0.6 s, 0.5 s from content-edit battery.tsv. Players feel it takes time; the bots have no pick-up time in code (they press use every 1.2 s until they carry).
 - **Carrier speed:** ×0.95, 3.325 m/s walking (PROVEN in code); the saved worlds show carriers at 3.32–3.33 m/s, LIKELY unable to sprint.
 - **What the HUD shows of the batteries** (read 2026-10-16 for the fair battery knowledge, §2.1). PROVEN in 0.21d with its symbols; the 0.26g functions matched to them have the same shape (the mask moved from +0x1B4 to +0x1A4):
   - Each battery (`victory_item_core`) holds a two-bit team mask (bit 1 team 0, bit 2 team 1). The minimap's lying batteries (`gather_victory_items_rule::fill_match_hud_state`, 0.21d 0x1FBDF4, 0.26g 0x3140C0, drawn by `update_minimap_objects` as "artifact") and the battery icon on the screen (`game_world_ui::update_icons` 0x183437) are the batteries with no carrier whose mask holds the player's team.
