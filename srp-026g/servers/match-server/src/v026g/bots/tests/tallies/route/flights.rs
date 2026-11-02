@@ -82,6 +82,13 @@ impl StairFloors {
         Self { faces, flight: HashMap::new() }
     }
 
+    /// Every mid-flight floor's place.
+    pub(crate) fn floors(&mut self, grid: &WalkGrid) -> Vec<Vec3> {
+        let mut faces: Vec<NodeId> = self.faces.iter().copied().collect();
+        faces.sort_unstable();
+        faces.into_iter().filter(|&node| self.mid_flight(grid, node)).map(|node| grid.position(node)).collect()
+    }
+
     /// Whether the floor under `feet` is mid-flight.
     pub(crate) fn under(&mut self, grid: &WalkGrid, feet: Vec3) -> bool {
         grid.locate(feet, 1.0).is_some_and(|node| self.mid_flight(grid, node))

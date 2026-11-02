@@ -3,8 +3,33 @@
 //! measurement, run with
 //! `SRP_MAPDATA_DIR=<mapdata folder> SRP_FLIGHT_LOOK="level_01/day_2:62.2,25.2,-7.4;..." cargo test -p match-server --release
 //! flight_look -- --ignored --nocapture`.
+//!
+//! And every mid-flight floor of some maps (`tallies::StairFloors`), one `<project>.tsv` of `x y z` lines each, for the live
+//! samples' reader: `SRP_MAPDATA_DIR=<dir> SRP_FLIGHT_DUMP=<out dir> SRP_FLIGHT_PROJECTS="level_01/day_2;..." cargo test -p
+//! match-server --release flight_dump -- --ignored --nocapture`.
 
 use super::*;
+
+#[test]
+#[ignore = "a measurement; needs SRP_MAPDATA_DIR, SRP_FLIGHT_DUMP and SRP_FLIGHT_PROJECTS"]
+fn flight_dump() {
+    let (Some(dir), Some(out), Ok(projects)) = (
+        std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from),
+        std::env::var_os("SRP_FLIGHT_DUMP").map(std::path::PathBuf::from),
+        std::env::var("SRP_FLIGHT_PROJECTS"),
+    ) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR, SRP_FLIGHT_DUMP or SRP_FLIGHT_PROJECTS is not set");
+        return;
+    };
+    for project in projects.split(';').filter(|s| !s.is_empty()) {
+        let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let world = World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), Tuning::default().off_mesh_links());
+        let floors = super::tallies::StairFloors::of(&world).floors(&world.grid);
+        let text: String = floors.iter().map(|f| format!("{:.2} {:.2} {:.2}\n", f.x, f.y, f.z)).collect();
+        std::fs::write(out.join(format!("{}.tsv", project.replace('/', "_"))), text).unwrap();
+        println!("{project}: {} mid-flight floors", floors.len());
+    }
+}
 
 /// The floors within this of the place, across, are printed, metres.
 const LOOK_M: f32 = 1.5;
