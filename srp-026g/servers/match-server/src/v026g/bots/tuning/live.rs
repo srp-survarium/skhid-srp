@@ -214,7 +214,7 @@ impl Knob {
             return self.unit.value(x);
         };
         let calibration = file.calibration.of(class).ok_or("the class has no bench points")?;
-        if !(x > 0.0) {
+        if x.is_nan() || x <= 0.0 {
             return Err(format!("{x} % is not over 0"));
         }
         if let Some((low, _)) = self.usable(file).filter(|&(low, _)| x < f64::from(low)) {
@@ -1238,6 +1238,7 @@ mod tests {
             ("aim.class_aim.rifle", "22"),
             ("aim.class_aim.rifle", "13"),
             ("aim.class_aim.rifle", "0"),
+            ("aim.class_aim.rifle", "NaN"),
             ("aim.class_aim.marksman", "33"),
             ("aim.class_aim.pistol", "20"),
             ("aim.class_aim.rifle", "a lot"),
