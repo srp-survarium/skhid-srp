@@ -39,6 +39,25 @@ impl Failure {
     }
 }
 
+/// WinHTTP's codes of a connection that is not secure (`winhttp.h`): TLS
+/// that failed, a certificate this PC does not take. A clock that is wrong
+/// makes every one of them, at every HTTPS address.
+const INSECURE: [u32; 8] = [
+    12037, // ERROR_WINHTTP_SECURE_CERT_DATE_INVALID
+    12038, // ERROR_WINHTTP_SECURE_CERT_CN_INVALID
+    12045, // ERROR_WINHTTP_SECURE_INVALID_CA
+    12057, // ERROR_WINHTTP_SECURE_CERT_REV_FAILED
+    12157, // ERROR_WINHTTP_SECURE_CHANNEL_ERROR
+    12169, // ERROR_WINHTTP_SECURE_INVALID_CERT
+    12170, // ERROR_WINHTTP_SECURE_CERT_REVOKED
+    12175, // ERROR_WINHTTP_SECURE_FAILURE
+];
+
+/// Whether a WinHTTP error code is of a connection that is not secure.
+pub fn insecure(code: u32) -> bool {
+    INSECURE.contains(&code)
+}
+
 /// What happened, in English (the log's, and the launcher's line).
 pub fn english(failure: Failure, host: &str) -> String {
     match failure {
@@ -62,6 +81,12 @@ mod tests {
         // A certificate, a proxy, anything else: not a blocked server.
         for code in [0, 5, 12175, 12038, 12045, 12057] {
             assert_eq!(Failure::of(code), None, "{code}");
+        }
+        for code in [12037, 12038, 12045, 12057, 12157, 12169, 12170, 12175] {
+            assert!(insecure(code), "{code}");
+        }
+        for code in [0, 5, 12002, 12007, 12029, 12030] {
+            assert!(!insecure(code), "{code}");
         }
     }
 

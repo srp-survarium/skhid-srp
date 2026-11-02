@@ -11,17 +11,12 @@ use alloc::format;
 use alloc::string::String;
 
 use updater_logic::download;
-use updater_logic::network::{self, Failure};
+use updater_logic::network;
+use updater_logic::problem::{Fault, Miss};
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL, ERROR_LOCK_VIOLATION,
     ERROR_SHARING_VIOLATION, ERROR_WRITE_PROTECT,
-};
-use windows_sys::Win32::Networking::WinHttp::{
-    ERROR_WINHTTP_SECURE_CERT_CN_INVALID, ERROR_WINHTTP_SECURE_CERT_DATE_INVALID,
-    ERROR_WINHTTP_SECURE_CERT_REV_FAILED, ERROR_WINHTTP_SECURE_CERT_REVOKED,
-    ERROR_WINHTTP_SECURE_CHANNEL_ERROR, ERROR_WINHTTP_SECURE_FAILURE,
-    ERROR_WINHTTP_SECURE_INVALID_CA, ERROR_WINHTTP_SECURE_INVALID_CERT,
 };
 
 use crate::http::HttpError;
@@ -167,25 +162,20 @@ const BLOCKED: &str = "A firewall or this network may block it: see Skhid-networ
 
 pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
     let host = &server.host;
-    if let HttpError::Network(_, code) = error
-        && let Some(failure) = Failure::of(*code)
-    {
+    if let Miss::Unreached(failure) = error.miss() {
         return format!("{} {BLOCKED}", network::english(failure, host));
     }
     match error {
-        HttpError::Network(step, code) => match *code {
-            ERROR_WINHTTP_SECURE_FAILURE
-            | ERROR_WINHTTP_SECURE_CHANNEL_ERROR
-            | ERROR_WINHTTP_SECURE_CERT_DATE_INVALID
-            | ERROR_WINHTTP_SECURE_CERT_CN_INVALID
-            | ERROR_WINHTTP_SECURE_INVALID_CA
-            | ERROR_WINHTTP_SECURE_INVALID_CERT
-            | ERROR_WINHTTP_SECURE_CERT_REVOKED
-            | ERROR_WINHTTP_SECURE_CERT_REV_FAILED => format!(
+        HttpError::Network(step, code) => match error.miss() {
+            Miss::Answered(Fault::Insecure) => format!(
                 "No secure connection to {host} (error {code}). Check this PC's date and time, \
                  and that no program intercepts HTTPS."
             ),
-            code => format!("Network error {code} ({step}) while asking {host}. Try again later."),
+            Miss::Answered(Fault::CutShort) => format!(
+                "The download from {host} broke off (error {code}: {}). Try again.",
+                win::error_text(*code)
+            ),
+            _ => format!("Network error {code} ({step}) while asking {host}. Try again later."),
         },
         HttpError::Status(status) => {
             format!("{host} answered {path} with error {status}. Try again later.")

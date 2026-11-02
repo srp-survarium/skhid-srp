@@ -38,7 +38,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use updater_logic::file_error::{self, Kind, Stop};
+use updater_logic::file_error::{self, Exclusion, Kind, Stop};
 use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
     damage, parse_installed, parse_manifest, verdict, write_installed,
@@ -129,13 +129,15 @@ struct Session {
 
 impl Session {
     /// Notes how the update server answered a request: not reached
-    /// (`updater_logic::network`) or otherwise.
+    /// (`updater_logic::network`), no secure connection (a wrong clock), or
+    /// otherwise.
     fn reached(&mut self, server: &Url, result: Result<(), &HttpError>) {
         self.trouble = match result.map_err(HttpError::miss) {
             Err(Miss::Unreached(failure)) => Some(Failed::Unreached {
                 what: Where::Server(server.host.clone()),
                 failure,
             }),
+            Err(miss @ Miss::Answered(Fault::Insecure)) => Failed::of_file(&server.host, &[miss]),
             _ => None,
         };
     }
@@ -1001,6 +1003,7 @@ fn run() -> u32 {
         Problem::Antivirus {
             file: file.into(),
             folder: folder.into(),
+            exclusion: Exclusion::of(name),
             removal,
         }
     };

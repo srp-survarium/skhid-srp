@@ -9,8 +9,7 @@ use core::ffi::c_void;
 use core::ptr::{null, null_mut};
 
 use updater_logic::download::{self, PAGE_HEAD, Speed};
-use updater_logic::network::Failure;
-use updater_logic::problem::{Fault, Miss, Probe};
+use updater_logic::problem::{Fault, Miss, Probe, Stage};
 use updater_logic::url::{self, MAX_REDIRECTS, Url};
 use windows_sys::Win32::Networking::WinHttp::{
     WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
@@ -57,14 +56,24 @@ pub enum HttpError {
     BadRange,
 }
 
+/// The step of a network error while the body came, after the answer's
+/// headers: the address answered.
+const READ_STEP: &str = "read";
+
 impl HttpError {
     /// How an address failed, for the player's box (`updater_logic::problem`):
-    /// not reached, or an answer that is not the file.
+    /// not reached, or an answer that is not the file (one that broke off
+    /// while the file came is cut short).
     pub fn miss(&self) -> Miss {
         match self {
-            Self::Network(_, code) => {
-                Failure::of(*code).map_or(Miss::Answered(Fault::Other), Miss::Unreached)
-            }
+            Self::Network(step, code) => Miss::of_network(
+                if *step == READ_STEP {
+                    Stage::Reading
+                } else {
+                    Stage::Asking
+                },
+                *code,
+            ),
             Self::Status(status) => Miss::Answered(Fault::Status(*status)),
             Self::Cut { .. } => Miss::Answered(Fault::CutShort),
             Self::Html(..) => Miss::Answered(Fault::WebPage),
@@ -487,7 +496,7 @@ fn receive(
             )
         };
         if ok == 0 {
-            return Err(HttpError::Network("read", last_error()));
+            return Err(HttpError::Network(READ_STEP, last_error()));
         }
         if read == 0 {
             break;

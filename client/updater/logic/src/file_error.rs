@@ -100,11 +100,30 @@ impl Stop {
 /// which may be the player's Downloads (`Skhid-defender-setup.cmd` excludes
 /// `game\binaries\x86` alone too).
 pub fn exclusion_folder<'a>(file: &str, programs: &'a str, game: &'a str) -> &'a str {
-    let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
-    if name.starts_with(crate::patches::FILE_PREFIX) {
-        game
-    } else {
-        programs
+    match Exclusion::of(file) {
+        Exclusion::Programs => programs,
+        Exclusion::Game => game,
+    }
+}
+
+/// Which folder Windows Security is to leave alone for a blocked file:
+/// `game\binaries\x86`, which `Skhid-defender-setup.cmd` excludes, or the
+/// game folder (a patch of resources.db), which it does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Exclusion {
+    Programs,
+    Game,
+}
+
+impl Exclusion {
+    /// The folder of `file` (its name, or its archive name or path).
+    pub fn of(file: &str) -> Self {
+        let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
+        if name.starts_with(crate::patches::FILE_PREFIX) {
+            Self::Game
+        } else {
+            Self::Programs
+        }
     }
 }
 
@@ -177,12 +196,14 @@ mod tests {
             "E:\\S\\game\\binaries\\x86\\launcher_skhid.exe",
         ] {
             assert_eq!(exclusion_folder(file, programs, game), programs, "{file}");
+            assert_eq!(Exclusion::of(file), Exclusion::Programs, "{file}");
         }
         for file in [
             "resources.db.patch_14",
             "E:\\S\\game\\resources.db.patch_33",
         ] {
             assert_eq!(exclusion_folder(file, programs, game), game, "{file}");
+            assert_eq!(Exclusion::of(file), Exclusion::Game, "{file}");
         }
     }
 

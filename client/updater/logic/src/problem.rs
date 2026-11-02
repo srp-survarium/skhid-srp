@@ -16,7 +16,8 @@
 use alloc::format;
 use alloc::string::String;
 
-use crate::network::Failure;
+use crate::file_error::Exclusion;
+use crate::network::{self, Failure};
 
 /// What could not be reached: the update server, by its host, or a file,
 /// by its name, at every one of its addresses.
@@ -39,6 +40,9 @@ pub enum Fault {
     WebPage,
     /// An HTTP status other than the file.
     Status(u32),
+    /// No secure connection: TLS failed, or a certificate this PC does not
+    /// take (`crate::network::insecure`; most often a wrong clock).
+    Insecure,
     /// Any other answer that is not the file (a redirect too many, a wrong
     /// range).
     Other,
@@ -51,6 +55,30 @@ pub enum Miss {
     Unreached(Failure),
     /// It answered, with no usable file.
     Answered(Fault),
+}
+
+/// When a network error came: before the address answered (the name, the
+/// connection, the request, its headers), or while its file was read, after
+/// it answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    Asking,
+    Reading,
+}
+
+impl Miss {
+    /// How an address failed with a WinHTTP error `code` at `stage`: one
+    /// that broke off while its file came answered (cut short, and the next
+    /// try goes on from there); before, not reached
+    /// (`crate::network::Failure`), or no secure connection.
+    pub fn of_network(stage: Stage, code: u32) -> Self {
+        match (stage, Failure::of(code)) {
+            (Stage::Reading, _) => Self::Answered(Fault::CutShort),
+            (Stage::Asking, Some(failure)) => Self::Unreached(failure),
+            (Stage::Asking, None) if network::insecure(code) => Self::Answered(Fault::Insecure),
+            (Stage::Asking, None) => Self::Answered(Fault::Other),
+        }
+    }
 }
 
 /// Every address of something failed: how, before the probe.
@@ -113,10 +141,11 @@ pub enum Removal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Problem {
     /// An antivirus removed or blocked a game file (its name); `folder`: the
-    /// one to exclude (`crate::file_error::exclusion_folder`).
+    /// one to exclude, which `exclusion` says (`crate::file_error`).
     Antivirus {
         file: String,
         folder: String,
+        exclusion: Exclusion,
         removal: Removal,
     },
     /// Every address of a file failed, one of them with an answer.
@@ -222,12 +251,22 @@ impl Problem {
         };
         match self {
             Self::Antivirus {
-                folder, removal, ..
+                folder,
+                exclusion,
+                removal,
+                ..
             } => format!(
                 "{title}\n{}\n{}\n{log}",
                 removal_words(language, *removal),
-                defender(language, folder)
+                match exclusion {
+                    Exclusion::Programs => defender(language, folder),
+                    Exclusion::Game => allow(language, folder),
+                }
             ),
+            Self::Download {
+                fault: Fault::Insecure,
+                ..
+            } => format!("{title}\n{}\n{log}", clock(language)),
             Self::Download { .. } => format!("{title}\n{}\n{log}", download(language)),
             Self::NoConnection { .. } => format!(
                 "{title}\n{}\n{}\n{log}",
@@ -291,30 +330,35 @@ fn fault_words(language: u32, fault: Fault) -> String {
         (1, TooSlow) => "слишком медленно".into(),
         (1, WebPage) => "веб-страница вместо файла".into(),
         (1, Status(status)) => format!("отказ сервера (HTTP {status})"),
+        (1, Insecure) => "нет защищённого соединения".into(),
         (1, Other) => "файл не подошёл".into(),
         (2, Damaged) => "файл пошкоджено".into(),
         (2, CutShort) => "завантаження обірвалося".into(),
         (2, TooSlow) => "надто повільно".into(),
         (2, WebPage) => "вебсторінка замість файлу".into(),
         (2, Status(status)) => format!("відмова сервера (HTTP {status})"),
+        (2, Insecure) => "немає захищеного з'єднання".into(),
         (2, Other) => "файл не підійшов".into(),
         (3, Damaged) => "Datei beschädigt".into(),
         (3, CutShort) => "Download abgebrochen".into(),
         (3, TooSlow) => "zu langsam".into(),
         (3, WebPage) => "Webseite statt Datei".into(),
         (3, Status(status)) => format!("vom Server abgelehnt (HTTP {status})"),
+        (3, Insecure) => "keine sichere Verbindung".into(),
         (3, Other) => "Datei unbrauchbar".into(),
         (4, Damaged) => "plik uszkodzony".into(),
         (4, CutShort) => "pobieranie przerwane".into(),
         (4, TooSlow) => "zbyt wolno".into(),
         (4, WebPage) => "strona WWW zamiast pliku".into(),
         (4, Status(status)) => format!("serwer odmówił (HTTP {status})"),
+        (4, Insecure) => "brak bezpiecznego połączenia".into(),
         (4, Other) => "plik nie nadaje się".into(),
         (_, Damaged) => "damaged".into(),
         (_, CutShort) => "cut short".into(),
         (_, TooSlow) => "too slow".into(),
         (_, WebPage) => "a web page instead of the file".into(),
         (_, Status(status)) => format!("refused (HTTP {status})"),
+        (_, Insecure) => "no secure connection".into(),
         (_, Other) => "not usable".into(),
     }
 }
@@ -398,6 +442,39 @@ fn defender(language: u32, folder: &str) -> String {
     }
 }
 
+/// For a file outside `game\binaries\x86` (a patch, in `game`), which
+/// `Skhid-defender-setup.cmd` does not exclude: Windows Security's own way.
+fn allow(language: u32, folder: &str) -> String {
+    match language {
+        1 => format!(
+            "Безопасность Windows > Журнал защиты > этот элемент > Разрешить на устройстве; затем добавьте эту папку в исключения (Защита от вирусов и угроз > Управление настройками > Исключения), и в другом антивирусе тоже: {folder}"
+        ),
+        2 => format!(
+            "Безпека Windows > Журнал захисту > цей елемент > Дозволити на пристрої; потім додайте цю теку до винятків (Захист від вірусів і загроз > Керування параметрами > Винятки), і в іншому антивірусі теж: {folder}"
+        ),
+        3 => format!(
+            "Windows-Sicherheit > Schutzverlauf > dieser Eintrag > Auf Gerät zulassen; füge dann diesen Ordner als Ausschluss hinzu (Viren- & Bedrohungsschutz > Einstellungen verwalten > Ausschlüsse), auch in jedem anderen Virenschutz: {folder}"
+        ),
+        4 => format!(
+            "Zabezpieczenia Windows > Historia ochrony > ten element > Zezwalaj na urządzeniu; następnie dodaj ten folder do wykluczeń (Ochrona przed wirusami i zagrożeniami > Zarządzaj ustawieniami > Wykluczenia), także w innym antywirusie: {folder}"
+        ),
+        _ => format!(
+            "Windows Security > Protection history > this item > Allow on device; then add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions), in any other antivirus too: {folder}"
+        ),
+    }
+}
+
+/// No secure connection: what makes it most often.
+fn clock(language: u32) -> &'static str {
+    match language {
+        1 => "Проверьте дату, время и часовой пояс этого компьютера и что никакая программа (веб-защита антивируса, прокси) не перехватывает HTTPS; затем запустите Skhid.bat снова.",
+        2 => "Перевірте дату, час і часовий пояс цього комп'ютера та що жодна програма (вебзахист антивірусу, проксі) не перехоплює HTTPS; потім запустіть Skhid.bat знову.",
+        3 => "Prüfe Datum, Uhrzeit und Zeitzone dieses PCs und dass kein Programm (der Webschutz eines Virenschutzes, ein Proxy) HTTPS abfängt; starte dann Skhid.bat erneut.",
+        4 => "Sprawdź datę, godzinę i strefę czasową tego komputera oraz czy żaden program (ochrona WWW antywirusa, proxy) nie przechwytuje HTTPS; następnie uruchom ponownie Skhid.bat.",
+        _ => "Check this PC's date, time and time zone, and that no program (an antivirus's web shield, a proxy) intercepts HTTPS; then start Skhid.bat again.",
+    }
+}
+
 fn download(language: u32) -> &'static str {
     match language {
         1 => "Запустите Skhid.bat снова: он снова попробует все адреса, а загрузка игры продолжится с того места, где остановилась.",
@@ -419,31 +496,44 @@ mod tests {
         Failure::Timeout,
         Failure::CutOff,
     ];
-    const FAULTS: [Fault; 6] = [
+    const FAULTS: [Fault; 7] = [
         Fault::Damaged,
         Fault::CutShort,
         Fault::TooSlow,
         Fault::WebPage,
         Fault::Status(404),
+        Fault::Insecure,
         Fault::Other,
     ];
     const LOG: &str = "E:\\S\\game\\binaries\\x86\\updater_skhid.log";
     const FOLDER: &str = "E:\\S\\game\\binaries\\x86";
+    const GAME: &str = "E:\\S\\game";
 
     fn server() -> Where {
         Where::Server("skhid.link".into())
+    }
+
+    fn antivirus(file: &str, removal: Removal) -> Problem {
+        let exclusion = Exclusion::of(file);
+        Problem::Antivirus {
+            file: file.into(),
+            folder: match exclusion {
+                Exclusion::Programs => FOLDER,
+                Exclusion::Game => GAME,
+            }
+            .into(),
+            exclusion,
+            removal,
+        }
     }
 
     /// One of each problem, with every way it can be.
     fn every() -> Vec<Problem> {
         let mut all = Vec::new();
         for removal in [Removal::Blocked, Removal::PutBack] {
-            all.push(Problem::Antivirus {
-                file: "survarium_skhid.exe".into(),
-                folder: FOLDER.into(),
-                removal,
-            });
+            all.push(antivirus("survarium_skhid.exe", removal));
         }
+        all.push(antivirus("resources.db.patch_44", Removal::Blocked));
         for fault in FAULTS {
             for addresses in [1, 3] {
                 all.push(Problem::Download {
@@ -463,6 +553,56 @@ mod tests {
             }
         }
         all
+    }
+
+    #[test]
+    fn a_network_error_is_unreached_only_before_the_address_answered() {
+        // Before the answer: not reached, the way WinHTTP says.
+        assert_eq!(
+            Miss::of_network(Stage::Asking, 12002),
+            Miss::Unreached(Failure::Timeout)
+        );
+        assert_eq!(
+            Miss::of_network(Stage::Asking, 12030),
+            Miss::Unreached(Failure::CutOff)
+        );
+        assert_eq!(
+            Miss::of_network(Stage::Asking, 12007),
+            Miss::Unreached(Failure::NotFound)
+        );
+        // While the file came (it answered): cut short, whatever the code;
+        // the next try goes on from there.
+        for code in [12002, 12030, 12029, 12175, 5] {
+            assert_eq!(
+                Miss::of_network(Stage::Reading, code),
+                Miss::Answered(Fault::CutShort),
+                "{code}"
+            );
+        }
+        // TLS, a certificate: no secure connection.
+        for code in [12175, 12157, 12037, 12038, 12045, 12057, 12169, 12170] {
+            assert_eq!(
+                Miss::of_network(Stage::Asking, code),
+                Miss::Answered(Fault::Insecure),
+                "{code}"
+            );
+        }
+        // Anything else (a proxy's): an answer that is not the file.
+        assert_eq!(
+            Miss::of_network(Stage::Asking, 12180),
+            Miss::Answered(Fault::Other)
+        );
+        // Every mirror stalling mid-file is a failed download, not a
+        // network that blocks: no probe.
+        let stalled = [
+            Miss::of_network(Stage::Reading, 12002),
+            Miss::of_network(Stage::Reading, 12030),
+        ];
+        let failed = Failed::of_file("survarium-026g.7z", &stalled).unwrap();
+        assert_eq!(
+            Problem::of(failed, || panic!("probed")).title(None),
+            "Download failed: survarium-026g.7z, cut short at every address"
+        );
     }
 
     #[test]
@@ -580,17 +720,36 @@ mod tests {
              Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
         );
         assert_eq!(
-            Problem::Antivirus {
-                file: "survarium_skhid.exe".into(),
-                folder: FOLDER.into(),
-                removal: Removal::Blocked,
+            Problem::Download {
+                file: "skhid.link".into(),
+                fault: Fault::Insecure,
+                addresses: 1,
             }
             .message(None, LOG),
+            "Download failed: skhid.link, no secure connection\n\
+             Check this PC's date, time and time zone, and that no program (an antivirus's web \
+             shield, a proxy) intercepts HTTPS; then start Skhid.bat again.\n\
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+        );
+        assert_eq!(
+            antivirus("survarium_skhid.exe", Removal::Blocked).message(None, LOG),
             "Game files removed by antivirus: survarium_skhid.exe\n\
              Windows Security or another antivirus took it for a threat (a false positive). PLAY \
              stays off until it is let through.\n\
              Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this \
              folder: E:\\S\\game\\binaries\\x86\n\
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+        );
+        // A patch is in the game folder, which Skhid-defender-setup.cmd does
+        // not exclude: Windows Security's own way, for that folder.
+        assert_eq!(
+            antivirus("resources.db.patch_44", Removal::Blocked).message(None, LOG),
+            "Game files removed by antivirus: resources.db.patch_44\n\
+             Windows Security or another antivirus took it for a threat (a false positive). PLAY \
+             stays off until it is let through.\n\
+             Windows Security > Protection history > this item > Allow on device; then add this \
+             folder as an exclusion (Virus & threat protection > Manage settings > Exclusions), in \
+             any other antivirus too: E:\\S\\game\n\
              Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
         );
         assert_eq!(
@@ -612,11 +771,23 @@ mod tests {
             // An unknown language is English.
             assert_eq!(problem.message(Some(9), LOG), english);
             assert_eq!(problem.message(None, LOG), english);
-            let run = match problem {
-                Problem::Antivirus { .. } => "Skhid-defender-setup.cmd",
-                Problem::Download { .. } => "Skhid.bat",
-                Problem::NoConnection { .. } => "Skhid-network-setup.cmd",
-                Problem::Blocked { .. } => "VPN.txt",
+            // What the action line names, in every language.
+            let run: &[&str] = match problem {
+                Problem::Antivirus {
+                    exclusion: Exclusion::Programs,
+                    ..
+                } => &["Skhid-defender-setup.cmd", FOLDER],
+                Problem::Antivirus {
+                    exclusion: Exclusion::Game,
+                    ..
+                } => &[" > ", GAME],
+                Problem::Download {
+                    fault: Fault::Insecure,
+                    ..
+                } => &["HTTPS", "Skhid.bat"],
+                Problem::Download { .. } => &["Skhid.bat"],
+                Problem::NoConnection { .. } => &["Skhid-network-setup.cmd"],
+                Problem::Blocked { .. } => &["VPN.txt"],
             };
             for language in 0..5 {
                 let text = problem.message(Some(language), LOG);
@@ -635,8 +806,19 @@ mod tests {
                     lines[0].starts_with(problem.kind(language)),
                     "{language}: {text}"
                 );
-                assert!(lines[count - 2].contains(run), "{language}: {text}");
+                for words in run {
+                    assert!(lines[count - 2].contains(words), "{language}: {text}");
+                }
                 assert!(lines[count - 1].ends_with(LOG), "{language}: {text}");
+                // The script excludes game\binaries\x86 alone: never offered
+                // for a file elsewhere.
+                if let Problem::Antivirus {
+                    exclusion: Exclusion::Game,
+                    ..
+                } = problem
+                {
+                    assert!(!text.contains("Skhid-defender-setup.cmd"), "{text}");
+                }
                 // The object of the title: the file or the host.
                 let object = match problem {
                     Problem::Antivirus { file, .. } | Problem::Download { file, .. } => file,
@@ -651,9 +833,6 @@ mod tests {
                 // Nothing about countries.
                 for word in ["Russia", "Росси", "Росії", "Russland", "Rosji"] {
                     assert!(!text.contains(word), "{language}: {text}");
-                }
-                if let Problem::Antivirus { .. } = problem {
-                    assert!(text.contains(FOLDER), "{text}");
                 }
                 if let Problem::Blocked { .. } = problem {
                     for name in ["launcher_skhid.exe", "survarium_skhid.exe", "updater_skhid.exe"]
@@ -676,7 +855,8 @@ mod tests {
                 .collect();
             titles.sort();
             titles.dedup();
-            // The two antivirus boxes share a title: the file is the object.
+            // The two boxes of survarium_skhid.exe share a title: the file
+            // is the object.
             assert_eq!(titles.len(), all.len() - 1, "{language}");
         }
         // The four beginnings differ from each other in every language.
