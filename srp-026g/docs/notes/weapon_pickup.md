@@ -9,16 +9,16 @@
   checks positions.
 - A drop can be taken once, until that player dies again (the owner,
   2026-11-02): at most one a player, its next death's drop (or none, if it
-  held no gun) replaces it; no time cap. Its respawn (base_player::remove(1)
-  from the respawn tick 0x3169A0, or a snapshot's kit change 0x2D2A68)
-  takes the body out of the world and leaves the gun alone where it lay (a
-  pickup of it then gets a full magazine); the player leaving the match
-  (remove(1) from player_respawn_rule_base::on_player_left_match 0x316BE0,
-  told by player::remove's return address 0x316C14: every world player is
-  removed through player::remove 0x1F2870, which calls base_player::remove
-  at 0x1F2879, so the hook reads it above that frame, ESP+10h) ends the
-  drop; an unknown caller is kept as a respawn (logged). All synced, the same
-  tick on every client. Not built: drawing the copy alone at its last pose
+  held no gun) replaces it; no time cap. The removal of its player from the
+  world (base_player::remove(1), through player::remove 0x1F2870: its
+  respawn, a snapshot's kit change, or its leaving the match) takes the body
+  out and leaves the gun alone where it lay (a pickup of it then gets a full
+  magazine). A departed player's drop stays too, but its place is out of
+  the world (game_world_core::on_player_left_match 0x2D2040 clears its bit
+  of core+18FD8h at 0x2D214E, before the tick's players), so a pickup of it
+  is refused (no player for the place, `peer`) and its prompt says "Can't
+  pick this up", the same in every game (the owner, 2026-11-02: nothing
+  more). All synced, the same tick on every client. Not built: drawing the copy alone at its last pose
   after the respawn; the prompt is offered there (the pose this game last
   drew), a late joiner (no pose) offers none, and every game plays a pickup
   sent.
@@ -139,8 +139,8 @@
     pickup into its slot) stays cooked (keep and reuse, below: a rollback
     can take it back, the next drop of its recipe re-uses it); a rollback
     undoing a pickup puts its gun back in its body's drop; an untaken
-    drop's gun is freed 10 s after its drop ended (the next death, the
-    departure).
+    drop's gun is freed 10 s after its drop ended (the place's next
+    death).
 - My picks for stage 2b (the same rule):
   - the prompt shows only when the pickup would be taken now (the drop open,
     its gun made on this client, the picker alive with a gun of its own in
@@ -503,8 +503,7 @@ cooked gun).
   body's drop when its holder leaves is that drop's (its body's player its
   holder now), not freed. A copy
   never registered nor in hands (an untaken drop) is freed 10 s after its
-  drop ended (the place's next death, or its departure; past any
-  rollback). No timed free remains.
+  drop ended (the place's next death; past any rollback). No timed free remains.
 - **A bullet's record after a swap** (the 85a crash, 2026-11-01, proven
   from a full heap dump): a record names its weapon by its shooter's slot
   and the ammo's ordinal (bullet::serialize 0x32C0B5, 0x32C0EE); the loader
@@ -738,8 +737,8 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   `gun_cook` (192): dropping it gives back the inventory and the profile copy;
   a cook still running is abandoned and its completion frees everything.
   Freed only as "The copies' lifetime" above says: an untaken drop's 10 s
-  after its drop ended (the next death, or the departure's
-  base_player::remove(1), `pickup.remove`), or with its donor's destruction (`player.destroy`
+  after its drop ended (the place's next death), or with its donor's
+  destruction (`player.destroy`
   0x1F2100); a copy ever registered or in hands with its last holder's
   destruction (its departure; every player at the match's teardown). A
   holder's inventory keeps its own native reference.
@@ -810,7 +809,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   the respawn with a full magazine, rollbacks across the respawn, into the
   holster and undoing the pickup; replaced by the next death, the old copy
   freed past the margin, a rollback across that death; a late join after
-  the respawn; a departure ending it, in the holster too).
+  the respawn; a departed player's drop staying and refused, in the holster
+  too; `one_tick`: a leave through the rule's on_player_left_match and
+  player::remove and a pickup in one tick, a death and a pickup both ways).
   `check_artefact_carry_026g.py`
   and `check_ragdoll_026g.py` (the composed handlers), `check_engine_026g.py`,
   cargo test and clippy of `client-patches/rust`. No new site

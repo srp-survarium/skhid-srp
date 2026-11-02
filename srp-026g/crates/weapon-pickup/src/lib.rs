@@ -8,8 +8,8 @@
 //! - the server's check of it and the client's twin ([`allowed`],
 //!   [`sane`]): the client never sends what the server would drop;
 //! - a drop, open until it is taken, the place's until its player dies
-//!   again or leaves the match (its respawn leaves the gun alone where it
-//!   lay), and the one synced
+//!   again (its removal from the world leaves the gun alone where it lay),
+//!   and the one synced
 //!   record a player carries in its state ([`Record`]): its own drop (open or
 //!   taken) and, for each of its two weapon slots, the gun picked into it
 //!   (its own gun then hidden);
@@ -158,9 +158,9 @@ pub fn sane(actions: u32, sender: Place, places: u8) -> bool {
 
 /// A player's own drop: the gun it held at its death (the owner,
 /// 2026-11-02: "until that player dies again"): open until it is taken,
-/// and either way the place's until its next death replaces it or the
-/// player leaves the match (its departure's base_player::remove(1)); its
-/// respawn leaves the gun alone where it lay. At most one a place.
+/// and either way the place's until its next death replaces it; its
+/// player's removal from the world (base_player::remove(1): a respawn, a
+/// departure) leaves the gun alone where it lay. At most one a place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Drop {
     /// No drop: not dead holding a gun of its two since it came in.
@@ -384,8 +384,8 @@ impl Record {
         Drop::Open(Dropped { recipe, held: slot, lying: Lying::OnBody })
     }
 
-    /// The record after base_player::remove(1) of a respawn (or a
-    /// snapshot's kit change): its picks and a pickup waiting end (the own
+    /// The record after base_player::remove(1) (a respawn, a snapshot's
+    /// kit change, a departure): its picks and a pickup waiting end (the own
     /// guns back), its drop stays, the gun alone where it lay.
     pub fn respawned(self) -> Record {
         Record { drop: self.drop.left_alone(), ..Record::EMPTY }

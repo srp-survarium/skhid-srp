@@ -43,7 +43,7 @@ import check_hide_ui_026g as hide
 
 DEATH_SITE, DEATH_AFTER = 0x1F28E0, 0x1F28E5
 # base_player::remove's callers' return addresses (fields_026g.tsv's image rows).
-REMOVE_ON_DEPARTURE, REMOVE_ON_RESPAWN = 0x316C14, 0x3169A2
+REMOVE_ON_RESPAWN = 0x3169A2                     # player::remove's return address in the respawn tick
 PLAYER_REMOVE = 0x1F2870                        # player::remove, vtable 0x9FB35C +24h: calls base_player::remove
 STEP_SITE, STEP_AFTER = 0x1F7C3C, 0x1F7C41
 DESTROY_SITE, DESTROY_AFTER = 0x1F2100, 0x1F2106
@@ -259,15 +259,14 @@ class Run(hide.Run):
         _, sp = self.run(DESTROY_SITE, (DESTROY_AFTER,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_ECX: PLAYER})
         assert self.stopped == DESTROY_AFTER
 
-    def remove(self, player, at=None, flag=1, departure=False):
+    def remove(self, player, at=None, flag=1):
         """player::remove(flag) 0x1F2870 of `player` (at its tick time `at`), as the game's virtual call
-        (vtable +24h) makes it, up to base_player::remove's hook (its call at 0x1F2879): called from the
-        respawn tick (0x3169A0: its body leaves the world, its drop stays) or (`departure`) from
-        on_player_left_match (0x316C12: its player leaves the match, its drop ends)."""
+        (vtable +24h) makes it, up to base_player::remove's hook (its call at 0x1F2879), from the respawn
+        tick (0x3169A0): its body leaves the world, its drop stays."""
         if at is not None:
             self.word(player + 0x324, at)
         sp = hide.STACK + 0x9000
-        self.word(sp, REMOVE_ON_DEPARTURE if departure else REMOVE_ON_RESPAWN)
+        self.word(sp, REMOVE_ON_RESPAWN)
         self.word(sp + 4, flag)
         self.run(PLAYER_REMOVE, (0x2DA796,), sp, {**hide.GAME, UC_X86_REG_ECX: player})
         assert self.stopped == 0x2DA796, hex(self.stopped or 0)
@@ -338,9 +337,12 @@ def main():
                % respawn in l for l in r.log), r.log
     r.step(respawn + 600_000)
     assert r.read(COOKED + 0xD0) == 2, "freed after the respawn (the drop stays until the player dies again)"
-    gone = respawn + 600_000
-    r.remove(PLAYER, gone, departure=True)
-    assert any("place 5 at %d ms: its player left the match, its drop ends" % gone in l for l in r.log), r.log
+    gone = respawn + 600_000                            # its next death, holding nothing: no drop now
+    r.word(PLAYER + 0x128, 0)
+    r.word(PLAYER + 0x328, respawn)
+    r.word(PLAYER + 0x324, gone)
+    r.death()
+    assert r.queries == []
     r.step(gone + 1)
     assert r.read(COOKED + 0xD0) == 2, "freed inside a rollback's reach of its drop's end"
     r.step(gone + 10_000)
@@ -348,7 +350,7 @@ def main():
     assert r.live == {}, {hex(k): v for k, v in r.live.items()}
     print("ok the completion through the game's boost invoker 0x202300: the gun kept (one reference), the recipe freed, logged made with its ms and memory; "
           "kept while its body is in the world (60 s), past its respawn (10 min on: the drop stays until the player "
-          "dies again), and 10 s past its departure's base_player::remove(1) (a rollback can bring it back); never "
+          "dies again), and 10 s past its next death, which ends it (a rollback can bring it back); never "
           "registered nor in hands, given back after; every allocation freed once")
 
     # The last reference: the native release; a new life dies again: a new cook.
@@ -1305,14 +1307,15 @@ def the_end_gives_back_the_kit(patched):
 
 def no_cook_in_a_tick(patched):
     """No client cooks or waits for a drop's gun in a tick, where a refusal (a player made this frame, the 2 s cap)
-    would be its own: a rollback across the donor's departure (its removal ended the drop, the late pickup
-    replayed before it) finds the copy its drop's again, and a late joiner's first world with an open drop
+    would be its own: a rollback across the donor's next death (it ended the drop, the late pickup replayed
+    before it) finds the copy its drop's again, and a late joiner's first world with an open drop
     has its gun cooked before the load (outside the tick); each pickup then takes it with no query."""
     # The rollback: the removal, the frame's step, the load of the donor's state before it, the pickup replayed.
     r = Pick(patched)
     r.setup()
     gone = DIED + 8_000
-    r.remove(PLAYER, gone, departure=True)
+    r.remove(PLAYER, gone)
+    unarmed_death(r, gone)
     r.step(gone + 100)
     r.load(PLAYER, record(drop=("open", 1, A_GUN)))
     r.lohook(PLAYER_MADE_SITE, PLAYER_MADE_AFTER, {})
@@ -1320,13 +1323,14 @@ def no_cook_in_a_tick(patched):
     r.pick(now=gone - 200)
     assert r.queries == [], ("cooked in a tick", r.log)
     r.installed()
-    print("ok a rollback across the donor's departure: its drop's copy kept and its drop's again, the replayed pickup "
+    print("ok a rollback across the donor's next death: its drop's copy kept and its drop's again, the replayed pickup "
           "takes it with no cook nor wait (a player made this frame)")
 
     # The late joiner: the donor's open drop in its first world, cooked before the load.
     j = Pick(patched)
     j.setup()
-    j.remove(PLAYER, gone, departure=True)
+    j.remove(PLAYER, gone)
+    unarmed_death(j, gone)
     j.step(gone + 20_000)                       # this client's copy of that death gone: a death it never saw
     j.emu.mem_write(PLAYER + 0x328, struct.pack("<I", SPAWNED + 30_000))
 
@@ -1652,15 +1656,18 @@ def holster(patched):
 
     # The donor's body leaves the world (its respawn), or the donor leaves the match, while the picker
     # holsters: the pickup stands (committed at Use).
-    for departure, donor_after in ((False, record(("taken", 1, A_GUN, True))), (True, record())):
+    for departure in (False, True):
         r = started()
-        r.remove(PLAYER, taken + 300, departure=departure)
+        if departure:
+            left_match(r, PLACE, PLAYER, KIT, taken + 300)
+        else:
+            r.remove(PLAYER, taken + 300)
         window_record = r.save(r.picker)
-        assert window_record == record(pending=waiting) and r.save(PLAYER) == donor_after, departure
+        assert window_record == record(pending=waiting) and r.save(PLAYER) == record(("taken", 1, A_GUN, True)), departure
         r.tick(now=taken + 700)
         r.installed()
     print("ok the donor's respawn or departure during the holster does not cancel it: the gun is the picker's "
-          "(the drop taken, alone after a respawn, ended by a departure)")
+          "(the drop taken, alone)")
 
     # A pickup while firing (the 83Lb41 crash: the gun in hands never ready while the trigger is held,
     # then force-swapped at the 3 s deadline mid-fire, its intervals firing on a gun with no user). The
@@ -2265,14 +2272,14 @@ def stage2(patched, original):
         slot10=(DIED + 600_000, PLACE, KIT, 1))
     gone = Pick(patched)
     gone.setup()
-    gone.remove(PLAYER, DIED + 8_000, departure=True)
-    assert gone.save(PLAYER) == record()
+    left_match(gone, PLACE, PLAYER, KIT, DIED + 8_000)
+    assert gone.save(PLAYER) == record(("open", 1, A_GUN, True)), "a departed player's drop stays"
     gone.pick(now=DIED + 8_000)
-    assert any("refused, no drop to take" in l for l in gone.log) and gone.native == []
+    assert any("refused, the place to cook it from has no player" in l for l in gone.log) and gone.native == []
     assert gone.slot(gone.inventory, 10) == gone.own_gun + 0x10
     print("ok a command 60 s after the death with the body still there: taken; 10 min after the donor's respawn "
-          "(the drop alone): taken, a full magazine; after the donor's departure (the same tick on every client): "
-          "refused")
+          "(the drop alone): taken, a full magazine; after the donor's departure its drop stays, refused (its place "
+          "out of the world, the same in every game)")
 
 
 # ---- stage 2b: the ragdoll's gun, the prompt, the command -----------------------------------------
@@ -2475,9 +2482,9 @@ def stage2b(patched):
     g.remove(PLAYER, DIED + 61_000)
     g.word(PLAYER + 0x33C, 1)                           # alive again: no ragdoll draws the gun now
     assert g.hud() == [("st_weapon_pick_up", NAME)], "its respawn leaves the gun where it lay, at its last pose"
-    g.remove(PLAYER, DIED + 600_000, departure=True)
-    assert g.hud() == [("",)] and g.hud() == [] and g.build(USE) == USE, "its player left the match"
-    assert sights(g) == ["offered"], ("its pose forgotten with the drop: nothing aimed at", sights(g))
+    left_match(g, PLACE, PLAYER, KIT, DIED + 600_000)
+    assert g.hud() == [("st_weapon_cannot_pick_up",)] and g.build(USE) == USE, "its player left the match"
+    assert sights(g) == ["offered", "not offered, its player left the match"], sights(g)
     g = Prompt(patched)
     g.setup()
     g.word(PLAYER + 0x324, DIED + 50)
@@ -2493,7 +2500,7 @@ def stage2b(patched):
     print("ok the box is the gun's own (10 cm thick, 1 m long, at its transform; logged once a drop): no prompt 25 cm "
           "beside it or at the body below it; no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
           "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 15 cm; offered 60 s after the death while the body is there "
-          "and after the donor's respawn at the gun's last pose, gone with the donor's departure (its pose forgotten); each drop's reason logged once a change (not aimed at, "
+          "and after the donor's respawn at the gun's last pose, \"Can't pick this up\" once the donor left; each drop's reason logged once a change (not aimed at, "
           "out of reach, no line of sight, the carry rule with both slots' handedness and the gun's, taken)")
 
 
@@ -3108,24 +3115,38 @@ def left_match(r, place, player, kit, at):
     r.run(LEFT_MATCH, (0x2DA796,), sp, {**hide.GAME, UC_X86_REG_ECX: rule})
     assert r.stopped == 0x2DA796, hex(r.stopped or 0)
     assert r.read(rule + 0x138 + 4 * place) == 0xFFFFFFFF
+    # Then game_world_core::on_player_left_match 0x2D2040 clears the place's bit of the active places
+    # (core+18FD8h, 0x2D214E), before the tick's players: core_active_player 0x2D0AB0 refuses it from then on.
+    r.roster.pop(place, None)
+
+
+def unarmed_death(r, at):
+    """A (PLAYER) dies again at `at` holding nothing: its drop is none now."""
+    r.word(PLAYER + 0x128, 0)
+    r.word(PLAYER + 0x324, at)
+    r.queries = []
+    r.death()
+    assert r.queries == [] and r.save(PLAYER) == record()
 
 
 def one_tick(patched):
     """tick_events 0x2D21E0 plays a tick's events (process_events 0x2D22C5) before its players' tick
     (atomic_tick 0x2D22E2, where inputs and a pickup are played). D (place 5) leaves the match with its
-    drop open and P (place 3) sends its pickup in the same tick: the leave ends the drop first, so P is
-    refused and D's record is empty, in every game. A death and a pickup in one tick follow the players'
+    drop open and P (place 3) sends its pickup in the same tick: the leave comes first (its remove through
+    player::remove, then its place out of the world), so P is refused (no player for the place) and D's
+    drop stays, alone, in every game. A death and a pickup in one tick follow the players'
     order there: the death first opens the drop the pickup then takes; the pickup first finds none."""
     r = Death(patched)
     r.setup()
     t = DIED + 3_000
     left_match(r, PLACE, PLAYER, KIT, t)
-    assert r.save(PLAYER) == record(), "the leave ends D's drop"
+    assert r.save(PLAYER) == record(("open", 1, A_GUN, True)), "a departed player's drop stays"
     r.pick(now=t)
-    assert any("refused, no drop to take" in l for l in r.log) and r.native == [], r.log
+    assert any("refused, the place to cook it from has no player" in l for l in r.log) and r.native == [], r.log
     assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.save(r.picker) == record()
-    print("ok one tick, D leaves (on_player_left_match 0x316BE0 -> player::remove 0x1F2870 -> base_player::remove) "
-          "and P picks D's gun up: the leave first, P refused, D's record empty")
+    assert r.save(PLAYER) == record(("open", 1, A_GUN, True))
+    print("ok one tick, D leaves (on_player_left_match 0x316BE0 -> player::remove 0x1F2870 -> base_player::remove, "
+          "then its place out of the world) and P picks D's gun up: the leave first, P refused, D's drop stays")
 
     # A death and a pickup in one tick, C (place 4) dying.
     for death_first in (True, False):

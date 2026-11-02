@@ -37,8 +37,8 @@
 //!   was let go or cooked anew from its recipe;
 //! - the crate: the native resupply and its checks see the own guns (a
 //!   view); a picked gun's loaded stack is refilled by the game's rule;
-//! - the drop's end: the place's next death replaces it, its departure's
-//!   `base_player::remove(1)` ends it; the respawn's leaves it, alone.
+//! - the drop's end: the place's next death replaces it; its removal
+//!   (`base_player::remove(1)`: a respawn, a departure) leaves it, alone.
 //!
 //! The local client (what this client draws and sends):
 //! - the ragdoll's gun, at artefact_carry's `carry.weapon` ([`ragdoll_gun`]):
@@ -68,7 +68,7 @@ use weapon_pickup::{Drop as DropState, Handedness, Hands, Held, Lying, Ms, Pendi
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
 use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Installed, Mode, NameKey, Registered,
-                            RegistryId, Removal, Role, Select, Site};
+                            RegistryId, Role, Select, Site};
 use crate::vostok::world::{GameWorld, ItemId, Player, PlayerId, WorldKey};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
 use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
@@ -730,17 +730,19 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
 }
 
 /// `pickup.remove` (base_player::remove's entry): the removal of the
-/// place's player from the world (flag 1: the respawn tick's 0x3169A0, a
-/// departure's 0x316BE0, a snapshot's kit change 0x2D2A68 before the new
-/// kit's state is read) ends its life's pickup state. Each weapon slot gets
-/// its own gun back first (so its unload charges the own profile; a picked
-/// gun held stays held, and remove deactivates it), its picked gun let go.
-/// A respawn leaves its drop, the gun alone where it lay (the owner,
-/// 2026-11-02: until that player dies again; its last pose kept for the
-/// prompt); a departure ends it (its gun freed if nothing ever registered
-/// it, else kept for re-use).
+/// place's player from the world (flag 1, through player::remove 0x1F2870:
+/// the respawn tick's 0x3169A0, a departure's 0x316BE0, a snapshot's kit
+/// change 0x2D2A68 before the new kit's state is read) ends its life's
+/// pickup state. Each weapon slot gets its own gun back first (so its unload
+/// charges the own profile; a picked gun held stays held, and remove
+/// deactivates it), its picked gun let go. Its drop stays, the gun alone
+/// where it lay (the owner, 2026-11-02: until that player dies again; its
+/// last pose kept for the prompt); a departed player's is refused, its place
+/// out of the world (`peer`, the same in every game).
 pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(removal) = native::removal(ctx) else { return Flow::Continue };
+    if !native::removing(ctx) {
+        return Flow::Continue;
+    }
     let Some(player) = native::player(ctx, Site::Remove) else { return Flow::Continue };
     let thread = ctx.thread();
     cancel(&player, thread, Cancel::Removal);
@@ -759,40 +761,10 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     }
     let Some((world, place)) = located(&player) else { return Flow::Continue };
-    let now = Ms(player.time());
-    match removal {
-        Removal::Respawn | Removal::Unknown(_) => {
-            if let Removal::Unknown(caller) = removal {
-                log(&[Text("place "), Dec(u32::from(place.get())), Text(" removed by an unknown caller "),
-                      Hex(caller), Text(": as a respawn")]);
-            }
-            update_record(thread, world, place, |r| *r = r.respawned());
-            if let Some(gun) = record_at(thread, world, place).drop.gun() {
-                log_recipe("its body left the world: the drop stays, alone,", gun.recipe,
-                           &[Text(" of place "), Dec(u32::from(place.get())), Text(" at "), Dec(now.0), Text(" ms")]);
-            }
-        }
-        Removal::Departure => {
-            update_placed(thread, world, place, |r, b| {
-                *r = Record::EMPTY;
-                *b = None;
-            });
-            // Its gun's last pose goes with the drop (the prompt reads none).
-            SEEN.with(thread, |seen| seen[usize::from(place.get())] = None);
-            log(&[Text("place "), Dec(u32::from(place.get())), Text(" at "), Dec(now.0),
-                  Text(" ms: its player left the match, its drop ends")]);
-            // Its drop's gun, and one taken from it (a rollback can give it back).
-            let body = player.id();
-            CACHE.with(thread, |cache| {
-                for e in cache.iter_mut().flatten() {
-                    let (At::Drop(d) | At::Pending(Waiting { from: d, .. }) | At::Overdue(Waiting { from: d, .. })
-                         | At::Held { from: d, .. } | At::LetGo { from: d, .. }) = &mut e.at;
-                    if d.body == body && d.lies == Lies::Current {
-                        d.lies = Lies::Ended { at: now };
-                    }
-                }
-            });
-        }
+    update_record(thread, world, place, |r| *r = r.respawned());
+    if let Some(gun) = record_at(thread, world, place).drop.gun() {
+        log_recipe("its body left the world: the drop stays, alone,", gun.recipe,
+                   &[Text(" of place "), Dec(u32::from(place.get())), Text(" at "), Dec(player.time()), Text(" ms")]);
     }
     Flow::Continue
 }
@@ -1556,7 +1528,7 @@ fn cannot_key(why: Sight) -> &'static CStr {
         Sight::Refused { why, .. } => refusal_key(why),
         Sight::Taken => c"st_weapon_already_taken",
         // Not a drop the prompt can name (and the untargeted ones, never here).
-        Sight::NotItsBody | Sight::NoDrop | Sight::NoPicker | Sight::OutOfReach | Sight::NotAimedAt
+        Sight::NotItsBody | Sight::NoDrop | Sight::Departed | Sight::NoPicker | Sight::OutOfReach | Sight::NotAimedAt
         | Sight::Blocked | Sight::Offered => c"st_weapon_cannot_pick_up",
     }
 }
@@ -1623,6 +1595,8 @@ enum Sight {
     Taken,
     /// The place has no drop (its record's).
     NoDrop,
+    /// The drop's player left the match (its place out of the world).
+    Departed,
     /// The viewer has no place, profile or kit.
     NoPicker,
     /// The rule says no: the picker's held slot and its gun's handedness,
@@ -1697,6 +1671,7 @@ fn log_sight(viewer: &Player<'_>, target: u8, sight: Sight) {
         Sight::NotItsBody => "not offered, the body drawn is not its drop's",
         Sight::Taken => "not offered, already taken",
         Sight::NoDrop => "not offered, no drop in its record",
+        Sight::Departed => "not offered, its player left the match",
         Sight::NoPicker => "not offered, the viewer has no place, profile or kit",
         Sight::Blocked => "not offered, no line of sight (the level's ray)",
         Sight::Offered => "offered",
@@ -1732,6 +1707,8 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: WorldKey, place: Place, ta
         DropState::Taken(_) => return Err(Sight::Taken),
         DropState::None => return Err(Sight::NoDrop),
     }
+    // Its player left the match: the pickup is refused (`take`'s `peer`).
+    peer(viewer, target).ok_or(Sight::Departed)?;
     // The copy's gun, in its recipe's slot of its cooked inventory.
     let gun = body_drop(thread, target).map(|(cook, recipe, _)| (cook, recipe.slot))
         .filter(|&(cook, _)| matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }));

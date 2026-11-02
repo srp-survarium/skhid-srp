@@ -328,41 +328,13 @@ pub fn read_record(ctx: &Context<'_>) -> Option<[u8; weapon_pickup::Record::BYTE
     super::carry_runtime::read_bytes(unsafe { raw::site::pickup_load::reader(ctx) }?)
 }
 
-/// What `pickup.remove`'s full removal (flag 1: held deactivated, the
-/// inventory unloaded into the profile) is, by who asked for it: every world
-/// player is removed through player::remove 0x1F2870 (vtable 0x9FB35C +24h,
-/// its call at 0x1F2879), whose own caller says why.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Removal {
-    /// The place's player leaves the match (player_respawn_rule_base::
-    /// on_player_left_match 0x316BE0).
-    Departure,
-    /// Out of the world for its next life: the respawn tick (0x3169A0) or a
-    /// snapshot's kit change (0x2D2A68, the new kit's state read next).
-    Respawn,
-    /// Another caller (the return address it was reached by): kept as a
-    /// respawn is (nothing ends), and logged.
-    Unknown(u32),
-}
-
-/// `pickup.remove`'s call when it is a full removal (flag 1), else None (a
-/// snapshot's same-kit removal, flag 0).
-pub fn removal(ctx: &Context<'_>) -> Option<Removal> {
-    // SAFETY: base_player::remove's entry frame: its return address and its
-    // first argument's low byte; player::remove's frame above it (its two
-    // saved registers, then its return address) only when the return
-    // address is player::remove's.
-    let (unload, caller) = unsafe {
-        let frame = raw::site::pickup_remove::frame(ctx)?;
-        let caller = read(frame.caller());
-        (read(frame.unload()),
-         if caller == raw::image::PLAYER_REMOVE_RETURN { read(frame.outer_caller()) } else { caller })
-    };
-    (unload != 0).then_some(match caller {
-        raw::image::REMOVE_ON_DEPARTURE => Removal::Departure,
-        raw::image::REMOVE_ON_RESPAWN | raw::image::REMOVE_ON_KIT_CHANGE => Removal::Respawn,
-        other => Removal::Unknown(other),
-    })
+/// Whether `pickup.remove`'s call is the full removal (flag 1): held
+/// deactivated, the inventory unloaded into the profile. Every world
+/// player's comes through player::remove 0x1F2870 (vtable 0x9FB35C +24h):
+/// the respawn tick's, a departure's and a snapshot's kit change's alike.
+pub fn removing(ctx: &Context<'_>) -> bool {
+    // SAFETY: base_player::remove's entry frame, its first argument's low byte.
+    unsafe { raw::site::pickup_remove::frame(ctx).is_some_and(|frame| read(frame.unload()) != 0) }
 }
 
 /// Sets EAX or ECX (the inventory the native resupply is about to be
