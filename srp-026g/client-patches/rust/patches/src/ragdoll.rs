@@ -42,7 +42,8 @@ use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 use crate::vostok::bullet::BulletRay;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
-use crate::vostok::world::{BodyId, GameWorld, Held, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId};
+use crate::vostok::world::{BodyId, GameWorld, Held, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId,
+                           WorldKey};
 use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
@@ -237,6 +238,9 @@ enum TraceState {
 }
 
 struct State {
+    /// The match the corpses are of: another one starts them all afresh
+    /// (their deaths' keys are its times).
+    world: Option<WorldKey>,
     corpses: Corpses,
     draws: [Draw; MAX_PLACES],
     eye: EyeView,
@@ -260,6 +264,7 @@ struct State {
 /// draws (one a place, maybe at once on several threads) and the bullets
 /// (256 a task) take the lock in turn.
 static STATE: Lock<State> = Lock::new(State {
+    world: None,
     corpses: Corpses::new(),
     draws: [Draw::Off; MAX_PLACES],
     eye: EyeView::Off,
@@ -421,8 +426,14 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // patch 85's frame step (one detour at this address)
     crate::weapon_pickup::after_move(ctx);
     let thread = ctx.thread();
-    let client = GameWorld::at_after_move(ctx).and_then(|world| world.network_client());
+    let world = GameWorld::at_after_move(ctx);
+    let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
+    let client = world.and_then(|world| world.network_client());
     let guns = STATE.with(thread, |state| {
+        if state.world != key {
+            state.world = key;
+            state.corpses.reset();
+        }
         step(state, client.as_ref(), thread);
         // each place's dropped gun, for patch 85's drops drawn as their copies
         core::array::from_fn(|place| state.corpses.gun(place)

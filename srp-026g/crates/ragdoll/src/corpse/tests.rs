@@ -1014,3 +1014,27 @@ fn a_body_that_had_no_gun_or_no_ragdoll_leaves_none() {
     frame(&mut corpses, &[Seen::Alive], None, &mut ground);
     assert_eq!(corpses.lone[0], Lone::None);
 }
+
+#[test]
+fn a_lone_gun_is_of_its_match_only() {
+    // match one: place 0 dies (spawn time 7), falls, respawns: its gun lies alone
+    let one = || {
+        let mut corpses = Corpses::new();
+        let mut ground = Ground::flat();
+        for _ in 0..4 {
+            frame(&mut corpses, &[armed(7)], None, &mut ground);
+        }
+        frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+        assert!(corpses.gun(0).is_some());
+        (corpses, ground)
+    };
+    // its end, a frame without the place, or the next world (the patch resets the corpses at a world's
+    // change), then match two's death at the same spawn time: no gun of match one
+    for end in [|c: &mut Corpses, g: &mut Ground| { frame(c, &[], None, g); }, |c: &mut Corpses, _: &mut Ground| c.reset()] {
+        let (mut corpses, mut ground) = one();
+        end(&mut corpses, &mut ground);
+        assert_eq!(corpses.gun(0), None);
+        frame(&mut corpses, &[armed(7)], None, &mut ground);
+        assert_eq!(corpses.gun(0), None, "dying: no gun body yet, none of match one");
+    }
+}

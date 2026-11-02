@@ -1141,8 +1141,11 @@ gives a place's gun's `Weapon` bone pose: its ragdoll's, or, once the body
 goes (its player's respawn, or its slot given to another death), `corpse::Lone`:
 the same gun body stepped alone by the ragdoll's own rules (`LoneGun::step`:
 `query_body`, the contacts, friction, the near-rest slowing, the rest rules for
-one body) until it rests, kept until the place's next death. The patch hands
-the poses to `weapon_pickup::draw_drops` after each step. Visual only.
+one body) until it rests, kept until the place's next death, a frame without
+the place, or another world (the patch resets the corpses when the match's
+core changes: a death's key is a time of its match, so a later match's death
+at the same time must not find it). The patch hands the poses to
+`weapon_pickup::draw_drops` after each step. Visual only.
 
 ## Addresses (re-kit rows added in this change)
 

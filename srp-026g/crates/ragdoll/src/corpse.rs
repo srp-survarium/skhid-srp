@@ -437,6 +437,17 @@ impl Corpses {
         }
     }
 
+    /// Every place alive and every slot free, in place (another world: its
+    /// deaths' keys mean nothing here).
+    pub fn reset(&mut self) {
+        self.places.fill(Corpse::Alive);
+        self.pool.fill(Slot::Free);
+        self.lone.fill(Lone::None);
+        self.bounds.fill(None);
+        self.started.fill(None);
+        self.eye = Eye::Off;
+    }
+
     /// Where a place's dropped gun is: the death it dropped at and its
     /// `Weapon` bone's world pose (where the game draws the held item), on
     /// the place's ragdoll or alone; none from a body with no ragdoll.
@@ -494,6 +505,8 @@ impl Corpses {
             };
             // the body goes away while its player lives again: its gun stays
             self.lone[place] = match (self.places[place], seen) {
+                // a place the world does not have: no gun of it (a match's end)
+                _ if place >= count => Lone::None,
                 (Corpse::Body { death, slot }, Seen::Alive) => Lone::left_by(death, &self.pool[slot.index()]),
                 (_, Seen::Dead(d)) if self.lone[place].death().is_some_and(|k| k != d.key) => Lone::None,
                 _ => self.lone[place],

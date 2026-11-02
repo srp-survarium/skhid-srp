@@ -210,7 +210,9 @@ survarium::weapon	model	0x1810	ptr<survarium::scene_model>	client weapon render 
 survarium::weapon	world	0x180C	ptr<survarium::game_world>	client world, on_hide 0x243FB6
 survarium::weapon	transform	0x660	f32	world model matrix, scope scene add 0x244BA9
 survarium::weapon_hide_frame	was_visible	0x4	u8	weapon on_hide entry boolean; false performs no scene operation
-survarium::weapon	scope_locator	0x744	f32	the scope's locator (calculate_locator's first argument for the scope: weapon::draw 0x244E87, its result kept at +660h, the scope's model placed there 0x244FEF..0x245012)
+survarium::weapon	scope_locator	0x744	obj<survarium::weapon_locator>	the scope's locator (calculate_locator's first argument for the scope: weapon::draw 0x244E87, its result kept at +660h, the scope's model placed there 0x244FEF..0x245012)
+survarium::weapon_locator	bone	0x60	u16	the bone it hangs on (the bones' index; FFFFh none), calculate_locator 0x243C01
+survarium::weapon_locator	offset	0x20	f32	its place on that bone, a row-vector 4x4 (calculate_locator 0x243C25)
 survarium::weapon	optics	0x1808	ptr<survarium::weapon_optics>	optional optics object, mt_draw 0x244F66
 survarium::weapon_optics	model	0x108	ptr<survarium::scene_model>	normal optics model holder, 0x244FF7
 survarium::weapon_optics	aim_model	0x10C	ptr<survarium::scene_model>	aimed optics model holder, 0x244FE1

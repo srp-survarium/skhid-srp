@@ -1434,7 +1434,7 @@ const REACH: f32 = 2.2;
 const PAD: f32 = 0.15;
 
 /// A drop's gun as its donor's ragdoll last drew it (by place), or, its
-/// its copy drawn, as [`draw_drops`] draws it.
+/// copy drawn, as [`draw_drops`] draws it.
 #[derive(Clone, Copy)]
 struct Seen {
     body: Body,

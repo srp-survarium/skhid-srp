@@ -1316,7 +1316,6 @@ impl Ragdoll {
     }
 }
 
-/// The two parts' bodies, mutably.
 /// The frame's whole substeps of `dt` s (capped at 1/30) and their time,
 /// the rest kept in `pending` for the next frame; None when there is none.
 fn substeps(pending: &mut f32, dt: f32) -> Option<(usize, f32)> {
@@ -1457,6 +1456,7 @@ fn query_body(body: &mut Body, dt: f32, gravity: Vec3, down: Vec3, level: &mut i
     }
 }
 
+/// The two parts' bodies, mutably.
 fn pair(bodies: &mut [Body; PARTS], a: Part, b: Part) -> (&mut Body, &mut Body) {
     let (i, k) = (a.index(), b.index());
     debug_assert_ne!(i, k);

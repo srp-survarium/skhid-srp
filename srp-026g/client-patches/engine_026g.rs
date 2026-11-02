@@ -130,7 +130,7 @@ unsafe extern "C" {
     /// 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
     pub fn engine_add_model(renderer: *mut c_void, model: *mut c_void, scene: *mut c_void, first: *const f32, second: *const f32);
     /// 0x243bc0 survarium::weapon::calculate_locator: output_matrix EDI, locator ESP+4, transform ESP+8, bones ESP+12, extra ESP+16; pops 16; EAX
-    pub fn engine_weapon_locator(output_matrix: *mut f32, locator: *const f32, transform: *const f32, bones: *const f32, extra: *const f32) -> *mut f32;
+    pub fn engine_weapon_locator(output_matrix: *mut f32, locator: *const c_void, transform: *const f32, bones: *const f32, extra: *const f32) -> *mut f32;
     /// 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
     pub fn engine_remove_model(renderer: *mut c_void, model: *mut c_void, scene: *mut c_void);
     /// 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16

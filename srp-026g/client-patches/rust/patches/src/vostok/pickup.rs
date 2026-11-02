@@ -1630,7 +1630,7 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         if let Some(scope) = weapon.optics().and_then(|optics| optics.model())
             && (ours.has(Models::SCOPE) || !Scene::has(scope)) {
             let mut at = [0.0f32; 16];
-            raw::engine_weapon_locator(at.as_mut_ptr(), weapon.scope_locator(), transform.as_ptr(),
+            raw::engine_weapon_locator(at.as_mut_ptr(), Some(weapon.scope_locator()), transform.as_ptr(),
                                        bones.as_ptr().cast(), IDENTITY.as_ptr());
             if at.iter().all(|v| v.is_finite()) {
                 scene.present(scope, &at);
