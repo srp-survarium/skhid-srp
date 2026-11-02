@@ -91,6 +91,8 @@ pub struct RatePoint {
 pub struct ClassRates {
     pub label: Text,
     pub line: ClassLine,
+    /// [A267] The owner's bar at skill 1, as the page says it, and where the line's end sits when it is off it.
+    pub bar: Option<String>,
 }
 
 /// A class's expected rates.
