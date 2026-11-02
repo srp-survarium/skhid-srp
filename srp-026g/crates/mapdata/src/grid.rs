@@ -190,6 +190,14 @@ pub struct Body {
     /// boulder (29.33), held forward toward the top for 5 s with no jump and sank to 29.00, 0.9-1.2 m under the top, the height of the
     /// walkable floors the climb began on (29.03, 29.34; A237, PROVEN: its inputs). A build input: in the key when set.
     pub steep_walk_base: bool,
+    /// [A258] Whether a walk onto steep ground is kept only down it: a Walk link onto a steep floor (its face by-slope steeper than
+    /// [`Body::min_ground_normal_y`], or its ground by its neighbours' heights, not a `walk` face) that does not go down is cut
+    /// ([`WalkGrid::cut_steep_climbs`]). The client slides a MOVING body off ground steeper than its slope limit (55 degrees,
+    /// `need_slide_on_supporting_surface` 0x7bc20 with `cc_max_slope_angle_cos`), so a walk across or up such ground ends in a
+    /// slide down it; a walk down it goes the way the slide does. Off: only a climb past a step is cut, and the bots walk across
+    /// 55-60 degree ground their bodies slide on (A240a: of the bench's slides of moving bodies, 8,348 of 20,682 with 55+ degree
+    /// ground under the centre, two thirds of the slide's extra stuck on Mamayev Kurgan). A build input: in the key when set.
+    pub steep_walks_down: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -240,6 +248,7 @@ impl Body {
             slip_landings: false,
             run_ups_after_erosion: false,
             steep_walk_base: false,
+            steep_walks_down: false,
         }
     }
 }
@@ -306,6 +315,7 @@ impl Default for Body {
             slip_landings: false,
             run_ups_after_erosion: false,
             steep_walk_base: false,
+            steep_walks_down: false,
         }
     }
 }
@@ -1512,6 +1522,23 @@ impl WalkGrid {
                     let b = wide.links[a][d];
                     if b != NONE && wide.kinds[a][d] == LinkKind::Jump && steep_floor[b as usize] {
                         wide.links[a][d] = NONE;
+                    }
+                }
+            }
+        }
+        // With `steep_walks_down`: a walk onto steep ground only down it; across or up it the client slides the body down.
+        if self.body.steep_walks_down {
+            for a in 0..n {
+                for d in 0..8 {
+                    let b = wide.links[a][d];
+                    if b != NONE
+                        && wide.kinds[a][d] == LinkKind::Walk
+                        && steep_floor[b as usize]
+                        && !forced[b as usize]
+                        && self.height[b as usize] >= self.height[a] - LEVEL_M
+                    {
+                        wide.links[a][d] = NONE;
+                        cut[a] |= 1 << d;
                     }
                 }
             }
@@ -5002,6 +5029,47 @@ pub(crate) mod tests {
         };
         assert!(crest_walks_on(false), "without the switch the crest walks onto the top");
         assert!(crest_walks_on(true), "with it too: from the slab under the crest the top is 0.6 m up");
+    }
+
+    /// [`Body::steep_walks_down`] (A258): on a 57 degree by-slope plane (steeper than the clients' 55, under 60 so still a floor) a
+    /// walk across it or up it is cut with the switch, a walk down it is kept; without it the walks across stay (a moving body
+    /// slides down there in the client).
+    #[test]
+    fn a_walk_onto_steep_ground_is_kept_only_down_it_with_steep_walks_down() {
+        let tan = 57f32.to_radians().tan();
+        let p = |x: f32, z: f32| Vec3::new(x, (x - 2.0) * tan, z);
+        let walker = WalkerBehaviour::BySlope;
+        let mut tris = floor(0.0, 0.0, 2.0, 10.0, 0.0).to_vec();
+        tris.push(Triangle { v: [p(2.0, 0.0), p(4.0, 0.0), p(4.0, 10.0)], walker });
+        tris.push(Triangle { v: [p(2.0, 0.0), p(4.0, 10.0), p(2.0, 10.0)], walker });
+        let links = |steep_walks_down: bool| {
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 6.0, 10.0], 0.25, Body { steep_walks_down, ..Body::client() });
+            let on_slope: Vec<NodeId> =
+                (0..grid.len() as NodeId).filter(|&n| (2.3..3.7).contains(&grid.position(n).x) && grid.position(n).y > 0.3).collect();
+            assert!(!on_slope.is_empty(), "the slope's floors");
+            let (mut across, mut up, mut down) = (0, 0, 0);
+            for &a in &on_slope {
+                for (b, kind) in grid.links(a) {
+                    if kind != LinkKind::Walk || !on_slope.contains(&b) {
+                        continue;
+                    }
+                    let dy = grid.position(b).y - grid.position(a).y;
+                    if dy.abs() <= 0.05 {
+                        across += 1;
+                    } else if dy > 0.0 {
+                        up += 1;
+                    } else {
+                        down += 1;
+                    }
+                }
+            }
+            (across, up, down)
+        };
+        let (across, _, down) = links(false);
+        assert!(across > 0 && down > 0, "without the switch the slope is walked across and down: {across} {down}");
+        let (across, up, down) = links(true);
+        assert_eq!((across, up), (0, 0), "with it no walk across or up the slope");
+        assert!(down > 0, "and the walks down it stay");
     }
 
     /// The clients walk ground up to 55° (`startup.cfg` `cc_max_slope_angle_cos 0.57358`), not the exe's 50°: a plane of

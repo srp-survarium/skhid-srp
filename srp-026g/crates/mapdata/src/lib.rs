@@ -137,6 +137,9 @@ pub const RUN_UPS_AFTER_EROSION_ALGO: u32 = 1;
 /// The same for the walks up off steep ground measured from where the climb began ([`Body::steep_walk_base`],
 /// `WalkGrid::cut_steep_climbs`), in [`grid_key_with_links`] only for a body that asks for it.
 pub const STEEP_WALK_BASE_ALGO: u32 = 1;
+/// The same for the walks onto steep ground kept only down it ([`Body::steep_walks_down`], `WalkGrid::cut_steep_climbs`), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const STEEP_WALKS_DOWN_ALGO: u32 = 0x5258_0001;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -280,6 +283,10 @@ pub fn grid_key_with_links(
     // The walks up off steep ground from where the climb began too.
     if body.steep_walk_base {
         digest.u32(STEEP_WALK_BASE_ALGO);
+    }
+    // And the walks onto steep ground only down it.
+    if body.steep_walks_down {
+        digest.u32(STEEP_WALKS_DOWN_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

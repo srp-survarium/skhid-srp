@@ -104,6 +104,11 @@ pub struct GridTuning {
     /// 614 -> 503, falls off 326 -> 283, stuck notes 178 -> 180; its no_way bursts have the same grid paths on and off); the all-off arm
     /// keeps it (its old value is the proven walk). A grid is the map's (see `gap_links`).
     pub steep_walk_base: bool,
+    /// [A258] Whether the maps' walk grids keep a walk onto steep ground (a by-slope floor over the clients' 55 degrees, by its face or
+    /// its neighbours' heights) only down it (`mapdata::Body::steep_walks_down`): the client slides a moving body off such ground, so a
+    /// walk across or up it ends in a slide down. Mamayev Kurgan's rock slopes held two thirds of the stand-in slide's extra stuck notes
+    /// (A240a). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    pub steep_walks_down: bool,
 }
 
 impl Default for GridTuning {
@@ -124,6 +129,7 @@ impl Default for GridTuning {
             slip_landings: false,
             run_ups_after_erosion: true,
             steep_walk_base: true,
+            steep_walks_down: false,
         }
     }
 }
@@ -152,6 +158,7 @@ impl GridTuning {
             slip_landings: self.slip_landings,
             run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
+            steep_walks_down: self.steep_walks_down,
             ..body
         }
     }
