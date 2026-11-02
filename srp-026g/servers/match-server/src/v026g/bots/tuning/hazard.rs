@@ -85,7 +85,11 @@ pub struct HazardTuning {
     /// four corners: its level 2 zone counts as on all match, its levels 3-5 switch. A bot walking out of the cloud took
     /// the nearest dry floor, one of these, and no route left it (the ring is no crossing: its floors are the switching
     /// levels' too). 42 of 51 such stands of 60 s or more began with that walk-out (A257, the WAVE 13 camper cells, 61 % of
-    /// all the stuck seconds). Off: a way out ends on the nearest dry floor, as it was.
+    /// all the stuck seconds). Off: a way out ends on the nearest dry floor, as it was: a body left standing there to the
+    /// match's end, PROVEN by the probe of the server's grid and hazards (no path off without the ring's floors, no crossing,
+    /// the escape ending on the island), so the all-off arm keeps it on (`KEPT_RIGHT`). Whole matches (A257, 2 x 256 pairs, 10
+    /// a side, the 16 offered map-days): bot-ticks on dry islands -85 % / -95 %, standing still there -94 % / -99 %, "no way"
+    /// -6.5 % / -11.9 %, kills, deliveries, zone deaths and stuck cases level.
     pub leave_islands: bool,
 }
 
@@ -173,7 +177,7 @@ impl Default for HazardTuning {
             escort_reach: true,
             zone_intensity: true,
             run_out: true,
-            leave_islands: false,
+            leave_islands: true,
         }
     }
 }
