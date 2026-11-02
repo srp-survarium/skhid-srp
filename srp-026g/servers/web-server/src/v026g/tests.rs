@@ -1785,6 +1785,7 @@ impl Desk {
                             uk: "Гвинтівки",
                         },
                         line: ClassLine::Pooled(vec![18.6, 18.2]),
+                        bar: Some("bar at skill 1: 18–20 %".to_owned()),
                     },
                     ClassRates {
                         label: Text {
@@ -1795,6 +1796,7 @@ impl Desk {
                             en: "not <measured>",
                             uk: "не виміряно",
                         }),
+                        bar: None,
                     },
                 ],
             },
@@ -1879,6 +1881,9 @@ impl session::v026g::bot_desk::BotDesk for Desk {
                     at[0] = new;
                     at[1] += 0.6 * (new - old);
                 }
+                if new > 20.0 {
+                    after.classes[0].bar = Some(format!("{new:.1} % at skill 1, above its bar 18–20 %"));
+                }
             }
         }
         Ok(Preview {
@@ -1953,7 +1958,7 @@ fn the_bots_tab_previews_a_save_sets_it_on_apply_and_resets_after_a_confirm() {
         "{shown}"
     );
     assert!(
-        shown.contains("<tr><td>Rifles<br><small>not measured on its own yet: the pool's numbers</small></td><td>18.6</td><td>18.2</td></tr>"),
+        shown.contains("<tr><td>Rifles<br><small>not measured on its own yet: partly the pool's numbers</small><br><small>bar at skill 1: 18–20 %</small></td><td>18.6</td><td>18.2</td></tr>"),
         "{shown}"
     );
     assert!(shown.contains("<td colspan=2><small>not &lt;measured&gt;</small></td>"), "{shown}");

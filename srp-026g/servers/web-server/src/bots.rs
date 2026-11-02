@@ -501,8 +501,8 @@ fn rates_table(lang: Lang, before: &Rates, after: Option<&Rates>) -> String {
     let pooled = format!(
         "<br><small>{}</small>",
         lang.tr(
-            "not measured on its own yet: the pool's numbers",
-            "ще не виміряно окремо: спільні числа"
+            "not measured on its own yet: partly the pool's numbers",
+            "ще не виміряно окремо: частково спільні числа"
         )
     );
     let rows: String = before
@@ -537,7 +537,14 @@ fn rates_table(lang: Lang, before: &Rates, after: Option<&Rates>) -> String {
                 ClassLine::Pooled(_) => pooled.as_str(),
                 ClassLine::Own(_) | ClassLine::Unknown(_) => "",
             };
-            format!("<tr><td>{}{mark}</td>{cells}</tr>", text(class.label))
+            // The bar of the line shown last (a preview's after), its own words when the line's end is off it.
+            let bar = after
+                .and_then(|after| after.classes.get(i))
+                .unwrap_or(class)
+                .bar
+                .as_ref()
+                .map_or(String::new(), |bar| format!("<br><small>{}</small>", escape(bar)));
+            format!("<tr><td>{}{mark}{bar}</td>{cells}</tr>", text(class.label))
         })
         .collect();
     format!(
