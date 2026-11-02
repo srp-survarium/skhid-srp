@@ -5,11 +5,12 @@
 # owned items (a weapon, a stack, a scope loose or worn on a weapon, a camouflage) have the mark, the
 # others (an item not owned, an empty stack, a bundle whose id is an owned item's) not; a bought item
 # gets it, a sold one loses it; the box on leaves the owned entries out (the upgrades tab too, and an
-# item bought while it is on), and off brings them back; the box sits left of Buy, a
-# Russian label too.
+# item bought while it is on), and off brings them back; the list has no sort and stays in level
+# order (opened, a buy, the box, a tab, the inventory); the window's last row in every language:
+# [Comparing items] [Hide owned].
 # Screenshots into the work dir: before.png (the owned entries marked, the box off), bought.png (the
 # helmet bought too), not-owned.png (the box on: the owned entries gone), upgrades.png (the box on,
-# the upgrades tab), long-label.png (the Russian label left of Buy).
+# the upgrades tab).
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, the shots,
 # Ruffle's log). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md),
 # or SRP_AS_TOOLS.
@@ -25,11 +26,14 @@ else
     work=$(mktemp -d)
 fi
 
+# The texts the exe gives the movie (set_localization_data), from the dictionaries.
+"${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
+
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
     +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
+    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" -source-path+="$work" \
     -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
     -output="$work/ShopOwnedHarness.swf" "$here/ShopOwnedHarness.as" >"$work/ShopOwnedHarness.mxmlc.log" 2>&1 \
     || { cat "$work/ShopOwnedHarness.mxmlc.log"; exit 1; }
@@ -60,12 +64,19 @@ display=:$(cat "$work/display")
         --width 1280 --height 720 ShopOwnedHarness.swf
 ) >"$work/ShopOwnedHarness.log" 2>&1 &
 ruffle_pid=$!
-# The harness holds the list a while after each SHOT line.
-for name in before bought not-owned upgrades long-label; do
-    for _ in $(seq 1200); do grep -q "SHOPMARK SHOT $name\|SHOPMARK RESULT" "$work/ShopOwnedHarness.log" && break; sleep 0.1; done
-    grep -q "SHOPMARK SHOT $name" "$work/ShopOwnedHarness.log" || break
+# The harness holds the list a while after each SHOT line: each one shot as it comes.
+taken=0
+while :; do
+    for _ in $(seq 1200); do
+        (($(grep -c 'SHOPMARK SHOT ' "$work/ShopOwnedHarness.log") > taken)) && break
+        grep -q 'SHOPMARK RESULT' "$work/ShopOwnedHarness.log" && break
+        sleep 0.1
+    done
+    name=$(grep -o 'SHOPMARK SHOT .*' "$work/ShopOwnedHarness.log" | sed -n "$((taken + 1))s/^SHOPMARK SHOT //p")
+    [[ -n $name ]] || break
     sleep 0.5
     DISPLAY=$display "$magick/bin/import" -window root "$work/$name.png" 2>/dev/null || true
+    taken=$((taken + 1))
 done
 for _ in $(seq 1200); do grep -q 'SHOPMARK RESULT' "$work/ShopOwnedHarness.log" && break; sleep 0.1; done
 cleanup

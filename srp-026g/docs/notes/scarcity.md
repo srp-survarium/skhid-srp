@@ -74,7 +74,7 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
 - **Static info:** the variant is tag 2 of srp's block (one byte: 1 Blackout, 2 Scarcity), on battery
   maps only (`Variant::on_mode`); a late joiner's keeps it.
 - **The crates, exe patch 94** (the Rust module `patches::scarcity`, `scarcity.rs` and its hooks
-  `scarcity.toml`; `client_patch.md` 3.61):
+  `scarcity.toml`; `client_patch.md` 3.62):
   - the options reads (`static_info.options_read` 0x27B92D, `replay.options_read` 0x1F0971; the
     chains of patches 65, 86, 83 and 88, order 4): the variant, parsed once by
     `vostok::options::variant_in` (Blackout's reader since);

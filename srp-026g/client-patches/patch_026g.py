@@ -393,7 +393,7 @@ Patches:
   lets a key go on while Tab is held; the input builder's end (0x2421B0)
   takes the moves and acts out of the mask while Tab is held;
 - Scarcity, a battery match whose ammo crates refill no one (patch 94,
-  docs/notes/scarcity.md; client_patch.md section 3.61): the Rust patch
+  docs/notes/scarcity.md; client_patch.md section 3.62): the Rust patch
   scarcity (rust/patches/src/scarcity.rs, scarcity.toml): srp's block's tag
   2 read after each match_options::deserialize (patch 65's chains); at the
   starts of resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0)
@@ -472,7 +472,7 @@ Patches:
   input (0x1F7883), so nothing a match computes changes;
 - the artefacts as the owner set them (patch 54, with the late join,
   client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
-  the configs, release/content.tsv artefacts-1.json). A Spring's loader
+  the configs, release/content.tsv artefacts.tsv). A Spring's loader
   (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
   none of them the aim time; artefacts_026g.asm (the arena's block artefacts.code) makes its
   passive's unused max_carried_weight node aim_time with
@@ -723,7 +723,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 41
+REVISION = 42
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2040,7 +2040,7 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
 # ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
 # artefacts.code (ARENA below). Its numbers are the artefacts'
-# configs' (release/content.tsv, artefacts-1.json). It begins with eight
+# configs' (release/content.tsv, artefacts.tsv). It begins with eight
 # `jmp near`, one for each site, each a global symbol the hook jumps to:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,

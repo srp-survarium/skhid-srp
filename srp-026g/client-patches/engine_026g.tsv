@@ -121,3 +121,8 @@ engine_weapon_set_user	0x2445e0	ECX:weapon ESP+4:player	void engine_weapon_set_u
 engine_weapon_initialize	0x2449e0	ECX:weapon	void engine_weapon_initialize(struct item *weapon)	thiscall
 engine_weapon_activate	0x244610	ECX:weapon ESP+4:switch_flag	void engine_weapon_activate(struct item *weapon, unsigned int flag)	thiscall
 engine_weapon_deactivate	0x244860	ECX:weapon ESP+4:clear_user	void engine_weapon_deactivate(struct item *weapon, unsigned int clear)	thiscall
+engine_enter_critical_section	0x8700d0	-	void engine_enter_critical_section(struct critical_section *section)	import	
+engine_leave_critical_section	0x8700cc	-	void engine_leave_critical_section(struct critical_section *section)	import	
+engine_di_capture_remove	0x5726f0	ECX:context ESP+4:queue	void engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue)	thiscall	
+engine_di_queue_next_capture	0x5ee080	ECX:queue ESP+4:notify	void engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify)	thiscall	
+engine_di_queue_release	0x505cb0	ECX:queue	void engine_di_queue_release(struct di_command_queue *queue)	thiscall	

@@ -8,11 +8,12 @@
 # window's sliders hidden once a PIN is typed, Max level too; squads' icons (docs/notes/squads.md)
 # after their names in the room and the list's side panel, ours green, the names not moved; a
 # squad soldier's greyed Join, New room and "IN SQUAD" Play. Then in
-# every language (the dictionaries' texts): the list, a room in each phase and hint (with squads
-# too), and the create window, no text cut by its field and no two on one line meeting (a
-# "ROOMS OVERLAP" line each). A second run checks the player menu (friend, Mute chat and its
-# choices, message, squad) and the server-pushed friend and ignore lists, on a copy adapted by
-# medical-cards/ruffle_movie.py.
+# every language (the dictionaries' texts): the list (a room's queue ours too), a room in each phase
+# and hint (with squads too), the create window and the preset offer's buttons, no text or button
+# label cut by its field and no two on one line meeting (a "ROOMS OVERLAP" line each); and the top
+# bar's Play as the rooms' Leave (LEAVE ROOM, LEAVE QUEUE) and IN SQUAD, whole. A second run
+# checks the player menu (friend, Mute chat and its choices, message, squad) and the server-pushed
+# friend and ignore lists, on a copy adapted by medical-cards/ruffle_movie.py.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail

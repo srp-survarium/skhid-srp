@@ -247,6 +247,12 @@ unsafe extern "thiscall" {
     pub fn engine_weapon_activate(weapon: *mut c_void, flag: u32);
     /// 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
     pub fn engine_weapon_deactivate(weapon: *mut c_void, clear: u32);
+    /// 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_capture_remove(context: *mut c_void, queue: *mut c_void);
+    /// 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_queue_next_capture(queue: *mut c_void, notify: *mut c_void);
+    /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+    pub fn engine_di_queue_release(queue: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -271,4 +277,8 @@ unsafe extern "C" {
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
+    pub static engine_enter_critical_section: unsafe extern "stdcall" fn(*mut c_void);
+    /// the IAT slot 0x8700cc (an import, stdcall): void engine_leave_critical_section(struct critical_section *section)
+    pub static engine_leave_critical_section: unsafe extern "stdcall" fn(*mut c_void);
 }

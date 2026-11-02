@@ -230,9 +230,20 @@ pub struct CookId {
 }
 
 /// A cooked gun's inventory as a value (the log's): compared, never read
-/// through here.
+/// through. Made only from its handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InventoryId(pub u32);
+pub struct InventoryId(u32);
+
+impl InventoryId {
+    fn of(inventory: raw::Inventory) -> InventoryId {
+        InventoryId(inventory.address())
+    }
+
+    /// Its address, for the log.
+    pub fn address(self) -> u32 {
+        self.0
+    }
+}
 
 /// Where a cook is. `since`/`at` are the performance counter's ticks
 /// ([`clock::counter`]): asked, and completed.
@@ -288,7 +299,7 @@ pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
     TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
         Ticket::Waiting { generation, since, .. } if *generation == id.generation => Cooked::Cooking { since: *since },
         Ticket::Made { generation, cooked, since, at } if *generation == id.generation => {
-            Cooked::Made { inventory: InventoryId(cooked.inventory.address()), since: *since, at: *at }
+            Cooked::Made { inventory: InventoryId::of(cooked.inventory), since: *since, at: *at }
         }
         Ticket::Failed { generation, since, at } if *generation == id.generation => {
             Cooked::Failed { since: *since, at: *at }
@@ -344,9 +355,9 @@ impl Player<'_> {
 /// read from a player of it.
 struct Match {
     profile: raw::PlayerProfile,
-    dictionary: u32,
-    spatial_tree: u32,
-    game_world: u32,
+    dictionary: Option<raw::ItemsDictionary>,
+    spatial_tree: Option<raw::SpatialTree>,
+    game_world: raw::GameWorld,
     seed: u32,
 }
 
@@ -359,9 +370,9 @@ unsafe fn match_of(player: raw::Player) -> Option<Match> {
         let options = raw::engine_match_options(game.network_client())?;
         Some(Match {
             profile: player.profile()?,
-            dictionary: read(game.dictionary()),
-            spatial_tree: read(world.pvp_match()?.spatial_tree()),
-            game_world: world.address(),
+            dictionary: game.dictionary(),
+            spatial_tree: world.pvp_match()?.spatial_tree(),
+            game_world: world,
             seed: read(options.seed()),
         })
     }
@@ -383,15 +394,15 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
     // them (0x20284C..0x2028A6), the profile ours, the stage's flag 0 (a match).
     unsafe {
         let r = recipe.0;
-        *r.profile() = profile.0.address();
+        r.set_profile(Some(profile.0));
         *r.kit() = kit.get();
-        *r.dictionary() = found.dictionary;
-        *r.physics_world() = found.spatial_tree;
-        *r.game_world() = found.game_world;
+        r.set_dictionary(found.dictionary);
+        r.set_physics_world(found.spatial_tree);
+        r.set_game_world(Some(found.game_world));
         *r.match_seed() = found.seed;
         *r.flag() = 0;
     }
-    let recipe_at = recipe.0.address();
+    let recipe_at = recipe.0;
     let since = clock::counter(thread);
     let id = TABLE.with(thread, |table| {
         let Some(index) = table.tickets.iter().position(|t| matches!(t, Ticket::Free)) else {
@@ -417,8 +428,8 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
     unsafe {
         let v = variant.handle();
         *v.vtable() = raw::image::INVENTORY_VARIANT_VTABLE;
-        *v.recipe() = recipe_at;
-        *v.this() = v.address();
+        v.set_recipe(Some(recipe_at));
+        v.set_this(Some(v));
         *v.type_id() = raw::engine_inventory_variant_type();
         let q = request.handle();
         q.set_path(raw::image::INVENTORY_REQUEST as usize as *mut u8);
@@ -537,14 +548,14 @@ pub fn destroyed(ctx: &super::Context<'_>) -> Option<super::world::PlayerId> {
     Player::of(ctx, unsafe { raw::site::player_destroy::player(ctx) }).map(|p| p.id())
 }
 
-/// The world core's completed simulation time (+18FC0h) of the world ticked
-/// at `game_world.after_move`.
-/// The game world's match core's address: which match a frame is of.
-pub fn world_key(world: &super::world::GameWorld<'_>) -> Option<u32> {
+/// The game world's match core: which match a frame is of.
+pub fn world_key(world: &super::world::GameWorld<'_>) -> Option<super::world::WorldKey> {
     // SAFETY: the site's game world and its match, compared only.
-    unsafe { Some(world.this.pvp_match()?.core().address()) }
+    unsafe { Some(super::world::WorldKey::of(world.this.pvp_match()?.core())) }
 }
 
+/// The world core's completed simulation time (+18FC0h) of the world ticked
+/// at `game_world.after_move`.
 pub fn world_time(world: &super::world::GameWorld<'_>) -> Option<u32> {
     // SAFETY: the site's game world, its match and core, alive for the hook.
     unsafe { Some(read(world.this.pvp_match()?.core().time())) }

@@ -102,10 +102,14 @@ list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
 ## Stats tables
 
-`<category>-stats.tsv` (`weapon-stats.tsv`): a row per config, a column per stat; an empty cell means
-the config has no such key. To retune, edit the cell. `content_edit.py` `STATS` maps each column to
-its key path; the build writes the cells and the cards, and refuses a config that differs from its
-row. `content_edit.py --dump-stats <category> <folder>` prints a table from configs.
+A table, `<table>.tsv` (`weapon-stats.tsv`): a row per config (or per level's projects, or per entry
+of a list), a column per stat; or `key  value`, a row per key of one config, which the build makes
+when no archive has it (`gameplay/srp/<name>.options`). An empty cell means no such key. To retune,
+edit the cell. `content_edit.py` `STATS` says what a row is and maps each column to its key path
+(`[*]` every entry of a list, `[field=cell]` the matching ones); the build writes the cells and the
+cards, refuses a config that differs from its row, and a changed match column without the `next` row.
+`content_edit.py --dump-stats <table> <folder>` prints a table from configs; values that differ within a
+row are refused there (a cell unifies them).
 
 ## weapon-balance-1.json (2026-10-18)
 
@@ -148,14 +152,6 @@ Applied to revision 22's live files: 6 files edited, 0 unexpected differences. W
 ## duty-name-uk-1.json (2026-10-20)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## battery-pickup-1.json (2026-10-20)
-
-| change | why |
-|---|---|
-| `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
-
-Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
 
 ## weapon-camo-1.json (2026-10-20)
 
@@ -263,16 +259,6 @@ russian tables, patch 25's ukrainian, patch 19's `flash_movies_localizations.opt
 edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, after the packs'
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
-
-## battery-respawn-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `mode/parameters/respawn_time` 8 -> 10 (an int, kept) in the 56 configs of `gameplay/game_modes/` whose `mode/mode` is 2 or 3 ("Protective device", "Protective device: chargers"): levels 1 to 8 in every weather (level_08's night too), London, the 0.21d and v0.11e maps | the owner: "in batteries mode respawns should take 10 seconds". The respawn rule reads it from the config (0x316700, in ms), the base the kit's modifiers scale (the radio's -20 %: 8 s); the HUD's countdown is the rule's ([`../../docs/notes/battery_respawn.md`](../../docs/notes/battery_respawn.md)). Team Deathmatch (mode 4) and the test maps keep theirs |
-
-Applied to the live configs (the stock resources.db and patches 12 to 27; the game modes are the
-stock db's and patches 14, 20 and 22's): 56 files edited, 0 unexpected differences, one byte each.
-The simulation changes (the `next` row of `simulation_changes.tsv`).
 
 ## v011e-spawn-protection-1.json (2026-10-21)
 

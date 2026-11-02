@@ -253,6 +253,12 @@ unsafe extern "thiscall" {
     pub fn engine_weapon_activate(weapon: Option<Item>, flag: u32);
     /// 0x244860 survarium::weapon::deactivate: weapon ECX, clear ESP+4; pops 4; thiscall, called directly
     pub fn engine_weapon_deactivate(weapon: Option<Item>, clear: u32);
+    /// 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_capture_remove(context: Option<DrawableImageContext>, queue: Option<DiCommandQueue>);
+    /// 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
+    pub fn engine_di_queue_next_capture(queue: Option<DiCommandQueue>, notify: Option<RenderNotify>);
+    /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+    pub fn engine_di_queue_release(queue: Option<DiCommandQueue>);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -277,6 +283,10 @@ unsafe extern "C" {
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
+    pub static engine_enter_critical_section: unsafe extern "stdcall" fn(Option<CriticalSection>);
+    /// the IAT slot 0x8700cc (an import, stdcall): void engine_leave_critical_section(struct critical_section *section)
+    pub static engine_leave_critical_section: unsafe extern "stdcall" fn(Option<CriticalSection>);
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -440,13 +450,22 @@ impl Game {
         unsafe { self.0.byte_add(0x5350).cast::<Option<SoundWorld>>().write_volatile(value) }
     }
 
-    /// +0x53a4 (u32): the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
+    /// +0x53a4 (ptr<survarium::items_dictionary>): the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn dictionary(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x53a4).cast::<u32>().as_ptr() }
+    pub unsafe fn dictionary(self) -> Option<ItemsDictionary> {
+        unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().read_volatile() }
+    }
+
+    /// +0x53a4 (ptr<survarium::items_dictionary>): the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_dictionary(self, value: Option<ItemsDictionary>) {
+        unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().write_volatile(value) }
     }
 }
 
@@ -1437,6 +1456,15 @@ impl Item {
     #[inline(always)]
     pub unsafe fn count(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x260).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x260 (f32): a non-stack item's condition, 0..1 (weapon_core::serialize's item header m_condition; inventory::unload_to_profile 0x2FD375 reads it as weapon+270h): where a stack has its count
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn condition(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x260).cast::<f32>().as_ptr() }
     }
 
     /// +0x0 (u32): primary interface (an item's vtable); medkit type checked before reading its activity fields
@@ -5263,13 +5291,112 @@ impl Weapon {
         unsafe { self.0.byte_add(0x538).cast::<Option<Item>>().write_volatile(value) }
     }
 
-    /// +0x5a0 (u32): the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
+    /// +0x5a0 (ptr<survarium::bullet_manager>): the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn bullet_manager(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x5a0).cast::<u32>().as_ptr() }
+    pub unsafe fn bullet_manager(self) -> Option<BulletManager> {
+        unsafe { self.0.byte_add(0x5a0).cast::<Option<BulletManager>>().read_volatile() }
+    }
+
+    /// +0x5a0 (ptr<survarium::bullet_manager>): the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_bullet_manager(self, value: Option<BulletManager>) {
+        unsafe { self.0.byte_add(0x5a0).cast::<Option<BulletManager>>().write_volatile(value) }
+    }
+
+    /// +0x5a4 (u32): m_last_tick_time_in_ms, -1 at every spawn (patch_026g.py KIT_STATE_TICK_FIELD; serialized 0x2E3130)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn last_tick(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5a4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5a8 (u32): m_ammo_switch_time_in_ms, -1 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ammo_switch_time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5a8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5b2 (u8): m_next_ammo_id, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next_ammo(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5b2).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5bc (u32): the spread's minstd_rand (constructor 0x2DF429 stores 1; client_patch.md 3.18, set at each spawn from place, kit, slot and time)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn random_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5bc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5e6 (u8): m_fire_queue_type, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fire_queue(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5e6).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5e8 (u8): m_aimed, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn aimed(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5e8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5ec (u32): 6 at a spawn into another kit (KIT_STATE_FIELDS; serialized as a byte)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state_5ec(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5ec).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5f5 (u8): m_need_to_auto_reload, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn auto_reload(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x5f5).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x5fc (f32): the recoil's four floats (+5FCh..+608h, serialized by 0x32FEE0), 0.0 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn recoil(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x5fc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x60c (u32): -1 at a spawn into another kit (KIT_STATE_FIELDS)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state_60c(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x60c).cast::<u32>().as_ptr() }
     }
 
     /// +0x5ac (ptr<survarium::ammo_slot>): its compatible ammunition's inventory slot indices (cook 0x2C7855..0x2C79E5; initialize 2E2A99)
@@ -5816,6 +5943,51 @@ impl CoreWorld {
     #[inline(always)]
     pub unsafe fn set_objects_end(self, value: Option<InventorySlot>) {
         unsafe { self.0.byte_add(0x18b50).cast::<Option<InventorySlot>>().write_volatile(value) }
+    }
+
+    /// +0x18458 (ptr<survarium::core_place>): the match's places (a vector's begin, 30h a place: core_active_player 0x2D0AED; the late join's install appends one, late_join_install_026g.c)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn places(self) -> Option<CorePlace> {
+        unsafe { self.0.byte_add(0x18458).cast::<Option<CorePlace>>().read_volatile() }
+    }
+
+    /// +0x18458 (ptr<survarium::core_place>): the match's places (a vector's begin, 30h a place: core_active_player 0x2D0AED; the late join's install appends one, late_join_install_026g.c)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_places(self, value: Option<CorePlace>) {
+        unsafe { self.0.byte_add(0x18458).cast::<Option<CorePlace>>().write_volatile(value) }
+    }
+
+    /// +0x1845c (ptr<survarium::core_place>): the places' end (core_active_player 0x2D0AB0 bounds the place by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn places_end(self) -> Option<CorePlace> {
+        unsafe { self.0.byte_add(0x1845c).cast::<Option<CorePlace>>().read_volatile() }
+    }
+
+    /// +0x1845c (ptr<survarium::core_place>): the places' end (core_active_player 0x2D0AB0 bounds the place by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_places_end(self, value: Option<CorePlace>) {
+        unsafe { self.0.byte_add(0x1845c).cast::<Option<CorePlace>>().write_volatile(value) }
+    }
+
+    /// +0x18fd8 (u32): the places in the world, a bit each (core_active_player 0x2D0AD4 refuses a place without it: a departed one)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_places(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18fd8).cast::<u32>().as_ptr() }
     }
 }
 
@@ -9250,13 +9422,22 @@ impl InventoryRecipe {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x0 (u32): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
+    /// +0x0 (ptr<survarium::player_profile>): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn profile(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    pub unsafe fn profile(self) -> Option<PlayerProfile> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PlayerProfile>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::player_profile>): the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_profile(self, value: Option<PlayerProfile>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PlayerProfile>>().write_volatile(value) }
     }
 
     /// +0x4 (u8): the kit (0x2C72E3)
@@ -9268,31 +9449,58 @@ impl InventoryRecipe {
         unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
     }
 
-    /// +0x8 (u32): the items dictionary (0x202866)
+    /// +0x8 (ptr<survarium::items_dictionary>): the items dictionary (0x202866)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn dictionary(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    pub unsafe fn dictionary(self) -> Option<ItemsDictionary> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ItemsDictionary>>().read_volatile() }
     }
 
-    /// +0xc (u32): the physics world (0x20286F; armour items only, 0x2C7102)
+    /// +0x8 (ptr<survarium::items_dictionary>): the items dictionary (0x202866)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn physics_world(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    pub unsafe fn set_dictionary(self, value: Option<ItemsDictionary>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ItemsDictionary>>().write_volatile(value) }
     }
 
-    /// +0x10 (u32): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    /// +0xc (ptr<survarium::spatial_tree>): the physics world (0x20286F; armour items only, 0x2C7102)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn game_world(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    pub unsafe fn physics_world(self) -> Option<SpatialTree> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<SpatialTree>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::spatial_tree>): the physics world (0x20286F; armour items only, 0x2C7102)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_physics_world(self, value: Option<SpatialTree>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<SpatialTree>>().write_volatile(value) }
+    }
+
+    /// +0x10 (ptr<survarium::game_world>): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game_world(self) -> Option<GameWorld> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<GameWorld>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::game_world>): the game world (0x202878; the weapon recipes' world, 0x2C735C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game_world(self, value: Option<GameWorld>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<GameWorld>>().write_volatile(value) }
     }
 
     /// +0x14 (u32): the match seed, options+577B0h (0x2028A6)
@@ -9371,22 +9579,40 @@ impl InventoryVariant {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x8 (u32): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
+    /// +0x8 (ptr<survarium::inventory_recipe>): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn recipe(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    pub unsafe fn recipe(self) -> Option<InventoryRecipe> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<InventoryRecipe>>().read_volatile() }
     }
 
-    /// +0x28 (u32): the variant's own address (0x2028CE; the query copies the user data by it)
+    /// +0x8 (ptr<survarium::inventory_recipe>): the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn this(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    pub unsafe fn set_recipe(self, value: Option<InventoryRecipe>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<InventoryRecipe>>().write_volatile(value) }
+    }
+
+    /// +0x28 (ptr<survarium::inventory_variant>): the variant's own address (0x2028CE; the query copies the user data by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn this(self) -> Option<InventoryVariant> {
+        unsafe { self.0.byte_add(0x28).cast::<Option<InventoryVariant>>().read_volatile() }
+    }
+
+    /// +0x28 (ptr<survarium::inventory_variant>): the variant's own address (0x2028CE; the query copies the user data by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_this(self, value: Option<InventoryVariant>) {
+        unsafe { self.0.byte_add(0x28).cast::<Option<InventoryVariant>>().write_volatile(value) }
     }
 
     /// +0x0 (u32): its vtable, 0x9FD808 (0x2028E0)
@@ -9684,13 +9910,22 @@ impl PvpMatch {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x130 (u32): the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
+    /// +0x130 (ptr<survarium::spatial_tree>): the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn spatial_tree(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x130).cast::<u32>().as_ptr() }
+    pub unsafe fn spatial_tree(self) -> Option<SpatialTree> {
+        unsafe { self.0.byte_add(0x130).cast::<Option<SpatialTree>>().read_volatile() }
+    }
+
+    /// +0x130 (ptr<survarium::spatial_tree>): the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_spatial_tree(self, value: Option<SpatialTree>) {
+        unsafe { self.0.byte_add(0x130).cast::<Option<SpatialTree>>().write_volatile(value) }
     }
 
     /// +0x1f8 (obj<survarium::core_world>): the world core (game_world_core::move's argument, 0x1F7C2F; network_client::on_idle 0x27D084)
@@ -9758,6 +9993,118 @@ impl QueryCallbackStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<QueryCallback> {
         (!rooms.is_empty()).then(|| QueryCallback(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::core_place (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CorePlace(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CorePlace {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::player>): the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit0(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::player>): the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit0(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<survarium::player>): the place's kit 1 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit1(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::player>): the place's kit 1 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit1(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::player>): the place's kit 2 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit2(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): the place's kit 2 player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit2(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// 0x30 bytes: a place's entry: 30h bytes (core_active_player 0x2D0AE7)
+    pub const SIZE: usize = 0x30;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::core_places (0x30 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CorePlaceStorage([u8; 0x30]);
+
+#[allow(dead_code)]
+impl CorePlaceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x30])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CorePlace {
+        CorePlace(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CorePlace> {
+        (!rooms.is_empty()).then(|| CorePlace(NonNull::from(rooms).cast()))
     }
 }
 
@@ -10081,6 +10428,180 @@ impl GatherVictoryItemsRuleCore {
     }
 }
 
+/// A scaleform::drawable_image_capture_notify (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawableImageCaptureNotify(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DrawableImageCaptureNotify {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x8 (obj<scaleform::drawable_image_context>): the DrawableImageContext this ContextCaptureNotify base is part of (context+8: OnNextCapture 0x572660's ECX, kept in ESI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> DrawableImageContext {
+        DrawableImageContext(unsafe { self.0.byte_sub(0x8) })
+    }
+}
+
+/// A scaleform::drawable_image_context (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawableImageContext(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DrawableImageContext {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (obj<windows::critical_section>): the lock of its queues' list (a Scaleform::Lock): Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) hold it for their link writes alone; the stock OnNextCapture (0x572660) and OnCapture (0x5744E0) walk the list without it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queue_lock(self) -> CriticalSection {
+        CriticalSection(unsafe { self.0.byte_add(0x24) })
+    }
+
+    /// +0x40 (obj<scaleform::di_queue_link>): its queues' list's end (the sentinel): its next (+4Ch) the first queue, its prev (+48h) the last (AddCaptureNotify 0x5726B0 appends there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queues(self) -> DiQueueLink {
+        DiQueueLink(unsafe { self.0.byte_add(0x40) })
+    }
+}
+
+/// A scaleform::di_queue_link (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiQueueLink(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DiQueueLink {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<scaleform::di_queue_link>): the next queue's link or the context's end (a list node's next; RemoveCaptureNotify 0x5726F0 zeroes a removed queue's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<DiQueueLink> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<DiQueueLink>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<scaleform::di_queue_link>): the next queue's link or the context's end (a list node's next; RemoveCaptureNotify 0x5726F0 zeroes a removed queue's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<DiQueueLink>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<DiQueueLink>>().write_volatile(value) }
+    }
+
+    /// +0x0 (obj<scaleform::di_command_queue>): the queue this link is (a DICommandQueue is its own list node, its prev at +8, next at +0Ch); not when the link is its context's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queue(self) -> DiCommandQueue {
+        DiCommandQueue(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A scaleform::di_command_queue (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiCommandQueue(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DiCommandQueue {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): its reference count (RefCountImpl: AddRef/Release 0x505CA0/0x505CB0 by InterlockedExchangeAdd; at 0 Release destroys it; the destructor 0x5ED1E0 then writes 2, later 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x34 (ptr<scaleform::drawable_image_context>): its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<DrawableImageContext> {
+        unsafe { self.0.byte_add(0x34).cast::<Option<DrawableImageContext>>().read_volatile() }
+    }
+
+    /// +0x34 (ptr<scaleform::drawable_image_context>): its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<DrawableImageContext>) {
+        unsafe { self.0.byte_add(0x34).cast::<Option<DrawableImageContext>>().write_volatile(value) }
+    }
+
+    /// +0x0 (obj<scaleform::di_queue_link>): itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn link(self) -> DiQueueLink {
+        DiQueueLink(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A scaleform::render_notify (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderNotify(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderNotify {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -10314,6 +10835,36 @@ pub struct GameAllocator(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl GameAllocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A survarium::spatial_tree (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpatialTree(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SpatialTree {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A windows::critical_section (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CriticalSection(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CriticalSection {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -12249,6 +12800,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn manager(machine: &impl Machine) -> Option<VictoryItemEventManager> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(VictoryItemEventManager)
+        }
+    }
+
+    /// scaleform.di_next_capture (0x572675): DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed)
+    pub mod scaleform_di_next_capture {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a scaleform::drawable_image_capture_notify (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn capture(machine: &impl Machine) -> Option<DrawableImageCaptureNotify> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(DrawableImageCaptureNotify)
+        }
+
+        /// EBX: a scaleform::render_notify (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn notify(machine: &impl Machine) -> Option<RenderNotify> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(RenderNotify)
+        }
+    }
+
+    /// scaleform.di_queue_destroy (0x5ed1e0): DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4)
+    pub mod scaleform_di_queue_destroy {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a scaleform::di_command_queue (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn queue(machine: &impl Machine) -> Option<DiCommandQueue> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(DiCommandQueue)
         }
     }
 }

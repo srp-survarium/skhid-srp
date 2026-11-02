@@ -144,6 +144,7 @@ package
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.WeightEffects;
+   import survarium.player.KitModifiers;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
@@ -3624,6 +3625,13 @@ package
          this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat,spending19,spending67));
       }
       
+      // The selected kit's own player modifiers (the skills' sums), sent before each weight
+      // callback (client-patches/weight_ui_026g.c); a weapon card's Alt view adds them.
+      public function set_kit_modifiers(... values) : void
+      {
+         this.player_profile.setKitModifiers(KitModifiers.parse(values));
+      }
+      
       public function set_minimum_ammo(value1:uint, value2:uint) : void
       {
       }
@@ -5860,6 +5868,10 @@ package
          {
             MainScene.isCtrl = true;
          }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = true;
+         }
          if(e.keyCode == Keyboard.R || e.keyCode == Keyboard.ENTER)
          {
             this.lobbyKey(e);
@@ -6058,6 +6070,10 @@ package
          {
             MainScene.isCtrl = false;
          }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = false;
+         }
          if(e.keyCode == this._lobbyKeyDown)
          {
             _lobbyKeyDown = 0;
@@ -6091,6 +6107,7 @@ package
       {
          MainScene.isShift = false;
          MainScene.isCtrl = false;
+         MainScene.isAlt = false;
       }
       
       public function allow_use_two_double_handed_weapons(boolean:Boolean) : void

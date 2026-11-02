@@ -47,13 +47,22 @@ use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, RagdollO
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
 /// group and its group a bit of the mask): the foot IK's level (group 24h,
-/// mask 2: walkable geometry, no players 824h/3, hit models 40h/11h or
-/// grenades 818h/8), and the batteries (group 0A18h, mask 418h, put in by
-/// victory_item_core 0x301CB0, lying or just dropped): bits 400h and 200h,
-/// which no other object of the world has. The ray only reads the world:
-/// a body rests on a battery, the battery is never moved.
-const LEVEL_GROUP: u32 = 0x24 | 0x400;
-const LEVEL_MASK: u32 = 0x02 | 0x200;
+/// mask 2: the walker collision, cgroup 2 / cmask 4), the level's collision
+/// that bullets hit (group 10h, mask 8: cgroup 8 / cmask 16, as the lobby's
+/// camera ray), and the batteries (group 0A18h, mask 418h, put in by
+/// victory_item_core 0x301CB0, lying or just dropped: bits 400h and 200h).
+/// Nothing else: players 824h/3, hit models 40h/11h, grenades 818h/8 (their
+/// group has 8h, their mask none of 434h), the lobby's 800h/800h and 20h/20h,
+/// the client objects' 80h/100h and 1/20h. The walker mesh alone is coarse
+/// and lies under the drawn ground on some maps (Rudnya: a median 4 cm, 10
+/// cm at the 90th percentile, deeper than the gun's radius); the collision
+/// follows the drawn ground, and the nearer of the two is the one met. The
+/// ray only reads the world: a body rests on a battery, the battery is
+/// never moved.
+const LEVEL_GROUP: u32 = 0x24 | 0x10 | 0x400;
+const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
+// ray_test takes them as u16
+const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
 const RAYS_A_FRAME: u32 = 160;
 const UP: Vec3 = Vec3::Y;
@@ -908,3 +917,27 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 const _: () = assert!(BONE_COUNT < u8::MAX as usize);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Bullet's filter as the game's needsCollision (0x75BD0) applies it.
+    fn meets(group: u32, mask: u32) -> bool {
+        group & LEVEL_MASK != 0 && mask & LEVEL_GROUP != 0
+    }
+
+    #[test]
+    fn the_level_filter_meets_the_level_and_the_batteries_alone() {
+        // a project's collision_objects (cgroup, cmask): the walker
+        // collision, the collision bullets hit, one used for both
+        assert!(meets(2, 4) && meets(8, 16) && meets(10, 20));
+        // the batteries (victory_item_core 0x301CB0)
+        assert!(meets(0xA18, 0x418));
+        // players' controllers, hit models, grenades, the lobby's, the
+        // client objects' geometries
+        for (group, mask) in [(0x824, 3), (0x40, 0x11), (0x818, 8), (0x800, 0x800), (0x20, 0x20), (0x80, 0x100), (1, 0x20)] {
+            assert!(!meets(group, mask), "{group:#x}/{mask:#x}");
+        }
+    }
+}
