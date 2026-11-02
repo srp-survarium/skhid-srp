@@ -1007,6 +1007,8 @@ STATS = {
     },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
+    # srp reads it from its game data (RoomRules): nothing a match computes.
+    'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
 }
 
 

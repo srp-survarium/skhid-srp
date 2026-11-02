@@ -154,14 +154,12 @@ RUST_LOG=info
 
 # "Player vs Bots": one player against the server's own bots, chosen in
 # the changed lobby movie (servers/lobby-server/src/v026g/pvb.rs). On with
-# the compose default; `off` switches it off. The highest equipment level
-# let in, the most such matches at once (the server keeps a bots' map in
-# memory for each, 35-150 MB: with 5, give SRP26_MEMORY about 750 MB
-# more), the share of silver and experience they pay, and the seconds
-# after which a match whose player uploads no world it is asked for is
-# over.
+# the compose default; `off` switches it off. The most such matches at
+# once (the server keeps a bots' map in memory for each, 35-150 MB: with 5,
+# give SRP26_MEMORY about 750 MB more), the share of silver and experience
+# they pay, and the seconds after which a match whose player uploads no
+# world it is asked for is over.
 # SRP_PVB=on
-# SRP_PVB_MAX_GEAR=15
 # SRP_PVB_MAX_MATCHES=5
 # SRP_PVB_PAY=0.5
 # SRP_PVB_STALL_S=60
@@ -169,10 +167,9 @@ RUST_LOG=info
 # Rooms, the players' "servers": made, listed and joined in the changed
 # lobby movie, a match after match in each, its map voted on
 # (servers/lobby-server/src/v026g/rooms.rs, docs/notes/lobby.md 2.16.3).
-# Every PvP match is a room's, and Play puts a player into one. The most
-# rooms at once, and the playable maps_dict ids a creator may add besides
-# SRP_MATCH_MAPS.
-# SRP_ROOMS_MAX=50
+# Every PvP match is a room's, and Play puts a player into one. The
+# playable maps_dict ids a creator may add besides SRP_MATCH_MAPS (the rooms'
+# numbers: gameplay/srp/rooms.options, scripts/content-edit/rooms.tsv).
 # SRP_ROOMS_EXTRA_MAPS=
 # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
 # <project>.mapdata files, copied by hand into the data volume (game data:

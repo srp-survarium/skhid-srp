@@ -123,5 +123,6 @@ edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersio
 edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
 edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
 edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, resupply, artefact search and cooldown
+edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
 edit	medicines.tsv	-	the medicines: a row each, its delay and active seconds, the health a second it gives each pool, weight and levels, and its card (the % it heals)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
