@@ -31,10 +31,9 @@ items".
     narrowed to end where Buy begins, so neither box takes a press over Buy, nor its label reaches
     it. Autobuy's own symbol (`CheckBoxSharedPD`) is not used: it fills its bitmaps
     unsmoothed, so its tick was pixelated wherever the lobby is scaled to the screen (live rev 41).
-  - The sort ("Sort", by level, by price) stays where it is, on the last row (the owner: "then
-    sort can be moved a bit too"; not needed): its label is at least 46 px clear of "Hide owned"'s
-    in every language (Russian the closest; 31 px beside the compare box before), and its choices
-    already end 12 px from the window's edge.
+  - The sort ("Sort", by level, by price) stays where it is, on the last row: "Hide owned"'s
+    labels are shorter than the compare box's that sat there, so it has more room than before
+    (the owner: "then sort can be moved a bit too"; not needed).
   - In every language the labels are whole and nothing overlaps: the boxes, their labels, Buy, the
     sort's label and choices, the search box, the list. The Polish compare label is "Porównanie
     przedmiotów" (was "Porównywanie przedmiotów", which reached Buy).
