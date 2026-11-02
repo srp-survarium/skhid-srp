@@ -476,7 +476,7 @@ class OtherTables(unittest.TestCase):
 
 
     def test_a_key_value_dump_is_the_configs_numbers_and_a_prefix_gates_every_key_under_it(self):
-        player = {'configs': 'player.options', 'match': {'player/fall/'}}
+        player = {'configs': 'player.options', 'match': {'player/fall'}}
         with tempfile.TemporaryDirectory() as folder, unittest.mock.patch.dict(ce.STATS, {'t': player}):
             (Path(folder) / 'player.options').write_bytes(bytes(config(
                 {'player': {'fall': {'fatal': 1.5, 'height': 5}, 'hands': 'empty', 'bags': 3}})))
@@ -489,6 +489,9 @@ class OtherTables(unittest.TestCase):
         ce.stats_write(player, columns, rows, files, 't')
         self.assertEqual(ce.stats_moved(player, columns, {'player.options': was}, files),
                          ['player.options player/fall/fatal'])
+        columns, rows = read_table(player, 'key\tvalue\nplayer/fall/new\t1\n')
+        with self.assertRaisesRegex(ValueError, 'no such key'):
+            ce.stats_write(player, columns, rows, files, 't')
 
 
 if __name__ == '__main__':

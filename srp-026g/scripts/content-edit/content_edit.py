@@ -720,8 +720,8 @@ def weapon_card(buf):
 #                      made anew when no archive has it
 # `columns`: their key paths; `[*]` every item, `[field=cell]` the entries whose field reads so, `[i]`.
 # A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key.
-# `match`: the columns (of a key/value table: keys, `a/` every key under a) a match computes with: a
-# change needs the `next` row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
+# `match`: the columns (of a key/value table: keys, or a table: every key in it) a match computes with:
+# a change needs the `next` row of simulation_changes.tsv. A key/value table never adds a key. `cards`: the lobby card lines a config's values make.
 STATS = {
     'weapon-stats': {
         'configs': 'gameplay/items/weapons/wpn_*.options',
@@ -759,9 +759,8 @@ STATS = {
                   'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
         'cards': weapon_card,
     },
-    'character': {'configs': 'gameplay/players/default.player', 'match': {'player/'}},
-    'battery': {'configs': 'gameplay/victory_items/default.options',
-                'match': {'states[0]/take_time', 'states[2]/put_time', 'parameters/movement_speed_modifier'}},
+    'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
+    'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
 }
 
 
@@ -979,7 +978,7 @@ def stats_moved(category, columns, players, now):
     """[label key] of each match column whose values (each selected one, in order) differ between
     players' configs and the new ones ({path: buf}; a config players lack has none)."""
     match = {c: key for c, key in columns.items()
-             if c in category['match'] or any(c.startswith(m) for m in category['match'] if m.endswith('/'))}
+             if any(c == m or c.startswith(m + '/') or c.startswith(m + '[') for m in category['match'])}
 
     def values(files):
         return {(row, p): stats_values(files[p], off, match, row)
