@@ -51,6 +51,12 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
   rest when play starts.
+- **The use prompt and its progress, always** (the owner, 2026-11-02: "picking up artifact and
+  refilling ammo should have ui in blackout"): the prompt at what the player can use (an artefact
+  container, an ammo stash) and the bar filling while it is used (the search, the refill), as in a
+  plain match. It is the one prompt of every use, so the battery's take and put, a dropped gun's
+  pick-up and a teammate's held artefact show theirs too; the rest stays hidden (the quick-use
+  slots the artefact goes to and the ammo count but on Tab).
 - **Tab held:** the chat's history, the ammo (in the weapon and carried), the quick-use slots with their counts, the
   body's state (the doll: the body parts, bleeding, radiation, toxins; the owner, 2026-10-26), all
   teammates' names over their markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
@@ -93,7 +99,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   Blackout match are twice a plain match's; the counts shown (kills, help) and the player's
   statistics, quests and rating are as played; the team's points and the win are the match's.
 - **The end:** the lobby and its results screen as always.
-- **Replays and late joiners** see the match as it was (no interface but the teammates' markers).
+- **Replays and late joiners** see the match as it was (no interface but the teammates' markers and the use prompt).
 - **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
 
 ## How
@@ -133,7 +139,9 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   `ForcedView`'s (`survarium/controls/ForcedView.as`: the parts by the forced state, Tab held and the
   chat typed in, `focus_chat`; the chat kept while typed in or on Tab, its history held on for Tab):
   the countdown
-  (`pregameInfo`) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
+  (`pregameInfo`) and the use prompt with its progress (`contextInfo`, `root.set_context`: the game's
+  only prompt, 0x23A560 the hint of what is in reach, 0x23A430 `st_using_progress_message` with the
+  use's progress, both from 0x246F50 each frame) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
   kits are clicked there; the first build made the whole layer mouse-blind, the owner's
   2026-10-26 "I cannot switch between profiles"), placed as the root (and still placed by the hud's own
   layout there, `Layout.manage`: centred as in any match, at every resolution and interface
@@ -151,7 +159,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   `HUDIconLayer.canShow` with the game's `set_enemy_icon_ids`); forced, `hide_interface` (F11, a
   match's reset) does nothing.
 - **Checks in Ruffle:** `scripts/blackout-kits/check.sh <hud.swf> <player_icons.swf>`: the hud's kit
-  panel and body doll in its `KeptLayer` (a kit key, a real click), the player icons movie told each
+  panel and body doll in its `KeptLayer` (a kit key, a real click), the use prompt kept there with its
+  progress and given back when unforced, the player icons movie told each
   state: the teammate's marker shown, forced or not, the enemy's never, the object's not while
   forced (and F11 doing nothing while forced).
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
