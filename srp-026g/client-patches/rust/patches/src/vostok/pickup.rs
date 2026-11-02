@@ -328,8 +328,10 @@ pub fn read_record(ctx: &Context<'_>) -> Option<[u8; weapon_pickup::Record::BYTE
     super::carry_runtime::read_bytes(unsafe { raw::site::pickup_load::reader(ctx) }?)
 }
 
-/// Whether `pickup.remove`'s call is the death/respawn removal (flag 1):
-/// held deactivated, the inventory unloaded into the profile.
+/// Whether `pickup.remove`'s call is the full removal (flag 1): held
+/// deactivated, the inventory unloaded into the profile. Every world
+/// player's comes through player::remove 0x1F2870 (vtable 0x9FB35C +24h):
+/// the respawn tick's, a departure's and a snapshot's kit change's alike.
 pub fn removing(ctx: &Context<'_>) -> bool {
     // SAFETY: base_player::remove's entry frame, its first argument's low byte.
     unsafe { raw::site::pickup_remove::frame(ctx).is_some_and(|frame| read(frame.unload()) != 0) }

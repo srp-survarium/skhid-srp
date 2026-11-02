@@ -922,6 +922,25 @@ STATS = {
                   'regen_threshold'},
         'add': {'passive_aim', 'active_aim', 'active_stopping'},  # Spring's, for client patch 54
     },
+    'modes': {
+        'configs': 'gameplay/game_modes/*.options',
+        'columns': {
+            'map_id': 'mode/match_making_params/map_id', 'weather': 'mode/match_making_params/map_weather_id',
+            'mode': 'mode/mode', 'match_s': 'mode/parameters/match_time', 'countdown_s': 'mode/parameters/countdown_time',
+            'respawn_s': 'mode/parameters/respawn_time', 'wait_s': 'mode/parameters/wait_time',
+            'wait_players': 'mode/parameters/wait_player_percent', 'tickets': 'mode/parameters/tickets_count',
+            'spawn_points': 'mode/parameters/spawn_points_count', 'batteries': 'mode/parameters/victory_items_count',
+            'battery_spawn_s': 'mode/parameters/vi_spawn_time', 'battery_spawn_var_s': 'mode/parameters/vi_spawn_variation',
+            'capture_award': 'mode/parameters/capture_award',
+            'capture_reach': 'mode/parameters/capture_reach', 'capture_half_height': 'mode/parameters/capture_half_height',
+            'resources': 'mode/parameters/resources_count',
+            'restore_mul': 'mode/parameters/restore_multiplier',
+            'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
+        },
+        'match': {'match_s', 'countdown_s', 'respawn_s', 'wait_s', 'wait_players', 'tickets', 'spawn_points', 'batteries',
+                  'battery_spawn_s', 'battery_spawn_var_s', 'capture_award', 'capture_reach',
+                  'capture_half_height', 'resources', 'restore_mul'},
+    },
     'modifications': {
         'configs': 'gameplay/items/modifications/modifications.options#modifications[id]',
         'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',

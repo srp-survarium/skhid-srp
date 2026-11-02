@@ -260,16 +260,6 @@ edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, aft
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
 
-## battery-respawn-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `mode/parameters/respawn_time` 8 -> 10 (an int, kept) in the 56 configs of `gameplay/game_modes/` whose `mode/mode` is 2 or 3 ("Protective device", "Protective device: chargers"): levels 1 to 8 in every weather (level_08's night too), London, the 0.21d and v0.11e maps | the owner: "in batteries mode respawns should take 10 seconds". The respawn rule reads it from the config (0x316700, in ms), the base the kit's modifiers scale (the radio's -20 %: 8 s); the HUD's countdown is the rule's ([`../../docs/notes/battery_respawn.md`](../../docs/notes/battery_respawn.md)). Team Deathmatch (mode 4) and the test maps keep theirs |
-
-Applied to the live configs (the stock resources.db and patches 12 to 27; the game modes are the
-stock db's and patches 14, 20 and 22's): 56 files edited, 0 unexpected differences, one byte each.
-The simulation changes (the `next` row of `simulation_changes.tsv`).
-
 ## v011e-spawn-protection-1.json (2026-10-21)
 
 | change | why |
