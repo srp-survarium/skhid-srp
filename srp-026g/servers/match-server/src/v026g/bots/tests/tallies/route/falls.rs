@@ -14,6 +14,8 @@ pub(super) struct Falls {
     /// spot a teammate had already.
     marks: Vec<(u8, usize, Vec3)>,
     repeats: (u32, u32),
+    /// The falls off the route that began while the bot held a stuck recovery's keys (`Bot::unstick`).
+    unsticking: u32,
 }
 
 impl Falls {
@@ -42,6 +44,7 @@ impl RouteTopic for Falls {
             self.falls.0 += 1;
             self.past_edge += u32::from(at.body.past_edge_down.is_some_and(|t| at.time.saturating_sub(t) <= 100));
             self.repeats.1 += u32::from(self.mark(run, at.place, fall.from));
+            self.unsticking += u32::from(at.bots.bots[at.place].as_ref().is_some_and(|bot| bot.unstick.is_some()));
         }
     }
 
@@ -58,6 +61,7 @@ impl RouteTopic for Falls {
             "falls_off {} falls_planned {} stuck_again {} falls_again {}",
             self.falls.0, self.falls.1, self.repeats.0, self.repeats.1
         ));
+        line.tail.push(format!("falls_off_unsticking {}", self.unsticking));
         line.ends.push(format!("falls_off_past_edge {}", self.past_edge));
     }
 }

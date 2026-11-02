@@ -803,6 +803,11 @@ impl Stuck {
     }
 }
 
+/// How far a stuck recovery's escape keys are tested for a floor under their way (`UnstickTuning::escape_floor`), in
+/// [`STRAFE_CLEAR_M`](super::drive)'s steps: held 0.5-1.3 s at a walk, a sidestep's back-diagonal jump carried a body
+/// 3.3 m (A265, Station 705). GUESS: twice the step, 3 m.
+pub const ESCAPE_REACH: f32 = 2.0;
+
 /// The keys of one stuck recovery: a forward jump up the ledge the body is
 /// held by (`Tactics::ledge_ahead`), else the escape keys. The first stop at
 /// a spot backs off with no jump, the second keeps the old back-diagonal
@@ -1169,6 +1174,23 @@ pub mod fix_gaps {
     }
 
     pub fn counts() -> [u64; 6] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// The bench's counts of the stuck recovery's floor test (`UnstickTuning::escape_floor`): recoveries it was on for, escapes
+/// it refused for no floor under their way, recoveries it left with no walk key.
+#[cfg(test)]
+pub mod escape_floors {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
