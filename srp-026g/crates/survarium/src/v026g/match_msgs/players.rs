@@ -269,9 +269,9 @@ pub struct Supplies {
     pub kit: u8,
     /// Whether the kit's items were found in the inventory: with `false`
     /// every `in_hand`, `condition` and `magazine` is `None` and says
-    /// nothing (a dead player's inventory, or a layout read wrong). Never
-    /// for a player holding a picked gun (client patch 85): its own
-    /// ammunition there is parked out of the inventory, not used.
+    /// nothing (a dead player's inventory, or a layout read wrong). For a
+    /// player holding a picked gun (client patch 85), the own stacks the
+    /// pick set aside are out of the inventory: read as the kit gives them.
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
     pub items: Vec<ItemLeft>,
@@ -303,11 +303,7 @@ impl Supplies {
             .collect();
         let mut inventory_read = false;
         let kit = profile.kits.get(usize::from(head.current_index));
-        // A pick the client could not tell what it hides of the own kit
-        // (patch 85's record): its own ammunition cannot be counted.
-        let parked_known = head.pickup.picks.iter().zip(head.pickup.parked)
-            .all(|(pick, parked)| pick.is_none() || parked.is_some());
-        if let Some(kit) = kit.filter(|_| parked_known) {
+        if let Some(kit) = kit {
             let state = block.state;
             let mut at = PlayerState::head_len(items.len());
             // Items come by ascending slot (0x2FE50A..0x2FE53B), each with
@@ -361,21 +357,17 @@ impl Supplies {
                     }
                 }
             }
-            // What a pick keeps hidden of the own kit (patch 85): the own
-            // gun and stacks are out of the inventory, so its read missed
-            // them; a borrowed item's header names its donor's place, so
-            // none was read as the own. The own ones are as the record says.
-            for (weapon_slot, parked) in [7u8, 10].into_iter().zip(head.pickup.parked) {
-                let Some(parked) = parked else { continue };
-                let own = |slot: u8| kit.slots.get(usize::from(slot)).copied().flatten().map(|(index, _)| index);
-                if let Some(gun) = own(weapon_slot).and_then(|index| items.get_mut(usize::from(index))) {
-                    gun.slot = Some(weapon_slot);
-                    gun.magazine = Some(parked.magazine).filter(|rounds| *rounds <= MAGAZINE_MAX);
-                }
-                for stack in parked.stacks.into_iter().flatten() {
-                    if let Some(item) = own(stack.slot()).and_then(|index| items.get_mut(usize::from(index))) {
-                        item.slot = Some(stack.slot());
-                        item.in_hand = Some(stack.count());
+            // A pick (patch 85) sets own stacks aside, out of the inventory
+            // (its read misses them; a borrowed item's header names its
+            // donor's place, so none is read as the own): they are neither
+            // charged nor refunded (the owner, 2026-11-02), so a stack of
+            // the kit not found is taken as the kit gives it.
+            if head.pickup.picks.iter().any(Option::is_some) {
+                for (slot, held) in kit.slots.iter().enumerate() {
+                    let Some((index, count)) = *held else { continue };
+                    if let Some(item) = items.get_mut(usize::from(index)).filter(|item| item.stack && item.in_hand.is_none()) {
+                        item.slot = Some(slot as u8);
+                        item.in_hand = Some(count);
                         inventory_read = true;
                     }
                 }
@@ -676,9 +668,8 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
-                4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record, empty
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // slot 7 parks nothing
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // nor slot 10
+                6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record (version 6), empty
+                0, 0, 0, 0, 0, 0, 0, 0, // no pick, no own wear
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store
@@ -770,15 +761,17 @@ mod tests {
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
         assert!(!supplies.inventory_read);
         assert!(supplies.items.iter().all(|item| item.in_hand.is_none()));
-        // Holding a borrowed gun (patch 85) the client could not tell the
-        // own kit of: its own ammunition is not counted (nothing guessed).
+        // Holding a borrowed gun (patch 85): the kit's items found are read
+        // as found (here none set aside); a stack set aside is not (below,
+        // `a_borrowing_players_set_aside_ammunition_is_not_charged`).
         let recipe = weapon_pickup::Recipe {
             place: weapon_pickup::Place::new(2).unwrap(),
             kit: weapon_pickup::Kit::new(1).unwrap(),
             slot: weapon_pickup::WeaponSlot::Second,
         };
         let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
-        let pickup = weapon_pickup::Record { picks: [Some(pick), None], ..weapon_pickup::Record::EMPTY };
+        let held = weapon_pickup::Held { pick, own: weapon_pickup::Wear::of(0.9) };
+        let pickup = weapon_pickup::Record { picks: [Some(held), None], ..weapon_pickup::Record::EMPTY };
         let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory());
         let block = PlayerBlock {
             place: 4,
@@ -786,8 +779,9 @@ mod tests {
             animation: None,
         };
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
-        assert!(supplies.alive && !supplies.inventory_read);
-        assert!(supplies.items.iter().all(|item| item.in_hand.is_none()));
+        assert!(supplies.alive && supplies.inventory_read);
+        let own = |dict_id: u16| supplies.items.iter().find(|item| item.dict_id == dict_id).unwrap().in_hand;
+        assert_eq!((own(7), own(5)), (Some(95), Some(1)));
         // A state too short for the profile is not read at all.
         let block = PlayerBlock {
             place: 4,
@@ -800,12 +794,11 @@ mod tests {
     /// The owner's case (2026-11-01): the AK kit of place 4 took a PKP
     /// (patch 85), fired 300 rounds with it, and the match ends with it in
     /// hand. Its inventory holds the borrowed PKP and its ammunition, whose
-    /// headers name their donor's place (2); its own AK (30 in its
-    /// magazine) and 95 rounds of its 5.45 are parked, as the record says.
-    /// What is left of the own 5.45 is its store, the parked stack and the
-    /// parked magazine: nothing of the 300 rounds is its.
+    /// headers name their donor's place (2); its own AK and its 5.45 are set
+    /// aside, neither charged nor refunded (2026-11-02): the 5.45 is taken as
+    /// the kit gives it (120), nothing of the 300 rounds is its.
     #[test]
-    fn a_borrowing_players_own_ammunition_is_what_the_record_parks() {
+    fn a_borrowing_players_set_aside_ammunition_is_not_charged() {
         let dictionary = Dictionary::shared();
         let mut inventory = vec![0xA5; 40];
         // The borrowed PKP: f32 condition, donor 2, kit 1, slot 7, then 5 in its magazine.
@@ -825,13 +818,8 @@ mod tests {
             slot: weapon_pickup::WeaponSlot::First,
         };
         let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
-        let parked = weapon_pickup::Parked {
-            magazine: 30,
-            stacks: [weapon_pickup::ParkedStack::new(8, 95), None, None, None],
-        };
         let pickup = weapon_pickup::Record {
-            picks: [Some(pick), None],
-            parked: [Some(parked), None],
+            picks: [Some(weapon_pickup::Held { pick, own: weapon_pickup::Wear::of(0.9) }), None],
             ..weapon_pickup::Record::EMPTY
         };
         let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory);
@@ -843,11 +831,10 @@ mod tests {
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
         assert!(supplies.alive && supplies.inventory_read);
         let own = |dict_id: u16| *supplies.items.iter().find(|item| item.dict_id == dict_id).unwrap();
-        assert_eq!((own(3).slot, own(3).magazine), (Some(7), Some(30)), "the parked AK and its magazine");
-        assert_eq!((own(7).slot, own(7).in_hand), (Some(8), Some(95)), "the parked 5.45, not the 7N13 in slot 8");
+        assert_eq!((own(7).slot, own(7).in_hand), (Some(8), Some(120)), "the set-aside 5.45 as the kit gives it");
         assert_eq!(own(5).in_hand, Some(1));
-        // 180 in store + 95 parked + 30 in the AK; 4 + 1 grenades.
-        assert_eq!(supplies.left(), BTreeMap::from([(7, 305), (5, 5)]));
+        // 180 in store + the kit's 120; 4 + 1 grenades.
+        assert_eq!(supplies.left(), BTreeMap::from([(7, 300), (5, 5)]));
     }
 
     #[test]

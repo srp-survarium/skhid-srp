@@ -17,6 +17,9 @@ package
       // whether a Ctrl key is down (LobbyMenu.onKeyDownStage; the item lists' Ctrl+F)
       public static var isCtrl:Boolean;
       
+      // whether an Alt key is down (LobbyMenu.onKeyDownStage; a weapon card's stats in a match)
+      public static var isAlt:Boolean;
+      
       public static var showDebugInfo:Boolean;
       
       public static var stage:DisplayObjectContainer;

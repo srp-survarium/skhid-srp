@@ -534,6 +534,12 @@ plain reliables (E3, F3..F5).
 - `SRP_PACKET_LOG`: the packet capture (Wireshark is not installed).
 - `SRP_SNAPSHOT_DIR`: saved worlds, with their kind (`unreadable` among
   them; `wrong`: a game's own world as it was found out of step).
+- `client-patches/check_world_roundtrip_026g.py <survarium.exe> [dumps]`:
+  for each saved world, a late joiner and a resynced game load it and save it at
+  once under Unicorn, through every patch hook inside the world's load and save.
+  Each hook must write back the bytes it loaded; a byte written from the game's
+  own objects is a resync that never converges (`client_patch.md`, "World round
+  trip").
 - `servers/srp/tests/v026g_end_to_end.rs`: the real servers with two
   scripted clients through a whole match. Its clients report every tick's
   hash and skip the countdown, so it proves the servers agree with each

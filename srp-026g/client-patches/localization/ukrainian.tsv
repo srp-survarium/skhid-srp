@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Цей матч досяг ліміту гравців. 
 st_srp_rooms_joined_room	%1$s приєднався до кімнати
 st_srp_rooms_late_hint	Хто зайде зараз, побачить кімнату, потім потрапить у матч.
 st_srp_rooms_leave	Вийти
-st_srp_rooms_leave_queue	Вийти з черги
-st_srp_rooms_leave_room	Вийти з кімнати
+st_srp_rooms_leave_queue	Вийти
+st_srp_rooms_leave_room	Вийти
 st_srp_rooms_left_room	%1$s вийшов з кімнати
 st_srp_rooms_level	Рівень
 st_srp_rooms_map	Карта
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Мінімальна шкода
 st_srp_weapon_minimum_damage_from	Мінімальна шкода від
 st_srp_weapon_recoil_heading	Віддача, розкид, гойдання
 st_srp_weapon_reload	Перезарядка
-st_srp_weapon_shift_hint	Утримуйте Shift: подробиці
+st_srp_weapon_shift_hint	Shift: деталі · Alt: у бою
 st_srp_weapon_spread_growth	Темп зростання розкиду
 st_srp_weapon_spread_max	Межа зростання розкиду
 st_srp_weapon_spread_per_shot	Розкид від пострілу
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Характеристики зброї
 st_srp_weapon_sway_cycle	Період розгойдування
 st_srp_weapon_sway_horizontal	Розгойдування в сторони
 st_srp_weapon_sway_vertical	Розгойдування вгору-вниз
+st_srp_weapon_with_kit	З комплектом
+st_srp_weapon_with_kit_skills	З комплектом і навичками
 st_srp_weather_before_rain	перед дощем
 st_srp_weather_day	день
 st_srp_weather_evening	вечір
