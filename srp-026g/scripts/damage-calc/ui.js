@@ -43,7 +43,7 @@ const poolColor = p => p === "pain" ? "var(--pool-pain)" : p === "body" ? "var(-
 const state = {
   weapon: "wpn_ak_74n", ammo: null, dist: 20, part: "front",
   armour: { helmet: "renesanse_helmet_3", mask: "", torso: "renesanse_torso_3", gloves: "", legs: "renesanse_legs_3", boots: "renesanse_boots_3", back: "" },
-  cmpAmmo: "best", sort: { k: "shots", dir: 1 },
+  cmpAmmo: "best", sort: { k: "shots", dir: 1 }, mapView: "minimap",
 };
 try { Object.assign(state, JSON.parse(localStorage.getItem("srp-dmg") || "{}")); } catch (e) {}
 const save = () => { try { localStorage.setItem("srp-dmg", JSON.stringify(state)); } catch (e) {} };
@@ -755,9 +755,9 @@ function fillMaps() {
   const views = $("mapviews");
   const paintViews = () => {
     views.hidden = !DATA.maps[state.map].minimap;
-    for (const c of views.children) c.setAttribute("aria-pressed", String(c.dataset.view === (state.mapView || "render")));
+    for (const c of views.children) c.setAttribute("aria-pressed", String(c.dataset.view === state.mapView));
   };
-  for (const [v, text] of [["render", T("From above", "Згори")], ["minimap", T("Minimap", "Мінімапа")]]) {
+  for (const [v, text] of [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]]) {
     const c = el("button", { type: "button", class: "chip", text });
     c.dataset.view = v;
     c.addEventListener("click", () => { state.mapView = v; paintViews(); drawMapBase(); update(); });
