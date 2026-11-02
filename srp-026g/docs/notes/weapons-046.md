@@ -81,6 +81,13 @@ balances "around the current balance".
 
 ## Stats
 
+The numbers below live in `scripts/content-edit/weapon-stats.tsv` (a row per gun, made with
+`content_edit.py --dump-stats weapon-stats` from the pack's configs) and `ammo.tsv` (the belt): the
+build writes them and the cards, so a retune is an edit of a cell. The pack is built over revisions
+41 and 42, so the columns that come from a template (recoil, screen shake, melee) are its current
+live values: the L85A2 kicks as the M4A1 does since revision 42.
+
+
 The new guns beside their closest live peers.
 
 | Gun | Faction / level | Price | Damage | Pierce | RPM | Mag | Reload | Aim | Weight | Why |
