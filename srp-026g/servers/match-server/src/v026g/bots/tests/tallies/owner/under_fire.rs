@@ -173,6 +173,8 @@ const BEFORE_MS: u32 = 6_000;
 /// [A274] Firing before the hit: a fire key this long before it, ms (`live_firstshot.py`'s split).
 const FIRING_MS: u32 = 1_000;
 const STAGES: usize = Stage::ALL.len();
+/// [A274] One logged tick of a bot: the tick, its reflex target, its fire gates, its fire key.
+type Logged = (u32, Option<Place>, Gates, bool);
 
 /// [A274] What an episode is: it had shot at him already in its sight before the hit (a fight under way), it had not and shot at
 /// him in the window (it fired back), or it had not and never did.
@@ -428,7 +430,7 @@ pub(super) struct UnderFireCounts {
     target: Vec<Option<Place>>,
     gates: Vec<Gates>,
     sights: Vec<Vec<(Place, u32, u32)>>,
-    log: Vec<VecDeque<(u32, Option<Place>, Gates, bool)>>,
+    log: Vec<VecDeque<Logged>>,
     /// The open first hit of each place's life; whether it has had one; its last fire key; its life's first hit.
     open: Vec<Option<Open>>,
     hit_this_life: Vec<bool>,
@@ -505,7 +507,7 @@ impl Topic for UnderFireCounts {
         self
     }
 
-    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         self.grow(place + 1);
         self.target[place] = bot.and_then(|b| b.reflex.target());
         self.gates[place] = bot.map(|b| b.reflex.gates()).unwrap_or_default();
