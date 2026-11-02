@@ -134,6 +134,21 @@ package {
    for each(var l:String in text(card).split("\n"))if(l.indexOf(start)==0)return l;
    throw new Error("missing line: "+start+" in "+text(card));
   }
+  // A changed value's colours: [its original (first character), the arrow, its current (last character)].
+  private function changeColours(field:TextField):Array {
+   var t:String=field.text,at:int=t.lastIndexOf(" -> ");
+   require(at>0,"a changed value: "+t);
+   // RGB only: a colour set with textColor reads back with its alpha byte in Ruffle.
+   var rgb:Function=function(begin:int):uint{return uint(field.getTextFormat(begin,begin+1).color)&0xFFFFFF;};
+   return [rgb(0),rgb(at+1),rgb(t.length-1)];
+  }
+  private function detailField(card:Object,label:String):TextField {
+   var view:Object=detailsView(card);
+   for(var i:int=0;i<view.numChildren;i++){var e:Object=view.getChildAt(i);if(!(e is Caption) && e.indicator.textFieldLabel.text==label)return e.indicator.textFieldValue;}
+   throw new Error("missing stat: "+label);
+  }
+  private function nativeField(card:Object,label:String):TextField {var row:Object=nativeRow(card,label);row.validateNow();return row.textFieldValue;}
+  private static const NEUTRAL:uint=15911311,GREEN:uint=8890390,RED:uint=9834254;
   private function altChecks():void {
    var Profile:Class=domain.getDefinition("SrvLocalPlayerProfile") as Class;
    profile=new Profile();profile.x=-2000;
@@ -153,6 +168,7 @@ package {
    require(text(cards[0]).indexOf(english.st_srp_weapon_with_kit_skills)<0,"released: no effects line");
    Scene.isAlt=true;shows(quick,items[1]);
    require(nativeText(cards[0],"Aim time")=="0.2 -> 0.196s","aim-time roll on a 0.2 s weapon: "+nativeText(cards[0],"Aim time"));
+   require(changeColours(nativeField(cards[0],"Aim time")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"the roll's shorter aim time: green");
    require(nativeText(cards[0],"Damage")=="34","a stat nothing changes keeps its single value");
    quick.modifiers[0].props[0].prop_value="-0.04";shows(quick,items[1]);
    require(nativeText(cards[0],"Aim time")=="0.2 -> 0.19s","-4 %: two decimals already differ ("+nativeText(cards[0],"Aim time")+")");
@@ -174,7 +190,23 @@ package {
    require(line(cards[0],"Full damage up to")=="Full damage up to: 30m","range: nothing in a kit changes it");
    require(text(cards[1]).indexOf(english.st_srp_weapon_with_kit_skills)>=0,"the compared weapon too");
    require(line(cards[1],"Reload")=="Reload: 10 -> 8.2s","the compared weapon with the same kit: "+line(cards[1],"Reload"));
-   require(color(cards[0],"Reload")==8890390,"comparison of the in-match values");
+   // The current part green when better for the player, red when worse; the original and the arrow neutral.
+   require(changeColours(detailField(cards[0],"Reload")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"a shorter reload: green ("+changeColours(detailField(cards[0],"Reload"))+")");
+   require(changeColours(nativeField(cards[0],"Aim time")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"a shorter aim time on the bar's row: green");
+   require(changeColours(detailField(cards[0],"Vertical recoil")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"a smaller kick: green");
+   require(changeColours(detailField(cards[0],"Hip-fire spread")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"less hip-fire spread: green");
+   require(color(cards[0],"Full damage up to")==NEUTRAL,"an unchanged stat keeps its usual colour");
+   Scene.isCtrl=true;shows(ak,items[0]);
+   require(changeColours(detailField(cards[0],"Reload")).join()==[NEUTRAL,NEUTRAL,NEUTRAL].join(),"Ctrl: neutral");
+   Scene.isCtrl=false;
+   // A worse kit: gloves with a reload defect (-30 %) and a slower aim (+20 %), no skills.
+   profile.setKitModifiers(kitFloats({}));wearing([piece(5,[[114,"-0.30"],[102,"0.20"]])]);shows(ak,items[0]);
+   require(line(cards[0],"Reload")=="Reload: 3 -> 4.29s","reload / 0.7: "+line(cards[0],"Reload"));
+   require(changeColours(detailField(cards[0],"Reload")).join()==[NEUTRAL,NEUTRAL,RED].join(),"a longer reload: red");
+   require(nativeText(cards[0],"Aim time")=="0.25 -> 0.3s" && changeColours(nativeField(cards[0],"Aim time")).join()==[NEUTRAL,NEUTRAL,RED].join(),"a slower aim on the bar's row: red");
+   profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
+   wearing([piece(5,[[114,"0.10"],[102,"-0.06"]]),piece(2,[[115,"-0.04"],[101,"-0.04"]]),piece(7,[[114,"0.50"],[102,"-0.5"]])]);shows(ak,items[0]);
+   require(color(cards[0],"Reload")==NEUTRAL,"comparison of the in-match values: the change's colours");
    aligned();
    // An exe that sends no floats: the kit alone, said so.
    profile.setKitModifiers(null);shows(ak,items[0]);
@@ -427,6 +459,8 @@ package {
     if(frame==160){require(text(cards[0])==released && nativeText(cards[0],"Aim time")=="0.25s","Alt let go over an open card");finish(null);}
    }catch(err:Error){finish("frame "+frame+": "+err+" "+err.getStackTrace());}
   }
-  private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;Scene.isAlt=loaderInfo.parameters.alt=="1";}trace("DETAILS RESULT "+(error?"fail: "+error:"pass"));}
+  private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;Scene.isAlt=loaderInfo.parameters.alt=="1";
+   // For a capture: a kit whose gloves reload faster but aim slower (a green and a red change).
+   if(loaderInfo.parameters.mixed=="1"){wearing([piece(5,[[114,"0.10"],[102,"0.20"]]),piece(2,[[115,"-0.04"]])]);shows(item(false),items[0]);}}trace("DETAILS RESULT "+(error?"fail: "+error:"pass"));}
  }
 }

@@ -11,6 +11,15 @@ package survarium.player
    // apply_modifier 0x2D5AE0 takes, B x max(0, 1 + k x S), k 1 at every site below.
    public final class MatchEffects
    {
+      // Between a changed value's original and current ("0.2 -> 0.196"): plain ASCII, whatever the
+      // font has.
+      public static const ARROW:String = " -> ";
+
+      // A change's verdict for the player: the card's green (better) or red (worse).
+      public static const BETTER:String = "better";
+
+      public static const WORSE:String = "worse";
+
       // The most decimals a changed value is shown with (change).
       private static const MAX_DECIMALS:int = 6;
 
@@ -105,7 +114,13 @@ package survarium.player
       public static function change(before:Number, after:Number, decimals:int) : String
       {
          var digits:int = decimalsFor(before,after,decimals);
-         return fixed(before,digits) + " -> " + fixed(after,digits);
+         return fixed(before,digits) + ARROW + fixed(after,digits);
+      }
+
+      // Whether a change of a stat is better or worse for the player, by its direction.
+      public static function verdict(before:Number, after:Number, higherIsBetter:Boolean) : String
+      {
+         return (after > before) == higherIsBetter ? BETTER : WORSE;
       }
 
       // `decimals`, or more up to the first at which the two values read otherwise.

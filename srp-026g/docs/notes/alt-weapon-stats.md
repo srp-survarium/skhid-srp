@@ -15,6 +15,12 @@ whatever else too".
   lines for that stat, accepted by the owner on #1033.
 - **Never "x -> x"**: a changed value is shown to the first decimal at which the two differ (aim time
   0.2 s with a -2 % roll: `0.2 -> 0.196s`, where the card's two decimals read 0.19).
+- **The current value's colour says whether the change is good** (the owner, on #1033): green when
+  it is better for the player, red when worse, by the stat's direction (less aim time, reload,
+  chambering, draw, kick, spread is better; a kick range is smaller when its ends come nearer 0).
+  The card's own green and red, those of the compare view. The original and the arrow keep the
+  neutral value colour; a stat with no change keeps its usual colour; Ctrl (neutral colours)
+  leaves the change neutral too (my pick).
 - **One short line says what is on:** "With kit and skills".
 - **The hint line names Alt** (the owner, on #1033): `st_srp_weapon_shift_hint`, one short line in
   every language, "Shift: details · Alt: in a match" (the longer "Alt: with kit and skills" does not

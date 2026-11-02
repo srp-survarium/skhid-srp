@@ -2,6 +2,7 @@ package survarium.controls
 {
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import flash.text.TextFormatAlign;
    import scaleform.clik.constants.ConstrainMode;
    import scaleform.clik.constants.InvalidationType;
@@ -9,6 +10,7 @@ package survarium.controls
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.constants.PropertyDirection;
+   import survarium.player.MatchEffects;
    
    public class LabelDiffIndicator extends DiffIndicator
    {
@@ -30,9 +32,13 @@ package survarium.controls
       private var _detailValue:String = null;
 
       // A weapon card's row while Alt is held, its value changed by its modifications, the kit or
-      // the skills: "base -> in a match" with its unit, in place of the value (the bar keeps the
-      // value); null shows the value.
-      private var _changeText:String = null;
+      // the skills: {text: "base -> in a match" with its unit, in place of the value (the bar
+      // keeps the value), verdict: MatchEffects.BETTER or WORSE}; null shows the value.
+      private var _change:Object = null;
+
+      // A detail row's value's verdict, where it is such a change (MatchEffects.BETTER or WORSE);
+      // null otherwise.
+      private var _detailVerdict:String = null;
 
       // The value field's own width (unscaled) and line, which a wider detail value grows from;
       // 0 until the first layout.
@@ -51,9 +57,10 @@ package survarium.controls
          return textFieldLabel.numLines + _valueLine;
       }
 
-      public function set changeText(value:String) : void
+      // `text` null: the row's own value.
+      public function setChange(text:String, verdict:String) : void
       {
-         _changeText = value;
+         _change = text == null ? null : {text:text,verdict:verdict};
          invalidateData();
       }
 
@@ -67,8 +74,9 @@ package survarium.controls
 
       // A detail value wider than its field (a changed range held Alt, "1.8…2 -> 1.73…1.92")
       // takes the room to its left, its right edge kept; where the label has too little room
-      // for one line beside it ("base -> in a match" held Alt), the value takes the line under it. The constraints counter-scale the
-      // field (scaleX) after its first layout, and x is the native column's again at each layout.
+      // for one line beside it ("base -> in a match" held Alt), the value takes the line under it.
+      // The constraints counter-scale the field (scaleX) after its first layout, and x is the
+      // native column's again at each layout.
       private function fitWideValue() : void
       {
          var scale:Number = textFieldValue.scaleX;
@@ -90,8 +98,9 @@ package survarium.controls
          textFieldValue.y = _valueY + _valueLine * textFieldLabel.getLineMetrics(0).height * textFieldLabel.scaleY;
       }
 
-      public function setDetailText(label:String, value:String) : void
+      public function setDetailText(label:String, value:String, verdict:String = null) : void
       {
+         _detailVerdict = verdict;
          _label = label;
          _detailValue = value;
          invalidateData();
@@ -214,7 +223,7 @@ package survarium.controls
             }
             this.textFieldValue.text = this._prefix + Util.getNumberString(_realValue) + this._postfix;
          }
-         if(_changeText != null) this.textFieldValue.text = _changeText;
+         if(_change != null) this.textFieldValue.text = _change.text;
          if(this.textFieldDiff.text.length)
          {
             this.textFieldValue.x = this.textFieldDiff.x + this.textFieldDiff.width - this.textFieldValue.width - this.textFieldDiff.textWidth - 4;
@@ -256,6 +265,22 @@ package survarium.controls
             textFieldLabel.multiline = textFieldLabel.wordWrap = true;
             textFieldLabel.autoSize = TextFieldAutoSize.LEFT;
          }
+         var verdict:String = _detailValue != null ? _detailVerdict : _change != null ? _change.verdict : null;
+         if(verdict != null) colourChange(verdict,neutralComparison);
+      }
+
+      // Held Alt, a changed value "original -> current" (alt-weapon-stats.md): the original and
+      // the arrow in the value's neutral colour, the current green when it is better for the
+      // player, red when worse, the comparison's own colours; Ctrl leaves it neutral.
+      private function colourChange(verdict:String, neutral:Boolean) : void
+      {
+         textFieldValue.textColor = 15911311;
+         var text:String = textFieldValue.text;
+         var at:int = text.lastIndexOf(MatchEffects.ARROW);
+         if(neutral || at < 0) return;
+         var format:TextFormat = new TextFormat();
+         format.color = verdict == MatchEffects.BETTER ? Colors.GREEN_DIFF : Colors.RED_DIFF;
+         textFieldValue.setTextFormat(format,at + MatchEffects.ARROW.length,text.length);
       }
    }
 }

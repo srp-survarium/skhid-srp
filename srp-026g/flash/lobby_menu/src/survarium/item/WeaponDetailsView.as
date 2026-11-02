@@ -80,7 +80,7 @@ package survarium.item
                row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
             }
             else row.value = row.compare = 0;
-            row.setDetailText(entry.label,entry.value);
+            row.setDetailText(entry.label,entry.value,entry.verdict);
             row.validateNow();
             var lines:int = row.detailLines;
             // Both cards reserve the larger label height for a compared row.

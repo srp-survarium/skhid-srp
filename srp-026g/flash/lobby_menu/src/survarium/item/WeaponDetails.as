@@ -85,14 +85,23 @@ package survarium.item
       {
          return base != null && MatchEffects.changed(before,after) ? MatchEffects.change(before,after,digits) : MatchEffects.fixed(after,digits);
       }
+      // In a match's view, a changed value's verdict for the player (MatchEffects.BETTER or WORSE,
+      // by the row's direction: "lower", "higher"); null where it did not change or the row has
+      // no better direction.
+      private function verdictOf(before:Number, after:Number, direction:String) : String
+      {
+         if(base == null || !MatchEffects.changed(before,after) || direction != "lower" && direction != "higher") return null;
+         return MatchEffects.verdict(before,after,direction == "higher");
+      }
       // `unit` is the dictionary text of the value with its unit (%1$s the number).
       private function scalar(result:Array, id:int, key:String, direction:String, unit:String = null, multiplier:Number = 1) : void
       {
          if(!has(id)) return;
          var n:Number = values[id] * multiplier;
-         var text:String = shown(base == null ? n : base[id] * multiplier,n,decimals(n));
+         var before:Number = base == null ? n : base[id] * multiplier;
+         var text:String = shown(before,n,decimals(n));
          result.push({kind:"stat",id:id,label:LocalizationData.getName(key),
-            value:unit == null ? text : LocalizationData.format(unit,text),
+            value:unit == null ? text : LocalizationData.format(unit,text),verdict:verdictOf(before,n,direction),
             comparison:direction == "neutral" ? {kind:"neutral"} : {kind:direction,value:Number(number(n))}});
       }
       // Chambering time with its rolls, as every other row. A weapon
@@ -106,31 +115,36 @@ package survarium.item
             return;
          }
          var modified:String = number(values[CHAMBER]);
-         var value:String = LocalizationData.format("st_srp_unit_seconds",shown(base == null ? values[CHAMBER] : base[CHAMBER],values[CHAMBER],decimals(values[CHAMBER])));
-         result.push({kind:"stat",id:CHAMBER,label:label,value:value,comparison:{kind:"lower",value:Number(modified)}});
+         var before:Number = base == null ? values[CHAMBER] : base[CHAMBER];
+         var value:String = LocalizationData.format("st_srp_unit_seconds",shown(before,values[CHAMBER],decimals(values[CHAMBER])));
+         result.push({kind:"stat",id:CHAMBER,label:label,value:value,verdict:verdictOf(before,values[CHAMBER],"lower"),
+            comparison:{kind:"lower",value:Number(modified)}});
       }
       private static function recoilNumber(n:Number) : String
       {
          return MatchEffects.fixed(n,3);
       }
       // A kick range "low…high"; in a match's view "base -> in a match" where it changed, each
-      // end to the decimals at which it differs.
+      // end to the decimals at which it differs; a smaller kick (both ends nearer 0) is better.
       private function kickRange(result:Array, id:int, key:String, low:Array, high:Array, comparison:Object) : void
       {
          var value:String = recoilNumber(low[1]) + "…" + recoilNumber(high[1]);
+         var verdict:String = null;
          if(base != null && (MatchEffects.changed(low[0],low[1]) || MatchEffects.changed(high[0],high[1])))
          {
             var lowDigits:int = MatchEffects.decimalsFor(low[0],low[1],2), highDigits:int = MatchEffects.decimalsFor(high[0],high[1],2);
-            value = MatchEffects.fixed(low[0],lowDigits) + "…" + MatchEffects.fixed(high[0],highDigits) + " -> " +
+            value = MatchEffects.fixed(low[0],lowDigits) + "…" + MatchEffects.fixed(high[0],highDigits) + MatchEffects.ARROW +
                MatchEffects.fixed(low[1],lowDigits) + "…" + MatchEffects.fixed(high[1],highDigits);
+            verdict = MatchEffects.verdict(Math.abs(low[0]) + Math.abs(high[0]),Math.abs(low[1]) + Math.abs(high[1]),false);
          }
-         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:value,comparison:comparison});
+         result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:value,verdict:verdict,comparison:comparison});
       }
       // `variance`: [base, shown].
       private function variability(result:Array, id:int, key:String, variance:Array) : void
       {
          var value:Number = Math.sqrt(variance[1]);
          result.push({kind:"stat",id:id,label:LocalizationData.getName(key),value:shown(Math.sqrt(variance[0]),value,3),
+            verdict:verdictOf(Math.sqrt(variance[0]),value,"lower"),
             comparison:{kind:"lower",value:Number(recoilNumber(value))}});
       }
       // A recoil figure of the base values and of the shown ones: [base, shown] (the same twice

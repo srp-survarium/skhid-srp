@@ -14,6 +14,7 @@ package survarium.controls
    import survarium.player.LocalPlayerProfile;
    import survarium.player.MatchEffects;
    import survarium.constants.ModifierType;
+   import survarium.constants.PropertyDirection;
    import survarium.constants.SuperCategory;
    import survarium.constants.ItemCategory;
    
@@ -317,7 +318,7 @@ package survarium.controls
             _diff.indicator.extra = modifier_value;
             _diff.indicator.compare = compareValue;
             _diff.indicator.value = currentValue;
-            _diff.indicator.changeText = null;
+            _diff.indicator.setChange(null,null);
          }
          for each(var s:Object in this._primary.properties)
          {
@@ -337,9 +338,10 @@ package survarium.controls
                   initPropValues(_valueObject,this._primary.modifiers);
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
                   // While Alt is held, a value its modifications, the kit or the skills change
-                  // reads "base -> in a match".
+                  // reads "base -> in a match", the current green when better, red when worse.
                   if(effects != null && MatchEffects.changed(base_value,_value))
-                     _diff.indicator.changeText = MatchEffects.change(base_value,_value,2) + _diff.indicator.postfix;
+                     _diff.indicator.setChange(MatchEffects.change(base_value,_value,2) + _diff.indicator.postfix,
+                        MatchEffects.verdict(base_value,_value,propDescription.direction == PropertyDirection.HIGHER_IS_BETTER));
                   index++;
                   if(index == indicators)
                   {
