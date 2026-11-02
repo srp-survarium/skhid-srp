@@ -2,7 +2,7 @@
 
 The owner's rules of 2026-10-21. Code: `survarium::v026g::golden`,
 `session::v026g::items_rules` (`craft`, `give_golden_silver`), `Account::add_item`; the
-data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the lists), `ItemFactory`,
+data: `scripts/content-edit/golden-weapons-1.json`, `items.tsv` (`like`, `start`); the lobby: `ItemDictId` (the lists), `ItemFactory`,
 `InventoryList` (gold background, craft donors), `MessageCraftItem`, `LobbyMenu.fill_crafted_item`.
 
 - **The rule:** "remove extra bonuses from all golden weapons and make them upgradable just

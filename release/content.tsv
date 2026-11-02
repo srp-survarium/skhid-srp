@@ -122,3 +122,4 @@ edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.opt
 edit	armor.tsv	-	the armour: a row a piece (slot/name), its armour numbers (hit_params by the armour rule), weight, oxygen, levels, rollable kinds and built-in bonuses, and its card
 edit	medicines.tsv	-	the medicines: a row each, its delay and active seconds, the health a second it gives each pool, weight and levels, and its card (the % it heals)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
+edit	items.tsv	-	the items: a row per dictionary entry, its name, price, gold flag, the plain item a golden or premium copy is (srp_like) and the modifications of its own a new one comes with (srp_start), which srp reads
