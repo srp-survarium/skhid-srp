@@ -1057,6 +1057,7 @@ pub(crate) fn real_bot_cost() {
             let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
             let mut trap_habit = human.as_ref().and_then(|h| standin_trap_habit::TrapHabit::start(h.place, seed, level, mode, per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
+            bots.bench_human_dial = bench_settings().var("SRP_BENCH_HUMAN_DIAL").as_deref() == Ok("on");
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
             // `SRP_BENCH_VIEW_ERROR=1`: every world fix the bots are given is moved by the live error (view_error.rs).

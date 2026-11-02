@@ -177,17 +177,19 @@ pub struct Skill {
     steps_up: u32,
     duels: VecDeque<Duel>,
     last_look: u32,
-    /// The floor of its tier ([`SkillTuning::of_tier`]).
+    /// The floor and the ceiling of its tier's bracket ([`SkillTuning::of_tier`], A244).
     floor: f32,
+    ceiling: f32,
 }
 
 impl Skill {
-    /// A team of bots of `tier`: its tier's start and floor.
+    /// A team of bots of `tier`: its tier's start, floor and ceiling.
     pub fn new(tuning: &SkillTuning, tier: BotTier) -> Self {
         let row = tuning.of_tier(tier);
         Self {
             skill: row.start,
             floor: row.min,
+            ceiling: row.max,
             steps_down: 0,
             steps_up: 0,
             duels: VecDeque::new(),
@@ -208,8 +210,8 @@ impl Skill {
         (won as f32 / lost.max(1) as f32, won + lost)
     }
 
-    /// Every `every_s`: a step outside the dead band. Returns the change
-    /// made, if one was (for the log).
+    /// Every `every_s`: a step outside the dead band, kept inside the tier's
+    /// bracket. Returns the change made, if one was (for the log).
     pub fn balance(&mut self, now: u32, tuning: &SkillTuning) -> Option<(f32, f32, f32)> {
         if now < self.last_look + tuning.every_s * 1000 {
             return None;
@@ -231,7 +233,7 @@ impl Skill {
         } else {
             return None;
         }
-        self.skill = self.skill.clamp(self.floor, tuning.max);
+        self.skill = self.skill.clamp(self.floor, self.ceiling);
         Some((before, self.skill, kd))
     }
 }
@@ -312,12 +314,13 @@ mod tests {
     }
 
     #[test]
-    fn each_tier_starts_at_its_skill_and_never_falls_below_its_floor() {
+    fn each_tier_starts_at_its_skill_and_stays_in_its_bracket() {
         let tuning = SkillTuning::default();
-        for (tier, start, floor) in [
-            (BotTier::Low, 0.6, 0.3),
-            (BotTier::Mid, 0.75, 0.5),
-            (BotTier::High, 0.85, 0.65),
+        // The owner's brackets (A244, 2026-11-01): 0-5 0.0-0.6 from 0.3, 6-10 0.2-0.8 from 0.5, 11-15 0.3-0.9 from 0.6.
+        for (tier, start, floor, ceiling) in [
+            (BotTier::Low, 0.3, 0.0, 0.6),
+            (BotTier::Mid, 0.5, 0.2, 0.8),
+            (BotTier::High, 0.6, 0.3, 0.9),
         ] {
             let mut skill = Skill::new(&tuning, tier);
             assert_eq!(skill.skill, start, "{tier:?}");
@@ -337,8 +340,7 @@ mod tests {
                 "{tier:?} {}",
                 skill.skill
             );
-            // They lose every duel for an hour: up, to 1 at most, every
-            // tier.
+            // They lose every duel for an hour: up to the tier's ceiling, never over it.
             for minute in 10..70u32 {
                 for k in 0..10 {
                     skill.duel(Duel {
@@ -349,21 +351,30 @@ mod tests {
                 skill.balance(minute * 60_000 + 30_000, &tuning);
             }
             assert!(
-                skill.skill <= 1.0 && skill.skill > start,
+                (skill.skill - ceiling).abs() < 1e-6,
                 "{tier:?} {}",
                 skill.skill
             );
         }
-        // A tier with no row: the old `start` and `min`.
+        // A tier with no row: the old `start`, `min` and `max`.
         let old = SkillTuning {
             tiers: Default::default(),
             ..SkillTuning::default()
         };
         assert_eq!(Skill::new(&old, BotTier::High).skill, old.start);
+        assert_eq!(old.of_tier(BotTier::High).max, old.max);
         // The JSON names a tier by its band.
-        let json = r#"{"tiers":{"9-10":{"start":0.8,"min":0.4}}}"#;
+        let json = r#"{"tiers":{"9-10":{"start":0.8,"min":0.4,"max":0.9}}}"#;
         let file: SkillTuning = serde_json::from_str(json).unwrap();
         assert_eq!(file.of_tier(BotTier::Mid).start, 0.8);
         assert_eq!(file.of_tier(BotTier::Low).start, file.start);
+        // A ceiling over the scale's top is held to it, a start over its ceiling to the ceiling.
+        use super::super::tuning::TierSkill;
+        let wide = SkillTuning {
+            max: 0.7,
+            tiers: [(BotTier::High, TierSkill { start: 0.85, min: 0.3, max: 0.9 })].into_iter().collect(),
+            ..SkillTuning::default()
+        };
+        assert_eq!(wide.of_tier(BotTier::High), TierSkill { start: 0.7, min: 0.3, max: 0.7 });
     }
 }
