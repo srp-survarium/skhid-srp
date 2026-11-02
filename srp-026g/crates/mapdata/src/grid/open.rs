@@ -89,20 +89,22 @@ impl WalkGrid {
             let Some(cell) = self.cell_index(i + di, k + dk) else {
                 continue;
             };
-            let beside = || (self.start[cell]..self.start[cell + 1]).map(|b| self.height[b as usize]);
-            if beside().any(|h| (h - feet).abs() <= self.body.step) {
-                continue;
-            }
-            // A269c: only a side over a floor further down than a step is a drop the capsule is known to walk off. A cell beside
-            // with only higher floors (a rise over a step, a floor overhead) or none (the grid eroded it by a wall off the way out, or
-            // its ground is too steep for a floor) is not known as one: the body is held there as at a wall, as the default model
-            // holds it. On the 8 maps such sides were 4 of 5 of the open sides with no route cost (the bench's open_sides_bare), and
-            // the lip guard braked at them a key change a tick.
-            if !beside().any(|h| h < feet - self.body.step) {
+            if (self.start[cell]..self.start[cell + 1]).any(|b| (self.height[b as usize] - feet).abs() <= self.body.step) {
                 continue;
             }
             let length = ((di * di + dk * dk) as f32).sqrt();
             let reach = support_m + self.body.radius;
+            // A269c: only a side over a floor further down than a step is a drop the capsule is known to walk off. The cells out
+            // along the side within the reach: the first that holds a floor within a step of the feet (the ground goes on past a
+            // cell the grid eroded by a wall off the way out) makes it no drop, the first with one further down makes it one (a
+            // cliff's foot is eroded by its face: the floor below starts a cell or two out); cells with only higher floors (a rise
+            // over a step, a floor overhead) or none (ground too steep for a floor) all the way are no known drop: the body is held
+            // there as at a wall, as the default model holds it. A269's table took any cell beside with no floor of the feet's level
+            // for a drop: most of the open sides with no route cost on the 8 maps had no floor below beside (the bench's
+            // open_sides_bare), and the lip guard braked at them a key change a tick.
+            if !self.drop_along(i, k, di, dk, feet, (reach / (self.cell * length)).floor() as i32) {
+                continue;
+            }
             let out = Vec3::new(centre.x + di as f32 / length * reach, feet, centre.z + dk as f32 / length * reach);
             if walls.nearest_ahead(centre, out, low, high, ACROSS_M).is_some() {
                 continue;
@@ -110,6 +112,24 @@ impl WalkGrid {
             bits |= 1 << d;
         }
         bits
+    }
+
+    /// Whether the cells `1..=cells` out from (`i`, `k`) along (`di`, `dk`) come to a floor further down than a step from `feet` before
+    /// one within a step of it ([`Self::open_sides_of`]); the map area's edge ends the look with none.
+    fn drop_along(&self, i: i32, k: i32, di: i32, dk: i32, feet: f32, cells: i32) -> bool {
+        for m in 1..=cells.max(1) {
+            let Some(cell) = self.cell_index(i + m * di, k + m * dk) else {
+                return false;
+            };
+            let heights = || (self.start[cell]..self.start[cell + 1]).map(|b| self.height[b as usize]);
+            if heights().any(|h| (h - feet).abs() <= self.body.step) {
+                return false;
+            }
+            if heights().any(|h| h < feet - self.body.step) {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -167,19 +187,24 @@ mod tests {
         assert!(!bare.near_open_side(edge(&bare, 6.0)));
     }
 
-    /// A269c: a side is open only over a floor further down than a step. On level ground a pillar a little off the way out erodes
-    /// the cell beside a floor (no floor there, no link that way, and the way out misses the pillar): the ground is there, the
-    /// capsule walks on, and the side is not open. The 6 m ledge's edge, over the ground, stays open
-    /// (`a_deep_ledge_with_no_link_is_open_on_its_edge_and_a_parapet_closes_it`).
+    /// A269c: a side is open only over a floor further down than a step. On level ground a wall along the way out, a little to its
+    /// side (z 5.4 from x 6.1 on), erodes the cells out from a floor (no floor there, no link that way, and the way out misses the
+    /// wall): the ground is there, the capsule walks on, and the side is not open. The 6 m ledge's edge stays open over the ground
+    /// though its face erodes the cell at its foot (`a_deep_ledge_with_no_link_is_open_on_its_edge_and_a_parapet_closes_it`).
     #[test]
-    fn a_cell_beside_eroded_by_a_pillar_off_the_way_is_no_open_side() {
+    fn cells_eroded_by_a_wall_beside_the_way_are_no_open_side() {
         let body = Body { erosion: Erosion::Exact, ..Body::default() };
         let mut tris: Vec<Triangle> = quad(0.0, 12.0, 0.0, 0.0, 10.0).to_vec();
-        tris.extend(wall(6.3, 0.0, 3.0, 5.4, 5.8));
+        let p = |x: f32, y: f32| Vec3::new(x, y, 5.4);
+        let (a, b, c, d) = (p(6.1, 0.0), p(7.5, 0.0), p(7.5, 3.0), p(6.1, 3.0));
+        tris.push(Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope });
+        tris.push(Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope });
         let grid = WalkGrid::build(&tris, AREA, 0.25, body).with_open_sides(&tris, 0.435);
-        let floor = grid.locate(Vec3::new(5.875, 0.0, 5.125), 0.05).expect("a floor short of the pillar");
+        let floor = grid.locate(Vec3::new(5.875, 0.0, 5.125), 0.05).expect("a floor short of the wall");
+        assert_eq!(grid.position(floor).x, 5.875);
         assert_eq!(grid.floors_in([6.01, 5.01, 6.24, 5.24]).count(), 0, "the cell beside is eroded");
-        assert!(grid.links(floor).all(|(b, _)| grid.position(b).x < 6.0), "no link that way");
-        assert_eq!(grid.open_toward(floor, 1.0, 0.0), Some(false), "ground beside, not a drop");
+        let east = |b: NodeId| grid.position(b).x > 6.0 && (grid.position(b).z - 5.125).abs() < 0.01;
+        assert!(grid.links(floor).all(|(b, _)| !east(b)), "no link that way");
+        assert_eq!(grid.open_toward(floor, 1.0, 0.0), Some(false), "ground along the way, not a drop");
     }
 }
