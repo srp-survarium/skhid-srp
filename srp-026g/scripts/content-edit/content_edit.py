@@ -720,8 +720,8 @@ def weapon_card(buf):
 #                      made anew when no archive has it
 # `columns`: their key paths; `[*]` every item, `[field=cell]` the entries whose field reads so, `[i]`.
 # A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key.
-# `match`: the columns (of a key/value table: keys) a match computes with: a change needs the `next`
-# row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
+# `match`: the columns (of a key/value table: keys, `a/` every key under a) a match computes with: a
+# change needs the `next` row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
 STATS = {
     'weapon-stats': {
         'configs': 'gameplay/items/weapons/wpn_*.options',
@@ -759,6 +759,9 @@ STATS = {
                   'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
         'cards': weapon_card,
     },
+    'character': {'configs': 'gameplay/players/default.player', 'match': {'player/'}},
+    'battery': {'configs': 'gameplay/victory_items/default.options',
+                'match': {'states[0]/take_time', 'states[2]/put_time', 'parameters/movement_speed_modifier'}},
 }
 
 
@@ -975,7 +978,8 @@ def stats_write(category, columns, rows, data, table):
 def stats_moved(category, columns, players, now):
     """[label key] of each match column whose values (each selected one, in order) differ between
     players' configs and the new ones ({path: buf}; a config players lack has none)."""
-    match = {c: key for c, key in columns.items() if c in category['match']}
+    match = {c: key for c, key in columns.items()
+             if c in category['match'] or any(c.startswith(m) for m in category['match'] if m.endswith('/'))}
 
     def values(files):
         return {(row, p): stats_values(files[p], off, match, row)
@@ -1028,9 +1032,8 @@ def dump_stats(name, live):
     if 'columns' not in category:
         buf = data.get(category['configs'], bytearray(24))
         print('key\tvalue')
-        for q, t, _ in walk(buf)[1:]:
-            if t not in (T_NAMED, T_INDEXED):
-                print('%s\t%s' % (q[1:], cell_text(buf, find(buf, q[1:]))))
+        for q in sorted(q for q, t, _ in walk(buf) if t in (T_BOOL, T_INT, T_FLOAT)):
+            print('%s\t%s' % (q[1:], cell_text(buf, find(buf, q[1:]))))
         return
     lines, mixed = ['\t'.join([name] + list(category['columns']))], []
     for row, places in sorted(stats_targets(category, data).items()):

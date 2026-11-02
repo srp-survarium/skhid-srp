@@ -79,8 +79,6 @@ pack	lobby-stk2-bunker@8	fdb36c8e3e9ec691769278f09c9b0e8f361d1049a1d36a1d707f613
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
-edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)
-edit	battery-pickup-1.json	-	battery pick-up 20 % faster (#221)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
 edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263)
 edit	death-poses-1.json	-	the face-down death pose out of the rifles' and pistols' death animations (the death camera looked into the arms)
@@ -120,4 +118,6 @@ edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun
 edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
 edit	weapon-stats.tsv	-	the weapons' stats, and their cards
 edit	dead-keys-1.json	-	the dead duplicate keys out (parameters/ copies of what the game reads in dispersion/, data/ and hit_params/); the unused exo back piece follows the armour rule
+edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
+edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

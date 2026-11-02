@@ -153,14 +153,6 @@ Applied to revision 22's live files: 6 files edited, 0 unexpected differences. W
 
 Removed: its text is in `client-patches/localization/*.tsv`.
 
-## battery-pickup-1.json (2026-10-20)
-
-| change | why |
-|---|---|
-| `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
-
-Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
-
 ## weapon-camo-1.json (2026-10-20)
 
 | change | why |
