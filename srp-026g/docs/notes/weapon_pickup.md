@@ -156,8 +156,10 @@
     a pickup another client sends;
   - Use's press sent as a pickup stays the pickup's until Use is let go (the
     crate or a battery under the body is not used by the same press);
-  - the gun of a drop taken is hidden on its body's ragdoll; a picked gun
-    in its dead holder's hands is drawn there (it is that body's drop);
+  - the gun of a drop taken is hidden on its body's ragdoll at its
+    picker's switch (until then drawn there, with no prompt; a cancel leaves
+    it there); a picked gun in its dead holder's hands is drawn there (it is
+    that body's drop);
   - a gun whose config has no name shows the text without one.
 - Status (2026-10-31): the shared rules (`crates/weapon-pickup`), the
   server's check and record shift, the instance (a gun cooked at each
@@ -573,7 +575,15 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   the body whose death this client saw last at that place (player object and
   spawn time +328h, kept with the place's record, not synced), are hidden
   as patch 78 hides a carrier's (out of the scene, the native draw skipped;
-  native on_hide gets them back). For an open drop the gun's pose is kept by
+  native on_hide gets them back). A taken drop's gun is hidden only once no
+  synced record's pending pickup names its place (`switching_from`): through
+  the holster it stays in the scene, with no prompt (the picked gun in first
+  person showed flat, lowest-mip textures for 5-6 s, 2026-11-02: the copy
+  shares the body's gun's textures by name (resource_manager::load_texture
+  0x3BE2D0), and only a model in the scene gives them a streaming instance
+  (scene::add_model 0x14FE60 -> gather_streamable_textures 0x1553C0); with
+  none, update_wanted_mips 0x1C2120 wants one mip; hiding the body's gun at
+  the command left none until the switch's on_show). For an open drop the gun's pose is kept by
   place (a Lock: mt_draw may run in tasks): the site's transform (EAX, row
   vectors) and its cooked gun's model box. Nothing of the body's own
   objects is read on the draw path (83b and 83c froze reading the body's

@@ -1156,6 +1156,8 @@ va	name	location	role	basis
 0x0014faa0	vostok::render::scene::`scalar deleting destructor'	ECX	scene receiver	inferred
 0x0014faa0	vostok::render::scene::`scalar deleting destructor'	stack+4	deletion flags	inferred
 0x0014fac0	vostok::render::scene::~scene	ECX	scene receiver	inferred
+0x0014fe60	vostok::render::scene::add_model	EDI	scene receiver; the model vector +9B358Ch (0x14FE67), then gather_streamable_textures 0x1553C0 (0x14FE9F): each surface's textures get a streaming instance	observed
+0x0014fe60	vostok::render::scene::add_model	entry ESP+4	the model pointer by value; released at the end (0x14FEA4..0x14FEC4); called from engine::world::add_model 0x118495	observed
 0x0014ff60	vostok::render::scene::remove_model	entry ESP+4	scene receiver; searches the model vector +9B358Ch/+9B3590h (0x14FF6C..0x14FF88)	observed
 0x0014ff60	vostok::render::scene::remove_model	entry ESP+8	the model pointer by value; erased from the vector (0x15019C..0x1501B4) and released (0x1501F2..0x150210)	observed
 0x00150270	vostok::render::scene::calculate_screen_factors	stack+4	scene receiver	inferred

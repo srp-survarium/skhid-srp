@@ -322,6 +322,13 @@ fn placed_at(thread: &Thread, world: WorldKey, place: Place) -> (Record, Option<
     })
 }
 
+/// Whether a pickup of the match waits for its switch with the gun of
+/// `place`'s drop (the synced records' pending pickups).
+fn switching_from(thread: &Thread, world: WorldKey, place: Place) -> bool {
+    RECORDS.with(thread, |records| records.iter().flatten()
+        .any(|p| p.world == world && p.record.pending.is_some_and(|w| w.from == place)))
+}
+
 fn update_placed(thread: &Thread, world: WorldKey, place: Place, f: impl FnOnce(&mut Record, &mut Option<Body>)) {
     RECORDS.with(thread, |records| {
         let slot = &mut records[usize::from(place.get())];
@@ -1452,7 +1459,11 @@ pub enum RagdollGun {
 /// `carry.weapon` for a dead player (composed from artefact_carry's
 /// on_weapon; locks only, no GameCell: mt_draw may run in a task): the gun
 /// in its hands is drawn, its own or a picked one; the gun of a drop taken
-/// is hidden on its ragdoll; the gun of an open drop is kept for the prompt
+/// is hidden on its ragdoll once its picker's switch is done (until then it
+/// stays in the scene: its textures, which the copy shares by name, keep a
+/// streaming instance until the copy is drawn in first person, instead of
+/// dropping to their lowest mips during the holster); the gun of an open
+/// drop is kept for the prompt
 /// (the site's transform and its copy's box: the same gun, of the record's
 /// recipe), the body being that drop's death's. Nothing of the body's own
 /// objects is read.
@@ -1465,10 +1476,11 @@ pub fn ragdoll_gun(ctx: &Context<'_>, player: &Player<'_>) -> RagdollGun {
         return RagdollGun::Shown;
     }
     match record.drop {
-        // Taken: hidden, and nothing left to aim at there.
+        // Taken: nothing left to aim at there; hidden once no pickup waits
+        // for its switch with it.
         DropState::Taken(_) => {
             SEEN.with(thread, |seen| seen[usize::from(place.get())] = None);
-            RagdollGun::Hidden
+            if switching_from(thread, world, place) { RagdollGun::Shown } else { RagdollGun::Hidden }
         }
         DropState::Open(gun) => {
             let pose = drop_box(thread, place, gun.recipe).and_then(|model| native::drawn_gun(ctx, model));
