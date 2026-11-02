@@ -339,6 +339,22 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The bots' body model at open sides (A269, `kin::Edge::ClientWalksOff`): its walks off them (`body::walk_off_open`, the reckoning's
+/// and the stop forecasts' alike: held on by a floor of its level, down onto the floor under, no floor under), and the lip guard asked
+/// only because of an open side, and of those the ticks it swapped or braked.
+pub(super) fn open_walks() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || {
+            let mut d = crate::v026g::bots::body::open_walks::counts();
+            d.extend(super::super::motor::counts::open_guards());
+            d
+        },
+        |d, line| {
+            line.ends.push(format!("open_walk_offs held/down/no_floor {}/{}/{} open_guard asked/changed {}/{}", d[0], d[1], d[2], d[3], d[4]));
+        },
+    )
+}
+
 /// The stand-in's body past a ledge's edge with no drop link ahead (`SRP_BENCH_STAND_IN_FALL`, `standin_jump::past_edge`): walked on
 /// within the support, fell to the floor below, no floor below.
 pub(super) fn edge_falls() -> Box<dyn RouteTopic> {

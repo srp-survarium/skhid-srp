@@ -145,6 +145,8 @@ pub struct Maps {
     grid: GridTuning,
     /// Whether the grids get their table of wall clearances ([`Tuning::needs_wall_clearance`] of the server's tuning).
     wall_clearance: bool,
+    /// The support their table of open sides is made for, if they get one ([`Tuning::needs_open_sides`] of the server's tuning).
+    open_sides: Option<f32>,
     /// At most this many maps in memory ([`AT_ONCE`]).
     at_once: usize,
     cache: Arc<Mutex<Cache>>,
@@ -207,11 +209,11 @@ impl Maps {
         built: Option<PathBuf>,
         grid: GridTuning,
     ) -> Arc<Self> {
-        Self::configured_for(dir, keep, at_once, built, grid, false)
+        Self::configured_for(dir, keep, at_once, built, grid, false, None)
     }
 
-    /// [`Maps::configured`], with the grids' table of wall clearances when `wall_clearance` (the server derives it from its tuning:
-    /// [`Tuning::needs_wall_clearance`]).
+    /// [`Maps::configured`], with the grids' table of wall clearances when `wall_clearance` and their table of open sides for the
+    /// support `open_sides` (the server derives both from its tuning: [`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]).
     pub fn configured_for(
         dir: Option<PathBuf>,
         keep: usize,
@@ -219,12 +221,14 @@ impl Maps {
         built: Option<PathBuf>,
         grid: GridTuning,
         wall_clearance: bool,
+        open_sides: Option<f32>,
     ) -> Arc<Self> {
         Arc::new(Self {
             dir,
             built,
             grid,
             wall_clearance,
+            open_sides,
             keep: keep.max(1),
             at_once: at_once.max(1),
             cache: Arc::default(),
@@ -311,13 +315,13 @@ impl Maps {
     fn spawn_build(&self, project: &str, path: PathBuf) {
         let (cache, builds) = (self.cache.clone(), self.builds.clone());
         let (keep, name) = (self.keep, project.to_owned());
-        let (built, grid, wall_clearance) = (self.built.clone(), self.grid.clone(), self.wall_clearance);
+        let (built, grid, wall_clearance, open_sides) = (self.built.clone(), self.grid.clone(), self.wall_clearance, self.open_sides);
         let spawned = std::thread::Builder::new()
             .name(format!("map {project}"))
             .spawn(move || {
                 let result = {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
-                    build(&path, built.as_deref(), &cache, &grid, wall_clearance)
+                    build(&path, built.as_deref(), &cache, &grid, wall_clearance, open_sides)
                 };
                 stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
@@ -540,6 +544,7 @@ fn build(
     cache: &Mutex<Cache>,
     grid_tuning: &GridTuning,
     wall_clearance: bool,
+    open_sides: Option<f32>,
 ) -> Result<(TacticsBase, Built), String> {
     let started = Instant::now();
     stage::set("reading the map file");
@@ -577,6 +582,11 @@ fn build(
                 // ([`Tuning::needs_wall_clearance`]):
                 // derived from the triangles, in neither the cached file nor the key, and 0.5-1.7 s of CPU a map.
                 let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+                // The table of open sides ([`WalkGrid::open_toward`]) likewise ([`Tuning::needs_open_sides`]).
+                let grid = match open_sides {
+                    Some(support_m) => grid.with_open_sides(&walker, support_m),
+                    None => grid,
+                };
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)

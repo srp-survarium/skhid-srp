@@ -80,6 +80,7 @@ use crate::sight::RayTree;
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod exact;
+mod open;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
 const GRAVITY: f32 = 9.8;
 /// A flight looks this many cells on for its landing ([`WalkGrid::flight_fall`]).
@@ -705,6 +706,10 @@ pub struct WalkGrid {
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
     clearance: Vec<u8>,
+    /// Per node, its open sides and whether it is near one ([`Self::open_toward`], [`Self::near_open_side`]): made by
+    /// [`Self::with_open_sides`] after the grid is built or read, from the map's triangles. In neither the file nor the digest. Empty
+    /// without it.
+    open: Vec<u16>,
 }
 
 /// The solid spans while the grid is built ([`WalkGrid::wall_beside`]):
@@ -944,6 +949,7 @@ impl WalkGrid {
             ik: Vec::new(),
             lip: Vec::new(),
             clearance: Vec::new(),
+            open: Vec::new(),
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
@@ -2082,6 +2088,7 @@ impl WalkGrid {
                     ik: Vec::new(),
                     lip: Vec::new(),
                     clearance: Vec::new(),
+                    open: Vec::new(),
                 };
                 grid.check()?;
                 let mut grid = grid;

@@ -161,6 +161,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         sprint_turns(),
         Box::new(turns::Turns::new(bodies)),
         Box::new(flights::Flights::new(bodies)),
+        open_walks(),
     ]
 }
 

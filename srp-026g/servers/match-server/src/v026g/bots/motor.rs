@@ -3549,6 +3549,18 @@ pub mod counts {
         std::array::from_fn(|k| LIP_GAPS[k].load(Ordering::Relaxed))
     }
 
+    static OPEN_GUARD: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    /// The lip guard asked only because of an open side (`kin::Edge::ClientWalksOff`, `WalkGrid::near_open_side`): asked, and of
+    /// those a swap or brake.
+    pub fn open_guard(changed: bool) {
+        OPEN_GUARD[usize::from(changed)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn open_guards() -> [u64; 2] {
+        std::array::from_fn(|k| OPEN_GUARD[k].load(Ordering::Relaxed))
+    }
+
     static SLIDES: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
 
     /// A refused side step of the reflex's own, asked the other side too: whether that side is clear (the

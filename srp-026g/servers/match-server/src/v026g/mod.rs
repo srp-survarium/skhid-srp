@@ -504,5 +504,5 @@ pub fn bot_maps(
     built: Option<std::path::PathBuf>,
     tuning: &bots::tuning::Tuning,
 ) -> Arc<bots::maps::Maps> {
-    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance())
+    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance(), tuning.needs_open_sides())
 }

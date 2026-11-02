@@ -178,8 +178,9 @@ impl World {
     }
 
     /// [`Self::build_with_links`], with the grid's table of wall clearances ([`WalkGrid::wall_clearance`]) when `wall_clearance`
-    /// is set (0.5-1.7 s a map).
-    pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool) -> Self {
+    /// is set (0.5-1.7 s a map), and its table of open sides ([`WalkGrid::open_toward`]) for a capsule held `support_m` past a
+    /// floor's centre at a ledge when `open_sides` is `Some(support_m)`.
+    pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool, open_sides: Option<f32>) -> Self {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let walker = map.walker_triangles();
         let (grid, _) = WalkGrid::build_kept_with_links(
@@ -192,6 +193,10 @@ impl World {
             links,
         );
         let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+        let grid = match open_sides {
+            Some(support_m) => grid.with_open_sides(&walker, support_m),
+            None => grid,
+        };
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }
