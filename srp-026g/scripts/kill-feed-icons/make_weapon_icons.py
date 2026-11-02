@@ -2,11 +2,14 @@
 """make_weapon_icons.py: the kill feed's weapon icons past the hud movie's 53 frames (2026-10-26;
 ../../docs/notes/kill-feed-icons.md "The ported weapons' icons").
 
-usage: python3 -I make_weapon_icons.py --hud-028d0 <hud.swf> --log-031a2 <folder> --out <folder>
+usage: python3 -I make_weapon_icons.py --hud-028d0 <hud.swf> --log-031a2 <folder> --log-069d0 <folder>
+           --out <folder>
 
 --hud-028d0  0.28d0's `flash_movies/hud.swf` (`vostok-port extract` from that build's resources.db)
 --log-031a2  a folder with 0.31a2's kill log icons `flash_movies/textures/ui_icons/log/icon_<n>.png`
              of LOG_031A2 (that build's split resources)
+--log-069d0  a folder with 0.69d0's kill log icons `icon_<icon + 1>.png` of the 0.69d0 weapons
+             ported (its split volumes; scripts/weapons-069)
 --out        srp-026g/flash/hud/bitmaps (flash_tree.py adds each <class>.png to the movie)
 
 A weapon's kill feed icon is its config's `ui_desc/combat_log_icon`, frame (icon + 1) of the hud's
@@ -16,7 +19,9 @@ number theirs on: 0.27d0 to 0.31a2 give each ported weapon the same icon. Combat
             art of the stock frames, which 0.28d0's clip keeps bit for bit);
   64 to 68, 70, 71, 72, 74  0.31a2's icon_<icon + 1>.png, its pixels as they are (0.31a2 loads its
             kill log icons from textures; 0.28d0's clip ends at 63), 70 on (weapons batch 1, pack
-            weapons-031) made 8-bit RGBA and not interlaced from their palette images.
+            weapons-031) made 8-bit RGBA and not interlaced from their palette images;
+  0.69d0's  its weapons' own numbers (LOG_069D0), its icon_<icon + 1>.png's pixels (as 8-bit RGBA,
+            as the movie build reads them).
 The sources' sha256 are checked.
 
 Needs Pillow.
@@ -55,6 +60,15 @@ LOG_031A2 = {
     74: ('4ce0a874d8b6bc9dc3851e3c848566c17343fb23b8ff2785938644eb0ac9e688', 'fn_minimi'),
 }
 
+# icon: the sha256 of 0.69d0's icon_<icon + 1>.png, the weapon (weapons-069)
+LOG_069D0 = {
+    85: ('60fa4254f6afe961de69e5952a54f141532c3a7a7616b7e120b2b2c5de16ace1', 'ks_23m'),
+    86: ('04f1ff18dd45c104ff63ca2a89663935380edb4e66ff83e4ebc0ac68a8856b41', 'mauser_m712'),
+    96: ('3a10803a935a0e8122ac748784b0106d70902dc1e0f0ec14129fee4e7759540b', 'akmsu'),
+    97: ('46293f0dd4a1b0c941476718abfe8cc0bc301201e788fa59b4f7e19345b48d95', 'famas'),
+    98: ('5ad5db73a151a8ae66addb4e267f9f8c4996c2df838a231055aea09d471d8bdf', 'g3sg1'),
+}
+
 
 def lossless2(body):
     """A DefineBitsLossless2 body (8-bit colour-mapped RGBA or 32-bit ARGB, premultiplied) as an
@@ -81,6 +95,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--hud-028d0', type=Path, required=True)
     parser.add_argument('--log-031a2', type=Path, required=True)
+    parser.add_argument('--log-069d0', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     data = args.hud_028d0.read_bytes()
@@ -93,20 +108,22 @@ def main():
             bitmaps[struct.unpack_from('<H', body)[0]] = body
     icons = {icon: lossless2(bitmaps[cid]) for icon, (cid, _) in FRAMES_028D0.items()}
     logs = {}
-    for icon, (digest, _) in LOG_031A2.items():
-        path = args.log_031a2 / f'icon_{icon + 1}.png'
-        logs[icon] = path.read_bytes()
-        if hashlib.sha256(logs[icon]).hexdigest() != digest:
-            sys.exit(f"{path}: not 0.31a2's icon_{icon + 1}.png (sha256 {hashlib.sha256(logs[icon]).hexdigest()})")
+    for build, folder, table in (('0.31a2', args.log_031a2, LOG_031A2), ('0.69d0', args.log_069d0, LOG_069D0)):
+        for icon, (digest, _) in table.items():
+            path = folder / f'icon_{icon + 1}.png'
+            logs[icon] = path.read_bytes()
+            if hashlib.sha256(logs[icon]).hexdigest() != digest:
+                sys.exit(f"{path}: not {build}'s icon_{icon + 1}.png (sha256 {hashlib.sha256(logs[icon]).hexdigest()})")
     args.out.mkdir(parents=True, exist_ok=True)
     for icon, image in icons.items():
         image.save(args.out / f'CombatLogWeapon{icon}.png', optimize=True)
     for icon, png in logs.items():
         image = Image.open(io.BytesIO(png))
-        if image.mode == 'RGBA' and not image.info.get('interlace'):
+        if icon not in LOG_069D0 and image.mode == 'RGBA' and not image.info.get('interlace'):
             (args.out / f'CombatLogWeapon{icon}.png').write_bytes(png)
         else:
-            # palette or interlaced (70 on): 8-bit RGBA, not interlaced, the build's bitmaps
+            # palette or interlaced (0.31a2's 70 on), or 0.69d0's (mostly colour-mapped): 8-bit RGBA,
+            # not interlaced, the same pixels, as the movie build reads them
             image.convert('RGBA').save(args.out / f'CombatLogWeapon{icon}.png', optimize=True)
     print(f'Wrote {args.out}/CombatLogWeapon<icon>.png for {sorted(icons) + sorted(logs)}')
 
