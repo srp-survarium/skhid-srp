@@ -287,6 +287,9 @@ LZMA2 raw stream, to the end of the message, decoding to <= 0x578A0 bytes:
     [srp's block]               "SRPX", then {u8 tag, u8 len, len bytes}... (srp): the stock
                                 reader stops at the squads; exe patch 65 reads tag 2, one byte
                                 1: Blackout (blackout.md; battery maps only);
+                                exe patch 95 tag 3, one byte: the countdown's
+                                seconds in place of the mode's (a player alone:
+                                5, rooms.md);
                                 tag 1 is kept for team damage (#370); sent only with an entry
 ```
 

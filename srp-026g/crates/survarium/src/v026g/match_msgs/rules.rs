@@ -31,7 +31,8 @@ pub struct TimelimitParams {
     pub match_ms: u32,
     /// `wait_time` × 60 000 (minutes): 300 000.
     pub wait_ms: u32,
-    /// `countdown_time` × 1000: 20 000.
+    /// `countdown_time` × 1000: 20 000; the static info's countdown
+    /// instead when it has one (exe patch 95, [`countdown`]).
     pub countdown_ms: u32,
     /// `wait_player_percent`: 0.8.
     pub fraction: f32,
@@ -40,12 +41,14 @@ pub struct TimelimitParams {
 }
 
 impl TimelimitParams {
-    /// The times of a map's mode config, for a roster of `roster` places.
-    pub fn of(map: &MapMode, roster: u8) -> Self {
+    /// The times of a map's mode config, for a roster of `roster` places,
+    /// with the static info's countdown (seconds) when it has one.
+    pub fn of(map: &MapMode, roster: u8, countdown: Option<u8>) -> Self {
+        let countdown = countdown.map_or(map.countdown_time, u32::from);
         Self {
             match_ms: map.match_time.saturating_mul(1_000),
             wait_ms: map.wait_time.saturating_mul(60_000),
-            countdown_ms: map.countdown_time.saturating_mul(1_000),
+            countdown_ms: countdown.saturating_mul(1_000),
             fraction: map.wait_player_percent,
             roster,
         }
@@ -55,6 +58,18 @@ impl TimelimitParams {
     pub fn players_needed(&self) -> u32 {
         players_needed(self.roster, self.fraction)
     }
+}
+
+/// The longest countdown of a match of one player alone, seconds (the
+/// owner's of 2026-11-02: "starting private 1vs0 shouldn't have awaiting
+/// match start timer (or it should have just 5 seconds of it top)").
+pub const ALONE_COUNTDOWN_SECONDS: u8 = 5;
+
+/// The countdown the static info gives a match whose only place is one
+/// player's (exe patch 95 plays it in place of the mode's): the mode's, at
+/// most [`ALONE_COUNTDOWN_SECONDS`]. `None`: the mode's is no longer.
+pub fn alone_countdown(map: &MapMode) -> Option<u8> {
+    (map.countdown_time > u32::from(ALONE_COUNTDOWN_SECONDS)).then_some(ALONE_COUNTDOWN_SECONDS)
 }
 
 /// `floor(N × fraction)`, in f32 as the client computes it
@@ -309,7 +324,42 @@ mod tests {
 
     fn params(roster: u8) -> TimelimitParams {
         // Map 61: level_01 day, mode 2.
-        TimelimitParams::of(maps::map_mode(61).unwrap(), roster)
+        TimelimitParams::of(maps::map_mode(61).unwrap(), roster, None)
+    }
+
+    #[test]
+    fn a_player_alone_counts_down_five_seconds_of_the_modes_twenty() {
+        let map = maps::map_mode(61).unwrap();
+        assert_eq!(map.countdown_time, 20);
+        assert_eq!(alone_countdown(map), Some(5));
+        let alone = TimelimitParams::of(map, 1, alone_countdown(map));
+        assert_eq!(
+            alone,
+            TimelimitParams {
+                countdown_ms: 5_000,
+                ..params(1)
+            }
+        );
+        let mut rule = TimelimitRule::new(alone);
+        rule.on_match_ready(50);
+        assert_eq!(
+            rule.on_player_entered(0, 1_000),
+            Some(Transition::CountdownStarted)
+        );
+        assert_eq!(rule.tick(5_900), None);
+        assert_eq!(rule.tick(6_000), Some(Transition::MatchStarted));
+        assert_eq!(rule.match_started_at(), Some(6_000));
+        // A mode of a shorter countdown keeps its own.
+        let short = maps::MapMode {
+            countdown_time: 5,
+            ..*map
+        };
+        assert_eq!(alone_countdown(&short), None);
+        let shorter = maps::MapMode {
+            countdown_time: 1,
+            ..*map
+        };
+        assert_eq!(alone_countdown(&shorter), None);
     }
 
     #[test]

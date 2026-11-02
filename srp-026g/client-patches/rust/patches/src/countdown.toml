@@ -1,0 +1,20 @@
+# Patch 95: a match's countdown from its static info (srp's block, tag 3), in
+# place of the mode's: a player alone counts down 5 s, not 20. The sites are
+# sites_026g.tsv's; the logic is countdown.rs. The options reads are patches
+# 65's, 86's, 83's and 88's too: this patch's hooks run after theirs (order 4).
+name = "countdown"
+patch = 95
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 4
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 4
+
+[[hook]]
+site = "timelimit.made"
+handler = "on_rule_made"

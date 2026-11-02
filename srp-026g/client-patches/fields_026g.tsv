@@ -549,3 +549,8 @@ scaleform::di_command_queue	references	0x4	u32	its reference count (RefCountImpl
 scaleform::di_command_queue	context	0x34	ptr<scaleform::drawable_image_context>	its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
 scaleform::render_notify	vtable	0x0	u32	a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
 scaleform::di_command_queue	link	0x0	obj<scaleform::di_queue_link>	itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+survarium::match_options	srp_countdown_mark	0x57874	u32	patch 95's mark: the 4 bytes after patch 65's in the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRCD" when the static info has a countdown (srp's block, tag 3), else 0
+survarium::match_options	srp_countdown	0x57878	u32	patch 95's countdown in milliseconds, the next 4 bytes of the "Mode" string: what the mark says is there
+survarium::timelimit_rule_core	countdown	0x140	u32	the countdown, ms: the mode config's countdown_time x 1000 (the constructor 0x317DA0 stores it at 0x317E92; logic_tick 0x31813C..0x31814D reads it)
+survarium::timelimit_ctor_frame	cook	0x8	ptr<survarium::rule_cook_data>	timelimit_rule_core's constructor's argument (EBP+8; 0x317DA7): the rule cook's data (timelimit_rule::timelimit_rule 0x267A40 passes its EAX, create_resource 0x206670 its second argument)
+survarium::rule_cook_data	options	0x0	ptr<survarium::match_options>	the match's options (the constructor reads N at +577B5h through it, 0x317E0A)

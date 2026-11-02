@@ -103,7 +103,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
     assert!(discards(&bench.clients[0]).is_empty());
     assert!(bench.clients[0].relays_of(0).is_empty());
 
-    // 20 s of countdown, then play.
+    // 5 s of countdown (a player alone, exe patch 95), then play.
     bench.run_long(20_000);
     assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
     // Worlds are asked for now and then, and the client's own reports
@@ -115,7 +115,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
     assert!(bench.results.try_recv().is_err());
 
     // 900 s of play, then the end: the client is told it left.
-    bench.run_long(895_000);
+    bench.run_long(880_000);
     assert!(!bench.clients[0].closed);
     assert!(bench.until(20_000, |bench| bench.clients[0].closed));
     let result = bench.results.try_recv().expect("the match's result");
@@ -129,7 +129,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
     assert_eq!(result.trusted_by, 1);
     let played = result.played_ms.expect("play began");
     assert!((900_000..903_500).contains(&played), "{played}");
-    assert!(result.duration_ms > 920_000);
+    assert!(result.duration_ms > 905_000);
     assert!(result.trusted_snapshot_ms.unwrap() + 3_000 > result.duration_ms);
     let player = &result.players[0];
     assert_eq!(

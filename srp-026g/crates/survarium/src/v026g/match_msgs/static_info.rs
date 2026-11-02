@@ -18,7 +18,8 @@
 //! after them ("SRPX", then tagged entries) is read by exe patches only:
 //! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
 //! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
-//! 0x1F096C); tag 1 is kept for team damage (#370).
+//! 0x1F096C); tag 3 the match's countdown (patch 95, the same readers);
+//! tag 1 is kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -336,6 +337,11 @@ pub struct MatchOptions {
     /// `docs/notes/blackout.md`): no interface for anyone, the players'
     /// markers on Tab. `false`: the entry not sent.
     pub blackout: bool,
+    /// The countdown before play, seconds, in place of the mode's
+    /// `countdown_time` (srp's block, tag 3; exe patch 95): a match of one
+    /// player's ([`super::rules::countdown`]). `None`: the mode's, the entry
+    /// not sent.
+    pub countdown: Option<u8>,
 }
 
 /// srp's block after the options: its magic, then tagged entries
@@ -343,6 +349,8 @@ pub struct MatchOptions {
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
 /// The entry of [`MatchOptions::blackout`]: one byte, 1.
 pub const SRPX_BLACKOUT: u8 = 2;
+/// The entry of [`MatchOptions::countdown`]: one byte, the seconds.
+pub const SRPX_COUNTDOWN: u8 = 3;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -641,6 +649,9 @@ pub fn options_bytes(
     if options.blackout {
         block.extend([SRPX_BLACKOUT, 1, 1]);
     }
+    if let Some(seconds) = options.countdown {
+        block.extend([SRPX_COUNTDOWN, 1, seconds]);
+    }
     if !block.is_empty() {
         out.extend(SRPX_MAGIC);
         out.extend(block);
@@ -877,7 +888,10 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let blackout = read_srp_block(&mut reader)?;
+    let SrpBlock {
+        blackout,
+        countdown,
+    } = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -899,19 +913,27 @@ pub fn parse_options(
         match_level,
         score_weights,
         blackout,
+        countdown,
     })
 }
 
-/// srp's block after the options, if any: as patch 65's reader reads it, but
+/// What srp's block after the options says.
+#[derive(Default)]
+struct SrpBlock {
+    blackout: bool,
+    countdown: Option<u8>,
+}
+
+/// srp's block after the options, if any: as patches 65 and 95 read it, but
 /// strict (an unknown tag or a short entry is refused, so a test sees it).
-fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
+fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
+    let mut block = SrpBlock::default();
     if reader.bytes.is_empty() {
-        return Ok(false);
+        return Ok(block);
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    let mut blackout = false;
     while !reader.bytes.is_empty() {
         let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
         let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
@@ -921,11 +943,12 @@ fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
                 .map_err(|_| StaticInfoError::SrpBlock)?,
         };
         match (tag, len) {
-            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
+            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => block.blackout = true,
+            (SRPX_COUNTDOWN, 1) => block.countdown = Some(entry.u8()?),
             _ => return Err(StaticInfoError::SrpBlock),
         }
     }
-    Ok(blackout)
+    Ok(block)
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -1007,7 +1030,32 @@ mod tests {
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
             blackout: false,
+            countdown: None,
         }
+    }
+
+    #[test]
+    fn the_countdown_is_an_entry_of_the_block_and_reads_back() {
+        let mut with = options(vec![alice()]);
+        let without = options_bytes(&with, dictionary()).unwrap();
+        with.countdown = Some(5);
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(bytes[..without.len()], without[..]);
+        assert_eq!(bytes[without.len()..], b"SRPX\x03\x01\x05"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // With Blackout: both entries, Blackout's first.
+        with.blackout = true;
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01\x03\x01\x05"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with));
+        // Another length: refused.
+        assert_eq!(
+            parse_options(
+                &[&without[..], b"SRPX\x03\x02\x05\x00"].concat(),
+                dictionary()
+            ),
+            Err(StaticInfoError::SrpBlock)
+        );
     }
 
     #[test]

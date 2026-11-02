@@ -486,6 +486,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- countdown (patch 95) ----
+
+/// The entry `countdown_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_countdown_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `countdown_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::countdown::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -540,6 +555,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- countdown (patch 95) ----
+
+/// The entry `countdown_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_countdown_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `countdown_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::countdown::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -675,6 +705,21 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::consumable_activity::on_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- countdown (patch 95) ----
+
+/// The entry `countdown_on_rule_made` (0x317ea7, timelimit_rule_core's constructor (0x317DA0) with the mode's times stored (the countdown at +140h, 0x317E92; N at +14Ch), at its test of wait_player_percent's type (cmp word [eax+14h],2; the jnz at 0x317EAC reads its flags): ESI the rule, EBP its frame (the cook's data at +8); every game world's, a match's and a replay's, once as it is made) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_countdown_on_rule_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `countdown_on_rule_made` calls this, from the game's jump at 0x317ea7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::countdown::on_rule_made(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2015,6 +2060,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_countdown_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -2027,6 +2074,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_countdown_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }

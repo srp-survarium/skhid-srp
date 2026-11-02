@@ -934,7 +934,11 @@ impl Game {
     /// A match whose clients connect to `port`.
     pub fn new(formed: Arc<Formed>, port: u16, settings: Settings, now: Instant) -> Self {
         let players = formed.places.len();
-        let rule = TimelimitRule::new(TimelimitParams::of(formed.map, players as u8));
+        let rule = TimelimitRule::new(TimelimitParams::of(
+            formed.map,
+            players as u8,
+            formed.countdown,
+        ));
         let walkers = driven::Walkers::new(&formed, &settings);
         Self {
             id: formed.match_id,

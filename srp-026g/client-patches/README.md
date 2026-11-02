@@ -123,6 +123,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
+| `rust/patches/src/countdown.rs`, `src/countdown.toml`, `src/vostok/timelimit.rs`, `src/vostok/options.rs`, `check_countdown_026g.py` | Patch 95: a match's countdown from its static info (srp's block, tag 3), in place of the mode's 20 s: a player alone counts down 5 s (`../docs/notes/rooms.md`); the two options reads keep it in the options, a lohook in timelimit_rule_core's constructor (`timelimit.made`) puts it in the rule; its check runs both in the patched exe beside the original (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -4136,3 +4137,17 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+## A player alone counts down 5 s (patch 95, unreleased)
+
+A match whose one place is one player's (a private room's 1 v 0) shows "Awaiting match start" for
+5 s, not the mode's 20 (the owner, 2026-11-02; `../docs/notes/rooms.md`). The countdown is the
+client's own: `timelimit_rule_core`'s constructor (0x317DA0) takes it from the mode's config
+(`countdown_time`, +140h), never from the match options. The server now sends it in srp's block
+after the options (tag 3, one byte, the seconds) for that match alone; the Rust `countdown` patch
+keeps it in the options when they are read (0xE4's and a replay's, patch 65's sites) and puts it
+in the rule as it is made (a lohook at 0x317EA7, the mode's times stored). A match's computation
+changes for that match only: every game of it, a late joiner's too, gets the same entry; an older
+match's replay has none and counts 20 s as it was played. `../docs/notes/client_patch.md` section
+3.62 has the evidence. `check_countdown_026g.py` runs both in the patched exe beside the original.
+**Not run in a game.**

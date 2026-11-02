@@ -96,6 +96,7 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         match_level: 1,
         score_weights: [0.0; SCORE_EVENTS],
         blackout: false,
+        countdown: None,
     };
     let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
     let note =

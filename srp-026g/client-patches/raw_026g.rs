@@ -580,6 +580,24 @@ impl MatchOptions {
     pub unsafe fn seed(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x577b0).cast::<u32>().as_ptr() }
     }
+
+    /// +0x57874 (u32): patch 95's mark: the 4 bytes after patch 65's in the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRCD" when the static info has a countdown (srp's block, tag 3), else 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn srp_countdown_mark(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x57874).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x57878 (u32): patch 95's countdown in milliseconds, the next 4 bytes of the "Mode" string: what the mark says is there
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn srp_countdown(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x57878).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::player (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10673,6 +10691,96 @@ impl RenderNotify {
     }
 }
 
+/// A survarium::timelimit_rule_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimelimitRuleCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TimelimitRuleCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x140 (u32): the countdown, ms: the mode config's countdown_time x 1000 (the constructor 0x317DA0 stores it at 0x317E92; logic_tick 0x31813C..0x31814D reads it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn countdown(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x140).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::timelimit_ctor_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimelimitCtorFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TimelimitCtorFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<survarium::rule_cook_data>): timelimit_rule_core's constructor's argument (EBP+8; 0x317DA7): the rule cook's data (timelimit_rule::timelimit_rule 0x267A40 passes its EAX, create_resource 0x206670 its second argument)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook(self) -> Option<RuleCookData> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<RuleCookData>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::rule_cook_data>): timelimit_rule_core's constructor's argument (EBP+8; 0x317DA7): the rule cook's data (timelimit_rule::timelimit_rule 0x267A40 passes its EAX, create_resource 0x206670 its second argument)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cook(self, value: Option<RuleCookData>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<RuleCookData>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::rule_cook_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RuleCookData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RuleCookData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::match_options>): the match's options (the constructor reads N at +577B5h through it, 0x317E0A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn options(self) -> Option<MatchOptions> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MatchOptions>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::match_options>): the match's options (the constructor reads N at +577B5h through it, 0x317E0A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_options(self, value: Option<MatchOptions>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MatchOptions>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -12910,6 +13018,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn queue(machine: &impl Machine) -> Option<DiCommandQueue> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(DiCommandQueue)
+        }
+    }
+
+    /// timelimit.made (0x317ea7): timelimit_rule_core's constructor (0x317DA0) with the mode's times stored (the countdown at +140h, 0x317E92; N at +14Ch), at its test of wait_player_percent's type (cmp word [eax+14h],2; the jnz at 0x317EAC reads its flags): ESI the rule, EBP its frame (the cook's data at +8); every game world's, a match's and a replay's, once as it is made
+    pub mod timelimit_made {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::timelimit_rule_core (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn rule(machine: &impl Machine) -> Option<TimelimitRuleCore> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(TimelimitRuleCore)
+        }
+
+        /// EBP: a survarium::timelimit_ctor_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<TimelimitCtorFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(TimelimitCtorFrame)
         }
     }
 }

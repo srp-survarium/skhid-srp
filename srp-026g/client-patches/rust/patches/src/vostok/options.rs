@@ -65,4 +65,57 @@ impl<'t> OptionsRead<'t> {
         // unused "Mode" string.
         unsafe { *self.options.srp_blackout() = if blackout { mark } else { 0 } }
     }
+
+    /// Patch 95's countdown kept in the options, for the time rule made from
+    /// them ([`super::timelimit::MadeRule`]): "SRCD" and the milliseconds,
+    /// else zeros.
+    pub fn set_countdown(&mut self, countdown: Option<Countdown>) {
+        let (mark, ms) = countdown.map_or((0, 0), |countdown| (COUNTDOWN_MARK, countdown.ms()));
+        // SAFETY: the options are alive for the hook; both words are in their
+        // unused "Mode" string.
+        unsafe {
+            *self.options.srp_countdown_mark() = mark;
+            *self.options.srp_countdown() = ms;
+        }
+    }
+}
+
+/// Patch 95's mark: a countdown follows it.
+const COUNTDOWN_MARK: u32 = u32::from_le_bytes(*b"SRCD");
+
+/// The countdown patch 95 kept in `options` ([`OptionsRead::set_countdown`]).
+///
+/// # Safety
+/// `options` are alive while it reads.
+pub(super) unsafe fn countdown(options: raw::MatchOptions) -> Option<Countdown> {
+    // SAFETY: the caller's; both words are in the unused "Mode" string.
+    let (mark, ms) = unsafe { (*options.srp_countdown_mark(), *options.srp_countdown()) };
+    (mark == COUNTDOWN_MARK).then_some(Countdown(ms))
+}
+
+/// The countdown before play, in the simulation's milliseconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Countdown(u32);
+
+impl Countdown {
+    pub fn from_seconds(seconds: u8) -> Countdown {
+        Countdown(u32::from(seconds) * 1_000)
+    }
+
+    pub fn ms(self) -> u32 {
+        self.0
+    }
+}
+
+/// The entries of srp's block after the options (`rest`): its magic "SRPX",
+/// then `{u8 tag, u8 len, len bytes}` each; another magic is no entry, a cut
+/// entry ends them.
+pub fn srp_entries<'a>(mut rest: Reader<'a>) -> impl Iterator<Item = (u8, &'a [u8])> {
+    if rest.array::<4>() != Some(*b"SRPX") {
+        rest = Reader::new(&[]);
+    }
+    core::iter::from_fn(move || {
+        let (tag, len) = (rest.u8()?, rest.u8()?);
+        Some((tag, rest.take(usize::from(len))?))
+    })
 }

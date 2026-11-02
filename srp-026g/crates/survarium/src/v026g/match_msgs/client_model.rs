@@ -631,6 +631,7 @@ mod tests {
             match_level: 0,
             score_weights: SCORE_WEIGHTS,
             blackout: false,
+            countdown: None,
         };
         StaticInfo::new(&options, dictionary()).unwrap()
     }

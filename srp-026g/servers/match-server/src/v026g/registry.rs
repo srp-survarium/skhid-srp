@@ -16,6 +16,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, MapMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
+use survarium::v026g::match_msgs::rules;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
@@ -199,6 +200,9 @@ pub(crate) struct Formed {
     /// Whether the static info says Blackout (exe patch 65), the same for a
     /// late joiner's.
     pub blackout: bool,
+    /// The static info's countdown (exe patch 95, [`rules::alone_countdown`]),
+    /// the same for a late joiner's; `None`: the mode's.
+    pub countdown: Option<u8>,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -455,6 +459,11 @@ impl MatchRegistry {
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
         let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
+        // One player alone (a private room's 1 v 0): a short countdown.
+        let countdown = match setup.players.as_slice() {
+            [only] if !only.bot && !only.driven => rules::alone_countdown(map),
+            _ => None,
+        };
         let options = MatchOptions {
             players: setup
                 .players
@@ -466,6 +475,7 @@ impl MatchRegistry {
             match_level: setup.match_level,
             score_weights,
             blackout,
+            countdown,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -492,6 +502,7 @@ impl MatchRegistry {
                 profiles,
                 score_weights,
                 blackout: options.blackout,
+                countdown,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -607,6 +618,7 @@ impl MatchRegistry {
                 match_level: next.match_level,
                 score_weights: next.score_weights,
                 blackout: next.blackout,
+                countdown: next.countdown,
             },
             Dictionary::shared(),
         )

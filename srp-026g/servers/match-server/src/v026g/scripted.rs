@@ -91,7 +91,7 @@ pub struct Sim {
 impl Sim {
     pub fn new(players: usize, map_id: u8) -> Self {
         let map = maps::map_mode(map_id).expect("a map of the tests");
-        let mut base = TimelimitRule::new(TimelimitParams::of(map, players as u8));
+        let mut base = TimelimitRule::new(TimelimitParams::of(map, players as u8, None));
         base.on_match_ready(INITIAL_MS);
         Self {
             players,
@@ -970,6 +970,14 @@ impl Client {
                     payload.extend(reply.stamp.to_le_bytes());
                     payload.extend(reply.client_ms.to_le_bytes());
                     self.send(id::TIME_REPLY, &payload, false);
+                }
+            }
+            ServerMessage::StaticInfo { .. } => {
+                // Patch 95: the static info's countdown, the rule made after it.
+                if let Some(options) = &self.model.options {
+                    let map = maps::map_mode(self.sim.map_id).expect("a map of the tests");
+                    let roster = self.sim.base.params.roster;
+                    self.sim.base.params = TimelimitParams::of(map, roster, options.countdown);
                 }
             }
             ServerMessage::Snapshot { time, body, .. } => {

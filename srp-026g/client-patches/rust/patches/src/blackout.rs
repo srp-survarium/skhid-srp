@@ -30,12 +30,10 @@
 use crate::vostok::{clock, parse::Reader};
 use crate::vostok::{
     ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NameVisibility, NoExit, OptionsRead,
-    TabTest, Thread,
+    TabTest, Thread, srp_entries,
 };
 
-/// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
-const SRPX: [u8; 4] = *b"SRPX";
-/// The Blackout entry: one byte, 1.
+/// The Blackout entry of srp's block: one byte, 1.
 const TAG_BLACKOUT: u8 = 2;
 
 /// Tab held stops these: the moves and the acts.
@@ -103,18 +101,8 @@ static ICONS_TOLD: GameCell<Told> = GameCell::new(NONE_TOLD);
 /// Whether srp's block (the bytes after the options' squads) says Blackout:
 /// its magic, then entries; an entry of another tag or length is stepped
 /// over, a cut one ends the block.
-pub fn blackout_in(mut rest: Reader) -> bool {
-    if rest.array::<4>() != Some(SRPX) {
-        return false;
-    }
-    let mut on = false;
-    while let (Some(tag), Some(len)) = (rest.u8(), rest.u8()) {
-        let Some(entry) = rest.take(usize::from(len)) else { break };
-        if tag == TAG_BLACKOUT && entry == [1] {
-            on = true;
-        }
-    }
-    on
+pub fn blackout_in(rest: Reader) -> bool {
+    srp_entries(rest).any(|(tag, entry)| tag == TAG_BLACKOUT && entry == [1])
 }
 
 /// The input's action mask as built, and the acts held through Tab: what

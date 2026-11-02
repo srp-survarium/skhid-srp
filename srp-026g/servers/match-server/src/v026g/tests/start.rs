@@ -190,6 +190,47 @@ fn a_room_match_of_one_player_plays_1_v_0() {
     bench.assert_no_faults();
 }
 
+/// A player alone counts down 5 s, not the mode's 20 (the owner's of
+/// 2026-11-02; exe patch 95): the static info says it, and the server's rule
+/// and the game's start play together.
+#[test]
+fn a_player_alone_counts_down_five_seconds() {
+    let mut bench = Bench::room(&[0], MAP_BATTERIES, Settings::default(), 1);
+    bench.join(0);
+    let options = bench.clients[0].model.options.as_ref().unwrap();
+    assert_eq!(options.countdown, Some(5));
+    assert!(bench.until(2_000, |b| b.game().rule_state() == state::COUNTDOWN));
+    assert!(bench.until(5_500, |b| b.game().rule_state() == state::IN_PROCESS));
+    assert_eq!(play_after_entry(&bench, 0), Some(5_000));
+    bench.assert_no_faults();
+}
+
+/// How long after the first entry (the countdown's start: a roster of one or
+/// two needs one player) the place's game began play.
+fn play_after_entry(bench: &Bench, place: usize) -> Option<u32> {
+    let entry = bench.game().events().iter().map(|(at, _, _)| *at).min()?;
+    let rule = bench.clients[place].sim.rule_at(bench.clock());
+    Some(rule.match_started_at()? - entry)
+}
+
+/// Two players or more keep the mode's countdown, 20 s.
+#[test]
+fn two_players_count_down_the_modes_twenty_seconds() {
+    let mut bench = Bench::room(&[0, 1], MAP_BATTERIES, Settings::default(), 2);
+    bench.join(0);
+    bench.join(1);
+    for client in &bench.clients {
+        assert_eq!(client.model.options.as_ref().unwrap().countdown, None);
+    }
+    assert!(bench.until(2_000, |b| b.game().rule_state() == state::COUNTDOWN));
+    bench.run_long(15_000);
+    assert_eq!(bench.game().rule_state(), state::COUNTDOWN);
+    assert!(bench.until(5_500, |b| b.game().rule_state() == state::IN_PROCESS));
+    assert_eq!(play_after_entry(&bench, 0), Some(20_000));
+    assert_eq!(play_after_entry(&bench, 1), Some(20_000));
+    bench.assert_no_faults();
+}
+
 /// With a minimum of one no side needs a player: a match whose other side
 /// never comes starts with the one who is in once the start wait is over
 /// (stand-ins for the places that did not come), where a minimum of two

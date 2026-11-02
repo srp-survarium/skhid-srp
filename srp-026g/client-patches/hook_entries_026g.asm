@@ -1389,6 +1389,45 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x317ea7 timelimit_rule_core's constructor (0x317DA0) with the mode's times stored (the countdown at +140h, 0x317E92; N at +14Ch), at its test of wait_player_percent's type (cmp word [eax+14h],2; the jnz at 0x317EAC reads its flags): ESI the rule, EBP its frame (the cook's data at +8); every game world's, a match's and a replay's, once as it is made: lohook -> countdown_on_rule_made
+global countdown_on_rule_made
+extern hook_countdown_on_rule_made
+countdown_on_rule_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_countdown_on_rule_made
+    mov edx, countdown_on_rule_made_replay
+    cmp eax, 0
+    je countdown_on_rule_made_go
+    mov edx, 0x317eac
+    cmp eax, 1
+    je countdown_on_rule_made_go
+    ud2
+countdown_on_rule_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+countdown_on_rule_made_replay:
+    db 0x66, 0x83, 0x78, 0x14, 0x02
+    jmp 0x317eac
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied

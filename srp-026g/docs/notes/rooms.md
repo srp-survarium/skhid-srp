@@ -179,6 +179,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     a lone member left idle plays no match after match.
   - The match server is told a minimum of 1 (`MatchSetup::room_minimum`): no side needs a
     player; called off only with nobody in it (`match.md` §34).
+  - **Alone, 5 s of countdown** (the owner's of 2026-11-02: "starting private 1vs0 shouldn't
+    have awaiting match start timer (or it should have just 5 seconds of it top)"): a match whose
+    one place is one player's (no bot) shows "Awaiting match start" 5 s, not the mode's 20; a
+    match of two places or more keeps the mode's. The server sends it in the static info (srp's
+    block, tag 3) and exe patch 95 plays it (`rules::alone_countdown`).
   - It pays nothing, as every PIN room's match ("A PIN: no rewards", above).
   - Its info line and banner say no "N v N" (the banner: members / 20); the list never did.
   - **No max level** (the owner's of 2026-10-26: "private room shouldn't have max level

@@ -52,6 +52,7 @@ mod rt;
 pub mod sound;
 pub mod settings;
 mod sync;
+mod timelimit;
 pub mod trace;
 pub mod types;
 mod upgrades;
@@ -91,7 +92,8 @@ pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, U
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::OptionsRead;
+pub use options::{Countdown, OptionsRead, srp_entries};
+pub use timelimit::MadeRule;
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
