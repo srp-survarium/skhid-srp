@@ -1,5 +1,8 @@
 # Weapons from 0.46c2 (pack weapons-046)
 
+Balance retune: [Zubr +8 comparison and proposed roles](imported_weapon_balance.md).
+The balance figures below describe the initial import.
+
 Release 41, batches 2 and 2b (the owner, 2026-11-01): ten guns of retail 0.46c2 (April 2017) that live
 Skhid lacks, as new items. No premium or skin copies. Every number below is a proposal: the owner
 balances "around the current balance".

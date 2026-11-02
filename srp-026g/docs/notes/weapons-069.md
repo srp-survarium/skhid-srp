@@ -1,5 +1,8 @@
 # The 0.69d0 weapons (packs weapons-069, weapons-069-camo)
 
+Balance retune: [Zubr +8 comparison and proposed roles](imported_weapon_balance.md).
+The balance figures below describe the initial import.
+
 Six guns only retail 0.69d0 has, and the KS-23M's ammo, for release 41 (batch 4 of the
 owner's weapon batches, 2026-11-01). Built by `scripts/weapons-069/make_pack.sh` with
 resource-porter's shared weapon core, 0.69d0 as its donor (`port-weapons-069d`,
