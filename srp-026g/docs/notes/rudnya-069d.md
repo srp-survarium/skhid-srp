@@ -30,7 +30,9 @@ pack `rudnya-069d@3`. The owner's asks: port it "with the same sharp look" (2026
   station's annex and the bus stop per area (`area_gains`). 0.26's atmosphere and the
   ambient sounds are native Rudnya's (the two maps share coordinates).
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
-  team 1: 92); each point's own invulnerability time and check radii.
+  team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
+  map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
+  20 m from enemies.
 - Names: `st_level_14_name` (the game's texts) and `st_srp_map_rudnya_v069` (the rooms and
   the Matches window), "Rudnya (v0.69)" in each language as the v0.11 ports name theirs.
 - Lobby: the rooms' tile and the loading picture are 0.69d's own loading image for its

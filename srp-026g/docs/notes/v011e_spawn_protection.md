@@ -10,7 +10,7 @@ The owner's rule and what it changes. Data: `projects/<map>/<project>/client_pro
   (v0.11) `v011e_level_04` (map_id 12, 44 points), both projects of each: `day_2` (Protective
   device) and `day_4` (Team Deathmatch). 174 values.
 - **Values:** `invulnerability_time` 2 -> 6 (an int, kept), as every respawn point of 0.26g's own
-  maps and of the 0.21d ports (level_09's Team Deathmatch has 3). One byte a point.
+  maps and of the 0.21d ports (level_09's Team Deathmatch too, 3 -> 6 since maps.tsv). One byte a point.
 - **Not changed (the owner's choice):** no base `effect_zone` is added and no
   `ally_check_radius` / `enemy_check_radius` (both stay 0, the loader's default).
 - **Why it was 2 s:** 0.11e authored `invulnerability_time = 2000` (ms; its loader kept it as is);
