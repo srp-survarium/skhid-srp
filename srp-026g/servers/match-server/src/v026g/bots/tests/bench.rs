@@ -17,6 +17,8 @@ struct LookTrack {
 
 impl BenchEvents {
     pub(crate) fn open(level: u8, mode: u8, per_team: usize) -> Self {
+        // Another match's last spot-memory changes on this thread are not this one's.
+        crate::v026g::bots::concede::take_logged();
         Self(
             bench_settings().var_os("SRP_BENCH_EVENTS").map(|dir| {
                 let path = std::path::Path::new(&dir)
@@ -55,6 +57,16 @@ impl BenchEvents {
             }
         }
         self.2 = game.traps.events.len();
+    }
+
+    /// The changes of the teams' spot memories since the last call (`threat.concede`), one line each: the team, the area's
+    /// shooter, the cause and the change, the area's centre and when its concede or kept tries end. Taken every tick (with
+    /// no events folder too), so the list stays short.
+    pub(crate) fn concedes(&mut self) {
+        for c in crate::v026g::bots::concede::take_logged() {
+            let at = [(c.centre.x * 10.0).round() / 10.0, (c.centre.z * 10.0).round() / 10.0];
+            self.line(serde_json::json!({"t": c.at, "concede": {"team": c.team, "shooter": c.shooter, "cause": c.cause, "change": format!("{:?}", c.change), "at": at, "until": c.until}}));
+        }
     }
 
     /// The containers once (team, x, z), for the thefts' distances.
@@ -1355,6 +1367,7 @@ pub(crate) fn real_bot_cost() {
                     }
                     events.looks(clock, &game, &bots);
                     events.traps(&game);
+                    events.concedes();
                     for (team, &held) in holding.iter().enumerate() {
                         let home = game.batteries.iter().any(|b| {
                             matches!(*b, Lying::Home(id)
