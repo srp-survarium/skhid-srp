@@ -849,3 +849,46 @@ update changes what a match computes.
 - TODO: #1001 Content: 0.31a2's lower screen shake (shake-031-1)
 - TODO: #1011 Content: HK416 and M4A1 kick nearer the AK-12 (recoil-hk416-m4a1-1)
 - TODO: #1031 Revert #1011 (HK416/M4A1 recoil) for revision 41
+
+## 2 Nov, 03:58 — TODO: the owner's words (update required)
+
+<!-- Revision 42 (026g-rev42), released 2026-11-02 03:58 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1026 Admin chat mute: a muted account's lines reach nobody, it is told why
+- TODO: #1037 Put #1011 (HK416/M4A1 recoil) back after revision 41
+- TODO: #1032 Weapon stats as a table (weapon-stats.tsv); cards written from the configs
+- TODO: #1041 Readers of content.tsv edit rows skip stats tables
+- TODO: #1044 Admin page: the level field's label says 0 to 100
+- TODO: #1028 Scaleform: the render thread's capture walk never reaches a queue being destroyed (patch 93)
+- TODO: #1034 Weapon reload rolls: checked, they work as the card shows (notes + re-kit)
+- TODO: #1046 Shotguns: Saiga-12 and Vepr-12 armour piercing 0.1 -> 0.3
+- TODO: #1043 Dead duplicate keys out of the item configs (dead-keys-1)
+- TODO: #1048 A-545: damage 50 and 900 rounds a minute again
+- TODO: #1047 Stats tables: list rows, several files a row, entry selectors, key/value tables
+- TODO: #1033 Lobby: hold Alt to see a weapon's stats with kit and skills
+- TODO: #988 Room lobby: camp @18, no hard-edged ambient boxes at the ceiling
+- TODO: #1052 Site: serve every file of damage/ (Rudnya's render was not served)
+- TODO: #1045 Patch 85: fix the rev41 late-join desync, simplify the pickup's ammo
+- TODO: #1049 Fit the rooms' Leave on Play in every language
+- TODO: #1050 re-kit: one name for the weapon states' get_weapon_lexeme
+- TODO: #1054 Home page: trimmed download steps, then a short FAQ
+- TODO: #1063 Check that a resync converges: world load+save round trip
+- TODO: #1040 Shop: smooth Hide owned tick, Hide owned beside Comparing items, no sort (always by level)
+- TODO: #1061 Skhid-collect-logs.cmd: logs and the game folder's state in one ZIP to send
+- TODO: #1056 Bug-report Discord invite: discord.gg/QUmJg3gBhg
+- TODO: #1065 Ragdolls: rest on the bullet collision too (dropped guns no longer sink on Rudnya)
+- TODO: #1055 Ammo and throwables as tables (ammo.tsv, throwables.tsv)
+- TODO: #1066 Maps: the game's minimap by default, the render on the player's pick
+- TODO: #1067 Self-test ragdoll: the arena bounds the Rust statics; replayed calls allowed
+- TODO: #1062 Updater: a box per problem of the site's list, its title what failed
+- TODO: #1069 Home page: quote the launcher's new box titles
+- TODO: #1058 Artefacts as a table (artefacts.tsv); artefacts-1 goes
+- TODO: #1068 re-kit 0.26g: the weapon of a kill, a hit and a shot (research)
+- TODO: #1059 Character and battery item as tables (character.tsv, battery.tsv)
+- TODO: #1051 SR-3M 850 rounds a minute and +5 % movement; Vector armour piercing 0.3
+- TODO: #1030 Renderer study: 0.26g frame reference, light shader sources and PCSS prototype
+- TODO: #1070 MSBS: full damage to 35 m, 60 % from 70 m (was 20 / 50)
+- TODO: #1073 Saiga-12 and Vepr-12: slugs take three, buckshot two only with every pellet
+- TODO: #1076 ASh-12: 425 rounds a minute (was 400)
+- TODO: #1075 MP7: armour piercing 0.3 -> 0.35
+- TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
