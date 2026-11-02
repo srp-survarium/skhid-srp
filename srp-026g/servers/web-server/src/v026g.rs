@@ -172,6 +172,7 @@ impl Web {
                 "",
             ),
             ("GET", "/exchange") => page(lang, Form::InTheGame26(launcher_code(request)), ""),
+            ("GET", crate::faq::PATH) => page(lang, Form::Faq26, ""),
             ("GET", path) if self.is_admin_page(path, request) => page(
                 lang,
                 Form::Admin(Box::new(AdminView {
