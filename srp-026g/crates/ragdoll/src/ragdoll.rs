@@ -1631,6 +1631,8 @@ fn make_joint(
 }
 
 #[cfg(test)]
+pub(crate) mod rudnya_floor;
+#[cfg(test)]
 pub(crate) mod scenes;
 #[cfg(test)]
 pub(crate) mod tests;

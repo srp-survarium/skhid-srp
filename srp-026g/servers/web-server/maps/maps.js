@@ -36,7 +36,7 @@ const MAPS = {"revision":41,"maps":[{"key":"level_01","name":{"en":"Rudnya","uk"
     ...Object.entries(MAPS.artefacts).map(([k, a]) => ({ key: "art:" + k, label: N(a.name), icon: a.icon })),
   ];
   const state = {
-    map: MAPS.maps[0].key, mode: null, view: store.get("view") || "render",
+    map: MAPS.maps[0].key, mode: null, view: store.get("view") || "minimap",
     on: Object.assign(Object.fromEntries(LAYERS.map(l => [l.key, true])), store.get("on") || {}),
   };
   const fromHash = () => {
@@ -131,7 +131,7 @@ const MAPS = {"revision":41,"maps":[{"key":"level_01","name":{"en":"Rudnya","uk"
     if (!m.modes.some(o => o.mode === state.mode)) state.mode = m.modes[0].mode;
     chips($("maps"), MAPS.maps.map(o => [o.key, N(o.name)]), state.map, k => { state.map = k; go(); });
     chips($("modes"), m.modes.map(o => [o.mode, modeName(o, m.modes)]), state.mode, k => { state.mode = k; go(); });
-    chips($("views"), [["render", T("From above", "Згори")], ["minimap", T("Minimap", "Мінімапа")]], state.view,
+    chips($("views"), [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]], state.view,
       v => { state.view = v; store.set("view", v); go(); });
     const mo = mode();
     const counts = {
