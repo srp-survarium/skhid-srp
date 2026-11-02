@@ -353,7 +353,7 @@ fn data_without_the_golden_patches_is_refused() {
     for (name, ..) in premium_armour() {
         assert!(error.contains(&format!("{name} (")), "{error}");
     }
-    assert!(error.contains("golden-weapons-1.json"), "{error}");
+    assert!(error.contains("weapon-stats.tsv"), "{error}");
     assert!(error.contains("armor.tsv"), "{error}");
 
     let dictionary = Dictionary::shared();
@@ -372,7 +372,7 @@ fn data_without_the_golden_patches_is_refused() {
         weapons.clone(),
     );
     let error = check(&data).unwrap_err().to_string();
-    assert!(!error.contains("golden-weapons-1.json"), "{error}");
+    assert!(!error.contains("weapon-stats.tsv"), "{error}");
     assert!(error.contains("armor.tsv"), "{error}");
     let found: Vec<&'static str> = unpatched(&data, dictionary)
         .unwrap()

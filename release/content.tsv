@@ -87,7 +87,6 @@ pack	tactical-clips-069@1	ade2c59ef4ff4754446c0f6be95a85fdffb25ad5e68a33aaa5851b
 pack	pkp-animations-069@1	f5cae56dd04d411c888a2a8bd8431864ff279d411482ec34c4585bb74469d4f8	the PKP Pecheneg's idle, fire, hide and reload clips 0.69d0's (the same rig, a new left-hand grip, the same reload length and sound events), under animations/single/weapons/pkp_pecheneg_069d0/, and its models' left-hand points 0.69d0's; made by resource-porter port-animation-set (scripts/pkp-animations/make_pack.sh; docs/notes/pkp-animations.md)
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
-edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263)
 edit	death-poses-1.json	-	the face-down death pose out of the rifles' and pistols' death animations (the death camera looked into the arms)
 edit	crouch-steps-1.json	-	crouched steps audible: the walking steps at 40 % for the crouch pairs (#272)
 edit	weapon-camo-1.json	-	the 83 weapon configs take a camouflage: parameters/camo_available and a data table with camo_scale 4.0 (#244, client patch 44)

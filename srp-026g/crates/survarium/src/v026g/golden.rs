@@ -167,7 +167,7 @@ pub fn starting_modifications(dict_id: u16) -> Vec<(u32, bool)> {
 }
 
 /// The patch that takes a golden weapon's defaults off.
-pub const WEAPONS_PATCH: &str = "scripts/content-edit/golden-weapons-1.json";
+pub const WEAPONS_PATCH: &str = "scripts/content-edit/weapon-stats.tsv";
 
 /// The patch that takes a premium armour piece's premium bonuses off.
 pub const ARMOUR_PATCH: &str = "scripts/content-edit/armor.tsv";
