@@ -538,7 +538,8 @@ pub(crate) struct Game {
     /// order (the bench reads them by the thief's play).
     pub(crate) thieves: Vec<Place>,
     /// Carriers killed with a battery: (the shooter, the carrier), in
-    /// order (the bench reads them by the shooter's play).
+    /// order, the match's all (the bench reads them by the shooter's play, and the owner topics, each by its own index: nobody
+    /// takes them out).
     pub(crate) carrier_kills: Vec<(Place, Place)>,
     /// Test only: one `CARRYKILL` line a carrier killed (where both stood, the time since the pick-up, the distance), for the bench log.
     pub(crate) carry_kill_lines: Vec<String>,
