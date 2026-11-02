@@ -1235,3 +1235,46 @@ layout; each appropriate implementation returned the correct options/player, wit
 player reference count incremented once. This checks the diagnosis and proposed dispatch,
 not a shipped fix. The dump omits the replay's actual world/options fields, so no claim is
 made about their contents or a successful full replay run.
+
+## 17. Loose weapons and batteries against corpses
+
+This extends PR #780's helmet/corpse contact to the dropped gun and to local
+battery models. `CorpseContacts` owns the set of body parts an item has already
+separated from. Parts overlapping the item at release become solid only after
+separation, so a helmet or gun is not kicked out of the head or hands. The
+capsule solver moves the light item only. Its floor guard preserves the level's
+known half-spaces when a corpse pins an item against the ground; the correction
+also moves the previous position, avoiding an injected velocity.
+
+A gun meets its own corpse. When that corpse leaves on respawn, its existing
+loose-item solver continues from the current pose without corpse support.
+Batteries use the same solver against all corpses present locally. Their fixed
+table is keyed by the rule's battery index and native object identity; each
+corpse contact set is keyed by place and death. A carried/contained/removed
+battery discards its flight. A later drop starts from the native model transform.
+World changes, time moving backwards and accepted resync loads discard the local
+table. Resting batteries continue checking support, so moving or disappearing
+corpses do not leave them suspended.
+
+Native battery transforms, dynamic bodies and serialized state stay untouched.
+The two per-frame model submissions in `victory_item::loose_model_callback`
+(0x2467B0) receive local poses through copies on the draw stack: sites 0x24681D
+and 0x24687B, matrices at hook ESP+1Ch and ESP+5Ch. The once-on-drop helper
+0x2464F0 is insufficient for per-frame flight. Batteries' native dynamic body ids
+(+2A8h) are excluded from cosmetic terrain rays, preventing invisible native
+bodies from supporting the local model. A ray that hits one continues a
+millimetre inside it; convex rays omit exits from inside. Continuations share
+the frame's bounded ray budget. The usual walker/hittable floor filter remains.
+
+Pickup selection and replication are described in `battery_pickup.md`. Bots
+retain their native use path against the unchanged native positions. Native
+markers and bullet physics also continue using native positions; only model
+drawing and the local player's battery selection use the cosmetic pose.
+
+Coverage: solver tests for helmet/gun support, initial overlap, floor pinning,
+and battery support disappearing; command and input-press tests; the built-exe
+`check_battery_ragdoll_026g.py` for both draw sites, native byte preservation,
+carry/re-drop/rewind, excluded-body ray continuation, state refusals, competing
+claims and replicas with different battery transforms. Its physics rays and
+item-switch callback are fixtures. Full animation, Bullet collision geometry
+and multiplayer presentation still require an in-game check.

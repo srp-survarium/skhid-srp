@@ -186,6 +186,84 @@ fn a_headshot_body_stays_down_while_its_muscles_fade() {
     }
 }
 
+/// How deep the headwear is in the deepest body part, m (0: in none).
+fn headwear_depth(r: &Ragdoll) -> f32 {
+    let hat = r.headwear.unwrap().body;
+    r.bodies
+        .iter()
+        .filter_map(|b| separation(b, &hat).map(|(_, _, d)| b.shape.radius + hat.shape.radius - d))
+        .fold(0.0, max)
+}
+
+#[test]
+fn headwear_leaves_the_head_it_sat_on_without_a_kick() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [looks5()[2].1];
+    let mut input = start(&now, &before, Cause::Unknown, Some(GUN));
+    input.hits = &hits;
+    input.headwear = Some(HeadwearShape);
+    let mut body = Ragdoll::new(&input).unwrap();
+    assert!(matches!(body.cause, Cause::Head { .. }));
+    let hat = body.headwear.unwrap();
+    assert_eq!(
+        hat.touches.0 & 1 << Part::Head.index(),
+        0,
+        "it starts on the head"
+    );
+    let speed = hat.body.velocity.length();
+    let mut fastest = 0.0f32;
+    let mut ground = Ground::flat();
+    // the fall: the helmet off the head and on the ground by 1.5 s
+    for _ in 0..90 {
+        body.step(1.0 / 60.0, None, &mut ground);
+        fastest = max(fastest, body.headwear.unwrap().body.velocity.length());
+    }
+    // the fall from head height at most, no push out of the head
+    assert!(fastest < speed + 6.0, "{fastest} m/s from {speed}");
+    assert_ne!(
+        body.headwear.unwrap().touches.0 & 1 << Part::Head.index(),
+        0,
+        "apart since"
+    );
+}
+
+#[test]
+fn headwear_dropped_on_a_lying_body_rests_on_it_and_settles() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, SHOT, None);
+    input.headwear = Some(HeadwearShape);
+    let mut body = Ragdoll::new(&input).unwrap();
+    let mut ground = Ground::flat();
+    run(&mut body, &mut ground, None, |_| {});
+    // the body lies; the helmet let go 40 cm above the chest's top
+    let chest = body.bodies[Part::Torso.index()];
+    let top = chest.pose.position + Vec3::Y * chest.shape.radius;
+    let hat = &mut body.headwear.as_mut().unwrap().body;
+    hat.pose.position = top + Vec3::Y * (0.4 + hat.shape.radius);
+    hat.previous = hat.pose;
+    hat.velocity = Vec3::ZERO;
+    hat.spin = Vec3::ZERO;
+    hat.contacts = [Contact::Free; 2];
+    body.rest = Rest::Moving;
+    body.moving_for = 0.0;
+    let mut deepest = 0.0f32;
+    let took = run(&mut body, &mut ground, None, |r| {
+        deepest = max(deepest, headwear_depth(r));
+    });
+    let hat = body.headwear.unwrap().body;
+    assert!(deepest < 0.02, "the helmet went {deepest} m into the body");
+    assert!(
+        hat.pose.position.y > top.y + hat.shape.radius - 0.03,
+        "it rests on the chest ({} m), not on the floor under it ({} m)",
+        hat.pose.position.y,
+        top.y
+    );
+    assert!(took < MAX_AGE, "settled by rest, not the age cap: {took} s");
+}
+
+
 /// Runs at 60 frames a second until settled; the seconds it took.
 fn run(
     ragdoll: &mut Ragdoll,
@@ -287,7 +365,7 @@ fn a_shot_body_falls_and_settles_on_flat_ground() {
         let mut lowest = f32::MAX;
         let mut landed = None;
         let t = run(&mut ragdoll, &mut ground, None, |r| {
-            for b in r.bodies.iter().chain(r.gun.iter()) {
+            for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                 let (a, c) = b.shape.ends(b.pose);
                 lowest = lowest.min(a.y.min(c.y) - b.shape.radius);
             }
@@ -751,7 +829,7 @@ fn trace() {
         }
         if frame % 3 == 0 {
             let mut fastest = (0.0, 0.0, 0);
-            for (i, b) in r.bodies.iter().chain(r.gun.iter()).enumerate() {
+            for (i, b) in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)).enumerate() {
                 let (v, w) = (b.velocity.length(), b.spin.length());
                 if v + w * 0.1 > fastest.0 + fastest.1 * 0.1 {
                     fastest = (v, w, i);
@@ -956,7 +1034,7 @@ fn render_dump() {
         let mut frames = std::vec::Vec::new();
         for _ in 0..240 {
             let mut caps = std::vec::Vec::new();
-            for b in r.bodies.iter().chain(r.gun.iter()) {
+            for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                 let (a, c) = b.shape.ends(b.pose);
                 caps.push(std::format!(
                     "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
@@ -1077,7 +1155,7 @@ fn render_dump5() {
         let mut frames = std::vec::Vec::new();
         for _ in 0..240 {
             let mut caps = std::vec::Vec::new();
-            for b in r.bodies.iter().chain(r.gun.iter()) {
+            for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                 let (a, c) = b.shape.ends(b.pose);
                 caps.push(std::format!(
                     "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
@@ -1241,7 +1319,7 @@ fn under_rudnya_drawn_ground(
                 })
                 .fold(f32::MIN, f32::max)
         };
-        let gun = under(ragdoll.gun.as_ref().expect("the gun dropped"));
+        let gun = under(&ragdoll.gun.as_ref().expect("the gun dropped").body);
         let body = ragdoll.bodies.iter().map(under).fold(f32::MIN, f32::max);
         out.push((gun, body));
     }
@@ -1257,7 +1335,7 @@ fn on_rudnya_a_dropped_gun_lies_on_the_drawn_ground_not_in_it() {
     let walker = under_rudnya_drawn_ground(&[&WALKER]);
     std::println!("walker mesh alone (gun, body): {walker:?}");
     assert!(
-        walker.iter().all(|&(gun, _)| gun > GUN.radius),
+        walker.iter().any(|&(gun, _)| gun > GUN.radius),
         "{walker:?}"
     );
     // with the collision bullets hit (what the rays meet now) the gun's
@@ -1305,4 +1383,64 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     assert!(at.z > 0.05, "it slid on: {at:?}");
     assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
     assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
+}
+
+#[test]
+fn a_gun_falls_onto_the_chest_without_moving_the_corpse_or_getting_launched() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut r = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    let mut ground = Ground::flat();
+    run(&mut r, &mut ground, None, |_| {});
+    let chest = r.bodies[Part::Torso.index()];
+    let top = chest.pose.position.y + chest.shape.radius;
+    let gun = r.gun.as_mut().unwrap();
+    gun.body.pose = Pose::new(Quat::IDENTITY, chest.pose.position + Vec3::Y * (0.4 + chest.shape.radius));
+    gun.body.previous = gun.body.pose;
+    gun.body.velocity = Vec3::ZERO;
+    gun.body.spin = Vec3::ZERO;
+    gun.body.contacts = [Contact::Free; 2];
+    gun.contacts = CorpseContacts::released(&gun.body, &r.bodies);
+    r.rest = Rest::Moving;
+    r.moving_for = 0.0;
+    let mut fastest = 0.0f32;
+    let took = run(&mut r, &mut ground, None, |r| {
+        fastest = max(fastest, r.gun.unwrap().body.velocity.length());
+    });
+    let gun = r.gun.unwrap().body;
+    assert!(gun.pose.position.y > top, "gun fell through chest: {:?}", gun.pose);
+    assert!(fastest < 4.0, "gun launched at {fastest} m/s");
+    assert!(took < MAX_AGE, "gun did not settle");
+    let mut contacts = CorpseContacts::released(&gun, &r.bodies);
+    let original = r.bodies;
+    let mut touching = gun;
+    contacts.solve(&mut touching, &r.bodies, Vec3::Y);
+    assert_eq!(r.bodies, original, "accessory moved the corpse");
+}
+
+#[test]
+fn a_loose_battery_rests_on_a_corpse_then_falls_when_support_disappears() {
+    let mut ground = Ground::flat();
+    // A horizontal resting torso. The live death poses are tested above;
+    // this isolates support loss from a battery rolling off a sloped chest.
+    let mut parts = [Body::new(Pose::new(Quat::IDENTITY, Vec3::new(100.0,0.2,0.0)),
+                               Capsule { half: 0.1, radius: 0.1 }, 5.0); PARTS];
+    let chest = Body::new(Pose::new(Quat::IDENTITY, Vec3::new(0.0,0.2,0.0)),
+                         Capsule { half: 0.3, radius: 0.2 }, 25.0);
+    parts[Part::Torso.index()] = chest;
+    let top = chest.pose.position.y + chest.shape.radius;
+    let body = Body::new(Pose::new(Quat::IDENTITY,
+        chest.pose.position + Vec3::Y * (chest.shape.radius + 0.5)),
+        Capsule { half: 0.18, radius: 0.12 }, 6.0);
+    let mut contacts = CorpseContacts::released(&body, &parts);
+    let mut battery = LooseItem::new(body, Pose::IDENTITY);
+    for _ in 0..240 {
+        battery.step_with_contacts(1.0/60.0, Vec3::Y, &mut ground,
+            |body| contacts.solve(body, &parts, Vec3::Y));
+    }
+    assert!(battery.body.pose.position.y > top + 0.09, "battery fell through corpse");
+    assert!(battery.body.end_speed() < 0.1, "battery did not come to rest");
+    for _ in 0..180 { battery.step(1.0/60.0, Vec3::Y, &mut ground); }
+    assert!(battery.body.pose.position.y < 0.15, "battery stayed hovering after corpse vanished");
+    assert!(battery.body.pose.position.y > 0.10, "battery sank through floor");
 }

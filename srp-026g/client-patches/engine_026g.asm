@@ -132,6 +132,10 @@ global engine_leave_critical_section
 global engine_di_capture_remove
 global engine_di_queue_next_capture
 global engine_di_queue_release
+global engine_battery_transform
+global engine_battery_can_use
+global engine_battery_use
+global engine_detect_usable
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -168,6 +172,9 @@ engine_leave_critical_section equ 0x8700cc   ; the IAT slot 0x8700cc (an import,
 engine_di_capture_remove equ 0x5726f0   ; 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
 engine_di_queue_next_capture equ 0x5ee080   ; 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
 engine_di_queue_release equ 0x505cb0   ; 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+engine_battery_transform equ 0x300a20   ; 0x300a20 survarium::victory_item_core::get_transform: battery ECX, out ESP+4; pops 4; EAX; thiscall, called directly
+engine_battery_can_use equ 0x300710   ; 0x300710 survarium::victory_item_core::can_use: usable ECX, user ESP+4; pops 4; EAX; thiscall, called directly
+engine_battery_use equ 0x3007e0   ; 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1739,6 +1746,22 @@ engine_forget_active_object:
     mov eax, [esp + 20]   ; animation
     mov edx, [esp + 24]   ; object
     call 0x3919e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_detect_usable:
+    ; 0x2d84c0 survarium::base_player::detect_usable_object: player ESP+4, point ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; point -> 8
+    push dword [esp + 24]   ; player -> 4
+    call 0x2d84c0
     pop edi
     pop esi
     pop ebx

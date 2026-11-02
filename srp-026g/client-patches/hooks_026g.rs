@@ -441,6 +441,36 @@ pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_ragdoll (patch 76) ----
+
+/// The entry `battery_ragdoll_on_draw_primary` (0x24681d, loose model callback, primary model: stack matrices before argument pushes) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_ragdoll_on_draw_primary(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_ragdoll_on_draw_primary` calls this, from the game's jump at 0x24681d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_ragdoll::on_draw_primary(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_ragdoll (patch 76) ----
+
+/// The entry `battery_ragdoll_on_draw_secondary` (0x24687b, loose model callback, secondary model: same stack matrix pair before argument pushes) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_ragdoll_on_draw_secondary(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_ragdoll_on_draw_secondary` calls this, from the game's jump at 0x24687b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_ragdoll::on_draw_secondary(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.

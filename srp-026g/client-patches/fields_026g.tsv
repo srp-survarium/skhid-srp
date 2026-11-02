@@ -549,3 +549,19 @@ scaleform::di_command_queue	references	0x4	u32	its reference count (RefCountImpl
 scaleform::di_command_queue	context	0x34	ptr<scaleform::drawable_image_context>	its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
 scaleform::render_notify	vtable	0x0	u32	a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
 scaleform::di_command_queue	link	0x0	obj<scaleform::di_queue_link>	itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+survarium::item	victory_item	0x0	obj<survarium::victory_item>	validated by VICTORY_ITEM_VTABLE before use
+survarium::victory_item	vtable	0x0	u32	client battery vtable, 0xA042AC
+survarium::victory_item	user	0x8	ptr<survarium::player>	carrier, get_transform 0x300A2C
+survarium::victory_item	usable	0x14	obj<survarium::battery_usable>	usable subobject, use_initialize 0x30081C subtracts 14h
+survarium::victory_item	container	0x1A8	u32	container pointer, get_transform 0x300A5D; zero while loose
+survarium::victory_item	physical	0x2C8	u8	inserted dynamic body, set by insert 0x300950 and cleared by remove
+survarium::battery_usable	users	0x28	u32	users count, incremented by use_initialize 0x3007ED; the first input claims the loose battery
+survarium::player	battery_use_data	0x130	obj<survarium::battery_use_data>	the player's native usable_object_user_data, used by apply_new_input 0x2D898C
+survarium::battery_use_data	object	0x4	u32	active usable object, player+134h at 0x2D86A4
+survarium::battery_use_data	eye_offset	0xC	f32	three floats, apply_new_input 0x2D896D; relative to player transform
+survarium::battery_use_data	point	0x18	f32	three floats, apply_new_input 0x2D897E; checked by battery use_tick
+survarium::battery_model_frame	first	0x1C	obj<vostok::float4x4>	loose_model_callback stack, low matrix at ESP+1Ch before 0x24681D/0x24687B
+survarium::battery_model_frame	second	0x5C	obj<vostok::float4x4>	loose_model_callback high matrix at ESP+5Ch before 0x24681D/0x24687B
+survarium::battery_usable	vtable	0x0	u32	0xA0437C only for a client battery's usable subobject
+survarium::image	battery_usable_vtable	0xA0437C	u32	victory_item usable subobject's vtable, can_use +30h is 0x300710
+survarium::victory_item	body	0x2A8	ptr<vostok::physics::hit_object>	its dynamic rigid body, activate_physics 0x301CB0 and set_transform 0x3009F0; excluded from cosmetic terrain rays to avoid self-support

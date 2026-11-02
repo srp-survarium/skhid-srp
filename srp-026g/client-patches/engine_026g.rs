@@ -195,6 +195,8 @@ unsafe extern "C" {
     pub fn engine_release_inventory_item(object: *mut c_void, count: *mut u32);
     /// 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
     pub fn engine_forget_active_object(animation: *mut c_void, object: *mut c_void);
+    /// 0x2d84c0 survarium::base_player::detect_usable_object: player ESP+4, point ESP+8; pops 8; EAX
+    pub fn engine_detect_usable(player: *mut c_void, point: *mut f32) -> *mut c_void;
 }
 
 #[allow(dead_code)]
@@ -255,6 +257,12 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_next_capture(queue: *mut c_void, notify: *mut c_void);
     /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
     pub fn engine_di_queue_release(queue: *mut c_void);
+    /// 0x300a20 survarium::victory_item_core::get_transform: battery ECX, out ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_battery_transform(battery: *mut c_void, out: *mut f32) -> *mut f32;
+    /// 0x300710 survarium::victory_item_core::can_use: usable ECX, user ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_battery_can_use(usable: *mut c_void, user: *mut c_void) -> u32;
+    /// 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_battery_use(usable: *mut c_void, user: *mut c_void, time: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

@@ -2287,3 +2287,9 @@ va	name	source	ret_cleanup	result
 0x002189e0	survarium::replay_network_client::match_options	manual	0	EAX = client+1Ch, inline match options; replay vtable 0x9FF344 +34h. Live client uses a different implementation (0x219990).
 0x0026d6a0	survarium::base_local_network_client::get_active_player	manual	8	EAX = out pointer; active player with reference added, or 0. Core is [client+578BCh]+1F8h; slot +50h in 0xA074BC and replay 0x9FF344. Live 0x27A9C0 instead reads +1F1C40h.
 0x00288cd0	survarium::lobby_menu::autobuy_changed	manual	4	AL=1; reads raw byte at args[0]+8, no GFx numeric conversion; calls 0x273000
+0x003007e0	survarium::victory_item_core::use_initialize	manual	8	ECX usable subobject (+14h), stack user data and time; links the user then selects this battery through the player's item adapter; no spatial scan
+0x00300830	survarium::victory_item_core::use_tick	manual	12	ECX usable subobject; stack user data, time, detected object; returns AL after player state and distance to saved use point checks; ignores detected object
+0x002464f0	survarium::victory_item::update_free_model	manual	0	EAX battery; submits two get_transform matrices to scene update_model at 0x246570, then its skeleton; simulation transform untouched
+0x00300710	survarium::victory_item_core::can_use	manual	4	EAX = 1 or 0, native carrying and action checks
+0x002d84c0	survarium::base_player::detect_usable_object	manual	8	EAX = usable object or 0, both inputs on stack
+0x002467b0	survarium::victory_item::loose_model_callback	manual	0	ECX battery+2D0h; while physical (+2C8h), updates both visible model instances (+2E0h and +2DCh) through 0x22280 using stack copies of get_transform

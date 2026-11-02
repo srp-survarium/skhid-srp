@@ -1077,6 +1077,84 @@ battery_progress_on_load_replay:
     db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
     jmp 0x3350d6
 
+; 0x24681d loose model callback, primary model: stack matrices before argument pushes: lohook -> battery_ragdoll_on_draw_primary
+global battery_ragdoll_on_draw_primary
+extern hook_battery_ragdoll_on_draw_primary
+battery_ragdoll_on_draw_primary:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_ragdoll_on_draw_primary
+    mov edx, battery_ragdoll_on_draw_primary_replay
+    cmp eax, 0
+    je battery_ragdoll_on_draw_primary_go
+    mov edx, 0x246822
+    cmp eax, 1
+    je battery_ragdoll_on_draw_primary_go
+    ud2
+battery_ragdoll_on_draw_primary_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_ragdoll_on_draw_primary_replay:
+    db 0x50, 0x8b, 0x44, 0x24, 0x1c
+    jmp 0x246822
+
+; 0x24687b loose model callback, secondary model: same stack matrix pair before argument pushes: lohook -> battery_ragdoll_on_draw_secondary
+global battery_ragdoll_on_draw_secondary
+extern hook_battery_ragdoll_on_draw_secondary
+battery_ragdoll_on_draw_secondary:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_ragdoll_on_draw_secondary
+    mov edx, battery_ragdoll_on_draw_secondary_replay
+    cmp eax, 0
+    je battery_ragdoll_on_draw_secondary_go
+    mov edx, 0x246883
+    cmp eax, 1
+    je battery_ragdoll_on_draw_secondary_go
+    ud2
+battery_ragdoll_on_draw_secondary_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_ragdoll_on_draw_secondary_replay:
+    db 0x50, 0x57, 0x8d, 0x85, 0x08, 0x01, 0x00, 0x00
+    jmp 0x246883
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info_chain

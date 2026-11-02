@@ -50,6 +50,7 @@ fn check(load: Option<WorldLoad<'_>>) -> Verdict {
     };
     match Frame::parse_state(load.state(), Places::ALL) {
         Ok(frame) => {
+            crate::battery_ragdoll::reset(load.thread());
             crate::weapon_pickup::before_world_load(&load, &frame);
             Verdict::Load
         }

@@ -386,6 +386,7 @@ pub struct PhysicsWorld<'t> {
 /// A ray's first hit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RayHit {
+    pub object: BodyId,
     pub point: [f32; 3],
     /// Toward the ray's start.
     pub normal: [f32; 3],
@@ -405,8 +406,8 @@ impl PhysicsWorld<'_> {
         unsafe {
             raw::engine_ray_test(Some(self.this), Some(result), origin.as_ptr(), direction.as_ptr(), length, group,
                                  mask, core::ptr::null(), 0);
-            result.object()?;
-            Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) })
+            let object = BodyId(result.object()?.address());
+            Some(RayHit { object, point: floats(result.point()), normal: floats(result.normal()) })
         }
     }
 }
