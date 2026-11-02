@@ -22,6 +22,7 @@
 use super::*;
 use crate::v026g::bots::kin;
 use crate::v026g::bots::know::Source;
+use crate::v026g::bots::concede::Hit;
 use crate::v026g::bots::reflex::Gates;
 use std::collections::VecDeque;
 
@@ -205,6 +206,23 @@ impl Kind {
     }
 }
 
+/// [A274] Where the bot's first threat after the hit pointed (`Reflex::last_hit`: a hit with a shooter sensed sets the threat
+/// on the nearest enemy it sensed firing lately, `reflex.rs` `threats`): none in the window (no shooter sensed), the shooter
+/// (sensed within [`THREAT_MATCH_M`] of where he stood), or another.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ThreatOn {
+    Unset,
+    Hitter,
+    Other,
+}
+
+impl ThreatOn {
+    const NAMES: [&'static str; 3] = ["none", "hitter", "other"];
+}
+
+/// [A274] The threat's sensed place matches the shooter within this, m (`CombatTuning::threat_match_m`).
+const THREAT_MATCH_M: f32 = 6.0;
+
 /// [A274] The episodes of one [`Kind`]: ticks in each stage before the hit (from the bot's own first sight of him to the hit, or
 /// to its first shot at him before it) and after it (to the first shot at him, the death or the window's end); the stage of the
 /// last tick and the deaths of those that never shot at him after the hit; the turn's view degrees and ticks; how many saw him
@@ -222,6 +240,8 @@ struct KindCounts {
     seen: u64,
     targeted: u64,
     fired_other_ticks: u64,
+    /// By [`ThreatOn`].
+    threat_on: [u64; 3],
     sight_to_shot: [u64; BINS],
     hit_to_shot: [u64; BINS],
 }
@@ -239,6 +259,7 @@ impl Default for KindCounts {
             seen: 0,
             targeted: 0,
             fired_other_ticks: 0,
+            threat_on: [0; 3],
             sight_to_shot: [0; BINS],
             hit_to_shot: [0; BINS],
         }
@@ -280,6 +301,7 @@ impl StageCounts {
         k.seen += u64::from(seen.is_some());
         k.targeted += u64::from(hit.target_at.is_some());
         k.fired_other_ticks += u64::from(hit.fired_other_ticks);
+        k.threat_on[hit.threat_on as usize] += 1;
         k.sight_to_shot[bin(seen.zip(hit.fire_him_at).map(|(s, f)| f.saturating_sub(s)))] += 1;
         k.hit_to_shot[bin(hit.fire_him_at.map(|f| f.saturating_sub(hit.at)))] += 1;
         if !hit.firing_before {
@@ -340,6 +362,8 @@ struct Open {
     /// the first shot at him).
     engaged: bool,
     fired_other_ticks: u32,
+    /// [A274] Its first threat after the hit.
+    threat_on: ThreatOn,
 }
 
 /// The first hits of one play (the play at the hit), by the stand-in human's or a bot's.
@@ -429,6 +453,8 @@ pub(super) struct UnderFireCounts {
     /// [A274] its last [`BEFORE_MS`] of ticks (tick, target, gates, fire key).
     target: Vec<Option<Place>>,
     gates: Vec<Gates>,
+    /// [A274] Each place's last hit with a shooter sensed (`Reflex::last_hit`), at this tick's read.
+    last_hit: Vec<Option<Hit>>,
     sights: Vec<Vec<(Place, u32, u32)>>,
     log: Vec<VecDeque<Logged>>,
     /// The open first hit of each place's life; whether it has had one; its last fire key; its life's first hit.
@@ -453,6 +479,7 @@ impl UnderFireCounts {
         Self {
             target: vec![None; n],
             gates: vec![Gates::default(); n],
+            last_hit: vec![None; n],
             sights: vec![Vec::new(); n],
             log: vec![VecDeque::new(); n],
             open: vec![None; n],
@@ -472,6 +499,7 @@ impl UnderFireCounts {
         if self.open.len() < n {
             self.target.resize(n, None);
             self.gates.resize(n, Gates::default());
+            self.last_hit.resize(n, None);
             self.sights.resize(n, Vec::new());
             self.log.resize(n, VecDeque::new());
             self.open.resize(n, None);
@@ -511,6 +539,7 @@ impl Topic for UnderFireCounts {
         self.grow(place + 1);
         self.target[place] = bot.and_then(|b| b.reflex.target());
         self.gates[place] = bot.map(|b| b.reflex.gates()).unwrap_or_default();
+        self.last_hit[place] = bot.and_then(|b| b.reflex.last_hit());
         let sights = &mut self.sights[place];
         sights.clear();
         if let Some(bot) = bot {
@@ -553,6 +582,8 @@ impl Topic for UnderFireCounts {
         let sight_notice = self.open[place].and_then(|h| self.sight_notice(place, h.shooter));
         let sight = sight_notice.map(|(since, _)| since);
         let by_human = self.open[place].is_some_and(|h| self.human == Some(h.shooter));
+        let last_hit = self.last_hit[place];
+        let shooter_feet = self.open[place].and_then(|h| run.recs.get(h.shooter)?.last().map(|r| r.feet));
         let Some(hit) = self.open[place].as_mut() else {
             return;
         };
@@ -580,6 +611,15 @@ impl Topic for UnderFireCounts {
                     counts.gate_ticks[i] += u64::from(gates.bits & bit != 0);
                 }
             }
+        }
+        if hit.threat_on == ThreatOn::Unset
+            && let Some(threat) = last_hit.filter(|h| h.at >= hit.at)
+        {
+            hit.threat_on = if shooter_feet.is_some_and(|f| f.distance_xz(threat.shooter_at) <= THREAT_MATCH_M) {
+                ThreatOn::Hitter
+            } else {
+                ThreatOn::Other
+            };
         }
         if hit.seen_before.is_none() && hit.seen_after.is_none() {
             hit.seen_after = sight;
@@ -638,6 +678,7 @@ impl Topic for UnderFireCounts {
                 firing_before: fired_before.is_some_and(|f| f < t && t - f <= FIRING_MS),
                 engaged: false,
                 fired_other_ticks: 0,
+                threat_on: ThreatOn::Unset,
             });
             // [A274] Before the hit: its logged ticks from its own first sight of him (the sight unbroken since then) to the hit, or
             // to its first shot at him before it (then the fight was under way: `Kind::Engaged`).
@@ -750,13 +791,16 @@ impl Topic for UnderFireCounts {
             };
             let mut kinds = serde_json::Map::new();
             for (kind, c) in Kind::ALL.iter().zip(&st.kinds) {
+                let threat_on: serde_json::Map<String, serde_json::Value> =
+                    ThreatOn::NAMES.iter().zip(c.threat_on).map(|(n, v)| ((*n).to_owned(), serde_json::Value::from(v))).collect();
                 kinds.insert(
                     kind.name().to_owned(),
                     serde_json::json!({
                         "episodes": c.episodes, "before": by_stage(&c.before), "after": by_stage(&c.after),
                         "ended_in": by_stage(&c.ended_in), "ended_dead": by_stage(&c.ended_dead),
                         "turn_deg": (c.turn_deg * 1000.0).round() / 1000.0, "turn_ticks": c.turn_ticks, "seen": c.seen,
-                        "targeted": c.targeted, "fired_other_ticks": c.fired_other_ticks, "sight_to_shot": c.sight_to_shot.to_vec(),
+                        "targeted": c.targeted, "fired_other_ticks": c.fired_other_ticks,
+                        "threat_on": threat_on, "sight_to_shot": c.sight_to_shot.to_vec(),
                         "hit_to_shot": c.hit_to_shot.to_vec(),
                     }),
                 );
@@ -817,6 +861,7 @@ mod tests {
             firing_before: false,
             engaged: false,
             fired_other_ticks: 0,
+            threat_on: ThreatOn::Unset,
         };
         let mut c = ByPlay::default();
         c.add(&hit, Some(1_800));
