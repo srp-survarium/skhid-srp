@@ -216,6 +216,9 @@ pub struct Tactics {
     /// Whether a way out stays under its start's zone strength
     /// (`Tuning::hazard.escape`, [`Self::escape`]).
     pub escape: super::tuning::EscapeRule,
+    /// Whether a dry island ends no way out of zones and a body on one walks off it (`Tuning::hazard.leave_islands`,
+    /// [`Self::on_island`]).
+    pub leave_islands: bool,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
     /// The grass a sight line crosses (`grass.rs`); none without the file.
@@ -828,6 +831,7 @@ impl Tactics {
             exit_field: Default::default(),
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
+            leave_islands: false,
             foliage: Default::default(),
             grass: Default::default(),
             clear_step_sees_lip: false,
@@ -954,6 +958,30 @@ impl Tactics {
         let bits = Arc::new(bits);
         *cache = Some((fixed, bits.clone()));
         bits
+    }
+
+    /// Whether `node` is a dry island: no zone on all match marks it, and no walk from a spawn gets to it without crossing
+    /// one's floors ([`Self::past_fixed_zones`]). No route leads off it: the planner keeps off such zones, and a crossing does
+    /// not walk a floor zones that switch mark too (School's fruit cloud, levels 2-5 nested).
+    pub fn dry_island(&self, node: NodeId) -> bool {
+        !self.hazards.fixed_at(node) && !self.past_fixed_zones(node)
+    }
+
+    /// [`Self::dry_island`] with `Tuning::hazard.leave_islands` on: a floor no way out of zones ends on, and one a body walks
+    /// off over the ring ([`Self::zone_exit_reach`], `drive`'s escape).
+    pub fn on_island(&self, node: NodeId) -> bool {
+        self.island_test()(node)
+    }
+
+    /// [`Self::on_island`] for many floors: the regions read once.
+    fn island_test(&self) -> impl Fn(NodeId) -> bool + '_ {
+        let bits = self.leave_islands.then(|| self.past_fixed_regions());
+        move |node| {
+            bits.as_ref().is_some_and(|bits| {
+                let region = self.base.regions.of(node) as usize;
+                !self.hazards.fixed_at(node) && !bits.get(region / 64).is_some_and(|word| word >> (region % 64) & 1 == 1)
+            })
+        }
     }
 
     /// What the walk cache has done so far.
@@ -1516,6 +1544,9 @@ impl Tactics {
             }
         };
         let start = grid.position(from);
+        // [hazard.leave_islands] A dry island is no way out: the search goes on over it to the floors the spawns reach.
+        let island = self.island_test();
+        let skipped = std::cell::Cell::new(false);
         let search = |open: &dyn Fn(NodeId) -> bool| {
             let mut seen = std::collections::HashSet::from([from]);
             let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
@@ -1527,7 +1558,10 @@ impl Tactics {
                     break;
                 }
                 let at = grid.position(a);
-                if at.distance_xz(start) >= ESCAPE_MIN_M && ok(a) && grid.links(a).all(|(b, _)| ok(b)) {
+                let out = at.distance_xz(start) >= ESCAPE_MIN_M && ok(a) && grid.links(a).all(|(b, _)| ok(b));
+                if out && island(a) {
+                    skipped.set(true);
+                } else if out {
                     first.get_or_insert(d);
                     if !outs
                         .iter()
@@ -1580,6 +1614,10 @@ impl Tactics {
         };
         #[cfg(test)]
         escapes::count(out.is_some(), out.is_some() && out != nearest.map(|n| n.0));
+        #[cfg(test)]
+        if skipped.get() {
+            islands::count(islands::OUTS_SKIPPED);
+        }
         let out = out.or_else(|| self.exit_of(from))?;
         let open = open_under(ceiling);
         let route = path::plan_where(grid, from, out, |n| !shut(n) && open(n))
@@ -1964,16 +2002,20 @@ impl Tactics {
     /// [`Self::clear_line_for`] refuses its lines by): how far its walk may test a line over the refused floors, metres,
     /// the way to the nearest floor the zones allow and [`ZONE_EXIT_SLACK_M`] more. None where it stands on allowed
     /// floors. Its route out runs over the refused floors, so a line from it may cross as much of them as that way is long
-    /// ([`Self::clear_line_leaving`]), and no more.
+    /// ([`Self::clear_line_leaving`]), and no more. A dry island counts as refused ([`Self::on_island`]): its way off
+    /// crosses the ring.
     pub fn zone_exit_reach(&self, feet: Vec3, time: u32) -> Option<f32> {
         let grid = &self.world.grid;
         let here = grid.locate(feet, 1.5)?;
-        if self.hazards.allowed(here, time) {
+        let island = self.island_test();
+        if self.hazards.allowed(here, time) && !island(here) {
             return None;
         }
         let nearest = |radius: f32| {
             grid.floors_in([feet.x - radius, feet.z - radius, feet.x + radius, feet.z + radius])
-                .filter(|&node| self.hazards.allowed(node, time) && (grid.position(node).y - feet.y).abs() <= ZONE_EXIT_STOREY_M)
+                .filter(|&node| {
+                    self.hazards.allowed(node, time) && (grid.position(node).y - feet.y).abs() <= ZONE_EXIT_STOREY_M && !island(node)
+                })
                 .map(|node| grid.position(node).distance_xz(feet))
                 .min_by(f32::total_cmp)
         };
@@ -1991,11 +2033,12 @@ impl Tactics {
             return false;
         };
         let left = std::cell::Cell::new(false);
+        let island = self.island_test();
         path::straight_where(grid, from, to, |node| {
             if !self.spawn_ok(node, side, objective) {
                 return false;
             }
-            if self.hazards.allowed(node, time) {
+            if self.hazards.allowed(node, time) && !island(node) {
                 left.set(true);
                 return true;
             }
@@ -2710,6 +2753,33 @@ pub mod escapes {
     /// a stronger zone, a drop onto a zone's floor).
     pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// [`HazardTuning::leave_islands`](super::tuning::HazardTuning) The bench's counts of the dry islands, in the thread of the match
+/// (the grid owner topic's `islands`): route plans a body made from a dry island floor (it walked off it), and the ways out of
+/// zones a dry island would have ended ([`Tactics::escape`], once a search).
+#[cfg(test)]
+pub mod islands {
+    use std::cell::Cell;
+
+    pub const PLANS: usize = 0;
+    pub const OUTS_SKIPPED: usize = 1;
+
+    thread_local! {
+        static COUNTS: Cell<[u64; 2]> = const { Cell::new([0; 2]) };
+    }
+
+    pub fn count(k: usize) {
+        COUNTS.with(|counts| {
+            let mut now = counts.get();
+            now[k] += 1;
+            counts.set(now);
+        });
+    }
+
+    pub fn counts() -> [u64; 2] {
+        COUNTS.with(Cell::get)
     }
 }
 
@@ -3552,6 +3622,47 @@ pub(super) mod tests {
             .unwrap();
         let end = out.point_at(out.length());
         assert!(end.x > 24.0, "east, the nearest: {end:?}");
+    }
+
+    /// [`HazardTuning::leave_islands`](super::super::tuning::HazardTuning) A ring of zones on all match round a dry floor 5.6 x
+    /// 1.6 m (School's fruit cloud makes such at y 13.6): no route leaves the island. Off, a body walking out of the ring's
+    /// west side took the nearest dry floor, the island; on, its way out ends on the floors the spawns reach, and a body on the
+    /// island walks off it over the ring (the walk's lines may cross it: [`Tactics::zone_exit_reach`]).
+    #[test]
+    fn a_way_out_of_zones_never_ends_on_a_dry_island_and_a_body_on_one_walks_off_it() {
+        let world = field_with(|map| {
+            for (x, z, hx, hz) in [(20.1, 32.0, 1.1, 5.0), (29.9, 32.0, 1.1, 5.0), (25.0, 34.9, 6.0, 1.1), (25.0, 29.1, 6.0, 1.1)] {
+                map.zones.push(box_zone("ring", Vec3::new(x, 0.0, z), Vec3::new(hx, 3.0, hz), 0.1));
+            }
+        });
+        let mut tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let on_island = Vec3::new(25.0, 0.0, 32.0);
+        let island = grid.locate(on_island, 0.3).unwrap();
+        let outside = grid.locate(Vec3::new(10.0, 0.0, 30.0), 0.3).unwrap();
+        let in_ring = grid.locate(Vec3::new(21.0, 0.0, 32.0), 0.3).unwrap();
+        assert!(tactics.allowed(island, 0, Some(0), false) && !tactics.allowed(in_ring, 0, Some(0), false));
+        assert!(tactics.dry_island(island) && !tactics.dry_island(outside));
+        // No route leaves the island.
+        assert!(tactics.route_nodes(island, outside, 0, Some(0), false, &RouteFilter::open()).is_none());
+        // Off: the way out of the ring's west side ends on the island, 1.2 m east; the island is no zone's floor.
+        assert!(!tactics.on_island(island));
+        let end_of = |tactics: &Tactics, from: NodeId| {
+            let out = tactics.escape(from, None, 0, Some(0), false, &RouteFilter::open()).unwrap();
+            grid.locate(out.point_at(out.length()), 0.3).unwrap()
+        };
+        assert!(tactics.dry_island(end_of(&tactics, in_ring)));
+        assert_eq!(tactics.zone_exit_reach(on_island, 0), None);
+        // On: past the island to the floors the spawns reach, from the ring and from the island itself.
+        tactics.leave_islands = true;
+        assert!(tactics.on_island(island) && !tactics.on_island(outside));
+        for from in [in_ring, island] {
+            let end = end_of(&tactics, from);
+            assert!(!tactics.dry_island(end) && tactics.allowed(end, 0, Some(0), false), "{:?}", grid.position(end));
+            assert!(tactics.route_nodes(end, outside, 0, Some(0), false, &RouteFilter::open()).is_some());
+        }
+        let reach = tactics.zone_exit_reach(on_island, 0).expect("the island is walked off");
+        assert!((2.0..=8.0).contains(&reach), "{reach}");
     }
 
     /// A body in a zone that every way out of crosses a stronger one of
