@@ -8,10 +8,9 @@
 //! `default_modifications` (the silver one first, beside two weapon
 //! bonuses; the MP7 special one weapon bonus and no silver) and
 //! `base_rarity_level` 3: the lobby showed it at rank 3, so it could not be
-//! crafted, and a default is never offered for a reroll. The resources.db
-//! patch of `scripts/content-edit/golden-weapons-1.json` takes every
-//! default off them and sets the base rarity to 0, as the plain weapons
-//! have; srp gives each golden weapon the silver bonus as a modification of
+//! crafted, and a default is never offered for a reroll. Their rows of
+//! `scripts/content-edit/weapon-stats.tsv` have no bonus and base rarity
+//! 0, as the plain weapons; srp gives each golden weapon the silver bonus as a modification of
 //! its own, the first, when it is made ([`starting_modifications`]) and,
 //! once, to those owned before (`session::v026g::items_rules::
 //! give_golden_silver`). From then on it is an ordinary modification: it
@@ -263,7 +262,7 @@ pub fn starting_modifications(dict_id: u16) -> Vec<(u32, bool)> {
 }
 
 /// The patch that takes a golden weapon's defaults off.
-pub const WEAPONS_PATCH: &str = "scripts/content-edit/golden-weapons-1.json";
+pub const WEAPONS_PATCH: &str = "scripts/content-edit/weapon-stats.tsv";
 
 /// The patch that takes a premium armour piece's premium bonuses off.
 pub const ARMOUR_PATCH: &str = "scripts/content-edit/armor.tsv";
