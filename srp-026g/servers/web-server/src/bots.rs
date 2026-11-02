@@ -10,6 +10,10 @@
 //!   fields the admin changed are set: two admins saving at once do not put
 //!   back each other's changes. The desk refuses the whole when one value
 //!   is out of its limits or the values together break the tuning.
+//! - [A266] A save first shows what it would change and the expected hit
+//!   rates by class, old → new (the desk's preview), with the values typed
+//!   kept in their fields; only "Apply" sets them. The rates are the bench's
+//!   estimates, and the tab says how they are had and where from.
 //! - "Reset to defaults", for the whole tab or beside a group, first shows
 //!   what would go back and waits for its confirm. A reload of the confirm
 //!   resets again, which changes nothing more.
@@ -17,7 +21,7 @@
 //!   changes: when, from which address, the knob, old and new); the tab
 //!   shows the latest. The token is in none of them.
 
-use session::v026g::bot_desk::{Change, DeskView, Kept, KnobState, Text};
+use session::v026g::bot_desk::{ClassLine, DeskView, Kept, KnobState, Preview, Rates, Text};
 
 use super::password_reset::date_utc;
 use super::{AdminView, Lang, Request, Web, clock_utc, escape};
@@ -30,6 +34,22 @@ pub(crate) struct BotsView {
     desk: Option<DeskView>,
     /// A reset shown, waiting for its confirm.
     confirm: Option<Reset>,
+    /// A save shown, waiting for its apply.
+    pending: Option<Pending>,
+}
+
+/// [A266] A save shown before it applies: the fields as the admin left them,
+/// and what the desk would make of them.
+struct Pending {
+    fields: Vec<Field>,
+    preview: Preview,
+}
+
+/// A field the admin changed: its knob, the value typed, the value it showed.
+struct Field {
+    key: String,
+    now: String,
+    was: String,
 }
 
 /// What a reset puts back to its defaults.
@@ -66,9 +86,12 @@ impl Reset {
 }
 
 /// What a press of the tab asks (`bots_do`). Enter in a field sends the
-/// form with whichever button the browser picks, so anything else saves.
+/// form with whichever button the browser picks, so anything else shows a
+/// save's preview: only "Apply" sets.
 enum Action {
+    /// Show what the fields changed would make.
     Save,
+    Apply,
     /// Show what a reset would put back.
     Ask(Reset),
     Confirm(Reset),
@@ -80,16 +103,43 @@ fn action(pressed: &str) -> Action {
         Some(("reset", what)) => Action::Ask(Reset::of(what)),
         Some(("confirm", what)) => Action::Confirm(Reset::of(what)),
         _ if pressed == "cancel" => Action::Cancel,
+        _ if pressed == "apply" => Action::Apply,
         _ => Action::Save,
     }
 }
 
-/// The changes made, as a sentence: `skill.step 0.15 → 0.2, ...`.
-fn said(made: &[Change]) -> String {
-    made.iter()
-        .map(|change| format!("{} {} → {}", change.key, change.old, change.new))
+/// Changes, each `(key, old, new)`, as a sentence: `skill.step 0.15 → 0.2, ...`.
+fn said<'a>(made: impl Iterator<Item = (&'a str, &'a str, &'a str)>) -> String {
+    made.map(|(key, old, new)| format!("{key} {old} → {new}"))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// The fields the admin changed: each settable knob's that is not what it
+/// showed.
+fn changed(view: &DeskView, request: &Request) -> Vec<Field> {
+    view.groups
+        .iter()
+        .flat_map(|group| &group.knobs)
+        .filter(|knob| knob.state == KnobState::Settable)
+        .filter_map(|knob| {
+            let now = request.field(&format!("bot.{}", knob.key));
+            let was = request.field(&format!("was.{}", knob.key));
+            (!now.is_empty() && now != was).then(|| Field {
+                key: knob.key.clone(),
+                now: now.to_owned(),
+                was: was.to_owned(),
+            })
+        })
+        .collect()
+}
+
+/// The fields as the desk takes them: each knob and its value typed.
+fn asked(fields: &[Field]) -> Vec<(String, String)> {
+    fields
+        .iter()
+        .map(|field| (field.key.clone(), field.now.clone()))
+        .collect()
 }
 
 /// The knobs a reset would put back: those whose value is not their
@@ -123,6 +173,7 @@ impl Web {
             )
         };
         let mut confirm = None;
+        let mut pending = None;
         let message = match action(request.field("bots_do")) {
             Action::Cancel => String::new(),
             Action::Ask(reset) => {
@@ -148,28 +199,42 @@ impl Web {
                     format!(
                         "{} {}",
                         lang.tr("Reset, from the next match:", "Скинуто, з наступного матчу:"),
-                        said(&made)
+                        said(made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())))
                     )
                 }
                 Err(why) => refused(why),
             },
             Action::Save => {
-                let asked: Vec<(String, String)> = desk
-                    .view()
-                    .groups
-                    .iter()
-                    .flat_map(|group| &group.knobs)
-                    .filter(|knob| knob.state == KnobState::Settable)
-                    .filter_map(|knob| {
-                        let now = request.field(&format!("bot.{}", knob.key));
-                        let was = request.field(&format!("was.{}", knob.key));
-                        (!now.is_empty() && now != was).then(|| (knob.key.clone(), now.to_owned()))
-                    })
-                    .collect();
-                if asked.is_empty() {
+                let fields = changed(&desk.view(), request);
+                if fields.is_empty() {
                     String::new()
                 } else {
-                    match desk.set(&asked, peer) {
+                    match desk.preview(&asked(&fields)) {
+                        Ok(preview) if preview.edits.is_empty() => {
+                            lang.tr("Nothing changed: the values were so already.", "Нічого не змінено: значення вже такі.")
+                        }
+                        Ok(preview) => {
+                            let message = format!(
+                                "{} {}",
+                                lang.tr(
+                                    "Not applied yet: check the change and the expected hit rates, then apply.",
+                                    "Ще не застосовано: перевірте зміну й очікувані влучання, потім застосуйте."
+                                ),
+                                said(preview.edits.iter().map(|e| (e.key.as_str(), e.old.as_str(), e.new.as_str())))
+                            );
+                            pending = Some(Pending { fields, preview });
+                            message
+                        }
+                        Err(why) => refused(why),
+                    }
+                }
+            }
+            Action::Apply => {
+                let fields = changed(&desk.view(), request);
+                if fields.is_empty() {
+                    String::new()
+                } else {
+                    match desk.set(&asked(&fields), peer) {
                         Ok(made) if made.is_empty() => {
                             lang.tr("Nothing changed: the values were so already.", "Нічого не змінено: значення вже такі.")
                         }
@@ -178,7 +243,7 @@ impl Web {
                             format!(
                                 "{} {}",
                                 lang.tr("Saved, from the next match:", "Збережено, з наступного матчу:"),
-                                said(&made)
+                                said(made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())))
                             )
                         }
                         Err(why) => refused(why),
@@ -189,6 +254,7 @@ impl Web {
         let view = BotsView {
             desk: Some(desk.view()),
             confirm,
+            pending,
         };
         (message, view)
     }
@@ -212,12 +278,12 @@ pub(crate) fn bots_panel(lang: Lang, view: &AdminView) -> String {
             ),
             lang.tr("Show", "Показати"),
         ),
-        Some(desk) => desk_body(lang, desk, view.bots.confirm.as_ref()),
+        Some(desk) => desk_body(lang, desk, view.bots.confirm.as_ref(), view.bots.pending.as_ref()),
     };
     format!("<div class=\"panel p-bots\">{body}</div>")
 }
 
-fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
+fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>, pending: Option<&Pending>) -> String {
     let text = |text: Text| escape(&lang.tr(text.en, text.uk));
     let kept = match &desk.kept {
         Kept::File(path) => format!(
@@ -259,10 +325,15 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
             .map(|knob| {
                 let value = if knob.state == KnobState::Settable {
                     let key = escape(&knob.key);
-                    let value = escape(&knob.value);
+                    // A save shown keeps the value typed, and the one it showed.
+                    let field = pending.and_then(|pending| pending.fields.iter().find(|field| field.key == knob.key));
+                    let (now, was) = field.map_or((knob.value.as_str(), knob.value.as_str()), |field| {
+                        (field.now.as_str(), field.was.as_str())
+                    });
+                    let (now, was) = (escape(now), escape(was));
                     format!(
-                        "<input name=\"bot.{key}\" value=\"{value}\" inputmode=decimal>\
-                         <input type=hidden name=\"was.{key}\" value=\"{value}\">"
+                        "<input name=\"bot.{key}\" value=\"{now}\" inputmode=decimal>\
+                         <input type=hidden name=\"was.{key}\" value=\"{was}\">"
                     )
                 } else {
                     escape(&knob.value)
@@ -302,6 +373,38 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
         };
         groups.push_str(&format!("<h2>{}</h2>{note}{source}{table}{reset}", text(group.title)));
     }
+    // A save shown: its rates old → new and its apply, first; else the rates
+    // as they stand, after the groups.
+    let rates = |before: &Rates, after: Option<&Rates>| {
+        format!(
+            "{}<p><small>{}</small></p><p><small>{} {}</small></p>",
+            rates_table(lang, before, after),
+            text(before.method),
+            lang.tr("Source:", "Джерело:"),
+            escape(&before.source)
+        )
+    };
+    let (pending, standing) = match pending {
+        Some(pending) => (
+            format!(
+                "<div class=note><h2>{}</h2>{}<p><button name=bots_do value=apply>{}</button> \
+                 <button name=bots_do value=cancel class=quiet>{}</button></p></div>",
+                lang.tr("Expected hits a shot, now → with the change", "Очікувані влучання за постріл, зараз → зі зміною"),
+                rates(&pending.preview.before, Some(&pending.preview.after)),
+                lang.tr("Apply from the next match", "Застосувати з наступного матчу"),
+                lang.tr("Cancel", "Скасувати"),
+            ),
+            String::new(),
+        ),
+        None => (
+            String::new(),
+            format!(
+                "<h2>{}</h2>{}",
+                lang.tr("Expected hits a shot, by class and skill", "Очікувані влучання за постріл, за класом і навичкою"),
+                rates(&desk.rates, None)
+            ),
+        ),
+    };
     let confirm = confirm.map_or(String::new(), |reset| {
         format!(
             "<p class=note><button name=bots_do value=\"confirm:{}\">{}</button> \
@@ -341,7 +444,7 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
         )
     };
     format!(
-        "<p class=note>{}</p><p><small>{} {}. {kept}</small></p>{refused}{confirm}{groups}\
+        "<p class=note>{}</p><p><small>{} {}. {kept}</small></p>{refused}{confirm}{pending}{groups}{standing}\
          <button name=bots_do value=save>{}</button> \
          <button name=bots_do value=\"reset:all\" class=quiet>{}</button>\
          <h2>{}</h2>{audit}",
@@ -351,8 +454,94 @@ fn desk_body(lang: Lang, desk: &DeskView, confirm: Option<&Reset>) -> String {
         ),
         lang.tr("The tuning:", "Налаштування:"),
         escape(&desk.source),
-        lang.tr("Save", "Зберегти"),
+        lang.tr("Save (shows the change first)", "Зберегти (спершу покаже зміну)"),
         lang.tr("Reset to defaults", "Скинути до типових"),
         lang.tr("Latest changes", "Останні зміни"),
+    )
+}
+
+/// [A266] The expected rates, a class a row and a skill a column (the
+/// bands' floor, start and ceiling under their band); with `after`, a value
+/// that changes is shown old → new.
+fn rates_table(lang: Lang, before: &Rates, after: Option<&Rates>) -> String {
+    let text = |text: Text| escape(&lang.tr(text.en, text.uk));
+    let mut bands = String::new();
+    let mut at = 0;
+    while let Some(first) = before.points.get(at) {
+        let span = before.points[at..]
+            .iter()
+            .take_while(|point| point.band == first.band)
+            .count();
+        bands.push_str(&format!("<th colspan={span}>{}</th>", text(first.band)));
+        at += span;
+    }
+    let skills: String = before
+        .points
+        .iter()
+        .enumerate()
+        .map(|(i, point)| {
+            let what = point.what.map_or(String::new(), |what| format!("{} ", text(what)));
+            let new = after
+                .and_then(|after| after.points.get(i))
+                .filter(|new| new.skill != point.skill);
+            match new {
+                Some(new) => format!("<th>{what}<b>{} → {}</b></th>", point.skill, new.skill),
+                None => format!("<th>{what}{}</th>", point.skill),
+            }
+        })
+        .collect();
+    let values = |line: &ClassLine| -> Vec<Option<String>> {
+        match line {
+            ClassLine::Own(rates) | ClassLine::Pooled(rates) => {
+                rates.iter().map(|rate| Some(format!("{rate:.1}"))).collect()
+            }
+            ClassLine::Unknown(_) => vec![None; before.points.len()],
+        }
+    };
+    let pooled = format!(
+        "<br><small>{}</small>",
+        lang.tr(
+            "not measured on its own yet: the pool's numbers",
+            "ще не виміряно окремо: спільні числа"
+        )
+    );
+    let rows: String = before
+        .classes
+        .iter()
+        .enumerate()
+        .map(|(i, class)| {
+            let new = after.and_then(|after| after.classes.get(i)).map(|new| &new.line);
+            let cells = match (&class.line, new) {
+                (ClassLine::Unknown(why), None | Some(ClassLine::Unknown(_))) => format!(
+                    "<td colspan={}><small>{}</small></td>",
+                    before.points.len(),
+                    text(*why)
+                ),
+                (old, new) => {
+                    let old = values(old);
+                    let new = new.map_or_else(|| old.clone(), values);
+                    old.iter()
+                        .zip(&new)
+                        .map(|(old, new)| {
+                            let (old, new) = (old.as_deref().unwrap_or("—"), new.as_deref().unwrap_or("—"));
+                            if old == new {
+                                format!("<td>{old}</td>")
+                            } else {
+                                format!("<td><b>{old} → {new}</b></td>")
+                            }
+                        })
+                        .collect()
+                }
+            };
+            let mark = match class.line {
+                ClassLine::Pooled(_) => pooled.as_str(),
+                ClassLine::Own(_) | ClassLine::Unknown(_) => "",
+            };
+            format!("<tr><td>{}{mark}</td>{cells}</tr>", text(class.label))
+        })
+        .collect();
+    format!(
+        "<div class=scroll><table><tr><th rowspan=2>{}</th>{bands}</tr><tr>{skills}</tr>{rows}</table></div>",
+        lang.tr("Class", "Клас")
     )
 }
