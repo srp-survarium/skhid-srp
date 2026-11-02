@@ -211,6 +211,7 @@
     "press_gap_ms": 50,
     "recoil_pull": 1.0,
     "recoil_pull_low": 0.5,
+    "aim_sway_counter": false,
     "ads_near_m": 10.0,
     "ads_near_chance": 0.85,
     "aim_in_first": true,
