@@ -169,6 +169,7 @@ pub use traps::ReactTuning;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
+pub use unstick::StuckWindow;
 pub use unstick::UnstickTuning;
 
 /// `patch` merged into `target` as RFC 7386 merges, but for its `null`: an object merges key by key, a `null` is
