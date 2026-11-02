@@ -1057,6 +1057,10 @@ fn drive_tick_inner(
                 if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
                     hard = hard.with_max_jump_rise(rise);
                 }
+                // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
+                if tuning.kin.open_edge_cost > 0.0 {
+                    hard = hard.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);
+                }
                 let filter = traps::soften(
                     bot,
                     hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect()),
@@ -1707,9 +1711,10 @@ fn drive_tick_inner(
     let stepped = stepped.filter(|_| !straight);
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
         let (side, objective) = (bot.side, intent.objective);
+        let sees_open = tuning.aim.combat.clear_step_sees_open;
         let ask = |keys: u32, strafe: u32| {
             let to = me.feet + side_step(keys, strafe, me.yaw, tactics.clear_step_sees_lip);
-            tactics.clear_step_for(me.feet, to, time, side, objective)
+            tactics.clear_step_seeing(me.feet, to, time, side, objective, sees_open)
         };
         let slides = tuning.aim.combat.clear_step_slides_along;
         let (step, other_clear) = choose_step(
@@ -1772,7 +1777,8 @@ fn drive_tick_inner(
             let held_off = held_off || straight;
             let keys = decision.keys | away.key;
             let to = me.feet + side_step(keys, away.key, me.yaw, tactics.clear_step_sees_lip);
-            let clear = !held_off && tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
+            let sees_open = tuning.aim.combat.clear_step_sees_open;
+            let clear = !held_off && tactics.clear_step_seeing(me.feet, to, time, bot.side, intent.objective, sees_open);
             if clear {
                 decision.keys = keys;
             }
@@ -1781,7 +1787,7 @@ fn drive_tick_inner(
             let other_clear = !held_off && !clear && (cfg!(test) || tie) && {
                 let other = away.other_key();
                 let other_to = me.feet + side_step(decision.keys | other, other, me.yaw, tactics.clear_step_sees_lip);
-                tactics.clear_step_for(me.feet, other_to, time, bot.side, intent.objective)
+                tactics.clear_step_seeing(me.feet, other_to, time, bot.side, intent.objective, sees_open)
             };
             let tied = tie && other_clear;
             if tied {

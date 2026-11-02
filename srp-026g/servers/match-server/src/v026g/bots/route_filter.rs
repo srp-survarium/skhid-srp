@@ -54,6 +54,8 @@ pub struct RouteFilter {
     /// What the soft part (`spots`, `soft_floors`) does to a floor: shuts it,
     /// or costs it in a weighed search ([`Self::weighing_threat`]).
     soft: Soft,
+    /// The weight on a floor near an open side ([`Self::weighing_open_sides`], A269c), more than 1.
+    open_sides: Option<f32>,
 }
 
 /// What a filter's soft part does to the floors it keeps out.
@@ -120,6 +122,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("max_jump_rise", &self.max_jump_rise)
             .field("threat", &self.threat.is_some())
             .field("soft", &self.soft)
+            .field("open_sides", &self.open_sides)
             .finish()
     }
 }
@@ -183,27 +186,38 @@ impl RouteFilter {
         self
     }
 
-    /// Whether the search weighs its floors ([`Self::weighing_threat`]).
+    /// A search that weighs a floor near an open side (`mapdata::WalkGrid::near_open_side`: within the body's radius and
+    /// [`mapdata::grid::FALL_EDGE_MARGIN_M`] of a side the client's capsule walks off where the grid has no link, A269) `weight` times
+    /// its links' cost (`kin.open_edge_cost` + 1, A269c): a way keeps a body's width in from such an edge where the floor allows, as
+    /// [`mapdata::grid::FALL_EDGE_PENALTY`] does at a deep fall's, and a walkway open both sides is still the way (a cost, not a shut).
+    /// Nothing for a weight of 1 or less, or on a grid without the table of open sides.
+    pub fn weighing_open_sides(mut self, weight: f32) -> Self {
+        self.open_sides = (weight > 1.0).then_some(weight);
+        self
+    }
+
+    /// Whether the search weighs its floors ([`Self::weighing_threat`], [`Self::weighing_open_sides`]).
     pub fn weighs(&self) -> bool {
-        matches!(self.soft, Soft::Costed(_))
+        matches!(self.soft, Soft::Costed(_)) || self.open_sides.is_some()
     }
 
     /// What a link into floor `node` costs times its length, at least 1:
-    /// 1 unless the filter weighs ([`Self::weighing_threat`]).
+    /// 1 unless the filter weighs ([`Self::weighing_threat`], [`Self::weighing_open_sides`]).
     pub fn weight(&self, grid: &WalkGrid, node: NodeId) -> f32 {
+        let open = self.open_sides.filter(|_| grid.near_open_side(node)).unwrap_or(1.0);
         let Soft::Costed(w) = &self.soft else {
-            return 1.0;
+            return open;
         };
         let at = || grid.position(node);
         let soft = !self.spots.is_empty() && self.spots.iter().any(|&spot| stuck::near(spot, at()))
             || self.soft_floors.as_ref().is_some_and(|f| !f(node));
         if soft {
-            return SOFT_COST;
+            return SOFT_COST * open;
         }
         if w.covered.floor(node) && !w.ends.iter().any(|end| end.distance_xz(at()) < threat::FREE_M) {
-            w.lane
+            w.lane * open
         } else {
-            1.0
+            open
         }
     }
 
@@ -326,6 +340,10 @@ impl RouteFilter {
         if let Soft::Shut = self.soft {
             self.soft = other.soft.clone();
         }
+        self.open_sides = match (self.open_sides, other.open_sides) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        };
         if let Some(theirs) = other.soft_floors.clone() {
             let mine = self.soft_floors.take();
             self.soft_floors = Some(Arc::new(move |node| {
