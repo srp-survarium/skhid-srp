@@ -564,5 +564,29 @@ class OtherTables(unittest.TestCase):
                          ['projects/l2/day_4/client_project: zone (zones[kind=effect]/ms) is absent, its row says 2000'])
 
 
+    def test_an_armour_row_writes_its_hit_params_by_the_rule_and_its_bonuses_by_kind(self):
+        part = lambda phys, ano: {'hit_types': {'ranged': {'armor': phys}, 'slash': {'armor': phys},
+                                                'fire': {'armor': ano}}}
+        torso = config({'hit_params': {'front': part(0.5, 0.2), 'back': part(0.4, 0.2), 'left_forearm': part(0.3, 0.2)},
+                        'parameters': {'weight': 3.5}, 'default_modifications': [1030, 1240, 1112]})
+        category = {'configs': 'a/(*/*).options', 'match': set(),
+                    'columns': {'armor': ce.armour_values('armor'), 'back': ce.armour_values('back'),
+                                'arms': ce.armour_values('arms'), 'ano': ce.armour_values('ano'),
+                                'movement': ce.default_modification(111), 'experience': ce.default_modification(124),
+                                'regen': ce.default_modification(109)}}
+        files = {'a/torso/t.options': torso}
+        columns, rows = read_table(category, 'armor\tarmor\tback\tarms\tano\tmovement\texperience\tregen\n'
+                                             'torso/t\t0.55\t0.4\t0.3\t0.25\t1113\t\t1094\n')
+        written, _, gone = ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1030, 1113, 1094])
+        self.assertEqual(gone, {'a/torso/t.options': {'/default_modifications': ['/default_modifications[2]']}})
+        self.assertEqual((value(torso, 'hit_params/front/hit_types/slash/armor'), value(torso, 'hit_params/back/hit_types/ranged/armor')),
+                         (value(torso, 'hit_params/front/hit_types/ranged/armor'), value(torso, 'hit_params/back/hit_types/slash/armor')))
+        self.assertEqual(ce.stats_cells(torso, 0, columns, 'torso/t'),
+                         {'armor': '0.55', 'back': '0.4', 'arms': '0.3', 'ano': '0.25', 'movement': '1113',
+                          'experience': '', 'regen': '1094'})
+        self.assertEqual(ce.armour_card(torso)[6], '55')
+
+
 if __name__ == '__main__':
     unittest.main()

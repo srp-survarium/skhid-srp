@@ -809,6 +809,74 @@ def set_modifier_kind(buf, modifiers, kind):
     return written, gone
 
 
+def armour_values(group):
+    """The armour values of one group of a hit_params table, in its order: `armor` the physical hit
+    types (ranged, slash, explosive) of every part but the back and the forearms, `back` and `arms`
+    theirs, `ano` the anomalous types of every part."""
+    def values(buf, hit_params):
+        for part in children(buf, hit_params):
+            name = name_at(buf, rec(buf, part)[1]).decode()
+            own = 'back' if name == 'back' else 'arms' if 'forearm' in name else 'armor'
+            for kind in children(buf, find(buf, 'hit_types', part)):
+                physical = name_at(buf, rec(buf, kind)[1]) in (b'ranged', b'slash', b'explosive')
+                if (group == own) if physical else group == 'ano':
+                    at = '/%s/hit_types/%s/armor' % (name, name_at(buf, rec(buf, kind)[1]).decode())
+                    yield at, find(buf, 'armor', kind)
+
+    def read(buf, hit_params):
+        return '|'.join(sorted({cell_text(buf, o) for _, o in values(buf, hit_params)}))
+
+    def write(buf, hit_params, cell):
+        out = [at for at, o in values(buf, hit_params) if not same_cell(cell, cell_text(buf, o))]
+        for at, o in list(values(buf, hit_params)):
+            if not same_cell(cell, cell_text(buf, o)):
+                write_cell(buf, o, cell)
+        return out, []
+    return Derived('hit_params', read, write)
+
+
+def armour_card(buf):
+    """{prop_id: text} of an armour card: 6 armour x100, 8 anomalous armour x100, 15 the weight, 11 the
+    oxygen seconds."""
+    out = {15: weight_text(value_of(buf, find(buf, 'parameters/weight')))}
+    for prop, group in ((6, 'armor'), (8, 'ano')):
+        text = resolve(buf, 'hit_params') and armour_values(group).read(buf, find(buf, 'hit_params'))
+        if text and '|' not in text:
+            out[prop] = number_text(float(text) * 100)
+    oxygen = resolve(buf, 'data/amount_time_sec')
+    if oxygen:
+        out[11] = number_text(value_of(buf, oxygen[0][1]))
+    return out
+
+
+def default_modification(decade):
+    """The built-in modification of one kind (ids decade*10 .. decade*10+9) of an item's default list:
+    its id, or nothing; writing sets it in place, takes it out (later ones move down) or appends it."""
+    def mine(buf, items):
+        return [(i, c) for i, c in enumerate(children(buf, items)) if as_number(T_INT, rec(buf, c)[0] & 0xffffffff) // 10 == decade]
+
+    def read(buf, items):
+        return '|'.join(cell_text(buf, c) for _, c in mine(buf, items))
+
+    def write(buf, items, cell):
+        have, kids = mine(buf, items), children(buf, items)
+        if cell and have:
+            write_cell(buf, have[0][1], cell)
+            return ['[%d]' % have[0][0]], []
+        if have:
+            for dst, src in zip(kids[have[0][0]:], kids[have[0][0] + 1:]):
+                buf[dst:dst + 24] = buf[src:src + 24]
+            d, i, crc, t, cnt = rec(buf, items)
+            REC.pack_into(buf, items, d, i, crc, t, cnt - 1)
+            return ['[%d]' % k for k in range(have[0][0], cnt - 1)], ['[%d]' % (cnt - 1)]
+        _, ii, icrc, it, icnt = rec(buf, kids[0]) if kids else (0, append(buf, b'\0'), 0, T_INT, 4)
+        d, i, crc, t, cnt = rec(buf, items)
+        new = REC.pack(int(cell) & 0xffffffff, ii, icrc, T_INT, icnt)
+        REC.pack_into(buf, items, append_array(buf, [bytes(buf[c:c + 24]) for c in kids] + [new]), i, crc, t, cnt + 1)
+        return ['[%d]' % cnt], []
+    return Derived('default_modifications', read, write)
+
+
 # <table>.tsv, a row each of what `configs` names, a column a stat:
 #   'dir/x_*.ext'      a row per name the first `*` takes (x_name); the rest of the glob may match several
 #                      files, each the row's (a level's projects of every weather: a cell goes into those
@@ -968,6 +1036,37 @@ STATS = {
         'match': {'spawn_protection_s', 'spawn_zone_ms', 'spawn_zone_fade_ms', 'resupply_ms', 'artefact_search_s',
                   'artefact_cooldown_s'},
     },
+    'armor': {
+        'configs': 'gameplay/items/armour/(*/*).options',
+        'columns': {
+            'armor': armour_values('armor'), 'ano': armour_values('ano'), 'arms': armour_values('arms'),
+            'back': armour_values('back'), 'weight': 'parameters/weight', 'oxygen_s': 'data/amount_time_sec',
+            'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
+            'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
+            # built-in bonuses, a column a kind: the modification's id
+            'pockets': default_modification(103),
+            'artefact_slots': default_modification(104),
+            'ammo_bags': default_modification(105),
+            'accuracy': default_modification(107),
+            'aim': default_modification(108),
+            'max_weight': default_modification(112),
+            'health_regen': default_modification(109),
+            'stamina_regen': default_modification(110),
+            'movement': default_modification(111),
+            'artefact_search': default_modification(113),
+            'reload_speed': default_modification(114),
+            'recoil': default_modification(115),
+            'stamina_spend': default_modification(116),
+            'slot_size': default_modification(117),
+            'experience': default_modification(124),
+            'rep_scav': default_modification(125),
+            'rep_bm': default_modification(126),
+        },
+        'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
+                  'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size'},
+        'cards': armour_card,
+    },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
 }
@@ -981,16 +1080,24 @@ def stats_category(path):
 
 
 def stats_globs(category):
+    """The category's globs, each with its row's part in parentheses (the first `*` and the rest of its
+    segment before it when the glob does not say)."""
     configs = category['configs']
-    return configs if isinstance(configs, list) else [configs.split('#')[0]]
+    out = []
+    for glob in configs if isinstance(configs, list) else [configs.split('#')[0]]:
+        if '*' in glob and '(' not in glob:
+            star = glob.index('*')
+            head = glob[:star].rindex('/') + 1
+            glob = glob[:head] + '(' + glob[head:star + 1] + ')' + glob[star + 1:]
+        out.append(glob)
+    return out
 
 
 def stats_config(category, name):
     """The glob of a row's files (a path when the glob has one `*`, or names the file)."""
     for glob in stats_globs(category):
-        if '*' in glob:
-            star = glob.index('*')
-            return glob[:glob[:star].rindex('/') + 1] + name + glob[star + 1:]
+        if '(' in glob:
+            return glob[:glob.index('(')] + name + glob[glob.index(')') + 1:]
         if os.path.basename(glob).split('.')[0] == name:
             return glob
     return name
@@ -998,7 +1105,7 @@ def stats_config(category, name):
 
 def stats_paths(category, paths):
     """The game paths of `paths` a category reads."""
-    return sorted({p for glob in stats_globs(category) for p in fnmatch.filter(paths, glob)})
+    return sorted({p for glob in stats_globs(category) for p in fnmatch.filter(paths, glob.replace('(', '').replace(')', ''))})
 
 
 def stats_targets(category, files):
@@ -1012,14 +1119,14 @@ def stats_targets(category, files):
             out.setdefault(cell_text(files[path], find(files[path], key, entry)), []).append((path, entry))
         return out
     for glob in stats_globs(category):
-        if '*' not in glob:
+        if '(' not in glob:
             if glob in files:
                 out.setdefault(os.path.basename(glob).split('.')[0], []).append((glob, 0))
             continue
-        star = glob.index('*')
-        head = glob[:glob[:star].rindex('/') + 1]
-        pattern = re.compile(re.escape(head) + '(' + re.escape(glob[len(head):star]) + '[^/]*)' +
-                             '.*'.join(map(re.escape, glob[star + 1:].split('*'))))
+        head, rest = glob.split('(')
+        row, tail = rest.split(')')
+        pattern = re.compile('.*'.join(map(re.escape, head.split('*'))) + '(' + '[^/]*'.join(map(re.escape, row.split('*'))) +
+                             ')' + '.*'.join(map(re.escape, tail.split('*'))))
         for path in sorted(files):
             if pattern.fullmatch(path):
                 out.setdefault(pattern.fullmatch(path)[1], []).append((path, 0))
@@ -1127,7 +1234,7 @@ def stats_values(buf, off, columns, row):
     out = {}
     for c, key in columns.items():
         if isinstance(key, Derived):
-            out[c] = [key.read(buf, o) for _, o in resolve(buf, key, off)]
+            out[c] = [cell for cell in (key.read(buf, o) for _, o in resolve(buf, key, off)) if cell]
             continue
         out[c] = [cell_text(buf, o) for _, o in resolve(buf, key, off)]
         if not out[c] and re.search(r'\[(\*|\d+)\]', key) and resolve(buf, key[:key.index('[')], off):
@@ -1792,9 +1899,10 @@ def main():
             had = set() if p in made else {q for q, _, _ in walk(bytearray(open(files[p], 'rb').read()))}
             allowed.setdefault(p, set()).update(q for q in paths if q in had or p in made)
             for q in (q for q in paths if q not in had and p not in made):
+                table = q[:q.rindex('[')] if q.endswith(']') else q.rpartition('/')[0]
                 added.setdefault(p, []).append(q)
-                grown.setdefault(p, {}).setdefault(q.rpartition('/')[0], 0)
-                grown[p][q.rpartition('/')[0]] += 1
+                grown.setdefault(p, {}).setdefault(table, 0)
+                grown[p][table] += 1
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])

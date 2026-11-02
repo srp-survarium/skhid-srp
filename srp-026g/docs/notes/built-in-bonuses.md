@@ -4,7 +4,7 @@ An item's built-in bonuses are its `default_modifications`: the client adds them
 config, the server counts them as held (a piece never rolls a kind it comes with,
 `Modifications::candidates`).
 
-The owner's rule (2026-10-29, content-edit `built-in-bonuses-1.json`):
+The owner's rule (2026-10-29; the bonus cells of content-edit `armor.tsv`, once `built-in-bonuses-1.json`):
 
 - Equipment only (items_dict categories 1-7: helmet, mask, body armour, back, pants, gloves,
   boots; premium copies too). Weapons keep their presets.
