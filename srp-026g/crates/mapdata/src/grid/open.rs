@@ -89,7 +89,16 @@ impl WalkGrid {
             let Some(cell) = self.cell_index(i + di, k + dk) else {
                 continue;
             };
-            if (self.start[cell]..self.start[cell + 1]).any(|b| (self.height[b as usize] - feet).abs() <= self.body.step) {
+            let beside = || (self.start[cell]..self.start[cell + 1]).map(|b| self.height[b as usize]);
+            if beside().any(|h| (h - feet).abs() <= self.body.step) {
+                continue;
+            }
+            // A269c: only a side over a floor further down than a step is a drop the capsule is known to walk off. A cell beside
+            // with only higher floors (a rise over a step, a floor overhead) or none (the grid eroded it by a wall off the way out, or
+            // its ground is too steep for a floor) is not known as one: the body is held there as at a wall, as the default model
+            // holds it. On the 8 maps such sides were 4 of 5 of the open sides with no route cost (the bench's open_sides_bare), and
+            // the lip guard braked at them a key change a tick.
+            if !beside().any(|h| h < feet - self.body.step) {
                 continue;
             }
             let length = ((di * di + dk * dk) as f32).sqrt();
@@ -156,5 +165,21 @@ mod tests {
         let bare = WalkGrid::build(&tris, AREA, 0.25, body);
         assert_eq!(bare.open_toward(edge(&bare, 6.0), 1.0, 0.0), None);
         assert!(!bare.near_open_side(edge(&bare, 6.0)));
+    }
+
+    /// A269c: a side is open only over a floor further down than a step. On level ground a pillar a little off the way out erodes
+    /// the cell beside a floor (no floor there, no link that way, and the way out misses the pillar): the ground is there, the
+    /// capsule walks on, and the side is not open. The 6 m ledge's edge, over the ground, stays open
+    /// (`a_deep_ledge_with_no_link_is_open_on_its_edge_and_a_parapet_closes_it`).
+    #[test]
+    fn a_cell_beside_eroded_by_a_pillar_off_the_way_is_no_open_side() {
+        let body = Body { erosion: Erosion::Exact, ..Body::default() };
+        let mut tris: Vec<Triangle> = quad(0.0, 12.0, 0.0, 0.0, 10.0).to_vec();
+        tris.extend(wall(6.3, 0.0, 3.0, 5.4, 5.8));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, body).with_open_sides(&tris, 0.435);
+        let floor = grid.locate(Vec3::new(5.875, 0.0, 5.125), 0.05).expect("a floor short of the pillar");
+        assert_eq!(grid.floors_in([6.01, 5.01, 6.24, 5.24]).count(), 0, "the cell beside is eroded");
+        assert!(grid.links(floor).all(|(b, _)| grid.position(b).x < 6.0), "no link that way");
+        assert_eq!(grid.open_toward(floor, 1.0, 0.0), Some(false), "ground beside, not a drop");
     }
 }
