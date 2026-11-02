@@ -6442,13 +6442,13 @@ impl Reflex {
                 } else if committed && now < pressed + c.grenade_launch_ms {
                     // [A260] Weighed to the launch: the grenade leaves along the view then, whatever the key does, and
                     // the thrower's own step can have put a face before it since the let-go.
-                    if let Err(why) = weigh(c.grenade_recheck, throw.pick) {
-                        if let Some(pick) = self.refind(mesh.as_deref(), &throw, me, view, c, why, true) {
-                            throw.pick = pick;
-                            if let Some((_, turned)) = throw_view_of(me, throw.at, c, pick) {
-                                pitch = turned;
-                                throw.pitch = Some(turned);
-                            }
+                    if let Err(why) = weigh(c.grenade_recheck, throw.pick)
+                        && let Some(pick) = self.refind(mesh.as_deref(), &throw, me, view, c, why, true)
+                    {
+                        throw.pick = pick;
+                        if let Some((_, turned)) = throw_view_of(me, throw.at, c, pick) {
+                            pitch = turned;
+                            throw.pitch = Some(turned);
                         }
                     }
                 }
