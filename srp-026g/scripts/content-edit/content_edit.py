@@ -754,7 +754,8 @@ def throwable_card(buf):
 #   'file'             no `columns`: a key/value table (`key  value`), a row a key path; the config is
 #                      made anew when no archive has it
 # `columns`: their key paths; `[*]` every item, `[field=cell]` the entries whose field reads so, `[i]`.
-# A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key.
+# A cell takes its key's type (an int, a float, true/false, a text); an empty cell: no such key. A cell
+# of a key the config lacks is refused, but in an `add` column: added to its table (a number as a float).
 # `match`: the columns (of a key/value table: keys) a match computes with: a change needs the `next`
 # row of simulation_changes.tsv. `cards`: the lobby card lines a config's values make.
 STATS = {
@@ -830,6 +831,31 @@ STATS = {
                   'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
                   'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
         'cards': throwable_card,
+    },
+    'artefacts': {
+        'configs': 'gameplay/items/artefacts/*.options',
+        'columns': {
+            'cooldown_s': 'data/cooldown_sec', 'active_s': 'data/active/duration', 'spawn_s': 'data/spawn_sec',
+            'weight': 'parameters/weight',
+            'passive_speed': 'data/passive/movement_speed_mod', 'passive_aim': 'data/passive/aim_time_mod',
+            'active_speed': 'data/active/movement_speed_mod', 'active_aim': 'data/active/aim_time_mod',
+            'active_stopping': 'data/active/stopping_power_mod',
+            'active_stamina_spend': 'data/active/stamina_spend_mod', 'active_stamina_regen': 'data/active/stamina_regen_mod',
+            'passive_damage_mul': 'data/passive/damage_mul', 'passive_pierce_mul': 'data/passive/armor_piercing_mul',
+            'passive_damage_add': 'data/passive/damage_add', 'passive_pierce_add': 'data/passive/armor_piercing_add',
+            'active_damage_mul': 'data/active/damage_mul', 'active_pierce_mul': 'data/active/armor_piercing_mul',
+            'active_damage_add': 'data/active/damage_add', 'active_pierce_add': 'data/active/armor_piercing_add',
+            'absorb': 'data/active/absorb_total',
+            'regen': 'data/passive/regeneration_modifiers[*]/regen_add',
+            'regen_timeout': 'data/passive/regeneration_modifiers[*]/timeout_add',
+            'regen_threshold': 'data/passive/regeneration_modifiers[*]/threshold_add',
+        },
+        'match': {'cooldown_s', 'active_s', 'spawn_s', 'weight', 'passive_speed', 'passive_aim', 'active_speed',
+                  'active_aim', 'active_stopping', 'active_stamina_spend', 'active_stamina_regen', 'passive_damage_mul',
+                  'passive_pierce_mul', 'passive_damage_add', 'passive_pierce_add', 'active_damage_mul',
+                  'active_pierce_mul', 'active_damage_add', 'active_pierce_add', 'absorb', 'regen', 'regen_timeout',
+                  'regen_threshold'},
+        'add': {'passive_aim', 'active_aim', 'active_stopping'},  # Spring's, for client patch 54
     },
 }
 
@@ -1040,15 +1066,23 @@ def stats_write(category, columns, rows, data, table):
     for row, places in sorted(targets.items()):
         for p, off in places:
             b = data[p]
+            root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
             for column, key, cell, have in stats_differences(b, off, columns, rows[row], row):
                 spots = resolve(b, key, off)
-                if not cell or not spots:
+                parent, _, name = key.rpartition('/')
+                tables = resolve(b, parent, off) if parent else [('', off)]
+                if not cell or not spots and (column not in category.get('add', ()) or len(tables) != 1 or
+                                              rec(b, tables[0][1])[3] != T_NAMED):
                     raise ValueError('%s %s (%s): the row says %r, the config %r (an empty cell: no such key)'
                                      % (stats_label(category, row, p), column, key, cell, have))
+                if not spots:  # a key the config lacks, in its table: a float, true/false or a text
+                    add_value(b, (root + tables[0][0])[1:], name, cell == 'true' if cell in ('true', 'false') else
+                              float(cell) if NUMBER.fullmatch(cell) else cell)
+                    written.setdefault(p, []).append(root + tables[0][0] + '/' + name)
                 for at, o in spots:
                     if not same_cell(cell, cell_text(b, o)):
                         write_cell(b, o, cell)
-                        written.setdefault(p, []).append(at)
+                        written.setdefault(p, []).append(root + at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
             if stats_differences(b, off, columns, rows[row], row):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
@@ -1605,13 +1639,19 @@ def main():
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
+    shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     if stats is not None:
         category, columns, rows = stats
         data = {p: bytearray(open(files[p], 'rb').read()) for p in stats_paths(category, files)}
         written, made = stats_write(category, columns, rows, data, os.path.basename(edits_file))
         bufs.update({p: data[p] for p in written})
         for p, paths in written.items():
-            allowed.setdefault(p, set()).update(paths)
+            had = set() if p in made else {q for q, _, _ in walk(bytearray(open(files[p], 'rb').read()))}
+            allowed.setdefault(p, set()).update(q for q in paths if q in had or p in made)
+            for q in (q for q in paths if q not in had and p not in made):
+                added.setdefault(p, []).append(q)
+                grown.setdefault(p, {}).setdefault(q.rpartition('/')[0], 0)
+                grown[p][q.rpartition('/')[0]] += 1
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
@@ -1632,7 +1672,6 @@ def main():
                 bufs[p] = b
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
-    shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     gone = {}
     for e in edits.get('remove_key', []):
         for key in e['keys']:

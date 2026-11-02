@@ -412,7 +412,8 @@ class OtherTables(unittest.TestCase):
         files = {'mods.options': mods}
         players = {'mods.options': bytearray(mods)}
         columns, rows = read_table(MODS, 'id\tvalue\tname\n1030\t0.1\ta\n1031\t0.25\tc\n')
-        ce.stats_write(MODS, columns, rows, files, 't')
+        self.assertEqual(ce.stats_write(MODS, columns, rows, files, 't')[0],
+                         {'mods.options': ['/modifications[1]/modifiers[0]/value', '/modifications[1]/ui/name']})
         self.assertEqual((value(mods, 'modifications[1]/ui/name'), ce.cell_text(mods, ce.find(mods, 'modifications[1]/modifiers[0]/value'))),
                          ('c', '0.25'))
         self.assertEqual(ce.stats_moved(MODS, columns, players, files), ['mods.options#modifications[id=1031] modifiers[0]/value'])
@@ -495,6 +496,19 @@ class OtherTables(unittest.TestCase):
         trap = config({'data': {'damage_parameters': [{'amount': 0.6}, {'amount': 0.6}]}, 'parameters': {'weight': 0.8}})
         self.assertEqual(ce.throwable_card(grenade), {1: '390', 23: '10', 15: '0.4'})
         self.assertEqual(ce.throwable_card(trap), {1: '60', 15: '0.8'})
+
+    def test_only_an_add_column_adds_a_key_the_config_lacks(self):
+        category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim'},
+                    'columns': {'aim': 'data/active/aim_time_mod', 'speed': 'data/active/speed_mod'}}
+        columns, rows = read_table(category, 'name\taim\tspeed\nspring\t-0.1\t\n')
+        files = {'a/spring.options': config({'data': {'active': {'duration': 10}}})}
+        self.assertEqual(ce.stats_write(category, columns, rows, files, 't')[0], {'a/spring.options': ['/data/active/aim_time_mod']})
+        b = files['a/spring.options']
+        self.assertEqual((ce.rec(b, ce.find(b, 'data/active/aim_time_mod'))[3], ce.cell_text(b, ce.find(b, 'data/active/aim_time_mod'))),
+                         (ce.T_FLOAT, '-0.1'))
+        columns, rows = read_table(category, 'name\taim\tspeed\nspring\t-0.1\t0.1\n')
+        with self.assertRaisesRegex(ValueError, 'no such key'):
+            ce.stats_write(category, columns, rows, files, 't')
 
 
 if __name__ == '__main__':

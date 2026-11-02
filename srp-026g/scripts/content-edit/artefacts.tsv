@@ -1,0 +1,4 @@
+artefacts	cooldown_s	active_s	spawn_s	weight	passive_speed	passive_aim	active_speed	active_aim	active_stopping	active_stamina_spend	active_stamina_regen	passive_damage_mul	passive_pierce_mul	passive_damage_add	passive_pierce_add	active_damage_mul	active_pierce_mul	active_damage_add	active_pierce_add	absorb	regen	regen_timeout	regen_threshold
+artefact_lifebone	45	3	2	0.2																	0.1	0	1
+artefact_onyx	60	3	1	0.1								0.95	0.95	0	0	0.25	0.25	0	0	5			
+artefact_spring	40	10	1	0.1	0.05	-0.05	0.1	-0.1	-1	-5	5												
