@@ -39,7 +39,7 @@ balances "around the current balance".
 - **Ammo** is live ammo, but for the Fort-401: a default kit holds 3 bags, so a 100-round box fed the
   rifle 7.62x51 (10 a unit) starts short and never reloads. It takes `ammo_7.62x51_belt` (2275): the
   live 7.62x51's config in a belt of 100, 2 bags, 2.5 kg, level 14, as the PKP's 7N13 belt (2204):
-  dictionary category 21, 300 a belt (srp 150), sold by Edge at rank 9 (the Fort-401's seller). The
+  dictionary category 21, 150 a belt, sold by Edge at rank 9 (the Fort-401's seller). The
   other guns' units fill a kit: 9x19 and .45 come in 50, buckshot 20, slugs 15, 5.56 30, 7N1 10.
 - **Models as 0.46c2 shows them.** A few 0.46c2 guns carry parts as default attachments (static models
   at a locator): the MP5's forend, the L85A2's carry-handle sight, forend and flash hider, the

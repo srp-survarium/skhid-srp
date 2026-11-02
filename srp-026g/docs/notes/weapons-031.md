@@ -58,7 +58,7 @@ A default kit has three ammo bags.
   the clip 20 / 0.5).
 - With the default three bags, the Minimi gets one belt and no reserve (100 rounds take 2 bags), the
   same as the live PKP: accepted (the coordinator, 2026-11-01).
-- `prices.rs`: their sellers (EXCEPTIONS), `AMMO_PRICES` and `UNRELEASED` rows.
+- Their rounds' sellers are `shop.tsv` rows, their prices `items.tsv`'s `base_cost`.
 
 ## Fixed after the first in-game look (2026-11-01)
 

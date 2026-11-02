@@ -3015,7 +3015,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
     world.assert_clean();
 }
 
-/// The owner's choice of 2026-10-18 (`prices::NOT_SOLD`): the Russian and
+/// The owner's choice of 2026-10-18 (`prices::is_not_sold`): the Russian and
 /// Belarusian flags and coats of arms, the flag of the USSR and the red
 /// star are in no price record the lobby is
 /// sent and a buy of one is refused, for gold as for silver; one already

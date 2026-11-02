@@ -24,8 +24,7 @@
 //! its project ([`super::maps`]), the names of the maps and modes in the
 //! game's localizations ([`super::localization`]), drops, quests, skills,
 //! awards and the test profiles. What the game's files do not say stays in
-//! code: the shop's exceptions ([`super::prices::EXCEPTIONS`]), the
-//! bundles.
+//! code: the bundles.
 //!
 //! Without [`init`] (tests, tools), the data is that of
 //! `resources/game-026g/server-game-data.db`: 0.26g's `resources.db` with
@@ -238,13 +237,17 @@ const SRP_TABLES: &[(&str, &str)] = &[
     ),
 ];
 
-/// srp's keys of the dictionary's entries, `srp_like` and `srp_start`, which
-/// `scripts/content-edit/items.tsv` writes into the content patch.
+/// The dictionary's entries as `scripts/content-edit/items.tsv` writes them
+/// into the content patch: their price and srp's keys, `srp_like` and
+/// `srp_start`.
 const ITEMS_TABLE: &str = include_str!("../../../../scripts/content-edit/items.tsv");
 
-/// `files` with srp's own configs ([`SRP_TABLES`]) and its keys of the
-/// dictionary's entries ([`ITEMS_TABLE`]), for the entries the dictionary
-/// has.
+/// srp's shop rules, which name items ([`super::prices::SHOP_PATH`]).
+const SHOP_TABLE: &str = include_str!("../../../../scripts/content-edit/shop.tsv");
+
+/// `files` with srp's own configs ([`SRP_TABLES`], [`SHOP_TABLE`]) and the
+/// dictionary's entries as [`ITEMS_TABLE`] has them, for the items the
+/// dictionary has.
 fn with_srp_tables(files: &mut BTreeMap<String, Vec<u8>>) {
     for (path, table) in SRP_TABLES {
         files.insert((*path).to_owned(), key_value_config(table));
@@ -254,7 +257,7 @@ fn with_srp_tables(files: &mut BTreeMap<String, Vec<u8>>) {
         .filter(|line| !line.trim().is_empty() && !line.starts_with('#'));
     let head: Vec<&str> = lines.next().expect("a header").split('\t').collect();
     let column = |name| head.iter().position(|c| *c == name).expect(name);
-    let (like, start) = (column("like"), column("start"));
+    let (cost, like, start) = (column("base_cost"), column("like"), column("start"));
     let rows: BTreeMap<i32, Vec<&str>> = lines
         .map(|line| {
             let cells: Vec<&str> = line.split('\t').collect();
@@ -271,11 +274,21 @@ fn with_srp_tables(files: &mut BTreeMap<String, Vec<u8>>) {
     else {
         panic!("the dictionary has items_dict")
     };
+    let mut names = Vec::new();
     for entry in entries {
         let id = entry.get("dict_id").and_then(ConfigValue::as_i32);
+        names.extend(
+            entry
+                .get("name")
+                .and_then(ConfigValue::as_str)
+                .map(str::to_owned),
+        );
         let (Some(row), ConfigValue::Named(keys)) = (id.and_then(|id| rows.get(&id)), entry) else {
             continue;
         };
+        for (_, value) in keys.iter_mut().filter(|(key, _)| key == "base_cost") {
+            *value = ConfigValue::Integer(row[cost].parse().expect("a price"));
+        }
         if !row[like].is_empty() {
             keys.push(("srp_like".into(), ConfigValue::String(row[like].into())));
         }
@@ -286,12 +299,21 @@ fn with_srp_tables(files: &mut BTreeMap<String, Vec<u8>>) {
         }
     }
     files.insert(path.to_owned(), dictionary.to_bytes().expect("a config"));
+    let shop: String = SHOP_TABLE
+        .lines()
+        .filter(|line| {
+            line.split_once('/')
+                .is_none_or(|(item, _)| names.iter().any(|n| n == item))
+        })
+        .map(|line| format!("{line}\n"))
+        .collect();
+    files.insert(super::prices::SHOP_PATH.to_owned(), key_value_config(&shop));
 }
 
 /// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
 /// in a key, `/` goes into a named table and `[i]` to an item of an indexed
 /// one; a cell is a whole number, a number with a point, true/false or a text.
-fn key_value_config(table: &str) -> Vec<u8> {
+pub(super) fn key_value_config(table: &str) -> Vec<u8> {
     enum Node {
         Leaf(ConfigValue),
         Table(Vec<(String, Node)>),

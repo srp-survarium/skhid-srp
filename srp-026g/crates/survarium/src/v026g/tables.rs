@@ -17,6 +17,7 @@ use super::localization;
 use super::maps;
 use super::modifications::{self, Modifications};
 use super::new_account::{self, NewAccount};
+use super::prices::{SHOP_PATH, ShopRules};
 use super::quests::{self, Quests};
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
 use super::skills::{self, SkillsTree};
@@ -171,6 +172,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         Loadouts::parse(needed(data, loadouts::PATH)?, &dictionary),
     )?;
     RoomRules::parse(needed(data, RULES_PATH)?).map_err(GameDataError)?;
+    ShopRules::parse(needed(data, SHOP_PATH)?, &dictionary).map_err(GameDataError)?;
     NewAccount::parse(needed(data, new_account::PATH)?).map_err(GameDataError)?;
     if let Some(pair) = dictionary
         .items
@@ -192,8 +194,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
 pub type Named = (&'static str, &'static str);
 
 /// Every item this crate's code names: the starter kit and stash, the
-/// shop's exceptions and ammo prices (but for [`super::prices::UNRELEASED`]),
-/// the bundles' contents. Each is
+/// bundles' contents. Each is
 /// looked up by name when used, and one the dictionary lacks would be
 /// skipped there, or panic: [`check`] refuses data that lacks any.
 pub fn named_items() -> Vec<Named> {
@@ -207,32 +208,6 @@ pub fn named_items() -> Vec<Named> {
         loadouts::STARTER_STASH
             .iter()
             .map(|&name| ("loadouts::STARTER_STASH", name)),
-    );
-    // Not the items of a patch not released yet: data may lack them.
-    let released = |name: &&str| !super::prices::UNRELEASED.contains(name);
-    named.extend(
-        super::prices::EXCEPTIONS
-            .iter()
-            .map(|&(name, _)| name)
-            .filter(released)
-            .map(|name| ("prices::EXCEPTIONS", name)),
-    );
-    named.extend(
-        super::prices::AMMO_PRICES
-            .iter()
-            .map(|&(name, _, _)| name)
-            .filter(released)
-            .map(|name| ("prices::AMMO_PRICES", name)),
-    );
-    named.extend(
-        super::prices::OWNER_PRICES
-            .iter()
-            .map(|&(name, _, _)| ("prices::OWNER_PRICES", name)),
-    );
-    named.extend(
-        super::prices::NOT_SOLD
-            .iter()
-            .map(|&(name, _)| ("prices::NOT_SOLD", name)),
     );
     for bundle in &super::shop_offers::BUNDLES {
         named.extend(
@@ -358,15 +333,6 @@ mod tests {
         let named = named_items();
         assert!(named.contains(&("loadouts::STARTER", "tt_33")));
         assert!(named.contains(&("shop_offers::BUNDLES", "vss_premium")));
-        assert!(named.contains(&("prices::EXCEPTIONS", "medkit")));
-        assert!(named.contains(&("prices::EXCEPTIONS", "vityaz")));
-        assert!(named.contains(&("prices::OWNER_PRICES", "vityaz")));
-        // The rows of a patch not released are not asked for.
-        assert!(
-            named
-                .iter()
-                .all(|(_, name)| !super::super::prices::UNRELEASED.contains(name))
-        );
         assert_eq!(lacking(Dictionary::shared(), &named), Vec::<String>::new());
         assert_eq!(check(super::super::game_data::shared()), Ok(()));
     }
@@ -384,7 +350,6 @@ mod tests {
             missing,
             [
                 "loadouts::STARTER tt_33",
-                "prices::OWNER_PRICES tt_33",
                 "shop_offers::BUNDLES vss_premium"
             ]
         );
@@ -392,7 +357,7 @@ mod tests {
         assert!(
             error.contains(
                 "server-game-data.db lacks what srp's code names: loadouts::STARTER tt_33, \
-                 prices::OWNER_PRICES tt_33, shop_offers::BUNDLES vss_premium."
+                 shop_offers::BUNDLES vss_premium."
             ),
             "{error}"
         );

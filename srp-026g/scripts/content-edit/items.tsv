@@ -5,7 +5,7 @@
 items	name	base_cost	gold	like	start
 3	ak_74m	47500	false		
 5	rgd-5	30	false		
-7	ammo_5.45x39_7n6m	60	false		
+7	ammo_5.45x39_7n6m	30	false		
 9	scav_oxygen_1	2380	false		
 12	toz_122	11340	false		
 13	ak_74u	12920	false		
@@ -13,10 +13,10 @@ items	name	base_cost	gold	like	start
 15	rem_870	12350	false		
 16	toz_34	2100	false		
 17	toz_66	1900	false		
-18	tt_33	0	false		
-19	vityaz	12000	false		
-20	ammo_.357m	50	false		
-22	ammo_12mm_buck	20	false		
+18	tt_33	500	false		
+19	vityaz	25000	false		
+20	ammo_.357m	25	false		
+22	ammo_12mm_buck	10	false		
 24	bm_boots_1	530	false		
 25	bm_gloves_1	530	false		
 27	bm_helmet_1	4730	false		
@@ -42,9 +42,9 @@ items	name	base_cost	gold	like	start
 48	scav_torso_3	12350	false		
 49	scav_back_1	950	false		
 50	ammo_7.62x25	0	false		
-51	ammo_7.62x51	150	false		
-52	ammo_7.62x51_ap	200	false		
-53	ammo_9x19p_para	20	false		
+51	ammo_7.62x51	75	false		
+52	ammo_7.62x51_ap	100	false		
+53	ammo_9x19p_para	10	false		
 54	artefact_lifebone	0	false		
 55	uzi	3800	false		
 56	magnum	4280	false		
@@ -60,14 +60,14 @@ items	name	base_cost	gold	like	start
 67	medkit	20	false		
 68	base_trap	20	false		
 69	scope_leupold	25000	false		
-70	ammo_9x18_makarov	20	false		
-71	ammo_9x19_7n21	50	false		
-72	ammo_12mm_slug	30	false		
+70	ammo_9x18_makarov	10	false		
+71	ammo_9x19_7n21	25	false		
+72	ammo_12mm_slug	15	false		
 74	artefact_spring	0	false		
 76	artefact_onyx	0	false		
 77	rpd	34490	false		
 80	akmn	20900	false		
-81	ammo_7.62x39	60	false		
+81	ammo_7.62x39	30	false		
 82	antitoxin	50	false		
 83	edge_hunter_torso_1	20900	false		
 84	edge_hunter_legs_1	10450	false		
@@ -77,12 +77,12 @@ items	name	base_cost	gold	like	start
 88	kiparis	4200	false		
 89	pm	2630	false		
 90	winchester_1894	10260	false		
-91	ammo_.30-30	50	false		
+91	ammo_.30-30	25	false		
 102	edge_resp_1	5230	false		
-103	ammo_9x18_pbm	50	false		
+103	ammo_9x18_pbm	25	false		
 104	ammo_7.62x54r_old	0	false		
-106	ppsh	0	false		
-107	mosin_nagant	0	false		
+106	ppsh	1000	false		
+107	mosin_nagant	1000	false		
 108	izh_27_lancaster	2500	false		
 109	sks	23100	false		
 110	mp_153	13650	false		
@@ -120,8 +120,8 @@ items	name	base_cost	gold	like	start
 144	eq046_edge_back_6	35000	false		
 145	eq046_edge_mask_6	11880	false		
 146	edge_gloves_2	11880	false		
-147	ammo_7.62x39_m	150	false		
-148	ammo_7.62x54_7n1	220	false		
+147	ammo_7.62x39_m	75	false		
+148	ammo_7.62x54_7n1	110	false		
 149	sv_98	63000	false		
 151	repair_voucher	50	true		
 152	rename_account_voucher	250	true		
@@ -188,8 +188,8 @@ items	name	base_cost	gold	like	start
 214	generic_money	0	false		
 215	premium_money	0	false		
 216	vepr	52500	false		
-217	ammo_5.45x39_7n10	85	false		
-218	ammo_7.62x39_7n23	80	false		
+217	ammo_5.45x39_7n10	40	false		
+218	ammo_7.62x39_7n23	40	false		
 219	rdg-m	50	false		
 220	a_545	85500	false		
 221	decals_1_1	10	false		
@@ -271,9 +271,9 @@ items	name	base_cost	gold	like	start
 297	decals_5_16	300	true		
 298	decals_5_17	300	true		
 299	decals_5_18	300	true		
-300	ammo_pab9	100	false		
-301	ammo_sp5	120	false		
-302	ammo_sp6	120	false		
+300	ammo_pab9	50	false		
+301	ammo_sp5	60	false		
+302	ammo_sp6	60	false		
 303	a9_91	84000	false		
 304	scope_pso1	20000	false		
 305	vsk_94	113400	false		
@@ -293,8 +293,8 @@ items	name	base_cost	gold	like	start
 319	ren_boots_6	26250	false		
 320	ren_gloves_6	26250	false		
 321	sr2m	25080	false		
-322	ammo_9x21	65	false		
-323	ammo_45acp	65	false		
+322	ammo_9x21	30	false		
+323	ammo_45acp	30	false		
 324	ump45	27720	false		
 325	scav_torso_4	4750	true		
 326	scav_legs_4	2380	true		
@@ -302,7 +302,7 @@ items	name	base_cost	gold	like	start
 328	scav_torso_5	16150	false		
 329	scav_legs_5	8080	false		
 330	scav_helmet_5	8080	false		
-331	ammo_5.45x39_7n22	120	false		
+331	ammo_5.45x39_7n22	60	false		
 332	kiparis_premium	500	true	kiparis	1230
 333	uzi_premium	500	true	uzi	1230
 334	vityaz_premium	1000	true	vityaz	1230
@@ -333,11 +333,11 @@ items	name	base_cost	gold	like	start
 365	vssk	165000	false		
 366	socom16	75000	false		
 367	pp2000	42000	false		
-368	ammo_9x19p_7n31	70	false		
-369	ammo_6.5x39	140	false		
-370	ammo_12.7x55	150	false		
-371	ammo_12.7x54_pt	250	false		
-372	ammo_12.7x54_vps	300	false		
+368	ammo_9x19p_7n31	35	false		
+369	ammo_6.5x39	70	false		
+370	ammo_12.7x55	75	false		
+371	ammo_12.7x54_pt	125	false		
+372	ammo_12.7x54_vps	150	false		
 390	military_medkit	40	false		
 391	science_medkit	40	false		
 682	decals_1_8	1000	false		
@@ -696,11 +696,11 @@ items	name	base_cost	gold	like	start
 2110	shop_scope_aimpoint_compm4	9000	false		
 2111	shop_scope_docter	6000	false		
 2112	shop_scope_leupold_deltapoint	6000	false		
-2201	ammo_5.56x45	60	false		
-2202	ammo_4.6x30	70	false		
-2203	ammo_5.7x28	70	false		
-2204	ammo_7.62x54_7n13	300	false		
-2205	ammo_12mm_buck2	25	false		
+2201	ammo_5.56x45	30	false		
+2202	ammo_4.6x30	35	false		
+2203	ammo_5.7x28	35	false		
+2204	ammo_7.62x54_7n13	150	false		
+2205	ammo_12mm_buck2	10	false		
 2206	eotech_552	0	false		
 2207	walther_comp2	0	false		
 2211	kedr	4200	false		
@@ -736,19 +736,19 @@ items	name	base_cost	gold	like	start
 2250	vssk_camo	165000	false		
 2251	izh_27_lancaster_premium_2	500	true	izh_27_lancaster	1230
 2252	uzi_premium_2	500	true	uzi	1230
-2253	ammo_23mm_r	20	false		
-2254	ammo_7.62x51_20	300	false		
+2253	ammo_23mm_r	10	false		
+2254	ammo_7.62x51_20	150	false		
 2261	ots14	80000	false		
 2262	scar_h	125000	false		
 2263	vhs_2	115000	false		
 2264	fn_minimi	120000	false		
-2265	ammo_5.56x45_belt	200	false		
+2265	ammo_5.56x45_belt	100	false		
 2270	mp5a1	15000	false		
 2271	svu_a	75000	false		
 2272	l85a2	72000	false		
 2273	fort_401	95000	false		
 2274	jackhammer	85000	false		
-2275	ammo_7.62x51_belt	300	false		
+2275	ammo_7.62x51_belt	150	false		
 2280	cz_75	13500	false		
 2281	mp443	13500	false		
 2282	beretta93r	14000	false		

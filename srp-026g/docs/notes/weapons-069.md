@@ -136,8 +136,8 @@ Why each sits there:
   (`port-weapons-069d`): the drum's 71 and a reload of 7.62x25 fit 150, the KS-23M's 4 and a reload
   45.
 - 23x75R, smallshot: 0.69d0's twin of its 12/70 smallshot, so the live 12x70 smallshot's
-  numbers (10 pellets of 0.2, armour piercing 0.2, 15 a clip) and price (20, the shop's 10);
-  sold by Renaissance (`AMMO_PRICES`, `EXCEPTIONS`).
+  numbers (10 pellets of 0.2, armour piercing 0.2, 15 a clip) and price (10, its `base_cost` in
+  `items.tsv`); sold by Renaissance (`shop.tsv`).
 
 ## Attach points (bind frame, metres, from the bone)
 

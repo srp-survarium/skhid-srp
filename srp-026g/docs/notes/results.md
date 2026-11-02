@@ -382,7 +382,7 @@ What the live server's first two days showed (254 results of players who finishe
 | Match silver | 80 % of the original | **120 %** | `pay::DEFAULT_MONEY_RATE`, `SRP_MONEY_RATE` |
 | Wear of the weapons and armour played with | the game's (`degrade_per_match`, `degrade_per_use`), and a defect roll for a worn item | **none**; `SRP_ITEM_WEAR=on` brings the game's rule back | `pay::item_wear`, `rewards::Terms::wear` |
 | Items worn before the switch | - | made whole once: full condition, defects off, repairs over (`g26_meta` key `gear_mended`) | `GameAccounts::from_env`, `items_rules::mend_all` |
-| Ammo | the game's `base_cost` a clip | **about half**, each price set by hand and rounded down to a multiple of 5 | `prices::AMMO_PRICES` |
+| Ammo | the game's `base_cost` a clip | **about half**, each price set by hand and rounded down to a multiple of 5: its `base_cost`, so it sells back for a quarter of it | `scripts/content-edit/items.tsv` |
 | The play time bonus to the drop chance | the table's 40 % times 2, 1.75, 1.5, 1.25 for the first four games of an hour of play (srp's GUESS at the data's `playtime_dependence`) | **not applied**; `SRP_DROP_PLAYTIME_BONUS=on` brings it back | `pay::drop_playtime_bonus`, `rewards::Terms::playtime_bonus` |
 
 Not changed: a weapon or armour piece found after a match still arrives at 40 % with one defect (`SRP_DROP_CONDITION`, `SRP_DROP_DEFECT`), and stays so until its owner repairs it; the batteries' and premium's parts of the drop chance; quest silver, level rewards, the gold exchange; the prices of drugs, traps and grenades.

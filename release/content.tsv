@@ -136,3 +136,4 @@ edit	medicines.tsv	-	the medicines: a row each, its delay and active seconds, th
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
 edit	new-account.tsv	-	what a new account is given at its first sign-in (gameplay/srp/new_account.options): money, premium, rounds of every ammo, reputation, what it owns and what its three kits wear; srp reads it from its game data
 edit	items.tsv	-	the items: a row per dictionary entry, its name, price, gold flag, the plain item a golden or premium copy is (srp_like) and the modifications of its own a new one comes with (srp_start), which srp reads
+edit	shop.tsv	-	the shop's sellers and ranks beyond the item data's rule, and what no shop sells (gameplay/srp/shop.options): srp reads them from its game data
