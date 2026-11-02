@@ -1,5 +1,14 @@
 {
   "aim": {
+    "class_aim": {
+      "bolt": [1.0, 1.0, 1.0],
+      "marksman": [1.0, 1.0, 1.0],
+      "mg": [1.0, 1.0, 1.0],
+      "pistol": [1.0, 1.0, 1.0],
+      "rifle": [1.0, 1.0, 1.0],
+      "shotgun": [1.0, 1.0, 1.0],
+      "smg": [1.0, 1.0, 1.0]
+    },
     "combat": {
       "fire": {
         "burst_pause": null,
@@ -21,8 +30,10 @@
       "grenade_tracks": false,
       "grenade_wall_m": 18.0,
       "settle": "off",
+      "settle_k_low": 1.0,
       "zoom_error": "off"
-    }
+    },
+    "skill_curve": "linear"
   },
   "avoid": {
     "bot_pockets": false,

@@ -100,6 +100,8 @@ mod traps;
 mod unstick;
 
 pub use aim::AimTuning;
+pub use aim::ClassAim;
+pub use aim::SkillCurve;
 pub use aim::SkillTuning;
 pub use aim::TierSkill;
 pub use cover::BulletPierce;
