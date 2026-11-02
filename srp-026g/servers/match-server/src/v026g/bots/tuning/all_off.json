@@ -31,6 +31,7 @@
       "grenade_track_chance": 0.08,
       "grenade_tracks": false,
       "grenade_wall_m": 18.0,
+      "grenade_start_margin_m": null,
       "settle": "off",
       "settle_k_low": 1.0,
       "zoom_error": "off"

@@ -381,6 +381,13 @@ pub struct CombatTuning {
     /// places (17 were the thrower's blast, 1 the place, 1 a floor);
     /// `grenade_wall_m=0` turns it off for a paired bench.
     pub grenade_wall_m: f32,
+    /// [A260] The start of the arc is not known to the decimetre: where the bot reckons its own body was 0.1 to 0.7 m (once
+    /// 1.5 m) from the body in the bench at the let-go of throws that came down at the thrower's feet, and the hand's place is
+    /// a GUESS ([`arc::HAND_DOWN_M`]). So the same view from starts moved this far forward, back and to either side, and half
+    /// as far up and down, must not meet anything within `grenade_land_m` of the start either ([`grazes_near`]): an arc that
+    /// clears a face at arm's reach by centimetres is refused as the thrower's blast. A start the eye cannot reach (a face
+    /// between them) is left out. None: not asked (only the arc from the eye).
+    pub grenade_start_margin_m: Option<f32>,
     /// The first contact farther than this from the place the throw is at:
     /// not thrown, metres (the arc met something on its way). GUESS: the
     /// blast's lethal reach is 2.4 m and its 10 m splash is wide, the
@@ -1440,6 +1447,7 @@ impl Default for CombatTuning {
             grenade_look_after_ms: 300,
             grenade_land_m: 10.0,
             grenade_wall_m: 10.0,
+            grenade_start_margin_m: Some(0.5),
             grenade_off_m: 8.0,
             grenade_off_y_m: None,
             grenade_lane_m: 2.0,
@@ -2551,8 +2559,35 @@ fn weigh_view(
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
     match mate.flatten() {
         Some(mate) => Err(Refuse::Mate(mate)),
+        // [A260] Last, as it takes six short traces: the same view from a start off by the margin.
+        None if c
+            .grenade_start_margin_m
+            .is_some_and(|m| grazes_near(me.eye(), (yaw + error.0, pitch + error.1), m, c, ground)) =>
+        {
+            Err(Refuse::Thrower)
+        }
         None => Ok(()),
     }
+}
+
+/// [A260] Whether the view `(yaw, pitch)` thrown from a start `margin_m` off the eye's (forward, back, to either side; half
+/// that up and down) meets anything within `grenade_land_m` of that start ([`CombatTuning::grenade_start_margin_m`]): the
+/// flight's first `grenade_land_m` metres of path. A start with a face between it and the eye's start is left out (the
+/// hand is not behind a wall).
+fn grazes_near(eye: Vec3, (yaw, pitch): (f32, f32), margin_m: f32, c: &CombatTuning, ground: &dyn arc::Ground) -> bool {
+    let [x, z] = forward(yaw);
+    let ahead = Vec3::new(x, 0.0, z);
+    let side = Vec3::new(z, 0.0, -x);
+    let within_s = c.grenade_land_m / arc::Grenade::bots().speed;
+    let hand = arc::hand_of(eye);
+    [ahead, ahead * -1.0, side, side * -1.0, Vec3::Y * 0.5, Vec3::Y * -0.5]
+        .into_iter()
+        .filter(|dir| ground.cast(hand, *dir * (1.0 / dir.length()), dir.length() * margin_m).is_none())
+        .any(|dir| {
+            arc::Flight::thrown(eye + *dir * margin_m, yaw, pitch)
+                .first_contact(ground, within_s)
+                .is_some()
+        })
 }
 
 /// [G2] Where the flat arc to `at` is refused for the thrower's blast, a
@@ -11499,6 +11534,43 @@ mod tests {
         // [A260] Weighed after the let-go: out of reach, which hurts nobody, so the look is kept.
         assert!(run.stats.committed[1] >= 1 && run.stats.committed[4] >= 1, "{:?}", run.stats.committed);
         assert_eq!(run.stats.committed[3], 0);
+    }
+
+    /// [A260] The start margin: the flat arc to a place 20 m out over a parapet 1.5 m ahead whose top is 8 cm under the
+    /// arc's path (the grenade's radius is 5 cm) passes from the eye alone, and is refused as the thrower's blast with the
+    /// margin (from a start half a metre back it meets the parapet); one a metre under the path passes either way. In the
+    /// open the margin refuses nothing.
+    #[test]
+    fn an_arc_that_clears_a_face_at_arms_reach_by_centimetres_is_refused_with_the_start_margin() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone()]);
+        let at = Vec3::new(0.0, 0.0, 20.0);
+        let on = CombatTuning::default();
+        assert_eq!(on.grenade_start_margin_m, Some(0.5));
+        let off = CombatTuning {
+            grenade_start_margin_m: None,
+            ..on.clone()
+        };
+        let view_yp = throw_view(&me, at, &on).expect("in reach");
+        let flight = arc::Flight::thrown(me.eye(), view_yp.0, view_yp.1);
+        let over = flight.points().find(|p| p.z >= 1.5).expect("the arc passes the parapet").y;
+        let weigh = |c: &CombatTuning, top: f32| {
+            let (low, high) = (Vec3::new(-100.0, -1.0, 1.5), Vec3::new(100.0, top, 1.5));
+            let world = floor_and(&[
+                [low, Vec3::new(high.x, low.y, low.z), high],
+                [low, high, Vec3::new(low.x, high.y, low.z)],
+            ]);
+            weigh_view(&me, &view, at, view_yp, (0.0, 0.0), c, false, &arc::Mesh(&world.sight), Some(c.grenade_off_m))
+        };
+        assert_eq!(weigh(&off, over - 0.08), Ok(()));
+        assert_eq!(weigh(&on, over - 0.08), Err(Refuse::Thrower));
+        assert_eq!(weigh(&off, over - 1.0), Ok(()));
+        assert_eq!(weigh(&on, over - 1.0), Ok(()));
+        let open = floor_and(&[]);
+        assert_eq!(
+            weigh_view(&me, &view, at, view_yp, (0.0, 0.0), &on, false, &arc::Mesh(&open.sight), Some(on.grenade_off_m)),
+            Ok(())
+        );
     }
 
     /// [A260] From the let-go to the launch the view is weighed again: a thrower who steps 0.8 m down behind a parapet
