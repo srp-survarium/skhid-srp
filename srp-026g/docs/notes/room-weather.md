@@ -66,3 +66,10 @@ players"; "it shouldn't happen when hopping and choosing different lobbies, so i
   night's project asked alone, put in with the characters turned and their players moved, the
   camera's yaw pi; facing absent: the exe's own stances and yaw 0; picks between entries read no
   clock).
+- **In a game** (2026-11-02, headless, a diagnostics build forcing the night, pack
+  lobby-camp-069@19 as a local test patch, the squad panels' dummies, the camera the game's own):
+  the start asked camp_069_night, stood the three characters turned (they face the camera from
+  the chandelier's side, lit by it) and put the camera at yaw pi; a sweep `return day` (the
+  machine's return events, not a real match) blacked out at once, swapped the day in behind the
+  black with the characters back at the exe's spots and the camera at yaw 0; `return night` turned
+  them again. A real match's return was not played.
