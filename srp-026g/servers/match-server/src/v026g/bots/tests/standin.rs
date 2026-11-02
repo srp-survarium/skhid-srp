@@ -315,6 +315,9 @@ pub(crate) struct Body {
     /// The tick a sprint run came to the face of a jump link up and was held there ([`lift_to`]); the lift takes
     /// [`LIFT_HOLD_MS`] of it.
     pub(crate) lift_since: Option<(u32, Option<f32>)>,
+    /// The tick its walk last went down past a ledge's edge with no drop link ahead ([`standin_jump::past_edge`]): the falls
+    /// probe tells such a fall from one down a drop link.
+    pub(crate) past_edge_down: Option<u32>,
     /// The speed of the slide off steep ground it is on, m/s ([`standin_slide`], `SRP_BENCH_STAND_IN_SLIDE=on`); none: not sliding.
     pub(crate) slide_mps: Option<f32>,
     /// The leg pools (0.5 full), until when an empty one is broken, and
@@ -823,6 +826,7 @@ impl Game {
             step_m: 0.0,
             step_vec: Vec3::ZERO,
             lift_since: None,
+            past_edge_down: None,
             slide_mps: None,
             legs: [0.5; 2],
             leg_broken_until: 0,
@@ -1294,7 +1298,12 @@ impl Game {
                         // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
                         let walls = self.walls.as_deref().filter(|_| stand_in_fall());
                         match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
-                            Some((n, f)) => (n, f, false),
+                            Some((n, f)) => {
+                                if f.y < grid.position(slid.0).y - grid.body().step {
+                                    body.past_edge_down = Some(tick);
+                                }
+                                (n, f, false)
+                            }
                             None => slid,
                         }
                     } else {
