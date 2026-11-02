@@ -312,7 +312,12 @@ nothing in hands.
 - **The cancel**: the picker's death (`died`), and its removal or
   destruction (cleanup): the gun unregistered (its id as cooked, the entry
   emptied, pending = held), back in its drop, the drop open again while its
-  body is in the world.
+  body is in the world. The drop is open again
+  from synced state alone, the same in every game: the donor's record
+  still taken (its body's removal empties it) and the donor's life older
+  than the pickup (`a_cancel_reopens_the_drop_everywhere`; it was decided
+  by where this game's copy was marked to lie, gone in a game whose copy came
+  from a loaded record, where the drop stayed taken).
 - **A loaded record** (rollback, late join): a pending gun the record does
   not name is unregistered and back in its drop; one it names is found (or
   cooked) and registered under the pending id before the reader resolves

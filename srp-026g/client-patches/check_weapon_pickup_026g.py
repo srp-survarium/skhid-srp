@@ -397,6 +397,7 @@ def main():
     no_cook_in_a_tick(patched)
     donor_left_then_a_late_join(patched)
     a_departed_donors_gun_is_cooked(patched)
+    a_cancel_reopens_the_drop_everywhere(patched)
     crate_per_gun(patched)
     stage2b(patched)
 
@@ -1384,6 +1385,32 @@ def a_departed_donors_gun_is_cooked(patched):
     print("ok a departed donor's gun (its place out of the world, the lookup by place refusing it): cooked from the "
           "place's kit player in the core's place table, by a late joiner before its load and by a resync's reader; "
           "installed, the state saved the record's")
+
+
+def a_cancel_reopens_the_drop_everywhere(patched):
+    """A pickup waiting for its switch is cancelled (the picker's death): its drop is open again in every game,
+    from the synced state alone (the donor's record taken, its life older than the pickup), not from where this
+    game's copy is marked to lie: a game whose copy came from a loaded record (a late joiner, a resync) had it
+    marked gone, and there the drop stayed taken."""
+    def died(g):
+        g.lohook(DEATH_SITE, DEATH_AFTER, {UC_X86_REG_ECX: g.picker})
+    r = Pick(patched)
+    r.setup()
+    r.pick(switch=False)
+    waiting = r.save(r.picker)
+    died(r)
+    # The other game: its copy marked gone (as a loaded record's), the donor's record taken, the pending loaded.
+    j = Pick(patched)
+    j.setup()
+    j.remove(PLAYER, DIED + 500)
+    j.load(PLAYER, record("taken"))
+    j.load(j.picker, waiting)
+    j.word(j.picker + 0x12C, j.read(j.registry + 4 * PENDING_ID))
+    died(j)
+    opened = record(drop=("open", KIT, 1))
+    assert r.save(PLAYER) == opened and j.save(PLAYER) == opened, (r.save(PLAYER).hex(), j.save(PLAYER).hex())
+    print("ok a cancelled pickup (the picker's death) opens its drop again in every game, a game whose copy came "
+          "from a loaded record too (the donor's record and life decide, not the copy's local mark)")
 
 
 def crate_per_gun(patched):

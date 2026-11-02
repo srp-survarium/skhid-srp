@@ -353,7 +353,12 @@ fn cancel(player: &Player<'_>, thread: &Thread, why: Cancel) {
     if let Some((world, place)) = located(player) {
         update_record(thread, world, place, |r| r.pending = None);
         let r = pending.pick.recipe;
-        if why != Cancel::Loaded && from.lies == Lies::InWorld {
+        // Open again from synced state alone (this game's copy may have come
+        // from a loaded record): the donor's record still taken (its body's
+        // removal empties it) and the donor's life older than the pickup (a
+        // later death's drop is another one).
+        let same_body = peer(player, r.place).is_some_and(|d| pending.pick.taken.since(Ms(d.spawned())) < 1 << 31);
+        if why != Cancel::Loaded && same_body {
             update_record(thread, world, r.place, |d| {
                 if d.drop == DropState::Taken {
                     d.drop = DropState::Open { kit: r.kit, slot: r.slot };
