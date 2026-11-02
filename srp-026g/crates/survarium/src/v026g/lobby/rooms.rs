@@ -1213,7 +1213,7 @@ mod tests {
         };
         assert_eq!(
             form_names(&form),
-            ["S1;F;1;9;2;7;45;3,4", "E;0;524293", "E;1;5"]
+            ["S1;F;1;9;2;7;45;3,4", "E;0;5", "E;1;88"]
         );
         assert!(room_form(&form).is_ok());
         // No pool: one chunk all the same; no mode out: an empty field.

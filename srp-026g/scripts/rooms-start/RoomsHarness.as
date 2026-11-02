@@ -174,7 +174,7 @@ package
             + ", every entry read back: " + (bad.length == 0 ? "yes" : "no"));
          var rows:Array = ["S1;M;" + count + ";0"];
          for(i = 0; i < count; i++)
-            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 7][i % 6] + ";0");
+            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 8][i % 6] + ";0");
          if(!tell(rows))
             return;
          tellRoom(1003, false, false, 3, null, 0, []);
@@ -187,7 +187,7 @@ package
       private function checkModeColours() : void
       {
          var Look:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.rooms.RoomsLook");
-         var blackout:uint = Look.modeColour(6), scarcity:uint = Look.modeColour(7);
+         var blackout:uint = Look.modeColour(6), scarcity:uint = Look.modeColour(8);
          trace("ROOMS mode colours: Blackout " + blackout.toString(16) + ", Scarcity " + scarcity.toString(16));
          if(blackout != scarcity)
             failures.push("Scarcity's mode colour " + scarcity.toString(16) + " is not Blackout's " + blackout.toString(16));
@@ -211,7 +211,7 @@ package
             Loc.setData(say);
             // The pool the cards and rows name: long map names, the longest weather, every mode (the
             // create window's six mode rows).
-            tell(["S1;M;6;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;64;12;3;7;0","4;65;5;5;4;0",
+            tell(["S1;M;6;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;64;12;3;8;0","4;65;5;5;4;0",
                "5;66;5;5;5;0"]);
             var states:Array = [
                ["private, owner", 1001, true, true, 0, "01010", 0, []],

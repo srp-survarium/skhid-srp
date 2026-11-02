@@ -7,7 +7,7 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
 ## Spec
 
 - **Its own mode in the lobby:** "Protective device: scarcity" (Захисний пристрій: дефіцит, Защитное
-  устройство: дефицит, Schutzeinrichtung: Knappheit, ...: as each language writes Blackout's), mode 7:
+  устройство: дефицит, Schutzeinrichtung: Knappheit, ...: as each language writes Blackout's), lobby mode 8 (7 is the free-for-all's, `feat/ffa-mode`):
   a tick of the rooms' create window, a card of the vote, a row of the room and match lists. Listed
   after Blackout: plain, chargers, blackout, scarcity, then team deathmatch and Research.
 - **Always offered, like Blackout:** the rooms' pool holds each plain battery map of the match pool
@@ -31,7 +31,10 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
   - Less owned than that: what is owned (the game's own `min(the kit's count, what is in store)`).
   - Grenades, medicines and every other item: as the kit has them.
 - **No ammo crates** (the owner, 2026-11-02): no crate can be used by anyone, for the whole match;
-  the hud shows no crate prompt. The crates' models stay where the map has them.
+  the hud shows no crate prompt. The crates stay visible where the map has them, but can't be used
+  and show no prompt (exe patch 94). A mode of its own by data (each battery project copied without
+  its crates) was rejected (the owner, 2026-11-02): copies could drift from the maps they copy and
+  desync later, and they add about 49 MB to the download.
 - **A picked-up gun** (patch 85): as in any match, its magazine and one magazine in reserve; no crate
   refills it.
 - **Pay and autobuy:** a match takes off the stacks what it used, the rounds it gave less what is
@@ -52,7 +55,7 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
 - **Lobby (srp):** `maps::Variant` (Plain, Blackout, Scarcity) is the one value a battery match's
   variant is. The variants' maps are named by ids of the lobby's own (`maps::variant_pairs`: ids
   `maps_dict` does not use, from 255 down, Blackout's first so its ids are those it had before
-  Scarcity, then Scarcity's), modes 6 and 7 in the rooms' pool, cards and rows. A room's match on
+  Scarcity, then Scarcity's), modes 6 and 8 in the rooms' pool, cards and rows. A room's match on
   such a card is made on the battery map with `MatchSetup::variant`.
 - **The ammo (the match server):** the game gives a life its kit's slot counts
   (`inventory::setup_from_profile` 0x2FCB70: each ammo slot `min(the kit's count, amount_in_storage)`,
@@ -83,10 +86,11 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
     `team`; Rudnya's `rudnya-ammo-1` removes some), and a project is shared by every match on that map
     and weather: Scarcity plays the plain battery maps' own projects (`<weather>_2`), so taking the
     zones out of them takes them out of the plain battery mode and Blackout too. Doing it by data
-    would need a copy of each battery project without its zones (25 projects of about 700 kB) and a
-    `maps_dict` row and mode config for each, read by every per-map table of the lobby and the hud.
-    The patch answers as the game's own rule for another team's crate, for the variant the static info
-    already carries.
+    would need a copy of each battery project without its zones (31 battery configs' projects, about
+    49 MB, the patches being uncompressed) and a `maps_dict` row and mode config for each; every later
+    edit of a battery project would have to reach its copy too. The owner rejected it (2026-11-02:
+    copies could drift and desync later, and the download). The patch answers as the game's own rule
+    for another team's crate, for the variant the static info already carries.
 - **Checks:** `check_scarcity_026g.py` (Unicorn: the options read, then can_use and use_hint from
   their starts, the original beside), `selftest_026g.py`'s `test_scarcity`, the `scarcity` tests of
   the survarium crate (the counts), the match server's (the static info's kits), the lobby's (the

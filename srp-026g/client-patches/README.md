@@ -3991,7 +3991,8 @@ only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activi
 
 In a Scarcity match (`../docs/notes/scarcity.md`: a battery mode whose lives start with a
 magazine and one more a gun, the server's cut kits) no ammo crate refills anyone and the hud
-shows no crate prompt. The Rust patch `scarcity` keeps the variant srp's block gives (tag 2, one
+shows no crate prompt; the crates stay visible (project copies without them were rejected, the
+owner 2026-11-02: drift and about 49 MB a download). The Rust patch `scarcity` keeps the variant srp's block gives (tag 2, one
 byte 2, read at the two options reads) and, at the starts of resupply_zone_core::can_use
 (0x2F8080) and use_hint (0x2F80C0), answers as the game does for another team's crate: 0, and the
 empty key. Elsewhere nothing changes. A row of `../crates/session/src/v026g/simulation_changes.tsv`
