@@ -2483,8 +2483,10 @@ def stage2b(patched):
     g.word(PLAYER + 0x33C, 1)                           # alive again: no ragdoll draws the gun now
     assert g.hud() == [("st_weapon_pick_up", NAME)], "its respawn leaves the gun where it lay, at its last pose"
     left_match(g, PLACE, PLAYER, KIT, DIED + 600_000)
-    assert g.hud() == [("st_weapon_cannot_pick_up",)] and g.build(USE) == USE, "its player left the match"
-    assert sights(g) == ["offered", "not offered, its player left the match"], sights(g)
+    assert g.hud() == [("",)] and g.hud() == [] and g.build(USE) == USE, "its player left the match: no prompt"
+    assert sights(g) == ["offered"], sights(g)
+    g.pick(now=DIED + 600_000)
+    assert any("refused, the place to cook it from has no player" in l for l in g.log), "E refused, every game alike"
     g = Prompt(patched)
     g.setup()
     g.word(PLAYER + 0x324, DIED + 50)
@@ -2500,7 +2502,7 @@ def stage2b(patched):
     print("ok the box is the gun's own (10 cm thick, 1 m long, at its transform; logged once a drop): no prompt 25 cm "
           "beside it or at the body below it; no prompt (and Use the game's) looking away, beyond 2.2 m, behind a wall, a second "
           "double-handed gun, modifier 64 in slot 10, or a place the match does not have; the box padded by 15 cm; offered 60 s after the death while the body is there "
-          "and after the donor's respawn at the gun's last pose, \"Can't pick this up\" once the donor left; each drop's reason logged once a change (not aimed at, "
+          "and after the donor's respawn at the gun's last pose, none once the donor left (E refused); each drop's reason logged once a change (not aimed at, "
           "out of reach, no line of sight, the carry rule with both slots' handedness and the gun's, taken)")
 
 

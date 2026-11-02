@@ -1528,7 +1528,7 @@ fn cannot_key(why: Sight) -> &'static CStr {
         Sight::Refused { why, .. } => refusal_key(why),
         Sight::Taken => c"st_weapon_already_taken",
         // Not a drop the prompt can name (and the untargeted ones, never here).
-        Sight::NotItsBody | Sight::NoDrop | Sight::Departed | Sight::NoPicker | Sight::OutOfReach | Sight::NotAimedAt
+        Sight::NotItsBody | Sight::NoDrop | Sight::NoPicker | Sight::OutOfReach | Sight::NotAimedAt
         | Sight::Blocked | Sight::Offered => c"st_weapon_cannot_pick_up",
     }
 }
@@ -1552,6 +1552,11 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
     let mut sights = [None; PLACES as usize];
     for (n, seen) in seen.iter().enumerate() {
         let (Some(seen), Some(target)) = (seen, Place::new(n as u8)) else { continue };
+        // A departed place's drop (core_active_player refuses its place, as
+        // the pickup's `peer` does): no prompt at all.
+        if peer(viewer, target).is_none() {
+            continue;
+        }
         let sight = match enters(&seen.pose, eye, forward, REACH, PAD) {
             None if within(&seen.pose, eye, REACH, PAD) => Err(Sight::NotAimedAt),
             None => Err(Sight::OutOfReach),
@@ -1595,8 +1600,6 @@ enum Sight {
     Taken,
     /// The place has no drop (its record's).
     NoDrop,
-    /// The drop's player left the match (its place out of the world).
-    Departed,
     /// The viewer has no place, profile or kit.
     NoPicker,
     /// The rule says no: the picker's held slot and its gun's handedness,
@@ -1671,7 +1674,6 @@ fn log_sight(viewer: &Player<'_>, target: u8, sight: Sight) {
         Sight::NotItsBody => "not offered, the body drawn is not its drop's",
         Sight::Taken => "not offered, already taken",
         Sight::NoDrop => "not offered, no drop in its record",
-        Sight::Departed => "not offered, its player left the match",
         Sight::NoPicker => "not offered, the viewer has no place, profile or kit",
         Sight::Blocked => "not offered, no line of sight (the level's ray)",
         Sight::Offered => "offered",
@@ -1707,8 +1709,6 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: WorldKey, place: Place, ta
         DropState::Taken(_) => return Err(Sight::Taken),
         DropState::None => return Err(Sight::NoDrop),
     }
-    // Its player left the match: the pickup is refused (`take`'s `peer`).
-    peer(viewer, target).ok_or(Sight::Departed)?;
     // The copy's gun, in its recipe's slot of its cooked inventory.
     let gun = body_drop(thread, target).map(|(cook, recipe, _)| (cook, recipe.slot))
         .filter(|&(cook, _)| matches!(gun_cook::cooked(thread, cook), Cooked::Made { .. }));

@@ -16,8 +16,10 @@
   magazine). A departed player's drop stays too, but its place is out of
   the world (game_world_core::on_player_left_match 0x2D2040 clears its bit
   of core+18FD8h at 0x2D214E, before the tick's players), so a pickup of it
-  is refused (no player for the place, `peer`) and its prompt says "Can't
-  pick this up", the same in every game (the owner, 2026-11-02: nothing
+  is refused (no player for the place, `peer`), the same in every game,
+  and no prompt is offered for it (the offer asks the same: never a silent
+  refusal; a player who rejoins on another place leaves the old one's drop
+  so) (the owner, 2026-11-02: nothing
   more). All synced, the same tick on every client. Not built: drawing the copy alone at its last pose
   after the respawn; the prompt is offered there (the pose this game last
   drew), a late joiner (no pose) offers none, and every game plays a pickup
