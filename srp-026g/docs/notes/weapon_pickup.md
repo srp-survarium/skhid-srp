@@ -170,58 +170,54 @@
 
 ## The gun drawn alone once its body is gone (built, not run in a game)
 
-The owner (2026-11-02): a drop lingers past its body (its player's respawn
-reuses the player, so the body and its ragdoll go, the gun with them); the gun
-must stay visible where it lay until the drop ends, and finish its fall first
-(a radio and a back piece make a respawn faster than a ragdoll may settle).
-Visual only and local: nothing synced, no `simulation_changes` row.
+The owner (2026-11-02): a drop lingers past its body (a respawn reuses the
+player: the body and its ragdoll go, the gun with them); the gun stays visible
+where it lies until the drop ends, and finishes its fall first (a radio and a
+back piece make a respawn faster than a ragdoll may settle). Visual only and
+local: nothing synced, no `simulation_changes` row. The smallest version (the
+owner: "keep complexity down").
 
-- **Where the gun lies** (the ragdoll, `crates/ragdoll` `corpse::Lone`,
-  `ragdoll::LoneGun`). The ragdoll's dropped gun is a body of its own that
-  meets only the level (no joint, no contact with the corpse). When a place's
-  body goes away because its player lives again (`Seen::Alive`), its gun body
-  goes on alone: the same body, stepped by the same rules (the level's query
-  per end, the contacts, friction, the near-rest slowing; at rest after 0.4 s
-  still or 1 s slow, at the latest 5 s alone), then kept where it lies. A
-  ragdoll settled already leaves it at rest; a dying body (no ragdoll yet) or a
-  canned one (the pool full) leaves none. Any death seen at the place ends it
-  (its next death, or a rollback that brought the body back: its ragdoll
-  starts again). The hand-off is the gun body as the last step left it: the
-  `Weapon` bone the game drew is the gun times the rig's offset, so nothing
-  jumps.
+- **Where the gun lies** (`crates/ragdoll`: `corpse::Lone`, `ragdoll::LoneGun`).
+  The ragdoll's dropped gun is a body of its own that meets only the level.
+  When a place's body goes because its player lives again, that gun body goes
+  on alone by the ragdoll's own rules (the level's query, the contacts,
+  friction, the near-rest slowing, the rest rules for one body: 0.4 s still or
+  1 s slow, 5 s at most) and is kept where it rests until the place's next
+  death (or a rollback that brings the body back). The hand-off is the gun
+  body as the last step left it: no jump. A body with no ragdoll (still dying,
+  or canned: the pool full) leaves none: nothing is drawn after its respawn,
+  as before.
 - **The drawn copy** (`weapon_pickup::draw_alone`, each frame from ragdoll's
-  `game_world.after_move` after the corpses' step; `vostok::gun_cook::show` /
-  `hide`). A place's copy is drawn alone while its drop is open and alone (the
-  record: its body left), of the death this client saw (its body's last
-  `carry.weapon` kept its pose and bones), its copy made here, its place in the
-  world (`GameWorld::has_place`: a departed place's is neither offered nor
-  drawn): at the ragdoll's lone gun (`Weapon` bone, world), else (no lone gun)
-  where its body last drew it. The prompt's pose follows the drawn one. Every
-  other copy is hidden. One transition (`gun_cook::Drawn::to`, Hidden or Lying
-  at a transform), each frame from the current state, so a rollback just
-  reconciles.
+  `game_world.after_move` after the corpses' step). A place's copy is drawn at
+  its lone gun's `Weapon` bone (where the game would draw the held item) while
+  its drop is open and alone (the record), of the death this client saw (the
+  lone gun's life, the copy's drop), its cook made and its place in the world
+  (`GameWorld::has_place`: a departed place's is neither offered nor drawn).
+  The prompt's pose is that one. Every other copy is hidden. One transition
+  (`gun_cook::Drawn::to`: Hidden, or Lying with the models placed), reconciled
+  each frame: a rollback just reconciles.
 - **The engine calls** (patch 78's `Scene`, as weapon::on_show and
   weapon::draw place a held gun, 0x243EC7..0x243F37, 0x244F27..0x245012):
-  add_model 0x21CD0 (update_model 0x22280 when it moves) of the copy's model
-  (+1810h) at the transform; update_skeleton 0x22490 once with the bones its
-  body's draw had (`carry.weapon` now reads mt_draw's frame: [ebp-0Ch] the held
-  item's bones, [ebp-18h] their count); the scope (the optic's +108h) at
-  calculate_locator 0x243BC0 of the copy's +744h with the transform, the bones
-  and the identity (`engine_weapon_locator`), as weapon::draw puts it at +660h.
-  A model the game has in the scene is never touched.
-- **Lifetime.** The ticket of the copy keeps which models it placed (`Drawn`):
-  they leave the scene, each only while in it (a second removal does nothing),
-  at the start of `register_pending` and `install` (before the game may show
-  the gun: a pickup, the holster, a loaded record), and in the cooked
-  inventory's drop before its reference is given back (every free: the 10 s
-  margin, a departed player's destruction, the match's end). Everything else
-  (taken, replaced by the next death, a departure, a rollback) is the next
-  frame's reconcile. The ragdoll's own draw never touches these models.
-- **Late joiner:** no pose, nothing drawn (as before, no prompt). No cheap pose
-  exists: the ragdoll is visual and local, a body's synced state has only its
-  player's transform while it is dead (a joiner after the respawn has not even
-  that). A derived pose (the death's place on the ground) would need the death
-  transform kept in the record: not added.
+  add_model 0x21CD0 of the copy's model (+1810h) at the transform, then
+  update_model 0x22280 each frame as weapon::draw does; update_skeleton
+  0x22490 once with its bind pose (each bone the inverse of its model's
+  inverse bind, render model +140h..+144h: the mesh as authored; no animation
+  of the dead body's is kept); the scope (the optic's +108h) at
+  calculate_locator 0x243BC0 of the copy's +744h with the transform, those
+  bones and the identity (`engine_weapon_locator`), as weapon::draw puts it at
+  +660h: the scope's model is in its own frame, so at the gun's transform it
+  would float off the gun. A model the game has in the scene is never touched.
+- **Lifetime.** The copy's ticket keeps which models it placed (`Drawn`): they
+  leave the scene, each only while in it (a second removal does nothing), at
+  the start of `register_pending` and `install` (before the game may show the
+  gun: a pickup, the holster, a loaded record) and in the cooked inventory's
+  drop before its reference is given back (every free: the 10 s margin, a
+  departed player's destruction, the match's end). Everything else (taken,
+  replaced by the next death, a departure, a rollback) is the next frame's.
+- **Late joiner:** no lone gun, nothing drawn (and no prompt, as before). No
+  cheap pose exists: the ragdoll is local, and a joiner after the respawn has
+  not even the dead player's transform. A derived one would need the death's
+  place in the record: not added.
 - **How fast a respawn can be:** `respawn_time` 8 s in Team Deathmatch, 10 s
   in the battery modes (battery_respawn.md), times `1 + modifier 60`: the radio
   (`respawn_booster`, -20 %, one pocket a type) and a back piece with -20 %
@@ -229,26 +225,22 @@ Visual only and local: nothing synced, no `simulation_changes` row.
   after it starts (two frames after the death), usually sooner; a shot at a
   settled corpse wakes it for up to 5 s more. So a fast respawn can come while
   the gun still moves: the lone gun finishes it.
-- **Checked:** `cargo test -p ragdoll` (a lone gun in the air falls and rests
-  on the ground, a sliding one stops; the corpses: a respawn while the gun
-  falls leaves it falling until it rests, no jump at the hand-off, kept there,
-  ended by the next death; a respawn after the settle leaves it at rest, a
-  rollback that brings the body back ends it; no gun or no ragdoll, none).
-  `check_weapon_pickup_026g.py` (`drawn_alone`, the renderer's calls
-  recorded): drawn once after the respawn where the body drew it, its bones,
-  offered there; out at the pickup's registration, once, a rollback undoing it
-  draws it again, the swap removes nothing more; the next death takes it out,
-  a rollback across it and the replay draw nothing stale, its free past the
-  margin removes nothing; a departure takes it out, a rollback across it
-  draws it again, the destruction frees it with its model out first; a scope
-  at its locator, out with the gun; a late joiner draws nothing. Not in
-  Unicorn: the lone gun's moving pose (its harness has no ragdoll; the crate's
-  tests). Not run in a game.
-- **Known gaps:** a rollback across the place's next death that is not
-  replayed (the old drop reinstated) leaves the old drop undrawn and unoffered
-  (the body this client saw last is the new death's); a canned corpse's (the
-  pool of 20 full) or a dying body's gun is drawn frozen where the body last
-  drew it.
+- **Checked:** `cargo test -p ragdoll` (a lone gun sliding on the ground stops;
+  the corpses: a respawn while the gun falls leaves it
+  falling until it rests, no jump, kept, ended by the next death; after the
+  settle at rest, ended by a rollback that brings the body back; none without
+  a gun or a ragdoll). `check_weapon_pickup_026g.py` (`drawn_alone`: the donor
+  falls as patch 76's ragdoll, respawns 0.3 s after its death, the renderer's
+  calls recorded): drawn at the hand-off in the air in its bind pose, moved
+  each frame until it rests on the floor, offered there; out at the pickup's
+  registration, once, a rollback undoing it draws it again, the swap removes
+  nothing more; the next death takes it out, a rollback across it and the
+  replay draw nothing stale, its free removes nothing; a departure takes it
+  out, a rollback across it draws it again, the destruction frees it with its
+  model out first; a scope at its locator, out with the gun. Not run in a game.
+- **Known gap:** a rollback across the place's next death that is not replayed
+  (the old drop reinstated) draws and offers nothing (no lone gun of that
+  death any more).
 
 ## The live desyncs of rev41 (match 0x1c0ebd31, 2026-11-01) and their fixes
 

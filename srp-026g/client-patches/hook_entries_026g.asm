@@ -279,7 +279,7 @@ artefact_carry_on_load_replay:
     db 0x80, 0xbb, 0x3c, 0x03, 0x00, 0x00, 0x00
     jmp 0x2dbabc
 
-; 0x2477c8 mt_draw before held item draw; EBX player, EAX weapon transform, EBP mt_draw's frame (the held item's bones); exit still submits character bones: lohook -> artefact_carry_on_weapon
+; 0x2477c8 mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones: lohook -> artefact_carry_on_weapon
 global artefact_carry_on_weapon
 extern hook_artefact_carry_on_weapon
 artefact_carry_on_weapon:

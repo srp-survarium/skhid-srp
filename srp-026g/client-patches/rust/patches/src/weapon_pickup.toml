@@ -6,8 +6,7 @@
 # game_world.after_move: their handlers call weapon_pickup::died / on_filter
 # / after_move, and its carry.weapon, its on_hud (player_icons.update_start)
 # and its on_input_end (input_builder.end) call ragdoll_gun / aim /
-# on_input_end (one detour per address); ragdoll's after_move calls
-# draw_alone after its step (a drop's gun drawn alone once its body is gone). The sites are sites_026g.tsv's; the
+# on_input_end (one detour per address). The sites are sites_026g.tsv's; the
 # logic is weapon_pickup.rs.
 name = "weapon_pickup"
 patch = 85

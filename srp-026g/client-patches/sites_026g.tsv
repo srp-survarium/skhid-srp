@@ -46,7 +46,7 @@ carry.tick	0x2DAAC1	lohook	-	6	-	player=EBX:survarium::player	base_player tick b
 carry.construct	0x2D6990	lohook	-	5	-	frame=ESP:survarium::base_player_ctor_frame	base_player constructor entry; stack first argument destination, identity only
 carry.save	0x2DB47E	lohook	-	5	-	player=EBX:survarium::player writer=EDI:vostok::buffer_writer	base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp
 carry.load	0x2DBAB5	lohook	-	7	-	player=EBX:survarium::player reader=ESI:vostok::buffer_reader	base_player deserialize after final native field; EBX player, ESI reader
-carry.weapon	0x2477C8	lohook	-	6	skeleton@0x2477DF	player=EBX:survarium::player transform=EAX:vostok::float4x4 frame=EBP:survarium::mt_draw_frame	mt_draw before held item draw; EBX player, EAX weapon transform, EBP mt_draw's frame (the held item's bones); exit still submits character bones
+carry.weapon	0x2477C8	lohook	-	6	skeleton@0x2477DF	player=EBX:survarium::player transform=EAX:vostok::float4x4	mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones
 carry.spring	0x25EBB0	lohook	-	6	done@0x25EC84	callback=ECX:survarium::artefact_spring_client	Spring client update entry; ECX callback; done is native bare ret, no prologue executed
 carry.lifebone	0x25F100	lohook	-	6	done@0x25F1D4	callback=ECX:survarium::artefact_lifebone_client	Lifebone client update entry; ECX callback; done is native bare ret
 carry.onyx	0x25F640	lohook	-	6	done@0x25F714	callback=ECX:survarium::artefact_onyx_client	Onyx client update entry; ECX callback; done is native bare ret

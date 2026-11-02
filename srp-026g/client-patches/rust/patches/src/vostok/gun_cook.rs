@@ -30,7 +30,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use weapon_pickup::{Kit, WeaponSlot};
 
-use super::pickup::{place_lying, remove_lying, LyingGun, Models};
+use super::pickup::{place_lying, remove_lying, Models};
 use super::world::{read, Player};
 use super::{clock, Lock, Thread};
 use crate::raw;
@@ -187,40 +187,30 @@ struct CookedInventory {
 }
 
 /// What of a made gun is in the scene by us: nothing, or the gun of its
-/// inventory's `slot` lying alone at `transform` (`models` the ones placed).
+/// inventory's `slot` lying alone (`models` the ones placed).
 #[derive(Clone, Copy)]
 enum Drawn {
     Hidden,
-    Lying { slot: WeaponSlot, transform: [f32; 16], models: Models },
+    Lying { slot: WeaponSlot, models: Models },
 }
 
 impl Drawn {
-    /// The one transition: `want` drawn (lying there) or not, from what is
-    /// drawn now; idempotent, a second hide does nothing.
-    fn to(self, inventory: raw::Inventory, want: Option<(WeaponSlot, &LyingGun)>) -> Drawn {
-        match (self, want) {
-            (Drawn::Hidden, None) => Drawn::Hidden,
-            (Drawn::Lying { slot, transform, models }, Some((s, gun))) if slot == s && transform == gun.transform => {
-                Drawn::Lying { slot, transform, models }
-            }
-            (Drawn::Lying { slot, models, .. }, Some((s, gun))) if slot == s => {
-                // SAFETY: our live cooked inventory (the caller's ticket).
-                Drawn::lying(slot, gun, unsafe { place_lying(inventory, slot, gun, models) })
-            }
-            (Drawn::Lying { slot, models, .. }, want) => {
-                // SAFETY: as above; only the models we placed.
+    /// The one transition: drawn lying at `want` (its slot and transform,
+    /// placed or moved there) or not, from what is drawn now; idempotent, a
+    /// second hide does nothing.
+    fn to(self, inventory: raw::Inventory, want: Option<(WeaponSlot, &[f32; 16])>) -> Drawn {
+        // SAFETY (each call): our live cooked inventory (the caller's ticket);
+        // only the models we placed are removed.
+        let (slot, models) = match (self, want) {
+            (Drawn::Hidden, None) => return Drawn::Hidden,
+            (Drawn::Lying { slot, models }, Some((s, t))) if slot == s => (s, unsafe { place_lying(inventory, s, t, models) }),
+            (Drawn::Lying { slot, models }, want) => {
                 unsafe { remove_lying(inventory, slot, models) };
-                Drawn::Hidden.to(inventory, want)
+                return Drawn::Hidden.to(inventory, want);
             }
-            (Drawn::Hidden, Some((slot, gun))) => {
-                // SAFETY: as above.
-                Drawn::lying(slot, gun, unsafe { place_lying(inventory, slot, gun, Models::NONE) })
-            }
-        }
-    }
-
-    fn lying(slot: WeaponSlot, gun: &LyingGun, models: Models) -> Drawn {
-        if models == Models::NONE { Drawn::Hidden } else { Drawn::Lying { slot, transform: gun.transform, models } }
+            (Drawn::Hidden, Some((s, t))) => (s, unsafe { place_lying(inventory, s, t, Models::NONE) }),
+        };
+        if models == Models::NONE { Drawn::Hidden } else { Drawn::Lying { slot, models } }
     }
 }
 
@@ -365,13 +355,13 @@ pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::I
 }
 
 /// The made cook `id`'s gun (its inventory's `slot`) drawn alone lying at
-/// `gun` (moved there when drawn elsewhere); false when it is not made or
-/// nothing could be placed (no world, no model, or the game has it in the
-/// scene).
-pub fn show(thread: &Thread, id: CookId, slot: WeaponSlot, gun: &LyingGun) -> bool {
+/// `transform` (moved there when drawn elsewhere); false when it is not made
+/// or nothing could be placed (no world, no model or binds, or the game has
+/// it in the scene).
+pub fn show(thread: &Thread, id: CookId, slot: WeaponSlot, transform: &[f32; 16]) -> bool {
     TABLE.with(thread, |table| match &mut table.tickets[usize::from(id.index)] {
         Ticket::Made { generation, cooked, .. } if *generation == id.generation => {
-            cooked.drawn = cooked.drawn.to(cooked.inventory, Some((slot, gun)));
+            cooked.drawn = cooked.drawn.to(cooked.inventory, Some((slot, transform)));
             matches!(cooked.drawn, Drawn::Lying { .. })
         }
         _ => false,

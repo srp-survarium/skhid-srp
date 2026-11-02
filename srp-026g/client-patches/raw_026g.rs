@@ -2132,33 +2132,6 @@ impl MtDrawFrame {
     pub unsafe fn bone_count(self) -> *mut u32 {
         unsafe { self.0.byte_sub(0x1c).cast::<u32>().as_ptr() }
     }
-
-    /// -0xc (ptr<f32>): the held item's bones' matrices (ebp-0Ch: the alloca of 0x247661, filled by the item's update_bones_matrices at 0x2476AB, weapon::draw's second argument at 0x2477D5; model space, rows)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn held_bones(self) -> *mut f32 {
-        unsafe { self.0.byte_sub(0xc).cast::<*mut f32>().read_volatile() }
-    }
-
-    /// -0xc (ptr<f32>): the held item's bones' matrices (ebp-0Ch: the alloca of 0x247661, filled by the item's update_bones_matrices at 0x2476AB, weapon::draw's second argument at 0x2477D5; model space, rows)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_held_bones(self, value: *mut f32) {
-        unsafe { self.0.byte_sub(0xc).cast::<*mut f32>().write_volatile(value) }
-    }
-
-    /// -0x18 (u32): their count (ebp-18h: the held item's skeleton's 0x3AF60 or 1, 0x24760D/0x247617; weapon::draw's third argument at 0x2477D1)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn held_bone_count(self) -> *mut u32 {
-        unsafe { self.0.byte_sub(0x18).cast::<u32>().as_ptr() }
-    }
 }
 
 /// A survarium::check_collision_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11827,7 +11800,7 @@ pub mod site {
         }
     }
 
-    /// carry.weapon (0x2477c8): mt_draw before held item draw; EBX player, EAX weapon transform, EBP mt_draw's frame (the held item's bones); exit still submits character bones
+    /// carry.weapon (0x2477c8): mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones
     pub mod carry_weapon {
         #[allow(unused_imports)]
         use super::*;
@@ -11848,15 +11821,6 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn transform(machine: &impl Machine) -> Option<Float4x4> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Float4x4)
-        }
-
-        /// EBP: a survarium::mt_draw_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<MtDrawFrame> {
-            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MtDrawFrame)
         }
     }
 

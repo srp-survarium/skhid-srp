@@ -895,15 +895,7 @@ impl Ragdoll {
     /// Its dropped gun going on alone (its body went away: the player
     /// respawned), as it is now, if a gun dropped.
     pub fn lone_gun(&self) -> Option<LoneGun> {
-        Some(LoneGun {
-            body: self.gun?,
-            weapon: self.rig.gun_offset()?,
-            up: self.up,
-            pending: self.pending,
-            age: 0.0,
-            rest: GunRest::Moving,
-            last_good: self.gun?.pose,
-        })
+        Some(LoneGun { body: self.gun?, weapon: self.rig.gun_offset()?, pending: self.pending, age: 0.0, rest: GunRest::Moving })
     }
 
     /// One frame of `dt` s (capped at 1/30): the level's queries, then six
@@ -1345,13 +1337,10 @@ pub struct LoneGun {
     body: Body,
     /// The `Weapon` bone relative to the gun (the rig's, from the death).
     weapon: Pose,
-    up: Vec3,
     pending: f32,
     /// Its time alone (MAX_AGE caps it).
     age: f32,
     rest: GunRest,
-    /// The last pose a step left finite.
-    last_good: Pose,
 }
 
 /// A lone gun's way to rest: as the ragdoll's [`Rest`], for one body.
@@ -1362,14 +1351,15 @@ enum GunRest {
 }
 
 impl LoneGun {
-    /// One frame of `dt` s: the level's query, then the substeps.
-    pub fn step(&mut self, dt: f32, level: &mut impl Level) -> Motion {
+    /// One frame of `dt` s (`up` the level's): the level's query, then the substeps.
+    pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level) -> Motion {
         let Some((substeps, dt)) = substeps(&mut self.pending, dt) else {
             return Motion::Moving;
         };
-        let gravity = self.up * -GRAVITY;
+        let gravity = up * -GRAVITY;
+        let before = self.body.pose;
         let body = &mut self.body;
-        query_body(body, dt, gravity, -self.up, level);
+        query_body(body, dt, gravity, -up, level);
         let h = SUBSTEP;
         for _ in 0..substeps {
             body.integrate(h, gravity, LINEAR_DAMPING, ANGULAR_DAMPING);
@@ -1379,11 +1369,10 @@ impl LoneGun {
         }
         self.age += dt;
         if !self.body.pose.is_finite() {
-            // a broken step: back to the last good pose, at rest
-            self.body.pose = self.last_good;
+            // a broken step: back to the frame's start, at rest
+            self.body.pose = before;
             return Motion::Settled;
         }
-        self.last_good = self.body.pose;
         let body = &mut self.body;
         if body.end_speed() < NEAR_REST && body.contacts.iter().any(|c| matches!(c, Contact::Plane { .. })) {
             let keep = exp_neg(REST_DAMPING * dt);
@@ -1415,16 +1404,6 @@ impl LoneGun {
     /// The `Weapon` bone's world pose: where the game draws the held item.
     pub fn weapon(&self) -> Pose {
         self.body.pose.then(self.weapon)
-    }
-
-    /// The gun's capsule's centre (the tests').
-    pub fn centre(&self) -> Vec3 {
-        self.body.pose.position
-    }
-
-    /// How fast it moves (its capsule ends' fastest, m/s).
-    pub fn speed(&self) -> f32 {
-        self.body.end_speed()
     }
 }
 

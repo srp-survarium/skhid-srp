@@ -60,8 +60,6 @@ vostok::physics::ray_result	object	0x1C	ptr<vostok::physics::hit_object>	the obj
 vostok::physics::ray_result	size	0x28	size	the result's size: 28h bytes
 survarium::mt_draw_frame	bones	-0x14	ptr<f32>	mt_draw's bones' matrices (ebp-14h; the array of 0x2476AB)
 survarium::mt_draw_frame	bone_count	-0x1C	u32	their count (ebp-1Ch)
-survarium::mt_draw_frame	held_bones	-0xC	ptr<f32>	the held item's bones' matrices (ebp-0Ch: the alloca of 0x247661, filled by the item's update_bones_matrices at 0x2476AB, weapon::draw's second argument at 0x2477D5; model space, rows)
-survarium::mt_draw_frame	held_bone_count	-0x18	u32	their count (ebp-18h: the held item's skeleton's 0x3AF60 or 1, 0x24760D/0x247617; weapon::draw's third argument at 0x2477D1)
 survarium::check_collision_frame	length	0x14	f32	the ray's length (esp+14h at 0x32D627; check_collision 0x32D56C)
 survarium::check_collision_frame	direction	0x20	f32	the ray's unit direction, a float3 (esp+20h; 0x32D5A2)
 survarium::check_collision_frame	origin	0x90	f32	the ray's origin, a float3 (esp+90h: the by-value argument; 0x32D5FE)

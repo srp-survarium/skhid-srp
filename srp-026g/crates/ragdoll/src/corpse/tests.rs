@@ -951,18 +951,18 @@ fn a_respawn_while_the_gun_falls_leaves_it_falling_until_it_rests() {
     // the respawn: the body goes, the gun goes on from where it was drawn
     frame(&mut corpses, &[Seen::Alive], None, &mut ground);
     assert_eq!(stage(&corpses, 0), "alive");
-    let Lone::Moving { death, .. } = corpses.lone(0) else { panic!("{:?}", corpses.lone(0)) };
+    let Lone::Moving { death, .. } = corpses.lone[0] else { panic!("{:?}", corpses.lone[0]) };
     assert_eq!(death, DeathKey(7));
     let (_, handed) = corpses.lone_gun(0).unwrap();
     assert!((handed.position - last.position).length() < 0.1, "no jump: {:?} {:?}", handed.position, last.position);
     let mut frames = 0;
-    while matches!(corpses.lone(0), Lone::Moving { .. }) {
+    while matches!(corpses.lone[0], Lone::Moving { .. }) {
         frame(&mut corpses, &[Seen::Alive], None, &mut ground);
         frames += 1;
         assert!(frames < 400, "never rested");
     }
-    let Lone::Resting { gun, .. } = corpses.lone(0) else { panic!() };
-    assert!(gun.centre().y < 0.1, "at rest on the ground: {:?}", gun.centre());
+    assert!(matches!(corpses.lone[0], Lone::Resting { .. }));
+    assert!(corpses.lone_gun(0).unwrap().1.position.y < 0.2, "at rest on the ground");
     let rest = corpses.lone_gun(0).unwrap().1.position;
     for _ in 0..30 {
         frame(&mut corpses, &[Seen::Alive], None, &mut ground);
@@ -970,7 +970,7 @@ fn a_respawn_while_the_gun_falls_leaves_it_falling_until_it_rests() {
     assert_eq!(corpses.lone_gun(0).unwrap().1.position, rest, "kept where it lies");
     // the place's next death ends it
     frame(&mut corpses, &[armed(9)], None, &mut ground);
-    assert_eq!(corpses.lone(0), Lone::None);
+    assert_eq!(corpses.lone[0], Lone::None);
 }
 
 #[test]
@@ -984,12 +984,12 @@ fn a_respawn_after_the_ragdoll_settled_leaves_the_gun_at_rest() {
     until_settled(&mut corpses, &d, &mut ground);
     let last = drawn_weapon(&corpses, 0);
     frame(&mut corpses, &[Seen::Alive], None, &mut ground);
-    let Lone::Resting { .. } = corpses.lone(0) else { panic!("{:?}", corpses.lone(0)) };
+    let Lone::Resting { .. } = corpses.lone[0] else { panic!("{:?}", corpses.lone[0]) };
     assert!((corpses.lone_gun(0).unwrap().1.position - last.position).length() < 1e-5);
     // a rollback that undoes the respawn brings the body back: its ragdoll
     // starts again and the lone gun goes
     frame(&mut corpses, &d, None, &mut ground);
-    assert_eq!(corpses.lone(0), Lone::None);
+    assert_eq!(corpses.lone[0], Lone::None);
     assert_eq!(stage(&corpses, 0), "dying");
 }
 
@@ -1001,9 +1001,9 @@ fn a_body_that_had_no_gun_or_no_ragdoll_leaves_none() {
         frame(&mut corpses, &[dead(7)], None, &mut ground);
     }
     frame(&mut corpses, &[Seen::Alive], None, &mut ground);
-    assert_eq!(corpses.lone(0), Lone::None, "no gun dropped");
+    assert_eq!(corpses.lone[0], Lone::None, "no gun dropped");
     // a respawn before the ragdoll started (still dying)
     frame(&mut corpses, &[armed(8)], None, &mut ground);
     frame(&mut corpses, &[Seen::Alive], None, &mut ground);
-    assert_eq!(corpses.lone(0), Lone::None);
+    assert_eq!(corpses.lone[0], Lone::None);
 }

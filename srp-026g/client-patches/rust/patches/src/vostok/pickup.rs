@@ -41,7 +41,7 @@ pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Ref
 use super::config::{ConfigError, ConfigValue};
 
 use super::gun_cook::{self, CookId};
-use super::world::{read, ItemId, Player, WorldKey};
+use super::world::{floats, read, ItemId, Player, WorldKey};
 use super::{Context, Lock, Thread};
 use crate::raw;
 
@@ -1541,61 +1541,6 @@ impl GunPose {
     }
 }
 
-/// The most bone matrices a gun's bones keep: update_skeleton's command's
-/// room (its abi row: at most 80).
-pub const GUN_BONES: usize = super::draw::MAX_BONES;
-
-/// A dead player's gun's bones as mt_draw gives them to its draw
-/// (`carry.weapon`: the held item's update_bones_matrices, model space,
-/// row vectors, the gun skeleton's order): the copy, the same model, is
-/// posed with them when it is drawn alone.
-#[derive(Clone, Copy)]
-pub struct GunBones {
-    count: u8,
-    matrices: [[f32; 16]; GUN_BONES],
-}
-
-impl GunBones {
-    /// Refused when there are none, more than [`GUN_BONES`] or any is not finite.
-    pub fn of(matrices: &[[f32; 16]]) -> Option<GunBones> {
-        if matrices.is_empty() || matrices.len() > GUN_BONES || !matrices.iter().flatten().all(|v| v.is_finite()) {
-            return None;
-        }
-        let mut out = GunBones { count: matrices.len() as u8, matrices: [[0.0; 16]; GUN_BONES] };
-        out.matrices[..matrices.len()].copy_from_slice(matrices);
-        Some(out)
-    }
-
-    pub fn matrices(&self) -> &[[f32; 16]] {
-        &self.matrices[..usize::from(self.count)]
-    }
-}
-
-/// At `carry.weapon`: the bones mt_draw gives the held item's draw
-/// ([ebp-0Ch], [ebp-18h] of them: its own stack array). Nothing of the drawn
-/// player's objects is read.
-pub fn drawn_bones(ctx: &Context<'_>) -> Option<GunBones> {
-    // SAFETY: the site's mt_draw frame: its array and count, alive while it
-    // draws; the count checked before the array is read.
-    unsafe {
-        let frame = raw::site::carry_weapon::frame(ctx)?;
-        let count = read(frame.held_bone_count()) as usize;
-        let bones = frame.held_bones();
-        if bones.is_null() || count == 0 || count > GUN_BONES {
-            return None;
-        }
-        GunBones::of(core::slice::from_raw_parts(bones.cast::<[f32; 16]>(), count))
-    }
-}
-
-/// A drop's gun drawn alone (its body left the world): where the game would
-/// draw it (its world transform, row vectors) and its bones.
-#[derive(Clone, Copy)]
-pub struct LyingGun {
-    pub transform: [f32; 16],
-    pub bones: GunBones,
-}
-
 /// Which of a cooked gun's models this module put in the scene: its body,
 /// its scope (the optic's idle model). A model the game put there is never
 /// counted ours.
@@ -1615,18 +1560,46 @@ impl Models {
 /// weapon::draw's last argument to calculate_locator (float4x4::identity 0x33390).
 const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
 
-/// The gun of `inventory`'s `slot` drawn alone at `lying`, as weapon::on_show
-/// and weapon::draw place a held one (0x243EC7..0x243F37, 0x244F27..0x245012):
-/// its model at the transform (added, or moved there) with the bones (once,
-/// when added), its scope at the scope's locator (calculate_locator 0x243BC0
-/// of +744h with the transform and the bones). `ours` what it placed before;
-/// what is ours now. A model already in the scene that is not ours is the
-/// game's: then nothing is placed.
+/// The inverse of a row-vector affine 4x4 (its 3x3 and its place); None when
+/// it has none.
+fn affine_inverse(m: &[f32; 16]) -> Option<[f32; 16]> {
+    let a = |r: usize, c: usize| m[r * 4 + c];
+    let cof = |r: usize, c: usize| {
+        let (r0, r1, c0, c1) = ((r + 1) % 3, (r + 2) % 3, (c + 1) % 3, (c + 2) % 3);
+        a(r0, c0) * a(r1, c1) - a(r0, c1) * a(r1, c0)
+    };
+    let det = a(0, 0) * cof(0, 0) + a(0, 1) * cof(0, 1) + a(0, 2) * cof(0, 2);
+    if !det.is_finite() || det.abs() < 1e-12 {
+        return None;
+    }
+    let mut out = IDENTITY;
+    for r in 0..3 {
+        for c in 0..3 {
+            out[r * 4 + c] = cof(c, r) / det;
+        }
+    }
+    for c in 0..3 {
+        out[12 + c] = -(0..3).map(|k| m[12 + k] * out[k * 4 + c]).sum::<f32>();
+    }
+    out.iter().all(|v| v.is_finite()).then_some(out)
+}
+
+/// The gun of `inventory`'s `slot` drawn alone at `transform`, as
+/// weapon::on_show and weapon::draw place a held one (0x243EC7..0x243F37,
+/// 0x244F27..0x245012): its model at the transform (added, or moved there
+/// as weapon::draw moves a held one each frame),
+/// in its bind pose (the bones its model's inverse binds invert, once, when
+/// added: no animation of the dead body's is kept), its scope at the scope's
+/// locator (calculate_locator 0x243BC0 of +744h with the transform and those
+/// bones: the scope's model is in its own frame, at the weapon's origin it
+/// would float off the gun). `ours` what it placed before; what is ours now.
+/// A model already in the scene that is not ours is the game's: then nothing
+/// is placed.
 ///
 /// # Safety
 /// `inventory` is a live cooked inventory of ours, its gun the game's in no
 /// way (not registered, not in hands).
-pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: WeaponSlot, lying: &LyingGun,
+pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: WeaponSlot, transform: &[f32; 16],
                                             ours: Models) -> Models {
     use super::carry_runtime::Scene;
     unsafe {
@@ -1637,17 +1610,30 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         if !ours.has(Models::BODY) && Scene::has(model) {
             return ours;
         }
+        // The bind pose: each bone the inverse of its inverse bind (the
+        // renderer skins with inverse bind x bone: the mesh as authored).
+        let mut bones = [IDENTITY; super::draw::MAX_BONES];
+        let binds = model.render_instance().instance().and_then(|i| i.skeleton().original())
+            .and_then(|m| Some((m.inverse_binds()?, m.inverse_binds_end()?)));
+        let Some(count) = binds.and_then(|(begin, end)| end.index_from(begin)).filter(|&n| n > 0 && n <= bones.len())
+        else { return ours };
+        let Some((begin, _)) = binds else { return ours };
+        for (n, bone) in bones[..count].iter_mut().enumerate() {
+            let Some(inverse) = affine_inverse(&floats::<16>(begin.at(n).value())) else { return ours };
+            *bone = inverse;
+        }
+        let bones = &bones[..count];
         let mut now = ours.0;
-        scene.present(model, &lying.transform);
+        scene.present(model, transform);
         if !ours.has(Models::BODY) {
-            scene.skin(model, lying.bones.matrices());
+            scene.skin(model, bones);
             now |= Models::BODY;
         }
         if let Some(scope) = weapon.optics().and_then(|optics| optics.model())
             && (ours.has(Models::SCOPE) || !Scene::has(scope)) {
             let mut at = [0.0f32; 16];
-            raw::engine_weapon_locator(at.as_mut_ptr(), weapon.scope_locator(), lying.transform.as_ptr(),
-                                       lying.bones.matrices().as_ptr().cast(), IDENTITY.as_ptr());
+            raw::engine_weapon_locator(at.as_mut_ptr(), weapon.scope_locator(), transform.as_ptr(),
+                                       bones.as_ptr().cast(), IDENTITY.as_ptr());
             if at.iter().all(|v| v.is_finite()) {
                 scene.present(scope, &at);
                 now |= Models::SCOPE;

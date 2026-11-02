@@ -439,11 +439,6 @@ impl Corpses {
         }
     }
 
-    /// A place's lone gun's state.
-    pub fn lone(&self, place: usize) -> Lone {
-        self.lone.get(place).copied().unwrap_or(Lone::None)
-    }
-
     pub fn place(&self, place: usize) -> Corpse {
         self.places.get(place).copied().unwrap_or(Corpse::Alive)
     }
@@ -497,7 +492,7 @@ impl Corpses {
         }
         for lone in self.lone.iter_mut() {
             if let Lone::Moving { death, mut gun } = *lone {
-                *lone = match gun.step(frame.dt, level) {
+                *lone = match gun.step(frame.dt, frame.up, level) {
                     Motion::Moving => Lone::Moving { death, gun },
                     Motion::Settled => Lone::Resting { death, gun },
                 };
