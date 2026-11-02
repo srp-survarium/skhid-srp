@@ -17,6 +17,11 @@
 //! - A [`Gun`] owns its ticket: [`cooked`] says where it is, dropping it
 //!   gives everything back (a cook still running is abandoned: its
 //!   completion frees what it made).
+//! - A made gun can be drawn alone ([`show`]: a drop's gun whose body left
+//!   the world); the ticket keeps which of its models it put in the scene,
+//!   and they come out ([`hide`]) before the game may show the gun (the
+//!   pickup's install and registration call it) and before it is freed (the
+//!   ticket's own drop): a model of a freed gun never stays in the scene.
 //!
 //! What to cook, when, and how long to wait is the patch's.
 
@@ -25,6 +30,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use weapon_pickup::{Kit, WeaponSlot};
 
+use super::pickup::{place_lying, remove_lying, LyingGun, Models};
 use super::world::{read, Player};
 use super::{clock, Lock, Thread};
 use crate::raw;
@@ -172,10 +178,50 @@ impl Drop for ProfileCopy {
 }
 
 /// A cooked inventory of ours: one reference to it and the profile it was
-/// cooked from, released on drop (the inventory first).
+/// cooked from, released on drop (the inventory first), its gun's models
+/// taken out of the scene before.
 struct CookedInventory {
     inventory: raw::Inventory,
     _profile: ProfileCopy,
+    drawn: Drawn,
+}
+
+/// What of a made gun is in the scene by us: nothing, or the gun of its
+/// inventory's `slot` lying alone at `transform` (`models` the ones placed).
+#[derive(Clone, Copy)]
+enum Drawn {
+    Hidden,
+    Lying { slot: WeaponSlot, transform: [f32; 16], models: Models },
+}
+
+impl Drawn {
+    /// The one transition: `want` drawn (lying there) or not, from what is
+    /// drawn now; idempotent, a second hide does nothing.
+    fn to(self, inventory: raw::Inventory, want: Option<(WeaponSlot, &LyingGun)>) -> Drawn {
+        match (self, want) {
+            (Drawn::Hidden, None) => Drawn::Hidden,
+            (Drawn::Lying { slot, transform, models }, Some((s, gun))) if slot == s && transform == gun.transform => {
+                Drawn::Lying { slot, transform, models }
+            }
+            (Drawn::Lying { slot, models, .. }, Some((s, gun))) if slot == s => {
+                // SAFETY: our live cooked inventory (the caller's ticket).
+                Drawn::lying(slot, gun, unsafe { place_lying(inventory, slot, gun, models) })
+            }
+            (Drawn::Lying { slot, models, .. }, want) => {
+                // SAFETY: as above; only the models we placed.
+                unsafe { remove_lying(inventory, slot, models) };
+                Drawn::Hidden.to(inventory, want)
+            }
+            (Drawn::Hidden, Some((slot, gun))) => {
+                // SAFETY: as above.
+                Drawn::lying(slot, gun, unsafe { place_lying(inventory, slot, gun, Models::NONE) })
+            }
+        }
+    }
+
+    fn lying(slot: WeaponSlot, gun: &LyingGun, models: Models) -> Drawn {
+        if models == Models::NONE { Drawn::Hidden } else { Drawn::Lying { slot, transform: gun.transform, models } }
+    }
 }
 
 /// Gives back one reference of ours to an inventory (at zero the native
@@ -192,6 +238,7 @@ fn release(inventory: raw::Inventory) {
 
 impl Drop for CookedInventory {
     fn drop(&mut self) {
+        self.drawn = self.drawn.to(self.inventory, None);
         release(self.inventory);
     }
 }
@@ -315,6 +362,31 @@ pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::I
         Ticket::Made { generation, cooked, .. } if *generation == id.generation => Some(cooked.inventory),
         _ => None,
     })
+}
+
+/// The made cook `id`'s gun (its inventory's `slot`) drawn alone lying at
+/// `gun` (moved there when drawn elsewhere); false when it is not made or
+/// nothing could be placed (no world, no model, or the game has it in the
+/// scene).
+pub fn show(thread: &Thread, id: CookId, slot: WeaponSlot, gun: &LyingGun) -> bool {
+    TABLE.with(thread, |table| match &mut table.tickets[usize::from(id.index)] {
+        Ticket::Made { generation, cooked, .. } if *generation == id.generation => {
+            cooked.drawn = cooked.drawn.to(cooked.inventory, Some((slot, gun)));
+            matches!(cooked.drawn, Drawn::Lying { .. })
+        }
+        _ => false,
+    })
+}
+
+/// The made cook `id`'s gun no longer drawn alone: what it placed out of
+/// the scene (nothing when nothing is).
+pub fn hide(thread: &Thread, id: CookId) {
+    TABLE.with(thread, |table| {
+        if let Ticket::Made { generation, cooked, .. } = &mut table.tickets[usize::from(id.index)]
+            && *generation == id.generation {
+            cooked.drawn = cooked.drawn.to(cooked.inventory, None);
+        }
+    });
 }
 
 /// The gun `player` holds at its death, by the slot of its kit's inventory
@@ -498,7 +570,8 @@ extern "C" fn cooked_shim(ticket: u32, result: Option<raw::QueriesResult>) {
         match core::mem::replace(slot, Ticket::Free) {
             Ticket::Waiting { generation, recipe, profile, since } => match made {
                 Some(inventory) => {
-                    *slot = Ticket::Made { generation, cooked: CookedInventory { inventory, _profile: profile }, since, at };
+                    *slot = Ticket::Made { generation, cooked: CookedInventory { inventory, _profile: profile, drawn: Drawn::Hidden },
+                                           since, at };
                     ((Some(recipe), None), None)
                 }
                 None => {

@@ -118,7 +118,7 @@ pub extern "C" fn hook_artefact_carry_on_load(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum ArtefactCarryOnWeaponExit { Skeleton }
-/// The entry `artefact_carry_on_weapon` (0x2477c8, mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones) calls this with the saved machine.
+/// The entry `artefact_carry_on_weapon` (0x2477c8, mt_draw before held item draw; EBX player, EAX weapon transform, EBP mt_draw's frame (the held item's bones); exit still submits character bones) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_weapon(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `artefact_carry_on_weapon` calls this, from the game's jump at 0x2477c8,

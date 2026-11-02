@@ -997,7 +997,7 @@ va	name	source	ret_cleanup	result
 0x002439d0		auto	0	
 0x00243a30		auto	8	
 0x00243a30	survarium::weapon::load_weapon	manual	8	keeps the skeleton model instance at +1810h (0x243A9A) and the scope at +1808h
-0x00243bc0	survarium::weapon::calculate_locator	manual	16	
+0x00243bc0	survarium::weapon::calculate_locator	manual	16	EAX = EDI, the output matrix (0x243C45, 0x243CA4)
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
 0x00243dd0		auto	4	

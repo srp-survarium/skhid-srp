@@ -20,12 +20,16 @@
 //! captured, the ragdoll moving, the pose settled). With no slot free the
 //! oldest settled corpse gives its slot up (it is drawn as the game draws it
 //! again); with none settled a new death keeps the game's clip.
+//!
+//! A body that goes away while the place's player lives again (its respawn)
+//! leaves its dropped gun behind: [`Lone`], the same gun body stepped alone
+//! until it rests, then kept where it lies until the place's next death.
 
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, HeadwearShape, Knock, Level, Motion, Ragdoll, Skeleton, Start,
-    StartReport, driver_bones,
+    Cause, DriverBones, GunShape, HeadwearShape, Knock, Level, LoneGun, Motion, Ragdoll, Skeleton,
+    Start, StartReport, driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
 use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
@@ -272,6 +276,29 @@ impl Slot {
     }
 }
 
+/// A place's dropped gun after its body went away (the player respawned,
+/// the corpse released): none, still falling or sliding (stepped each
+/// frame), or at rest. Any death seen at the place ends it (a new death, or
+/// a rollback that brought the body back: its ragdoll starts again).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Lone {
+    None,
+    Moving { death: DeathKey, gun: LoneGun },
+    Resting { death: DeathKey, gun: LoneGun },
+}
+
+impl Lone {
+    /// The gun a body leaves as it goes away: its ragdoll's, moving or
+    /// settled; none from a dying body (its ragdoll not started) or a free slot.
+    fn left_by(death: DeathKey, slot: &Slot) -> Lone {
+        match slot {
+            Slot::Ragdoll { ragdoll, .. } => ragdoll.lone_gun().map_or(Lone::None, |gun| Lone::Moving { death, gun }),
+            Slot::Settled { ragdoll, .. } => ragdoll.lone_gun().map_or(Lone::None, |gun| Lone::Resting { death, gun }),
+            Slot::Free | Slot::Dying { .. } => Lone::None,
+        }
+    }
+}
+
 /// The local player's death camera: off, or following its place's head.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Eye {
@@ -308,6 +335,8 @@ pub struct Corpses {
     /// Each place's drawn ragdoll's box as the last step left it: the
     /// shots' broad phase (a shot is traced between two steps).
     bounds: [Option<(Vec3, Vec3)>; MAX_PLACES],
+    /// Each place's gun left by its body (its player respawned).
+    lone: [Lone; MAX_PLACES],
 }
 
 /// A shot through a corpse: the place, its death, where the shot met it.
@@ -327,6 +356,7 @@ impl Corpses {
             settles: 0,
             bounds: [None; MAX_PLACES],
             started: [None; 8],
+            lone: [Lone::None; MAX_PLACES],
         }
     }
 
@@ -399,6 +429,21 @@ impl Corpses {
         }
     }
 
+    /// The gun a place's body left as it went away (its player respawned):
+    /// the death it dropped at and the `Weapon` bone's world pose, where the
+    /// game would draw the held item; still moving or at rest.
+    pub fn lone_gun(&self, place: usize) -> Option<(DeathKey, Pose)> {
+        match self.lone.get(place)? {
+            Lone::Moving { death, gun } | Lone::Resting { death, gun } => Some((*death, gun.weapon())),
+            Lone::None => None,
+        }
+    }
+
+    /// A place's lone gun's state.
+    pub fn lone(&self, place: usize) -> Lone {
+        self.lone.get(place).copied().unwrap_or(Lone::None)
+    }
+
     pub fn place(&self, place: usize) -> Corpse {
         self.places.get(place).copied().unwrap_or(Corpse::Alive)
     }
@@ -440,8 +485,22 @@ impl Corpses {
                 }
                 (_, Seen::Alive) => false,
             };
+            // the body goes away while its player lives again: its gun stays
+            self.lone[place] = match (self.places[place], seen) {
+                (_, Seen::Dead(_)) => Lone::None,
+                (Corpse::Body { death, slot }, Seen::Alive) => Lone::left_by(death, &self.pool[slot.index()]),
+                (Corpse::Alive | Corpse::Canned { .. }, Seen::Alive) => self.lone[place],
+            };
             if !keep {
                 self.release(place);
+            }
+        }
+        for lone in self.lone.iter_mut() {
+            if let Lone::Moving { death, mut gun } = *lone {
+                *lone = match gun.step(frame.dt, level) {
+                    Motion::Moving => Lone::Moving { death, gun },
+                    Motion::Settled => Lone::Resting { death, gun },
+                };
             }
         }
         for place in 0..count {

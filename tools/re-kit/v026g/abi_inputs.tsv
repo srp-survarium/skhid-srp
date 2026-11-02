@@ -2381,6 +2381,9 @@ va	name	location	role	basis
 0x00243a30	survarium::weapon::load_weapon	entry ESP+8	the scope (or 0)	observed
 0x00243bc0	survarium::weapon::calculate_locator	stack+4	locator	inferred
 0x00243bc0	survarium::weapon::calculate_locator	EDI	output_matrix	inferred
+0x00243bc0	survarium::weapon::calculate_locator	entry ESP+8	the item's world transform (weapon::draw's [ebp+8], 0x244E51/0x244E82), row-vector 4x4	observed
+0x00243bc0	survarium::weapon::calculate_locator	entry ESP+0xC	the item's bones' matrices (weapon::draw's [ebp+0Ch]); the first argument's bone index (+60h, FFFFh none) picks one (0x243C73)	observed
+0x00243bc0	survarium::weapon::calculate_locator	entry ESP+0x10	an extra matrix, the identity at both of weapon::draw's calls (float4x4::identity 0x33390 into a stack buffer, 0x244E48/0x244E79)	observed
 0x00243cb0		ECX		auto
 0x00243d40	survarium::weapon::set_foreground	ECX	weapon	inferred
 0x00243d40	survarium::weapon::set_foreground	DL	foreground_flag	inferred

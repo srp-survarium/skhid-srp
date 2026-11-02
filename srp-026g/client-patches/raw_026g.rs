@@ -135,6 +135,8 @@ unsafe extern "C" {
     pub fn engine_core_active_player(world: Option<CoreWorld>, place: u32, out: *mut Option<Player>) -> *mut c_void;
     /// 0x21cd0 vostok::render::scene_renderer::add_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
     pub fn engine_add_model(renderer: Option<SceneRenderer>, model: Option<SceneModelRef>, scene: Option<SceneReference>, first: *const f32, second: *const f32);
+    /// 0x243bc0 survarium::weapon::calculate_locator: output_matrix EDI, locator ESP+4, transform ESP+8, bones ESP+12, extra ESP+16; pops 16; EAX
+    pub fn engine_weapon_locator(output_matrix: *mut f32, locator: *const f32, transform: *const f32, bones: *const f32, extra: *const f32) -> *mut f32;
     /// 0x21f40 vostok::render::scene_renderer::remove_model: renderer ESP+4, model EAX, scene ESP+8; pops 8
     pub fn engine_remove_model(renderer: Option<SceneRenderer>, model: Option<SceneModelRef>, scene: Option<SceneReference>);
     /// 0x22280 vostok::render::scene_renderer::update_model: renderer ESP+4, model EAX, scene ESP+8, first ESP+12, second ESP+16; pops 16
@@ -2129,6 +2131,33 @@ impl MtDrawFrame {
     #[inline(always)]
     pub unsafe fn bone_count(self) -> *mut u32 {
         unsafe { self.0.byte_sub(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// -0xc (ptr<f32>): the held item's bones' matrices (ebp-0Ch: the alloca of 0x247661, filled by the item's update_bones_matrices at 0x2476AB, weapon::draw's second argument at 0x2477D5; model space, rows)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn held_bones(self) -> *mut f32 {
+        unsafe { self.0.byte_sub(0xc).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// -0xc (ptr<f32>): the held item's bones' matrices (ebp-0Ch: the alloca of 0x247661, filled by the item's update_bones_matrices at 0x2476AB, weapon::draw's second argument at 0x2477D5; model space, rows)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_held_bones(self, value: *mut f32) {
+        unsafe { self.0.byte_sub(0xc).cast::<*mut f32>().write_volatile(value) }
+    }
+
+    /// -0x18 (u32): their count (ebp-18h: the held item's skeleton's 0x3AF60 or 1, 0x24760D/0x247617; weapon::draw's third argument at 0x2477D1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn held_bone_count(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x18).cast::<u32>().as_ptr() }
     }
 }
 
@@ -5210,6 +5239,15 @@ impl Weapon {
         unsafe { self.0.byte_add(0x660).cast::<f32>().as_ptr() }
     }
 
+    /// +0x744 (f32): the scope's locator (calculate_locator's first argument for the scope: weapon::draw 0x244E87, its result kept at +660h, the scope's model placed there 0x244FEF..0x245012)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_locator(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x744).cast::<f32>().as_ptr() }
+    }
+
     /// +0x1808 (ptr<survarium::weapon_optics>): optional optics object, mt_draw 0x244F66
     ///
     /// # Safety
@@ -6335,6 +6373,15 @@ impl SceneModel {
     #[inline(always)]
     pub unsafe fn render_instance(self) -> SceneModelRef {
         SceneModelRef(unsafe { self.0.byte_add(0x108) })
+    }
+
+    /// +0x108 (obj<vostok::render::render_model_instance>): the same reference as update_skeleton takes it (weapon::draw 0x244F4E..0x244F5A: &[weapon+1810h]+108h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skinned(self) -> RenderModelInstance {
+        RenderModelInstance(unsafe { self.0.byte_add(0x108) })
     }
 }
 
@@ -11780,7 +11827,7 @@ pub mod site {
         }
     }
 
-    /// carry.weapon (0x2477c8): mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones
+    /// carry.weapon (0x2477c8): mt_draw before held item draw; EBX player, EAX weapon transform, EBP mt_draw's frame (the held item's bones); exit still submits character bones
     pub mod carry_weapon {
         #[allow(unused_imports)]
         use super::*;
@@ -11801,6 +11848,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn transform(machine: &impl Machine) -> Option<Float4x4> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Float4x4)
+        }
+
+        /// EBP: a survarium::mt_draw_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MtDrawFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MtDrawFrame)
         }
     }
 

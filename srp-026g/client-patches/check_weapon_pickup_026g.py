@@ -421,6 +421,7 @@ def main():
     linger(patched)
     one_tick(patched)
     one_current_copy(patched)
+    drawn_alone(patched)
 
 
 # ---- stage 2a: the record, the pickup, the restore, the crate --------------------------------------
@@ -2292,6 +2293,7 @@ RAY_TEST, REMOVE_MODEL, TRANSLATE = 0x75E20, 0x21F40, 0x1FF0F0
 USE = 1 << 21
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 NAME_KEY, NAME = b"st_wpn_svd_name", "SVD"
+BONES = 3                                       # the dead player's gun's bones mt_draw gives its draw
 PLACES_AT = OPTIONS_HOLDER + 0xC + 0x577B5
 
 
@@ -2352,6 +2354,13 @@ class Prompt(Pick):
         at = list(IDENTITY)
         at[13], at[14] = 1.0, 1.0
         self.emu.mem_write(self.matrix, struct.pack("<16f", *at))
+        # mt_draw's frame at carry.weapon: the held item's bones ([ebp-0Ch]) and their count ([ebp-18h]).
+        self.bones = [[float(b * 16 + n) if n not in (0, 5, 10, 15) else 1.0 for n in range(16)] for b in range(BONES)]
+        bones = self.blk(64 * BONES)
+        self.emu.mem_write(bones, b"".join(struct.pack("<16f", *m) for m in self.bones))
+        self.frame = self.blk(0x40) + 0x20
+        self.word(self.frame - 0xC, bones)
+        self.word(self.frame - 0x18, BONES)
         # The cooked gun's config: ui_desc/text_descriptions/name, a string.
         entry, holder = self.blk(0x3A0), self.blk(0x110)
         self.word(self.new_gun + 0x10 + 0x25C, entry)
@@ -2380,7 +2389,8 @@ class Prompt(Pick):
 
     def draw(self):
         """mt_draw's carry.weapon of the dead donor: whether its native weapon draw goes on."""
-        self.lohook(WEAPON_DRAW, WEAPON_DRAWN, {UC_X86_REG_EBX: PLAYER, UC_X86_REG_EAX: self.matrix},
+        self.lohook(WEAPON_DRAW, WEAPON_DRAWN, {UC_X86_REG_EBX: PLAYER, UC_X86_REG_EAX: self.matrix,
+                                                UC_X86_REG_EBP: self.frame},
                     stops=(WEAPON_DRAWN, WEAPON_SKIPPED))
         return self.stopped == WEAPON_DRAWN
 
@@ -2599,7 +2609,8 @@ class Death(Prompt):
 
     def draw_body(self, p):
         """mt_draw's carry.weapon of the dead `p`: whether its native weapon draw goes on."""
-        self.lohook(WEAPON_DRAW, WEAPON_DRAWN, {UC_X86_REG_EBX: p, UC_X86_REG_EAX: self.matrix},
+        self.lohook(WEAPON_DRAW, WEAPON_DRAWN, {UC_X86_REG_EBX: p, UC_X86_REG_EAX: self.matrix,
+                                                UC_X86_REG_EBP: self.frame},
                     stops=(WEAPON_DRAWN, WEAPON_SKIPPED))
         return self.stopped == WEAPON_DRAWN
 
@@ -3235,6 +3246,211 @@ def sights(run):
 
 
 
+
+
+# ---- the gun drawn alone once its body left the world (draw_alone) ---------------------------------
+
+ADD_MODEL, UPDATE_MODEL, UPDATE_SKELETON, LOCATOR = 0x21CD0, 0x22280, 0x22490, 0x243BC0
+SCOPE_AT = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 7., 8., 9., 1.)
+
+
+class Alone(Death):
+    """Stage 2b's match with the renderer's model calls recorded (`scene`: add, update, skin, remove, each
+    with the render instance; a remove with the cooked inventory's reference count then) and their
+    in-scene byte kept; calculate_locator answers SCOPE_AT."""
+
+    def __init__(self, data):
+        super().__init__(data)
+        self.scene = []
+        for at in (ADD_MODEL, UPDATE_MODEL, UPDATE_SKELETON, LOCATOR):
+            self.emu.hook_add(UC_HOOK_CODE, self.renderer, begin=at, end=at)
+
+    def renderer(self, emu, address, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        arg = lambda n: self.read(sp + 4 * n)
+        matrix = lambda at: struct.unpack("<16f", bytes(emu.mem_read(at, 64)))
+        if address in (ADD_MODEL, UPDATE_MODEL):        # EAX the model's reference, renderer, scene, first, second
+            instance = self.read(emu.reg_read(UC_X86_REG_EAX))
+            if address == ADD_MODEL:
+                assert self.read(instance + 0x10D, 1) == b"\0", "added twice"
+                emu.mem_write(instance + 0x10D, b"\1")
+            else:
+                assert self.read(instance + 0x10D, 1) == b"\1", "moved out of the scene"
+            self.scene.append(("add" if address == ADD_MODEL else "update", instance, matrix(arg(3))))
+            self.ret(16)
+        elif address == UPDATE_SKELETON:               # EDI the scene renderer, instance, bones, second, count
+            instance, count = self.read(arg(1)), arg(4)
+            self.scene.append(("skin", instance, [matrix(arg(2) + 64 * n) for n in range(count)]))
+            self.ret(16)
+        else:                                           # EDI out, locator, transform, bones, extra; EAX = EDI
+            out = emu.reg_read(UC_X86_REG_EDI)
+            assert matrix(arg(4)) == IDENTITY and arg(1) == self.new_gun + 0x744
+            emu.mem_write(out, struct.pack("<16f", *SCOPE_AT))
+            self.ret(16, out)
+
+    def fixtures(self, emu, address, *_):
+        if address == REMOVE_MODEL:
+            instance = self.read(emu.reg_read(UC_X86_REG_EAX))
+            self.scene.append(("remove", instance, self.read(self.cooked + 0xD0)))
+        super().fixtures(emu, address, *_)
+
+    def setup(self, double_handed=1):
+        super().setup(double_handed)
+        self.word(self.new_gun + 0x180C, WORLD)     # the cooked gun's world, as the recipe's
+
+    def copy(self):
+        """The render instance of the drop's copy's model."""
+        return self.read(self.read(self.new_gun + 0x1810) + 0x108)
+
+    def in_scene(self, instance):
+        return self.read(instance + 0x10D, 1) == b"\1"
+
+    def took(self, *what):
+        """The model calls since the last look, their kind and instance (and kept)."""
+        out, self.scene = [(e[0], e[1]) for e in self.scene], []
+        assert out == list(what), (out, what, self.log[-8:])
+        return out
+
+    def drawn_dead(self):
+        """The donor's body drawn on its ragdoll (its pose and bones kept), then it leaves the world (the
+        respawn) and the next frame: its copy drawn alone where the body drew it."""
+        assert self.draw_body(PLAYER)
+        self.step(DIED + 200)
+        self.took()
+        self.remove(PLAYER, RESPAWN)
+        self.step(RESPAWN + 16)
+
+
+RESPAWN = DIED + 8_000
+
+
+def drawn_alone(patched):
+    r = Alone(patched)
+    r.setup()
+    copy = r.copy()
+    r.drawn_dead()
+    added = [e for e in r.scene]
+    assert [(e[0], e[1]) for e in added] == [("add", copy), ("skin", copy)], added
+    assert added[0][2] == struct.unpack("<16f", bytes(r.emu.mem_read(r.matrix, 64))), "where its body drew it"
+    assert added[1][2] == [tuple(m) for m in r.bones], "its body's bones"
+    r.scene = []
+    r.step(RESPAWN + 32)
+    r.step(RESPAWN + 48)
+    r.took()
+    alone = r.save(PLAYER)
+    assert alone == record(("open", 1, A_GUN, True))
+    assert r.hud() == [("st_weapon_pick_up", NAME)], "offered where it is drawn"
+    print("ok its body gone (the respawn), the drop's copy is drawn alone where the body last drew it, with the "
+          "bones its body's draw gave it, once (no call while it lies there); offered there")
+
+    # The pickup: out of the scene at its registration (before the game may show it), once.
+    taken = RESPAWN + 1_000
+    r.pick(now=taken, switch=False)
+    r.took(("remove", copy))
+    assert not r.in_scene(copy)
+    r.step(taken + 16)
+    r.step(taken + 32)
+    r.took()
+    # A rollback undoing the pickup: drawn again; redone: out again.
+    r.load(PLAYER, alone)
+    r.load(r.picker, record())
+    r.reader(GUN_ID)
+    r.step(taken + 48)
+    r.took(("add", copy), ("skin", copy))
+    r.pick(now=taken, switch=False)
+    r.took(("remove", copy))
+    # Into the holster and the swap: the install finds it out of the scene already (no second removal).
+    r.tick(now=taken + 300)
+    r.installed()
+    r.step(taken + 400)
+    r.took()
+    print("ok the pickup takes it out of the scene at its registration, once; a rollback undoing the pickup draws "
+          "it again, the pickup replayed takes it out again; the swap's install removes nothing more")
+
+    # The next death replaces the drop: out at the next frame; a rollback across it, then the death replayed.
+    g = Alone(patched)
+    g.setup()
+    copy = g.copy()
+    g.drawn_dead()
+    g.took(("add", copy), ("skin", copy))
+    before = g.save(PLAYER)
+    second = RESPAWN + 5_000
+    g.player(slot=7, spawned=RESPAWN)
+    g.word(PLAYER + 0x324, second)
+    g.queries = []
+    g.death()
+    (q,) = g.queries
+    inv, gun, ammo = g.cooked_gun()
+    for item, slot in ((gun + 0x10, 7), (ammo, 11)):
+        g.word(inv + 0x10C + 4 * slot, item)
+        g.word(item + 0x254, slot)
+    g.word(inv + 0x10C + 4 * 10, 0)
+    g.complete(q, inv)
+    g.step(second + 16)
+    g.took(("remove", copy))
+    g.load(PLAYER, before)
+    g.step(second + 32)
+    g.took()                                    # its death's body is the new one's: no pose of the old drop here
+    g.word(PLAYER + 0x324, second)
+    g.death()
+    g.step(second + 48)
+    g.took()
+    g.step(second + 10_100)                      # the old copy freed past the margin: already out
+    g.took()
+    assert not g.in_scene(copy)
+    print("ok the next death replaces the drop: the old copy out of the scene at the next frame, once; a rollback "
+          "across the death and its replay draw nothing stale; freed past the margin with nothing to remove")
+
+    # A departure: out (its place out of the world); a rollback across it: drawn again; the departed player's
+    # destruction frees the copy: out of the scene before its inventory is given back.
+    d = Alone(patched)
+    d.setup()
+    copy = d.copy()
+    d.drawn_dead()
+    d.took(("add", copy), ("skin", copy))
+    left_match(d, PLACE, PLAYER, KIT, RESPAWN + 100)
+    d.step(RESPAWN + 116)
+    d.took(("remove", copy))
+    d.roster[PLACE] = PLAYER
+    d.step(RESPAWN + 132)
+    d.took(("add", copy), ("skin", copy))
+    references = d.read(d.cooked + 0xD0)
+    d.destroy_player(PLAYER)
+    (event,) = d.scene
+    assert event == ("remove", copy, references), (event, references)
+    assert d.read(d.cooked + 0xD0) == references - 1 and not d.in_scene(copy), "freed after its model left"
+    d.scene = []
+    d.step(RESPAWN + 148)
+    d.took()
+    print("ok a departure takes it out (its place out of the world), a rollback across it draws it again; the "
+          "departed player's destruction frees the copy with its model out of the scene first, once")
+
+    # A scoped gun: the scope drawn at the scope's locator, out with the gun.
+    o = Alone(patched)
+    o.setup()
+    copy = o.copy()
+    optics, scope_model, scope = o.blk(0x120), o.blk(0x120), o.blk(0x6300)
+    o.word(o.new_gun + 0x1808, optics)
+    o.word(optics + 0x108, scope_model)
+    o.word(scope_model + 0x108, scope)
+    o.drawn_dead()
+    events = o.scene
+    assert [(e[0], e[1]) for e in events] == [("add", copy), ("skin", copy), ("add", scope)], events
+    assert events[2][2] == SCOPE_AT
+    o.scene = []
+    o.remove(PLAYER, RESPAWN + 50)               # a second removal of the body changes nothing
+    o.step(RESPAWN + 66)
+    o.took()
+    o.pick(now=RESPAWN + 1_000, switch=False)
+    o.took(("remove", copy), ("remove", scope))
+    print("ok a scoped gun's scope drawn at its locator (calculate_locator of +744h), out with the gun; a second "
+          "removal of the body draws nothing more")
+
+    # Not drawn: a late joiner (no pose), a body this client did not draw.
+    j, players, guns, _ = join(patched, DIED + 60_000, {3: record(), 4: record(), 5: record(("open", 1, A_GUN, True))})
+    j.step(DIED + 60_016)
+    assert not any(e for e in getattr(j, "scene", [])), "a late joiner draws nothing"
+    print("ok a late joiner after the respawn draws nothing (no pose of it)")
 
 
 if __name__ == '__main__':

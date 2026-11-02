@@ -84,6 +84,7 @@ global engine_inventory_take_artefact
 global engine_quick_inventory_slot
 global engine_core_active_player
 global engine_add_model
+global engine_weapon_locator
 global engine_remove_model
 global engine_update_model
 global engine_static_model_bounds
@@ -1177,6 +1178,25 @@ engine_add_model:
     push dword [esp + 32]   ; renderer -> 4
     mov eax, [esp + 40]   ; model
     call 0x21cd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_weapon_locator:
+    ; 0x243bc0 survarium::weapon::calculate_locator: output_matrix EDI, locator ESP+4, transform ESP+8, bones ESP+12, extra ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; extra -> 16
+    push dword [esp + 36]   ; bones -> 12
+    push dword [esp + 36]   ; transform -> 8
+    push dword [esp + 36]   ; locator -> 4
+    mov edi, [esp + 36]   ; output_matrix
+    call 0x243bc0
     pop edi
     pop esi
     pop ebx

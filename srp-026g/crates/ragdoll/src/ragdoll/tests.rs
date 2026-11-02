@@ -1270,3 +1270,68 @@ fn on_rudnya_a_dropped_gun_lies_on_the_drawn_ground_not_in_it() {
         "{both:?}"
     );
 }
+
+/// A lone gun (its body gone: the player respawned) stepped at 60 frames a
+/// second until it rests: the frames it took and the highest its capsule's
+/// bottom went under the floor (m, positive below).
+fn lone_until_rest(gun: &mut LoneGun, ground: &mut Ground) -> (usize, f32) {
+    let mut sunk = 0.0f32;
+    for n in 1..=600 {
+        let motion = gun.step(1.0 / 60.0, ground);
+        let (a, b) = gun.body.shape.ends(gun.body.pose);
+        sunk = sunk.max(gun.body.shape.radius - a.y.min(b.y));
+        if motion == Motion::Settled {
+            return (n, sunk);
+        }
+    }
+    panic!("a lone gun never rested");
+}
+
+#[test]
+fn a_lone_gun_in_the_air_falls_and_rests_on_the_ground() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    // the body goes at once: the gun still at the hand's height
+    let mut gun = ragdoll.lone_gun().unwrap();
+    assert!(gun.centre().y > 0.8, "{:?}", gun.centre());
+    let drawn = {
+        let mut s = now;
+        let (parts, g) = ragdoll.poses();
+        ragdoll.rig().draw(&parts, g, &mut s);
+        s[WEAPON.index()]
+    };
+    assert!((gun.weapon().position - drawn.position).length() < 1e-5, "the hand-off is where it was drawn");
+    let mut ground = Ground::flat();
+    let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
+    let (a, b) = gun.body.shape.ends(gun.body.pose);
+    assert!(a.y < 0.07 && b.y < 0.07 && a.y > 0.0 && b.y > 0.0, "on the ground: {a:?} {b:?}");
+    assert!(sunk < 0.02, "sunk {sunk}");
+    assert!(gun.speed() < SLOW && frames < 300, "{frames} frames");
+    // at rest it stays: the next steps keep it where it lies
+    let rest = gun.body.pose.position;
+    for _ in 0..60 {
+        gun.step(1.0 / 60.0, &mut ground);
+    }
+    assert!((gun.body.pose.position - rest).length() < 0.01);
+}
+
+#[test]
+fn a_lone_gun_sliding_on_the_ground_stops() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    let mut gun = ragdoll.lone_gun().unwrap();
+    // lying flat on the floor, sliding at 3 m/s along its length's side
+    let radius = gun.body.shape.radius;
+    gun.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
+    gun.body.previous = gun.body.pose;
+    gun.body.velocity = Vec3::new(0.0, 0.0, 3.0);
+    gun.body.contacts = [Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y }; 2];
+    let mut ground = Ground::flat();
+    let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
+    let at = gun.body.pose.position;
+    assert!(at.z > 0.05, "it slid on: {at:?}");
+    assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
+    assert!(gun.speed() < SLOW && frames < 300, "{frames} frames");
+}

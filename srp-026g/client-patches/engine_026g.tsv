@@ -79,6 +79,7 @@ engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal)	thunk
 engine_core_active_player	0x2d0ab0	ESI:world CL:place EDI:out	void *engine_core_active_player(struct core_world *world, unsigned int place, struct player **out)	thunk
 engine_add_model	0x21cd0	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_add_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)	thunk
+engine_weapon_locator	0x243bc0	EDI:output_matrix ESP+4:locator ESP+8:transform ESP+12:bones ESP+16:extra	float *engine_weapon_locator(float *output_matrix, const float *locator, const float *transform, const float *bones, const float *extra)	thunk
 engine_remove_model	0x21f40	ESP+4:renderer EAX:model ESP+8:scene	void engine_remove_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene)	thunk
 engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)	thunk
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk

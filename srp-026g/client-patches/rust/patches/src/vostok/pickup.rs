@@ -20,6 +20,9 @@
 //! - [`restore`] puts everything back as it was cooked and the own gun in
 //!   its slot, the reserved id's entry emptied; the held object is left to
 //!   the caller (remove deactivates it, the reader switches it).
+//! - [`place_lying`] / [`remove_lying`]: a cooked gun drawn alone (a drop's
+//!   gun whose body left the world), as weapon::on_show and weapon::draw place
+//!   a held one; `gun_cook` keeps what it placed and calls them.
 //! - every check is made before the first write: a refusal changes nothing.
 //! - the crate: [`crate_view`], a copy of the inventory with the own gun and
 //!   the own parked stacks in their places, what the native resupply reads;
@@ -549,6 +552,8 @@ impl Failure {
 /// user: the 83Lb41 crash).
 pub fn install(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, id: RegistryId,
                mode: Mode<'_>) -> Result<Installed, Failure> {
+    // Drawn alone, its models are ours: out of the scene before the game shows it.
+    gun_cook::hide(player.thread, cook);
     let (registered, replacing) = match mode {
         Mode::Load(_) => return place(player, own, cook, slot, id, mode).map_err(Failure::Refused),
         Mode::Switch(_, r) => (r, None),
@@ -829,6 +834,8 @@ unsafe fn registry_or(core: raw::CoreWorld, id: RegistryId, gun: raw::Item, repl
 /// (vtable+0, a weapon's 0x301CA0 says yes) and its id saved (0x2DB196).
 pub fn register_pending(player: &Player<'_>, cook: CookId, slot: WeaponSlot, id: RegistryId, select: Select)
                         -> Result<Registered, Refusal> {
+    // Drawn alone, its models are ours: out of the scene once the game has it.
+    gun_cook::hide(player.thread, cook);
     let cooked = gun_cook::inventory(player.thread, cook).ok_or(Refusal::NoCookedGun)?;
     // SAFETY: the live player and its world core; the made cooked
     // inventory, its gun read as a weapon after its vtable.
@@ -1531,6 +1538,142 @@ impl GunPose {
     /// Refused when the transform is not finite.
     pub fn at(transform: [f32; 16], model: GunBox) -> Option<GunPose> {
         transform.iter().all(|v| v.is_finite()).then_some(GunPose { transform, model })
+    }
+}
+
+/// The most bone matrices a gun's bones keep: update_skeleton's command's
+/// room (its abi row: at most 80).
+pub const GUN_BONES: usize = super::draw::MAX_BONES;
+
+/// A dead player's gun's bones as mt_draw gives them to its draw
+/// (`carry.weapon`: the held item's update_bones_matrices, model space,
+/// row vectors, the gun skeleton's order): the copy, the same model, is
+/// posed with them when it is drawn alone.
+#[derive(Clone, Copy)]
+pub struct GunBones {
+    count: u8,
+    matrices: [[f32; 16]; GUN_BONES],
+}
+
+impl GunBones {
+    /// Refused when there are none, more than [`GUN_BONES`] or any is not finite.
+    pub fn of(matrices: &[[f32; 16]]) -> Option<GunBones> {
+        if matrices.is_empty() || matrices.len() > GUN_BONES || !matrices.iter().flatten().all(|v| v.is_finite()) {
+            return None;
+        }
+        let mut out = GunBones { count: matrices.len() as u8, matrices: [[0.0; 16]; GUN_BONES] };
+        out.matrices[..matrices.len()].copy_from_slice(matrices);
+        Some(out)
+    }
+
+    pub fn matrices(&self) -> &[[f32; 16]] {
+        &self.matrices[..usize::from(self.count)]
+    }
+}
+
+/// At `carry.weapon`: the bones mt_draw gives the held item's draw
+/// ([ebp-0Ch], [ebp-18h] of them: its own stack array). Nothing of the drawn
+/// player's objects is read.
+pub fn drawn_bones(ctx: &Context<'_>) -> Option<GunBones> {
+    // SAFETY: the site's mt_draw frame: its array and count, alive while it
+    // draws; the count checked before the array is read.
+    unsafe {
+        let frame = raw::site::carry_weapon::frame(ctx)?;
+        let count = read(frame.held_bone_count()) as usize;
+        let bones = frame.held_bones();
+        if bones.is_null() || count == 0 || count > GUN_BONES {
+            return None;
+        }
+        GunBones::of(core::slice::from_raw_parts(bones.cast::<[f32; 16]>(), count))
+    }
+}
+
+/// A drop's gun drawn alone (its body left the world): where the game would
+/// draw it (its world transform, row vectors) and its bones.
+#[derive(Clone, Copy)]
+pub struct LyingGun {
+    pub transform: [f32; 16],
+    pub bones: GunBones,
+}
+
+/// Which of a cooked gun's models this module put in the scene: its body,
+/// its scope (the optic's idle model). A model the game put there is never
+/// counted ours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::vostok) struct Models(u8);
+
+impl Models {
+    pub(in crate::vostok) const NONE: Models = Models(0);
+    const BODY: u8 = 1;
+    const SCOPE: u8 = 2;
+
+    fn has(self, bit: u8) -> bool {
+        self.0 & bit != 0
+    }
+}
+
+/// weapon::draw's last argument to calculate_locator (float4x4::identity 0x33390).
+const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
+
+/// The gun of `inventory`'s `slot` drawn alone at `lying`, as weapon::on_show
+/// and weapon::draw place a held one (0x243EC7..0x243F37, 0x244F27..0x245012):
+/// its model at the transform (added, or moved there) with the bones (once,
+/// when added), its scope at the scope's locator (calculate_locator 0x243BC0
+/// of +744h with the transform and the bones). `ours` what it placed before;
+/// what is ours now. A model already in the scene that is not ours is the
+/// game's: then nothing is placed.
+///
+/// # Safety
+/// `inventory` is a live cooked inventory of ours, its gun the game's in no
+/// way (not registered, not in hands).
+pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: WeaponSlot, lying: &LyingGun,
+                                            ours: Models) -> Models {
+    use super::carry_runtime::Scene;
+    unsafe {
+        let Some((_, gun)) = cooked_gun(inventory, slot) else { return ours };
+        let weapon = gun.weapon();
+        let (Some(world), Some(model)) = (weapon.world(), weapon.model()) else { return ours };
+        let Some(scene) = Scene::of_world(world) else { return ours };
+        if !ours.has(Models::BODY) && Scene::has(model) {
+            return ours;
+        }
+        let mut now = ours.0;
+        scene.present(model, &lying.transform);
+        if !ours.has(Models::BODY) {
+            scene.skin(model, lying.bones.matrices());
+            now |= Models::BODY;
+        }
+        if let Some(scope) = weapon.optics().and_then(|optics| optics.model())
+            && (ours.has(Models::SCOPE) || !Scene::has(scope)) {
+            let mut at = [0.0f32; 16];
+            raw::engine_weapon_locator(at.as_mut_ptr(), weapon.scope_locator(), lying.transform.as_ptr(),
+                                       lying.bones.matrices().as_ptr().cast(), IDENTITY.as_ptr());
+            if at.iter().all(|v| v.is_finite()) {
+                scene.present(scope, &at);
+                now |= Models::SCOPE;
+            }
+        }
+        Models(now)
+    }
+}
+
+/// The models of the gun of `inventory`'s `slot` that are `ours` out of the
+/// scene (each only while it is in it: a second removal does nothing).
+///
+/// # Safety
+/// As [`place_lying`]'s.
+pub(in crate::vostok) unsafe fn remove_lying(inventory: raw::Inventory, slot: WeaponSlot, ours: Models) {
+    use super::carry_runtime::Scene;
+    unsafe {
+        let Some((_, gun)) = cooked_gun(inventory, slot) else { return };
+        let weapon = gun.weapon();
+        let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+        if ours.has(Models::BODY) && let Some(model) = weapon.model() {
+            scene.remove(model);
+        }
+        if ours.has(Models::SCOPE) && let Some(scope) = weapon.optics().and_then(|optics| optics.model()) {
+            scene.remove(scope);
+        }
     }
 }
 
