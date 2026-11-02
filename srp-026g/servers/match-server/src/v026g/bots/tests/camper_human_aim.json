@@ -38,6 +38,44 @@
     450.0,
     120.0
   ],
+  "skill_curve": "linear",
+  "class_aim": {
+    "pistol": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "smg": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "rifle": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mg": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "shotgun": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "marksman": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "bolt": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
   "combat": {
     "wounded_bonus_m": 20.0,
     "duel_ms": 3000,
@@ -406,6 +444,7 @@
     "settle": "wander_and_policy",
     "settle_guns": "scoped",
     "settle_k": 1.0,
+    "settle_k_low": 1.0,
     "settle_max_wait_ms": 5000,
     "band_cross_deg": null,
     "stand_strafe": false,

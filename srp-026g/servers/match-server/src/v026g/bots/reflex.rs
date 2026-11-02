@@ -197,8 +197,8 @@ impl WeaponKind {
 }
 
 /// Whether the aim's error angles scale with the zoom of the sights, as a player's hand does (the client turns the view by
-/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): a bench setting to size the effect,
-/// off in the game.
+/// the sensitivity times the camera's zoom, 0x240220: PROVEN, `client_patch.md` 531): every sight's in the game since A243
+/// (`CombatTuning::zoom_error`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ZoomError {
@@ -903,7 +903,9 @@ pub struct CombatTuning {
     /// target is not trailed by the turn's ease (the turn's time constant,
     /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
     pub turn_feed: bool,
-    /// The error angles times the sights' zoom ([`ZoomError`]): the scopes' (A182 #29; `all_off.json` keeps it off).
+    /// The error angles times the sights' zoom ([`ZoomError`]): every sight's, iron sights too (A243: the client zooms an
+    /// aimed-in iron sight by `1 / aim_zoom_factor` of the game data, 1.0-1.2, PROVEN; before, the scopes' only, A182 #29;
+    /// `all_off.json` keeps it off).
     pub zoom_error: ZoomError,
     /// The wander settling with time on target and the shot waiting for the error to fit the body ([`Settle`]), on the guns with a
     /// scope (`settle_guns`; A182 #29, `all_off.json` keeps it off). The
@@ -914,6 +916,11 @@ pub struct CombatTuning {
     /// Which guns it applies to (the scoped ones).
     pub settle_guns: SettleGuns,
     pub settle_k: f32,
+    /// [A243] `settle_k` at skill 0 (`settle_k` is skill 1's), mixed by the skill: a weak player fires before his aim fits the
+    /// body as well as a strong one waits for. 2.0: skill 0 fires at twice the error skill 1 waits for, so the scoped classes'
+    /// hit rates rise with the skill (fitted with the class factors, `AimTuning::class_aim`). 1.0 (before A243, `all_off.json`):
+    /// the same bound at every skill, and A242 found the bolt's hit rate flat across skill.
+    pub settle_k_low: f32,
     pub settle_max_wait_ms: u32,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
@@ -1513,10 +1520,11 @@ impl Default for CombatTuning {
             lead_own: true,
             live_eye: true,
             turn_feed: true,
-            zoom_error: ZoomError::Scopes,
+            zoom_error: ZoomError::All,
             settle: Settle::WanderAndPolicy,
             settle_guns: SettleGuns::Scoped,
             settle_k: 1.0,
+            settle_k_low: 2.0,
             settle_max_wait_ms: 5_000,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
@@ -4699,7 +4707,8 @@ impl Reflex {
                 self.target = Some(track.who());
                 self.since = now;
                 // A fresh target: the aim starts well off and settles.
-                let error = mix(aim.error_deg, skill).to_radians() * 3.0;
+                let class = aim.combat.fire.class_of(self.hands().held().gun);
+                let error = aim.angle(aim.error_deg, skill, class).to_radians() * 3.0;
                 self.error = (rng.range(-error, error), rng.range(-error, error) * 0.5);
                 // The first shot a reaction after noticing.
                 let t = track.track();
@@ -6782,7 +6791,9 @@ impl Reflex {
         let aim_since = self.aim_since.take();
         let legs = self.legs(now);
         let settle_s = mix(aim.settle_s, skill).max(0.05);
-        let floor = mix(aim.error_deg, skill).to_radians();
+        // [A243] The gun's class takes its own factors on the aim's angles.
+        let class = c.fire.class_of(self.hands().held().gun);
+        let floor = aim.angle(aim.error_deg, skill, class).to_radians();
         // Play 20: a throw under way has the look and the hands.
         if let Some(throw) = self.throw
             && let Some(over) = self.throwing(throw, me, view, now, c, settle_s)
@@ -7004,8 +7015,8 @@ impl Reflex {
         let settle = c.settle_guns.settle(c.settle, self.hands().held().gun.optic);
         let wander_deg = aim_settle::wander_deg(
             settle,
-            mix(aim.wander_deg, skill),
-            mix(aim.settled_wander_deg, skill),
+            aim.angle(aim.wander_deg, skill, class),
+            aim.angle(aim.settled_wander_deg, skill, class),
             mix(aim.settle_tau_s, skill),
             t,
         );
@@ -7022,7 +7033,7 @@ impl Reflex {
             (self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5)) * zoom,
         );
         // What a player knows of his own hand: the error to expect, not this tick's draw (`aim_settle`).
-        let expected_deg = aim_settle::error_rms_deg(mix(aim.error_deg, skill), fade, wander_deg, zoom);
+        let expected_deg = aim_settle::error_rms_deg(aim.angle(aim.error_deg, skill, class), fade, wander_deg, zoom);
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it. The share taken back grows with the skill.
@@ -7110,7 +7121,7 @@ impl Reflex {
                 expected_deg,
                 distance,
                 c.body_half_m,
-                c.settle_k,
+                mix((c.settle_k_low, c.settle_k), skill) * aim.class_factor(skill, class),
                 now.saturating_sub(self.since),
                 c.settle_max_wait_ms,
             );
