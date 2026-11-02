@@ -94,6 +94,7 @@ global engine_lobby_camera_ray
 global engine_read_file
 global engine_lobby_character_setup_profile
 global engine_lobby_character_release_player
+global engine_player_set_transform
 global engine_explosion_reach
 global engine_show_cursor
 global engine_send_important
@@ -1314,6 +1315,24 @@ engine_lobby_character_release_player:
     push dword [esp + 24]   ; byte -> 4
     mov esi, [esp + 24]   ; character
     call 0x284aa0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_player_set_transform:
+    ; 0x2dab70 survarium::base_player::set_transform: point ECX, player ESP+4, yaw ESP+8, pitch ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; pitch -> 12
+    push dword [esp + 32]   ; yaw -> 8
+    push dword [esp + 32]   ; player -> 4
+    mov ecx, [esp + 32]   ; point
+    call 0x2dab70
     pop edi
     pop esi
     pop ebx

@@ -295,6 +295,9 @@ extern engine_lobby_character_setup_profile
 ; void engine_lobby_character_release_player(struct lobby_character *character, unsigned int byte)
 ; 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
 extern engine_lobby_character_release_player
+; void engine_player_set_transform(const float *point, struct player *player, float yaw, float pitch)
+; 0x2dab70 survarium::base_player::set_transform: point ECX, player ESP+4, yaw ESP+8, pitch ESP+12; pops 12
+extern engine_player_set_transform
 ; float engine_explosion_reach(const float *ray, struct bullet_manager *manager, const float *centre, float strength, const void *target)
 ; 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
 extern engine_explosion_reach

@@ -151,6 +151,8 @@ unsafe extern "C" {
     pub fn engine_lobby_character_setup_profile(profile: Option<PlayerProfile>, character: Option<LobbyCharacter>, kit: u32);
     /// 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
     pub fn engine_lobby_character_release_player(character: Option<LobbyCharacter>, byte: u32);
+    /// 0x2dab70 survarium::base_player::set_transform: point ECX, player ESP+4, yaw ESP+8, pitch ESP+12; pops 12
+    pub fn engine_player_set_transform(point: *const f32, player: Option<Player>, yaw: f32, pitch: f32);
     /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
     pub fn engine_explosion_reach(ray: *const f32, manager: Option<BulletManager>, centre: *const f32, strength: f32, target: *const c_void) -> f32;
     /// 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4
@@ -6789,6 +6791,57 @@ impl WeaponTable {
     }
 }
 
+/// A survarium::lobby_character (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LobbyCharacter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LobbyCharacter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (f32): where it stands, a float3 (the ctor 0x28474C..0x28476D: the lobby menu's (0, 0, 0), (1, 0, 0.5), (-1, 0, 0.5)); on_player_ready gives it to its player's initialize (0x285060)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x14 (f32): the yaw it faces (the ctor: pi, 0x284770, looking along -z); on_player_ready's initialize (0x285063), update's decal transform (rotY, 0x284A39)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn yaw(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x14).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xd2b8 (ptr<survarium::player>): its player, 0 until on_player_ready makes one (0x285007); update draws it (0x284A20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0xd2b8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0xd2b8 (ptr<survarium::player>): its player, 0 until on_player_ready makes one (0x285007); update draws it (0x284A20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0xd2b8).cast::<Option<Player>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::explosion_params (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -10455,21 +10508,6 @@ pub struct LobbyCamera(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl LobbyCamera {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A survarium::lobby_character (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LobbyCharacter(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl LobbyCharacter {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {

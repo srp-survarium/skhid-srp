@@ -20,6 +20,9 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use ragdoll::math::Vec3;
+
+use super::config::ConfigValue;
 use super::context::Context;
 use super::hook::Thread;
 use super::parse::Reader;
@@ -148,6 +151,84 @@ impl<'t> ScenesReady<'t> {
 
     pub fn reset_eye_adaptation(&self) {
         reset_eye_adaptation(self.thread);
+    }
+
+    /// The results' project's `srp_lobby/facing` (radians, a float or an
+    /// int), as patch 45 reads `srp_lobby/weapon`: none when the results
+    /// hold no project, or its config has no such number.
+    pub fn facing(&self) -> Option<f32> {
+        // SAFETY: the results are alive for the callback; result 3's
+        // resource is a project whose binary config the resource system keeps
+        // loaded and relocated while the project is (lobby-scenes.md).
+        unsafe {
+            let project = self.results.project()?.project();
+            let root = project.config()?.root()?;
+            let lobby = ConfigValue::read(root).ok()?.table().ok()?.get(c"srp_lobby").ok()??.table().ok()?;
+            lobby.get(c"facing").ok()??.number().ok()
+        }
+    }
+
+    /// Stands the lobby menu's three characters where `stance` says (each
+    /// one it has): their own point and yaw, which a player made later
+    /// (on_player_ready) takes, and their player's transform when they
+    /// have one (base_player::set_transform, as game_world::tick moves a
+    /// match's players).
+    pub fn stand(&self, stance: impl Fn(Character) -> Stance) {
+        // SAFETY: the lobby menu and its characters are alive for the
+        // callback (the menu's ctor made them; they live as long), on the
+        // game's thread; a character's player is its own reference.
+        unsafe {
+            for (character, native) in [
+                (Character::Own, self.menu.character()),
+                (Character::SquadRight, self.menu.squad_right()),
+                (Character::SquadLeft, self.menu.squad_left()),
+            ] {
+                let Some(native) = native else { continue };
+                let Stance { point, yaw } = stance(character);
+                let at = [point.x, point.y, point.z];
+                core::ptr::copy_nonoverlapping(at.as_ptr(), native.point(), 3);
+                *native.yaw() = yaw;
+                if let Some(player) = native.player() {
+                    raw::engine_player_set_transform(at.as_ptr(), Some(player), yaw, 0.0);
+                }
+            }
+        }
+    }
+}
+
+/// One of the lobby's three characters (the lobby menu's +694h, +698h,
+/// +69Ch).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Character {
+    /// The player's own.
+    Own,
+    /// The squad panel's on the right.
+    SquadRight,
+    /// The squad panel's on the left.
+    SquadLeft,
+}
+
+/// Where a character stands: its point on the floor and the yaw it faces
+/// (the camera's convention: forward = (-sin yaw, 0, cos yaw)).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Stance {
+    pub point: Vec3,
+    pub yaw: f32,
+}
+
+impl Character {
+    pub const ALL: [Character; 3] = [Character::Own, Character::SquadRight, Character::SquadLeft];
+
+    /// Where the lobby menu's ctor makes it (0x21CCD2 at (0, 0, 0),
+    /// 0x21CD33 at (1, 0, 0.5), 0x21CD94 at (-1, 0, 0.5)), facing yaw pi (the
+    /// character's ctor, 0x284770: along -z).
+    pub fn stock(self) -> Stance {
+        let point = match self {
+            Character::Own => Vec3::new(0.0, 0.0, 0.0),
+            Character::SquadRight => Vec3::new(1.0, 0.0, 0.5),
+            Character::SquadLeft => Vec3::new(-1.0, 0.0, 0.5),
+        };
+        Stance { point, yaw: core::f32::consts::PI }
     }
 }
 

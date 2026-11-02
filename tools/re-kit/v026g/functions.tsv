@@ -1075,6 +1075,7 @@ va	status	ref_021d	name
 0x002d9b90	reviewed	0x001d524b	survarium::base_player::hit_impl
 0x002da790	observed	0x001d59c8	survarium::base_player::remove
 0x002da850	observed	0x001d5a25	survarium::base_player::insert
+0x002dab70	reviewed	0x001d5c78	survarium::base_player::set_transform
 0x002daf60	reviewed	0x001d5e96	survarium::base_player::serialize
 0x002db490	reviewed	0x001d61a3	survarium::base_player::deserialize
 0x002dc0b0	reviewed	0x001d6811	survarium::base_player::set_spotted

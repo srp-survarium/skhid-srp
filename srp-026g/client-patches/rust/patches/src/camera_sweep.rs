@@ -21,13 +21,18 @@
 //! lobby picked, 1 to 4), `led <id>` (a squad joined, its commander's pick
 //! that lobby) or `alone` (the squad left) changes patch 81's lobby when the
 //! next pose starts, for captures of its change (lobby-scenes.md); a line
-//! `window` opens (or closes) the lobby window then.
+//! `window` opens (or closes) the lobby window then. A line `return <day,
+//! rain or night>` plays a return from a match into that Room's weather
+//! when the next pose starts (patch 81's own events, the lobby hidden and
+//! shown again, without a match: room-weather.md). A pose `<hold s> free`
+//! leaves the camera to the game (patch 81's stock pose of a new lobby, the
+//! player's own), for captures of what a player sees.
 
 #![forbid(unsafe_code)]
 
 use ragdoll::math::Vec3;
 
-use crate::lobby_scene::{self, Lobby, Squad};
+use crate::lobby_scene::{self, Lobby, Squad, Weather};
 use crate::vostok::lobby_menu::DrawnLobby;
 use crate::vostok::lobby_camera::{CameraPose, FlightWord, LobbyCamera, Steps, WeaponTableState};
 use crate::vostok::trace::{self, TraceFile};
@@ -45,6 +50,9 @@ pub enum Eye {
     Orbit,
     /// A flight's pose: this point and side angle (radians), no ray.
     Flight { point: [f32; 3], side: f32 },
+    /// The game's camera, untouched (the pose's yaw, pitch and distance
+    /// unused).
+    Free,
 }
 
 /// What changes patch 81's lobby as a pose starts.
@@ -57,6 +65,8 @@ pub enum Change {
     Squad(Squad),
     /// The lobby window opened or closed.
     Window,
+    /// A return from a match into the Room's weather.
+    Return(Weather),
 }
 
 /// One pose of the script.
@@ -154,6 +164,15 @@ pub fn parse(text: &[u8]) -> Option<Script> {
             continue;
         }
         let mut words = line.split(|&c| c == b' ' || c == b'\t' || c == b'\r').filter(|w| !w.is_empty());
+        let mut first_two = words.clone();
+        if let (Some(hold), Some(b"free"), None) = (first_two.next(), first_two.next(), first_two.next())
+            && let Some(hold) = number(hold).filter(|hold| *hold >= 0.0)
+        {
+            script.poses[script.count] = Pose { hold, yaw: 0.0, pitch: 0.0, distance: 0.0, eye: Eye::Free, change };
+            script.count += 1;
+            change = Change::Nothing;
+            continue;
+        }
         let mut values = [0.0f32; 8];
         let mut n = 0;
         for word in words.by_ref() {
@@ -208,6 +227,13 @@ fn change_of(line: &[u8]) -> Option<Change> {
         id(rest).map(Change::Own)
     } else if let Some(rest) = line.strip_prefix(b"led ") {
         id(rest).map(|lobby| Change::Squad(Squad::Led(lobby)))
+    } else if let Some(rest) = line.strip_prefix(b"return ") {
+        match rest.trim_ascii() {
+            b"day" => Some(Change::Return(Weather::Day)),
+            b"rain" => Some(Change::Return(Weather::Rain)),
+            b"night" => Some(Change::Return(Weather::Night)),
+            _ => None,
+        }
     } else {
         None
     }
@@ -264,6 +290,7 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some((pose, new)) = pose {
         match pose.eye {
             Eye::Orbit => camera.look(pose.yaw, pose.pitch, pose.distance),
+            Eye::Free => {}
             Eye::Flight { point, side } => {
                 let at = CameraPose {
                     point: Vec3::new(point[0], point[1], point[2]),
@@ -286,6 +313,11 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 Change::Window => {
                     if let Some(lobby) = DrawnLobby::of(&camera) {
                         lobby.toggle_window();
+                    }
+                }
+                Change::Return(weather) => {
+                    if let Some(lobby) = DrawnLobby::of(&camera) {
+                        lobby_scene::force_return(thread, &lobby, weather);
                     }
                 }
             }
@@ -377,6 +409,11 @@ mod tests {
         assert_eq!(changes.poses[1].change, Change::Own(Lobby::Stk2Bunker));
         assert_eq!(changes.poses[2].change, Change::Squad(Squad::Led(Lobby::Hangar046)));
         assert_eq!(changes.poses[3].change, Change::Squad(Squad::None), "a line that is no change passed over");
+        let free = parse(b"40 free\nreturn day\n12 free\nreturn fog\n8 0 0 1.96\n5 free x\n").unwrap();
+        assert_eq!(free.count, 3);
+        assert_eq!((free.poses[0].eye, free.poses[0].hold), (Eye::Free, 40.0));
+        assert_eq!(free.poses[1].change, Change::Return(Weather::Day));
+        assert_eq!((free.poses[2].eye, free.poses[2].change), (Eye::Orbit, Change::Nothing), "an unknown weather passed over");
         let flight = parse(b"squad\n0.5 -90 -14.3 1.2 4.25 1.3 3.05 21\n").unwrap();
         assert!(flight.squad && !flight.empty && flight.count == 1);
         let empty = parse(b"empty\n45 0 0 1.96\npick 2\n25 0 0 1.96\n").unwrap();

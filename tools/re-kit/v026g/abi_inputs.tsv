@@ -2736,6 +2736,10 @@ va	name	location	role	basis
 0x002d9b90	survarium::base_player::hit_impl	[EBP-4] at 0x2D9EFC	the killing bullet or 0 (+1Ch velocity LIKELY)	observed
 0x002d9b90	survarium::base_player::hit_impl	[EBP+0Ch] at 0x2D9EFC	the hit_info (+0 part-name pointer, +24h world hit point, +44h killer place); the victim is EBX; nothing of the last hit is kept on the player	observed
 0x002da4b0	survarium::base_player::computed_head_transform	EAX	the player	observed
+0x002dab70	survarium::base_player::set_transform	ECX	the point, a float3 (0x2DAB84 builds the translation of it)	observed
+0x002dab70	survarium::base_player::set_transform	entry ESP+4	the player	observed
+0x002dab70	survarium::base_player::set_transform	entry ESP+8	the yaw (float, radians; rotY 0x15AE50; +490h)	observed
+0x002dab70	survarium::base_player::set_transform	entry ESP+12	the pitch (float; +48Ch)	observed
 0x002da540	survarium::base_player::get_bone_transform	EDI	the player	observed
 0x002da540	survarium::base_player::get_bone_transform	entry ESP+4	out matrix	observed
 0x002da540	survarium::base_player::get_bone_transform	entry ESP+8	the bone's name (char*)	observed

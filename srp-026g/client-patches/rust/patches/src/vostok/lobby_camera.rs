@@ -133,10 +133,11 @@ impl<'t> LobbyCamera<'t> {
         unsafe { self.ticker.menu() }
     }
 
-    /// Puts the camera at the pose its ctor gives (0x283C24..0x283C78: the yaw, the pitch and the
-    /// side angle 0, the distance and its target 1.96 m), when patch 45's camera is the stock one
-    /// (no weapon at the bench, no flight): a new lobby's first view (patch 81).
-    pub fn to_stock_pose(&mut self) {
+    /// Puts the camera at the pose its ctor gives (0x283C24..0x283C78: the pitch and the side
+    /// angle 0, the distance and its target 1.96 m), its yaw `yaw` (the ctor's 0, a lobby's facing
+    /// turned), when patch 45's camera is the stock one (no weapon at the bench, no flight): a new
+    /// lobby's first view (patch 81).
+    pub fn to_stock_pose(&mut self, yaw: f32) {
         if WeaponTableState::of(self._thread).camera() != TableCamera::Stock {
             return;
         }
@@ -146,7 +147,7 @@ impl<'t> LobbyCamera<'t> {
             *t.side() = 0.0;
             *t.side_target() = 0.0;
         }
-        self.look(0.0, 0.0, STOCK_DISTANCE);
+        self.look(yaw, 0.0, STOCK_DISTANCE);
     }
 
     /// A diagnostics build's camera sweep (camera_sweep.rs): the yaw and the pitch now, the

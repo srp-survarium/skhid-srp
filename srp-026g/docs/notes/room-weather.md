@@ -20,6 +20,19 @@ players"; "it shouldn't happen when hopping and choosing different lobbies, so i
   the same Room.
 - **Night:** the player's local time (GetLocalTime) from 21:00 up to 06:00 (`NIGHT`, one const).
   The night wins over the rain: three rooms, no rainy night.
+- **The night faces the chandelier** (the owner, 2026-11-02): the night's room keeps the day's
+  layout; its project's root `srp_lobby.facing = pi` (pack lobby-camp-069@19) turns the lobby's
+  three characters about the origin by it (the squad's spots to (-1, 0, -0.5) and (1, 0, -0.5),
+  every yaw pi + facing) and the camera's stock pose (yaw pi: the eye at (0, 1.2, 1.96), the
+  chandelier's side). Any lobby project may set `facing` (radians); without it, 0: as before.
+  - read from the project each time one is put in (the start's, a swap's), as patch 45 reads
+    `srp_lobby.weapon`; the weapon's spot stays in room coordinates;
+  - the characters: their own point and yaw (what a player made later takes:
+    lobby_character::on_player_ready, a squad member joining) and, for a player already made,
+    `base_player::set_transform` (0x2DAB70), at the swap behind the black or at the start;
+  - the camera: at the new lobby's first frame (the start's, the first frame behind the black, or
+    a return's first frame after a swap made during the match); a night to day change puts it
+    back at yaw 0. Not while a weapon's upgrade window has the camera (no swap happens then).
 - **Rain, a spell:** out of a spell an entry rolls the dice (xorshift64, seeded once by the
   performance counter): under 15 in 100 (`RAIN_PERCENT`) it rains and a spell starts; the next
   3 entries (`SPELL_ENTRIES`) rain too, rolling nothing; the entry after them rolls again (no dry
@@ -42,9 +55,14 @@ players"; "it shouldn't happen when hopping and choosing different lobbies, so i
 - **Testing (a diagnostics build only, `--ragdoll-trace`; never a release's):** user.cfg's
   `srp_room_weather day|rain|night` forces every entry's weather (the spell untouched); the
   variable is registered in a diagnostics build alone, so a release's game ignores the line.
-  Each entry's weather is a line of `srp_lobby_scene.txt` (`entry: rain`).
+  Each entry's weather is a line of `srp_lobby_scene.txt` (`entry: rain`). The camera sweep's
+  `return <weather>` plays a return's events (hidden, shown) into that weather without a match,
+  and a pose `<hold> free` leaves the camera to the game.
 - **Checks:** `lobby_scene.rs`'s tests (the night window, the spell, the dice's 15 %, no entry at
   a pick or a squad, a return into another weather behind the black, every sequence of events
-  with entries of changing weather); `check_lobby_scene_026g.py` (the start at noon, at night, in
-  a spell, a rain rolled, the variable saved; a return at night: the black at once, the night's
-  project asked alone; picks between entries read no clock).
+  with entries of changing weather, the characters and the camera turned by the shown project's
+  facing at every swap and first frame); `check_lobby_scene_026g.py` (the start at noon, at
+  night, in a spell, a rain rolled, the variable saved; a return at night: the black at once, the
+  night's project asked alone, put in with the characters turned and their players moved, the
+  camera's yaw pi; facing absent: the exe's own stances and yaw 0; picks between entries read no
+  clock).

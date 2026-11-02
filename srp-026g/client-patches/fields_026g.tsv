@@ -305,6 +305,9 @@ survarium::lobby_menu	movie	0x690	ptr<vostok::ui::movie_holder>	its movie's hold
 survarium::lobby_menu	character	0x694	ptr<survarium::lobby_character>	the lobby's own character, at (0, 0, 0) (made at 0x21CCD2, kept at 0x21CCE6; patch 32's MENU_CHARACTER)
 survarium::lobby_menu	squad_right	0x698	ptr<survarium::lobby_character>	the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
 survarium::lobby_menu	squad_left	0x69C	ptr<survarium::lobby_character>	the squad panel's character at (-1, 0, 0.5) (made at 0x21CD94, kept at 0x21CD9D)
+survarium::lobby_character	point	0x8	f32	where it stands, a float3 (the ctor 0x28474C..0x28476D: the lobby menu's (0, 0, 0), (1, 0, 0.5), (-1, 0, 0.5)); on_player_ready gives it to its player's initialize (0x285060)
+survarium::lobby_character	yaw	0x14	f32	the yaw it faces (the ctor: pi, 0x284770, looking along -z); on_player_ready's initialize (0x285063), update's decal transform (rotY, 0x284A39)
+survarium::lobby_character	player	0xD2B8	ptr<survarium::player>	its player, 0 until on_player_ready makes one (0x285007); update draws it (0x284A20)
 survarium::lobby_menu	account_profile	0x6A0	ptr<survarium::player_profile>	the account's profile (patch 32's show_kit gives it to setup_profile: weapon_preview_026g.asm PROFILE)
 survarium::player_profile	chosen_kit	0x4632	u8	the kit chosen in the lobby (weapon_preview_026g.asm CHOSEN_KIT)
 survarium::explosion_params	splash_radius	0x28	f32	the blast's splash_radius, after its thrower's modifier 0Ch (grenade_set_core +2A0h read at 0x309BDD, the copy's +28h at 0x30A3DC): bullet_manager::explode's objects within it (0x33963D) take damage

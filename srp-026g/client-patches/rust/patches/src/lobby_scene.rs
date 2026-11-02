@@ -52,10 +52,14 @@
 use core::ffi::CStr;
 use core::num::NonZeroU8;
 
+use ragdoll::math::{Vec3, sin_cos};
+
 use crate::vostok::clock::{self, DayMinute};
 use crate::vostok::language::ConsoleString;
 use crate::vostok::settings::save_user_config;
-use crate::vostok::lobby_menu::{DrawnLobby, HiddenLobby, Picks, SceneQuery, ScenesReady, Shade, SquadId, SquadRead};
+use crate::vostok::lobby_menu::{
+    Character, DrawnLobby, HiddenLobby, Picks, SceneQuery, ScenesReady, Shade, SquadId, SquadRead, Stance,
+};
 use crate::vostok::lobby_camera::{LobbyCamera, TableCamera, WeaponTableState};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::trace::{self, TraceFile};
@@ -398,11 +402,58 @@ pub enum View {
     Closed,
 }
 
+/// A lobby project's facing (its root `srp_lobby/facing`, radians; none
+/// is 0): its characters and its stock camera turned by it about the
+/// vertical through the origin (the camp's night, pi: the squad faces the
+/// chandelier and the camera starts on its side).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Facing(f32);
+
+impl Facing {
+    /// No turn: the exe's own stances and camera.
+    pub const NONE: Facing = Facing(0.0);
+
+    /// The facing a project's number gives (none, or one not finite: none).
+    pub fn of(radians: Option<f32>) -> Facing {
+        match radians {
+            Some(radians) if radians.is_finite() => Facing(radians),
+            _ => Facing::NONE,
+        }
+    }
+
+    /// The stock camera's yaw (the ctor's 0) turned.
+    pub fn camera_yaw(self) -> f32 {
+        self.0
+    }
+
+    /// A stance turned about the origin: its point by the turn that takes
+    /// forward(yaw) to forward(yaw + facing) (forward = (-sin yaw, 0, cos
+    /// yaw)), its yaw by the facing.
+    pub fn turn(self, stance: Stance) -> Stance {
+        let (sin, cos) = sin_cos(self.0);
+        let p = stance.point;
+        Stance { point: Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos), yaw: stance.yaw + self.0 }
+    }
+}
+
+/// What a query's results hold in the project's place (`lobby_menu.scenes_ready`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Arrival {
+    /// A project with its camera track, of this facing.
+    Project(Facing),
+    /// None, or one without its track (a bug).
+    Failed,
+}
+
 /// Where a change of lobby is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Change {
     /// The scenery shown is the one wanted.
     Settled,
+    /// The scenery shown is new (the start's, or put in while the lobby was
+    /// hidden) and not yet drawn: its first frame puts the camera at its
+    /// stock pose, turned by its facing.
+    Fresh,
     /// `lobby`'s project failed to load (a bug, logged): not asked again
     /// until another scenery is wanted (else its fade would play every
     /// second).
@@ -411,7 +462,8 @@ pub enum Change {
     Darkening { black: f32 },
     /// Behind the black, `to`'s project asked.
     Loading { to: Scenery },
-    /// The new scenery in, drawn behind the black `frames` more frames.
+    /// The new scenery in, drawn behind the black `frames` more frames (the
+    /// first of them puts the camera at its stock pose, turned).
     Holding { frames: u8 },
     /// The scene stepping from black, `black` of the way left; `broken` the
     /// scenery whose project failed behind it (then `Broken`).
@@ -426,9 +478,10 @@ pub enum Scene {
     /// The start: the lobby menu's own query asks `picked`'s project in the
     /// start's `weather`.
     Starting { picked: Lobby, weather: Weather },
-    /// The lobby menu has the scenery `shown`; `weather` the Room's in this
-    /// entry (what a Room wanted shows, the one shown's or not).
-    Loaded { shown: Scenery, weather: Weather, view: View, change: Change },
+    /// The lobby menu has the scenery `shown`, its project of `facing`;
+    /// `weather` the Room's in this entry (what a Room wanted shows, the one
+    /// shown's or not).
+    Loaded { shown: Scenery, facing: Facing, weather: Weather, view: View, change: Change },
 }
 
 /// What happens to the lobby's scene. `picked` is the lobby picked at that
@@ -438,10 +491,8 @@ pub enum Scene {
 pub enum Event {
     /// The lobby menu builds its query (`lobby_menu.scene_request`).
     Query { picked: Lobby },
-    /// Its results are in (`lobby_menu.scenes_ready`); `loaded`: the
-    /// project's place holds a project with its camera track
-    /// (ScenesReady::loaded).
-    Ready { loaded: bool, picked: Lobby, camera: TableCamera },
+    /// Its results are in (`lobby_menu.scenes_ready`).
+    Ready { arrival: Arrival, picked: Lobby, camera: TableCamera },
     /// A frame of the lobby drawn, `dt` s (`lobby_camera.view`).
     Tick { dt: f32, picked: Lobby, camera: TableCamera },
     /// The lobby is no longer drawn (`lobby_menu.deactivate`: a match).
@@ -465,7 +516,7 @@ pub enum AfterBroken {
 }
 
 /// What the site does.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Action {
     /// The site's own code as it is: the query's own list, the results
     /// taken by the lobby menu, the menu's (de)activation.
@@ -475,6 +526,9 @@ pub enum Action {
     /// A change's query: this scenery's project in the project's place, its
     /// config in every other.
     AskAlone(Scenery),
+    /// The start's results taken by the lobby menu, its characters stood
+    /// turned by the project's facing.
+    Take { facing: Facing },
     /// The results let go, the query asked again.
     AskAgain,
     /// The results let go.
@@ -484,11 +538,14 @@ pub enum Action {
     /// The black whole and the spinner on it, the lobby's query asked.
     ShadeAndQuery,
     /// The results' project put in the lobby menu's (behind the black), the
-    /// eye adaptation reset.
-    SwapIn,
-    /// The results' project put in and the black gone at once (a match
-    /// entered).
-    SwapAndClear,
+    /// characters stood turned by its facing, the eye adaptation reset.
+    SwapIn { facing: Facing },
+    /// The results' project put in, the characters turned, and the black
+    /// gone at once (a match entered).
+    SwapAndClear { facing: Facing },
+    /// A new scenery's first frame: the camera at its stock pose, turned by
+    /// its facing.
+    Place { facing: Facing },
     /// The black whole, the spinner off, the eye adaptation reset again.
     Reset,
     /// The black gone at once.
@@ -531,45 +588,54 @@ impl Scene {
             (Loaded { .. }, Event::Query { .. }) => (self, Action::Original),
 
             (Unasked, Event::Ready { .. }) => (self, Action::Original),
-            (Starting { picked, weather }, Event::Ready { loaded, .. }) => {
+            (Starting { picked, weather }, Event::Ready { arrival, .. }) => {
                 let shown = picked.scenery(weather);
-                let action =
-                    if loaded { Action::Original } else { Action::Broken { lobby: shown, then: AfterBroken::Take } };
-                (Loaded { shown, weather, view: View::Drawn, change: Change::Settled }, action)
+                let loaded = |facing, change| Loaded { shown, facing, weather, view: View::Drawn, change };
+                match arrival {
+                    Arrival::Project(facing) => (loaded(facing, Change::Fresh), Action::Take { facing }),
+                    Arrival::Failed => (
+                        loaded(Facing::NONE, Change::Settled),
+                        Action::Broken { lobby: shown, then: AfterBroken::Take },
+                    ),
+                }
             }
-            (Loaded { shown, weather, view, change: Change::Loading { to } }, Event::Ready { loaded, picked, camera }) => {
+            (
+                Loaded { shown, facing, weather, view, change: Change::Loading { to } },
+                Event::Ready { arrival, picked, camera },
+            ) => {
                 let wanted = wanted(shown, weather, picked, camera);
-                let at = |change| Loaded { shown, weather, view, change };
-                match view {
-                    View::Closed => (at(Change::Settled), Action::LetGo),
+                let at = |change| Loaded { shown, facing, weather, view, change };
+                let to_in = |facing, change| Loaded { shown: to, facing, weather, view, change };
+                match (view, arrival) {
+                    (View::Closed, _) => (at(Change::Settled), Action::LetGo),
                     _ if to != wanted && wanted == shown => match view {
                         View::Drawn => (at(Change::Brightening { black: 1.0, broken: None }), Action::Reset),
                         View::Hidden | View::Closed => (at(Change::Settled), Action::LetGo),
                     },
                     _ if to != wanted => (at(Change::Loading { to: wanted }), Action::AskAgain),
-                    View::Drawn if loaded => (
-                        Loaded { shown: to, weather, view, change: Change::Holding { frames: HOLD_FRAMES } },
-                        Action::SwapIn,
-                    ),
-                    View::Hidden if loaded => {
-                        (Loaded { shown: to, weather, view, change: Change::Settled }, Action::SwapAndClear)
+                    (View::Drawn, Arrival::Project(facing)) => {
+                        (to_in(facing, Change::Holding { frames: HOLD_FRAMES }), Action::SwapIn { facing })
                     }
-                    View::Drawn => (
+                    (View::Hidden, Arrival::Project(facing)) => {
+                        (to_in(facing, Change::Fresh), Action::SwapAndClear { facing })
+                    }
+                    (View::Drawn, Arrival::Failed) => (
                         at(Change::Brightening { black: 1.0, broken: Some(to) }),
                         Action::Broken { lobby: to, then: AfterBroken::FadeIn },
                     ),
-                    View::Hidden => {
+                    (View::Hidden, Arrival::Failed) => {
                         (at(Change::Broken { lobby: to }), Action::Broken { lobby: to, then: AfterBroken::LetGo })
                     }
                 }
             }
             (Loaded { .. }, Event::Ready { .. }) => (self, Action::Original),
 
-            (Loaded { shown, weather, view: View::Drawn, change }, Event::Tick { dt, picked, camera }) => {
+            (Loaded { shown, facing, weather, view: View::Drawn, change }, Event::Tick { dt, picked, camera }) => {
                 let wanted = wanted(shown, weather, picked, camera);
-                let at = |change| Loaded { shown, weather, view: View::Drawn, change };
+                let at = |change| Loaded { shown, facing, weather, view: View::Drawn, change };
                 let step = dt.min(FADE_STEP);
                 match change {
+                    Change::Fresh => (at(Change::Settled), Action::Place { facing }),
                     Change::Settled if wanted != shown => (at(Change::Darkening { black: 0.0 }), Action::Original),
                     Change::Broken { lobby } if wanted != shown && wanted != lobby => {
                         (at(Change::Darkening { black: 0.0 }), Action::Original)
@@ -582,6 +648,9 @@ impl Scene {
                     }
                     Change::Darkening { .. } if wanted == shown => (at(Change::Brightening { black: 1.0, broken: None }), Action::Reset),
                     Change::Darkening { .. } => (at(Change::Loading { to: wanted }), Action::ShadeAndQuery),
+                    Change::Holding { frames: HOLD_FRAMES } => {
+                        (at(Change::Holding { frames: HOLD_FRAMES - 1 }), Action::Place { facing })
+                    }
                     Change::Holding { frames } if frames > 1 => (at(Change::Holding { frames: frames - 1 }), Action::Original),
                     Change::Holding { .. } => (at(Change::Brightening { black: 1.0, broken: None }), Action::Reset),
                     Change::Brightening { black, broken } if black - step / FADE_IN > 0.0 => {
@@ -595,20 +664,22 @@ impl Scene {
             (Unasked | Starting { .. } | Loaded { .. }, Event::Tick { .. }) => (self, Action::Original),
 
             (Loaded { view: View::Closed, .. }, Event::Hidden | Event::Shown { .. } | Event::Closing) => (self, Action::Original),
-            (Loaded { shown, weather, change, .. }, Event::Closing) => {
+            (Loaded { shown, facing, weather, change, .. }, Event::Closing) => {
                 let change = if let Change::Loading { .. } = change { change } else { Change::Settled };
-                (Loaded { shown, weather, view: View::Closed, change }, Action::Original)
+                (Loaded { shown, facing, weather, view: View::Closed, change }, Action::Original)
             }
             (Unasked | Starting { .. }, Event::Closing) => (self, Action::Original),
-            (Loaded { shown, weather, change, .. }, Event::Hidden) => {
-                let hidden = |change| Loaded { shown, weather, view: View::Hidden, change };
+            (Loaded { shown, facing, weather, change, .. }, Event::Hidden) => {
+                let hidden = |change| Loaded { shown, facing, weather, view: View::Hidden, change };
                 match change {
+                    // the new scenery's first frame not yet drawn: still its
+                    Change::Holding { frames: HOLD_FRAMES } => (hidden(Change::Fresh), Action::Clear),
                     Change::Darkening { .. } | Change::Holding { .. } | Change::Brightening { broken: None, .. } => {
                         (hidden(Change::Settled), Action::Clear)
                     }
                     Change::Brightening { broken: Some(lobby), .. } => (hidden(Change::Broken { lobby }), Action::Clear),
                     Change::Loading { .. } => (hidden(change), Action::Clear),
-                    Change::Settled | Change::Broken { .. } => (hidden(change), Action::Original),
+                    Change::Settled | Change::Fresh | Change::Broken { .. } => (hidden(change), Action::Original),
                 }
             }
             (Unasked | Starting { .. }, Event::Hidden) => (self, Action::Original),
@@ -617,19 +688,20 @@ impl Scene {
             // scenery other than the one shown wanted (the Room's new
             // weather) is asked behind the black from the return's first
             // frame, as a project loading is (the old one never seen again)
-            (Loaded { shown, view: View::Hidden, change, .. }, Event::Shown { picked, camera }) => {
+            (Loaded { shown, facing, view: View::Hidden, change, .. }, Event::Shown { picked, camera }) => {
                 let weather = enter();
                 let wanted = wanted(shown, weather, picked, camera);
-                let drawn = |change| Loaded { shown, weather, view: View::Drawn, change };
+                let drawn = |change| Loaded { shown, facing, weather, view: View::Drawn, change };
                 let black = Action::Shade { per_mille: 1000, loading: true };
                 match change {
                     Change::Loading { .. } => (drawn(change), black),
                     Change::Broken { lobby } if wanted == lobby => (drawn(change), Action::Original),
-                    Change::Settled | Change::Broken { .. } if wanted != shown => {
+                    Change::Settled | Change::Fresh | Change::Broken { .. } if wanted != shown => {
                         (drawn(Change::Darkening { black: 1.0 }), black)
                     }
-                    // hidden, a change is settled, broken or loading (Event::Hidden)
+                    // hidden, a change is settled, fresh, broken or loading (Event::Hidden)
                     Change::Settled
+                    | Change::Fresh
                     | Change::Broken { .. }
                     | Change::Darkening { .. }
                     | Change::Holding { .. }
@@ -785,6 +857,27 @@ pub fn force(thread: &Thread, own: Option<Lobby>, squad: Option<Squad>) {
     }
 }
 
+/// A diagnostics build's return from a match (camera_sweep.rs `return
+/// <weather>`): the machine's own events of a return, the lobby hidden and
+/// shown again, the return's weather forced (and every later entry's): the
+/// switch a return plays, without a match (the lobby menu itself neither
+/// deactivated nor activated).
+pub fn force_return(thread: &Thread, lobby: &DrawnLobby<'_>, weather: Weather) {
+    FORCED.set(thread, match weather {
+        Weather::Day => b"day",
+        Weather::Rain => b"rain",
+        Weather::Night => b"night",
+    });
+    if step(thread, Event::Hidden) == Action::Clear {
+        lobby.shade(Shade::Gone);
+    }
+    if let Action::Shade { per_mille, loading } =
+        step(thread, Event::Shown { picked: picked(thread), camera: table_camera(thread) })
+    {
+        lobby.shade(Shade::At { per_mille, loading });
+    }
+}
+
 /// The lobby picked now ([`Squad::lobby`]).
 fn picked(thread: &Thread) -> Lobby {
     SQUAD.get(thread).lobby(own(thread))
@@ -821,8 +914,10 @@ fn name(action: Action) -> &'static [u8] {
         Action::LetGo => b"let go",
         Action::Shade { .. } => b"shade",
         Action::ShadeAndQuery => b"black, query",
-        Action::SwapIn => b"swap in",
-        Action::SwapAndClear => b"swap in, clear",
+        Action::Take { .. } => b"take",
+        Action::SwapIn { .. } => b"swap in",
+        Action::SwapAndClear { .. } => b"swap in, clear",
+        Action::Place { .. } => b"place",
         Action::Reset => b"reset, fade in",
         Action::Clear => b"clear",
         Action::Broken { .. } => b"broken",
@@ -895,8 +990,10 @@ pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
             | Action::LetGo
             | Action::Shade { .. }
             | Action::ShadeAndQuery
-            | Action::SwapIn
-            | Action::SwapAndClear
+            | Action::Take { .. }
+            | Action::SwapIn { .. }
+            | Action::SwapAndClear { .. }
+            | Action::Place { .. }
             | Action::Reset
             | Action::Clear
             | Action::Broken { .. } => {}
@@ -908,15 +1005,24 @@ pub fn on_scene_request(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_scenes_ready(ctx: &mut Context<'_>) -> Flow<LobbySceneOnScenesReadyExit> {
     let Some(ready) = ScenesReady::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
-    match step(thread, Event::Ready { loaded: ready.loaded(), picked: picked(thread), camera: table_camera(thread) }) {
+    let arrival = if ready.loaded() { Arrival::Project(Facing::of(ready.facing())) } else { Arrival::Failed };
+    let stand = |facing: Facing| ready.stand(|character: Character| facing.turn(character.stock()));
+    match step(thread, Event::Ready { arrival, picked: picked(thread), camera: table_camera(thread) }) {
         Action::AskAgain => ready.ask_again(),
-        Action::SwapIn => {
+        // the lobby menu takes them, its characters stood (no player yet)
+        Action::Take { facing } => {
+            stand(facing);
+            return Flow::Continue;
+        }
+        Action::SwapIn { facing } => {
             ready.swap_in();
+            stand(facing);
             ready.reset_eye_adaptation();
             diagnose(thread, b"swapped");
         }
-        Action::SwapAndClear => {
+        Action::SwapAndClear { facing } => {
             ready.swap_in();
+            stand(facing);
             ready.shade(Shade::Gone);
         }
         Action::Reset | Action::Broken { then: AfterBroken::FadeIn, .. } => {
@@ -931,6 +1037,7 @@ pub fn on_scenes_ready(ctx: &mut Context<'_>) -> Flow<LobbySceneOnScenesReadyExi
         | Action::AskAlone(_)
         | Action::Shade { .. }
         | Action::ShadeAndQuery
+        | Action::Place { .. }
         | Action::Clear => return Flow::Continue,
     }
     Flow::Exit(LobbySceneOnScenesReadyExit::Done)
@@ -942,11 +1049,11 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some((mut camera, dt)) = LobbyCamera::at(ctx) else { return Flow::Continue };
     FRAMES.update(thread, |n| n.wrapping_add(1));
-    // the first frame of a lobby put in behind the black: its stock view
-    if matches!(SCENE.get(thread), Scene::Loaded { change: Change::Holding { frames: HOLD_FRAMES }, .. }) {
-        camera.to_stock_pose();
-    }
     let action = step(thread, Event::Tick { dt, picked: picked(thread), camera: table_camera(thread) });
+    // a new lobby's first frame: its stock view, turned by its facing
+    if let Action::Place { facing } = action {
+        camera.to_stock_pose(facing.camera_yaw());
+    }
     let Some(lobby) = DrawnLobby::of(&camera) else { return Flow::Continue };
     match action {
         Action::Shade { per_mille, loading } => lobby.shade(Shade::At { per_mille, loading }),
@@ -965,8 +1072,10 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         | Action::AskAlone(_)
         | Action::AskAgain
         | Action::LetGo
-        | Action::SwapIn
-        | Action::SwapAndClear
+        | Action::Take { .. }
+        | Action::SwapIn { .. }
+        | Action::SwapAndClear { .. }
+        | Action::Place { .. }
         | Action::Broken { .. } => {}
     }
     if let Scene::Loaded { shown, .. } = SCENE.get(thread) {
@@ -1144,11 +1253,17 @@ mod tests {
             (scene, action),
             (Scene::Starting { picked: Lobby::Hangar046, weather: Weather::Rain }, Action::Ask(Scenery::Hangar046))
         );
-        let ready = Event::Ready { loaded: true, picked: Lobby::Hangar046, camera: TableCamera::Stock };
+        let ready =
+            Event::Ready { arrival: Arrival::Project(Facing::NONE), picked: Lobby::Hangar046, camera: TableCamera::Stock };
         let (scene, action) = scene.step(ready, no_entry);
-        assert_eq!(action, Action::Original);
-        let loaded =
-            Scene::Loaded { shown: Scenery::Hangar046, weather: Weather::Rain, view: View::Drawn, change: Change::Settled };
+        assert_eq!(action, Action::Take { facing: Facing::NONE });
+        let loaded = Scene::Loaded {
+            shown: Scenery::Hangar046,
+            facing: Facing::NONE,
+            weather: Weather::Rain,
+            view: View::Drawn,
+            change: Change::Fresh,
+        };
         assert_eq!(scene, loaded);
         assert_eq!(scene.step(Event::Query { picked: Lobby::Hangar046 }, no_entry), (scene, Action::Original));
         // the Room in the start's weather
@@ -1157,11 +1272,21 @@ mod tests {
         assert_eq!(scene.step(Event::Query { picked: Lobby::Classic }, no_entry).1, Action::Ask(Scenery::Camp069(Weather::Night)));
         // a broken project: logged, the lobby menu takes its results as they are
         let starting = Scene::Starting { picked: Lobby::Camp069, weather: Weather::Day };
-        let (_, action) = starting.step(Event::Ready { loaded: false, picked: Lobby::Camp069, camera: TableCamera::Stock }, no_entry);
+        let failed = Event::Ready { arrival: Arrival::Failed, picked: Lobby::Camp069, camera: TableCamera::Stock };
+        let (_, action) = starting.step(failed, no_entry);
         assert_eq!(action, Action::Broken { lobby: Scenery::Camp069(Weather::Day), then: AfterBroken::Take });
     }
 
     const FRAME: f32 = 1.0 / 60.0;
+
+    /// The facing each scenery's project has here: the camp's night pi
+    /// (lobby-camp-069@19), every other none.
+    fn facing_of(scenery: Scenery) -> Facing {
+        match scenery {
+            Scenery::Camp069(Weather::Night) => Facing(core::f32::consts::PI),
+            _ => Facing::NONE,
+        }
+    }
 
     /// A game after its start: the scene and each event's action, every
     /// query and result played as the game plays them (`loads` says whether
@@ -1173,6 +1298,10 @@ mod tests {
         /// Patch 45's camera.
         camera: TableCamera,
         loads: fn(Scenery) -> bool,
+        /// The facing the characters were last stood by, the camera's last
+        /// stock pose's (none: the exe's own).
+        stood: Facing,
+        placed: Facing,
         /// The weather of each entry from now on, in turn (round).
         weathers: std::vec::Vec<Weather>,
         /// The entries so far.
@@ -1194,10 +1323,18 @@ mod tests {
         fn in_weather(shown: Lobby, weather: Weather, loads: fn(Scenery) -> bool) -> Game {
             let shown_scenery = shown.scenery(weather);
             Game {
-                scene: Scene::Loaded { shown: shown_scenery, weather, view: View::Drawn, change: Change::Settled },
+                scene: Scene::Loaded {
+                    shown: shown_scenery,
+                    facing: facing_of(shown_scenery),
+                    weather,
+                    view: View::Drawn,
+                    change: Change::Settled,
+                },
                 picked: shown,
                 camera: TableCamera::Stock,
                 loads,
+                stood: facing_of(shown_scenery),
+                placed: facing_of(shown_scenery),
                 weathers: std::vec![weather],
                 entries: 0,
                 pending: None,
@@ -1239,16 +1376,24 @@ mod tests {
                     self.black = 1000
                 }
                 Action::Clear => self.black = 0,
-                Action::SwapIn => {
+                Action::SwapIn { facing } => {
                     assert_eq!(self.black, 1000, "a swap behind the black");
                     assert_eq!(self.camera, TableCamera::Stock, "no swap under the table's camera");
                     self.menu = to();
+                    assert_eq!(facing, facing_of(self.menu), "the characters stood by the new project's facing");
+                    self.stood = facing;
                 }
-                Action::SwapAndClear => {
+                Action::SwapAndClear { facing } => {
                     assert_ne!(self.view(), View::Drawn, "a swap at once only while not drawn");
                     assert_eq!(self.camera, TableCamera::Stock, "no swap under the table's camera");
                     self.menu = to();
+                    self.stood = facing;
                     self.black = 0;
+                }
+                Action::Take { facing } => self.stood = facing,
+                Action::Place { facing } => {
+                    assert_eq!(facing, facing_of(self.menu), "the camera placed by the shown project's facing");
+                    self.placed = facing;
                 }
                 Action::Original
                 | Action::Ask(_)
@@ -1261,10 +1406,12 @@ mod tests {
                 assert!(self.pending.is_none(), "one query at a time");
                 self.query();
             }
-            if let Scene::Loaded { shown, view, .. } = self.scene
+            if let Scene::Loaded { shown, facing, view, .. } = self.scene
                 && view != View::Closed
             {
                 assert_eq!(shown, self.menu, "the scene's scenery is the menu's");
+                assert_eq!(facing, facing_of(shown), "the scene's facing is its project's");
+                assert_eq!(self.stood, facing, "the characters stood by the shown project's facing");
             }
             action
         }
@@ -1298,8 +1445,8 @@ mod tests {
         /// The pending query's results come; each re-ask's too.
         fn results(&mut self) {
             while let Some(scenery) = self.pending.take() {
-                let loaded = (self.loads)(scenery);
-                self.event(Event::Ready { loaded, picked: self.picked, camera: self.camera });
+                let arrival = if (self.loads)(scenery) { Arrival::Project(facing_of(scenery)) } else { Arrival::Failed };
+                self.event(Event::Ready { arrival, picked: self.picked, camera: self.camera });
             }
         }
 
@@ -1352,7 +1499,7 @@ mod tests {
         assert_eq!(game.black, 1000, "black while its project loads");
         game.results();
         assert_eq!(game.menu, Scenery::Stk2Bunker);
-        assert_eq!(*game.actions.last().unwrap(), Action::SwapIn);
+        assert!(matches!(game.actions.last(), Some(Action::SwapIn { .. })));
         game.ticks(usize::from(HOLD_FRAMES) - 1);
         assert_eq!(game.black, 1000, "the new lobby's first frames behind the black");
         game.tick();
@@ -1381,7 +1528,7 @@ mod tests {
         settle(&mut game, 200);
         assert_eq!(game.shown(), Scenery::Hangar046);
         assert!(game.actions.contains(&Action::Broken { lobby: Scenery::Camp069(Weather::Day), then: AfterBroken::FadeIn }));
-        assert!(!game.actions.contains(&Action::SwapIn));
+        assert!(!game.actions.iter().any(|a| matches!(a, Action::SwapIn { .. })));
         let before = game.actions.len();
         game.ticks(30);
         assert!(game.actions[before..].iter().all(|a| *a == Action::Original), "not asked again");
@@ -1399,14 +1546,14 @@ mod tests {
         game.want(Lobby::Camp069);
         settle(&mut game, 300);
         assert_eq!(game.shown(), Scenery::Camp069(Weather::Day));
-        assert_eq!(game.actions.iter().filter(|a| **a == Action::SwapIn).count(), 1);
+        assert_eq!(game.actions.iter().filter(|a| matches!(a, Action::SwapIn { .. })).count(), 1);
         // back to the one shown during the fade: faded back in, nothing asked
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
         game.ticks(5);
         game.want(Lobby::Classic);
         settle(&mut game, 300);
-        assert!(!game.actions.iter().any(|a| matches!(a, Action::AskAlone(_) | Action::SwapIn)));
+        assert!(!game.actions.iter().any(|a| matches!(a, Action::AskAlone(_) | Action::SwapIn { .. })));
         // while its project loads behind the black
         let mut game = Game::new(Lobby::Classic, |_| true);
         game.want(Lobby::Hangar046);
@@ -1414,7 +1561,7 @@ mod tests {
         game.want(Lobby::Stk2Bunker);
         settle(&mut game, 300);
         assert_eq!(game.shown(), Scenery::Stk2Bunker);
-        assert_eq!(game.actions.iter().filter(|a| **a == Action::SwapIn).count(), 1, "one swap: the last one wanted");
+        assert_eq!(game.actions.iter().filter(|a| matches!(a, Action::SwapIn { .. })).count(), 1, "one swap: the last one wanted");
     }
 
     /// A pick while a weapon's upgrade window has patch 45's camera (its
@@ -1422,7 +1569,7 @@ mod tests {
     /// stock one again, then the change.
     #[test]
     fn a_change_waits_for_the_upgrade_windows_camera() {
-        let swaps = |game: &Game| game.actions.iter().filter(|a| **a == Action::SwapIn).count();
+        let swaps = |game: &Game| game.actions.iter().filter(|a| matches!(a, Action::SwapIn { .. })).count();
         let then_the_change = |mut game: Game| {
             assert_eq!((game.menu, game.black, game.pending), (Scenery::Classic, 0, None), "{:?}", game.scene);
             assert_eq!(swaps(&game), 0);
@@ -1524,11 +1671,11 @@ mod tests {
         assert_eq!(game.pending, Some(Scenery::Camp069(Weather::Rain)));
         assert_eq!(game.black, 1000);
         game.results();
-        assert_eq!(*game.actions.last().unwrap(), Action::SwapIn);
+        assert!(matches!(game.actions.last(), Some(Action::SwapIn { .. })));
         settle(&mut game, 100);
         assert_eq!(game.shown(), Scenery::Camp069(Weather::Rain));
         let from_return = game.actions.iter().position(|a| *a == Action::Shade { per_mille: 1000, loading: true }).unwrap();
-        let swap = game.actions.iter().position(|a| *a == Action::SwapIn).unwrap();
+        let swap = game.actions.iter().position(|a| matches!(a, Action::SwapIn { .. })).unwrap();
         assert!(
             game.actions[from_return..swap].iter().all(|a| !matches!(a, Action::Shade { per_mille, .. } if *per_mille < 1000)),
             "the black whole from the return to the swap"
@@ -1558,6 +1705,93 @@ mod tests {
         game.camera = TableCamera::Stock;
         settle(&mut game, 300);
         assert_eq!(game.shown(), Scenery::Camp069(Weather::Rain));
+    }
+
+    #[test]
+    fn a_facing_turns_the_stances_and_the_camera_about_the_origin() {
+        use crate::vostok::lobby_camera::forward;
+        let near = |a: Vec3, b: Vec3| (a - b).length() < 1e-5;
+        for character in Character::ALL {
+            assert_eq!(Facing::NONE.turn(character.stock()), character.stock(), "none: the exe's own");
+        }
+        let night = Facing::of(Some(core::f32::consts::PI));
+        let turned = Character::ALL.map(|character| night.turn(character.stock()));
+        assert!(near(turned[0].point, Vec3::new(0.0, 0.0, 0.0)));
+        assert!(near(turned[1].point, Vec3::new(-1.0, 0.0, -0.5)), "{:?}", turned[1]);
+        assert!(near(turned[2].point, Vec3::new(1.0, 0.0, -0.5)), "{:?}", turned[2]);
+        // the camera's eye on the other side (+z, the chandelier's), the characters facing it
+        let point = Vec3::new(0.0, 1.2, 0.0);
+        let eye = point - forward(night.camera_yaw(), 0.0) * 1.96;
+        assert!(near(eye, Vec3::new(0.0, 1.2, 1.96)), "{eye:?}");
+        for stance in turned {
+            let to_eye = Vec3::new(eye.x - stance.point.x, 0.0, eye.z - stance.point.z);
+            assert!(forward(stance.yaw, 0.0).dot(to_eye) > 0.0, "{stance:?} faces the camera");
+            // as the stock stance faces the stock camera
+        }
+        let stock_eye = point - forward(Facing::NONE.camera_yaw(), 0.0) * 1.96;
+        assert!(forward(Character::Own.stock().yaw, 0.0).dot(stock_eye) > 0.0);
+        assert_eq!(Facing::of(None), Facing::NONE);
+        assert_eq!(Facing::of(Some(f32::NAN)), Facing::NONE);
+    }
+
+    #[test]
+    fn the_nights_start_stands_the_characters_and_places_the_camera_turned() {
+        let (scene, action) = Scene::Unasked.step(Event::Query { picked: Lobby::Camp069 }, || Weather::Night);
+        assert_eq!(action, Action::Ask(Scenery::Camp069(Weather::Night)));
+        let night = facing_of(Scenery::Camp069(Weather::Night));
+        let ready = Event::Ready { arrival: Arrival::Project(night), picked: Lobby::Camp069, camera: TableCamera::Stock };
+        let (scene, action) = scene.step(ready, no_entry);
+        assert_eq!(action, Action::Take { facing: night }, "the characters stood before any player is made");
+        let tick = Event::Tick { dt: FRAME, picked: Lobby::Camp069, camera: TableCamera::Stock };
+        let (scene, action) = scene.step(tick, no_entry);
+        assert_eq!(action, Action::Place { facing: night }, "the first frame: the camera turned");
+        let (_, action) = scene.step(tick, no_entry);
+        assert_eq!(action, Action::Original, "then nothing");
+        // a day's start places it too (as the ctor's: no turn)
+        let mut game = Game::in_weather(Lobby::Camp069, Weather::Day, |_| true);
+        game.scene = Scene::Starting { picked: Lobby::Camp069, weather: Weather::Day };
+        game.pending = Some(Scenery::Camp069(Weather::Day));
+        game.results();
+        game.tick();
+        assert_eq!(game.actions, [Action::Take { facing: Facing::NONE }, Action::Place { facing: Facing::NONE }]);
+    }
+
+    #[test]
+    fn a_change_to_and_from_the_night_turns_the_characters_behind_the_black_and_places_the_camera() {
+        // the return into the night: the characters turned at the swap, the camera at the first frame
+        let mut game = Game::in_weather(Lobby::Camp069, Weather::Day, |_| true);
+        game.weathers = std::vec![Weather::Night];
+        game.event(Event::Hidden);
+        game.shown_again();
+        settle(&mut game, 300);
+        let night = facing_of(Scenery::Camp069(Weather::Night));
+        assert_eq!((game.shown(), game.stood, game.placed), (Scenery::Camp069(Weather::Night), night, night));
+        let swap = game.actions.iter().position(|a| *a == Action::SwapIn { facing: night }).unwrap();
+        assert_eq!(game.actions[swap + 1], Action::Place { facing: night }, "the next frame, behind the black");
+        // and back to the day: no turn, the camera's yaw 0 again
+        game.weathers = std::vec![Weather::Day];
+        game.entries = 0;
+        game.event(Event::Hidden);
+        game.shown_again();
+        settle(&mut game, 300);
+        assert_eq!((game.shown(), game.stood, game.placed), (Scenery::Camp069(Weather::Day), Facing::NONE, Facing::NONE));
+        // a pick of another lobby from the night: back to none
+        let mut game = Game::in_weather(Lobby::Camp069, Weather::Night, |_| true);
+        game.want(Lobby::Stk2Bunker);
+        settle(&mut game, 300);
+        assert_eq!((game.stood, game.placed), (Facing::NONE, Facing::NONE));
+        // put in while a match is on: the camera placed at the return's first frame
+        let mut game = Game::in_weather(Lobby::Classic, Weather::Night, |_| true);
+        game.want(Lobby::Camp069);
+        game.ticks(20);
+        assert_eq!(game.pending, Some(Scenery::Camp069(Weather::Night)));
+        game.event(Event::Hidden);
+        game.results();
+        assert_eq!(*game.actions.last().unwrap(), Action::SwapAndClear { facing: night });
+        assert!(matches!(game.scene, Scene::Loaded { change: Change::Fresh, .. }));
+        game.shown_again();
+        game.tick();
+        assert_eq!(*game.actions.last().unwrap(), Action::Place { facing: night });
     }
 
     #[test]

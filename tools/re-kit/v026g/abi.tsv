@@ -1163,6 +1163,7 @@ va	name	source	ret_cleanup	result
 0x002d9ae0	survarium::base_player::hit	manual	32	
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
 0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
+0x002dab70	survarium::base_player::set_transform	manual	12	none; player+40Ch := rotY(yaw) at the point (0x2DAB84..0x2DABC7), computed_head_transform (0x2DABC9), the yaw +490h, the pitch +48Ch; game_world::tick moves a match's players by it (0x1F7C67), initialize places a new one (0x2DAC4F)
 0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	manual	4	EAX: 2 nothing done (+33Ch clear: dead; or the time +324h already done), 0 skipped (the argument's place is this player's), 1 the hit model's bones set from the animation (0x3B480)
 0x002da850	survarium::base_player::insert	manual	4	none; +33Fh := 1 (0x2DA869); alive: activate_physics 0x2D9930 and the bone bodies; link 1 and a world (+120h): the tick lists +18860h/+18880h linked (unconditionally: never twice)

@@ -65,6 +65,14 @@ configs.start with it, a chain).
   another weather steps the black whole with the spinner at once and asks
   the new Room alone at the next frame, and a return into the same asks
   nothing;
+- a project's facing (its config's srp_lobby/facing, the camp's night pi):
+  the start's results (on into the original's code) and a swap's stand the
+  lobby menu's three characters (+694h, +698h, +69Ch) turned about the
+  origin, their point (+8h) and yaw (+14h) and their players' transform
+  through base_player::set_transform (0x2DAB70, stubbed: ECX the point,
+  the player, the yaw, the pitch 0; ret 0Ch), and the next frame puts the
+  camera at its stock pose turned (yaw pi); none (no srp_lobby, or no
+  facing in it): the exe's own stances and yaw 0;
 - 0xA1 (read_squad_info at its id, 0x2747C3, and a squad's revision,
   0x2748BC): srp's two bytes after the squad (the receiver's pick and its
   commander's, lobby ids): picks 0 (the sign-in) send the saved pick (3B
@@ -76,6 +84,7 @@ configs.start with it, a chain).
   the lobby asks nothing, and a change's results after it are let go
   untouched.
 """
+import math
 import struct
 import sys
 
@@ -86,6 +95,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC
 import patch_026g as base
 import check_hide_ui_026g as hide
 import check_language_026g as language
+from check_weapon_preview_026g import config_bytes
 
 QUERY, QUERY_CALL = 0x21E450, 0x21E5ED
 READY, READY_REPLAYED = 0x220B20, 0x220B26
@@ -97,6 +107,11 @@ CC_STRING, CONSOLE_LOAD = 0xEC860, 0xEBF00
 STAND_IN, CFG = 0x30400000, 0x30410000       # a stand-in r_resolution; a user.cfg's bytes
 LOG_STUB = STAND_IN + 0x18000                 # the stand-in CreateFileA (fails)
 QPC_STUB, LOCAL_TIME_STUB = STAND_IN + 0x18100, STAND_IN + 0x18200   # their stand-ins (`ret 4`)
+CHARACTERS = 0x30500000                       # the lobby menu's three characters (0xD558 bytes each), made up
+PLAYERS = (0x30560000, 0x30560100, 0x30560200)  # their players: addresses only (set_transform is a stub)
+SET_TRANSFORM = 0x2DAB70                      # base_player::set_transform (ECX the point; player, yaw, pitch; ret 0Ch)
+FACING_CONFIG, FACING_RECORDS = 0x30072000, 0x30072200   # a project's binary config and its records
+STOCK_STANCES = (((0.0, 0.0, 0.0), math.pi), ((1.0, 0.0, 0.5), math.pi), ((-1.0, 0.0, 0.5), math.pi))
 CLIENT = 0x30100000
 MENU, RESULTS = 0x30050000, 0x30060000
 PROJECT = 0x30070000                  # a project's resource part (the project is at -38h)
@@ -151,12 +166,53 @@ class Run(language.Run):
         for at in SWAP_STUBS:
             self.emu.hook_add(UC_HOOK_CODE, self.swap_stub, begin=at, end=at)
         self.emu.hook_add(UC_HOOK_CODE, self.ray_stub, begin=RAY, end=RAY)
+        self.emu.mem_map(CHARACTERS, 0x60000)
+        self.transforms = []                  # base_player::set_transform's calls (player, point, yaw, pitch)
+        self.emu.hook_add(UC_HOOK_CODE, self.set_transform, begin=SET_TRANSFORM, end=SET_TRANSFORM)
         # the entries' clock: noon, a counter whose first roll is dry
         self.hour, self.counter, self.local_times = 12, DRY_COUNTER, 0
         for slot, stub, hook in ((QPC_SLOT, QPC_STUB, self.qpc), (LOCAL_TIME_SLOT, LOCAL_TIME_STUB, self.local_time)):
             self.word(slot, stub)
             self.emu.mem_write(stub, b"\xc2\x04\x00")
             self.emu.hook_add(UC_HOOK_CODE, hook, begin=stub, end=stub)
+
+    def set_transform(self, emu, address, size, _):
+        """base_player::set_transform (ECX the point; the player, the yaw, the pitch; ret 0Ch): recorded."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        point = struct.unpack("<3f", emu.mem_read(emu.reg_read(UC_X86_REG_ECX), 12))
+        yaw, pitch = struct.unpack("<ff", emu.mem_read(sp + 8, 8))
+        self.transforms.append((self.read(sp + 4), point, yaw, pitch))
+        emu.reg_write(UC_X86_REG_ESP, sp + 16)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def characters(self, players):
+        """The lobby menu's three characters as its ctor makes them (their points and yaw pi), each
+        with the player of `players` (None: none yet)."""
+        for i, (player, (point, yaw)) in enumerate(zip(players, STOCK_STANCES)):
+            at = CHARACTERS + i * 0xE000
+            self.emu.mem_write(at, bytes(0xD600))
+            self.emu.mem_write(at + 8, struct.pack("<4f", *point, yaw))
+            self.word(at + 0xD2B8, player or 0)
+            self.word(MENU + 0x694 + 4 * i, at)
+        self.transforms = []
+
+    def stances(self):
+        """The three characters' points (+8h) and yaws (+14h)."""
+        out = []
+        for i in range(3):
+            *point, yaw = struct.unpack("<4f", self.emu.mem_read(self.read(MENU + 0x694 + 4 * i) + 8, 16))
+            out.append((tuple(point), yaw))
+        return out
+
+    def facing(self, tree):
+        """The binary config of PROJECT's project: `tree` (None: none)."""
+        if tree is None:
+            self.word(PROJECT - 0x38 + 0x17C, 0)
+            return
+        blob, root = config_bytes(tree, FACING_RECORDS)
+        self.emu.mem_write(FACING_RECORDS, blob)
+        self.word(PROJECT - 0x38 + 0x17C, FACING_CONFIG)
+        self.word(FACING_CONFIG + 0x108, root)
 
     def qpc(self, emu, address, size, _):
         """QueryPerformanceCounter(out), stdcall: the case's counter."""
@@ -554,6 +610,44 @@ def weather(patched, stock_requests, expect):
                f"start, {label}: asks lobby_scene/{asked}; srp_room_rain {after or '(none)'} after"
                f"{', user.cfg saved' if saves else ''}; the clock read once (the query asked again: the same)")
 
+    def turned(facing):
+        s, c = math.sin(facing), math.cos(facing)
+        return [((x * c - z * s, y, x * s + z * c), yaw + facing) for (x, y, z), yaw in STOCK_STANCES]
+
+    def same(got, want):
+        flat = lambda v: [x for item in v for x in (flat(item) if isinstance(item, (tuple, list)) else [item])]
+        return len(flat(got)) == len(flat(want)) and all(abs(a - b) < 1e-5 for a, b in zip(flat(got), flat(want)))
+
+    night_config = {"srp_lobby": {"weapon": (-1.60, 1.37, 3.255), "weapon_view": 1.5708, "facing": math.pi}}
+    for label, pick, hour, tree, facing in [
+        ("the Room at night, its project's srp_lobby/facing pi", "1", 22, night_config, math.pi),
+        ("the Room by day, its project without srp_lobby", "1", 12, None, 0.0),
+        ("the Room by day, its srp_lobby without facing", "1", 12, {"srp_lobby": {"weapon_view": 1.5708}}, 0.0),
+    ]:
+        r = Run(patched)
+        node = r.lobby_variable()
+        r.emu.mem_write(r.read(node + 0x40), pick.encode() + b"\0")
+        r.hour = hour
+        r.characters((PLAYERS[0], PLAYERS[1], None))
+        r.query()
+        scene = project(r, 1)
+        r.facing(tree)
+        flow = r.ready(scene)
+        stances, transforms = r.stances(), r.transforms
+        want = turned(facing)
+        r.lobby()
+        r.camera()
+        r.tick()
+        expect(flow[0] == "replayed" and same(stances, want)
+               and [t[0] for t in transforms] == list(PLAYERS[:2])
+               and same([t[1:] for t in transforms], [(*want[0], 0.0), (*want[1], 0.0)])
+               and same(r.pose(), (facing, 0.0, 1.96, 1.96, 0.0)),
+               f"start, {label}: the results taken (on into the original's code); the three characters stood "
+               f"turned by {facing:.4f} (the squad's at ({want[1][0][0]:.1f}, 0, {want[1][0][2]:.1f}) and "
+               f"({want[2][0][0]:.1f}, 0, {want[2][0][2]:.1f}), yaw {want[0][1]:.4f}), the two players made moved "
+               f"there (set_transform, pitch 0); the first frame: the camera's yaw {facing:.4f}, pitch, side 0, "
+               "distance 1.96")
+
     # a return from a match: another weather, the black at once and the new Room asked alone
     r = Run(patched)
     node = r.lobby_variable()
@@ -579,6 +673,19 @@ def weather(patched, stock_requests, expect):
            "a return from a match at 22:30 (the Room by day shown): the black whole with the spinner at once "
            "(srp_scene_fade 1000 1), the next frame asks lobby_scene/camp_069_night alone (its config in every "
            "other request); the clock read at the start and the return only")
+    r.characters((PLAYERS[0], None, PLAYERS[2]))
+    r.facing(night_config)
+    flow = r.ready(PROJECT, swap=True)
+    stances, transforms = r.stances(), r.transforms
+    r.word(EYE_ADAPTATION, 0)
+    r.tick()
+    want = turned(math.pi)
+    expect(flow == ("returned", []) and r.read(MENU + 0x114) == PROJECT - 0x38 and same(stances, want)
+           and [t[0] for t in transforms] == [PLAYERS[0], PLAYERS[2]]
+           and same([t[1:] for t in transforms], [(*want[0], 0.0), (*want[2], 0.0)])
+           and same(r.pose(), (math.pi, 0.0, 1.96, 1.96, 0.0)),
+           "the night's project put in behind the black: the characters turned by pi and their players moved "
+           "(set_transform); the next frame the camera's yaw pi")
     # a return into the same weather: nothing; lobby hops between entries: no clock read
     r = Run(patched)
     node = r.lobby_variable()

@@ -218,6 +218,9 @@ it:
   where its near plane would see through), closing doorways and windows, and around the props
   the eye would get into (counters, crates, beds, barrels). The STK2 porter's `camera_boxes`,
   the 0.46c2/0.69d porter's `camera_walls`. Checked statically (below, "The audit").
+- **`srp_lobby.facing`** (radians, optional; room-weather.md): the characters and the stock
+  camera turned about the origin by it, for a lobby whose light is behind the character's back
+  (the camp's night, pi). Without it, 0.
 - **One `track` object** (`game_object_type = "track"`), as the classic's: the lobby menu plays
   the project's track (project+1E4h) from the start. A project without one is refused (the
   classic is shown).

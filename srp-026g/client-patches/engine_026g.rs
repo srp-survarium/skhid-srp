@@ -145,6 +145,8 @@ unsafe extern "C" {
     pub fn engine_lobby_character_setup_profile(profile: *const c_void, character: *mut c_void, kit: u32);
     /// 0x284aa0 survarium::lobby_character::release_player: character ESI, byte ESP+4; pops 4
     pub fn engine_lobby_character_release_player(character: *mut c_void, byte: u32);
+    /// 0x2dab70 survarium::base_player::set_transform: point ECX, player ESP+4, yaw ESP+8, pitch ESP+12; pops 12
+    pub fn engine_player_set_transform(point: *const f32, player: *mut c_void, yaw: f32, pitch: f32);
     /// 0x3393f0 (unnamed): ray EAX, manager ESP+4, centre ESP+8, strength ESP+12, target ESP+16; pops 16; XMM0
     pub fn engine_explosion_reach(ray: *const f32, manager: *mut c_void, centre: *const f32, strength: f32, target: *const c_void) -> f32;
     /// 0x23a930 survarium::game_world_ui::show_cursor: ui EDI, shown ESP+4; pops 4

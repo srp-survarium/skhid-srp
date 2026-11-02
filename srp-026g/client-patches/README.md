@@ -3751,7 +3751,11 @@ from a match) and at nothing else: the night by the local time
 that entry and the next three; `srp_room_rain` in user.cfg keeps the
 entries left), else the day. A return into another Room has the black on at
 once and the new Room loaded behind it. A diagnostics build's
-`srp_room_weather day|rain|night` forces it.
+`srp_room_weather day|rain|night` forces it. A lobby project's
+`srp_lobby.facing` (the night's: pi) turns the three characters about the
+origin (their point and yaw; a player already made moved by
+base_player::set_transform 0x2DAB70) when it is put in, and the camera's
+stock pose (its yaw) at its first frame.
 
 A change shows at once: at the lobby camera's tick (0x2840F2, after patch
 45's flight) with another lobby wanted than the one shown, the scene fades to
