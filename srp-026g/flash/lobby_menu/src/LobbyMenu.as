@@ -360,7 +360,14 @@ package
       
       private var _inventoryHighlight:Boolean = false;
       
+      // The item card's owner: the list row it shows (_pdTarget, followed as the list scrolls) or
+      // the kit slot (_hintSlot), at most one of them; neither for a craft slot's card. A change of
+      // the kit shows the slot's item as it is then (updateHintItem), never the slot an item's
+      // slotId names: only the kit's own items carry their slot, an inventory item and the copy a
+      // drop puts in a slot until the server answers carry 0, the helmet's.
       private var _pdTarget:MovieClip;
+      
+      private var _hintSlot:IPaperDollSlot;
       
       private var _wheelBack:MovieClip = new FadeBackground();
       
@@ -1345,6 +1352,9 @@ package
          {
             return;
          }
+         // the card is this slot's now: no list row's card or comparison left over
+         this.hideItemHint(null);
+         _hintSlot = e.itemRenderer as IPaperDollSlot;
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
@@ -1371,44 +1381,42 @@ package
          }
       }
       
+      // The kit changed: a kit slot's card shows the slot's item now (none: the card goes); a list
+      // row's card compared with the kit's item of its kind (showItemHint) is compared with that
+      // item as the kit has it now. The craft window's comparison is its own.
       private function updateHintItem(e:Event) : void
       {
-         trace("updateHintItem",this.itemHintRendererSec.data);
-         var hintTarget:ItemInfoRenderer = (this.itemHintRendererSec.parent) ? this.itemHintRendererSec : this.itemHintRenderer;
-         var oldData:ItemData;
-         var curerrentSlot:IPaperDollSlot;
-         var newData:ItemData;
-         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         if(this.itemHintRenderer.parent == null)
          {
-            // The craft window's item, not an equipped one: the paper doll does not change it.
             return;
          }
-         if((hintTarget.parent) && (hintTarget.data))
+         if(this._hintSlot != null)
          {
-            oldData = hintTarget.data as ItemData;
-            curerrentSlot = this.player_profile.profileItems.getSlotAt(oldData.slotId);
-            newData = curerrentSlot.data as ItemData;
-            trace("newData",newData);
-            if(!newData)
+            var held:ItemData = this._hintSlot.data as ItemData;
+            if(held == null)
             {
-               hintTarget.data = null;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
-               }
-               removeChild(hintTarget);
+               this.hideItemHint(null);
                return;
             }
-            trace("CompareData::",oldData.name,newData.name,newData.slotId,oldData.slotId,newData.descriptor,oldData.descriptor,newData.tipText);
-            if(oldData.slotId == newData.slotId)
-            {
-               hintTarget.data = newData;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(newData);
-               }
-            }
+            this.itemHintRenderer.data = held;
+            return;
          }
+         if(this.itemHintRendererSec.parent == null || this.craftOpen())
+         {
+            return;
+         }
+         var equipped:Object = this.player_profile.getRelativeData(this.itemHintRenderer.data);
+         if(equipped == null)
+         {
+            this._cards.removeChild(this.itemHintRendererSec);
+            this.itemHintRenderer.displaylabel(false);
+            this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
+            this.itemHintRenderer.alignComparisonHeader(null);
+            return;
+         }
+         this.itemHintRendererSec.data = equipped;
+         this.itemHintRendererSec.itemCompare.setSecondaryWeapon(this.itemHintRenderer.data);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(equipped);
       }
       
       // Whether the craft (Upgrade) window is open.
@@ -1434,6 +1442,7 @@ package
             _pdTarget = null;
          }
          _pdTarget = e.itemRenderer as MovieClip;
+         _hintSlot = null;
          this._pdTarget.addEventListener(Event.RENDER,this.onHintTargetRender);
          this._cards.addChild(this.itemHintRenderer);
          if(e.target is ScrollingList)
@@ -1597,6 +1606,7 @@ package
             this._pdTarget.removeEventListener(Event.RENDER,this.onHintTargetRender);
             _pdTarget = null;
          }
+         _hintSlot = null;
          trace("hideItemHint");
          if(this._cards.contains(this.itemHintRenderer))
          {
