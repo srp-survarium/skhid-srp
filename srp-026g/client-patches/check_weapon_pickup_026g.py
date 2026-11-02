@@ -423,6 +423,32 @@ def main():
     one_tick(patched)
     one_current_copy(patched)
     drawn_alone(patched)
+    a_destroyed_places_record_does_not_reach_the_next_match(patched)
+
+
+def a_destroyed_places_record_does_not_reach_the_next_match(patched):
+    """Rev42 live matches: a drop's tag and recipe survived player destruction.
+    A reused core address made a new match inherit them, unlike a fresh client.
+    Respawn must keep the drop; destruction must end the place's ownership.
+    """
+    r = Pick(patched)
+    r.setup()
+    neighbour = record(("open", 0, (3, 0, 0), True))
+    r.load(r.picker, neighbour)
+    r.remove(PLAYER, DIED + 8_000)
+    assert r.save(PLAYER) == record(("open", 1, A_GUN, True)), "respawn keeps the drop"
+    r.destroy()
+    assert r.save(r.picker) == neighbour, "another place's record belongs to that place"
+    # The next match allocates its core and this player at the same addresses.
+    # No record is loaded for a place before its entry into the world.
+    r.player()
+    assert r.save(PLAYER) == record(), "a new match inherited the destroyed place's drop"
+    # A late joiner can own a loaded drop without ever seeing its death.
+    # Its record must end too, independently of this client's cooked copies.
+    r.destroy_player(r.picker)
+    assert r.save(r.picker) == record(), "the loaded drop outlived its player"
+    print("ok a respawn keeps its drop; player destruction ends its record, including its drop and body: "
+          "the next match can reuse the world and player addresses without inheriting it")
 
 
 # ---- stage 2a: the record, the pickup, the restore, the crate --------------------------------------
