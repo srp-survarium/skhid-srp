@@ -475,5 +475,27 @@ class OtherTables(unittest.TestCase):
                 ce.dump_stats('t', folder)
 
 
+    def test_a_list_of_files_names_a_row_by_each_and_an_absent_list_is_no_such_key(self):
+        category = {'configs': ['w/rgd-5.options', 'd/trap.options'], 'match': set(),
+                    'columns': {'radius': 'data/splash_radius', 'damage': 'data/hits[*]/amount'}}
+        files = {'w/rgd-5.options': config({'data': {'splash_radius': 10}}),
+                 'd/trap.options': config({'data': {'hits': [{'amount': 0.6}, {'amount': 0.6}]}})}
+        columns, rows = read_table(category, 'name\tradius\tdamage\nrgd-5\t10\t\ntrap\t\t0.6\n')
+        self.assertEqual(ce.stats_problems(category, columns, rows, ce.stats_targets(category, files), files, 't'), [])
+        self.assertEqual(ce.stats_label(category, 'gone'), 'gone')
+
+    def test_an_ammo_card_counts_every_pellet(self):
+        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2},
+                       'parameters': {'clip_size': 15, 'clip_weight': 0.45}})
+        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5'})
+
+    def test_a_grenade_card_counts_every_body_and_a_trap_card_its_foot(self):
+        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1]},
+                          'parameters': {'weight': 0.35}})
+        trap = config({'data': {'damage_parameters': [{'amount': 0.6}, {'amount': 0.6}]}, 'parameters': {'weight': 0.8}})
+        self.assertEqual(ce.throwable_card(grenade), {1: '390', 23: '10', 15: '0.4'})
+        self.assertEqual(ce.throwable_card(trap), {1: '60', 15: '0.8'})
+
+
 if __name__ == '__main__':
     unittest.main()
