@@ -2563,7 +2563,7 @@ st_srp_rooms_joined_room	%1$s se pridružio sobi
 st_srp_rooms_late_hint	Ko se sada pridruži, prvo vidi sobu, zatim ulazi u meč.
 st_srp_rooms_leave	Napusti
 st_srp_rooms_leave_queue	Napusti red
-st_srp_rooms_leave_room	Napusti sobu
+st_srp_rooms_leave_room	Napusti
 st_srp_rooms_left_room	%1$s je napustio sobu
 st_srp_rooms_level	Nivo
 st_srp_rooms_map	Mapa

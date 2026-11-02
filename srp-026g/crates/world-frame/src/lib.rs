@@ -181,10 +181,14 @@ pub struct SectionBytes<'a> {
     pub bytes: &'a [u8],
 }
 
-/// A body a game can load: its slots and its six sections.
+/// A body a game can load: its slots, their player states and its six
+/// sections.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Frame<'a> {
     slots: Slots,
+    /// Each slot's state (`base_player::serialize`'s bytes), by slot index;
+    /// empty for a slot the mask does not have.
+    states: [&'a [u8]; MAX_PLAYERS as usize],
     sections: [SectionBytes<'a>; 6],
 }
 
@@ -197,6 +201,7 @@ impl<'a> Frame<'a> {
             at: 0,
         })?;
         let slots = Slots::parse(mask, places)?;
+        let mut states: [&'a [u8]; MAX_PLAYERS as usize] = [&[]; MAX_PLAYERS as usize];
         for slot in slots.iter() {
             let short = |at| Refusal::Short {
                 part: Part::Player(slot),
@@ -210,7 +215,10 @@ impl<'a> Frame<'a> {
                     len,
                 });
             }
-            reader.take(len).ok_or(short(reader.at))?;
+            let state = reader.take(len).ok_or(short(reader.at))?;
+            if let Some(room) = states.get_mut(usize::from(slot.0)) {
+                *room = state;
+            }
             if reader.u8().ok_or(short(reader.at))? != 0 {
                 let len = animation_len(reader.rest()).ok_or(short(reader.at))?;
                 reader.take(len).ok_or(short(reader.at))?;
@@ -231,7 +239,7 @@ impl<'a> Frame<'a> {
             *place = SectionBytes { at, bytes };
         }
         match reader.rest().len() {
-            0 => Ok(Frame { slots, sections }),
+            0 => Ok(Frame { slots, states, sections }),
             len => Err(Refusal::Trailing { at: reader.at, len }),
         }
     }
@@ -245,6 +253,14 @@ impl<'a> Frame<'a> {
 
     pub fn slots(&self) -> Slots {
         self.slots
+    }
+
+    /// Each slot's player state, ascending (the order of the player
+    /// blocks): what `base_player::serialize` wrote.
+    pub fn states(&self) -> impl Iterator<Item = (Slot, &'a [u8])> + '_ {
+        self.slots
+            .iter()
+            .filter_map(|slot| Some((slot, *self.states.get(usize::from(slot.0))?)))
     }
 
     pub fn section(&self, section: Section) -> SectionBytes<'a> {

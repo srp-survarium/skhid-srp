@@ -2880,6 +2880,73 @@ with Unicorn from the game's code (`check_world_check_026g.py`). Not run in a ga
 - **The leave:** `close_current_match` 0x27A790 (thiscall, the reason, `ret 4`; engine row
   `engine_close_current_match`) with reason 2, as match.md section 25 has it.
 
+### World round trip: a resync always converges (every patch)
+
+Written 2026-11-02; `check_world_roundtrip_026g.py` (Unicorn). The rule: a game that loads a world
+and saves it at once writes the bytes it loaded, whatever it held before. A late join and a
+resync load the majority's world (0xE8); a patch that writes a saved byte from this game's own
+objects makes this game's next world differ from the others', and the server resyncs it until it
+drops it. Rev41 did that: patch 85's record carried 28 bytes of the own kit a pick set aside,
+written from each game's objects (`weapon_pickup.md`, the live desyncs of rev41).
+
+- **What runs:** every patch site inside the world's load and save, with the exe's own code, in
+  the order the game reaches them, over the bytes it owns in a recorded world.
+  `world_load.unpacked` (0x27C0D0) runs over the whole world. In each place's state,
+  `pickup.load` (0x2DB4CF) runs at offset 2 and `carry.load` (0x2DBAB5) at the last 32 bytes.
+  Then each place's `pickup.save` (0x2DAF70) and `carry.save` (0x2DB47E) run with the game's byte
+  writer (0x1F3DE0). Each hook must read as many bytes as it writes, and write the bytes it read.
+  A patch log line saying the load is not this game's state (`NOT installed`, `NOT registered`,
+  `NOT made`, `does not decode`, `FAILED`) fails the check too, because the game's own fields
+  would differ after it.
+- **Not run: the native codec** around those hooks (game_world_core::deserialize 0x2D0B70 and
+  0x2D2770, serialize 0x2D2570; base_player 0x2DB490 and 0x2DAF60). It needs a live game's
+  objects (the animation player, physics, items cooked from their configs), which no made-up
+  world gives. Its fields are the game's own, and resyncs converged before the patches. So no
+  native field is compared, and none had to be excluded.
+- **Three games load each world:** two fresh ones (late joiners that saw nothing, with own
+  kits of 30 rounds in each gun, 90 in its stack and condition 1.0, or 7, 13 and 0.5), and one
+  that has loaded every earlier world in time order (a resync over its own state). A byte
+  written from the game's own objects differs in at least one of them. The games are
+  check_weapon_pickup_026g.py's made-up match, with every place's three kit players in the
+  core's place table and a cook that makes any recipe.
+- **Coverage:** every byte the build changes in a function of the world's codec must be in a
+  site the check runs, or in `OWN_CHECKS` with the check that runs its round trip. The codec's
+  functions are the re-kit names containing `::serialize` or `::deserialize`, plus the bullet
+  loader 0x32BBC0 and the 0xE8 handler. A new patch site there fails the check until it is one or
+  the other. The 15 sites in `OWN_CHECKS` fall into two kinds:
+  - Bytes in a section that no decoder in this repository locates: carry.ground (objects),
+    patch 75's lamp history and the bullet's quiet byte and ordinal (bullets), and patch 92's
+    battery lives (statistics; modes 2 and 3 only).
+  - No bytes of their own: world_load.raw (the same preparation), the first load's input and kit,
+    and shared_statistics' constant count.
+- **The worlds:** `worlds_026g/` holds 8 dumps from rev41's match 0x1c0ebd31 (41 KB): joiner
+  world 140950 and the majority's 134600 at the same pick, a pickup waiting for its switch
+  (714900), two picks of one recipe (713800), a departed donor (634100), an open drop (209650),
+  carries (671550) and the initial world. They hold no names, sessions or addresses (checked).
+  The whole match, 501 worlds, is in `private/live-worlds-1c0ebd31/` in the owner's checkout.
+  Any `SRP_SNAPSHOT_DIR` dumps can be given as arguments.
+- **The record is opaque bytes:** its version and size are what the exe's own save writes, so
+  a new record version needs no change to the check. The one layout it knows is the corpus's,
+  rev41's version 4 (48 bytes), read as version 6 writes it (`from_v4`). Bytes 1..20 are kept,
+  since every version since has the same drop, picks and pending pickup there. The 28 bytes of
+  the own kit set aside are dropped. Each pick gets the own-gun wear 0.75 (`V4_WEAR`). Rev41's
+  record had no wear, and after the swap the world no longer carries the own gun, which is
+  hidden in the cooked inventory that the world does not save. 0.75 is a condition no own gun
+  of the check's games has (1.0 and 0.5), so a save that took the wear from the game's own gun
+  would differ. Any other recorded version stops the check.
+- **Results (2026-11-02):**
+  - main with #1045 (record version 6, 28 bytes), all 501 worlds: every hook wrote what it
+    read, in all three games (140 s).
+  - Rev41's build (7b02040cc): 421 of the 501 worlds differ in each game. These are exactly the
+    worlds whose record holds a pick, and every differing byte is in record bytes 20..23: the
+    first set-aside block's tag, magazine, stack slot and count, written from the game's own kit.
+    The fresh games also log 36 departed-donor picks as `NOT installed`, the other rev41 bug
+    #1045 fixed.
+  - The default worlds take 4 s after the 33 s build.
+- `python check_world_roundtrip_026g.py <original survarium.exe> [WORLD or FOLDER ...]
+  [--exe BUILT]`: with `--exe`, a built exe (for example, a release's) runs instead of this
+  tree's build.
+
 ### Dropped-weapon pickup (patch 85)
 
 The spec, the design and its evidence in full: `weapon_pickup.md`. The
