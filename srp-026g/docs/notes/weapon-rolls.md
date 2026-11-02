@@ -1,8 +1,8 @@
 # Weapon rolls that take effect
 
 The owner, 2026-10-29: "let's fix!". Two weapon modifications rolled, showed on the card and did
-nothing; a third worked but the card never showed what it changes. The edit list
-`scripts/content-edit/weapon-rolls-1.json` makes the first two work with the same percentages, and
+nothing; a third worked but the card never showed what it changes. The table
+`scripts/content-edit/modifications.tsv` (their `kind`, `op`) makes the first two work with the same percentages, and
 the lobby card shows all three (`flash/lobby_menu`, `WeaponDetails.as`, `ItemCompare.as`).
 
 ## How a weapon's modification applies
