@@ -3662,7 +3662,8 @@ package
       {
          trace("fill_auto_buy_items::",value);
          this.player_profile.fillAutoBuyItems(value);
-         this.player_profile.checkbox_autobuy.selected = value.length != 0;
+         // The account setting comes from set_autobuy. An empty refill
+         // list must not untick it after the player enables autobuy again.
       }
       
       public function set_account_name(value:String) : void
