@@ -217,8 +217,11 @@ impl ShopRules {
     pub fn parse(config: &[u8], dictionary: &Dictionary) -> Result<Self, String> {
         let root =
             ConfigValue::parse(config).map_err(|cause| format!("{SHOP_PATH}: {}", cause.0))?;
+        let ConfigValue::Named(entries) = root else {
+            return Err(format!("{SHOP_PATH}: expected a named table of item rules"));
+        };
         let mut rules = std::collections::BTreeMap::new();
-        for (name, keys) in root.entries() {
+        for (name, keys) in &entries {
             let refuse = |why: String| format!("{SHOP_PATH}: {name}: {why}");
             let item = dictionary
                 .item_named(name)
@@ -531,6 +534,15 @@ mod tests {
         assert_eq!(record.to_bytes(), [0x8C, 0xB9, 0, 0, 3, 0, 5, 3]);
         assert_eq!(price_list_bytes().len(), price_list().len() * 8);
         assert_eq!(price_list_bytes()[..8], price_list()[0].to_bytes());
+    }
+
+    #[test]
+    fn a_malformed_shop_root_cannot_silently_drop_all_rules() {
+        for root in [ConfigValue::Integer(0), ConfigValue::Indexed(vec![])] {
+            let error =
+                ShopRules::parse(&root.to_bytes().unwrap(), Dictionary::shared()).unwrap_err();
+            assert!(error.contains("expected a named table"), "{error}");
+        }
     }
 
     #[test]
