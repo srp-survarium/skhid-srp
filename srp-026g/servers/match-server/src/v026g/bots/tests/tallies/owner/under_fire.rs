@@ -170,6 +170,8 @@ impl Stage {
 /// [A274] Before the hit, the episode's time from its own first sight of the shooter is taken back this far, ms (the log each
 /// bot keeps of its ticks).
 const BEFORE_MS: u32 = 6_000;
+/// [A274] Firing before the hit: a fire key this long before it, ms (`live_firstshot.py`'s split).
+const FIRING_MS: u32 = 1_000;
 const STAGES: usize = Stage::ALL.len();
 
 /// [A274] The stages of the episodes of one kind (the stand-in human's hits or the bots'): ticks in each stage before the hit
@@ -192,6 +194,12 @@ struct StageCounts {
     turn_ticks: u64,
     /// The gates' bits, ticks each failed with him the target (`reflex::gate::NAMES`' order).
     gate_ticks: Vec<u64>,
+    /// The episodes not firing in the [`FIRING_MS`] before the hit (as the live tables' `live_firstshot.py`): those that pressed
+    /// fire (at anyone) in the window, those that died before any, the time from the hit to the first fire key.
+    fresh: u64,
+    fresh_fired: u64,
+    fresh_died_first: u64,
+    fresh_to_fire: Vec<u64>,
 }
 
 impl StageCounts {
@@ -213,6 +221,15 @@ impl StageCounts {
         }
         self.turn_deg += f64::from(hit.turn_deg);
         self.turn_ticks += u64::from(hit.turn_ticks);
+        if !hit.firing_before {
+            self.fresh += 1;
+            self.fresh_fired += u64::from(hit.fire_at.is_some());
+            self.fresh_died_first += u64::from(died && hit.fire_at.is_none());
+            if self.fresh_to_fire.is_empty() {
+                self.fresh_to_fire = vec![0; BINS];
+            }
+            self.fresh_to_fire[bin(hit.fire_at.map(|f| f.saturating_sub(hit.at)))] += 1;
+        }
     }
 }
 
@@ -256,6 +273,8 @@ struct Open {
     last_stage: Option<Stage>,
     turn_deg: f32,
     turn_ticks: u32,
+    /// [A274] It pressed fire in the [`FIRING_MS`] before the hit (the live tables' split).
+    firing_before: bool,
 }
 
 /// The first hits of one play (the play at the hit), by the stand-in human's or a bot's.
@@ -351,6 +370,8 @@ pub(super) struct UnderFireCounts {
     open: Vec<Option<Open>>,
     hit_this_life: Vec<bool>,
     last_fire: Vec<Option<u32>>,
+    /// [A274] Its fire key before the last one's tick.
+    prior_fire: Vec<Option<u32>>,
     first_hit: Vec<Option<u32>>,
     hits_seen: usize,
     kills_seen: usize,
@@ -372,6 +393,7 @@ impl UnderFireCounts {
             open: vec![None; n],
             hit_this_life: vec![false; n],
             last_fire: vec![None; n],
+            prior_fire: vec![None; n],
             first_hit: vec![None; n],
             ..Self::default()
         }
@@ -390,6 +412,7 @@ impl UnderFireCounts {
             self.open.resize(n, None);
             self.hit_this_life.resize(n, false);
             self.last_fire.resize(n, None);
+            self.prior_fire.resize(n, None);
             self.first_hit.resize(n, None);
         }
     }
@@ -448,12 +471,16 @@ impl Topic for UnderFireCounts {
             self.hit_this_life[place] = false;
             self.first_hit[place] = None;
             self.last_fire[place] = None;
+            self.prior_fire[place] = None;
         }
         if !rec.alive || !run.is_bot.get(place).copied().unwrap_or(false) || self.human == Some(place) {
             return;
         }
         let firing = rec.keys & key::FIRE != 0;
         if firing {
+            if self.last_fire[place] != Some(tick) {
+                self.prior_fire[place] = self.last_fire[place];
+            }
             self.last_fire[place] = Some(tick);
         }
         let target = self.target[place];
@@ -525,6 +552,7 @@ impl Topic for UnderFireCounts {
             self.first_hit[victim] = Some(t);
             let firing = vr.keys & key::FIRE != 0;
             let targets = self.target[victim] == Some(shooter);
+            let fired_before = if self.last_fire[victim] == Some(t) { self.prior_fire[victim] } else { self.last_fire[victim] };
             self.open[victim] = Some(Open {
                 at: t,
                 shooter,
@@ -541,6 +569,7 @@ impl Topic for UnderFireCounts {
                 last_stage: None,
                 turn_deg: 0.0,
                 turn_ticks: 0,
+                firing_before: fired_before.is_some_and(|f| f < t && t - f <= FIRING_MS),
             });
             // [A274] Before the hit: its logged ticks from its own first sight of him (the sight unbroken since then).
             if let Some(sight) = self.sight_notice(victim, shooter) {
@@ -645,6 +674,8 @@ impl Topic for UnderFireCounts {
                 "shot_before": by_stage(&st.shot_before), "shot_after": by_stage(&st.shot_after), "ended_in": by_stage(&st.ended_in),
                 "ended_dead": by_stage(&st.ended_dead), "turn_deg": (st.turn_deg * 1000.0).round() / 1000.0, "turn_ticks": st.turn_ticks,
                 "gate_ticks": gate_ticks,
+                "fresh": {"episodes": st.fresh, "fired": st.fresh_fired, "died_first": st.fresh_died_first,
+                    "to_fire": st.fresh_to_fire},
             });
             let top = |a: &[u64; STAGES]| {
                 let mut v: Vec<(Stage, u64)> = Stage::ALL.iter().copied().zip(a.iter().copied()).filter(|(_, n)| *n > 0).collect();
@@ -697,6 +728,7 @@ mod tests {
             last_stage: None,
             turn_deg: 0.0,
             turn_ticks: 0,
+            firing_before: false,
         };
         let mut c = ByPlay::default();
         c.add(&hit, Some(1_800));
