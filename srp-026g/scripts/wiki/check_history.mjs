@@ -8,8 +8,8 @@
 // With a fifth argument `real`, /api/history/... is the preview's own: a
 // web server over an srp.db holding the fixture's players, clans and 23
 // public matches (Yasen in the newest 15, one a draw), recorded as srp
-// records them (what is checked is the same; the ratings and the match
-// numbers are the answers').
+// records them (what is checked is the same; the ratings, the match
+// numbers and the kits are the answers').
 // Saves review screenshots to /tmp/wiki-stats-review.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -86,6 +86,12 @@ try {
   const panel = label => evaluate(`[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === ${JSON.stringify(label)})?.nextSibling.textContent ?? null`);
   const columns = async () => (await evaluate("[...document.querySelectorAll('.stats-table thead th')].map(th => th.textContent).join('\\n')")).split('\n');
   const top = selector => evaluate(`Math.round(document.querySelectorAll('.stats-heading')[${selector}].getBoundingClientRect().top)`);
+  // Accuracy as the page shows it: whole percents, none without a shot.
+  const aim = (counts, lang = 'en') => counts.shots ? new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0}).format(counts.accuracy) : '—';
+  const cells = async selector => JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll(${JSON.stringify(selector)})].map(e => e.textContent))`));
+  const fits = () => evaluate("[...document.querySelectorAll('.table-scroll')].every(box => box.scrollWidth <= box.clientWidth)");
+  // The weapons of a line's kits as the page writes them.
+  const weapons = row => row.kits.length ? row.kits.map(kit => kit.weapons.length ? kit.weapons.map(item => item.name ?? '—').join(' · ') : '—').join(' / ') : '—';
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
 
   // The wiki's index leads to it.
@@ -114,6 +120,17 @@ try {
   assert.equal(answered.top.by, 'artefacts');
   assert.equal(await text('.stats-table thead th.sorted'), 'Artefacts');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-table tbody tr')].map(r => Number(r.children[13].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by artefacts');
+  assert.equal(await count('.stats-keys .stats-note'), 0, 'the shots line is for accuracy only');
+  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Accuracy').click()");
+  await settled();
+  assert.equal(answered.top.by, 'accuracy');
+  assert.equal(await text('.stats-table thead th.sorted'), 'Accuracy');
+  assert.equal(await text('.stats-keys .stats-note'), '1000+ shots. A shotgun counts every pellet.');
+  assert.equal(await count('.stats-table tbody tr'), answered.top.players.length);
+  if (!real) assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 1000 shots: not listed');
+  assert.deepEqual(await cells('.stats-table tbody td.sorted'), answered.top.players.map(row => aim(row.totals)));
+  assert.equal(await fits(), true, 'the board fits the width');
+  await screenshot('boards-accuracy');
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
   assert.equal(await count('.stats-table tbody tr'), 2);
@@ -145,48 +162,69 @@ try {
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/wiki/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 23, 'the panels are drawn before their data');
-  const loading = await top(0);
+  assert.equal(await count('.stats-panels dd'), 24, 'the panels are drawn before their data');
+  assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
+  const loading = [await top(0), await top(1)];
   await settled();
-  assert.equal(await top(0), loading, 'no layout jump');
+  assert.deepEqual([await top(0), await top(1)], loading, 'no layout jump');
   assert.equal(await text('#stats-title'), 'Sheep');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
-  assert.equal(await count('.stats-table tbody tr'), 15);
+  assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
+  assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');
   assert.ok((await columns()).includes('Artefacts'), 'a match line has its artefacts');
-  assert.equal(await evaluate("[...document.querySelectorAll('.table-scroll')].every(box => box.scrollWidth <= box.clientWidth)"), true, 'the matches fit the width');
+  assert.ok((await columns()).includes('Accuracy') && (await columns()).includes('Weapons'), 'and its accuracy and weapons');
+  const lines = answered['player/matches'].matches;
+  assert.deepEqual(await cells('.stats-paged .stats-kit'), lines.map(weapons), 'the used kits\' weapons');
+  assert.deepEqual(await cells('.stats-paged tbody td:nth-child(12)'), lines.map(aim), 'each line\'s accuracy');
+  if (!real) assert.ok(lines.some(row => row.kits.length === 2) && (await cells('.stats-paged .stats-kit')).some(line => line.includes(' / ')), 'two kits');
+  if (!real) assert.ok((await cells('.stats-paged .stats-kit')).some(line => line.includes('—')), 'an item gone from the game data');
+  const detail = await evaluate("document.querySelector('.stats-paged .stats-kit').title");
+  assert.match(detail, /^Kit [123]: .+; .+\nKills \d+ · Headshots \d+ · Accuracy (\d+%|—)/, 'a kit in full on hover');
+  // Favourite equipment: the kit's numbers, five rows each, empty ones too.
+  const favourite = answered['player/equipment'];
+  assert.ok(asked.some(path => path.includes('player/equipment') && path.includes('limit=5')));
+  assert.equal(await text('.stats-heading'), 'Favourite equipment');
+  assert.equal(await text('.stats-note'), 'Numbers are the whole kit’s: two guns in one kit share them.');
+  assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10);
+  assert.deepEqual(await cells('.stats-favourites .table-scroll:first-child tbody td.l'),
+    [...favourite.weapons.map(item => item.name ?? '—'), ...Array(5 - favourite.weapons.length).fill('\u00a0')]);
+  assert.deepEqual(await cells('.stats-favourites .table-scroll:last-child tbody td:nth-child(4)'),
+    [...favourite.armour.map(item => aim(item)), ...Array(5 - favourite.armour.length).fill('\u00a0')]);
+  if (!real) assert.ok(favourite.weapons.some(item => item.name === null), 'an item gone from the game data');
+  assert.equal(await fits(), true, 'the matches fit the width');
   await screenshot('player');
   await evaluate("document.querySelector('.stats-paged button').click()");
   await settled();
-  assert.equal(await count('.stats-table tbody tr'), 23);
+  assert.equal(await count('.stats-paged .stats-table tbody tr'), 23);
   assert.ok(asked.some(path => path.includes('player/matches') && path.includes('before=')), 'pages by before=');
-  assert.ok(await evaluate("[...document.querySelectorAll('.stats-table tbody td:nth-child(6)')].some(td => td.textContent === 'Draw')"));
+  assert.ok((await cells('.stats-paged tbody td:nth-child(6)')).includes('Draw'));
 
   // Yasen played exactly a page: the older page is empty, so the button just goes.
   await navigate('/wiki/stats?player=Yasen&lang=en');
-  assert.equal(await count('.stats-table tbody tr'), 15);
+  assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), false, 'a full page may have more');
   await evaluate("document.querySelector('.stats-paged button').click()");
   await settled();
   assert.equal(answered['player/matches'].matches.length, 0, 'the page after is empty');
-  assert.equal(await count('.stats-table tbody tr'), 15);
+  assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
   assert.equal(await count('.stats-paged .stats-table'), 1, 'no second table');
   assert.equal(await count('.stats-empty'), 0, 'no notice under the rows');
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no button left');
 
-  // A new player, an unknown one.
+  // A player without a public match is the same as an unknown one.
   await navigate('/wiki/stats?player=Nova&lang=en');
-  assert.equal(await text('.stats-empty'), 'No public matches yet.');
-  assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Win rate').nextSibling.textContent"), '—');
-  await screenshot('player-new');
+  assert.equal(await text('.stats-empty'), 'No player with public matches named “Nova”.');
+  assert.equal(await count('.stats-panels'), 0);
   await navigate('/wiki/stats?player=Nobody&lang=en');
-  assert.equal(await text('.stats-empty'), 'No player named “Nobody”.');
+  assert.equal(await text('.stats-empty'), 'No player with public matches named “Nobody”.');
   assert.equal(await count('.stats-find'), 1, 'the search stays');
   await screenshot('player-not-found');
 
   // A match, an unknown one.
   await navigate(`/wiki/stats?match=${newest}&lang=en`, 'interactive');
   assert.equal(await count('.stats-table tbody tr'), 12, 'six empty rows a team while it loads');
+  assert.equal(await count('.stats-under'), 12, 'each with room for the weapons');
   const loadingMatch = await top(1);
   await settled();
   assert.equal(await top(1), loadingMatch, 'no layout jump');
@@ -194,6 +232,11 @@ try {
   assert.equal(await count('.stats-table tbody tr'), 12);
   assert.match(await text('.stats-heading'), /^Team 1 · \d/);
   assert.ok((await columns()).includes('Artefacts'));
+  assert.ok((await columns()).includes('Accuracy'));
+  assert.deepEqual(await cells('.stats-kit.stats-under'), answered.match.players.map(weapons), 'weapons under each name');
+  assert.deepEqual(await cells('.stats-table tbody td:nth-child(8)'), answered.match.players.map(row => aim(row)));
+  if (!real) assert.ok((await cells('.stats-table tbody td:nth-child(8)')).includes('—'), 'no trusted snapshot: no accuracy');
+  assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
   await navigate('/wiki/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
@@ -207,18 +250,38 @@ try {
   assert.equal(await panel('Artefacts'), String(answered.clan.totals.artefacts));
   assert.ok((await columns()).includes('Artefacts'), 'the members have theirs');
   await screenshot('clan');
+  // RAD's commander has no public match: the clan counts him, lists only who played.
+  await navigate('/wiki/stats?clan=RAD&lang=en');
+  assert.equal(await panel('Members'), String(answered.clan.clan.members));
+  assert.equal(await count('#stats > .table-scroll tbody tr'), answered.clan.members.length);
+  assert.equal(await panel('Commander'), answered.clan.clan.leader ? answered.clan.clan.leader.name : '—');
+  if (!real) assert.deepEqual([answered.clan.clan.members, answered.clan.members.length, answered.clan.clan.leader], [3, 2, null]);
+  assert.equal(await panel('Accuracy'), aim(answered.clan.totals));
   await navigate('/wiki/stats?clan=NONE&lang=en');
   assert.equal(await text('.stats-empty'), 'No clan tagged [NONE].');
+
+  // Ukrainian: its longer words fit too.
+  for (const path of ['player=Sheep', `match=${newest}`, 'board=players&by=accuracy', 'clan=SKH']) {
+    await navigate(`/wiki/stats?${path}&lang=uk`);
+    assert.equal(await fits(), true, `${path} fits the width in Ukrainian`);
+  }
 
   // Ukrainian, and a phone's width.
   await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 844}, devicePixelRatio: 1});
   await navigate('/wiki/stats?player=Sheep&lang=uk');
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
-  assert.equal(await text('.stats-heading'), 'Матчі');
+  assert.equal(await text('.stats-heading'), 'Улюблене спорядження');
+  assert.equal((await cells('.stats-heading'))[1], 'Матчі');
   assert.notEqual(await panel('Артефакти'), null);
+  assert.equal(await panel('Точність'), aim(answered.player.totals, 'uk'));
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.stats-favourites')).gridTemplateColumns.split(' ').length"), 1, 'the favourites stacked');
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await screenshot('player-mobile-uk');
+  await navigate(`/wiki/stats?match=${newest}&lang=uk`);
+  assert.equal(await count('.stats-kit.stats-under'), 12);
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile match fits');
+  await screenshot('match-mobile-uk');
   console.log(`ok: ${asked.length} answers from ${real ? 'the real endpoints' : 'the fixture'}; screenshots in ${output}`);
 } finally {
   await send('session.end').catch(() => {});

@@ -20,7 +20,10 @@
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
       win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches',
-      noMatches: 'No public matches yet.', noPlayer: 'No player named “{}”.', noClan: 'No clan tagged [{}].',
+      accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
+      kitShared: 'Numbers are the whole kit’s: two guns in one kit share them.',
+      accuracyNote: '1000+ shots. A shotgun counts every pellet.',
+      noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
       noMatch: 'No public match {}.', noHistory: 'This server keeps no match history.',
       failed: 'Could not load the stats. Reload the page.', nobody: 'Nobody yet.',
     },
@@ -35,24 +38,34 @@
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
       win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі',
-      noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця «{}» немає.', noClan: 'Клану [{}] немає.',
+      accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
+      kitShared: 'Числа — усього комплекту: дві зброї в одному комплекті ділять їх.',
+      accuracyNote: '1000+ пострілів. У дробовика кожна дробина — постріл.',
+      noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
       noMatch: 'Публічного матчу {} немає.', noHistory: 'Цей сервер не зберігає історію матчів.',
       failed: 'Не вдалося завантажити статистику. Оновіть сторінку.', nobody: 'Поки нікого.',
     },
   }[lang];
   const PAGE = 15, TOP = 50;
+  // An empty cell's text, so it has a line's height.
+  const BLANK = '\u00a0';
   const BOARDS = {
-    players: ['rating', 'matches', 'wins', 'kills', 'score', 'headshots', 'batteries', 'artefacts'],
+    players: ['rating', 'matches', 'wins', 'kills', 'score', 'headshots', 'batteries', 'artefacts', 'accuracy'],
     clans: ['score', 'matches', 'wins', 'kills', 'headshots', 'batteries', 'artefacts'],
     best: ['day', 'hour'],
     latest: [],
   };
   const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score: 'score',
-    headshots: 'headshots', batteries: 'batteries', artefacts: 'artefacts', day: 'day', hour: 'hour'};
+    headshots: 'headshots', batteries: 'batteries', artefacts: 'artefacts', accuracy: 'accuracy', day: 'day', hour: 'hour'};
   const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
   const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
+  // Accuracy in whole percents: shots count pellets and kits, not aimed bullets.
+  const whole = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0});
   const dates = new Intl.DateTimeFormat(lang, {dateStyle: 'medium', timeStyle: 'short'});
+  const day = new Intl.DateTimeFormat(lang, {dateStyle: 'medium'});
+  const dayThisYear = new Intl.DateTimeFormat(lang, {month: 'short', day: 'numeric'});
+  const time = new Intl.DateTimeFormat(lang, {timeStyle: 'short'});
   const query = new URLSearchParams(location.search);
   const asked = name => (query.get(name) || '').trim();
 
@@ -67,9 +80,18 @@
   const n = value => value === null || value === undefined ? '—' : numbers.format(value);
   const kd = value => value === null || value === undefined ? '—' : pair.format(value);
   const rate = value => value === null || value === undefined ? '—' : percent.format(value);
-  // A map's or a mode's name: null for one the game data no longer has.
+  // Hits by shots of totals, a match line or a kit; none without a shot.
+  const aim = counts => counts.shots ? whole.format(counts.accuracy) : '—';
+  // A map's, a mode's or an item's name: null for one the game data no longer has.
   const name = value => value ?? '—';
   const when = seconds => dates.format(new Date(seconds * 1000));
+  // A match list's: the day (its year only when not this one) over the time.
+  const ended = seconds => {
+    const date = new Date(seconds * 1000);
+    return [(date.getFullYear() === new Date().getFullYear() ? dayThisYear : day).format(date),
+      el('small', {className: 'stats-under'}, time.format(date))];
+  };
+  const twoLines = () => [BLANK, el('small', {className: 'stats-under'}, BLANK)];
   const duration = seconds => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const say = (template, value) => template.replace('{}', value);
   function playerLink(player) {
@@ -89,11 +111,12 @@
   function panels(...groups) {
     return el('div', {className: 'weapon-details stats-panels'}, groups.map(([title, rows]) =>
       el('section', {}, el('h2', {}, title), el('dl', {}, rows.map(([label, value]) =>
-        el('div', {}, el('dt', {}, label), el('dd', {}, value === null ? ' ' : value)))))));
+        el('div', {}, el('dt', {}, label), el('dd', {}, value === null ? BLANK : value)))))));
   }
 
-  // A table: columns [label, cell(row), className]; rows null while loading
-  // (`placeholder` empty rows of the same height).
+  // A table: columns [label, cell(row), className, sort key, empty()]; rows
+  // null while loading (`placeholder` empty rows of the same height: a
+  // column's `empty` gives its empty cell the shape of a full one).
   function table(columns, rows, placeholder = PAGE, sorted = '') {
     const body = el('tbody');
     const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) =>
@@ -101,8 +124,11 @@
     const wrap = el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table'}, head, body));
     wrap.add = list => body.append(...list.map(row => el('tr', {}, columns.map(([, cell, kind, key]) =>
       el('td', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`}, cell(row))))));
+    wrap.blank = count => {
+      for (let i = 0; i < count; i++) body.append(el('tr', {}, columns.map(([, , kind, , empty]) => el('td', {className: kind || ''}, empty ? empty() : BLANK))));
+    };
     if (rows) wrap.add(rows);
-    else for (let i = 0; i < placeholder; i++) body.append(el('tr', {}, columns.map(([, , kind]) => el('td', {className: kind || ''}, ' '))));
+    else wrap.blank(placeholder);
     return wrap;
   }
 
@@ -168,10 +194,39 @@
     if (row.winner === null) return '—';
     return row.won ? TEXT.win : TEXT.loss;
   }
+  // The weapons of the kits a match line used, on one line (kits by " / "),
+  // each kit in full with its counters on hover.
+  function kitWeapons(row, under = false) {
+    const items = list => list.length ? list.map(item => name(item.name)).join(', ') : '—';
+    const line = row.kits.length
+      ? row.kits.map(kit => kit.weapons.length ? kit.weapons.map(item => name(item.name)).join(' · ') : '—').join(' / ')
+      : '—';
+    const detail = row.kits.map(kit => `${TEXT.kit} ${kit.kit + 1}: ${items(kit.weapons)}; ${items(kit.armour)}\n`
+      + `${TEXT.kills} ${n(kit.kills)} · ${TEXT.headshots} ${n(kit.headshots)} · ${TEXT.accuracy} ${aim(kit)}`).join('\n');
+    return el('span', {className: `stats-kit${under ? ' stats-under' : ''}`, title: detail}, line);
+  }
+  // A match line's player with the weapons under the name.
+  const playerKit = row => [playerLink(row.player), row.left ? el('small', {}, ` · ${TEXT.left}`) : null, kitWeapons(row, true)];
+
+  // A player's most used weapons and armour (player/equipment), FAVOURITES
+  // rows each, empty ones too, so its height is the same loading or not.
+  const FAVOURITES = 5;
+  function favourites(data) {
+    const list = (label, items) => {
+      const box = table([[label, item => name(item.name), 'l'], [TEXT.matches, item => n(item.matches)],
+        [TEXT.kills, item => n(item.kills)], [TEXT.accuracy, aim]], items, FAVOURITES);
+      if (items) box.blank(FAVOURITES - items.length);
+      return box;
+    };
+    return [el('h2', {className: 'stats-heading'}, TEXT.favourites), el('p', {className: 'stats-note'}, TEXT.kitShared),
+      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons), list(TEXT.armour, data && data.armour))];
+  }
   const matchLink = row => link({match: row.id}, `${row.id}`);
+  // Two lines a match: the time under the day, the mode under the map.
   const MATCH_COLUMNS = [
-    [TEXT.ended, row => when(row.ended_at), 'l'], [TEXT.match, matchLink], [TEXT.map, row => name(row.map), 'l'],
-    [TEXT.mode, row => name(row.mode), 'l'], [TEXT.level, row => n(row.level)],
+    [TEXT.ended, row => ended(row.ended_at), 'l', '', twoLines], [TEXT.match, matchLink],
+    [TEXT.map, row => [name(row.map), el('small', {className: 'stats-under'}, name(row.mode))], 'l', '', twoLines],
+    [TEXT.level, row => n(row.level)],
   ];
 
   // The day totals of the last 30 days, added up.
@@ -185,7 +240,8 @@
   const blank = labels => labels.map(label => [label, null]);
   function combat(totals) {
     const v = key => totals ? n(totals[key]) : null;
-    return [[TEXT.kills, v('kills')], [TEXT.deaths, v('deaths')], [TEXT.kd, totals ? kd(totals.kd) : null], [TEXT.assists, v('assists')],
+    return [[TEXT.kills, v('kills')], [TEXT.deaths, v('deaths')], [TEXT.kd, totals ? kd(totals.kd) : null],
+      [TEXT.accuracy, totals ? aim(totals) : null], [TEXT.assists, v('assists')],
       [TEXT.headshots, v('headshots')], [TEXT.grenadeKills, v('grenade_kills')], [TEXT.meleeKills, v('melee_kills')],
       [TEXT.batteries, v('batteries')], [TEXT.captures, v('captures')], [TEXT.artefacts, v('artefacts')]];
   }
@@ -204,25 +260,28 @@
         [TEXT.clan, card ? (card.player.clan ? link({clan: card.player.clan.tag}, `[${card.player.clan.tag}]`) : '—') : null], ...record(card && card.totals)]],
       [TEXT.inMatches, combat(card && card.totals)],
       [TEXT.last30, days ? lastDays(days) : blank([TEXT.matches, TEXT.winRate, TEXT.kd, TEXT.scoreAvg])]);
-    const columns = [...MATCH_COLUMNS, [TEXT.result, result, 'l'], [TEXT.place, row => n(row.place)],
+    const columns = [...MATCH_COLUMNS, [TEXT.weapons, row => kitWeapons(row), 'l kits'], [TEXT.result, result, 'l'], [TEXT.place, row => n(row.place)],
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
-      [TEXT.kd, row => kd(row.kd)], [TEXT.assists, row => n(row.assists)], [TEXT.headshots, row => n(row.headshots)],
+      [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshots, row => n(row.headshots)],
       [TEXT.batteries, row => n(row.batteries)], [TEXT.captures, row => n(row.captures)], [TEXT.artefacts, row => n(row.artefacts)],
       [TEXT.rating, row => n(row.rating)]];
-    root.replaceChildren(head(null, null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
+    root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
+    // A player without a public match is not found, as an unknown name.
     const card = await api('player', {name});
     if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, name)), finder());
     heading(card.player.name, TEXT.player, TEXT.player);
-    const days = await api('player/days', {id: card.player.id, days: 30}).catch(() => null);
-    root.replaceChildren(head(card, days ? days.days : []), el('h2', {className: 'stats-heading'}, TEXT.matches),
+    const [days, equipment] = await Promise.all([api('player/days', {id: card.player.id, days: 30}).catch(() => null),
+      api('player/equipment', {id: card.player.id, limit: FAVOURITES}).catch(() => null)]);
+    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}),
+      el('h2', {className: 'stats-heading'}, TEXT.matches),
       paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches));
   }
 
   async function matchView(id) {
     heading(`${TEXT.match} ${id}`, TEXT.match, `${TEXT.match} ${id}`);
-    const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, row => [playerLink(row.player), row.left ? el('small', {}, ` · ${TEXT.left}`) : null], 'l'],
+    const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
       [TEXT.level, row => n(row.level)], [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)],
-      [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.assists, row => n(row.assists)],
+      [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)],
       [TEXT.headshots, row => n(row.headshots)], [TEXT.grenadeKills, row => n(row.grenade_kills)],
       [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.batteries, row => n(row.batteries)],
       [TEXT.captures, row => n(row.captures)], [TEXT.artefacts, row => n(row.artefacts)], [TEXT.rating, row => n(row.rating)]];
@@ -297,7 +356,7 @@
       [TEXT.kd, row => kd(row.totals.kd)], [TEXT.score, row => n(row.totals.score), '', 'score'],
       [TEXT.scoreAvg, row => n(row.totals.score_avg)], [TEXT.headshots, row => n(row.totals.headshots), '', 'headshots'],
       [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries'],
-      [TEXT.artefacts, row => n(row.totals.artefacts), '', 'artefacts']];
+      [TEXT.artefacts, row => n(row.totals.artefacts), '', 'artefacts'], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
     const clanColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.clan, row => link({clan: row.tag}, `[${row.tag}] ${row.name}`), 'l'],
       [TEXT.level, row => n(row.level)], [TEXT.members, row => n(row.members)],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
@@ -322,7 +381,7 @@
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
-      }));
+      }), key === 'accuracy' ? el('small', {className: 'stats-note'}, TEXT.accuracyNote) : null);
       const url = new URL(location.href);
       url.searchParams.set('board', board);
       if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
