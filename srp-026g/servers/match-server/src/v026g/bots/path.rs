@@ -540,6 +540,23 @@ pub mod stranded {
     }
 }
 
+/// The goals on no floor near them (`goal_floor` none) learned as no way from a start floor (`think.goal_off_floor_no_way`), for the
+/// bench's count.
+#[cfg(test)]
+pub mod off_floor_goals {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn count() {
+        COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> u64 {
+        COUNT.load(Ordering::Relaxed)
+    }
+}
+
 /// The route from one floor to another, if there is one.
 pub fn plan(grid: &WalkGrid, from: NodeId, to: NodeId) -> Option<Route> {
     plan_where(grid, from, to, |_| true)
