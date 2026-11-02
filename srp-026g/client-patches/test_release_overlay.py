@@ -2,6 +2,7 @@
 import contextlib
 import hashlib
 import io
+import json
 import locale
 import os
 from pathlib import Path
@@ -90,7 +91,7 @@ class ReleaseTests(unittest.TestCase):
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
-            'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd',
+            'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
 
@@ -410,7 +411,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotRegex(text, r'\d+\.\d+\.\d+\.\d+')
         readme = (folder / 'README.txt').read_text(encoding='utf-8')
         texts = {}
-        for name in (overlay.NETWORK_SETUP, overlay.DEFENDER_SETUP):
+        for name in (overlay.NETWORK_SETUP, overlay.DEFENDER_SETUP, overlay.COLLECT_LOGS):
             script = (folder / name).read_bytes()
             # Code page 866, switched to before the first Russian line: all
             # above it is ASCII, read in whatever code page the console has.
@@ -433,9 +434,18 @@ class ReleaseTests(unittest.TestCase):
                     self.assertTrue(said[2].isascii(), line)
                 elif not said[2].startswith('[dry-run]'):
                     self.assertNotRegex(said[2], r'[A-Za-z]{4,} [a-z]{2,}|[А-Яа-яЁё]', line)
-            # The elevation: the normal UAC prompt, by Start-Process -Verb RunAs
-            # of cmd.exe and the command line a dry run prints.
-            self.assertIn('Start-Process -FilePath $env:ComSpec -ArgumentList $env:SKHID_CMDLINE -Verb RunAs', text)
+            if name == overlay.COLLECT_LOGS:
+                # Reads only, as the player: no elevation, nothing of Defender
+                # or the firewall changed, no file of the game written or
+                # deleted (its own folder and ZIP alone).
+                for word in ('RunAs', 'Add-MpPreference', 'Remove-MpPreference', 'netsh', 'New-NetFirewallRule',
+                             'Remove-Item', 'Move-Item', 'Set-Content', 'Out-File'):
+                    self.assertNotIn(word, text)
+            else:
+                # The elevation: the normal UAC prompt, by Start-Process -Verb RunAs
+                # of cmd.exe and the command line a dry run prints.
+                self.assertIn('Start-Process -FilePath $env:ComSpec -ArgumentList $env:SKHID_CMDLINE -Verb RunAs',
+                              text)
             self.assertIn('cd /d "%~dp0"', text)
             # Its folder is taken before the options are shifted (shift moves %0).
             self.assertLess(text.index('set "TOP=%~dp0"'), text.index('\r\nshift\r\n'))
@@ -916,6 +926,247 @@ class ReleaseTests(unittest.TestCase):
                                                 'Nothing changed.']))
         self.assertEqual(files(), player)
         nothing_left()
+
+    @unittest.skipUnless(os.name == 'nt' or WINE, 'Windows, or Wine for its cmd.exe')
+    def test_the_log_collection_says_what_it_takes(self):
+        """Skhid-collect-logs.cmd --dry-run, by its name from its folder (an
+        & and a ! in it, Cyrillic on a Russian Windows), in Russian and in
+        English: what it takes and never takes, where it looks, and nothing
+        run (no PowerShell but the language's, no elevation). Out of place,
+        or with an unknown option, it says so."""
+        if os.name == 'nt' or RUSSIAN:
+            top, locale = self.root / 'Мои игры! & (x86)' / 'Survarium', 'ru_RU.UTF-8'
+        else:
+            top, locale = self.root / 'Wow! & (x86)' / 'Survarium', 'en_US.UTF-8'
+        self.build(top)
+        x86 = str(top / 'game' / 'binaries' / 'x86')
+        if os.name != 'nt':
+            x86 = 'Z:' + x86.replace('/', '\\')
+        top_windows = x86.rsplit('\\game\\', 1)[0]
+        dry = [f'[dry-run] logs: Documents\\Survarium, "{x86}", "{top_windows}\\game", "{top_windows}", '
+               f'"{top_windows}\\temp"',
+               f'[dry-run] crash reports: SRP-crash-*.txt in "{x86}" and the temporary folder',
+               '[dry-run] sha256: game\\binaries\\x86 programs, the certificate, game\\resources.db, '
+               'game\\resources.db.patch_*',
+               "[dry-run] servers: updater_skhid.url's (else https://skhid.link) /api/client-files, /patches, /game "
+               'and their hosts',
+               '[dry-run] write: Desktop\\Skhid-logs-<date>-<time>.zip']
+        for ui in ('ru', 'en'):
+            with self.subTest(ui=ui):
+                def run(*options):
+                    return self.setup_script(top, overlay.COLLECT_LOGS, *options, locale=locale, ui=ui)
+
+                def said(russian, english):
+                    return russian if ui in RUSSIAN_UI else english
+                lines = run('--dry-run')
+                for line in (said('Сбор логов Skhid', 'Skhid log collection'),
+                             said('Пароли и сохранённый вход (user.cfg), дампы памяти и другие файлы компьютера',
+                                  'It never takes passwords, the saved sign-in (user.cfg), memory dumps or any'),
+                             said('Пробный запуск: ничего не собирается, только выводится, что было бы собрано.',
+                                  'Dry run: nothing is collected, only what would be is printed.')):
+                    self.assertIn(line, lines, '\n'.join(lines))
+                folder = said('Папка игры: ', 'Game folder: ')
+                self.assertShown([line for line in lines if line.startswith(folder)], [f'{folder}"{top_windows}"'],
+                                 locale)
+                self.assertShown([line for line in lines if line.startswith('[dry-run]')], dry, locale)
+                self.assertIn(said('Неизвестный параметр: --upload', 'Unknown option: --upload'), run('--upload'))
+        # Without the game's program folder: where the file belongs.
+        shutil.rmtree(top / 'game')
+        lost = self.setup_script(top, overlay.COLLECT_LOGS, '--dry-run', locale=locale, ui='en')
+        self.assertIn('Put this file beside Skhid.bat, in the folder that holds the folder', lost)
+        self.assertFalse([line for line in lost if line.startswith('[dry-run]')])
+
+    @unittest.skipUnless(POWERSHELL and os.name != 'nt',
+                         "PowerShell 7 (on Windows it would read the tester's Documents and write on their Desktop)")
+    def test_the_log_collection_takes_the_logs_and_no_secret(self):
+        """The shipped script's PowerShell, started as the cmd starts it,
+        against a game folder here, a Documents and a temporary folder of the
+        test's and a server here: one ZIP on the Desktop, nothing of the game
+        folder changed; the logs with every credential line (and its record)
+        removed and the game's own code page kept; the crash reports' text,
+        never a dump, user.cfg or a file beside the game; the sha256 of the
+        patches against the server's list, the exe's revision, each server's
+        answer and the sign-in's TCP; in Russian and in English."""
+        import http.server
+        import socket
+        import threading
+        top = self.root / 'Мои игры! & (x86)' / 'Survarium'
+        self.build(top)
+        x86 = top / 'game' / 'binaries' / 'x86'
+        script = top / overlay.COLLECT_LOGS
+        [loader] = [re.fullmatch(r'powershell -NoProfile -ExecutionPolicy Bypass -Command "(.*)"', line)[1]
+                    for line in script.read_bytes().decode('cp866').splitlines()
+                    if line.startswith('powershell ') and 'skhid-powershell' in line]
+        home, temp = self.root / 'home', self.root / 'tmp'
+        temp.mkdir()
+        # .NET names a special folder only when it is there.
+        for name in ('Desktop', 'Documents'):
+            (home / name).mkdir(parents=True)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('XDG_', 'SKHID_'))}
+        env.update(HOME=str(home), TMPDIR=str(temp), SKHID_SELF=str(script), SKHID_TOP=str(top), LANG='C.UTF-8')
+        asked = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-Command',
+                                "[Environment]::GetFolderPath('MyDocuments'); [Environment]::GetFolderPath('Desktop')"],
+                               env=env, capture_output=True, timeout=300, check=True)
+        documents, desktop = (Path(line) for line in asked.stdout.decode().splitlines())
+        for folder in (documents, desktop):
+            self.assertTrue(folder.is_relative_to(home), folder)
+        own = documents / 'Survarium'
+        own.mkdir(parents=True)
+
+        def record(clock, text):
+            return f'core <info>\t[{clock}]\t'.encode() + text + b'\r\n'
+        # The game's log: a command line with the password, its record's next
+        # line, and a line in the game's code page (cp1251).
+        player = (record('12:00:00.000', b'started')
+                  + record('12:00:00.001', b'command line : -account_name=player -account_password=hunter2')
+                  + b'  hunter3 continued\r\n'
+                  + record('12:00:01.000', 'Динамики'.encode('cp1251')))
+        (own / 'Survarium_player.log').write_bytes(player)
+        (own / 'user.cfg').write_bytes(b'account_digest 0123secretdigest\r\nlocalization russian\r\n')
+        (own / 'Survarium.journal').write_bytes(b'journal\0binary')
+        (own / 'replays').mkdir()
+        (own / 'replays' / 'match.sur').write_bytes(b'replay')
+        (own / 'engine.dmp').write_bytes(b'MDMP engine-secret')
+        (x86 / 'updater_skhid.log').write_bytes(b'2026-11-02 10:00:00 patches: GET https://user:pa55@files.example/x\n'
+                                                b'2026-11-02 10:00:01 ok\n')
+        (x86 / 'srp_patches.log').write_bytes(b'pid 7 pickup: refused, no drop to take\r\n')
+        (x86 / 'SRP-crash-20261102-1.txt').write_bytes(b'Exception: 0xC0000005\r\n')
+        (x86 / 'SRP-crash-20261102-1.dmp').write_bytes(b'MDMP dump-secret')
+        (x86 / 'SRP-crash-20261102-1.zip').write_bytes(b'PK dump-secret')
+        (temp / 'SRP-crash-20261101-2.txt').write_bytes(b'Exception: 0x80000003\r\n')
+        (temp / 'unrelated.log').write_bytes(b'not the game')
+        (top / 'skhid-download.log').write_bytes(b'2026-11-02 09:00:00 skhid-game  ok  here: done\r\n')
+        (top / 'my-taxes.pdf').write_bytes(b'private')
+        # A log over 8 MB: its end, from a whole record.
+        big = b''.join(record(f'13:{i // 60 % 60:02}:{i % 60:02}.000', b'x' * 200) for i in range(45000))
+        (top / 'game' / 'Survarium_big.log').write_bytes(big)
+        (top / 'game' / 'resources.db').write_bytes(b'stock db')
+        (top / 'game' / 'resources.db.patch_1').write_bytes(b'one')
+        (top / 'game' / 'resources.db.patch_2').write_bytes(b'two, damaged')
+        # An exe whose revision site says 42 (client/updater/logic/src/revision.rs).
+        exe = bytearray(0x1400)
+        exe[:2] = b'MZ'
+        struct.pack_into('<I', exe, 0x3C, 0x40)
+        exe[0x40:0x44] = b'PE\0\0'
+        struct.pack_into('<HH', exe, 0x44, 0x14C, 1)
+        struct.pack_into('<H', exe, 0x54, 0xE0)
+        struct.pack_into('<HI', exe, 0x58, 0x10B, 0)
+        struct.pack_into('<I', exe, 0x58 + 28, 0x10000)
+        struct.pack_into('<4I', exe, 0x138 + 8, 0x1000, 0x370000, 0x1000, 0x400)
+        exe[0xC62:0xC68] = bytes([0xC6, 0x44, 0x24, 0x27, 42, 0x90])
+        (x86 / 'survarium_skhid.exe').write_bytes(exe)
+
+        with socket.socket() as closed:
+            closed.bind(('127.0.0.1', 0))
+            nowhere = closed.getsockname()[1]
+        asked_for = []
+
+        class Site(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                asked_for.append(self.path)
+                port = self.server.server_port
+                # Another host than the site's (localhost), and one that refuses.
+                patches = {f'patch_{n}': {'sha256': sha, 'urls': [f'http://localhost:{port}/p{n}',
+                                                                   f'http://127.0.0.1:{nowhere}/p{n}']}
+                           for n, sha in ((1, hashlib.sha256(b'one').hexdigest()), (2, hashlib.sha256(b'two').hexdigest()),
+                                          (3, '3' * 64))}
+                body = {'/api/client-files': b'skhid-client-files 1\nsha256 ' + b'a' * 64 + b'\n',
+                        '/patches': json.dumps(patches).encode(),
+                        '/game': json.dumps({'sha256': 'b' * 64, 'size': 1,
+                                             'urls': [f'http://localhost:{port}/game.7z']}).encode(),
+                        '/p1': b'one', '/game.7z': b'7z'}.get(self.path, b'')
+                self.send_response(200 if body else 404)
+                self.send_header('Content-Type', 'text/plain')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Site)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        port = server.server_port
+        (x86 / 'updater_skhid.url').write_bytes(f'http://127.0.0.1:{port}\r\n'.encode())
+        bat = x86 / 'play_skhid.bat'
+        bat.write_bytes(re.sub(rb'embedded in the exe: \S+', f'embedded in the exe: 127.0.0.1:{port}'.encode(),
+                               bat.read_bytes()))
+
+        def tree():
+            return {str(path.relative_to(top)): path.read_bytes() if path.is_file() else None
+                    for path in top.rglob('*')}
+        before = tree()
+        for ru in (True, False):
+            with self.subTest(ru=ru):
+                for zip_path in desktop.glob('Skhid-logs-*.zip'):
+                    zip_path.unlink()
+                run_env = dict(env)
+                if ru:
+                    run_env['SKHID_RU'] = '1'
+                done = subprocess.run([POWERSHELL, '-NoProfile', '-NonInteractive', '-Command', loader],
+                                      env=run_env, capture_output=True, timeout=600)
+                said = done.stdout.decode('utf-8', 'replace').splitlines()
+                self.assertEqual(done.returncode, 0, '\n'.join(said) + done.stderr.decode('utf-8', 'replace'))
+                self.assertEqual(tree(), before)
+                [made] = list(desktop.glob('Skhid-logs-*'))
+                self.assertTrue(made.name.endswith('.zip'), made)
+                if ru:
+                    self.assertIn('Готово. Файл с логами:', said)
+                    self.assertIn('Отправьте его в канал #bugreports в Discord: https://discord.gg/Pxa4prXfwu', said)
+                else:
+                    self.assertIn('Done. The file with the logs:', said)
+                    self.assertIn('Send it to #bugreports in Discord: https://discord.gg/Pxa4prXfwu', said)
+                self.assertIn('  ' + str(made), said)
+                with zipfile.ZipFile(made) as archive:
+                    entries = {name: archive.read(name) for name in archive.namelist()}
+                self.assertEqual(set(entries), {
+                    'report.txt', 'folder.txt', 'logs/documents/Survarium_player.log',
+                    'logs/game-x86/updater_skhid.log', 'logs/game-x86/srp_patches.log',
+                    'logs/game/Survarium_big.log', 'logs/game-folder/skhid-download.log',
+                    'crash/game-x86/SRP-crash-20261102-1.txt', 'crash/temp/SRP-crash-20261101-2.txt',
+                    'state/game-x86/updater_skhid.url', 'state/game-x86/play_skhid.bat'})
+                for secret in (b'hunter2', b'hunter3', b'pa55', b'secretdigest', b'engine-secret', b'dump-secret',
+                               b'my-taxes', b'match.sur', b'not the game', b'user.cfg'):
+                    for name, data in entries.items():
+                        if name != 'report.txt' or secret != b'user.cfg':
+                            self.assertNotIn(secret, data, name)
+                removed = b'[Skhid: sensitive log record removed]\r\n'
+                self.assertEqual(entries['logs/documents/Survarium_player.log'],
+                                 record('12:00:00.000', b'started') + removed
+                                 + record('12:00:01.000', 'Динамики'.encode('cp1251')))
+                self.assertEqual(entries['logs/game-x86/updater_skhid.log'],
+                                 removed + b'2026-11-02 10:00:01 ok\n')
+                self.assertEqual(entries['logs/game-x86/srp_patches.log'], (x86 / 'srp_patches.log').read_bytes())
+                tail = entries['logs/game/Survarium_big.log']
+                self.assertLessEqual(len(tail), 8 * 1024 * 1024)
+                self.assertTrue(big.endswith(tail) and tail.startswith(b'core <info>\t['), tail[:80])
+                report = entries['report.txt'].decode('utf-8-sig').replace('\\', '/')
+                for line in (f'  the updater asks: http://127.0.0.1:{port}',
+                             f'  GET http://127.0.0.1:{port}/api/client-files: HTTP 200, text/plain',
+                             f'  GET http://localhost:{port}/p1: HTTP 200, text/plain',
+                             f'  TCP 127.0.0.1:{port} (sign-in): connected',
+                             '  game/resources.db.patch_3: in the list, MISSING here',
+                             '  not taken: game-x86/SRP-crash-20261102-1.dmp',
+                             '  not taken: game-x86/SRP-crash-20261102-1.zip',
+                             '  not taken: documents/engine.dmp',
+                             'logs/documents/Survarium.journal'):
+                    self.assertIn(line, report, report)
+                self.assertRegex(report, rf'  GET http://127\.0\.0\.1:{nowhere}/p1: (?!HTTP)')
+                self.assertRegex(report, r'game/binaries/x86/survarium_skhid\.exe  5120 bytes, [^\n]*patch revision 42')
+                self.assertRegex(report, r'game/resources\.db\.patch_1  3 bytes, [^\n]*, matches the list')
+                self.assertRegex(report, r'game/resources\.db\.patch_2  12 bytes, [^\n]*, DIFFERS from the list')
+                self.assertRegex(report, r'logs/documents/Survarium\.journal  \d+ bytes, [^\n]*, not taken: not text')
+                self.assertRegex(report, r'logs/documents/Survarium_player\.log  \d+ bytes, [^\n]*, 2 lines removed')
+                listing = entries['folder.txt'].decode('utf-8-sig').replace('\\', '/')
+                for name in ('game/binaries/x86/survarium_skhid.exe', 'game/resources.db.patch_2', 'Skhid.bat',
+                             overlay.COLLECT_LOGS, '(1 other files and folders beside game, not listed)'):
+                    self.assertIn(name, listing)
+        # Each host once a run, by its first address: the game's, on the
+        # patches' host, was not asked again.
+        self.assertEqual(asked_for.count('/p1'), 2)
+        self.assertNotIn('/p2', asked_for)
+        self.assertNotIn('/game.7z', asked_for)
 
     @unittest.skipUnless(WINE and os.name != 'nt', "Wine (on Windows, a real run would change its firewall)")
     def test_the_setup_scripts_ask_for_administrator_rights(self):
