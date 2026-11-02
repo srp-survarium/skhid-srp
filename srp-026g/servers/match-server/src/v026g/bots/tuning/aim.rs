@@ -215,13 +215,13 @@ impl ClassAim {
 
 /// [A246, A266] The bench's calibration of each gun class's aim, from A243 (PR #1089, 2026-11-02; the geometric curve,
 /// `combat.zoom_error` all, `combat.settle_k_low` 2.0; every rate a shot on the target's line, weighed to the live humans'
-/// shots by distance band and target speed): per gun type ([`ClassCalibration`], as [`ClassAim`]'s) the owner's cap, the
+/// shots by distance band and target speed): per gun type ([`ClassCalibration`], as [`ClassAim`]'s) the owner's bar, the
 /// skill-1 sweep (factor at skill 1 -> rate at skill 1) and the line the bench measured at the shipped factors (rate at
 /// skill 0, 0.2, ..., 1). The admin page sets a type's skill-1 target through it and shows the expected rate at any skill
 /// (`tuning/live.rs`); nothing the bots do reads it. A type with none (`null`) is not measured: the pistols (no bench kit).
 /// The rifles, SMGs and machine guns each hold the automatics' pooled numbers until each is measured on its own.
-/// Bench-measured estimates, not live measurements; a rerun of A243's ladders replaces them, and a wider range is a higher
-/// cap with sweep points above it, not new code.
+/// Bench-measured estimates, not live measurements; a rerun of A243's ladders replaces them, and a wider range is sweep
+/// points beyond the ones here, not new code (A267: the page sets up to the points' reach, over the bar too).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AimCalibration {
@@ -244,7 +244,7 @@ impl Default for AimCalibration {
         // Rifles and SMGs pooled (the bench's automatics); 13-15: 10.0 11.9 14.1 15.7 17.7 18.4; 9-10: 10.1 12.0 13.9 15.8
         // 18.4 18.8.
         let automatics = ClassCalibration {
-            cap: 20.0,
+            bar: 20.0,
             points: points(&[(1.0, 21.5), (1.1, 21.4), (1.25, 18.9), (1.32, 18.53), (1.6, 16.5), (2.0, 13.6)]),
             ladder: ladder([10.05, 11.95, 14.0, 15.75, 18.05, 18.6]),
             ladder_factors: (0.40, 0.77, 1.32),
@@ -259,7 +259,7 @@ impl Default for AimCalibration {
             mg: Some(automatics),
             // Per pellet. 13-15: 11.1 12.9 14.1 16.6 18.3 19.2; 9-10: 11.1 13.0 15.1 17.1 18.4 18.4.
             shotgun: Some(ClassCalibration {
-                cap: 20.0,
+                bar: 20.0,
                 points: points(&[
                     (0.8, 21.4),
                     (1.0, 20.4),
@@ -275,14 +275,14 @@ impl Default for AimCalibration {
             }),
             // 13-15 only.
             marksman: Some(ClassCalibration {
-                cap: 32.0,
+                bar: 32.0,
                 points: points(&[(0.72, 29.52), (0.75, 29.52), (0.8, 29.52), (0.85, 29.3), (1.0, 28.75)]),
                 ladder: ladder([18.7, 19.8, 22.3, 25.2, 28.4, 28.9]),
                 ladder_factors: (1.18, 1.24, 0.72),
             }),
             // 9-10 only; its spreads are 1.4-5.3 points (1.5-2 k shots a step), hence the dip at 0.2.
             bolt: Some(ClassCalibration {
-                cap: 40.0,
+                bar: 40.0,
                 points: points(&[(1.0, 42.4), (1.1, 40.1), (1.4, 39.1), (2.0, 35.4), (3.0, 32.4), (4.5, 26.9)]),
                 ladder: ladder([32.4, 29.2, 33.4, 35.2, 35.2, 39.1]),
                 ladder_factors: (0.74, 0.97, 1.4),
@@ -326,8 +326,9 @@ impl AimCalibration {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClassCalibration {
-    /// The owner's bar at skill 1, %: the most a target is set to.
-    pub cap: f32,
+    /// The owner's bar at skill 1, %: where the defaults keep the class, shown beside the page's limits (a target may go
+    /// over it, A267).
+    pub bar: f32,
     /// The skill-1 sweep: the factor at skill 1 -> the rate at skill 1.
     pub points: Calibration,
     /// The line measured at `ladder_factors` with the geometric curve: (skill, rate %), the skill rising from 0 to 1.
@@ -383,13 +384,13 @@ impl ClassCalibration {
         Some(Line { calibration: self, shift })
     }
 
-    /// A cap within 0-100 %, the sweep in order ([`Calibration::is_ordered`]) and reaching the ladder's skill-1 factor,
+    /// A bar within 0-100 %, the sweep in order ([`Calibration::is_ordered`]) and reaching the ladder's skill-1 factor,
     /// the ladder's skills rising from 0 to 1 with rates within 0-100 %, its factors finite and over 0.
     fn is_ordered(&self) -> bool {
         let ladder = &self.ladder;
         let (low, middle, high) = self.ladder_factors;
-        self.cap > 0.0
-            && self.cap <= 100.0
+        self.bar > 0.0
+            && self.bar <= 100.0
             && self.points.is_ordered()
             && self.points.rate_at(high).is_some()
             && ladder.len() >= 2
@@ -690,7 +691,7 @@ mod tests {
             calibration.bolt.as_mut().unwrap().points = Calibration(bad.clone());
             assert_eq!(calibration.check(), Err("calibration".to_owned()), "{bad:?}");
         }
-        // A ladder not from 0 to 1, a skill twice, a cap over 100: refused. A type not measured is in order.
+        // A ladder not from 0 to 1, a skill twice, a bar over 100: refused. A type not measured is in order.
         let changed = |change: fn(&mut AimCalibration)| {
             let mut calibration = AimCalibration::default();
             change(&mut calibration);
@@ -701,7 +702,7 @@ mod tests {
                 c.bolt.as_mut().unwrap().ladder.pop();
             }),
             changed(|c| c.shotgun.as_mut().unwrap().ladder[2].0 = 0.2),
-            changed(|c| c.mg.as_mut().unwrap().cap = 120.0),
+            changed(|c| c.mg.as_mut().unwrap().bar = 120.0),
         ] {
             assert_eq!(bad.check(), Err("calibration".to_owned()), "{bad:?}");
         }

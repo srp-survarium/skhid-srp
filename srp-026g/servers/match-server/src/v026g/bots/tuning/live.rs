@@ -97,8 +97,8 @@ impl Group {
                 uk: "Для кожного рівня мінімум <= старт <= стеля, у межах верху шкали (лише показано); команда починає зі старту свого рівня, а самобалансування тримає її між мінімумом і стелею.",
             }),
             Group::Hits => Some(Text {
-                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused over the class's cap or outside the bench's points. Pistols have no bench points: their factors are shown only.",
-                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова понад межу класу або поза точками стенду. Пістолети не мають точок стенду: їхні фактори лише показано.",
+                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused outside the bench's points, or under the lowest rate that keeps the line rising; the owner's bar is shown beside the limits, and a target may go over it. Pistols have no bench points: their factors are shown only.",
+                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова поза точками стенду або нижче найменшої ставки, з якою лінія росте; планку власника показано біля меж, і ціль може бути вище неї. Пістолети не мають точок стенду: їхні фактори лише показано.",
             }),
         }
     }
@@ -109,8 +109,8 @@ impl Group {
 enum Unit {
     Number { min: f64, max: f64 },
     Whole { min: u32, max: u32 },
-    /// A class's hit rate a shot at skill 1, %, up to its cap (the owner's bar), set as its skill-1 factor through the
-    /// bench's calibration ([`super::AimCalibration`], the `calibration` section, which has the cap too).
+    /// A class's hit rate a shot at skill 1, %, within the bench's points, set as its skill-1 factor through the bench's
+    /// calibration ([`super::AimCalibration`], the `calibration` section, with the owner's bar).
     Hits { class: WeaponClass },
 }
 
@@ -206,16 +206,15 @@ impl Knob {
     }
 
     /// The page's `text` as this knob's value over the tuning `file`: a number within the knob's limits; a rate within
-    /// its class's cap and the calibration's points, as the factor that gives it.
+    /// the class's usable span ([`Knob::usable`]), as the factor that gives it.
     fn value_of(&self, text: &str, file: &Tuning) -> Result<Value, String> {
         let x = Unit::number(text)?;
         let Unit::Hits { class } = self.unit else {
             return self.unit.value(x);
         };
         let calibration = file.calibration.of(class).ok_or("the class has no bench points")?;
-        let cap = calibration.cap;
-        if !(x > 0.0 && x <= f64::from(cap)) {
-            return Err(format!("{x} % is over the class's cap of {cap} % (or not over 0)"));
+        if !(x > 0.0) {
+            return Err(format!("{x} % is not over 0"));
         }
         if let Some((low, _)) = self.usable(file).filter(|&(low, _)| x < f64::from(low)) {
             let (_, middle, _) = file.aim.class_aim.of(class);
@@ -270,11 +269,11 @@ impl Knob {
         self.unit.value(leaf.as_f64().ok_or("not a number")?)
     }
 
-    /// The values it takes, over the tuning `file` (a rate: the class's usable span, [`Knob::usable`], and its cap).
+    /// The values it takes, over the tuning `file` (a rate: the class's usable span, [`Knob::usable`], and the owner's bar).
     fn limits(&self, file: &Tuning) -> String {
         match self.unit {
             Unit::Hits { class } => match (self.usable(file), file.calibration.of(class)) {
-                (Some((low, high)), Some(calibration)) => format!("{low:.1}–{high:.1} % (cap {})", calibration.cap),
+                (Some((low, high)), Some(calibration)) => format!("{low:.1}–{high:.1} % (bar {})", calibration.bar),
                 _ => "—".to_owned(),
             },
             unit => unit.limits(),
@@ -283,8 +282,8 @@ impl Knob {
 
     /// The rates a class's row can be set to over the tuning `file`: from the rate at the widest skill-1 factor that
     /// keeps its line rising with the file's skill-0 and 0.5 factors ([`super::AimTuning`]'s check: within a half the
-    /// factor may grow at most as fast as the wander shrinks; fx-gear, 2026-11-02) to the calibration's top, at most the
-    /// cap. `None`: no points, or not even the calibration's narrowest factor keeps it rising.
+    /// factor may grow at most as fast as the wander shrinks; fx-gear, 2026-11-02) to the calibration's top (over the
+    /// owner's bar too, A267). `None`: no points, or not even the calibration's narrowest factor keeps it rising.
     fn usable(&self, file: &Tuning) -> Option<(f32, f32)> {
         let Unit::Hits { class } = self.unit else {
             return None;
@@ -311,7 +310,7 @@ impl Knob {
             good
         };
         let (_, top) = calibration.rates()?;
-        Some((calibration.at_skill_1(widest)?, top.min(calibration.cap)))
+        Some((calibration.at_skill_1(widest)?, top))
     }
 
     /// What the page shows beside the value: a class's factors in `tuning`.
@@ -1176,9 +1175,9 @@ mod tests {
     }
 
     /// [A246] A class's hit rate a shot at skill 1 is set as its skill-1 factor through the bench's calibration: its skill-0
-    /// and 0.5 factors stay, the next match runs on it, and the changes file keeps the class's three factors. Over the
-    /// class's cap, outside the bench's points, the pistols' (no points) or a rate whose factor would make the line fall is
-    /// refused whole.
+    /// and 0.5 factors stay, the next match runs on it, and the changes file keeps the class's three factors. Outside the
+    /// bench's points, the pistols' (no points) or a rate whose factor would make the line fall is refused whole; over the
+    /// owner's bar is not (A267).
     #[test]
     fn the_page_sets_a_class_hit_rate_as_its_skill_1_factor() {
         let dir = dir("hits");
@@ -1191,8 +1190,8 @@ mod tests {
         let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
         assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.6", "18.6"));
         // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
-        // to ~1.49, ~17.4 %) to the cap.
-        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–20.0 % (cap 20)"), "{}", rifle.limits);
+        // to ~1.49, ~17.4 %) to the sweep's top (21.5 % at 1.0, on the line 21.6), the owner's bar beside.
+        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–21.6 % (bar 20)"), "{}", rifle.limits);
         let span_low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
         assert_eq!(rifle.beside.as_deref(), Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"));
         let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
@@ -1211,13 +1210,14 @@ mod tests {
         let kept: serde_json::Value = serde_json::from_slice(&std::fs::read(&changes).unwrap()).unwrap();
         assert_eq!(kept["aim"]["class_aim"]["rifle"].as_array().map(Vec::len), Some(3));
         assert_eq!(LiveTuning::new(LoadedTuning::default(), Some(changes.clone())).for_match(), next);
-        // Refused whole: over the cap, outside the points, the pistols, not a number, a line that would fall (under the
-        // usable span: the rifles just under it, the bolt at 27 %, a factor near 4.5 over its skill-0.5 one).
+        // Refused whole: outside the points, the pistols, not a number, a line that would fall (under the usable span:
+        // the rifles just under it, the bolt at 27 %, a factor near 4.5 over its skill-0.5 one).
         let under = format!("{:.1}", span_low - 0.2);
         for bad in [
             ("aim.class_aim.rifle", under.as_str()),
-            ("aim.class_aim.rifle", "21"),
+            ("aim.class_aim.rifle", "22"),
             ("aim.class_aim.rifle", "13"),
+            ("aim.class_aim.rifle", "0"),
             ("aim.class_aim.marksman", "33"),
             ("aim.class_aim.pistol", "20"),
             ("aim.class_aim.rifle", "a lot"),
@@ -1228,7 +1228,7 @@ mod tests {
         }
         let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
         assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
-        // The rifles at the bottom of their span, the bolts at their cap and the DMRs inside their narrow span (on the
+        // The rifles at the bottom of their span, the bolts at their bar and the DMRs inside their narrow span (on the
         // line, 28.1-28.9 %: the sweep's flat 29.5 % is the ladder's 28.9 at skill 1).
         let at_low = format!("{:.1}", span_low + 0.1);
         set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
@@ -1238,8 +1238,13 @@ mod tests {
         assert!((next.tuning().aim.class_aim.bolt.2 - factor_for(WeaponClass::Bolt, 40.0)).abs() < 1e-4);
         assert!((next.tuning().aim.class_aim.marksman.2 - factor_for(WeaponClass::Marksman, 28.5)).abs() < 1e-4);
         assert!(set(&live, &[("aim.class_aim.marksman", "29.4")]).unwrap_err().contains("outside the bench's points (28.1–28.9 %)"));
+        // Over the owner's bar, within the points (A267): the SMGs at 21 % and the bolts at 42 %.
+        set(&live, &[("aim.class_aim.smg", "21"), ("aim.class_aim.bolt", "42")]).unwrap();
+        let over = live.for_match();
+        assert!((over.tuning().aim.class_aim.smg.2 - factor_for(WeaponClass::Smg, 21.0)).abs() < 1e-4);
+        assert!((over.tuning().aim.class_aim.bolt.2 - factor_for(WeaponClass::Bolt, 42.0)).abs() < 1e-4);
         // The group's reset puts the shipped factors back.
-        assert_eq!(live.reset(Some("hits"), "192.0.2.4").unwrap().len(), 3);
+        assert_eq!(live.reset(Some("hits"), "192.0.2.4").unwrap().len(), 4);
         assert_eq!(live.for_match(), LoadedTuning::default());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1341,7 +1346,7 @@ mod tests {
         }
         // Refused as a set refuses them, with the same reason; nothing changes.
         for bad in [
-            &[("aim.class_aim.rifle", "21")][..],
+            &[("aim.class_aim.rifle", "22")][..],
             &[("aim.class_aim.rifle", "13")],
             &[("skill.tiers.9-10.max", "0.4")],
             &[("aim.class_aim.pistol", "20")],
