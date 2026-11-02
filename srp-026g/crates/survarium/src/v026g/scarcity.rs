@@ -1,6 +1,6 @@
 //! Scarcity's ammo (`docs/notes/scarcity.md`): a life of a Scarcity match
 //! starts with each gun's magazine and one magazine more, a machine gun's
-//! magazine alone.
+//! magazine alone, a shotgun's magazine and two more.
 //!
 //! The game gives a life its kit's slot counts (`inventory::setup_from_profile`
 //! 0x2FCB70: each ammo slot `min(the kit's count, what is in store)`, the
@@ -15,7 +15,7 @@
 
 use super::dictionary::Dictionary;
 use super::item_params::item_params;
-use super::loadouts::bot_gear::category::MACHINE_GUNS;
+use super::loadouts::bot_gear::category::{MACHINE_GUNS, SHOTGUNS};
 use super::match_msgs::static_info::{MatchItem, MatchKit, MatchProfile};
 
 /// The kit's weapon slots, slot 7's gun first.
@@ -24,16 +24,26 @@ pub const WEAPON_SLOTS: [usize; 2] = [7, 10];
 /// gun's ammo is one pool over them (`session::v026g::rules`).
 pub const AMMO_SLOTS: [usize; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 
+/// The magazines a life gives a gun of `category` (`items_dict`, the
+/// shop's weapon tabs): a machine gun (16) its magazine alone, a shotgun
+/// (14) its magazine and two more (the owner, 2026-11-02), any other gun
+/// (the bolt-actions too) its magazine and one more.
+pub const fn magazines_of(category: u8) -> u32 {
+    match category {
+        MACHINE_GUNS => 1,
+        SHOTGUNS => 3,
+        _ => 2,
+    }
+}
+
 /// The rounds a life gives a gun: its magazine (`parameters/
-/// magazine_capacity`) and one magazine more; a machine gun (`items_dict`
-/// category 16, the shop's machine guns) its magazine alone. 0 for an item
+/// magazine_capacity`) times [`magazines_of`] its category. 0 for an item
 /// that is no gun of the data.
 pub fn rounds_of(weapon: u16, dictionary: &Dictionary) -> u32 {
     let (Some(item), Some(params)) = (dictionary.item(weapon), item_params(weapon)) else {
         return 0;
     };
-    let magazines = if item.category == MACHINE_GUNS { 1 } else { 2 };
-    params.magazine_capacity * magazines
+    params.magazine_capacity * magazines_of(item.category)
 }
 
 /// Every kit of `profile` cut to Scarcity's ammo ([`ration_kit`]).
@@ -129,6 +139,11 @@ mod tests {
         assert_eq!(rounds_of(id("tt_33"), dictionary), 16);
         assert_eq!(rounds_of(id("rpd"), dictionary), 100);
         assert_eq!(rounds_of(id("rpk"), dictionary), 45);
+        // Shotguns (category 14) three: the TOZ-34's 2 shells, the SPAS-12's 8.
+        assert_eq!(rounds_of(id("toz_34"), dictionary), 6);
+        assert_eq!(rounds_of(id("spas_12"), dictionary), 24);
+        // A bolt-action (category 13) two: the Mosin's 5.
+        assert_eq!(rounds_of(id("mosin_nagant"), dictionary), 10);
         assert_eq!(rounds_of(id("ammo_5.45x39_7n10"), dictionary), 0);
     }
 
@@ -145,6 +160,14 @@ mod tests {
         assert_eq!(&counts(&p)[..2], &[(8, Some(60)), (9, Some(16))]);
         assert_eq!(p.kits[0].slots[7], Some((0, 1)));
         assert_eq!(p.kits[0].slots[10], Some((1, 1)));
+    }
+
+    #[test]
+    fn a_shotgun_gets_three_magazines() {
+        // The TOZ-34 and the lobby's 30 buckshot.
+        let mut p = profile(&[(7, "toz_34", 1), (8, "ammo_12mm_buck", 30)]);
+        ration(&mut p, Dictionary::shared());
+        assert_eq!(counts(&p)[0], (8, Some(6)));
     }
 
     #[test]

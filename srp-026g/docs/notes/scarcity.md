@@ -17,7 +17,10 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
   the battery rules unchanged. Points and pay as a plain match (not Blackout's twice).
 - **A life's ammo, each weapon slot (7 and 10):** its gun's magazine (`parameters/magazine_capacity`
   of the gun's config) and one magazine more; a machine gun (`items_dict` category 16, the shop's
-  machine guns) its magazine alone. Every life, the first and each respawn.
+  machine guns) its magazine alone; a shotgun (category 14) its magazine and two more (the owner,
+  2026-11-02: a TOZ-34 6 shells). Every life, the first and each respawn.
+  - Bolt-actions as any gun, the magazine and one more (the owner, 2026-11-02: "almost always
+    one-shot kills"; a Mosin 10 rounds).
   - The pistol too: its magazine and one more.
   - The chamber is inside these rounds, as the game counts a slot (a gun that chambers loads its
     magazine and a round from them).
@@ -37,8 +40,7 @@ extra magazine"; machine guns get no extra magazine; ammo is scarce, so a dead p
   info, the crates follow its variant.
 - **A simulation change** (`simulation_changes.tsv`): the release that ships it refuses older games
   (a game without patch 94 would refill at the crates in a Scarcity match and leave its world).
-- **Open for the owner:** the name; whether a shotgun's or a bolt-action's "magazine" (2 shells of a
-  double barrel, 5 rounds of a Mosin) is meant as their whole ammo for a life.
+- **Open for the owner:** the name.
 - **Open: the rooms' pool holds 160 entries at most** (`lobby::rooms::POOL_BITS`, 8 chunks of 20
   bits; the bits' request ids end just below the create's, so more chunks is a wire change). The
   game data of revision 41 and main has 112 playable entries and 30 plain battery maps: 142 with
