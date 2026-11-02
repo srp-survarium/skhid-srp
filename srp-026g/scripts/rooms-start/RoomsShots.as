@@ -51,8 +51,6 @@ package
             var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
             // The English texts, as the exe gives them (set_localization_data).
             domain.getDefinition("survarium.data.LocalizationData").setData(HarnessText.DATA.english);
-            // srp's tables, as exe patch 94 gives them (root.srp_data).
-            domain.getDefinition("survarium.data.SrpData").take(HarnessText.SRP_DATA.rooms);
             var Scene:* = domain.getDefinition("MainScene");
             Scene.stage = this;
             var Win:* = domain.getDefinition("survarium.rooms.RoomsWindow");

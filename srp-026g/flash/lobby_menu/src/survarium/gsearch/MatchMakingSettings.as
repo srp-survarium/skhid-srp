@@ -20,7 +20,6 @@ package survarium.gsearch
    import survarium.constants.GameMode;
    import survarium.constants.MessageId;
    import survarium.constants.PvbCode;
-   import survarium.data.SrpData;
    import survarium.rooms.RoomsText;
    
    public class MatchMakingSettings extends MovieClip
@@ -434,7 +433,7 @@ package survarium.gsearch
             this.pvbMax = -1;
             this.pvbRunning = -1;
             this.pvbRunMax = -1;
-            // the team sizes and the size picked first: the server's status's (pvbStatus)
+            // the team sizes, the one picked first and the most gear: the server's status's (pvbStatus)
             this.pvbSizes = [];
             this.pvbMaps = [];
             this.pvbMapKey = "";
@@ -597,7 +596,7 @@ package survarium.gsearch
       {
          if(why == PvbCode.GEAR_TOO_HIGH)
          {
-            var most:String = String(this.pvbMax >= 0 ? this.pvbMax : SrpData.rooms.pvb.max_gear);
+            var most:String = String(this.pvbMax);
             return this.pvbGear >= 0 ? LocalizationData.format("st_srp_pvb_gear_max_yours",most,this.pvbGear)
                : LocalizationData.format("st_srp_pvb_gear_max",most);
          }
@@ -1282,11 +1281,7 @@ package survarium.gsearch
                i++;
             }
          }
-         if(sizes.length == 0)
-         {
-            sizes = SrpData.rooms.pvb.sizes.concat();
-         }
-         defSize = f.length > 5 ? this.pvbNumber(f[5]) : int(SrpData.rooms.pvb.default_size);
+         defSize = f.length > 5 ? this.pvbNumber(f[5]) : -1;
          defMap = f.length > 6 ? this.pvbNumber(f[6]) : -1;
          this.pvbRunning = f.length > 7 ? this.pvbNumber(f[7]) : -1;
          this.pvbRunMax = f.length > 8 ? this.pvbNumber(f[8]) : -1;

@@ -377,9 +377,6 @@ void engine_add_active_scene(struct sound_world *world, struct sound_scene *scen
 /* 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly */
 void __attribute__((cdecl)) engine_store_first_resource(struct queries_result *result, void *value);
 
-/* 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly */
-void __attribute__((cdecl)) engine_store_first_config(struct queries_result *result, void *value);
-
 /* 0x274470 survarium::lobby_client::comment_about_user: lobby_client ESP+4, nickname ESP+8, kind ESP+12, mode ESP+16; pops 16 */
 void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode);
 

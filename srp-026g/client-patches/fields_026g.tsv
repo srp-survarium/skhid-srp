@@ -425,14 +425,12 @@ vostok::resources::query_function	size	0x20	size	a boost::function1<void, querie
 vostok::resources::queries_result	count	0x38	u32	its m_size, the requests (constructor 0xE70B0)
 vostok::resources::queries_result	scene	0x12C	ptr<vostok::sound::sound_scene>	the first query's unmanaged resource, a sound scene for a class 38 request (lobby_menu::on_render_scenes_ready 0x220C68 reads its third, +6ECh)
 vostok::resources::queries_result	emitter	0x12C	ptr<vostok::sound::sound_emitter>	the first query's unmanaged resource, a single sound for a class 256 request (store_first_unmanaged_resource 0x14735)
-vostok::resources::queries_result	config	0x12C	ptr<vostok::binary_config>	the first query's unmanaged resource, a binary config for a class 1Fh request (lobby_menu::on_render_scenes_ready reads its seventh, default.player, at +126Ch, 0x22108B, then the root +108h, 0x2210CE): 0 when the file is missing
 survarium::image	scene_params_helper	0x9FC7C0	u32	concrete_type_helper<sound_scene_creation_params>'s vtable (its copy_helper 0x1FA690), the variant helper of a sound scene's request (lobby_menu::query_resources 0x21E559)
 survarium::image	game_allocator	0x1F1D9C4	obj<survarium::allocator_slot>	the game's allocator's slot (the lobby's query 0x21E5D6, the late join's)
 survarium::image	ai_allocator	0x1F1DA44	obj<survarium::allocator_slot>	the ai arena's slot (patch 36's 4 MiB arena "ai", the static initializer 0x1E8B50 registers it with 0xE21C0)
 survarium::image	render_allocator	0x1F1D960	u32	the render's allocator global (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3)
 survarium::allocator_slot	allocator	0x0	ptr<vostok::memory::game_allocator>	the allocator (a doug_lea_allocator: query_resources' allocator, the late join's)
 vostok::engine_cfg	text	0x0	ptr<u8>	a text node's (type 5) string, its offset relocated to an address by the loader as a table's children (the count +16h its bytes with the zero)
-vostok::engine_cfg	name	0x8	ptr<u8>	a named table's child's name, a C string, its offset relocated to an address by the loader (cfg_child 0xF6B10 compares it with the key asked, 0xF6BB5); an indexed table's items have an empty one
 vostok::sound::sound_instance_proxy	references	0x28	u32	its references, not atomic (single_threading_policy: intrusive_ptr::dec 0x56807; at 0 free_object 0x5B390)
 vostok::console_commands::cc_float	size	0x4C	size	a cc_float console variable's object (s_general_volume's at 0xA7D3C8, made by its static initializer 0x84D440: cc_value<bool>::cc_value's base fields, +40h the value's address, +44h the least, +48h the most)
 vostok::console_commands::cc_float	vtable	0x0	u32	its vtable: CC_FLOAT_VTABLE, written after cc_value<bool>::cc_value (which leaves its own), as s_general_volume's (0x84D48D)

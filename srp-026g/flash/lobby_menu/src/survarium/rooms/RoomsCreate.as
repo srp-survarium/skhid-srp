@@ -12,7 +12,6 @@ package survarium.rooms
     import survarium.controls.PlayerInfo;
     import survarium.constants.GameMode;
     import survarium.constants.RoomCode;
-    import survarium.data.SrpData;
 
     // Making a private room: required PIN, modes, and the pool's map and
     // weather tiles. It opens as
@@ -30,12 +29,6 @@ package survarium.rooms
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
-        // Its settings (SrpData.rooms says what they may be), set by `start`.
-        private var _size:int;
-        // The players a side the room needs before its vote: from 1 v 1.
-        private var _minSide:int;
-        private var _max:int;
-        private var _wait:int;
         // The pool's tiles out (by "level_weather") and the modes out.
         private var _off:Object = {};
         private var _modesOff:Object = {};
@@ -73,28 +66,16 @@ package survarium.rooms
 
         // The window's start: the settings of the player's last room made
         // by hand (`form`, RoomsWindow._form), or the defaults while the
-        // window has none: the server's (SrpData.rooms), every mode, the pool
-        // without the experimental maps. Not the PIN. A max level under the player's
-        // equipment now is raised to it, as the server's form does.
+        // window has none: every mode, the pool without the experimental maps.
+        // Not the PIN.
         private function start(form:Object):void
         {
             if (form == null)
             {
-                var rooms:Object = SrpData.rooms;
-                _size = rooms.default_size;
-                _minSide = rooms.default_min_side;
-                _max = rooms.default_max_level;
-                _wait = rooms.default_wait;
                 _modesOff = {};
                 defaultPool();
                 return;
             }
-            _size = form.size;
-            _minSide = form.min;
-            _wait = form.wait;
-            _max = form.max;
-            if (_max != RoomsWire.LEVEL_ANY && _max < win._gear)
-                _max = Math.min(win._gear, SrpData.rooms.level_most);
             _off = copy(form.off);
             _modesOff = copy(form.modesOff);
         }
@@ -108,15 +89,10 @@ package survarium.rooms
         }
 
         // `S1;F` as the window keeps it (RoomsWindow._form), read against
-        // the pool: the sliders (a value out of a slider's range: its
-        // default), the modes out, and a tile out unless an entry of it is
+        // the pool: the modes out, and a tile out unless an entry of it is
         // in (`bits`: entry `index` by bit `index % 20` of chunk `index / 20`).
         internal function formOf(head:Array, bits:Array):Object
         {
-            var size:int = int(head[3]);
-            var min:int = int(head[4]);
-            var max:int = int(head[5]);
-            var wait:int = int(head[6]);
             var modesOff:Object = {};
             if (head.length > 7 && head[7] != "")
             {
@@ -140,12 +116,7 @@ package survarium.rooms
                 if (on[key] != true)
                     off[key] = true;
             }
-            var rules:Object = SrpData.rooms;
-            return {"size": size >= rules.size_least && size <= rules.size_most ? size : rules.default_size,
-                "min": min >= 1 && min <= rules.min_side_most ? min : rules.default_min_side,
-                "max": max >= 0 && max <= rules.level_most ? max : rules.default_max_level,
-                "wait": rules.waits.indexOf(wait) >= 0 ? wait : rules.default_wait,
-                "modesOff": modesOff, "off": off};
+            return {"modesOff": modesOff, "off": off};
         }
 
         // What the server keeps of the room being made (room_settings::
@@ -175,7 +146,7 @@ package survarium.rooms
                 if (modeIn[String(e.mode)] != true)
                     modesOff[String(e.mode)] = true;
             }
-            return {"size": _size, "min": _minSide, "max": _max, "wait": _wait, "modesOff": modesOff, "off": off};
+            return {"modesOff": modesOff, "off": off};
         }
 
         // RoomsWindow: a room new to us, ours, came while a create was on
@@ -514,16 +485,7 @@ package survarium.rooms
             var used:int = win._pool.length > 0 ? int((win._pool.length + (RoomsWire.BITS_PER_CHUNK - 1)) / RoomsWire.BITS_PER_CHUNK) : 1;
             for (var c:int = 0; c < used && c < RoomsWire.CHUNKS; c++)
                 win._steps.push(RoomsWire.BITS + c * RoomsWire.CHUNK_STEP + chunks[c]);
-            // The create code (the server's RoomRules::create_code, from the same table).
-            var rooms:Object = SrpData.rooms;
-            var wait:int = rooms.waits.indexOf(_wait);
-            if (wait < 0)
-                wait = rooms.waits.indexOf(rooms.default_wait);
-            // Keep the form's legacy fields on the wire; the server ignores
-            // them for a private room and remembers its map/mode selection.
-            var code:int = ((((_size - rooms.size_least) * (rooms.level_most + 1) + _max) * rooms.waits.length + wait) * 2 + 1)
-                * rooms.min_side_most + (_minSide - 1);
-            win._steps.push(RoomsWire.CREATE + code);
+            win._steps.push(RoomsWire.CREATE + RoomsWire.CREATE_PIN);
             win._steps.unshift(RoomsWire.PIN + int(typedPin));
             if (!any)
             {

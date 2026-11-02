@@ -84,24 +84,7 @@ impl<'t> ConfigTable<'t> {
         self.get(name)?.ok_or(ConfigError::Missing)
     }
     pub fn entries(self) -> ConfigEntries<'t> { self.entries }
-    /// Each child with its name, in the config's order.
-    pub fn named(&self) -> impl Iterator<Item = Result<(&'t CStr, ConfigValue<'t>), ConfigError>> + '_ {
-        (0..self.entries.len()).map(|i| {
-            let Entries::Populated { first, .. } = &self.entries.0 else { unreachable!() };
-            // SAFETY: as ConfigEntries::iter; a named table's child's name is
-            // a C string the loader relocated (cfg_child 0xF6B10 compares it,
-            // 0xF6BB5), read no further than NAME_LIMIT.
-            unsafe {
-                let child = first.at(i);
-                let name = super::ui::c_string(child.name(), NAME_LIMIT).ok_or(ConfigError::Missing)?;
-                Ok((name, ConfigValue::read(child)?))
-            }
-        })
-    }
 }
-
-/// The longest name of a config's key read.
-const NAME_LIMIT: usize = 0x100;
 
 pub struct ConfigEntries<'t>(Entries<'t>);
 

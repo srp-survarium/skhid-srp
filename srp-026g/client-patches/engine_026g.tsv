@@ -98,7 +98,6 @@ engine_bind_query_callback	0x0176d0	ESI:boost ESP+4:f ESP+8:value	void engine_bi
 engine_scene_params_type	0x0630f0	-	unsigned int engine_scene_params_type(void)	thunk	
 engine_add_active_scene	0x059fb0	ECX:world EAX:scene	void engine_add_active_scene(struct sound_world *world, struct sound_scene *scene)	thunk	
 engine_store_first_resource	0x014730	ESP+4:result ESP+8:value	void engine_store_first_resource(struct queries_result *result, void *value)	cdecl	result: QueryResults, tag: QueryTag ->
-engine_store_first_config	0x014730	ESP+4:result ESP+8:value	void engine_store_first_config(struct queries_result *result, void *value)	cdecl	result: ConfigQuery, tag: ConfigTag ->
 engine_comment_about_user	0x274470	ESP+4:lobby_client ESP+8:nickname ESP+12:kind ESP+16:mode	void engine_comment_about_user(struct lobby_client *lobby_client, const char *nickname, unsigned int kind, unsigned int mode)	thunk	
 engine_close_current_match	0x27a790	ECX:network_client ESP+4:reason	void engine_close_current_match(struct network_client *client, unsigned int reason)	thiscall	
 engine_gfx_set_member	0x7c6a20	ECX:interface ESP+4:target ESP+8:name ESP+12:value ESP+16:display	unsigned char engine_gfx_set_member(struct gfx_object_interface *interface, struct gfx_object *target, const char *name, const struct gfx_value *value, unsigned int display)	thiscall	

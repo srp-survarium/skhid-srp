@@ -50,7 +50,6 @@ package
    import scaleform.gfx.MouseCursorEvent;
    import scaleform.gfx.MouseEventEx;
    import survarium.data.Relocation;
-   import survarium.data.SrpData;
    import survarium.Util;
    import survarium.ammo.AmmoShareControll;
    import survarium.ammo.AmmoShareElement;
@@ -5648,12 +5647,6 @@ package
                this._sceneSpinner.stop();
             }
          }
-      }
-
-      // A part of one of srp's tables (exe patch 94, SrpData): its name, then its keys and values.
-      public function srp_data(... values) : void
-      {
-         SrpData.take(values);
       }
 
       // What the lobby window shows (exe patch 81): the player's pick and the lobby shown, told by

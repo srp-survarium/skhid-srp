@@ -1,6 +1,6 @@
 # The rooms' settings (docs/notes/rooms.md) and Player vs Bots' (docs/notes/player_bots.md), one
 # config: gameplay/srp/rooms.options. srp reads it from its game data at start (a key missing stops
-# it), the lobby movie through exe patch 94 (SrpData.rooms). A list is a row per item ([0], [1], ...).
+# it); the lobby movie is told what it shows in srp's messages. A list is a row per item ([0], [1], ...).
 #   size_least, size_most    each side's players a room may have
 #   min_side_most            the players a side a room may need before its vote begins: 1 v 1 to this
 #   level_most               the highest max level a room may have (the highest equipment level)

@@ -198,6 +198,7 @@ fn nearest_wait(wait: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use survarium::v026g::lobby::rooms::{ROOM_CREATE_BASE, RoomSpec, create_start};
 
     fn entry(map_id: u8, level: u8, weather: u8, mode: u8, extra: bool) -> PoolEntry {
         PoolEntry {
@@ -364,12 +365,12 @@ mod tests {
         assert_eq!(fitted(kept(8, 1, 3, 30), 20).2, 15);
     }
 
-    /// The lobby movie's create window opens with the rules' defaults
-    /// (`SrpData.rooms`, the same file as [`rules`]) while it has no form yet
-    /// (and a first-time player's form is them), so nothing changes when the
-    /// form is in. It asks for the form as the lobby comes up (`RoomsWindow`),
-    /// not as the window opens (the owner's of 2026-10-25: no settings
-    /// applied after the window is drawn).
+    /// The lobby movie's create window opens with every mode and the pool
+    /// without the experimental maps while it has no form yet (a first-time
+    /// player's form is them), so nothing changes when the form is in. It
+    /// asks for the form as the lobby comes up (`RoomsWindow`), not as the
+    /// window opens (the owner's of 2026-10-25: no settings applied after
+    /// the window is drawn). Its one create code is the defaults' with a PIN.
     #[test]
     fn the_movie_opens_with_the_same_defaults_and_has_the_form_before() {
         let create =
@@ -385,29 +386,26 @@ mod tests {
             .split_once("return;")
             .expect("start: the defaults, then the copy");
         assert!(none.contains("if (form == null)"), "{start}");
-        for line in [
-            "_size = rooms.default_size;",
-            "_minSide = rooms.default_min_side;",
-            "_max = rooms.default_max_level;",
-            "_wait = rooms.default_wait;",
-            "_modesOff = {};",
-            "defaultPool();",
-        ] {
+        for line in ["_modesOff = {};", "defaultPool();"] {
             assert!(none.contains(line), "{line}: {start}");
         }
-        for line in [
-            "_size = form.size;",
-            "_minSide = form.min;",
-            "_max = form.max;",
-            "_wait = form.wait;",
-            "_off = copy(form.off);",
-            "_modesOff = copy(form.modesOff);",
-        ] {
+        for line in ["_off = copy(form.off);", "_modesOff = copy(form.modesOff);"] {
             assert!(copy.contains(line), "{line}: {start}");
         }
         // The window asks; New room never does.
         assert!(window.contains("ask(RoomsWire.SETTINGS, 1);"));
         assert!(!create.contains("RoomsWire.SETTINGS"));
+        let wire = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
+        let d = rules().default;
+        let pin = RoomSpec {
+            size: d.size,
+            max_level: d.max_level,
+            wait: d.wait,
+            pin: true,
+            min_side: d.min_side,
+        };
+        let code = create_start(pin) - ROOM_CREATE_BASE;
+        assert!(wire.contains(&format!("const CREATE_PIN:int = {code};")), "{code}");
     }
 
     /// The body of the ActionScript function whose declaration starts with

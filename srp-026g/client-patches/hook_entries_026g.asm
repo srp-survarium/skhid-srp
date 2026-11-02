@@ -2952,48 +2952,6 @@ scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
 
-; 0x1ea312 on_configs_loaded after load_text_localization (the call at 0x1EA30D), before it asks the renderer for its window (mov ecx,[edi+5348h]): the configs run, the dictionary loaded, the resources mounted: lohook -> srp_data_on_configs
-global srp_data_on_configs
-extern hook_srp_data_on_configs
-srp_data_on_configs:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_srp_data_on_configs
-    mov edx, srp_data_on_configs_replay
-    cmp eax, 0
-    je srp_data_on_configs_go
-    mov edx, 0x1ea318
-    cmp eax, 1
-    je srp_data_on_configs_go
-    ud2
-srp_data_on_configs_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-srp_data_on_configs_replay:
-    db 0x8b, 0x8f, 0x48, 0x53, 0x00, 0x00
-    jmp 0x1ea318
-
-; 0x14730 the convention of resources.query_done, for a callback the patch hands a binary config's query (class 1Fh): its result is the config: callback -> srp_data_on_config (wraps engine_store_first_config 0x14730)
-    RUST_CDECL srp_data_on_config, hook_srp_data_on_config, 2
-
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

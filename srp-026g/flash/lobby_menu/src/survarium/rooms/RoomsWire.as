@@ -54,10 +54,13 @@ package survarium.rooms
         // the header) and of a pool page (POOL_PAGE_ROWS, 30, and the header).
         public static const LIST_ASK_ROWS:int = 32;
         public static const POOL_ASK_ROWS:int = 31;
-        // A room's most members (two sides of 10) and its max level "any" (its
-        // sizes, waits and the rest: SrpData.rooms).
+        // A room's most members (two sides of 10) and a max level of "any".
         public static const MEMBERS_MAX:int = 20;
         public static const LEVEL_ANY:int = 0;
+        // A private room's create code (CREATE + it): the server's create_start of its
+        // defaults (8 v 8, any level, 30 s, from 1 v 1) and a PIN. A private room has no
+        // size, level, wait or minimum of its own: the window sends none.
+        public static const CREATE_PIN:int = 1941;
         // The pool in CHUNKS pieces of BITS_PER_CHUNK entries (POOL_BITS in
         // all), each sent at BITS + chunk * CHUNK_STEP + its bits.
         public static const BITS_PER_CHUNK:int = 20;

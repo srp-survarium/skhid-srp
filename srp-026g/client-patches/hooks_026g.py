@@ -99,13 +99,6 @@ TYPES["QueryTag"] = {
     "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
     "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
-# A binary config's query (`vostok::resources::query_config`): its result, the config, and the
-# word the patch bound to it.
-TYPES["ConfigQuery"] = {**TYPES["QueryResults"],
-                        "binding": "let {n} = unsafe {{ ConfigQuery::from_raw(&thread, {a}) }};",
-                        "orig_type": "&ConfigQuery"}
-TYPES["ConfigTag"] = {**TYPES["QueryTag"], "binding": "let {n} = ConfigTag::from_raw({a} as usize as u32);",
-                      "orig_type": "ConfigTag"}
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
 for _view in ("RenderVisual", "GameScene", "ObjectLight"):
@@ -506,11 +499,9 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
-    # A callback rewrites nothing at its VA (the game is handed its entry): each is its own.
     grouped = {}
     for h in out:
-        key = h["site_name"] if h["site"] is None else h["entry"] if h["kind"] == "callback" else h["site"]
-        grouped.setdefault(key, []).append(h)
+        grouped.setdefault(h["site_name"] if h["site"] is None else h["site"], []).append(h)
     out = []
     for group in grouped.values():
         if len(group) == 1:
@@ -530,8 +521,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
-    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
-                   if h["site"] is not None and h["kind"] != "callback")
+    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out if h["site"] is not None)
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")
