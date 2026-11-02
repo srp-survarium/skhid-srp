@@ -50,7 +50,7 @@ The owner dropped the Bar lobby (2026-10-30: one lobby per faction, the STK2 bom
 the Bandits'). Its manifest stays in resource-porter
 (`ports/stk2-bar-lobby-to-026g.json`, relit and camera-fixed as @3), not shipped.
 
-## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@10)
+## STK2 bomb shelter (`lobby_scene/stk2_bunker`, pack lobby-stk2-bunker@11)
 
 The shelter of STK2's dressed level `scenario/a03_bomb_shelter`, not the bare
 `bomb_shelter_test` project (its shell only, no props): the octagonal store room with
@@ -109,7 +109,7 @@ crates, beds and lockers, and the vaults beside it.
   the vault above it; the lights at the pendants (the store room's and STK2's under the corridor
   pendant) cast none now, and the light reaches the vault as a hanging lamp's does. The room
   probe's ambient 0.45 (0.3) lifts the dark parts; the warm colour kept.
-- The merged model is `level/stk2_bunker/main_v<version>` (`main_v10`), a new folder with each
+- The merged model is `level/stk2_bunker/main_v<version>` (`main_v11`), a new folder with each
   version: its surfaces are numbered by material, and a resources.db patch only adds files, so a
   surface folder of an earlier version left in the same model failed all its materials (seen with
   @6's files over @5's: "material not loaded: nomaterial", the shelter untextured).
@@ -142,6 +142,22 @@ crates, beds and lockers, and the vaults beside it.
   uvs mapped anew from above at 0.4 uv a metre (`planar_uvs`, build-stk2-lobby-026: u along x, v
   along z; 97 % of the overlay faces within 45 degrees of down). One mapping over each bay's
   ceiling, so no seam in it; it meets p_brick at the bay's rim, along the vault's crease.
+- The vault as STK2 drew it (@11; the owner: "it should look natural there, i think the original
+  was good, maybe we ported it incorrectly"). @9/@10's reading was wrong: p_brick's uvs are STK2's
+  own, and the shell's walls and haunches are one continuous uv chart; only each bay's crown cap
+  is split. STK2's shader (`g_stage_default`) takes the model's one uv set (no world projection).
+  STK2 covers the crown and the rim seam with the overlay `tiled/wall/stucco_alpha_01`, one sheet
+  a bay on its model uvs. @11 draws it so, in place of @10's plaster mapped from above
+  (`stucco_01`, `planar_uvs` dropped): the manifest's `materials` entry on the alpha-tested
+  template with STK2's values (`set`: no shadow, roughness 0.02 to 0.415 from its own specular
+  map, which 0.26g reads as `constant_roughness_min + (max - min) * t_roughness.y`, specular
+  power 35; its own normal map). Its alpha test: 0.26g samples the alpha from the mipped texture,
+  and the mask's averaged mips fall under STK2's 0.95 at a distance (the overlay would thin out
+  to nothing), so the cut is made in the mask at 0.95 (`alpha_cuts`, build-stk2-lobby-026; 60.2 %
+  opaque either way) and tested at half, which keeps its coverage down the mips. The damp,
+  greenish plaster (mean (0.41, 0.41, 0.37), ported unchanged) lies inside the pendant shade's
+  shadow and reads darker there than in STK2's grey-neutral room: kept (the owner: "keep as is,
+  because it is actually bigger"). STK2's own room is grey-neutral; the lobby keeps its warm lamps.
 - The doorway up to the corridor (@9, the owner: "see this green thing there and also strangely
   stretched surface"; the store room's doorway with the steps, by the fuse boxes, lobby x 9.2):
   - the green: STK2's `nature/moss/moss` on the sill (0.27 x 0.83 m, 295 triangles), its
