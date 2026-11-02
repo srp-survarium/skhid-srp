@@ -752,6 +752,15 @@ pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The stuck recovery's floor test (`unstick.escape_floor`, `stuck::escape_floors`): recoveries it was on for, escapes refused
+/// for no floor under their way, recoveries left with no walk key.
+pub(super) fn escape_floors() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::stuck::escape_floors::counts().to_vec(),
+        |d, line| line.tail.push(format!("escape_floor_checked {} escape_floor_refused {} escape_floor_none {}", d[0], d[1], d[2])),
+    )
+}
+
 /// Bodies locked by a hard fall and the worlds the stuck watch kept quiet for them (`stuck::fall_locks`).
 pub(super) fn fall_locks() -> Box<dyn RouteTopic> {
     Delta::of(
