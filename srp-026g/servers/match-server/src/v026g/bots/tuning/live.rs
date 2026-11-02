@@ -35,6 +35,8 @@ use session::v026g::bot_desk::Refused;
 use session::v026g::bot_desk::Text;
 
 use super::BotTier;
+use super::Check;
+use crate::v026g::bots::guns::WeaponClass;
 use super::LoadedTuning;
 use super::Tuning;
 use crate::v026g::bots::switch_log::bytes_sha;
@@ -85,12 +87,12 @@ impl Group {
         match self {
             Group::Balance => None,
             Group::Brackets => Some(Text {
-                en: "Each band's ceiling and the scale's top are shown only until the page sets them (floor <= start <= ceiling <= top).",
-                uk: "Стеля кожного рівня і верх шкали лише показані, доки сторінка їх не встановлює (мінімум <= старт <= стеля <= верх).",
+                en: "Each band's floor <= start <= ceiling, within the scale's top (shown only); a team starts at its band's start and the self-balancing keeps it between the floor and the ceiling.",
+                uk: "Для кожного рівня мінімум <= старт <= стеля, у межах верху шкали (лише показано); команда починає зі старту свого рівня, а самобалансування тримає її між мінімумом і стелею.",
             }),
             Group::Hits => Some(Text {
-                en: "Comes with the aim's calibration by weapon class: each class's target at skill 1, with the measured rate beside it.",
-                uk: "З'явиться з калібруванням прицілу за класами зброї: ціль кожного класу на навичці 1 і виміряне поруч.",
+                en: "Each class's hit rate a shot at skill 1, %, set as its skill-1 aim factor through the bench's calibration (its source below); the skill-0 and 0.5 factors stay, so the line keeps rising. Refused over the class's cap or outside the bench's points. Pistols have no bench points: their factors are shown only.",
+                uk: "Влучання за постріл на навичці 1 для кожного класу, %, задається як фактор прицілу на навичці 1 за калібруванням стенду (джерело нижче); фактори навичок 0 і 0.5 лишаються, тож лінія росте. Відмова понад межу класу або поза точками стенду. Пістолети не мають точок стенду: їхні фактори лише показано.",
             }),
         }
     }
@@ -101,6 +103,9 @@ impl Group {
 enum Unit {
     Number { min: f64, max: f64 },
     Whole { min: u32, max: u32 },
+    /// A class's hit rate a shot at skill 1, %, up to its cap (the owner's bar), set as its skill-1 factor through the
+    /// bench's calibration ([`super::AimCalibration`], the `calibration` section).
+    Hits { class: WeaponClass, cap: f64 },
 }
 
 /// A knob's value, within its limits.
@@ -108,6 +113,8 @@ enum Unit {
 enum Value {
     Number(f64),
     Whole(u32),
+    /// A class's factor at skill 1 (`aim.class_aim.<class>`'s last).
+    Factor(f32),
 }
 
 impl Unit {
@@ -122,43 +129,44 @@ impl Unit {
         }
     }
 
-    /// `text` read as a value.
-    fn parse(self, text: &str) -> Result<Value, String> {
+    /// `text` read as a number (a rate may end in `%`).
+    fn number(text: &str) -> Result<f64, String> {
         let text = text.trim();
-        let x: f64 = text.parse().map_err(|_| format!("`{text}` is not a number"))?;
-        self.value(x)
+        text.trim_end_matches('%').trim().parse().map_err(|_| format!("`{text}` is not a number"))
     }
 
     fn limits(self) -> String {
         match self {
             Unit::Number { min, max } => format!("{min}–{max}"),
             Unit::Whole { min, max } => format!("{min}–{max}"),
+            Unit::Hits { cap, .. } => format!("up to {cap} %"),
         }
     }
 
-    /// A tuning's number as the page shows it (an `f32` as it reads, a whole as a whole).
+    /// A tuning's number as the page shows it (an `f32` as it reads, a whole as a whole, a rate to a tenth; none: `—`).
     fn shown(self, x: f64) -> String {
         match self {
+            _ if x.is_nan() => "—".to_owned(),
             Unit::Number { .. } => format!("{}", x as f32),
             Unit::Whole { .. } => format!("{}", x as u32),
+            Unit::Hits { .. } => format!("{x:.1}"),
         }
     }
 }
 
 impl Value {
-    fn json(self) -> serde_json::Value {
-        match self {
-            Value::Number(x) => serde_json::Value::from(x),
-            Value::Whole(n) => serde_json::Value::from(n),
-        }
-    }
-
     fn x(self) -> f64 {
         match self {
             Value::Number(x) => x,
             Value::Whole(n) => f64::from(n),
+            Value::Factor(f) => f64::from(f),
         }
     }
+}
+
+/// An `f32` in JSON as it reads (0.4, not 0.4000000059604645).
+fn short(x: f32) -> serde_json::Value {
+    format!("{x}").parse::<f64>().map_or(serde_json::Value::Null, serde_json::Value::from)
 }
 
 /// Who sets a knob.
@@ -178,6 +186,7 @@ struct Knob {
     set: Set,
     label: Text,
     unit: Unit,
+    /// Its number in a tuning (a rate: the calibration's at the class's skill-1 factor; NaN for none).
     read: fn(&Tuning) -> f64,
 }
 
@@ -189,6 +198,131 @@ impl Knob {
     fn settable(&self) -> bool {
         self.set == Set::Page
     }
+
+    /// The page's `text` as this knob's value over the tuning `file`: a number within the knob's limits; a rate within
+    /// its class's cap and the calibration's points, as the factor that gives it.
+    fn value_of(&self, text: &str, file: &Tuning) -> Result<Value, String> {
+        let x = Unit::number(text)?;
+        let Unit::Hits { class, cap } = self.unit else {
+            return self.unit.value(x);
+        };
+        if !(x > 0.0 && x <= cap) {
+            return Err(format!("{x} % is over the class's cap of {cap} % (or not over 0)"));
+        }
+        if let Some((low, _)) = self.usable(file).filter(|&(low, _)| x < f64::from(low)) {
+            let (_, middle, _) = file.aim.class_aim.of(class);
+            return Err(format!(
+                "{x} % is under {low:.1} %, the lowest that keeps the class's line rising with its skill-0.5 factor {middle}"
+            ));
+        }
+        let points = file.calibration.of(class).ok_or("the class has no bench points")?;
+        let factor = points.factor_for(x as f32).ok_or_else(|| {
+            let (low, high) = points.rates().unwrap_or_default();
+            format!("{x} % is outside the bench's points ({low}–{high} %)")
+        })?;
+        Ok(Value::Factor(factor))
+    }
+
+    /// `value` as the page shows it, over the tuning `file` (a factor as the rate it gives).
+    fn shown_value(&self, value: Value, file: &Tuning) -> String {
+        match (self.unit, value) {
+            (Unit::Hits { class, .. }, Value::Factor(factor)) => {
+                let rate = file.calibration.of(class).and_then(|points| points.rate_at(factor));
+                self.unit.shown(rate.map_or(f64::NAN, f64::from))
+            }
+            (unit, value) => unit.shown(value.x()),
+        }
+    }
+
+    /// `value` in the changes' patch over the tuning `file`: a factor as its class's three, the file's at skill 0 and 0.5
+    /// with it at skill 1, so the class's line keeps its lower points.
+    fn json(&self, value: Value, file: &Tuning) -> serde_json::Value {
+        match (self.unit, value) {
+            (Unit::Hits { class, .. }, Value::Factor(factor)) => {
+                let (low, middle, _) = file.aim.class_aim.of(class);
+                serde_json::Value::Array(vec![short(low), short(middle), short(factor)])
+            }
+            (_, Value::Number(x)) => serde_json::Value::from(x),
+            (_, Value::Whole(n)) => serde_json::Value::from(n),
+            (_, Value::Factor(f)) => short(f),
+        }
+    }
+
+    /// A value of the changes file: a number, or a class's three factors (its skill-1 one kept).
+    fn value_of_json(&self, leaf: &serde_json::Value) -> Result<Value, String> {
+        if let Unit::Hits { .. } = self.unit {
+            let three: Vec<f64> =
+                leaf.as_array().map(|all| all.iter().filter_map(serde_json::Value::as_f64).collect()).unwrap_or_default();
+            return match three[..] {
+                [low, middle, high] if [low, middle, high].iter().all(|f| f.is_finite() && *f > 0.0) => {
+                    Ok(Value::Factor(high as f32))
+                }
+                _ => Err("not three factors over 0".to_owned()),
+            };
+        }
+        self.unit.value(leaf.as_f64().ok_or("not a number")?)
+    }
+
+    /// The values it takes, over the tuning `file` (a rate: the class's usable span, [`Knob::usable`]).
+    fn limits(&self, file: &Tuning) -> String {
+        match self.unit {
+            Unit::Hits { cap, .. } => match self.usable(file) {
+                Some((low, high)) => format!("{low:.1}–{high:.1} % (cap {cap})"),
+                None => "—".to_owned(),
+            },
+            unit => unit.limits(),
+        }
+    }
+
+    /// The rates a class's row can be set to over the tuning `file`: from the rate at the widest skill-1 factor that
+    /// keeps its line rising with the file's skill-0 and 0.5 factors ([`super::AimTuning`]'s check: within a half the
+    /// factor may grow at most as fast as the wander shrinks; fx-gear, 2026-11-02) to the calibration's top, at most the
+    /// cap. `None`: no points, or not even the calibration's narrowest factor keeps it rising.
+    fn usable(&self, file: &Tuning) -> Option<(f32, f32)> {
+        let Unit::Hits { class, cap } = self.unit else {
+            return None;
+        };
+        let points = file.calibration.of(class)?;
+        let (narrowest, widest) = (points.0.first()?.0, points.0.last()?.0);
+        let rises = |factor: f32| {
+            let mut aim = file.aim.clone();
+            aim.class_aim.of_mut(class).2 = factor;
+            aim.check().is_ok()
+        };
+        if !rises(narrowest) {
+            return None;
+        }
+        let widest = if rises(widest) {
+            widest
+        } else {
+            let (mut good, mut bad) = (narrowest, widest);
+            for _ in 0..32 {
+                let middle = (good + bad) / 2.0;
+                if rises(middle) { good = middle } else { bad = middle }
+            }
+            good
+        };
+        let (_, top) = points.rates()?;
+        Some((points.rate_at(widest)?, top.min(cap as f32)))
+    }
+
+    /// What the page shows beside the value: a class's factors in `tuning`.
+    fn beside(&self, tuning: &Tuning) -> Option<String> {
+        let Unit::Hits { class, .. } = self.unit else {
+            return None;
+        };
+        let (low, middle, high) = tuning.aim.class_aim.of(class);
+        Some(match tuning.calibration.of(class) {
+            Some(_) => format!("factor at skill 1: {high} (skill 0 / 0.5: {low} / {middle})"),
+            None => format!("factors {low} / {middle} / {high} (skill 0 / 0.5 / 1); no bench points"),
+        })
+    }
+}
+
+/// A class's rate at skill 1 in a tuning: its calibration's at its skill-1 factor (NaN for none).
+fn hits(tuning: &Tuning, class: WeaponClass) -> f64 {
+    let (_, _, factor) = tuning.aim.class_aim.of(class);
+    tuning.calibration.of(class).and_then(|points| points.rate_at(factor)).map_or(f64::NAN, f64::from)
 }
 
 /// The skill's 0 to 1.
@@ -197,8 +331,8 @@ const SHARE: Unit = Unit::Number { min: 0.0, max: 1.0 };
 const KD: Unit = Unit::Number { min: 0.1, max: 10.0 };
 
 /// The knobs of the page. The brackets are the tiers of [`super::SkillTuning`] (players of equipment 0-5 meet bots of
-/// tier 4-5, and so on: [`BotTier`]): each one's floor and start, which the page sets, and its ceiling (A244) and the
-/// scale's top, `skill.max`, shown only until the page sets them.
+/// tier 4-5, and so on: [`BotTier`]): each one's floor, start and ceiling (A244), which the page sets, under the scale's
+/// top, `skill.max`, shown only. The hits are each class's skill-1 factor (`aim.class_aim`, A243) as the rate it gives.
 const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.4-5.min",
@@ -251,7 +385,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.4-5.max",
         group: Group::Brackets,
-        set: Set::Later,
+        set: Set::Page,
         label: Text { en: "Equipment 0-5: ceiling", uk: "Спорядження 0–5: стеля" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::Low).max),
@@ -259,7 +393,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.9-10.max",
         group: Group::Brackets,
-        set: Set::Later,
+        set: Set::Page,
         label: Text { en: "Equipment 6-10: ceiling", uk: "Спорядження 6–10: стеля" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::Mid).max),
@@ -267,7 +401,7 @@ const KNOBS: &[Knob] = &[
     Knob {
         key: "skill.tiers.13-15.max",
         group: Group::Brackets,
-        set: Set::Later,
+        set: Set::Page,
         label: Text { en: "Equipment 11-15: ceiling", uk: "Спорядження 11–15: стеля" },
         unit: SHARE,
         read: |t| f64::from(t.skill.of_tier(BotTier::High).max),
@@ -340,6 +474,62 @@ const KNOBS: &[Knob] = &[
         unit: Unit::Whole { min: 1, max: 50 },
         read: |t| f64::from(t.skill.min_events),
     },
+    Knob {
+        key: "aim.class_aim.smg",
+        group: Group::Hits,
+        set: Set::Page,
+        label: Text { en: "SMGs", uk: "Пістолети-кулемети" },
+        unit: Unit::Hits { class: WeaponClass::Smg, cap: 20.0 },
+        read: |t| hits(t, WeaponClass::Smg),
+    },
+    Knob {
+        key: "aim.class_aim.rifle",
+        group: Group::Hits,
+        set: Set::Page,
+        label: Text { en: "Rifles (automatic)", uk: "Автоматичні гвинтівки" },
+        unit: Unit::Hits { class: WeaponClass::Rifle, cap: 20.0 },
+        read: |t| hits(t, WeaponClass::Rifle),
+    },
+    Knob {
+        key: "aim.class_aim.mg",
+        group: Group::Hits,
+        set: Set::Page,
+        label: Text { en: "Machine guns", uk: "Кулемети" },
+        unit: Unit::Hits { class: WeaponClass::MachineGun, cap: 20.0 },
+        read: |t| hits(t, WeaponClass::MachineGun),
+    },
+    Knob {
+        key: "aim.class_aim.shotgun",
+        group: Group::Hits,
+        set: Set::Page,
+        label: Text { en: "Shotguns (a pellet)", uk: "Дробовики (за дробину)" },
+        unit: Unit::Hits { class: WeaponClass::Shotgun, cap: 20.0 },
+        read: |t| hits(t, WeaponClass::Shotgun),
+    },
+    Knob {
+        key: "aim.class_aim.marksman",
+        group: Group::Hits,
+        set: Set::Page,
+        label: Text { en: "DMRs", uk: "Марксманські гвинтівки" },
+        unit: Unit::Hits { class: WeaponClass::Marksman, cap: 32.0 },
+        read: |t| hits(t, WeaponClass::Marksman),
+    },
+    Knob {
+        key: "aim.class_aim.bolt",
+        group: Group::Hits,
+        set: Set::Page,
+        label: Text { en: "Bolt actions", uk: "Гвинтівки з ковзним затвором" },
+        unit: Unit::Hits { class: WeaponClass::Bolt, cap: 40.0 },
+        read: |t| hits(t, WeaponClass::Bolt),
+    },
+    Knob {
+        key: "aim.class_aim.pistol",
+        group: Group::Hits,
+        set: Set::Later,
+        label: Text { en: "Pistols", uk: "Пістолети" },
+        unit: Unit::Hits { class: WeaponClass::Pistol, cap: 25.0 },
+        read: |t| hits(t, WeaponClass::Pistol),
+    },
 ];
 
 fn knob(key: &str) -> Option<&'static Knob> {
@@ -350,10 +540,11 @@ fn knob(key: &str) -> Option<&'static Knob> {
 type Changes = BTreeMap<&'static str, Value>;
 
 /// The changes as a JSON merge patch over the tuning.
-fn patch_of(changes: &Changes) -> serde_json::Value {
+fn patch_of(changes: &Changes, file: &Tuning) -> serde_json::Value {
     let mut patch = serde_json::Value::Object(serde_json::Map::new());
     for (key, value) in changes {
-        let leaf = key.rsplit('.').fold(value.json(), |inner, name| {
+        let json = knob(key).map_or(serde_json::Value::Null, |knob| knob.json(*value, file));
+        let leaf = key.rsplit('.').fold(json, |inner, name| {
             serde_json::Value::Object(serde_json::Map::from_iter([(name.to_owned(), inner)]))
         });
         super::merge_patch(&mut patch, leaf);
@@ -384,8 +575,7 @@ fn read_changes(path: &Path) -> Result<Changes, String> {
         let knob = knob(&key)
             .filter(|knob| knob.settable())
             .ok_or_else(|| format!("{}: `{key}` is not a knob the page sets", path.display()))?;
-        let x = leaf.as_f64().ok_or_else(|| format!("{}: {key}: not a number", path.display()))?;
-        let value = knob.unit.value(x).map_err(|e| format!("{}: {key}: {e}", path.display()))?;
+        let value = knob.value_of_json(leaf).map_err(|e| format!("{}: {key}: {e}", path.display()))?;
         changes.insert(knob.key, value);
     }
     Ok(changes)
@@ -406,8 +596,8 @@ fn leaves_of<'a>(value: &'a serde_json::Value, at: String, out: &mut Vec<(String
 
 /// `changes` written to `path` whole: to a file beside it (the same file system), synced, then put in its place, so a
 /// crash leaves the old file or the new one, never a part.
-fn write_changes(path: &Path, changes: &Changes) -> Result<(), String> {
-    write_whole(path, &bytes_of(&patch_of(changes))).map_err(|e| format!("{}: {e}", path.display()))
+fn write_changes(path: &Path, changes: &Changes, file: &Tuning) -> Result<(), String> {
+    write_whole(path, &bytes_of(&patch_of(changes, file))).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 fn write_whole(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -453,7 +643,7 @@ fn combine(file: &LoadedTuning, changes: &Changes) -> Result<LoadedTuning, Strin
     if changes.is_empty() {
         return Ok(file.clone());
     }
-    let patch = patch_of(changes);
+    let patch = patch_of(changes, file.tuning());
     let mut value = serde_json::to_value(&**file.tuning()).map_err(|e| e.to_string())?;
     Tuning::apply_patch(&mut value, patch.clone())?;
     let tuning = Tuning::from_value(value).map_err(|e| format!("the admin page's changes: {e}"))?;
@@ -559,7 +749,7 @@ impl LiveTuning {
             }
         };
         if !changes.is_empty() {
-            log::info!("Bots tuning: the admin page's changes {} over {}", patch_of(&changes), file.data_line());
+            log::info!("Bots tuning: the admin page's changes {} over {}", patch_of(&changes, file.tuning()), file.data_line());
         }
         let audit = changes_file.as_deref().map(|path| read_audit(&audit_path(path))).unwrap_or_default();
         Self {
@@ -620,7 +810,7 @@ impl LiveTuning {
         let good = combine(&state.file, &changes)?;
         fits(self.start.tuning(), good.tuning())?;
         if let Some(path) = &self.changes_file {
-            write_changes(path, &changes)?;
+            write_changes(path, &changes, state.file.tuning())?;
         }
         let at = unix_now();
         let made: Vec<Change> = KNOBS
@@ -676,6 +866,7 @@ impl BotDesk for LiveTuning {
                 key: group.key(),
                 title: group.title(),
                 note: group.note(),
+                source: (group == Group::Hits).then(|| state.file.tuning().calibration.source.clone()),
                 knobs: KNOBS
                     .iter()
                     .filter(|knob| knob.group == group)
@@ -685,7 +876,8 @@ impl BotDesk for LiveTuning {
                         state: if knob.settable() { KnobState::Settable } else { KnobState::Shown },
                         value: knob.shown(state.good.tuning()),
                         default: knob.shown(state.file.tuning()),
-                        limits: knob.unit.limits(),
+                        limits: knob.limits(state.file.tuning()),
+                        beside: knob.beside(state.good.tuning()),
                     })
                     .collect(),
             })
@@ -713,8 +905,8 @@ impl BotDesk for LiveTuning {
             if !knob.settable() {
                 return Err(format!("{key}: not settable yet"));
             }
-            let value = knob.unit.parse(text).map_err(|why| format!("{key}: {why}"))?;
-            if knob.unit.shown(value.x()) == knob.shown(state.file.tuning()) {
+            let value = knob.value_of(text, state.file.tuning()).map_err(|why| format!("{key}: {why}"))?;
+            if knob.shown_value(value, state.file.tuning()) == knob.shown(state.file.tuning()) {
                 changes.remove(knob.key);
             } else {
                 changes.insert(knob.key, value);
@@ -830,7 +1022,7 @@ mod tests {
             &[("skill.tiers.9-10.min", "0.8")],
             &[("skill.tiers.13-15.start", "0.2")],
             &[("skill.tiers.13-15.start", "0.95")],
-            &[("skill.tiers.9-10.max", "0.9")],
+            &[("skill.tiers.9-10.max", "0.4")],
             &[("skill.max", "0.9")],
             &[("aim.error_deg", "1")],
         ] {
@@ -842,7 +1034,7 @@ mod tests {
         let view = live.view();
         let keys: Vec<_> = view.audit.iter().map(|c| (c.key.as_str(), c.new.as_str())).collect();
         assert_eq!(keys, [("skill.step", "0.15"), ("skill.every_s", "60"), ("skill.step", "0.2")]);
-        assert_eq!(patch_of(&live.state.locked().changes), serde_json::json!({"skill": {"every_s": 60}}));
+        assert_eq!(patch_of(&live.state.locked().changes, &Tuning::default()), serde_json::json!({"skill": {"every_s": 60}}));
     }
 
     /// The brackets ship as the owner set them (2026-11-01: equipment 0-5 0.0-0.6 from 0.3, 6-10 0.2-0.8 from 0.5, 11-15
@@ -873,15 +1065,84 @@ mod tests {
         // The start may go under its old floor when the floor goes with it, in one save.
         set(&live, &[("skill.tiers.4-5.min", "0.05"), ("skill.tiers.4-5.start", "0.1")]).unwrap();
         assert_eq!(live.for_match().tuning().skill.of_tier(BotTier::Low).start, 0.1);
-        // The view: the floors and starts settable, the ceilings and the top shown only, the group's note says why.
+        // A band's ceiling moves too, above its start; the next match's dial keeps to it.
+        set(&live, &[("skill.tiers.13-15.max", "0.95")]).unwrap();
+        assert_eq!(live.for_match().tuning().skill.of_tier(BotTier::High).max, 0.95);
+        // The view: the floors, starts and ceilings settable, the scale's top shown only, the group's note says why.
         let view = live.view();
         let brackets = view.groups.iter().find(|group| group.key == "brackets").unwrap();
         assert!(brackets.note.is_some());
         let shown: Vec<_> = brackets.knobs.iter().filter(|knob| knob.state == KnobState::Shown).map(|knob| knob.key.as_str()).collect();
-        assert_eq!(shown, ["skill.tiers.4-5.max", "skill.tiers.9-10.max", "skill.tiers.13-15.max", "skill.max"]);
+        assert_eq!(shown, ["skill.max"]);
         // The group's reset puts the shipped brackets back.
-        assert_eq!(live.reset(Some("brackets"), "192.0.2.3").unwrap().len(), 6);
+        assert_eq!(live.reset(Some("brackets"), "192.0.2.3").unwrap().len(), 7);
         assert_eq!(live.for_match(), LoadedTuning::default());
+    }
+
+    /// [A246] A class's hit rate a shot at skill 1 is set as its skill-1 factor through the bench's calibration: its skill-0
+    /// and 0.5 factors stay, the next match runs on it, and the changes file keeps the class's three factors. Over the
+    /// class's cap, outside the bench's points, the pistols' (no points) or a rate whose factor would make the line fall is
+    /// refused whole.
+    #[test]
+    fn the_page_sets_a_class_hit_rate_as_its_skill_1_factor() {
+        let dir = dir("hits");
+        let changes = dir.join("bot-admin-tuning.json");
+        let live = LiveTuning::new(LoadedTuning::default(), Some(changes.clone()));
+        let shipped = Tuning::default();
+        let view = live.view();
+        let group = view.groups.iter().find(|group| group.key == "hits").unwrap();
+        assert_eq!(group.source.as_deref(), Some(shipped.calibration.source.as_str()));
+        let rifle = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.rifle").unwrap();
+        assert_eq!((rifle.value.as_str(), rifle.default.as_str()), ("18.5", "18.5"));
+        // Usable: from the rate at the widest factor that keeps the line rising (the automatics' 0.5 factor 0.77 allows up
+        // to ~1.49, ~17.4 %) to the cap.
+        assert!(rifle.limits.starts_with("17.") && rifle.limits.ends_with("–20.0 % (cap 20)"), "{}", rifle.limits);
+        let span_low: f64 = rifle.limits.split('–').next().unwrap().parse().unwrap();
+        assert_eq!(rifle.beside.as_deref(), Some("factor at skill 1: 1.32 (skill 0 / 0.5: 0.4 / 0.77)"));
+        let pistol = group.knobs.iter().find(|knob| knob.key == "aim.class_aim.pistol").unwrap();
+        assert_eq!((pistol.state, pistol.value.as_str()), (KnobState::Shown, "—"));
+        // 19 % for the rifles: their skill-1 factor from the calibration, the lower two kept; the next match runs on it.
+        let made = set(&live, &[("aim.class_aim.rifle", "19 %")]).unwrap();
+        let said: Vec<_> = made.iter().map(|c| (c.key.as_str(), c.old.as_str(), c.new.as_str())).collect();
+        assert_eq!(said, [("aim.class_aim.rifle", "18.5", "19.0")]);
+        let factor = shipped.calibration.automatics.factor_for(19.0).unwrap();
+        let next = live.for_match();
+        let (low, middle, high) = next.tuning().aim.class_aim.rifle;
+        assert_eq!((low, middle), (0.40, 0.77));
+        assert!((high - factor).abs() < 1e-4, "{high} vs {factor}");
+        assert_eq!(next.tuning().aim.class_aim.smg, shipped.aim.class_aim.smg);
+        // The changes file keeps the class's three factors, and a server started again runs on them.
+        let kept: serde_json::Value = serde_json::from_slice(&std::fs::read(&changes).unwrap()).unwrap();
+        assert_eq!(kept["aim"]["class_aim"]["rifle"].as_array().map(Vec::len), Some(3));
+        assert_eq!(LiveTuning::new(LoadedTuning::default(), Some(changes.clone())).for_match(), next);
+        // Refused whole: over the cap, outside the points, the pistols, not a number, a line that would fall (under the
+        // usable span: the rifles just under it, the bolt at 27 %, a factor near 4.5 over its skill-0.5 one).
+        let under = format!("{:.1}", span_low - 0.2);
+        for bad in [
+            ("aim.class_aim.rifle", under.as_str()),
+            ("aim.class_aim.rifle", "21"),
+            ("aim.class_aim.rifle", "13"),
+            ("aim.class_aim.marksman", "33"),
+            ("aim.class_aim.pistol", "20"),
+            ("aim.class_aim.rifle", "a lot"),
+            ("aim.class_aim.bolt", "27"),
+        ] {
+            assert!(set(&live, &[bad]).is_err(), "{bad:?}");
+            assert_eq!(live.for_match(), next, "{bad:?}");
+        }
+        let refused = set(&live, &[("aim.class_aim.bolt", "27")]).unwrap_err();
+        assert!(refused.contains("the lowest that keeps the class's line rising"), "{refused}");
+        // The rifles at the bottom of their span, the bolts at their cap and the DMRs inside their scope's flat stretch.
+        let at_low = format!("{:.1}", span_low + 0.1);
+        set(&live, &[("aim.class_aim.rifle", at_low.as_str())]).unwrap();
+        set(&live, &[("aim.class_aim.bolt", "40"), ("aim.class_aim.marksman", "29.4")]).unwrap();
+        let next = live.for_match();
+        assert!((next.tuning().aim.class_aim.bolt.2 - shipped.calibration.bolt.factor_for(40.0).unwrap()).abs() < 1e-4);
+        assert!((next.tuning().aim.class_aim.marksman.2 - shipped.calibration.marksman.factor_for(29.4).unwrap()).abs() < 1e-4);
+        // The group's reset puts the shipped factors back.
+        assert_eq!(live.reset(Some("hits"), "192.0.2.4").unwrap().len(), 3);
+        assert_eq!(live.for_match(), LoadedTuning::default());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -924,6 +1185,8 @@ mod tests {
             (r#"{"skill":{"step":0.2,"nope":1}}"#, "`skill.nope` is not a knob the page sets"),
             (r#"{"aim":{"error_deg":1}}"#, "`aim.error_deg` is not a knob the page sets"),
             (r#"{"skill":{"max":0.9}}"#, "`skill.max` is not a knob the page sets"),
+            (r#"{"aim":{"class_aim":{"pistol":[0.4,0.77,1.32]}}}"#, "`aim.class_aim.pistol` is not a knob the page sets"),
+            (r#"{"aim":{"class_aim":{"rifle":[0.4,0.77]}}}"#, "aim.class_aim.rifle: not three factors"),
             (r#"{"skill":{"every_s":"60"}}"#, "skill.every_s: not a number"),
             (r#"{"skill":{"kd_low":2}}"#, "skill.kd_*"),
         ] {
