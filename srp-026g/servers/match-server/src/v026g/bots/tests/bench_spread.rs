@@ -79,6 +79,11 @@ impl Spread {
         self.bloom = (self.bloom - d.speed_of_aiming * dt_s).max(0.0);
     }
 
+    /// [A241] Ms since the aim key went down at `at`, if `keys` hold it.
+    pub(super) fn aimed_ms(&self, keys: u32, at: f32) -> Option<u32> {
+        self.aim_since.filter(|_| keys & key::AIM != 0).map(|since| (at as u32).saturating_sub(since))
+    }
+
     /// A shot at `at` ms with `keys`: the aim's state and the cone,
     /// degrees (full angle); the shot's bloom added after.
     pub(super) fn shot(&mut self, gun: &Gun, keys: u32, at: f32) -> (AimState, f32) {
