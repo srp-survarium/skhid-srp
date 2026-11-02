@@ -3561,6 +3561,34 @@ pub mod counts {
         std::array::from_fn(|k| OPEN_GUARD[k].load(Ordering::Relaxed))
     }
 
+    /// What made the keys the lip guard changed (A269c): the route walked facing its way, the same with the lane's shifted steering
+    /// point (`spacing.lane`), the route walked aiming (the eight keys), the reflex's side step, the step apart from a teammate, a walk
+    /// by keys with no route, a glide with no move key.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum GuardFrom {
+        Route,
+        RouteLane,
+        RouteAimed,
+        SideStep,
+        Apart,
+        Keys,
+        Glide,
+    }
+
+    const GUARD_FROMS: usize = 7;
+    static GUARD_FROM: [AtomicU64; GUARD_FROMS * 3] = [const { AtomicU64::new(0) }; GUARD_FROMS * 3];
+
+    /// A swap or brake of the lip guard by what made the keys, on `floor` (`drive::GUARD_FLOOR`: 0 a lip's floors, 1 only an open
+    /// side's with a deep fall's route cost, 2 only an open side's with none).
+    pub fn guard_from(from: GuardFrom, floor: usize) {
+        GUARD_FROM[floor.min(2) * GUARD_FROMS + from as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// [`guard_from`]'s counts, by floor then by [`GuardFrom`].
+    pub fn guard_froms() -> [u64; GUARD_FROMS * 3] {
+        std::array::from_fn(|k| GUARD_FROM[k].load(Ordering::Relaxed))
+    }
+
     static SLIDES: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
 
     /// A refused side step of the reflex's own, asked the other side too: whether that side is clear (the

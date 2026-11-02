@@ -58,6 +58,11 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
+    /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
+    /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
+    /// (`mapdata::grid::FALL_EDGE_PENALTY`). 0: none, as it was.
+    pub open_edge_cost: f32,
     /// Where the reckoned body comes down off a ledge whose drop is an off-mesh walk-off ([`WalkOffLanding`]).
     pub walk_off_landing: WalkOffLanding,
     /// Where the stop forecast's margin falls off a ledge ([`MarginEdge`]).
@@ -191,6 +196,7 @@ impl Default for Kinematics {
             blend_ticks: 6,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::Link,
             margin_edge: MarginEdge::Lattice,
             fix_floor: FixFloor::UnderInJump,

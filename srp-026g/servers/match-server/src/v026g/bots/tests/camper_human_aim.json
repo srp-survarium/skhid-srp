@@ -245,6 +245,7 @@
     "strafe_walking": true,
     "clear_step_sees_lip": false,
     "clear_step_slides_along": false,
+    "clear_step_sees_open": false,
     "sniper_crouch_chance": 0.25,
     "fire": {
       "smg": [
