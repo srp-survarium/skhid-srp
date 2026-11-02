@@ -668,7 +668,8 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
-                5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record (version 5), empty
+                6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record (version 6), empty
+                0, 0, 0, 0, 0, 0, 0, 0, // no pick, no own wear
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store
@@ -769,7 +770,8 @@ mod tests {
             slot: weapon_pickup::WeaponSlot::Second,
         };
         let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
-        let pickup = weapon_pickup::Record { picks: [Some(pick), None], ..weapon_pickup::Record::EMPTY };
+        let held = weapon_pickup::Held { pick, own: weapon_pickup::Wear::of(0.9) };
+        let pickup = weapon_pickup::Record { picks: [Some(held), None], ..weapon_pickup::Record::EMPTY };
         let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory());
         let block = PlayerBlock {
             place: 4,
@@ -817,7 +819,7 @@ mod tests {
         };
         let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
         let pickup = weapon_pickup::Record {
-            picks: [Some(pick), None],
+            picks: [Some(weapon_pickup::Held { pick, own: weapon_pickup::Wear::of(0.9) }), None],
             ..weapon_pickup::Record::EMPTY
         };
         let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory);

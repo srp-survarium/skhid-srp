@@ -94,9 +94,9 @@
 - Synced: only each player's record (its drop: open with its kit and slot,
   or taken; for each weapon slot the gun picked into it: the pickup's tick
   and the recipe, the profile kit slot it was cooked from, read only to
-  cook it anew on a client without it; the pickup waiting for its switch),
-  20 bytes at the start of its state; nothing of the own kit a pick sets
-  aside. The command rides in the input (patch 78's bit 29 with a pattern of
+  cook it anew on a client without it; the pickup waiting for its switch;
+  each pick's own gun's wear at the swap), 28 bytes at the start of its
+  state; nothing else of the own kit a pick sets aside. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
   pickup names no other place, and the client never sends one.
 - My picks for stage 2a (the owner: "just don't overcomplicate the
@@ -353,12 +353,20 @@ cooked gun).
   held a picked gun, which vanishes, or anything else), a pickup the
   picker's slot's pick and the donor's drop taken, base_player::remove(1)
   the whole record empty (the drop ends with the body, the picks with the
-  life), the player's destruction the picks none. Its bytes (20, version
-  5): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
+  life), the player's destruction the picks none. Its bytes (28, version
+  6): the version, the drop (tag, kit << 2, slot << 4), then for slot 7 and
   slot 10 a byte (0 none, else the recipe's place + 1, kit << 5, slot << 7)
   and the pickup's tick (u32); the pending pickup (8 bytes, "The switch"
-  above). (Version 4 had 28 more bytes, the own kit each pick set aside,
-  written from each game's own objects: the rev41 late joins, below.) The
+  above); for slot 7 and slot 10 the own gun's wear its pick hides (the
+  condition's f32 bits, weapon+270h, read at the swap while the world
+  still carried it; 0 without a pick). The pick's end gives it back to
+  the gun in the slot, whatever gun is there, before remove(1)'s unload
+  adds it to the profile item (0x2FD375); a loaded record puts it on the
+  hidden own gun (a joiner's own one is made up from the static info).
+  (Version 4 had 28 bytes of the own kit's counts, written from each
+  game's own objects: the rev41 late joins, below; version 5 had no wear:
+  a joiner and a refused restore unloaded 990000 and 1000000 where the
+  picker's game unloaded 930000, `the_own_wear_comes_back`.) The
   server reads the native fields from `FIELDS_AT = 2 + Record::BYTES`; for
   a player holding a pick it reads the kit's stacks it does not find (set
   aside) as the kit gives them, so autobuy charges nothing for them.

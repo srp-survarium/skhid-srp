@@ -394,6 +394,7 @@ def main():
     a_loaded_record_saves_the_same(patched)
     a_new_life(patched)
     the_end_refunds_nothing_set_aside(patched)
+    the_own_wear_comes_back(patched)
     no_cook_in_a_tick(patched)
     donor_left_then_a_late_join(patched)
     a_departed_donors_gun_is_cooked(patched)
@@ -434,12 +435,12 @@ def command(target):
     return CHORD | PATTERNS[target] << 14
 
 
-def record(drop=None, slot7=None, slot10=None, pending=None):
+def record(drop=None, slot7=None, slot10=None, pending=None, wear7=0.0, wear10=0.0):
     """weapon_pickup::Record::encode: drop ('open', kit, slot bit) / 'taken'; each weapon slot's pick
     (taken ms, the recipe's place, kit, slot bit); the pickup waiting for its switch (its weapon slot 7
     or 10, its pick, the donor's (magazine, chamber) or None)."""
     out = bytearray(RECORD)
-    out[0] = 5
+    out[0] = 6
     if drop == "taken":
         out[1] = 2
     elif drop:
@@ -457,13 +458,16 @@ def record(drop=None, slot7=None, slot10=None, pending=None):
         out[14:18] = struct.pack("<I", taken)
         if magazine:
             out[18], out[19] = magazine[0], 1 | magazine[1] << 1
+    # Each pick's own wear (the own gun's condition at the swap, the f32's bits).
+    for at, pick, wear in ((20, slot7, wear7), (24, slot10, wear10)):
+        if pick:
+            out[at:at + 4] = struct.pack("<f", wear)
     return bytes(out)
 
 
-RECORD = 20
-# The record's synced part; the rest (20..48) is the own kit each pick parks, the server's (save() keeps it in
-# `parked`).
-SYNCED = 20
+RECORD = 28
+# The record's synced part: all of it (version 6: the picks' own wear at 20..28).
+SYNCED = 28
 
 
 class Pick(Run):
@@ -1117,8 +1121,9 @@ def late_join_after_player_made(patched):
 
 
 def a_loaded_record_saves_the_same(patched):
-    """No byte of a picker's state depends on the game that writes it: the record (20 bytes, version 5) has
-    nothing of the own kit a pick sets aside (the live 0x1c0ebd31: joiners wrote zeros in the old 28-byte block
+    """No byte of a picker's state depends on the game that writes it: the record (28 bytes, version 6) has
+    of the own kit a pick sets aside only the own gun's wear at the swap, which every game read alike, and nothing
+    of its counts (the live 0x1c0ebd31: joiners wrote zeros in the old 28-byte block
     and were dropped). A picker's state saved, loaded by a fresh client (a late join) whose own kit differs (a full
     magazine and stack of its own), saved again: byte-identical; a rollback's load then save: identical. The kit
     set aside is the same hidden in both games (no magazine, each stack as the kit gives it)."""
@@ -1130,7 +1135,7 @@ def a_loaded_record_saves_the_same(patched):
     r.installed()
     r.save(r.picker)
     full = bytes(r.written)
-    assert len(full) == RECORD == 20 and full[0] == 5, full.hex()
+    assert len(full) == RECORD == 28 and full[0] == 6, full.hex()
 
     j = Pick(patched)
     j.setup()
@@ -1149,7 +1154,7 @@ def a_loaded_record_saves_the_same(patched):
     r.load(r.picker, full)
     r.save(r.picker)
     assert bytes(r.written) == full, ("a rollback saves what it loaded", bytes(r.written).hex(), full.hex())
-    print("ok a picker's state is no game's own: saved (20-byte record, version 5), loaded by a late joiner with "
+    print("ok a picker's state is no game's own: saved (28-byte record, version 6), loaded by a late joiner with "
           "its own full kit, saved again: byte-identical; a rollback's load and save too; the kit set aside hidden "
           "alike in both games (no magazine, each stack as the kit gives it, 108)")
 
@@ -1190,7 +1195,10 @@ UNLOAD = 0x2FD2D0                           # inventory::unload_to_profile: AL k
 STORE_8 = PROFILE + ITEMS + 0xB4 * 8 + 8    # amount_in_storage of the kit 0 slot 8's item (its word: item 8)
 
 
-def end_of_pick(patched, hidden=None, refused=False):
+STORE_10 = PROFILE + ITEMS + 0xB4 * 10 + 8  # the kit 0 slot 10 gun's profile item: its condition x 1e6
+
+
+def end_of_pick(patched, hidden=None, refused=False, own_wear=0.93, joins=None):
     """A picker (place 3, kit 0, 4000 rounds of its slot-8 ammunition in store) takes the donor's gun over its
     own (its own slot-8 stack set aside), the hidden own stack then `hidden` rounds in this game (a game's own
     count: a late joiner's made-up kit, or whatever made it differ), the restore `refused` in this game or not;
@@ -1206,8 +1214,15 @@ def end_of_pick(patched, hidden=None, refused=False):
         r.emu.mem_write(r.read(stack + 0x25C) + 0x22A, b"\1")
     r.emu.mem_write(r.own_gun + 0x5E5, bytes([9]))
     r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", 90))
-    r.pick()
+    r.emu.mem_write(r.own_gun + 0x270, struct.pack("<f", own_wear))
+    r.word(STORE_10, 0)
+    if joins is None:
+        r.pick()
+    else:                                       # a game that loads the picker's record (a late join, a resync)
+        r.load(r.picker, joins)
+        r.reader(PICK_ID)
     r.installed()
+    saved = r.save(r.picker)
     if hidden is not None:
         r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", hidden))
     if refused:
@@ -1220,7 +1235,27 @@ def end_of_pick(patched, hidden=None, refused=False):
         r.call(UNLOAD, args=(r.inventory, PROFILE))
     except Exception:
         raise AssertionError("the native unload stopped at %#x" % r.emu.reg_read(UC_X86_REG_EIP))
+    r.saved = saved
+    r.store_10 = r.read(STORE_10)
     return r.read(STORE_8), in_slots, r
+
+
+def the_own_wear_comes_back(patched):
+    """The own gun's wear is no game's own at a pick's end: the record keeps it from the swap (the world carried
+    it until then) and the end gives it back, whatever gun is in the slot. A game that loaded the record over its
+    own made-up gun (wear 0.99, a late join's static info) and a game whose restore was refused (the borrowed gun
+    left there) unload the same condition into the profile item as the picker's game (0.93): the release's
+    probe had 930000 against 990000."""
+    _, _, picker = end_of_pick(patched)
+    rec = picker.saved
+    assert rec[24:28] == struct.pack("<f", 0.93), rec.hex()
+    _, _, joiner = end_of_pick(patched, own_wear=0.99, joins=rec)
+    _, _, refused = end_of_pick(patched, refused=True)
+    assert joiner.saved == rec, (joiner.saved.hex(), rec.hex())
+    stores = (picker.store_10, joiner.store_10, refused.store_10)
+    assert stores[0] == stores[1] == stores[2] and abs(stores[0] - 930_000) <= 1, stores
+    print("ok the own gun's wear comes back from the record at a pick's end: the picker's game, a joiner over its own "
+          "0.99 gun and a refused restore all unload %d into the profile item" % stores[0])
 
 
 def the_end_refunds_nothing_set_aside(patched):
@@ -1669,7 +1704,7 @@ def holster(patched):
     assert r.read(r.picker + 0x128) == r.own_gun and r.read(r.picker + 0x12C) == r.own_gun
     assert r.read(r.registry + 4 * PENDING_ID) == 0 and r.read(r.new_gun + 0xC, 1)[0] == 0
     assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
-    assert r.save(r.picker)[12:SYNCED] == bytes(8) and r.save(PLAYER) == record(("open", KIT, 1))
+    assert r.save(r.picker)[12:20] == bytes(8) and r.save(PLAYER) == record(("open", KIT, 1))
     assert any("CANCELLED the switch to: slot 10's picked gun" in l and "(its death)" in l for l in r.log), r.log
     r.in_hands()
     print("ok the picker's death while holstering cancels: the own gun stays in hands, the reserved id emptied, "

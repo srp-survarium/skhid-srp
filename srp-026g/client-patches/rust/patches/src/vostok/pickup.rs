@@ -32,7 +32,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Refill, WeaponSlot,
+pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Refill, WeaponSlot, Wear,
                         PLACES};
 
 use super::config::{ConfigError, ConfigValue};
@@ -196,6 +196,8 @@ pub struct Installed {
     own: WeaponSlot,
     slot: WeaponSlot,
     own_gun: ItemId,
+    /// The own gun's wear at the swap (the world carried it until then).
+    own_wear: Wear,
     gun: ItemId,
     moved: [Option<Moved>; MOVES],
     saved: Saved,
@@ -782,8 +784,8 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
             }
             Mode::Load(Fresh::No) => {}
         }
-        Ok(Installed { cook, own, slot, own_gun: ItemId::of(own_gun), gun: ItemId::of(gun), moved, saved,
-                       cooked: cooked_binding, id })
+        Ok(Installed { cook, own, slot, own_gun: ItemId::of(own_gun), own_wear: Wear::of(read(own_item.condition())),
+                       gun: ItemId::of(gun), moved, saved, cooked: cooked_binding, id })
     }
 }
 
@@ -1010,6 +1012,21 @@ unsafe fn set_aside(player: raw::Player, own_gun: raw::Weapon, cooked: raw::Inve
     }
 }
 
+/// A loaded record's own wear onto the own gun `installed` hides (a late
+/// joiner's or a resync's install went over its own made-up gun): what the
+/// pick's end gives back.
+pub fn set_own_wear(player: &Player<'_>, installed: &Installed, own: Wear) {
+    let Some(cooked) = gun_cook::inventory(player.thread, installed.cook) else { return };
+    // SAFETY: the made cooked inventory; the own gun compared with the
+    // install's before it is written.
+    unsafe {
+        let Some(item) = cooked.slots().at(usize::from(installed.slot.slot())).item() else { return };
+        if ItemId::of(item.active_object()) == installed.own_gun {
+            *item.condition() = own.condition();
+        }
+    }
+}
+
 /// At the end of a pick (base_player::remove(1), before its unload,
 /// inventory::unload_to_profile 0x2FD2D0: each weapon's magazine and
 /// chamber into its retained stack, then each ammunition slot's count onto
@@ -1018,7 +1035,7 @@ unsafe fn set_aside(player: raw::Player, own_gun: raw::Weapon, cooked: raw::Inve
 /// restore refused): the gun in the pick's slot with no magazine and no
 /// chambered round, each slot the install moved a stack into empty. The
 /// respawn's setup gives the new life's kit from the store as usual.
-pub fn refund_nothing(player: &Player<'_>, installed: &Installed) {
+pub fn refund_nothing(player: &Player<'_>, installed: &Installed, own: Option<Wear>) {
     // SAFETY: the live player's inventory at remove's entry; an item read
     // as a weapon only after its vtable says so; counts written in place.
     unsafe {
@@ -1026,6 +1043,11 @@ pub fn refund_nothing(player: &Player<'_>, installed: &Installed) {
         if let Some(gun) = weapon_in(inventory, installed.own) {
             *gun.weapon().loaded() = 0;
             *gun.weapon().chamber() = 0;
+            // The own gun's wear as the record keeps it (the unload adds it
+            // to the profile item, 0x2FD375), whatever gun is there.
+            if let Some(own) = own {
+                *gun.inventory_item().condition() = own.condition();
+            }
         }
         for m in installed.moved.iter().flatten() {
             if let Some(item) = inventory.slots().at(usize::from(m.to)).item() {
@@ -1566,6 +1588,11 @@ impl Installed {
 
     pub fn own_gun(&self) -> ItemId {
         self.own_gun
+    }
+
+    /// The own gun's wear at the swap: the record keeps it.
+    pub fn own_wear(&self) -> Wear {
+        self.own_wear
     }
 }
 

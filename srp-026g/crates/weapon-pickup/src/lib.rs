@@ -225,14 +225,40 @@ pub const fn spawn_seed(place: u8, kit: u8, slot: u8, time: u32) -> u32 {
 /// own stack can be parked from.
 pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 
+/// The own gun's wear a pick hides (its condition, 0..1, as the f32 the
+/// gun keeps at weapon+270h): the world carried it until the swap, so
+/// every game read the same at the swap; the pick's end gives it back, and
+/// remove(1)'s unload adds it to the profile item (0x2FD375).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Wear(u32);
+
+impl Wear {
+    pub fn of(condition: f32) -> Wear {
+        Wear(condition.to_bits())
+    }
+
+    pub fn condition(self) -> f32 {
+        f32::from_bits(self.0)
+    }
+}
+
+/// A weapon slot's pick: the gun picked into it and the own gun's wear it
+/// hides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held {
+    pub pick: Pick,
+    pub own: Wear,
+}
+
 /// The one record a player's state carries: its drop, what is picked
-/// into each of its weapon slots (7, 10) and a pickup waiting for its
-/// switch. Nothing of the own kit a pick sets aside: that is neither
-/// charged nor refunded (the owner, 2026-11-02), so no game writes it.
+/// into each of its weapon slots (7, 10) with the own gun's wear it hides,
+/// and a pickup waiting for its switch. Nothing else of the own kit a pick
+/// sets aside: its ammunition is neither charged nor refunded (the owner,
+/// 2026-11-02), as the kit gives it in every game.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Record {
     pub drop: Drop,
-    pub picks: [Option<Pick>; 2],
+    pub picks: [Option<Held>; 2],
     pub pending: Option<Pending>,
 }
 
@@ -243,17 +269,23 @@ impl Record {
     /// else the recipe's place + 1, its kit << 5, its slot << 7) and the
     /// tick (u32); then the pending pickup: its weapon slot (0 none, 1
     /// slot 7, 2 slot 10), its pick as a slot's, the magazine and a byte
-    /// (bit 0 the donor's magazine known, bit 1 its chamber). Version 5:
-    /// version 4 had 28 more bytes, the own kit each pick set aside.
-    pub const BYTES: usize = 20;
-    const VERSION: u8 = 5;
+    /// (bit 0 the donor's magazine known, bit 1 its chamber); then for
+    /// slot 7 and slot 10 the own gun's wear its pick hides (the f32's
+    /// bits, 0 without a pick). Version 6 (5 had no wear; 4 had the own
+    /// kit's counts, 28 bytes more).
+    pub const BYTES: usize = 28;
+    const VERSION: u8 = 6;
 
     pub fn pick(&self, slot: WeaponSlot) -> Option<Pick> {
+        self.held(slot).map(|h| h.pick)
+    }
+
+    pub fn held(&self, slot: WeaponSlot) -> Option<Held> {
         self.picks[usize::from(slot.bit())]
     }
 
-    pub fn set_pick(&mut self, slot: WeaponSlot, pick: Option<Pick>) {
-        self.picks[usize::from(slot.bit())] = pick;
+    pub fn set_pick(&mut self, slot: WeaponSlot, held: Option<Held>) {
+        self.picks[usize::from(slot.bit())] = held;
     }
 
     fn encode_pick(out: &mut [u8], pick: Pick) {
@@ -285,9 +317,10 @@ impl Record {
             Drop::Open { kit, slot } => 1 | kit.0 << 2 | slot.bit() << 4,
             Drop::Taken => 2,
         };
-        for (at, pick) in [2, 7].into_iter().zip(self.picks) {
-            if let Some(p) = pick {
-                Self::encode_pick(&mut out[at..at + 5], p);
+        for ((at, wear), held) in [2, 7].into_iter().zip([20, 24]).zip(self.picks) {
+            if let Some(h) = held {
+                Self::encode_pick(&mut out[at..at + 5], h.pick);
+                out[wear..wear + 4].copy_from_slice(&h.own.0.to_le_bytes());
             }
         }
         if let Some(p) = self.pending {
@@ -327,7 +360,14 @@ impl Record {
             }),
             _ => return None,
         };
-        let picks = [Self::decode_pick(&bytes[2..7])?, Self::decode_pick(&bytes[7..12])?];
+        let held = |at: usize, wear: usize| -> Option<Option<Held>> {
+            let own = u32::from_le_bytes([bytes[wear], bytes[wear + 1], bytes[wear + 2], bytes[wear + 3]]);
+            match Self::decode_pick(&bytes[at..at + 5])? {
+                Some(pick) => Some(Some(Held { pick, own: Wear(own) })),
+                None => (own == 0).then_some(None),
+            }
+        };
+        let picks = [held(2, 20)?, held(7, 24)?];
         Some(Record { drop, picks, pending })
     }
 }
@@ -603,11 +643,11 @@ mod tests {
         let waiting = |slot, magazine| Some(Pending { slot, pick: Pick { taken: Ms(90_001), recipe }, magazine });
         let cases = [
             Record::EMPTY,
-            Record { drop: Drop::Taken, picks: [Some(pick), None], pending: None },
-            Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(pick)],
+            Record { drop: Drop::Taken, picks: [Some(Held { pick, own: Wear::of(0.9) }), None], pending: None },
+            Record { drop: Drop::Open { kit: Kit::new(2).unwrap(), slot: WeaponSlot::Second }, picks: [None, Some(Held { pick, own: Wear::of(1.0) })],
                      pending: None },
-            Record { drop: Drop::None, picks: [Some(pick), Some(Pick { taken: Ms(1), recipe })], pending: None },
-            Record { drop: Drop::None, picks: [None, Some(pick)], pending: waiting(WeaponSlot::Second, Some((17, true))) },
+            Record { drop: Drop::None, picks: [Some(Held { pick, own: Wear::of(0.5) }), Some(Held { pick: Pick { taken: Ms(1), recipe }, own: Wear::of(0.0) })], pending: None },
+            Record { drop: Drop::None, picks: [None, Some(Held { pick, own: Wear::of(1.0) })], pending: waiting(WeaponSlot::Second, Some((17, true))) },
             Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, None) },
             Record { drop: Drop::Taken, picks: [None; 2], pending: waiting(WeaponSlot::First, Some((0, false))) },
         ];
@@ -616,10 +656,14 @@ mod tests {
         }
         assert_eq!(cases[1].encode()[2], 20 | 2 << 5 | 1 << 7, "place + 1, kit, slot");
         assert_eq!(cases[4].encode()[12..20], [2, 20 | 2 << 5 | 1 << 7, 0x91, 0x5F, 1, 0, 17, 3], "slot 10, the pick, 17 + chamber");
-        assert_eq!(Record::BYTES, 20);
+        assert_eq!(Record::BYTES, 28);
+        assert_eq!(cases[1].encode()[20..28], [0x66, 0x66, 0x66, 0x3F, 0, 0, 0, 0], "slot 7's own wear 0.9, slot 10 none");
         let mut old = cases[1].encode();
-        old[0] = 4;
-        assert_eq!(Record::decode(old), None, "version 4 (with the own kit set aside) is not read");
+        old[0] = 5;
+        assert_eq!(Record::decode(old), None, "version 5 (no wear) is not read");
+        let mut stray = cases[1].encode();
+        stray[24] = 1;
+        assert_eq!(Record::decode(stray), None, "a wear without its pick");
         let good = cases[1].encode();
         for (at, value) in [(0, 2), (1, 3), (1, 6), (1, 1 | 3 << 2), (2, 0x60), (2, 21), (7, 0x60), (8, 1),
                             (12, 1), (13, 1), (18, 5), (19, 1)] {

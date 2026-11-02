@@ -58,7 +58,7 @@ use core::ffi::CStr;
 
 use world_frame::Frame;
 
-use weapon_pickup::{Drop as DropState, Handedness, Hands, Ms, Pending, Pick, Picker, Place, Recipe, Record, WeaponSlot,
+use weapon_pickup::{Drop as DropState, Handedness, Hands, Held, Ms, Pending, Pick, Picker, Place, Recipe, Record, WeaponSlot,
                     PLACES};
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
@@ -482,7 +482,7 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// registered (the reader resolves the pending id): taken back from what was
 /// let go, or cooked anew from its recipe.
 fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
-    let want = record.picks;
+    let want = SLOTS.map(|slot| record.pick(slot));
     let pending_differs = pending_of(thread, player.id()).map(|p| p.1) != record.pending;
     if pending_differs {
         cancel(player, thread, Cancel::Loaded);
@@ -515,6 +515,12 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
         match outcome {
             Ok(()) => log_pick("a loaded record: installed", player, slot, pick, ""),
             Err(why) => log_pick("a loaded record's pick NOT installed (the state will not match)", player, slot, pick, why.text()),
+        }
+    }
+    // The own gun's wear each pick hides, as the record keeps it.
+    for slot in SLOTS {
+        if let (Some(h), Some((_, _, installed))) = (record.held(slot), held(thread, player.id(), slot)) {
+            native::set_own_wear(player, &installed, h.own);
         }
     }
     let Some(pending) = record.pending.filter(|_| pending_differs) else { return };
@@ -700,12 +706,18 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     cancel(&player, thread, Cancel::Removal);
     let installs = SLOTS.map(|slot| held(thread, player.id(), slot).map(|h| h.2));
+    let wears = located(&player).map(|(world, place)| {
+        let record = record_at(thread, world, place);
+        SLOTS.map(|slot| record.held(slot).map(|h| h.own))
+    }).unwrap_or([None; 2]);
     for slot in SLOTS {
         unpick(&player, thread, slot, Unpick::Removed, "its removal (a respawn or a departure)");
     }
     // The own kit set aside is not refunded by the unload, in every game alike.
-    for installed in installs.iter().flatten() {
-        native::refund_nothing(&player, installed);
+    for (installed, wear) in installs.iter().zip(wears) {
+        if let Some(installed) = installed {
+            native::refund_nothing(&player, installed, wear);
+        }
     }
     if let Some((world, place)) = located(&player) {
         let (record, _) = placed_at(thread, world, place);
@@ -979,7 +991,7 @@ fn switch(player: &Player<'_>, thread: &Thread) -> Option<bool> {
     }
     move_to(thread, cook, |_| At::Held { picker: player.id(), slot: pending.slot, pick: pending.pick, installed, from });
     update_record(thread, world, place, |r| {
-        r.set_pick(pending.slot, Some(pending.pick));
+        r.set_pick(pending.slot, Some(Held { pick: pending.pick, own: installed.own_wear() }));
         r.pending = None;
     });
     log_pick("switched (the gun in hands holstered)", player, pending.slot, pending.pick, "");
