@@ -43,9 +43,10 @@ struct World {
     dir: std::path::PathBuf,
     store: SessionStore,
     game: Game,
-    /// Alice's and Bob's account ids.
+    /// Alice's, Bob's and Carol's account ids.
     alice: u32,
     bob: u32,
+    carol: u32,
 }
 
 impl Drop for World {
@@ -108,7 +109,8 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
 
 /// Alice (of clan SKH) and Bob, signed up with login names other than
 /// their in-game names; three public matches, a private one and one
-/// against bots.
+/// against bots. Carol, also of SKH, has never played and is still named
+/// by her login.
 fn world(name: &str) -> World {
     let dir = std::env::temp_dir().join(format!(
         "srp-web-history-{name}-{}-{:?}",
@@ -128,9 +130,16 @@ fn world(name: &str) -> World {
         .sign_in_with_digest_from("bob_login", digest, ip, Instant::now())
         .unwrap()
         .account_id();
+    let carol = store
+        .sign_in_with_digest_from("carol_login", digest, ip, Instant::now())
+        .unwrap()
+        .account_id();
     let mut repository = SqliteGameRepository::open_in(&dir).unwrap();
     repository.save(alice, &Account::new("Alice")).unwrap();
     repository.save(bob, &Account::new("Bob")).unwrap();
+    repository
+        .save(carol, &Account::new("carol_login"))
+        .unwrap();
     repository
         .save_clan(&Clan {
             id: 7,
@@ -143,11 +152,13 @@ fn world(name: &str) -> World {
                 permissions: u8::MAX,
                 is_default: true,
             }],
-            members: vec![Member {
-                account_id: alice,
-                rank: 0,
-                status: status::ACCEPTED,
-            }],
+            members: [alice, carol]
+                .map(|account_id| Member {
+                    account_id,
+                    rank: 0,
+                    status: status::ACCEPTED,
+                })
+                .to_vec(),
             daily_message: String::new(),
             experience: 0,
             money: 0,
@@ -179,6 +190,7 @@ fn world(name: &str) -> World {
         game,
         alice,
         bob,
+        carol,
     }
 }
 
@@ -304,6 +316,29 @@ fn a_player_is_its_card_and_totals_of_public_matches() {
     );
     assert_eq!(world.get("/api/history/player").0, "400 Bad Request");
     assert_eq!(world.get("/api/history/player?id=x").0, "400 Bad Request");
+}
+
+#[test]
+fn a_player_without_a_public_match_is_not_found() {
+    let world = world("never-played");
+    // Carol's name is her login: answered as if there were no Carol.
+    let unknown = world.get("/api/history/player?name=nobody");
+    assert_eq!(unknown.0, "404 Not Found");
+    for target in [
+        format!("/api/history/player?id={}", world.carol),
+        "/api/history/player?name=carol_login".to_owned(),
+        "/api/history/player?name=CAROL_LOGIN".to_owned(),
+    ] {
+        assert_eq!(world.get(&target), unknown, "{target}");
+    }
+    // Her lists are empty, as an unknown player's.
+    for target in [
+        format!("/api/history/player/matches?id={}", world.carol),
+        format!("/api/history/player/days?id={}", world.carol),
+    ] {
+        let body = world.ok(&target).to_string();
+        assert!(!body.contains("carol"), "{target}: {body}");
+    }
 }
 
 #[test]
@@ -446,6 +481,24 @@ fn the_best_scores_are_of_the_period() {
 }
 
 #[test]
+fn the_best_scores_leave_out_the_banned() {
+    let world = world("best-banned");
+    world.store.ban_account(
+        world.alice,
+        Ban {
+            until: None,
+            reason: "secret reason".to_owned(),
+        },
+    );
+    let day = world.ok("/api/history/best");
+    let rows = day["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 2, "Bob's two lines of today");
+    for row in rows {
+        assert_eq!(row["player"]["name"], "Bob");
+    }
+}
+
+#[test]
 fn clans_have_totals_and_members() {
     let world = world("clans");
     let list = world.ok("/api/history/clans");
@@ -471,6 +524,10 @@ fn clans_have_totals_and_members() {
         ["commander", "level", "player", "rating", "totals"]
     );
     assert_eq!(members[0]["commander"], true);
+    // Carol, who never played, is counted but not listed.
+    assert_eq!(card["clan"]["members"], 2);
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/clan?id=7")["clan"]["tag"], "SKH");
     assert_eq!(world.get("/api/history/clan?id=8").0, "404 Not Found");
 }
@@ -492,6 +549,7 @@ fn nothing_private_is_ever_in_an_answer() {
         "/api/history/matches".to_owned(),
         "/api/history/best".to_owned(),
         "/api/history/clan?id=7".to_owned(),
+        "/api/history/top".to_owned(),
     ] {
         let body = world.ok(&target).to_string();
         for secret in [
