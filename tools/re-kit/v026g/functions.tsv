@@ -2000,6 +2000,22 @@ va	status	ref_021d	name
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
+0x00505ca0	reviewed	0x00397b80	Scaleform::RefCountImpl::AddRef
+0x00505cb0	reviewed	0x003698c0	Scaleform::RefCountImpl::Release
+0x005725f0	reviewed	0x003d8200	Scaleform::Render::DrawableImageContext::ExecuteNextCapture
+0x00572610	reviewed	0x003d8220	Scaleform::Render::DICommandQueue::ExecuteCommandsAndWait
+0x00572660	reviewed	0x003d8270	Scaleform::Render::DrawableImageContext::OnNextCapture
+0x005726b0	reviewed	0x003d82c0	Scaleform::Render::DrawableImageContext::AddCaptureNotify
+0x005726f0	reviewed	0x003d8300	Scaleform::Render::DrawableImageContext::RemoveCaptureNotify
+0x005731f0	reviewed	0x003d8e10	Scaleform::Render::DrawableImage::mergeQueueWith
+0x005744e0	reviewed	0x003da110	Scaleform::Render::DrawableImageContext::OnCapture
+0x005ed170	reviewed	0x004458d0	Scaleform::Render::DICommandQueue::OnCapture
+0x005ed1e0	reviewed	0x00445940	Scaleform::Render::DICommandQueue::~DICommandQueue
+0x005ed340	reviewed	0x00445aa0	Scaleform::Render::DICommandQueue::updateCPUModifiedImagesRT
+0x005ed650	reviewed	0x00445db0	Scaleform::Render::DICommandQueue::DICommandQueue
+0x005ed740	reviewed	0x00445ea0	Scaleform::Render::DICommandQueue::`scalar deleting destructor'
+0x005edea0	reviewed	0x00446600	Scaleform::Render::DICommandQueue::ExecuteNextCapture
+0x005ee080	reviewed	0x004467e0	Scaleform::Render::DICommandQueue::OnNextCapture
 0x0030d750	reviewed	0x001b1cf4	survarium::computed_reload_animation_time_scale
 0x0030e1f0	reviewed	0x001f1795	survarium::weapon_core_reload_state::get_weapon_lexeme
 0x0030ee40	reviewed	0x001b1e1a	survarium::computed_shotgun_reload_animation_time_scale

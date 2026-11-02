@@ -55,6 +55,8 @@
   {"file": "gameplay/items/weapons/wpn_ak_74u_premium.options", "path": "default_modifications", "value": 1230},
   {"file": "gameplay/items/weapons/wpn_ak_74u_premium.options", "path": "default_modifications", "value": 2034},
   {"file": "gameplay/items/weapons/wpn_ak_74u_premium.options", "path": "default_modifications", "value": 2094},
+  {"file": "gameplay/items/weapons/wpn_ak_12_premium.options", "path": "default_modifications", "value": 2044},
+  {"file": "gameplay/items/weapons/wpn_ak_12_premium.options", "path": "default_modifications", "value": 2094},
   {"file": "gameplay/items/weapons/wpn_ak_12_premium.options", "path": "default_modifications", "value": 1230},
   {"file": "gameplay/items/weapons/wpn_akmn_premium.options", "path": "default_modifications", "value": 1230},
   {"file": "gameplay/items/weapons/wpn_akmn_premium.options", "path": "default_modifications", "value": 2084},

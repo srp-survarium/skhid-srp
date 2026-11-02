@@ -1005,6 +1005,9 @@ fn edited_masks() -> (
     let mut third = Vec::new();
     for line in manifest.lines().filter(|line| line.starts_with("edit\t")) {
         let list = line.split('\t').nth(1).unwrap();
+        if !list.ends_with(".json") {
+            continue;
+        }
         let path = root.join("srp-026g/scripts/content-edit").join(list);
         let text = std::fs::read_to_string(&path).unwrap();
         let edits: serde_json::Value = serde_json::from_str(&text).unwrap();

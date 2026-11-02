@@ -67,6 +67,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use session::utc::{clock as clock_utc, date as date_utc};
 use session::v026g::replays::{Refused, Replays};
 use session::{Ban, LockExt, Net, SessionStore};
 
@@ -1055,7 +1056,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text" | "mute") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1101,6 +1102,7 @@ impl Web {
             "account" => self.admin_account_026g(request, peer),
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
+            "mute" => self.admin_chat_mute(request, peer),
             _ if g26 => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
@@ -1256,16 +1258,8 @@ impl Web {
         let lang = request.lang;
         let target = request.field("ban_user").trim();
         let hours = request.field("hours").trim();
-        let until = match hours.parse::<u64>() {
-            _ if hours.is_empty() => None,
-            Ok(0) => None,
-            Ok(hours) if hours <= MAX_BAN_HOURS => Some(unix_now() + hours * 3600),
-            _ => {
-                return lang.tr(
-                    &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
-                    &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
-                );
-            }
+        let Ok(until) = ban_until(hours, unix_now()) else {
+            return BadHours::text(lang);
         };
         let reason: String = request.field("reason").trim().chars().take(200).collect();
         let ban = Ban { until, reason };
@@ -1789,7 +1783,7 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
@@ -2245,18 +2239,20 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     )
 }
 
-/// The 0.26g admin's own tabs and panels: the account, an item, the text.
+/// The 0.26g admin's own tabs and panels: the account, an item, the text,
+/// the chat mute.
 fn admin_extras_026g(
     lang: Lang,
     view: &AdminView,
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}",
+        "{}{}{}{}{}",
         tab("account", lang.tr("Account", "Акаунт")),
         tab("item", lang.tr("Give item", "Видати предмет")),
         tab("items", lang.tr("Take items", "Забрати предмети")),
         tab("text", lang.tr("Text", "Текст")),
+        tab("mute", lang.tr("Mute chat", "Вимкнути чат")),
     );
     let standing = match &view.admin_text {
         Some((first, second)) => format!(
@@ -2290,10 +2286,13 @@ fn admin_extras_026g(
          <label for=l1>{}</label><input id=l1 name=line1 maxlength={max}>\
          <label for=l2>{}</label><input id=l2 name=line2 maxlength={max}>\
          <small>{}</small><br>\
-         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}",
+         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
         lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
-        lang.tr("Set the level (0 to 50)", "Встановити рівень (0–50)"),
+        lang.tr(
+            &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
+            &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)
+        ),
         lang.tr("Experience, + or -", "Досвід, + або -"),
         lang.tr("Faction (1 to 4)", "Фракція (1–4)"),
         lang.tr("Reputation with it, + or -", "Репутація в ній, + або -"),
@@ -2321,14 +2320,9 @@ fn admin_extras_026g(
         lang.tr("Show", "Показати"),
         lang.tr("Clear", "Прибрати"),
         moderation::items_panel(lang, view),
+        moderation::mute_panel(lang),
     );
     (tabs, panels)
-}
-
-/// `HH:MM` (UTC) of a Unix time.
-fn clock_utc(at: u64) -> String {
-    let seconds = at % 86_400;
-    format!("{:02}:{:02}", seconds / 3600, seconds / 60 % 60)
 }
 
 /// What is planned, as a line for the admin and the home page.
@@ -2363,16 +2357,45 @@ fn maintenance_line(lang: Lang, store: &SessionStore) -> String {
     format!("<p class=note>{}</p>", escape(&text))
 }
 
-/// The bans in force, as two tables.
-fn bans_table(lang: Lang, store: &SessionStore) -> String {
-    let (accounts, nets) = store.bans();
-    let until = |ban: &Ban| match ban.until {
-        Some(until) => {
-            let hours = until.saturating_sub(unix_now()).div_ceil(3600);
-            lang.tr(&format!("{hours} h left"), &format!("ще {hours} год"))
+/// Hours the Ban and Mute chat tabs refuse ([`ban_until`]).
+struct BadHours;
+
+impl BadHours {
+    fn text(lang: Lang) -> String {
+        lang.tr(
+            &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
+            &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
+        )
+    }
+}
+
+/// When a ban or a chat mute of `hours` from `now` (Unix seconds) ends:
+/// empty or 0 is for good (`None`), else a whole number up to
+/// [`MAX_BAN_HOURS`].
+fn ban_until(hours: &str, now: u64) -> Result<Option<u64>, BadHours> {
+    let hours = hours.trim();
+    match hours.parse::<u64>() {
+        _ if hours.is_empty() => Ok(None),
+        Ok(0) => Ok(None),
+        Ok(hours) if hours <= MAX_BAN_HOURS => Ok(Some(now + hours * 3600)),
+        _ => Err(BadHours),
+    }
+}
+
+/// When a ban or a chat mute ends: `until <date> <time> UTC`, or `for good`.
+fn ban_end(lang: Lang, ban: &Ban) -> String {
+    match ban.until {
+        Some(at) => {
+            let at = format!("{} {}", date_utc(at), clock_utc(at));
+            lang.tr(&format!("until {at} UTC"), &format!("до {at} UTC"))
         }
         None => lang.tr("for good", "назавжди"),
-    };
+    }
+}
+
+/// The bans in force, as tables: accounts, addresses, chat mutes.
+fn bans_table(lang: Lang, store: &SessionStore) -> String {
+    let (accounts, nets) = store.bans();
     let none = format!("<p><small>{}</small></p>", lang.tr("None.", "Немає."));
     let mut html = format!("<h2>{}</h2>", lang.tr("Accounts", "Акаунти"));
     if accounts.is_empty() {
@@ -2390,7 +2413,7 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
                 "<tr><td>{}<br><small>{}</small></td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 escape(name),
                 escape(login),
-                until(ban),
+                ban_end(lang, ban),
                 escape(&ban.reason),
                 ip.map(|ip| ip.to_string()).unwrap_or_default(),
             );
@@ -2411,8 +2434,30 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
             html += &format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
                 ban.net,
-                until(&ban.ban),
+                ban_end(lang, &ban.ban),
                 escape(&ban.ban.reason),
+            );
+        }
+        html += "</table>";
+    }
+    let muted = store.chat_bans();
+    html += &format!("<h2>{}</h2>", lang.tr("Chat mutes", "Вимкнені чати"));
+    if muted.is_empty() {
+        html += &none;
+    } else {
+        html += &format!(
+            "<table><tr><th>{}</th><th>{}</th><th>{}</th></tr>",
+            lang.tr("Account", "Акаунт"),
+            lang.tr("Until", "Доки"),
+            lang.tr("Reason", "Причина"),
+        );
+        for (_, login, name, ban) in &muted {
+            html += &format!(
+                "<tr><td>{}<br><small>{}</small></td><td>{}</td><td>{}</td></tr>",
+                escape(name),
+                escape(login),
+                ban_end(lang, ban),
+                escape(&ban.reason),
             );
         }
         html += "</table>";
@@ -2598,6 +2643,31 @@ mod tests {
         // A wrong token keeps nothing.
         let refused = web.admin(&post("/hidden", &[("token", "bad"), ("tab", "bans")]), "t");
         assert!(!refused.body.contains("value=\"bad\""));
+    }
+
+    #[test]
+    fn ban_and_mute_hours_are_for_good_or_a_whole_number_up_to_the_limit() {
+        let now = 1_000;
+        assert!(matches!(ban_until("", now), Ok(None)));
+        assert!(matches!(ban_until(" 0 ", now), Ok(None)));
+        assert!(matches!(ban_until(" 2 ", now), Ok(Some(8_200))));
+        let most = MAX_BAN_HOURS.to_string();
+        assert!(matches!(ban_until(&most, now), Ok(Some(at)) if at == now + MAX_BAN_HOURS * 3600));
+        let over = (MAX_BAN_HOURS + 1).to_string();
+        for hours in ["-1", "1.5", "soon", over.as_str()] {
+            assert!(ban_until(hours, now).is_err(), "{hours}");
+        }
+        // 2026-10-18 12:34 UTC.
+        let timed = Ban {
+            until: Some(1_792_326_840),
+            reason: String::new(),
+        };
+        assert_eq!(ban_end(Lang::En, &timed), "until 2026-10-18 12:34 UTC");
+        let for_good = Ban {
+            until: None,
+            reason: String::new(),
+        };
+        assert_eq!(ban_end(Lang::En, &for_good), "for good");
     }
 
     #[test]
