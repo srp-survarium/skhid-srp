@@ -300,6 +300,13 @@ pub const EXCEPTIONS: &[(&str, &[(u8, u8)])] = {
         // 12x70 smallshot: the Vepr-12 (Renaissance) and Saiga-12K (Edge),
         // rank 7 each.
         ("ammo_12mm_buck2", &[(REN, 7), (EDGE, 7)]),
+        // --- Ammo of weapons batch 1 (pack weapons-031, docs/notes/weapons-031.md):
+        // sold by Renaissance, which sells the guns that fire it, at their ranks.
+        // The FN Minimi's 5.56x45 belt of 100 (rank 9).
+        ("ammo_5.56x45_belt", &[(REN, 9)]),
+        // The 7.62x51 in clips of 20: the FN SCAR-H (Renaissance, rank 10) and
+        // batch 4's H&K G3SG/1 (Black Market, rank 5), which shares it.
+        ("ammo_7.62x51_20", &[(REN, 10), (BM, 5)]),
         // The 7.62x51 belt of 100 (pack weapons-046, docs/notes/weapons-046.md):
         // the Fort-401's (Edge, level 14: rank 9), as the PKP's 7N13 belt is
         // the PKP's.
@@ -377,6 +384,10 @@ pub const AMMO_PRICES: &[(&str, u32, u32)] = &[
     ("ammo_7.62x54_7n13", 300, 150),
     // Half is 12.5.
     ("ammo_12mm_buck2", 25, 10),
+    // The Minimi's belt of 100 5.56x45: the 5.56's price a round (2).
+    ("ammo_5.56x45_belt", 200, 100),
+    // A clip of 20 7.62x51 (the SCAR-H's, the G3SG/1's): the 7.62x51's price a round (15).
+    ("ammo_7.62x51_20", 300, 150),
     // The Fort-401's belt of 100, as the PKP's.
     ("ammo_7.62x51_belt", 300, 150),
 ];
@@ -393,6 +404,9 @@ pub const UNRELEASED: &[&str] = &[
     "ammo_5.7x28",
     "ammo_7.62x54_7n13",
     "ammo_12mm_buck2",
+    // Weapons batch 1's rounds (pack weapons-031).
+    "ammo_5.56x45_belt",
+    "ammo_7.62x51_20",
     // The 7.62x51 belt of 100 (pack weapons-046).
     "ammo_7.62x51_belt",
     // The STK2 Novice's cap (resource-porter pack novice-6).

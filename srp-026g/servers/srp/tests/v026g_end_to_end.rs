@@ -469,13 +469,10 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     let start_money = told(&alice);
     assert_eq!(start_money, held(&stack, "E2eAlice"));
     // A new account's start (there is no tutorial).
-    assert_eq!(
-        (start_money.0, start_money.1),
-        (
-            session::v026g::tutorial::SIGNUP_SILVER,
-            session::v026g::tutorial::SIGNUP_GOLD
-        )
-    );
+    assert_eq!((start_money.0, start_money.1), {
+        let grant = session::v026g::tutorial::new_account();
+        (grant.silver, grant.gold)
+    });
     assert_eq!(start_money.2, session::v026g::tutorial::experience());
 
     // ---- 3. Alice buys something the shop sells her now: `83 47 00`, the

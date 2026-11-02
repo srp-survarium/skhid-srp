@@ -2379,6 +2379,9 @@ va	name	location	role	basis
 0x00243a30	survarium::weapon::load_weapon	entry ESP+8	the scope (or 0)	observed
 0x00243bc0	survarium::weapon::calculate_locator	stack+4	locator	inferred
 0x00243bc0	survarium::weapon::calculate_locator	EDI	output_matrix	inferred
+0x00243bc0	survarium::weapon::calculate_locator	entry ESP+8	the item's world transform (weapon::draw's [ebp+8], 0x244E51/0x244E82), row-vector 4x4	observed
+0x00243bc0	survarium::weapon::calculate_locator	entry ESP+0xC	the item's bones' matrices (weapon::draw's [ebp+0Ch]); the first argument's bone index (+60h, FFFFh none) picks one (0x243C73)	observed
+0x00243bc0	survarium::weapon::calculate_locator	entry ESP+0x10	an extra matrix, the identity at both of weapon::draw's calls (float4x4::identity 0x33390 into a stack buffer, 0x244E48/0x244E79)	observed
 0x00243cb0		ECX		auto
 0x00243d40	survarium::weapon::set_foreground	ECX	weapon	inferred
 0x00243d40	survarium::weapon::set_foreground	DL	foreground_flag	inferred
@@ -5369,3 +5372,6 @@ va	name	location	role	basis
 0x002d7800	survarium::base_player::on_fire	ECX, entry ESP+4	the player + 110h (vtable 0xA10B1C; called by instant_fire through [weapon+594h] slot +4 at 0x2E258D), the pellet count; held weapon [ECX+18h], inventory [ECX-4] selected slot +170h	observed
 0x002d9f40	survarium::base_player::generate_hit_event	EBP at 0x2DA10C	the bullet or 0 (its +0Ch the weapon core + 10h, +58h player_stance at the shot, +5Ch m_born_time_in_ms); ESI the victim, EBX the victim place, [ESP+24h] the attacker, [ESP+34h] the melee byte, [ESP+38h] the flag 0x2F5450 needs	observed
 0x002e23a0	survarium::weapon_core::instant_fire	EBX at 0x2E2578	the weapon core (+538h its ammo config, +2ACh the pellet count; +594h its user + 110h; +10h its inventory item: +254h slot, +25Ch the dictionary entry, dict_id at +0, item_category at +228h, is_stack at +22Ah)	observed
+0x0023a430	survarium::game_world_ui::set_using_progress_message	entry ESP+4, entry ESP+8	the ui (its +18h world, hud movie at [[ui+8]+108h]+4), the use progress as a float 0..1; unless it is 0.0 (0xA0D984: nothing drawn then) root.set_context("st_using_progress_message" translated, progress x 100, 500): the hud movie's contextInfo with its bar (frame 2)	observed
+0x0023a560	survarium::game_world_ui::set_using_info_message	EAX, entry ESP+4	the hint's string id (an st_ key, such as st_use_artefact_container, st_use_resupply_zone, st_pickup_item, st_put_item, st_artefact_no_free_slots; "" for none, 0x9DB708), the ui; skipped when the same as [ui+334h]; else root.set_context(translated, 0, 1000): the hud movie's contextInfo, frame 1	observed
+0x00246f50	survarium::player::st_draw	entry ESP+4	the player; for the camera's own player: its use in progress ([player+134h] not 0) -> set_using_progress_message(ui [player+F480h], [player+154h]); else the usable in reach (0x2D84C0, its vtable +34h fills the hint id) or none -> set_using_info_message	observed

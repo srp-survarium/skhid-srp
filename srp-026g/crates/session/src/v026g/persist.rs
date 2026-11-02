@@ -1249,7 +1249,7 @@ mod tests {
     #[test]
     fn an_account_loaded_from_the_file_is_not_given_the_starter_kit_again() {
         use crate::v026g::GameAccounts;
-        use crate::v026g::tutorial::{SIGNUP_ROUNDS, SIGNUP_SILVER};
+        let grant = crate::v026g::tutorial::new_account();
 
         let temp = TempDb::new("starter-once");
         let open = || {
@@ -1262,12 +1262,12 @@ mod tests {
         // It spends silver and rounds, and its respirator is gone.
         let played = {
             let mut account = account.locked();
-            assert_eq!(account.generic_money, SIGNUP_SILVER);
+            assert_eq!(account.generic_money, grant.silver);
             account.generic_money = 1_234;
             let stack = account
                 .inventory
                 .iter_mut()
-                .find(|item| item.condition_or_stack == SIGNUP_ROUNDS)
+                .find(|item| item.condition_or_stack == grant.rounds)
                 .unwrap();
             stack.condition_or_stack = 7;
             let respirator = account.kits[0].slots[1].unwrap().item_id;

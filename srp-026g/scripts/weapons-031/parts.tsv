@@ -1,0 +1,4 @@
+# The parts of weapons-031 textures that are painted, by a UV point on each (../weapon-camo/weapon_camo.py):
+# a texture with no points stays plain (its mask paints nothing).
+weapons/scar-h/scar-h_sight	
+weapons/vhs_2/vhs_2_sights	

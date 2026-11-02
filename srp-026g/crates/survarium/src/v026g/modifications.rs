@@ -879,7 +879,7 @@ impl Modifications {
     /// three modifications to offer [srp: the lobby's window shows three]:
     /// an item whose types besides reliability are all held has none for its
     /// reliability (reliability never rolls, [`Modification::rolls`]). On
-    /// live data every item rolls three types or more (`third-mod-1.json`),
+    /// live data every item rolls three types or more (`armor.tsv`'s masks),
     /// so a full item always has one.
     pub fn reroll_choices(
         &self,
