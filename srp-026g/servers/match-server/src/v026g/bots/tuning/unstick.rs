@@ -89,7 +89,10 @@ pub struct UnstickTuning {
     /// floor under it all along ([`Tactics::floor_free_step`](super::super::tactics::Tactics::floor_free_step)): no edge
     /// over a lip's drop, no wall above a step; with none left the recovery takes no walk key (the sidestep's jump in place).
     /// A271, PROVEN by the A265 walk: on Station 705's 0.10 m rail top the sidestep's back-diagonal jump carried a bot 3.3 m
-    /// off the rail to the ground, its escape checked against the zones only. Off: the zones alone, as before.
+    /// off the rail to the ground, its escape checked against the zones only. On by default (A271's bench, whole match, the
+    /// 16 offered maps x seeds 5-8, 64 matches an arm: falls off the route that began in a recovery's keys 17 -> 4, falls off
+    /// the route 357 -> 287, stuck again at a spot 28 -> 20, stuck notes 169 -> 155; kills, deaths, deliveries within 1.5 %);
+    /// the all-off arm keeps it (its old value is the proven fall). Off: the zones alone, as before.
     pub escape_floor: bool,
 }
 
@@ -148,7 +151,7 @@ impl Default for UnstickTuning {
             drop_shut: Some(DropShut::default()),
             drop_shut_from_top: true,
             window: StuckWindow::SinceAsked,
-            escape_floor: false,
+            escape_floor: true,
         }
     }
 }
