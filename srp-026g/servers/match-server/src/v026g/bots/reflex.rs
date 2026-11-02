@@ -1102,6 +1102,9 @@ impl Default for HitAtShot {
     }
 }
 
+/// An enemy sensed firing lately ([`Reflex::threats`]): who, where, the place's error, seen now.
+type Sensed = (Place, Vec3, f32, bool);
+
 /// [A274] Which enemy a hit is taken from when some enemy was sensed firing lately ([`Reflex::threats`]). The HUD's hit marker
 /// (`game_world_ui::on_hit_from_pos`, see [`HitAtShot`]) shows every player the direction each hit came from; the trace of
 /// `traces-20261028/a274-fire-back.md` found that 46 % of the bots hit by an enemy they were not already shooting never shot at
@@ -5012,7 +5015,7 @@ impl Reflex {
         memory: &Memory,
         clock: u32,
         now: u32,
-        (toward, shooters, target_seen): (f32, &[(Place, Vec3, f32, bool)], bool),
+        (toward, shooters, target_seen): (f32, &[Sensed], bool),
         c: &CombatTuning,
     ) {
         use hit_marks::Mark;
@@ -5067,8 +5070,7 @@ impl Reflex {
         if !hit && (self.threat.is_some() || now < self.next_threat) {
             return;
         }
-        // (who, where, the place's error, seen now)
-        let mut shooters: Vec<(Place, Vec3, f32, bool)> = Vec::new();
+        let mut shooters: Vec<Sensed> = Vec::new();
         for sound in &view.sounds {
             if sound.kind != SoundKind::Shot
                 || sound.time + c.threat_shot_ms < now
