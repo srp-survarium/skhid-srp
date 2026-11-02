@@ -18,7 +18,7 @@ The manifest's rows, in this order of kinds (each kind's rows in their order):
   edit   <file>.json             - | resources.db.patch_<n>
          srp-026g/scripts/content-edit/<file>.json applied by content_edit.py to the files as the
          rows above (and the edits before it) leave them; or, with a base row's name, a record;
-         (a <category>-stats.tsv too: content_edit.py STATS)
+         (a <table>.tsv too: content_edit.py STATS)
 Every Flash tree of srp-026g/flash needs a movie row and every edit list of content-edit a row.
 
 Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
@@ -331,8 +331,8 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
         if kind != 'edit' or source != '-':
             continue
         known = sorted(set(base_files) | set(world.bytes))
-        if name.endswith('-stats.tsv'):
-            paths = fnmatch.filter(known, own_content_edit().stats_category(name)['configs'])
+        if name.endswith('.tsv'):
+            paths = own_content_edit().stats_paths(own_content_edit().stats_category(name), known)
         else:
             paths = edit_paths(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')), known)
         movies = [p for p in paths if p.startswith('flash_movies/')]
@@ -411,38 +411,34 @@ def own_content_edit():
 
 
 def stats_checks(rows, base, base_files, live, game, world, tree, compared):
-    """Per content_edit.STATS category: each config equals its table row, its cards match it, and a
-    changed match column needs the `next` row of SIMULATION_CHANGES."""
+    """Per content_edit.STATS category: each config (or list entry) is its table row, its cards follow
+    it, and a changed match column needs the `next` row of SIMULATION_CHANGES."""
     ce = own_content_edit()
     tables = {name: edits_dir(tree) / name for kind, name, source, _, _ in rows
-              if kind == 'edit' and source == '-' and name.endswith('-stats.tsv')}
+              if kind == 'edit' and source == '-' and name.endswith('.tsv')}
     problems, moved = [], []
     for category_name, category in ce.STATS.items():
-        paths = sorted(fnmatch.filter(set(base_files) | set(world.bytes), category['configs']))
-        configs = {**game.get(base, [p for p in paths if p not in world.bytes]),
-                   **{p: world.bytes[p] for p in paths if p in world.bytes}}
-        table = tables.get(f'{category_name}-stats.tsv')
-        table_rows = ce.read_stats(str(table))[1] if table else {}
+        paths = ce.stats_paths(category, set(base_files) | set(world.bytes))
+        configs = {p: bytearray(b) for p, b in game.get(base, [p for p in paths if p not in world.bytes]).items()}
+        configs.update({p: bytearray(world.bytes[p]) for p in paths if p in world.bytes})
+        targets = ce.stats_targets(category, configs)
+        table = tables.get(f'{category_name}.tsv')
+        _, columns, table_rows = ce.read_stats(str(table)) if table else (None, category.get('columns', {}), None)
         if table:
-            problems += [f'{p}: no row in {table.name}' for p in paths if p not in table_rows]
-            problems += [f'{p}: a row of {table.name}, no such config' for p in table_rows if p not in configs]
-        for path in paths:
-            data = bytearray(configs[path])
-            if path in table_rows:
-                problems += [f'{path}: {column} ({key}) is {have or "absent"}, its row says {cell or "nothing"}'
-                             for column, key, cell, have in ce.stats_differences(data, category, table_rows[path])]
-            if category['cards']:
-                problems += [f'{path}: card line {prop_id} says {text!r}, its config {want!r}'
-                             for prop_id, text, want in ce.card_differences(data, category['cards'])]
-        changed = [p for p in paths if p in world.bytes and compared[p][0] == 'differs']
-        players = game.get(live, changed)
-        keys = [category['columns'][c] for c in sorted(category['match'])]
-        for path in changed:
-            was, now = ({q[1:]: (t, v) for q, t, v in ce.walk(bytearray(data)) if q[1:] in keys}
-                        for data in (players[path], world.bytes[path]))
-            moved += [f'{path} {key}' for key in keys if was.get(key) != now.get(key)]
-        print(f'{category_name} stats: {len(paths)} config(s)' + (f', each its row of {table.name}' if table else '')
-              + (', every card line its number' if category['cards'] else ''))
+            problems += ce.stats_problems(category, columns, table_rows, targets, configs, table.name)
+        if category.get('cards'):
+            problems += [f'{p}: card line {prop_id} says {text!r}, its config {want!r}'
+                         for p in paths for prop_id, text, want in ce.card_differences(configs[p], category['cards'])]
+        # A config players lack (a new key/value table's) has no values: each of its match values moved.
+        changed = [p for p in paths if p in world.bytes and compared[p][0] in ('differs', 'new')]
+        players = game.get(live, [p for p in changed if compared[p][0] == 'differs'])
+        try:
+            moved += ce.stats_moved(category, columns, {p: bytearray(b) for p, b in players.items()},
+                                    {p: configs[p] for p in changed})
+        except ValueError as why:
+            problems.append(f'{category_name}: {why}')
+        print(f'{category_name}: {len(targets)} row(s)' + (f', each its row of {table.name}' if table else '')
+              + (', every card line its number' if category.get('cards') else ''))
     if problems:
         print()
         for problem in problems:

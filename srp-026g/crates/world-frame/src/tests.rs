@@ -40,6 +40,10 @@ fn a_world_reads_into_its_slots_and_sections() {
     );
     let rules = frame.section(Section::Rules);
     assert_eq!(rules.bytes, &[5; 11]);
+    assert_eq!(
+        frame.states().map(|(slot, state)| (slot.index(), state)).collect::<Vec<_>>(),
+        [(0, STATE), (1, STATE)]
+    );
     assert_eq!(&world[rules.at..rules.at + 11], rules.bytes);
     assert!(frame.section(Section::Physics).bytes.is_empty());
     // The game's state has the world's time first.

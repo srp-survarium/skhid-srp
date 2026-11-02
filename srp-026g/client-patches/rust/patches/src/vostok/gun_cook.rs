@@ -17,6 +17,11 @@
 //! - A [`Gun`] owns its ticket: [`cooked`] says where it is, dropping it
 //!   gives everything back (a cook still running is abandoned: its
 //!   completion frees what it made).
+//! - A made gun can be drawn on its own ([`show`]: a drop's gun, from its
+//!   death on, at the ragdoll's gun); the ticket keeps which of its models it put in the scene,
+//!   and they come out ([`hide`]) before the game shows the gun (the
+//!   pickup's install calls it: at the switch) and before it is freed (the
+//!   ticket's own drop): a model of a freed gun never stays in the scene.
 //!
 //! What to cook, when, and how long to wait is the patch's.
 
@@ -25,6 +30,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use weapon_pickup::{Kit, WeaponSlot};
 
+use super::pickup::{place_lying, remove_lying, Models};
 use super::world::{read, Player};
 use super::{clock, Lock, Thread};
 use crate::raw;
@@ -172,10 +178,40 @@ impl Drop for ProfileCopy {
 }
 
 /// A cooked inventory of ours: one reference to it and the profile it was
-/// cooked from, released on drop (the inventory first).
+/// cooked from, released on drop (the inventory first), its gun's models
+/// taken out of the scene before.
 struct CookedInventory {
     inventory: raw::Inventory,
     _profile: ProfileCopy,
+    drawn: Drawn,
+}
+
+/// What of a made gun is in the scene by us: nothing, or the gun of its
+/// inventory's `slot` lying alone (`models` the ones placed).
+#[derive(Clone, Copy)]
+enum Drawn {
+    Hidden,
+    Lying { slot: WeaponSlot, models: Models },
+}
+
+impl Drawn {
+    /// The one transition: drawn lying at `want` (its slot and transform,
+    /// placed or moved there) or not, from what is drawn now; idempotent, a
+    /// second hide does nothing.
+    fn to(self, inventory: raw::Inventory, want: Option<(WeaponSlot, &[f32; 16])>) -> Drawn {
+        // SAFETY (each call): our live cooked inventory (the caller's ticket);
+        // only the models we placed are removed.
+        let (slot, models) = match (self, want) {
+            (Drawn::Hidden, None) => return Drawn::Hidden,
+            (Drawn::Lying { slot, models }, Some((s, t))) if slot == s => (s, unsafe { place_lying(inventory, s, t, models) }),
+            (Drawn::Lying { slot, models }, want) => {
+                unsafe { remove_lying(inventory, slot, models) };
+                return Drawn::Hidden.to(inventory, want);
+            }
+            (Drawn::Hidden, Some((s, t))) => (s, unsafe { place_lying(inventory, s, t, Models::NONE) }),
+        };
+        if models == Models::NONE { Drawn::Hidden } else { Drawn::Lying { slot, models } }
+    }
 }
 
 /// Gives back one reference of ours to an inventory (at zero the native
@@ -192,6 +228,7 @@ fn release(inventory: raw::Inventory) {
 
 impl Drop for CookedInventory {
     fn drop(&mut self) {
+        self.drawn = self.drawn.to(self.inventory, None);
         release(self.inventory);
     }
 }
@@ -230,9 +267,20 @@ pub struct CookId {
 }
 
 /// A cooked gun's inventory as a value (the log's): compared, never read
-/// through here.
+/// through. Made only from its handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InventoryId(pub u32);
+pub struct InventoryId(u32);
+
+impl InventoryId {
+    fn of(inventory: raw::Inventory) -> InventoryId {
+        InventoryId(inventory.address())
+    }
+
+    /// Its address, for the log.
+    pub fn address(self) -> u32 {
+        self.0
+    }
+}
 
 /// Where a cook is. `since`/`at` are the performance counter's ticks
 /// ([`clock::counter`]): asked, and completed.
@@ -288,7 +336,7 @@ pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
     TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
         Ticket::Waiting { generation, since, .. } if *generation == id.generation => Cooked::Cooking { since: *since },
         Ticket::Made { generation, cooked, since, at } if *generation == id.generation => {
-            Cooked::Made { inventory: InventoryId(cooked.inventory.address()), since: *since, at: *at }
+            Cooked::Made { inventory: InventoryId::of(cooked.inventory), since: *since, at: *at }
         }
         Ticket::Failed { generation, since, at } if *generation == id.generation => {
             Cooked::Failed { since: *since, at: *at }
@@ -304,6 +352,31 @@ pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::I
         Ticket::Made { generation, cooked, .. } if *generation == id.generation => Some(cooked.inventory),
         _ => None,
     })
+}
+
+/// The made cook `id`'s gun (its inventory's `slot`) drawn alone lying at
+/// `transform` (moved there when drawn elsewhere); false when it is not made
+/// or nothing could be placed (no world, no model or binds, or the game has
+/// it in the scene).
+pub fn show(thread: &Thread, id: CookId, slot: WeaponSlot, transform: &[f32; 16]) -> bool {
+    TABLE.with(thread, |table| match &mut table.tickets[usize::from(id.index)] {
+        Ticket::Made { generation, cooked, .. } if *generation == id.generation => {
+            cooked.drawn = cooked.drawn.to(cooked.inventory, Some((slot, transform)));
+            matches!(cooked.drawn, Drawn::Lying { .. })
+        }
+        _ => false,
+    })
+}
+
+/// The made cook `id`'s gun no longer drawn alone: what it placed out of
+/// the scene (nothing when nothing is).
+pub fn hide(thread: &Thread, id: CookId) {
+    TABLE.with(thread, |table| {
+        if let Ticket::Made { generation, cooked, .. } = &mut table.tickets[usize::from(id.index)]
+            && *generation == id.generation {
+            cooked.drawn = cooked.drawn.to(cooked.inventory, None);
+        }
+    });
 }
 
 /// The gun `player` holds at its death, by the slot of its kit's inventory
@@ -344,9 +417,9 @@ impl Player<'_> {
 /// read from a player of it.
 struct Match {
     profile: raw::PlayerProfile,
-    dictionary: u32,
-    spatial_tree: u32,
-    game_world: u32,
+    dictionary: Option<raw::ItemsDictionary>,
+    spatial_tree: Option<raw::SpatialTree>,
+    game_world: raw::GameWorld,
     seed: u32,
 }
 
@@ -359,9 +432,9 @@ unsafe fn match_of(player: raw::Player) -> Option<Match> {
         let options = raw::engine_match_options(game.network_client())?;
         Some(Match {
             profile: player.profile()?,
-            dictionary: read(game.dictionary()),
-            spatial_tree: read(world.pvp_match()?.spatial_tree()),
-            game_world: world.address(),
+            dictionary: game.dictionary(),
+            spatial_tree: world.pvp_match()?.spatial_tree(),
+            game_world: world,
             seed: read(options.seed()),
         })
     }
@@ -383,15 +456,15 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
     // them (0x20284C..0x2028A6), the profile ours, the stage's flag 0 (a match).
     unsafe {
         let r = recipe.0;
-        *r.profile() = profile.0.address();
+        r.set_profile(Some(profile.0));
         *r.kit() = kit.get();
-        *r.dictionary() = found.dictionary;
-        *r.physics_world() = found.spatial_tree;
-        *r.game_world() = found.game_world;
+        r.set_dictionary(found.dictionary);
+        r.set_physics_world(found.spatial_tree);
+        r.set_game_world(Some(found.game_world));
         *r.match_seed() = found.seed;
         *r.flag() = 0;
     }
-    let recipe_at = recipe.0.address();
+    let recipe_at = recipe.0;
     let since = clock::counter(thread);
     let id = TABLE.with(thread, |table| {
         let Some(index) = table.tickets.iter().position(|t| matches!(t, Ticket::Free)) else {
@@ -417,8 +490,8 @@ pub fn start(player: &Player<'_>, kit: Kit, slot: WeaponSlot) -> Result<Gun, Ref
     unsafe {
         let v = variant.handle();
         *v.vtable() = raw::image::INVENTORY_VARIANT_VTABLE;
-        *v.recipe() = recipe_at;
-        *v.this() = v.address();
+        v.set_recipe(Some(recipe_at));
+        v.set_this(Some(v));
         *v.type_id() = raw::engine_inventory_variant_type();
         let q = request.handle();
         q.set_path(raw::image::INVENTORY_REQUEST as usize as *mut u8);
@@ -487,7 +560,8 @@ extern "C" fn cooked_shim(ticket: u32, result: Option<raw::QueriesResult>) {
         match core::mem::replace(slot, Ticket::Free) {
             Ticket::Waiting { generation, recipe, profile, since } => match made {
                 Some(inventory) => {
-                    *slot = Ticket::Made { generation, cooked: CookedInventory { inventory, _profile: profile }, since, at };
+                    *slot = Ticket::Made { generation, cooked: CookedInventory { inventory, _profile: profile, drawn: Drawn::Hidden },
+                                           since, at };
                     ((Some(recipe), None), None)
                 }
                 None => {
@@ -537,14 +611,14 @@ pub fn destroyed(ctx: &super::Context<'_>) -> Option<super::world::PlayerId> {
     Player::of(ctx, unsafe { raw::site::player_destroy::player(ctx) }).map(|p| p.id())
 }
 
-/// The world core's completed simulation time (+18FC0h) of the world ticked
-/// at `game_world.after_move`.
-/// The game world's match core's address: which match a frame is of.
-pub fn world_key(world: &super::world::GameWorld<'_>) -> Option<u32> {
+/// The game world's match core: which match a frame is of.
+pub fn world_key(world: &super::world::GameWorld<'_>) -> Option<super::world::WorldKey> {
     // SAFETY: the site's game world and its match, compared only.
-    unsafe { Some(world.this.pvp_match()?.core().address()) }
+    unsafe { Some(super::world::WorldKey::of(world.this.pvp_match()?.core())) }
 }
 
+/// The world core's completed simulation time (+18FC0h) of the world ticked
+/// at `game_world.after_move`.
 pub fn world_time(world: &super::world::GameWorld<'_>) -> Option<u32> {
     // SAFETY: the site's game world, its match and core, alive for the hook.
     unsafe { Some(read(world.this.pvp_match()?.core().time())) }

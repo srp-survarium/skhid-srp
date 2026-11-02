@@ -389,6 +389,30 @@ package survarium.player
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
+      // The selected kit's own player modifiers (the skills), from the exe; null until it sends them.
+      private var _kitModifiers:KitModifiers;
+
+      public function setKitModifiers(kit:KitModifiers) : void
+      {
+         _kitModifiers = kit;
+      }
+
+      // What a match adds to a weapon's stats in the selected kit: its skills and its armour.
+      public function matchEffects() : MatchEffects
+      {
+         var items:DataProvider = profileItems.dataProvider as DataProvider;
+         var kit:Array = [];
+         for(var i:uint = 0; items != null && i < items.length; i++) kit.push(items[i]);
+         return new MatchEffects(_kitModifiers,kit);
+      }
+
+      // The selected kit's effects while Alt is held over a weapon's card; null otherwise (the
+      // card shows the weapon's own stats).
+      public static function heldMatchEffects(item:Object) : MatchEffects
+      {
+         return MainScene.isAlt && me != null && item != null && item.isWeapon ? me.matchEffects() : null;
+      }
+
       public function enableSecondWeapon(value:Boolean) : void
       {
          this._playerPaperDoll.enableSecondWeapon(value);

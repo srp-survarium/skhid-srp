@@ -1,8 +1,8 @@
 # Weapon rolls that take effect
 
 The owner, 2026-10-29: "let's fix!". Two weapon modifications rolled, showed on the card and did
-nothing; a third worked but the card never showed what it changes. The edit list
-`scripts/content-edit/weapon-rolls-1.json` makes the first two work with the same percentages, and
+nothing; a third worked but the card never showed what it changes. The table
+`scripts/content-edit/modifications.tsv` (their `kind`, `op`) makes the first two work with the same percentages, and
 the lobby card shows all three (`flash/lobby_menu`, `WeaponDetails.as`, `ItemCompare.as`).
 
 ## How a weapon's modification applies
@@ -66,4 +66,5 @@ the lobby card shows all three (`flash/lobby_menu`, `WeaponDetails.as`, `ItemCom
   (`1.13s`), as every other row (the owner, 2026-10-29); lower is better. Beside a compared weapon
   with one, a weapon without one shows a dash, so the rows stay aligned. Label
   `st_srp_weapon_chamber`.
-- Only the weapon's own modifications (with its defaults), never the player's.
+- Only the weapon's own modifications (with its defaults), never the player's; Alt held adds the
+  kit's and the skills' (alt-weapon-stats.md).

@@ -5125,13 +5125,11 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "patches.code")
-    # These blocks now contain every Rust patch's statics: the corpse pool,
-    # lamp bindings and carry snapshots/resource owners. Keep a shared
-    # 256 KiB budget (202,464 bytes with all three); test_arena separately
-    # enforces the whole arena's limit and exact linked layout.
-    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x40000,
+    # patches.data and .state hold every Rust patch's statics; their size is
+    # the arena's to bound (ARENA_LIMIT, the link and test_arena)
+    check(image.read(block.va, len(code)) == code,
           f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
-          f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
+          f"generated entries)")
     # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
     # called, its Flow taken), its replay the site's own bytes, then back
     for va, old, symbol, _ in hooks:
@@ -5150,15 +5148,19 @@ def test_ragdoll(original, image, before):
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] not in engine_026g.THUNKED)}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
+    # the branches in the bytes a hook replaces, which its entry or cave replays
+    # (patch 68's query_room: the site's `call 0x2F2060`)
+    replays = {branch_target(t) for va, old, _, _ in P.rust_hooks(original)
+               for _, _, t in ndisasm(old, va) if branch_target(t) is not None}
     # arena_rt exports weak intrinsics so multiple Rust arena crates share
     # them. The final ELF's full symbol map includes the selected weak
     # definitions; the public map intentionally contains strong globals only.
     runtime = {va for name, va, _, _ in linked.every if name in ("memcpy", "memmove", "memset")}
-    allowed = library | backs | runtime
+    allowed = library | backs | replays | runtime
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
-          "memcpy, memmove and memset, and each hook's way back past its site or to its named exit (the imports "
-          "go by pointer)"
+          "memcpy, memmove and memset, each hook's way back past its site or to its named exit, and the "
+          "branches of the bytes a hook replays (the imports go by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]

@@ -1937,9 +1937,9 @@ st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpd_name	РПД
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpk_name	РПК-74М
-st_saiga_12_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия К имеет короткий ствол и складной приклад. Оснащено коробчатым магазином на 5 патронов. Только одиночный огонь.
+st_saiga_12_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия К имеет короткий ствол и складной приклад. Оснащено коробчатым магазином. Только одиночный огонь.
 st_saiga_12_name	Сайга-12К
-st_saiga_12_premium_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия С имеет складной приклад. Оснащено коробчатым магазином на 5 патронов. Только одиночный огонь.
+st_saiga_12_premium_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия С имеет складной приклад. Оснащено коробчатым магазином. Только одиночный огонь.
 st_saiga_12_premium_name	Сайга-12С
 st_save_password_str	Сохранить пароль
 st_scav_back_1_desc	Самодельный контейнер для хранения артефактов, оборудован под рюкзак. Полезная вещь, когда отправляешься на охоту за артефактами.
@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Этот матч достиг лимита игроко
 st_srp_rooms_joined_room	%1$s вошёл в комнату
 st_srp_rooms_late_hint	Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.
 st_srp_rooms_leave	Выйти
-st_srp_rooms_leave_queue	Выйти из очереди
-st_srp_rooms_leave_room	Выйти из комнаты
+st_srp_rooms_leave_queue	Выйти
+st_srp_rooms_leave_room	Выйти
 st_srp_rooms_left_room	%1$s покинул комнату
 st_srp_rooms_level	Уровень
 st_srp_rooms_map	Карта
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
-st_srp_weapon_shift_hint	Зажмите Shift: подробнее
+st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Характеристики оружия
 st_srp_weapon_sway_cycle	Период раскачивания
 st_srp_weapon_sway_horizontal	Раскачивание в стороны
 st_srp_weapon_sway_vertical	Раскачивание вверх-вниз
+st_srp_weapon_with_kit	С комплектом
+st_srp_weapon_with_kit_skills	С комплектом и навыками
 st_srp_weather_before_rain	перед дождём
 st_srp_weather_day	день
 st_srp_weather_evening	вечер

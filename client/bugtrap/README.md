@@ -25,7 +25,7 @@ Both button labels are centered horizontally and vertically. Open Discord uses
 the same measured character advances for painting, avoiding the caption offset
 seen under Wine.
 
-Open Discord opens [SRP Discord](https://discord.gg/Pxa4prXfwu) in the default
+Open Discord opens [SRP Discord](https://discord.gg/QUmJg3gBhg) in the default
 browser, only when clicked. The dialog tells the player to find the named file
 in the displayed folder and send it to **#bugreports**. This applies to both a
 ZIP and a raw dump kept after compression failed. If saving failed, it asks
@@ -159,7 +159,7 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
 >    allowed app", and choose: *(the game exe, with its folder)*
 > 3. Start the game again.
 >
-> If this does not help, ask us in Discord: discord.gg/Pxa4prXfwu
+> If this does not help, ask us in Discord: discord.gg/QUmJg3gBhg
 >
 > (Windows error *N*)
 

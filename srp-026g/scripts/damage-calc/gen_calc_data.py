@@ -122,7 +122,7 @@ for file in files("gameplay__items__weapons__wpn_"):
         # Missing optional parameters stay absent; native defaults are applied
         # by the presentation schema, never by substituting arbitrary zeroes.
         **{k: r(p[k]) for k in ("aim_time", "show_time", "hide_time", "aim_zoom_factor",
-                                "base_dispersion", "movement_speed_modifier") if k in p},
+                                "movement_speed_modifier") if k in p},
         **{section: {k: r(v) for k, v in cfg.get(section, {}).items()}
            for section in ("dispersion", "recoil", "breath_vibration")},
         "modifiers": nonzero_modifiers(p),
@@ -145,8 +145,6 @@ for file in files("gameplay__items__weapons__ammo__"):
         **ui(cfg),
         "item_level": p.get("item_level", 0),
         "clip_size": p.get("clip_size", 0),
-        "ui_damage": r(p.get("damage", 0)),
-        "ui_arp": r(p.get("arp", 0)),
         **{k: r(d[k]) for k in AMMO_DATA if k in d},
     }
 
@@ -168,8 +166,6 @@ for file in files("gameplay__items__armour__"):
         "premium": key_of(file).endswith("_premium"),
         "item_level": p.get("item_level", 0),
         "faction": p.get("faction", 0),
-        "armor": r(p.get("armor", 0)),
-        "ano_armor": r(p.get("ano_armor", 0)),
         "weight": r(p.get("weight", 0)),
         "hit_params": parts,
         "modifiers": nonzero_modifiers(p),

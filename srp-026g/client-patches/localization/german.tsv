@@ -1937,9 +1937,9 @@ st_rpd_description	Description is not ready!!!
 st_rpd_name	RPD
 st_rpk_description	RPD
 st_rpk_name	RPK-74M
-st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Passwort Speichern
 st_scav_back_1_desc	Selbst gemachter Artefakten Container, eignet sich für Rücksäcke. Sehr nützlich wenn man Artefakten jagen geht.
@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst 
 st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
 st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
 st_srp_rooms_leave	Verlassen
-st_srp_rooms_leave_queue	Warteschlange verlassen
-st_srp_rooms_leave_room	Raum verlassen
+st_srp_rooms_leave_queue	Verlassen
+st_srp_rooms_leave_room	Verlassen
 st_srp_rooms_left_room	%1$s hat den Raum verlassen
 st_srp_rooms_level	Stufe
 st_srp_rooms_map	Karte
@@ -2645,7 +2645,7 @@ st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
 st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
-st_srp_weapon_shift_hint	Shift halten: Details
+st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss
@@ -2655,6 +2655,8 @@ st_srp_weapon_stats	Waffenwerte
 st_srp_weapon_sway_cycle	Verwackelperiode
 st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
+st_srp_weapon_with_kit	Mit Loadout
+st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
 st_srp_weather_before_rain	vor dem Regen
 st_srp_weather_day	Tag
 st_srp_weather_evening	Abend

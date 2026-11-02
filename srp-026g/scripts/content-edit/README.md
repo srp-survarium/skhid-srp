@@ -102,10 +102,18 @@ list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
 ## Stats tables
 
-`<category>-stats.tsv` (`weapon-stats.tsv`): a row per config, a column per stat; an empty cell means
-the config has no such key. To retune, edit the cell. `content_edit.py` `STATS` maps each column to
-its key path; the build writes the cells and the cards, and refuses a config that differs from its
-row. `content_edit.py --dump-stats <category> <folder>` prints a table from configs.
+A table, `<table>.tsv` (`weapon-stats.tsv`): a row per config (or per level's projects, or per entry
+of a list), a column per stat; or `key  value`, a row per key of one config, which the build makes
+when no archive has it (`gameplay/srp/<name>.options`). An empty cell means no such key. To retune,
+edit the cell. `content_edit.py` `STATS` says what a row is and maps each column to its key path
+(`[*]` every entry of a list, `[field=cell]` the matching ones); the build writes the cells and the
+cards, refuses a config that differs from its row, and a changed match column without the `next` row.
+`content_edit.py --dump-stats <table> <folder>` prints a table from configs; values that differ within a
+row are refused there (a cell unifies them).
+
+A key/value table is read by srp's server from its game data; the client is told what it shows in
+srp's messages, so no copy is kept in code. `rooms.tsv` (`gameplay/srp/rooms.options`): the rooms'
+and Player vs Bots' settings (`RoomRules`); its header says each key.
 
 ## weapon-balance-1.json (2026-10-18)
 
@@ -137,25 +145,9 @@ The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4
 and `survarium.controls.ItemCompare`'s constructor, re-imported as FFDec p-code, adds
 `getChildByName("diff_9")` to its rows when there is one.
 
-## backpacks-1.json (2026-10-19)
-
-| change | why |
-|---|---|
-| The six backpacks (`bm_back_1` Marauder, `scavenger_back_1`, `ren_back_1`, `edge_back_1`, `edge_back_5`, `edge_back_6`) may also roll health regeneration: modification type 21 (+5 % to +15 %, ids 1090-1094), character 20 of `parameters/available_modifications_mask` set (`0000000000000011110000010000100100000000` -> `0000000000000011110010010000100100000000`) | they rolled three types only (weight, carried weight, durability); the owner's choice of a fourth. Only srp reads the masks (the client draws whatever modification the server sends), so the patch changes what the server rolls on upgrades, rerolls and drops. The oxygen tanks and the exo back pieces keep theirs |
-
-Applied to revision 22's live files: 6 files edited, 0 unexpected differences. Weapon balance 1 is in patch 22, so nothing else waits for the same files.
-
 ## duty-name-uk-1.json (2026-10-20)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## battery-pickup-1.json (2026-10-20)
-
-| change | why |
-|---|---|
-| `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
-
-Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
 
 ## weapon-camo-1.json (2026-10-20)
 
@@ -264,40 +256,6 @@ edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, aft
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
 
-## battery-respawn-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `mode/parameters/respawn_time` 8 -> 10 (an int, kept) in the 56 configs of `gameplay/game_modes/` whose `mode/mode` is 2 or 3 ("Protective device", "Protective device: chargers"): levels 1 to 8 in every weather (level_08's night too), London, the 0.21d and v0.11e maps | the owner: "in batteries mode respawns should take 10 seconds". The respawn rule reads it from the config (0x316700, in ms), the base the kit's modifiers scale (the radio's -20 %: 8 s); the HUD's countdown is the rule's ([`../../docs/notes/battery_respawn.md`](../../docs/notes/battery_respawn.md)). Team Deathmatch (mode 4) and the test maps keep theirs |
-
-Applied to the live configs (the stock resources.db and patches 12 to 27; the game modes are the
-stock db's and patches 14, 20 and 22's): 56 files edited, 0 unexpected differences, one byte each.
-The simulation changes (the `next` row of `simulation_changes.tsv`).
-
-## v011e-spawn-protection-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `server_objects/respawn_points[i]/invulnerability_time` 2 -> 6 (an int, kept) on every respawn point of `projects/v011e_level_03/{day_2,day_4}/client_project` (43 each) and `projects/v011e_level_04/{day_2,day_4}/client_project` (44 each): 174 values | the owner: the v0.11 maps' spawn protection drops off too fast, "just make it 6 s and that's it". The respawn point's loader reads it as an int in seconds (0x2F4580, kept in ms); 0.26g's maps author 6, the 0.11e source 2 s ([`../../docs/notes/v011e_spawn_protection.md`](../../docs/notes/v011e_spawn_protection.md)). No base zone, no check radii |
-
-Applied to the live projects (`v011e_level_03`'s from patch 23, `v011e_level_04`'s from patch 22;
-no later patch has them): 4 files edited, 174 values, 0 unexpected differences, one byte a point;
-in `release/build-content 28` (2026-10-22): the same, the four projects packed and the server game
-data with 6 on all 174 points.
-The simulation changes (its words in the `next` row of `simulation_changes.tsv`).
-
-## premium-armour-1.json (2026-10-22)
-
-| change | why |
-|---|---|
-| The four premium armour pieces (`blackmarket_torso_4_premium`, `blackmarket_legs_4_premium`, `scavenger_torso_4_premium`, `scavenger_legs_4_premium`: every armour config with a base rarity): 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market) taken off `default_modifications` (`remove_item`; the plain piece's one default, 1030, 1050 or 1160, stays), `parameters/base_rarity_level` 3 -> 0 | the owner: the golden weapons' treatment for the premium armour, so that the Modification button works on it. srp gives each piece both bonuses as modifications of its own, the first two ([`../../docs/notes/premium_armour.md`](../../docs/notes/premium_armour.md)): the client never offers a default for a reroll, and a base of 3 forbade every craft |
-
-Applied in `release/build-content 28` (2026-10-22, a dry run after v011e-spawn-protection-1): 4
-files edited, 0 unexpected differences (the four configs are patch 21's); the server game data built
-with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse data without it
-(`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
-shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
-simulation change.
 
 ## lobby-scene-2.json (2026-10-22)
 
@@ -377,21 +335,6 @@ scene, which the game does not read) is left as it is.
 ## ban-texts-1.json (2026-10-22)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## third-mod-1.json (2026-10-23)
-
-| change | why |
-|---|---|
-| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
-| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
-| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
-
-Only srp reads the masks: the client shows whatever modification the server sends, from its own
-`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
-29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
-rolls has three types or more besides reliability
-(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
-game data). No simulation change: a match applies only the modifications an item has.
 
 ## artefact-texts-1.json (2026-10-23)
 

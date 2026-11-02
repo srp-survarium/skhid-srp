@@ -1191,3 +1191,118 @@ fn no_single_hit_reaches_a_cap() {
             > 2.0 * crate::shot::impulse(back, 0.02, 800.0).length()
     );
 }
+
+/// How far under Rudnya's drawn ground each settled body's axis lies (its
+/// two ends and its centre, the deepest; under 0 when above it), the gun's
+/// first, on the level made of `meshes` (`rudnya_floor`).
+fn under_rudnya_drawn_ground(
+    meshes: &[&'static [super::rudnya_floor::Triangle]],
+) -> std::vec::Vec<(f32, f32)> {
+    use super::rudnya_floor::{DRAWN, Floor};
+    let mut out = std::vec::Vec::new();
+    for (turn, cause) in [
+        (0.0, SHOT),
+        (1.3, SHOT),
+        (
+            2.5,
+            Cause::Body {
+                part: Part::LeftThigh,
+                direction: Vec3::X,
+                heavy: true,
+            },
+        ),
+        (
+            0.4,
+            Cause::Head {
+                direction: Vec3::new(0.0, 0.0, 1.0),
+            },
+        ),
+        (-2.0, SHOT),
+    ] {
+        let now = standing(Quat::from_axis_angle(Vec3::Y, turn), Vec3::ZERO);
+        let before = driver_bones(&now);
+        let mut ragdoll = Ragdoll::new(&start(&now, &before, cause, Some(GUN))).unwrap();
+        let mut floor = Floor {
+            meshes: meshes.to_vec(),
+        };
+        let mut t = 0.0;
+        while ragdoll.step(1.0 / 60.0, None, &mut floor) != Motion::Settled {
+            t += 1.0 / 60.0;
+            assert!(t < 10.0, "{cause:?}: never settled");
+        }
+        let under = |b: &Body| {
+            let (a, c) = b.shape.ends(b.pose);
+            [a, b.pose.position, c]
+                .iter()
+                .map(|p| {
+                    let drawn = Floor::height(&DRAWN, p.x, p.z)
+                        .unwrap_or_else(|| panic!("{cause:?}: off the piece of ground at {p:?}"));
+                    drawn - p.y
+                })
+                .fold(f32::MIN, f32::max)
+        };
+        let gun = under(ragdoll.gun.as_ref().expect("the gun dropped"));
+        let body = ragdoll.bodies.iter().map(under).fold(f32::MIN, f32::max);
+        out.push((gun, body));
+    }
+    out
+}
+
+#[test]
+fn on_rudnya_a_dropped_gun_lies_on_the_drawn_ground_not_in_it() {
+    use super::rudnya_floor::{HITTABLE, WALKER};
+    // the owner: "on Rudnya, weapons quite often fall under the textures".
+    // On the walker mesh alone (patch 76's rays before) the gun's axis lay
+    // 6 cm under the drawn ground, deeper than its radius: all of it hidden
+    let walker = under_rudnya_drawn_ground(&[&WALKER]);
+    std::println!("walker mesh alone (gun, body): {walker:?}");
+    assert!(
+        walker.iter().all(|&(gun, _)| gun > GUN.radius),
+        "{walker:?}"
+    );
+    // with the collision bullets hit (what the rays meet now) the gun's
+    // axis lies 3 cm above it (the collision is 1 cm under it here), every
+    // body's 4 cm
+    let both = under_rudnya_drawn_ground(&[&WALKER, &HITTABLE]);
+    std::println!("walker and hittable collision (gun, body): {both:?}");
+    assert!(
+        both.iter().all(|&(gun, body)| gun < -0.02 && body < -0.03),
+        "{both:?}"
+    );
+}
+
+/// A lone gun (its body gone: the player respawned) stepped at 60 frames a
+/// second until it rests: the frames it took and the highest its capsule's
+/// bottom went under the floor (m, positive below).
+fn lone_until_rest(gun: &mut LoneGun, ground: &mut Ground) -> (usize, f32) {
+    let mut sunk = 0.0f32;
+    for n in 1..=600 {
+        let motion = gun.step(1.0 / 60.0, Vec3::Y, ground);
+        let (a, b) = gun.body.shape.ends(gun.body.pose);
+        sunk = sunk.max(gun.body.shape.radius - a.y.min(b.y));
+        if motion == Motion::Settled {
+            return (n, sunk);
+        }
+    }
+    panic!("a lone gun never rested");
+}
+
+#[test]
+fn a_lone_gun_sliding_on_the_ground_stops() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    let mut gun = ragdoll.lone_gun().unwrap();
+    // lying flat on the floor, sliding at 3 m/s along its length's side
+    let radius = gun.body.shape.radius;
+    gun.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
+    gun.body.previous = gun.body.pose;
+    gun.body.velocity = Vec3::new(0.0, 0.0, 3.0);
+    gun.body.contacts = [Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y }; 2];
+    let mut ground = Ground::flat();
+    let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
+    let at = gun.body.pose.position;
+    assert!(at.z > 0.05, "it slid on: {at:?}");
+    assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
+    assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
+}
