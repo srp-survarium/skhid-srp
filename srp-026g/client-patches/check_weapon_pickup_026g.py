@@ -85,6 +85,7 @@ class Run(hide.Run):
         emu.mem_map(HEAP, 0x400000, UC_PROT_ALL)
         emu.mem_map(STUBS, 0x1000, UC_PROT_ALL)
         emu.mem_map(CLIENT, 0x200000, UC_PROT_ALL)
+        self.word(CLIENT, 0x9FFB14)                # the live client: options/player lookups are virtual
         emu.mem_map(OPTIONS_HOLDER, 0x60000, UC_PROT_ALL)
         emu.mem_map(MATCH, 0x20000, UC_PROT_ALL)
         emu.mem_map(BIG_STACK, 0x100000, UC_PROT_ALL)

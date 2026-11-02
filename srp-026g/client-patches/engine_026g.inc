@@ -149,12 +149,10 @@ extern engine_play_sound
 ; 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
 extern engine_user_data_directory
 ; struct match_options *engine_match_options(struct network_client *client)
-; 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
-; thiscall: push (and ECX for thiscall) as that convention says
+; virtual survarium::base_network_client+0x34 (2 vtables of vtables.tsv: 0x2189e0, 0x219990): client ECX; pops 0; EAX
 extern engine_match_options
 ; struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)
-; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
-; thiscall: push (and ECX for thiscall) as that convention says
+; virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
 extern engine_active_player
 ; unsigned int engine_query_performance_counter(unsigned int *count)
 ; the IAT slot 0x870158 (an import, stdcall)
