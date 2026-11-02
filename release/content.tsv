@@ -86,7 +86,6 @@ edit	crouch-steps-1.json	-	crouched steps audible: the walking steps at 40 % for
 edit	weapon-camo-1.json	-	the 83 weapon configs take a camouflage: parameters/camo_available and a data table with camo_scale 4.0 (#244, client patch 44)
 edit	weapon-decals-1.json	-	the same 83 weapon configs take decals (two since client patch 68): parameters/decal_available and an empty data/decals (#244, client patch 47; after weapon-camo-1)
 edit	weapon-attachments-1.json	-	the weapon window says Attachments: st_srp_attachments in the six localization tables, the lobby's scope_window_title mapped to it; Ukrainian Appearance is Вигляд (#244)
-edit	battery-respawn-1.json	-	battery modes: respawn 10 s, respawn_time 8 -> 10 in the 58 configs of modes 2 and 3 (Team Deathmatch keeps 8)
 edit	v011e-spawn-protection-1.json	-	the v0.11 maps (Vostok Radar Station, Chemical Plant): spawn protection 6 s, invulnerability_time 2 -> 6 on the 174 respawn points of their four projects (as 0.26g's maps)
 edit	premium-armour-1.json	-	premium armour: its experience and reputation bonuses rerollable modifications of its own, upgradable as the plain piece (after golden-weapons-1)
 edit	lobby-scene-2.json	-	the lobby without the New Year tree, its gifts and the Christmas sound; the bulb above the workbench lit (a point light of its own, the ceiling lamp's copied: its warm colour, intensity 3, range 5 m) and a second bulb as the bench one (level/lobby/bench_bulb of pack lobby-bulb@1, tilted on a drop wire, a wire_set) with its light (intensity 1.15, range 4 m, attenuation 2) over the artefact table, lighting the weapon from the camera's side; lobby-bench-light-1 (the fill light under the bench) withdrawn
@@ -122,4 +121,5 @@ edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
 edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
+edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
