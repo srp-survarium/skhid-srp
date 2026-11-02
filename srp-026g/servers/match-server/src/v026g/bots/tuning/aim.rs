@@ -133,7 +133,12 @@ impl SkillCurve {
 /// (`a243-read.py`; the live shares and the bench's rates in the A243 PR):
 /// rifles, SMGs, MGs 10.2 -> 18-20 %; shotgun ~11 -> ~20 %; marksman 18.6 ->
 /// 30-32 %; bolt 31.1 -> 38-40 %. Pistols have no bench kit and take the
-/// automatics' factors (their bar, 10.7 -> up to 25 %, is not measured).
+/// automatics' factors (their bar, 10.7 -> up to 25 %, is not measured). The
+/// bolt's skill-1 factor is over 1 because its scope zooms the error by 0.25
+/// (`combat.zoom_error`): at 1.0 its aim leaves within his chest's half-width
+/// on 95 % of its shots and it hits ~43 %, over the bar; the bench's skill-1
+/// sweep (factor 1.1 / 2.0 / 3.0 / 4.5: 40.1 / 35.4 / 32.4 / 26.9 %) puts 1.4
+/// in the bar.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClassAim {
@@ -156,7 +161,7 @@ impl Default for ClassAim {
             mg: automatic,
             shotgun: (1.0, 1.35),
             marksman: (1.25, 0.80),
-            bolt: (0.77, 1.1),
+            bolt: (0.8, 1.4),
         }
     }
 }
