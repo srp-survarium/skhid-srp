@@ -14,7 +14,10 @@
   takes the body out of the world and leaves the gun alone where it lay (a
   pickup of it then gets a full magazine); the player leaving the match
   (remove(1) from player_respawn_rule_base::on_player_left_match 0x316BE0,
-  told by its return address 0x316C14) ends the drop. All synced, the same
+  told by player::remove's return address 0x316C14: every world player is
+  removed through player::remove 0x1F2870, which calls base_player::remove
+  at 0x1F2879, so the hook reads it above that frame, ESP+10h) ends the
+  drop; an unknown caller is kept as a respawn (logged). All synced, the same
   tick on every client. Not built: drawing the copy alone at its last pose
   after the respawn; the prompt is offered there (the pose this game last
   drew), a late joiner (no pose) offers none, and every game plays a pickup

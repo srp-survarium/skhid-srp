@@ -4759,10 +4759,12 @@ va	name	location	role	basis
 0x002985d0	survarium::weapon_controller_client::set_user	entry ESP+4	live player	observed
 0x002ff4a0	survarium::weapon_controller_core::deactivate	ECX	controller	observed
 0x002ff4a0	survarium::weapon_controller_core::deactivate	entry ESP+4	clear_user flag	observed
+0x001f2870	survarium::player::remove	entry ESP+4	the removal flag (low byte), passed on to base_player::remove 0x2DA790	observed
 0x002da790	survarium::base_player::remove	ECX	player	observed
 0x002da790	survarium::base_player::remove	entry ESP+4	full removal flag (low byte); snapshot same-kit removal passes zero	observed
 0x002da790	survarium::base_player::remove	entry ESP+4	1 from the respawn tick (0x316999..0x3169A0, the place's player in the world, before its spawn), a departure (0x316BE0) and the snapshot apply when the place's kit changes (0x2D2A58..0x2D2A68, before the new kit's deserialize 0x2D2AA0); the death (0x2D77C0) calls remove_alive 0x2D99C0 instead, so a dead player's body and held gun stay until that removal	observed
-0x002da790	survarium::base_player::remove	entry ESP	return address of the flag-1 callers (each a virtual call, vtable +24h): 0x3169A2 the respawn tick (call 0x3169A0), 0x316C14 a departure (call 0x316C12 in player_respawn_rule_base::on_player_left_match 0x316BE0), 0x2D2A6A a snapshot kit change (call 0x2D2A68); patch 85 tells a departure from a respawn by it	observed
+0x002da790	survarium::base_player::remove	entry ESP	return address: 0x1F287E for every world player (player::remove 0x1F2870, vtable 0x9FB35C +24h, calls it at 0x1F2879 after push ebx, push esi, push ebx)	observed
+0x002da790	survarium::base_player::remove	entry ESP+10h	when entry ESP is 0x1F287E, player::remove's return address, its flag-1 callers' (each a virtual call, vtable +24h): 0x3169A2 the respawn tick (call 0x3169A0), 0x316C14 a departure (call 0x316C12 in player_respawn_rule_base::on_player_left_match 0x316BE0), 0x2D2A6A a snapshot kit change (call 0x2D2A68); patch 85 tells a departure from a respawn by it	observed
 0x002e44f0	vostok::inventory_item_ptr::assign	ESI	destination item-pointer cell	observed
 0x002e44f0	vostok::inventory_item_ptr::assign	ECX	source item-pointer cell	observed
 0x00244a00	survarium::weapon::serialize	stack+4	simulation writer forwarded to weapon_core::serialize	observed

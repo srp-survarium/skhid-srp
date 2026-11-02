@@ -44,6 +44,7 @@ import check_hide_ui_026g as hide
 DEATH_SITE, DEATH_AFTER = 0x1F28E0, 0x1F28E5
 # base_player::remove's callers' return addresses (fields_026g.tsv's image rows).
 REMOVE_ON_DEPARTURE, REMOVE_ON_RESPAWN = 0x316C14, 0x3169A2
+PLAYER_REMOVE = 0x1F2870                        # player::remove, vtable 0x9FB35C +24h: calls base_player::remove
 STEP_SITE, STEP_AFTER = 0x1F7C3C, 0x1F7C41
 DESTROY_SITE, DESTROY_AFTER = 0x1F2100, 0x1F2106
 MALLOC, FREE, QUERY, RELEASE, TYPE_ID_FN = 0xE4F90, 0x1539D0, 0xE5B60, 0xE0210, 0x205C60
@@ -258,15 +259,17 @@ class Run(hide.Run):
         _, sp = self.run(DESTROY_SITE, (DESTROY_AFTER,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_ECX: PLAYER})
         assert self.stopped == DESTROY_AFTER
 
-    def remove(self, player, at, flag=1, departure=False):
-        """base_player::remove(flag) of `player` at its tick time `at`, called from the respawn tick
-        (0x3169A0: its body leaves the world, its drop stays) or (`departure`) from on_player_left_match
-        (0x316C12: its player leaves the match, its drop ends)."""
-        self.word(player + 0x324, at)
+    def remove(self, player, at=None, flag=1, departure=False):
+        """player::remove(flag) 0x1F2870 of `player` (at its tick time `at`), as the game's virtual call
+        (vtable +24h) makes it, up to base_player::remove's hook (its call at 0x1F2879): called from the
+        respawn tick (0x3169A0: its body leaves the world, its drop stays) or (`departure`) from
+        on_player_left_match (0x316C12: its player leaves the match, its drop ends)."""
+        if at is not None:
+            self.word(player + 0x324, at)
         sp = hide.STACK + 0x9000
         self.word(sp, REMOVE_ON_DEPARTURE if departure else REMOVE_ON_RESPAWN)
         self.word(sp + 4, flag)
-        self.run(0x2DA790, (0x2DA796,), sp, {**hide.GAME, UC_X86_REG_ECX: player})
+        self.run(PLAYER_REMOVE, (0x2DA796,), sp, {**hide.GAME, UC_X86_REG_ECX: player})
         assert self.stopped == 0x2DA796, hex(self.stopped or 0)
 
 
@@ -414,6 +417,7 @@ def main():
     stage2b(patched)
     death_drop(patched)
     linger(patched)
+    one_tick(patched)
 
 
 # ---- stage 2a: the record, the pickup, the restore, the crate --------------------------------------
@@ -894,7 +898,7 @@ def second_pickup(patched):
     assert any("let go, replaced: slot 10's picked gun (taken at 13350 ms" in l for l in r.log), r.log
     r.in_hands()
     # Its death: the respawn's removal puts the own gun and ammunition back.
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     assert r.slot(inv, 10) == own + 0x10 and r.slot(inv, 8) == r.own_ammo
     assert r.slot(second, 10) == gun + 0x10 and r.slot(second, 11) == ammo
     assert r.read(r.registry + 4 * GUN_ID) == own and r.save(r.picker) == record()
@@ -935,7 +939,7 @@ def two_slots(patched):
     assert r.switch(gun10) == gun10 and ("deactivate", gun7, 1) in r.native and ("set_user", gun10, r.picker) in r.native
     assert r.switch(gun7) == gun7 and ("deactivate", gun10, 1) in r.native and ("activate", gun7, 1) in r.native
     # Death: each slot its own gun and ammunition.
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     assert [r.slot(inv, n) for n in (7, 8, 9, 10)] == [own7 + 0x10, shared, 0, own10 + 0x10], \
         [hex(r.slot(inv, n)) for n in (7, 8, 9, 10)]
     assert r.slot(cooked10, 10) == gun10 + 0x10 and r.slot(cooked7, 10) == gun7 + 0x10
@@ -968,7 +972,7 @@ def ordinary_kit(patched):
     assert r.slot(cooked10, 11) == pistol_ammo and r.slot(inv, 8) == ammo10
     assert r.save(r.picker) == record(slot7=(DIED + 1_000, PLACE, KIT, 1), slot10=(DIED + 2_500, 6, KIT, 1))
     assert r.switch(gun7) == gun7 and r.switch(gun10) == gun10, "the game's switch between the picked guns"
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     assert [r.slot(inv, n) for n in (7, 8, 10, 12)] == [rifle + 0x10, pistol_ammo, pistol + 0x10, rifle_ammo]
     assert r.save(r.picker) == record()
     print("ok the ordinary kit: a rifle for the rifle, a pistol for the pistol, the game's switch between the "
@@ -1248,7 +1252,7 @@ def end_of_pick(patched, hidden=None, refused=False, own_wear=0.93, joins=None, 
         r.emu.mem_write(r.own_ammo + 0x260, struct.pack("<H", hidden))
     if refused:
         r.word(r.cooked + 0x10C + 4 * 10, r.stack(1))
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     gun = r.slot(r.inventory, 10) - 0x10
     in_slots = (r.read(r.slot(r.inventory, 8) + 0x260, 2), r.read(gun + 0x5E5, 1), r.read(gun + 0x5F1, 1))
     r.emu.reg_write(UC_X86_REG_EAX, 0)
@@ -1942,7 +1946,7 @@ def keep_and_reuse(patched):
     r.setup()
     r.pick()
     kept, kept_cooked = r.new_gun, r.cooked
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     r.restored()
     r.remove(PLAYER, DIED + 8_000)
     r.word(PLAYER + 0x328, SPAWNED + 20_000)
@@ -1963,7 +1967,7 @@ def keep_and_reuse(patched):
           "takes the kept copy as its drop's gun (no cook, logged); its pickup installs it with this death's magazine")
 
     # A resync or late join's record naming a kept copy: that object re-installed, no cook, no weapon call.
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     r.queries, r.native = [], []
     r.load(r.picker, record(slot10=(DIED + 31_000, PLACE, KIT, 1)))
     assert r.queries == [] and r.slot(r.inventory, 10) == kept + 0x10, r.log
@@ -2207,10 +2211,10 @@ def stage2(patched, original):
           "taken, alone; a borrowed gun is kept past it while it is held")
 
     # The removal: flag 0 (a snapshot's) leaves it, flag 1 (respawn, departure) restores.
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(0))
+    r.remove(r.picker, flag=0)
     r.installed()
     r.native, r.put_away = [], []
-    r.lohook(REMOVE_SITE, REMOVE_AFTER, {UC_X86_REG_ECX: r.picker}, sp=r.frame(1))
+    r.remove(r.picker)
     r.restored()
     r.put_away_in_slot(r.new_gun)
     assert r.read(r.picker + 0x128) == 0, "put away: remove has nothing to deactivate"
@@ -3080,20 +3084,78 @@ def late_join_after_the_respawn(patched):
           "full magazine, the same records")
 
 
+# ---- one tick: a leave, a death and a pickup (the review, 2026-11-02) ------------------------------
+
+LEFT_MATCH, PLAYER_VTABLE = 0x316BE0, 0x9FB35C
+
+
+def left_match(r, place, player, kit, at):
+    """A 0xEA leave of `place` as tick_events' process_events (0x2D22C5) plays it: the rule's
+    on_player_left_match 0x316BE0 (its place's slot emptied, the place's current kit player's remove(1)
+    through its vtable +24h, player::remove 0x1F2870), up to base_player::remove's hook."""
+    assert r.read(PLAYER_VTABLE + 0x24) == PLAYER_REMOVE, "the player's vtable +24h is player::remove"
+    vtable, rule, holder, entries = r.blk(0x40), r.blk(0x200), r.blk(0x18460), r.blk(0x30 * 20)
+    r.word(vtable + 0x24, PLAYER_REMOVE)
+    r.word(player, vtable)
+    r.word(rule + 0x134, holder)
+    r.word(holder + 0x18458, entries)
+    r.emu.mem_write(entries + 0x30 * place + 0xC, bytes([kit]))
+    r.word(entries + 0x30 * place + 4 * kit, player)
+    r.word(player + 0x324, at)
+    sp = hide.STACK + 0x9000
+    r.word(sp, hide.SENTINEL)
+    r.word(sp + 4, place)
+    r.run(LEFT_MATCH, (0x2DA796,), sp, {**hide.GAME, UC_X86_REG_ECX: rule})
+    assert r.stopped == 0x2DA796, hex(r.stopped or 0)
+    assert r.read(rule + 0x138 + 4 * place) == 0xFFFFFFFF
+
+
+def one_tick(patched):
+    """tick_events 0x2D21E0 plays a tick's events (process_events 0x2D22C5) before its players' tick
+    (atomic_tick 0x2D22E2, where inputs and a pickup are played). D (place 5) leaves the match with its
+    drop open and P (place 3) sends its pickup in the same tick: the leave ends the drop first, so P is
+    refused and D's record is empty, in every game. A death and a pickup in one tick follow the players'
+    order there: the death first opens the drop the pickup then takes; the pickup first finds none."""
+    r = Death(patched)
+    r.setup()
+    t = DIED + 3_000
+    left_match(r, PLACE, PLAYER, KIT, t)
+    assert r.save(PLAYER) == record(), "the leave ends D's drop"
+    r.pick(now=t)
+    assert any("refused, no drop to take" in l for l in r.log) and r.native == [], r.log
+    assert r.slot(r.inventory, 10) == r.own_gun + 0x10 and r.save(r.picker) == record()
+    print("ok one tick, D leaves (on_player_left_match 0x316BE0 -> player::remove 0x1F2870 -> base_player::remove) "
+          "and P picks D's gun up: the leave first, P refused, D's record empty")
+
+    # A death and a pickup in one tick, C (place 4) dying.
+    for death_first in (True, False):
+        g = Death(patched)
+        g.setup()
+        c = g.add_picker(4, GUN_ID + 2)
+        t = DIED + 5_000
+        if not death_first:
+            g.pick(target=4, now=t)
+            assert any("refused, no drop to take" in l for l in g.log), g.log
+        (q,) = g.die(c.p, t)
+        cooked, gun, _ = g.cooked_gun()
+        g.complete(q, cooked)
+        if death_first:
+            g.pick(target=4, now=t)
+            assert g.slot(g.inventory, 10) == gun + 0x10, g.log
+            assert g.save(c.p) == record(("taken", 1, (4, 0, 1)))
+        else:
+            assert g.slot(g.inventory, 10) == g.own_gun + 0x10 and g.save(c.p) == record(("open", 1, (4, 0, 1)))
+    print("ok one tick, a death and a pickup of its gun: the death first, taken; the pickup first, refused (the "
+          "drop open after it)")
+
+
 def sights(run):
     """The sight lines of the gun of place 5 the picker logged."""
     head = "pickup: place 3 sees the gun of place 5: "
     return [l.split(head, 1)[1] for l in run.log if head in l]
 
 
-def frame_for(run, flag, departure=False):
-    sp = hide.STACK + 0x9000
-    run.word(sp, REMOVE_ON_DEPARTURE if departure else REMOVE_ON_RESPAWN)
-    run.word(sp + 4, flag)
-    return sp
 
-
-Pick.frame = frame_for
 
 
 if __name__ == '__main__':

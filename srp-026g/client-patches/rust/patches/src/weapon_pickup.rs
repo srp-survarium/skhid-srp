@@ -761,7 +761,11 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some((world, place)) = located(&player) else { return Flow::Continue };
     let now = Ms(player.time());
     match removal {
-        Removal::Respawn => {
+        Removal::Respawn | Removal::Unknown(_) => {
+            if let Removal::Unknown(caller) = removal {
+                log(&[Text("place "), Dec(u32::from(place.get())), Text(" removed by an unknown caller "),
+                      Hex(caller), Text(": as a respawn")]);
+            }
             update_record(thread, world, place, |r| *r = r.respawned());
             if let Some(gun) = record_at(thread, world, place).drop.gun() {
                 log_recipe("its body left the world: the drop stays, alone,", gun.recipe,
