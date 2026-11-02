@@ -24,7 +24,7 @@ second); the content-edit test `test_the_medicines_table_restates_the_packs_tabl
 |---|---|---|---|---|---|---|---|---|---|
 | Bandages | 1 s | 1 s | 100 % + injuries | 35 % | 35 % | | 0.1 | 10 | Scavengers r1 |
 | Orange Medikit | 2 s | 3 s | 100 % + injuries | 100 % | 40 % (was 0) | | 0.2 | 20 | Scavengers r3 |
-| Blue Military | 1 s | 1 s | 100 % + injuries | 60 % | 50 % | | 0.3 | 40 | Renaissance r1 |
+| Blue Military | 2 s (1 s until 2026-11-02) | 1 s | 100 % + injuries | 60 % | 50 % | | 0.3 | 40 | Renaissance r1 |
 | Green Black Market | 2 s | 2 s | 0 | 100 % | 100 % | | 0.3 | 40 | Black Market r3 |
 | Yellow Science | 2 s | 3 s | 100 % + injuries | 100 % | 50 % | intoxication and radiation | 0.3 | 40 | Fringe r1 |
 
