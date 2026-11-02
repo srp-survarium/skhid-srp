@@ -1071,6 +1071,9 @@ impl Results {
         let balance_changes = shared.balance_changes(accounts);
 
         let mut players = Vec::with_capacity(result.players.len());
+        // The kits each account used, as its kits were when the match
+        // ended (before it is settled), for the history.
+        let mut kits = Vec::with_capacity(result.players.len());
         for (index, player) in result.players.iter().enumerate() {
             let standing = shared.standing(player);
             // Only a player who stayed has a game of its play period; a
@@ -1083,6 +1086,13 @@ impl Results {
             } else {
                 0
             };
+            kits.push(
+                accounts
+                    .get(player.account_id)
+                    .map_or_else(Vec::new, |account| {
+                        shared.kits_used(&account.locked(), player)
+                    }),
+            );
             let report = match accounts.get(player.account_id) {
                 Some(account) => {
                     let mut account = account.locked();
@@ -1146,7 +1156,7 @@ impl Results {
         }
 
         let stats = shared.match_stats(&held);
-        let record = shared.history_record(&bots, &players, accounts);
+        let record = shared.history_record(&bots, &players, kits, accounts);
         let report = Arc::new(MatchReport {
             match_id: result.match_id,
             end: result.end,
@@ -1567,20 +1577,66 @@ impl<'a> Shared<'a> {
             && self.winner == Some(player.team)
     }
 
+    /// The kits `account` used in the match, as the history keeps them
+    /// ([`history::KitLine`]): every kit with a counter above 0 in the
+    /// trusted snapshot (as [`Self::wear`] counts a kit worn); with none
+    /// (no trusted snapshot, or nothing done), the kit the account plays,
+    /// the one the match took. Each with its own kills, headshots, shots and
+    /// hits, and its weapons and armour by slot.
+    fn kits_used(&self, account: &Account, player: &PlayerResult) -> Vec<history::KitLine> {
+        let events = self.events(player);
+        let kits = account.kits.len().min(KITS);
+        let mut used: Vec<usize> = (0..kits)
+            .filter(|&kit| events.iter().any(|counts| counts[kit] > 0))
+            .collect();
+        if used.is_empty() {
+            used.extend(
+                account
+                    .kit_index(account.active_kit)
+                    .filter(|&kit| kit < kits),
+            );
+        }
+        used.into_iter()
+            .map(|index| history::KitLine {
+                kit: index as u8,
+                counts: history::KitCounts {
+                    kills: u64::from(events[event::KILL][index]),
+                    headshots: u64::from(events[event::HEADSHOT_KILL][index]),
+                    shots: u64::from(events[event::BULLET_FIRE][index]),
+                    hits: u64::from(events[event::BULLET_HIT][index]),
+                },
+                items: account.kits[index]
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(slot, held)| {
+                        Some(history::KitItem {
+                            slot: history::GearSlot::of(slot)?,
+                            dict_id: account.item(held.as_ref()?.item_id)?.dict_id,
+                        })
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
+
     /// The match as the history keeps it ([`history`]): every account that
-    /// was in it, each with its line and its rating after (`reports`, by
-    /// roster place); no bot (`bots`, by roster place). `None` when no
-    /// account was in it.
+    /// was in it, each with its line, its rating after (`reports`) and the
+    /// kits it used (`kits`, [`Self::kits_used`]); no bot (`bots`). All by
+    /// roster place. `None` when no account was in it.
     fn history_record(
         &self,
         bots: &[bool],
         reports: &[PlayerReport],
+        kits: Vec<Vec<history::KitLine>>,
         accounts: &GameAccounts,
     ) -> Option<MatchRecord> {
         let result = self.result;
         let research = result.game_mode == mode::RESEARCH;
         let mut players: Vec<history::PlayerRecord> = Vec::new();
-        for ((player, &bot), report) in result.players.iter().zip(bots).zip(reports) {
+        for (((player, &bot), report), kits) in
+            result.players.iter().zip(bots).zip(reports).zip(kits)
+        {
             let presence = match self.standing(player) {
                 Standing::Finished => history::Presence::Finished,
                 Standing::Left => history::Presence::Left,
@@ -1627,8 +1683,11 @@ impl<'a> Shared<'a> {
                         // results' explorer count; not patch 80's
                         // empty-slot bonus (event 16).
                         artefacts: count(event::ARTEFACT),
+                        shots: count(event::BULLET_FIRE),
+                        hits: count(event::BULLET_HIT),
                     },
                 },
+                kits,
             });
         }
         if players.is_empty() {

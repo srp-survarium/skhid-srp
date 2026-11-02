@@ -4024,6 +4024,8 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
             batteries: 2,
             capture_hundredths: 0,
             artefacts: 2,
+            shots: 0,
+            hits: 0,
         }
     );
     let carol = &record.players[2].line;
@@ -4071,6 +4073,14 @@ fn an_untrusted_match_is_kept_without_its_counters_or_winner() {
         record.players[0].line.counters,
         history::Counters::default()
     );
+    // The kit the account plays, with nothing counted.
+    let kits = &record.players[0].kits;
+    assert_eq!(kits.len(), 1);
+    assert_eq!(
+        (kits[0].kit, kits[0].counts),
+        (0, history::KitCounts::default())
+    );
+    assert_eq!(kits[0].items.len(), 1, "the TT-33");
     assert_eq!(record.players[0].line.kills, 3, "the scoreboard's");
 
     // A match that never began has nobody in it: nothing is kept.
@@ -4079,6 +4089,80 @@ fn an_untrusted_match_is_kept_without_its_counters_or_winner() {
     waited.played_ms = None;
     results.settle(&waited, &store, &terms(), &mut Rng::new(1));
     assert!(history_of(&results).is_empty());
+}
+
+#[test]
+fn the_history_keeps_the_kits_with_a_counter_and_their_shots() {
+    let mut players = alice_and_bob();
+    // Alice fired with her first kit and her second; Bob only with his
+    // third, which he switched to; Carol did nothing at all.
+    let mut alice = counters_of(
+        0,
+        &[
+            (event::KILL, 3),
+            (event::HEADSHOT_KILL, 1),
+            (event::BULLET_FIRE, 100),
+            (event::BULLET_HIT, 30),
+        ],
+    );
+    alice.events[event::BULLET_FIRE][1] = 50;
+    alice.events[event::BULLET_HIT][1] = 20;
+    players[0].statistics = Some(alice);
+    players[1].statistics = Some(counters_of(
+        2,
+        &[(event::DEATH, 3), (event::BULLET_FIRE, 7)],
+    ));
+    players.push(player(2, 0, "Carol", PlayerStatistics::default()));
+    let store = accounts(&players);
+    let pistol = {
+        let alice = account(&store, 10);
+        let held = alice.kits[0].slots[7].unwrap().item_id;
+        alice.item(held).unwrap().dict_id
+    };
+    let results = Results::new();
+    results.settle(&result(players), &store, &terms(), &mut Rng::new(1));
+    let record = &history_of(&results)[0];
+
+    let alice = &record.players[0];
+    assert_eq!(
+        (alice.line.counters.shots, alice.line.counters.hits),
+        (150, 50)
+    );
+    assert_eq!(
+        alice.kits,
+        [
+            history::KitLine {
+                kit: 0,
+                counts: history::KitCounts {
+                    kills: 3,
+                    headshots: 1,
+                    shots: 100,
+                    hits: 30,
+                },
+                // The TT-33 in slot 7; its clip in slot 8 is ammo, not kept.
+                items: vec![history::KitItem {
+                    slot: history::GearSlot::of(7).unwrap(),
+                    dict_id: pistol,
+                }],
+            },
+            history::KitLine {
+                kit: 1,
+                counts: history::KitCounts {
+                    kills: 0,
+                    headshots: 0,
+                    shots: 50,
+                    hits: 20,
+                },
+                items: Vec::new(),
+            },
+        ]
+    );
+    let bob = &record.players[1].kits;
+    assert_eq!(bob.len(), 1, "not the kit the account plays");
+    assert_eq!((bob[0].kit, bob[0].counts.shots), (2, 7));
+    let carol = &record.players[2].kits;
+    assert_eq!(carol.len(), 1);
+    assert_eq!(carol[0].kit, 0, "nothing counted: the kit it plays");
 }
 
 fn alice_and_bob_result() -> MatchResult {
@@ -4127,7 +4211,8 @@ fn the_history_is_written_at_the_next_save() {
     let history = store.history().unwrap();
     let matches = history.player_matches(10, None, 10).unwrap();
     assert_eq!(matches.len(), 1);
-    assert_eq!(matches[0].1.kills, 3);
+    assert_eq!(matches[0].line.kills, 3);
+    assert_eq!(matches[0].kits.len(), 1);
     assert_eq!(history.player(11).unwrap().unwrap().totals.matches, 1);
     let _ = std::fs::remove_dir_all(&dir);
 }

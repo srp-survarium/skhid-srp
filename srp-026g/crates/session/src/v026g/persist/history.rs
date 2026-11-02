@@ -61,6 +61,9 @@ pub(super) const MIGRATION: &str = "
         captures      INTEGER NOT NULL,
         -- Artefacts taken from an anomaly.
         artefacts     INTEGER NOT NULL,
+        -- Bullets fired and bullets that hit (events 22 and 23).
+        shots         INTEGER NOT NULL,
+        hits          INTEGER NOT NULL,
         PRIMARY KEY (match_id, account_id)
     ) WITHOUT ROWID;
     CREATE INDEX g26_match_players_by_account ON g26_match_players (account_id, match_id);
@@ -80,7 +83,9 @@ pub(super) const MIGRATION: &str = "
         melee_kills   INTEGER NOT NULL,
         batteries     INTEGER NOT NULL,
         captures      INTEGER NOT NULL,
-        artefacts     INTEGER NOT NULL
+        artefacts     INTEGER NOT NULL,
+        shots         INTEGER NOT NULL,
+        hits          INTEGER NOT NULL
     );
     CREATE INDEX g26_player_totals_matches ON g26_player_totals (matches);
     CREATE INDEX g26_player_totals_wins ON g26_player_totals (wins);
@@ -89,6 +94,10 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_player_totals_headshots ON g26_player_totals (headshots);
     CREATE INDEX g26_player_totals_batteries ON g26_player_totals (batteries);
     CREATE INDEX g26_player_totals_artefacts ON g26_player_totals (artefacts);
+    -- The accuracy top list: the players with at least 1000 shots
+    -- (`ACCURACY_MIN_SHOTS`, the same number).
+    CREATE INDEX g26_player_totals_accuracy ON g26_player_totals (CAST(hits AS REAL) / shots)
+        WHERE shots >= 1000;
     -- A match counts once for a clan, however many of its members played:
     -- a win if one of them was on the winning team; score, kills and the
     -- counters are the members' rows added up.
@@ -105,8 +114,47 @@ pub(super) const MIGRATION: &str = "
         melee_kills   INTEGER NOT NULL,
         batteries     INTEGER NOT NULL,
         captures      INTEGER NOT NULL,
-        artefacts     INTEGER NOT NULL
+        artefacts     INTEGER NOT NULL,
+        shots         INTEGER NOT NULL,
+        hits          INTEGER NOT NULL
     );
+    -- The kits a player used in a match ([`KitLine`]; no bot): one row a
+    -- kit, with that kit's own counters.
+    CREATE TABLE g26_match_kits (
+        match_id      INTEGER NOT NULL REFERENCES g26_matches(id) ON DELETE CASCADE,
+        account_id    INTEGER NOT NULL,
+        -- Its place among the account's kits: the counters' kit.
+        kit           INTEGER NOT NULL CHECK (kit BETWEEN 0 AND 2),
+        kills         INTEGER NOT NULL,
+        headshots     INTEGER NOT NULL,
+        shots         INTEGER NOT NULL,
+        hits          INTEGER NOT NULL,
+        PRIMARY KEY (match_id, account_id, kit)
+    ) WITHOUT ROWID;
+    -- What a kit of `g26_match_kits` held: its weapons (profile slots 7
+    -- and 10) and its armour (0..=6), by items_dict id.
+    CREATE TABLE g26_match_kit_items (
+        match_id      INTEGER NOT NULL REFERENCES g26_matches(id) ON DELETE CASCADE,
+        account_id    INTEGER NOT NULL,
+        kit           INTEGER NOT NULL,
+        slot          INTEGER NOT NULL CHECK (slot BETWEEN 0 AND 7 OR slot = 10),
+        dict_id       INTEGER NOT NULL,
+        PRIMARY KEY (match_id, account_id, kit, slot)
+    ) WITHOUT ROWID;
+    -- The public matches added up by player and item: the matches in
+    -- which a kit it used held the item, and those kits' counters.
+    CREATE TABLE g26_player_items (
+        account_id    INTEGER NOT NULL,
+        dict_id       INTEGER NOT NULL,
+        gear          TEXT NOT NULL CHECK (gear IN ('weapon', 'armour')),
+        matches       INTEGER NOT NULL,
+        kills         INTEGER NOT NULL,
+        headshots     INTEGER NOT NULL,
+        shots         INTEGER NOT NULL,
+        hits          INTEGER NOT NULL,
+        PRIMARY KEY (account_id, dict_id)
+    ) WITHOUT ROWID;
+    CREATE INDEX g26_player_items_by_matches ON g26_player_items (account_id, gear, matches);
     -- What the site looks a player up by, and a player's clan.
     CREATE INDEX g26_accounts_by_name ON g26_accounts (name COLLATE NOCASE);
     CREATE INDEX g26_accounts_by_rating ON g26_accounts (rating);
@@ -223,6 +271,106 @@ pub struct Counters {
     pub capture_hundredths: u64,
     /// Artefacts taken from an anomaly (event 5, every pickup).
     pub artefacts: u64,
+    /// Bullets fired (event 22) and bullets that hit (event 23).
+    pub shots: u64,
+    pub hits: u64,
+}
+
+/// The fewest shots a player's totals need for the accuracy top list, so
+/// that a handful of lucky ones does not top it (`g26_player_totals_accuracy`
+/// is the same number).
+pub const ACCURACY_MIN_SHOTS: u64 = 1000;
+
+/// What a kit's counters say of one match, or of the matches added up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KitCounts {
+    pub kills: u64,
+    pub headshots: u64,
+    pub shots: u64,
+    pub hits: u64,
+}
+
+impl KitCounts {
+    fn plus(self, more: Self) -> Self {
+        Self {
+            kills: self.kills + more.kills,
+            headshots: self.headshots + more.headshots,
+            shots: self.shots + more.shots,
+            hits: self.hits + more.hits,
+        }
+    }
+}
+
+/// What an item in a [`GearSlot`] is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gear {
+    Weapon,
+    Armour,
+}
+
+impl Gear {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Weapon => "weapon",
+            Self::Armour => "armour",
+        }
+    }
+}
+
+/// A profile slot of a kit the history keeps: a weapon's (7 and 10,
+/// `rules::WEAPON_SLOTS`) or an armour piece's (0..=6). Ammo and the
+/// pockets are not kept.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GearSlot(u8);
+
+impl GearSlot {
+    /// The kit's slot `slot`, if the history keeps it.
+    pub fn of(slot: usize) -> Option<Self> {
+        match slot {
+            0..=7 | 10 => Some(Self(slot as u8)),
+            _ => None,
+        }
+    }
+
+    /// The profile slot.
+    pub fn number(self) -> u8 {
+        self.0
+    }
+
+    pub fn gear(self) -> Gear {
+        match self.0 {
+            7 | 10 => Gear::Weapon,
+            _ => Gear::Armour,
+        }
+    }
+}
+
+/// An item a kit held: items_dict's id, by slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitItem {
+    pub slot: GearSlot,
+    pub dict_id: u16,
+}
+
+/// A kit a player used in a match: its own counters and what it held
+/// (`docs/notes/match_history.md`, "Kits": which kits count as used).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KitLine {
+    /// Its place among the account's kits, 0..=2: the counters' kit.
+    pub kit: u8,
+    pub counts: KitCounts,
+    /// By slot.
+    pub items: Vec<KitItem>,
+}
+
+/// An item's public matches added up for a player: the matches in which a
+/// kit it used held it, and those kits' counters (a kit's, not the item's
+/// own: a kit of two weapons gives both its kills).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemTotals {
+    pub dict_id: u16,
+    pub matches: u64,
+    pub counts: KitCounts,
 }
 
 /// A player's line of one match.
@@ -247,6 +395,8 @@ pub struct PlayerRecord {
     /// The registered clan it is of.
     pub clan_id: Option<u32>,
     pub line: PlayerLine,
+    /// The kits it used, by place.
+    pub kits: Vec<KitLine>,
 }
 
 /// What a match was, whoever played it.
@@ -316,6 +466,8 @@ pub enum PlayerRanking {
     /// The visible rating.
     Rating,
     Totals(TotalsKey),
+    /// Hits by shots, of the players with [`ACCURACY_MIN_SHOTS`] or more.
+    Accuracy,
 }
 
 /// A registered clan, as a player's tag links it.
@@ -359,6 +511,22 @@ pub struct MatchPlayer {
     pub player: Named,
     pub level: u8,
     pub line: PlayerLine,
+    pub kits: Vec<KitLine>,
+}
+
+/// A public match of a player's: the match, its line and its kits.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerMatch {
+    pub summary: MatchSummary,
+    pub line: PlayerLine,
+    pub kits: Vec<KitLine>,
+}
+
+/// A player's most used items of its public matches, most matches first.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Favourites {
+    pub weapons: Vec<ItemTotals>,
+    pub armour: Vec<ItemTotals>,
 }
 
 /// One line of the players' top list.
@@ -451,9 +619,9 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures, artefacts)
+                 batteries, captures, artefacts, shots, hits)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17)",
+                 ?17, ?18, ?19)",
             params![
                 match_id,
                 player.account_id,
@@ -472,8 +640,11 @@ pub(super) fn record(
                 counters.batteries as i64,
                 counters.capture_hundredths as i64,
                 counters.artefacts as i64,
+                counters.shots as i64,
+                counters.hits as i64,
             ],
         )?;
+        record_kits(&transaction, match_id, player)?;
         if record.kind == MatchKind::Public {
             let own = Totals::of_match(line, info.winner.team() == Some(line.team));
             add_totals(
@@ -483,6 +654,7 @@ pub(super) fn record(
                 player.account_id,
                 &own,
             )?;
+            add_items(&transaction, player)?;
             if let Some(clan_id) = player.clan_id {
                 clans
                     .entry(clan_id)
@@ -529,9 +701,93 @@ impl Totals {
                 batteries: own.batteries + more.batteries,
                 capture_hundredths: own.capture_hundredths + more.capture_hundredths,
                 artefacts: own.artefacts + more.artefacts,
+                shots: own.shots + more.shots,
+                hits: own.hits + more.hits,
             },
         }
     }
+}
+
+/// Writes the kits `player` used in the match `match_id` and what they
+/// held.
+fn record_kits(
+    transaction: &Transaction,
+    match_id: i64,
+    player: &PlayerRecord,
+) -> Result<(), PersistError> {
+    for kit in &player.kits {
+        let counts = &kit.counts;
+        transaction.execute(
+            "INSERT INTO g26_match_kits (match_id, account_id, kit, kills, headshots, shots, hits)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                match_id,
+                player.account_id,
+                kit.kit,
+                counts.kills as i64,
+                counts.headshots as i64,
+                counts.shots as i64,
+                counts.hits as i64,
+            ],
+        )?;
+        for item in &kit.items {
+            transaction.execute(
+                "INSERT INTO g26_match_kit_items (match_id, account_id, kit, slot, dict_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    match_id,
+                    player.account_id,
+                    kit.kit,
+                    item.slot.number(),
+                    item.dict_id
+                ],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Adds a public match to `player`'s item totals: each item once, with
+/// the counters of every kit it used that held it (a kit holding an item
+/// twice counts once).
+fn add_items(transaction: &Transaction, player: &PlayerRecord) -> Result<(), PersistError> {
+    let mut items: BTreeMap<u16, (Gear, KitCounts)> = BTreeMap::new();
+    for kit in &player.kits {
+        let mut held: Vec<(u16, Gear)> = kit
+            .items
+            .iter()
+            .map(|item| (item.dict_id, item.slot.gear()))
+            .collect();
+        held.sort_unstable_by_key(|&(dict_id, _)| dict_id);
+        held.dedup_by_key(|&mut (dict_id, _)| dict_id);
+        for (dict_id, gear) in held {
+            items
+                .entry(dict_id)
+                .and_modify(|(_, counts)| *counts = counts.plus(kit.counts))
+                .or_insert((gear, kit.counts));
+        }
+    }
+    for (dict_id, (gear, counts)) in items {
+        transaction.execute(
+            "INSERT INTO g26_player_items (account_id, dict_id, gear, matches, kills, headshots,
+                 shots, hits)
+             VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, ?7)
+             ON CONFLICT(account_id, dict_id) DO UPDATE SET
+                 matches = matches + 1, kills = kills + excluded.kills,
+                 headshots = headshots + excluded.headshots, shots = shots + excluded.shots,
+                 hits = hits + excluded.hits",
+            params![
+                player.account_id,
+                dict_id,
+                gear.as_str(),
+                counts.kills as i64,
+                counts.headshots as i64,
+                counts.shots as i64,
+                counts.hits as i64,
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 /// Adds one match's `totals` to the row of `id` in `table`.
@@ -546,8 +802,8 @@ fn add_totals(
     transaction.execute(
         &format!(
             "INSERT INTO {table} ({key}, matches, wins, score, kills, deaths, assists, headshots,
-                 grenade_kills, melee_kills, batteries, captures, artefacts)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                 grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
              ON CONFLICT({key}) DO UPDATE SET
                  matches = matches + excluded.matches, wins = wins + excluded.wins,
                  score = score + excluded.score, kills = kills + excluded.kills,
@@ -557,7 +813,8 @@ fn add_totals(
                  melee_kills = melee_kills + excluded.melee_kills,
                  batteries = batteries + excluded.batteries,
                  captures = captures + excluded.captures,
-                 artefacts = artefacts + excluded.artefacts"
+                 artefacts = artefacts + excluded.artefacts,
+                 shots = shots + excluded.shots, hits = hits + excluded.hits"
         ),
         params![
             id,
@@ -573,6 +830,8 @@ fn add_totals(
             counters.batteries as i64,
             counters.capture_hundredths as i64,
             counters.artefacts as i64,
+            counters.shots as i64,
+            counters.hits as i64,
         ],
     )?;
     Ok(())
@@ -591,12 +850,71 @@ const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
 const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
      m.winner, m.team0_points, m.team1_points,
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id)";
-/// The columns of a [`PlayerLine`] of `p` (fourteen).
+/// The columns of a [`PlayerLine`] of `p` (sixteen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
-     p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts";
-/// The columns of [`Totals`] of `t` (twelve).
+     p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
+     p.hits";
+/// The columns of [`Totals`] of `t` (fourteen).
 const TOTALS: &str = "t.matches, t.wins, t.score, t.kills, t.deaths, t.assists, t.headshots,
-     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts";
+     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits";
+/// A match's kits and what they held, of `k` and `i`, by account and
+/// place, then slot (eight columns: account, kit, its four counters, slot,
+/// dict id); `{filter}` narrows `k` further.
+fn kits_query(filter: &str) -> String {
+    format!(
+        "SELECT k.account_id, k.kit, k.kills, k.headshots, k.shots, k.hits, i.slot, i.dict_id
+         FROM g26_match_kits k LEFT JOIN g26_match_kit_items i
+             ON i.match_id = k.match_id AND i.account_id = k.account_id AND i.kit = k.kit
+         WHERE k.match_id = ?1 {filter}
+         ORDER BY k.account_id, k.kit, i.slot"
+    )
+}
+/// A player's items of a gear, most matches first.
+const FAVOURITES: &str = "SELECT dict_id, matches, kills, headshots, shots, hits
+     FROM g26_player_items WHERE account_id = ?1 AND gear = ?2
+     ORDER BY matches DESC, dict_id DESC LIMIT ?3";
+
+/// The rows of [`kits_query`], by account.
+fn kits_of(
+    statement: &mut rusqlite::CachedStatement,
+    params: impl rusqlite::Params,
+) -> rusqlite::Result<BTreeMap<u32, Vec<KitLine>>> {
+    let mut kits: BTreeMap<u32, Vec<KitLine>> = BTreeMap::new();
+    let mut rows = statement.query(params)?;
+    while let Some(row) = rows.next()? {
+        let account_id: u32 = row.get(0)?;
+        let kit: u8 = row.get(1)?;
+        let lines = kits.entry(account_id).or_default();
+        if lines.last().is_none_or(|line| line.kit != kit) {
+            lines.push(KitLine {
+                kit,
+                counts: counts_at(row, 2)?,
+                items: Vec::new(),
+            });
+        }
+        if let Some(slot) = row.get::<_, Option<i64>>(6)? {
+            let slot = usize::try_from(slot)
+                .ok()
+                .and_then(GearSlot::of)
+                .ok_or_else(|| bad("slot", &slot.to_string()))?;
+            let line = lines.last_mut().expect("pushed above");
+            line.items.push(KitItem {
+                slot,
+                dict_id: row.get(7)?,
+            });
+        }
+    }
+    Ok(kits)
+}
+
+fn counts_at(row: &Row, at: usize) -> rusqlite::Result<KitCounts> {
+    Ok(KitCounts {
+        kills: u64_at(row, at)?,
+        headshots: u64_at(row, at + 1)?,
+        shots: u64_at(row, at + 2)?,
+        hits: u64_at(row, at + 3)?,
+    })
+}
 
 fn bad(what: &str, text: &str) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
@@ -660,6 +978,8 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
             batteries: u64_at(row, at + 11)?,
             capture_hundredths: u64_at(row, at + 12)?,
             artefacts: u64_at(row, at + 13)?,
+            shots: u64_at(row, at + 14)?,
+            hits: u64_at(row, at + 15)?,
         },
     })
 }
@@ -680,6 +1000,8 @@ fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
             batteries: u64_at(row, at + 9)?,
             capture_hundredths: u64_at(row, at + 10)?,
             artefacts: u64_at(row, at + 11)?,
+            shots: u64_at(row, at + 12)?,
+            hits: u64_at(row, at + 13)?,
         },
     })
 }
@@ -766,7 +1088,7 @@ impl MatchHistory {
         account_id: u32,
         before: Option<u64>,
         limit: usize,
-    ) -> Result<Vec<(MatchSummary, PlayerLine)>, PersistError> {
+    ) -> Result<Vec<PlayerMatch>, PersistError> {
         let connection = self.connection.locked();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT {SUMMARY}, {LINE}
@@ -777,8 +1099,44 @@ impl MatchHistory {
         let rows = statement
             .query_map(params![account_id, upper(before), bounded(limit)], |row| {
                 Ok((summary_at(row, 0)?, line_at(row, 10)?))
-            })?;
-        Ok(rows.collect::<Result<_, _>>()?)
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        // Each match's kits of the player: by the primary key.
+        let mut kits = connection.prepare_cached(&kits_query("AND k.account_id = ?2"))?;
+        let mut matches = Vec::with_capacity(rows.len());
+        for (summary, line) in rows {
+            let kits = kits_of(&mut kits, params![summary.id as i64, account_id])?
+                .remove(&account_id)
+                .unwrap_or_default();
+            matches.push(PlayerMatch {
+                summary,
+                line,
+                kits,
+            });
+        }
+        Ok(matches)
+    }
+
+    /// The account's most used weapons and armour of its public matches,
+    /// at most `limit` of each.
+    pub fn favourites(&self, account_id: u32, limit: usize) -> Result<Favourites, PersistError> {
+        let connection = self.connection.locked();
+        let mut statement = connection.prepare_cached(FAVOURITES)?;
+        let mut of = |gear: Gear| -> rusqlite::Result<Vec<ItemTotals>> {
+            statement
+                .query_map(params![account_id, gear.as_str(), bounded(limit)], |row| {
+                    Ok(ItemTotals {
+                        dict_id: row.get(0)?,
+                        matches: u64_at(row, 1)?,
+                        counts: counts_at(row, 2)?,
+                    })
+                })?
+                .collect()
+        };
+        Ok(Favourites {
+            weapons: of(Gear::Weapon)?,
+            armour: of(Gear::Armour)?,
+        })
     }
 
     /// The account's public matches that ended at `since` or later, added
@@ -795,7 +1153,7 @@ impl MatchHistory {
                            OR (m.winner = 'team1' AND p.team = 1) THEN 1 ELSE 0 END),
                  SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
                  SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
-                 SUM(p.artefacts)
+                 SUM(p.artefacts), SUM(p.shots), SUM(p.hits)
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1 AND m.kind = 'public' AND m.ended_at >= ?2
                AND p.match_id >= IFNULL((SELECT id FROM g26_matches WHERE ended_at >= ?2
@@ -870,9 +1228,15 @@ impl MatchHistory {
              {CLAN_JOIN}
              WHERE p.match_id = ?1 ORDER BY p.team, p.place"
         ))?;
+        let mut kits = kits_of(
+            &mut connection.prepare_cached(&kits_query(""))?,
+            [summary.id as i64],
+        )?;
         let rows = statement.query_map([summary.id as i64], |row| {
+            let player = named_at(row, 0)?;
             Ok(MatchPlayer {
-                player: named_at(row, 0)?,
+                kits: kits.remove(&player.account_id).unwrap_or_default(),
+                player,
                 level: level_of(row.get(4)?),
                 line: line_at(row, 5)?,
             })
@@ -888,17 +1252,8 @@ impl MatchHistory {
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
     ) -> Result<Vec<TopPlayer>, PersistError> {
-        let order = match by {
-            PlayerRanking::Rating => "a.rating DESC, a.account_id".to_owned(),
-            PlayerRanking::Totals(key) => format!("t.{} DESC, t.account_id", key.column()),
-        };
         let connection = self.connection.locked();
-        let mut statement = connection.prepare_cached(&format!(
-            "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
-             FROM g26_player_totals t JOIN g26_accounts a ON a.account_id = t.account_id
-             {CLAN_JOIN}
-             ORDER BY {order} LIMIT ?1"
-        ))?;
+        let mut statement = connection.prepare_cached(&top_query(by))?;
         // Room for the ones `keep` leaves out.
         let mut rows = statement.query([bounded(limit) + MatchHistory::MAX_ROWS as i64])?;
         let mut top = Vec::new();
@@ -988,8 +1343,9 @@ impl MatchHistory {
                      ORDER BY c.clan_id LIMIT 1"
                 ),
                 [value],
-                // c.leader: after the five of the clan and the twelve of TOTALS.
-                |row| Ok((clan_line(row)?, row.get::<_, u32>(17)?)),
+                // c.leader: after the five of the clan and the fourteen of
+                // TOTALS.
+                |row| Ok((clan_line(row)?, row.get::<_, u32>(19)?)),
             )
             .optional()?;
         let Some((clan, leader_id)) = found else {
@@ -1038,6 +1394,30 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
         members: row.get(4)?,
         totals: totals_at(row, 5)?,
     })
+}
+
+/// [`MatchHistory::top`]'s query by `by`. Accuracy reads the partial index
+/// `g26_player_totals_accuracy`: its expression and its bound are the
+/// migration's, word for word.
+fn top_query(by: PlayerRanking) -> String {
+    let (filter, order) = match by {
+        PlayerRanking::Rating => (String::new(), "a.rating DESC, a.account_id".to_owned()),
+        PlayerRanking::Totals(key) => (
+            String::new(),
+            format!("t.{} DESC, t.account_id", key.column()),
+        ),
+        PlayerRanking::Accuracy => (
+            format!("WHERE t.shots >= {ACCURACY_MIN_SHOTS}"),
+            "CAST(t.hits AS REAL) / t.shots DESC, t.account_id".to_owned(),
+        ),
+    };
+    format!(
+        "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
+         FROM g26_player_totals t JOIN g26_accounts a ON a.account_id = t.account_id
+         {CLAN_JOIN}
+         {filter}
+         ORDER BY {order} LIMIT ?1"
+    )
 }
 
 /// [`MatchHistory::best`]'s query: from the matches that ended in the
@@ -1114,7 +1494,34 @@ mod tests {
                 batteries: 1,
                 capture_hundredths: 50,
                 artefacts: 3,
+                shots: 100,
+                hits: 40,
             },
+        }
+    }
+
+    /// The AK (dict 155) in slot 7, the pistol (dict 60) in 10 and a
+    /// helmet (dict 300) in 0.
+    const AK: u16 = 155;
+    const PISTOL: u16 = 60;
+    const HELMET: u16 = 300;
+
+    fn kit(place: u8, kills: u64, held: &[(usize, u16)]) -> KitLine {
+        KitLine {
+            kit: place,
+            counts: KitCounts {
+                kills,
+                headshots: 1,
+                shots: 100,
+                hits: 40,
+            },
+            items: held
+                .iter()
+                .map(|&(slot, dict_id)| KitItem {
+                    slot: GearSlot::of(slot).unwrap(),
+                    dict_id,
+                })
+                .collect(),
         }
     }
 
@@ -1137,11 +1544,16 @@ mod tests {
                     account_id: 10,
                     clan_id: Some(7),
                     line: line(0, 1, 300, 14, 6),
+                    kits: vec![
+                        kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
+                        kit(2, 4, &[(7, PISTOL)]),
+                    ],
                 },
                 PlayerRecord {
                     account_id: 11,
                     clan_id: None,
                     line: line(1, 1, 100, 6, 14),
+                    kits: vec![kit(1, 6, &[(7, AK)])],
                 },
             ],
         }
@@ -1190,7 +1602,9 @@ mod tests {
             // Back to the step before: the history's tables gone.
             connection
                 .execute_batch(
-                    "DROP TABLE g26_match_players; DROP TABLE g26_matches;
+                    "DROP TABLE g26_match_kit_items; DROP TABLE g26_match_kits;
+                     DROP TABLE g26_player_items; DROP TABLE g26_match_players;
+                     DROP TABLE g26_matches;
                      DROP TABLE g26_player_totals; DROP TABLE g26_clan_totals;
                      DROP INDEX g26_accounts_by_name; DROP INDEX g26_accounts_by_rating;
                      DROP INDEX g26_clan_members_by_account;",
@@ -1210,7 +1624,126 @@ mod tests {
             .record_match(&record(MatchKind::Public, 1000))
             .unwrap();
         let history = repository.history().unwrap().unwrap();
-        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 1);
+        let card = history.player(10).unwrap().unwrap();
+        assert_eq!(card.totals.matches, 1);
+        assert_eq!(
+            (card.totals.counters.shots, card.totals.counters.hits),
+            (100, 40)
+        );
+        assert_eq!(
+            history.player_matches(10, None, 1).unwrap()[0].kits.len(),
+            2
+        );
+        assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
+    }
+
+    #[test]
+    fn the_kits_used_are_kept_with_what_they_held() {
+        let dir = TempDir::new("kits");
+        let (mut repository, history) = repository(&dir);
+        repository
+            .record_match(&record(MatchKind::Public, 100))
+            .unwrap();
+        let alice_kits = vec![
+            kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
+            kit(2, 4, &[(7, PISTOL)]),
+        ];
+        let matches = history.player_matches(10, None, 10).unwrap();
+        assert_eq!(matches[0].kits, alice_kits);
+        assert_eq!(
+            (
+                matches[0].line.counters.shots,
+                matches[0].line.counters.hits
+            ),
+            (100, 40)
+        );
+        let (_, players) = history.game_match(1).unwrap().unwrap();
+        assert_eq!(players[0].kits, alice_kits);
+        assert_eq!(players[1].kits, [kit(1, 6, &[(7, AK)])]);
+        // No kit kept: an empty list, the line still there.
+        let mut bare = record(MatchKind::Public, 200);
+        bare.players[1].kits.clear();
+        repository.record_match(&bare).unwrap();
+        let (_, players) = history.game_match(2).unwrap().unwrap();
+        assert!(players[1].kits.is_empty());
+        assert_eq!(players[1].line.kills, 6);
+    }
+
+    #[test]
+    fn favourites_count_matches_and_add_up_the_kits_that_held_them() {
+        let dir = TempDir::new("favourites");
+        let (mut repository, history) = repository(&dir);
+        for (kind, at) in [
+            (MatchKind::Public, 100),
+            (MatchKind::Public, 200),
+            // Not public: kept, not added up.
+            (MatchKind::Private, 300),
+        ] {
+            repository.record_match(&record(kind, at)).unwrap();
+        }
+        let favourites = history.favourites(10, 10).unwrap();
+        // The pistol is in both of Alice's kits: one match each time, the
+        // two kits' counters.
+        assert_eq!(
+            favourites.weapons,
+            [
+                ItemTotals {
+                    dict_id: AK,
+                    matches: 2,
+                    counts: KitCounts {
+                        kills: 20,
+                        headshots: 2,
+                        shots: 200,
+                        hits: 80,
+                    },
+                },
+                ItemTotals {
+                    dict_id: PISTOL,
+                    matches: 2,
+                    counts: KitCounts {
+                        kills: 28,
+                        headshots: 4,
+                        shots: 400,
+                        hits: 160,
+                    },
+                },
+            ]
+        );
+        assert_eq!(favourites.armour.len(), 1);
+        assert_eq!(
+            (favourites.armour[0].dict_id, favourites.armour[0].matches),
+            (HELMET, 2)
+        );
+        assert_eq!(history.favourites(10, 1).unwrap().weapons.len(), 1);
+        assert_eq!(history.favourites(11, 10).unwrap().weapons[0].matches, 2);
+        assert_eq!(history.favourites(99, 10).unwrap(), Favourites::default());
+    }
+
+    #[test]
+    fn the_accuracy_list_needs_its_shots() {
+        let dir = TempDir::new("accuracy");
+        let (mut repository, history) = repository(&dir);
+        // Alice: 100 shots, 40 hits a match; Bob 20 hits of the same.
+        let mut played = record(MatchKind::Public, 100);
+        played.players[1].line.counters.hits = 20;
+        for _ in 0..9 {
+            repository.record_match(&played).unwrap();
+        }
+        let top = |history: &MatchHistory| -> Vec<String> {
+            history
+                .top(PlayerRanking::Accuracy, 10, &|_| true)
+                .unwrap()
+                .into_iter()
+                .map(|top| top.player.name)
+                .collect()
+        };
+        assert!(top(&history).is_empty(), "900 shots are not enough");
+        repository.record_match(&played).unwrap();
+        assert_eq!(top(&history), ["Alice", "Bob"]);
+        let accurate = history
+            .top(PlayerRanking::Accuracy, 1, &|id| id != 10)
+            .unwrap();
+        assert_eq!(accurate[0].player.name, "Bob");
     }
 
     #[test]
@@ -1262,6 +1795,8 @@ mod tests {
                     batteries: 2,
                     capture_hundredths: 100,
                     artefacts: 6,
+                    shots: 200,
+                    hits: 80,
                 },
             }
         );
@@ -1304,14 +1839,14 @@ mod tests {
             .player_matches(10, None, 2)
             .unwrap()
             .iter()
-            .map(|(summary, _)| summary.id)
+            .map(|played| played.summary.id)
             .collect();
         assert_eq!(page, [5, 4]);
         let next: Vec<u64> = history
             .player_matches(10, Some(4), 2)
             .unwrap()
             .iter()
-            .map(|(summary, _)| summary.id)
+            .map(|played| played.summary.id)
             .collect();
         assert_eq!(next, [3, 2]);
         // A limit is 1 to 50.
@@ -1474,6 +2009,7 @@ mod tests {
             account_id,
             clan_id: Some(7),
             line,
+            kits: Vec::new(),
         };
         let with = |winner, players: Vec<PlayerRecord>| {
             let mut played = record(MatchKind::Public, 100);
@@ -1485,6 +2021,7 @@ mod tests {
             account_id: 11,
             clan_id: None,
             line: line(team, 1, 100, 6, 14),
+            kits: Vec::new(),
         };
         for played in [
             // Three members on the winning team: one match, one win.
@@ -1542,6 +2079,8 @@ mod tests {
                     batteries: 8,
                     capture_hundredths: 400,
                     artefacts: 24,
+                    shots: 800,
+                    hits: 320,
                 },
             }
         );
@@ -1658,5 +2197,60 @@ mod tests {
         // The players of those matches only, by the primary key.
         assert!(!plan.contains("SCAN p"), "{plan}");
         assert!(plan.contains("SEARCH p USING PRIMARY KEY"), "{plan}");
+    }
+
+    /// The plan of `sql`, its parameters bound to `values`.
+    fn plan_of(dir: &TempDir, sql: &str, values: impl rusqlite::Params) -> String {
+        let connection = Connection::open(dir.db()).unwrap();
+        let mut statement = connection
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap();
+        statement
+            .query_map(values, |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .join("; ")
+    }
+
+    #[test]
+    fn the_kits_and_items_queries_use_their_keys() {
+        let dir = TempDir::new("kit-plans");
+        let (_repository, _history) = repository(&dir);
+        for (sql, values) in [
+            (kits_query(""), vec![5_i64]),
+            (kits_query("AND k.account_id = ?2"), vec![5, 10]),
+        ] {
+            let plan = plan_of(&dir, &sql, rusqlite::params_from_iter(values));
+            assert!(
+                plan.contains("SEARCH k USING PRIMARY KEY (match_id=?"),
+                "{plan}"
+            );
+            assert!(
+                plan.contains("SEARCH i USING PRIMARY KEY (match_id=? AND account_id=? AND kit=?)"),
+                "{plan}"
+            );
+            assert!(!plan.contains("SCAN"), "{plan}");
+            assert!(!plan.contains("TEMP B-TREE"), "{plan}");
+        }
+        let plan = plan_of(&dir, FAVOURITES, params![10, "weapon", 10]);
+        assert!(
+            plan.contains("SEARCH g26_player_items USING INDEX g26_player_items_by_matches"),
+            "{plan}"
+        );
+        assert!(!plan.contains("TEMP B-TREE"), "{plan}");
+    }
+
+    #[test]
+    fn the_accuracy_list_reads_its_partial_index() {
+        let dir = TempDir::new("accuracy-plan");
+        let (_repository, _history) = repository(&dir);
+        let plan = plan_of(&dir, &top_query(PlayerRanking::Accuracy), [10]);
+        assert!(
+            plan.contains("SCAN t USING INDEX g26_player_totals_accuracy"),
+            "{plan}"
+        );
+        // Only the ties are sorted further, by account.
+        assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
     }
 }

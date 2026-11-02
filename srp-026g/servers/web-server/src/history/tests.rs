@@ -9,7 +9,8 @@ use serde_json::Value;
 use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
-    Counters, MatchInfo, MatchKind, MatchRecord, PlayerLine, PlayerRecord, Presence, Winner,
+    Counters, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine, PlayerRecord,
+    Presence, Winner,
 };
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
 use session::{Ban, SessionStore};
@@ -72,7 +73,37 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
             batteries: 2,
             capture_hundredths: 0,
             artefacts: 1,
+            shots: 400,
+            hits: 100,
         },
+    }
+}
+
+fn dict_id(name: &str) -> u16 {
+    survarium::v026g::dictionary::Dictionary::shared()
+        .item_named(name)
+        .unwrap()
+        .dict_id
+}
+
+/// A kit at `place` holding `held` (`(slot, item name)`), 14 kills of 400
+/// shots, 100 of which hit.
+fn kit(place: u8, held: &[(usize, &str)]) -> KitLine {
+    KitLine {
+        kit: place,
+        counts: KitCounts {
+            kills: 14,
+            headshots: 3,
+            shots: 400,
+            hits: 100,
+        },
+        items: held
+            .iter()
+            .map(|&(slot, name)| KitItem {
+                slot: GearSlot::of(slot).unwrap(),
+                dict_id: dict_id(name),
+            })
+            .collect(),
     }
 }
 
@@ -94,14 +125,26 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                 account_id: alice,
                 clan_id: Some(7),
                 line: line(0, 310, 14, 6),
+                kits: vec![kit(
+                    0,
+                    &[(0, "bm_helmet_1"), (2, "bm_torso_4"), (7, "ak_74u")],
+                )],
             },
             PlayerRecord {
                 account_id: bob,
                 clan_id: None,
+                // 600 shots in three public matches: too few for the
+                // accuracy list.
                 line: PlayerLine {
                     presence: Presence::Left,
+                    counters: Counters {
+                        shots: 200,
+                        hits: 50,
+                        ..line(1, 100, 6, 14).counters
+                    },
                     ..line(1, 100, 6, 14)
                 },
+                kits: vec![kit(1, &[(7, "uzi")])],
             },
         ],
     }
@@ -223,7 +266,8 @@ fn keys(value: &Value) -> Vec<&str> {
     keys
 }
 
-const TOTALS: [&str; 16] = [
+const TOTALS: [&str; 19] = [
+    "accuracy",
     "artefacts",
     "assists",
     "batteries",
@@ -231,6 +275,7 @@ const TOTALS: [&str; 16] = [
     "deaths",
     "grenade_kills",
     "headshots",
+    "hits",
     "kd",
     "kills",
     "losses",
@@ -238,6 +283,7 @@ const TOTALS: [&str; 16] = [
     "melee_kills",
     "score",
     "score_avg",
+    "shots",
     "win_rate",
     "wins",
 ];
@@ -255,7 +301,8 @@ const SUMMARY: [&str; 10] = [
     "winner",
 ];
 
-const LINE: [&str; 16] = [
+const LINE: [&str; 19] = [
+    "accuracy",
     "artefacts",
     "assists",
     "batteries",
@@ -263,6 +310,7 @@ const LINE: [&str; 16] = [
     "deaths",
     "grenade_kills",
     "headshots",
+    "hits",
     "kd",
     "kills",
     "left",
@@ -270,6 +318,7 @@ const LINE: [&str; 16] = [
     "place",
     "rating",
     "score",
+    "shots",
     "team",
     "won",
 ];
@@ -335,6 +384,7 @@ fn a_player_without_a_public_match_is_not_found() {
     for target in [
         format!("/api/history/player/matches?id={}", world.carol),
         format!("/api/history/player/days?id={}", world.carol),
+        format!("/api/history/player/equipment?id={}", world.carol),
     ] {
         let body = world.ok(&target).to_string();
         assert!(!body.contains("carol"), "{target}: {body}");
@@ -356,7 +406,7 @@ fn a_players_matches_are_pages_of_its_public_ones() {
         [5, 2],
         "the private and the bots' matches are not served"
     );
-    assert_eq!(keys(&matches[0]), sorted(&[&SUMMARY, &LINE]));
+    assert_eq!(keys(&matches[0]), sorted(&[&SUMMARY, &LINE, &["kits"]]));
     assert_eq!(matches[0]["winner"], 0);
     assert_eq!(matches[0]["won"], true);
     assert_eq!(matches[0]["duration_s"], 845);
@@ -373,6 +423,104 @@ fn a_players_matches_are_pages_of_its_public_ones() {
     assert_eq!(bob["matches"][0]["won"], false);
     assert_eq!(
         world.get("/api/history/player/matches?id=1&limit=51").0,
+        "400 Bad Request"
+    );
+}
+
+#[test]
+fn a_match_row_has_the_kits_used_and_their_items() {
+    let world = world("kits");
+    let body = world.ok(&format!(
+        "/api/history/player/matches?id={}&limit=1",
+        world.alice
+    ));
+    let row = &body["matches"][0];
+    assert_eq!(
+        (row["shots"].as_u64(), row["hits"].as_u64()),
+        (Some(400), Some(100))
+    );
+    assert_eq!(row["accuracy"], 0.25);
+    let kits = row["kits"].as_array().unwrap();
+    assert_eq!(kits.len(), 1);
+    assert_eq!(
+        keys(&kits[0]),
+        [
+            "accuracy",
+            "armour",
+            "headshots",
+            "hits",
+            "kills",
+            "kit",
+            "shots",
+            "weapons"
+        ]
+    );
+    assert_eq!(kits[0]["kit"], 0);
+    assert_eq!(kits[0]["kills"], 14);
+    let weapons = kits[0]["weapons"].as_array().unwrap();
+    assert_eq!(weapons.len(), 1);
+    assert_eq!(keys(&weapons[0]), ["id", "name", "slot"]);
+    assert_eq!(weapons[0]["slot"], 7);
+    assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
+    assert!(
+        weapons[0]["name"]
+            .as_str()
+            .is_some_and(|name| !name.is_empty())
+    );
+    let armour: Vec<u64> = kits[0]["armour"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["slot"].as_u64().unwrap())
+        .collect();
+    assert_eq!(armour, [0, 2]);
+
+    let shown = world.ok("/api/history/match?id=5");
+    assert_eq!(shown["players"][1]["kits"][0]["kit"], 1);
+    assert_eq!(
+        shown["players"][1]["kits"][0]["weapons"][0]["id"],
+        dict_id("uzi")
+    );
+}
+
+#[test]
+fn a_players_equipment_is_its_most_used_items() {
+    let world = world("equipment");
+    let body = world.ok(&format!("/api/history/player/equipment?id={}", world.alice));
+    assert_eq!(keys(&body), ["armour", "weapons"]);
+    let weapons = body["weapons"].as_array().unwrap();
+    assert_eq!(weapons.len(), 1);
+    assert_eq!(
+        keys(&weapons[0]),
+        [
+            "accuracy",
+            "headshots",
+            "hits",
+            "id",
+            "kills",
+            "matches",
+            "name",
+            "shots"
+        ]
+    );
+    assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
+    // Its three public matches: the private one and the bots' are not
+    // counted.
+    assert_eq!(weapons[0]["matches"], 3);
+    assert_eq!(weapons[0]["kills"], 42);
+    assert_eq!(weapons[0]["accuracy"], 0.25);
+    assert_eq!(body["armour"].as_array().unwrap().len(), 2);
+    let one = world.ok(&format!(
+        "/api/history/player/equipment?id={}&limit=1",
+        world.alice
+    ));
+    assert_eq!(one["armour"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        world.get("/api/history/player/equipment?id=1&limit=51").0,
+        "400 Bad Request"
+    );
+    assert_eq!(
+        world.get("/api/history/player/equipment").0,
         "400 Bad Request"
     );
 }
@@ -418,7 +566,10 @@ fn matches_are_listed_and_shown_public_only() {
     assert_eq!(keys(&shown["match"]), SUMMARY);
     let players = shown["players"].as_array().unwrap();
     assert_eq!(players.len(), 2);
-    assert_eq!(keys(&players[0]), sorted(&[&LINE, &["level", "player"]]));
+    assert_eq!(
+        keys(&players[0]),
+        sorted(&[&LINE, &["kits", "level", "player"]])
+    );
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(players[1]["left"], true);
     for hidden in [3, 4, 99] {
@@ -440,6 +591,13 @@ fn the_top_lists_leave_out_the_banned() {
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/top")["by"], "rating");
     assert_eq!(world.ok("/api/history/top?by=artefacts")["by"], "artefacts");
+    let accurate = world.ok("/api/history/top?by=accuracy");
+    assert_eq!(accurate["by"], "accuracy");
+    let players = accurate["players"].as_array().unwrap();
+    assert_eq!(players.len(), 1, "Bob has too few shots");
+    assert_eq!(players[0]["player"]["name"], "Alice");
+    assert_eq!(players[0]["totals"]["shots"], 1200);
+    assert_eq!(players[0]["totals"]["accuracy"], 0.25);
 
     world.store.ban_account(
         world.alice,
@@ -545,6 +703,7 @@ fn nothing_private_is_ever_in_an_answer() {
     for target in [
         "/api/history/player?name=Bob".to_owned(),
         format!("/api/history/player/matches?id={}", world.bob),
+        format!("/api/history/player/equipment?id={}", world.bob),
         "/api/history/match?id=5".to_owned(),
         "/api/history/matches".to_owned(),
         "/api/history/best".to_owned(),
