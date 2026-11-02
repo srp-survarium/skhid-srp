@@ -36,42 +36,10 @@ pub(crate) fn font_faces() -> &'static str {
 /// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill.
 const PAGE: &str = include_str!("../damage/damage.html");
 
-macro_rules! files {
-    ($($path:literal => $content_type:literal,)*) => {
-        &[$((
-            concat!("/damage/", $path),
-            $content_type,
-            include_bytes!(concat!("../damage/", $path)) as &[u8],
-        ),)*]
-    };
-}
-
-/// The files the page loads: address, content type, bytes. The renders are
-/// the Maps tab's too ([`crate::maps`]), which has every map's.
-const FILES: &[(&str, &str, &[u8])] = files! {
-    "calc.js" => "text/javascript; charset=utf-8",
-    "fonts/carlito-bold.woff2" => "font/woff2",
-    "fonts/pt-mono-regular.woff2" => "font/woff2",
-    "fonts/pt-sans-bold.woff2" => "font/woff2",
-    "fonts/pt-sans-italic.woff2" => "font/woff2",
-    "fonts/pt-sans-narrow-bold.woff2" => "font/woff2",
-    "fonts/pt-sans-narrow-regular.woff2" => "font/woff2",
-    "fonts/pt-sans-regular.woff2" => "font/woff2",
-    "maps/level_01.webp" => "image/webp",
-    "maps/level_02.webp" => "image/webp",
-    "maps/level_03.webp" => "image/webp",
-    "maps/level_04.webp" => "image/webp",
-    "maps/level_05.webp" => "image/webp",
-    "maps/level_06.webp" => "image/webp",
-    "maps/level_07.webp" => "image/webp",
-    "maps/level_08.webp" => "image/webp",
-    "maps/level_09.webp" => "image/webp",
-    "maps/v011e_level_03.webp" => "image/webp",
-    "maps/v011e_level_04.webp" => "image/webp",
-    "maps/v021d_level_03.webp" => "image/webp",
-    "maps/v021d_level_06.webp" => "image/webp",
-    "maps/v069d_level_01.webp" => "image/webp",
-};
+/// The files the page loads: address, content type, bytes. Every file of
+/// `../damage/` but the page and its record (`../build.rs` lists them). The
+/// renders are the Maps tab's too ([`crate::maps`]), which has every map's.
+const FILES: &[(&str, &str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/damage_files.rs"));
 
 /// The page's file at `path` (the target before any `?`): its content type
 /// and bytes.

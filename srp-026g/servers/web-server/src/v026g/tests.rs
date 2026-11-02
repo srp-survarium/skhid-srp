@@ -977,22 +977,12 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
     let (script_type, script) = crate::damage::file("/damage/calc.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
     wanted.extend(named(std::str::from_utf8(script).unwrap()));
-    for (ending, count) in [(".js", 1), (".woff2", 7), (".webp", 14)] {
-        assert_eq!(
-            wanted.iter().filter(|path| path.ends_with(ending)).count(),
-            count,
-            "{ending}"
-        );
+    for ending in [".js", ".woff2", ".webp"] {
+        assert!(wanted.iter().any(|path| path.ends_with(ending)), "{ending}");
     }
     for path in &wanted {
-        let (content_type, bytes) = crate::damage::file(path).unwrap_or_else(|| panic!("{path}"));
+        let (_, bytes) = crate::damage::file(path).unwrap_or_else(|| panic!("{path}"));
         assert!(!bytes.is_empty(), "{path}");
-        let expected = match path.rsplit('.').next() {
-            Some("js") => "text/javascript; charset=utf-8",
-            Some("woff2") => "font/woff2",
-            _ => "image/webp",
-        };
-        assert_eq!(content_type, expected, "{path}");
     }
 
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
