@@ -115,6 +115,11 @@ pub struct Concede {
     pub lone_peek: Option<LonePeek>,
     /// A shooter's death keeps the tries on his areas for a while ([`KeepAfterDeath`]); none: his death opens them.
     pub keep_after_death: Option<KeepAfterDeath>,
+    /// The fight side ([`RefuseFights`]): fight and roam plays aimed into a conceded area, or like the last failed try,
+    /// are refused, no K2 job opens on such an area, and a job on an area conceded ends. None: only the objective's plays
+    /// are weighed (A256 look 4, P1: look 3's collectors dying with their battery in a team-held lane 168 vs 268, z -4.0,
+    /// came with the refusal's Roam fallback).
+    pub refuse_fights: Option<RefuseFights>,
 }
 
 impl Default for Concede {
@@ -127,7 +132,46 @@ impl Default for Concede {
             objective_weight: 0.5,
             lone_peek: None,
             keep_after_death: Some(KeepAfterDeath::default()),
+            refuse_fights: Some(RefuseFights::default()),
         }
+    }
+}
+
+/// [`Concede::refuse_fights`]: the fight side of no feeding. Look 3 (A253, `fx-threat-obj-nofeed-bench.md`): the like-last
+/// rule refused 1.19 M fight and roam candidates, and a bot whose fight plays it refused fell back to a Roam of a side's
+/// route (`Roam None`, never weighed): the team held Roam 53.5 % longer, its Roams ended "the route turned bad" 489 vs 231
+/// times (a route's next point by a mate's death of the last 10 s, `plays/roam.rs`), and it stood with a goal and no
+/// route 15.8 % more (z +3.4).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RefuseFights {
+    /// [A256 P2] A Roam the team draws skips the routes through a mate's recent death ([`RoamAvoid`]). None: as before (only
+    /// a route whose first point is by a death of the last 10 s is skipped; deaths of the last 20 s weigh a route down).
+    pub roam_avoid: Option<RoamAvoid>,
+}
+
+/// [A256 P2] While the team refuses fights into its tried areas, a Roam's route is drawn only among the routes with no point
+/// within the step's turned-bad reach of a mate's death of the last `window_s`: the bot whose fight plays were refused goes
+/// another way, as a human team does after a pick (no second swing at the same angle: another position, or wait), instead of
+/// walking a route into the ground it was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RoamAvoid {
+    /// How long a mate's death keeps the routes by it out of the draw, s: the like-last rule's window (`Concede::retry_s`;
+    /// humans' re-entry into a camper's lane p75 32 s). LIKELY.
+    pub window_s: f32,
+}
+
+impl Default for RoamAvoid {
+    fn default() -> Self {
+        Self { window_s: 30.0 }
+    }
+}
+
+impl RoamAvoid {
+    /// [`Self::window_s`] in ms.
+    pub fn window_ms(&self) -> u32 {
+        (self.window_s.max(0.0) * 1000.0) as u32
     }
 }
 

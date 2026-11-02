@@ -220,10 +220,14 @@ pub enum Tally {
     LoneHit,
     LonePeekRefused,
     LonePeekWithMate,
+    /// [refuse_fights.roam_avoid, A256 P2] A side route a Roam's draw skipped for a mate's death by it; a draw that,
+    /// avoiding, had no route left (the Roam takes the exit or the way ahead instead).
+    RoamRouteAvoided,
+    RoamNoRouteLeft,
 }
 
 /// The [`Tally`]s, in order, and their names in the tally.
-pub const TALLIES: [(Tally, &str); 22] = [
+pub const TALLIES: [(Tally, &str); 24] = [
     (Tally::DeathBeforeHold, "deaths_before_hold"),
     (Tally::DeathPeek, "deaths_peek"),
     (Tally::DeathJob, "deaths_job"),
@@ -246,6 +250,8 @@ pub const TALLIES: [(Tally, &str); 22] = [
     (Tally::LoneHit, "lone_hits"),
     (Tally::LonePeekRefused, "lone_peek_refused"),
     (Tally::LonePeekWithMate, "lone_peek_with_mate"),
+    (Tally::RoamRouteAvoided, "roam_routes_avoided"),
+    (Tally::RoamNoRouteLeft, "roam_draws_none_left"),
 ];
 
 #[cfg(test)]

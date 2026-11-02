@@ -589,6 +589,12 @@ fn a_conceded_area_refuses_a_roam_into_it_and_weighs_the_objective() {
     let concede = crate::v026g::bots::concede::Offers { conceded: Vec::new(), tried: vec![(7, crate::v026g::bots::concede::Try { at: now.saturating_sub(40_000), ..last })] };
     s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
     assert_eq!(roam(&s), Some(roam_clear), "30 s past it");
+    // [A256 P1] The fight side off: conceded, the roam is not refused and the Collect still weighed.
+    let concede = crate::v026g::bots::concede::Offers { conceded: vec![7], tried: Vec::new() };
+    s.team.threat = Arc::new(Picture { held: vec![line.clone()], concede, ..Picture::default() });
+    s.tuning.threat.concede = Some(Concede { refuse_fights: None, ..Concede::default() });
+    assert_eq!(roam(&s), Some(roam_clear), "objectives only");
+    assert!(collect(&s).is_some_and(|w| (w - weighed).abs() < 1e-4));
     // Off: as it was.
     s.tuning.threat.concede = None;
     assert_eq!(collect(&s), Some(clear));
