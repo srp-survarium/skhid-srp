@@ -119,4 +119,5 @@ edit	rudnya-ammo-1.json	-	Rudnya (v0.69), all four modes: ammo only at the bases
 edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun> (E)", exe patch 85) in the existing collection widget; strings in the unified language catalog.
 edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
 edit	weapon-stats.tsv	-	the weapons' stats, and their cards
+edit	artefact-hold-1.json	-	an artefact container's search 2 s shorter (the owner, 2026-11-02; docs/notes/artefacts.md): artefacts_search_time_sec 6 -> 4 and 5 -> 3 in every map's containers, the 2 s exe patch 78 then shows the artefact in the hand, weapon away
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references

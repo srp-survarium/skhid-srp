@@ -87,3 +87,8 @@ handler = "on_client_death"
 [[hook]]
 site = "carry.key"
 handler = "on_key"
+
+# A container's artefact shown in the hand (the owner, 2026-11-02).
+[[hook]]
+site = "artefact_container.taken"
+handler = "on_container_taken"

@@ -58,6 +58,14 @@ resource reference bridges native remove/take, preserving cooldown, passive
 modifier bookkeeping and the same world-registry ID. Full containers cannot
 reach the engine's eviction path.
 
+A container's artefact uses the same hand (the owner, 2026-11-02;
+`artefacts.md`, "A pickup in the hand"): `Event::PickedUp` from the site
+`artefact_container.taken` starts `Showing`, one phase with its own 2 s
+timeline (weapon down, up, held, down, weapon back), snapshot tag 9. It
+starts only from `Stowed`, takes no command and no cancel, is never an
+offer and drops nothing at death; Tick's ownership check and `Gone` end it
+as they end a carry.
+
 The command rides in the existing input stream: bit 29 (unused by the game)
 marks the chord, with exactly one quick-use bit (14..19) its slot. Bits 30
 and 31 stay clear, since the relays (0x31847B, 0x27C509) and replays

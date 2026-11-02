@@ -156,3 +156,54 @@ should mix them just as retail does")
   game computes the same.
 - The owner: "Leave it" (asked whether to floor it at 25 % or lower Spring's values): no floor.
 
+
+## A pickup in the hand (the owner, 2026-11-02: "when artifact is picked up, quick animation is played, artifact is brought in hand, lingers there for a second, and then goes back and into the container")
+
+The rules:
+
+- When a container's search ends, the weapon goes down, the artefact comes up into the right palm,
+  stays there a second, goes back down, and the weapon comes back.
+- Weapon away, can't shoot: while it runs, fire, aim, reload, sprint, weapon keys, grenade, melee
+  and quick use do nothing (patch 78's carry filter); nothing pressed ends it early.
+- The search is shorter by the time it takes, so search and hold together take what the search took.
+- Seen by everyone, in both views: the carry's pose (patch 78), the same arm for the damage bones.
+- A hold animation, not a pickup one: the carry's raised-palm pose, nothing new authored.
+- The artefact is in its slot from the take, as before: its passive starts at once, its key works
+  as soon as the weapon is back.
+
+The numbers:
+
+- The show is 2 s (`carry::SHOW_MS`): weapon down 0.2 s (the carry's `LOWER_WEAPON_MS`), artefact
+  up 0.3 s, held 1 s, down 0.3 s, weapon back 0.2 s (`RESTORE_MS`).
+- The search: every container's `artefacts_search_time_sec` 6 -> 4 s (927 containers of the stock
+  maps) and 5 -> 3 s (54), `scripts/content-edit/artefact-hold-1.json` (`set_every`, every map's
+  `client_project`). The key is an int; the modifier `artefact_search_time` (static_info index 7)
+  still scales the new time.
+
+What happens when:
+
+- Death during it: the artefact stays in its slot (no drop: it was never offered). With the
+  artefact up (the gun away) no gun falls, as from a carrier's hands; while the weapon is still
+  going down or already coming back, it falls as from any player's.
+- A battery taken (its own carry has the hands): the hand goes down at once, as the carry's (`carry_allowed`).
+- Taken with no gun in hand: no show; the artefact goes to its slot as before.
+- Taken while the H carry is on (an offer, raising, lowering): no show; that carry goes on.
+- The artefact gone from its slot during it: the hand goes down empty.
+- Use still works (another container, a battery, a teammate's offer); a teammate cannot take the
+  shown artefact (it is no offer).
+- Slots full: the game puts the new artefact in place of the first slot's (0x2FC897), as before;
+  the new one is shown.
+
+How:
+
+- Site `artefact_container.taken` (0x31C8E2, in transfer_artefact after take_artefact: ESI the
+  artefact, EBX use_execute's user) -> `artefact_carry::on_container_taken`: the carry event
+  `PickedUp`, the phase `Showing { token, start }` of `crates/artefact-carry` (one state with its
+  own timeline, not flags on the carry's phases).
+- Every game computes it (the take is in the simulation); the phase is in the carry's 32-byte
+  snapshot (tag 9) with the world: late joins, resyncs and rollbacks restore it. A `next` row in
+  `simulation_changes.tsv`.
+- Bots: no bot searches artefact containers (servers/match-server bots); nothing changes for them.
+- Checked: `cargo test -p artefact-carry` (timeline, presses, snapshots, split ticks, the cases
+  above) and `check_artefact_carry_026g.py`'s `container_show` (the original transfer_artefact and
+  take_artefact, free and full slots, no gun, death mid-show). Not yet seen in a game.

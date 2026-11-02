@@ -86,6 +86,17 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// A container's artefact just taken (artefact_container.taken): shown in
+/// the hand, the weapon away meanwhile (the owner, 2026-11-02). Only with a
+/// gun in hand, as the carry; the artefact is in its slot either way.
+pub fn on_container_taken(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some((player, artefact)) = native::container_taken(ctx)
+        && player.carry_allowed() {
+        event(&player, ctx, Event::PickedUp { now: player.carry_time(), artefact });
+    }
+    Flow::Continue
+}
+
 fn consume_use(player: &Player<'_>, ctx: &Context<'_>) {
     if let Some(key) = player.carry_key() {
         OWNERS.with(ctx.thread(), |owners| owners.get_mut(key).carry.consume_use());
@@ -108,7 +119,8 @@ pub fn on_death(ctx: &mut Context<'_>) -> Flow<NoExit> {
             let hands = if carry.presentation(player.carry_time()).hide_weapon { Hands::Artefact } else { Hands::Gun };
             OWNERS.with(ctx.thread(), |owners| { owners.get_mut(key).death.get_or_insert(hands); });
         }
-        if let Some(artefact) = carry.artefact() { player.drop_carried(artefact); }
+        // A pickup's show drops nothing: its artefact is in its slot.
+        if let Some(artefact) = carry.dropped_at_death() { player.drop_carried(artefact); }
         event(&player, ctx, Event::Gone);
     }
     Flow::Continue

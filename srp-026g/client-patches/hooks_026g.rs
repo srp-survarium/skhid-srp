@@ -351,6 +351,21 @@ pub extern "C" fn hook_artefact_carry_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_carry (patch 78) ----
+
+/// The entry `artefact_carry_on_container_taken` (0x31c8e2, artefact_container_core::transfer_artefact after inventory::take_artefact (0x31C8D9), on its path with an artefact (lea eax,[esi+0D0h], past test esi,esi / je): ESI the artefact, now in an artefact slot and passive (take_artefact ends with its on_taken 0x313470, state 3); EBX the user, use_execute's (0x31C794), the only caller (0x31C817), kept by transfer_artefact and take_artefact) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_container_taken(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_container_taken` calls this, from the game's jump at 0x31c8e2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_container_taken(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_score (patch 80) ----
 
 /// The entry `artefact_score_on_transfer` (0x31c810, artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)) calls this with the saved machine.

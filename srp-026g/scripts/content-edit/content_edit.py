@@ -22,6 +22,12 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
+  "set_every":      [{"files" (glob), "key", "values": [[from, to], ...]}]
+                    every number named `key` in the matching files (an artefact container's
+                    `artefacts_search_time_sec`, one an entry of every map's `client_objects`) is one
+                    pair's `from` and becomes its `to`, its type kept; a value of no pair is refused
+                    (the base is not the live data), and so is an entry that changes nothing; a file
+                    without the key is left as it is
   "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
                                                        live three numbers, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
@@ -227,6 +233,24 @@ def set_number(buf, path, frm, to, as_float=False):
         raise ValueError('%s is an int; %r needs "as_float": true' % (path, to))
     raw = struct.unpack('<I', struct.pack('<f' if t == T_FLOAT else '<i', to if t == T_FLOAT else int(to)))[0]
     REC.pack_into(buf, off, (data & ~0xffffffff) | raw, idoff, crc, t, cnt)
+
+
+def set_every(buf, key, values):
+    """Every number named `key` set by its (from, to) pair; the paths it set."""
+    paths = []
+    for path, t, raw in walk(buf):
+        if path.rsplit('/', 1)[-1] != key:
+            continue
+        if t not in (T_INT, T_FLOAT):
+            raise ValueError('%s is no number' % path)
+        old = as_number(t, raw)
+        to = [b for a, b in values if abs(old - a) <= 1e-6]
+        if not to:
+            raise ValueError('%s is %r, none of %r: the base is not the live data'
+                             % (path, old, [a for a, _ in values]))
+        set_number(buf, path[1:], old, to[0])
+        paths.append(path)
+    return paths
 
 
 def set_vector(buf, path, frm, to):
@@ -1286,6 +1310,18 @@ def main():
             allowed.setdefault(cfg, set()).add('/' + path)
             print('built-in %s %s: %s -> %s' % (cfg, path, frm, to))
         print('promote_rolled_defaults: %d defaults' % len(changed))
+    for e in edits.get('set_every', []):
+        n = 0
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+            raw = bufs[p] if p in bufs else open(files[p], 'rb').read()
+            if e['key'].encode() + b'\0' not in raw:
+                continue
+            paths = set_every(buf(p), e['key'], e['values'])
+            allowed.setdefault(p, set()).update(paths)
+            n += len(paths)
+        if not n:
+            sys.exit('set_every %s: no value in %s' % (e['key'], e['files']))
+        print('set_every %s %s: %d values' % (e['key'], e['values'], n))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
         allowed.setdefault(e['file'], set()).add('/' + e['path'])

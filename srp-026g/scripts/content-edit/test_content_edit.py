@@ -177,6 +177,39 @@ class MapEditorEdits(unittest.TestCase):
             data = bytearray((root / 'out/suit').read_bytes())
             self.assertEqual(ce.items_of(data, 'default_modifications'), [1030, 1113, 1103, 1094])
 
+    def test_cli_set_every_sets_each_container_of_every_map(self):
+        """`set_every`: each value of the key in every matching file by its pair, types kept; a
+        matching file without the key is not written; a value of no pair is refused."""
+        def level(*times):
+            return config({'client_objects': [{'game_object_type': 'artefact_container',
+                                                'artefacts_search_time_sec': t, 'artefacts_cooldown_time_sec': 80}
+                                               for t in times] + [{'game_object_type': 'respawn_point'}]})
+        edits = {'set_every': [{'files': 'projects/*/client_project', 'key': 'artefacts_search_time_sec',
+                                'values': [[6, 4], [5, 3]]}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name, data in (('a', level(6, 5, 6)), ('b', level(6)), ('c', config({'respawn': 1}))):
+                (root / 'live/projects' / name).mkdir(parents=True)
+                (root / 'live/projects' / name / 'client_project').write_bytes(bytes(data))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            run = lambda out: subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                              str(root / 'edits.json'), str(root / 'live'), str(root / out)],
+                                             capture_output=True, text=True)
+            result = run('out')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('4 values', result.stdout)
+            self.assertIn('0 unexpected differences', result.stdout)
+            a = bytearray((root / 'out/projects/a/client_project').read_bytes())
+            self.assertEqual([value(a, 'client_objects[%d]/artefacts_search_time_sec' % n) for n in range(3)], [4, 3, 4])
+            self.assertEqual(ce.rec(a, ce.find(a, 'client_objects[1]/artefacts_search_time_sec'))[3], ce.T_INT)
+            self.assertEqual(value(a, 'client_objects[0]/artefacts_cooldown_time_sec'), 80)
+            self.assertTrue((root / 'out/projects/b/client_project').exists())
+            self.assertFalse((root / 'out/projects/c/client_project').exists())
+            (root / 'live/projects/b/client_project').write_bytes(bytes(level(8)))
+            result = run('stale')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('none of [6, 5]', result.stdout + result.stderr)
+
     def test_cli_promotes_rolled_defaults_of_equipment_only(self):
         """Built-in bonuses of a kind that rolls are raised to its second-strongest row, on equipment
         only; a stronger one, a kind that never rolls and a wear-only one stay; the check afterwards

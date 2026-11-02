@@ -298,6 +298,7 @@ def main():
     death_with_optics_hidden(bytes(built))
     death_rolled_back(bytes(built))
     recipient_hud(bytes(built))
+    container_show(bytes(built))
     builder = InputBuilder(bytes(built))
     quick, sprint = 1 << 14, 1 << 9
     assert builder.input(quick) == (quick, True)
@@ -745,5 +746,58 @@ def recipient_hud(built):
     g.word(container,0); hint('st_artefact_take_teammate')
     g.wall=True; hint('')
     print('ok: real HUD hook shows the take hint only when Use would take, and hides a blocked target')
+
+def container_show(built):
+    """A container's artefact, given by the original transfer_artefact (0x31C8A0)
+    and take_artefact, is shown in the taker's hand for 2 s (patch 78's tag 9):
+    fire filtered meanwhile, nothing pressed ends it, the snapshot holds it, then
+    fire passes again. Into a free slot and in place of the first of full slots;
+    no show without a gun in hand; a death during it drops nothing."""
+    FIRE, START, SHOW = 0x20, 1000, 2000
+    def give(g, taker):
+        """use_execute's call: the container's own artefact (state 2, id 5)."""
+        item = g.item()
+        g.word(item, g.read(g.item_ptr))  # the client vtable: the real on_taken
+        g.word(item + 0x280, 2)
+        g.emu.mem_write(item + 0x27E, bytes([5]))
+        g.word(item + 0x248, g.world)
+        g.word(g.read(g.world + 0x18940) + 5 * 4, item)
+        container = g.block(0x80)
+        g.word(container + 0x4C, item)
+        g.tick(taker, START)
+        g.site(0x31C8A0, [STOP], (taker + 0x108,), edi=container, ebx=taker)
+        assert g.read(container + 0x4C) == 0 and g.read(item + 0x280) == 3
+        return item
+    for taker_place, slot in ((1, 0), (0, 0)):
+        g = Run(built); taker = g.players[taker_place]
+        item = give(g, taker)
+        assert g.contents(g.inventories[taker_place], 1) == [item]
+        shown = g.save(taker)
+        assert shown[13] == 9 and shown[14] == 5 and shown[15] == slot, shown.hex()
+        for now, press in ((START + 100, FIRE), (START + 600, (1 << 29) | (1 << 14)), (START + 900, 1 << 12), (START + 1200, 0)):
+            assert g.input(taker, now, press) & (FIRE | (1 << 12) | (63 << 14)) == 0, hex(press)
+            g.tick(taker, now)
+            assert g.save(taker)[13] == 9, 'a press ended the show'
+        g.tick(taker, START + SHOW - 1); assert g.save(taker)[13] == 9
+        g.load(taker, shown); assert g.save(taker) == shown
+        g.tick(taker, START + SHOW); assert g.save(taker)[13] == 0
+        assert g.input(taker, START + SHOW, FIRE) == FIRE
+        assert g.contents(g.inventories[taker_place], 1) == [item]
+    # Taken with no gun in hand (a medkit, a grenade): no show, the artefact
+    # in its slot as before.
+    g = Run(built); taker = g.players[1]
+    g.word(g.read(taker + 0x128), 0xA00000)
+    item = give(g, taker)
+    assert g.save(taker)[13] == 0 and g.contents(g.inventories[1], 1) == [item]
+    # Killed during it: the artefact stays in its slot (no drop, state 3).
+    g = Run(built); taker = g.players[1]
+    item = give(g, taker)
+    g.tick(taker, START + 700)
+    g.site(0x1F28E0, [0x1F28E5], (0,), ecx=taker)
+    assert g.contents(g.inventories[1], 1) == [item] and g.read(item + 0x280) == 3
+    assert g.save(taker)[13] == 0
+    print('ok: a container\'s artefact (free and full slots) is shown 2 s, fire held, '
+          'snapshot kept; none without a gun; a death mid-show drops nothing')
+
 
 if __name__ == '__main__': main()

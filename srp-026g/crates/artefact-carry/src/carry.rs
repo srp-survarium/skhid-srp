@@ -14,6 +14,14 @@ pub const LOWER_WEAPON_MS: u32 = 200;
 pub const RAISE_MS: u32 = 600;
 pub const LOWER_HAND_MS: u32 = 500;
 pub const RESTORE_MS: u32 = 200;
+/// A container's artefact shown in the hand (the owner, 2026-11-02): the
+/// weapon goes down (LOWER_WEAPON_MS), the artefact comes up, is held, goes
+/// back down, and the weapon comes back (RESTORE_MS): 2 s in all, the two
+/// seconds the containers' search time lost (content-edit artefact-hold-1).
+pub const SHOW_RAISE_MS: u32 = 300;
+pub const SHOW_HOLD_MS: u32 = 1000;
+pub const SHOW_LOWER_MS: u32 = 300;
+pub const SHOW_MS: u32 = LOWER_WEAPON_MS + SHOW_RAISE_MS + SHOW_HOLD_MS + SHOW_LOWER_MS + RESTORE_MS;
 /// The carry chord's marker (bit 29, unused natively): with exactly one
 /// QUICK bit it offers that slot's artefact. Bits 30 and 31 stay clear: the
 /// relay readers (0x31847B, 0x27C509) and replays (0x1EE2A1) strip bit 31
@@ -125,6 +133,10 @@ pub enum Phase {
     LoweringHand { token: Token, start: Time, from: u16 },
     LoweringEmptyHand { start: Time, from: u16 },
     RestoringWeapon { start: Time, from: u16 },
+    /// A container's artefact just taken, shown from `start` for SHOW_MS:
+    /// nothing the player presses ends it, no one can take it, and it stays
+    /// in its slot (its passive on from the take).
+    Showing { token: Token, start: Time },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,6 +152,8 @@ pub enum Event {
     Tick { now: Time, owned: bool },
     Input { now: Time, actions: u32, artefact: Option<Artefact> },
     Taken { now: Time, token: Token },
+    /// A container gave this artefact (artefact_container_core::use_execute).
+    PickedUp { now: Time, artefact: Artefact },
     Gone,
     PendingLost,
 }
@@ -165,17 +179,24 @@ impl Carry {
     pub const fn artefact(self) -> Option<Artefact> {
         match self.phase {
             Phase::LoweringWeapon { token, .. } | Phase::Raising { token, .. }
-            | Phase::Offering(token) | Phase::LoweringHand { token, .. } => Some(token.artefact),
+            | Phase::Offering(token) | Phase::LoweringHand { token, .. }
+            | Phase::Showing { token, .. } => Some(token.artefact),
             Phase::Switching { current: Some(token), .. } => Some(token.artefact),
             _ => None,
         }
+    }
+    /// The artefact a death drops: one the key brought out. A pickup's
+    /// show has none to drop: its artefact is in its slot.
+    pub const fn dropped_at_death(self) -> Option<Artefact> {
+        if let Phase::Showing { .. } = self.phase { None } else { self.artefact() }
     }
     pub const fn pending(self) -> Option<Artefact> {
         if let Phase::Switching { next, .. } = self.phase { Some(next.artefact) } else { None }
     }
     pub const fn presentation_token(self) -> Option<Token> {
         match self.phase {
-            Phase::Raising { token, .. } | Phase::Offering(token) | Phase::LoweringHand { token, .. } => Some(token),
+            Phase::Raising { token, .. } | Phase::Offering(token) | Phase::LoweringHand { token, .. }
+            | Phase::Showing { token, .. } => Some(token),
             Phase::Switching { current, .. } => current,
             _ => None,
         }
@@ -210,6 +231,14 @@ impl Carry {
                     self.phase = Phase::LoweringEmptyHand { start: now, from: u16::MAX };
                 }
             }
+            // Only from an empty hand: a pickup while the key's carry is on
+            // is not shown (its hand is busy), the artefact goes to its slot.
+            Event::PickedUp { now, artefact } => {
+                if let Phase::Stowed = self.phase {
+                    self.generation = self.generation.wrapping_add(1);
+                    self.phase = Phase::Showing { token: Token { artefact, generation: self.generation }, start: now };
+                }
+            }
             Event::Tick { now, owned } => {
                 if self.artefact().is_some() && !owned {
                     self.phase = match self.phase {
@@ -229,13 +258,16 @@ impl Carry {
                         Phase::LoweringHand { start, .. } | Phase::LoweringEmptyHand { start, .. } if now.elapsed(start) >= LOWER_HAND_MS =>
                             Phase::RestoringWeapon { start: Time(start.0.wrapping_add(LOWER_HAND_MS)), from: u16::MAX },
                         Phase::RestoringWeapon { start, .. } if now.elapsed(start) >= RESTORE_MS => Phase::Stowed,
+                        Phase::Showing { start, .. } if now.elapsed(start) >= SHOW_MS => Phase::Stowed,
                         other => other,
                     };
                 }
             }
             Event::Input { now, actions: raw, artefact } => {
                 let command = QuickSlot::from_actions(raw);
-                if command.is_some() && command != QuickSlot::from_actions(self.last_raw) {
+                if let Phase::Showing { .. } = self.phase {
+                    // The show runs to its end: no command, no cancel.
+                } else if command.is_some() && command != QuickSlot::from_actions(self.last_raw) {
                     if let Some(artefact) = artefact {
                         if let Phase::LoweringHand { token, .. } = self.phase && token.artefact == artefact {
                             // Pressed again while it goes down: back up from here.
@@ -255,6 +287,7 @@ impl Carry {
                                 Phase::Switching { current, start, from, .. } => Phase::Switching { current, next: token, start, from },
                                 Phase::RestoringWeapon { .. } | Phase::Stowed =>
                                     Phase::LoweringWeapon { token, start: now, from: unit(self.presentation(now).arms) },
+                                Phase::Showing { .. } => self.phase,
                             };
                         }
                     }
@@ -309,6 +342,21 @@ impl Carry {
             Phase::LoweringHand { token, start, from } => Presentation { artefact: Some(token.artefact), arms: 1.0, raised: f32::from(from) / 65535.0 * (1.0 - blend(start, LOWER_HAND_MS)), hide_weapon: true },
             Phase::LoweringEmptyHand { start, from } => Presentation { artefact: None, arms: 1.0, raised: f32::from(from) / 65535.0 * (1.0 - blend(start, LOWER_HAND_MS)), hide_weapon: true },
             Phase::RestoringWeapon { start, from } => Presentation { artefact: None, arms: f32::from(from) / 65535.0 * (1.0 - blend(start, RESTORE_MS)), raised: 0.0, hide_weapon: false },
+            Phase::Showing { token, start } => {
+                let at = |offset: u32| Time(start.0.wrapping_add(offset));
+                let up = LOWER_WEAPON_MS;
+                let held = up + SHOW_RAISE_MS;
+                let down = held + SHOW_HOLD_MS;
+                let back = down + SHOW_LOWER_MS;
+                match now.elapsed(start) {
+                    e if e < up => Presentation { artefact: None, arms: blend(start, LOWER_WEAPON_MS), raised: 0.0, hide_weapon: false },
+                    e if e < back => Presentation {
+                        artefact: Some(token.artefact), arms: 1.0, hide_weapon: true,
+                        raised: if e < down { blend(at(up), SHOW_RAISE_MS) } else { 1.0 - blend(at(down), SHOW_LOWER_MS) },
+                    },
+                    _ => Presentation { artefact: None, arms: 1.0 - blend(at(back), RESTORE_MS), raised: 0.0, hide_weapon: false },
+                }
+            }
         }
     }
 
@@ -332,6 +380,7 @@ impl Carry {
             Phase::LoweringHand { token, start, from } => (4, Some(token), start, from),
             Phase::RestoringWeapon { start, from } => (5, None, start, from),
             Phase::LoweringEmptyHand { start, from } => (6, None, start, from),
+            Phase::Showing { token, start } => (9, Some(token), start, 0),
         };
         out[13] = tag;
         if let Some(token) = token {
@@ -365,6 +414,7 @@ impl Carry {
             4 => Phase::LoweringHand { token: token()?, start, from },
             5 => Phase::RestoringWeapon { start, from },
             6 => Phase::LoweringEmptyHand { start, from },
+            9 => Phase::Showing { token: token()?, start },
             _ => return None,
         };
         let carry = Self { phase, generation, last_raw: word(5), last_passed: word(9) };
@@ -661,6 +711,76 @@ mod tests {
         offering.step(Event::Gone);
         assert!(!offering.active());
         roundtrip(offering);
+    }
+
+    fn pick_up(c: &mut Carry, now: u32) { c.step(Event::PickedUp { now: Time(now), artefact: artefact() }); }
+
+    /// The owner, 2026-11-02: a container's artefact comes into the hand,
+    /// stays a second and goes back; weapon away, no shooting meanwhile.
+    #[test]
+    fn a_pickup_shows_the_artefact_then_gives_the_weapon_back() {
+        for start in [100, u32::MAX - 700] {
+            let at = |ms: u32| start.wrapping_add(ms);
+            let mut c = Carry::NEW;
+            pick_up(&mut c, start);
+            assert!(matches!(c.phase(), Phase::Showing { .. }));
+            assert_eq!(c.artefact(), Some(artefact()));
+            assert_eq!(c.dropped_at_death(), None, "a death drops a shown pickup");
+            roundtrip(c);
+            let shown = |c: &Carry, ms| c.presentation(Time(at(ms)));
+            assert_eq!(shown(&c, 0), Presentation { artefact: None, arms: 0.0, raised: 0.0, hide_weapon: false });
+            assert!(shown(&c, 100).arms > 0.4 && !shown(&c, 100).hide_weapon);
+            assert_eq!(shown(&c, LOWER_WEAPON_MS).artefact, Some(artefact()));
+            assert!(shown(&c, LOWER_WEAPON_MS).hide_weapon && shown(&c, LOWER_WEAPON_MS).raised == 0.0);
+            let up = LOWER_WEAPON_MS + SHOW_RAISE_MS;
+            for ms in [up, up + SHOW_HOLD_MS - 1] { assert_eq!(shown(&c, ms).raised, 1.0); }
+            let back = up + SHOW_HOLD_MS + SHOW_LOWER_MS;
+            assert!(shown(&c, back - 1).raised < 0.01 && shown(&c, back - 1).artefact.is_some());
+            assert_eq!(shown(&c, back).artefact, None);
+            assert!(!shown(&c, back).hide_weapon && shown(&c, back).arms == 1.0);
+            assert_eq!(SHOW_MS, 2000);
+            // Fire, a weapon key, a quick use, the carry chord: nothing ends
+            // it early, and none reaches the game while it runs.
+            for (ms, press) in [(250, 0x20), (400, 1 << 12), (600, 1 << 16), (800, QuickSlot(1).command()), (900, 0)] {
+                let phase = c.phase();
+                input(&mut c, at(ms), press);
+                assert_eq!(c.phase(), phase);
+                assert_eq!(c.filtered() & BLOCKED, 0);
+                assert_eq!(c.offer(), None);
+                tick(&mut c, at(ms));
+            }
+            let mut split = c;
+            tick(&mut c, at(SHOW_MS - 1));
+            assert!(c.active());
+            roundtrip(c);
+            tick(&mut c, at(SHOW_MS));
+            tick(&mut split, at(SHOW_MS + 5));
+            assert_eq!(c, split);
+            assert!(!c.active());
+            input(&mut c, at(SHOW_MS), 0x20);
+            assert_eq!(c.filtered() & 0x20, 0x20);
+        }
+    }
+
+    #[test]
+    fn a_pickup_is_not_shown_over_a_carry_and_ends_with_its_artefact() {
+        let mut c = equip(0);
+        tick(&mut c, 800);
+        let offering = c;
+        pick_up(&mut c, 900);
+        assert_eq!(c, offering);
+        // The artefact gone (its slot lost): the hand goes down empty.
+        let mut c = Carry::NEW;
+        pick_up(&mut c, 0);
+        c.step(Event::Tick { now: Time(700), owned: false });
+        assert!(matches!(c.phase(), Phase::LoweringEmptyHand { .. }));
+        tick(&mut c, 1500);
+        assert!(!c.active());
+        // A battery, a grenade in hand or a death: stowed at once.
+        let mut c = Carry::NEW;
+        pick_up(&mut c, 0);
+        c.step(Event::Gone);
+        assert!(!c.active());
     }
 
     /// The input of one tick: the carry key's own event (if any) and the

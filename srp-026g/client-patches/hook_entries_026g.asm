@@ -843,6 +843,45 @@ artefact_carry_on_key_replay:
     db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
     jmp 0x23fe48
 
+; 0x31c8e2 artefact_container_core::transfer_artefact after inventory::take_artefact (0x31C8D9), on its path with an artefact (lea eax,[esi+0D0h], past test esi,esi / je): ESI the artefact, now in an artefact slot and passive (take_artefact ends with its on_taken 0x313470, state 3); EBX the user, use_execute's (0x31C794), the only caller (0x31C817), kept by transfer_artefact and take_artefact: lohook -> artefact_carry_on_container_taken
+global artefact_carry_on_container_taken
+extern hook_artefact_carry_on_container_taken
+artefact_carry_on_container_taken:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_container_taken
+    mov edx, artefact_carry_on_container_taken_replay
+    cmp eax, 0
+    je artefact_carry_on_container_taken_go
+    mov edx, 0x31c8e8
+    cmp eax, 1
+    je artefact_carry_on_container_taken_go
+    ud2
+artefact_carry_on_container_taken_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_container_taken_replay:
+    db 0x8d, 0x86, 0xd0, 0x00, 0x00, 0x00
+    jmp 0x31c8e8
+
 ; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
 global artefact_score_on_transfer
 extern hook_artefact_score_on_transfer

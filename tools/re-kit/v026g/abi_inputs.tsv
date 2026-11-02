@@ -3098,6 +3098,8 @@ va	name	location	role	basis
 0x0031c780	survarium::artefact_container_core::use_execute	stack+12	required_current_object	inferred
 0x0031c8a0	survarium::artefact_container_core::transfer_artefact	EDI	container	inferred
 0x0031c8a0	survarium::artefact_container_core::transfer_artefact	stack+4	holder	inferred
+0x0031c8a0	survarium::artefact_container_core::transfer_artefact	entry ESP+4	the user's +108h (its +4, user+10Ch, is the inventory take_artefact gets in EAX)	observed
+0x0031c8a0	survarium::artefact_container_core::transfer_artefact	EBX	not read; kept (as take_artefact keeps it): its only caller's (use_execute 0x31C817) user, which the site artefact_container.taken (0x31C8E2) reads, with ESI the artefact just taken	observed
 0x0031cad0	survarium::victory_items_container_core::load	ECX	container	inferred
 0x0031cad0	survarium::victory_items_container_core::load	stack+4	config	inferred
 0x0031cb10	survarium::victory_items_container_core::can_use	ECX	container	inferred

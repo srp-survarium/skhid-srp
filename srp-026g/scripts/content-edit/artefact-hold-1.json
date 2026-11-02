@@ -1,0 +1,10 @@
+{
+ "_about": "An artefact container's search shorter by the hold that follows it (the owner, 2026-11-02; docs/notes/artefacts.md, 'A pickup in the hand'): every artefact_container's artefacts_search_time_sec (an int in seconds, every map's client_project; artefact_container_core::load 0x31C480 makes it ms at +58h, use_execute 0x31C780 waits it out times the artefact_search_time modifier, index 7) 6 -> 4 and 5 -> 3: exe patch 78 then shows the artefact in the hand, weapon away, for 2 s (carry::SHOW_MS), so search and show together take what the search took.",
+ "set_every": [
+  {
+   "files": "projects/*/client_project",
+   "key": "artefacts_search_time_sec",
+   "values": [[6, 4], [5, 3]]
+  }
+ ]
+}

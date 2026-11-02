@@ -104,7 +104,7 @@ given), LIKELY or GUESS.
 | [download-mirrors.md](download-mirrors.md) | Download mirrors (the owner, 2026-11-01, after Google Drive's quota stopped new players): the game's archive and the patches from many addresses in order, srp's `/game` and `mirrors.tsv`, `release/add-mirror`, resume at the next address, the addresses built into the updater and the .bat, one log line a try |
 | [armour-params.md](armour-params.md) | Armour configs: what each key does |
 | [artefact-score.md](artefact-score.md) | Match score for an artefact put into a slot |
-| [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts-1 edit list |
+| [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts-1 edit list; a container's artefact shown in the hand (patch 78, artefact-hold-1) |
 | [blackout.md](blackout.md) | Blackout: the mode with the UI off |
 | [breakable_lamps.md](breakable_lamps.md) | Breakable lamps |
 | [buy-gold.md](buy-gold.md) | "Get Gold" opens the exchange |

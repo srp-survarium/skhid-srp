@@ -1337,12 +1337,12 @@ va	name	source	ret_cleanup	result
 0x0031bc10	survarium::anomaly_state::initialize	manual	8	
 0x0031bcb0	survarium::anomaly_state::execute	manual	12	
 0x0031bd50	survarium::anomaly_state::finalize	manual	4	
-0x0031c480	survarium::artefact_container_core::load	manual	4	
+0x0031c480	survarium::artefact_container_core::load	manual	4	none; artefacts_search_time_sec (an int or a float, seconds) x 1000 + 0.5 truncated (0x1E800) to +58h, the search time in ms; artefacts_cooldown_time_sec the same way to +5Ch (0 when absent)
 0x0031c530	survarium::artefact_container_core::serialize	manual	8	
 0x0031c5b0	survarium::artefact_container_core::deserialize	manual	12	
 0x0031c6b0	survarium::artefact_container_core::can_use	manual	4	
 0x0031c720	survarium::artefact_container_core::use_info	manual	4	
-0x0031c780	survarium::artefact_container_core::use_execute	manual	12	
+0x0031c780	survarium::artefact_container_core::use_execute	manual	12	AL 1 searching (the progress to [user_data+24h]), 0 done or refused; EBX the user ([user_data]); done when now - [user_data+8] >= [+58h] x the user modifier 7 (artefact_search_time, 0x2D5AE0) made an int (0x5D970): vtable+48h, transfer_artefact (0x31C817), +60h := +5Ch + now, the anomaly (+50h) told, event 5 counted
 0x0031c8a0	survarium::artefact_container_core::transfer_artefact	manual	4	
 0x0031cad0	survarium::victory_items_container_core::load	manual	4	
 0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	

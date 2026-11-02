@@ -11701,6 +11701,30 @@ pub mod site {
         }
     }
 
+    /// artefact_container.taken (0x31c8e2): artefact_container_core::transfer_artefact after inventory::take_artefact (0x31C8D9), on its path with an artefact (lea eax,[esi+0D0h], past test esi,esi / je): ESI the artefact, now in an artefact slot and passive (take_artefact ends with its on_taken 0x313470, state 3); EBX the user, use_execute's (0x31C794), the only caller (0x31C817), kept by transfer_artefact and take_artefact
+    pub mod artefact_container_taken {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn user(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// ESI: a survarium::artefact (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<Artefact> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Artefact)
+        }
+    }
+
     /// lobby_camera.view (0x2840f2): lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward)
     pub mod lobby_camera_view {
         #[allow(unused_imports)]
