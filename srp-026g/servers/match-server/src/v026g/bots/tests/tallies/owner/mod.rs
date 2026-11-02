@@ -99,6 +99,7 @@ mod team_kills;
 mod threat_answer;
 mod through;
 mod topic;
+mod under_fire;
 mod worth;
 mod zone_deaths;
 
@@ -155,6 +156,7 @@ use threat_answer::*;
 use breach::*;
 use through::*;
 use topic::*;
+use under_fire::*;
 use worth::*;
 use zone_deaths::*;
 
@@ -247,6 +249,7 @@ impl OwnerTally {
         self.topic::<Feel>().set_human(human, camper);
         self.topic::<LookCounts>().set_human(human);
         self.topic::<CollectAtCounts>().set_stand_in(human.or(camper));
+        self.topic::<UnderFireCounts>().set_human(human);
         self.topic::<Scoreboard>().set_context(context, mode, human, camper);
     }
 
