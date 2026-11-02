@@ -2562,8 +2562,8 @@ st_srp_rooms_join_why_7	Zápas dosáhl limitu hráčů. Připojíš se k další
 st_srp_rooms_joined_room	%1$s se připojuje do místnosti
 st_srp_rooms_late_hint	Noví hráči uvidí místnost a pak vstoupí do zápasu.
 st_srp_rooms_leave	Odejít
-st_srp_rooms_leave_queue	Opustit frontu
-st_srp_rooms_leave_room	Opustit místnost
+st_srp_rooms_leave_queue	Odejít
+st_srp_rooms_leave_room	Odejít
 st_srp_rooms_left_room	%1$s opouští místnost
 st_srp_rooms_level	Úroveň
 st_srp_rooms_map	Mapa
