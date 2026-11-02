@@ -174,8 +174,8 @@ impl Default for ClassAim {
             rifle: automatic,
             mg: automatic,
             shotgun: (0.94, 1.04, 1.30),
-            marksman: (1.25, 1.29, 0.75),
-            bolt: (0.8, 1.058, 1.4),
+            marksman: (1.18, 1.24, 0.72),
+            bolt: (0.74, 0.97, 1.4),
         }
     }
 }
