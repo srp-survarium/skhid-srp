@@ -1,6 +1,9 @@
 SURVARIUM 0.26g - LINUX
 
-Install Bash, Wine with 32-bit Windows application support, and Winetricks.
+Always use Wine 11.0 or newer in modern WoW64 mode for the game and launcher.
+Our tested setup is Wine 11.8 Staging built for modern WoW64. Install that
+runtime, Bash and Winetricks. A package that only says "32-bit application
+support", or an old Wine installation with a win64 prefix, is not sufficient.
 The launcher also uses standard Linux tools, including flock, timeout and GNU
 coreutils. Apply this archive's game folder over the original extracted game,
 then open a terminal in game/binaries/x86 and run:
@@ -29,6 +32,31 @@ set server=host:port near the top of play_skhid.sh. Certificate-only builds have
 this value filled in by the release builder. No command-line arguments or
 Python are needed to play.
 
+CHOOSING WINE
+
+Install a runtime with modern (also called "new") WoW64 support. The script uses
+wine and wineserver from PATH; both must come from that runtime. Check which
+commands will run before starting:
+
+    command -v wine wineserver
+    wine --version
+
+The launcher rejects Wine versions older than 11.0 or unrecognized version
+output. It forces WINEARCH=wow64 and checks that a 32-bit Windows program runs
+in that mode on every start, including when reusing a prefix. A failed check
+stops launch before changing the executable or installing DXVK; it never
+falls back to classic Wine. A win64 prefix alone does not prove modern WoW64.
+
+If several Wine versions are installed, put the chosen runtime's bin directory
+first in PATH, for example:
+
+    PATH="/path/to/wow64-wine/bin:$PATH" bash Skhid.sh launcher
+
+Replace /path/to/wow64-wine with the installed runtime's path. From
+game/binaries/x86, use bash play_skhid.sh instead of bash Skhid.sh launcher
+to start the game directly. The script overrides any inherited WINEARCH;
+setting win32 or win64 outside it cannot disable the modern WoW64 requirement.
+
 THE SKHID LAUNCHER (UPDATES)
 
 For a new installation, unpack the Skhid archive into an empty folder with
@@ -53,6 +81,13 @@ skhid-wine.log and updater_skhid.log say.
 
 FIRST RUN
 
+When switching from an older Wine setup, close the game and launcher, then
+rename game/binaries/x86/wineprefix to an unused backup name. Keep the backup:
+it contains settings and any files saved in that prefix. The next start with
+the chosen WoW64 runtime creates a fresh prefix and installs DXVK again.
+Copy back only the game settings you want from the old prefix's
+drive_c/users/<user>/Documents/Survarium folder, not its Wine registry or DLLs.
+
 The script creates wineprefix beside itself and installs DXVK with
 winetricks -q dxvk. This can download files and needs a Vulkan-capable graphics
 driver with support appropriate for your Wine installation. Later launches
@@ -68,6 +103,20 @@ opens. Detection falls back to 1920x1080. Existing user.cfg settings are kept;
 you can change the resolution in the game.
 
 COMPATIBILITY AND LOGS
+
+"Not enough memory to run Vostok Engine v1.0" can mean that the engine could
+not allocate its arenas in the 32-bit process's address space, even with plenty
+of physical RAM free. Check the runtime and use a fresh modern WoW64 prefix
+as described above. Wine 9.0's classic mode reproduced this allocation failure
+in both win32 and win64 prefixes; modern WoW64 builds of Wine 11.0 and 11.8
+passed the startup allocation test. Those tests do not establish compatibility
+for every Wine version or graphics driver.
+
+Do not work around this by lowering the resource-memory budgets: getting past
+startup with smaller arenas does not prove maps and matches have enough memory.
+Keep the launcher's allocator settings. A later DXVK or Vulkan error is a
+separate graphics-compatibility problem; include it from skhid-wine.log when
+reporting a failure.
 
 Full release builds already include the minimum-VRAM-check patch. The launcher
 recognizes it and leaves the executable unchanged. For older or certificate-only

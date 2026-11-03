@@ -1977,13 +1977,13 @@ fn home(lang: Lang, stats: Stats) -> String {
             },
             if installs_game {
                 lang.tr(
-                    "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.",
-                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, див. <code>LINUX.txt</code>.",
+                    "Windows warns about an unknown publisher? Let it run.<br>Linux: always use modern WoW64 (tested: Wine 11.8 Staging WoW64), then <code>bash Skhid.sh launcher</code>. See <code>LINUX.txt</code> for setup and switching from an older Wine prefix.",
+                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: завжди використовуйте сучасний режим WoW64 (перевірено: Wine 11.8 Staging WoW64), потім <code>bash Skhid.sh launcher</code>. Налаштування й перехід зі старого префікса Wine описані в <code>LINUX.txt</code>.",
                 )
             } else {
                 lang.tr(
-                    "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.",
-                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh</code>, див. <code>LINUX.txt</code>.",
+                    "Windows warns about an unknown publisher? Let it run.<br>Linux: always use modern WoW64 (tested: Wine 11.8 Staging WoW64), then <code>bash Skhid.sh</code>. See <code>LINUX.txt</code> for setup and switching from an older Wine prefix.",
+                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: завжди використовуйте сучасний режим WoW64 (перевірено: Wine 11.8 Staging WoW64), потім <code>bash Skhid.sh</code>. Налаштування й перехід зі старого префікса Wine описані в <code>LINUX.txt</code>.",
                 )
             },
         )

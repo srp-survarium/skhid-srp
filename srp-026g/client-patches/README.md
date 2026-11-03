@@ -489,13 +489,24 @@ An embedded hostname is limited to 63 ASCII bytes and the port to 1–65535.
 `--cert-only` does not support embedding; cert-only overlays still pass the
 address through their batch file.
 
-On Linux, install Wine with support for 32-bit Windows applications and
-Winetricks, then run `bash play_skhid.sh` from `game/binaries/x86`. The launcher
+On Linux, require **Wine 11.0 or newer in modern WoW64** for the game and launcher. Our tested
+setup is **Wine 11.8 Staging WoW64**. Install that runtime and Winetricks,
+then run `bash play_skhid.sh` from `game/binaries/x86`. Classic Wine with a
+`win64` prefix is not the same mode. The script checks the version, rejects
+32-bit prefixes, forces `WINEARCH=wow64` and runs the 32-bit system `cmd.exe`
+as a compatibility probe on every launch. It refuses failures before changing
+the EXE or installing DXVK, with no classic-mode fallback. Put the chosen
+runtime's `wine` and `wineserver` first in `PATH`. When migrating, keep the old `wineprefix` as a
+backup and let the chosen runtime create a fresh one. The launcher
 creates its own Wine prefix, installs DXVK on first use, and preserves saved
 game settings. Full builds use the embedded server; edit `server=` at the top
 of the script for an override. Certificate-only builds fill in that value.
 Both launchers use the builder's `--localization` setting. See `LINUX.txt` for
-details, including the English-keyboard-layout startup workaround.
+details, including runtime selection, prefix migration, memory-error guidance
+and the English-keyboard-layout startup workaround. Do not lower the arena
+budgets to bypass a startup error: adequate capacity during matches has to be
+preserved. Wine's [11.0 release notes](https://list.winehq.org/hyperkitty/list/wine-releases%40list.winehq.org/message/UL6L2GJ55VYUJ5KUMBZ3TZSXRFJ52QG6/)
+describe the distinction between old and new WoW64 modes.
 
 `bash play_skhid.sh launcher` starts `launcher_skhid.exe` in the same Wine
 prefix instead of the game (not run under Wine by us yet).
