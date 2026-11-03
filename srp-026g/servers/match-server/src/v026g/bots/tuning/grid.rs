@@ -82,8 +82,9 @@ pub struct GridTuning {
     /// route plans a slip; but a floor only a slip gets to is reached, so a pocket when no walk returns, which the pocket marks,
     /// the escape (and its minute's self-kill) and the bench's pocket counts then see. Vector Laboratory's 16.22 ledge held
     /// 173-326 bot-s of the all-maps bench unseen by them (#980's bench), but its walk-off ran through the walkway's 0.97 m
-    /// parapet, which `drop_room` now cuts, and the ledge lies under a plate (A247). Off (the default) until its bench. A grid
-    /// is the map's (see `gap_links`).
+    /// parapet, which `drop_room` now cuts, and the ledge lies under a plate (A247). On by default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches). The old value
+    /// leaves floors bodies come down on unseen, so the all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see
+    /// `gap_links`).
     pub slip_landings: bool,
     /// Whether the maps' walk grids ask a sprint jump's run-up (1.5 m straight behind its take-off) after the erosion, of the
     /// take-offs and floors it leaves, in metres (`mapdata::Body::run_ups_after_erosion`), not before it: the erosion makes
@@ -108,7 +109,8 @@ pub struct GridTuning {
     /// the landing between take-off and landing, and a sprint exit with a 1.5 m straight run-up inside the pocket
     /// (`mapdata::Body::pocket_exits_walled`). A pocket with none is shut, and no route is planned into it. Chemical Plant day 2's
     /// pocket counted exits through a 3.9 m wall and Cologne day 2's two-floor slot sprint exits with 0.25 m to run; routes dropped
-    /// bots into both (fx-grid's A257). Off (the default) until its bench. A grid is the map's (see `gap_links`).
+    /// bots into both (fx-grid's A257). On by default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches). The old value counts exits a body cannot take, so the
+    /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub pocket_exits_walled: bool,
 }
 
@@ -127,10 +129,10 @@ impl Default for GridTuning {
             jump_cap_m: Positive::of(mapdata::grid::STANDING_JUMP_M),
             capsule_steps: false,
             drop_room: true,
-            slip_landings: false,
+            slip_landings: true,
             run_ups_after_erosion: true,
             steep_walk_base: true,
-            pocket_exits_walled: false,
+            pocket_exits_walled: true,
         }
     }
 }

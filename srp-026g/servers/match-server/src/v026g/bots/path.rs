@@ -197,11 +197,12 @@ pub enum PastDrop {
     /// Every floor [`FALL_BACK_M`] back, the top of a drop as well: a body on a drop's top that is near its landing on the ground
     /// plane is on the legs after it. Mamayev Kurgan's walk-off at (105.4, 29.9, 128.9), 0.7 m across and 3.1 m down: a body
     /// at the edge was put on the leg past the landing, and once braked back it steered at that leg's end, 3.8 m on and 3.2 m
-    /// down, into the wall 0.9 m ahead (PROVEN, the route code replayed on the map).
-    #[default]
+    /// down, into the wall 0.9 m ahead (PROVEN, the route code replayed on the map). Wrong by the map, so the all-off arm keeps
+    /// the default (`KEPT_RIGHT`).
     Window,
     /// The floors back to the landing of the last drop behind the body only: a body is on a leg past a drop once it is down.
-    /// A falling body is on the drop's own leg, whose floors run from the top down.
+    /// A falling body is on the drop's own leg, whose floors run from the top down. The default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches).
+    #[default]
     Landed,
 }
 
