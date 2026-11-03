@@ -324,6 +324,8 @@ pub(super) fn drive_tick(
     // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
     bot.sent_keys = decision.keys;
+    // [A277] The keys the client holds this tick: an emptied weapon's own reload at its clip's end needs no sprint or jump in them.
+    bot.reflex.keys_sent(time, decision.keys);
     decision
 }
 
