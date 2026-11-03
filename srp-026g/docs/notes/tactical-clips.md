@@ -250,3 +250,8 @@ release or a reserved revision. The resulting server game data passes the item-t
 startup validation. Reading the packaged configs and clips back verifies all 28 pairs and
 both UI values within 1e-6 relative error; the largest retuned config has 513 entries (limit
 565). This is built and checked, not played or released.
+
+Local startup follow-up: combine the pending SCAR ammunition, medicine and reload changes in
+one `next` row, as the replay parser requires. The 22 `session` replay tests pass, and the
+PR server starts with its built game data. The isolated client and server use local test
+revision 255 to match the test patch; the repository release revision stays unchanged.
