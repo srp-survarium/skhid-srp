@@ -75,6 +75,8 @@ pub struct Tuning {
     pub calibration: AimCalibration,
     pub personalities: Personalities,
     pub plays: PlaysTuning,
+    /// A281/A282: how a battery is taken from the floor (`take.rs`).
+    pub take: TakeTuning,
 }
 
 /// The bots' tier (`survarium::v026g::loadouts::BotTier`, from the
@@ -97,6 +99,7 @@ mod report;
 mod sense;
 mod smoke;
 mod spacing;
+mod take;
 mod team;
 mod teams;
 mod traps;
@@ -146,6 +149,12 @@ pub use smoke::SmokeTuning;
 pub use smoke::WaitForCloud;
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
+pub use take::CrossFromZone;
+pub use take::FarStands;
+pub use take::TakePitch;
+pub use take::TakeTuning;
+pub use take::TeamMemory;
+pub use take::WorldStand;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::Concede;
@@ -289,6 +298,7 @@ impl Tuning {
         self.sense.check()?;
         self.skill.check()?;
         self.smoke.check()?;
+        self.take.check()?;
         self.think.check()?;
         self.traps.check()?;
         self.unstick.check()?;

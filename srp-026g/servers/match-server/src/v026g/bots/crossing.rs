@@ -130,6 +130,15 @@ pub fn wanted(
     }
 }
 
+/// [take.cross_from_zone] Whether a crossing's search is asked though [`wanted`] says no: the plain search from floor
+/// `from` found no way, and `from` is a floor zones on all match mark (a body that stepped onto a zone's floors by its
+/// crossing's edge, or is in its crossing): from there the regions see the goal next door with the zones shut, so
+/// [`wanted`] answers "the plain search failed for something else", and the play's goal was taken for one with no way
+/// (A282, PROVEN by probe: 16-32 such floors by each edge of Vostok Radar Station's and Mamayev Kurgan's zone batteries).
+pub fn wanted_from_zone(tactics: &Tactics, plain: Option<&Route>, from: NodeId, to: NodeId) -> bool {
+    plain.is_none() && tactics.hazards.only_fixed_at(from) && tactics.world.grid.may_reach(from, to)
+}
+
 /// Whether the line from `a` to `b` passes over a floor a bot of `health`
 /// may cross ([`crossable`]), looked at every [`CROSS_STEP_M`].
 fn line_crosses(tactics: &Tactics, a: Vec3, b: Vec3, health: f32) -> bool {

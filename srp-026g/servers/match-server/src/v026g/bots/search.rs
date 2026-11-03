@@ -583,6 +583,8 @@ impl Bots {
         let mut crossed = false;
         let mut kept = false;
         let (from, to) = pending.ends;
+        // [take.cross_from_zone] The team's tuning asks a crossing's search from a zone floor.
+        let from_zone_on = team.is_some_and(|team| self.tunings.of(team).take.cross_from_zone.is_some());
         let long_kept = self
             .bots
             .get(pending.place)
@@ -615,13 +617,23 @@ impl Bots {
             }
             // No way, or a long one past zones on all match: a crossing's
             // search (`crossing.rs`).
+            let mut from_zone = false;
             if !(route.is_some() && long_kept)
-                && crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health)
+                && (crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health) || {
+                    from_zone = from_zone_on && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
+                    from_zone
+                })
             {
+                if from_zone {
+                    super::plays::collect::take_counts::count(super::plays::collect::take_counts::Count::ZoneSearchAsked);
+                }
                 match crossing::start(
                     tactics, from, to, time, side, objective, health, &filter, floors,
                 ) {
                     Ok(crossing_route) => {
+                        if from_zone && crossing_route.is_some() {
+                            super::plays::collect::take_counts::count(super::plays::collect::take_counts::Count::ZoneSearchFound);
+                        }
                         (route, crossed, kept) = crossing::choose(
                             tactics,
                             from,

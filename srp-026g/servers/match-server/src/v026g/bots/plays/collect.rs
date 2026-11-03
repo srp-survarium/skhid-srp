@@ -192,12 +192,118 @@ pub struct FailedStand {
     pub feet: Vec3,
     pub crouch: bool,
     pub until: u32,
-    /// The last use's ray, for the log: from the eye to the battery's
-    /// point aimed at (metres; the client's ray is 2 m), how far down
-    /// (radians), and how far the view was off it (radians).
-    pub ray_m: f32,
-    pub down: f32,
-    pub off: f32,
+    /// Why it was given up, for the log.
+    pub why: StandFail,
+}
+
+/// Why a take gave a stand up.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StandFail {
+    /// Its uses were spent and the battery lies there still. The last use's ray, for the log: from the eye to the battery's
+    /// point aimed at (metres; the client's ray is 1.80 m), how far down (radians), and how far the view was off it (radians).
+    NoTake { ray_m: f32, down: f32, off: f32 },
+    /// [take.world_stand] The latest world put the body this far off the stand across and up (+) or down (-), metres: the
+    /// body cannot hold the stand (A281: lifted onto a root beside a one-cell slot).
+    WorldOff { across_m: f32, up_m: f32 },
+}
+
+/// How a take of a battery ended, for the team's memory ([`TeamTakes`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TakeEnd {
+    /// "could not take it" with an untried stand still round the battery (the play's stands were spent).
+    StandsLeft,
+    /// "could not take it" with no stand left ([`NO_STAND_LEFT`]).
+    NoStandLeft,
+    /// "no way to its goal": the bot's search found no way to the take's goal.
+    NoWay,
+}
+
+/// The failure a take ends with when no stand round the battery is left untried, team memory on ([`TeamTakes`]):
+/// "could not take it" for every reader that matches its start.
+pub const NO_STAND_LEFT: &str = "could not take it: no stand left";
+
+/// A battery's failed takes the team remembers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct TakeFails {
+    battery: usize,
+    /// Where it lay: a battery found elsewhere is a new take.
+    at: Vec3,
+    /// Plays that ended "could not take it" in a row.
+    plays: u8,
+    /// Set aside for the team until then.
+    aside_until: Option<u32>,
+}
+
+/// [take.team_memory] What a team remembers of its takes (A281 (b), A282): the stands its bots gave up, and the batteries
+/// whose takes failed. One per team (`TeamKnowledge::takes`), kept only with the switch on.
+#[derive(Clone, Debug, Default)]
+pub struct TeamTakes {
+    stands: Vec<FailedStand>,
+    batteries: Vec<TakeFails>,
+}
+
+impl TeamTakes {
+    /// A stand a bot of the team gave up, kept `keep_ms` from `now`.
+    pub fn stand_failed(&mut self, failed: FailedStand, now: u32, keep_ms: u32) {
+        self.stands.retain(|f| f.until > now);
+        self.stands.push(FailedStand {
+            until: now + keep_ms,
+            ..failed
+        });
+    }
+
+    /// Whether a bot of the team gave up `stand` at battery `battery` lying at `at` lately.
+    fn gave_up(&self, battery: usize, at: Vec3, stand: TakeStand, now: u32) -> bool {
+        self.stands.iter().any(|f| {
+            f.until > now
+                && f.battery == battery
+                && (f.at - at).length() < 0.5
+                && TakeStand {
+                    feet: f.feet,
+                    crouch: f.crouch,
+                }
+                .same(stand.feet, stand.crouch)
+        })
+    }
+
+    /// A take of `battery` lying at `at` ended `end`: after `rule.aside_after` plays in a row that left no stand, or one that
+    /// found no way, the battery is set aside for the team for `rule.aside_s`. Gives whether it was set aside now.
+    pub fn play_ended(&mut self, battery: usize, at: Vec3, end: TakeEnd, now: u32, rule: &crate::v026g::bots::tuning::TeamMemory) -> bool {
+        let aside_ms = (rule.aside_s.get() * 1000.0) as u32;
+        let index = match self.batteries.iter().position(|b| b.battery == battery && (b.at - at).length() < 0.5) {
+            Some(i) => i,
+            None => {
+                self.batteries.retain(|b| b.battery != battery);
+                self.batteries.push(TakeFails {
+                    battery,
+                    at,
+                    plays: 0,
+                    aside_until: None,
+                });
+                self.batteries.len() - 1
+            }
+        };
+        let fails = &mut self.batteries[index];
+        let aside = match end {
+            TakeEnd::NoWay => true,
+            TakeEnd::StandsLeft | TakeEnd::NoStandLeft => {
+                fails.plays = fails.plays.saturating_add(1);
+                end == TakeEnd::NoStandLeft && fails.plays >= rule.aside_after
+            }
+        };
+        if aside {
+            fails.aside_until = Some(now + aside_ms);
+            fails.plays = 0;
+        }
+        aside
+    }
+
+    /// Whether battery `battery`, lying at `at`, is set aside for the team now.
+    pub fn aside(&self, battery: usize, at: Vec3, now: u32) -> bool {
+        self.batteries
+            .iter()
+            .any(|b| b.battery == battery && (b.at - at).length() < 0.5 && b.aside_until.is_some_and(|until| now < until))
+    }
 }
 
 impl FailedStand {
@@ -205,18 +311,29 @@ impl FailedStand {
     /// (to hold against the worlds: a belief left behind by a battery
     /// that moved is aimed at and missed).
     pub fn note(&self) -> String {
-        format!(
-            "took no battery {} from a stand {:.1} m off it ({}): its use's ray {:.2} m to it, {:.0} deg down, the view {:.1} deg off it; it was believed at ({:.2}, {:.2}, {:.2})",
-            self.battery,
-            self.feet.distance_xz(self.at),
-            if self.crouch { "crouched" } else { "standing" },
-            self.ray_m,
-            self.down.to_degrees(),
-            self.off.to_degrees(),
-            self.at.x,
-            self.at.y,
-            self.at.z,
-        )
+        let stance = if self.crouch { "crouched" } else { "standing" };
+        match self.why {
+            StandFail::NoTake { ray_m, down, off } => format!(
+                "took no battery {} from a stand {:.1} m off it ({}): its use's ray {:.2} m to it, {:.0} deg down, the view {:.1} deg off it; it was believed at ({:.2}, {:.2}, {:.2})",
+                self.battery,
+                self.feet.distance_xz(self.at),
+                stance,
+                ray_m,
+                down.to_degrees(),
+                off.to_degrees(),
+                self.at.x,
+                self.at.y,
+                self.at.z,
+            ),
+            StandFail::WorldOff { across_m, up_m } => format!(
+                "left a stand {:.1} m off battery {} ({}): the world had the body {:.2} m across and {:+.2} m up off it",
+                self.feet.distance_xz(self.at),
+                self.battery,
+                stance,
+                across_m,
+                up_m,
+            ),
+        }
     }
 }
 
@@ -317,9 +434,17 @@ fn use_from(
 fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand, f32)> {
     let grid = &cx.tactics.world.grid;
     let mut out: Vec<(TakeStand, f32)> = Vec::new();
+    let ring_pitch = take_pitch_limits(cx).0;
+    // [take.far_stands] The ring's radii, then the far ones, each with its eye's reach.
+    let far = cx.tuning.take.far_stands;
+    let radii: Vec<(f32, f32)> = RING_M
+        .iter()
+        .map(|&r| (r, RING_USE_M))
+        .chain(far.into_iter().flat_map(|f| f.radii_m.map(|r| (r.get(), f.use_m.get()))))
+        .collect();
     for k in 0..8 {
         let a = k as f32 * std::f32::consts::FRAC_PI_4;
-        for r in RING_M {
+        for &(r, use_m) in &radii {
             let p = Vec3::new(at.x + r * a.cos(), at.y, at.z + r * a.sin());
             let Some(node) = grid.locate(p, 0.5) else {
                 continue;
@@ -345,7 +470,7 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
                 }
                 let stand = TakeStand { feet, crouch };
                 if let UseFrom::Clear(pitch) =
-                    use_from(cx, stand, at, aim, RING_USE_M, RING_PITCH_MAX_RAD)
+                    use_from(cx, stand, at, aim, use_m, ring_pitch)
                     && (crossing || cx.reachable(feet, false))
                 {
                     out.push((stand, pitch));
@@ -354,6 +479,112 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
         }
     }
     out
+}
+
+/// The view's stop the fixed limits ([`RING_PITCH_MAX_RAD`], [`FIRST_PITCH_MAX_RAD`]) were set under, radians: 1 rad, the
+/// old reading of the view's pitch unit (`bots/pitch.rs`, `PitchScale::Radian`).
+const OLD_VIEW_STOP_RAD: f32 = 1.0;
+
+/// The steepest looks down a take's stands are judged by: a ring's stand, and where the bot stopped (`take.pitch`). Fixed:
+/// the constants; by the view's scale: the same margins under the view's real stop (`kin.pitch_scale`: 67.48 degrees down
+/// for the client's), A281 (d).
+fn take_pitch_limits(cx: &Ctx) -> (f32, f32) {
+    use crate::v026g::bots::tuning::TakePitch;
+    match cx.tuning.take.pitch {
+        TakePitch::Fixed => (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD),
+        TakePitch::ViewScale => {
+            let stop = -crate::v026g::bots::pitch::Pitch::new(-1.0).elevation(cx.tuning.kin.pitch_scale);
+            (
+                stop - (OLD_VIEW_STOP_RAD - RING_PITCH_MAX_RAD),
+                stop - (OLD_VIEW_STOP_RAD - FIRST_PITCH_MAX_RAD),
+            )
+        }
+    }
+}
+
+/// A world younger than the arrival by less than this tells nothing yet of the stand, ms: the body's last steps onto it
+/// reach the client after the bot decided them (a bot leads the clock; a world is a second apart). GUESS.
+const WORLD_SETTLE_MS: u32 = 500;
+
+/// What the latest world says of a body at a take's stand ([take.world_stand]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum WorldAt {
+    /// The world puts the feet on the stand.
+    There,
+    /// No world since the arrival (and its settling).
+    Waiting,
+    /// The world puts the feet this far off it across, and up (+) or down (-), metres.
+    Off { across_m: f32, up_m: f32 },
+}
+
+/// [take.world_stand] What the world `world` (feet, time) says of a body that arrived at `stand` at `since`.
+fn world_at(world: Option<(Vec3, u32)>, stand: Vec3, since: u32, rule: crate::v026g::bots::tuning::WorldStand) -> WorldAt {
+    match world {
+        Some((feet, time)) if time >= since + WORLD_SETTLE_MS => {
+            let (across_m, up_m) = (feet.distance_xz(stand), feet.y - stand.y);
+            if across_m <= rule.across_m.get() && up_m.abs() <= rule.up_m.get() {
+                WorldAt::There
+            } else {
+                WorldAt::Off { across_m, up_m }
+            }
+        }
+        _ => WorldAt::Waiting,
+    }
+}
+
+/// The take's counters for the bench (`tests/tallies/take.rs`): presses checked against the world, stands the world put the
+/// body off, and the team's memory at work. Nothing counts outside the tests.
+pub mod take_counts {
+    #[derive(Clone, Copy, Debug)]
+    pub enum Count {
+        /// [take.world_stand] A press where the world had the body at the stand.
+        WorldThere,
+        /// ... a press after waiting `wait_ms` with no world since the arrival.
+        WorldNone,
+        /// ... a stand given up: the world had the body off it.
+        WorldOff,
+        /// [take.team_memory] A battery set aside for the team after its takes found no stand left.
+        TeamAsideNoStand,
+        /// ... a battery set aside for the team after "no way to its goal".
+        TeamAsideNoWay,
+        /// ... a stand a teammate gave up, shared.
+        TeamStandShared,
+        /// [take.far_stands] A take went for a far stand (over 1.2 m).
+        FarStandUsed,
+        /// [take.cross_from_zone] A crossing's search asked from a zone floor after the plain search failed ...
+        ZoneSearchAsked,
+        /// ... and it found the way.
+        ZoneSearchFound,
+    }
+
+    pub const ALL: usize = 9;
+
+    /// The names of the counts, in order, for the bench's line.
+    pub const NAMES: [&str; ALL] = [
+        "world_there",
+        "world_none",
+        "world_off",
+        "team_aside_no_stand",
+        "team_aside_no_way",
+        "team_stand_shared",
+        "far_stand_used",
+        "zone_search_asked",
+        "zone_search_found",
+    ];
+
+    #[cfg(test)]
+    static COUNTS: [std::sync::atomic::AtomicU64; ALL] = [const { std::sync::atomic::AtomicU64::new(0) }; ALL];
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub fn count(what: Count) {
+        #[cfg(test)]
+        COUNTS[what as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub fn counts() -> [u64; ALL] {
+        std::array::from_fn(|k| COUNTS[k].load(std::sync::atomic::Ordering::Relaxed))
+    }
 }
 
 /// Whether the feet are over the floor a walk to `at` ends on
@@ -1191,9 +1422,7 @@ pub fn take_blocks(cx: &Ctx, offered: &[Candidate]) -> TakeBlocks {
             let why = (!offered)
                 .then(|| {
                     cx.take_block(at).or_else(|| {
-                        let aside = cx.bot.set_aside.iter().any(|&(k, t, until)| {
-                            k == PlayKind::Collect && t == target && cx.now < until
-                        });
+                        let aside = cx.set_aside(PlayKind::Collect, target);
                         battery_candidate(cx, battery).is_none().then(|| {
                             if aside {
                                 "set aside"
@@ -2166,7 +2395,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                     crouch: f.crouch,
                 }
                 .same(s.feet, s.crouch)
-        })
+        }) || (cx.tuning.take.team_memory.is_some() && cx.team.takes.gave_up(battery, at, s, cx.now))
     };
     // Stepping back out of a nook: straight, no line looked at.
     if let Some(started) = *backing {
@@ -2183,7 +2412,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             feet: me,
             crouch: true,
         };
-        match use_from(cx, here, at, aim, USE_NEAR_M, FIRST_PITCH_MAX_RAD) {
+        match use_from(cx, here, at, aim, USE_NEAR_M, take_pitch_limits(cx).1) {
             UseFrom::Clear(_) if !gave_up(here) => {
                 *stand = Some(here);
                 *since = cx.now;
@@ -2252,6 +2481,33 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             if cx.now < *last_use + every || !use_seen(cx, *last_use, 0) {
                 return Step::Continue(intent);
             }
+            // [take.world_stand] Pressed only where the latest world has the body at the stand: one that puts it elsewhere
+            // (lifted onto what lies by the battery, A281) gives the stand up, kept as failed; none yet waits a while.
+            if *tries < per_stand
+                && let Some(rule) = cx.tuning.take.world_stand
+            {
+                match world_at(cx.bot.world_feet, s.feet, arrived_at, rule) {
+                    WorldAt::There => take_counts::count(take_counts::Count::WorldThere),
+                    WorldAt::Waiting if cx.now < arrived_at + rule.wait_ms => return Step::Continue(intent),
+                    WorldAt::Waiting => take_counts::count(take_counts::Count::WorldNone),
+                    WorldAt::Off { across_m, up_m } => {
+                        take_counts::count(take_counts::Count::WorldOff);
+                        tried.push(s);
+                        *stand = None;
+                        return Step::Continue(Intent {
+                            failed_stand: Some(FailedStand {
+                                battery,
+                                at,
+                                feet: s.feet,
+                                crouch: s.crouch,
+                                until: cx.now + FAILED_KEEP_MS,
+                                why: StandFail::WorldOff { across_m, up_m },
+                            }),
+                            ..Intent::stay()
+                        });
+                    }
+                }
+            }
             if *tries < per_stand {
                 // Off the stand where no use reaches (it stopped past it,
                 // or was pushed): back onto it first, a while.
@@ -2262,7 +2518,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 if off > 0.05
                     && cx.now < arrived_at + SETTLE_MS
                     && !matches!(
-                        use_from(cx, here, at, aim_now, RING_USE_M, FIRST_PITCH_MAX_RAD),
+                        use_from(cx, here, at, aim_now, RING_USE_M, take_pitch_limits(cx).1),
                         UseFrom::Clear(_)
                     )
                 {
@@ -2287,11 +2543,13 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 feet: s.feet,
                 crouch: s.crouch,
                 until: cx.now + FAILED_KEEP_MS,
-                ray_m: to.length(),
-                down: (-to.y).atan2(to.x.hypot(to.z)),
-                off: (looking.dot(to) / to.length().max(1e-3))
-                    .clamp(-1.0, 1.0)
-                    .acos(),
+                why: StandFail::NoTake {
+                    ray_m: to.length(),
+                    down: (-to.y).atan2(to.x.hypot(to.z)),
+                    off: (looking.dot(to) / to.length().max(1e-3))
+                        .clamp(-1.0, 1.0)
+                        .acos(),
+                },
             });
             tried.push(s);
             *stand = None;
@@ -2331,6 +2589,9 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     let through = crossing.is_some();
     let intent = match next_stand(cx, at, aim, tried, steep, &gave_up, through) {
         Some(s) => {
+            if s.feet.distance_xz(at) > RING_M[RING_M.len() - 1] + 0.1 {
+                take_counts::count(take_counts::Count::FarStandUsed);
+            }
             *stand = Some(s);
             *since = cx.now + storey_walk_ms(cx, s.feet);
             *arrived = None;
@@ -2345,6 +2606,8 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             back_off(cx, at, aim, *from)
         }
         None if failed.is_some() => Intent::stay(),
+        // [take.team_memory] Every stand round it tried: the team's memory hears it (`TakeEnd::NoStandLeft`).
+        None if cx.tuning.take.team_memory.is_some() => return Step::Failed(NO_STAND_LEFT),
         None => return Step::Failed("could not take it"),
     };
     Step::Continue(Intent {

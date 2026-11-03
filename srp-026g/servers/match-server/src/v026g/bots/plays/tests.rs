@@ -61,6 +61,8 @@ pub struct Scenario {
     pub ammo: crate::v026g::bots::guns::Ammo,
     /// `BotFacts::failed_stands`.
     pub failed_stands: Vec<super::collect::FailedStand>,
+    /// `BotFacts::world_feet`.
+    pub world_feet: Option<(Vec3, u32)>,
     /// `BotFacts::crossing`.
     pub crossing: Option<Vec3>,
     pub held_choke: Option<(Place, Vec3, u32)>,
@@ -154,6 +156,7 @@ impl Scenario {
             hit: None,
             ammo: Default::default(),
             failed_stands: Vec::new(),
+            world_feet: None,
             crossing: None,
             held_choke: None,
         };
@@ -317,6 +320,7 @@ impl Scenario {
                 no_way_to: &self.no_way_to,
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
+                world_feet: self.world_feet,
                 dry: self.dry,
                 hit: self.hit,
                 ammo: self.ammo,

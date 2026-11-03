@@ -281,6 +281,9 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// [take.world_stand] The feet the latest world put its body at, and that world's time (alive; `body::Fix`), set before
+    /// each think: a take presses at a stand only where the world, not only the reckoning, has the body.
+    world_feet: Option<(Vec3, u32)>,
     /// The enemy and the place its Crossfire began on, and when
     /// (`commit.crossfire_point`): the choke after the memory forgot him.
     held_choke: Option<(Place, Vec3, u32)>,
@@ -513,6 +516,7 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            world_feet: None,
             held_choke: None,
             lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
