@@ -1357,44 +1357,33 @@ impl Running {
 }
 
 /// Every play's candidates for the bot.
-/// [A276] A play's candidates, timed in test builds for the bench's spike lines ([`super::bench_work::Span`]).
-macro_rules! offer {
-    ($name:literal, $call:expr) => {{
-        #[cfg(test)]
-        let span = super::bench_work::Span::new($name);
-        $call;
-        #[cfg(test)]
-        span.end();
-    }};
-}
-
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     #[cfg(test)]
     let scored_before = out.len();
-    offer!("cand.roam", roam::candidates(cx, out));
-    offer!("cand.collect", collect::candidates(cx, out));
-    offer!("cand.ambush", ambush::candidates(cx, out));
-    offer!("cand.intercept", intercept::candidates(cx, out));
-    offer!("cand.escort", escort::candidates(cx, out));
-    offer!("cand.sneak", sneak::candidates(cx, out));
-    offer!("cand.flank", flank::candidates(cx, out));
-    offer!("cand.crossfire", crossfire::candidates(cx, out));
-    offer!("cand.retreat", retreat::candidates(cx, out));
-    offer!("cand.cover_human", cover_human::candidates(cx, out));
-    offer!("cand.pair_up", pair_up::candidates(cx, out));
-    offer!("cand.hold_exit", hold_exit::candidates(cx, out));
-    offer!("cand.late_denial", late_denial::candidates(cx, out));
-    offer!("cand.guard_lead", guard_lead::candidates(cx, out));
-    offer!("cand.trade", trade::candidates(cx, out));
-    offer!("cand.heal", heal::candidates(cx, out));
-    offer!("cand.hunt", hunt::candidates(cx, out));
-    offer!("cand.station", station::candidates(cx, out));
-    offer!("cand.raid", raid::candidates(cx, out));
-    offer!("cand.buddy", buddy::candidates(cx, out));
-    offer!("cand.cut", cut::candidates(cx, out));
-    offer!("cand.resupply", resupply::candidates(cx, out));
-    offer!("cand.answer", answer::candidates(cx, out));
-    offer!("cand.breach", breach::candidates(cx, out));
+    roam::candidates(cx, out);
+    collect::candidates(cx, out);
+    ambush::candidates(cx, out);
+    intercept::candidates(cx, out);
+    escort::candidates(cx, out);
+    sneak::candidates(cx, out);
+    flank::candidates(cx, out);
+    crossfire::candidates(cx, out);
+    retreat::candidates(cx, out);
+    cover_human::candidates(cx, out);
+    pair_up::candidates(cx, out);
+    hold_exit::candidates(cx, out);
+    late_denial::candidates(cx, out);
+    guard_lead::candidates(cx, out);
+    trade::candidates(cx, out);
+    heal::candidates(cx, out);
+    hunt::candidates(cx, out);
+    station::candidates(cx, out);
+    raid::candidates(cx, out);
+    buddy::candidates(cx, out);
+    cut::candidates(cx, out);
+    resupply::candidates(cx, out);
+    answer::candidates(cx, out);
+    breach::candidates(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
 }
@@ -1402,18 +1391,6 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 /// A play's start. `slot` is the assignment's: a play whose rules depend on
 /// the role it was given (the container holder against an end-game guard)
 /// reads it, not the state of the match at the start.
-/// [A276] A value, timed in test builds for the bench's spike lines ([`super::bench_work::Span`]).
-macro_rules! timed {
-    ($name:literal, $value:expr) => {{
-        #[cfg(test)]
-        let span = super::bench_work::Span::new($name);
-        let value = $value;
-        #[cfg(test)]
-        span.end();
-        value
-    }};
-}
-
 pub fn start(
     kind: PlayKind,
     target: TargetRef,
@@ -1422,30 +1399,30 @@ pub fn start(
     rng: &mut Rng,
 ) -> Running {
     match kind {
-        PlayKind::Roam => timed!("start.Roam", Running::Roam(roam::start(target, cx, rng))),
-        PlayKind::Collect => timed!("start.Collect", Running::Collect(collect::start(target, cx, rng))),
-        PlayKind::Ambush => timed!("start.Ambush", Running::Ambush(ambush::start(target, cx, rng))),
-        PlayKind::Intercept => timed!("start.Intercept", Running::Intercept(intercept::start(target, cx, rng))),
-        PlayKind::Escort => timed!("start.Escort", Running::Escort(escort::start(target, cx, rng))),
-        PlayKind::Sneak => timed!("start.Sneak", Running::Sneak(sneak::start(target, cx, rng))),
-        PlayKind::Flank => timed!("start.Flank", Running::Flank(flank::start(target, cx, rng))),
-        PlayKind::Crossfire => timed!("start.Crossfire", Running::Crossfire(crossfire::start(target, cx, rng))),
-        PlayKind::Retreat => timed!("start.Retreat", Running::Retreat(retreat::start(target, cx, rng))),
-        PlayKind::CoverHuman => timed!("start.CoverHuman", Running::CoverHuman(cover_human::start(target, cx, rng))),
-        PlayKind::PairUp => timed!("start.PairUp", Running::PairUp(pair_up::start(target, cx, rng))),
-        PlayKind::HoldExit => timed!("start.HoldExit", Running::HoldExit(hold_exit::start(target, cx, rng))),
-        PlayKind::LateDenial => timed!("start.LateDenial", Running::LateDenial(late_denial::start(target, cx, rng))),
-        PlayKind::GuardLead => timed!("start.GuardLead", Running::GuardLead(guard_lead::start(target, slot, cx, rng))),
-        PlayKind::Trade => timed!("start.Trade", Running::Trade(trade::start(target, cx, rng))),
-        PlayKind::Heal => timed!("start.Heal", Running::Heal(heal::start(target, cx, rng))),
-        PlayKind::Hunt => timed!("start.Hunt", Running::Hunt(hunt::start(target, cx, rng))),
-        PlayKind::Station => timed!("start.Station", Running::Station(station::start(target, cx, rng))),
-        PlayKind::Raid => timed!("start.Raid", Running::Raid(raid::start(target, cx, rng))),
-        PlayKind::Buddy => timed!("start.Buddy", Running::Buddy(buddy::start(target, cx, rng))),
-        PlayKind::Cut => timed!("start.Cut", Running::Cut(cut::start(target, cx, rng))),
-        PlayKind::Resupply => timed!("start.Resupply", Running::Resupply(resupply::start(target, cx, rng))),
-        PlayKind::Answer => timed!("start.Answer", Running::Answer(answer::start(target, cx, rng))),
-        PlayKind::Breach => timed!("start.Breach", Running::Breach(breach::start(target, cx, rng))),
+        PlayKind::Roam => Running::Roam(roam::start(target, cx, rng)),
+        PlayKind::Collect => Running::Collect(collect::start(target, cx, rng)),
+        PlayKind::Ambush => Running::Ambush(ambush::start(target, cx, rng)),
+        PlayKind::Intercept => Running::Intercept(intercept::start(target, cx, rng)),
+        PlayKind::Escort => Running::Escort(escort::start(target, cx, rng)),
+        PlayKind::Sneak => Running::Sneak(sneak::start(target, cx, rng)),
+        PlayKind::Flank => Running::Flank(flank::start(target, cx, rng)),
+        PlayKind::Crossfire => Running::Crossfire(crossfire::start(target, cx, rng)),
+        PlayKind::Retreat => Running::Retreat(retreat::start(target, cx, rng)),
+        PlayKind::CoverHuman => Running::CoverHuman(cover_human::start(target, cx, rng)),
+        PlayKind::PairUp => Running::PairUp(pair_up::start(target, cx, rng)),
+        PlayKind::HoldExit => Running::HoldExit(hold_exit::start(target, cx, rng)),
+        PlayKind::LateDenial => Running::LateDenial(late_denial::start(target, cx, rng)),
+        PlayKind::GuardLead => Running::GuardLead(guard_lead::start(target, slot, cx, rng)),
+        PlayKind::Trade => Running::Trade(trade::start(target, cx, rng)),
+        PlayKind::Heal => Running::Heal(heal::start(target, cx, rng)),
+        PlayKind::Hunt => Running::Hunt(hunt::start(target, cx, rng)),
+        PlayKind::Station => Running::Station(station::start(target, cx, rng)),
+        PlayKind::Raid => Running::Raid(raid::start(target, cx, rng)),
+        PlayKind::Buddy => Running::Buddy(buddy::start(target, cx, rng)),
+        PlayKind::Cut => Running::Cut(cut::start(target, cx, rng)),
+        PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
+        PlayKind::Answer => Running::Answer(answer::start(target, cx, rng)),
+        PlayKind::Breach => Running::Breach(breach::start(target, cx, rng)),
     }
 }
 

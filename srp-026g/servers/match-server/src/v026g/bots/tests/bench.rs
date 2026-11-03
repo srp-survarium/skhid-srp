@@ -588,7 +588,7 @@ fn work_text(work: [u64; super::bench_work::KINDS]) -> String {
 }
 
 /// [A276] One bot's part of a poll told whole: its index, team, play, and its think's and ticks' time (µs) and work.
-struct BotSpan {
+struct BotTime {
     index: usize,
     team: u8,
     play: Option<super::plays::PlayKind>,
@@ -605,10 +605,6 @@ struct BotSpan {
 pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, Vec<Note>) {
     use std::time::Instant;
     let spike = spike_us();
-    if spike.is_some() {
-        super::bench_work::spans_on(true);
-        super::bench_work::take_spans();
-    }
     let started = Instant::now();
     let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
@@ -652,7 +648,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     // work, as the drive's own searches are).
     let looped = Instant::now();
     let work_looped = super::bench_work::totals();
-    let mut spans: Vec<BotSpan> = Vec::new();
+    let mut by_bot: Vec<BotTime> = Vec::new();
     let mut in_bots = 0.0;
     bots.each_bot(&view, |bots, index| {
         let a = Instant::now();
@@ -664,13 +660,14 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         bots.sync_route_claim(index, now, claims_on);
         let thought = a.elapsed();
         think += thought.as_secs_f64();
-        let (b, between) = (Instant::now(), before.map(|_| super::bench_work::totals()));
+        // The spike lines' own timing only with them on: the bench's poll times stay as without them.
+        let between = before.map(|before| (before, Instant::now(), super::bench_work::totals()));
         bots.ticks(index, &clock, &view, &mut made);
         bots.zone_walk_note(index, now, &mut notes);
-        in_bots += a.elapsed().as_secs_f64();
-        if let (Some(before), Some(between)) = (before, between) {
+        if let Some((before, b, between)) = between {
+            in_bots += a.elapsed().as_secs_f64();
             let bot = bots.bots[index].as_ref();
-            spans.push(BotSpan {
+            by_bot.push(BotTime {
                 index,
                 team: bot.map_or(0, |b| b.team),
                 play: bot.and_then(|b| b.assignment.as_ref().map(|a| a.kind)),
@@ -704,7 +701,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         let us = |s: f64| s as f32 * 1e6;
         let loop_work = work_since(&work_looped);
         let bots_work: [u64; super::bench_work::KINDS] =
-            std::array::from_fn(|k| spans.iter().map(|s| s.think_work[k] + s.ticks_work[k]).sum());
+            std::array::from_fn(|k| by_bot.iter().map(|b| b.think_work[k] + b.ticks_work[k]).sum());
         let commanders_text: Vec<String> = commanders
             .iter()
             .map(|(team, t, work)| format!("team {team} {t:.0} µs [{}]", work_text(*work)))
@@ -722,23 +719,17 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             us(parts[2] + parts[3] - in_bots),
             work_text(std::array::from_fn(|k| loop_work[k] - bots_work[k])),
         );
-        let timed: Vec<String> = super::bench_work::take_spans()
-            .iter()
-            .take(12)
-            .map(|(name, n, us, worst)| format!("{name} x{n} {us:.0} µs (longest {worst:.0})"))
-            .collect();
-        eprintln!("  A276 spans: {}", timed.join("; "));
-        spans.sort_by(|a, b| (b.think_us + b.ticks_us).total_cmp(&(a.think_us + a.ticks_us)));
-        for span in spans.iter().take(4) {
+        by_bot.sort_by(|a, b| (b.think_us + b.ticks_us).total_cmp(&(a.think_us + a.ticks_us)));
+        for bot in by_bot.iter().take(4) {
             eprintln!(
                 "  A276 bot {} team {} {:?}: think {:.0} µs [{}], ticks {:.0} µs [{}]",
-                span.index,
-                span.team,
-                span.play,
-                span.think_us,
-                work_text(span.think_work),
-                span.ticks_us,
-                work_text(span.ticks_work),
+                bot.index,
+                bot.team,
+                bot.play,
+                bot.think_us,
+                work_text(bot.think_work),
+                bot.ticks_us,
+                work_text(bot.ticks_work),
             );
         }
     }
