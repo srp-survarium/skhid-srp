@@ -20,6 +20,10 @@ const COLOGNE: u8 = 8;
 
 /// School's way from the raiders' spawn to the container of the owner's team (`an-anticamper.md` 6.1).
 const HELD_SPOT: Spot = Spot::at(47.0, 17.0, 116.0);
+/// He is at the held spot within this, m (flat).
+const HELD_M: f32 = 8.0;
+/// The way to the held spot in plain words (the game shows no marker; the runner's chat says how far and which way).
+const HELD_WAY: &str = "your stand of 2026-10-27: the east wing of the main school building, a few m in from its east wall";
 
 /// A victim of his is counted when he fell within this of him, m.
 const VICTIM_M: f32 = 45.0;
@@ -48,7 +52,7 @@ fn angle_between_deg(a: f32, b: f32) -> f32 {
 }
 
 fn near_held_spot(frame: &Frame, _since: Span) -> bool {
-    frame.owner.as_ref().is_some_and(|o| o.body.alive && o.body.feet.distance_xz(HELD_SPOT.vec()) <= 8.0)
+    frame.owner.as_ref().is_some_and(|o| o.body.alive && o.body.feet.distance_xz(HELD_SPOT.vec()) <= HELD_M)
 }
 
 fn crouched_at_held_spot(frame: &Frame, since: Span) -> bool {
@@ -513,6 +517,7 @@ pub fn steps() -> Vec<Step> {
             "Hold the spot on the raiders' way to your container (marked); stand and move a little as usual and kill what comes.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the held spot", holds: near_held_spot })])
+        .mark(Mark::Spot { at: HELD_SPOT, r_m: HELD_M, landmark: HELD_WAY })
         .end(&[died_twice(), End::OwnerLeft { at: HELD_SPOT, r_m: 20.0 }])
         .measure(flank_measure())
         .measure(Measure::OwnerKills)
@@ -531,6 +536,7 @@ pub fn steps() -> Vec<Step> {
             "Same spot: crouch, aim down sights and keep still while the bots come.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are crouched and still at the spot", holds: crouched_at_held_spot })])
+        .mark(Mark::Spot { at: HELD_SPOT, r_m: HELD_M, landmark: HELD_WAY })
         .end(&[died_twice(), End::OwnerLeft { at: HELD_SPOT, r_m: 20.0 }])
         .measure(flank_measure())
         .measure(Measure::OwnerKills)
@@ -546,6 +552,7 @@ pub fn steps() -> Vec<Step> {
             "Hold the same spot and keep killing; move up to 8 m around it between kills.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the held spot", holds: near_held_spot })])
+        .mark(Mark::Spot { at: HELD_SPOT, r_m: HELD_M, landmark: HELD_WAY })
         .end(&[died_twice(), End::OwnerLeft { at: HELD_SPOT, r_m: 25.0 }])
         .measure(lane_measure())
         .measure(Measure::OwnerKills)
@@ -588,6 +595,7 @@ pub fn steps() -> Vec<Step> {
             "Walk out to team 1's spawn exit (the way out of their base) and hold just outside it, facing in; kill what comes out.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are within 5 m of an enemy spawn exit", holds: near_enemy_exit })])
+        .mark(Mark::EnemyExit { r_m: EXIT_HOLD_M })
         .end(&[End::OwnerDied])
         .measure(exit_measure())
         .measure(Measure::OwnerKills)

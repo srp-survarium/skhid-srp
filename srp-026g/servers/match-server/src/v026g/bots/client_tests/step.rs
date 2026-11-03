@@ -4,6 +4,7 @@ use mapdata::Vec3;
 use survarium::v026g::loadouts::BotRole;
 
 use super::frame::Frame;
+pub use super::guide::Mark;
 pub use super::time::{At, Span};
 use crate::v026g::bots::control::only_reload;
 use crate::v026g::bots::reflex::Override;
@@ -439,6 +440,9 @@ pub struct Step {
     pub arm: Span,
     /// How long the owner has to read the instruction before the step may start (the check of the message starts at once).
     pub settle: Span,
+    /// Where the owner is to go for the start, when the start waits for him at a spot of a package's own condition (a start with
+    /// [`Cond::OwnerNear`] has its mark without it): the runner tells him the way there while the step waits.
+    pub mark: Option<Mark>,
 }
 
 impl Step {
@@ -459,6 +463,7 @@ impl Step {
             budget: Span::s(60),
             arm: DEFAULT_ARM,
             settle: DEFAULT_SETTLE,
+            mark: None,
         }
     }
 
@@ -523,6 +528,22 @@ impl Step {
         self
     }
 
+    /// Where the owner is to go for the start (see [`Step::guide`]).
+    pub fn mark(mut self, mark: Mark) -> Self {
+        self.mark = Some(mark);
+        self
+    }
+
+    /// The spot the runner guides the owner to while the step waits: the step's own mark, or else its [`Cond::OwnerNear`].
+    pub fn guide(&self) -> Option<Mark> {
+        self.mark.or_else(|| {
+            self.start.iter().find_map(|cond| match *cond {
+                Cond::OwnerNear { at, r_m } => Some(Mark::Spot { at, r_m, landmark: "" }),
+                _ => None,
+            })
+        })
+    }
+
     /// Every measure name the step declares.
     pub fn names(&self) -> Vec<&'static str> {
         self.measures.iter().flat_map(Measure::all_names).collect()
@@ -557,6 +578,9 @@ impl Step {
         }
         if self.start.is_empty() {
             return bad("it needs a start condition (`Cond::After(Span(0))` for none)");
+        }
+        if self.instruction.contains("mark") && self.guide().is_none() {
+            return bad("the instruction names a marker, which the game does not show: `.mark(..)` it so the runner tells the way");
         }
         let names = self.names();
         if let Some(dup) = names.iter().enumerate().find(|(i, n)| names[..*i].contains(n)) {

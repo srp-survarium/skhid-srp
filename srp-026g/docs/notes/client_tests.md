@@ -36,7 +36,10 @@ SRP_CLIENT_TEST=all SRP_PVB=on <the usual local settings> cargo run -p srp --fea
    printed card for the rest.
 3. Reads each instruction in the game's chat (or the card) and does it. The runner arms the next step 4 s after the last
    ended, tells the instruction again every 6 s until the step starts, and starts it when its condition holds. Nothing is
-   clicked between steps of one match.
+   clicked between steps of one match. The game shows no marker: a step that starts at a spot (its `Mark`, or its
+   `Cond::OwnerNear`) is followed by one line with the spot's landmark, then every 3 s by the way there from where he looks
+   (`marker: 23 m ahead-left, 2 m above you`) and `you're at the marker` once he is within its reach. A step whose instruction
+   names a marker and has no mark fails `Step::check`.
 4. When the match has no step left, the runner says which match is next. The owner leaves from the in-game menu and starts
    Player vs Bots with that map, mode and size.
 

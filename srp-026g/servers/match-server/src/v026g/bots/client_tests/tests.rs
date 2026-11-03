@@ -696,3 +696,48 @@ fn a_step_can_ask_for_the_role_of_a_bot() {
     assert_eq!(roles_for(&missing, &bot_teams, defaults.clone()), defaults, "a seat with no bot changes nothing");
     assert_eq!(bot_roles(2, BATTERIES, 3, &bot_teams, defaults.clone()), defaults, "no plan set: the lobby's roles");
 }
+
+const GUIDE_TO: Spot = Spot::at(30.0, 0.0, 0.0);
+
+fn at_guide_to(frame: &Frame, _since: Span) -> bool {
+    frame.owner.as_ref().is_some_and(|o| o.body.feet.distance_xz(GUIDE_TO.vec()) <= 3.0)
+}
+
+#[test]
+fn a_step_at_a_spot_tells_the_way_there_and_then_that_he_is_there() {
+    let step = Step::new("t-guide", group(), "Walk to the marker and wait.")
+        .start(&[Cond::Custom(WaitFor { describe: "you are at it", holds: at_guide_to }), Cond::After(Span::s(30))])
+        .mark(Mark::Spot { at: GUIDE_TO, r_m: 3.0, landmark: "the red door" })
+        .budget_s(2);
+    assert!(step.check().is_ok(), "{:?}", step.check());
+    let (mut link, dir) = link_for("guide", vec![step], None);
+    let mut sim = Sim::new();
+    // He looks along +z: the spot at +x is to his right.
+    sim.owner.yaw = 0.0;
+    let mut says = Vec::new();
+    for _ in 0..1_000 {
+        Sim::walk(&mut sim.owner, GUIDE_TO.vec(), 2.0);
+        sim.tick(&mut link);
+        says.extend(link.take_says());
+    }
+    assert_eq!(says[0], "[t-guide/1] Walk to the marker and wait.");
+    assert_eq!(says[1], "marker: the red door");
+    assert_eq!(says[2], "marker: 30 m to your right", "{says:?}");
+    let ways = says.iter().filter(|s| s.starts_with("marker: ") && s.ends_with(" m to your right")).count();
+    // 27 m at 2 m/s is 13.5 s: a line every 3 s.
+    assert!((4..=6).contains(&ways), "{ways} way lines: {says:?}");
+    // There for about 16 s before the 30 s start: told on arrival and then only with the instruction (every 6 s), not every 3 s.
+    let there = says.iter().filter(|s| *s == "you're at the marker").count();
+    assert!((2..=4).contains(&there), "{there} lines: {says:?}");
+    assert!(says.iter().any(|s| s.starts_with("[t-guide] done")), "{says:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_step_that_names_a_marker_needs_a_mark() {
+    let unmarked = Step::new("t-unmarked", group(), "Stand at the marker.").start(&[Cond::After(Span::s(5))]);
+    assert!(unmarked.check().unwrap_err().contains("marker"));
+    assert!(unmarked.clone().mark(Mark::Flat { x: 1.0, z: 2.0, r_m: 3.0, landmark: "" }).check().is_ok());
+    let near = Step::new("t-near", group(), "Stand at the marker.").start(&[Cond::OwnerNear { at: A, r_m: 3.0 }]);
+    assert_eq!(near.guide(), Some(Mark::Spot { at: A, r_m: 3.0, landmark: "" }), "an OwnerNear start is its own mark");
+}
