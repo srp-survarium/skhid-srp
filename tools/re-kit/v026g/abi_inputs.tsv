@@ -5416,3 +5416,5 @@ va	name	location	role	basis
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+8	effect node: effect +0, activation milliseconds +18, interval table +14	verified
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+12	previous simulation milliseconds	verified
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+16	current simulation milliseconds	verified
+0x002da790	survarium::base_player::remove	player+33Fh	temporary insertion flag cleared at 0x2DA79D; insert sets it at 0x2DA869. Not in base_player serialize/deserialize (alive +33Ch is); must not gate Medic recipient selection.	observed
+0x00313300	survarium::artefact_base::action	patched entry	patch 54 fire_kind fans a press out to ready same-kind artefacts. Each activation must traverse the original-action bridge to reach hooks at 0x313333; copying the body bypassed Medic in revision 45. Full entrypoint Unicorn regression covers the bridge, ret8 and Onyx behavior.	observed

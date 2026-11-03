@@ -11,7 +11,7 @@ import sys
 from unicorn import UC_HOOK_CODE, UC_PROT_ALL
 from unicorn.x86_const import *
 import patch_026g as base
-from check_artefacts_026g import Game, MEMORY, STACK, PLAYER, KITS, STOP, REGISTER
+from check_artefacts_026g import Game, MEMORY, STACK, PLAYER, KITS, STOP, REGISTER, HOLDER_VT, DM
 
 REGISTER['ebp']=UC_X86_REG_EBP
 
@@ -84,7 +84,9 @@ class MedicalGame(Game):
         self.word(self.places+place*0x30,at)
         self.word(self.core+0x18fd8,self.read(self.core+0x18fd8)|(1<<place))
         return at
-    def ranks(self,encoded): self.word(KITS+0xf4+43*4,bits(encoded))
+    def ranks(self,encoded):
+        kit=self.emu.mem_read(PLAYER+0x115,1)[0]
+        self.word(KITS+0xf4+kit*0x704+43*4,bits(encoded))
     def medkit(self,pain=True,heal=False):
         item=self.block(0x400);inventory=self.block(0x200)
         self.word(inventory+0x174,PLAYER+0x108);self.word(item+0x250,inventory)
@@ -142,7 +144,7 @@ def check_particle_capacity(data):
     for i in range(20):g.step(0x29a250,0x51,stack=(STOP,out,bits(0),bits(1)),edi=emitter)
     print('Larkspur pool: targeted cook capacity; 20 simultaneous native particle claims, arbitrary returns, repeated claims: PASS')
 
-def run(data,padding=0):
+def run(data,padding=0,kit=0):
     # Execute the full native profile getter with real skill sums. Its equipment
     # slots are empty; the epilogue is also exercised for every modifier index.
     g=MedicalGame(data,padding)
@@ -167,7 +169,11 @@ def run(data,padding=0):
             assert g.read(inventory+0x16c)&255 == min(requested,19-first)
             assert g.read(inventory+0x168) == inventory+0x10c+first*4
     print('six pockets, five units per pocket, and six combined supply/artifact positions: PASS')
-    g=MedicalGame(data,padding);item=g.medkit();healing=g.medkit(False,True);other=g.medkit(False,False)
+    g=MedicalGame(data,padding)
+    g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+    g.emu.mem_write(g.places+0xc,bytes([kit]))
+    g.word(g.places+kit*4,PLAYER)
+    item=g.medkit();healing=g.medkit(False,True);other=g.medkit(False,False)
     for rank in range(6):
         g.ranks(rank|(rank<<3))
         for site,regs in [(0x33d41b,dict(ebp=item,ebx=PLAYER)),(0x33d852,dict(edi=item,ebp=PLAYER)),(0x33dd65,dict(edi=item,ebx=PLAYER))]:
@@ -215,7 +221,10 @@ def run(data,padding=0):
     second=g.player(5,0,(1,0,0))
     source_effect=g.block(0x60);source_slot=g.block(4);g.word(source_slot,source_effect)
     g.word(source_effect+0x1c,1)
-    for skill in [0,1<<20,1<<20]:
+    for skill, inserted in [(0,1),(1<<20,1),(1<<20,0)]:
+        # Native restoration clears +33F without changing the active roster or
+        # serialized life state. Every peer must still choose the same allies.
+        for at in [PLAYER,ally,second]:g.emu.mem_write(at+0x33f,bytes([inserted]))
         g.ranks(skill);g.effects.clear()
         g.step(0x313333,6,esi=item,edi=1234)
         assert g.effects==([ally,second] if skill else []),g.effects
@@ -268,7 +277,7 @@ def run(data,padding=0):
         close(g.float(out+4),min(elapsed/1000,1))
         assert g.emu.mem_read(out+8,1)==bytes([int(elapsed>=1000)])
     print('Medic clock: full activation duration, wrapping time, local pointer restore, ordinary clocks unchanged: PASS')
-    print('Medic: independent native resource emission per ally/activation; source untouched; retained references balanced: PASS')
+    print('Medic: insertion-independent recipients; independent native resource emission; retained references balanced: PASS')
     for at in [PLAYER,far,enemy,dead]:close(g.float(g.pools[at]['body']+0xa0),.1)
     for name in ['body','head','pain']:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
@@ -294,11 +303,47 @@ def run(data,padding=0):
         tuple((g.read(e+0x14),g.read(e+0x18),g.read(e+0x1c)) for e in g.emitted),
     )
 
+def check_pressed_entry(data):
+    # Start at the public, already-detoured action entry, not inside its body.
+    # Rev45's fire_kind copied the activation body and silently bypassed Medic.
+    g=MedicalGame(data)
+    g.ranks(1<<20)
+    ally=g.player(1,0,(1,0,0))
+    pool=g.pools[ally]['body']
+    g.word(pool+0xa0,bits(.1))
+    g.word(PLAYER+0x108,HOLDER_VT)
+    g.word(DM,g.read(PLAYER+0x2e0))
+    inventory=g.block(0x200);g.word(inventory+0x174,PLAYER+0x108)
+    vt=g.block(0x100);g.word(vt+0x80,0x312250)
+    items=[]
+    for slot in [13,14]:
+        item=g.block(0x500);items.append(item)
+        for off,value in [(0,vt),(0x250,inventory),(0x24c,1),(0x280,3),(0x48c,3000)]:g.word(item+off,value)
+        g.word(inventory+0x10c+slot*4,item)
+    g.call(0x313300,(1,1234),ecx=items[0])
+    close(g.float(pool+0xa0),g.float(pool+0x9c))
+    for item in items:
+        assert g.read(item+0x280)==4 and g.read(item+0x2a0)==1234
+        assert g.read(item+0x494)==3000
+    # Repeated press and key-up cannot heal again while both items are active.
+    g.word(pool+0xa0,bits(.1))
+    for pressed in [1,0]:
+        g.call(0x313300,(pressed,2234),ecx=items[0])
+        close(g.float(pool+0xa0),.1)
+    # Pressing the active item still fires another ready artefact of its kind.
+    g.word(items[1]+0x280,3)
+    g.call(0x313300,(1,3234),ecx=items[0])
+    close(g.float(pool+0xa0),g.float(pool+0x9c))
+    assert g.read(items[0]+0x2a0)==1234 and g.read(items[1]+0x2a0)==3234
+    assert g.read(ally+0xd0)==10
+    print('Medic: real detoured action entry, multiple Larkspurs, key-up, active/ready mix and references: PASS')
+
 def main():
     original=open(sys.argv[1],'rb').read()
     patched,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,open(base.late_join_bin(),'rb').read())
+    check_pressed_entry(patched)
     check_particle_capacity(patched)
-    assert run(patched)==run(patched,0x4000)
-    print("Medical simulation outcome identical across independent client memory layouts: PASS")
+    assert run(patched)==run(patched,0x4000,2)==run(patched,0x8000,1)
+    print("Medical simulation outcome identical across independent client memory layouts and all three kits: PASS")
 
 if __name__=='__main__':main()

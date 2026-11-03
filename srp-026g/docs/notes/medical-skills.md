@@ -50,8 +50,9 @@ translation of this ending.
 
 Supply Pocket excludes both Terminator (111) and the existing shooting Supply
 Pocket (113); the exclusions are symmetric. Medicine capacity uses category 10,
-the native medicine category, and also adds one to a medicine that fills a whole
-pocket. The menu uses committed skills, never an unsaved preview. Server reset
+the native medicine category, excluding whole-pocket items (the boosters).
+Whole-pocket items remain one; the server applies the same cap to moves, preset
+fills and account repair without deleting inventory stock. The menu uses committed skills, never an unsaved preview. Server reset
 validation obtains available branches from the loaded tree instead of assuming
 two tabs. The stock movie contains only two icon sets; `MedicalSkillIcon.as`
 now displays ten original 0.69d survival PNGs for branch 3 within the existing
@@ -88,7 +89,7 @@ time), after native enable/effect and before the activation timestamp/state
 assignment. It obtains the source from item+250h / inventory+174h, reads its
 simulation core, then visits active places in order. The visual effect helper is
 also invoked by deserialize and must never perform this gameplay healing.
-It excludes self, enemies, dead/uninserted players and targets outside 5 m.
+It excludes self, enemies, dead/inactive players and targets outside 5 m.
 Each successful native lookup is an owned reference released on every exit.
 For recipients it removes the Larkspur config's affects, fills body/head/pain
 like patch 54, and adds a native effect instance with the recipient's calculator.
@@ -178,3 +179,50 @@ variants; this is not reported as a full self-test pass. The new lobby source
 movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`,
 not `RESULT_SHA256`; its latest-main changes still need an owner gameplay check
 before publishing. No release has been made.
+
+
+## Revision 45 follow-up (2026-11-03)
+
+The owner reported Medic failing between two human allies in live match
+`0x2d034412`. Read-only logs/recording confirm both on team 0 and revision 45;
+the account read confirms skill 341 selected. Match logs contain resyncs; their
+cause has not been established from those logs.
+
+The direct failure was an activation-path bypass. The existing `fire_kind`
+detour at 0x313300 activated each ready artefact in arena code, copying native
+enable/effect/timestamp/state instructions. The review moved Medic to 0x313333
+inside native action, so the normal pressed path never reached it. The fix
+calls the existing original-action bridge from each ready artefact's activation.
+This preserves multi-artefact activation and Onyx timing, reaches Medic once per
+actual activation, and keeps deserialize/visual reconstruction free of healing.
+
+The real-entry regression starts at the detoured 0x313300, runs native Lifebone
+activation and checks an ally's health. The exact revision-45 EXE leaves it at
+0.1 instead of 1.0. This test also covers multiple Larkspurs, repeated presses,
+key-up, and pressing an active artefact while another of its kind is ready.
+Production recording E4 profiles contain Medic bit 20: packed modifier 43 is
+1,792,557 initially and 12,311,405 later, in all three kits. The account's later
+skill list alone was not evidence of the earlier profile, so both were checked.
+
+A separate correctness fix removes the recipient requirement for player+33Fh
+(`inserted`). Native remove clears it at 0x2DA79D and insert sets it at 0x2DA869.
+It is not serialized life state: the codec writes/reads +33Ch, +33Dh and +33Eh,
+not +33Fh. The retained old crash dump has a living active player temporarily
+removed during deserialize; that does not prove an ordinary activation saw it
+clear. Medic now uses the active roster, serialized alive state, team and
+position; fixtures check identical choices regardless of temporary insertion.
+
+These tests establish the bypass and the unnecessary flag dependency; they do
+not prove that every live resync was caused by Medic. A fresh two-human match
+remains the final played confirmation. The change is not released.
+
+Validation of this follow-up: native real-entry regression, all three kits and
+independent heaps, 20-effect particle pool/clock checks; existing artefact
+regressions (85 stock, 84 patched); affected Rust tests/Clippy; session booster,
+pocket, preset and repair tests; CPU Ruffle medical UI and HUD notice checks.
+Eight snapshots from the reported match round-trip through the patched codec
+hooks with two fresh heaps and a resync heap. This is not a full native world
+simulation. The global localization audit has the same pre-existing medical
+catalog/manifest findings on released source and this branch; all ten language
+catalogs still have zero missing, extra, empty, placeholder, markup or UTF-8
+errors. The complete content manifest build is checked separately.

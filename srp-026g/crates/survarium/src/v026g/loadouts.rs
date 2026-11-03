@@ -249,9 +249,14 @@ pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
 pub const MAX_POCKET_UNITS: u32 = 5;
 
 /// Cap equipped supply stacks without limiting stored items or ammunition.
-pub fn equipped_units(slot: u8, units: u32) -> u32 {
+pub fn equipped_units(slot: u8, dict_id: u16, units: u32) -> u32 {
     if POCKET_SLOTS.contains(&slot) {
-        units.min(MAX_POCKET_UNITS)
+        let maximum = if item_params::item_params(dict_id).is_some_and(|p| p.fills_whole_pocket) {
+            1
+        } else {
+            MAX_POCKET_UNITS
+        };
+        units.min(maximum)
     } else {
         units
     }

@@ -51,8 +51,11 @@ impl<'t> Player<'t> {
         self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
     }
     fn active(self) -> bool {
-        // SAFETY: native lifecycle flags of the borrowed player.
-        unsafe { *self.at.alive() != 0 && *self.at.inserted() != 0 }
+        // The core lookup already checked the synchronized active roster.
+        // +33F is a temporary insertion flag, cleared by native remove during
+        // restoration; it is not serialized and cannot gate shared gameplay.
+        // SAFETY: alive is the borrowed player's serialized simulation state.
+        unsafe { *self.at.alive() != 0 }
     }
     fn pool(self, name: &CStr) -> Option<raw::MedicalPool> {
         let name = name.as_ptr().cast::<u8>();

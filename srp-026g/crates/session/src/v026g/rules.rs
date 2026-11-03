@@ -321,6 +321,7 @@ fn relocate_covering(
                 }
                 survarium::v026g::loadouts::equipped_units(
                     relocation.target_slot,
+                    owned.dict_id,
                     relocation.count.min(owned.condition_or_stack),
                 )
             } else {
@@ -1615,6 +1616,32 @@ mod tests {
         assert!(account.repair());
         assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
         assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+    }
+
+    #[test]
+    fn boosters_stay_one_per_pocket_when_moved_filled_or_repaired() {
+        let mut account = rich_and_known(10_000);
+        let booster = dict("speed_booster");
+        let id = account.add_item(booster, 20);
+        let item = account.item(id).unwrap().clone();
+        for requested in [1, 2, 5, 20] {
+            move_items(
+                &mut account,
+                1,
+                &[relocation(&item, INVENTORY_SLOT, 13, requested)],
+                NOW,
+            )
+            .unwrap();
+            assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+            assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+        }
+        fill_kit(&mut account, 0, &[relocation(&item, INVENTORY_SLOT, 13, 2)]).unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        account.kits[0].slots[13].as_mut().unwrap().count = 2;
+        assert!(account.repair());
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+        assert!(!account.repair());
     }
 
     #[test]

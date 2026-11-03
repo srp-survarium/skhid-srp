@@ -2434,7 +2434,7 @@ st_srp_hide_quests_option	Feladatok elrejtése
 st_srp_hide_scores_option	Pontszámok elrejtése
 st_srp_hud_add_friend	Hozzáadás a barátokhoz
 st_srp_hud_blackout_intro	Blackout: vigyél akkumulátorokat a csapatod készülékéhez. A beleélés érdekében nincs HUD és találatjelzés. Tartsd nyomva a Tabot: lőszer, életerő, csevegés; halál után felszerelésválasztás.
-st_srp_hud_blackout_start	Védőberendezés: blackout\nGyűjts akkumulátorokat. Nincs HUD és találatjelzés. Információkért tartsd nyomva a Tabot.
+st_srp_hud_blackout_start	Blackout\nVigyél akkumulátorokat a csapatod készülékéhez.\nA HUD és a találatjelzések rejtve vannak. Tartsd nyomva a Tabot a lőszer és az életerő megtekintéséhez.
 st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve
 st_srp_hud_friend_sent	Barátkérelem elküldve
 st_srp_hud_mute_hide	Chat elrejtése

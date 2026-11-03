@@ -140,6 +140,53 @@ package
          expect(pregame.contextText.text == "ordinary countdown" && !pregame.contextText.wordWrap,"normal countdown restored");
          words.pregame(pregame.contextText,"blackout","");
          expect(pregame.contextText.text == "","empty countdown stays empty");
+         var Notice:Class = domain.getDefinition("survarium.modes.ModeNotice") as Class;
+         var notice:Object = new Notice(pregame.contextText.defaultTextFormat.font);
+         addChild(DisplayObject(notice));
+         for each(var language:String in all)
+         {
+            data.setData(HarnessText.DATA[language]);
+            notice.reset();
+            notice.begin("blackout");
+            notice.update(500000,false,false);
+            expect(!notice.visible,"notice waits for loaded HUD " + language);
+            notice.update(600000,true,false);
+            expect(notice.visible && notice.label.text.indexOf("Tab") >= 0,"late join sees notice " + language);
+            notice.place(1280,80);
+            expect(notice.y > 80 && notice.label.textHeight < 160,"notice below timer and fits " + language);
+            words.pregame(pregame.contextText,null,"");
+            pregame.visible = false;
+            notice.update(619999,true,false);
+            expect(notice.visible,"late notice survives native countdown clearing " + language);
+            notice.update(620000,true,false);
+            expect(!notice.visible,"notice expires after full twenty seconds " + language);
+            notice.begin("blackout");
+            notice.update(620001,true,false);
+            expect(!notice.visible,"repeated mode callbacks do not restart notice " + language);
+         }
+         notice.reset();
+         notice.begin("blackout");
+         notice.update(0,true,true);
+         notice.update(60000,true,true);
+         expect(notice.visible,"pregame notice remains through countdown");
+         notice.update(60001,true,false);
+         notice.update(80000,true,false);
+         expect(notice.visible,"full reading interval after countdown");
+         notice.reset();
+         expect(!notice.visible && notice.label.text == "","new match resets notice");
+         var NoticeView:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
+         face.addChild(DisplayObject(notice));
+         var noticeView:Object = new NoticeView(kept,function():Array { return [notice]; },
+            function():Array { return []; },function():Array { return [chat]; },function(hold:Boolean):void {});
+         face.visible = false;
+         noticeView.forced = true;
+         notice.begin("blackout");
+         notice.update(100000,true,false);
+         expect(notice.parent == kept && notice.visible,"notice survives forced-hidden root");
+         expect(noticeView.parts().indexOf(chat) < 0,"notice does not reveal chat");
+         noticeView.forced = false;
+         notice.reset();
+         expect(notice.parent == face && !notice.visible,"notice returns and clears on unforce");
          data.setData(HarnessText.DATA["russian"]);
          setupChat();
          face.visible = false;
