@@ -5,6 +5,57 @@ table: `scripts/medicines/medicines.tsv`. `scripts/medicines/make_pack.py` makes
 from it (its row in `release/content.tsv`); content-edit `medicines-1` points the bandages' and the
 Medikit's dictionary rows at their new configs; the texts are in `client-patches/localization/*.tsv`.
 
+## Pain-relief investigation (2026-11-03, live revision 44)
+
+The original per-second interpretation was incorrect. The native medkit
+constructor (0x33CAC0) divides each configured influence amount by the
+configured activity duration: 0x33CD15..0x33CD1D calculates its reciprocal,
+and 0x33CDB2..0x33CDB9 stores `amount / duration` in the runtime influence.
+`medkit::tick` then multiplies that rate by elapsed seconds. Thus a config
+amount is the **total health restored over the course**, before modifiers
+and pool clamping. The old card generator multiplied it by duration, masking the too-small totals.
+
+Checked the currently offered revision-44 ZIP (SHA-256
+`f5cb33d42148b61e96fa5dc002721da2739694a6250334a89800a6b83d6a2e18`)
+and its server-bound executable (SHA-256
+`0f3e3ab4c637a743777b496d43c87014bb8048265be8bab712b7619c113c5622`).
+Relocated the actual shipped medicine configs, ran the native constructor
+through influence loading (including native config lookup), and ran the
+native tick and `increase_health` routines in Unicorn in 100 ms steps.
+Fixture modifiers are identity; owner/pool lookup and unrelated observer,
+injury-removal and activation-list bookkeeping are stubs. No incoming hits,
+natural regeneration, network rollback or HUD is simulated. The pain pool
+starts empty with its native maximum of 1.0.
+
+| Medicine | Delay + activity | Advertised pain relief | Native result |
+|---|---|---|---|
+| Orange Medikit | 2 + 3 s | 40% | 13.33% |
+| Yellow Science Medkit | 2 + 3 s | 50% | 16.67% |
+| Blue Military Medkit | 2 + 1 s | 50% | 50% |
+| Green Black Market Medkit | 2 + 2 s | 100% | 100% (clamped) |
+| Bandages | 1 + 1 s | 35% | 35% |
+| Antitoxin | 1 + 10 s | None | None (50% infection healing) |
+| Painkiller | 1 + 10 s | None | None (protection only) |
+
+This confirms under-healing, **not** a yellow-specific zero-healing result.
+Yellow's extra infection influence is loaded and processed without dropping
+its pain influence. The reported orange/yellow difference still needs an
+in-match reproduction; this isolated check cannot settle it. Correct totals
+for the intended orange/yellow pain relief are 0.4 and 0.5, respectively,
+with the card formula corrected too. The fix changes those two totals only;
+all other medicine amounts, durations and protection stay unchanged. Blue and
+bandages have a one-second active duration, so the old calculation happened
+to be correct. Green's amount of 1 already fills the pain pool, so clamping
+hid the incorrect card formula. Other full-heal influences similarly still
+fill their pools by the end of the course.
+
+`client-patches/check_medicine_healing_026g.py` runs the native constructor,
+tick and health-add routine for all seven medicines, with independent expected
+amounts for every pool. It checks activation delay, half and full courses,
+pool caps and unchanged totals when duration doubles. `--configs` also checks
+extracted final archive files. The calculator now exports course totals and
+correctly derived rates; medicine cards calculate total / pool maximum.
+
 ## The owner's rules
 
 - Green, yellow and blue medkits, from the builds that have them ("they should be present in some
@@ -27,11 +78,15 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
 
 ## How the table becomes a config
 
-- A drug heals `amount` of a pool a second over its active time, after its use time
-  (`bandages.md`). Pools: body 1.0, head 0.4, each arm and leg 0.5, pain 1.0, `infection`.
-- 100 % is 1 a second (0.26g's Medikit: the body full in 1 s); less is that share of the pool over
-  the active time (bandages' 35 % of body in 1 s: 0.35; the Medikit's 40 % of pain in 3 s:
-  0.1333). So the bandages are as before, the Medikit as before but its pain.
+- A drug restores `amount` total health over its active time, after its use time.
+  The constructor converts it to a rate; the tick applies rate x elapsed seconds.
+  Pools: body 1.0, head 0.4, each arm and leg 0.5, pain 1.0, infection 1.0.
+- A full heal needs at least the pool's maximum as its total. Partial heals are
+  that share of the maximum: bandages' 35% body = 0.35; orange's 40% pain = 0.4
+  over three seconds; yellow's 50% pain = 0.5 over three seconds.
+- The immutable base pack supplies the medicine configs. The manifest's later
+  `scripts/content-edit/medicines.tsv` edit applies the authoritative amounts
+  and cards, so retuning that table does not require rebuilding the base pack.
 - Every config is 0.26g's `medkit.options` with the row's keys, icon cell, faction, levels, times,
   weight, heals, injuries and card, at `gameplay/items/medicines/<name>.options`; read back, it is
   the row and nothing else of the template differs. Also the stamina key spelt as the exe reads it,
@@ -64,7 +119,7 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
 - The affects (`hit_affects_type_enum`, its names' table in the exe's `.data`): death 0, bleeding
   1, concussion 2, hand_damage 3, leg_damage 4, critical_poisoning 5, poisoning 6,
   radiation_sickness 7, blindness 8 (the medkit's own 3 on the hands and 4 on the legs agree).
-- Yellow: `infection` 1 a second (full in 1 s), and `remove_affects` infection 6 and 7. That a
+- Yellow: `infection` 1 total (full over its 3 s active course), and `remove_affects` infection 6 and 7. That a
   radiation sickness sits on `infection` is LIKELY (not seen in a game): an in-game test in a
   radiation zone checks it.
 - The antitoxin keeps its own place: the light cure (0.1 kg) that also halves toxic damage for

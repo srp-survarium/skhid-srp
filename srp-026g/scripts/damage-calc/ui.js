@@ -698,9 +698,9 @@ function drawHealing() {
   }
   for (const key of ["medkit", "military_medkit", "blackmarket_medkit", "science_medkit", "bandages"]) {
     const d = DATA.drugs && DATA.drugs[key]; if (!d) continue;
-    const heal = d.heal_per_s || {};
+    const heal = d.heal_total || {};
     const cell = ([p]) => {
-      const gain = (heal[p] || 0) * d.activity_s;
+      const gain = heal[p] || 0;
       return gain <= 0 ? dash : gain >= row(p).health ? full : `+${hp(gain)}`;
     };
     rows.push([named(nm(d), key), T(`${d.activation_delay_s} s after use, for ${d.activity_s} s`, `через ${d.activation_delay_s} с, ${d.activity_s} с`),

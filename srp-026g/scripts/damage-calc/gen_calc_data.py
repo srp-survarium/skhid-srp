@@ -255,7 +255,10 @@ for file in files("gameplay__items__drugs__") + files("gameplay__items__medicine
             {"pool": p["body_part"], "hit_type": p["hit_type"], "hit_coeff": r(p["hit_coeff"]), "threshold": r(p["threshold"])}
             for p in rows(d.get("damage_protection") or [])
         ],
-        "heal_per_s": {p["body_part"]: r(p["amount"]) for p in rows(d.get("influences") or []) if p["amount"]},
+        # Native medkit construction divides each course total by duration.
+        "heal_total": {p["body_part"]: r(p["amount"]) for p in rows(d.get("influences") or []) if p["amount"]},
+        "heal_per_s": {p["body_part"]: r(p["amount"] / max(d.get("activity_time_sec", 0), 0.001))
+                       for p in rows(d.get("influences") or []) if p["amount"]},
         "remove_affects": [[p["body_part"], p["affect"]] for p in rows(d.get("remove_affects") or [])],
     }
 

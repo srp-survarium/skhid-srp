@@ -626,14 +626,18 @@ class OtherTables(unittest.TestCase):
                     checked += 1
         self.assertGreater(checked, 50)
 
-    def test_a_medicine_heals_by_the_second_and_its_card_shows_the_share(self):
+    def test_a_medicine_card_uses_course_totals_independent_of_duration(self):
         medkit = config({'data': {'activity_time_sec': 3, 'activation_delay_sec': 2,
                                   'influences': [{'body_part': p, 'amount': a} for p, a in
-                                                 (('left_hand', 1), ('right_leg', 1), ('head', 0.4), ('pain', 0.1333))]},
+                                                 (('left_hand', 0.25), ('right_leg', 0.25), ('body', 0.6),
+                                                  ('head', 0.24), ('pain', 0.4))]},
                          'parameters': {'weight': 0.2}})
         self.assertEqual([ce.cell_text(medkit, o) for _, o in
-                          ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['1', '1'])
-        self.assertEqual(ce.medicine_card(medkit), {18: '3.0', 19: '2.0', 15: '0.2', 135: '100', 137: '40'})
+                          ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['0.25', '0.25'])
+        expected = {18: '3.0', 19: '2.0', 15: '0.2', 135: '50', 136: '60', 137: '40'}
+        self.assertEqual(ce.medicine_card(medkit), expected)
+        ce.set_number(medkit, 'data/activity_time_sec', 3, 6)
+        self.assertEqual(ce.medicine_card(medkit), {**expected, 18: '6.0'})
 
     def test_an_items_row_gives_a_copy_its_plain_item_and_starting_ids(self):
         dictionary = config({'items_dict': [{'dict_id': 1, 'name': 'jacket', 'base_cost': 900, 'is_premium': 0},
