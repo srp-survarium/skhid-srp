@@ -50,7 +50,12 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   frame: ammo, health, score, crosshair, minimap, kill feed, chat (but while typed in and on Tab), Tab list, the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
-  rest when play starts.
+  rest when play starts. A localized Blackout explanation appears above the native countdown.
+- **Introduction:** immediately show a localized **System:** chat explanation once in each
+  account's first three Blackout matches, temporarily revealing chat for 20 seconds without
+  opening the input. It explains batteries, the hidden HUD and hitmarkers, and Tab's controls.
+  The allowance persists across logins; retries and reconnects do not spend it again in the
+  same match. See [mode introductions](mode_introductions.md) for copy, protocol and checks.
 - **The use prompt and its progress, always** (the owner, 2026-11-02: "picking up artifact and
   refilling ammo should have ui in blackout"): the prompt at what the player can use (an artefact
   container, an ammo stash) and the bar filling while it is used (the search, the refill), as in a

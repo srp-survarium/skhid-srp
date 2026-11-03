@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Ukryj znaczniki trafień
 st_srp_hide_quests_option	Ukryj misje
 st_srp_hide_scores_option	Ukryj wyniki graczy
 st_srp_hud_add_friend	Dodaj do znajomych
+st_srp_hud_blackout_intro	Blackout: przynoś baterie do urządzenia swojej drużyny. Interfejs i znaczniki trafień są ukryte dla większej immersji. Przytrzymaj Tab: amunicja, zdrowie, czat; po śmierci — wybór zestawu.
+st_srp_hud_blackout_start	Urządzenie ochronne: blackout\nZbieraj baterie. Bez interfejsu i znaczników trafień. Przytrzymaj Tab, aby zobaczyć informacje.
 st_srp_hud_friend_not_sent	Zaproszenie do znajomych nie zostało wysłane
 st_srp_hud_friend_sent	Zaproszenie do znajomych wysłane
 st_srp_hud_mute_hide	Ukryj czat
