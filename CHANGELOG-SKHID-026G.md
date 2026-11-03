@@ -9,6 +9,18 @@ release that made it what it is now.
 
 ---
 
+## 3 Nov, 06:36 — Game update 44: weapon icons and clothing fits (update required)
+
+<!-- Revision 44 (026g-rev44), released 2026-11-03 06:36 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- New side-profile inventory and shop icons for all 20 recently added weapons, matching the original 0.26 style.
+- Corrected the AKMSU magazine position and PPSh-41 Drum magazine orientation in their icons.
+- Improved Bandit, Novice and Loner clothing fits around boots and cuffs, fixing pinched trouser legs above the boots.
+
+Weapon statistics are unchanged. Replays recorded from revision 43 remain compatible.
+
 ## 2 Nov, 19:46 — Game update 43: new weapons, reloads and fixes (update required)
 
 <!-- Revision 43 (026g-rev43), released 2026-11-02 19:46 UTC. -->
@@ -933,12 +945,3 @@ update changes what a match computes.
 - TODO: #1076 ASh-12: 425 rounds a minute (was 400)
 - TODO: #1075 MP7: armour piercing 0.3 -> 0.35
 - TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
-
-## 3 Nov, 06:36 — TODO: the owner's words (update required)
-
-<!-- Revision 44 (026g-rev44), released 2026-11-03 06:36 UTC. To be worded for players; what it shipped: -->
-
-- TODO: #1130 Publish revision 43 patch notes
-- TODO: #1132 Render new weapon icons in retail 0.26 side profile
-- TODO: #1134 Fix STK2 clothing fits and reject boot-class mismatches
-- TODO: #1137 Fix AKMSU magazine and PPSh drum icon poses
