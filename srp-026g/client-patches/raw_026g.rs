@@ -14737,6 +14737,81 @@ impl KeyEventStorage {
     }
 }
 
+/// A vostok::ai::fsm (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fsm(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Fsm {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u32): resolved state pointer, cleared before the serialized id search (0x38CCFE); dereferenced at 0x38CD29
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn selected(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::generic_anomaly_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GenericAnomalyCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GenericAnomalyCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x68 (ptr<u8>): state pointer vector, deserialize 0x31B0FF
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn states_begin(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x68).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x68 (ptr<u8>): state pointer vector, deserialize 0x31B0FF
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_states_begin(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x68).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x6c (ptr<u8>): state pointer vector end (constructor/registration); bound for serialized state id
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn states_end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x6c).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x6c (ptr<u8>): state pointer vector end (constructor/registration); bound for serialized state id
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_states_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x6c).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -17885,6 +17960,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn count(machine: &impl Machine) -> u32 {
             machine.register(Register::Eax)
+        }
+    }
+
+    /// deserialize.fsm_selected (0x38cd22): fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8
+    pub mod deserialize_fsm_selected {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::ai::fsm (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn fsm(machine: &impl Machine) -> Option<Fsm> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Fsm)
+        }
+    }
+
+    /// deserialize.anomaly_state (0x31b0ff): deserialize before indexing the state vector with CL; no_state is the native FF path
+    pub mod deserialize_anomaly_state {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::generic_anomaly_core (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn anomaly(machine: &impl Machine) -> Option<GenericAnomalyCore> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GenericAnomalyCore)
+        }
+    }
+
+    /// deserialize.artefact (0x2fe65e): inventory::deserialize before EAX indexes EDX's artefact vector; skipping with EAX=0 takes the native null path
+    pub mod deserialize_artefact {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CoreWorld)
         }
     }
 }

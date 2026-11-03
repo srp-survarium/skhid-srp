@@ -1713,6 +1713,129 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x38cd22 fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8: lohook -> deserialize_guards_on_fsm
+global deserialize_guards_on_fsm
+extern hook_deserialize_guards_on_fsm
+deserialize_guards_on_fsm:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_fsm
+    mov edx, deserialize_guards_on_fsm_replay
+    cmp eax, 0
+    je deserialize_guards_on_fsm_go
+    mov edx, 0x38cd29
+    cmp eax, 1
+    je deserialize_guards_on_fsm_go
+    mov edx, 0x38cd37
+    cmp eax, 2
+    je deserialize_guards_on_fsm_go
+    ud2
+deserialize_guards_on_fsm_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_fsm_replay:
+    db 0x8b, 0x54, 0x24, 0x08, 0x8b, 0x4e, 0x10
+    jmp 0x38cd29
+
+; 0x31b0ff deserialize before indexing the state vector with CL; no_state is the native FF path: lohook -> deserialize_guards_on_anomaly
+global deserialize_guards_on_anomaly
+extern hook_deserialize_guards_on_anomaly
+deserialize_guards_on_anomaly:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_anomaly
+    mov edx, deserialize_guards_on_anomaly_replay
+    cmp eax, 0
+    je deserialize_guards_on_anomaly_go
+    mov edx, 0x31b108
+    cmp eax, 1
+    je deserialize_guards_on_anomaly_go
+    mov edx, 0x31b0fb
+    cmp eax, 2
+    je deserialize_guards_on_anomaly_go
+    ud2
+deserialize_guards_on_anomaly_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_anomaly_replay:
+    db 0x8b, 0x47, 0x68, 0x0f, 0xb6, 0xd1, 0x8b, 0x2c, 0x90
+    jmp 0x31b108
+
+; 0x2fe65e inventory::deserialize before EAX indexes EDX's artefact vector; skipping with EAX=0 takes the native null path: lohook -> deserialize_guards_on_artefact
+global deserialize_guards_on_artefact
+extern hook_deserialize_guards_on_artefact
+deserialize_guards_on_artefact:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_artefact
+    mov edx, deserialize_guards_on_artefact_replay
+    cmp eax, 0
+    je deserialize_guards_on_artefact_go
+    mov edx, 0x2fe663
+    cmp eax, 1
+    je deserialize_guards_on_artefact_go
+    ud2
+deserialize_guards_on_artefact_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_artefact_replay:
+    db 0x8d, 0x04, 0x82, 0x8b, 0x00
+    jmp 0x2fe663
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied

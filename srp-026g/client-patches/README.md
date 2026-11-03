@@ -4551,3 +4551,16 @@ design (2026-11-05) in Settings, Controls, under Mouse sensitivity: "Lock vertic
 The rules and the decoded clip: `../docs/notes/mouse-pitch.md`; the addresses: `client_patch.md`
 3.70. Checked with `check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 112
 and 46, `../scripts/hud-options/check.sh` and `cargo test`. Not run in a game.
+
+## Native deserialization bounds (patch 113, unreleased)
+
+Extracted from PR #478 into generated hooks on the current Rust framework.
+A missing FSM state skips its virtual reader; an anomaly id outside its state
+vector takes the native no-state path; an artefact id outside the world registry
+takes the native null-object path. Valid ids execute the original instructions.
+These guards also cover item bodies whose format cannot be walked statically.
+
+`check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
+checks invalid/empty tables at all four stack alignments (84 cases). The i686
+patch crate's 119 tests and Clippy pass. No release revision is reserved.
+

@@ -1,0 +1,15 @@
+# Native bounds used even where item bodies cannot be statically parsed.
+name = "deserialize_guards"
+patch = 113
+
+[[hook]]
+site = "deserialize.fsm_selected"
+handler = "on_fsm"
+
+[[hook]]
+site = "deserialize.anomaly_state"
+handler = "on_anomaly"
+
+[[hook]]
+site = "deserialize.artefact"
+handler = "on_artefact"

@@ -109,6 +109,9 @@ OWN_CHECKS = {
                    "does not read/write serialized bytes; check_medical_skills_026g.py executes start, tick "
                    "and restore with identical config duration for ranks 0..5 and two client memory layouts",
 
+    (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
     (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
