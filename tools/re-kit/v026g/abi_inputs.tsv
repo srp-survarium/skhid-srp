@@ -5389,3 +5389,15 @@ va	name	location	role	basis
 0x0026d6a0	survarium::base_local_network_client::get_active_player	entry ESP+8	roster place (low byte)	observed
 0x00288cd0	survarium::lobby_menu::autobuy_changed	ECX	lobby menu; game +9Ch, network holder at game+53ACh	observed
 0x00288cd0	survarium::lobby_menu::autobuy_changed	entry ESP+4	callback params; +8 is GFx argument array, first argument union at +8; Boolean required for off/on	observed
+0x000728f0	vostok::physics::bullet_physics_world::get_world_aabb	ECX	physics world; returns cached AABB at +48h, filled only by construction and add; native Unicorn check_bullet_bounds_026g	observed
+0x000728f0	vostok::physics::bullet_physics_world::get_world_aabb	stack+4	output six-float AABB; virtual slot64h of vtable9E2EBCh; native Unicorn check_bullet_bounds_026g	observed
+0x000758b0	vostok::physics::bullet_physics_world::add	ECX	physics world; add unions body bounds at +48h when collision group & Ah; never shrinks them; native Unicorn check_bullet_bounds_026g	observed
+0x000758b0	vostok::physics::bullet_physics_world::add	stack+4	physics body; vtable+0Ch gives Bullet collision object; native Unicorn check_bullet_bounds_026g	observed
+0x000758b0	vostok::physics::bullet_physics_world::add	stack+8	collision group: static level 2/8, grenade818h and victory itemA18h also grow native bounds; native Unicorn check_bullet_bounds_026g	observed
+0x000758b0	vostok::physics::bullet_physics_world::add	stack+12	collision mask passed unchanged to Bullet insertion; native Unicorn check_bullet_bounds_026g	observed
+0x00075a60	vostok::physics::bullet_physics_world::remove	ECX	physics world; removes body without shrinking world AABB; native Unicorn check_bullet_bounds_026g	observed
+0x00075a60	vostok::physics::bullet_physics_world::remove	stack+4	physics body to remove; native Unicorn check_bullet_bounds_026g	observed
+0x00075a60	vostok::physics::bullet_physics_world::remove	stack+8	nonzero requests additional removal notification; native Unicorn check_bullet_bounds_026g	observed
+0x0032ee90	survarium::bullet::update_bullet_position	EAX	bullet; manager+98h physics world slot64h supplies bounds; outside returns AL=0 at32EF6Ah; native Unicorn check_bullet_bounds_026g	observed
+0x0032ee90	survarium::bullet::update_bullet_position	stack+4	trajectory time in seconds; native Unicorn check_bullet_bounds_026g	observed
+0x0032ee90	survarium::bullet::update_bullet_position	stack+8	acceleration vector; native Unicorn check_bullet_bounds_026g	observed

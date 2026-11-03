@@ -3036,3 +3036,15 @@ The rules and the layout: `weapon-kit.md`. PROVEN in the code, run with Unicorn
   `weapon_kit.preview_apply` there (`weapon_kit_on_preview_apply`, kind `entry`: the stack aligned
   to 16 before Rust, which a hand-made export skipped: #893's review, movaps at [esp+10h] on the
   game's 4-aligned stack; the arena is linked before `.srpw` is made).
+
+### Bullet cutoff after a late join (unreleased)
+
+The physics world's cached AABB includes historical grenade/victory-item
+insertions, yet is not saved. Native bullet motion uses it to delete
+out-of-bounds bullets, so a fresh world can delete one that an older world
+keeps. The linked `bullet_bounds_static` hook keeps transient groups out
+of this bounds growth while preserving body insertion and broadphase
+updates. The stock divergence and patched convergence run in
+`check_bullet_bounds_026g.py`. See [bullet_bounds.md](bullet_bounds.md) for
+the latest Victorianbeauty match's evidence and the remaining attribution
+limit: the defect is reproduced, but that match's bounds were not captured.

@@ -337,7 +337,7 @@ va	status	ref_021d	name
 0x000750d0	inferred-high	0x000563ed	vostok::physics::bullet_physics_world::draw_object
 0x000750f0	inferred-medium	0x00056404	vostok::physics::bullet_physics_world::update_single_aabb
 0x00075550	inferred-high	0x00056439	vostok::physics::bullet_physics_world::tick
-0x000758b0	inferred-medium	0x00056494	vostok::physics::bullet_physics_world::add
+0x000758b0	inferred-high	0x00056494	vostok::physics::bullet_physics_world::add
 0x00075a60	inferred-high	0x000565b5	vostok::physics::bullet_physics_world::remove
 0x00075aa0	inferred-medium	0x000565d3	vostok::physics::bullet_physics_world::move
 0x00075b00	inferred-high	0x00056630	vostok::physics::bullet_physics_world::add
