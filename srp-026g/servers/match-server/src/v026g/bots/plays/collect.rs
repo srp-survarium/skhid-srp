@@ -4345,6 +4345,9 @@ mod tests {
         use crate::v026g::bots::body::tests::wall_x;
         let east = Vec3::new(26.2, 0.0, 12.0);
         let mut s = take_field(&wall_x(25.6, 11.5, 12.5), east);
+        // The blocked line and the kept stand, on the fixed look-down limits: by the view's scale the steeper ring makes the
+        // first stand a standing one and the same feet crouched another stand (`a_look_down_past_one_radian_...` has those).
+        s.tuning.take.pitch = crate::v026g::bots::tuning::TakePitch::Fixed;
         assert!(!clear_from(&s, east), "the wall blocks the line");
         let target = TargetRef::Battery(0);
         let mut rng = Rng::new(1);
