@@ -555,9 +555,13 @@ pub mod take_counts {
         ZoneSearchAsked,
         /// ... and it found the way.
         ZoneSearchFound,
+        /// [take.pitch] A use pressed at a stand looking down past 1 rad, the view on the battery ...
+        SteepPressAimed,
+        /// ... or there only after `SETTLE_MS` (not called aimed).
+        SteepPressLate,
     }
 
-    pub const ALL: usize = 9;
+    pub const ALL: usize = 11;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -570,6 +574,8 @@ pub mod take_counts {
         "far_stand_used",
         "zone_search_asked",
         "zone_search_found",
+        "steep_press_aimed",
+        "steep_press_late",
     ];
 
     #[cfg(test)]
@@ -2524,10 +2530,19 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 {
                     return Step::Continue(to_stand(cx, s, aim, crossing.is_some()).within(0.05));
                 }
-                if settled(cx, s, aim_now) || cx.now >= arrived_at + SETTLE_MS {
+                let on_it = settled(cx, s, aim_now);
+                if on_it || cx.now >= arrived_at + SETTLE_MS {
                     *tries += 1;
                     *last_use = cx.now;
                     intent = intent.pressing(key::USE);
+                    let eye = cx.me.eye();
+                    if (eye.y - aim_now.y).atan2(eye.distance_xz(aim_now)) > 1.0 {
+                        take_counts::count(if on_it {
+                            take_counts::Count::SteepPressAimed
+                        } else {
+                            take_counts::Count::SteepPressLate
+                        });
+                    }
                 }
                 return Step::Continue(intent);
             }
@@ -2708,8 +2723,8 @@ fn settled(cx: &Ctx, stand: TakeStand, aim: Vec3) -> bool {
 
 /// Whether the bot's view is on `aim` within [`SETTLED_RAD`]. The look the view can have ends at its stops: 1 rad either
 /// way with `take.pitch` fixed (the old reading); by the view's scale, the scale's stops (the client's: 67.48 degrees down,
-/// 60 up). Without it a stand the view-scale limits allow, needing a look down past 1 rad, was never settled on and never
-/// pressed (the view turns there, `drive.rs` aims unclamped; A281).
+/// 60 up). Without it a stand the view-scale limits allow, needing a look down past 1 rad, was never called aimed (the view
+/// turns there, `drive.rs` aims unclamped), so its use waited out `SETTLE_MS` each time (A281).
 pub(super) fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
     use crate::v026g::bots::kin::{wrap, yaw_of};
     use crate::v026g::bots::pitch::Pitch;
@@ -4552,7 +4567,7 @@ mod tests {
 
     /// [take.pitch] A battery 1.1 rad under the eye (a stand the view-scale limits allow): the view turned on it is aimed
     /// there by the view's scale (the client's stop is 1.18 rad down); the fixed reading caps the wanted look at 1 rad and
-    /// never calls it aimed, so no use is pressed.
+    /// never calls it aimed, so a use there waits out `SETTLE_MS`.
     #[test]
     fn a_look_down_past_one_radian_is_aimed_by_the_views_scale() {
         use crate::v026g::bots::tuning::TakePitch;
