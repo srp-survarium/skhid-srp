@@ -315,7 +315,7 @@ impl Account {
                 continue;
             }
             let (value, count) = if entry.is_stack {
-                (worn.count, worn.count)
+                (worn.count, loadouts::equipped_units(worn.slot, worn.count))
             } else {
                 (FULL_CONDITION, 1)
             };
@@ -623,7 +623,7 @@ impl Account {
                 .iter()
                 .flatten()
                 .any(|slot| stripped.contains(&slot.item_id));
-            for slot in &mut kit.slots {
+            for (index, slot) in kit.slots.iter_mut().enumerate() {
                 let Some(held) = slot.as_mut() else {
                     continue;
                 };
@@ -632,13 +632,19 @@ impl Account {
                     changed = true;
                     continue;
                 };
-                if dictionary.is_stack(owned.dict_id) && held.count > owned.condition_or_stack {
-                    if owned.condition_or_stack == 0 {
-                        *slot = None;
-                    } else {
-                        held.count = owned.condition_or_stack;
+                if dictionary.is_stack(owned.dict_id) {
+                    let count = loadouts::equipped_units(
+                        index as u8,
+                        held.count.min(owned.condition_or_stack),
+                    );
+                    if count != held.count {
+                        if count == 0 {
+                            *slot = None;
+                        } else {
+                            held.count = count;
+                        }
+                        changed = true;
                     }
-                    changed = true;
                 }
             }
             if changed {
@@ -1032,7 +1038,7 @@ mod tests {
         assert_eq!(account.inventory, before.inventory);
         assert_eq!(units(&account), units(&before));
         assert_eq!(account.generic_money, before.generic_money);
-        // Valid now: nothing more to merge, and the repair keeps it.
+        // All six pockets are supported after duplicate types are merged.
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
     }

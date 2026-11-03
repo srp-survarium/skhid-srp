@@ -319,7 +319,10 @@ fn relocate_covering(
                 if relocation.count == 0 {
                     continue;
                 }
-                relocation.count.min(owned.condition_or_stack)
+                survarium::v026g::loadouts::equipped_units(
+                    relocation.target_slot,
+                    relocation.count.min(owned.condition_or_stack),
+                )
             } else {
                 // One item is in one slot of a kit.
                 for slot in slots.iter_mut() {
@@ -742,7 +745,20 @@ pub mod reset_payment {
 /// [`REROLL_COST`] silver or [`REROLL_COST_PREMIUM`] gold. Returns the
 /// points freed.
 pub fn reset_skills(account: &mut Account, branch: u8, payment: u8) -> Result<u32, ActionError> {
-    if branch > 1 {
+    reset_skills_in_tree(account, branch, payment, SkillsTree::shared())
+}
+
+fn reset_skills_in_tree(
+    account: &mut Account,
+    branch: u8,
+    payment: u8,
+    tree: &SkillsTree,
+) -> Result<u32, ActionError> {
+    if !tree
+        .skills
+        .iter()
+        .any(|skill| skill.branch() == u16::from(branch) + 1)
+    {
         return Err(ActionError::BadReset);
     }
     let in_branch = |id: u16| id / 100 == u16::from(branch) + 1;
@@ -1560,6 +1576,79 @@ mod tests {
 
     /// The request the ammo dialog made on 2026-10-12 for a kit with ammo
     /// in slot 8 and a drug in pocket slot 13, refused then as `NotInSlot`.
+    #[test]
+    fn pocket_capacity_is_five_without_limiting_storage_or_ammunition() {
+        let mut account = rich_and_known(10_000);
+        let drug = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let id = account.add_item(drug, 20);
+        let item = account.item(id).unwrap().clone();
+        let ammo = account.kits[0].slots[8].unwrap();
+        assert!(ammo.count > 5);
+        let inventory = account.inventory.clone();
+        for requested in [4, 5, 6, 20] {
+            move_items(
+                &mut account,
+                1,
+                &[relocation(&item, INVENTORY_SLOT, 13, requested)],
+                NOW,
+            )
+            .unwrap();
+            assert_eq!(account.kits[0].slots[13].unwrap().count, requested.min(5));
+            assert_eq!(account.kits[0].slots[8], Some(ammo));
+            assert_eq!(account.inventory, inventory);
+        }
+        fill_kit(
+            &mut account,
+            0,
+            &[relocation(&item, INVENTORY_SLOT, 13, 20)],
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
+        account.kits[0].slots[13].as_mut().unwrap().count = 6;
+        let revision = account.kits[0].revision;
+        assert!(account.sync_kits());
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
+        assert_eq!(account.kits[0].revision, revision.wrapping_add(1));
+        assert_eq!(account.inventory, inventory);
+        assert!(!account.sync_kits());
+        account.kits[0].slots[13].as_mut().unwrap().count = 20;
+        assert!(account.repair());
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
+        assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+    }
+
+    #[test]
+    fn sixth_supply_pocket_is_usable_but_ammo_slots_are_not_pockets() {
+        let mut account = rich_and_known(10_000);
+        let drug = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let id = account.add_item(drug, 20);
+        let item = account.item(id).unwrap().clone();
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&item, INVENTORY_SLOT, 17, 2)],
+            NOW,
+        )
+        .unwrap();
+        move_items(&mut account, 1, &[relocation(&item, 17, 18, 20)], NOW).unwrap();
+        assert!(account.kits[0].slots[17].is_none());
+        assert_eq!(
+            account.kits[0].slots[18],
+            Some(KitSlot {
+                item_id: id,
+                count: 5
+            })
+        );
+        let before = account.clone();
+        assert_eq!(
+            move_items(&mut account, 1, &[relocation(&item, 18, 19, 5)], NOW),
+            Err(ActionError::WrongSlot)
+        );
+        assert_eq!(account, before);
+        assert!(!account.repair());
+        assert_eq!(account.item(id).unwrap(), &item);
+    }
+
     #[test]
     fn the_ammo_dialog_keeps_what_is_in_a_pocket_slot() {
         const POCKET: u8 = 13;
@@ -2478,6 +2567,27 @@ mod tests {
             Err(ActionError::Skills(SkillError::TooManyPoints { .. }))
         ));
         assert_eq!(account.skills, [(101, 2), (102, 3)]);
+    }
+
+    #[test]
+    fn a_reset_accepts_a_branch_added_by_game_data() {
+        let mut tree = SkillsTree::shared().clone();
+        let mut medical = tree.skill(101).unwrap().clone();
+        medical.id = 301;
+        tree.skills.push(medical);
+        let mut account = account();
+        account.skills = vec![(101, 2), (301, 3)];
+        account.generic_money = REROLL_COST;
+        assert_eq!(
+            reset_skills_in_tree(&mut account, 2, reset_payment::SILVER, &tree),
+            Ok(3)
+        );
+        assert_eq!(account.skills, [(101, 2)]);
+        assert_eq!(account.generic_money, 0);
+        assert_eq!(
+            reset_skills_in_tree(&mut account, 3, reset_payment::SILVER, &tree),
+            Err(ActionError::BadReset)
+        );
     }
 
     #[test]

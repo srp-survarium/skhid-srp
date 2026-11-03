@@ -132,6 +132,8 @@ global engine_leave_critical_section
 global engine_di_capture_remove
 global engine_di_queue_next_capture
 global engine_di_queue_release
+global engine_remove_affect
+global engine_effect_resource_emit
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1739,6 +1741,39 @@ engine_forget_active_object:
     mov eax, [esp + 20]   ; animation
     mov edx, [esp + 24]   ; object
     call 0x3919e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_remove_affect:
+    ; 0x32a6a0 survarium::body_part::remove_affect: pool ESP+4, time ESP+8, affect ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; affect -> 12
+    push dword [esp + 28]   ; time -> 8
+    push dword [esp + 28]   ; pool -> 4
+    call 0x32a6a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_effect_resource_emit:
+    ; 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; resource
+    mov edi, [esp + 24]   ; out
+    call 0x329050
     pop edi
     pop esi
     pop ebx

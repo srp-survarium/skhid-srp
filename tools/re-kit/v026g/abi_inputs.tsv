@@ -3003,9 +3003,9 @@ va	name	location	role	basis
 0x00312bf0	survarium::artefact_onyx_core::protect	stack+4	the hit (+1Ch its hit type, compared with the Onyx's +EE8h)	observed
 0x00312bf0	survarium::artefact_onyx_core::protect	stack+8	&damage (float)	observed
 0x00312bf0	survarium::artefact_onyx_core::protect	stack+12	&armour piercing (float)	observed
-0x00313300	survarium::artefact_base::action	ECX	the artefact	observed
-0x00313300	survarium::artefact_base::action	stack+4	bool pressed	observed
-0x00313300	survarium::artefact_base::action	stack+8	the time	observed
+0x00313300	survarium::artefact_base::action	ECX	the artefact	verified
+0x00313300	survarium::artefact_base::action	stack+4	bool pressed	verified
+0x00313300	survarium::artefact_base::action	stack+8	the time	verified
 0x00313670	survarium::artefact_base::serialize	ECX	artefact	inferred
 0x00313670	survarium::artefact_base::serialize	stack+4	writer	inferred
 0x00313670	survarium::artefact_base::serialize	stack+8	optional_effect_serialization_context	inferred
@@ -4515,8 +4515,8 @@ va	name	location	role	basis
 0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+16	the message's third parameter, a GFx uint (1770h, its time in ms, at the welcome)	observed
 0x002e58b0		EAX	the damage model's pools (its owner+108h; +8 the list's head, a pool's name at +80h, the next at +0)	observed
 0x002e58b0		ECX	pointer to the name (a char *)	observed
-0x00313350		entry ESP+4	the artefact (artefact_base)	observed
-0x00313350		entry ESP+8	the time (artefact_base::action's, 0x313329)	observed
+0x00313350	survarium::artefact_base::effect	entry ESP+4	the artefact (artefact_base)	verified
+0x00313350	survarium::artefact_base::effect	entry ESP+8	the time (artefact_base::action's, 0x313329)	verified
 0x00420789		ECX	the object; the result is its +8 (0xAC1220: the allocation's name of weapon_camo's and upgrade_preview's malloc)	observed
 0x000e5b60	vostok::resources::query_resources	EAX	the requests {name, class}	observed
 0x000e5b60	vostok::resources::query_resources	ECX	the requests' count	observed
@@ -4591,7 +4591,7 @@ va	name	location	role	basis
 0x002ac400		EDX	the event: +4h its kind (0 activate, 1 stop, other an update at the time +14h)	observed
 0x001f3740	survarium::player::set_effect_presenter	ESI	the player (+358h its game_effect_player, +3A0h its presenter's holder, +390h the presenter its effects were last given)	observed
 0x001f3740	survarium::player::set_effect_presenter	EDI	where the presenter is held (game_world +1D90h the first-person one, from a player camera 0x242C6C; +22B4h + slot x 220h a third-person one)	observed
-0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
+0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	ESP+12	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
 0x00313640		ECX	the calculator: +8h the artefact	observed
 0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
 0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+4	the game ([game_world_ui+18h]): +0Ch the camera's transform (inverted by 0xEE040), +4Ch the projection (multiplied by 0xEEA10), [+9Ch]+53B0h -> +108h the viewport's width and height (u32)	observed
@@ -5397,3 +5397,22 @@ va	name	location	role	basis
 0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+4	output animation lexeme	observed
 0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+8	animation expression buffer, forwarded to 0x31EBD0	observed
 0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+Ch	posture selector; value 1 selects the second four hands clips	observed
+0x0032a6a0	survarium::body_part::remove_affect	ESP+4	pool; reviewed native call and body	observed
+0x0032a6a0	survarium::body_part::remove_affect	ESP+8	time; reviewed native call and body	observed
+0x0032a6a0	survarium::body_part::remove_affect	ESP+12	affect; reviewed native call and body	observed
+0x002f7660	survarium::player_profile::apply_kit_parameter	at 0x2F76E8	ESI parameter index, XMM0 complete value after skills and all equipment; epilogue pops EDI/ESI/EBP/EBX and ret; indices 15 and 17 are pocket count and pocket capacity	observed
+0x002fcb70	survarium::inventory::setup_from_profile	at 0x2FD266..0x2FD2A5	artifact count is min(modifier 14, 19 - first free quick slot); EDI inventory, ESP+1Ch first slot 13..18; stores count at inventory+16Ch and first artifact-slot pointer at +168h, bounding supply pockets plus artifacts to six	observed
+0x00329050	survarium::game_effect_resource::emit	ESI	resource; emitter +108h, metadata +10Ch/+110h, duration +114h; called by artefact_base 0x3133A7	observed
+0x00329050	survarium::game_effect_resource::emit	EDI	out effect slot; freshly emitted instance, resource metadata attached by 0x329070..0x329086	observed
+0x003344b0	survarium::composite_game_effect::deserialize	ECX	composite effect instance; children +4Ch, emitter list +2Ch, count +48h	observed
+0x003344b0	survarium::composite_game_effect::deserialize	ESP+4	reader; +4 cursor consumes each child presence, seed, time and scale	observed
+0x003344b0	survarium::composite_game_effect::deserialize	ESP+8	child restoration context passed to emitter vtable+40h	observed
+0x002ec760	survarium::game_effect_resource_cook::translate_query	ECX	resource cook; named query defaults to one simultaneous instance at 0x2EC802; count captured in ESI at 0x2EC81B, callback forwards through 0x2ECA50 into particle cook variant	observed
+0x002ec760	survarium::game_effect_resource_cook::translate_query	ESP+4	query; requested path +F8h, resolved path +FCh takes precedence; names are relative to gameplay/effects	observed
+0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	ESP+4	query variant holds config and simultaneous-instance count; makes that many independent class-3Dh particle requests, callback 0x25A730 sizes both free/active arrays from count	observed
+0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	ESP+8	simultaneous-instance count; sizes allocation at 0x25A77A and free/active vectors at 0x25A85F, initializes one particle per slot at 0x25AAA1	observed
+0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ECX	time calculator, vtable A11398; registry_index +4 (FFFFFFFF local pointer, 0 default)	verified
+0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+4	out: interval u32, seconds f32, ended byte	verified
+0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+8	effect node: effect +0, activation milliseconds +18, interval table +14	verified
+0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+12	previous simulation milliseconds	verified
+0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+16	current simulation milliseconds	verified
