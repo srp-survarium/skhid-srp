@@ -373,6 +373,9 @@ fn pre_eye_pin_tuning() -> Tuning {
     tuning.sense.grass_notice = 0.0;
     tuning.smoke.sight = false;
 
+    // A277: the reload key as the client takes it; the pinned counts predate it (all-off keeps it on).
+    tuning.aim.combat.empty_reload = false;
+
     // #534: the eye is where the game's bullet starts.
     tuning.aim.combat.live_eye = false;
 
