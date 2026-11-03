@@ -82,7 +82,6 @@ Your existing prefix has been kept. See LINUX.txt for preserving game settings."
 }
 
 prepare_prefix() {
-    local documents resolution
     if [[ -f "$WINEPREFIX/system.reg" ]]; then
         verify_prefix_arch
     fi
@@ -93,15 +92,6 @@ prepare_prefix() {
         timeout 180 "$WINESERVER" -w >>"$log" 2>&1 || die "Wine setup timed out. See $log"
         [[ -f "$WINEPREFIX/system.reg" ]] || die "Wine registry missing. See $log"
         verify_prefix_arch
-        # Keep game settings inside this prefix instead of the user's real Documents.
-        documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
-        [[ ! -L "$documents" ]] || rm -- "$documents"
-        mkdir -p "$documents/Survarium"
-        if [[ ! -f "$documents/Survarium/user.cfg" ]]; then
-            resolution=$(detect_resolution)
-            printf 'r_fullscreen on\r\nr_resolution %s\r\n' "$resolution" > "$documents/Survarium/user.cfg"
-            echo "Fullscreen resolution: $resolution"
-        fi
         touch "$WINEPREFIX/.skhid-ready"
     fi
     # Exercise a 32-bit PE under the forced modern loader. A 64-bit cmd.exe would
@@ -109,6 +99,24 @@ prepare_prefix() {
     timeout 60 "$WINE" 'C:\windows\syswow64\cmd.exe' /d /c 'exit 0' >>"$log" 2>&1 || die "Modern WoW64 could not run a 32-bit Windows program.
 Use Wine 11.0 or newer with modern WoW64 support and matching wineserver.
 For an old prefix, keep it as a backup and create a fresh one; see LINUX.txt and $log."
+}
+
+prepare_settings() {
+    local config_home=${XDG_CONFIG_HOME:-$HOME/.config} settings config documents resolution
+    # XDG paths must be absolute; ignore invalid overrides.
+    [[ $config_home == /* ]] || config_home="$HOME/.config"
+    config="$config_home/skhid/user.cfg"
+    documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
+    [[ ! -L "$documents" ]] || rm -- "$documents"
+    mkdir -p -- "$documents/Survarium" "$config_home/skhid"
+    settings="$documents/Survarium/user.cfg"
+    if [[ ! -e "$config" && ! -L "$config" ]]; then
+        resolution=$(detect_resolution)
+        printf 'r_fullscreen on\r\nr_resolution %s\r\n' "$resolution" > "$config"
+        echo "Fullscreen resolution: $resolution"
+    fi
+    [[ -f "$config" && -w "$config" ]] || die "Settings file is not writable: $config"
+    ln -sfnT -- "$config" "$settings"
 }
 
 install_dxvk() {
@@ -183,6 +191,7 @@ main() {
 
     configure_wine
     prepare_prefix
+    prepare_settings
     install_dxvk
     if [[ $mode == launcher ]]; then
         install_gecko
