@@ -1,4 +1,4 @@
-owner-test world weapons: reloads 0 (loops cut by fire or aim 0; begun by the emptying shot's clip 0, reload keys inside that clip 0), out of rounds and ammo 0.0 s, fire held on a weapon that could not fire 0.0 s (empty or reloading 0.0 s), in 12 bot minutes; resupply box: uses 0 (topped up 0, ended with nothing 0), rounds put in 0; the bots' own count: reloads at an emptying shot's clip end 0 (blocked by a sprint or a jump 0)
+owner-test world weapons: reloads 0 (loops cut by fire or aim 0; begun by the emptying shot's clip 0, reload keys inside that clip 0), out of rounds and ammo 0.0 s, fire held on a weapon that could not fire 0.0 s (empty or reloading 0.0 s), in 12 bot minutes; resupply box: uses 0 (topped up 0, ended with nothing 0), rounds put in 0; the bots' own count: reloads with the key at an emptying shot's clip end 0 (left to the habit by a jump 0)
 {
   "bots_empty_reloads": 0,
   "bots_empty_reloads_blocked": 0,
