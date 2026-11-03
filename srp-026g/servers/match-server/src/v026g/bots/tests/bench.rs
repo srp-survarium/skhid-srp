@@ -664,6 +664,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         let between = before.map(|before| (before, Instant::now(), super::bench_work::totals()));
         bots.ticks(index, &clock, &view, &mut made);
         bots.zone_walk_note(index, now, &mut notes);
+        bots.nav_notes(index, &mut notes);
         if let Some((before, b, between)) = between {
             in_bots += a.elapsed().as_secs_f64();
             let bot = bots.bots[index].as_ref();

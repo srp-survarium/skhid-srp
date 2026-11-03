@@ -63,6 +63,7 @@ pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
 pub mod motor;
+pub mod nav_log;
 pub mod objective;
 pub mod objective_actor;
 pub mod path;
@@ -387,6 +388,8 @@ pub struct Bot {
     hurt: Hurt,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
+    /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
+    nav_log: nav_log::NavLog,
     /// Whether the match traces, and the trace lines made while driving
     /// (written at the bot's ticks).
     tracing: bool,
@@ -580,6 +583,7 @@ impl Bot {
             fired_at: None,
             hurt: Hurt::default(),
             jump_watch: None,
+            nav_log: nav_log::NavLog::default(),
             tracing: false,
             traced: Vec::new(),
             pause_until: 0,
@@ -1440,6 +1444,11 @@ impl Bots {
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
+        // A285: the world before this one, if alive, and the reckoning's feet at this one's tick, for the fall line.
+        let (before, reckoned) = self.tracker.body(place).map_or((None, None), |body| {
+            let before = body.fix().filter(|last| last.alive && last.inserted == fix.inserted).and_then(|last| last.feet.map(|f| (last.time, f)));
+            (before, body.reckoned_at(time))
+        });
         let new_life = self
             .tracker
             .fixed(place, fix, health, &self.tunings.match_wide().kin, world.as_deref());
@@ -1449,6 +1458,12 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            if !new_life
+                && let Some(fall) = before.and_then(|before| nav_log::Fall::between(before, (time, feet), reckoned))
+                && fall.planned() != Some(true)
+            {
+                bot.nav_log.push(nav_log::Kind::Fall, time, fall.line());
+            }
             if new_life {
                 bot.stuck.forget_heights();
             }
@@ -1746,6 +1761,16 @@ impl Bots {
             bot.end_route(RouteEnd::ReckoningError, time);
         }
         notes
+    }
+
+    /// A285: `index`'s falls and route jumps since the last poll, as its notes (`nav_log.rs`). Called by [`Self::poll`] and the
+    /// bench's own poll.
+    pub(crate) fn nav_notes(&mut self, index: usize, notes: &mut Vec<Note>) {
+        if let Some(bot) = self.bots[index].as_mut() {
+            for (time, text) in bot.nav_log.take() {
+                bot.note(notes, time, text);
+            }
+        }
     }
 
     /// The note of `index`'s walk over a zone's floors, if its tick began or ended one (said once, at the change).
@@ -2084,6 +2109,7 @@ impl Bots {
                 bot.note(&mut notes, now, text);
             }
             bots.zone_walk_note(index, now, &mut notes);
+            bots.nav_notes(index, &mut notes);
             // A kit picked before play begins would respawn the bot where
             // it stands at once (the games' patch 31), not at its next
             // life: the bot picks once play has begun, for its next life.

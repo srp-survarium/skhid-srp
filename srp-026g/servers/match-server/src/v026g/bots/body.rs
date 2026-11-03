@@ -304,6 +304,11 @@ impl BodyTrack {
         self.last_error
     }
 
+    /// The reckoned feet at the decided tick `time`, if the trail still has it (A285: the model's place for a world's tick).
+    pub fn reckoned_at(&self, time: u32) -> Option<Vec3> {
+        self.trail.iter().find(|(at, _)| *at == time).map(|(_, feet)| *feet)
+    }
+
     /// The speed level its profile gives, until a world shows the life's
     /// own (see `prior_level`).
     pub fn set_prior_level(&mut self, level: Option<f32>) {
