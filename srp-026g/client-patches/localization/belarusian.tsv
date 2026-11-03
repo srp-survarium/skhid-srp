@@ -213,7 +213,7 @@ st_ammo_762x39_description	7.62-мм патрон узору 1943 года, лі
 st_ammo_762x39_m_description	Апісанне пакуль недаступнае.
 st_ammo_762x39_m_name	7.62х39 РПД
 st_ammo_762x39_name	7.62х39
-st_ammo_762x51_20_description	Вінтовачныя патроны 7.62х51 у магазінах на 20 патронаў для FN SCAR-H і H&K G3SG/1.
+st_ammo_762x51_20_description	Вінтовачныя патроны 7.62x51 у пачках па 20 патронаў для H&K G3SG/1.
 st_ammo_762x51_20_name	7.62x51, магазін на 20
 st_ammo_762x51_M59_description	Бранябойная мадыфікацыя армейскага вінтовачнага патрона калібра 7.62. Куля аснашчана стальным асяродкам.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
 st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
 st_srp_ammo069_23mm_r_name	23x75R, шрот
+st_srp_ammo_scar_ap_desc	Бранябойныя патроны 7.62x51 для FN SCAR-H. Кожны падсумак змяшчае 20 патронаў.
+st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронаў
 st_srp_attachments	Абвес
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
