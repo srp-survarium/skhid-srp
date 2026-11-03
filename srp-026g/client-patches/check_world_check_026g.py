@@ -239,6 +239,13 @@ def sections(time=4500):
     return [bytes(16), statistics, b'', b'', rules, effects]
 
 
+def bullets(count):
+    # The section's header, its count at +12, then 69-byte records (place 0,
+    # weapon slot 7, finite zero floats).
+    records = b"".join(struct.pack("<I", n) + bytes(61) + b"\x07" + bytes(3) for n in range(count))
+    return bytes(12) + struct.pack("<I", count) + records
+
+
 def player():
     # Two kit bytes, version-8 empty pickup record, zero-item head and a
     # native empty inventory header. Bodies after this header are opaque.
@@ -247,31 +254,38 @@ def player():
     return head+inventory
 
 
-EMPTY = [b""] * 6
-
 def cases():
-    """(what, the state, whether a game can load it)."""
-    small = [b"\x01" * 7, b"\x02" * 9, b"\x03" * 3, b"", b"\x05" * 11, b"\x06" * 2]
-    two = [(0, b"\xAB" * 33, None), (19, b"\xCD" * 40, ANIMATION)]
-    yield "no players", state(body([], small)), True
-    yield "slots 0 and 19, one animated", state(body(two, small)), True
-    for i, name in enumerate(("bullets", "statistics", "objects", "physics", "rules", "effects")):
-        for extra in (0, 1):
-            sections = list(EMPTY)
-            sections[i] = bytes(CAPS[i] + extra)
-            yield f"{name} {'at' if not extra else 'one over'} the original's inline buffer", \
-                state(body(two[:1], sections)), True
-    for extra, ok in ((0, True), (1, False)):
-        fill = MAX_BODY + extra - len(body([], EMPTY))
-        yield f"a body of {MAX_BODY + extra:#x} bytes", state(body([], [bytes(fill)] + EMPTY[1:])), ok
-    yield "a state at 0x1000", state(body([(3, bytes(STATE_CAP), None)], EMPTY)), True
-    yield "a state one over", state(body([(3, bytes(STATE_CAP + 1), None)], EMPTY)), False
-    yield "slot 20", state(body([(0, b"\xAB" * 33, None)], EMPTY, mask=1 | 1 << 20)), False
-    whole = state(body(two, small))
-    yield "cut short", whole[:-1], False
-    yield "a byte too many", whole + b"\x00", False
-    yield "the body without its time", body(two, small), False
-    yield "shorter than a time", b"\x01\x02\x03", False
+    small = sections()
+    two = [(0, player(), None), (19, player(), ANIMATION)]
+    yield 'no active players', state(body([],small)), True
+    yield 'slots 0 and 19, one animated', state(body(two,small)), True
+    whole = state(body(two,small))
+    # Patch 98 grows the sections past the original's inline buffers; the
+    # body stops at 0xF000 bytes.
+    changed = list(small); changed[0] = bullets(CAPS[0] // 69 + 1)
+    yield "bullets past the original's inline buffer", state(body(two, changed)), True
+    most = (MAX_BODY - len(body(two, small))) // 69
+    for count, ok in ((most, True), (most + 1, False)):
+        changed = list(small); changed[0] = bullets(count)
+        yield f"a body of {len(body(two, changed)):#x} bytes", state(body(two, changed)), ok
+    big = player()+bytes(STATE_CAP-len(player()))
+    yield 'player at its cap with a valid head',state(body([(0,big,None)],small)),True
+    yield 'player over its cap',state(body([(0,big+b'\0',None)],small)),False
+    yield 'slot 20',state(body(two,small,mask=(1<<20)|1)),False
+    yield 'cut short',whole[:-1],False
+    yield 'trailing byte',whole+b'\0',False
+    yield 'missing time',b'\1\2\3',False
+    changed=list(small);changed[5]=bytes(20)
+    yield 'framed but unsafe effects',state(body([],changed)),False
+    changed=list(small);changed[3]=b'\0'
+    yield 'nonempty native physics',state(body([],changed)),False
+    yield 'time differs from timelimit',state(body([],small),4550),False
+    bad=bytearray(player());bad[2]=4
+    yield 'obsolete pickup record',state(body([(0,bad,None)],small)),False
+    changed=list(small);changed[0]+=b'LMP1'+struct.pack('<II',1,1)
+    yield 'current lamp history',state(body([],changed)),True
+    changed[0]=changed[0][:-1]
+    yield 'truncated lamp history',state(body([],changed)),False
 
 
 def compare(stock, ours, path, world, can_load):
@@ -387,6 +401,18 @@ def main():
     failed += bool(fails)
     print(f"  {'FAIL' if fails else 'ok'}  the crash report's ring: one World entry a load"
           + "".join(f"\n      {f}" for f in fails))
+    for why, edit in [
+        ("missing respawn", lambda r: r.word(CORE+0x18828,GAME+0x1a000+4)),
+        ("duplicate mode", lambda r: r.word(GAME+0x1a000+4,GAME+0x1b000)),
+        ("unbounded rule list", lambda r: r.word(CORE+0x18828,GAME+0x1a000+65*4)),
+        ("unaligned rule list", lambda r: r.word(CORE+0x18828,GAME+0x1a000+9)),
+    ]:
+        ours.match_context(); edit(ours)
+        for path in ("raw","unpacked"):
+            fails=compare(stock,ours,path,state(body([],sections())),False)
+            failed+=bool(fails)
+            print(f"  {'FAIL' if fails else 'ok'}  {path}: {why}"+"".join(f"\n      {f}" for f in fails))
+    ours.match_context()
     if args.drift:
         worlds, checks, differ = drift(ours, args.drift)
         failed += len(differ)
