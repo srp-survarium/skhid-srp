@@ -714,6 +714,7 @@ mod tests {
         // the all-off arm keeps the default. Each field's doc gives its proof. An old value that is only weaker (a habit, a
         // guard, less information) is no bug and stays in the patch.
         const KEPT_RIGHT: &[&str] = &[
+            "/aim/combat/empty_reload",
             "/aim/combat/grenade_kit_cap",
             "/aim/combat/hit_cover_reach",
             "/aim/combat/live_eye",

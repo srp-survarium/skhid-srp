@@ -680,10 +680,12 @@ pub struct CombatTuning {
     /// target, so the reload comes whether or not the client's weapon was empty by the count's reckoning (a shot the count
     /// took that the client did not fire leaves rounds in it) ([`Reflex::keys_sent`]). Off: the habit pressed on the tick
     /// after the last round (inside the clip, lost; and for a tactical reload the client then never reloads while the count
-    /// does), and with a target seen it waited to hide first, holding fire on a weapon the client had loaded. Off by default:
-    /// its by-side bench (A277, 576 pairs, equal aim and kit) moved no headline (score -0.1 %, z -0.2) and failed a guard,
-    /// the container holder's deaths (41 against 22, z +2.2, while its container's thefts went 11 against 27); it waits
-    /// for that guard's traced cause and a by-side ON.
+    /// does), and with a target seen it waited to hide first, holding fire on a weapon the client had loaded. That old value
+    /// is wrong by the client (the count drifts from the world's weapon: PROVEN), so it is on by default and the all-off
+    /// patch keeps it (`KEPT_RIGHT`; the owner, 2026-11-03: "ON anyway"). Its by-side bench (A277, 576 pairs, equal aim and
+    /// kit) moved no headline (score -0.1 %, z -0.2; wins 491 against 478) and read one guard against it, the container
+    /// holder's deaths (41 against 22, z +2.2, while its container's thefts went 11 against 27; the dying holders' own
+    /// reloads are not the cause, the rest untraced); the owner accepted that guard, and its trace comes after the release.
     pub empty_reload: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
@@ -1547,7 +1549,7 @@ impl Default for CombatTuning {
             trade_m: 40.0,
             reload_idle_ms: 400,
             reload_some_share: 0.4,
-            empty_reload: false,
+            empty_reload: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
@@ -9907,7 +9909,8 @@ mod tests {
             }
             panic!("never out");
         }
-        let on = CombatTuning { empty_reload: true, ..CombatTuning::default() };
+        let on = CombatTuning::default();
+        assert!(on.empty_reload, "on by default");
         let (mut r, now, sent) = fire_out(&on, 0);
         let gun = r.hands().held().gun;
         assert_eq!(r.empty_reloads(), EmptyReloads { begun: 1, blocked: 0 });
@@ -9941,8 +9944,7 @@ mod tests {
         };
         assert_eq!(tactical(&on), (0, key::RELOAD), "not inside the clip");
         // Off: the habit as before, inside the clip too.
-        let off = CombatTuning::default();
-        assert!(!off.empty_reload, "off by default");
+        let off = CombatTuning { empty_reload: false, ..CombatTuning::default() };
         assert_eq!(tactical(&off).0, key::RELOAD);
         let (mut r, now, sent) = fire_out(&off, 0);
         assert_eq!((r.empty_reloads(), sent), (EmptyReloads::default(), 0));
