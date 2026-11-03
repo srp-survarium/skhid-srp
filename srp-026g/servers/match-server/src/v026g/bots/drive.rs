@@ -2718,26 +2718,34 @@ mod tests {
         assert_eq!(lip_guard(&grid, &walks_off, &away, 0.0, key::FORWARD, &[], HOLD), LipGuard::Safe);
     }
 
-    /// A sprint at a rim is slowed to a walk or a creep before it is stopped, and the walk goes on where a
-    /// slower one stops short.
+    /// A sprint at a rim is stopped before it, never doomed. With the stop forecast's margin at the lattice's edge it is slowed to a
+    /// walk or a creep first, and the walk goes on where a slower one stops short. With the margin at the body's edge (the default
+    /// since A93), which falls later, the sprint is safe further on and then braked: 5 m/s on the slab is safe to 54.5 m and braked
+    /// from 55.3 m (the rim at 56), with no walk that stays up in between.
     #[test]
-    fn a_sprint_at_a_rim_is_slowed_before_it_is_stopped() {
+    fn a_sprint_at_a_rim_is_stopped_before_it() {
         let world = slab();
-        let kin = kin::Kinematics::default();
         let toward = -std::f32::consts::FRAC_PI_2;
         let keys = key::FORWARD | key::SPRINT;
-        let mut slowed = 0;
-        for x in [53.5f32, 54.0, 54.5, 55.0, 55.3] {
-            let me = on_the_slab(x, toward, 5.0);
-            match lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], HOLD) {
-                LipGuard::Swapped(k) => {
-                    assert_eq!(k & key::SPRINT, 0, "{x}: {k:#x}");
+        for margin_edge in [kin::MarginEdge::Body, kin::MarginEdge::Lattice] {
+            let kin = kin::Kinematics { margin_edge, ..kin::Kinematics::default() };
+            let mut slowed = 0;
+            let mut seen = Vec::new();
+            for x in [53.5f32, 54.0, 54.5, 55.0, 55.3, 55.5, 55.7] {
+                let me = on_the_slab(x, toward, 5.0);
+                let guard = lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], HOLD);
+                seen.push((x, guard));
+                if let LipGuard::Swapped(k) = guard {
+                    assert_eq!(k & key::SPRINT, 0, "{margin_edge:?} {x}: {k:#x}");
                     slowed += u32::from(k & key::FORWARD != 0);
                 }
-                LipGuard::Braked(_) | LipGuard::Doomed | LipGuard::Safe | LipGuard::Clear => {}
+            }
+            assert!(!seen.iter().any(|&(_, guard)| guard == LipGuard::Doomed), "{margin_edge:?}: {seen:?}");
+            assert!(seen.iter().any(|&(_, guard)| matches!(guard, LipGuard::Braked(_) | LipGuard::Swapped(_))), "{margin_edge:?}: {seen:?}");
+            if margin_edge == kin::MarginEdge::Lattice {
+                assert!(slowed > 0, "{margin_edge:?}: {seen:?}");
             }
         }
-        assert!(slowed > 0);
     }
 
     /// [`Feel::lip_guard_full`], the key-less tick: a body at a rim that has let go of its keys glides on over it, and only the
@@ -2786,9 +2794,9 @@ mod tests {
     fn a_walk_along_a_rim_is_held_only_with_the_margin_at_the_lattices_edge() {
         let world = slab();
         let grid = &world.grid;
-        let lattice = kin::Kinematics::default();
-        let body = kin::Kinematics { margin_edge: kin::MarginEdge::Body, ..lattice.clone() };
-        assert_eq!((lattice.edge, lattice.margin_edge), (kin::Edge::Client, kin::MarginEdge::Lattice), "the defaults");
+        let body = kin::Kinematics::default();
+        let lattice = kin::Kinematics { margin_edge: kin::MarginEdge::Lattice, ..body.clone() };
+        assert_eq!((body.edge, body.margin_edge), (kin::Edge::Client, kin::MarginEdge::Body), "the defaults (A93)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
         let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full);
         // Along the rim on its last floor: the sides.

@@ -721,9 +721,12 @@ mod tests {
             "/aim/friends/spread_source",
             "/cover/pierce",
             "/feel/floor_height_clear",
+            "/feel/past_drop",
             "/grid/client_numbers",
             "/grid/drop_room",
+            "/grid/pocket_exits_walled",
             "/grid/run_ups_after_erosion",
+            "/grid/slip_landings",
             "/grid/steep_walk_base",
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
@@ -732,6 +735,7 @@ mod tests {
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/pitch_scale",
+            "/kin/walk_off_landing",
             "/sense/ranges",
             "/sense/shots",
             "/sense/sprint_body_mps",
@@ -761,7 +765,7 @@ mod tests {
         }
         // Switches that are off by default and already named in the patch, so that the change of their default to on cannot
         // leave them on in the all-off arm (A195 `cover.hold_exposure`). Once a default is on the entry is a real one: take it off here.
-        const OFF_BY_DEFAULT: &[&str] = &["/kin/margin_edge", "/feel/past_drop", "/feel/sprint_turns", "/spacing/apart_tie", "/spacing/lane"];
+        const OFF_BY_DEFAULT: &[&str] = &["/feel/sprint_turns", "/spacing/apart_tie", "/spacing/lane"];
         for (pointer, off) in changes {
             if OFF_BY_DEFAULT.contains(&pointer.as_str()) {
                 assert_eq!(defaults.pointer(&pointer), Some(off), "{pointer} is on by default now: take it off OFF_BY_DEFAULT");

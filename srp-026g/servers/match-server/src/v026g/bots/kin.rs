@@ -129,12 +129,13 @@ pub enum WalkOffLanding {
     /// Laboratory's 20.6 m lip, whose walk-off lands 2.5 m out on the 17.80 floor, put two fighting bots there at 0.03-0.12 m/s
     /// while their bodies fell onto the 16.22 ledge under the edge; believing they stood 2 m away, they walked off the ledge into
     /// the shut pit (`fx-smoke-pockets.md` §1, from their FALL lines in the bench's stand-in game: the walker mesh has a 0.97 m
-    /// parapet along that edge and a plate over the ledge, so the client's body does neither, A247).
-    #[default]
+    /// parapet along that edge and a plate over the ledge, so the client's body does neither, A247). Wrong by the client, so the
+    /// all-off arm keeps the default (`KEPT_RIGHT`).
     Link,
     /// On the link's landing only at the slowest of `gap::WALK_OFF_SPEEDS` or more; slower, on the highest floor under the body
     /// (within its radius and half a cell, lower than a step) open above the edge (A247: no slab, plate or overhang between
-    /// them, `WalkGrid::open_to`), else held at the edge until a world shows where it is.
+    /// them, `WalkGrid::open_to`), else held at the edge until a world shows where it is. The default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches).
+    #[default]
     BySpeed,
 }
 
@@ -149,10 +150,10 @@ pub enum MarginEdge {
     /// (`Feel::lip_guard_full`: the same walk [`super::body::RECKONING_M`] to the side) every tick, and by its own margin once it is
     /// reckoned past the boundary: of the 3,705 ticks the guard held a walk in the bench's stuck episodes at lips, 2,031 (55 %) were
     /// held for a side only, the rest for the walk itself; with `edge = lattice` and no sides, 680, all for the walk (A205, 16 runs).
-    #[default]
     Lattice,
     /// As the body itself ([`Kinematics::edge`]): the margin is the forecast's body a little further on, so it falls where that
-    /// body would.
+    /// body would. The default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches).
+    #[default]
     Body,
 }
 
@@ -197,8 +198,8 @@ impl Default for Kinematics {
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             open_edge_cost: 0.0,
-            walk_off_landing: WalkOffLanding::Link,
-            margin_edge: MarginEdge::Lattice,
+            walk_off_landing: WalkOffLanding::BySpeed,
+            margin_edge: MarginEdge::Body,
             fix_floor: FixFloor::UnderInJump,
             pitch_scale: PitchScale::Client,
         }

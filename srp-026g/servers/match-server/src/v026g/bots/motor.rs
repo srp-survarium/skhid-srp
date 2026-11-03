@@ -328,7 +328,7 @@ impl Default for Feel {
             go_turn: 0.7,
             look_ahead_m: 1.6,
             off_walk_below_m: super::path::OFF_WALK_BELOW_M,
-            past_drop: super::path::PastDrop::Window,
+            past_drop: super::path::PastDrop::Landed,
             look_ahead_per_speed: 0.35,
             sprint_from_m: 10.0,
             sprint_until_m: 3.5,
