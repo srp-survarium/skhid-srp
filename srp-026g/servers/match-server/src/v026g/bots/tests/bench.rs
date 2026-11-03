@@ -781,6 +781,9 @@ pub(crate) fn real_bot_cost() {
         }
     };
     super::standin::start_bench_run();
+    if let Some(refusal) = one_sided_refusal(bench_settings()) {
+        panic!("{refusal}");
+    }
     say_the_rusher_kit();
     say_the_switches();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
@@ -1292,6 +1295,9 @@ pub(crate) fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     for bot in bots.bots.iter().flatten() {
                         game.bodies[bot.place].why_now = bot.bench_why;
+                        // [A277] The bot's kit now: its body's weapon is filled from it, as the client fills the bot's profile
+                        // (`Game::kits`).
+                        game.kits[bot.place] = bot.reflex.arms();
                         // [counts only] The mirror of the kick the bot made for the tick about to be played (`kick_gap`).
                         let next = game.tick + TICK_MS;
                         game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
@@ -2397,6 +2403,31 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
     }
 }
 
+/// [A278] A one-sided run (`SRP_BENCH_ONE_SIDE`) whose two tunings set a match-wide key apart is refused: the match takes
+/// every match-wide key from team 0's tuning (`TeamTunings::match_wide`, the list in `match_wide.rs`), so one
+/// side's value would run for both, and its two runs (team 0 the ON arm, then the OFF arm) would not be alike but for what is
+/// under test. A278 found all_off's `think.search_queue: first_come` serving team 0 (the OFF side) first in every such run
+/// that gave team 0 the OFF arm: the ON team was starved of route searches 3.1 times as often. The message names every key
+/// with both sides' values; a by-side OFF arm sets them to the ON arm's.
+fn one_sided_refusal(settings: &BenchSettings) -> Option<String> {
+    if !settings.flag("SRP_BENCH_ONE_SIDE") {
+        return None;
+    }
+    let differences =
+        super::match_wide::match_wide_differences(&tuning_from(settings, false), &tuning_from(settings, true));
+    (!differences.is_empty()).then(|| {
+        let keys: Vec<String> =
+            differences.iter().map(|(key, zero, one)| format!("{key} (team 0 {zero}, team 1 {one})")).collect();
+        format!(
+            "SRP_BENCH_ONE_SIDE: SRP_BENCH_TUNING and SRP_BENCH_SIDE1_TUNING set {} match-wide key(s) apart, which the match \
+             takes from team 0's tuning alone (TeamTunings::match_wide): {}. Give both sides the same value (a by-side OFF arm \
+             sets them to the ON arm's).",
+            keys.len(),
+            keys.join("; ")
+        )
+    })
+}
+
 /// The bots' rusher kit as the run has it, in a line (like the game data's):
 /// the setting and what the data lets the tier's rusher wear.
 /// Once per run, before the matches (`switches ON <section>:`, `switches OFF <section>:`, `switch values <section>:`, `changed numbers <section>:`, `data files:`,
@@ -2409,15 +2440,6 @@ fn say_the_switches() {
         eprintln!("{line}");
     }
     if settings.flag("SRP_BENCH_ONE_SIDE") {
-        // A match-wide setting is read from team 0's tuning (`TeamTunings::match_wide`): one the sides set apart
-        // flips between the two runs of a head-to-head, so the bench says so loudly.
-        let (zero, one) = (bench_tuning_of(false), bench_tuning_of(true));
-        if zero.think.search_queue != one.think.search_queue {
-            eprintln!(
-                "WARNING: the sides differ in the match-wide think.search_queue ({:?} vs {:?}): the match runs team 0's",
-                zero.think.search_queue, one.think.search_queue
-            );
-        }
         for line in bench_tuning_of(true).switch_report().lines() {
             eprintln!("side1 {line}");
         }
@@ -2800,6 +2822,24 @@ mod tuning_tests {
 
     fn settings(pairs: &[(&str, &str)]) -> BenchSettings {
         BenchSettings::from_pairs(pairs)
+    }
+
+    /// [A278] A one-sided run whose sides set a match-wide key apart is refused, the key named with both values; a per-team
+    /// key apart is the head-to-head itself and runs; a run that is not one-sided is not checked.
+    #[test]
+    fn a_one_sided_run_is_refused_when_its_sides_differ_in_a_match_wide_key() {
+        let apart = settings(&[
+            ("SRP_BENCH_ONE_SIDE", "1"),
+            ("SRP_BENCH_SIDE1_TUNING", r#"{"think": {"search_queue": "first_come"}, "kin": {"margin_edge": "lattice"}}"#),
+        ]);
+        let refusal = one_sided_refusal(&apart).expect("refused");
+        assert!(refusal.contains("think.search_queue (team 0 \"fair\", team 1 \"first_come\")"), "{refusal}");
+        assert!(refusal.contains("kin.margin_edge"), "{refusal}");
+        assert!(refusal.contains("2 match-wide key(s)"), "{refusal}");
+        let per_team = settings(&[("SRP_BENCH_ONE_SIDE", "1"), ("SRP_BENCH_SIDE1_TUNING", r#"{"think": {"stamina": false}}"#)]);
+        assert_eq!(one_sided_refusal(&per_team), None);
+        let match_only = settings(&[("SRP_BENCH_SIDE1_TUNING", r#"{"think": {"search_queue": "first_come"}}"#)]);
+        assert_eq!(one_sided_refusal(&match_only), None, "not one-sided: SIDE1 is not read");
     }
 
     /// The sight refresh is on with no setting (the defaults), `SRP_BENCH_SIGHT_REFRESH` on is the same, and the
