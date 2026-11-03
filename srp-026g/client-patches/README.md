@@ -802,7 +802,7 @@ original bytes first, so another build or an already patched file is refused.
 ### 6. The minimum video-memory check
 
 - **Where:** `jae` at VA 0x106411 (file offset 0xF5811) becomes `jmp`:
-  `73 0F` → `EB 0F`, the same one-byte patch used by `play_skhid.sh`.
+  `73 0F` → `EB 0F`.
 - **Why:** the client otherwise calls its fatal warning when detected
   video memory is below 320 MiB, which can prevent startup under Wine.
 - **What stays:** the function returns the detected video-memory size;
