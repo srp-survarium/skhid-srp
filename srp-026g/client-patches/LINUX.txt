@@ -4,6 +4,11 @@ Install Bash, curl, Winetricks, and Wine 11.0+ with modern WoW64 support.
 Tested: Wine 11.8 Staging WoW64. Use wine and wineserver from the same
 installation. A Vulkan-capable graphics driver is required for DXVK.
 
+If the script asks for ntsync, run sudo modprobe ntsync, then try again.
+To load it automatically at boot:
+
+    echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf
+
 START
 
 Unpack the Skhid archive into an empty folder with about 10 GB free, then run:
@@ -20,20 +25,6 @@ Later launches reuse them. Settings: ~/.config/skhid/user.cfg (or
 $XDG_CONFIG_HOME/skhid/user.cfg).
 Select an English keyboard layout before starting to avoid text-input issues.
 For VPN setup, see VPN.txt; split tunnelling must cover Wine.
-
-LOBBY RUNS SLOWLY
-
-On Linux 6.14 or newer, load the kernel's ntsync module before playing:
-
-    sudo modprobe ntsync
-
-To load it at every start of the computer:
-
-    echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf
-
-Without /dev/ntsync, wineserver handles all thread synchronisation. In menu
-tests the lobby ran at 10-15 fps without it and about 60 fps with it. The
-script prints a hint when /dev/ntsync is missing and the module exists.
 
 IF IT FAILS
 

@@ -205,17 +205,25 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertFalse((self.bin/'wineprefix/.skhid-ready').exists())
         self.assertFalse(any(c['name'] == 'winetricks' for c in self.recorded_calls(True)))
 
-    def test_missing_ntsync_is_pointed_out_when_the_kernel_has_the_module(self):
-        self.copy_exe()
+    def test_missing_available_ntsync_stops_before_wine_setup_and_allows_retry(self):
+        self.launcher_files()
         self.modinfo(0)
-        result = self.run_script()
+        for arguments in ((), ('launcher',)):
+            with self.subTest(arguments=arguments):
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('sudo modprobe ntsync', result.stderr)
+                self.assertIn('run this script again', result.stderr)
+                self.assertEqual([c['args'] for c in self.recorded_calls(True)], [['--version']])
+                self.assertFalse((self.bin / 'wineprefix').exists())
+                self.assertFalse(self.shared_config.exists())
+        self.ntsync.write_text('')
+        result = self.run_script('launcher')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        # The test points the script's /dev/ntsync at its own path, in the hint too.
-        self.assertIn(f'Info: {self.ntsync} is missing', result.stderr)
-        self.assertIn('sudo modprobe ntsync', result.stderr)
-        self.assertEqual(self.recorded_calls()[-1]['args'][0], 'survarium_skhid.exe')
+        self.assertEqual(self.recorded_calls()[-1]['args'][0], 'launcher_skhid.exe')
 
-    def test_no_ntsync_hint_when_it_would_not_help(self):
+    def test_ntsync_does_not_block_when_loaded_or_unavailable(self):
         self.copy_exe()
         for case, module, device in (('the device is there', 0, True),
                                      ('the kernel has no module', 1, False),
@@ -232,7 +240,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertNotIn('ntsync', result.stderr)
 
-    def test_no_ntsync_hint_for_a_refused_wine(self):
+    def test_ntsync_is_not_checked_for_a_refused_wine(self):
         self.copy_exe()
         self.modinfo(0)
         self.env['TEST_WINE_VERSION'] = 'wine-9.0'
