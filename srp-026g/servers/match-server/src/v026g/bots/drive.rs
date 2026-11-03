@@ -1051,16 +1051,29 @@ fn drive_tick_inner(
                 // through them (a second search only when there are any).
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
-                let landings = bot.stuck.shut_landings_from(time, me.feet, tuning.unstick.drop_shut_from_top).collect();
-                let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
-                // A body that cannot sprint takes no jump link above its standing jump.
-                if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
-                    hard = hard.with_max_jump_rise(rise);
-                }
-                // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
-                if tuning.kin.open_edge_cost > 0.0 {
-                    hard = hard.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);
-                }
+                let landings: Vec<stuck::Shut> =
+                    bot.stuck.shut_landings_from(time, me.feet, tuning.unstick.drop_shut_from_top).collect();
+                // [unstick.drop_shut_last_resort] A275: the landings less the drops it shut, for a search that finds no way
+                // with them (below); only while it holds a drop shut.
+                let unshut_landings = tuning
+                    .unstick
+                    .drop_shut_last_resort
+                    .then(|| stuck::without_drops(&landings))
+                    .flatten();
+                let hard_of = |landings| {
+                    let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                    // A body that cannot sprint takes no jump link above its standing jump.
+                    if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
+                        hard = hard.with_max_jump_rise(rise);
+                    }
+                    // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
+                    if tuning.kin.open_edge_cost > 0.0 {
+                        hard = hard.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);
+                    }
+                    hard
+                };
+                let hard = hard_of(landings);
+                let unshut = unshut_landings.map(hard_of);
                 let filter = traps::soften(
                     bot,
                     hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect()),
@@ -1176,6 +1189,30 @@ fn drive_tick_inner(
                 } else {
                     None
                 };
+                // [unstick.drop_shut_last_resort] A275: no way with the drops it shut, so they are its only way: it takes one
+                // again (a shut is a preference, as the stuck spots are), and no way without them either is proof for the
+                // plays. Off: it stands until the shut ends, the search no proof (Chemical Plant's walkway beams, 45 s).
+                let mut unshut_proof = false;
+                if route.is_none()
+                    && left.is_none()
+                    && !escaping
+                    && !there
+                    && let (Some(unshut), Some((from, to))) = (unshut.as_ref(), ends)
+                {
+                    let found = tactics.start_route(from, to, time, side, objective, unshut, floors);
+                    #[cfg(test)]
+                    stuck::drop_shuts::count(match found {
+                        Ok(Some(_)) => stuck::drop_shuts::UNSHUT_FOUND,
+                        Ok(None) => stuck::drop_shuts::UNSHUT_NONE,
+                        Err(_) => stuck::drop_shuts::UNSHUT_LEFT,
+                    });
+                    match found {
+                        Ok(Some(way)) => route = Some(way),
+                        Ok(None) => unshut_proof = true,
+                        // Past this poll's floors: the next poll searches again.
+                        Err(_) => {}
+                    }
+                }
                 // A held shooter's lane (K1, `threat.rs`): a route that runs
                 // through it for long gets a local detour round the lane
                 // (searched from 13 m before it to 13 m after it, spliced in)
@@ -1468,8 +1505,13 @@ fn drive_tick_inner(
                         path::off_floor_goals::count();
                     }
                     // Both ends on floors, from one it may walk on, and no way:
-                    // proven, for the plays.
-                    if route.is_none() && (ends.is_some() || off_floor) && !escaping && !there && bot.stuck.no_way_is_proof(time) {
+                    // proven, for the plays (also with the drops it shut opened again: `unshut_proof`).
+                    if route.is_none()
+                        && (ends.is_some() || off_floor)
+                        && !escaping
+                        && !there
+                        && (bot.stuck.no_way_is_proof(time) || unshut_proof)
+                    {
                         bot.no_way_to.retain(|&(goal, until)| {
                             time < until && goal.distance_xz(at) > REPLAN_MOVED_M
                         });

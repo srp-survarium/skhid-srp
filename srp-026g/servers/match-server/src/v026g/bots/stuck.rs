@@ -852,6 +852,15 @@ impl Shut {
     }
 }
 
+/// The shut landings a search keeps off with the drops' taken out (`unstick.drop_shut_last_resort`): the search that found
+/// no way with them all is made again with these. `None` when none is a drop's: that search would be the same one.
+pub fn without_drops(landings: &[Shut]) -> Option<Vec<Shut>> {
+    landings
+        .iter()
+        .any(|shut| shut.kind == ShutKind::Drop)
+        .then(|| landings.iter().copied().filter(|shut| shut.kind != ShutKind::Drop).collect())
+}
+
 /// The landings of the drops off where a body stands (`feet`): every Drop and GapDrop link of the floors within
 /// `near_m` across and [`DROP_TOP_M`] up or down of the feet that goes [`mapdata::grid::LIP_DROP_M`] or more down.
 /// The drop the route took is among them, and those beside it that end on the same ground (a ledge's drops land
@@ -898,12 +907,17 @@ pub mod drop_shuts {
     pub const SELF_KILL: usize = 5;
     /// A drop's landing a search was not kept off: the body stands at its height or under it ([`super::Stuck::shut_landings_from`]).
     pub const LIFTED: usize = 6;
+    /// A search that found no way with the drops it shut, searched again without them (`unstick.drop_shut_last_resort`): a
+    /// way found, no way (proof for the plays), past the poll's floors.
+    pub const UNSHUT_FOUND: usize = 7;
+    pub const UNSHUT_NONE: usize = 8;
+    pub const UNSHUT_LEFT: usize = 9;
     /// Stuck again at the spot this soon, ms: the coordinator's 10 s.
     pub const AGAIN_MS: u32 = 10_000;
     /// Neither within this, ms: still there.
     pub const WATCH_MS: u32 = 30_000;
 
-    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
+    static COUNTS: [AtomicU64; 10] = [const { AtomicU64::new(0) }; 10];
 
     pub fn count(kind: usize) {
         add(kind, 1);
@@ -913,7 +927,7 @@ pub mod drop_shuts {
         COUNTS[kind].fetch_add(n, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 7] {
+    pub fn counts() -> [u64; 10] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -1514,6 +1528,25 @@ mod tests {
         assert!(!stuck.no_way_is_proof(2_000));
         assert!(!stuck.no_way_is_proof(46_999));
         assert!(stuck.no_way_is_proof(47_000), "the drop's shut has ended");
+    }
+
+    /// With `unstick.drop_shut_last_resort` a search that found no way while the body holds drops it shut is made again with
+    /// its jumps' shut landings only; with no drop's shut there is no second search (it would be the same one).
+    #[test]
+    fn the_last_resort_search_keeps_the_jumps_shut_and_opens_the_drops() {
+        let top = Vec3::new(65.4, 6.5, 62.9);
+        let jump = Vec3::new(65.0, 7.6, 61.0);
+        let mut stuck = Stuck::default();
+        stuck.failed_jump(1_000, top, Some(jump));
+        let landings: Vec<Shut> = stuck.shut_landings(1_000).collect();
+        assert_eq!(without_drops(&landings), None, "a jump's shut only: no second search");
+        stuck.failed_drop(2_000, top, &[Vec3::new(66.0, 3.9, 61.8), Vec3::new(66.5, 3.9, 61.8)], 45_000);
+        let landings: Vec<Shut> = stuck.shut_landings(2_000).collect();
+        assert_eq!(landings.len(), 3);
+        let open = without_drops(&landings).expect("drops shut: a second search");
+        assert_eq!(open.len(), 1);
+        assert!(open.iter().all(|shut| shut.kind == ShutKind::Jump && shut.landing == jump));
+        assert_eq!(without_drops(&[]), None);
     }
 
     /// F4: a forward jump up the ledge a stuck body is held by, else the
