@@ -813,9 +813,9 @@ pub(crate) fn fly(
                 }
             }
             let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
-                super::body::slide_supported(grid, node, body.feet, target, grid.body().walk_climb(), super::body::SUPPORT_M)
+                super::body::slide_supported(grid, node, body.feet, target, super::standin::client_step(grid), super::body::SUPPORT_M)
             } else {
-                super::body::slide_capped(grid, node, body.feet, target, grid.body().walk_climb())
+                super::body::slide_capped(grid, node, body.feet, target, super::standin::client_step(grid))
             };
             body.node = Some(n);
             body.feet = feet;

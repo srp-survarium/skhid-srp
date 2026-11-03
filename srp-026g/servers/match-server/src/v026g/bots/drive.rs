@@ -1387,12 +1387,14 @@ fn drive_tick_inner(
                 // search (`crossing.rs`).
                 let mut crossed = false;
                 let mut second = None;
+                // [take.cross_from_zone] Asked from a zone floor though `wanted` says no.
+                let mut from_zone = false;
                 if left.is_none()
                     && !escaping
                     && !there
                     && !(route.is_some() && long_kept(bot.features.crossing.long_kept, at, time))
                     && let Some((from, to)) = ends
-                    && crossing::wanted(
+                    && (crossing::wanted(
                         tactics,
                         route.as_ref(),
                         from,
@@ -1400,13 +1402,23 @@ fn drive_tick_inner(
                         side,
                         objective,
                         me.health,
-                    )
+                    ) || {
+                        from_zone = tuning.take.cross_from_zone.is_some()
+                            && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
+                        from_zone
+                    })
                 {
+                    if from_zone {
+                        plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchAsked);
+                    }
                     match crossing::start(
                         tactics, from, to, time, side, objective, me.health, &hard, floors,
                     )
                     {
                         Ok(crossing_route) => {
+                            if from_zone && crossing_route.is_some() {
+                                plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchFound);
+                            }
                             let kept;
                             (route, crossed, kept) = crossing::choose(
                                 tactics,

@@ -1009,6 +1009,8 @@ pub struct TeamKnowledge {
     /// What changed in [`Self::batteries`] and why, for the log (taken by
     /// the bots' notes; [`Self::change_battery`]).
     pub battery_notes: Vec<String>,
+    /// [take.team_memory] The team's failed takes: stands given up and batteries set aside (`collect::TeamTakes`).
+    pub takes: super::plays::collect::TeamTakes,
     /// The known lying batteries of each bot of the team: why it may not
     /// take one now (`None`: it may), and since when (match ms), for the
     /// notes (`collect::take_blocks`): a note goes out when it changes.

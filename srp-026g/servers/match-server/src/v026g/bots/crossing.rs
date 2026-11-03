@@ -130,6 +130,15 @@ pub fn wanted(
     }
 }
 
+/// [take.cross_from_zone] Whether a crossing's search is asked though [`wanted`] says no: the plain search from floor
+/// `from` found no way, and `from` is a floor zones on all match mark (a body that stepped onto a zone's floors by its
+/// crossing's edge, or is in its crossing): from there the regions see the goal next door with the zones shut, so
+/// [`wanted`] answers "the plain search failed for something else", and the play's goal was taken for one with no way
+/// (A282, PROVEN by probe: 16-32 such floors by each edge of Vostok Radar Station's and Mamayev Kurgan's zone batteries).
+pub fn wanted_from_zone(tactics: &Tactics, plain: Option<&Route>, from: NodeId, to: NodeId) -> bool {
+    plain.is_none() && tactics.hazards.only_fixed_at(from) && tactics.world.grid.may_reach(from, to)
+}
+
 /// Whether the line from `a` to `b` passes over a floor a bot of `health`
 /// may cross ([`crossable`]), looked at every [`CROSS_STEP_M`].
 fn line_crosses(tactics: &Tactics, a: Vec3, b: Vec3, health: f32) -> bool {
@@ -530,6 +539,28 @@ mod tests {
         let grid = &deadly.world.grid;
         let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
         assert!(!crossable(&deadly, mid, 1.0));
+    }
+
+    /// [take.cross_from_zone] From a floor inside a zone on all match (a body that stepped in by its crossing's edge) a failed
+    /// plain search asks the crossing's search, and it finds the way out to the goal; from a dry floor it is `wanted`'s call
+    /// alone, and a plain way found is kept.
+    #[test]
+    fn a_failed_plain_search_from_a_zone_floor_asks_the_crossings() {
+        let weak = tactics(0.04, 0.0);
+        let grid = &weak.world.grid;
+        let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
+        let (east, west) = (grid.locate(EAST, 1.5).unwrap(), grid.locate(WEST, 1.5).unwrap());
+        assert!(weak.hazards.only_fixed_at(mid), "the floor is the zone's");
+        assert!(wanted_from_zone(&weak, None, mid, east));
+        assert!(!wanted_from_zone(&weak, None, west, east), "a dry floor");
+        if let Some(plain) = weak.route_nodes(mid, east, 0, Some(0), false, &RouteFilter::open()) {
+            assert!(!wanted_from_zone(&weak, Some(&plain), mid, east), "a plain way is kept");
+        }
+        let mut iters = usize::MAX;
+        let Ok(crossed) = start(&weak, mid, east, 0, Some(0), false, 1.0, &RouteFilter::open(), &mut iters) else {
+            panic!("an unbounded search ends");
+        };
+        assert!(crossed.is_some(), "from the zone floor the crossing's search finds the way");
     }
 
     /// The gate reads the client's rate, the interval included: a continuous zone of 0.8 a second raw whose interval is 500 ms
