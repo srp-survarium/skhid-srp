@@ -9932,7 +9932,7 @@ mod tests {
                 assert!(r.trigger(true, true, now, c, 20.0, &mut rng));
                 now += 50;
             }
-            assert!(r.trigger(false, true, now, c, 20.0, &mut rng) == false);
+            assert!(!r.trigger(false, true, now, c, 20.0, &mut rng));
             let in_clip = r.reload(false, now - 50, c);
             let after = r.reload(false, now + 200, c);
             (in_clip, after)
