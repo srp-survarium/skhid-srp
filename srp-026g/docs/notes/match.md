@@ -6,6 +6,8 @@ Tags: **PROVEN** = read in both disassemblies (0.26g VA or string cited, plus th
 
 The transport layer (datagram header, acks, lengths, fragmentation) is in the sibling file `transport.md`; only the parts the message layer needs are here.
 
+What srp checks of each message, and what a client can do to another through it: `relay_trust.md` (section 35 here is its audit).
+
 ## 0. Headline
 
 - **0.26g is still client-side deterministic lockstep with rollback.** The server relays inputs, decides finality, syncs clocks, collects hashes and must supply world snapshots. PROVEN:
@@ -729,3 +731,26 @@ Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `
   - A game of a place that stands in, connecting meanwhile, waits for the stand-in's leave (`stands_in`), then enters after it, from a world after it: a lost player as one back in the match (`enter_early`), a place no player had as a new arrival. Never a second entry while the stand-in is in, nor taken out by its leave.
 - **A gap, not new:** any leave the server sends within its roster lead (300 ms) of that place's entry can come before a game played the entry and be dropped (a newcomer who leaves at once); the server does not hold those back yet.
 - **What a game does when a match is called off** (the same end as every match, §24): 0xEA of its own place → `close_current_match(3)`: the world ended, the lobby's victory screen opened (`show_match_statistic`; PROVEN 0x27A806..0x27A81A, 0x29AAF0). No 0x97 comes for it, so the screen shows its "receiving the statistics" spinner (`VictoryScreen.prepare`, no time-out in the movie) until the player closes it (×, Esc, a tab); a room's member has its room's window under it. LIKELY: not seen in a game. The quiet way (a 5 s silence ends the match link as `close_current_match(0)`, the world ended with no screen: jump table 0x27A958 entry 0 = 0x27A941) was not taken: the server would have to swallow the game's datagrams for as long as it loads, with no 0xFD, and that path is not exercised live.
+
+## 35. What else of a relayed world or text can hurt other games (audit, added 2026-10-22)
+
+The search for more ways one client's bytes, relayed by srp, can crash other games (after
+sections 20 and 23). Which messages are covered, and the gaps ranked: `relay_trust.md`. PROVEN
+unless tagged.
+
+1. **Every section of a world has a fixed buffer.** The history item (constructor 0x324510)
+   holds its sections in `mutable_buffer`s with inline storage and no allocator: bullets 0x2400,
+   statistics 0xC00, objects 0x2000, physics 0x4000, rules 0x800, effects 0xC00, each player
+   state 0x1000 (0x3247D0). 0x324D80 resizes a buffer to the section's u16 length (0x7AB30) and
+   copies it. Over the capacity, `mutable_buffer::reallocate` 0x7AB70 asserts ("mutable buffer
+   overflow", 0x9E3398) and then calls through the null allocator: every game that loads such a
+   world dies. A client's own world never exceeds them (2230 kept real worlds stay far under).
+2. **The mask's bit k is a slot with no bound.** 0x324DC0..0x324E15 takes the lowest set bit k
+   and reads a player block into `item + k * 0x9054`; the item has 20 slots. A bit at 20 or
+   above makes 0x33FEE0 write into the section buffers or past the item and release a reference
+   there: memory corruption (crash LIKELY).
+3. **The body's reader never tests its end** (0x324D95.., the same in 0x318400): a section length
+   past the body reads past the buffer.
+4. **Names and clan tags are unescaped HTML in chat.** The movies escape `<` in a body
+   (`styledChar`), not in a name or tag (`LobbyChat.as::get_styled_text`, `GameChat.as`):
+   markup, no crash found (LIKELY).

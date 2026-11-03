@@ -39,6 +39,7 @@ given), LIKELY or GUESS.
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
+| [relay_trust.md](relay_trust.md) | What one client's bytes can do to another: the relayed messages, srp's checks, coverage (COVERED / PATCHED / OPEN), the open gaps ranked |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [kd-balance.md](kd-balance.md) | The sides of a match by K/D at the match's equipment level (the owner, 2026-11-01): squads 1.3 times, a small noise, late joiners, what a match counts |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |

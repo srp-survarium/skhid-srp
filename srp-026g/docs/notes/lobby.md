@@ -8,6 +8,8 @@ Baseline: `srp-021d/docs/notes/lobby_spec.md` (abbrev. "spec021d §x").
 
 Work files (scratch, not deliverables): a full `dumpbin /disasm` of the 0.26g .text with every string immediate annotated was made in the session scratchpad (`d026a.txt`, 3 M lines). Re-make it with `dumpbin /disasm:nobytes /section:.text <exe>` and annotate pointers into .rdata.
 
+What of a player's text and account reaches other players, and what srp checks of it: `relay_trust.md` section 4.
+
 Sibling notes written for this comparison (same folder): `lobby_requests.md` (every client→server lobby request, 0x83/0x84 bodies), `social.md` (chat 0xA2..0xA4 and 0x4C..0x50, squad 0xA1/0x4A, clan 0x9A/0x49, 0x9F, 0xA5..0xAA), `results.md` (0x93, 0x97, 0x98, 0x99, 0x9B), `transport.md` (the UDP transport the lobby now uses), `login_chat.md` (login reply / browser). This file is the overview, the id map and the core economy/profile layouts; it summarises the others in §4–§5.
 
 ---
