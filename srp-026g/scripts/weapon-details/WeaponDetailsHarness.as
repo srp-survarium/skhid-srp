@@ -60,6 +60,36 @@ package {
   // A bolt-action AK-74M stand-in: its chambering time (prop 160, the weapons that have one).
   private function boltItem(chamber:String):Object {var d:Object=item(false);d.properties.push({prop_id:160,prop_value:chamber});return d;}
   private function shows(d:Object,other:Object):void {cards[0].data=d;cards[1].data=other;cards[0].itemCompare.setSecondaryWeapon(other);cards[1].itemCompare.setSecondaryWeapon(d);}
+  private function tacticalItem():Object {var d:Object=item(false);d.properties.push({prop_id:162,prop_value:String(4/3)});return d;}
+  private function tacticalChecks():void {
+   var gun:Object=tacticalItem(),plain:Object=item(true);
+   require(stat(gun,138).value=="4s" && stat(gun,162).value=="3s","empty and tactical times derive from the clip ratio");
+   require(stat(plain,162)==null,"ordinary weapon alone has no tactical row");
+   plain.properties.push({prop_id:161,prop_value:"42"});
+   require(stat(plain,162)==null,"kill-feed icon metadata is not a reload ratio");
+   gun.modifiers=[{icon:33,textValue:"Reload +25%",props:[{prop_id:114,prop_value:"0.25"}]}];
+   require(stat(gun,138).value=="3s" && stat(gun,162).value=="2.25s","weapon reload roll scales both reloads");
+   shows(gun,tacticalItem());
+   require(color(cards[0],"Tactical reload")==GREEN && color(cards[1],"Tactical reload")==RED,"two tactical times compare numerically");
+   aligned();
+   gun.modifiers=[];
+   for each(var language:String in HarnessText.LANGUAGES){
+    Loc.setData(texts(language));
+    var label:String=HarnessText.DATA[language].st_srp_weapon_reload_tactical;
+    for each(var expanded:Boolean in [false,true]){
+     Scene.isShift=expanded;
+     shows(gun,plain);
+     require(line(cards[1],label)==label+": -","missing tactical row on right: "+language);
+     require(color(cards[0],label)==NEUTRAL && color(cards[1],label)==NEUTRAL,"missing value has no comparison colour");
+     aligned();
+     shows(plain,gun);
+     require(line(cards[0],label)==label+": -","missing tactical row on left: "+language);aligned();
+     shows(plain,item(true));
+     require(text(cards[0]).indexOf(label)<0 && text(cards[1]).indexOf(label)<0,"neither weapon has tactical reload");
+    }
+   }
+   Loc.setData(texts("english"));Scene.isShift=true;shows(items[0],items[1]);
+  }
   // The native comparison row of a property (diff_1..diff_9), by its label.
   private function nativeRow(card:Object,label:String):Object {
    for(var i:int=1;i<=9;i++){var row:Object=card.itemCompare.getChildByName("diff_"+i);if(row && row.visible && row.indicator.label==label)return row.indicator;}
@@ -213,6 +243,13 @@ package {
    require(line(cards[0],english.st_srp_weapon_with_kit)==english.st_srp_weapon_with_kit && line(cards[0],"Reload")=="Reload: 3 -> 2.73s","skills unknown: gloves only");
    profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
    // Every language fits, held Alt and expanded, beside the widest kick values.
+   var tacticalGun:Object=tacticalItem();shows(tacticalGun,items[0]);
+   require(line(cards[0],"Tactical reload")=="Tactical reload: 3 -> 2.46s","kit and skills scale tactical reload");
+   require(line(cards[0],"Reload (empty)")=="Reload (empty): 4 -> 3.28s","kit and skills scale empty reload");
+   require(line(cards[1],"Tactical reload")=="Tactical reload: -","Alt preserves the missing row");aligned();
+   Scene.isCtrl=true;shows(tacticalGun,items[0]);
+   require(changeColours(detailField(cards[0],"Tactical reload")).join()==[NEUTRAL,NEUTRAL,NEUTRAL].join(),"Ctrl suppresses tactical change colours");
+   Scene.isCtrl=false;
    var misses:Array=[],wide:Object=recoilItem(1.98,2.2,1.42,2,1.42,2);
    for each(var language:String in HarnessText.LANGUAGES){
     Loc.setData(texts(language));
@@ -239,7 +276,7 @@ package {
     var Props:Class=domain.getDefinition("survarium.data.PropertiesDescriptor") as Class;
     var props:Object=new Props("properties"),list:Array=[];
     for each(var spec:Array in [[1,"Damage",1,""],[2,"Dispersion",0,""],[3,"Armor penetration",1,""],[4,"Rate of fire",1,""],[15,"Weight",0,"kg"],[24,"Distance",1,"m"],[132,"Stopping power",1,"%"],[133,"Aim time",0,"s"],[134,"Magazine",1,""]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
-    for(var id:int=138;id<=160;id++)list.push({prop_id:id,comparable:false});
+    for(var id:int=138;id<=162;id++)list.push({prop_id:id,comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
@@ -420,6 +457,7 @@ package {
      Loc.setData(texts("english"));cards[0].data=items[0];cards[1].data=items[1];
      recoilChecks();
      rollChecks();
+     tacticalChecks();
      var baseRange:String=text(cards[0]);
      var defaultRange:Object={props:[{prop_id:24,prop_value:"0.10"}],isDefault:true,icon:33,textValue:"Range: +10%"};
      items[0].modifiersDefault=[defaultRange];

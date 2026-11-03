@@ -2059,7 +2059,6 @@ va	status	ref_021d	name
 0x0030ddc0	inferred-high	0x001f14eb	survarium::weapon_core_hide_state::weapon_core_hide_state
 0x0030def0	inferred-high	0x001f158f	survarium::weapon_core_hide_state::initialize
 0x0030dfe0	inferred-high	0x001f1643	survarium::weapon_core_hide_state_base::on_animation_end_impl
-0x0030e000	inferred-high	0x001f165c	survarium::weapon_core_reload_state::weapon_core_reload_state
 0x0030e140	inferred-medium	0x001f16ec	survarium::weapon_core_reload_state::`scalar deleting destructor'
 0x0030e160	inferred-high	0x001f1708	survarium::weapon_core_reload_state::weapon_and_hands_expression
 0x0030e2b0	inferred-high	0x001f1879	survarium::weapon_core_chamber_a_round_state::weapon_core_chamber_a_round_state
@@ -2102,7 +2101,6 @@ va	status	ref_021d	name
 0x0030fac0	inferred-high	0x001f2ef8	survarium::weapon_core_idle_state::weapon_and_hands_expression
 0x0030fba0	inferred-high	0x001f2f7d	survarium::pistol_weapon_core_idle_state::get_weapon_lexeme
 0x0030fbe0	inferred-medium	0x001f3004	survarium::animations_registrator<survarium::pistol_weapon_core_idle_state,survarium::weapon_core_idle_state_base>::register_animations
-0x0030fc50	inferred-high	0x001f3056	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state
 0x0030fdb0	inferred-high	0x001f3135	survarium::double_barreled_weapon_core_reload_state::initialize
 0x0030fdb0	inferred-high	0x001f3135	survarium::pistol_weapon_core_reload_state::initialize
 0x0030fdb0	inferred-high	0x001f3135	survarium::weapon_core_reload_state::initialize

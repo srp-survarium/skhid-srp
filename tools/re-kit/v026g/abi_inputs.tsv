@@ -5390,3 +5390,10 @@ va	name	location	role	basis
 0x00288cd0	survarium::lobby_menu::autobuy_changed	ECX	lobby menu; game +9Ch, network holder at game+53ACh	observed
 0x00288cd0	survarium::lobby_menu::autobuy_changed	entry ESP+4	callback params; +8 is GFx argument array, first argument union at +8; Boolean required for off/on	observed
 0x0033cac0	survarium::medkit::medkit	data/influences[].amount	TOTAL health per configured course, not health per second: 0x33CD15..0x33CD1D computes 1.0 / max(data/activity_time_sec,0.001), and 0x33CD92..0x33CDB9 reads int/float amount, multiplies by that reciprocal and stores the runtime rate at influence+10h. Native constructor and tick executed with revision-44 medicine configs: science pain 0.1667 becomes 0.0555667/s and heals 0.1667 over 3 s; orange 0.1333 becomes 0.0444333/s. Earlier per-second interpretation in medicines.md was wrong.	observed
+0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	EAX	weapon states block; +10h is parameters/reload_time, sent to 0x30D750 at 0x30FC67	observed
+0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	stack+8	resource pointer array: two item clips then eight hands clips; +8 is first tactical hands clip, used by 0x30D750 to normalize speed	observed
+0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	stack+4	destination state; normalized speed stored at +138h (0x30FCA2)	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	EDI	reload state; weapon at +120h, normalized speed +138h; hands clip slot 2*(weapon+5E5h == 0) + 4*(stack+Ch == 1), both kinds use player modifier 13 at 0x30FF07	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+4	output animation lexeme	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+8	animation expression buffer, forwarded to 0x31EBD0	observed
+0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	stack+Ch	posture selector; value 1 selects the second four hands clips	observed

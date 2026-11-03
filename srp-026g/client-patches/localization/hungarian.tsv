@@ -2691,6 +2691,8 @@ st_srp_weapon_minimum_damage	Minimális sebzés
 st_srp_weapon_minimum_damage_from	Minimális sebzés kezdete
 st_srp_weapon_recoil_heading	Visszarúgás, szórás, kilengés
 st_srp_weapon_reload	Újratöltés
+st_srp_weapon_reload_empty	Újratöltés (üres)
+st_srp_weapon_reload_tactical	Taktikai újratöltés
 st_srp_weapon_shift_hint	Shift: több · Alt: meccsben
 st_srp_weapon_spread_growth	Szórás növekedési sebessége
 st_srp_weapon_spread_max	Maximális többletszórás
