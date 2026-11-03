@@ -106,6 +106,7 @@ pub enum Reason {
     StateUnder2,
     NoProfile,
     PickupRecord,
+    LampHistory,
     /// The head does not read for a profile of `items` items: the state
     /// (of `len` bytes) is shorter, or a bool is no bool.
     NoHead {
@@ -467,6 +468,7 @@ impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Reason::PickupRecord => f.write_str("invalid current weapon-pickup record"),
+            Reason::LampHistory => f.write_str("invalid lamp history suffix"),
             Reason::NoWalk => f.write_str("the mask and player blocks do not walk from the front"),
             Reason::NoSections => {
                 f.write_str("no six sections ending at the body's end after the player blocks")
