@@ -82,6 +82,18 @@ pub struct UnstickTuning {
     /// 720 -> 144, stuck notes 146 -> 143); the all-off arm keeps it (its old value is the proven trap). Off: every shut drop's
     /// landing is kept off, wherever the body is.
     pub drop_shut_from_top: bool,
+    /// A search that finds no way while the body holds drops it shut ([`Self::drop_shut`]) searches once more without them, in
+    /// the same poll: a way found is taken (the shut drops are its only way, so it takes one again, as a stuck spot is gone
+    /// through when there is no way round), and no way without them either proves the goal has none for the plays. A275,
+    /// PROVEN by the failed searches searched again (A93's cells, Vector Laboratory and Chemical Plant, 192 matches an arm): the
+    /// largest class of failed searches (443 of 1,010 with A93's five switches at their old values, 887 of 1,657 with them on)
+    /// had a way without the body's own shut drops, all on Chemical Plant batteries' walkway beams (x 64-66, z 62-68), where a
+    /// bot fallen in at the match's start stood about 45 s with no way and no proof (its play kept the goal, searched every
+    /// 0.5 s). On by default (A275's benches: those cells, 192 matches an arm, both teams: time held at that ledge 500 s ->
+    /// 68 s, the longest 55 s -> 13 s, failed searches 1,658 -> 631, A123's gap_failed_above 198 -> 97, stuck seconds -6.9 %
+    /// (z -2.8), kills and deliveries level; by side, 8 maps x 6/8/10, 288 pairs: every outcome level); the all-off arm keeps
+    /// it (its old value is the proven trap). Off: a shut drop is kept off for its whole time, whatever is left.
+    pub drop_shut_last_resort: bool,
     /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
     /// meant 1.2 m) judges a window by (A240b).
     pub window: StuckWindow,
@@ -150,6 +162,7 @@ impl Default for UnstickTuning {
             home_gate_max_ms: Some(90_000),
             drop_shut: Some(DropShut::default()),
             drop_shut_from_top: true,
+            drop_shut_last_resort: true,
             window: StuckWindow::SinceAsked,
             escape_floor: true,
         }

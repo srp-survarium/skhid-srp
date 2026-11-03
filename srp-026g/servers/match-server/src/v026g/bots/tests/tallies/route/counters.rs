@@ -746,14 +746,15 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
 /// The drops a body held at their top shut to its searches (`unstick.drop_shut`, `stuck::drop_shuts`): the shuts, the
 /// landings shut, and what followed each: stuck again at the spot within 10 s, off it (down, or 2 m away), still there
 /// after 30 s, killed itself first (the rest: a new life or another shut ended the watch); and the landings a search was not
-/// kept off as the body stood at their height or under them (`unstick.drop_shut_from_top`).
+/// kept off as the body stood at their height or under them (`unstick.drop_shut_from_top`); and the searches with no way for
+/// the drops it shut searched again without them, a way found, none, past the poll's floors (`unstick.drop_shut_last_resort`).
 pub(super) fn drop_shuts() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::drop_shuts::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "drop_shuts {} drop_shut_landings {} drop_shut_again {} drop_shut_left {} drop_shut_still {} drop_shut_self_kills {} drop_shut_lifted {}",
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6]
+                "drop_shuts {} drop_shut_landings {} drop_shut_again {} drop_shut_left {} drop_shut_still {} drop_shut_self_kills {} drop_shut_lifted {} drop_unshut_found {} drop_unshut_none {} drop_unshut_left {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]
             ));
         },
     )
