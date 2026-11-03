@@ -13,6 +13,7 @@ use std::collections::VecDeque;
 use mapdata::Vec3;
 
 use super::frame::{Body, Frame, Owner};
+use super::guide::{self, Reach};
 use super::step::{Cond, CustomMeter, End, Gait, Grip, Group, Measure, Progress, Script, Setup, Side, Span, Spot, Step, TryStart, Who};
 use super::time::At;
 use crate::v026g::bots::view::Place;
@@ -20,6 +21,9 @@ use crate::v026g::bots::view::Place;
 /// A chat line fades after about 7 s (GUESS: not timed on the client's screen): the instruction is told again this often while
 /// the step waits for its start.
 const RETELL: Span = Span::s(6);
+/// The way to the step's spot is told this often while he walks there (he turns, so a line older than this misleads); once he is
+/// there, with the instruction only.
+const GUIDE: Span = Span::s(3);
 /// After a step ends the next one waits this long (the owner reads the result).
 const REST: Span = Span::s(4);
 /// A scripted bot within this of a lane point has reached it, m.
@@ -530,6 +534,8 @@ struct Armed {
     since: At,
     /// When the instruction was last told.
     told: At,
+    /// When the way to the step's spot was last told, and whether he was there; none before the first line.
+    guided: Option<(At, Reach)>,
 }
 
 #[derive(Debug, Default)]
@@ -636,6 +642,11 @@ impl Runner {
             Ok(mut crew) => {
                 crew.advance(frame, &owner.body);
                 acts.push(Action::Tell(format!("[{}/{}] {}", todo.step.id, todo.next_try, todo.step.instruction)));
+                if let Some(mark) = todo.step.guide()
+                    && let Some(landmark) = mark.landmark()
+                {
+                    acts.push(Action::Tell(format!("{}: {landmark}", mark.name())));
+                }
                 acts.push(Action::Log(format!(
                     "CLIENT_TEST step {} ARMED try {}/{}: {}",
                     todo.step.id, todo.next_try, todo.step.tries, todo.step.instruction
@@ -645,6 +656,7 @@ impl Runner {
                     crew,
                     since: frame.clock,
                     told: frame.clock,
+                    guided: None,
                 })
             }
             Err(why) => {
@@ -701,9 +713,21 @@ impl Runner {
         // A step starts with the owner on his feet and after he had time to read it.
         let begins = owner.body.alive && waited >= armed.todo.step.settle && armed.todo.step.start.iter().all(|cond| holds(cond, &armed, frame, owner));
         if !begins {
-            if frame.clock - armed.told >= RETELL {
+            let retold = frame.clock - armed.told >= RETELL;
+            if retold {
                 armed.told = frame.clock;
                 acts.push(Action::Tell(format!("[{}] {}", armed.todo.step.id, armed.todo.step.instruction)));
+            }
+            if let Some((reach, line)) = armed.todo.step.guide().and_then(|mark| guide::line(mark, frame, &owner.body)) {
+                let due = match armed.guided {
+                    None => true,
+                    Some((at, Reach::Away)) => frame.clock - at >= GUIDE,
+                    Some((at, Reach::There)) => reach == Reach::Away || (retold && frame.clock - at >= GUIDE),
+                };
+                if due {
+                    armed.guided = Some((frame.clock, reach));
+                    acts.push(Action::Tell(line));
+                }
             }
             return Phase::Armed(armed);
         }

@@ -140,6 +140,10 @@ pub fn card(plan: &str, provenance: &Provenance, matches: &[(Group, Vec<&Step>)]
         for step in steps {
             text.push_str(&format!("- **{}** ({}, {} s, {} {}): {}\n", step.id, step.package, step.budget.as_ms() / 1_000, step.tries, if step.tries == 1 { "try" } else { "tries" }, step.instruction));
             text.push_str(&format!("  - starts when: {}\n", describe_start(&step.start)));
+            if let Some(mark) = step.guide() {
+                let landmark = mark.landmark().map_or(String::new(), |l| format!(": {l}"));
+                text.push_str(&format!("  - {} {}{landmark} (the chat says how far and which way)\n", mark.name(), mark.describe()));
+            }
             if !step.end.is_empty() {
                 text.push_str(&format!("  - ends at: {} or after {} s\n", describe_end(&step.end), step.budget.as_ms() / 1_000));
             }

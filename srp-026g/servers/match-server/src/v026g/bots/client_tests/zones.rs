@@ -32,6 +32,10 @@ const LOWER_RING: Spot = Spot::at(3.8, 13.8, -8.6);
 /// A floor of the same zone near its rim, 3.9 m from the ring: normalised distance 0.92, the hit curve gives 0.08 of the hit
 /// (the same measurement; the capsule still overlaps the zone's shape there, so the client hurts).
 const RIM_26: Spot = Spot::at(5.5, 13.23, -12.0);
+/// The way to each start spot in plain words (the game shows no marker; the runner's chat says how far and which way).
+const TOP_WAY: &str = "battery spawner 26's floor under the upper ring, south side of the big round hall";
+const LOWER_RING_WAY: &str = "the lower ring floor, 3 m below spawner 26's floor and about 6 m east of it, inside the zone";
+const RIM_26_WAY: &str = "the zone's floor near its edge, about 4 m outward from the lower ring marker";
 
 fn group() -> Group {
     Group::new(VECTOR_LABORATORY, BATTERIES)
@@ -137,6 +141,7 @@ fn carry_over(frame: &Frame, _progress: &Progress) -> bool {
 fn top_step(id: &'static str, instruction: &'static str, spot: Spot, seconds: u32) -> Step {
     Step::new(id, group(), instruction)
         .start(&[Cond::OwnerNear { at: spot, r_m: 1.0 }, Cond::Custom(WaitFor { describe: "you stand on the marked floor", holds: on_top })])
+        .mark(Mark::Spot { at: spot, r_m: 1.0, landmark: TOP_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: spot, r_m: 3.0 }])
         .measure(pool_measure())
         .bar("infection_per_s", Test::AtMost(0.002))
@@ -165,6 +170,7 @@ pub fn steps() -> Vec<Step> {
             "With your kit-15 character: stand on the lower ring floor at the marker, inside zone 13, for 10 s.",
         )
         .start(&[Cond::OwnerNear { at: LOWER_RING, r_m: 1.0 }, Cond::Custom(WaitFor { describe: "you stand on the lower ring", holds: on_lower_ring })])
+        .mark(Mark::Spot { at: LOWER_RING, r_m: 1.0, landmark: LOWER_RING_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: LOWER_RING, r_m: 3.0 }])
         .measure(pool_measure())
         // Control: the zone hurts there (the bots price 0.32 a second raw over 4 parts; the pools-routed cost is what this calibrates).
@@ -177,6 +183,7 @@ pub fn steps() -> Vec<Step> {
             "Now with your kit-4 character: stand on the same lower ring marker for 10 s.",
         )
         .start(&[Cond::OwnerNear { at: LOWER_RING, r_m: 1.0 }, Cond::Custom(WaitFor { describe: "you stand on the lower ring", holds: on_lower_ring })])
+        .mark(Mark::Spot { at: LOWER_RING, r_m: 1.0, landmark: LOWER_RING_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: LOWER_RING, r_m: 3.0 }])
         .measure(pool_measure())
         .bar("infection_per_s", Test::AtLeast(0.01))
@@ -191,6 +198,7 @@ pub fn steps() -> Vec<Step> {
             "Stand on the floor at the marker near the zone's edge (about 4 m from the lower ring marker, outwards) for 10 s.",
         )
         .start(&[Cond::OwnerNear { at: RIM_26, r_m: 1.0 }, Cond::Custom(WaitFor { describe: "you stand on the rim floor", holds: on_rim_floor })])
+        .mark(Mark::Spot { at: RIM_26, r_m: 1.0, landmark: RIM_26_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: RIM_26, r_m: 3.0 }])
         .measure(pool_measure())
         // The zone hurts there (the capsule is in its shape) but far less than on the lower ring: under 0.06, where the full hit through
@@ -206,6 +214,7 @@ pub fn steps() -> Vec<Step> {
             "From spawner 26's battery floor drop to the lower ring, walk the zone's floor to the nearest dry floor, and stop there.",
         )
         .start(&[Cond::OwnerNear { at: TOP_26, r_m: 1.5 }, Cond::Custom(WaitFor { describe: "you stand on the battery floor", holds: on_top })])
+        .mark(Mark::Spot { at: TOP_26, r_m: 1.5, landmark: TOP_WAY })
         .end(&[End::OwnerDied, End::Custom(EndWhen { reason: "dry", describe: "you are 30 m from the battery floor", holds: far_from_26 })])
         .measure(pool_measure())
         .budget_s(90)

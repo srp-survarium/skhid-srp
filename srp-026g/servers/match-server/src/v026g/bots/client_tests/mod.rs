@@ -13,6 +13,9 @@
 //!
 //! 1. **Armed.** With the owner on his feet, the runner picks the bots the step's setup names, scripts them ([`Script`]) and
 //!    tells the owner the step's one-line instruction (again every 6 s while it waits). The bots walk to their places meanwhile.
+//!    A step that waits for him at a spot ([`Step::guide`]: its [`Mark`], or its [`Cond::OwnerNear`]) also gets the spot's landmark
+//!    once and, every 3 s, how far it is and which way from where he looks (`marker: 23 m ahead-left, 2 m above you`), then
+//!    `you're at the marker` ([`guide`]): the game shows no marker.
 //! 2. **Running.** When every start condition ([`Cond`]) holds and the owner is alive, `CLIENT_TEST step <id> START` is
 //!    logged and the measures ([`Measure`]) are sampled from the server's own view of every poll.
 //! 3. **End.** At the first end condition ([`End`]) or the step's budget (at most 3 min): `CLIENT_TEST step <id> END
@@ -102,6 +105,7 @@ mod check;
 #[cfg(test)]
 mod dry;
 mod frame;
+mod guide;
 mod hook;
 mod plan;
 mod report;
