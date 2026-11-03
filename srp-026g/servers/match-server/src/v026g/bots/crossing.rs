@@ -541,6 +541,28 @@ mod tests {
         assert!(!crossable(&deadly, mid, 1.0));
     }
 
+    /// [take.cross_from_zone] From a floor inside a zone on all match (a body that stepped in by its crossing's edge) a failed
+    /// plain search asks the crossing's search, and it finds the way out to the goal; from a dry floor it is `wanted`'s call
+    /// alone, and a plain way found is kept.
+    #[test]
+    fn a_failed_plain_search_from_a_zone_floor_asks_the_crossings() {
+        let weak = tactics(0.04, 0.0);
+        let grid = &weak.world.grid;
+        let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
+        let (east, west) = (grid.locate(EAST, 1.5).unwrap(), grid.locate(WEST, 1.5).unwrap());
+        assert!(weak.hazards.only_fixed_at(mid), "the floor is the zone's");
+        assert!(wanted_from_zone(&weak, None, mid, east));
+        assert!(!wanted_from_zone(&weak, None, west, east), "a dry floor");
+        if let Some(plain) = weak.route_nodes(mid, east, 0, Some(0), false, &RouteFilter::open()) {
+            assert!(!wanted_from_zone(&weak, Some(&plain), mid, east), "a plain way is kept");
+        }
+        let mut iters = usize::MAX;
+        let Ok(crossed) = start(&weak, mid, east, 0, Some(0), false, 1.0, &RouteFilter::open(), &mut iters) else {
+            panic!("an unbounded search ends");
+        };
+        assert!(crossed.is_some(), "from the zone floor the crossing's search finds the way");
+    }
+
     /// The gate reads the client's rate, the interval included: a continuous zone of 0.8 a second raw whose interval is 500 ms
     /// takes 1.6 a second (Vector Laboratory's `death_damage_zone`), more than the walk across its thinnest bears; the
     /// same hit every 1000 ms is borne.

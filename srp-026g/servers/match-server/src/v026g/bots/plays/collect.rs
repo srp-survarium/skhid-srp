@@ -4390,6 +4390,149 @@ mod tests {
         assert_ne!(intent.press & key::USE, 0);
     }
 
+    /// [take.world_stand] What the world says of a stand: nothing before the arrival has settled, the stand when its feet
+    /// are on it, and how far off when they are not (A281: lifted 1 m onto the root).
+    #[test]
+    fn the_world_tells_a_stand_held_from_one_it_is_off() {
+        use crate::v026g::bots::tuning::WorldStand;
+        let rule = WorldStand::default();
+        let stand = Vec3::new(10.0, 2.0, 10.0);
+        assert_eq!(world_at(None, stand, 1_000, rule), WorldAt::Waiting);
+        assert_eq!(world_at(Some((stand, 1_200)), stand, 1_000, rule), WorldAt::Waiting, "a world too soon after the arrival");
+        assert_eq!(world_at(Some((stand + Vec3::new(0.2, 0.1, 0.0), 1_600)), stand, 1_000, rule), WorldAt::There);
+        let WorldAt::Off { across_m, up_m } = world_at(Some((stand + Vec3::new(0.1, 1.05, 0.0), 1_600)), stand, 1_000, rule) else {
+            panic!("a body 1 m up is off the stand");
+        };
+        assert!((across_m - 0.1).abs() < 1e-4 && (up_m - 1.05).abs() < 1e-4);
+    }
+
+    /// [take.world_stand] At a stand by its own reckoning but put 1 m up by the latest world: no use is pressed, the stand is
+    /// given up (kept as failed, with the world's note) and the take goes to another. With no world yet it waits, and after
+    /// `wait_ms` presses as before. Off: it presses at once, as the old take.
+    #[test]
+    fn a_stand_the_world_puts_the_body_off_is_given_up_without_a_press() {
+        use crate::v026g::bots::tuning::WorldStand;
+        let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
+        let feet = Vec3::new(25.7, 0.0, 12.0);
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        // Off: a use at once.
+        let mut s = take_field(&[], feet);
+        stand_at(&mut s, feet, aim);
+        let mut state = fresh_take(&s, None);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(intent.press & key::USE, 0, "off: the old take presses");
+        // On, no world since the arrival: it waits; past `wait_ms` it presses.
+        s.tuning.take.world_stand = Some(WorldStand::default());
+        let mut state = fresh_take(&s, None);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(intent.press & key::USE, 0, "no world yet");
+        s.view.clock += 1_600;
+        stand_at(&mut s, feet, aim);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(intent.press & key::USE, 0, "no world in wait_ms: it presses on its reckoning");
+        // On, the world 1 m up: given up, no press.
+        let arrived = s.view.clock;
+        let mut state = fresh_take(&s, None);
+        intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        s.view.clock += 600;
+        s.world_feet = Some((feet + Vec3::new(0.0, 1.0, 0.0), arrived + 600));
+        stand_at(&mut s, feet, aim);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(intent.press & key::USE, 0, "no use where the world has the body off the stand");
+        let failed = intent.failed_stand.expect("the stand is kept as failed");
+        assert!(matches!(failed.why, StandFail::WorldOff { up_m, .. } if (up_m - 1.0).abs() < 1e-4), "{failed:?}");
+        assert!(failed.note().starts_with("left a stand"), "{}", failed.note());
+        assert!(matches!(state, State::Take { stand: None, ref tried, .. } if tried.len() == 1), "{state:?}");
+    }
+
+    /// [take.team_memory] A battery's takes in the team's memory: two plays that left no stand set it aside for the team,
+    /// one that found no way at once, plays with stands left never; a battery found elsewhere is a new take; the aside ends.
+    #[test]
+    fn the_team_sets_a_battery_aside_after_failed_takes() {
+        use crate::v026g::bots::tuning::TeamMemory;
+        let rule = TeamMemory::default();
+        let at = Vec3::new(5.0, 0.0, 5.0);
+        let mut takes = TeamTakes::default();
+        assert!(!takes.play_ended(0, at, TakeEnd::StandsLeft, 1_000, &rule));
+        let mut takes = TeamTakes::default();
+        assert!(!takes.play_ended(0, at, TakeEnd::NoStandLeft, 1_000, &rule), "one failed play is not enough");
+        assert!(!takes.aside(0, at, 1_500));
+        assert!(takes.play_ended(0, at, TakeEnd::NoStandLeft, 2_000, &rule), "the second sets it aside");
+        assert!(takes.aside(0, at, 2_500));
+        assert!(!takes.aside(0, at + Vec3::new(3.0, 0.0, 0.0), 2_500), "moved: another take");
+        assert!(!takes.aside(0, at, 2_000 + 60_000), "the aside ends");
+        let mut takes = TeamTakes::default();
+        assert!(takes.play_ended(1, at, TakeEnd::NoWay, 1_000, &rule), "no way: at once");
+        let mut takes = TeamTakes::default();
+        for k in 0..5 {
+            assert!(!takes.play_ended(2, at, TakeEnd::StandsLeft, 1_000 + k, &rule), "stands left: never");
+        }
+    }
+
+    /// [take.team_memory] A stand a teammate gave up is not taken again by this bot (its own list is empty), and the
+    /// candidate set aside for the team is set aside for this bot too; off, neither.
+    #[test]
+    fn a_teammates_failed_stand_and_aside_reach_the_bot() {
+        use crate::v026g::bots::tuning::TeamMemory;
+        let feet = Vec3::new(25.7, 0.0, 12.0);
+        let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
+        let mut s = take_field(&[], feet);
+        stand_at(&mut s, feet, aim);
+        s.team.set_battery(0, Some(crate::v026g::bots::know::KnownBattery { at: TAKE_AT, time: s.view.clock, hud: false }));
+        let failed = FailedStand {
+            battery: 0,
+            at: TAKE_AT,
+            feet,
+            crouch: true,
+            until: s.view.clock + FAILED_KEEP_MS,
+            why: StandFail::NoTake { ray_m: 1.0, down: 0.8, off: 0.0 },
+        };
+        s.team.takes.stand_failed(failed, s.view.clock, 90_000);
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let mut state = fresh_take(&s, None);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(intent.press & key::USE, 0, "off: the team's stand is not this bot's");
+        s.tuning.take.team_memory = Some(TeamMemory::default());
+        let mut state = fresh_take(&s, None);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(intent.press & key::USE, 0, "on: a teammate gave the stand up");
+        assert!(!s.cx(0).set_aside(PlayKind::Collect, target));
+        let rule = TeamMemory::default();
+        s.team.takes.play_ended(0, TAKE_AT, TakeEnd::NoWay, s.view.clock, &rule);
+        assert!(s.cx(0).set_aside(PlayKind::Collect, target), "set aside for the team");
+        s.tuning.take.team_memory = None;
+        assert!(!s.cx(0).set_aside(PlayKind::Collect, target), "off: the team's aside is not read");
+    }
+
+    /// [take.far_stands] In the open the ring offers stands out to 1.2 m; with the far stands on, out to 1.5 m too, with
+    /// the nearest still first.
+    #[test]
+    fn far_stands_add_the_human_distance_to_the_ring() {
+        use crate::v026g::bots::tuning::FarStands;
+        let feet = Vec3::new(20.0, 0.0, 12.0);
+        let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
+        let mut s = take_field(&[], feet);
+        let far = |s: &Scenario| ring_stands(&s.cx(0), TAKE_AT, aim, false).iter().map(|(st, _)| st.feet.distance_xz(TAKE_AT)).fold(0.0f32, f32::max);
+        assert!(far(&s) <= 1.25, "{}", far(&s));
+        s.tuning.take.far_stands = Some(FarStands::default());
+        assert!(far(&s) > 1.4, "{}", far(&s));
+    }
+
+    /// [take.pitch] By the view's scale the limits sit under the client's stop (67.48 degrees down) by the fixed margins; the
+    /// fixed ones under 1 rad.
+    #[test]
+    fn the_view_scale_moves_the_stands_look_down_limits_to_the_clients_stop() {
+        use crate::v026g::bots::tuning::TakePitch;
+        let mut s = take_field(&[], Vec3::new(20.0, 0.0, 12.0));
+        assert_eq!(take_pitch_limits(&s.cx(0)), (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD));
+        s.tuning.take.pitch = TakePitch::ViewScale;
+        let (ring, first) = take_pitch_limits(&s.cx(0));
+        let stop = 67.48f32.to_radians();
+        assert!((ring - (stop - 0.05)).abs() < 1e-4 && (first - (stop - 0.02)).abs() < 1e-4, "{ring} {first}");
+    }
+
     /// Right over the battery (the view does not look down that far) and
     /// wedged: walls round it, no stand off it in a line. The bot steps
     /// back the way it came, straight, with no line looked at (bot 10 of
