@@ -4,6 +4,11 @@ Install Bash, curl, Winetricks, and Wine 11.0+ with modern WoW64 support.
 Tested: Wine 11.8 Staging WoW64. Use wine and wineserver from the same
 installation. A Vulkan-capable graphics driver is required for DXVK.
 
+If the script asks for ntsync, run sudo modprobe ntsync, then try again.
+To load it automatically at boot:
+
+    echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf
+
 START
 
 Unpack the Skhid archive into an empty folder with about 10 GB free, then run:
