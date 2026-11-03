@@ -2281,6 +2281,27 @@ def instruction(image, va):
     return cache.get(va)
 
 
+def lohook_returns(image, entry):
+    """A generated lohook's final ret dispatches a saved continuation, not
+    the enclosing function's return address. Follow every literal Flow target
+    from the built bytes, including replay and named exits. Ordinary generated
+    callable entries have a different restore sequence and still return normally.
+    """
+    rows = ndisasm(image.read(entry, 0x100), entry)
+    texts = [text for _, _, text in rows]
+    if texts[:5] != ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]:
+        return None
+    end = next((i for i, text in enumerate(texts) if text.startswith("ret")), None)
+    if end is None or texts[max(0, end-5):end] != [
+            "mov [ebp+0x24],edx", "fxrstor [edi]", "mov esp,ebp", "popa", "popf"]:
+        return None
+    targets = [int(text.removeprefix("mov edx,"), 16) for text in texts[:end]
+               if re.fullmatch(r"mov edx,0x[0-9a-f]+", text)]
+    if texts[end] != "ret" or len(targets) < 2 or "ud2" not in texts[:end]:
+        return (), f"{entry:#x}: malformed generated continuation dispatch"
+    return targets, None
+
+
 def function_pops(image, entry, limit=20000):
     """The bytes the function at `entry` pops: every `ret n` reachable from
     its entry, its branches followed (a body split by the compiler, a tail
@@ -2296,6 +2317,14 @@ def function_pops(image, entry, limit=20000):
                 lost.append(f"{va:#x}: outside the image")
                 break
             length, text = got
+            if text == "lea esp,[esp-0x4]":
+                dispatch = lohook_returns(image, va)
+                if dispatch is not None:
+                    targets, error = dispatch
+                    todo.extend(targets)
+                    if error is not None:
+                        lost.append(error)
+                    break
             words = text.split()
             while words and words[0] in ("rep", "repe", "repz", "repne", "repnz", "bnd"):
                 words = words[1:]                          # `rep ret`, `bnd ret`: a ret
@@ -6418,12 +6447,44 @@ def case_labels(path):
     return out
 
 
+def test_lohook_call_shapes():
+    """The continuation ret must not mask a bad native exit or a broken shim."""
+    h = {"entry": "generated", "shim": "fake_shim", "site": 0x1000,
+         "original": b"\x90" * 5, "exits": [("done", 0x1100)]}
+    lines = P.hooks_026g.lohook_entry(h)
+    # Flat NASM defines the shim locally; the generator emits ELF externs.
+    lines = [line for line in lines if not line.startswith(("global ", "extern "))]
+    asm = "bits 32\norg 0x1000\njmp generated\nret 8\ntimes 0x100-($-$$) db 0x90\nret 8\n"
+    asm += "\n".join(lines) + "\nfake_shim: ret\n"
+    with tempfile.TemporaryDirectory(prefix="srp-lohook-flow-") as folder:
+        source, output = os.path.join(folder, "flow.asm"), os.path.join(folder, "flow.bin")
+        with open(source, "w") as stream:
+            stream.write(asm)
+        subprocess.run([tool("nasm"), "-f", "bin", source, "-o", output], check=True)
+        code = open(output, "rb").read()
+    class Bytes:
+        def __init__(self, code): self.code = code + b"\xcc" * 0x400
+        def read(self, va, size):
+            if not 0x1000 <= va < 0x1000 + len(self.code): raise ValueError(va)
+            return self.code[va-0x1000:va-0x1000+size]
+    check(function_pops(Bytes(code), 0x1000) == ({8}, []),
+          "lohook dispatch ret follows replay/skip/exit to the native ret 8")
+    bad = bytearray(code); bad[0x101] = 4
+    found, lost = function_pops(Bytes(bad), 0x1000)
+    check(found == {4, 8} and not lost, "a wrong native exit behind a lohook is still rejected")
+    tail = code.index(bytes.fromhex("8955240fae0f89ec619dc3")) + 10
+    bad = bytearray(code); bad[tail:tail+3] = bytes.fromhex("c20800")
+    _, lost = function_pops(Bytes(bad), 0x1000)
+    check(bool(lost), "a lohook dispatch ret 8 cannot masquerade as the enclosing function's ret 8")
+
+
 def test_call_shapes_negative(original):
     """The call-shape check rejects a wrong `ret` and an undeclared install:
     a fake build whose one installed function pops the wrong number of bytes,
     and one with a call into our code that INSTALLS does not name. It proves
     the check is live (Research's slot 16 was `ret 4` where the model is
     `ret 8`)."""
+    test_lohook_call_shapes()
     print("  call shapes: the check rejects a wrong ret and an undeclared install")
     image = Image(original)
     # A made-up rule vtable in made-up `.srpx` blocks (after the arena's own,

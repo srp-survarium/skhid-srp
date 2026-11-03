@@ -1,0 +1,14 @@
+[package]
+name = "srp-validate"
+version.workspace = true
+edition.workspace = true
+description = "Shared allocation-free validation of match messages and worlds"
+
+[lints]
+workspace = true
+
+[dependencies]
+world-frame = { workspace = true }
+
+[dev-dependencies]
+survarium = { workspace = true }
