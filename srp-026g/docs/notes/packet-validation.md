@@ -35,3 +35,14 @@ index guards, server integration and client integration have separate review
 boundaries. The historical strict effects template and context assumptions must
 be reconciled with current serialized extensions before runtime enforcement.
 The old source PR remains available as the provenance of the extracted work.
+
+## World context, rules and statistics
+
+The second part provides semantic views over `world-frame`, without a second
+framing parser, and extracts the player-head, rules and statistics checks. It
+still has no runtime enforcement. The statistics reader includes patch 92's
+battery progress and sparse held-step records, including cell/count/order bounds.
+
+Validation: 16 validator tests and affected-crate Clippy pass. Production-encoder
+fixtures cover TDM rules, statistics in all four modes, one and twenty players,
+truncation, malformed held steps and body-relative player offsets.
