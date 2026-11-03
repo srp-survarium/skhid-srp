@@ -25,6 +25,7 @@ pub mod recovery;
 pub mod reader;
 pub mod refusal;
 pub mod transport;
+pub mod world;
 
 pub use refusal::{Part, Reason, Refusal};
 
