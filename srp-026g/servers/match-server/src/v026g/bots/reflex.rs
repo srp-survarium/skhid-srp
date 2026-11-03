@@ -669,6 +669,22 @@ pub struct CombatTuning {
     /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
+    /// [A277] The reload key goes in as the client takes it. The client takes a reload only from its weapon's idle, or at
+    /// the end of the fire or chamber clip with the key held then (the exits to reload 0x2E3EF0, 0x2E3F70, 0x2E3F40; a key
+    /// let go inside the clip is lost), and the shot that empties the magazine, rounds left to load, ends its fire clip in
+    /// the reload with no key at all (0x2E3F70 holds when the weapon can reload, the clip has ended and nothing is in it;
+    /// the weapon's state machine takes the first exit that holds in the order appended, reload before idle:
+    /// `fsm::append_transition` 0x38C970, `fsm::tick` 0x38CA20; PROVEN), unless a sprint or a jump blocks it (`can_reload`
+    /// 0x2E3DA0, [`EmptyReloads`]). So: no reload key while the last shot's clip runs; and at the first tick at or after
+    /// the emptying shot's clip end the count starts the reload and the key goes in with the sprint taken off, whatever the
+    /// target, so the reload comes whether or not the client's weapon was empty by the count's reckoning (a shot the count
+    /// took that the client did not fire leaves rounds in it) ([`Reflex::keys_sent`]). Off: the habit pressed on the tick
+    /// after the last round (inside the clip, lost; and for a tactical reload the client then never reloads while the count
+    /// does), and with a target seen it waited to hide first, holding fire on a weapon the client had loaded. Off by default:
+    /// its by-side bench (A277, 576 pairs, equal aim and kit) moved no headline (score -0.1 %, z -0.2) and failed a guard,
+    /// the container holder's deaths (41 against 22, z +2.2, while its container's thefts went 11 against 27); it waits
+    /// for that guard's traced cause and a by-side ON.
+    pub empty_reload: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1531,6 +1547,7 @@ impl Default for CombatTuning {
             trade_m: 40.0,
             reload_idle_ms: 400,
             reload_some_share: 0.4,
+            empty_reload: false,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
@@ -3186,6 +3203,24 @@ pub enum ReloadWhy {
     Tactical,
 }
 
+/// [A277] [measure] Reloads at the clip end of the shot that emptied the weapon ([`CombatTuning::empty_reload`]): begun by
+/// the count with the key, and left to the habit's key because a jump was in the keys then. The client refuses a reload
+/// while the player tries to jump (`can_reload` 0x2E3DA0 -> 0x2E4140 -> `is_trying_to_jump` 0x2FC230: the jump key, then
+/// more of the player) or to sprint (0x2E4170 -> `is_trying_to_sprint` 0x2FC1F0: the sprint and forward keys, none of back,
+/// fire and crouch, then 0x2DBF40, not decoded); the sprint is taken off with the key, the jump is not.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EmptyReloads {
+    pub begun: u32,
+    pub blocked: u32,
+}
+
+impl std::ops::AddAssign for EmptyReloads {
+    fn add_assign(&mut self, other: Self) {
+        self.begun += other.begun;
+        self.blocked += other.blocked;
+    }
+}
+
 /// [measure] The last reload: when it started and is done, why, and the
 /// rounds left of the magazine.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -3532,6 +3567,14 @@ pub struct Reflex {
     /// No shot before this (a reload or the switch to the pistol under
     /// way).
     busy_until: u32,
+    /// [A277] The end of the last shot's fire clip (and a bolt's chamber after it, a round left), ms: no reload key goes in
+    /// before it ([`CombatTuning::empty_reload`]).
+    clip_end: u32,
+    /// [A277] That end for the shot that emptied the weapon by its count, while its reload is still to come
+    /// ([`Reflex::keys_sent`]).
+    emptied: Option<u32>,
+    /// [A277] [measure] This life's reloads at an emptying shot's clip end ([`EmptyReloads`]).
+    empty_reloads: EmptyReloads,
     /// The trigger or the sights were in the keys of the last tick: what the
     /// client's reload loop meets at its round-ends
     /// ([`Self::count_rounds`]).
@@ -6628,6 +6671,20 @@ impl Reflex {
         if now < self.busy_until {
             return 0;
         }
+        if c.empty_reload {
+            // [A277] An emptied weapon's reload comes at its clip end with the keys sent then ([`Self::keys_sent`]); past it
+            // unresolved (no keys reported), the habit as before.
+            if let Some(end) = self.emptied {
+                if now < end + self.tick_ms {
+                    return 0;
+                }
+                self.emptied = None;
+            }
+            // A key inside the last shot's clip is lost: the client takes it only at the clip's end or from idle.
+            if now < self.clip_end {
+                return 0;
+            }
+        }
         let hiding = matches!(self.cover, Cover::Hiding { .. });
         let last_seen = self.last_seen;
         let reload_here = self.reload_here;
@@ -6706,10 +6763,12 @@ impl Reflex {
             self.held_ms = 0;
             return false;
         }
+        // An automatic's shots of the hold before this tick.
+        let mut held_before = 0;
         let shots = if gun.auto {
-            let before = gun.shots_held(self.held_ms);
+            held_before = gun.shots_held(self.held_ms);
             self.held_ms += self.tick_ms;
-            gun.shots_held(self.held_ms) - before
+            gun.shots_held(self.held_ms) - held_before
         } else if now < self.next_press {
             return false;
         } else {
@@ -6721,9 +6780,28 @@ impl Reflex {
         };
         let load = self.hands().held_mut();
         load.rounds = load.rounds.saturating_sub(shots);
+        let emptied = shots > 0 && load.rounds == 0 && load.loadable() > 0;
         self.fired = (now, shots);
         if shots > 0 {
             self.last_fired = self.target.map(|target| (target, now));
+        }
+        let fired = shots.min(held.rounds);
+        if c.empty_reload && fired > 0 {
+            // This tick's last round left as its `fired`-th shot: an automatic's k-th shot of the hold leaves k - 1 clips
+            // after the hold began (`Gun::shots_held`), a press's at once. Its clip ends a shot later, and a bolt chambers
+            // after it while a round is left.
+            let shot_ms = gun.shot_ms();
+            let last = if gun.auto {
+                let began = (now + self.tick_ms).saturating_sub(self.held_ms) as f32;
+                began + (held_before + fired - 1) as f32 * shot_ms
+            } else {
+                now as f32
+            };
+            let chamber = if emptied { 0 } else { gun.chamber_ms };
+            self.clip_end = (last + shot_ms).ceil() as u32 + chamber;
+            if emptied {
+                self.emptied = Some(self.clip_end);
+            }
         }
         true
     }
@@ -6744,7 +6822,60 @@ impl Reflex {
             if !gun.auto {
                 self.next_press = now;
             }
+            // Not fired: not emptied, and no clip of this tick.
+            self.emptied = None;
+            self.clip_end = self.clip_end.min(now);
         }
+    }
+
+    /// [A277] The keys `keys` this tick would send at `now`, and those it sends ([`CombatTuning::empty_reload`]): at the
+    /// first tick at or after the clip end of the shot that emptied the weapon, the count starts its reload and the reload
+    /// key goes in, the sprint taken off (as with any reload key: `drive.rs`). The client's own reload began at that end
+    /// already, and then the key is not taken; if a shot the count took was not fired, the client's weapon still holds
+    /// rounds and the key starts its reload now. A jump in the keys (`can_reload` 0x2E3DA0 refuses it, [`EmptyReloads`])
+    /// leaves the reload to the habit's key later. Starting the count a part of a tick after the client errs on the late
+    /// side: no shot goes into the client's reload.
+    pub fn keys_sent(&mut self, now: u32, keys: u32) -> u32 {
+        let Some(end) = self.emptied else {
+            return keys;
+        };
+        if end > now {
+            return keys;
+        }
+        self.emptied = None;
+        if keys & key::JUMP != 0 {
+            self.empty_reloads.blocked += 1;
+            return keys;
+        }
+        let seen = self.target.is_some();
+        let load = self.hands().held_mut();
+        if load.rounds > 0 || load.loadable() == 0 {
+            return keys;
+        }
+        let gun = load.gun;
+        let ms = load.reload(now);
+        self.mod_counts.reload(gun);
+        self.reload_note = Some(ReloadNote {
+            at: now,
+            until: now + ms,
+            why: if seen { ReloadWhy::EmptyInView } else { ReloadWhy::Empty },
+            left: 0,
+            magazine: gun.magazine,
+        });
+        self.busy_until = self.busy_until.max(now + ms);
+        self.busy_why = gate::RELOAD;
+        self.held_ms = 0;
+        self.press_until = 0;
+        self.reload_here = false;
+        // A reload resets the kick (0x310E52), as the habit's.
+        self.recoil.reset();
+        self.empty_reloads.begun += 1;
+        (keys | key::RELOAD) & !key::SPRINT
+    }
+
+    /// [A277] [measure] This life's reloads at an emptying shot's clip end.
+    pub fn empty_reloads(&self) -> EmptyReloads {
+        self.empty_reloads
     }
 
     /// A run of the side step the other way than the last.
@@ -9747,6 +9878,76 @@ mod tests {
         // A tick later, nothing more to give back.
         bolt.hold_fire(1_050);
         assert_eq!(bolt.hands().held().rounds, full);
+    }
+
+    /// [A277] The shot that empties the weapon by its count, rounds left to load: at the first tick at or after its clip end
+    /// the count starts the reload and the reload key goes in, the sprint taken off (the client's own reload began at that
+    /// end; the key covers a client weapon the count took for empty); a jump leaves it to the habit's key; no reload key
+    /// goes in inside a shot's clip, where the client loses it; off, the habit as before.
+    #[test]
+    fn an_emptied_weapon_reloads_at_its_clips_end_with_the_key() {
+        // Fires the AK-74U (30 a magazine) until its count is out, then sends `after` as the keys: the reflex, the tick its
+        // reload came in or was left to the habit (with the switch off, the first tick out), and the keys sent then.
+        fn fire_out(c: &CombatTuning, after: u32) -> (Reflex, u32, u32) {
+            let mut rng = Rng::new(5);
+            let mut r = Reflex::armed(Arms::of_test_role("support"));
+            r.tick_ms = 50;
+            let mut now = 1_000;
+            for _ in 0..200 {
+                let firing = r.hands().held().rounds > 0;
+                if firing {
+                    assert!(r.trigger(true, true, now, c, 20.0, &mut rng));
+                }
+                let before = r.empty_reloads();
+                let sent = r.keys_sent(now, if firing { key::FIRE } else { after });
+                if r.empty_reloads() != before || (!firing && r.emptied.is_none()) {
+                    return (r, now, sent);
+                }
+                now += 50;
+            }
+            panic!("never out");
+        }
+        let on = CombatTuning { empty_reload: true, ..CombatTuning::default() };
+        let (mut r, now, sent) = fire_out(&on, 0);
+        let gun = r.hands().held().gun;
+        assert_eq!(r.empty_reloads(), EmptyReloads { begun: 1, blocked: 0 });
+        assert_eq!(sent, key::RELOAD);
+        assert!(now >= r.clip_end, "not inside the clip");
+        assert_eq!(r.hands().held().rounds, gun.magazine, "the count loads with the client");
+        let note = r.reload_note().expect("a reload note");
+        assert!(note.at == now && note.until == now + gun.reload_ms(0, gun.magazine), "{note:?}");
+        assert_eq!(r.reload(false, now + 50, &on), 0, "the reload runs");
+        // A sprint is taken off with the key; a jump leaves the reload to the habit's key.
+        let (_, _, sent) = fire_out(&on, key::SPRINT | key::FORWARD);
+        assert_eq!(sent, key::RELOAD | key::FORWARD);
+        let (mut r, now, sent) = fire_out(&on, key::JUMP);
+        assert_eq!((r.empty_reloads(), sent), (EmptyReloads { begun: 0, blocked: 1 }, key::JUMP));
+        assert_eq!(r.hands().held().rounds, 0);
+        assert_eq!(r.reload(false, now + 50, &on), key::RELOAD);
+        // A tactical reload waits for the last shot's clip to end.
+        let tactical = |c: &CombatTuning| {
+            let mut rng = Rng::new(5);
+            let mut r = Reflex::armed(Arms::of_test_role("support"));
+            r.tick_ms = 50;
+            let mut now = 1_000;
+            while r.hands().held().rounds > 15 {
+                assert!(r.trigger(true, true, now, c, 20.0, &mut rng));
+                now += 50;
+            }
+            assert!(!r.trigger(false, true, now, c, 20.0, &mut rng));
+            let in_clip = r.reload(false, now - 50, c);
+            let after = r.reload(false, now + 200, c);
+            (in_clip, after)
+        };
+        assert_eq!(tactical(&on), (0, key::RELOAD), "not inside the clip");
+        // Off: the habit as before, inside the clip too.
+        let off = CombatTuning::default();
+        assert!(!off.empty_reload, "off by default");
+        assert_eq!(tactical(&off).0, key::RELOAD);
+        let (mut r, now, sent) = fire_out(&off, 0);
+        assert_eq!((r.empty_reloads(), sent), (EmptyReloads::default(), 0));
+        assert!(r.emptied.is_none());
+        assert_eq!(r.reload(false, now, &off), key::RELOAD);
     }
 
     /// Walking into its weapon's band (the reflex's legs, a walk: an Uzi at

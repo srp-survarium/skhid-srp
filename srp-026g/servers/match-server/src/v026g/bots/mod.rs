@@ -421,6 +421,9 @@ pub struct Bot {
     /// Rolls for a grenade refused because its kit held no frag (`CombatTuning::grenade_kit_cap`), the lives before this one's
     /// reflex (which counts its own).
     frag_rolls_refused: u32,
+    /// [A277] [measure] Reloads at an emptying shot's clip end (`CombatTuning::empty_reload`), the lives before this one's
+    /// reflex (which counts its own).
+    empty_reloads: reflex::EmptyReloads,
     /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
     /// reflex (which counts its own).
     sway_taken: (u32, f32),
@@ -590,6 +593,7 @@ impl Bot {
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
+            empty_reloads: reflex::EmptyReloads::default(),
             sway_taken: (0, 0.0),
             client_sway: recoil::ClientSway::Absent,
             frag_lives: live_grenades::FragLives::default(),
@@ -643,10 +647,18 @@ impl Bot {
         self.life_carried = reserve.min(arms.primary.1);
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.empty_reloads += self.reflex.empty_reloads();
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
+    }
+
+    /// [A277] [measure] Its reloads at an emptying shot's clip end in the match (`CombatTuning::empty_reload`).
+    pub fn empty_reloads(&self) -> reflex::EmptyReloads {
+        let mut all = self.empty_reloads;
+        all += self.reflex.empty_reloads();
+        all
     }
 
     /// Its weapon 1's ammo and what a resupply could bring it to; none for
@@ -831,6 +843,7 @@ impl Bot {
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
+        self.empty_reloads += self.reflex.empty_reloads();
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());

@@ -318,7 +318,10 @@ fn the_facts_read_the_battery_cheat_of_the_team_they_are_for() {
 
 /// A battery lies in a zone so wide that no straight walk crosses to it, which only the motor's own route over the zone
 /// offers (`route_crossing` `total`); how many bots of each team go for it, when team 0's and team 1's tunings are the
-/// arguments (the HUD shows the lying battery, the way out is not priced: a walk of 26 m through the zone would be).
+/// arguments (the HUD shows the lying battery, the way out is not priced: a walk of 26 m through the zone would be). A bot
+/// goes for it when it holds the play at any poll of the last 5 s: the four stand 12 to 20 m from the enemy with no world
+/// to end the fight, so a bot that goes for it is between two of its plays now and then, and one moment's read flips with
+/// any change of the fight's timing (A277: the reloads' moments).
 fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut team1: Tuning) -> [usize; 2] {
     use mapdata::{Rotation, Shape, ShapeKind, Zone, ZoneKind};
     let at = Vec3::new(25.0, 0.0, 32.0);
@@ -373,7 +376,7 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
     for place in 0..4 {
         bots.entered(place, true, 0);
     }
-    let mut count = [0usize; 2];
+    let mut went = [false; 4];
     for clock in (100..=20_000u32).step_by(100) {
         if clock % 1_000 == 0 {
             for (place, (x, z)) in spots.into_iter().enumerate() {
@@ -392,13 +395,18 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
             bots.facts(WorldFacts { time: clock, batteries: vec![BatteryState::Free(at)], marks: vec![0], ..WorldFacts::default() });
         }
         bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+        if clock > 15_000 {
+            for (place, went) in went.iter_mut().enumerate() {
+                *went |= bots.bots[place]
+                    .as_ref()
+                    .and_then(|bot| bot.assignment.as_ref())
+                    .is_some_and(|a| a.kind == PlayKind::Collect);
+            }
+        }
     }
+    let mut count = [0usize; 2];
     for (place, team) in teams.iter().enumerate() {
-        let collects = bots.bots[place]
-            .as_ref()
-            .and_then(|bot| bot.assignment.as_ref())
-            .is_some_and(|a| a.kind == PlayKind::Collect);
-        count[usize::from(*team)] += usize::from(collects);
+        count[usize::from(*team)] += usize::from(went[place]);
     }
     count
 }

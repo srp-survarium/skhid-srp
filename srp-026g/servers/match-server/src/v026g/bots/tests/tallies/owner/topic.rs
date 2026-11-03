@@ -76,7 +76,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(MoveCounts::new(n)),
         Box::new(GrenadeCounts::default()),
         Box::new(TeamKillCounts),
-        Box::new(StockCounts),
+        Box::new(StockCounts::default()),
         Box::new(StaminaCounts),
         Box::new(CamperCounts::default()),
         Box::new(ResupplyCounts::new(n)),
