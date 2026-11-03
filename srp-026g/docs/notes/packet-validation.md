@@ -56,3 +56,23 @@ self-describing; optional profile/inventory context determines how far it can
 read. This is still a library change with no runtime enforcement.
 
 Validation: all 32 validator tests and affected-crate Clippy pass.
+
+## World sections and current serialized extensions
+
+The next part adds object/effect checks and a complete validation entry point.
+Current-format compatibility includes the 29-byte version-8 pickup record before
+player item fields, fixed 69-byte bullet records, and the optional `LMP1` lamp
+history suffix. A bullet's ammo ordinal is not bounded by the original profile:
+pickup swaps can change the gun while a bullet remains in flight, and the shipped
+native loader already clamps the ordinal.
+
+`drift_dump` selects context from statistics/rules independently of the full
+verdict, then checks each world and sixteen mutations. All **1,786** worlds from
+`private/local-clients-rev43-new-weapons/runtime/snapshots` pass the host check.
+These contexts omit profiles, inventory and map objects, so this is current-format
+compatibility evidence, not complete semantic validation. Older version-4 pickup
+records from `private/live-worlds-1c0ebd31` are a different protocol baseline.
+
+Validation: 40 validator tests and affected-crate Clippy pass, including native
+server-encoded player state and lamp count/length boundaries. Native integration
+and real-match acceptance remain separate gates.
