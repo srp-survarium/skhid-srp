@@ -80,7 +80,7 @@ impl Fall {
     /// The fall from the world `before` (tick, feet) to the one `now`, if it is one.
     pub fn between(before: (u32, Vec3), now: (u32, Vec3), reckoned: Option<Vec3>) -> Option<Self> {
         let ((t0, from), (t1, to)) = (before, now);
-        (t1 > t0 && t1 - t0 <= FALL_GAP_MS && from.y - to.y >= FALL_M).then_some(Self { from, to, gap_ms: t1 - t0, reckoned })
+        (t1 > t0 && t1 - t0 <= FALL_GAP_MS && from.y - to.y >= FALL_M).then(|| Self { from, to, gap_ms: t1 - t0, reckoned })
     }
 
     /// Whether the model expected it: false when its feet stayed [`MODEL_M`] or more above the world's.
