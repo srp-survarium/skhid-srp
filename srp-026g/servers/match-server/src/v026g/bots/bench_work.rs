@@ -92,29 +92,6 @@ impl Span {
     }
 }
 
-thread_local! {
-    static COUNTS: RefCell<Vec<(&'static str, u64)>> = const { RefCell::new(Vec::new()) };
-}
-
-/// [A276] `n` more of a named count, kept beside the spans while they are on (for the bench's spike lines).
-pub fn add_span_count(name: &'static str, n: usize) {
-    if !SPANS_ON.with(Cell::get) {
-        return;
-    }
-    COUNTS.with(|counts| {
-        let mut counts = counts.borrow_mut();
-        match counts.iter_mut().find(|row| row.0 == name) {
-            Some(row) => row.1 += n as u64,
-            None => counts.push((name, n as u64)),
-        }
-    });
-}
-
-/// The named counts since the last take.
-pub fn take_counts() -> Vec<(&'static str, u64)> {
-    COUNTS.with(|counts| std::mem::take(&mut *counts.borrow_mut()))
-}
-
 /// Spans are timed from now on (`true`) or not.
 pub fn spans_on(on: bool) {
     SPANS_ON.with(|o| o.set(on));

@@ -608,7 +608,6 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     if spike.is_some() {
         super::bench_work::spans_on(true);
         super::bench_work::take_spans();
-        super::bench_work::take_counts();
     }
     let started = Instant::now();
     let work_start = super::bench_work::totals();
@@ -729,10 +728,6 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             .map(|(name, n, us, worst)| format!("{name} x{n} {us:.0} µs (longest {worst:.0})"))
             .collect();
         eprintln!("  A276 spans: {}", timed.join("; "));
-        let counted: Vec<String> = super::bench_work::take_counts().iter().map(|(name, n)| format!("{name} {n}")).collect();
-        if !counted.is_empty() {
-            eprintln!("  A276 counts: {}", counted.join("; "));
-        }
         spans.sort_by(|a, b| (b.think_us + b.ticks_us).total_cmp(&(a.think_us + a.ticks_us)));
         for span in spans.iter().take(4) {
             eprintln!(
