@@ -178,9 +178,13 @@ pub struct TacticsBase {
     /// shelf's top past the jump) has no way from where bots are.
     walkable: Vec<u64>,
     /// How far forward each region is, by the walk ([`progress`]): worked out
-    /// at the first ask (`roam.join_ahead`), once for the map, not stored
-    /// with the base; a map no switch asks it of never makes it.
-    progress: std::sync::OnceLock<progress::Progress>,
+    /// with the base, once for the map, off the match loop (the map store's
+    /// thread), not stored with it. [A276] Made at its first ask (before), it
+    /// was built inside a poll: the first Roam start of a map's first match
+    /// (`roam.join_ahead`, on by default) drew a route in the opening
+    /// commander tick and paid both floods there, 104-214 ms of a 125-245 ms
+    /// poll on the bench's Team Deathmatch maps.
+    progress: progress::Progress,
 }
 
 /// The past-fixed-zones regions and the zones they were made for
@@ -542,6 +546,7 @@ impl TacticsBase {
         let spawn_areas = labels.iter().map(|&label| label as u8).collect();
         drop(labels);
         let walkable = walkable_from_spawns(&world);
+        let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
         let mut base = Self {
             world,
             hazards,
@@ -549,7 +554,7 @@ impl TacticsBase {
             spawn_areas,
             regions,
             walkable,
-            progress: std::sync::OnceLock::new(),
+            progress,
         };
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
@@ -668,6 +673,7 @@ impl TacticsBase {
                         (side, exits.to_vec())
                     })
                     .collect();
+                let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
                 Ok(Self {
                     world,
                     hazards: Hazards::with_marks(zones, Arc::new(marks), margin),
@@ -675,19 +681,17 @@ impl TacticsBase {
                     spawn_areas,
                     regions,
                     walkable,
-                    progress: std::sync::OnceLock::new(),
+                    progress,
                 })
             },
             Self::digest,
         )
     }
 
-    /// The progress of each region, worked out at the first call: two floods
-    /// of the walk grid, once for the map (shared by its matches).
+    /// The progress of each region: two floods of the walk grid, made with
+    /// the base (shared by the map's matches).
     fn progress(&self) -> &progress::Progress {
-        self.progress.get_or_init(|| {
-            progress::Progress::build(&self.world.grid, &self.regions, &self.world.map.spawns)
-        })
+        &self.progress
     }
 
     /// Bytes held, beyond the world.
@@ -2999,15 +3003,16 @@ pub(super) mod tests {
         );
     }
 
-    /// The progress table is made at the first ask, not with the base: a map
-    /// nothing asks it of (every switch off) never pays for its floods.
+    /// [A276] The progress table is made with the base, off the match loop, as its first ask would have made it: a
+    /// poll never builds it (the opening commander tick's first Roam start did, 104-214 ms of a poll).
     #[test]
-    fn the_progress_table_is_made_at_the_first_ask() {
-        let tactics = Tactics::new(field(), 1.0);
-        assert!(tactics.base.progress.get().is_none());
+    fn the_progress_table_is_made_with_the_base() {
+        let world = field();
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let built = progress::Progress::build(&world.grid, &tactics.base.regions, &world.map.spawns);
+        assert_eq!(tactics.base.progress, built);
         let a = tactics.progress_at(Vec3::new(5.0, 0.0, 10.0), 0);
-        assert!(tactics.base.progress.get().is_some());
-        assert_eq!(a, tactics.progress_at(Vec3::new(5.0, 0.0, 10.0), 0));
+        assert_eq!(a, built.at(&world.grid, &tactics.base.regions, Vec3::new(5.0, 0.0, 10.0), 0));
     }
 
     /// What the progress table (R2: two grid floods) costs next to the whole
