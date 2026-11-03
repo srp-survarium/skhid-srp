@@ -2589,7 +2589,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     let through = crossing.is_some();
     let intent = match next_stand(cx, at, aim, tried, steep, &gave_up, through) {
         Some(s) => {
-            if s.feet.distance_xz(at) > RING_M[RING_M.len() - 1] + 0.1 {
+            if cx.tuning.take.far_stands.is_some() && s.feet.distance_xz(at) > RING_M[RING_M.len() - 1] + 0.1 {
                 take_counts::count(take_counts::Count::FarStandUsed);
             }
             *stand = Some(s);
@@ -4522,16 +4522,17 @@ mod tests {
     }
 
     /// [take.pitch] By the view's scale the limits sit under the client's stop (67.48 degrees down) by the fixed margins; the
-    /// fixed ones under 1 rad.
+    /// fixed ones under 1 rad. The view's scale is the default.
     #[test]
     fn the_view_scale_moves_the_stands_look_down_limits_to_the_clients_stop() {
         use crate::v026g::bots::tuning::TakePitch;
         let mut s = take_field(&[], Vec3::new(20.0, 0.0, 12.0));
-        assert_eq!(take_pitch_limits(&s.cx(0)), (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD));
-        s.tuning.take.pitch = TakePitch::ViewScale;
+        assert_eq!(s.tuning.take.pitch, TakePitch::ViewScale, "the default");
         let (ring, first) = take_pitch_limits(&s.cx(0));
         let stop = 67.48f32.to_radians();
         assert!((ring - (stop - 0.05)).abs() < 1e-4 && (first - (stop - 0.02)).abs() < 1e-4, "{ring} {first}");
+        s.tuning.take.pitch = TakePitch::Fixed;
+        assert_eq!(take_pitch_limits(&s.cx(0)), (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD));
     }
 
     /// Right over the battery (the view does not look down that far) and

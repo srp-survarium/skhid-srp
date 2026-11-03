@@ -1,6 +1,7 @@
 //! How a bot takes a battery from the floor (`plays/collect.rs`, the Take): A281 (a battery under a tree root on Mamayev Kurgan, 7 failed
 //! takes in the owner's match 0x24ddea92) and A282 (Collect plays ended "no way to its goal" at two zone batteries, 84 in two matches).
-//! Each part is off by default (the old take) until its by-side bench decides; `traces-20261028/fx-zones-a281-blocked-pickup.md` and
+//! Each part is off by default (the old take) until its by-side bench decides, but `pitch` (view scale, the owner's
+//! correctness fix); `traces-20261028/fx-zones-a281-blocked-pickup.md` and
 //! `fx-zones-a282-no-way-collect.md` have the traces.
 
 use super::*;
@@ -62,14 +63,18 @@ impl Default for FarStands {
     }
 }
 
-/// The steepest look down a take's stand is judged by (A281 (d)).
+/// The steepest look down a take's stand is judged by (A281 (d)). `ViewScale` is the default and the all-off arm keeps it
+/// (`KEPT_RIGHT`): the old constants assume a view that stops at 1 rad, while the client's stops at 67.48 degrees down
+/// (`bots/pitch.rs`, `PitchScale::Client`, #833; PROVEN), so they judged stands by a stop the game does not have. The owner,
+/// 2026-11-03 (quiz): "ON as a correctness fix". Its by-side bench, 672 fresh pairs (seeds 8-35, 8 battery maps x 6/8/10,
+/// tier 9-10): level, score -0.4 % z -0.5, wins 501 vs 501, deliveries -0.1 %, no guard FAIL; short use presses -66 % z -6.1.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TakePitch {
     /// The constants set when the view was taken to stop at 1 rad (a ring stand 0.95 rad, where it stopped 0.98).
-    #[default]
     Fixed,
     /// From the view's real stop, `kin.pitch_scale`'s (67.48 degrees down for the client's): the same margins under it.
+    #[default]
     ViewScale,
 }
 
