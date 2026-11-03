@@ -112,6 +112,20 @@ pub(crate) fn respawn_ms_of(respawn_time_s: u32, radio_modifier: f32) -> u32 {
     (ms / 50.0 - 1e-3).ceil() as u32 * 50
 }
 
+/// What `place`'s body fills `gun` from: its bot's kit when that kit's weapon
+/// is `gun` ([`Game::kits`]), else a guess by the weapon's name.
+fn fill_of(
+    kits: &[Option<&'static Arms>],
+    place: Place,
+    gun: &'static Gun,
+    tier: survarium::v026g::loadouts::BotTier,
+) -> standin_weapon::Fill {
+    match kits.get(place).copied().flatten() {
+        Some(arms) if arms.primary.0.item == gun.item => standin_weapon::Fill::kit(arms),
+        _ => standin_weapon::Fill::guess(tier, gun),
+    }
+}
+
 /// The respawn delay in the map's mode, ms, read from the game data the
 /// process runs on (the mode's `respawn_time`, the radio's modifier): the
 /// live game's with `SRP_GAME_DATA`, so the constants above cannot go
@@ -454,6 +468,10 @@ pub(crate) struct Game {
     /// appears by a station (round the stations in turn).
     pub(crate) timed: Option<(u32, u32)>,
     pub(crate) inputs: Vec<VecDeque<Queued>>,
+    /// By place: its bot's kit now (`Reflex::arms`), which a body's weapon is
+    /// filled from at a spawn or a switch (A277, [`standin_weapon::Fill`]);
+    /// `None` (a driver that does not set it): a guess by the weapon's name.
+    pub(crate) kits: Vec<Option<&'static Arms>>,
     /// The worlds of the last two seconds.
     pub(crate) history: VecDeque<Recorded>,
     /// The bodies' hurts in those worlds ([`Game::hurts_at`]).
@@ -810,7 +828,7 @@ impl Game {
             keys: 0,
             health: 1.0,
             pools: standin_damage::Pools::default(),
-            stock: standin_weapon::Stock::new(bench_tier(), gun),
+            stock: standin_weapon::Stock::new(standin_weapon::Fill::guess(bench_tier(), gun)),
             stamina: {
                 let _kit = super::team_kit::scope(team);
                 standin_stamina::Stamina::new(0, bench_tier(), gun.item)
@@ -855,6 +873,7 @@ impl Game {
             tickets: tickets.map(|t| [t, t]),
             timed: timed.map(|every| (every, every)),
             inputs: vec![VecDeque::new(); teams.len()],
+            kits: vec![None; teams.len()],
             history: VecDeque::new(),
             hurts: VecDeque::new(),
             tick: 0,
@@ -1034,7 +1053,7 @@ impl Game {
         body.recoil = Recoil::new(kick_of(body.gun.item));
         body.cadence = Cadence::default();
         body.spread.reset();
-        body.stock.spawn(tier, body.gun);
+        body.stock.spawn(fill_of(&self.kits, place, body.gun, tier));
         body.stamina.spawn(tick, tier, body.gun.item);
     }
 
@@ -1119,7 +1138,7 @@ impl Game {
                     body.recoil.update(tick);
                     body.cadence = Cadence::default();
                     body.spread.reset();
-                    body.stock.switch(tier, gun);
+                    body.stock.switch(fill_of(&self.kits, place, gun, tier));
                     body.stamina.switch(tier, gun.item);
                 } else if pressed[place] & key::RELOAD != 0 {
                     body.recoil.reset();

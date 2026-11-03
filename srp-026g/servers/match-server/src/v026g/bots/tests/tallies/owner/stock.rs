@@ -36,11 +36,15 @@ impl StockCounts {
             "world_dry_s": secs(c.dry_ticks),
             "world_held_no_shot_s": secs(c.held_no_shot),
             "world_held_empty_or_reloading_s": secs(c.held_empty_or_reloading),
+            "world_empty_reloads": c.empty_reloads,
+            "world_keys_in_empty_clip": c.keys_in_empty_clip,
         });
         let text = format!(
-            "owner-test world weapons: reloads {} (loops cut by fire or aim {}), out of rounds and ammo {:.1} s, fire held on a weapon that could not fire {:.1} s (empty or reloading {:.1} s), in {:.0} bot minutes; resupply box: uses {} (topped up {}, ended with nothing {}), rounds put in {}",
+            "owner-test world weapons: reloads {} (loops cut by fire or aim {}; begun by the emptying shot's clip {}, reload keys inside that clip {}), out of rounds and ammo {:.1} s, fire held on a weapon that could not fire {:.1} s (empty or reloading {:.1} s), in {:.0} bot minutes; resupply box: uses {} (topped up {}, ended with nothing {}), rounds put in {}",
             c.reloads,
             c.cut_loops,
+            c.empty_reloads,
+            c.keys_in_empty_clip,
             secs(c.dry_ticks),
             secs(c.held_no_shot),
             secs(c.held_empty_or_reloading),
