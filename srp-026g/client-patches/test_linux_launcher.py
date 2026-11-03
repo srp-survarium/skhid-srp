@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Exercise the release launcher with mocked Wine and synthetic patch-site bytes."""
+"""Exercise the release launcher with mocked Wine and a stand-in game executable."""
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,15 +16,7 @@ import make_client_026g as overlay
 PROBE = r'C:\windows\syswow64\cmd.exe'
 SCRIPT = Path(__file__).resolve().parent / 'play_skhid.sh'
 STARTER = Path(__file__).resolve().parent / 'Skhid.sh'
-# Only the bytes inspected by the launcher; no game binary is needed.
-FIXTURE = bytearray(0xf582d)
-FIXTURE[:2] = b'MZ'
-FIXTURE[0xf5805:0xf5818] = bytes.fromhex('85ff7719720881fb00000014730f6840010000')
-FIXTURE[0xf5822:0xf582d] = bytes.fromhex('8bd75f5e8bc35b83c408c3')
-PATCHED_FIXTURE = bytearray(FIXTURE)
-PATCHED_FIXTURE[0xf5811] = 0xeb
-ORIGINAL = hashlib.sha256(FIXTURE).hexdigest()
-PATCHED = hashlib.sha256(PATCHED_FIXTURE).hexdigest()
+FIXTURE = b'MZ stand-in game executable'
 
 
 class LauncherTests(unittest.TestCase):
@@ -44,8 +35,7 @@ class LauncherTests(unittest.TestCase):
         self.tools.mkdir()
         self.calls = self.root / 'calls.jsonl'
         # Only mocked dependencies plus explicitly allowed core tools in PATH.
-        for tool in ('bash', 'dirname', 'sha256sum', 'cut', 'dd', 'od', 'tr', 'cp', 'cmp',
-                     'mv', 'mktemp', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'ls', 'id', 'awk'):
+        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk'):
             (self.tools / tool).symlink_to(shutil.which(tool))
         stub = '#!' + sys.executable + '\n' + '''import json,os,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
@@ -189,7 +179,6 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
 
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
-        self.exe.write_bytes(PATCHED_FIXTURE)
         for name in ('launcher_skhid.exe', 'updater_skhid.exe'):
             (self.bin / name).write_bytes(b'MZ fixture')
         result = self.run_script('launcher')
@@ -222,7 +211,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         # In its place: the script runs in its own folder, whatever the
         # caller's folder, and gets the arguments.
         (nested / 'play_skhid.sh').write_text(self.script.read_text())
-        (nested / 'survarium_skhid.exe').write_bytes(PATCHED_FIXTURE)
+        (nested / 'survarium_skhid.exe').write_bytes(FIXTURE)
         for name in ('launcher_skhid.exe', 'updater_skhid.exe'):
             (nested / name).write_bytes(b'MZ fixture')
         for arguments, started in (((), 'survarium_skhid.exe'), (('launcher',), 'launcher_skhid.exe')):
@@ -255,14 +244,35 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertFalse(self.calls.exists())
 
     def test_missing_dependencies_fail_before_changes(self):
-        for name in ('wine', 'winetricks', 'wineserver'):
+        self.copy_exe()
+        for name in ('wine', 'wineserver'):
             tool = self.tools / name
             tool.rename(tool.with_suffix('.disabled'))
             result = self.run_script()
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(name.lower(), result.stderr.lower())
-            self.assertEqual(list(self.bin.iterdir()), [self.script])
+            self.assertFalse(self.calls.exists())
+            self.assertFalse((self.bin / "wineprefix").exists())
             tool.with_suffix('.disabled').rename(tool)
+
+    def test_winetricks_is_only_required_to_install_dxvk(self):
+        self.copy_exe()
+        tool = self.tools / 'winetricks'
+        disabled = tool.with_suffix('.disabled')
+        tool.rename(disabled)
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Install winetricks first', result.stderr)
+        self.assertFalse((self.bin / 'wineprefix/.skhid-dxvk').exists())
+        self.assertFalse(any(c['args'][0] == 'survarium_skhid.exe'
+                             for c in self.recorded_calls()))
+        disabled.rename(tool)
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        tool.unlink()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sum(c['name'] == 'winetricks' for c in self.recorded_calls()), 1)
 
     def test_missing_exe(self):
         result = self.run_script()
@@ -271,14 +281,13 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
 
     def test_generated_full_launcher_uses_embedded_server_and_keeps_exe(self):
         self.copy_exe()
-        self.exe.write_bytes(PATCHED_FIXTURE)
         self.script.write_bytes(overlay.sh('release.example:2234', True))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768'])
-        self.assertEqual(self.exe.read_bytes(), PATCHED_FIXTURE)
+        self.assertEqual(self.exe.read_bytes(), FIXTURE)
         self.assertFalse(self.exe.with_name(self.exe.name + '.before-memory-patch').exists())
 
     def test_a_db_the_updater_finds_not_updated_keeps_the_game_from_starting(self):
@@ -386,24 +395,16 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('r_resolution 1920x1080', self.config.read_text())
 
-    def test_unknown_exe_unchanged(self):
-        exe = self.bin / 'survarium_skhid.exe'
-        exe.write_bytes(b'wrong executable')
-        result = self.run_script()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(exe.read_bytes(), b'wrong executable')
-        self.assertFalse(self.calls.exists())
-
-    def test_patch_first_run_and_reuse(self):
+    def test_first_run_and_reuse_leave_executable_untouched(self):
         self.copy_exe()
         before = self.exe.read_bytes()
+        stamp = self.exe.stat().st_mtime_ns
+        self.exe.chmod(0o444)
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        after = self.exe.read_bytes()
-        self.assertEqual(hashlib.sha256(after).hexdigest(), PATCHED)
-        self.assertEqual([i for i, (a, b) in enumerate(zip(before, after)) if a != b], [0xf5811])
-        backup = self.exe.with_name(self.exe.name + '.before-memory-patch')
-        self.assertEqual(backup.read_bytes(), before)
+        self.assertEqual(self.exe.read_bytes(), before)
+        self.assertEqual(self.exe.stat().st_mtime_ns, stamp)
+        self.assertFalse(list(self.bin.glob('*.before-memory-patch*')))
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
         self.assertEqual(calls[2]['args'], ['-q', 'dxvk'])
@@ -416,7 +417,8 @@ HDMI-1 connected 1366x768+0+0
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(self.recorded_calls()), 5)
-        self.assertEqual(backup.read_bytes(), before)
+        self.assertEqual(self.exe.read_bytes(), before)
+        self.assertEqual(self.exe.stat().st_mtime_ns, stamp)
 
     def test_dxvk_failure_retries_without_launching(self):
         self.copy_exe()
@@ -465,7 +467,7 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual([c['name'] for c in calls],
             ['wine', 'wineserver', 'winetricks', 'wine', 'wine'])
 
-    def test_concurrent_launcher_cannot_patch_or_start_wine(self):
+    def test_concurrent_launcher_cannot_start_wine(self):
         self.copy_exe()
         with (self.bin / '.skhid-launcher.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -487,54 +489,6 @@ HDMI-1 connected 1366x768+0+0
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls[-4:]], ['wine', 'wineserver', 'winetricks', 'wine'])
 
-    def test_preserves_existing_backup(self):
-        self.copy_exe()
-        backup = self.exe.with_name(self.exe.name + '.before-memory-patch')
-        backup.write_bytes(b'unrelated backup')
-        result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(backup.with_name(backup.name + '.~1~').read_bytes(), b'unrelated backup')
-        self.assertEqual(hashlib.sha256(backup.read_bytes()).hexdigest(), ORIGINAL)
-
-    def test_updated_exe_preserves_unrelated_changes(self):
-        self.copy_exe()
-        first_version = self.exe.read_bytes()
-        result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        # Simulate an update restoring the original branch and changing other code/data.
-        updated = bytearray(first_version)
-        updated[0x1900] ^= 1
-        updated.extend(b'new Skhid section or build metadata')
-        self.exe.write_bytes(updated)
-        result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        expected = bytearray(updated)
-        expected[0xf5811] = 0xeb
-        self.assertEqual(self.exe.read_bytes(), expected)
-        backup = self.exe.with_name(self.exe.name + '.before-memory-patch')
-        self.assertEqual(backup.read_bytes(), updated)
-        self.assertEqual(backup.with_name(backup.name + '.~1~').read_bytes(), first_version)
-        # An update retaining the patch also works without making another backup.
-        expected[-1] ^= 1
-        self.exe.write_bytes(expected)
-        result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.exe.read_bytes(), expected)
-        self.assertEqual(backup.read_bytes(), updated)
-
-    def test_changed_memory_check_is_rejected(self):
-        self.copy_exe()
-        original = self.exe.read_bytes()
-        for offset in (0xf5805, 0xf5812, 0xf5813, 0xf5822):
-            with self.subTest(offset=hex(offset)):
-                altered = bytearray(original)
-                altered[offset] ^= 1
-                self.exe.write_bytes(altered)
-                result = self.run_script()
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn('Memory-check code changed', result.stderr)
-                self.assertEqual(self.exe.read_bytes(), altered)
-        self.assertFalse(self.calls.exists())
 
 
 if __name__ == '__main__':
