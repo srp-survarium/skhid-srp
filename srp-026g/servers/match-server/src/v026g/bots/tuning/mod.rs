@@ -743,6 +743,7 @@ mod tests {
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
             "/unstick/drop_shut_from_top",
+            "/unstick/drop_shut_last_resort",
             "/unstick/escape_floor",
         ];
         // Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
