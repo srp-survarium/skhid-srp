@@ -70,20 +70,73 @@ fn target_kind(bot: &Bot) -> String {
     )
 }
 
+/// A stand this many ticks long or more is kept in detail (2 s).
+const LONG_TICKS: u32 = 40;
+/// At most this many long stands a team are kept a match.
+const LONG_KEPT: usize = 40;
+/// A route that ended this long ago or less is the stand's state, ms.
+const ENDED_MS: u32 = 1_000;
+
+/// The bot's route state at a stood tick, from its own bench fields: shut in its pocket, starved of a search, a search for this goal
+/// failed lately (its no-way kept), its last route ended lately (and how), or none of these.
+fn route_state(bot: &Bot, goal: Vec3, now: u32) -> String {
+    if bot.bench_shut_in {
+        return "shut_in".to_owned();
+    }
+    if bot.bench_starved_polls > 0 {
+        return "starved".to_owned();
+    }
+    if bot.no_way.is_some_and(|(at, until)| now < until && at.distance_xz(goal) <= MOVED_M) {
+        return "no_way_kept".to_owned();
+    }
+    match bot.route_end {
+        Some((end, at)) if now.saturating_sub(at) <= ENDED_MS => format!("ended_{end:?}"),
+        _ => "other".to_owned(),
+    }
+}
+
+/// One place's stand: its goal and the goal's class, its first tick, its length, where it stood, and its key at the first tick.
+#[derive(Clone, Debug)]
+struct Episode {
+    goal: Vec3,
+    class: GoalClass,
+    from: u32,
+    ticks: u32,
+    feet: Vec3,
+    key: String,
+    team: usize,
+}
+
 #[derive(Default)]
 pub(super) struct StoodGoals {
-    /// Each place's episode: its goal and the goal's class.
-    episode: Vec<Option<(Vec3, GoalClass)>>,
-    /// By team: ticks and episodes by "why|play|target|class".
+    /// Each place's stand under way.
+    episode: Vec<Option<Episode>>,
+    /// By team: ticks by "why|play|target|class|state", and episodes by "play|target|class".
     ticks: [BTreeMap<String, u64>; 2],
     episodes: [BTreeMap<String, u64>; 2],
     /// By team: the bot ticks with a goal (the bench's `goal_ticks`).
     goal_ticks: [u64; 2],
+    /// By team: the stands of [`LONG_TICKS`] or more (at most [`LONG_KEPT`]).
+    long: [Vec<serde_json::Value>; 2],
 }
 
 impl StoodGoals {
     pub(super) fn new(n: usize) -> Self {
         Self { episode: vec![None; n], ..Self::default() }
+    }
+
+    /// The stand of `place` ends: kept in detail when long.
+    fn close(&mut self, place: Place) {
+        let Some(ep) = self.episode.get_mut(place).and_then(Option::take) else {
+            return;
+        };
+        if ep.ticks >= LONG_TICKS && self.long[ep.team].len() < LONG_KEPT {
+            self.long[ep.team].push(serde_json::json!({
+                "place": place, "from": ep.from, "ticks": ep.ticks, "key": ep.key,
+                "feet": [(ep.feet.x * 10.0).round() / 10.0, (ep.feet.y * 10.0).round() / 10.0, (ep.feet.z * 10.0).round() / 10.0],
+                "goal": [(ep.goal.x * 10.0).round() / 10.0, (ep.goal.y * 10.0).round() / 10.0, (ep.goal.z * 10.0).round() / 10.0],
+            }));
+        }
     }
 }
 
@@ -103,43 +156,58 @@ impl Topic for StoodGoals {
         for bot in bots.bots.iter().flatten() {
             let place = bot.place;
             let Some(body) = game.bodies.get(place).filter(|b| b.alive) else {
-                self.episode[place] = None;
+                self.close(place);
                 continue;
             };
             let Some(Go::To { at, within_m }) = bot.bench_go else {
-                self.episode[place] = None;
+                self.close(place);
                 continue;
             };
             if body.feet.distance_xz(at) <= within_m {
-                self.episode[place] = None;
+                self.close(place);
                 continue;
             }
             let team = usize::from(body.team).min(1);
             self.goal_ticks[team] += 1;
             let Some(read) = StoodRead::of(bot) else {
-                self.episode[place] = None;
+                self.close(place);
                 continue;
             };
-            let class = match self.episode[place] {
-                Some((goal, class)) if goal.distance_xz(at) <= MOVED_M => class,
-                _ => {
-                    let class = GoalClass::of(bot, tactics, grid, body.feet, at, game.tick);
-                    self.episode[place] = Some((at, class));
-                    let play = bot.assignment.as_ref().map_or_else(|| "none".to_owned(), |a| format!("{:?}", a.kind));
-                    *self.episodes[team].entry(format!("{play}|{}|{}", target_kind(bot), class.name())).or_default() += 1;
-                    class
-                }
-            };
             let play = bot.assignment.as_ref().map_or_else(|| "none".to_owned(), |a| format!("{:?}", a.kind));
-            *self.ticks[team].entry(format!("{}|{play}|{}|{}", read.why.name(), target_kind(bot), class.name())).or_default() += 1;
+            let state = route_state(bot, at, game.tick);
+            if self.episode[place].as_ref().is_some_and(|ep| ep.goal.distance_xz(at) > MOVED_M) {
+                self.close(place);
+            }
+            if self.episode[place].is_none() {
+                let class = GoalClass::of(bot, tactics, grid, body.feet, at, game.tick);
+                *self.episodes[team].entry(format!("{play}|{}|{}", target_kind(bot), class.name())).or_default() += 1;
+                self.episode[place] = Some(Episode {
+                    goal: at,
+                    class,
+                    from: game.tick,
+                    ticks: 0,
+                    feet: body.feet,
+                    key: format!("{}|{play}|{}|{}|{state}", read.why.name(), target_kind(bot), class.name()),
+                    team,
+                });
+            }
+            let Some(ep) = self.episode[place].as_mut() else {
+                continue;
+            };
+            ep.ticks += 1;
+            let class = ep.class;
+            *self.ticks[team].entry(format!("{}|{play}|{}|{}|{state}", read.why.name(), target_kind(bot), class.name())).or_default() += 1;
         }
     }
 
     fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        for place in 0..self.episode.len() {
+            self.close(place);
+        }
         let mut json = serde_json::Map::new();
         let mut lines = vec![
-            "owner-test stood goals (A278: each tick a bot stood with a goal and no route, by why|play|target|goal class; episodes by \
-             play|target|class)"
+            "owner-test stood goals (A278: each tick a bot stood with a goal and no route, by why|play|target|goal class|route state; episodes by \
+             play|target|class; stands of 2 s or more in detail)"
                 .to_owned(),
         ];
         for team in 0..2 {
@@ -159,6 +227,7 @@ impl Topic for StoodGoals {
                 format!("team{team}"),
                 serde_json::json!({
                     "goal_ticks": self.goal_ticks[team], "ticks": self.ticks[team], "episodes": self.episodes[team],
+                    "long": self.long[team],
                 }),
             );
         }
