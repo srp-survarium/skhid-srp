@@ -38,7 +38,7 @@ class LauncherTests(unittest.TestCase):
         self.tools.mkdir()
         self.calls = self.root / 'calls.jsonl'
         # Only mocked dependencies plus explicitly allowed core tools in PATH.
-        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum'):
+        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum', 'ln'):
             (self.tools / tool).symlink_to(shutil.which(tool))
         stub = '#!' + sys.executable + '\n' + '''import json,os,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
@@ -79,6 +79,9 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             path.write_text(stub)
             path.chmod(0o755)
         self.env = dict(os.environ, PATH=str(self.tools), TEST_CALLS=str(self.calls))
+        self.env['HOME'] = str(self.root / 'home')
+        self.env.pop('XDG_CONFIG_HOME', None)
+        self.shared_config = self.root / 'home/.config/skhid/user.cfg'
         self.env['XDG_SESSION_TYPE'] = 'x11'
 
     def display(self, name, modes, status='connected', enabled='enabled'):
@@ -423,6 +426,42 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertIn('-server=local.example:4321', calls[-1]['args'])
+
+    def test_settings_survive_prefix_recreation(self):
+        self.copy_exe()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.config.is_symlink())
+        self.assertEqual(self.config.resolve(), self.shared_config)
+        custom = b'r_fullscreen off\r\nsnd_volume 0.3\r\n'
+        self.config.write_bytes(custom)
+        shutil.rmtree(self.bin / 'wineprefix')
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.read_bytes(), custom)
+        self.assertTrue(self.config.is_symlink())
+
+    def test_xdg_config_home_override_and_invalid_relative_path(self):
+        self.copy_exe()
+        override = self.root / "settings with spaces & apostrophe's"
+        self.env['XDG_CONFIG_HOME'] = str(override)
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.resolve(), override / 'skhid/user.cfg')
+        self.assertFalse(self.shared_config.exists())
+        self.env['XDG_CONFIG_HOME'] = 'relative/path'
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.resolve(), self.shared_config)
+        self.assertFalse((self.bin / 'relative').exists())
+
+    def test_invalid_shared_settings_stop_before_starting_game(self):
+        self.copy_exe()
+        self.shared_config.mkdir(parents=True)
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Settings file is not writable', result.stderr)
+        self.assertFalse(any(c['args'][0] == 'survarium_skhid.exe' for c in self.recorded_calls()))
 
     def test_resolution_falls_back_to_1080p(self):
         self.copy_exe()
