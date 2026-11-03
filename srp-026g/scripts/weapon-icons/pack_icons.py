@@ -50,8 +50,8 @@ def main():
         for row in replacements:
             shutil.copyfile(args.icons/(row['name']+'.png'),dst/by_cell[tuple(row['cell'])])
         pack['version'] = source['to']
-        pack['description'] += '; perpendicular lobby icons matched to retail 0.26 references'
-        pack['notes'].append('Lobby weapon icons: scripts/weapon-icons/render_icons.py; orthographic profile, stock 0.26 framing and lighting references. No other content changes.')
+        pack['description'] += '; perpendicular lobby icons with each weapon\'s original retail brightness'
+        pack['notes'].append('Lobby weapon icons: scripts/weapon-icons/render_icons.py; orthographic profile, stock 0.26 framing and light rig, exposure matched to each weapon\'s own donor icon. AKMSU and PPSh magazine poses retained. No other content changes.')
         pack['notes'].extend(f"icon sha256 {r['sha256']} {by_cell[tuple(r['cell'])]}" for r in replacements)
         (dst/'pack.json').write_text(json.dumps(pack,indent=2)+'\n')
         changed = {str(p.relative_to(dst)) for p in dst.rglob('*') if p.is_file() and digest(p)!=digest(src/p.relative_to(dst))}

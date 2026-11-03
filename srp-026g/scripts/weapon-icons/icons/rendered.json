@@ -7,8 +7,12 @@
       5
     ],
     "model": "models/weapons/ots14/ots14.skinned_model",
-    "exposure": 1.247932,
-    "sha256": "7893b09cbe6e611cb6326b999eadc5d217bdca46369930525734519e47ee1394"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r06c05.png",
+    "reference_sha256": "79563692cc93c4d3c6dc857413533809391288d17d582a23e6c3f2355d8615eb",
+    "reference_luma": 64.206751,
+    "rendered_luma": 64.138025,
+    "exposure": 1.729024,
+    "sha256": "ace0dee867d82f56c3a14c9ce62c74f55b42748e7029a52ef314eecdbed2b0db"
   },
   {
     "name": "scar_h",
@@ -18,8 +22,12 @@
       5
     ],
     "model": "models/weapons/scar_h/scar_h.skinned_model",
-    "exposure": 0.192425,
-    "sha256": "5eca54d2f83fde21a3417c7e3c280eaf116a40620dc0a47ce17029e8151227b5"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r05c05.png",
+    "reference_sha256": "437561f3f932cf67583fe65df417bc0355b482cb154765e98223c02aeff02cde",
+    "reference_luma": 115.733592,
+    "rendered_luma": 116.64311,
+    "exposure": 1.0,
+    "sha256": "6aff0a3a1da942f3dd0c7089ba93078d7270b7beae618ae633e7e790562f2237"
   },
   {
     "name": "vhs_2",
@@ -29,8 +37,12 @@
       5
     ],
     "model": "models/weapons/vhs_2/vhs_2.skinned_model",
-    "exposure": 0.950397,
-    "sha256": "89220e5232abcb0b207941d16261411a40ac7a08eaaae02b8b695738790b34ef"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r04c05.png",
+    "reference_sha256": "c6fa87574beffa44daf7d0d6cb9a9e726ff94ae917cb165632beaa83d4f56424",
+    "reference_luma": 57.04258,
+    "rendered_luma": 56.180545,
+    "exposure": 1.0,
+    "sha256": "a931914d8d6ac3f1db1884a6236f1d69c4da8ac763e7ee9935a1186eac11db32"
   },
   {
     "name": "fn_minimi",
@@ -40,8 +52,12 @@
       5
     ],
     "model": "models/weapons/fn_minimi/fn_minimi.skinned_model",
-    "exposure": 1.10107,
-    "sha256": "d22c1b99d1772f95b5dc2d2ea3ca902cfb8d338d921b412d58be345aa0c0f176"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r08c05.png",
+    "reference_sha256": "4fbe941a28b78b572b2ea4a3a7a297c5312d32820e677e7de0ff876dda8fa821",
+    "reference_luma": 63.653796,
+    "rendered_luma": 63.742991,
+    "exposure": 1.536357,
+    "sha256": "d70a84fe2e38f2c8cea059d3227d715119cd59fb2ad11204c462ffb18a7a0b5f"
   },
   {
     "name": "mp5a1",
@@ -51,8 +67,12 @@
       6
     ],
     "model": "models/weapons/smg/mp5a1/mp5a1.skinned_model",
-    "exposure": 3.644995,
-    "sha256": "c2767bb45d49466161b95126456598ebe318891049808c7be31c3fb23f4188b8"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r01c06.png",
+    "reference_sha256": "9434d31a45b795c7aa3c1cf8624589cd7fc8015406c18eaea43b775305bd7591",
+    "reference_luma": 60.416188,
+    "rendered_luma": 60.994053,
+    "exposure": 4.534797,
+    "sha256": "031bc0fdf96de803723b61e6846c79c29d2b9abdf17c50cd668518a8e98b7d1a"
   },
   {
     "name": "svu_a",
@@ -62,8 +82,12 @@
       6
     ],
     "model": "models/weapons/sniper/svu_a/svu_a.skinned_model",
-    "exposure": 1.697803,
-    "sha256": "2c7039a9533b5ab3daf44999d221846ac7d41f13f462e5b7581ddfc82d00462e"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r02c06.png",
+    "reference_sha256": "4fc02f000e1332bca6acad68ab68f726c4e9c5b08f32bfbaf283e70d218ef798",
+    "reference_luma": 84.120166,
+    "rendered_luma": 84.067898,
+    "exposure": 4.345765,
+    "sha256": "ad4ab255587f9103f2b90f804a4399599828b1c416be791c12128fb060be1f90"
   },
   {
     "name": "l85a2",
@@ -73,8 +97,12 @@
       6
     ],
     "model": "models/weapons/assault/enfield_l85a2/enfield_l85a2.skinned_model",
-    "exposure": 0.845545,
-    "sha256": "9d47c1138ac57964c688902658f67f6035f16a8a90c84c7c67fdb0fe30620f4d"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r03c06.png",
+    "reference_sha256": "c772b4bc1cb9d64a98a6daffdfd3f567b746cb52c8f02472c541c8d298f7f37d",
+    "reference_luma": 98.987546,
+    "rendered_luma": 99.536282,
+    "exposure": 3.08768,
+    "sha256": "d60aa6e9d646b0629fa0ed95e317e734a797660fc983bac3ca361a383dcc5e04"
   },
   {
     "name": "fort_401",
@@ -84,8 +112,12 @@
       6
     ],
     "model": "models/weapons/lmg/fort_401/fort_401.skinned_model",
-    "exposure": 0.83396,
-    "sha256": "2e1764bd716de92af1a08c53a25d15e6fd34b6ef7264bfd19a13086e501ad2aa"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r04c06.png",
+    "reference_sha256": "85f18e0b82568e1a767685f4d93b89604b3a591a5cb71b9733e661ee4187310f",
+    "reference_luma": 96.91447,
+    "rendered_luma": 96.890037,
+    "exposure": 2.97285,
+    "sha256": "8d2599e8e13dd05b4c712e8c27c73b19016553ea10abd96b0d91d6ab114dbd81"
   },
   {
     "name": "jackhammer",
@@ -95,8 +127,12 @@
       6
     ],
     "model": "models/weapons/shotguns/jackhammer/jackhammer.skinned_model",
-    "exposure": 2.243601,
-    "sha256": "2b2eaefbef22ea2e1026c119c17d4eccfb7166a412ef0af933405f855ce73f3e"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r05c06.png",
+    "reference_sha256": "8e3d145535c606fb35f7dc7fd6ebf30d5007423e7ac7e4862560007501ff5083",
+    "reference_luma": 52.901672,
+    "rendered_luma": 53.126475,
+    "exposure": 2.051145,
+    "sha256": "688fc36f08fc2b13c1c0658ed678d1fc54ba7ac24e111701c95fa06c8b233094"
   },
   {
     "name": "cz_75",
@@ -106,8 +142,12 @@
       6
     ],
     "model": "models/weapons/pistols/cz_75b.skinned_model",
-    "exposure": 2.312175,
-    "sha256": "b5e14896b9272bac8a4f5d6a0f2460a72e413fc4be04abe853026e2b4b48088b"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r06c06.png",
+    "reference_sha256": "3f693328ac466eb447ac624df837abafb4f1fcfe5edf222b637bbfb2d62b6468",
+    "reference_luma": 81.256263,
+    "rendered_luma": 81.606877,
+    "exposure": 3.100715,
+    "sha256": "c7d0a3b933cc23e07fa04a7731078358fa3c9e51eba4b680008717647496b565"
   },
   {
     "name": "mp443",
@@ -117,8 +157,12 @@
       6
     ],
     "model": "models/weapons/pistols/mp_443.skinned_model",
-    "exposure": 2.76625,
-    "sha256": "ffc474c4a1afe84d201f2ecb0c5913f9d8f1f179ff1f41197627da660d9a2467"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r07c06.png",
+    "reference_sha256": "b29d4d591517f76483543dc0d105edc2a2c62ca166c73020f8a36b43b4450a4c",
+    "reference_luma": 82.657101,
+    "rendered_luma": 82.805575,
+    "exposure": 3.892904,
+    "sha256": "ef1650779367cd7678bd9ad3ec6b9b2f509286cc710ffa9e8568615881d02c76"
   },
   {
     "name": "beretta93r",
@@ -128,8 +172,12 @@
       6
     ],
     "model": "models/weapons/pistols/beretta_93r.skinned_model",
-    "exposure": 1.081479,
-    "sha256": "670a888a60cfe9275b1189d43763db39611a5b9d5ce719752143c026fec7de74"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r08c06.png",
+    "reference_sha256": "6f8c7910fdb4019d2d2a7fb74878eaa8b817c12b32aa8c2bd3819f62c517c567",
+    "reference_luma": 103.243773,
+    "rendered_luma": 102.803866,
+    "exposure": 2.479644,
+    "sha256": "8e98aacf69a2fabc68608899f87a19ed2eaced862e4f02715edb5c71120a5d6d"
   },
   {
     "name": "glock_17",
@@ -139,8 +187,12 @@
       6
     ],
     "model": "models/weapons/pistols/glock_17/glock_17.skinned_model",
-    "exposure": 1.041124,
-    "sha256": "390c714684ca86a7d2386861458b7c9fe8fe3ebdb3026d050b5ce6cc449ad6c9"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r09c06.png",
+    "reference_sha256": "43a4793fe7b7fbf9157de16baf7e032bb68263fe244540041f1bc9709661915d",
+    "reference_luma": 160.981951,
+    "rendered_luma": 160.901893,
+    "exposure": 6.449192,
+    "sha256": "8fc32342e365ae6a99a9eaa0ed661c1808535576219bd80f87ce87839594f568"
   },
   {
     "name": "colt_m1911",
@@ -150,8 +202,12 @@
       6
     ],
     "model": "models/weapons/pistols/colt_m1911/colt_m1911.skinned_model",
-    "exposure": 2.977117,
-    "sha256": "c091328b3f6152a0e47aecc80b2cc624fdf318d8299c04c98f641615bc2a1634"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r10c06.png",
+    "reference_sha256": "a5a3346e14f9394d1dc627e9af72345b4e61ceffc10c257de49291fb3902b9b0",
+    "reference_luma": 77.043829,
+    "rendered_luma": 77.093091,
+    "exposure": 3.565585,
+    "sha256": "3a7723f001184aab3f21bed934d8e61bbc83e23ff24ff924da3f7281d9d151a1"
   },
   {
     "name": "akmsu",
@@ -161,8 +217,12 @@
       5
     ],
     "model": "models/weapons/assault/akmsu/akmsu.skinned_model",
-    "exposure": 1.894556,
-    "sha256": "060c768a172ded3af7dbae449fe50dd69039097b00b8fd07e6572db2c6aa3622"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r17c05.png",
+    "reference_sha256": "3ae2b440b55bbc4da49964c5ae7bae3b8d6753316c7f53510263abc96d0e1a08",
+    "reference_luma": 81.826813,
+    "rendered_luma": 82.630244,
+    "exposure": 4.573781,
+    "sha256": "90b487cca5a3d55ed85a4257ff3afc58dec2b272c6893fc02672b714e5ddcb79"
   },
   {
     "name": "famas",
@@ -172,8 +232,12 @@
       5
     ],
     "model": "models/weapons/assault/famas/famas.skinned_model",
-    "exposure": 2.078913,
-    "sha256": "92bac2e2a0fb7bd3cb3a2f0c19d0e75d72929df8036be22aaa983818fc7e4f45"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r18c05.png",
+    "reference_sha256": "dd0071b6653d0075bdecb9abc76f741039ba4874534b6cdd6e29054ef91c2908",
+    "reference_luma": 78.49631,
+    "rendered_luma": 79.262731,
+    "exposure": 4.542263,
+    "sha256": "99d47c0736ce8a07a18c63bc92a32b42d4b9f116ca2f6bcd397c8b4eb67771c9"
   },
   {
     "name": "g3sg1",
@@ -183,8 +247,12 @@
       5
     ],
     "model": "models/weapons/dmr/g3a3/g3a3.skinned_model",
-    "exposure": 2.783176,
-    "sha256": "e712374548ce1fd6f6f5b41f517595e1f38d3ec25c968adfa23b08fdc9f30e19"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r19c05.png",
+    "reference_sha256": "9a0891568318a22284b46573db30bcfa853c030f3c60232fcab43b7a86087102",
+    "reference_luma": 59.376845,
+    "rendered_luma": 60.019223,
+    "exposure": 3.371172,
+    "sha256": "8729fbe9b98d84f4250ffa89384ff851b403cf25d896d5d8187abca7c1bfa875"
   },
   {
     "name": "mauser_m712",
@@ -194,8 +262,12 @@
       5
     ],
     "model": "models/weapons/pistols/mauser_m712/mauser.skinned_model",
-    "exposure": 2.208697,
-    "sha256": "6163fe585b93a6f3ee6f3ba080683a04d7aa285e7a43178c8afa86ee7c88f90b"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r20c05.png",
+    "reference_sha256": "5d405addc5bfc0087288a45410eee6fbde1993e651715c976c7b58db7a4c892b",
+    "reference_luma": 83.458354,
+    "rendered_luma": 84.10873,
+    "exposure": 3.219433,
+    "sha256": "45633f40ec56cdf0f7918ed2666feb60af68c3ca1e2e1ec58b4780409fe45539"
   },
   {
     "name": "ks_23m",
@@ -205,8 +277,12 @@
       5
     ],
     "model": "models/weapons/shotguns/ks_23/ks_23.skinned_model",
-    "exposure": 2.575263,
-    "sha256": "56ac8ef1f882f1cf951cacb8743dca869eb62f5681ff00f474c0f34667818472"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r21c05.png",
+    "reference_sha256": "9ce5a6ba483351867a5085a19fabb14e56897909ce38b68e45fcebc1375aed7f",
+    "reference_luma": 73.068728,
+    "rendered_luma": 73.799875,
+    "exposure": 4.799098,
+    "sha256": "edf21483baa7d70f7d6defea43f2c0516b895a28a821598e69b10ca955758142"
   },
   {
     "name": "ppsh_drum",
@@ -216,7 +292,11 @@
       5
     ],
     "model": "models/weapons/smg/ppsh/ppsh.skinned_model",
-    "exposure": 1.834729,
-    "sha256": "13668160fb2852a454fb353daca9dda81ee300d2f4dd7c625daf2b8a05b0f808"
+    "reference_icon": "icons/LobbyMenu_WeaponIcons-r22c05.png",
+    "reference_sha256": "91fba50a5ac2173d4b64eb6cb31e4479557ae7a847be6466704e46ff9b8af393",
+    "reference_luma": 78.500983,
+    "rendered_luma": 79.205633,
+    "exposure": 4.129856,
+    "sha256": "8081ed6d8d45f45818ec3de3fd9b0cb0725ce60e29eb97d8b2c5512cc3b9ce07"
   }
 ]
