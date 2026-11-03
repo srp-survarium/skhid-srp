@@ -2,7 +2,7 @@
 """Render the twenty revision-43 weapons in true orthographic right-side profile.
 
 Requires numpy and Pillow. Inputs are the immutable content packs listed in
-sources.tsv and a native lobby SWF for exposure reference. Writes transparent
+sources.tsv and a native lobby SWF for style reference. Writes transparent
 171x83 icons and a before/after contact sheet. pack_icons.py makes new pack
 versions containing exactly these icon replacements.
 """
@@ -36,6 +36,29 @@ LABELS = dict(ots14='Groza', scar_h='SCAR-H', vhs_2='VHS-2', fn_minimi='FN Minim
               ks_23m='KS-23M', ppsh_drum='PPSh-41 Drum')
 
 
+def matched_icon(parts, size, reference):
+    """Keep this weapon's donor brightness, including its material finish.
+
+    A shared rifle/pistol mean makes tan paint and pale metal as dark as
+    black weapons. Match the same weapon instead, on opaque pixels only;
+    retain the retail-style camera, light rig, framing and shadow.
+    Measure the finished icon because highlights clip and a shadow changes
+    edge coverage: exposure is not an exact power-law after rasterization.
+    """
+    target = renderer.mean_luma(np.asarray(reference))
+    exposure = 1.0
+    for _ in range(8):
+        icon = renderer.render(parts, renderer.RIGHT, size, exposure=exposure)
+        canvas = Image.new('RGBA', (171,83))
+        canvas.paste(icon, ((171-size[0])//2, (79-size[1])//2))
+        canvas = renderer.with_shadow(canvas)
+        actual = renderer.mean_luma(np.asarray(canvas))
+        if abs(actual-target) <= 1.0:
+            return canvas, exposure, target, actual
+        exposure *= (target / max(actual, 1e-6)) ** 2.2
+    raise ValueError(f'Exposure did not converge: target {target:.2f}, rendered {actual:.2f}')
+
+
 def comparison(rows, rgba, out):
     sheet = Image.new('RGB', (760, 10*112+166), (32,35,38))
     draw = ImageDraw.Draw(sheet)
@@ -46,7 +69,7 @@ def comparison(rows, rgba, out):
         icon=Image.fromarray(np.clip(np.round(pixels),0,255).astype(np.uint8))
         sheet.paste(icon,(10+i*185,45),icon)
     for x in (0,380):
-        draw.text((x+20,140),'CURRENT IMPORT',fill='white')
+        draw.text((x+20,140),'DONOR RETAIL',fill='white')
         draw.text((x+205,140),'SIDE PROFILE',fill='white')
     for i,(name,before,after) in enumerate(rows):
         x,y=(i//10)*380,166+(i%10)*112
@@ -99,13 +122,8 @@ def main():
             view = renderer.RIGHT
             pistol = item['item_category'] == 17
             size = (114,55) if pistol else (171,73)
-            probe = renderer.render(parts, view, size)
-            reference_luma = pistol_luma if pistol else target_luma
-            exposure = (reference_luma / max(renderer.mean_luma(np.asarray(probe)), 1e-6)) ** 2.2
-            icon = renderer.render(parts, view, size, exposure=exposure)
-            canvas = Image.new('RGBA', (171,83))
-            canvas.paste(icon, ((171-size[0])//2, (79-size[1])//2))
-            canvas = renderer.with_shadow(canvas)
+            before = Image.open(packdir / icon_path).convert('RGBA')
+            canvas, exposure, reference_luma, rendered_luma = matched_icon(parts, size, before)
             target = args.out / f'{key}.png'
             canvas.save(target)
             rendered[icon_path] = target
@@ -113,16 +131,22 @@ def main():
             if args.large:
                 large = renderer.render(parts, view, (684,332), exposure=exposure, super_sample=2)
                 large.save(args.out / f'{key}-large.png')
-            before = Image.open(packdir / icon_path).convert('RGBA')
             rows.append((key, before, canvas))
             record.append(dict(name=key, pack=source['id'], cell=cell, model=model,
+                               reference_icon=icon_path,
+                               reference_sha256=sha((packdir / icon_path).read_bytes()),
+                               reference_luma=round(float(reference_luma),6),
+                               rendered_luma=round(float(rendered_luma),6),
                                exposure=round(float(exposure),6), sha256=sha(target.read_bytes())))
-            print(f'{key}: cell {cell}, exposure {exposure:.2f}', flush=True)
+            print(f'{key}: cell {cell}, exposure {exposure:.2f}, brightness {rendered_luma:.2f} (donor {reference_luma:.2f})', flush=True)
         assert len(rendered) == len(icons), f'{packdir}: missed weapon icon'
     assert len(rows) == 20, f'Expected 20 weapons, got {len(rows)}'
     comparison(rows, rgba, args.out/'comparison.png')
     (args.out/'rendered.json').write_text(json.dumps(record,indent=2)+'\n')
-    (args.out/'lighting.json').write_text(json.dumps(dict(reference_lobby_sha256=sha(args.lobby_swf.read_bytes()), rifle_luma=target_luma, pistol_luma=pistol_luma, camera=renderer.RIGHT),indent=2)+'\n')
+    (args.out/'lighting.json').write_text(json.dumps(dict(reference_lobby_sha256=sha(args.lobby_swf.read_bytes()),
+        exposure_reference='same weapon original donor icon in sources.tsv input pack',
+        metric='mean RGB luma (0.299, 0.587, 0.114), alpha > 200; finished icon within 1/255',
+        retail_rifle_luma=target_luma, retail_pistol_luma=pistol_luma, camera=renderer.RIGHT),indent=2)+'\n')
 
 
 if __name__ == '__main__':
