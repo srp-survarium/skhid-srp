@@ -61,10 +61,11 @@ pub struct Sim {
     pub events_from: Vec<(u32, usize, usize, u16)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
-    /// Extra bytes in every world (a bigger upload): in the bullets, as
-    /// pellets in flight make them (the sections grow, patch 98; the body
+    /// Extra bytes in every world (a bigger upload): valid bullet records,
+    /// as pellets in flight make them (the sections grow, patch 98; the body
     /// stays under `world_frame::MAX_BODY`).
     pub ballast: usize,
+    profile_items: Vec<usize>,
     /// From a tick on the world's game objects have this many bytes: the
     /// grenades and traps of a place this game installed, or started with.
     /// A loaded world does not take them away, as it does the salt: they
@@ -106,6 +107,7 @@ impl Sim {
             events_from: Vec::new(),
             salt_from: None,
             ballast: 0,
+            profile_items: Vec::new(),
             late_objects_from: None,
             player_states: vec![None; players],
             player_tails: vec![None; players],
@@ -303,9 +305,20 @@ impl Sim {
                 .map_or([true, true], |(_, teams)| teams),
         }
         .to_bytes();
-        let mut bullets = vec![0xB0; self.ballast];
+        // Keep the large-world transport tests large with valid current
+        // records: fixed-size bullets, not bytes in the empty physics
+        // section. The salt changes a free header field.
+        let bullet_count = self.ballast.div_ceil(69);
+        let mut bullets = vec![0; 16];
+        bullets[12..16].copy_from_slice(&(bullet_count as u32).to_le_bytes());
+        for number in 0..bullet_count {
+            let mut record = [0u8; 69];
+            record[..4].copy_from_slice(&(number as u32).to_le_bytes());
+            record[65] = 7; // place 0, weapon slot 7, finite zero floats
+            bullets.extend(record);
+        }
         if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
-            bullets.push(salt);
+            bullets[0] = salt;
         }
         let objects = vec![
             0;
@@ -313,23 +326,41 @@ impl Sim {
                 .filter(|(from, _)| since(*from))
                 .map_or(0, |(_, bytes)| bytes)
         ];
+        let mut states = self.player_states.clone();
+        if bullet_count != 0 && states.first().is_some_and(Option::is_none) {
+            states[0] = Some(PlayerState {
+                current_index: 0,
+                target_index: 0,
+                pickup: weapon_pickup::Record::EMPTY,
+                items: vec![0; self.profile_items.first().copied().unwrap_or(0)],
+                alive: false,
+                has_to_die: false,
+                look_pitch: 0.0,
+                rotation_y: 0.0,
+                actions_mask: 0,
+                effects: 0,
+            });
+        }
+        let inventory = valid_empty_inventory();
+        let mut effects = vec![0; 12];
+        effects.extend([0, 0, 0x80, 0x3f, 0, 0, 0, 0]);
         // The player blocks: a state, and an animation state after it.
         let mut mask = 0u32;
         let mut blocks = Vec::new();
-        for (place, head) in self.player_states.iter().enumerate() {
+        for (place, head) in states.iter().enumerate() {
             if let Some(head) = head {
                 mask |= 1 << place;
                 let animation = players::animation_bytes(&[true; 9], &[time, time + 7], &[0.5]);
                 let state = match self.player_tails.get(place).and_then(Option::as_ref) {
                     Some(tail) => motion::state_bytes(
                         head,
-                        &[0xA5; 16],
+                        &inventory,
                         &motion::Tail {
                             time_ms: time,
                             ..tail.clone()
                         },
                     ),
-                    None => players::state_bytes(head, &[0xA5; 16]),
+                    None => players::state_bytes(head, &inventory),
                 };
                 blocks.extend(players::block_bytes(&state, Some(&animation)));
             }
@@ -342,7 +373,7 @@ impl Sim {
             objects: &objects,
             physics: &[],
             rules: &rules,
-            effects: &[],
+            effects: &effects,
         }
         .to_body()
         .expect("a small world")
@@ -377,6 +408,16 @@ impl Sim {
             self.base_time = time;
         }
     }
+}
+
+/// Native state through its empty inventory header, before the motion tail.
+fn valid_empty_inventory() -> Vec<u8> {
+    let mut bytes = vec![0; 4]; // no hit effects
+    bytes.extend([0xff, 0xff]); // no active objects
+    bytes.extend([0; 29]); // stamina
+    bytes.extend([0; 5]); // weight and inventory bool
+    bytes.extend([0xff, 0, 0, 0]); // no carried item, artefacts or slots
+    bytes
 }
 
 /// Says of a datagram from the server whether it is lost on the way.
@@ -583,6 +624,7 @@ impl Client {
             let place = usize::from(prepare.proposal.place);
             if place == options.players.len() {
                 options.players.push(prepare.profile.clone());
+                self.sim.profile_items.push(prepare.profile.items.len());
                 self.sim.players = options.players.len();
                 self.sim.player_states.resize(self.sim.players, None);
                 self.sim.player_tails.resize(self.sim.players, None);
@@ -943,6 +985,13 @@ impl Client {
                 return;
             }
         };
+        if let Some(options) = &self.model.options {
+            self.sim.profile_items = options
+                .players
+                .iter()
+                .map(|profile| profile.items.len())
+                .collect();
+        }
         match &taken.message {
             ServerMessage::Ports { min, max } => {
                 // One probe for each port of the range.
