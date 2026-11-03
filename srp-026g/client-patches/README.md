@@ -4146,3 +4146,19 @@ These guards also cover item bodies whose format cannot be walked statically.
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
 checks invalid/empty tables at all four stack alignments (84 cases). The i686
 patch crate's 119 tests and Clippy pass. No release revision is reserved.
+
+## Match-message checks (patch 95, unreleased)
+
+Before dispatching a server message, the client checks fixed lengths, player
+indices, relayed input numbers and compressed-output bounds with `srp-validate`.
+A refusal consumes the payload and leaves the match through the existing dispatch
+exit. Valid messages follow the original dispatch table. The hook precedes the
+id subtraction, avoiding the table jump's base relocation.
+
+This checks the 0xE4 envelope and late-join proposal header; the existing late-join
+validator still checks its profile. It does not yet connect the shared static
+options parser to the decompressed 0xE4 reader. The server does not emit 0xED/0xEE
+batch inputs; those remain refused, as in the source PR.
+
+Validation: 112 native dispatch cases, 119 i686 patch tests, current server encoder
+regressions (including Blackout, late join and pickup commands), and Clippy.

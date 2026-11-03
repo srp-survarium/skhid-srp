@@ -96,3 +96,10 @@ Patch 94 ports the FSM, anomaly and artefact guards to generated lohooks, typed
 fields and the current `vostok` boundary. It is independent of runtime message
 and semantic-world enforcement. The checked stock instructions confirm the FSM's
 ESI/EDI and two stack inputs; the re-kit records that stronger ABI evidence.
+
+## Client message enforcement
+
+Patch 95 connects the shared envelope/input checks at the native dispatch. It
+preserves the late-join profile validator and runs before id subtraction rather
+than overwriting the dispatch table's relocation. The separate static-options
+parser remains library-only, matching the source PR's integration scope.

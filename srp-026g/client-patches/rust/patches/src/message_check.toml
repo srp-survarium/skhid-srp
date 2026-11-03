@@ -1,0 +1,6 @@
+name = "message_check"
+patch = 95
+
+[[hook]]
+site = "match_dispatch.message"
+handler = "on_message"

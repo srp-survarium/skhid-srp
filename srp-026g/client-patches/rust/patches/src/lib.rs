@@ -68,3 +68,5 @@ pub mod drug_interrupt;
 pub mod weapon_pickup;
 
 pub mod deserialize_guards;
+
+pub mod message_check;
