@@ -6,6 +6,8 @@
 //! slices are [`Who::Shared`], and outside a poll nothing is counted (the tally's own rays are not the bots').
 
 use std::cell::Cell;
+use std::cell::RefCell;
+use std::time::Instant;
 
 /// Whose work is being done.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,6 +65,54 @@ pub fn add(work: Work, n: u64) {
 /// The counts so far on this thread.
 pub fn totals() -> Totals {
     TOTALS.with(Cell::get)
+}
+
+thread_local! {
+    static SPANS_ON: Cell<bool> = const { Cell::new(false) };
+    static SPANS: RefCell<Vec<(&'static str, f32)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// [A276] A named stretch of a poll's work, timed while spans are on ([`spans_on`]) for the bench's spike lines: its time
+/// is kept when it ends ([`Span::end`]). Timing only; nothing the bots do reads it.
+pub struct Span {
+    name: &'static str,
+    started: Option<Instant>,
+}
+
+impl Span {
+    pub fn new(name: &'static str) -> Self {
+        Self { name, started: SPANS_ON.with(Cell::get).then(Instant::now) }
+    }
+
+    pub fn end(self) {
+        if let Some(started) = self.started {
+            let us = started.elapsed().as_secs_f32() * 1e6;
+            SPANS.with(|spans| spans.borrow_mut().push((self.name, us)));
+        }
+    }
+}
+
+/// Spans are timed from now on (`true`) or not.
+pub fn spans_on(on: bool) {
+    SPANS_ON.with(|o| o.set(on));
+}
+
+/// The spans timed since the last take, by name: (name, how many, µs in all, the longest µs), the most µs first.
+pub fn take_spans() -> Vec<(&'static str, u32, f32, f32)> {
+    let spans = SPANS.with(|spans| std::mem::take(&mut *spans.borrow_mut()));
+    let mut by_name: Vec<(&'static str, u32, f32, f32)> = Vec::new();
+    for (name, us) in spans {
+        match by_name.iter_mut().find(|row| row.0 == name) {
+            Some(row) => {
+                row.1 += 1;
+                row.2 += us;
+                row.3 = row.3.max(us);
+            }
+            None => by_name.push((name, 1, us, us)),
+        }
+    }
+    by_name.sort_by(|a, b| b.2.total_cmp(&a.2));
+    by_name
 }
 
 #[cfg(test)]

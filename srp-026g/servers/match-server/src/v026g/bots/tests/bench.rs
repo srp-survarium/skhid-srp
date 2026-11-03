@@ -605,6 +605,10 @@ struct BotSpan {
 pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, Vec<Note>) {
     use std::time::Instant;
     let spike = spike_us();
+    if spike.is_some() {
+        super::bench_work::spans_on(true);
+        super::bench_work::take_spans();
+    }
     let started = Instant::now();
     let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
@@ -718,6 +722,12 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
             us(parts[2] + parts[3] - in_bots),
             work_text(std::array::from_fn(|k| loop_work[k] - bots_work[k])),
         );
+        let timed: Vec<String> = super::bench_work::take_spans()
+            .iter()
+            .take(12)
+            .map(|(name, n, us, worst)| format!("{name} x{n} {us:.0} µs (longest {worst:.0})"))
+            .collect();
+        eprintln!("  A276 spans: {}", timed.join("; "));
         spans.sort_by(|a, b| (b.think_us + b.ticks_us).total_cmp(&(a.think_us + a.ticks_us)));
         for span in spans.iter().take(4) {
             eprintln!(

@@ -621,6 +621,8 @@ impl Bots {
             }
             None => view,
         };
+        #[cfg(test)]
+        let span = super::bench_work::Span::new("cmd.setup");
         let tuning = self.tuning_of(team);
         let now = view.clock;
         let state = &mut self.teams[usize::from(team)];
@@ -650,6 +652,10 @@ impl Bots {
             .iter()
             .map(|t| now.saturating_sub(t.time) as f32 / 1000.0)
             .fold(1e6, f32::min);
+        #[cfg(test)]
+        span.end();
+        #[cfg(test)]
+        let span = super::bench_work::Span::new("cmd.signals");
         state.signals = MatchSignals::read(view, team, since_theft);
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets
@@ -666,6 +672,10 @@ impl Bots {
                 ),
             });
         }
+        #[cfg(test)]
+        span.end();
+        #[cfg(test)]
+        let span = super::bench_work::Span::new("cmd.partners");
         // Partners for play 21: the team's bots two by two (pairs, play
         // 25); an odd one out partners its nearest living teammate bot one
         // way, so a third bot too trades its partner's death.
@@ -741,6 +751,10 @@ impl Bots {
             .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
             .collect();
         self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
+        #[cfg(test)]
+        span.end();
+        #[cfg(test)]
+        let span = super::bench_work::Span::new("cmd.humans");
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots
@@ -751,6 +765,10 @@ impl Bots {
         self.teams[usize::from(team)]
             .knowledge
             .learn_humans_as(team, view, tracks, now, self.bench_enemy_human_lanes(team));
+        #[cfg(test)]
+        span.end();
+        #[cfg(test)]
+        let span = super::bench_work::Span::new("cmd.threat");
         // Where a shooter kills from, and the regions his line covers
         // (K1).
         if tuning.threat.spots {
@@ -761,6 +779,8 @@ impl Bots {
             let camper = None;
             threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes, &self.features.weapons);
         }
+        #[cfg(test)]
+        span.end();
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();
@@ -814,7 +834,11 @@ impl Bots {
                 memo: &self.memo,
             };
             let mut candidates = Vec::new();
+            #[cfg(test)]
+            let span = super::bench_work::Span::new("cmd.candidates (a bot)");
             plays::candidates(&cx, &mut candidates);
+            #[cfg(test)]
+            span.end();
             #[cfg(test)]
             if let Some(a) = bot.assignment.as_ref()
                 && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
@@ -882,14 +906,19 @@ impl Bots {
             .filter_map(|&(place, _, _)| self.bots.get(place)?.as_ref()?.partner.map(|partner| (place, partner)))
             .collect();
         let gang = tuning.threat.gang_rule().map(|rule| team::GangUp { rule, partners: &partners, tally: &tactics.gang_tally });
-        for (place, assignment, changed) in team::assign_trapped(
+        #[cfg(test)]
+        let span = super::bench_work::Span::new("cmd.assign");
+        let assigned = team::assign_trapped(
             asking,
             now,
             gap,
             &given_up,
             &shaky,
             team::Pass { gang: gang.as_ref(), held_in_pass: tuning.commit.held_in_pass },
-        ) {
+        );
+        #[cfg(test)]
+        span.end();
+        for (place, assignment, changed) in assigned {
             let Some(me) = view.place(place) else {
                 continue;
             };
@@ -984,6 +1013,8 @@ impl Bots {
                 memo: &self.memo,
             };
             let mut rng = bot.rng.clone();
+            #[cfg(test)]
+            let span = super::bench_work::Span::new("cmd.start (a play)");
             let running = plays::start(
                 assignment.kind,
                 assignment.target,
@@ -991,6 +1022,8 @@ impl Bots {
                 &cx,
                 &mut rng,
             );
+            #[cfg(test)]
+            span.end();
             // A Crossfire on an enemy's last known place keeps the place
             // when the memory forgets him (`commit.crossfire_point`).
             let held_choke = match (assignment.kind, assignment.target) {

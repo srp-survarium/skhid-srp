@@ -1357,33 +1357,44 @@ impl Running {
 }
 
 /// Every play's candidates for the bot.
+/// [A276] A play's candidates, timed in test builds for the bench's spike lines ([`super::bench_work::Span`]).
+macro_rules! offer {
+    ($name:literal, $call:expr) => {{
+        #[cfg(test)]
+        let span = super::bench_work::Span::new($name);
+        $call;
+        #[cfg(test)]
+        span.end();
+    }};
+}
+
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     #[cfg(test)]
     let scored_before = out.len();
-    roam::candidates(cx, out);
-    collect::candidates(cx, out);
-    ambush::candidates(cx, out);
-    intercept::candidates(cx, out);
-    escort::candidates(cx, out);
-    sneak::candidates(cx, out);
-    flank::candidates(cx, out);
-    crossfire::candidates(cx, out);
-    retreat::candidates(cx, out);
-    cover_human::candidates(cx, out);
-    pair_up::candidates(cx, out);
-    hold_exit::candidates(cx, out);
-    late_denial::candidates(cx, out);
-    guard_lead::candidates(cx, out);
-    trade::candidates(cx, out);
-    heal::candidates(cx, out);
-    hunt::candidates(cx, out);
-    station::candidates(cx, out);
-    raid::candidates(cx, out);
-    buddy::candidates(cx, out);
-    cut::candidates(cx, out);
-    resupply::candidates(cx, out);
-    answer::candidates(cx, out);
-    breach::candidates(cx, out);
+    offer!("cand.roam", roam::candidates(cx, out));
+    offer!("cand.collect", collect::candidates(cx, out));
+    offer!("cand.ambush", ambush::candidates(cx, out));
+    offer!("cand.intercept", intercept::candidates(cx, out));
+    offer!("cand.escort", escort::candidates(cx, out));
+    offer!("cand.sneak", sneak::candidates(cx, out));
+    offer!("cand.flank", flank::candidates(cx, out));
+    offer!("cand.crossfire", crossfire::candidates(cx, out));
+    offer!("cand.retreat", retreat::candidates(cx, out));
+    offer!("cand.cover_human", cover_human::candidates(cx, out));
+    offer!("cand.pair_up", pair_up::candidates(cx, out));
+    offer!("cand.hold_exit", hold_exit::candidates(cx, out));
+    offer!("cand.late_denial", late_denial::candidates(cx, out));
+    offer!("cand.guard_lead", guard_lead::candidates(cx, out));
+    offer!("cand.trade", trade::candidates(cx, out));
+    offer!("cand.heal", heal::candidates(cx, out));
+    offer!("cand.hunt", hunt::candidates(cx, out));
+    offer!("cand.station", station::candidates(cx, out));
+    offer!("cand.raid", raid::candidates(cx, out));
+    offer!("cand.buddy", buddy::candidates(cx, out));
+    offer!("cand.cut", cut::candidates(cx, out));
+    offer!("cand.resupply", resupply::candidates(cx, out));
+    offer!("cand.answer", answer::candidates(cx, out));
+    offer!("cand.breach", breach::candidates(cx, out));
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
 }
