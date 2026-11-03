@@ -84,7 +84,29 @@ fn boxes() -> bool {
 /// `SRP_BENCH_EMPTY_RELOAD=off`: an emptied weapon waits for a key to reload
 /// (the stand-in before A277), not the client's reload at the clip's end.
 fn empties_reload() -> bool {
-    !bench_settings().var("SRP_BENCH_EMPTY_RELOAD").is_ok_and(|v| v == "off")
+    !OLD_RELOAD.get() && !bench_settings().var("SRP_BENCH_EMPTY_RELOAD").is_ok_and(|v| v == "off")
+}
+
+thread_local! {
+    /// A test whose counts were pinned before the emptying shot's reload holds an [`OldEmptyReload`].
+    static OLD_RELOAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The stand-in's weapons without the emptying shot's reload for this thread
+/// while it lives (the pinned soaks of `eye.rs`).
+pub(crate) struct OldEmptyReload(());
+
+impl OldEmptyReload {
+    pub(crate) fn scope() -> Self {
+        OLD_RELOAD.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldEmptyReload {
+    fn drop(&mut self) {
+        OLD_RELOAD.set(false);
+    }
 }
 
 /// How long a use of the box takes, ms: the edge tick and 60 ticks of 50 ms
