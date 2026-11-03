@@ -584,7 +584,7 @@ impl Bots {
         let mut kept = false;
         let (from, to) = pending.ends;
         // [take.cross_from_zone] The team's tuning asks a crossing's search from a zone floor.
-        let from_zone_on = team.is_some_and(|team| self.tunings.of(team).take.cross_from_zone.is_some());
+        let from_zone_on = self.tunings.of(team).take.cross_from_zone.is_some();
         let long_kept = self
             .bots
             .get(pending.place)
