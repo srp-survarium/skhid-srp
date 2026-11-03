@@ -55,7 +55,10 @@ package survarium.controls
 
       public static function pocketUnits(category:uint, size:Number, base:int = -1) : int
       {
-         var units:int = size == QuickSlotSize.WHOLE ? 1 : (base < 0 ? pocketSize : base);
+         // Boosters share category 10 with drugs, but fill a whole pocket.
+         if(size == QuickSlotSize.WHOLE)
+            return 1;
+         var units:int = base < 0 ? pocketSize : base;
          return Math.max(0,Math.min(MAX_POCKET_UNITS,units + (additionalMedicine && category == ItemCategory.MEDKITS ? 1 : 0)));
       }
       
