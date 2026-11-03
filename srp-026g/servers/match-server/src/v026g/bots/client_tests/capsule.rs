@@ -33,6 +33,12 @@ const VECTOR_TOP: Spot = Spot::at(59.8, 26.1, -22.3);
 const KURGAN_FOOT: Spot = Spot::at(-2.9, 27.9, 106.4);
 const KURGAN_BOULDER: Spot = Spot::at(-2.9, 29.6, 105.4);
 const KURGAN_TOP: Spot = Spot::at(-2.9, 30.35, 104.9);
+/// The way to each start spot in plain words (the game shows no marker; the runner's chat says how far and which way).
+const VOSTOK_WAY: &str = "the slope up against the east face of the long 3.8 m concrete block, just east of the big octagonal building";
+const VECTOR_WAY: &str = "the upper floor of the room just west of your spawn room; the 1 m face is just east of the marker";
+const KURGAN_WAY: &str = "the 1.5 m cliff with a boulder leaning on it, about 40 m from your spawn; the foot is on its north side";
+/// A watching step starts after its time wherever he stands; the chat guides him to within this of the spot.
+const WATCH_M: f32 = 6.0;
 
 /// A body this far (flat) from the edge is at it.
 const NEAR_M: f32 = 4.0;
@@ -159,6 +165,7 @@ pub fn steps() -> Vec<Step> {
             "From the marker walk west up the ramp into the edge of the block, holding forward, never jumping; back down and again: 5 times.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the marker on the ramp", holds: |f, _| owner_near(f, VOSTOK_FOOT, 3.0) })])
+        .mark(Mark::Spot { at: VOSTOK_FOOT, r_m: 3.0, landmark: VOSTOK_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: VOSTOK_EDGE, r_m: 25.0 }])
         .measure(Measure::Custom { names: WALK_NAMES, make: vostok_owner })
         .bar("walked_ups", Test::AtLeast(1.0))
@@ -174,6 +181,7 @@ pub fn steps() -> Vec<Step> {
         .setup(Who::Nth(Side::Mates, 0), walk_bot(VOSTOK_LANE))
         .setup(Who::Nth(Side::Mates, 1), walk_bot(VOSTOK_LANE))
         .start(&[Cond::After(Span::s(20))])
+        .mark(Mark::Spot { at: VOSTOK_FOOT, r_m: WATCH_M, landmark: VOSTOK_WAY })
         .end(&[End::OwnerDied])
         .measure(Measure::Custom { names: WALK_NAMES, make: vostok_mates })
         .bar("walked_ups", Test::AtLeast(1.0))
@@ -188,6 +196,7 @@ pub fn steps() -> Vec<Step> {
             "From the marker walk east into the 1 m ledge, holding forward, never jumping, 5 times; you should not get up.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the marker", holds: |f, _| owner_near(f, VECTOR_FOOT, 3.0) })])
+        .mark(Mark::Spot { at: VECTOR_FOOT, r_m: 3.0, landmark: VECTOR_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: VECTOR_EDGE, r_m: 20.0 }])
         .measure(Measure::Custom { names: WALK_NAMES, make: vector_owner })
         .bar("walked_ups", Test::AtMost(0.0))
@@ -200,6 +209,7 @@ pub fn steps() -> Vec<Step> {
             "From the marker at the cliff's foot walk up over the boulder onto the top, never jumping; back down and again: 5 times.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the marker at the cliff's foot", holds: |f, _| owner_near(f, KURGAN_FOOT, 3.0) })])
+        .mark(Mark::Spot { at: KURGAN_FOOT, r_m: 3.0, landmark: KURGAN_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: KURGAN_BOULDER, r_m: 25.0 }])
         .measure(Measure::Custom { names: WALK_NAMES, make: kurgan_owner })
         .bar("walked_ups", Test::AtLeast(1.0))

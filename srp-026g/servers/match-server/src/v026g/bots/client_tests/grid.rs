@@ -34,6 +34,17 @@ const RIM: Spot = Spot::at(97.6, 29.2, 136.3);
 const COLOGNE_1: Spot = Spot::at(3.3, 35.4, 32.2);
 const COLOGNE_2: Spot = Spot::at(-13.7, 35.0, 38.0);
 const RUDNYA_1: Spot = Spot::at(-18.7, 12.7, -20.3);
+/// The way to each start spot in plain words (the game shows no marker; the runner's chat says how far and which way).
+const LINK_A_WAY: &str = "the upper floor of the room just west of your spawn room, at the 1 m step up";
+const STEP_WAY: &str = "a low 0.6 m step on the ground floor of the block east of the big round hall";
+const RIM_WAY: &str = "the rim of the spawn deck at the east end of the map, about 135 m from your spawn (team 1's side)";
+const WALL_WAY: &str = "the low wall strip at the west edge of team 1's spawn building, at the east end, about 160 m from your spawn";
+const LEDGE_WAY: &str = "ground level north of the western long loading building, by the narrow block in line with it";
+const COLOGNE_1_WAY: &str = "the middle of the map between the two long rows of dark wagons, at a low step";
+const COLOGNE_2_WAY: &str = "a small hollow between moss lumps on the north side of the northern row of wagons";
+const RUDNYA_1_WAY: &str = "the pond in the middle, its south-west part, by the small dark block in the water; a 1.6 m climb there";
+/// A watching step starts after its time wherever he stands; the chat guides him to within this of the spot.
+const WATCH_M: f32 = 6.0;
 
 /// A jump is up when the feet are this much below the rise higher than the press 1.5 s later: 0.2 m.
 const SLACK_M: f32 = 0.2;
@@ -336,6 +347,7 @@ pub fn steps() -> Vec<Step> {
             "Stand at the marked spot on the upper floor and jump to the marker above it from a walk (forward + jump), 3 times.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the marked spot", holds: |f, _| near_flat(f, LINK_A, 3.0) })])
+        .mark(Mark::Spot { at: LINK_A, r_m: 3.0, landmark: LINK_A_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: LINK_A, r_m: 20.0 }])
         .measure(Measure::Custom { names: JUMP_NAMES, make: link_a_owner })
         .budget_s(90)
@@ -346,6 +358,7 @@ pub fn steps() -> Vec<Step> {
             "Same spot, same marker above: now from a sprint (sprint + jump), 3 times.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the marked spot", holds: |f, _| near_flat(f, LINK_A, 3.0) })])
+        .mark(Mark::Spot { at: LINK_A, r_m: 3.0, landmark: LINK_A_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: LINK_A, r_m: 20.0 }])
         .measure(Measure::Custom { names: JUMP_NAMES, make: link_a_owner })
         .budget_s(90)
@@ -356,6 +369,7 @@ pub fn steps() -> Vec<Step> {
             "Walk up the low step at the marker without jumping.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the foot of the step", holds: |f, _| near_flat(f, STEP_FOOT, 3.0) })])
+        .mark(Mark::Spot { at: STEP_FOOT, r_m: 3.0, landmark: STEP_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: STEP_FOOT, r_m: 15.0 }])
         .measure(Measure::Custom { names: &["reached_top", "jumps"], make: StepWalk::make })
         .bar("reached_top", Test::AtLeast(1.0))
@@ -371,6 +385,7 @@ pub fn steps() -> Vec<Step> {
         .setup(Who::Nth(Side::Mates, 0), walk_bot(LINK_A_LANE))
         .setup(Who::Nth(Side::Mates, 1), walk_bot(LINK_A_LANE))
         .start(&[Cond::After(Span::s(20))])
+        .mark(Mark::Spot { at: LINK_A, r_m: WATCH_M, landmark: LINK_A_WAY })
         .end(&[End::OwnerDied])
         .measure(Measure::Custom { names: JUMP_NAMES, make: link_a_mates })
         .bar("up_share", Test::AtLeast(0.8))
@@ -386,6 +401,7 @@ pub fn steps() -> Vec<Step> {
         .setup(Who::Nth(Side::Mates, 0), walk_bot(STEP_LANE))
         .setup(Who::Nth(Side::Mates, 1), walk_bot(STEP_LANE))
         .start(&[Cond::After(Span::s(20))])
+        .mark(Mark::Spot { at: STEP_FOOT, r_m: WATCH_M, landmark: STEP_WAY })
         .end(&[End::OwnerDied])
         .measure(Measure::Custom { names: JUMP_NAMES, make: step_mates })
         // The rise is 0.62: a bot presses no jump for it (the cap), so the presses near the step are 0 or the ones that got up.
@@ -397,9 +413,10 @@ pub fn steps() -> Vec<Step> {
         Step::new(
             "grid-kurgan-rim",
             Group::new(MAMAYEV_KURGAN, TEAM_DEATHMATCH),
-            "Walk off the rim of your spawn deck at the marker and stand where you land.",
+            "Walk off the rim of the spawn deck at the marker (the chat says where) and stand where you land.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the rim", holds: |f, _| near_flat(f, RIM, 3.0) })])
+        .mark(Mark::Spot { at: RIM, r_m: 3.0, landmark: RIM_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: RIM, r_m: 25.0 }])
         .measure(Measure::Custom { names: &["fell", "landing_y"], make: RimMeter::make })
         .budget_s(60)
@@ -411,6 +428,7 @@ pub fn steps() -> Vec<Step> {
             "At the marked wall, jump from a walk (forward + jump, no sprint) 0.5 m before its face, then 1.0, 1.5 and 2.0 m: 5 times each.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the wall", holds: |f, _| near_flat(f, Spot::at(WALL_XZ.0, 0.0, WALL_XZ.1), 5.0) })])
+        .mark(Mark::Flat { x: WALL_XZ.0, z: WALL_XZ.1, r_m: 5.0, landmark: WALL_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: Spot::at(WALL_XZ.0, 0.0, WALL_XZ.1), r_m: 25.0 }])
         .measure(Measure::Custom { names: JUMP_NAMES, make: wall_owner })
         .budget_s(180)
@@ -421,6 +439,7 @@ pub fn steps() -> Vec<Step> {
             "At the marked ledge (rise 0.96), jump from a walk 0.5 m before its face, then 1.0, 1.5 and 2.0 m: 5 times each.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are at the ledge", holds: |f, _| near_flat(f, LEDGE, 5.0) })])
+        .mark(Mark::Spot { at: LEDGE, r_m: 5.0, landmark: LEDGE_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: LEDGE, r_m: 25.0 }])
         .measure(Measure::Custom { names: JUMP_NAMES, make: ledge_owner })
         .budget_s(180)
@@ -432,6 +451,7 @@ pub fn steps() -> Vec<Step> {
             "Walk to the first marker and a few metres past it, and back; say what stops you, if anything.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are within 8 m of the marker", holds: |f, _| near_flat(f, COLOGNE_1, 8.0) })])
+        .mark(Mark::Spot { at: COLOGNE_1, r_m: 8.0, landmark: COLOGNE_1_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: COLOGNE_1, r_m: 25.0 }])
         .measure(block_measure(block_cologne_1))
         .budget_s(90)
@@ -442,6 +462,7 @@ pub fn steps() -> Vec<Step> {
             "Now the second marker: walk to it and a few metres past it, and back; say what stops you, if anything.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are within 8 m of the marker", holds: |f, _| near_flat(f, COLOGNE_2, 8.0) })])
+        .mark(Mark::Spot { at: COLOGNE_2, r_m: 8.0, landmark: COLOGNE_2_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: COLOGNE_2, r_m: 25.0 }])
         .measure(block_measure(block_cologne_2))
         .budget_s(90)
@@ -452,6 +473,7 @@ pub fn steps() -> Vec<Step> {
             "Walk to the marker and a few metres past it, and back; say what stops you, if anything.",
         )
         .start(&[Cond::Custom(WaitFor { describe: "you are within 8 m of the marker", holds: |f, _| near_flat(f, RUDNYA_1, 8.0) })])
+        .mark(Mark::Spot { at: RUDNYA_1, r_m: 8.0, landmark: RUDNYA_1_WAY })
         .end(&[End::OwnerDied, End::OwnerLeft { at: RUDNYA_1, r_m: 25.0 }])
         .measure(block_measure(block_rudnya))
         .budget_s(90)
