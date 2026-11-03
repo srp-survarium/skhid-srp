@@ -91,33 +91,18 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   behind that owner instead of exposing competing ways to bypass it. Verify initialization,
   transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
   the lifecycle rules of an external engine.
-- For Rust changes, run the affected crates' tests and `cargo clippy -p <crate> --all-targets`
-  under `nix develop`. Run workspace Clippy when shared APIs, workspace configuration or
-  dependencies affect multiple crates; a prose-only Rust string change needs only its page or
-  behavior tests and crate Clippy.
+- For Rust changes, test and lint affected crates under `nix develop`; use workspace Clippy
+  only when shared APIs, configuration or dependencies affect multiple crates.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
 
 ## Checks while iterating and before a PR
 
-- Choose checks by the files and behavior changed, including their affected consumers. The same
-  scope rule applies before committing, pushing and opening a PR: a PR does not itself require
-  a full repository run. Do not run unrelated suites merely because they are available.
-- Shell launchers and setup instructions: run shell syntax/lint checks and the launcher tests;
-  run packaging tests when packaged files or launch commands change. Do not build or emulate
-  the game executable for shell-only or documentation changes.
-- Web text or presentation: run the affected page tests and crate Clippy when Rust files change.
-  Do not run unrelated server, gameplay or executable suites for page-copy changes.
-- Executable patches: run the patch's own Unicorn check and named self-tests (plus the
-  equivalence gate while porting). Run the whole `selftest_026g.py` across build variants and
-  all Unicorn checks only when shared patch/linker/hook infrastructure changes can affect them,
-  or for release validation. Changes to world save/load also run `check_world_roundtrip_026g.py`.
-- Rust behavior: test and lint the affected crates; include consumer tests for changed shared
-  APIs. Flash changes use the movie's own Ruffle harness. Content changes run
-  `release/build-content`.
-- Broaden checks only for a concrete dependency, failure or unresolved concern. After relevant
-  checks pass, proceed; do not repeat them unless the code, inputs or environment changed.
-- Report exactly what passed and what was not run. If an unrelated failure is discovered,
-  establish whether it predates the change and disclose it; do not expand the PR into fixing
-  unrelated code or block review on it. A failing check relevant to the change must be resolved
-  or explicitly agreed with the owner before pushing.
+- Run checks for changed behavior and its affected consumers, also before pushing or opening
+  a PR. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated server tests.
+- Use the patch's own self-tests and Unicorn check, affected crate tests/Clippy, or the movie's
+  Ruffle harness. World save/load changes also need `check_world_roundtrip_026g.py`; content
+  changes need `release/build-content`. Reserve full suites for shared infrastructure changes
+  that affect them or release validation.
+- Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
+  relevant changes. Report validation limits and pre-existing failures without expanding the PR.
