@@ -529,6 +529,24 @@ impl NetworkClient {
     pub unsafe fn set_options_holder(self, value: Option<MatchOptionsHolder>) {
         unsafe { self.0.byte_add(0x1f1c48).cast::<Option<MatchOptionsHolder>>().write_volatile(value) }
     }
+
+    /// +0x1f1c40 (ptr<survarium::pvp_match>): the live match wrapper, process_dynamic_match_info 0x27C0FF; core at +1F8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pvp_match(self) -> Option<PvpMatch> {
+        unsafe { self.0.byte_add(0x1f1c40).cast::<Option<PvpMatch>>().read_volatile() }
+    }
+
+    /// +0x1f1c40 (ptr<survarium::pvp_match>): the live match wrapper, process_dynamic_match_info 0x27C0FF; core at +1F8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pvp_match(self, value: Option<PvpMatch>) {
+        unsafe { self.0.byte_add(0x1f1c40).cast::<Option<PvpMatch>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::match_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -6033,6 +6051,42 @@ impl CoreWorld {
     pub unsafe fn active_places(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x18fd8).cast::<u32>().as_ptr() }
     }
+
+    /// +0x18824 (ptr<survarium::rule_entry>): owned rule pointer vector, world serialization and Research's rule lookup
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rules_begin(self) -> Option<RuleEntry> {
+        unsafe { self.0.byte_add(0x18824).cast::<Option<RuleEntry>>().read_volatile() }
+    }
+
+    /// +0x18824 (ptr<survarium::rule_entry>): owned rule pointer vector, world serialization and Research's rule lookup
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_rules_begin(self, value: Option<RuleEntry>) {
+        unsafe { self.0.byte_add(0x18824).cast::<Option<RuleEntry>>().write_volatile(value) }
+    }
+
+    /// +0x18828 (ptr<survarium::rule_entry>): end of the rule pointer vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rules_end(self) -> Option<RuleEntry> {
+        unsafe { self.0.byte_add(0x18828).cast::<Option<RuleEntry>>().read_volatile() }
+    }
+
+    /// +0x18828 (ptr<survarium::rule_entry>): end of the rule pointer vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_rules_end(self, value: Option<RuleEntry>) {
+        unsafe { self.0.byte_add(0x18828).cast::<Option<RuleEntry>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10748,6 +10802,178 @@ impl GenericAnomalyCore {
     }
 }
 
+/// A survarium::rule_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RuleEntry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RuleEntry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::match_rule>): one rule pointer in the core's vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rule(self) -> Option<MatchRule> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MatchRule>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::match_rule>): one rule pointer in the core's vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_rule(self, value: Option<MatchRule>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MatchRule>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: stride of a rule pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::rule_entrys (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RuleEntryStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl RuleEntryStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> RuleEntry {
+        RuleEntry(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<RuleEntry> {
+        (!rooms.is_empty()).then(|| RuleEntry(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::match_rule (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchRule(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchRule {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): concrete rule class, constructors and world rule serialization
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10c (u32): base constructor writes its argument here at 0x31394F; Research passes type 5
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rule_type(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x110 (ptr<u8>): gather/vi_spawn rule battery pointer vector (0x313D10, 0x3149B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn batteries_begin(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x110).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x110 (ptr<u8>): gather/vi_spawn rule battery pointer vector (0x313D10, 0x3149B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_batteries_begin(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x110).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x114 (ptr<u8>): end of the gather/vi_spawn battery pointer vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn batteries_end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x114).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x114 (ptr<u8>): end of the gather/vi_spawn battery pointer vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_batteries_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x114).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x194 (u32): respawn rule group 0 count (0x316F49..0x316FB6)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn respawn0(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x194).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x198 (u32): respawn rule group 1 count
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn respawn1(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x198).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x19c (u32): respawn rule group 2 count
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn respawn2(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x19c).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -11123,6 +11349,30 @@ pub mod image {
 
     /// 0x9fd808 (u32, survarium::image): the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
     pub const INVENTORY_VARIANT_VTABLE: u32 = 0x9fd808;
+
+    /// 0xa06ab4 (u32, survarium::image): gather_victory_items_rule_core vtable
+    pub const GATHER_RULE_VTABLE: u32 = 0xa06ab4;
+
+    /// 0xa15b04 (u32, survarium::image): client gather rule vtable
+    pub const GATHER_CLIENT_RULE_VTABLE: u32 = 0xa15b04;
+
+    /// 0xa06c04 (u32, survarium::image): vi_spawn_rule_core vtable
+    pub const VI_SPAWN_RULE_VTABLE: u32 = 0xa06c04;
+
+    /// 0xa15cac (u32, survarium::image): client vi_spawn rule vtable
+    pub const VI_SPAWN_CLIENT_RULE_VTABLE: u32 = 0xa15cac;
+
+    /// 0xa06cbc (u32, survarium::image): tdm_rule_core vtable
+    pub const TDM_RULE_VTABLE: u32 = 0xa06cbc;
+
+    /// 0xa15da4 (u32, survarium::image): client tdm rule vtable
+    pub const TDM_CLIENT_RULE_VTABLE: u32 = 0xa15da4;
+
+    /// 0xa06d1c (u32, survarium::image): respawn_rule_core vtable
+    pub const RESPAWN_RULE_VTABLE: u32 = 0xa06d1c;
+
+    /// 0xa16084 (u32, survarium::image): client respawn rule vtable
+    pub const RESPAWN_CLIENT_RULE_VTABLE: u32 = 0xa16084;
 }
 
 /// A general-purpose register at a hook's site.

@@ -495,7 +495,13 @@ def main():
     parser.add_argument("worlds", nargs="*", default=[WORLDS], help="dumps, or folders of them")
     parser.add_argument("--exe", dest="built", help="a built exe to run instead of this tree's build")
     parser.add_argument("--show", type=int, default=10, help="failures shown per game (default 10)")
+    parser.add_argument("--contexts", help="srp-validate drift_dump TSV for a corpus other than the historical TDM fixtures")
     args = parser.parse_args()
+    contexts = {}
+    if args.contexts:
+        for row in open(args.contexts):
+            file,now,mode,batteries,points,_ = row.rstrip().split('\t')
+            contexts[os.path.basename(file)] = tuple(map(int,(mode,batteries,points)))
     started = time.time()
     original = open(args.exe, "rb").read()
     if args.built:
@@ -522,6 +528,8 @@ def main():
         failures = []
         for name, now, body in loaded:
             game = resync if what == "resync" else games[what]()
+            if args.contexts:
+                game.validation_context = contexts[name]
             failures += round_trip(game, name, now, body)
         for _, _, _, line in failures[:args.show]:
             print(f"  FAIL  {what}: {line}")

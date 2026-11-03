@@ -103,3 +103,16 @@ Patch 95 connects the shared envelope/input checks at the native dispatch. It
 preserves the late-join profile validator and runs before id subtraction rather
 than overwriting the dispatch table's relocation. The separate static-options
 parser remains library-only, matching the source PR's integration scope.
+
+## Client world enforcement
+
+Patch 87's existing hooks now enforce the shared semantic checks, preserving
+pickup preparation and framing ownership. Native rule parameters are read once
+into values; Research uses its native type 5 rather than an arena address.
+The context rejects duplicate/missing mode or respawn rules and invalid vector
+bounds. Profiles, swapped inventories and authored object tables remain unknown.
+
+Validation includes both native load paths, 120 i686 patch tests and Clippy, plus
+the eight historical snapshots loaded/saved by three simulated client states.
+The emulator stubs OS calls and resource boundaries; this does not substitute
+for playing a release candidate. Nothing in this series has been deployed.

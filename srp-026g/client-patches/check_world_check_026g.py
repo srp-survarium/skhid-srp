@@ -1,43 +1,19 @@
 #!/usr/bin/env python3
-"""Run patch 87 (rust/patches/src/world_check.rs, its two lohooks of
-world_check.toml: a game parses every world it is sent before it loads it;
-../docs/notes/world_frame_check.md) in the default build, the original
-beside it.
+"""Exercise patch 87's shared semantic validator at both native world loads.
 
-    python check_world_check_026g.py <original survarium.exe> [--drift VERDICTS.tsv]
+    python check_world_check_026g.py ORIGINAL_EXE [--drift VERDICTS.tsv]
 
-Requires Python `unicorn`. The 0xE8 handler (process_dynamic_match_info
-0x27BFF0) runs from before each of its two loads to past it, on a made-up
-network client, game and frame: the load (game_world_core::deserialize
-0x2D0B70) and close_current_match (0x27A790) are stubs that record their
-arguments; kernel32's CreateFileA, WriteFile and CloseHandle (the log's
-import slots) stubs that record the line.
-
-- `world_load.raw` (0x27C0FF, the packet's reader in ESI) and
-  `world_load.unpacked` (0x27C0D0, the world in the frame's mutable buffer
-  at EBP-24h, the four arguments pushed): a world a game can load is loaded
-  in both builds with the same arguments, the reader the load gets the same,
-  EBX, ESI, EDI, EBP and ESP the same at 0x27C116; one it cannot is loaded by
-  the original and never by the patch, which calls close_current_match(the
-  client, 2) once, reads the packet's reader to its end (the raw world),
-  writes one line to srp_patches.log and reaches the handler's epilogue
-  0x27C1E0 with EBX, ESI, EDI and EBP as they were. The worlds: no players,
-  two at slots 0 and 19 (one animated), each section at its cap and one byte
-  over, a state at 0x1000 and one over, slot 20, cut short, a byte too many,
-  shorter than a time;
-- --drift: the drift test, the client build against the server build. The
-  file is the host build's verdicts (crate world-frame's example `verdicts`,
-  run on kept worlds: `cargo run --release -p world-frame --example verdicts
-  -- DIR... > VERDICTS.tsv` in srp-026g). Each world, as a game has it (its
-  time, then the body), and its 16 mutated copies (the body's byte at
-  len * k / 16 XOR 0xFF) go through the patched build's raw load, the world
-  through the unpacked one too, and each verdict must be the host's.
+Uses current player pickup records, statistics and rules. Valid snapshots preserve
+stock call arguments/registers; refusals consume the reader and close once. The
+host drift file is srp-validate's drift_dump (including inferred match context).
+Native deserialization/resource creation are stubbed: this is a boundary check,
+not evidence that a complete match or weapon resource cook succeeded.
 """
 import argparse
 import struct
 import sys
 
-from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
+from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
     UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP
 
@@ -68,16 +44,47 @@ class Run:
             start = base.IMAGE_BASE + rva
             emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
-        for at, size in ((CLIENT, 0x200000), (GAME, 0x1000), (READER, 0x1000), (WORLD, WORLD_ROOM),
+        for at, size in ((CLIENT, 0x200000), (GAME, 0x20000), (READER, 0x1000), (WORLD, WORLD_ROOM),
                          (STACK, STACK_ROOM), (STUBS, 0x1000)):
             emu.mem_map(at, size, UC_PROT_ALL)
         self.word(CLIENT + 0x1F1C40, GAME)
-        for slot, stub in ((CREATE_FILE, STUBS), (WRITE_FILE, STUBS + 0x10), (CLOSE_HANDLE, STUBS + 0x20)):
+        self.word(CLIENT, STUBS + 0x100)
+        self.word(STUBS + 0x150, STUBS + 0x80)
+        emu.hook_add(UC_HOOK_CODE, self.player_lookup, begin=STUBS + 0x80, end=STUBS + 0x80)
+        self.match_context()
+        for slot, stub in ((CREATE_FILE, STUBS), (WRITE_FILE, STUBS + 0x10), (CLOSE_HANDLE, STUBS + 0x20),
+                           (0x870118, STUBS + 0x30),  # GetCurrentThreadId, pickup cache's owner
+                           (0x8701B8, STUBS + 0x40)): # GetTickCount, pickup cache deadlines
             self.word(slot, stub)
-        for address in (LOAD, CLOSE, STUBS, STUBS + 0x10, STUBS + 0x20):
+        for address in (LOAD, CLOSE, STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=address, end=address)
         for address in (LOADED, EPILOGUE):
             emu.hook_add(UC_HOOK_CODE, self.stop, begin=address, end=address)
+
+    def match_context(self, mode=4, batteries=0, points=3):
+        table, rule, respawn = GAME+0x1a000, GAME+0x1b000, GAME+0x1c000
+        self.word(CORE+0x18824, table)
+        self.word(CORE+0x18828, table+8)
+        self.word(table, rule)
+        self.word(table+4, respawn)
+        self.word(rule, {2:0xA06AB4,3:0xA06C04,4:0xA06CBC,5:0xA06A54}[mode])
+        self.word(rule+0x10c, 5 if mode==5 else 0)
+        self.word(rule+0x110, table+0x100)
+        self.word(rule+0x114, table+0x100+batteries*4)
+        self.word(respawn, 0xA06D1C)
+        self.word(respawn+0x194, points)
+        self.word(respawn+0x198, 0)
+        self.word(respawn+0x19c, 0)
+
+    def player_lookup(self, emu, address, size, _):
+        # Pickup preparation still runs; this fixture has no loaded players
+        # or gun resources. Native cooking is tested by the pickup harness.
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        out = self.read(sp+4)
+        self.word(out, 0)
+        emu.reg_write(UC_X86_REG_EAX, out)
+        emu.reg_write(UC_X86_REG_ESP, sp+12)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -101,6 +108,11 @@ class Run:
             self.lines.append(bytes(emu.mem_read(args[1], args[2])))
             self.word(args[3], args[2])
             pops, result = 20, 1
+        elif address == STUBS + 0x30:        # GetCurrentThreadId
+            pops, result = 0, 1
+        elif address == STUBS + 0x40:        # GetTickCount
+            self.ticks = getattr(self, 'ticks', 0) + 100
+            pops, result = 0, self.ticks
         else:                               # CloseHandle
             pops, result = 4, 1
         emu.reg_write(UC_X86_REG_EAX, result)
@@ -116,7 +128,10 @@ class Run:
         for reg, value in regs.items():
             self.emu.reg_write(reg, value)
         self.emu.reg_write(UC_X86_REG_ESP, sp)
-        self.emu.emu_start(at, 0, count=20_000_000)
+        try:
+            self.emu.emu_start(at, 0, count=20_000_000)
+        except UcError as error:
+            raise RuntimeError(f"native execution at {self.emu.reg_read(UC_X86_REG_EIP):#x}") from error
         kept = {reg: self.emu.reg_read(reg) for reg in KEPT}
         return self.stopped, kept, self.emu.reg_read(UC_X86_REG_ESP)
 
@@ -171,28 +186,51 @@ def state(world, time=4500):
 # T = 0, no times, one float, not indexed: 69 bits, 9 bytes (world-frame's
 # test of animation_len).
 ANIMATION = bytes([0, 0, 0, 0, 0x08, 0, 0, 0, 0])
-EMPTY = [b""] * 6
+def sections(time=4500):
+    # Twenty current zero-event PlayerStatistics (40 bytes each), then tail.
+    statistics = bytes(40*20) + struct.pack('<HHBBBI',0,0,0,0,2,0)
+    # Timelimit, respawn (three points), TDM, 20 kd records, blackboard flags.
+    rules = struct.pack('<IIIB',0,time,0,3) + struct.pack('<II',0,42) + bytes(6)
+    rules += struct.pack('<HHII',100,100,0,0) + bytes(5*20) + b'\xff\xff'
+    effects = bytes(12) + struct.pack('<fI',1.0,0)
+    return [bytes(16), statistics, b'', b'', rules, effects]
+
+
+def player():
+    # Two kit bytes, version-8 empty pickup record, zero-item head and a
+    # native empty inventory header. Bodies after this header are opaque.
+    head = bytes(2) + b'\x08' + bytes(28) + bytes(27)
+    inventory = bytes(4) + b'\xff\xff' + bytes(29+5) + b'\xff\x00\x00\x00'
+    return head+inventory
 
 
 def cases():
-    """(what, the state, whether a game can load it)."""
-    small = [b"\x01" * 7, b"\x02" * 9, b"\x03" * 3, b"", b"\x05" * 11, b"\x06" * 2]
-    two = [(0, b"\xAB" * 33, None), (19, b"\xCD" * 40, ANIMATION)]
-    yield "no players", state(body([], small)), True
-    yield "slots 0 and 19, one animated", state(body(two, small)), True
-    for i, name in enumerate(("bullets", "statistics", "objects", "physics", "rules", "effects")):
-        for extra, ok in ((0, True), (1, False)):
-            sections = list(EMPTY)
-            sections[i] = bytes(CAPS[i] + extra)
-            yield f"{name} {'at its cap' if ok else 'one over'}", state(body(two[:1], sections)), ok
-    yield "a state at 0x1000", state(body([(3, bytes(STATE_CAP), None)], EMPTY)), True
-    yield "a state one over", state(body([(3, bytes(STATE_CAP + 1), None)], EMPTY)), False
-    yield "slot 20", state(body([(0, b"\xAB" * 33, None)], EMPTY, mask=1 | 1 << 20)), False
-    whole = state(body(two, small))
-    yield "cut short", whole[:-1], False
-    yield "a byte too many", whole + b"\x00", False
-    yield "the body without its time", body(two, small), False
-    yield "shorter than a time", b"\x01\x02\x03", False
+    small = sections()
+    two = [(0, player(), None), (19, player(), ANIMATION)]
+    yield 'no active players', state(body([],small)), True
+    yield 'slots 0 and 19, one animated', state(body(two,small)), True
+    whole = state(body(two,small))
+    for i,name in enumerate(('bullets','statistics','objects','physics','rules','effects')):
+        changed = list(small); changed[i] = bytes(CAPS[i]+1)
+        yield f'{name} over its native cap', state(body(two,changed)), False
+    big = player()+bytes(STATE_CAP-len(player()))
+    yield 'player at its cap with a valid head',state(body([(0,big,None)],small)),True
+    yield 'player over its cap',state(body([(0,big+b'\0',None)],small)),False
+    yield 'slot 20',state(body(two,small,mask=(1<<20)|1)),False
+    yield 'cut short',whole[:-1],False
+    yield 'trailing byte',whole+b'\0',False
+    yield 'missing time',b'\1\2\3',False
+    changed=list(small);changed[5]=bytes(20)
+    yield 'framed but unsafe effects',state(body([],changed)),False
+    changed=list(small);changed[3]=b'\0'
+    yield 'nonempty native physics',state(body([],changed)),False
+    yield 'time differs from timelimit',state(body([],small),4550),False
+    bad=bytearray(player());bad[2]=4
+    yield 'obsolete pickup record',state(body([(0,bad,None)],small)),False
+    changed=list(small);changed[0]+=b'LMP1'+struct.pack('<II',1,1)
+    yield 'current lamp history',state(body([],changed)),True
+    changed[0]=changed[0][:-1]
+    yield 'truncated lamp history',state(body([],changed)),False
 
 
 def compare(stock, ours, path, world, can_load):
@@ -231,7 +269,8 @@ def drift(ours, path):
     worlds = checks = 0
     differ = []
     for row in open(path):
-        file, time, wanted = row.rstrip("\n").split("\t")
+        file, time, mode, batteries, points, wanted = row.rstrip("\n").split("\t")
+        ours.match_context(int(mode), int(batteries), int(points))
         world = open(file, "rb").read()
         bodies = [world]
         for k in range(MUTATIONS):
@@ -242,7 +281,10 @@ def drift(ours, path):
         for k, (one, verdict) in enumerate(zip(bodies, wanted)):
             loads = ["raw", "unpacked"] if k == 0 else ["raw"]
             for load in loads:
-                stopped = getattr(ours, load)(state(one, int(time)))[0]
+                try:
+                    stopped = getattr(ours, load)(state(one, int(time)))[0]
+                except RuntimeError as error:
+                    raise RuntimeError(f"{file} copy {k} ({load}): {error}") from error
                 checks += 1
                 got = "0" if stopped == LOADED else "1" if stopped == EPILOGUE else "?"
                 if got != verdict:
@@ -266,6 +308,18 @@ def main():
             failed += bool(fails)
             verdict = "loaded" if can_load else "refused, the match left"
             print(f"  {'FAIL' if fails else 'ok'}  {path}: {what}: {verdict}" + "".join(f"\n      {f}" for f in fails))
+    for why, edit in [
+        ("missing respawn", lambda r: r.word(CORE+0x18828,GAME+0x1a000+4)),
+        ("duplicate mode", lambda r: r.word(GAME+0x1a000+4,GAME+0x1b000)),
+        ("unbounded rule list", lambda r: r.word(CORE+0x18828,GAME+0x1a000+65*4)),
+        ("unaligned rule list", lambda r: r.word(CORE+0x18828,GAME+0x1a000+9)),
+    ]:
+        ours.match_context(); edit(ours)
+        for path in ("raw","unpacked"):
+            fails=compare(stock,ours,path,state(body([],sections())),False)
+            failed+=bool(fails)
+            print(f"  {'FAIL' if fails else 'ok'}  {path}: {why}"+"".join(f"\n      {f}" for f in fails))
+    ours.match_context()
     if args.drift:
         worlds, checks, differ = drift(ours, args.drift)
         failed += len(differ)

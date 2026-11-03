@@ -4162,3 +4162,22 @@ batch inputs; those remain refused, as in the source PR.
 
 Validation: 112 native dispatch cases, 119 i686 patch tests, current server encoder
 regressions (including Blackout, late join and pickup commands), and Clippy.
+
+### Semantic world checks (extension of patch 87, unreleased)
+
+Both existing load hooks now use `srp-validate` for the player, bullet,
+statistics, rules, physics and effects checks. They read mode, battery count and
+respawn count from the live core's rule objects. Research is identified by its
+owned native rule type 5, so no relocated vtable address is hardcoded. Missing,
+duplicate or malformed rule context refuses the load.
+
+The shipped frame parser still owns framing, and patch 85 still prepares pickup
+resources after acceptance and before native deserialization. Unknown profile,
+inventory and map-object layouts are not guessed into restrictive bounds; the
+native per-object bounds remain at their readers. This is not a complete parser
+for every opaque native item body.
+
+`check_world_check_026g.py --drift <srp-validate drift_dump.tsv>` compares host and
+i686 verdicts using the same match context. `check_world_roundtrip_026g.py` keeps
+the historical TDM corpus; `--contexts <drift_dump.tsv>` supplies context for other
+corpora. Pickup-only fixtures now contain valid current snapshot sections.

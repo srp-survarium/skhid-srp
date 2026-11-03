@@ -4448,7 +4448,7 @@ va	name	location	role	basis
 0x0084b1c0		entry ESP+8		auto
 0x00102d10	vostok::resources::register_cook	EDI	the cook: its class at +8	observed
 0x00313900	survarium::game_match_rule_base::game_match_rule_base	EAX	this	observed
-0x00313900	survarium::game_match_rule_base::game_match_rule_base	entry ESP+4	game_match_rule_type (0 respawn, 1 gather, 2 timelimit, 3 kd, 4 tdm)	observed
+0x00313900	survarium::game_match_rule_base::game_match_rule_base	entry ESP+4	game_match_rule_type (0 respawn, 1 gather, 2 timelimit, 3 kd, 4 tdm; patch 53 passes 5 Research), stored at this+10Ch	observed
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	ECX	the cook	observed
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	entry ESP+4	query: +0 the match options, +0Ch the mode config's root	observed
 0x00316090	survarium::tdm_rule_core::on_event	entry ESP+4	the event type (0 match started, 1 a kill)	observed
