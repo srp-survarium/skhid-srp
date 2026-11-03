@@ -76,6 +76,15 @@ pub(crate) const RESPAWN_TDM_MS: u32 = 6_400;
 const SPAWN_FREE_M: f32 = 1.0;
 
 /// Whether a spawn goes onto a free point of the team's, as the game's respawn rule does (`SRP_BENCH_SPAWN_POINTS`, on unless `random`: the old draw).
+/// The highest rise the stand-in body walks up with no jump: the client's step (`startup.cfg` 0.80, the grid's
+/// `Body::step`), whatever the grid links. With `grid.capsule_steps` the grid's Walk links climb up to the capsule's edge
+/// step (0.96 m, `Body::walk_climb`), but the owner's client held walking bodies at those ledges for 5-16 s (A283: Vector
+/// Laboratory L1, Cologne C1, Vostok Radar Station V1; only bodies at a sprint got up, which the sprint lift models). A
+/// stand-in that walked them hid those holds from the bench (A286).
+pub(crate) fn client_step(grid: &mapdata::WalkGrid) -> f32 {
+    grid.body().step
+}
+
 pub(crate) fn spawn_on_free_points() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     !OLD_DRAW.get() && *ON.get_or_init(|| bench_settings().var("SRP_BENCH_SPAWN_POINTS").map_or(true, |v| v != "random"))
@@ -1312,9 +1321,10 @@ impl Game {
                     } else {
                         to
                     };
-                    // The rise a walk climbs is the grid's (with `capsule_steps`, the capsule's edge step).
+                    // The rise a walk climbs is the client's step ([`client_step`]), not the grid's: with `capsule_steps` the grid walks
+                    // 0.96 m ledges the client's body is held at (A286).
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        let slid = slide_supported(grid, node, body.feet, target, grid.body().walk_climb(), body::SUPPORT_M);
+                        let slid = slide_supported(grid, node, body.feet, target, client_step(grid), body::SUPPORT_M);
                         // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
                         let walls = self.walls.as_deref().filter(|_| stand_in_fall());
                         match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
@@ -1327,7 +1337,7 @@ impl Game {
                             None => slid,
                         }
                     } else {
-                        slide_capped(grid, node, body.feet, target, grid.body().walk_climb())
+                        slide_capped(grid, node, body.feet, target, client_step(grid))
                     };
                     // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
                     let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
