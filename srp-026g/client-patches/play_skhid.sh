@@ -52,8 +52,9 @@ configure_wine() {
     WINE=$(command -v wine)
     WINESERVER=$(command -v wineserver)
     export WINE WINESERVER
-    # Disable Wine's broken optional QoS support and unwanted installer dialogs.
-    export WINEDLLOVERRIDES='mscoree,mshtml,qwave=;winemenubuilder.exe=d'
+    # Keep HTML enabled; install Gecko explicitly instead of Wine's addon dialogs.
+    # qwave remains disabled for the lobby-entry crash workaround.
+    export WINEDLLOVERRIDES='mscoree,qwave=;mshtml=b;appwiz.cpl=d;winemenubuilder.exe=d'
     # Wine 11 supports forcing the new WoW64 loader even in a mixed installation.
     # win64 alone selects a prefix architecture, not the loader used for 32-bit EXEs.
     export WINEARCH=wow64
@@ -88,7 +89,6 @@ Your existing prefix has been kept. See LINUX.txt for preserving game settings."
 }
 
 prepare_prefix() {
-    local documents resolution
     if [[ -f "$WINEPREFIX/system.reg" ]]; then
         verify_prefix_arch
     fi
@@ -99,15 +99,6 @@ prepare_prefix() {
         timeout 180 "$WINESERVER" -w >>"$log" 2>&1 || die "Wine setup timed out. See $log"
         [[ -f "$WINEPREFIX/system.reg" ]] || die "Wine registry missing. See $log"
         verify_prefix_arch
-        # Keep game settings inside this prefix instead of the user's real Documents.
-        documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
-        [[ ! -L "$documents" ]] || rm -- "$documents"
-        mkdir -p "$documents/Survarium"
-        if [[ ! -f "$documents/Survarium/user.cfg" ]]; then
-            resolution=$(detect_resolution)
-            printf 'r_fullscreen on\r\nr_resolution %s\r\n' "$resolution" > "$documents/Survarium/user.cfg"
-            echo "Fullscreen resolution: $resolution"
-        fi
         touch "$WINEPREFIX/.skhid-ready"
     fi
     # Exercise a 32-bit PE under the forced modern loader. A 64-bit cmd.exe would
@@ -115,6 +106,24 @@ prepare_prefix() {
     timeout 60 "$WINE" 'C:\windows\syswow64\cmd.exe' /d /c 'exit 0' >>"$log" 2>&1 || die "Modern WoW64 could not run a 32-bit Windows program.
 Use Wine 11.0 or newer with modern WoW64 support and matching wineserver.
 For an old prefix, keep it as a backup and create a fresh one; see LINUX.txt and $log."
+}
+
+prepare_settings() {
+    local config_home=${XDG_CONFIG_HOME:-$HOME/.config} settings config documents resolution
+    # XDG paths must be absolute; ignore invalid overrides.
+    [[ $config_home == /* ]] || config_home="$HOME/.config"
+    config="$config_home/skhid/user.cfg"
+    documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
+    [[ ! -L "$documents" ]] || rm -- "$documents"
+    mkdir -p -- "$documents/Survarium" "$config_home/skhid"
+    settings="$documents/Survarium/user.cfg"
+    if [[ ! -e "$config" && ! -L "$config" ]]; then
+        resolution=$(detect_resolution)
+        printf 'r_fullscreen on\r\nr_resolution %s\r\n' "$resolution" > "$config"
+        echo "Fullscreen resolution: $resolution"
+    fi
+    [[ -f "$config" && -w "$config" ]] || die "Settings file is not writable: $config"
+    ln -sfnT -- "$config" "$settings"
 }
 
 install_dxvk() {
@@ -127,6 +136,33 @@ install_dxvk() {
 
     export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
 }
+
+install_gecko() (
+    local version=2.47.4 checksum=26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6
+    local gecko="$WINEPREFIX/drive_c/windows/syswow64/gecko/$version/wine_gecko" temporary
+    # The launcher is 32-bit; Wine's own MSHTML declares the Gecko version it needs.
+    LC_ALL=C grep -aqF "Wine Gecko $version" "$WINEPREFIX/drive_c/windows/syswow64/mshtml.dll" \
+        || die "This Wine needs another Gecko version; update the Skhid setup script. See $log"
+    if [[ -f "$gecko/xul.dll" && -f "$gecko/VERSION" && $(<"$gecko/VERSION") == "Wine Gecko $version" ]]; then
+        return
+    fi
+    require_command curl
+    require_command sha256sum
+    temporary=$(mktemp -d "$WINEPREFIX/drive_c/skhid-gecko.XXXXXX")
+    trap 'rm -rf -- "$temporary"' EXIT
+    echo 'Installing Wine Gecko for the launcher...'
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 15 --max-time 300 --retry 2 --output "$temporary/gecko.msi" \
+        "https://dl.winehq.org/wine/wine-gecko/$version/wine-gecko-$version-x86.msi" >>"$log" 2>&1 \
+        || die "Gecko download failed. Run again to retry; see $log"
+    printf '%s  %s\n' "$checksum" "$temporary/gecko.msi" | sha256sum -c - >>"$log" 2>&1 \
+        || die "Gecko download checksum failed. Run again to retry; see $log"
+    WINEDLLOVERRIDES="$WINEDLLOVERRIDES;winedbg.exe=d" \
+        timeout 180 "$WINE" msiexec /i "C:\\${temporary##*/}\\gecko.msi" /qn /norestart >>"$log" 2>&1 \
+        || die "Gecko installation failed. Run again to retry; see $log"
+    [[ -f "$gecko/xul.dll" && -f "$gecko/VERSION" && $(<"$gecko/VERSION") == "Wine Gecko $version" ]] \
+        || die "Gecko installation is incomplete. Run again to retry; see $log"
+)
 
 start_game() {
     local -a args
@@ -162,8 +198,10 @@ main() {
 
     configure_wine
     prepare_prefix
+    prepare_settings
     install_dxvk
     if [[ $mode == launcher ]]; then
+        install_gecko
         echo "Starting the Skhid launcher. Log: $log"
         "$WINE" launcher_skhid.exe >>"$log" 2>&1 \
             || die "Launcher exited with an error. See $log"

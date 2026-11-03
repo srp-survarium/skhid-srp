@@ -1,6 +1,6 @@
 SURVARIUM 0.26g - LINUX
 
-Install Bash, Winetricks, and Wine 11.0+ with modern WoW64 support.
+Install Bash, curl, Winetricks, and Wine 11.0+ with modern WoW64 support.
 Tested: Wine 11.8 Staging WoW64. Use wine and wineserver from the same
 installation. A Vulkan-capable graphics driver is required for DXVK.
 
@@ -15,7 +15,9 @@ For an existing game, apply the complete archive over its folder.
 To play directly without checking for updates, run bash Skhid.sh, or run
 bash play_skhid.sh from game/binaries/x86.
 
-First launch creates a Wine prefix and downloads DXVK. Later launches reuse it.
+First launch creates a Wine prefix and installs DXVK and Wine Gecko silently.
+Later launches reuse them. Settings: ~/.config/skhid/user.cfg (or
+$XDG_CONFIG_HOME/skhid/user.cfg).
 Select an English keyboard layout before starting to avoid text-input issues.
 For VPN setup, see VPN.txt; split tunnelling must cover Wine.
 
@@ -36,9 +38,9 @@ script prints a hint when /dev/ntsync is missing and the module exists.
 IF IT FAILS
 
 The script refuses old Wine versions and non-modern-WoW64 setups. If switching
-from older Wine, close the game and launcher, then rename
+from older Wine or seeing a white launcher panel, close both, then rename
 game/binaries/x86/wineprefix to an unused backup name and launch again.
-Keep the backup for your saved settings in drive_c/users/<user>/Documents/Survarium.
+Settings stored outside the prefix survive its recreation.
 
 For a memory error, check Wine and the prefix first; do not lower the memory
 budgets in the script. Report skhid-wine.log and, for update failures,
