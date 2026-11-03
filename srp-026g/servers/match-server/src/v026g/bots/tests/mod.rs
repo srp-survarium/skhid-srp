@@ -75,6 +75,7 @@ mod hump_deck;
 mod jump_pool;
 mod kits;
 mod live_zones;
+mod match_wide;
 mod neck;
 mod no_way;
 mod opening;
