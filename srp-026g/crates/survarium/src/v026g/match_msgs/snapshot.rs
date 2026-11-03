@@ -455,6 +455,9 @@ pub struct VictoryItemStatus {
     pub nearest_positions: [f32; 2],
     pub owner_team: u8,
     pub first_finder: u8,
+    /// Native record +FD: who last took this battery from a container.
+    /// Older snapshots omit it. Preserve that distinction when re-encoding.
+    pub last_taker: BatteryTaker,
     /// Exe patch 92's (battery_progress): how near each team's container
     /// the battery has come in its life, in 10 m steps: 0 not carried yet in
     /// the life, else the steps + 1. After `first_finder`.
@@ -462,9 +465,32 @@ pub struct VictoryItemStatus {
     /// Exe patch 92's: the steps each carrier (place x 3 + kit) has earned
     /// toward its own team's container in the battery's life, held until
     /// the battery is delivered there (then paid, 40 hundredths of event 6
-    /// a step). After `progress`: a u8 count, then each one's cell and
-    /// steps, the cells in rising order.
+    /// a step). After `progress`: a u8 count (bit 7 marks a following
+    /// last-taker byte), then each one's cell and steps in rising order.
     pub held: Vec<HeldSteps>,
+}
+
+/// Whether the snapshot carries the native battery's last taker.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BatteryTaker {
+    #[default]
+    NotRecorded,
+    Saved(Option<BatteryPlace>),
+}
+
+/// A battery's taker can be any of the twenty match places, including an
+/// absent player; the current world's active mask does not bound it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryPlace(u8);
+
+impl BatteryPlace {
+    pub fn new(place: u8) -> Option<Self> {
+        (usize::from(place) < MAX_PLAYERS).then_some(Self(place))
+    }
+
+    pub fn index(self) -> u8 {
+        self.0
+    }
 }
 
 /// Steps one carrier holds on a battery (exe patch 92).
@@ -481,8 +507,7 @@ impl HeldSteps {
 
     /// A battery's held steps: at most one a cell, the cells in rising
     /// order, each with steps.
-    fn read_all(reader: &mut Reader) -> Option<Vec<HeldSteps>> {
-        let count = reader.u8()?;
+    fn read_all(reader: &mut Reader, count: u8) -> Option<Vec<HeldSteps>> {
         if count > Self::CELLS {
             return None;
         }
@@ -505,6 +530,7 @@ impl Default for VictoryItemStatus {
             nearest_positions: [0.0; 2],
             owner_team: 0,
             first_finder: 0,
+            last_taker: BatteryTaker::NotRecorded,
             progress: [0; 2],
             held: Vec::new(),
         }
@@ -521,7 +547,16 @@ impl VictoryItemStatus {
         status.owner_team = reader.u8()?;
         status.first_finder = reader.u8()?;
         status.progress = [reader.u8()?, reader.u8()?];
-        status.held = HeldSteps::read_all(reader)?;
+        let count = reader.u8()?;
+        status.last_taker = if count & 0x80 == 0 {
+            BatteryTaker::NotRecorded
+        } else {
+            BatteryTaker::Saved(match reader.u8()? {
+                u8::MAX => None,
+                place => Some(BatteryPlace::new(place)?),
+            })
+        };
+        status.held = HeldSteps::read_all(reader, count & 0x7F)?;
         Some(status)
     }
 
@@ -535,7 +570,13 @@ impl VictoryItemStatus {
         out.push(self.owner_team);
         out.push(self.first_finder);
         out.extend(self.progress);
-        out.push(self.held.len() as u8);
+        match self.last_taker {
+            BatteryTaker::NotRecorded => out.push(self.held.len() as u8),
+            BatteryTaker::Saved(taker) => {
+                out.push(self.held.len() as u8 | 0x80);
+                out.push(taker.map_or(u8::MAX, BatteryPlace::index));
+            }
+        }
         for one in &self.held {
             out.extend([one.cell, one.steps]);
         }
@@ -1812,6 +1853,36 @@ mod tests {
         // A carrier outside the roster is no battery record.
         bytes[80] = 0x04;
         assert_eq!(Statistics::decode(&bytes, 2, 2), None);
+    }
+
+    #[test]
+    fn battery_taker_roundtrips_without_changing_legacy_bytes() {
+        for taker in [BatteryTaker::NotRecorded, BatteryTaker::Saved(None),
+                      BatteryTaker::Saved(Some(BatteryPlace::new(19).unwrap()))] {
+            let mut bytes = battery_bytes();
+            if let BatteryTaker::Saved(place) = taker {
+                bytes[28] |= 0x80;
+                bytes.insert(29, place.map_or(255, BatteryPlace::index));
+            }
+            let mut reader = Reader::new(&bytes);
+            let record = VictoryItemStatus::read(&mut reader, 2).unwrap();
+            assert_eq!(record.last_taker, taker);
+            assert_eq!(reader.at, bytes.len());
+            let mut encoded = Vec::new();
+            record.write(&mut encoded);
+            assert_eq!(encoded, bytes);
+            // Every truncation must be refused, including a missing taker.
+            for end in 0..bytes.len() {
+                assert!(VictoryItemStatus::read(&mut Reader::new(&bytes[..end]), 2).is_none());
+            }
+        }
+        let mut bytes = battery_bytes();
+        bytes[28] |= 0x80;
+        bytes.insert(29, 20);
+        assert!(VictoryItemStatus::read(&mut Reader::new(&bytes), 2).is_none());
+        bytes[29] = 19;
+        bytes[28] = 0xC0; // Count 64, beyond the 60 cells.
+        assert!(VictoryItemStatus::read(&mut Reader::new(&bytes), 2).is_none());
     }
 
     #[test]

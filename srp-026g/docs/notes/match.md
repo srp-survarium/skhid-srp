@@ -578,7 +578,7 @@ The fault needs a battery of the enemy's that is out of its container when the g
 - In all four worlds of this match seven batteries have a finder (place 0 four times, place 1 three times) and neither place has an event 19; six of them lie free, never owned, with no distance carried and their two nearest positions still equal. The game that gave the first world had ended a battery match two minutes before in the same run (the log has no sign-in of it between the two); that the bytes are that match's is LIKELY (its worlds were not looked at).
 - What it costs (from the code, not seen in a world): event 19 ("found") is never counted for such a battery (0x334B14), and the first test of event 24 (0x334D0C: a fresh battery put in by its finder) fails for the player who did find it and holds for whoever sits at the old place. The quest type 6 `bring_x_items` counts event 24. It is no fault of step: every game has the same bytes.
 
-**What could be done. Nothing is decided and no patch is written.**
+**Update, 2026-11-03:** the pending fix implements saving the native taker through the existing battery-progress hooks; see [battery_taker.md](battery_taker.md) for the native regression, exact format and recent-match evidence. The alternatives below are the original October analysis.
 
 | | what | a game of revision 7 with one of the new revision | what it costs or changes |
 |---|---|---|---|
