@@ -37,11 +37,10 @@ def main():
         assert all(rows[p] == prior[p] for p in (15,18,19)), 'weight or times changed'
         maximum = {'left_hand':.5,'right_hand':.5,'left_leg':.5,'right_leg':.5,'body':1,'head':.4,'pain':1}
         shown = {'left_hand':135,'right_hand':135,'left_leg':135,'right_leg':135,'body':136,'head':136,'pain':137}
-        duration = new['data']['activity_time_sec']
         for influence in new['data']['influences']:
             part = influence['body_part']
             if part in shown:
-                healed = min(100, 100 * influence['amount'] * duration / maximum[part])
+                healed = min(100, 100 * influence['amount'] / maximum[part])
                 assert math.isclose(rows[shown[part]], healed, abs_tol=.001), (name,part,healed)
         old['ui_desc'].pop('props_list');new['ui_desc'].pop('props_list')
         assert old == new, 'non-presentation item configuration changed'

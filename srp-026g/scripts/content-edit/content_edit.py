@@ -896,14 +896,16 @@ def id_list(key):
     return Derived('', read, write)
 
 
-# A medicine's pools, for its card's % lines: a pool's health is 1, the head's 0.4 (0.26g's human_hit_params).
-POOLS = {'limbs': 1, 'body': 1, 'head': 0.4, 'pain': 1}
+# Pool maxima for medicine card percentages, from 0.26g's human_hit_params.
+POOLS = {'limbs': 0.5, 'left_hand': 0.5, 'right_hand': 0.5, 'left_leg': 0.5,
+         'right_leg': 0.5, 'body': 1, 'head': 0.4, 'pain': 1, 'infection': 1}
 
 
 def medicine_card(buf):
     """{prop_id: text} of a medicine's card: 18 its active and 19 its delay seconds, 15 the weight, 135
     the limbs', 136 the body's and 137 the pain pool's share it heals over its active time (%), 13 its
-    infection cure a second x100."""
+    total infection cure x100. Config amounts are course totals; the native
+    medkit constructor divides them by duration to obtain runtime rates."""
     def number(path):
         found = resolve(buf, path)
         return value_of(buf, found[0][1]) if found else None
@@ -913,7 +915,7 @@ def medicine_card(buf):
     for prop, column in ((135, 'limbs'), (136, 'body'), (137, 'pain')):
         amount = number(STATS['medicines']['columns'][column])
         if amount is not None:
-            out[prop] = number_text(min(100, round(amount * active / POOLS[column] * 100)))
+            out[prop] = number_text(min(100, round(amount / POOLS[column] * 100)))
     infection = number(STATS['medicines']['columns']['infection'])
     if infection is not None:
         out[13] = number_text(round(infection * 100, 4))

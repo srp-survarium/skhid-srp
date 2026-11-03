@@ -11,12 +11,14 @@ bandage in 0.26g. The edit list is `scripts/content-edit/bandages-1.json`.
 - Use time 1 s, then active for 1 s, as before. Weight and price stay the same.
 - The lobby says so: a new description and no "Heal amount" line on the card.
 
-## How a drug heals (PROVEN, `medkit::tick` 0x33D790)
+## How a drug heals (constructor 0x33CAC0 and tick 0x33D790)
 
-- `data/influences`: one entry per pool (`body_part`), `amount` = the pool's health added per second.
+- `data/influences`: one entry per pool (`body_part`), `amount` = the pool's total health restored over the active course.
 - Healing starts after `activation_delay_sec` and lasts `activity_time_sec`. Each tick adds
-  amount x elapsed s to the pool (`increase_health` 0x32A420, clamped to the pool's max).
-- Total = amount x activity time. Pool max: body 1.0, head 0.4, each hand and leg 0.5, pain 1.0.
+  (amount / configured activity time) x elapsed s to the pool (`increase_health` 0x32A420, clamped to the pool's max).
+- The constructor normalizes the configured total to a rate (see `medicines.md`).
+  For bandages the activity time is 1 s, so total and rate have the same numeric value.
+  Pool max: body 1.0, head 0.4, each hand and leg 0.5, pain 1.0.
 - The amount goes through modifier 57 `drug_amount` and the activity time through 34
   `drug_activity_time` (k = `parameters/activity_time_skill_influence`). No skill or item in 0.26g
   sets either one, so both stay as configured.
