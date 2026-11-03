@@ -11,7 +11,6 @@
     },
     "combat": {
       "aim_sway_counter": false,
-      "empty_reload": false,
       "fire": {
         "burst_pause": null,
         "weapon_class_by_data": false
