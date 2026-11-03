@@ -56,7 +56,9 @@ pub struct FarStands {
 
 impl Default for FarStands {
     fn default() -> Self {
-        Self { radii_m: [Metres::of(1.35), Metres::of(1.5)], use_m: Metres::of(1.75) }
+        // 1.45 m: a crouched eye (1.04 m) is 1.73 m from a floor battery's point there, under the client's 1.80 m ray; at 1.5 m
+        // it is 1.77 m, with no room for a body stopped a little off its stand.
+        Self { radii_m: [Metres::of(1.35), Metres::of(1.45)], use_m: Metres::of(1.78) }
     }
 }
 
