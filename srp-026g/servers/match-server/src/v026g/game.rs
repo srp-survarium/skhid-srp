@@ -554,11 +554,76 @@ const LATE_RELAY_MARGIN_MS: u32 = 75;
 /// 5.2).
 const DROP_ORDER_LIFE: Duration = Duration::from_millis(450);
 
-/// The last 0xE6 queued, with its transport-owned transmission receipt.
+/// One 0xE6 queued, with its transport-owned transmission receipt.
 struct Ping {
     a: u16,
     b: u16,
     transmission: Transmission,
+}
+
+/// E6 replies have no request id: `b` may repeat, and `a` includes the
+/// client's hold time. Keep older probes until their possible answers
+/// expire, so a late answer cannot borrow a newer transmission timestamp.
+#[derive(Default)]
+struct Pings {
+    current: Option<Ping>,
+    previous: VecDeque<Ping>,
+}
+
+impl Pings {
+    fn retire(&mut self) {
+        if let Some(ping) = self.current.take() {
+            self.previous.push_back(ping);
+        }
+    }
+
+    fn prune(&mut self, now: Instant) {
+        // A valid answer can spend up to PING_ANSWER_MS on the wire and
+        // as long again held by the client. Queue time is unbounded.
+        let lifetime = Duration::from_millis(2 * u64::from(PING_ANSWER_MS));
+        self.previous.retain(|ping| {
+            ping.transmission
+                .first_sent_at()
+                .is_none_or(|sent| now.saturating_duration_since(sent) <= lifetime)
+        });
+    }
+
+    fn queue(
+        &mut self,
+        transport: &mut Transport,
+        a: u16,
+        b: u16,
+        now: Instant,
+    ) -> Result<(), SendError> {
+        self.prune(now);
+        // Keep at most one unsent probe, including across resyncs. Its
+        // receipt must survive a queue stall of any length.
+        if self.current.iter().chain(&self.previous)
+            .any(|ping| ping.transmission.first_sent_at().is_none())
+        {
+            return Ok(());
+        }
+        let message = ServerMessage::Ping { a, b };
+        let transmission = transport.send_timed(message.id(), &message.payload())?;
+        self.retire();
+        self.current = Some(Ping { a, b, transmission });
+        Ok(())
+    }
+
+    fn round_trip(&mut self, reply: TimeReply, now: Instant) -> Option<u32> {
+        self.prune(now);
+        let round_trip = self.current.as_ref()?.round_trip(reply, now)?;
+        if self.previous.iter().filter_map(|ping| ping.round_trip(reply, now))
+            .any(|other| other != round_trip)
+        {
+            return None;
+        }
+        // Equal interpretations are safe: only the RTT, not the probe's
+        // identity, is used by the lag sampler. Retain even answered
+        // probes as ambiguity guards until their answer window closes.
+        self.retire();
+        Some(round_trip)
+    }
 }
 
 impl Ping {
@@ -643,7 +708,7 @@ struct Peer {
     /// It has a game clock: it answered a 0xE5, or took a whole sync. A
     /// message at a tick (0xE9, 0xEA) means nothing to a client without.
     clock_set: bool,
-    ping: Option<Ping>,
+    pings: Pings,
     next_ping: Instant,
     /// It uploaded a snapshot, so it answers 0xF6.
     patched: bool,
@@ -1282,7 +1347,7 @@ impl Game {
             early_entries: Vec::new(),
             late_roster_redos: 0,
             clock_set: false,
-            ping: None,
+            pings: Pings::default(),
             next_ping: now,
             patched: false,
             resources_loaded: false,
@@ -1527,14 +1592,10 @@ impl Game {
         }
         // `a` was stamped when queued, potentially long before its datagram
         // went. Subtract only the client's hold from actual wire elapsed time.
-        let Some(round_trip) = peer
-            .ping
-            .as_ref()
-            .and_then(|ping| ping.round_trip(reply, now))
+        let Some(round_trip) = peer.pings.round_trip(reply, now)
         else {
             return;
         };
-        peer.ping = None;
         peer.round_trip = round_trip;
         if peer.stage == Stage::Live {
             sample_lag(peer, reply.client_clock(clock), clock, now);
@@ -2933,7 +2994,7 @@ impl Game {
         peer.lags.clear();
         peer.upload_offset = None;
         peer.ask_at = None;
-        peer.ping = None;
+        peer.pings.retire();
         peer.sync_sent_at = Some(now);
         peer.load_reports.clear();
         // What was held for a sync before this one is in the replay.
@@ -5245,18 +5306,14 @@ impl Game {
                         peer.next_ping = now + PING_EVERY;
                         let a = mono16;
                         let b = peer.round_trip.min(u32::from(u16::MAX)) as u16;
-                        let message = ServerMessage::Ping { a, b };
-                        peer.ping =
-                            match peer.transport.send_timed(message.id(), &message.payload()) {
-                                Ok(transmission) => Some(Ping { a, b, transmission }),
-                                Err(SendError::NotConnected) => None,
-                                Err(error) => {
-                                    log::warn!(
-                                        "Match {id:#x}: ping to player {index} not sent: {error:?}"
-                                    );
-                                    None
-                                }
-                            };
+                        match peer.pings.queue(&mut peer.transport, a, b, now) {
+                            Ok(()) | Err(SendError::NotConnected) => {}
+                            Err(error) => {
+                                log::warn!(
+                                    "Match {id:#x}: ping to player {index} not sent: {error:?}"
+                                );
+                            }
+                        }
                     }
                 }
                 Stage::Gone => {
@@ -6371,6 +6428,103 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_delayed_ping_reply_cannot_borrow_a_newer_transmission_time() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+        bench.join_all();
+        let began = bench.now();
+        let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.round_trip = 124;
+        peer.lags.clear();
+        peer.pings = Pings::default();
+        for (a, emitted_ms) in [(0, 0), (1000, 1500)] {
+            peer.pings.queue(
+                &mut peer.transport, a, 124, began + Duration::from_millis(u64::from(a))
+            ).unwrap();
+            peer.transport.poll(began + Duration::from_millis(emitted_ms));
+        }
+        // First probe: 300 ms out, a stalled client holds it for 1000 ms,
+        // then 300 ms back. The second is queued at 1000 ms but cannot
+        // reach the client until 1800 ms, after the first reply was sent.
+        let reply = TimeReply::to_ping(0, 124, 1000, 1300);
+        let arrived = began + Duration::from_millis(1600);
+        assert_eq!(peer.pings.previous.back().unwrap().round_trip(reply, arrived), Some(600));
+        game.time_reply(2, reply, arrived);
+        let peer = game.peers[2].as_ref().unwrap();
+        assert_eq!(peer.round_trip, 124, "ambiguous reply must not become a 100 ms sample");
+        assert!(peer.lags.is_empty());
+    }
+
+    #[test]
+    fn ping_ambiguity_guards_survive_a_resync_and_expire_after_the_full_answer_window() {
+        let now = Instant::now();
+        let mut transport = Transport::new(udp_transport::Table::Match, now);
+        transport.receive(&[0, 255, 0, 0xD8, 1, 2, 3, 4, 0], now);
+        let mut pings = Pings::default();
+        pings.queue(&mut transport, 0, 124, now).unwrap();
+        transport.poll(now);
+        pings.retire(); // send_sync: its clock sample must no longer be used.
+        let reply = TimeReply::to_ping(0, 124, 1000, 1300);
+        assert_eq!(pings.round_trip(reply, now + Duration::from_millis(1600)), None);
+        pings.queue(&mut transport, 1000, 124, now + Duration::from_secs(1)).unwrap();
+        transport.poll(now + Duration::from_millis(1500));
+        assert_eq!(pings.round_trip(reply, now + Duration::from_millis(1600)), None);
+        pings.prune(now + Duration::from_millis(10_000));
+        assert_eq!(pings.previous.len(), 1);
+        pings.prune(now + Duration::from_millis(10_001));
+        assert!(pings.previous.is_empty());
+    }
+
+    #[test]
+    fn equal_ping_interpretations_are_safe_and_answered_probes_stay_as_guards() {
+        let now = Instant::now();
+        let mut transport = Transport::new(udp_transport::Table::Match, now);
+        transport.receive(&[0, 255, 0, 0xD8, 1, 2, 3, 4, 0], now);
+        let mut pings = Pings::default();
+        for a in [0, 1000] {
+            let at = now + Duration::from_millis(u64::from(a));
+            pings.queue(&mut transport, a, 124, at).unwrap();
+            transport.poll(at);
+        }
+        // Either request could produce this reply, but both give 600 ms.
+        let reply = TimeReply::to_ping(0, 124, 1000, 1300);
+        let arrived = now + Duration::from_millis(1600);
+        assert_eq!(pings.round_trip(reply, arrived), Some(600));
+        assert!(pings.current.is_none());
+        assert_eq!(pings.previous.len(), 2);
+        assert_eq!(pings.round_trip(reply, arrived), None);
+        pings.queue(&mut transport, 2000, 124, now + Duration::from_secs(2)).unwrap();
+        transport.poll(now + Duration::from_millis(2500));
+        let later = TimeReply::to_ping(1000, 124, 1000, 2300);
+        assert_eq!(pings.round_trip(later, now + Duration::from_millis(2600)), None);
+    }
+
+    #[test]
+    fn a_stalled_ping_queue_keeps_one_unsent_probe_even_across_resyncs() {
+        let now = Instant::now();
+        let mut transport = Transport::new(udp_transport::Table::Match, now);
+        transport.receive(&[0, 255, 0, 0xD8, 1, 2, 3, 4, 0], now);
+        let mut pings = Pings::default();
+        pings.queue(&mut transport, 0, 124, now).unwrap();
+        pings.retire();
+        for second in 1..=20 {
+            pings.queue(&mut transport, second * 1000, 124,
+                now + Duration::from_secs(u64::from(second))).unwrap();
+        }
+        assert!(pings.current.is_none());
+        assert_eq!(pings.previous.len(), 1);
+        assert!(pings.previous[0].transmission.first_sent_at().is_none());
+        let sent = now + Duration::from_secs(20);
+        transport.poll(sent);
+        assert_eq!(pings.previous[0].transmission.first_sent_at(), Some(sent));
+        pings.queue(&mut transport, 21_000, 124, now + Duration::from_secs(21)).unwrap();
+        assert_eq!(pings.current.as_ref().unwrap().a, 21_000);
+        assert_eq!(pings.previous.len(), 1);
+    }
+
+    #[test]
     fn a_queued_set_time_measures_the_round_trip_from_transmission() {
         use crate::v026g::tests::{Bench, MAP_BATTERIES};
 
@@ -6468,10 +6622,10 @@ mod tests {
         assert_eq!(ping.round_trip(reply, queued), None);
         peer.transport.poll(sent);
         assert_eq!(ping.round_trip(reply, arrived), Some(136));
-        peer.ping = Some(ping);
+        peer.pings = Pings { current: Some(ping), previous: VecDeque::new() };
         game.time_reply(2, reply, arrived);
         let peer = game.peers[2].as_ref().unwrap();
-        assert!(peer.ping.is_none());
+        assert!(peer.pings.current.is_none());
         assert_eq!(peer.round_trip, 136);
         assert_eq!(estimated_lag(peer, arrived), Some(-10));
         let now = arrived + Duration::from_millis(176);
