@@ -2706,13 +2706,25 @@ fn settled(cx: &Ctx, stand: TakeStand, aim: Vec3) -> bool {
     cx.me.crouched() == stand.crouch && aimed_at(cx, aim)
 }
 
-/// Whether the bot's view is on `aim` within [`SETTLED_RAD`].
+/// Whether the bot's view is on `aim` within [`SETTLED_RAD`]. The look the view can have ends at its stops: 1 rad either
+/// way with `take.pitch` fixed (the old reading); by the view's scale, the scale's stops (the client's: 67.48 degrees down,
+/// 60 up). Without it a stand the view-scale limits allow, needing a look down past 1 rad, was never settled on and never
+/// pressed (the view turns there, `drive.rs` aims unclamped; A281).
 pub(super) fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
     use crate::v026g::bots::kin::{wrap, yaw_of};
+    use crate::v026g::bots::pitch::Pitch;
+    use crate::v026g::bots::tuning::TakePitch;
     let eye = cx.me.eye();
     let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
     let yaw = yaw_of([dx, dz]);
-    let pitch = (aim.y - eye.y).atan2(dx.hypot(dz)).clamp(-1.0, 1.0);
+    let (down, up) = match cx.tuning.take.pitch {
+        TakePitch::Fixed => (-1.0, 1.0),
+        TakePitch::ViewScale => {
+            let scale = cx.tuning.kin.pitch_scale;
+            (Pitch::new(-1.0).elevation(scale), Pitch::new(1.0).elevation(scale))
+        }
+    };
+    let pitch = (aim.y - eye.y).atan2(dx.hypot(dz)).clamp(down, up);
     wrap(cx.me.yaw - yaw).abs() < SETTLED_RAD && (cx.me.pitch - pitch).abs() < SETTLED_RAD
 }
 
@@ -4514,6 +4526,9 @@ mod tests {
         let feet = Vec3::new(20.0, 0.0, 12.0);
         let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
         let mut s = take_field(&[], feet);
+        // With `take.pitch` by the view's scale the 1.2 m stands pass and the far ones are the same stands (within
+        // `SAME_STAND_M`): far stands add nothing then (a follow-up). The fixed limits show what they add.
+        s.tuning.take.pitch = crate::v026g::bots::tuning::TakePitch::Fixed;
         let far = |s: &Scenario| ring_stands(&s.cx(0), TAKE_AT, aim, false).iter().map(|(st, _)| st.feet.distance_xz(TAKE_AT)).fold(0.0f32, f32::max);
         assert!(far(&s) <= 1.25, "{}", far(&s));
         s.tuning.take.far_stands = Some(FarStands::default());
@@ -4533,6 +4548,28 @@ mod tests {
         assert!((ring - (stop - 0.05)).abs() < 1e-4 && (first - (stop - 0.02)).abs() < 1e-4, "{ring} {first}");
         s.tuning.take.pitch = TakePitch::Fixed;
         assert_eq!(take_pitch_limits(&s.cx(0)), (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD));
+    }
+
+    /// [take.pitch] A battery 1.1 rad under the eye (a stand the view-scale limits allow): the view turned on it is aimed
+    /// there by the view's scale (the client's stop is 1.18 rad down); the fixed reading caps the wanted look at 1 rad and
+    /// never calls it aimed, so no use is pressed.
+    #[test]
+    fn a_look_down_past_one_radian_is_aimed_by_the_views_scale() {
+        use crate::v026g::bots::tuning::TakePitch;
+        let feet = Vec3::new(20.0, 0.0, 12.0);
+        let mut s = take_field(&[], feet);
+        let me = s.bot(0, 0, feet);
+        me.keys = key::CROUCH;
+        let eye = me.eye();
+        let down = 1.1f32;
+        let aim = eye + Vec3::new(0.5, -0.5 * down.tan(), 0.0);
+        stand_at(&mut s, feet, aim);
+        let pitch = s.cx(0).me.pitch;
+        assert!(pitch < -1.04 && pitch > -1.16, "{pitch}");
+        assert_eq!(s.tuning.take.pitch, TakePitch::ViewScale);
+        assert!(aimed_at(&s.cx(0), aim), "by the view's scale");
+        s.tuning.take.pitch = TakePitch::Fixed;
+        assert!(!aimed_at(&s.cx(0), aim), "the fixed reading caps the look at 1 rad");
     }
 
     /// Right over the battery (the view does not look down that far) and

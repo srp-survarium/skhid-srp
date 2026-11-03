@@ -48,6 +48,8 @@ impl Default for TeamMemory {
 /// Stands farther round a battery (A281 (c)): the ring's radii 0.45-1.2 m gain these, with the eye at most `use_m` from the
 /// battery's point (the client's ray is 1.80 m). Live humans take from 1.72 m across (median, 280 tries, p10 0.77 m) looking
 /// 15 degrees down; the near ring looks steeper and meets more of what lies over a battery. The nearest stand still comes first.
+/// With `pitch` by the view's scale (the default) the 1.2 m stands pass and these are the same stands (within the ring's
+/// 0.35 m `SAME_STAND_M`): they add nothing until the ring keeps one stand per radius (PROVEN by the far-stands test).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FarStands {
