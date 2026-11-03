@@ -1072,7 +1072,7 @@ fn drive_tick_inner(
                     }
                     hard
                 };
-                let hard = hard_of(landings);
+                let mut hard = hard_of(landings);
                 let unshut = unshut_landings.map(hard_of);
                 let filter = traps::soften(
                     bot,
@@ -1209,8 +1209,12 @@ fn drive_tick_inner(
                     match found {
                         Ok(Some(way)) => route = Some(way),
                         Ok(None) => unshut_proof = true,
-                        // Past this poll's floors: the next poll searches again.
-                        Err(_) => {}
+                        // Past this poll's floors (a way off its top to a far goal): it goes on at the next polls, without
+                        // the drops it shut (`Bots::go_on_searching`), as any long search does.
+                        Err(planning) => {
+                            hard = unshut.clone();
+                            left = Some((false, planning));
+                        }
                     }
                 }
                 // A held shooter's lane (K1, `threat.rs`): a route that runs
