@@ -368,7 +368,7 @@ const CORRECTION_SETTLE: Duration = Duration::from_secs(1);
 const MAX_SANE_LAG_MS: i64 = 5_000;
 /// Inputs first seen this late probably lost their first copy.
 const LATE_INPUT_MS: u32 = 200;
-/// A player's refused inputs are logged one by one up to this many.
+/// A player's refused uploads are logged one by one up to this many.
 const REFUSED_LOGGED: u32 = 8;
 const LATE_SHARE_WEIGHT: f32 = 0.01;
 /// With no majority, the side with the better links must outweigh the next
@@ -677,11 +677,19 @@ struct Answer {
     serial: Option<u64>,
 }
 
+mod input_safety;
+mod refusal_log;
+use input_safety::InputViolations;
+use refusal_log::RefusalLog;
+
 struct Peer {
     addr: SocketAddr,
     session_id: u32,
     transport: Transport,
     stage: Stage,
+    input_violations: InputViolations,
+    /// Its refused inputs' log lines.
+    inputs_log: RefusalLog,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -831,7 +839,8 @@ struct Peer {
     /// their tick all the same (`LateInputs::Relay`).
     inputs_relayed_late: u32,
     inputs_moved: u32,
-    /// Inputs with a rotation no client makes: not relayed.
+    /// Inputs no client makes (`srp_validate::messages::input`, a pickup of
+    /// no place): not relayed.
     inputs_refused: u32,
     /// Uploads no game could load (`world_frame::Frame::parse`): sent to
     /// nobody.
@@ -1345,6 +1354,8 @@ impl Game {
             session_id,
             transport,
             stage: Stage::Connecting,
+            input_violations: InputViolations::default(),
+            inputs_log: RefusalLog::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -3528,25 +3539,37 @@ impl Game {
         }
         // Client patch 85: a pickup naming no place of the match. The
         // client never sends one (`weapon_pickup::sane`, its twin).
-        let pickup_sane = weapon_pickup::sane(input.actions, places);
-        if !input.rotation_is_sane() || !pickup_sane {
+        // Use the recipient's check before another player can see this input.
+        let refused = match srp_validate::messages::input(input.rotation, input.actions) {
+            Err(reason) => Some(reason.to_string()),
+            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup of no place of the match".into()),
+            Ok(()) => None,
+        };
+        if let Some(why) = refused {
             // Relayed, it would be in every client's world for good
             // (`PlayerInput::rotation_is_sane`). Its owner drops it as it
             // drops a late one; a copy of it is known by its time and goes
             // nowhere.
             peer.inputs_refused += 1;
+            let remove = peer.input_violations.record(now);
             answer_owner(
                 peer,
                 Answer::input(ServerMessage::DiscardInput { time: input.time }, time, None),
                 now,
             );
-            if peer.inputs_refused <= REFUSED_LOGGED {
+            if let Some(unlogged) = peer.inputs_log.refuse(now) {
                 log::warn!(
-                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation or a pickup no \
-                     client makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
+                    "Match {id:#x}: player {index}'s input at {time} ms refused: {why} (rotation {:02x?}, \
+                     actions {:#x}); not relayed, its owner told to drop it{}",
                     input.rotation,
-                    input.actions
+                    input.actions,
+                    refusal_log::since(unlogged)
                 );
+            }
+            if remove {
+                log::warn!("Match {id:#x}: player {index} repeatedly sent invalid inputs; removed at the source");
+                peer.transport.kick(now);
+                self.leave(index, now);
             }
             return;
         }
@@ -6286,7 +6309,7 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
 fn input_summary(peer: &Peer) -> String {
     format!(
         "{} inputs, {} first seen over {LATE_INPUT_MS} ms late on the way, {} too late to relay \
-         and discarded, {} moved, {} refused for their rotation, {} uploads no game could \
+         and discarded, {} moved, {} refused (rotation, actions or pickup), {} uploads no game could \
          load, the latest {} ms, resynced {} times, started once more after its first world {} \
          times, round trip {} ms, {} messages to it sent again, our seq skipped ahead {} times, \
          {} of {} relays and roster changes never acked, {} relayed late at their tick",

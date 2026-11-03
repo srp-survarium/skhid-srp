@@ -514,6 +514,7 @@ dependencies = [
  "serde",
  "serde_json",
  "session",
+ "srp-validate",
  "survarium",
  "udp-transport",
  "vostok",

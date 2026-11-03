@@ -3523,3 +3523,39 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     assert_eq!(player.score, 230);
     bench.assert_no_faults();
 }
+
+#[test]
+fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let bad = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        rotation: [0; 4],
+        actions: 1 << 30,
+    };
+    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    bench.clients[0].send_input(bad);
+    bench.clients[0].send_input(bad);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [bad.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+        assert!(discards(&bench.clients[other]).is_empty());
+    }
+    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
+    // accepted. All players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 0x20] {
+        let input = bench.clients[0].input(50, actions);
+        bench.run(100);
+        for other in [1, 2] {
+            assert_eq!(bench.clients[other].relays_of(0).last(), Some(&input));
+        }
+    }
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|client| !client.closed));
+    bench.assert_no_faults();
+}

@@ -11,6 +11,7 @@ use super::test_client as client;
 mod bots;
 mod driven;
 mod game;
+mod packet_input;
 mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
