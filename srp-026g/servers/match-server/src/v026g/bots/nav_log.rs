@@ -9,8 +9,10 @@
 //!   life, `short` otherwise (it went on below, or jumped again);
 //! - `nav: fell D m from (x, y, z) to (x, y, z) in MS ms, the model had it at Y (unplanned|planned)`: two worlds of one life at most
 //!   [`FALL_GAP_MS`] apart with the feet [`FALL_M`] or more lower. `unplanned` when the bot's own reckoning for the later world's tick
-//!   was [`MODEL_M`] or more above the world's feet (the body went over an edge the model kept it on: a fall past an edge);
-//!   `planned` when the model came down too (a drop the route took); no word when the reckoning has no tick for that world.
+//!   was [`MODEL_M`] or more above the world's feet (the body went over an edge the model kept it on: a fall past an edge); no
+//!   word when the reckoning has no tick for that world. A drop the model came down too (a planned drop, a walk down a slope
+//!   between two worlds) is not written: on a 2 s world cadence those are most of the drops (681 of 724 in a bench match on
+//!   Mamayev Kurgan) and would bury the falls past edges.
 //!
 //! Decision-neutral: the lines are made from what the bot already holds and go only to the notes; nothing reads them back. At most one
 //! line of each kind per bot per [`EVERY_MS`]; the lines held back are counted into the next one (`(+N held)`).

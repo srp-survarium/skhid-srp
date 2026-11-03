@@ -1456,6 +1456,7 @@ impl Bots {
             bot.jump_seen(time, feet);
             if !new_life
                 && let Some(fall) = before.and_then(|before| nav_log::Fall::between(before, (time, feet), reckoned))
+                && fall.planned() != Some(true)
             {
                 bot.nav_log.push(nav_log::Kind::Fall, time, fall.line());
             }
