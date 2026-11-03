@@ -1,7 +1,8 @@
 //! How far forward a place is: the walk's cost from a side's spawns to it
 //! against the cost from the other side's, per region, worked out once a
-//! map, at the first ask (`TacticsBase::progress`): not at map load, not in
-//! the stored base.
+//! map with its tactics base, off the match loop (`TacticsBase::progress`;
+//! A276: at the first ask it was built inside a poll), not in the stored
+//! base.
 //!
 //! `p = d_a / (d_a + d_b)`, `d_a` and `d_b` the cheapest walk-grid path
 //! (forwards, as a body walks: a spawn only a drop leaves is no goal to
