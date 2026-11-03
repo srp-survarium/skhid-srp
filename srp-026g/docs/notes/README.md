@@ -29,6 +29,7 @@ given), LIKELY or GUESS.
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
+| [scopes-handoff.md](scopes-handoff.md) | The paused scope work (2026-11-02): PRs #516, #954, #958 and their packs, how 0.26g draws a scope, what was fixed, the open problems (iron sights under optical scopes, the aim-in jump, the Glock crash), tools, catching up with main |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [imported_weapon_balance.md](imported_weapon_balance.md) | Imported guns against Zubr +8: stock weapons, best ammo, TTK across distance, kills per magazine, recoil and kick, 0.69 evidence and level-10 placement |
 | [weapons-031.md](weapons-031.md) | Weapons batch 1 from 0.31a2 (release 41): the OTs-14 "Groza", FN SCAR-H, VHS-2 and FN Minimi (2261-2264), their balance against live peers, how resource-porter's weapon port made them, their 0.69d muzzle points for the muzzle step |
