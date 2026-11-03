@@ -169,12 +169,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 
         #[cfg(test)]
         if !has_spot {
+            let span = crate::v026g::bots::bench_work::Span::new("xf.job why_no_fine_spot (test only)");
             crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Pinner, why_no_fine_spot(cx, &choke));
             crate::v026g::bots::threat::no_spot_centre(Role::Pinner, &cx.tactics.world.grid, line.at);
+            span.end();
         }
         out.extend(cx.job_offer(Role::Pinner, PlayKind::Crossfire, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }
     // [threat.breach] A Breach's pinner: the same pin while its crossers go (F.E.A.R.'s suppress while others advance).
+    #[cfg(test)]
+    let span = crate::v026g::bots::bench_work::Span::new("xf.breach");
     if cx.tuning.threat.breach.is_some()
         && let Some((b, crate::v026g::bots::breach::BreachRole::Pinner)) = crate::v026g::bots::breach::role_in(&cx.team.breaches, cx.me.place)
         && let Some(line) = cx.team.threat.line(b.spot)
@@ -186,6 +190,10 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             || has_peek_spot(cx, &choke);
         out.extend(cx.job_offer(Role::Pinner, PlayKind::Crossfire, target, JOB_KEY + b.spot, JOB_HEALTH, has_spot));
     }
+    #[cfg(test)]
+    span.end();
+    #[cfg(test)]
+    let span = crate::v026g::bots::bench_work::Span::new("xf.exits and tracks");
     // A crossfire needs two: some teammate alive.
     if cx.view.team(cx.me.team).all(|p| p.place == cx.me.place) {
         return;
@@ -230,6 +238,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if let Some(t) = running {
         chokes.retain(|c| *c == t);
     }
+    #[cfg(test)]
+    span.end();
     #[cfg(test)]
     let span = crate::v026g::bots::bench_work::Span::new("xf.chokes");
     for choke in chokes {
