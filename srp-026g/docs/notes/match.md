@@ -158,6 +158,15 @@ Same shape as 0.21d (match.md §2), with the new ids and the sync generation:
 
 ## 4. Time sync
 
+Server queue timing correction: E6's `a` is stamped at transport emission,
+using the match's monotonic clock. The client adds its hold, so
+`now16 - reply.stamp` measures the wire RTT without identifying a probe.
+Only one unsent E6 is queued. Set-time (E5) replies use a transport-owned
+first-transmission receipt, including an E7-stop/E5 pair; E5 echoes its
+stamp without an encoded hold. Queue time remains the conservative bound
+for clock projections. The wire layout remains as below. See
+[ping_queue.md](ping_queue.md) for the failures, negative controls and repair.
+
 | | 0.21d | 0.26g |
 |---|---|---|
 | absolute time | 0x52 `{u32 echo, u32 match_ms}` → reply 0x43 `{u32 echo, u32 client_ms}` | 0xE5 `{u8 gen, u16 echo, u32 match_ms}` → reply 0xDB `{u16 abs(sdiff16(low16(match_ms), echo)), u16 echo, u16 client_ms16}` (0x27B5D3..0x27B6D8; `sdiff16` = 0x27D0F0) |

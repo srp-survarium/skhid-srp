@@ -57,6 +57,7 @@
 //!   (every lobby request) are delivered once, through a 128-wide window.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::ack;
@@ -237,12 +238,67 @@ enum Channel {
     Ordered(u64),
 }
 
+/// The first datagram containing a queued message (or one of its parts).
+/// The transport publishes this when `poll` emits the datagram. Dropping
+/// either owner is safe; a cancelled message has no transmission time.
+#[derive(Clone, Debug)]
+pub struct Transmission(Arc<OnceLock<Instant>>);
+
+impl Transmission {
+    /// `None` until a datagram actually leaves the transport's queue.
+    pub fn first_sent_at(&self) -> Option<Instant> {
+        self.0.get().copied()
+    }
+}
+
+/// The monotonic clock whose low sixteen milliseconds an E6 carries.
+/// Use the same origin when measuring its adjusted echo. Wrapping is part
+/// of the wire format; a round trip must be shorter than one 65536 ms lap.
+#[derive(Clone, Copy, Debug)]
+pub struct PingClock(Instant);
+
+impl PingClock {
+    pub fn new(origin: Instant) -> Self {
+        Self(origin)
+    }
+
+    pub fn stamp(self, now: Instant) -> u16 {
+        now.saturating_duration_since(self.0).as_millis() as u16
+    }
+}
+
+enum Payload {
+    Bytes(Vec<u8>),
+    /// E6 is sent once. Its stamp is made only after pacing and channel
+    /// windows allow its datagram to be emitted.
+    MatchPing { clock: PingClock, round_trip: u16 },
+}
+
+impl Payload {
+    fn len(&self) -> usize {
+        match self {
+            Self::Bytes(bytes) => bytes.len(),
+            Self::MatchPing { .. } => 4,
+        }
+    }
+
+    fn write(&self, out: &mut Vec<u8>, now: Instant) {
+        match self {
+            Self::Bytes(bytes) => out.extend(bytes),
+            Self::MatchPing { clock, round_trip } => {
+                out.extend(clock.stamp(now).to_le_bytes());
+                out.extend(round_trip.to_le_bytes());
+            }
+        }
+    }
+}
+
 struct Outgoing {
     /// Which `send` it came from: the parts of one message share it.
     serial: u64,
     /// `id [x]`, or `FF id x part [count]`.
     head: Vec<u8>,
-    payload: Vec<u8>,
+    payload: Payload,
     /// A variable-length id: length-prefixed in a multi datagram.
     variable: bool,
     channel: Channel,
@@ -259,6 +315,7 @@ struct Outgoing {
     joined: bool,
     /// The datagrams it went out in (their running numbers), newest last.
     sent_in: VecDeque<u64>,
+    transmission: Option<Transmission>,
 }
 
 impl Outgoing {
@@ -280,12 +337,12 @@ impl Outgoing {
         self.single_len() + prefix
     }
 
-    fn write(&self, body: &mut Vec<u8>, multi: bool) {
+    fn write(&self, body: &mut Vec<u8>, multi: bool, now: Instant) {
         body.extend(&self.head);
         if multi && self.variable {
             wire::push_prefix(body, self.payload.len());
         }
-        body.extend(&self.payload);
+        self.payload.write(body, now);
     }
 }
 
@@ -782,6 +839,68 @@ impl Transport {
         self.send_for(id, payload, None, None, None)
     }
 
+    /// Queue a message and retain its first actual transmission time.
+    /// A stalled send window or a pacing delay is not network travel time.
+    /// The receipt needs no polling order or explicit cleanup from its owner.
+    pub fn send_timed(&mut self, id: u8, payload: &[u8]) -> Result<Transmission, SendError> {
+        let serial = self.send(id, payload)?;
+        Ok(self.track_transmission(serial))
+    }
+
+    /// Queue the match's E6, stamping it when `poll` emits its datagram.
+    /// The client adds its hold time to that stamp and echoes `round_trip`
+    /// unchanged (also displaying it). Queue delay never enters the echo.
+    ///
+    /// Refresh an existing unsent ping instead of accumulating probes
+    /// during a stall. Its original receipt still names its emission.
+    /// Only the match table has this message; E6 is unique and sent once.
+    pub fn send_match_ping(
+        &mut self,
+        clock: PingClock,
+        round_trip: u16,
+    ) -> Result<Transmission, SendError> {
+        if self.table != Table::Match {
+            return Err(SendError::UnknownId(0xE6));
+        }
+        if let Some(message) = self.pending.iter_mut()
+            .find(|message| matches!(message.payload, Payload::MatchPing { .. }))
+        {
+            message.payload = Payload::MatchPing { clock, round_trip };
+            return Ok(message.transmission.as_ref().expect("a queued ping has its receipt").clone());
+        }
+        let serial = self.send(0xE6, &[0; 4])?;
+        let transmission = self.track_transmission(serial);
+        self.pending.back_mut().expect("E6 was queued whole").payload =
+            Payload::MatchPing { clock, round_trip };
+        Ok(transmission)
+    }
+
+    /// Retire an unsent E6 when its match leaves live clock sampling.
+    /// A queued ping must not acquire an E5's new stamp at a later flush.
+    /// Already emitted pings cannot be cancelled and are never resent.
+    pub fn cancel_match_ping(&mut self, now: Instant) {
+        if let Some(serial) = self.pending.iter()
+            .find(|message| matches!(message.payload, Payload::MatchPing { .. }))
+            .map(|message| message.serial)
+        {
+            self.forget(serial, now);
+        }
+    }
+
+    /// Attach a receipt to the message just queued, before it can be polled.
+    fn track_transmission(&mut self, serial: u64) -> Transmission {
+        let transmission = Transmission(Arc::new(OnceLock::new()));
+        for message in self
+            .pending
+            .iter_mut()
+            .rev()
+            .take_while(|m| m.serial == serial)
+        {
+            message.transmission = Some(transmission.clone());
+        }
+        transmission
+    }
+
     /// As [`Self::send`], but a message the table would give up after its
     /// lifetime is resent until it is acked: for what must not be lost,
     /// however late (the replay of a sync). The lifetime is the sender's
@@ -946,6 +1065,19 @@ impl Transport {
         Ok((a, b))
     }
 
+    /// As [`Self::send_joined`], retaining when the pair first leaves the
+    /// queue. The receipt belongs to the second message: both share its
+    /// datagram and neither can be sent alone. Failed or cancelled pairs
+    /// cannot publish a transmission time.
+    pub fn send_joined_timed(
+        &mut self,
+        first: (u8, &[u8]),
+        second: (u8, &[u8]),
+    ) -> Result<Transmission, SendError> {
+        let (_, serial) = self.send_joined(first, second)?;
+        Ok(self.track_transmission(serial))
+    }
+
     fn send_for(
         &mut self,
         id: u8,
@@ -1028,7 +1160,7 @@ impl Transport {
         let outgoing = |head: Vec<u8>, payload: &[u8]| Outgoing {
             serial,
             head,
-            payload: payload.to_vec(),
+            payload: Payload::Bytes(payload.to_vec()),
             variable,
             channel,
             lifetime,
@@ -1043,6 +1175,7 @@ impl Transport {
             gathers: info.class == Class::Plain && matches!(info.lifetime, Lifetime::For(_)),
             joined: false,
             sent_in: VecDeque::new(),
+            transmission: None,
         };
         self.outstanding
             .insert(serial, if whole { 1 } else { parts as u32 });
@@ -1159,13 +1292,16 @@ impl Transport {
                 let multi = messages.len() > 1;
                 let mut body = Vec::with_capacity(MAX_DATAGRAM);
                 for message in &messages {
-                    message.write(&mut body, multi);
+                    message.write(&mut body, multi, now);
                 }
                 datagrams.push(self.datagram(multi, &body, now));
                 self.budget -= 1;
                 self.last_data = Some(now);
                 let number = self.sent_total - 1;
                 for mut message in messages {
+                    if let Some(transmission) = message.transmission.take() {
+                        transmission.0.get_or_init(|| now);
+                    }
                     if !message.sent_in.is_empty() {
                         self.resent += 1;
                     }
