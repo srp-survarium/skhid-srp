@@ -60,7 +60,7 @@
 //! answer is.
 
 use survarium::v026g::item_params::item_params;
-use survarium::v026g::loadouts::bot_gear::{WeaponFacts, weapon_facts};
+use survarium::v026g::loadouts::bot_gear::{ReloadTiming, WeaponFacts, weapon_facts};
 use survarium::v026g::loadouts::{self, BOT_AMMO_SLOTS, BotRole, Loadout, POCKET_SLOTS, SlotItem};
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
@@ -242,11 +242,11 @@ pub const GUNS: [Gun; 5] = [
     },
 ];
 
-/// The facts of the weapon item `item`: [`GUNS`], else derived from its
-/// config ([`derived_guns`]).
+/// Explicit config timings take precedence over the five legacy weapons' constants.
 pub fn gun(item: &str) -> Option<&'static Gun> {
-    GUNS.iter()
-        .chain(derived_guns())
+    derived_guns()
+        .iter()
+        .chain(&GUNS)
         .find(|gun| gun.item == item)
 }
 
@@ -258,7 +258,8 @@ pub fn gun(item: &str) -> Option<&'static Gun> {
 /// bolt or a pump is worked as the Mosin's (65 f), a round-by-round reload
 /// starts and ends as the Mosin's (50 f, 41 f), two barrels from empty as
 /// the TOZ-34's (110 f for its 80), and a pistol's reload from empty is a
-/// quarter longer (the TT-33's is near twice: 125 f for 65).
+/// quarter longer (the TT-33's is near twice: 125 f for 65). Explicit tactical/empty
+/// pairs override that guess and the legacy GUNS constants, including Uzi and AKS-74U.
 pub fn derived_guns() -> &'static [Gun] {
     static DERIVED: std::sync::OnceLock<Vec<Gun>> = std::sync::OnceLock::new();
     DERIVED.get_or_init(|| {
@@ -267,8 +268,16 @@ pub fn derived_guns() -> &'static [Gun] {
             .items
             .iter()
             .filter(|item| BotRole::of_weapon(item.dict_id).is_some())
-            .filter(|item| GUNS.iter().all(|gun| gun.item != item.name))
-            .filter_map(|item| Some(derived(&item.name, weapon_facts(item.dict_id)?)))
+            .filter_map(|item| {
+                let facts = weapon_facts(item.dict_id)?;
+                if matches!(facts.reload, ReloadTiming::Tactical { .. })
+                    || GUNS.iter().all(|gun| gun.item != item.name)
+                {
+                    Some(derived(&item.name, facts))
+                } else {
+                    None
+                }
+            })
             .collect()
     })
 }
@@ -276,23 +285,34 @@ pub fn derived_guns() -> &'static [Gun] {
 /// A weapon's facts from its config's ([`derived_guns`]).
 fn derived(item: &'static str, facts: WeaponFacts) -> Gun {
     let ms = |s: f32| (s * 1000.0).round() as u32;
-    let reload_ms = ms(facts.reload_s);
     let magazine = facts.magazine.max(1);
-    let reload = match facts.reload_state {
-        306 => Reload::Rounds {
-            start_ms: frames_ms(50),
-            round_ms: reload_ms / magazine,
-            finish_ms: frames_ms(41),
+    let reload = match facts.reload {
+        ReloadTiming::Tactical {
+            seconds,
+            empty_seconds,
+        } => Reload::Pistol {
+            ms: ms(seconds),
+            empty_ms: ms(empty_seconds),
         },
-        311 => Reload::Barrels {
-            one_ms: reload_ms,
-            two_ms: scaled(110, 80, reload_ms),
-        },
-        314 => Reload::Pistol {
-            ms: reload_ms,
-            empty_ms: reload_ms * 5 / 4,
-        },
-        _ => Reload::Magazine { ms: reload_ms },
+        ReloadTiming::Animation { seconds, state } => {
+            let reload_ms = ms(seconds);
+            match state {
+                306 => Reload::Rounds {
+                    start_ms: frames_ms(50),
+                    round_ms: reload_ms / magazine,
+                    finish_ms: frames_ms(41),
+                },
+                311 => Reload::Barrels {
+                    one_ms: reload_ms,
+                    two_ms: scaled(110, 80, reload_ms),
+                },
+                314 => Reload::Pistol {
+                    ms: reload_ms,
+                    empty_ms: reload_ms * 5 / 4,
+                },
+                _ => Reload::Magazine { ms: reload_ms },
+            }
+        }
     };
     Gun {
         item,
@@ -474,6 +494,29 @@ mod tests {
     use survarium::v026g::item_params::item_params;
 
     #[test]
+    fn explicit_reload_pairs_replace_legacy_magazine_and_pistol_estimates() {
+        let dictionary = Dictionary::shared();
+        for (name, tactical, empty) in [
+            ("uzi", 2.6, 3.5),
+            ("ak_74u", 2.4, 3.4),
+            ("sks", 5.7, 3.7),
+            ("ak_12", 2.8, 3.71),
+        ] {
+            let mut facts = weapon_facts(dictionary.item_named(name).unwrap().dict_id).unwrap();
+            facts.reload = ReloadTiming::Tactical {
+                seconds: tactical,
+                empty_seconds: empty,
+            };
+            let gun = derived(name, facts);
+            assert_eq!(gun.reload_ms(1, 1), (tactical * 1000.0).round() as u32);
+            assert_eq!(
+                gun.reload_ms(0, gun.magazine),
+                (empty * 1000.0).round() as u32
+            );
+        }
+    }
+
+    #[test]
     fn the_magazines_are_the_games_and_every_bot_weapon_is_known() {
         let dictionary = Dictionary::shared();
         for gun in &GUNS {
@@ -491,7 +534,7 @@ mod tests {
         assert!(Arms::of_role("steady").is_none());
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
         // Every weapon of a role is known, its magazine the game's; the
-        // five of GUNS are theirs, not derived.
+        // five legacy entries are replaced when the data supplies explicit timings.
         for item in &dictionary.items {
             if BotRole::of_weapon(item.dict_id).is_none() {
                 continue;
@@ -500,11 +543,15 @@ mod tests {
             let params = item_params(item.dict_id).unwrap();
             assert_eq!(gun.magazine, params.magazine_capacity, "{}", item.name);
         }
-        assert!(
-            derived_guns()
-                .iter()
-                .all(|gun| GUNS.iter().all(|own| own.item != gun.item))
-        );
+        assert!(derived_guns().iter().all(|gun| {
+            GUNS.iter().all(|own| own.item != gun.item)
+                || matches!(
+                    weapon_facts(dictionary.item_named(gun.item).unwrap().dict_id)
+                        .unwrap()
+                        .reload,
+                    ReloadTiming::Tactical { .. }
+                )
+        }));
         // A derived weapon of a known kind: the PPSh's magazine reload.
         let ppsh = gun("ppsh").unwrap();
         assert_eq!((ppsh.magazine, ppsh.rpm, ppsh.auto), (35, 1000, true));

@@ -121,6 +121,7 @@ edit	weapon-camo-069-1.json	-	the six weapons-069 guns take a camouflage and a d
 edit	weapon-pickup-hint-1.json	-	the dropped-weapon pickup prompt ("Pick up <gun> (E)", exe patch 85) in the existing collection widget; strings in the unified language catalog.
 edit	weapon-boxes-1.json	-	the real model boxes of the eight gun models with the exporter's default +-1 box (A-545, AK-74U, AKMN, IZh-27, Mosin, TOZ-34, TOZ-122, Vepr), from their vertices: exe patch 85's pickup target is the dropped gun's box
 edit	weapon-stats.tsv	-	the weapons' stats, and their cards
+edit	reload-timings-1.json	-	explicit tactical/empty reload durations: 0.69 values for the compared weapons, current AK-12 times; retime hands, item clips and events together
 edit	dead-keys-1.json	-	the dead duplicate keys out (parameters/ copies of what the game reads in dispersion/, data/ and hit_params/); the unused exo back piece follows the armour rule
 edit	scar-ammo-1.json	-	SCAR-H uses only dedicated AP in 20-round packs (2266), with shared AP ballistics; other weapons retain their ammo
 edit	ammo.tsv	-	the ammo's stats, and their cards

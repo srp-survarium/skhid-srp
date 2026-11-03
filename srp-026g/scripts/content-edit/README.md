@@ -32,6 +32,28 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### Explicit reload durations
+
+`weapon-stats.tsv` owns the times in seconds. `reload` maps to the native
+`parameters/reload_time`: tactical for a two-clip state-314 weapon, the ordinary
+reload for a single-clip weapon. The optional `reload_empty` column maps to
+`parameters/reload_empty_time`. Fill both columns to author an independent pair;
+leave `reload_empty` blank to retain the existing animation-derived behavior.
+
+`reload-timings-1.json`, immediately after the table in `release/content.tsv`,
+compiles each explicit pair into private hands and item animations under
+`animations/single/weapons/srp_reload/<weapon>/`. It scales every bone curve's
+time coordinates and every event timestamp, preserving poses, event payloads,
+bone names and the original hands/item phase relationship. All four hands pairs
+must agree. The native first-clip normalization and reload-speed modifiers then
+produce the authored pair; no extra gameplay timer or executable hook is needed.
+The compiler also refreshes lobby property 162's empty/tactical ratio. Bots read
+the explicit pair from the same weapon config.
+
+Change the two table cells for future tuning; do not edit generated animations.
+The paths remain stable across retunes. Such changes require a `next` simulation
+row and the normal `release/build-content` validation.
+
 ### Headwear render assets
 
 `headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`

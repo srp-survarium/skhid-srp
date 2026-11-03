@@ -2691,6 +2691,8 @@ st_srp_weapon_minimum_damage	Minimalne obrażenia
 st_srp_weapon_minimum_damage_from	Minimalne obrażenia od
 st_srp_weapon_recoil_heading	Odrzut, rozrzut i kołysanie
 st_srp_weapon_reload	Przeładowanie
+st_srp_weapon_reload_empty	Przeładowanie (pusty)
+st_srp_weapon_reload_tactical	Przeładowanie taktyczne
 st_srp_weapon_shift_hint	Shift: więcej · Alt: w meczu
 st_srp_weapon_spread_growth	Tempo wzrostu rozrzutu
 st_srp_weapon_spread_max	Limit wzrostu rozrzutu

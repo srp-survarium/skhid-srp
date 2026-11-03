@@ -2691,6 +2691,8 @@ st_srp_weapon_minimum_damage	Мінімальная шкода
 st_srp_weapon_minimum_damage_from	Мінімальная шкода ад
 st_srp_weapon_recoil_heading	Аддача, раскід, гойданне
 st_srp_weapon_reload	Перазарадка
+st_srp_weapon_reload_empty	Перазарадка (пусты)
+st_srp_weapon_reload_tactical	Тактычная перазарадка
 st_srp_weapon_shift_hint	Shift: дэталі · Alt: у баі
 st_srp_weapon_spread_growth	Хуткасць росту раскіду
 st_srp_weapon_spread_max	Мяжа росту раскіду

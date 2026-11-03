@@ -2691,6 +2691,8 @@ st_srp_weapon_minimum_damage	Minimální poškození
 st_srp_weapon_minimum_damage_from	Minimální poškození od
 st_srp_weapon_recoil_heading	Zpětný ráz, rozptyl a chvění
 st_srp_weapon_reload	Přebíjení
+st_srp_weapon_reload_empty	Přebití (prázdná)
+st_srp_weapon_reload_tactical	Taktické přebití
 st_srp_weapon_shift_hint	Shift: více · Alt: v zápase
 st_srp_weapon_spread_growth	Rychlost růstu rozptylu
 st_srp_weapon_spread_max	Maximální přídavný rozptyl

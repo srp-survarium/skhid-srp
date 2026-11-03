@@ -2105,3 +2105,6 @@ va	status	ref_021d	name
 0x00219990	verified	0x0016c901	survarium::network_client::match_options
 0x0027a9c0	verified	0x001a259b	survarium::network_client::get_active_player
 0x00288cd0	observed		survarium::lobby_menu::autobuy_changed
+0x0030e000	reviewed	0x001f165c	survarium::weapon_core_reload_state::weapon_core_reload_state
+0x0030fc50	reviewed	0x001f3056	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state
+0x0030fe90	reviewed		survarium::pistol_weapon_core_reload_state::get_weapon_lexeme

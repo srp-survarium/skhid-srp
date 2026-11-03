@@ -67,6 +67,7 @@ package survarium.player
                // Aim time: instant_aim_start 0x2E1B88 (index 49 on parameters/aim_time).
                return value * factor(PlayerModifier.AIM_TIME);
             case 138:
+            case 162:
                // Reload: the animation's time scale (length / reload_time) x max(0, 1 + S13)
                // (0x30E210; the shotgun's, pistol's and double barrel's the same).
                return value / factor(PlayerModifier.RELOAD_SPEED);
