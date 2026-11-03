@@ -161,8 +161,8 @@
       5
     ],
     "model": "models/weapons/assault/akmsu/akmsu.skinned_model",
-    "exposure": 1.917148,
-    "sha256": "b448d5a7dd10f22816e310b14e6abb5a9f6650210554e3e275d94cea1a68e367"
+    "exposure": 1.894556,
+    "sha256": "060c768a172ded3af7dbae449fe50dd69039097b00b8fd07e6572db2c6aa3622"
   },
   {
     "name": "famas",
@@ -216,7 +216,7 @@
       5
     ],
     "model": "models/weapons/smg/ppsh/ppsh.skinned_model",
-    "exposure": 1.954634,
-    "sha256": "01ffaeb7b5e69f2b7a0af3a1604f9d7ea8b140aee00e7bf427bac74dfab85d5b"
+    "exposure": 1.834729,
+    "sha256": "13668160fb2852a454fb353daca9dda81ee300d2f4dd7c625daf2b8a05b0f808"
   }
 ]

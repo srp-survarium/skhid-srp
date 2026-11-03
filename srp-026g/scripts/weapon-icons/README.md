@@ -57,7 +57,7 @@ python3 pack_icons.py --packs /path/to/content-packs --icons icons \
 The pack builder refuses to replace an existing version. It checks every
 PNG, copies the three source packs, replaces only their listed weapon icon
 PNGs, and verifies that all other file bytes remain identical. The outputs
-are weapons-031@8, weapons-046@11 and weapons-069@12, pinned in
+are weapons-031@8, weapons-046@11 and weapons-069@13, pinned in
 `release/content.tsv`. Ammo and kill-feed images, gameplay configs, models,
 textures and animations stay byte-identical. No simulation-change row is
 needed.
@@ -67,3 +67,13 @@ comparison against revision 43 must contain only `flash_movies/lobby_menu.swf`.
 Check the assembled movie's atlas against the live movie: only the twenty
 weapon cells may differ; every other bitmap pixel and every other SWF tag
 must be identical.
+
+The two modular magazines are posed by `magazine_pose.py` before rendering:
+AKMSU uses the shipped constant item-idle clip for its magazine bone instead
+of its displaced bind position; PPSh's drum and cartridge surface undo the
+converted module's quarter-turn about the magazine socket. Both corrections
+transform normals and the tangent frame with the vertices. No game model or
+animation changes. The other eighteen PNGs retain their previous hashes.
+For this correction alone, `pack_icons.py --pack weapons-069` builds version
+13; comparison with version 12 changes only the two weapon PNGs and pack
+metadata.
