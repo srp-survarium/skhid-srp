@@ -57,6 +57,7 @@
 //!   (every lobby request) are delivered once, through a 128-wide window.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::ack;
@@ -237,6 +238,19 @@ enum Channel {
     Ordered(u64),
 }
 
+/// The first datagram containing a queued message (or one of its parts).
+/// The transport publishes this when `poll` emits the datagram. Dropping
+/// either owner is safe; a cancelled message has no transmission time.
+#[derive(Clone, Debug)]
+pub struct Transmission(Arc<OnceLock<Instant>>);
+
+impl Transmission {
+    /// `None` until a datagram actually leaves the transport's queue.
+    pub fn first_sent_at(&self) -> Option<Instant> {
+        self.0.get().copied()
+    }
+}
+
 struct Outgoing {
     /// Which `send` it came from: the parts of one message share it.
     serial: u64,
@@ -259,6 +273,7 @@ struct Outgoing {
     joined: bool,
     /// The datagrams it went out in (their running numbers), newest last.
     sent_in: VecDeque<u64>,
+    transmission: Option<Transmission>,
 }
 
 impl Outgoing {
@@ -782,6 +797,28 @@ impl Transport {
         self.send_for(id, payload, None, None, None)
     }
 
+    /// Queue a message and retain its first actual transmission time.
+    /// A stalled send window or a pacing delay is not network travel time.
+    /// The receipt needs no polling order or explicit cleanup from its owner.
+    pub fn send_timed(&mut self, id: u8, payload: &[u8]) -> Result<Transmission, SendError> {
+        let serial = self.send(id, payload)?;
+        Ok(self.track_transmission(serial))
+    }
+
+    /// Attach a receipt to the message just queued, before it can be polled.
+    fn track_transmission(&mut self, serial: u64) -> Transmission {
+        let transmission = Transmission(Arc::new(OnceLock::new()));
+        for message in self
+            .pending
+            .iter_mut()
+            .rev()
+            .take_while(|m| m.serial == serial)
+        {
+            message.transmission = Some(transmission.clone());
+        }
+        transmission
+    }
+
     /// As [`Self::send`], but a message the table would give up after its
     /// lifetime is resent until it is acked: for what must not be lost,
     /// however late (the replay of a sync). The lifetime is the sender's
@@ -946,6 +983,19 @@ impl Transport {
         Ok((a, b))
     }
 
+    /// As [`Self::send_joined`], retaining when the pair first leaves the
+    /// queue. The receipt belongs to the second message: both share its
+    /// datagram and neither can be sent alone. Failed or cancelled pairs
+    /// cannot publish a transmission time.
+    pub fn send_joined_timed(
+        &mut self,
+        first: (u8, &[u8]),
+        second: (u8, &[u8]),
+    ) -> Result<Transmission, SendError> {
+        let (_, serial) = self.send_joined(first, second)?;
+        Ok(self.track_transmission(serial))
+    }
+
     fn send_for(
         &mut self,
         id: u8,
@@ -1043,6 +1093,7 @@ impl Transport {
             gathers: info.class == Class::Plain && matches!(info.lifetime, Lifetime::For(_)),
             joined: false,
             sent_in: VecDeque::new(),
+            transmission: None,
         };
         self.outstanding
             .insert(serial, if whole { 1 } else { parts as u32 });
@@ -1166,6 +1217,9 @@ impl Transport {
                 self.last_data = Some(now);
                 let number = self.sent_total - 1;
                 for mut message in messages {
+                    if let Some(transmission) = message.transmission.take() {
+                        transmission.0.get_or_init(|| now);
+                    }
                     if !message.sent_in.is_empty() {
                         self.resent += 1;
                     }

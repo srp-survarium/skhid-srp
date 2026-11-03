@@ -12,6 +12,98 @@ fn ms(ms: u64) -> Duration {
     Duration::from_millis(ms)
 }
 
+#[test]
+fn a_transmission_receipt_waits_for_the_send_window() {
+    let (mut transport, now) = connect_match();
+    // Unique messages cannot pass the oldest retired id until its guard
+    // expires, even after every datagram was acknowledged.
+    for _ in 0..100 {
+        transport.send(0xE6, &[0; 4]).unwrap();
+    }
+    let receipt = transport.send_timed(0xE6, &[1; 4]).unwrap();
+    assert_eq!(receipt.first_sent_at(), None);
+    let first = transport.poll(now);
+    assert_eq!(receipt.first_sent_at(), None);
+    let newest = first.last().unwrap()[0];
+    transport.receive(&flow(1, newest, &(0..newest).collect::<Vec<_>>()), now);
+    transport.poll(now + ms(499));
+    assert_eq!(receipt.first_sent_at(), None);
+    let sent = transport.poll(now + ms(500));
+    assert_eq!(carrying(&sent, 0xE6), 1);
+    assert_eq!(receipt.first_sent_at(), Some(now + ms(500)));
+    transport.poll(now + ms(1_000));
+    drop(transport);
+    assert_eq!(receipt.first_sent_at(), Some(now + ms(500)));
+}
+
+#[test]
+fn a_transmission_receipt_keeps_the_first_part_and_survives_cancellation() {
+    let (mut transport, now) = connect_match();
+    let receipt = transport.send_timed(0xE8, &[0; 14_000]).unwrap();
+    transport.poll(now);
+    assert_eq!(receipt.first_sent_at(), Some(now));
+    for step in 1..=25 {
+        transport.poll(now + ms(3 * step));
+    }
+    transport.poll(now + ms(700)); // Retransmissions do not rewrite it.
+    assert_eq!(receipt.first_sent_at(), Some(now));
+    let unsent = transport.send_timed(0xE6, &[0; 4]).unwrap();
+    transport.disconnect(now + ms(701));
+    transport.poll(now + ms(702));
+    assert_eq!(unsent.first_sent_at(), None);
+    assert_eq!(receipt.first_sent_at(), Some(now));
+}
+
+#[test]
+fn dropping_a_transmission_receipt_does_not_cancel_the_message() {
+    let (mut transport, now) = connect_match();
+    drop(transport.send_timed(0xE6, &[0; 4]).unwrap());
+    assert_eq!(carrying(&transport.poll(now), 0xE6), 1);
+    assert!(transport.send_timed(0xE6, &[0; 3]).is_err());
+}
+
+#[test]
+fn a_joined_transmission_waits_for_both_messages_and_keeps_their_order() {
+    let (mut transport, now) = connect_match();
+    for _ in 0..100 {
+        transport.send(0xE6, &[0; 4]).unwrap();
+    }
+    let receipt = transport
+        .send_joined_timed((0xE7, &[0, 0]), (0xE5, &[1; 7]))
+        .unwrap();
+    let first = transport.poll(now);
+    assert_eq!(receipt.first_sent_at(), None);
+    assert_eq!(carrying(&first, 0xE7), 0);
+    assert_eq!(carrying(&first, 0xE5), 0);
+    let newest = first.last().unwrap()[0];
+    transport.receive(&flow(1, newest, &(0..newest).collect::<Vec<_>>()), now);
+    transport.poll(now + ms(499));
+    assert_eq!(receipt.first_sent_at(), None);
+    let sent = transport.poll(now + ms(500));
+    assert_eq!(receipt.first_sent_at(), Some(now + ms(500)));
+    let pair = sent.iter().find(|d| carrying(std::slice::from_ref(d), 0xE5) == 1).unwrap();
+    let ids: Vec<u8> = messages(Table::Match, pair).iter().map(|m| m.0).collect();
+    assert_eq!(ids, [0xE7, 0xE5]);
+    transport.poll(now + ms(1_000));
+    assert_eq!(receipt.first_sent_at(), Some(now + ms(500)));
+}
+
+#[test]
+fn a_joined_transmission_is_not_published_after_rejection_or_cancellation() {
+    let (mut transport, now) = connect_match();
+    assert!(transport.send_joined_timed((0xE7, &[0, 0]), (0xE5, &[1; 6])).is_err());
+    let after_rejection = transport.poll(now);
+    assert_eq!(carrying(&after_rejection, 0xE7), 0);
+    assert_eq!(carrying(&after_rejection, 0xE5), 0);
+    let receipt = transport
+        .send_joined_timed((0xE7, &[0, 0]), (0xE5, &[1; 7]))
+        .unwrap();
+    transport.disconnect(now);
+    transport.poll(now + ms(500));
+    drop(transport);
+    assert_eq!(receipt.first_sent_at(), None);
+}
+
 /// The messages of a server datagram: `(id, x, payload length)`.
 fn messages(table: Table, datagram: &[u8]) -> Vec<(u8, Option<u8>, usize)> {
     wire::parse(table, Direction::ToClient, datagram, 3)

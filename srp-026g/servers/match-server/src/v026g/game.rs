@@ -112,7 +112,7 @@ use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
-use udp_transport::{Event, SendError, Transport};
+use udp_transport::{Event, SendError, Transmission, Transport};
 use world_frame::{Frame, Places};
 
 use super::battery_cap;
@@ -491,15 +491,24 @@ struct InFlight {
 }
 
 /// A 0xE5 of the sync under way.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct SetTimeSent {
     echo: u16,
+    /// Queue time is a conservative clock bound, not an RTT baseline.
     at: Instant,
+    transmission: Transmission,
     /// The clock it gave.
     start: u32,
     /// A 0xE7 of offset 0 went ahead of it in its datagram: a game that
     /// took it has no correction running (`Game::send_set_time`).
     ends_correction: bool,
+}
+
+impl SetTimeSent {
+    fn round_trip(&self, now: Instant) -> Option<u32> {
+        let sent = self.transmission.first_sent_at()?;
+        now.checked_duration_since(sent)?.as_millis().try_into().ok()
+    }
 }
 
 /// The 0xE5s of one sync remembered, to know their answers.
@@ -545,11 +554,24 @@ const LATE_RELAY_MARGIN_MS: u32 = 75;
 /// 5.2).
 const DROP_ORDER_LIFE: Duration = Duration::from_millis(450);
 
-/// The last 0xE6 sent.
-#[derive(Clone, Copy)]
-struct PingSent {
+/// The last 0xE6 queued, with its transport-owned transmission receipt.
+struct Ping {
     a: u16,
     b: u16,
+    transmission: Transmission,
+}
+
+impl Ping {
+    fn round_trip(&self, reply: TimeReply, now: Instant) -> Option<u32> {
+        let held = reply.stamp.wrapping_sub(self.a);
+        if reply.first != self.b || held > PING_ANSWER_MS {
+            return None;
+        }
+        let sent = self.transmission.first_sent_at()?;
+        let elapsed = now.checked_duration_since(sent)?.as_millis();
+        let round_trip = elapsed.checked_sub(u128::from(held))?;
+        (round_trip <= u128::from(PING_ANSWER_MS)).then_some(round_trip as u32)
+    }
 }
 
 /// One measure of how far a client's clock is behind the match clock (ms;
@@ -621,7 +643,7 @@ struct Peer {
     /// It has a game clock: it answered a 0xE5, or took a whole sync. A
     /// message at a tick (0xE9, 0xEA) means nothing to a client without.
     clock_set: bool,
-    ping: Option<PingSent>,
+    ping: Option<Ping>,
     next_ping: Instant,
     /// It uploaded a snapshot, so it answers 0xF6.
     patched: bool,
@@ -1473,29 +1495,28 @@ impl Game {
     /// The client's 0xDB: the answer to the 0xE5 of its sync, or to a ping.
     fn time_reply(&mut self, index: usize, reply: TimeReply, now: Instant) {
         let clock = self.clock(now);
-        let mono = self.mono(now);
         let id = self.id;
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
         // To 0xE5 the client answers the echo as it was.
         if !matches!(peer.stage, Stage::Live)
-            && let Some(sent) = peer
+            && let Some((ends_correction, round_trip, start, queued_at)) = peer
                 .set_times
                 .iter()
                 .rev()
                 .find(|sent| sent.echo == reply.stamp)
-                .copied()
+                .and_then(|sent| Some((sent.ends_correction, sent.round_trip(now)?, sent.start, sent.at)))
         {
             peer.time_confirmed = true;
             peer.time_answered = true;
             peer.clock_set = true;
-            peer.clock_given = Some((sent.start, sent.at));
-            if sent.ends_correction {
+            peer.clock_given = Some((start, queued_at));
+            if ends_correction {
                 // Its game took the 0xE7 of offset 0 ahead of that 0xE5.
                 peer.correction_ends = None;
             }
-            peer.round_trip = now.saturating_duration_since(sent.at).as_millis() as u32;
+            peer.round_trip = round_trip;
             log::debug!(
                 "Match {id:#x}: player {index} took its time (generation {}), round trip {} ms",
                 peer.generation.0,
@@ -1504,19 +1525,17 @@ impl Game {
             sample_lag(peer, reply.client_clock(clock), clock, now);
             return;
         }
-        let Some(ping) = peer.ping else {
+        // `a` was stamped when queued, potentially long before its datagram
+        // went. Subtract only the client's hold from actual wire elapsed time.
+        let Some(round_trip) = peer
+            .ping
+            .as_ref()
+            .and_then(|ping| ping.round_trip(reply, now))
+        else {
             return;
         };
-        // `b` as it went, and `a` plus how long the client held it.
-        if reply.first != ping.b || reply.stamp.wrapping_sub(ping.a) > PING_ANSWER_MS {
-            return;
-        }
-        let round_trip = reply.round_trip(mono);
-        if round_trip > PING_ANSWER_MS {
-            return;
-        }
         peer.ping = None;
-        peer.round_trip = u32::from(round_trip);
+        peer.round_trip = round_trip;
         if peer.stage == Stage::Live {
             sample_lag(peer, reply.client_clock(clock), clock, now);
             self.correct_clock(index, now);
@@ -2415,9 +2434,6 @@ impl Game {
         let Some(peer) = self.peers[index].as_mut() else {
             return start;
         };
-        if peer.set_times.len() == SET_TIMES_KEPT {
-            peer.set_times.pop_front();
-        }
         let set_time = ServerMessage::SetTime {
             generation: peer.generation.0,
             echo,
@@ -2430,23 +2446,32 @@ impl Game {
         // into the base.
         let ends_correction = peer.clock_offset_pending.is_some()
             || peer.correction_ends.is_some_and(|end| now < end);
-        if ends_correction {
+        let queued = if ends_correction {
             let stop = ServerMessage::ClockOffset(0);
-            match peer.transport.send_joined(
+            peer.transport.send_joined_timed(
                 (stop.id(), &stop.payload()),
                 (set_time.id(), &set_time.payload()),
-            ) {
-                Ok(_) | Err(SendError::NotConnected) => {}
-                Err(error) => {
-                    log::warn!("Match {id:#x}: 0xE7 and 0xE5 to player {index} not sent: {error:?}")
-                }
-            }
+            )
         } else {
-            send(peer, &set_time);
+            peer.transport
+                .send_timed(set_time.id(), &set_time.payload())
+        };
+        let transmission = match queued {
+            Ok(transmission) => transmission,
+            Err(error) => {
+                if error != SendError::NotConnected {
+                    log::warn!("Match {id:#x}: 0xE5 to player {index} not sent: {error:?}");
+                }
+                return start;
+            }
+        };
+        if peer.set_times.len() == SET_TIMES_KEPT {
+            peer.set_times.pop_front();
         }
         peer.set_times.push_back(SetTimeSent {
             echo,
             at: now,
+            transmission,
             start,
             ends_correction,
         });
@@ -4952,6 +4977,7 @@ impl Game {
 
     /// Advance the match, and return the datagrams to send.
     pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+        let id = self.id;
         self.poll_roster(now);
         let clock = self.clock(now);
         let mono16 = self.mono(now) as u16;
@@ -5217,18 +5243,20 @@ impl Game {
                         // Its round trip and its clock: 0.26g clients send
                         // no clock of their own.
                         peer.next_ping = now + PING_EVERY;
-                        let ping = PingSent {
-                            a: mono16,
-                            b: peer.round_trip.min(u32::from(u16::MAX)) as u16,
-                        };
-                        peer.ping = Some(ping);
-                        send(
-                            peer,
-                            &ServerMessage::Ping {
-                                a: ping.a,
-                                b: ping.b,
-                            },
-                        );
+                        let a = mono16;
+                        let b = peer.round_trip.min(u32::from(u16::MAX)) as u16;
+                        let message = ServerMessage::Ping { a, b };
+                        peer.ping =
+                            match peer.transport.send_timed(message.id(), &message.payload()) {
+                                Ok(transmission) => Some(Ping { a, b, transmission }),
+                                Err(SendError::NotConnected) => None,
+                                Err(error) => {
+                                    log::warn!(
+                                        "Match {id:#x}: ping to player {index} not sent: {error:?}"
+                                    );
+                                    None
+                                }
+                            };
                     }
                 }
                 Stage::Gone => {
@@ -6342,6 +6370,163 @@ impl Game {
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_queued_set_time_measures_the_round_trip_from_transmission() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        // (queue delay, wire RTT, match clock at queue, prior lag,
+        // assigned clock, corrected sample). Whole-millisecond fixtures
+        // from 67ea552c and 42d32332; not full historical server replays.
+        for (queue_ms, wire_ms, clock, prior_lag, assigned, expected_lag) in [
+            (121, 622, 80_969, -597, 81_716, -315),
+            (1_950, 1_025, 346_747, -195, 347_092, 2_118),
+        ] {
+            for stop_correction in [false, true] {
+                let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+                bench.join_all();
+                let queued = bench.now();
+                let sent = queued + Duration::from_millis(queue_ms);
+                let arrived = sent + Duration::from_millis(wire_ms);
+                let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+                let snapshot = game.newest_snapshot().unwrap();
+                game.clock_start = Some((queued, clock));
+                let peer = game.peers[2].as_mut().unwrap();
+                peer.clock_given = None;
+                peer.round_trip = 100;
+                peer.lag_ms = Some(prior_lag);
+                peer.correction = None;
+                peer.correcting_until = None;
+                peer.clock_offset_pending = None;
+                peer.correction_ends = stop_correction.then_some(arrived);
+                peer.inputs_seen.clear();
+                peer.profiles_seen.clear();
+                peer.lags.clear();
+                game.begin_timing(2, &snapshot, false, queued);
+                let peer = game.peers[2].as_mut().unwrap();
+                let request = peer.set_times.back().unwrap();
+                assert_eq!(request.start, assigned);
+                assert_eq!(request.ends_correction, stop_correction);
+                let reply = TimeReply {
+                    first: 0,
+                    stamp: request.echo,
+                    client_ms: assigned as u16,
+                };
+                game.time_reply(2, reply, queued);
+                let peer = game.peers[2].as_mut().unwrap();
+                assert!(!peer.time_answered, "an unsent request cannot be answered");
+                assert_eq!(peer.round_trip, 100);
+                peer.transport.poll(sent);
+                game.time_reply(2, reply, arrived);
+                let peer = game.peers[2].as_ref().unwrap();
+                assert_eq!(peer.round_trip, wire_ms as u32);
+                assert_eq!(peer.round_trips.back(), Some(&(wire_ms as u32)));
+                assert_eq!(estimated_lag(peer, arrived), Some(expected_lag));
+                assert!(peer.time_answered);
+                assert!(peer.correction_ends.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn a_queued_ping_does_not_push_a_resync_clock_ahead() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+        bench.join_all();
+        let queued = bench.now();
+        let sent = queued + Duration::from_millis(486);
+        let arrived = sent + Duration::from_millis(175);
+        let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+        game.clock_start = Some((arrived, 204_989));
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.clock_given = None;
+        peer.time_confirmed = false;
+        peer.correction = None;
+        peer.correcting_until = None;
+        peer.lags.clear();
+        peer.round_trips = [124].into();
+        peer.inputs_seen = [204_950].into();
+        peer.profiles_seen.clear();
+        // Match 14d74165: E6 queued at205848, emitted at206334, reply
+        // at206509. The client held it39ms. The old622ms measurement
+        // included the486ms server queue and produced a -253ms lag.
+        let request = ServerMessage::Ping { a: 9240, b: 124 };
+        let transmission = peer
+            .transport
+            .send_timed(request.id(), &request.payload())
+            .unwrap();
+        let ping = Ping {
+            a: 9240,
+            b: 124,
+            transmission,
+        };
+        let reply = TimeReply {
+            first: 124,
+            stamp: 9279,
+            client_ms: 204_931u32 as u16,
+        };
+        assert_eq!(ping.round_trip(reply, queued), None);
+        peer.transport.poll(sent);
+        assert_eq!(ping.round_trip(reply, arrived), Some(136));
+        peer.ping = Some(ping);
+        game.time_reply(2, reply, arrived);
+        let peer = game.peers[2].as_ref().unwrap();
+        assert!(peer.ping.is_none());
+        assert_eq!(peer.round_trip, 136);
+        assert_eq!(estimated_lag(peer, arrived), Some(-10));
+        let now = arrived + Duration::from_millis(176);
+        let repaired = game.sync_start(2, 204_650, false, 205_165, now);
+        assert_eq!(repaired, 205_343);
+
+        // Negative control: feed the old queue-inclusive measurement
+        // through the same production sampler and clock-selection path.
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.lags.clear();
+        peer.round_trip = 622;
+        sample_lag(peer, 204_931, 204_989, arrived);
+        assert_eq!(game.sync_start(2, 204_650, false, 205_165, now), 205_768);
+    }
+
+    #[test]
+    fn ping_timing_handles_stamp_wrap_and_rejects_impossible_replies() {
+        let queued = Instant::now();
+        let mut transport = Transport::new(udp_transport::Table::Match, queued);
+        transport.receive(&[0, 255, 0, 0xD8, 1, 2, 3, 4, 0], queued);
+        let request = ServerMessage::Ping { a: 65530, b: 124 };
+        let transmission = transport
+            .send_timed(request.id(), &request.payload())
+            .unwrap();
+        let ping = Ping {
+            a: 65530,
+            b: 124,
+            transmission,
+        };
+        let sent = queued + Duration::from_millis(486);
+        let reply = TimeReply::to_ping(ping.a, ping.b, 39, 204_931);
+        assert_eq!(reply.stamp, 33);
+        assert_eq!(ping.round_trip(reply, sent), None);
+        transport.poll(sent);
+        assert_eq!(
+            ping.round_trip(reply, sent + Duration::from_millis(175)),
+            Some(136)
+        );
+        assert_eq!(
+            ping.round_trip(reply, sent + Duration::from_millis(20)),
+            None
+        );
+        assert_eq!(ping.round_trip(reply, sent + Duration::from_secs(6)), None);
+        assert_eq!(
+            ping.round_trip(
+                TimeReply {
+                    first: 125,
+                    ..reply
+                },
+                sent + Duration::from_millis(175)
+            ),
+            None
+        );
+    }
+
     /// Clock samples a second apart: (the lag each shows, its round trip).
     fn samples(taken: &[(i64, u32)]) -> Vec<LagSample> {
         let start = Instant::now();
@@ -6613,16 +6798,24 @@ mod tests {
         // and the server cannot tell which: 150 ms after the second, the
         // first gives 10 300 ms and the second 10 250 ms.
         let at = Instant::now();
+        let mut transport = Transport::new(udp_transport::Table::Match, at);
+        transport.receive(&[0, 255, 0, 0xD8, 1, 2, 3, 4, 0], at);
+        let first = transport.send_timed(0xE5, &[0; 7]).unwrap();
+        transport.poll(at);
+        let second = transport.send_timed(0xE5, &[0; 7]).unwrap();
+        transport.poll(at + Duration::from_millis(150));
         let copies: VecDeque<SetTimeSent> = [
             SetTimeSent {
                 echo: 1,
                 at,
+                transmission: first,
                 start: 10_000,
                 ends_correction: false,
             },
             SetTimeSent {
                 echo: 2,
                 at: at + Duration::from_millis(150),
+                transmission: second,
                 start: 10_100,
                 ends_correction: false,
             },
@@ -6633,7 +6826,7 @@ mod tests {
         // if the game took the first one last) ...
         assert_eq!(given_clock(&copies, now), Some(10_300));
         // ... and either way round.
-        let reversed: VecDeque<SetTimeSent> = copies.iter().rev().copied().collect();
+        let reversed: VecDeque<SetTimeSent> = copies.iter().rev().cloned().collect();
         assert_eq!(given_clock(&reversed, now), Some(10_300));
         assert_eq!(given_clock(&VecDeque::new(), now), None);
     }
