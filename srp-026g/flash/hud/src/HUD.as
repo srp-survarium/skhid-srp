@@ -47,6 +47,9 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ModeIntroduction;
+   import survarium.modes.ModeIntroText;
+   import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
    import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
@@ -336,6 +339,8 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
+         this._modeIntroduction = new ModeIntroduction(this.showModeIntroduction,this.revealIntroduction);
+         this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -818,11 +823,34 @@ package
       private var _keptLayer:KeptLayer;
 
       private var _forcedView:ForcedView;
+      private var _modeIntroduction:ModeIntroduction;
+      private var _pregameText:String = "";
+
+      private function onIntroductionFrame(event:Event) : void
+      {
+         this._modeIntroduction.update(getTimer(),ModeIntroText.ready("blackout") && this.chat != null &&
+            this.chat.introductionReady(),this.chat != null ? this.chat.send_function : null);
+      }
+
+      private function showModeIntroduction(mode:String) : void
+      {
+         this.chat.addIntroduction(ModeIntroText.chat(mode));
+      }
+
+      private function revealIntroduction(show:Boolean) : void
+      {
+         this._forcedView.notice = show;
+      }
 
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
          this.setInterfaceHidden(forced);
+         if(forced)
+            this._modeIntroduction.begin("blackout");
+         else
+            this._modeIntroduction.reset();
+         this.set_pregame(this._pregameText);
       }
 
       public function interface_forced() : Boolean
@@ -1104,6 +1132,7 @@ package
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         this.set_pregame(this._pregameText);
       }
       
       public function show_profiles_selector(value:Boolean) : void
@@ -1517,6 +1546,8 @@ package
       {
          if(value)
          {
+            if(this._modeIntroduction.receive(value,getTimer()))
+               return;
             trace("add_chat_message::");
             this.chat.got_message(value);
          }
@@ -1829,8 +1860,9 @@ package
       
       public function set_pregame(value:String) : void
       {
-         this.pregameInfo.contextText.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.contextText.text = value;
+         this._pregameText = value;
+         ModeIntroText.pregame(this.pregameInfo.contextText,
+            this.interface_forced() ? "blackout" : null,value);
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
@@ -1959,6 +1991,8 @@ package
          this._artefactOfferKey = "";
          this._artefactOfferValue = "";
          this._nativeContext = {text:"",value:0,visible:true};
+         this._modeIntroduction.reset();
+         this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
          // tells the movie the new match's state
