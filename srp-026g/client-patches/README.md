@@ -3968,8 +3968,9 @@ The Rust `world_check` module has two lohooks:
   the world the rest of the packet's reader (ESI).
 
 A refused world is never loaded: the packet's reader is read to its end,
-`close_current_match(2)` leaves the match as the leave button does, a line
-goes to `srp_patches.log`, and the exit `refused` is the handler's epilogue
+patch 97 requests a fresh generation for this recipient, a line goes to
+`srp_patches.log` (every refusal: at most a line a second, each counting the
+refusals since the one before), and the exit `refused` is the handler's epilogue
 (0x27C1E0). Nothing a match computes changes. `check_world_check_026g.py`
 runs both loads beside the original exe; `--drift` the client build against
 the server build on kept worlds.
@@ -4564,3 +4565,48 @@ These guards also cover item bodies whose format cannot be walked statically.
 checks invalid/empty tables at all four stack alignments (84 cases). The i686
 patch crate's 119 tests and Clippy pass. No release revision is reserved.
 
+
+## Match-message checks (patch 114, unreleased)
+
+Before dispatching a server message, the client checks fixed lengths, player
+indices, relayed input numbers and compressed-output bounds with `srp-validate`.
+A refusal consumes the payload and skips its native handler through the existing
+dispatch exit. It does not close the match. Bad world/handshake envelopes request
+recovery through patch 97; other bad messages are discarded. Valid messages follow the original dispatch table. The hook precedes the
+id subtraction, avoiding the table jump's base relocation.
+
+This checks the 0xE4 envelope and late-join proposal header; the existing late-join
+validator still checks its profile. It does not yet connect the shared static
+options parser to the decompressed 0xE4 reader. The server does not emit 0xED/0xEE
+batch inputs; those remain refused, as in the source PR.
+
+Validation: 112 native dispatch cases, 119 i686 patch tests, current server encoder
+regressions (including Blackout, late join and pickup commands), and Clippy.
+
+
+## Recipient recovery (patch 97, unreleased)
+
+Deploy the server receipt support before this client. D8 capability 0x82/0x83
+negotiates application-level load receipts; old 0x80/0x81 clients retain their
+existing server behavior. A transport ACK alone does not admit a new recipient.
+After native world deserialization returns (0x27C116), the client sends Loaded;
+a refused world sends Rejected without changing simulation state. The server
+retries only that connection with a newer generation, at most once per second;
+a missing receipt triggers a retry after two seconds. Corrupt E3/E4 envelopes
+request a resend of that connection's pending handshake.
+
+Receipts use a distinct impossible E0 upload prefix, match seed and generation.
+Stale, duplicate and unsolicited receipts cannot reset another player or accuse
+a donor. Rejection packets are limited to one per second per match. Every
+refused message and world gets a line in `srp_patches.log`: at most one a
+second for the game, each counting the refusals since the last line
+(`vostok::log::refusal`). The server logs each refused world or handshake a
+client reports, and each receipt it ignores, the same way.
+The existing packet-pool reserve is checked before allocation. Match close
+(0x27A790) clears the owner; reused pointers/seeds cannot retain a stale budget.
+
+`check_packet_recovery_026g.py` exercises 2,000 malformed messages, recovery,
+post-deserialize receipts, early handshake, full pool and teardown. The server
+suite covers first worlds, resyncs, lost reports, repeated refusal, forged/stale
+reports and subsequent successful play. This is not a transport flood defence
+or a replacement for a real-match release-candidate test.

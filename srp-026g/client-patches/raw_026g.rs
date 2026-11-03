@@ -225,6 +225,12 @@ unsafe extern "C" {
     pub fn engine_ray_callback(callback: Option<ClosestRayResultCallback>, from: *const f32, to: *const f32, group: u32, mask: u32, requester: Option<Bullet>);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
     pub fn engine_ray_needs_collision(callback: Option<ClosestRayResultCallback>, proxy: Option<BtBroadphaseProxy>) -> u8;
+    /// virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX
+    pub fn engine_match_packet_begin(client: Option<MatchOptionsHolder>, id: u32) -> Option<MatchPacket>;
+    /// virtual survarium::match_client+0x1c (1 vtables of vtables.tsv: 0x27a2a0): client ECX, packet ESP+4; pops 4
+    pub fn engine_match_packet_send(client: Option<MatchOptionsHolder>, packet: Option<MatchPacket>);
+    /// 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
+    pub fn engine_append_packet_bytes(buffer_writer: Option<BufferWriter>, source_bytes: *const u8, byte_count: u32);
 }
 
 #[allow(dead_code)]
@@ -405,6 +411,8 @@ unsafe extern "C" {
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_tick_count(void)
+    pub static engine_tick_count: unsafe extern "stdcall" fn() -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -680,6 +688,24 @@ impl NetworkClient {
     #[inline(always)]
     pub unsafe fn set_options_holder(self, value: Option<MatchOptionsHolder>) {
         unsafe { self.0.byte_add(0x1f1c48).cast::<Option<MatchOptionsHolder>>().write_volatile(value) }
+    }
+
+    /// +0x1f1c64 (u32): 2 is the live match transport, checked by late_join send_prepared
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn match_connection_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1f1c64).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1f1c68 (u8): process_dynamic_match_info 0x27C040 stores the accepted envelope generation before load
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world_generation(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1f1c68).cast::<u8>().as_ptr() }
     }
 }
 
@@ -7882,6 +7908,33 @@ impl MatchOptionsHolder {
     pub unsafe fn options(self) -> MatchOptions {
         MatchOptions(unsafe { self.0.byte_add(0xc) })
     }
+
+    /// +0x577bc (u32): match_client options seed, checked by late_join send_prepared
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn match_seed(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x577bc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x578b0 (ptr<survarium::match_packet_pool>): packet pool checked before allocating by late_join send_prepared
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn packet_pool(self) -> Option<MatchPacketPool> {
+        unsafe { self.0.byte_add(0x578b0).cast::<Option<MatchPacketPool>>().read_volatile() }
+    }
+
+    /// +0x578b0 (ptr<survarium::match_packet_pool>): packet pool checked before allocating by late_join send_prepared
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_packet_pool(self, value: Option<MatchPacketPool>) {
+        unsafe { self.0.byte_add(0x578b0).cast::<Option<MatchPacketPool>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::match_place (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -14812,6 +14865,72 @@ impl GenericAnomalyCore {
     }
 }
 
+/// A survarium::match_packet_pool (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchPacketPool(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchPacketPool {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x30 (u32): packet pool entries used; reserve seventeen as late_join send_prepared
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn used(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x30).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x34 (u32): packet pool entries available
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x34).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::match_packet (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchPacket(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchPacket {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x98 (u8): clear 40h to keep a custom E0 carrier out of automatic joining
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x98).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x2a8 (obj<vostok::buffer_writer>): packet buffer writer, as late_join send_prepared
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn writer(self) -> BufferWriter {
+        BufferWriter(unsafe { self.0.byte_add(0x2a8) })
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18005,6 +18124,69 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// match_dispatch.message (0x27a31f): on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue
+    pub mod match_dispatch_message {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// EBX: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferReader)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn id(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// world_load.loaded (0x27c116): process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here
+    pub mod world_load_loaded {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+    }
+
+    /// match_recovery.close (0x27a790): close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown
+    pub mod match_recovery_close {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(NetworkClient)
         }
     }
 }

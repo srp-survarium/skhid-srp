@@ -3226,3 +3226,4 @@ va	status	ref_021d	name
 0x00332a30	inferred-medium		survarium::damage_model::friendly_anomaly
 0x00332cb0	inferred-medium		survarium::damage_model::pain_after_hit_listener
 0x0033fa80	inferred-medium		survarium::body_part_parameters::route_damage
+0x003183a0	inferred-high		survarium::match_options::match_options

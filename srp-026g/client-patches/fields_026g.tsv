@@ -777,3 +777,11 @@ survarium::image	d3d11_module	0xAF30D0	u32	the delayed import d3d11.dll's module
 vostok::ai::fsm	selected	0x10	u32	resolved state pointer, cleared before the serialized id search (0x38CCFE); dereferenced at 0x38CD29
 survarium::generic_anomaly_core	states_begin	0x68	ptr<u8>	state pointer vector, deserialize 0x31B0FF
 survarium::generic_anomaly_core	states_end	0x6C	ptr<u8>	state pointer vector end (constructor/registration); bound for serialized state id
+survarium::network_client	match_connection_state	0x1F1C64	u32	2 is the live match transport, checked by late_join send_prepared
+survarium::network_client	world_generation	0x1F1C68	u8	process_dynamic_match_info 0x27C040 stores the accepted envelope generation before load
+survarium::match_options_holder	match_seed	0x577BC	u32	match_client options seed, checked by late_join send_prepared
+survarium::match_options_holder	packet_pool	0x578B0	ptr<survarium::match_packet_pool>	packet pool checked before allocating by late_join send_prepared
+survarium::match_packet_pool	used	0x30	u32	packet pool entries used; reserve seventeen as late_join send_prepared
+survarium::match_packet_pool	capacity	0x34	u32	packet pool entries available
+survarium::match_packet	flags	0x98	u8	clear 40h to keep a custom E0 carrier out of automatic joining
+survarium::match_packet	writer	0x2A8	obj<vostok::buffer_writer>	packet buffer writer, as late_join send_prepared
