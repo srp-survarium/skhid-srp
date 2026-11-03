@@ -53,7 +53,7 @@ impl StockCounts {
             "bots_empty_reloads_blocked": self.bots_empty.blocked,
         });
         let text = format!(
-            "owner-test world weapons: reloads {} (loops cut by fire or aim {}; begun by the emptying shot's clip {}, reload keys inside that clip {}), out of rounds and ammo {:.1} s, fire held on a weapon that could not fire {:.1} s (empty or reloading {:.1} s), in {:.0} bot minutes; resupply box: uses {} (topped up {}, ended with nothing {}), rounds put in {}; the bots' own count: reloads at an emptying shot's clip end {} (blocked by a sprint or a jump {})",
+            "owner-test world weapons: reloads {} (loops cut by fire or aim {}; begun by the emptying shot's clip {}, reload keys inside that clip {}), out of rounds and ammo {:.1} s, fire held on a weapon that could not fire {:.1} s (empty or reloading {:.1} s), in {:.0} bot minutes; resupply box: uses {} (topped up {}, ended with nothing {}), rounds put in {}; the bots' own count: reloads with the key at an emptying shot's clip end {} (left to the habit by a jump {})",
             c.reloads,
             c.cut_loops,
             c.empty_reloads,
