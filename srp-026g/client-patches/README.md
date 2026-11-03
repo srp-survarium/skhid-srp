@@ -489,13 +489,9 @@ An embedded hostname is limited to 63 ASCII bytes and the port to 1–65535.
 `--cert-only` does not support embedding; cert-only overlays still pass the
 address through their batch file.
 
-On Linux, install Wine with support for 32-bit Windows applications and
-Winetricks, then run `bash play_skhid.sh` from `game/binaries/x86`. The launcher
-creates its own Wine prefix, installs DXVK on first use, and preserves saved
-game settings. Full builds use the embedded server; edit `server=` at the top
-of the script for an override. Certificate-only builds fill in that value.
-Both launchers use the builder's `--localization` setting. See `LINUX.txt` for
-details, including the English-keyboard-layout startup workaround.
+On Linux, use **Wine 11.0+ with modern WoW64** (tested: **11.8 Staging WoW64**)
+and Winetricks. Run `bash play_skhid.sh` from `game/binaries/x86`.
+See [LINUX.txt](LINUX.txt) for setup and troubleshooting.
 
 `bash play_skhid.sh launcher` starts `launcher_skhid.exe` in the same Wine
 prefix instead of the game (not run under Wine by us yet).
@@ -806,7 +802,7 @@ original bytes first, so another build or an already patched file is refused.
 ### 6. The minimum video-memory check
 
 - **Where:** `jae` at VA 0x106411 (file offset 0xF5811) becomes `jmp`:
-  `73 0F` → `EB 0F`, the same one-byte patch used by `play_skhid.sh`.
+  `73 0F` → `EB 0F`.
 - **Why:** the client otherwise calls its fatal warning when detected
   video memory is below 320 MiB, which can prevent startup under Wine.
 - **What stays:** the function returns the detected video-memory size;

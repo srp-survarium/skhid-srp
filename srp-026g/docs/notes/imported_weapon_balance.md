@@ -65,6 +65,22 @@ means the required shots exceed the magazine, not an estimated reload duration.
 The pump interval is at least its chamber time. In-game timing/accuracy requires a
 playtest; these tables do not claim an empirical win rate.
 
+SCAR ammunition follow-up (2026-11-03): rerunning the audit selects
+`ammo_7.62x51_ap` for SCAR at all ten distances, for both torso and head. At
+0--20 m against this torso, AP gives four hits / 0.288 s, while either standard
+7.62x51 pack gives five hits / 0.384 s. AP multiplies base penetration 0.40 by
+1.2 to 0.48; standard stays 0.40. Both standard packs have identical ballistics.
+The SCAR balance commit `b1ed665eb` retained damage, penetration and cadence;
+it changed handling. Its reported combat comparison therefore includes AP,
+but this single-magazine audit does not evaluate the AP pack's 10-round supply
+or establish that the supply limit was a deliberate balance decision.
+The final `scar-ammo-1.json` gives SCAR only its own AP 20-round pack (2266),
+copied from shared AP (52) with identical ballistics. Three bags now carry 60
+AP rounds instead of 30. This improves ammunition endurance; the damage,
+penetration, shots-to-kill and firing-time figures above remain unchanged.
+SCAR no longer takes either standard pack (51 or 2254) or shared AP (52).
+Other weapons retain those items and their existing pack sizes.
+
 Shotgun cells assume every pellet hits the named part, even at long distance: they are
 optimistic bounds, **not practical shotgun range**. The audit also outputs half-pellet
 shots needed. Kills per magazine are `floor(capacity / shots_to_kill)`. The 50% column

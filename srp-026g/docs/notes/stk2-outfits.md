@@ -339,3 +339,9 @@ their donor geometry; they do not use the STK2 limb fitter.
 Checks and reproducible offline pair renders are in
 `scripts/clothing-fit/README.md`. These check geometry and native clip
 poses; they do not substitute for an in-game lobby/match fitting pass.
+
+## Novice hood neckline (2026-11-03)
+
+`stk2-novice@14` removes the generated cowl and throat bridge that caused the
+stripe below the hood. It retains the STK2 donor's original open neckline and
+head/mask fitting. Other equipment meshes and item parameters are unchanged.

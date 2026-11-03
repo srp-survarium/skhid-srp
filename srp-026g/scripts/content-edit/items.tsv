@@ -743,6 +743,7 @@ items	name	base_cost	gold	like	start
 2263	vhs_2	115000	false		
 2264	fn_minimi	120000	false		
 2265	ammo_5.56x45_belt	100	false		
+2266	ammo_7.62x51_scar_ap	200	false		
 2270	mp5a1	15000	false		
 2271	svu_a	75000	false		
 2272	l85a2	72000	false		
