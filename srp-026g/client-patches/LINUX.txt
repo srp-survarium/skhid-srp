@@ -19,6 +19,20 @@ First launch creates a Wine prefix and downloads DXVK. Later launches reuse it.
 Select an English keyboard layout before starting to avoid text-input issues.
 For VPN setup, see VPN.txt; split tunnelling must cover Wine.
 
+LOBBY RUNS SLOWLY
+
+On Linux 6.14 or newer, load the kernel's ntsync module before playing:
+
+    sudo modprobe ntsync
+
+To load it at every start of the computer:
+
+    echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf
+
+Without /dev/ntsync, wineserver handles all thread synchronisation. In menu
+tests the lobby ran at 10-15 fps without it and about 60 fps with it. The
+script prints a hint when /dev/ntsync is missing and the module exists.
+
 IF IT FAILS
 
 The script refuses old Wine versions and non-modern-WoW64 setups. If switching

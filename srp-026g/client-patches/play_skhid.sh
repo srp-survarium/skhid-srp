@@ -69,6 +69,13 @@ Use Wine 11.0 or newer with modern WoW64 support; see LINUX.txt."
 Wine 11.0 or newer with modern WoW64 is required (tested: 11.8 Staging WoW64).
 Select its wine and wineserver in PATH; see LINUX.txt."
 
+    # Wine 11 uses the kernel's ntsync driver when /dev/ntsync exists. Without it
+    # wineserver does all the thread synchronisation and the lobby can crawl.
+    if [[ ! -e /dev/ntsync ]] && command -v modinfo >/dev/null && modinfo ntsync >/dev/null 2>&1; then
+        echo "Info: /dev/ntsync is missing, so the lobby may run very slowly. Run: sudo modprobe ntsync" >&2
+        echo "  (LINUX.txt: how to keep it after a restart.)" >&2
+    fi
+
     printf 'Wine runtime: %s; required mode: WINEARCH=wow64\n' "$version" >>"$log"
 }
 

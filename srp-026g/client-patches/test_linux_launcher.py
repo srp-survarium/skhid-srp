@@ -29,7 +29,9 @@ class LauncherTests(unittest.TestCase):
         self.script = self.bin / 'play_skhid.sh'
         self.drm = self.root / 'drm'
         self.drm.mkdir()
-        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm)))
+        self.ntsync = self.root / 'ntsync'
+        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm))
+            .replace('/dev/ntsync', str(self.ntsync)))
         self.config = self.bin / 'wineprefix/drive_c/users' / pwd.getpwuid(os.getuid()).pw_name / 'Documents/Survarium/user.cfg'
         self.tools = self.root / 'tools'
         self.tools.mkdir()
@@ -73,6 +75,11 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
     def xrandr(self, output, exit_code=0):
         tool = self.tools / 'xrandr'
         tool.write_text('#!' + sys.executable + '\nimport sys\nprint(' + repr(output) + ')\nsys.exit(' + str(exit_code) + ')\n')
+        tool.chmod(0o755)
+
+    def modinfo(self, exit_code):
+        tool = self.tools / 'modinfo'
+        tool.write_text('#!' + sys.executable + '\nimport sys\nsys.exit(' + str(exit_code) + ')\n')
         tool.chmod(0o755)
 
     def copy_exe(self):
@@ -176,6 +183,41 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(self.exe.read_bytes(), FIXTURE)
         self.assertFalse((self.bin/'wineprefix/.skhid-ready').exists())
         self.assertFalse(any(c['name'] == 'winetricks' for c in self.recorded_calls(True)))
+
+    def test_missing_ntsync_is_pointed_out_when_the_kernel_has_the_module(self):
+        self.copy_exe()
+        self.modinfo(0)
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # The test points the script's /dev/ntsync at its own path, in the hint too.
+        self.assertIn(f'Info: {self.ntsync} is missing', result.stderr)
+        self.assertIn('sudo modprobe ntsync', result.stderr)
+        self.assertEqual(self.recorded_calls()[-1]['args'][0], 'survarium_skhid.exe')
+
+    def test_no_ntsync_hint_when_it_would_not_help(self):
+        self.copy_exe()
+        for case, module, device in (('the device is there', 0, True),
+                                     ('the kernel has no module', 1, False),
+                                     ('modinfo is not installed', None, False)):
+            with self.subTest(case=case):
+                (self.tools / 'modinfo').unlink(missing_ok=True)
+                if module is not None:
+                    self.modinfo(module)
+                if device:
+                    self.ntsync.write_text('')
+                else:
+                    self.ntsync.unlink(missing_ok=True)
+                result = self.run_script()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn('ntsync', result.stderr)
+
+    def test_no_ntsync_hint_for_a_refused_wine(self):
+        self.copy_exe()
+        self.modinfo(0)
+        self.env['TEST_WINE_VERSION'] = 'wine-9.0'
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('ntsync', result.stderr)
 
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
