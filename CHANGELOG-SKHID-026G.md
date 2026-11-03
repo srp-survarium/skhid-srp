@@ -945,3 +945,21 @@ update changes what a match computes.
 - TODO: #1076 ASh-12: 425 rounds a minute (was 400)
 - TODO: #1075 MP7: armour piercing 0.3 -> 0.35
 - TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
+
+## 3 Nov, 20:12 — TODO: the owner's words (update required)
+
+<!-- Revision 45 (026g-rev45), released 2026-11-03 20:12 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1144 Publish revision 44 patch notes
+- TODO: #1145 Preserve retail brightness in new weapon icons
+- TODO: #1150 Require modern WoW64 in the Linux launcher
+- TODO: #1151 Restore the Novice hood's original neckline
+- TODO: #1152 Simplify the Linux launcher and remove executable patching
+- TODO: #1153 Give SCAR-H AP-only 20-round ammunition
+- TODO: #1160 Install Wine Gecko silently for the Linux launcher
+- TODO: #1161 Store Linux game settings in the XDG config directory
+- TODO: #1158 Linux: finish ntsync setup before starting Wine
+- TODO: #1163 Fix orange and yellow medkit pain-healing totals
+- TODO: #1173 Set explicit reload timings and align tactical reload stats
+- TODO: #1175 Explain Blackout in System chat for players' first three matches
+- TODO: #1177 Add medical skills and shared Larkspur effects
