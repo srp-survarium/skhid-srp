@@ -2287,6 +2287,10 @@ va	name	source	ret_cleanup	result
 0x002189e0	survarium::replay_network_client::match_options	manual	0	EAX = client+1Ch, inline match options; replay vtable 0x9FF344 +34h. Live client uses a different implementation (0x219990).
 0x0026d6a0	survarium::base_local_network_client::get_active_player	manual	8	EAX = out pointer; active player with reference added, or 0. Core is [client+578BCh]+1F8h; slot +50h in 0xA074BC and replay 0x9FF344. Live 0x27A9C0 instead reads +1F1C40h.
 0x00288cd0	survarium::lobby_menu::autobuy_changed	manual	4	AL=1; reads raw byte at args[0]+8, no GFx numeric conversion; calls 0x273000
+0x000728f0	vostok::physics::bullet_physics_world::get_world_aabb	manual	4	EAX: output AABB pointer
+0x000758b0	vostok::physics::bullet_physics_world::add	manual	12	void
+0x00075a60	vostok::physics::bullet_physics_world::remove	manual	8	void
+0x0032ee90	survarium::bullet::update_bullet_position	manual	8	AL: position remains within world bounds, range and speed limits
 0x0030fc50	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state	manual	8	EAX: destination state; speed = tactical hands duration / reload_time, used for both reload clips
 0x0030fe90	survarium::pistol_weapon_core_reload_state::get_weapon_lexeme	manual	12	EAX: output lexeme; selects tactical with rounds left, empty otherwise, at the shared normalized speed times player reload modifier
 0x0032a6a0	survarium::body_part::remove_affect	manual	12
