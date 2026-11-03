@@ -105,6 +105,10 @@ RUN = {
 # trip. Not run here = the bytes it owns are in a section no decoder of this repository locates (bullets,
 # objects, the statistics' batteries), or it owns no bytes.
 OWN_CHECKS = {
+    (0x33DD65, 6): "medical.duration_restore: derives painkiller duration from config and kit ranks, "
+                   "does not read/write serialized bytes; check_medical_skills_026g.py executes start, tick "
+                   "and restore with identical config duration for ranks 0..5 and two client memory layouts",
+
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
     (0x2D1050, 10): "first_load input and kit (late_join_026g.asm): the place's input and kit choice into the core's "

@@ -51,6 +51,9 @@ Edits (edits.json):
   "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
                     weapon-stats.tsv. Private hands/item clips and event times follow the pair;
                     declare source .b-spline and .bones_names dependencies in _inputs.
+  "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
+                    append a new indexed record, refusing stale counts and duplicate identities;
+                    arrays in the new value are indexed tables, leaving existing records intact
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -543,6 +546,33 @@ def insert_value(buf, toff, key, value):
     new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
     d, i, c, ty, cnt = rec(buf, toff)
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+
+
+def append_entry(buf, path, expected_count, unique_key, value):
+    """Append a new record, refusing stale counts and duplicate identities.
+
+    New JSON lists are indexed tables. This operation never replaces an
+    existing value, so existing native vectors and scalar types stay intact.
+    """
+    off = find(buf, path)
+    _, name, crc, kind, count = rec(buf, off)
+    if kind != T_INDEXED or count != expected_count:
+        raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
+    if not isinstance(value, dict) or unique_key not in value:
+        raise ValueError(f'{path}: new entry must have {unique_key}')
+    entries = children(buf, off)
+    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    records = [bytes(buf[entry:entry + 24]) for entry in entries]
+    def indexed(value):
+        if isinstance(value, list):
+            return {i: indexed(item) for i, item in enumerate(value)}
+        if isinstance(value, dict):
+            return {key: indexed(item) for key, item in value.items()}
+        return value
+    records.append(value_record(buf, 0, '', indexed(value)))
+    REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
+    return count
 
 
 def items_of(buf, path):
@@ -2227,6 +2257,14 @@ def main():
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
+    for e in edits.get('append_entry', []):
+        p = e['file']
+        at = append_entry(buf(p), e['list'], e['expected_count'], e['unique_key'], e['value'])
+        table = '/' + e['list']
+        added.setdefault(p, []).append('%s[%d]' % (table, at))
+        grown.setdefault(p, {}).setdefault(table, 0)
+        grown[p][table] += 1
+        print('append %s[%d]' % (e['list'], at))
     for e in edits.get('add_key', []):
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
