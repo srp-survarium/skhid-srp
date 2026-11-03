@@ -4308,9 +4308,14 @@ mod tests {
 
     /// The bot stands at `feet`, crouched, looking at `aim` from there.
     fn stand_at(s: &mut Scenario, feet: Vec3, aim: Vec3) {
+        stand_at_as(s, feet, aim, true);
+    }
+
+    /// [`stand_at`], crouched or standing.
+    fn stand_at_as(s: &mut Scenario, feet: Vec3, aim: Vec3, crouch: bool) {
         use crate::v026g::bots::kin::yaw_of;
         let me = s.bot(0, 0, feet);
-        me.keys = key::CROUCH;
+        me.keys = if crouch { key::CROUCH } else { 0 };
         // The eye moves with the pitch: the view on `aim` from the eye it
         // gives (a few rounds settle it).
         for _ in 0..4 {
@@ -4368,12 +4373,12 @@ mod tests {
         assert!(matches!(intent.look, Look::Use(_)));
         // There, the view on the battery: two uses, 1.2 s apart.
         let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
-        stand_at(&mut s, first.feet, aim);
+        stand_at_as(&mut s, first.feet, aim, first.crouch);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "a use at the stand");
         assert!(!intent.fire, "no fire as it uses: it may carry");
         s.view.clock += 1_200;
-        stand_at(&mut s, first.feet, TAKE_AT);
+        stand_at_as(&mut s, first.feet, TAKE_AT, first.crouch);
         // No world since the use: it waits, the use may have taken it.
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0, "the first use not seen yet");
@@ -4388,7 +4393,7 @@ mod tests {
         let failed = intent.failed_stand.expect("the stand is kept");
         assert_eq!(
             (failed.battery, failed.feet, failed.crouch),
-            (0, first.feet, true)
+            (0, first.feet, first.crouch)
         );
         let State::Take {
             stand: Some(second),
@@ -4402,7 +4407,7 @@ mod tests {
         // The next take (the commander gives the play again) does not use
         // the kept stand where it stands: it goes elsewhere at once.
         s.failed_stands = vec![failed];
-        stand_at(&mut s, first.feet, aim);
+        stand_at_as(&mut s, first.feet, aim, first.crouch);
         let mut state = fresh_take(&s, Some(east));
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0);
@@ -4573,14 +4578,13 @@ mod tests {
         use crate::v026g::bots::tuning::TakePitch;
         let feet = Vec3::new(20.0, 0.0, 12.0);
         let mut s = take_field(&[], feet);
+        let down = 1.1f32;
         let me = s.bot(0, 0, feet);
         me.keys = key::CROUCH;
+        me.pitch = -down;
         let eye = me.eye();
-        let down = 1.1f32;
-        let aim = eye + Vec3::new(0.5, -0.5 * down.tan(), 0.0);
-        stand_at(&mut s, feet, aim);
-        let pitch = s.cx(0).me.pitch;
-        assert!(pitch < -1.04 && pitch > -1.16, "{pitch}");
+        let [fx, fz] = crate::v026g::bots::kin::forward(me.yaw);
+        let aim = eye + Vec3::new(fx * down.cos(), -down.sin(), fz * down.cos()) * 0.6;
         assert_eq!(s.tuning.take.pitch, TakePitch::ViewScale);
         assert!(aimed_at(&s.cx(0), aim), "by the view's scale");
         s.tuning.take.pitch = TakePitch::Fixed;
