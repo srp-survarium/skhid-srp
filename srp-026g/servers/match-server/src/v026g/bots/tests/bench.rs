@@ -1196,6 +1196,9 @@ pub(crate) fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     for bot in bots.bots.iter().flatten() {
                         game.bodies[bot.place].why_now = bot.bench_why;
+                        // [A277] The bot's kit now: its body's weapon is filled from it, as the client fills the bot's profile
+                        // (`Game::kits`).
+                        game.kits[bot.place] = bot.reflex.arms();
                         // [counts only] The mirror of the kick the bot made for the tick about to be played (`kick_gap`).
                         let next = game.tick + TICK_MS;
                         game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
