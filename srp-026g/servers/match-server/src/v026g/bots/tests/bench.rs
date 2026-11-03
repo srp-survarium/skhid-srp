@@ -570,10 +570,43 @@ fn set(tuning: &mut serde_json::Value, path: &str, value: serde_json::Value) {
         .insert(name.to_owned(), value);
 }
 
-/// [`Bots::poll`] with each part timed; the same steps in the same order.
+/// [A276] The poll time over which a poll is told whole (`SRP_BENCH_SPIKE_US`, µs; unset: none).
+fn spike_us() -> Option<f32> {
+    static SPIKE: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    *SPIKE.get_or_init(|| super::settings::BenchSettings::from_env().number("SRP_BENCH_SPIKE_US"))
+}
+
+/// The work done since `before`, whoever's ([`super::bench_work`]), by kind.
+fn work_since(before: &super::bench_work::Totals) -> [u64; super::bench_work::KINDS] {
+    let after = super::bench_work::totals();
+    std::array::from_fn(|kind| (0..3).map(|row| after[row][kind] - before[row][kind]).sum())
+}
+
+/// Work as the spike lines say it.
+fn work_text(work: [u64; super::bench_work::KINDS]) -> String {
+    format!("floors {} rays {} spots {} plays {}", work[0], work[1], work[2], work[3])
+}
+
+/// [A276] One bot's part of a poll told whole: its index, team, play, and its think's and ticks' time (µs) and work.
+struct BotTime {
+    index: usize,
+    team: u8,
+    play: Option<super::plays::PlayKind>,
+    think_us: f32,
+    think_work: [u64; super::bench_work::KINDS],
+    ticks_us: f32,
+    ticks_work: [u64; super::bench_work::KINDS],
+}
+
+/// [`Bots::poll`] with each part timed; the same steps in the same order. [A276] With `SRP_BENCH_SPIKE_US`, a poll over it is
+/// told whole on stderr (`A276 spike` lines): its parts, each team's commander, the search slices the loop ran between the
+/// bots, and the bots whose think or ticks took the longest, each with the work it did, so a spike names its code path by
+/// count. Timing only: the steps and their order are the same with it.
 pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, Vec<Note>) {
     use std::time::Instant;
+    let spike = spike_us();
     let started = Instant::now();
+    let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
@@ -589,13 +622,19 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         .tracker
         .view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
     let viewed = Instant::now();
+    let work_viewed = super::bench_work::totals();
+    let mut commanders: Vec<(u8, f32, [u64; super::bench_work::KINDS])> = Vec::new();
     super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
         for team in 0..2u8 {
             if bots.commander_due(team, &clock, &view) {
+                let (a, before) = (Instant::now(), super::bench_work::totals());
                 super::bench_work::set(super::bench_work::Who::Team(team));
                 bots.commander(team, &view, &mut notes);
                 super::bench_work::set(super::bench_work::Who::Shared);
+                if spike.is_some() {
+                    commanders.push((team, a.elapsed().as_secs_f32() * 1e6, work_since(&before)));
+                }
             }
         }
     }
@@ -608,16 +647,36 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     // each bot's think timed; the ticks are the rest of the loop, the searches under way with them (they are drive
     // work, as the drive's own searches are).
     let looped = Instant::now();
+    let work_looped = super::bench_work::totals();
+    let mut by_bot: Vec<BotTime> = Vec::new();
+    let mut in_bots = 0.0;
     bots.each_bot(&view, |bots, index| {
         let a = Instant::now();
+        let before = if spike.is_some() { Some(super::bench_work::totals()) } else { None };
         // Before play begins: only rest.
         if clock.playing {
             bots.think(index, &view, &mut rays, &mut notes);
         }
         bots.sync_route_claim(index, now, claims_on);
-        think += a.elapsed().as_secs_f64();
+        let thought = a.elapsed();
+        think += thought.as_secs_f64();
+        // The spike lines' own timing only with them on: the bench's poll times stay as without them.
+        let between = before.map(|before| (before, Instant::now(), super::bench_work::totals()));
         bots.ticks(index, &clock, &view, &mut made);
         bots.zone_walk_note(index, now, &mut notes);
+        if let Some((before, b, between)) = between {
+            in_bots += a.elapsed().as_secs_f64();
+            let bot = bots.bots[index].as_ref();
+            by_bot.push(BotTime {
+                index,
+                team: bot.map_or(0, |b| b.team),
+                play: bot.and_then(|b| b.assignment.as_ref().map(|a| a.kind)),
+                think_us: thought.as_secs_f32() * 1e6,
+                think_work: std::array::from_fn(|k| (0..3).map(|r| between[r][k] - before[r][k]).sum()),
+                ticks_us: b.elapsed().as_secs_f32() * 1e6,
+                ticks_work: work_since(&between),
+            });
+        }
     });
     let ticks = looped.elapsed().as_secs_f64() - think;
     super::bench_work::set(super::bench_work::Who::Idle);
@@ -636,7 +695,44 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     for (worst, part) in times.worst.iter_mut().zip(parts) {
         *worst = worst.max(part as f32 * 1e6);
     }
-    times.each.push(started.elapsed().as_secs_f32() * 1e6);
+    let whole_us = started.elapsed().as_secs_f32() * 1e6;
+    times.each.push(whole_us);
+    if spike.is_some_and(|over| whole_us > over) {
+        let us = |s: f64| s as f32 * 1e6;
+        let loop_work = work_since(&work_looped);
+        let bots_work: [u64; super::bench_work::KINDS] =
+            std::array::from_fn(|k| by_bot.iter().map(|b| b.think_work[k] + b.ticks_work[k]).sum());
+        let commanders_text: Vec<String> = commanders
+            .iter()
+            .map(|(team, t, work)| format!("team {team} {t:.0} µs [{}]", work_text(*work)))
+            .collect();
+        eprintln!(
+            "A276 spike at {} ms: poll {whole_us:.0} µs = view {:.0} [{}] + commander {:.0} ({}) + think {:.0} + ticks {:.0}; \
+             between the bots (search slices) {:.0} µs [{}]",
+            clock.clock,
+            us(parts[0]),
+            work_text(std::array::from_fn(|k| (0..3).map(|r| work_viewed[r][k] - work_start[r][k]).sum())),
+            us(parts[1]),
+            if commanders_text.is_empty() { "none".to_owned() } else { commanders_text.join(", ") },
+            us(parts[2]),
+            us(parts[3]),
+            us(parts[2] + parts[3] - in_bots),
+            work_text(std::array::from_fn(|k| loop_work[k] - bots_work[k])),
+        );
+        by_bot.sort_by(|a, b| (b.think_us + b.ticks_us).total_cmp(&(a.think_us + a.ticks_us)));
+        for bot in by_bot.iter().take(4) {
+            eprintln!(
+                "  A276 bot {} team {} {:?}: think {:.0} µs [{}], ticks {:.0} µs [{}]",
+                bot.index,
+                bot.team,
+                bot.play,
+                bot.think_us,
+                work_text(bot.think_work),
+                bot.ticks_us,
+                work_text(bot.ticks_work),
+            );
+        }
+    }
     (made, notes)
 }
 
