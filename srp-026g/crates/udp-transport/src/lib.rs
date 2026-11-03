@@ -55,5 +55,5 @@ mod tests;
 
 pub use packet_log::{ConnectionLog, PacketLog, Redact};
 pub use table::{Class, Direction, Length, Lifetime, Lookup, MessageInfo, Table};
-pub use transport::{Config, Event, SendError, State, Transmission, Transport};
+pub use transport::{Config, Event, PingClock, SendError, State, Transmission, Transport};
 pub use wire::MAX_DATAGRAM;
