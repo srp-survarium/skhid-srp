@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores
 st_srp_hud_add_friend	Add to friends
+st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
+st_srp_hud_blackout_start	Protective device: Blackout\nCollect batteries. No interface or hitmarkers. Hold Tab for information.
 st_srp_hud_friend_not_sent	Friend request not sent
 st_srp_hud_friend_sent	Friend request sent
 st_srp_hud_mute_hide	Hide chat
@@ -2691,6 +2693,8 @@ st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway
 st_srp_weapon_reload	Reload
+st_srp_weapon_reload_empty	Reload (empty)
+st_srp_weapon_reload_tactical	Tactical reload
 st_srp_weapon_shift_hint	Shift: details · Alt: in a match
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread

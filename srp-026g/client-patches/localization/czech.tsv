@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Skrýt ukazatele zásahů
 st_srp_hide_quests_option	Skrýt úkoly
 st_srp_hide_scores_option	Skrýt skóre hráčů
 st_srp_hud_add_friend	Přidat do přátel
+st_srp_hud_blackout_intro	Blackout: noste baterie k zařízení svého týmu. Rozhraní a ukazatele zásahů jsou skryté pro větší vtažení do hry. Podržte Tab: munice, zdraví, chat; po smrti výběr výbavy.
+st_srp_hud_blackout_start	Ochranné zařízení: blackout\nSbírejte baterie. Bez rozhraní a ukazatelů zásahů. Pro informace podržte Tab.
 st_srp_hud_friend_not_sent	Žádost o přátelství nebyla odeslána
 st_srp_hud_friend_sent	Žádost o přátelství odeslána
 st_srp_hud_mute_hide	Skrýt chat
@@ -2691,6 +2693,8 @@ st_srp_weapon_minimum_damage	Minimální poškození
 st_srp_weapon_minimum_damage_from	Minimální poškození od
 st_srp_weapon_recoil_heading	Zpětný ráz, rozptyl a chvění
 st_srp_weapon_reload	Přebíjení
+st_srp_weapon_reload_empty	Přebití (prázdná)
+st_srp_weapon_reload_tactical	Taktické přebití
 st_srp_weapon_shift_hint	Shift: více · Alt: v zápase
 st_srp_weapon_spread_growth	Rychlost růstu rozptylu
 st_srp_weapon_spread_max	Maximální přídavný rozptyl

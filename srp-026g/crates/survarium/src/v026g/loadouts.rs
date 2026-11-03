@@ -242,6 +242,21 @@ pub fn starter_stash() -> &'static [(u16, u32)] {
 /// grenade (its table at 0x925FC0). PROVEN.
 pub const POCKET_SLOTS: [u8; 6] = [13, 14, 15, 16, 17, 18];
 
+/// Supply pockets and artefacts share six quick positions.
+pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
+
+/// Final units in one supply pocket, including medicine bonuses.
+pub const MAX_POCKET_UNITS: u32 = 5;
+
+/// Cap equipped supply stacks without limiting stored items or ammunition.
+pub fn equipped_units(slot: u8, units: u32) -> u32 {
+    if POCKET_SLOTS.contains(&slot) {
+        units.min(MAX_POCKET_UNITS)
+    } else {
+        units
+    }
+}
+
 /// The order in which the client counts the slots for the quick-use keys
 /// (its table at 0x925FD8, read by 0x2FE7F0): the pockets, the back, then
 /// the other armour. PROVEN. Quick use `n` (1 on) is the `n`-th of these
@@ -645,7 +660,7 @@ fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
 /// The pockets a loadout opens and how many units each holds, with no
 /// skills: the player's `pocket_slots_count` and `pocket_slot_size` (1 and
 /// 1, `default.player`) plus what the worn items' default modifications
-/// add, at most the six [`POCKET_SLOTS`].
+/// add, at most [`MAX_POCKETS`].
 ///
 /// LIKELY the client's rule: the lobby opens the first `item_slots` of
 /// slots 13..=18 and empties and locks the others
@@ -665,8 +680,9 @@ pub fn pockets(loadout: &Loadout) -> (u32, u32) {
             .max(0.0) as u32
     };
     let count = (item_params::player().pocket_slots_count + added("pocket_slots_modifier"))
-        .min(POCKET_SLOTS.len() as u32);
-    let size = item_params::player().pocket_slot_size + added("pocket_slot_size_modifier");
+        .min(MAX_POCKETS as u32);
+    let size = (item_params::player().pocket_slot_size + added("pocket_slot_size_modifier"))
+        .min(MAX_POCKET_UNITS);
     (count, size)
 }
 

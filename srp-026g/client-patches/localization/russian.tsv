@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
+st_srp_hud_blackout_start	Защитное устройство: блэкаут\nСобирайте батареи. Без интерфейса и маркеров попаданий. Удерживайте Tab для просмотра информации.
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_hud_mute_hide	Скрыть чат
@@ -2691,6 +2693,8 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
+st_srp_weapon_reload_empty	Перезарядка (пустой)
+st_srp_weapon_reload_tactical	Тактическая перезарядка
 st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса

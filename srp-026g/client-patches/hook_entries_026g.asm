@@ -2355,6 +2355,558 @@ map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
 
+; 0x33d41b EBP medkit EBX player XMM0 duration: lohook -> medical_skills_on_duration_start
+global medical_skills_on_duration_start
+extern hook_medical_skills_on_duration_start
+medical_skills_on_duration_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_duration_start
+    mov edx, medical_skills_on_duration_start_replay
+    cmp eax, 0
+    je medical_skills_on_duration_start_go
+    mov edx, 0x33d421
+    cmp eax, 1
+    je medical_skills_on_duration_start_go
+    ud2
+medical_skills_on_duration_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_duration_start_replay:
+    db 0x51, 0xf3, 0x0f, 0x11, 0x04, 0x24
+    jmp 0x33d421
+
+; 0x33d852 EDI medkit EBP player XMM0 duration: lohook -> medical_skills_on_duration_tick
+global medical_skills_on_duration_tick
+extern hook_medical_skills_on_duration_tick
+medical_skills_on_duration_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_duration_tick
+    mov edx, medical_skills_on_duration_tick_replay
+    cmp eax, 0
+    je medical_skills_on_duration_tick_go
+    mov edx, 0x33d858
+    cmp eax, 1
+    je medical_skills_on_duration_tick_go
+    ud2
+medical_skills_on_duration_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_duration_tick_replay:
+    db 0x51, 0xf3, 0x0f, 0x11, 0x04, 0x24
+    jmp 0x33d858
+
+; 0x33dd65 EDI medkit EBX player XMM0 duration: lohook -> medical_skills_on_duration_restore
+global medical_skills_on_duration_restore
+extern hook_medical_skills_on_duration_restore
+medical_skills_on_duration_restore:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_duration_restore
+    mov edx, medical_skills_on_duration_restore_replay
+    cmp eax, 0
+    je medical_skills_on_duration_restore_go
+    mov edx, 0x33dd6b
+    cmp eax, 1
+    je medical_skills_on_duration_restore_go
+    ud2
+medical_skills_on_duration_restore_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_duration_restore_replay:
+    db 0x51, 0xf3, 0x0f, 0x11, 0x04, 0x24
+    jmp 0x33dd6b
+
+; 0x33d486 EBP medkit EBX player XMM0 activation delay: lohook -> medical_skills_on_use_time
+global medical_skills_on_use_time
+extern hook_medical_skills_on_use_time
+medical_skills_on_use_time:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_use_time
+    mov edx, medical_skills_on_use_time_replay
+    cmp eax, 0
+    je medical_skills_on_use_time_go
+    mov edx, 0x33d48c
+    cmp eax, 1
+    je medical_skills_on_use_time_go
+    ud2
+medical_skills_on_use_time_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_use_time_replay:
+    db 0x51, 0xf3, 0x0f, 0x11, 0x04, 0x24
+    jmp 0x33d48c
+
+; 0x2d706f EBP player after damage model owner is bound, before first reset: lohook -> medical_skills_on_initialize
+global medical_skills_on_initialize
+extern hook_medical_skills_on_initialize
+medical_skills_on_initialize:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_initialize
+    mov edx, medical_skills_on_initialize_replay
+    cmp eax, 0
+    je medical_skills_on_initialize_go
+    mov edx, 0x2d7076
+    cmp eax, 1
+    je medical_skills_on_initialize_go
+    ud2
+medical_skills_on_initialize_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_initialize_replay:
+    db 0x89, 0x44, 0x24, 0x20, 0x83, 0xec, 0x10
+    jmp 0x2d7076
+
+; 0x2dbc91 EBX player XMM0 final movement speed: lohook -> medical_skills_on_movement
+global medical_skills_on_movement
+extern hook_medical_skills_on_movement
+medical_skills_on_movement:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_movement
+    mov edx, medical_skills_on_movement_replay
+    cmp eax, 0
+    je medical_skills_on_movement_go
+    mov edx, 0x2dbc96
+    cmp eax, 1
+    je medical_skills_on_movement_go
+    ud2
+medical_skills_on_movement_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_movement_replay:
+    db 0x8d, 0x65, 0xe0, 0x5f, 0x5e
+    jmp 0x2dbc96
+
+; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> medical_skills_on_hit
+global medical_skills_on_hit
+extern hook_medical_skills_on_hit
+medical_skills_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_hit
+    mov edx, medical_skills_on_hit_replay
+    cmp eax, 0
+    je medical_skills_on_hit_go
+    mov edx, 0x2e50cc
+    cmp eax, 1
+    je medical_skills_on_hit_go
+    ud2
+medical_skills_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_hit_replay:
+    db 0x8d, 0x4c, 0x24, 0x10, 0x51
+    jmp 0x2e50cc
+
+; 0x32a460 ESI pool XMM0 new health before write: lohook -> medical_skills_on_heal
+global medical_skills_on_heal
+extern hook_medical_skills_on_heal
+medical_skills_on_heal:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_heal
+    mov edx, medical_skills_on_heal_replay
+    cmp eax, 0
+    je medical_skills_on_heal_go
+    mov edx, 0x32a468
+    cmp eax, 1
+    je medical_skills_on_heal_go
+    ud2
+medical_skills_on_heal_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_heal_replay:
+    db 0xf3, 0x0f, 0x11, 0x86, 0xa0, 0x00, 0x00, 0x00
+    jmp 0x32a468
+
+; 0x32a28b EBP pool XMM0 new health before write: lohook -> medical_skills_on_wound
+global medical_skills_on_wound
+extern hook_medical_skills_on_wound
+medical_skills_on_wound:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_wound
+    mov edx, medical_skills_on_wound_replay
+    cmp eax, 0
+    je medical_skills_on_wound_go
+    mov edx, 0x32a293
+    cmp eax, 1
+    je medical_skills_on_wound_go
+    ud2
+medical_skills_on_wound_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_wound_replay:
+    db 0xf3, 0x0f, 0x11, 0x85, 0xa0, 0x00, 0x00, 0x00
+    jmp 0x32a293
+
+; 0x313333 actual activation after enable/effect; EDI simulation time; never called by visual reconstruction: lohook -> medical_skills_on_artefact
+global medical_skills_on_artefact
+extern hook_medical_skills_on_artefact
+medical_skills_on_artefact:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_artefact
+    mov edx, medical_skills_on_artefact_replay
+    cmp eax, 0
+    je medical_skills_on_artefact_go
+    mov edx, 0x313339
+    cmp eax, 1
+    je medical_skills_on_artefact_go
+    ud2
+medical_skills_on_artefact_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_artefact_replay:
+    db 0x89, 0xbe, 0xa0, 0x02, 0x00, 0x00
+    jmp 0x313339
+
+; 0x33db30 ECX medkit entry; exit is bare ret 12: lohook -> medical_skills_on_protection
+global medical_skills_on_protection
+extern hook_medical_skills_on_protection
+medical_skills_on_protection:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_protection
+    mov edx, medical_skills_on_protection_replay
+    cmp eax, 0
+    je medical_skills_on_protection_go
+    mov edx, 0x33db36
+    cmp eax, 1
+    je medical_skills_on_protection_go
+    mov edx, 0x33dbcb
+    cmp eax, 2
+    je medical_skills_on_protection_go
+    ud2
+medical_skills_on_protection_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_protection_replay:
+    db 0x8b, 0x44, 0x24, 0x04, 0x8b, 0x10
+    jmp 0x33db36
+
+; 0x2f76e8 apply_kit_parameter epilogue: ESI parameter index, XMM0 final base+skills+equipment value; replay pops EDI ESI EBP EBX and returns: lohook -> medical_skills_on_pocket_count
+global medical_skills_on_pocket_count
+extern hook_medical_skills_on_pocket_count
+medical_skills_on_pocket_count:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_pocket_count
+    mov edx, medical_skills_on_pocket_count_replay
+    cmp eax, 0
+    je medical_skills_on_pocket_count_go
+    mov edx, 0x2f76ed
+    cmp eax, 1
+    je medical_skills_on_pocket_count_go
+    ud2
+medical_skills_on_pocket_count_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_pocket_count_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0xc3
+    jmp 0x2f76ed
+
+; 0x2ec81e game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it: lohook -> medical_skills_on_effect_capacity
+global medical_skills_on_effect_capacity
+extern hook_medical_skills_on_effect_capacity
+medical_skills_on_effect_capacity:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_effect_capacity
+    mov edx, medical_skills_on_effect_capacity_replay
+    cmp eax, 0
+    je medical_skills_on_effect_capacity_go
+    mov edx, 0x2ec823
+    cmp eax, 1
+    je medical_skills_on_effect_capacity_go
+    ud2
+medical_skills_on_effect_capacity_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_effect_capacity_replay:
+    db 0x8d, 0x4c, 0x24, 0x0c, 0x51
+    jmp 0x2ec823
+
+; 0x2e5d80 default clock: only the static Medic calculator is handled; all native objects continue unchanged: lohook -> medical_skills_on_effect_clock
+global medical_skills_on_effect_clock
+extern hook_medical_skills_on_effect_clock
+medical_skills_on_effect_clock:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_effect_clock
+    mov edx, medical_skills_on_effect_clock_replay
+    cmp eax, 0
+    je medical_skills_on_effect_clock_go
+    mov edx, 0x2e5d88
+    cmp eax, 1
+    je medical_skills_on_effect_clock_go
+    mov edx, 0x2e5e04
+    cmp eax, 2
+    je medical_skills_on_effect_clock_go
+    ud2
+medical_skills_on_effect_clock_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_effect_clock_replay:
+    db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
+    jmp 0x2e5d88
+
 ; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
 global music_on_frame
 extern hook_music_on_frame

@@ -195,6 +195,10 @@ unsafe extern "C" {
     pub fn engine_release_inventory_item(object: *mut c_void, count: *mut u32);
     /// 0x3919e0 animation::player::forget_active_object: animation EAX, object EDX; pops 0
     pub fn engine_forget_active_object(animation: *mut c_void, object: *mut c_void);
+    /// 0x32a6a0 survarium::body_part::remove_affect: pool ESP+4, time ESP+8, affect ESP+12; pops 12
+    pub fn engine_remove_affect(pool: *mut c_void, time: u32, affect: u32);
+    /// 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX
+    pub fn engine_effect_resource_emit(resource: *mut c_void, out: *mut c_void) -> *mut c_void;
 }
 
 #[allow(dead_code)]

@@ -12,8 +12,8 @@ engine_statistics_notify	0x2f5d40	EAX:listener ESP+4:place ESP+8:event ESP+12:am
 engine_register_cook	0x102d10	EDI:cook	void engine_register_cook(void *cook)	thunk	
 engine_movie_invoke	0x511600	ECX:movie ESP+4:name ESP+8:result ESP+12:arguments ESP+16:count	unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count)	thunk	
 engine_show_message	0x2375c0	ECX:key ESP+4:game_world_ui ESP+8:first ESP+12:second ESP+16:third	void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third)	thunk	
-engine_find_pool	0x2e58b0	EAX:pools ECX:name	void *engine_find_pool(void *pools, const char *const *name)	thunk	
-engine_increase_health	0x32a420	ESI:pool ESP+4:time ESP+8:amount	void engine_increase_health(void *pool, unsigned int time, float amount)	thunk	
+engine_find_pool	0x2e58b0	EAX:pools ECX:name	struct medical_pool *engine_find_pool(struct medical_pools *pools, const char *const *name)	thunk
+engine_increase_health	0x32a420	ESI:pool ESP+4:time ESP+8:amount	void engine_increase_health(struct medical_pool *pool, unsigned int time, float amount)	thunk
 engine_artefact_effect	0x313350	ESP+4:artefact ESP+8:time	void engine_artefact_effect(void *artefact, unsigned int time)	thunk	
 engine_apply_modifier	0x2d5ae0	EAX:modifiers ESI:index ESP+4:value ESP+8:weight	float engine_apply_modifier(const struct player_params_modifiers_container *modifiers, unsigned int index, float value, float weight)	thunk	
 engine_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_setup_profile(const void *profile, void *character, unsigned int kit)	thunk	
@@ -127,3 +127,5 @@ engine_leave_critical_section	0x8700cc	-	void engine_leave_critical_section(stru
 engine_di_capture_remove	0x5726f0	ECX:context ESP+4:queue	void engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue)	thiscall	
 engine_di_queue_next_capture	0x5ee080	ECX:queue ESP+4:notify	void engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify)	thiscall	
 engine_di_queue_release	0x505cb0	ECX:queue	void engine_di_queue_release(struct di_command_queue *queue)	thiscall	
+engine_remove_affect	0x32A6A0	ESP+4:pool ESP+8:time ESP+12:affect	void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned int affect)	thunk
+engine_effect_resource_emit	0x329050	ESI:resource EDI:out	struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out)	thunk

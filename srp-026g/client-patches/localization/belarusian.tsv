@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў
 st_srp_hud_add_friend	Дадаць у сябры
+st_srp_hud_blackout_intro	Блэкаўт: нясіце батарэі да прылады сваёй каманды. Інтэрфейс і маркеры траплянняў схаваныя для паглыблення ў гульню. Утрымлівайце Tab: боезапас, здароўе, чат; пасля смерці — выбар камплекта.
+st_srp_hud_blackout_start	Ахоўная прылада: блэкаўт\nЗбірайце батарэі. Без інтэрфейсу і маркераў траплянняў. Утрымлівайце Tab для прагляду інфармацыі.
 st_srp_hud_friend_not_sent	Заяўка ў сябры не адпраўлена
 st_srp_hud_friend_sent	Заяўка ў сябры адпраўлена
 st_srp_hud_mute_hide	Схаваць чат
@@ -2691,6 +2693,8 @@ st_srp_weapon_minimum_damage	Мінімальная шкода
 st_srp_weapon_minimum_damage_from	Мінімальная шкода ад
 st_srp_weapon_recoil_heading	Аддача, раскід, гойданне
 st_srp_weapon_reload	Перазарадка
+st_srp_weapon_reload_empty	Перазарадка (пусты)
+st_srp_weapon_reload_tactical	Тактычная перазарадка
 st_srp_weapon_shift_hint	Shift: дэталі · Alt: у баі
 st_srp_weapon_spread_growth	Хуткасць росту раскіду
 st_srp_weapon_spread_max	Мяжа росту раскіду

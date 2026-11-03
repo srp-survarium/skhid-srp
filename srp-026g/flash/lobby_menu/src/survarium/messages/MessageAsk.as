@@ -333,7 +333,7 @@ package survarium.messages
             }
             else if(_data.targetSlot < ItemPlace.INVENTORY)
             {
-               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,fullPocket ? 1 : int(PlayerInfo.pocketSize));
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,_data.pocket_units != undefined ? int(_data.pocket_units) : (fullPocket ? 1 : int(PlayerInfo.pocketSize)));
             }
             else if(!_data.originData)
             {

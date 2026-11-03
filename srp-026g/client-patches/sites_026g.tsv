@@ -103,3 +103,17 @@ battery.save	0x334F66	lohook	-	10	-	record=ESI:survarium::victory_item_status wr
 battery.load	0x3350D0	lohook	-	6	-	record=ESI:survarium::victory_item_status reader=EDX:vostok::buffer_reader manager=EBP:survarium::victory_item_event_manager	victory_item_event_manager::deserialize after a record's first_finder (0x3350CA), before the next battery (mov eax,[ebp+0A38h]): ESI the record, EDX the reader, EBP the manager (0x33505D)
 scaleform.di_next_capture	0x572675	lohook	-	6	done@0x57269C	capture=ESI:scaleform::drawable_image_capture_notify notify=EBX:scaleform::render_notify	DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed)
 scaleform.di_queue_destroy	0x5ED1E0	lohook	-	6	-	queue=ECX:scaleform::di_command_queue	DICommandQueue::~DICommandQueue's start (push esi / mov esi,ecx / mov ecx,[esi+34h]; its only caller the scalar deleting destructor 0x5ED743, Release's at 0): ECX the queue, its count 0, still in its context's list; the stock body writes the count 2 (0x5ED1ED) before it removes the queue (0x5ED1F4)
+medical.duration_start	0x33D41B	lohook	-	6	-	item=EBP:survarium::medkit player=EBX:survarium::player	EBP medkit EBX player XMM0 duration
+medical.duration_tick	0x33D852	lohook	-	6	-	item=EDI:survarium::medkit player=EBP:survarium::player	EDI medkit EBP player XMM0 duration
+medical.duration_restore	0x33DD65	lohook	-	6	-	item=EDI:survarium::medkit player=EBX:survarium::player	EDI medkit EBX player XMM0 duration
+medical.use_time	0x33D486	lohook	-	6	-	item=EBP:survarium::medkit player=EBX:survarium::player	EBP medkit EBX player XMM0 activation delay
+medical.initialize	0x2D706F	lohook	-	7	-	player=EBP:survarium::player	EBP player after damage model owner is bound, before first reset
+medical.movement	0x2DBC91	lohook	-	5	-	player=EBX:survarium::player	EBX player XMM0 final movement speed
+medical.hit	0x2E50C7	lohook	-	5	-	model=EDI:survarium::medical_damage hit=ESI:survarium::medical_hit frame=ESP:survarium::medical_damage_frame	EDI damage model ESI hit_info; invulnerability applied
+medical.heal	0x32A460	lohook	-	8	-	pool=ESI:survarium::medical_pool	ESI pool XMM0 new health before write
+medical.wound	0x32A28B	lohook	-	8	-	pool=EBP:survarium::medical_pool	EBP pool XMM0 new health before write
+medical.artefact	0x313333	lohook	-	6	-	item=ESI:survarium::medical_artefact	actual activation after enable/effect; EDI simulation time; never called by visual reconstruction
+medical.protection	0x33DB30	lohook	-	6	returned@0x33DBCB	item=ECX:survarium::medkit frame=ESP:survarium::medical_protect_frame	ECX medkit entry; exit is bare ret 12
+medical.pocket_count	0x2F76E8	lohook	-	5	-	-	apply_kit_parameter epilogue: ESI parameter index, XMM0 final base+skills+equipment value; replay pops EDI ESI EBP EBX and returns
+medical.effect_capacity	0x2EC81E	lohook	-	5	-	query=EBX:survarium::medical_effect_query	game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it
+medical.effect_clock	0x2E5D80	lohook	-	8	returned@0x2E5E04	calculator=ECX:survarium::game_effect_listener frame=ESP:survarium::medical_clock_frame	default clock: only the static Medic calculator is handled; all native objects continue unchanged

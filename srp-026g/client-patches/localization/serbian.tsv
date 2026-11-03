@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
 st_srp_hud_add_friend	Dodaj u prijatelje
+st_srp_hud_blackout_intro	Zamračenje: donesi baterije do uređaja svog tima. Interfejs i oznake pogodaka su skriveni radi uživljavanja. Drži Tab: municija, zdravlje, čet; posle smrti — izbor opreme.
+st_srp_hud_blackout_start	Zaštitni uređaj: zamračenje\nSakupljaj baterije. Bez interfejsa i oznaka pogodaka. Drži Tab za informacije.
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
 st_srp_hud_friend_sent	Zahtev za prijateljstvo je poslat
 st_srp_hud_mute_hide	Sakrij čet
@@ -2691,6 +2693,8 @@ st_srp_weapon_minimum_damage	Minimalna šteta
 st_srp_weapon_minimum_damage_from	Minimalna šteta od
 st_srp_weapon_recoil_heading	Trzaj, rasipanje i ljuljanje
 st_srp_weapon_reload	Punjenje
+st_srp_weapon_reload_empty	Punjenje (prazno)
+st_srp_weapon_reload_tactical	Taktičko punjenje
 st_srp_weapon_shift_hint	Shift: više · Alt: u meču
 st_srp_weapon_spread_growth	Brzina rasta rasipanja
 st_srp_weapon_spread_max	Najveće dodatno rasipanje

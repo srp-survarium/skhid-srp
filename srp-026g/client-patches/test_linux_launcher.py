@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the release launcher with mocked Wine and a stand-in game executable."""
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,8 @@ PROBE = r'C:\windows\syswow64\cmd.exe'
 SCRIPT = Path(__file__).resolve().parent / 'play_skhid.sh'
 STARTER = Path(__file__).resolve().parent / 'Skhid.sh'
 FIXTURE = b'MZ stand-in game executable'
+GECKO_MSI = b'Gecko installer fixture'
+GECKO_SHA = '26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6'
 
 
 class LauncherTests(unittest.TestCase):
@@ -29,17 +32,25 @@ class LauncherTests(unittest.TestCase):
         self.script = self.bin / 'play_skhid.sh'
         self.drm = self.root / 'drm'
         self.drm.mkdir()
-        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm)))
+        self.ntsync = self.root / 'ntsync'
+        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm))
+            .replace('/dev/ntsync', str(self.ntsync))
+            .replace(GECKO_SHA, hashlib.sha256(GECKO_MSI).hexdigest()))
         self.config = self.bin / 'wineprefix/drive_c/users' / pwd.getpwuid(os.getuid()).pw_name / 'Documents/Survarium/user.cfg'
         self.tools = self.root / 'tools'
         self.tools.mkdir()
         self.calls = self.root / 'calls.jsonl'
         # Only mocked dependencies plus explicitly allowed core tools in PATH.
-        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk'):
+        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum', 'ln'):
             (self.tools / tool).symlink_to(shutil.which(tool))
         stub = '#!' + sys.executable + '\n' + '''import json,os,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
 prefix=pathlib.Path(os.environ['WINEPREFIX'])
+gecko=prefix/'drive_c/windows/syswow64/gecko/2.47.4/wine_gecko'
+def install_gecko():
+ gecko.mkdir(parents=True,exist_ok=True)
+ (gecko/'VERSION').write_text('Wine Gecko 2.47.4')
+ (gecko/'xul.dll').write_bytes(b'Gecko runtime')
 if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
 with open(os.environ['TEST_CALLS'],'a') as f:
@@ -54,14 +65,26 @@ if os.environ.get('WINEARCH')!='wow64':
 if name=='wineserver':
  # Delayed registry creation ensures the script waits for wineserver.
  (prefix/'system.reg').write_text('WINE REGISTRY Version 2\\n#arch='+os.environ.get('TEST_PREFIX_ARCH','win64')+'\\n')
+ mshtml=prefix/'drive_c/windows/syswow64/mshtml.dll'
+ mshtml.parent.mkdir(parents=True,exist_ok=True)
+ mshtml.write_bytes(b'MZ Wine Gecko '+os.environ.get('TEST_GECKO_VERSION','2.47.4').encode())
+ if os.environ.get('TEST_GECKO_READY','1')=='1': install_gecko()
+elif name=='curl':
+ output=pathlib.Path(sys.argv[sys.argv.index('--output')+1])
+ output.write_bytes(b'corrupt' if os.environ.get('TEST_GECKO_CORRUPT') else b'Gecko installer fixture')
+elif name=='wine' and sys.argv[1]=='msiexec':
+ if not os.environ.get('TEST_GECKO_INCOMPLETE'): install_gecko()
 elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
  sys.exit(1)
 '''
-        for name in ('wine', 'wineserver', 'winetricks'):
+        for name in ('wine', 'wineserver', 'winetricks', 'curl'):
             path = self.tools / name
             path.write_text(stub)
             path.chmod(0o755)
         self.env = dict(os.environ, PATH=str(self.tools), TEST_CALLS=str(self.calls))
+        self.env['HOME'] = str(self.root / 'home')
+        self.env.pop('XDG_CONFIG_HOME', None)
+        self.shared_config = self.root / 'home/.config/skhid/user.cfg'
         self.env['XDG_SESSION_TYPE'] = 'x11'
 
     def display(self, name, modes, status='connected', enabled='enabled'):
@@ -73,6 +96,11 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
     def xrandr(self, output, exit_code=0):
         tool = self.tools / 'xrandr'
         tool.write_text('#!' + sys.executable + '\nimport sys\nprint(' + repr(output) + ')\nsys.exit(' + str(exit_code) + ')\n')
+        tool.chmod(0o755)
+
+    def modinfo(self, exit_code):
+        tool = self.tools / 'modinfo'
+        tool.write_text('#!' + sys.executable + '\nimport sys\nsys.exit(' + str(exit_code) + ')\n')
         tool.chmod(0o755)
 
     def copy_exe(self):
@@ -177,6 +205,49 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertFalse((self.bin/'wineprefix/.skhid-ready').exists())
         self.assertFalse(any(c['name'] == 'winetricks' for c in self.recorded_calls(True)))
 
+    def test_missing_available_ntsync_stops_before_wine_setup_and_allows_retry(self):
+        self.launcher_files()
+        self.modinfo(0)
+        for arguments in ((), ('launcher',)):
+            with self.subTest(arguments=arguments):
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('sudo modprobe ntsync', result.stderr)
+                self.assertIn('run this script again', result.stderr)
+                self.assertEqual([c['args'] for c in self.recorded_calls(True)], [['--version']])
+                self.assertFalse((self.bin / 'wineprefix').exists())
+                self.assertFalse(self.shared_config.exists())
+        self.ntsync.write_text('')
+        result = self.run_script('launcher')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.recorded_calls()[-1]['args'][0], 'launcher_skhid.exe')
+
+    def test_ntsync_does_not_block_when_loaded_or_unavailable(self):
+        self.copy_exe()
+        for case, module, device in (('the device is there', 0, True),
+                                     ('the kernel has no module', 1, False),
+                                     ('modinfo is not installed', None, False)):
+            with self.subTest(case=case):
+                (self.tools / 'modinfo').unlink(missing_ok=True)
+                if module is not None:
+                    self.modinfo(module)
+                if device:
+                    self.ntsync.write_text('')
+                else:
+                    self.ntsync.unlink(missing_ok=True)
+                result = self.run_script()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn('ntsync', result.stderr)
+
+    def test_ntsync_is_not_checked_for_a_refused_wine(self):
+        self.copy_exe()
+        self.modinfo(0)
+        self.env['TEST_WINE_VERSION'] = 'wine-9.0'
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('ntsync', result.stderr)
+
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
         for name in ('launcher_skhid.exe', 'updater_skhid.exe'):
@@ -193,6 +264,85 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         result = self.run_script('launcher')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Launcher exited with an error', result.stderr)
+
+    def launcher_files(self):
+        self.copy_exe()
+        for name in ('launcher_skhid.exe', 'updater_skhid.exe'):
+            (self.bin / name).write_bytes(b'MZ fixture')
+
+    def test_gecko_is_installed_quietly_once_and_html_stays_enabled(self):
+        self.launcher_files()
+        self.env['TEST_GECKO_READY'] = '0'
+        result = self.run_script('launcher')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.recorded_calls(True)
+        download = next(c for c in calls if c['name'] == 'curl')
+        self.assertEqual(download['args'][-1], 'https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86.msi')
+        install = next(c for c in calls if c['args'][0] == 'msiexec')
+        self.assertEqual(install['args'][1], '/i')
+        self.assertEqual(install['args'][-2:], ['/qn', '/norestart'])
+        self.assertIn('winedbg.exe=d', install['dll'])
+        self.assertTrue(all('mshtml=b' in c['dll'] and 'appwiz.cpl=d' in c['dll'] for c in calls))
+        self.assertLess(calls.index(install), len(calls)-1)
+        self.assertEqual(calls[-1]['args'], ['launcher_skhid.exe'])
+        self.assertFalse(list((self.bin/'wineprefix/drive_c').glob('skhid-gecko.*')))
+        (self.tools/'curl').unlink()
+        result = self.run_script('launcher')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sum(c['args'][0] == 'msiexec' for c in self.recorded_calls(True)), 1)
+
+    def test_direct_game_does_not_download_gecko(self):
+        self.copy_exe()
+        self.env['TEST_GECKO_READY'] = '0'
+        (self.tools/'curl').unlink()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(any(c['args'][0] == 'msiexec' for c in self.recorded_calls(True)))
+
+    def test_failed_gecko_download_or_install_never_opens_launcher_and_retries(self):
+        self.launcher_files()
+        self.env['TEST_GECKO_READY'] = '0'
+        for failure in ('curl:--fail', 'wine:msiexec'):
+            with self.subTest(failure=failure):
+                self.env['TEST_FAIL'] = failure
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script('launcher')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Run again to retry', result.stderr)
+                self.assertFalse(any(c['args'][0] == 'launcher_skhid.exe' for c in self.recorded_calls(True)))
+                self.assertFalse(list((self.bin/'wineprefix/drive_c').glob('skhid-gecko.*')))
+        del self.env['TEST_FAIL']
+        result = self.run_script('launcher')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_corrupt_gecko_download_is_not_executed(self):
+        self.launcher_files()
+        self.env.update(TEST_GECKO_READY='0', TEST_GECKO_CORRUPT='1')
+        result = self.run_script('launcher')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('checksum failed', result.stderr)
+        self.assertFalse(any(c['args'][0] in ('msiexec', 'launcher_skhid.exe') for c in self.recorded_calls(True)))
+        self.assertFalse(list((self.bin/'wineprefix/drive_c').glob('skhid-gecko.*')))
+
+    def test_incomplete_gecko_install_is_not_cached(self):
+        self.launcher_files()
+        self.env.update(TEST_GECKO_READY='0', TEST_GECKO_INCOMPLETE='1')
+        result = self.run_script('launcher')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('installation is incomplete', result.stderr)
+        del self.env['TEST_GECKO_INCOMPLETE']
+        result = self.run_script('launcher')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sum(c['args'][0] == 'msiexec' for c in self.recorded_calls(True)), 2)
+
+    def test_unrecognized_gecko_requirement_does_not_download_wrong_installer(self):
+        self.launcher_files()
+        self.env['TEST_GECKO_VERSION'] = '9.9.9'
+        result = self.run_script('launcher')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('another Gecko version', result.stderr)
+        self.assertFalse(any(c['name'] == 'curl' or c['args'][0] == 'launcher_skhid.exe'
+                             for c in self.recorded_calls(True)))
 
     def test_the_starter_beside_game_runs_the_script_with_its_arguments(self):
         # Skhid.sh in the game's folder, the script where the archive puts it.
@@ -327,6 +477,42 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertIn('-server=local.example:4321', calls[-1]['args'])
+
+    def test_settings_survive_prefix_recreation(self):
+        self.copy_exe()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.config.is_symlink())
+        self.assertEqual(self.config.resolve(), self.shared_config)
+        custom = b'r_fullscreen off\r\nsnd_volume 0.3\r\n'
+        self.config.write_bytes(custom)
+        shutil.rmtree(self.bin / 'wineprefix')
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.read_bytes(), custom)
+        self.assertTrue(self.config.is_symlink())
+
+    def test_xdg_config_home_override_and_invalid_relative_path(self):
+        self.copy_exe()
+        override = self.root / "settings with spaces & apostrophe's"
+        self.env['XDG_CONFIG_HOME'] = str(override)
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.resolve(), override / 'skhid/user.cfg')
+        self.assertFalse(self.shared_config.exists())
+        self.env['XDG_CONFIG_HOME'] = 'relative/path'
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.resolve(), self.shared_config)
+        self.assertFalse((self.bin / 'relative').exists())
+
+    def test_invalid_shared_settings_stop_before_starting_game(self):
+        self.copy_exe()
+        self.shared_config.mkdir(parents=True)
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Settings file is not writable', result.stderr)
+        self.assertFalse(any(c['args'][0] == 'survarium_skhid.exe' for c in self.recorded_calls()))
 
     def test_resolution_falls_back_to_1080p(self):
         self.copy_exe()

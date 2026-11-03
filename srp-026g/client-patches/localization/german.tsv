@@ -2433,6 +2433,8 @@ st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden
 st_srp_hud_add_friend	Freunden hinzufügen
+st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
+st_srp_hud_blackout_start	Schutzeinrichtung: Blackout\nSammle Batterien. Kein HUD und keine Trefferanzeigen. Halte Tab für Informationen.
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet
 st_srp_hud_friend_sent	Freundschaftsanfrage gesendet
 st_srp_hud_mute_hide	Chat ausblenden
@@ -2691,6 +2693,8 @@ st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
 st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
+st_srp_weapon_reload_empty	Nachladen (leer)
+st_srp_weapon_reload_tactical	Taktisches Nachladen
 st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung

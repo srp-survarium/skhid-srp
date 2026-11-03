@@ -45,6 +45,15 @@ Edits (edits.json):
                     path in the entry (`spawned_item/position`): the tables on its way are copied
                     anew, the like entry's own stay as they are; files without `only_if`, the table
                     or those entries are left alone
+  "_inputs":        [{"files" (glob)}]               read-only dependencies supplied by build-content.
+                    add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
+                    duration ratio into prop_value, only for state 314. Declare its clips here.
+  "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
+                    weapon-stats.tsv. Private hands/item clips and event times follow the pair;
+                    declare source .b-spline and .bones_names dependencies in _inputs.
+  "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
+                    append a new indexed record, refusing stale counts and duplicate identities;
+                    arrays in the new value are indexed tables, leaving existing records intact
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -539,6 +548,33 @@ def insert_value(buf, toff, key, value):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+def append_entry(buf, path, expected_count, unique_key, value):
+    """Append a new record, refusing stale counts and duplicate identities.
+
+    New JSON lists are indexed tables. This operation never replaces an
+    existing value, so existing native vectors and scalar types stay intact.
+    """
+    off = find(buf, path)
+    _, name, crc, kind, count = rec(buf, off)
+    if kind != T_INDEXED or count != expected_count:
+        raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
+    if not isinstance(value, dict) or unique_key not in value:
+        raise ValueError(f'{path}: new entry must have {unique_key}')
+    entries = children(buf, off)
+    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    records = [bytes(buf[entry:entry + 24]) for entry in entries]
+    def indexed(value):
+        if isinstance(value, list):
+            return {i: indexed(item) for i, item in enumerate(value)}
+        if isinstance(value, dict):
+            return {key: indexed(item) for key, item in value.items()}
+        return value
+    records.append(value_record(buf, 0, '', indexed(value)))
+    REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
+    return count
+
+
 def items_of(buf, path):
     """The items of an indexed table of numbers or strings, as numbers and (UTF-8) strings."""
     off = find(buf, path)
@@ -896,14 +932,16 @@ def id_list(key):
     return Derived('', read, write)
 
 
-# A medicine's pools, for its card's % lines: a pool's health is 1, the head's 0.4 (0.26g's human_hit_params).
-POOLS = {'limbs': 1, 'body': 1, 'head': 0.4, 'pain': 1}
+# Pool maxima for medicine card percentages, from 0.26g's human_hit_params.
+POOLS = {'limbs': 0.5, 'left_hand': 0.5, 'right_hand': 0.5, 'left_leg': 0.5,
+         'right_leg': 0.5, 'body': 1, 'head': 0.4, 'pain': 1, 'infection': 1}
 
 
 def medicine_card(buf):
     """{prop_id: text} of a medicine's card: 18 its active and 19 its delay seconds, 15 the weight, 135
     the limbs', 136 the body's and 137 the pain pool's share it heals over its active time (%), 13 its
-    infection cure a second x100."""
+    total infection cure x100. Config amounts are course totals; the native
+    medkit constructor divides them by duration to obtain runtime rates."""
     def number(path):
         found = resolve(buf, path)
         return value_of(buf, found[0][1]) if found else None
@@ -913,7 +951,7 @@ def medicine_card(buf):
     for prop, column in ((135, 'limbs'), (136, 'body'), (137, 'pain')):
         amount = number(STATS['medicines']['columns'][column])
         if amount is not None:
-            out[prop] = number_text(min(100, round(amount * active / POOLS[column] * 100)))
+            out[prop] = number_text(min(100, round(amount / POOLS[column] * 100)))
     infection = number(STATS['medicines']['columns']['infection'])
     if infection is not None:
         out[13] = number_text(round(infection * 100, 4))
@@ -941,7 +979,8 @@ STATS = {
         'columns': {
             'damage': 'parameters/bullet_damage', 'pierce': 'parameters/bullet_pierce',
             'rpm': 'parameters/rounds_per_minute', 'magazine': 'parameters/magazine_capacity',
-            'reload': 'parameters/reload_time', 'reload_start': 'parameters/reload_start_time',
+            'reload': 'parameters/reload_time', 'reload_empty': 'parameters/reload_empty_time',
+            'reload_start': 'parameters/reload_start_time',
             'reload_end': 'parameters/reload_end_time', 'chamber': 'parameters/chamber_a_round_time',
             'aim_time': 'parameters/aim_time', 'show_time': 'parameters/show_time',
             'hide_time': 'parameters/hide_time', 'zoom': 'parameters/aim_zoom_factor',
@@ -971,7 +1010,8 @@ STATS = {
             'aim_bonus': default_modification(207), 'recoil_bonus': default_modification(208),
             'reliability_bonus': default_modification(209),
         },
-        'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_start', 'reload_end', 'chamber',
+        'add': {'reload_empty'},
+        'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_empty', 'reload_start', 'reload_end', 'chamber',
                   'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
                   'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
                   'aim_speed', 'hip_spread', 'aim_spread', 'reload_spread', 'recoil', 'top_min', 'top_max',
@@ -1689,6 +1729,117 @@ def clip_end(tracks):
     return struct.unpack_from('<f', tracks, 4 + 8 * (n - 1))[0]
 
 
+def reload_clip_ratio(config, read_clip):
+    """Empty/tactical duration for distinct state-314 clips; None otherwise.
+
+    0x30FC50 normalizes the first hands clip to parameters/reload_time via
+    0x30D750. 0x30FE90 selects the tactical/empty pair at that same speed.
+    Refuse stance-dependent durations instead of publishing a misleading stat.
+    """
+    try:
+        state = value_of(config, find(config, 'states/reload/state_type'))
+    except KeyError:
+        return None
+    if state != 314:
+        return None
+    clips = children(config, find(config, 'states/reload/user_animations'))
+    if len(clips) != 8:
+        raise ValueError('two-clip reload must have eight hands animations')
+    names = [value_of(config, off).removeprefix('resources/') for off in clips]
+    # Jackhammer and SVU-A use state 314 with the same clip in both slots.
+    # Equal durations alone do not imply this: Kedr/Kiparis have distinct clips.
+    if all(names[i] == names[i + 1] for i in range(0, 8, 2)):
+        return None
+    durations = []
+    for name in names:
+        tracks = clip_parse(read_clip(name + '.b-spline'))[2]
+        duration = clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0]
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError(f'{name}: invalid reload duration {duration}')
+        durations.append(duration)
+    if any(not math.isclose(d, durations[i % 2], rel_tol=1e-6)
+           for i, d in enumerate(durations)):
+        raise ValueError(f'reload durations vary by stance/view: {durations}')
+    return durations[1] / durations[0]
+
+
+def retime_clip(source, scale):
+    """Scale the time axis of every bone curve and event; keep poses and event payloads exact."""
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError('invalid animation time scale')
+    start, heads, tracks, channels, pads = clip_parse(source)
+    if clip_bytes(start, heads, tracks, channels, pads) != source:
+        raise ValueError('reload clip does not roundtrip')
+    changed = bytearray(tracks)
+    off = 0
+    while off < len(tracks):
+        count = struct.unpack_from('<I', tracks, off)[0]
+        for i in range(count):
+            at = off + 4 + 8 * i
+            time = struct.unpack_from('<f', tracks, at)[0] * scale
+            if not math.isfinite(time):
+                raise ValueError('invalid animation knot')
+            struct.pack_into('<f', changed, at, time)
+        off += 4 + count * 8
+    events = [dict(c, knots=[k * scale for k in c['knots']]) for c in channels]
+    if any(not math.isfinite(k) for c in events for k in c['knots']):
+        raise ValueError('invalid animation event time')
+    return clip_bytes(start, heads, changed, events, pads)
+
+
+def retime_reload(config, weapon, read_asset):
+    """Compile an explicit tactical/empty pair to private clips for the unmodified 0.26g engine.
+
+    Returns generated assets and changed config paths. Item clips use the corresponding hands'
+    scale, preserving their timing relative to the hands. All stances/views must agree.
+    """
+    try:
+        empty = value_of(config, find(config, 'parameters/reload_empty_time'))
+    except KeyError:
+        return {}, []
+    tactical = value_of(config, find(config, 'parameters/reload_time'))
+    if any(not math.isfinite(t) or t <= 0 for t in (tactical, empty)):
+        raise ValueError('reload times must be finite and positive')
+    if reload_clip_ratio(config, read_asset) is None:
+        raise ValueError('explicit empty time requires distinct state-314 reload clips')
+    if not re.fullmatch(r'wpn_[a-z0-9_]+', weapon):
+        raise ValueError('invalid reload weapon name')
+    hands = [value_of(config, o) for o in children(config, find(config, 'states/reload/user_animations'))]
+    scales = []
+    for name, seconds in zip(hands[:2], (tactical, empty)):
+        tracks = clip_parse(read_asset(name.removeprefix('resources/') + '.b-spline'))[2]
+        frames = clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0]
+        scales.append(30 * seconds / frames)
+    assets, written = {}, []
+    for key, count, label in [('user_animations', 8, 'hands'), ('animations', 2, 'item')]:
+        path = 'states/reload/' + key
+        names = [value_of(config, o) for o in children(config, find(config, path))]
+        if len(names) != count:
+            raise ValueError(f'reload {key} must have {count} clips')
+        for i, name in enumerate(names):
+            source = name.removeprefix('resources/')
+            stem = f'animations/single/weapons/srp_reload/{weapon}/{label}_{i}'
+            if source.startswith('animations/single/weapons/srp_reload/'):
+                raise ValueError('reload retiming must start from the original clips')
+            assets[stem + '.b-spline'] = retime_clip(read_asset(source + '.b-spline'), scales[i % 2])
+            assets[stem + '.bones_names'] = read_asset(source + '.bones_names')
+            edit_text(config, f'{path}[{i}]', name, 'resources/' + stem)
+            written.append(f'/{path}[{i}]')
+    actual = reload_clip_ratio(config, assets.__getitem__)
+    if not math.isclose(actual, empty / tactical, rel_tol=1e-6):
+        raise ValueError('retimed reload does not reproduce the explicit durations')
+    # UI metadata was generated before the stat table and must follow the compiled pair.
+    props = children(config, find(config, 'ui_desc/props_list'))
+    for prop in props:
+        if value_of(config, find(config, 'prop_id', prop)) == 162:
+            old = value_of(config, find(config, 'prop_value', prop))
+            written.append(set_prop(config, 162, old, format(actual, '.9g')))
+            break
+    else:
+        raise ValueError('retimed reload lacks tactical UI metadata')
+    return assets, written
+
+
 def f32(values):
     return [struct.unpack('<f', struct.pack('<f', v))[0] for v in values]
 
@@ -2085,7 +2236,15 @@ def main():
                     find(b, e['only_if'])
                 except KeyError:
                     continue
-            at = add_entry(b, e['list'], e['after'], e['like'], e['values'])
+            values = e['values']
+            if e.get('reload_clip_ratio'):
+                # The edit list declares the clips as read-only _inputs so
+                # build-content supplies the same composed files players get.
+                ratio = reload_clip_ratio(b, lambda path: open(files[path], 'rb').read())
+                if ratio is None:
+                    continue
+                values = dict(values, prop_value=format(ratio, '.9g'))
+            at = add_entry(b, e['list'], e['after'], e['like'], values)
             if at is None:
                 continue
             bufs[p] = b
@@ -2098,6 +2257,14 @@ def main():
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
+    for e in edits.get('append_entry', []):
+        p = e['file']
+        at = append_entry(buf(p), e['list'], e['expected_count'], e['unique_key'], e['value'])
+        table = '/' + e['list']
+        added.setdefault(p, []).append('%s[%d]' % (table, at))
+        grown.setdefault(p, {}).setdefault(table, 0)
+        grown[p][table] += 1
+        print('append %s[%d]' % (e['list'], at))
     for e in edits.get('add_key', []):
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
@@ -2154,6 +2321,22 @@ def main():
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
+    for e in edits.get('retime_reload', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            raise ValueError('retime_reload: no matching weapons')
+        for p in paths:
+            b = bytearray(open(files[p], 'rb').read())
+            assets, written = retime_reload(b, os.path.basename(p).removesuffix('.options'),
+                                           lambda path: open(files[path], 'rb').read())
+            if not assets:
+                continue
+            if p in bufs or set(assets) & (set(files) | set(clips)):
+                raise ValueError('retime_reload: conflicting output for ' + p)
+            bufs[p] = b
+            allowed.setdefault(p, set()).update(written)
+            clips.update(assets)
+            print('retimed reload %s: %d private animation resources' % (p, len(assets)))
     for e in edits.get('make_held_flower', []):
         made = make_held_flower({p: open(files[p], 'rb').read() for p in e['files']}, e)
         for p, data in made.items():
