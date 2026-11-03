@@ -128,6 +128,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_PERCH_P", "the tuning's (1)", "PerchTuning::p_scale: a multiplier on the share of hold picks that take a perch (the sweep: 1 and 2)"),
     s("SRP_BENCH_LIVE_ZONES", "off", "Tuning::hazard.live_zones: the anomaly fields of the worlds are the bots' live zones (kept off while a field hurts, got out of); `0` off"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
+    s("SRP_BENCH_SPIKE_US", "unset: none", "[A276] a poll over this many µs is told whole on stderr (`A276 spike` lines: its parts, each team's commander, the search slices, the slowest bots with their work); timing only, the steps are the same"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
     s("SRP_BENCH_PING", "unset: none", "a ping for each place, `lo-hi` ms"),
     s("SRP_BENCH_SIGHT_REFRESH", "off", "`on` (or `1`) turns the whole sight refresh on (`SenseTuning::sight_refresh`, with the hold of the cheat, `CheatTuning::sight_hold_ms`, at 450 ms to the bot's next think); off by default, and the bots are then the tip's"),
