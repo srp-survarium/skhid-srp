@@ -113,7 +113,6 @@ use survarium::v026g::match_msgs::{
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
-use world_frame::{Frame, Places};
 
 use super::battery_cap;
 use super::kill_cap;
@@ -750,7 +749,7 @@ struct Peer {
     inputs_moved: u32,
     /// Inputs with a rotation no client makes: not relayed.
     inputs_refused: u32,
-    /// Uploads no game could load (`world_frame::Frame::parse`): sent to
+    /// Uploads refused by shared frame/semantic validation: sent to
     /// nobody.
     uploads_refused: u32,
     resyncs: u32,
@@ -3341,7 +3340,10 @@ impl Game {
             .ok()
             .and_then(weapon_pickup::Place::new)
             .is_some_and(|sender| weapon_pickup::sane(input.actions, sender, places));
-        if !input.rotation_is_sane() || !pickup_sane {
+        // Use exactly the recipient's input check before any relay. In
+        // particular, unused action bit 30 must not reach clients whose
+        // validation refusal ends their match.
+        if srp_validate::messages::input(input.rotation, input.actions).is_err() || !pickup_sane {
             // Relayed, it would be in every client's world for good
             // (`PlayerInput::rotation_is_sane`). Its owner drops it as it
             // drops a late one; a copy of it is known by its time and goes
@@ -3354,7 +3356,7 @@ impl Game {
             );
             if peer.inputs_refused <= REFUSED_LOGGED {
                 log::warn!(
-                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation or a pickup no \
+                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation, action mask or pickup no \
                      client makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
                     input.rotation,
                     input.actions
@@ -3637,7 +3639,7 @@ impl Game {
         let clock = self.clock(now);
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
-        let places = Places::of(self.snapshot_players());
+        let places = self.snapshot_players();
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3663,15 +3665,13 @@ impl Game {
                 return;
             }
         }
-        // A world no game could load goes to nobody: a game reads a world
-        // with no check of its own (world_frame_check.md), so its frame must
-        // walk from the front to its end, its mask name no place past the
-        // roster, and no section or player state be over the game's buffer
-        // for it. The game runs the same parse before it loads a world
-        // (exe patch 87). No world a game made was refused so (10 730 kept
-        // worlds). Its client stays asked: a world of its that loads may
-        // still come.
-        if let Err(refusal) = Frame::parse(&snapshot.body, places) {
+        // Enforce the shared semantic checks before this upload can become
+        // an initial world, candidate, recent snapshot or diagnostic world.
+        // A refusal retains the outstanding request, records the body and
+        // reports its section/offset. No valid replacement request is lost.
+        if let Err(refusal) =
+            super::world_validation::check(&snapshot.body, snapshot.time, places, &self.formed)
+        {
             peer.uploads_refused += 1;
             if peer.uploads_refused <= REFUSED_LOGGED {
                 log::warn!(

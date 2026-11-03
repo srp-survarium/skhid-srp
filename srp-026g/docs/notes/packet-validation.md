@@ -76,3 +76,16 @@ records from `private/live-worlds-1c0ebd31` are a different protocol baseline.
 Validation: 40 validator tests and affected-crate Clippy pass, including native
 server-encoded player state and lamp count/length boundaries. Native integration
 and real-match acceptance remain separate gates.
+
+## Server upload enforcement
+
+The next part calls the shared validator before an upload can enter any snapshot
+cache, vote, resync or relay. A refused upload retains its outstanding request.
+The server supplies the current map, roster, usable kits and profile item counts;
+map-object tables and inventory shapes remain unknown and are not invented.
+
+Scripted clients now emit valid effects, inventory headers and large bullet
+sections. Result fixtures use ten total batteries on a ten-battery map. Tests
+cover framing-valid unsafe effects followed by a valid initial retry, late joins,
+lossy resync and the existing refusal paths. No match calculation or wire format
+changes; valid snapshots retain their existing policy.

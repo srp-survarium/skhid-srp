@@ -374,6 +374,44 @@ fn an_input_with_a_rotation_no_client_makes_goes_to_nobody() {
     bench.assert_no_faults();
 }
 
+/// The client checks the relayed input too. A sender must never be able
+/// to relay bytes that make all the recipients take their refusal path.
+#[test]
+fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let bad = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        rotation: [0; 4],
+        actions: 1 << 30,
+    };
+    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    bench.clients[0].send_input(bad);
+    bench.clients[0].send_input(bad);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [bad.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+        assert!(discards(&bench.clients[other]).is_empty());
+    }
+    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
+    // accepted. All players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 0x20] {
+        let input = bench.clients[0].input(50, actions);
+        bench.run(100);
+        for other in [1, 2] {
+            assert_eq!(bench.clients[other].relays_of(0).last(), Some(&input));
+        }
+    }
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|client| !client.closed));
+    bench.assert_no_faults();
+}
+
 #[test]
 fn a_late_input_is_dropped_when_the_setting_says_so() {
     let settings = Settings {
@@ -1758,7 +1796,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     // Team 0 brings the tenth battery home; player 0 has 5 kills.
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 5));
     }
     // The next world asked for shows it, both clients vouch for it, and
@@ -1769,7 +1807,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
     assert_eq!(result.winner, Some(0));
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     assert_eq!(result.trusted_by, 2);
     let ended_after = result.duration_ms - at;
     assert!((3_000..9_500).contains(&ended_after), "{ended_after}");
@@ -1802,7 +1840,7 @@ fn a_players_battery_events_are_paid_at_most_the_maps_battery_count_per_kind() {
         (at, 1, event::PUT_VICTORY_ITEM_IN_CONTAINER, 4),
     ];
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.events_from.clone_from(&events);
     }
     assert!(bench.until(12_000, |bench| {
@@ -2133,6 +2171,34 @@ fn a_world_no_game_could_load_goes_to_nobody() {
 }
 
 #[test]
+fn a_framed_world_with_unsafe_effects_is_refused_and_a_valid_retry_starts_the_match() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.clients[0].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+    let world = bench.clients[0].sim.world(INITIAL_MS + 50);
+    let real = Sections::walk(&world).unwrap();
+    let mut effects = real.effects.to_vec();
+    effects[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+    let bad = Sections {
+        effects: &effects,
+        ..real
+    }
+    .to_body()
+    .unwrap();
+    assert!(Frame::parse(&bad, Places::of(20)).is_ok());
+    bench.clients[0].upload(INITIAL_MS + 50, &bad);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(0), 1);
+    assert!(!bench.game().has_clock());
+    // A fresh upload transaction, still a valid initial world.
+    bench.clients[0].ready();
+    assert!(bench.until(5_000, |bench| bench.stages().starts_with('L')));
+    bench.join(1);
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn the_initial_world_is_not_checked_when_the_setting_says_so() {
     let settings = Settings {
         check_initial_world: false,
@@ -2373,14 +2439,14 @@ fn what_each_player_has_left_comes_with_the_result() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |bench| {
         bench.clients.iter().all(|client| client.closed)
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     let supplies = result.players[0]
         .supplies
         .as_ref()
@@ -3400,7 +3466,7 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 23));
     }
     assert!(bench.until(12_000, |bench| {
