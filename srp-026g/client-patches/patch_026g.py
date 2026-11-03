@@ -1,6 +1,5 @@
 """Builds the srp copy of the 0.26g client (build 2777) from the original
-survarium.exe. The full patch includes the startup VRAM-check bypass used
-by the Linux launcher.
+survarium.exe. The full patch includes the startup VRAM-check bypass.
 
 USAGE (this script never touches the source exe):
 
@@ -602,7 +601,7 @@ CERT = (0x12A10, bytes.fromhex("83ec2c"), bytes.fromhex("31c0c3"))
 MUTEX = (0x124F9, bytes.fromhex("7409"), bytes.fromhex("9090"))
 
 # Skip the fatal low-VRAM warning after cmp ebx,14000000h (320 MiB).
-# Same one-byte change as play_skhid.sh: file offset 0xF5811, 73 -> EB.
+# File offset 0xF5811, 73 -> EB.
 # The branch still targets 0x106422, which returns the detected size.
 MEMORY_CHECK = (0x106411, bytes.fromhex("730f"), bytes.fromhex("eb0f"))
 

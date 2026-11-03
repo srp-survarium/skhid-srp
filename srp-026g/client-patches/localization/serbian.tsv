@@ -213,7 +213,7 @@ st_ammo_762x39_description	Metak 7,62x39, razvijen 1943. godine. Opisuje se kao 
 st_ammo_762x39_m_description	Opis još nije dostupan.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
-st_ammo_762x51_20_description	Puščani meci 7,62x51 u okvirima od 20 metaka za FN SCAR-H i H&K G3SG/1.
+st_ammo_762x51_20_description	Puščani meci 7,62x51 u pakovanjima od 20 metaka za H&K G3SG/1.
 st_ammo_762x51_20_name	7,62x51, okvir od 20
 st_ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 M61, sa obloženim čeličnim jezgrom.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
 st_srp_ammo069_23mm_r_name	23x75R, sačma
+st_srp_ammo_scar_ap_desc	Pancirni meci 7,62x51 za FN SCAR-H. Svaka torbica za municiju prima 20 metaka.
+st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan

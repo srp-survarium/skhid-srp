@@ -91,18 +91,18 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   behind that owner instead of exposing competing ways to bypass it. Verify initialization,
   transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
   the lifecycle rules of an external engine.
-- Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)
-  and the tests of what you changed.
+- For Rust changes, test and lint affected crates under `nix develop`; use workspace Clippy
+  only when shared APIs, configuration or dependencies affect multiple crates.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
 
-## Checks while iterating
+## Checks while iterating and before a PR
 
-- While iterating on a change, run only the quick checks that touch it: the patch's own Unicorn check
-  (`check_<patch>_026g.py`, and the equivalence gate while porting), the self-test functions for that
-  patch called by name, `cargo test` and clippy for the crates you changed, and the movie's own Ruffle
-  harness.
-- A change to what the exe saves or loads in a world also runs `check_world_roundtrip_026g.py` (a resync converges).
-- Before pushing, run the full set once: the whole `selftest_026g.py` (every build variant), every
-  Unicorn check, `release/build-content` where content changed, clippy for the workspace. Never push
-  or open a PR without the full run passing.
+- Run checks for changed behavior and its affected consumers, also before pushing or opening
+  a PR. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated server tests.
+- Use the patch's own self-tests and Unicorn check, affected crate tests/Clippy, or the movie's
+  Ruffle harness. World save/load changes also need `check_world_roundtrip_026g.py`; content
+  changes need `release/build-content`. Reserve full suites for shared infrastructure changes
+  that affect them or release validation.
+- Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
+  relevant changes. Report validation limits and pre-existing failures without expanding the PR.

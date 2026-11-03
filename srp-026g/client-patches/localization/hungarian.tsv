@@ -213,7 +213,7 @@ st_ammo_762x39_description	Az 1943-ban tervezett 7.62x39 lőszert a világ háro
 st_ammo_762x39_m_description	A leírás még nem érhető el.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
-st_ammo_762x51_20_description	7.62x51 puskalőszer 20 lőszeres tárakban az FN SCAR-H-hoz és a H&K G3SG/1-hez.
+st_ammo_762x51_20_description	7,62x51 puskalőszer 20 lőszeres csomagokban a H&K G3SG/1-hez.
 st_ammo_762x51_20_name	7.62x51, 20 lőszeres tár
 st_ammo_762x51_M59_description	A katonai 7.62x51 M61 puskalőszer páncéltörő változata. A lövedék köpenyezett acélmaggal rendelkezik.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.
 st_srp_ammo069_23mm_r_name	23x75R, sörét
+st_srp_ammo_scar_ap_desc	Páncéltörő 7,62x51 lőszer az FN SCAR-H-hoz. Minden lőszerzseb 20 lőszert tartalmaz.
+st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 lőszer
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt
