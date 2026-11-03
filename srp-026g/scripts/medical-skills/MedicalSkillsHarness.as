@@ -36,7 +36,7 @@ package {
     check(Info.pocketUnits(10,size.HALF)==3,"uncommitted preview");
     Info.medicalSkills([{id:322,value:1}]);
     check(Info.pocketUnits(10,size.HALF)==4,"medicine bonus");
-    check(Info.pocketUnits(10,size.WHOLE)==2,"whole pocket bonus");
+    check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one");
     check(Info.pocketUnits(11,size.HALF)==3,"nonmedicine unchanged");
     var held:Object=new Data();held.dictId=67;held.value=3;
     var item:Object=new Data();item.dictId=67;item.category=10;item.quickSlotItemSize=size.HALF;
@@ -52,7 +52,7 @@ package {
      Info.medicalSkills([{id:322,value:1}]);
      check(Info.pocketUnits(10,size.HALF)==5,"medicine bonus capped " + capacity);
      check(Info.pocketUnits(11,size.HALF)==Math.min(5,capacity),"grenade capacity cap " + capacity);
-     check(Info.pocketUnits(10,size.WHOLE)==2,"whole medicine keeps two " + capacity);
+     check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one " + capacity);
      check(Info.pocketUnits(11,size.WHOLE)==1,"whole nonmedicine keeps one " + capacity);
      check(Info.pocketUnits(10,size.HALF,capacity)==5,"dialog override capped " + capacity);
      held.value=5;item.dictId=held.dictId;

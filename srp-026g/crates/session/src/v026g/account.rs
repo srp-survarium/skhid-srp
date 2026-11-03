@@ -315,7 +315,10 @@ impl Account {
                 continue;
             }
             let (value, count) = if entry.is_stack {
-                (worn.count, loadouts::equipped_units(worn.slot, worn.count))
+                (
+                    worn.count,
+                    loadouts::equipped_units(worn.slot, worn.dict_id, worn.count),
+                )
             } else {
                 (FULL_CONDITION, 1)
             };
@@ -635,6 +638,7 @@ impl Account {
                 if dictionary.is_stack(owned.dict_id) {
                     let count = loadouts::equipped_units(
                         index as u8,
+                        owned.dict_id,
                         held.count.min(owned.condition_or_stack),
                     );
                     if count != held.count {

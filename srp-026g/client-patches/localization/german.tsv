@@ -2434,7 +2434,7 @@ st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
-st_srp_hud_blackout_start	Schutzeinrichtung: Blackout\nSammle Batterien. Kein HUD und keine Trefferanzeigen. Halte Tab für Informationen.
+st_srp_hud_blackout_start	Blackout\nBringe Batterien zum Gerät deines Teams.\nHUD und Trefferanzeigen sind ausgeblendet. Halte Tab, um Munition und Gesundheit zu sehen.
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet
 st_srp_hud_friend_sent	Freundschaftsanfrage gesendet
 st_srp_hud_mute_hide	Chat ausblenden

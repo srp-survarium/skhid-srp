@@ -1,5 +1,29 @@
 # Mode introductions
 
+## HUD notice follow-up (2026-11-03, not released)
+
+The owner reported that late joiners could not read the mode notice, requested
+it below the timer, simpler wording and no chat copy. The old pregame text was
+cleared with the native countdown. `ModeNotice` now owns a separate HUD label:
+it waits for a native countdown/time update and localization, remains through
+the countdown, and gets 20 seconds after play starts (20 seconds from readiness
+for a late joiner). Frame ticks only advance an already started notice. Neither
+chat transport nor a server reply is needed. Repeated mode callbacks do not
+restart it; HUD reset/unforcing hides it. Blackout keeps the label visible over
+the hidden HUD, below the greater of the pregame and match timer bounds.
+
+The English text is “Blackout / Bring batteries to your team’s device. / HUD and
+hit markers are hidden. Hold Tab to check ammo and health.” All ten dictionaries
+are updated. The HUD no longer sends the old introduction request or injects a
+chat line. The existing server protocol/allowances and old standalone chat
+classes remain compatible with earlier clients; this notice uses neither.
+
+The Ruffle harness covers late joins, countdown expiry, repeated callbacks,
+reset, placement and every language. Native multiplayer play remains to be
+confirmed.
+
+## Original implementation (superseded HUD behavior)
+
 The owner approved Blackout onboarding on 2026-11-03: a localized chat explanation,
 visible immediately, once in each account's first three Blackout matches. The same
 flow will later serve Scarcity, with its own wording and allowance. The sender is
