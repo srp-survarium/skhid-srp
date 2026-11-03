@@ -555,9 +555,13 @@ pub mod take_counts {
         ZoneSearchAsked,
         /// ... and it found the way.
         ZoneSearchFound,
+        /// [take.pitch] A use pressed at a stand looking down past 1 rad, the view on the battery ...
+        SteepPressAimed,
+        /// ... or there only after `SETTLE_MS` (not called aimed).
+        SteepPressLate,
     }
 
-    pub const ALL: usize = 9;
+    pub const ALL: usize = 11;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -570,6 +574,8 @@ pub mod take_counts {
         "far_stand_used",
         "zone_search_asked",
         "zone_search_found",
+        "steep_press_aimed",
+        "steep_press_late",
     ];
 
     #[cfg(test)]
@@ -2524,10 +2530,19 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 {
                     return Step::Continue(to_stand(cx, s, aim, crossing.is_some()).within(0.05));
                 }
-                if settled(cx, s, aim_now) || cx.now >= arrived_at + SETTLE_MS {
+                let on_it = settled(cx, s, aim_now);
+                if on_it || cx.now >= arrived_at + SETTLE_MS {
                     *tries += 1;
                     *last_use = cx.now;
                     intent = intent.pressing(key::USE);
+                    let eye = cx.me.eye();
+                    if (eye.y - aim_now.y).atan2(eye.distance_xz(aim_now)) > 1.0 {
+                        take_counts::count(if on_it {
+                            take_counts::Count::SteepPressAimed
+                        } else {
+                            take_counts::Count::SteepPressLate
+                        });
+                    }
                 }
                 return Step::Continue(intent);
             }
@@ -2589,7 +2604,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     let through = crossing.is_some();
     let intent = match next_stand(cx, at, aim, tried, steep, &gave_up, through) {
         Some(s) => {
-            if s.feet.distance_xz(at) > RING_M[RING_M.len() - 1] + 0.1 {
+            if cx.tuning.take.far_stands.is_some() && s.feet.distance_xz(at) > RING_M[RING_M.len() - 1] + 0.1 {
                 take_counts::count(take_counts::Count::FarStandUsed);
             }
             *stand = Some(s);
@@ -2706,13 +2721,25 @@ fn settled(cx: &Ctx, stand: TakeStand, aim: Vec3) -> bool {
     cx.me.crouched() == stand.crouch && aimed_at(cx, aim)
 }
 
-/// Whether the bot's view is on `aim` within [`SETTLED_RAD`].
+/// Whether the bot's view is on `aim` within [`SETTLED_RAD`]. The look the view can have ends at its stops: 1 rad either
+/// way with `take.pitch` fixed (the old reading); by the view's scale, the scale's stops (the client's: 67.48 degrees down,
+/// 60 up). Without it a stand the view-scale limits allow, needing a look down past 1 rad, was never called aimed (the view
+/// turns there, `drive.rs` aims unclamped), so its use waited out `SETTLE_MS` each time (A281).
 pub(super) fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
     use crate::v026g::bots::kin::{wrap, yaw_of};
+    use crate::v026g::bots::pitch::Pitch;
+    use crate::v026g::bots::tuning::TakePitch;
     let eye = cx.me.eye();
     let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
     let yaw = yaw_of([dx, dz]);
-    let pitch = (aim.y - eye.y).atan2(dx.hypot(dz)).clamp(-1.0, 1.0);
+    let (down, up) = match cx.tuning.take.pitch {
+        TakePitch::Fixed => (-1.0, 1.0),
+        TakePitch::ViewScale => {
+            let scale = cx.tuning.kin.pitch_scale;
+            (Pitch::new(-1.0).elevation(scale), Pitch::new(1.0).elevation(scale))
+        }
+    };
+    let pitch = (aim.y - eye.y).atan2(dx.hypot(dz)).clamp(down, up);
     wrap(cx.me.yaw - yaw).abs() < SETTLED_RAD && (cx.me.pitch - pitch).abs() < SETTLED_RAD
 }
 
@@ -4281,9 +4308,14 @@ mod tests {
 
     /// The bot stands at `feet`, crouched, looking at `aim` from there.
     fn stand_at(s: &mut Scenario, feet: Vec3, aim: Vec3) {
+        stand_at_as(s, feet, aim, true);
+    }
+
+    /// [`stand_at`], crouched or standing.
+    fn stand_at_as(s: &mut Scenario, feet: Vec3, aim: Vec3, crouch: bool) {
         use crate::v026g::bots::kin::yaw_of;
         let me = s.bot(0, 0, feet);
-        me.keys = key::CROUCH;
+        me.keys = if crouch { key::CROUCH } else { 0 };
         // The eye moves with the pitch: the view on `aim` from the eye it
         // gives (a few rounds settle it).
         for _ in 0..4 {
@@ -4313,6 +4345,9 @@ mod tests {
         use crate::v026g::bots::body::tests::wall_x;
         let east = Vec3::new(26.2, 0.0, 12.0);
         let mut s = take_field(&wall_x(25.6, 11.5, 12.5), east);
+        // The blocked line and the kept stand, on the fixed look-down limits: by the view's scale the steeper ring makes the
+        // first stand a standing one and the same feet crouched another stand (`a_look_down_past_one_radian_...` has those).
+        s.tuning.take.pitch = crate::v026g::bots::tuning::TakePitch::Fixed;
         assert!(!clear_from(&s, east), "the wall blocks the line");
         let target = TargetRef::Battery(0);
         let mut rng = Rng::new(1);
@@ -4341,12 +4376,12 @@ mod tests {
         assert!(matches!(intent.look, Look::Use(_)));
         // There, the view on the battery: two uses, 1.2 s apart.
         let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
-        stand_at(&mut s, first.feet, aim);
+        stand_at_as(&mut s, first.feet, aim, first.crouch);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "a use at the stand");
         assert!(!intent.fire, "no fire as it uses: it may carry");
         s.view.clock += 1_200;
-        stand_at(&mut s, first.feet, TAKE_AT);
+        stand_at_as(&mut s, first.feet, TAKE_AT, first.crouch);
         // No world since the use: it waits, the use may have taken it.
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0, "the first use not seen yet");
@@ -4361,7 +4396,7 @@ mod tests {
         let failed = intent.failed_stand.expect("the stand is kept");
         assert_eq!(
             (failed.battery, failed.feet, failed.crouch),
-            (0, first.feet, true)
+            (0, first.feet, first.crouch)
         );
         let State::Take {
             stand: Some(second),
@@ -4375,7 +4410,7 @@ mod tests {
         // The next take (the commander gives the play again) does not use
         // the kept stand where it stands: it goes elsewhere at once.
         s.failed_stands = vec![failed];
-        stand_at(&mut s, first.feet, aim);
+        stand_at_as(&mut s, first.feet, aim, first.crouch);
         let mut state = fresh_take(&s, Some(east));
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0);
@@ -4514,6 +4549,9 @@ mod tests {
         let feet = Vec3::new(20.0, 0.0, 12.0);
         let aim = TAKE_AT + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
         let mut s = take_field(&[], feet);
+        // With `take.pitch` by the view's scale the 1.2 m stands pass and the far ones are the same stands (within
+        // `SAME_STAND_M`): far stands add nothing then (a follow-up). The fixed limits show what they add.
+        s.tuning.take.pitch = crate::v026g::bots::tuning::TakePitch::Fixed;
         let far = |s: &Scenario| ring_stands(&s.cx(0), TAKE_AT, aim, false).iter().map(|(st, _)| st.feet.distance_xz(TAKE_AT)).fold(0.0f32, f32::max);
         assert!(far(&s) <= 1.25, "{}", far(&s));
         s.tuning.take.far_stands = Some(FarStands::default());
@@ -4522,16 +4560,38 @@ mod tests {
     }
 
     /// [take.pitch] By the view's scale the limits sit under the client's stop (67.48 degrees down) by the fixed margins; the
-    /// fixed ones under 1 rad.
+    /// fixed ones under 1 rad. The view's scale is the default.
     #[test]
     fn the_view_scale_moves_the_stands_look_down_limits_to_the_clients_stop() {
         use crate::v026g::bots::tuning::TakePitch;
         let mut s = take_field(&[], Vec3::new(20.0, 0.0, 12.0));
-        assert_eq!(take_pitch_limits(&s.cx(0)), (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD));
-        s.tuning.take.pitch = TakePitch::ViewScale;
+        assert_eq!(s.tuning.take.pitch, TakePitch::ViewScale, "the default");
         let (ring, first) = take_pitch_limits(&s.cx(0));
         let stop = 67.48f32.to_radians();
         assert!((ring - (stop - 0.05)).abs() < 1e-4 && (first - (stop - 0.02)).abs() < 1e-4, "{ring} {first}");
+        s.tuning.take.pitch = TakePitch::Fixed;
+        assert_eq!(take_pitch_limits(&s.cx(0)), (RING_PITCH_MAX_RAD, FIRST_PITCH_MAX_RAD));
+    }
+
+    /// [take.pitch] A battery 1.1 rad under the eye (a stand the view-scale limits allow): the view turned on it is aimed
+    /// there by the view's scale (the client's stop is 1.18 rad down); the fixed reading caps the wanted look at 1 rad and
+    /// never calls it aimed, so a use there waits out `SETTLE_MS`.
+    #[test]
+    fn a_look_down_past_one_radian_is_aimed_by_the_views_scale() {
+        use crate::v026g::bots::tuning::TakePitch;
+        let feet = Vec3::new(20.0, 0.0, 12.0);
+        let mut s = take_field(&[], feet);
+        let down = 1.1f32;
+        let me = s.bot(0, 0, feet);
+        me.keys = key::CROUCH;
+        me.pitch = -down;
+        let eye = me.eye();
+        let [fx, fz] = crate::v026g::bots::kin::forward(me.yaw);
+        let aim = eye + Vec3::new(fx * down.cos(), -down.sin(), fz * down.cos()) * 0.6;
+        assert_eq!(s.tuning.take.pitch, TakePitch::ViewScale);
+        assert!(aimed_at(&s.cx(0), aim), "by the view's scale");
+        s.tuning.take.pitch = TakePitch::Fixed;
+        assert!(!aimed_at(&s.cx(0), aim), "the fixed reading caps the look at 1 rad");
     }
 
     /// Right over the battery (the view does not look down that far) and
