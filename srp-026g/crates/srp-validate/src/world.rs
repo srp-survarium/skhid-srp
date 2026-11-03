@@ -1,5 +1,7 @@
 //! World context, player heads, rules and statistics. Runtime enforcement is separate.
 mod frame;
+mod player_tail;
+pub use player_tail::player_tail;
 mod rules;
 mod statistics;
 use crate::reader::Reader;
