@@ -14,6 +14,7 @@ import unittest
 
 import make_client_026g as overlay
 
+PROBE = r'C:\windows\syswow64\cmd.exe'
 SCRIPT = Path(__file__).resolve().parent / 'play_skhid.sh'
 STARTER = Path(__file__).resolve().parent / 'Skhid.sh'
 # Only the bytes inspected by the launcher; no game binary is needed.
@@ -52,12 +53,17 @@ prefix=pathlib.Path(os.environ['WINEPREFIX'])
 if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
 with open(os.environ['TEST_CALLS'],'a') as f:
- f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'))) + '\\n')
+ f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'))) + '\\n')
 if os.environ.get('TEST_FAIL')==name+':'+sys.argv[1]:
  sys.exit(1)
+if name=='wine' and sys.argv[1]=='--version':
+ print(os.environ.get('TEST_WINE_VERSION','wine-11.8 (Staging)'))
+ sys.exit(0)
+if os.environ.get('WINEARCH')!='wow64':
+ sys.exit('modern WoW64 was not forced')
 if name=='wineserver':
  # Delayed registry creation ensures the script waits for wineserver.
- (prefix/'system.reg').write_text('registry')
+ (prefix/'system.reg').write_text('WINE REGISTRY Version 2\\n#arch='+os.environ.get('TEST_PREFIX_ARCH','win64')+'\\n')
 elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
  sys.exit(1)
 '''
@@ -87,6 +93,100 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         return subprocess.run([str(self.tools / 'bash'), str(self.script), *arguments],
             cwd=self.root, env=self.env, text=True, capture_output=True)
 
+    def recorded_calls(self, compatibility=False):
+        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+        # Existing tests assert setup/game behavior; compatibility cases below
+        # explicitly inspect version queries and the mandatory 32-bit probe.
+        if compatibility:
+            return calls
+        return [c for c in calls if c['args'][0] not in ('--version', PROBE)]
+
+    def test_unsupported_or_unrecognized_wine_cannot_change_exe_or_prefix(self):
+        self.copy_exe()
+        for version in ('wine-9.0', 'wine-10.20 (Staging)', 'unknown', 'wine-110', ''):
+            with self.subTest(version=version):
+                self.env['TEST_WINE_VERSION'] = version
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Wine 11.0 or newer', result.stderr)
+                self.assertEqual(self.exe.read_bytes(), FIXTURE)
+                self.assertFalse((self.bin/'wineprefix').exists())
+                self.assertEqual([c['args'] for c in self.recorded_calls(True)], [['--version']])
+
+    def test_failed_version_query_is_refused(self):
+        self.copy_exe()
+        self.env['TEST_FAIL'] = 'wine:--version'
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Cannot query Wine', result.stderr)
+        self.assertEqual(self.exe.read_bytes(), FIXTURE)
+        self.assertFalse((self.bin/'wineprefix').exists())
+
+    def test_modern_wow64_is_forced_and_probed_on_every_start(self):
+        self.copy_exe()
+        self.env['WINEARCH'] = 'win32'
+        for version in ('wine-11.0', 'wine-11.8 (Staging)', 'wine-12.0.1'):
+            with self.subTest(version=version):
+                self.env['TEST_WINE_VERSION'] = version
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                calls = self.recorded_calls(True)
+                self.assertEqual(calls[0]['args'], ['--version'])
+                self.assertTrue(all(c['arch'] == 'wow64' for c in calls))
+                probes = [i for i,c in enumerate(calls) if c['args'][0] == PROBE]
+                self.assertEqual(len(probes), 1)
+                self.assertEqual(calls[probes[0]]['args'], [PROBE, '/d', '/c', 'exit 0'])
+                self.assertLess(probes[0], len(calls)-1)
+                self.assertTrue(all(c['name'] != 'winetricks' for c in calls[:probes[0]]))
+                self.assertEqual(calls[-1]['args'][0], 'survarium_skhid.exe')
+
+    def test_old_32_bit_or_unknown_prefix_is_preserved_and_refused(self):
+        self.copy_exe()
+        prefix = self.bin/'wineprefix'
+        prefix.mkdir()
+        for architecture in ('win32', 'unknown'):
+            registry = 'WINE REGISTRY Version 2\n#arch='+architecture+'\n'
+            (prefix/'system.reg').write_text(registry)
+            (prefix/'.skhid-ready').touch()
+            (prefix/'.skhid-dxvk').touch()
+            self.calls.unlink(missing_ok=True)
+            result = self.run_script()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('unused backup name', result.stderr)
+            self.assertEqual((prefix/'system.reg').read_text(), registry)
+            self.assertEqual(self.exe.read_bytes(), FIXTURE)
+            self.assertEqual([c['args'] for c in self.recorded_calls(True)], [['--version']])
+
+    def test_failed_wow64_probe_never_falls_back_or_installs_dxvk(self):
+        self.copy_exe()
+        self.env['TEST_FAIL'] = 'wine:'+PROBE
+        for _ in range(2):
+            self.calls.unlink(missing_ok=True)
+            result = self.run_script()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Modern WoW64 could not run', result.stderr)
+            self.assertEqual(self.exe.read_bytes(), FIXTURE)
+            self.assertFalse((self.bin/'wineprefix/.skhid-dxvk').exists())
+            calls = self.recorded_calls(True)
+            self.assertEqual(calls[-1]['args'][0], PROBE)
+            self.assertTrue(all(c['arch'] == 'wow64' for c in calls))
+            self.assertFalse(any(c['name'] == 'winetricks' for c in calls))
+        del self.env['TEST_FAIL']
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_new_prefix_must_also_be_64_bit(self):
+        self.copy_exe()
+        self.env['TEST_PREFIX_ARCH'] = 'win32'
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not a supported 64-bit prefix', result.stderr)
+        self.assertEqual(self.exe.read_bytes(), FIXTURE)
+        self.assertFalse((self.bin/'wineprefix/.skhid-ready').exists())
+        self.assertFalse(any(c['name'] == 'winetricks' for c in self.recorded_calls(True)))
+
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
         self.exe.write_bytes(PATCHED_FIXTURE)
@@ -94,7 +194,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             (self.bin / name).write_bytes(b'MZ fixture')
         result = self.run_script('launcher')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         # No game arguments: the launcher passes the language and the rest.
         self.assertEqual(calls[-1]['args'], ['launcher_skhid.exe'])
         self.assertEqual(calls[-1]['cwd'], str(self.bin))
@@ -129,7 +229,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             result = subprocess.run([str(self.tools / 'bash'), str(starter), *arguments],
                 cwd=self.root, env=self.env, text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            last = [json.loads(s) for s in self.calls.read_text().splitlines()][-1]
+            last = self.recorded_calls()[-1]
             self.assertEqual(last['args'][0], started)
             self.assertEqual(last['cwd'], str(nested))
         result = subprocess.run([str(self.tools / 'bash'), str(starter), 'other'],
@@ -175,7 +275,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.script.write_bytes(overlay.sh('release.example:2234', True))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768'])
         self.assertEqual(self.exe.read_bytes(), PATCHED_FIXTURE)
@@ -190,14 +290,14 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("has not finished updating the game's files", result.stderr)
         self.assertIn('bash Skhid.sh launcher', result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['updater_skhid.exe', 'ready', 'quiet'])
         self.assertFalse(any(call['args'][:1] == ['survarium_skhid.exe'] for call in calls))
         # Ready: the game starts after the check.
         self.env.pop('TEST_FAIL')
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual([call['args'][:2] for call in calls[-2:]],
                          [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-mt_allocator=768']])
 
@@ -206,7 +306,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.script.write_bytes(overlay.sh('release.example:2234', False))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768', '-server=release.example:2234'])
 
@@ -216,7 +316,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.script.write_bytes(script.replace(b'server=\n', b'server=local.example:4321\n'))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertIn('-server=local.example:4321', calls[-1]['args'])
 
     def test_resolution_falls_back_to_1080p(self):
@@ -304,7 +404,7 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual([i for i, (a, b) in enumerate(zip(before, after)) if a != b], [0xf5811])
         backup = self.exe.with_name(self.exe.name + '.before-memory-patch')
         self.assertEqual(backup.read_bytes(), before)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
         self.assertEqual(calls[2]['args'], ['-q', 'dxvk'])
         self.assertEqual(calls[3]['cwd'], str(self.bin))
@@ -315,7 +415,7 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(calls[3]['prefix'], str(self.bin / 'wineprefix'))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(len(self.calls.read_text().splitlines()), 5)
+        self.assertEqual(len(self.recorded_calls()), 5)
         self.assertEqual(backup.read_bytes(), before)
 
     def test_dxvk_failure_retries_without_launching(self):
@@ -325,11 +425,11 @@ HDMI-1 connected 1366x768+0+0
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('DXVK installation failed', result.stderr)
         self.assertFalse((self.bin / 'wineprefix/.skhid-dxvk').exists())
-        self.assertEqual(len(self.calls.read_text().splitlines()), 3)
+        self.assertEqual(len(self.recorded_calls()), 3)
         del self.env['TEST_DXVK_FAIL']
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls[-2:]], ['winetricks', 'wine'])
 
     def test_wine_setup_failures_retry_before_launching(self):
@@ -343,7 +443,7 @@ HDMI-1 connected 1366x768+0+0
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse((prefix / '.skhid-ready').exists())
                 self.assertFalse((prefix / '.skhid-dxvk').exists())
-                calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+                calls = self.recorded_calls()
                 self.assertFalse(any(c['name'] == 'winetricks' or
                     c['args'][0] == 'survarium_skhid.exe' for c in calls))
         del self.env['TEST_FAIL']
@@ -361,7 +461,7 @@ HDMI-1 connected 1366x768+0+0
         del self.env['TEST_FAIL']
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls],
             ['wine', 'wineserver', 'winetricks', 'wine', 'wine'])
 
@@ -384,7 +484,7 @@ HDMI-1 connected 1366x768+0+0
         (self.bin / 'wineprefix/system.reg').unlink()
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls[-4:]], ['wine', 'wineserver', 'winetricks', 'wine'])
 
     def test_preserves_existing_backup(self):

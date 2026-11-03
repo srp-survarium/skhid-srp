@@ -489,13 +489,9 @@ An embedded hostname is limited to 63 ASCII bytes and the port to 1–65535.
 `--cert-only` does not support embedding; cert-only overlays still pass the
 address through their batch file.
 
-On Linux, install Wine with support for 32-bit Windows applications and
-Winetricks, then run `bash play_skhid.sh` from `game/binaries/x86`. The launcher
-creates its own Wine prefix, installs DXVK on first use, and preserves saved
-game settings. Full builds use the embedded server; edit `server=` at the top
-of the script for an override. Certificate-only builds fill in that value.
-Both launchers use the builder's `--localization` setting. See `LINUX.txt` for
-details, including the English-keyboard-layout startup workaround.
+On Linux, use **Wine 11.0+ with modern WoW64** (tested: **11.8 Staging WoW64**)
+and Winetricks. Run `bash play_skhid.sh` from `game/binaries/x86`.
+See [LINUX.txt](LINUX.txt) for setup and troubleshooting.
 
 `bash play_skhid.sh launcher` starts `launcher_skhid.exe` in the same Wine
 prefix instead of the game (not run under Wine by us yet).

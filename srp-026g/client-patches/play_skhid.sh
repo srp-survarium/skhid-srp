@@ -67,40 +67,51 @@ patched=85ff7719720881fb00000014eb0f6840010000
 [[ "$(bytes "$exe" 0 2)" == 4d5a ]] || die 'Not a Windows executable.'
 [[ "$(bytes "$exe" $((offset + 17)) 11)" == 8bd75f5e8bc35b83c408c3 ]] || die 'Memory-check code changed. EXE left unchanged.'
 case "$(bytes "$exe" $((offset - 12)) 19)" in
-    "$original")
-        backup="$exe.before-memory-patch"
-        if [[ -e "$backup" || -L "$backup" ]]; then
-            [[ -f "$backup" && ! -L "$backup" ]] || die 'Backup path is not a regular file.'
-        fi
-        # Keep previous backups too when a newer Skhid EXE is installed.
-        cp --backup=numbered -p -- "$exe" "$backup"
-        temporary="$(mktemp .skhid-memory-XXXXXX)"
-        trap 'rm -f -- "$temporary"' EXIT
-        cp -p -- "$exe" "$temporary"
-        printf '\xeb' | dd of="$temporary" bs=1 seek="$offset" conv=notrunc status=none
-        [[ "$(bytes "$temporary" "$offset" 1)" == eb ]] || die 'Patch verification failed.'
-        cmp -s -n "$offset" "$exe" "$temporary" && \
-            cmp -s -i "$((offset + 1))" "$exe" "$temporary" || die 'Unexpected changes outside the memory patch.'
-        mv -- "$temporary" "$exe"
-        trap - EXIT
-        echo 'Memory check patched; original EXE backed up.' ;;
-    "$patched") echo 'Memory patch already applied.' ;;
+    "$original") memory_patch=needed ;;
+    "$patched") memory_patch=present ;;
     *) die 'Memory-check code changed. EXE left unchanged; launcher needs updating.' ;;
 esac
 
 export WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
-export WINE="$(command -v wine)" WINESERVER="$(command -v wineserver)"
+WINE=$(command -v wine)
+WINESERVER=$(command -v wineserver)
+export WINE WINESERVER
 # Disable Wine's broken optional QoS support and unwanted installer dialogs.
 export WINEDLLOVERRIDES='mscoree,mshtml,qwave=;winemenubuilder.exe=d'
-unset WINEARCH WINELOADER
+# Wine 11 supports forcing the new WoW64 loader even in a mixed installation.
+# win64 alone selects a prefix architecture, not the loader used for 32-bit EXEs.
+export WINEARCH=wow64
+unset WINELOADER
 log="$PWD/skhid-wine.log"
+
+version=$(LC_ALL=C "$WINE" --version 2>&1) || die "Cannot query Wine: $version
+Install Wine 11.0 or newer with modern WoW64 support (tested: 11.8 Staging WoW64).
+See LINUX.txt."
+[[ $version =~ ^wine-([0-9]+)\.([0-9]+)([^0-9].*)?$ ]] || die "Unrecognized Wine version: $version
+Use Wine 11.0 or newer with modern WoW64 support; see LINUX.txt."
+(( 10#${BASH_REMATCH[1]} >= 11 )) || die "Unsupported Wine: $version
+Wine 11.0 or newer with modern WoW64 is required (tested: 11.8 Staging WoW64).
+Select its wine and wineserver in PATH; see LINUX.txt."
+
+verify_prefix_arch() {
+    local prefix_arch
+    prefix_arch=$(awk '/^#arch=/ { sub(/^#arch=/, ""); sub(/\r$/, ""); print; exit }' "$WINEPREFIX/system.reg")
+    [[ $prefix_arch == win64 ]] || die "This Wine prefix is not a supported 64-bit prefix for modern WoW64.
+Close the game and launcher, rename wineprefix to an unused backup name, and run again.
+Your existing prefix has been kept. See LINUX.txt for preserving game settings."
+}
+if [[ -f "$WINEPREFIX/system.reg" ]]; then
+    verify_prefix_arch
+fi
+printf 'Wine runtime: %s; required mode: WINEARCH=wow64\n' "$version" >>"$log"
 
 if [[ ! -f "$WINEPREFIX/.skhid-ready" || ! -f "$WINEPREFIX/system.reg" ]]; then
     rm -f -- "$WINEPREFIX/.skhid-dxvk"
     echo 'Initializing Wine prefix...'
-    timeout 180 "$WINE" wineboot.exe --init >>"$log" 2>&1 || die "Wine setup failed. See $log"
+    timeout 180 "$WINE" wineboot.exe --init >>"$log" 2>&1 || die "Wine setup failed in modern WoW64 mode. See LINUX.txt and $log"
     timeout 180 "$WINESERVER" -w >>"$log" 2>&1 || die "Wine setup timed out. See $log"
     [[ -f "$WINEPREFIX/system.reg" ]] || die "Wine registry missing. See $log"
+    verify_prefix_arch
     # Keep game settings inside this prefix instead of the user's real Documents.
     documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
     [[ ! -L "$documents" ]] || rm -- "$documents"
@@ -112,6 +123,35 @@ if [[ ! -f "$WINEPREFIX/.skhid-ready" || ! -f "$WINEPREFIX/system.reg" ]]; then
     fi
     touch "$WINEPREFIX/.skhid-ready"
 fi
+# Exercise a 32-bit PE under the forced modern loader. A 64-bit cmd.exe would
+# not prove the mode needed by the game. Refuse failures without an old-mode retry.
+timeout 60 "$WINE" 'C:\windows\syswow64\cmd.exe' /d /c 'exit 0' >>"$log" 2>&1 || die "Modern WoW64 could not run a 32-bit Windows program.
+Use Wine 11.0 or newer with modern WoW64 support and matching wineserver.
+For an old prefix, keep it as a backup and create a fresh one; see LINUX.txt and $log."
+
+case "$memory_patch" in
+    needed)
+        backup="$exe.before-memory-patch"
+        if [[ -e "$backup" || -L "$backup" ]]; then
+            [[ -f "$backup" && ! -L "$backup" ]] || die 'Backup path is not a regular file.'
+        fi
+        # Keep previous backups too when a newer Skhid EXE is installed.
+        cp --backup=numbered -p -- "$exe" "$backup"
+        temporary="$(mktemp .skhid-memory-XXXXXX)"
+        trap 'rm -f -- "$temporary"' EXIT
+        cp -p -- "$exe" "$temporary"
+        printf '\xeb' | dd of="$temporary" bs=1 seek="$offset" conv=notrunc status=none
+        [[ "$(bytes "$temporary" "$offset" 1)" == eb ]] || die 'Patch verification failed.'
+        if ! cmp -s -n "$offset" "$exe" "$temporary" || \
+                ! cmp -s -i "$((offset + 1))" "$exe" "$temporary"; then
+            die 'Unexpected changes outside the memory patch.'
+        fi
+        mv -- "$temporary" "$exe"
+        trap - EXIT
+        echo 'Memory check patched; original EXE backed up.' ;;
+    present) echo 'Memory patch already applied.' ;;
+esac
+
 if [[ ! -f "$WINEPREFIX/.skhid-dxvk" ]]; then
     echo 'Installing DXVK...'
     winetricks -q dxvk >>"$log" 2>&1 || die "DXVK installation failed. See $log"
