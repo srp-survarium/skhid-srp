@@ -198,6 +198,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_GRENADE_DAMAGE", "on", "**model** `off`: a grenade's blast hurts nobody (only counted, as before `standin_grenade.rs`)"),
     s("SRP_BENCH_STOCK", "on", "**model** `off`: the stand-in's bodies fire whenever the fire key is down (no rounds, reloads or finite ammo: the stand-in before `standin_weapon.rs`); the counts stay"),
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
+    s("SRP_BENCH_EMPTY_RELOAD", "on", "**model** (A277) `off`: an emptied weapon waits for the reload key or the fire key to reload (the stand-in before); on: the shot that empties it starts its reload at its fire clip's end by itself, as the client's fire state does (0x2E3F70 before 0x2E3B00, PROVEN; `standin_weapon.rs`)"),
     s("SRP_BENCH_STAMINA", "off", "**model** `on`: the stand-in's bodies have the client's stamina bar (the sprint lockout, the jump's cost, a hit's stamina damage: `standin_stamina.rs`); off, they sprint and jump whenever their keys ask and the counts stay at zero"),
     s("SRP_BENCH_PITCH_SCALE", "client in a bench run (the game's), radian in a unit test", "**model** `radian`: the view's pitch unit is a radian in the stand-in (the stand-in before `pitch.rs`); `client`: 60.0 degrees up and 67.48 down, so a bot's shot and eye go where the Item bone does for the pitch it holds"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
