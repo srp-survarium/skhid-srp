@@ -79,6 +79,12 @@ impl Bots {
         if self.bench_camper.as_mut().is_some_and(|camper| camper.drive(&due, bot)) {
             return;
         }
+        bot.world_feet = self
+            .tracker
+            .body(bot.place)
+            .and_then(|body| body.fix())
+            .filter(|fix| fix.alive)
+            .and_then(|fix| fix.feet.map(|feet| (feet, fix.time)));
         let Some(step_name) = decide(&due, bot, state, &self.memo, &self.features.weapons, notes) else {
             return;
         };
@@ -1084,6 +1090,7 @@ pub(super) fn decide(
             no_way_to: &bot.no_way_to,
             set_aside: &bot.features.memory.set_aside,
             failed_stands: &bot.features.memory.failed_stands,
+            world_feet: bot.world_feet,
             dry: bot.reflex.dry(),
             hit: bot.reflex.last_hit(),
             ammo: bot.ammo(),
@@ -1137,6 +1144,7 @@ pub(super) fn decide(
             if let Some(a) = bot.assignment.as_ref() {
                 bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
                 bot.features.memory.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
+                take_ended(tuning, state, bot, a.kind, a.target, plays::collect::TakeEnd::NoWay, now, notes);
             }
             bot.end_play(now, "no way to its goal", notes);
             state.next_commander = now;
@@ -1152,6 +1160,11 @@ pub(super) fn decide(
                 bot.features.memory.failed_stands.retain(|f| f.until > now);
                 bot.features.memory.failed_stands.push(failed);
                 bot.note(notes, now, failed.note());
+                // [take.team_memory] The team knows the stand too.
+                if let Some(rule) = tuning.take.team_memory {
+                    plays::collect::take_counts::count(plays::collect::take_counts::Count::TeamStandShared);
+                    state.knowledge.takes.stand_failed(failed, now, (rule.keep_s.get() * 1000.0) as u32);
+                }
             }
             bot.intent = intent;
         }
@@ -1173,11 +1186,57 @@ pub(super) fn decide(
                 };
                 bot.features.memory.set_aside.push((a.kind, a.target, now + keep));
             }
+            if let Some(a) = bot.assignment.as_ref()
+                && why.starts_with("could not take it")
+            {
+                let end = if why == plays::collect::NO_STAND_LEFT {
+                    plays::collect::TakeEnd::NoStandLeft
+                } else {
+                    plays::collect::TakeEnd::StandsLeft
+                };
+                take_ended(tuning, state, bot, a.kind, a.target, end, now, notes);
+            }
             bot.end_play(now, why, notes);
             state.next_commander = now;
         }
     }
     Some(step_name)
+}
+
+/// [take.team_memory] A Collect play of `target` ended `end`: the team's memory of the battery hears it
+/// (`collect::TeamTakes::play_ended`) and, when it sets the battery aside for the team, the bot says so.
+#[allow(clippy::too_many_arguments)]
+fn take_ended(
+    tuning: &Tuning,
+    state: &mut TeamState,
+    bot: &mut Bot,
+    kind: plays::PlayKind,
+    target: plays::TargetRef,
+    end: plays::collect::TakeEnd,
+    now: u32,
+    notes: &mut Vec<Note>,
+) {
+    let Some(rule) = tuning.take.team_memory else {
+        return;
+    };
+    let plays::TargetRef::Battery(battery) = target else {
+        return;
+    };
+    if kind != plays::PlayKind::Collect {
+        return;
+    }
+    let Some(at) = state.knowledge.battery(battery).map(|known| known.at) else {
+        return;
+    };
+    if state.knowledge.takes.play_ended(battery, at, end, now, &rule) {
+        use plays::collect::take_counts::{count, Count};
+        count(if end == plays::collect::TakeEnd::NoWay { Count::TeamAsideNoWay } else { Count::TeamAsideNoStand });
+        bot.note(
+            notes,
+            now,
+            format!("sets battery {battery} aside for the team for {:.0} s ({end:?})", rule.aside_s.get()),
+        );
+    }
 }
 
 #[cfg(test)]

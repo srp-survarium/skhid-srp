@@ -503,6 +503,8 @@ pub struct BotFacts<'a> {
     pub set_aside: &'a [(PlayKind, TargetRef, u32)],
     /// Stands its takes of batteries gave up at lately (`collect`).
     pub failed_stands: &'a [collect::FailedStand],
+    /// [take.world_stand] The feet the latest world put the body at, and its time (`Bot::world_feet`).
+    pub world_feet: Option<(Vec3, u32)>,
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
@@ -969,12 +971,7 @@ impl Ctx<'_> {
     /// bench's trace of holds that stop being candidates).
     #[cfg(test)]
     pub fn drop_reason(&self, kind: PlayKind, target: TargetRef) -> String {
-        if self
-            .bot
-            .set_aside
-            .iter()
-            .any(|&(k, t, until)| k == kind && t == target && self.now < until)
-        {
+        if self.set_aside(kind, target) {
             return "set aside".to_string();
         }
         if self.bot.dry && kind.seeks_fight() {
@@ -1151,7 +1148,7 @@ impl Ctx<'_> {
                 Offer::NoSpot
             } else if c.is_some() {
                 Offer::Offered
-            } else if self.bot.set_aside.iter().any(|&(k, t, until)| k == kind && t == target && self.now < until) {
+            } else if self.set_aside(kind, target) {
                 Offer::SetAside
             } else if self.bot.dry && kind.seeks_fight() {
                 Offer::Dry
@@ -1161,6 +1158,15 @@ impl Ctx<'_> {
             threat::offered(self.me.place, role, offer);
         }
         c
+    }
+
+    /// Whether `kind` on `target` is set aside for this bot now: by its own failures (`BotFacts::set_aside`), and with
+    /// [take.team_memory] a battery its team set aside (`collect::TeamTakes`).
+    pub fn set_aside(&self, kind: PlayKind, target: TargetRef) -> bool {
+        self.bot.set_aside.iter().any(|&(k, t, until)| k == kind && t == target && self.now < until)
+            || (kind == PlayKind::Collect
+                && self.tuning.take.team_memory.is_some()
+                && matches!(target, TargetRef::Battery(b) if self.team.battery(b).is_some_and(|known| self.team.takes.aside(b, known.at, self.now))))
     }
 
     /// [`Self::candidate_given`] scored by `considerations` instead of the play's own (the Heal play's
@@ -1173,13 +1179,7 @@ impl Ctx<'_> {
         considerations: &[curve::Consideration],
         given: &[(Input, f32)],
     ) -> Option<Candidate> {
-        if self
-            .bot
-            .set_aside
-            .iter()
-            .any(|&(k, t, until)| k == kind && t == target && self.now < until)
-            || (self.bot.dry && kind.seeks_fight())
-        {
+        if self.set_aside(kind, target) || (self.bot.dry && kind.seeks_fight()) {
             return None;
         }
         let play = self.play(kind);

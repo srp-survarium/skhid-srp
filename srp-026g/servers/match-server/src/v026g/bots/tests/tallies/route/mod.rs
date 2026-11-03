@@ -122,6 +122,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         holder_stand_sight(),
         zone_pool_asks(),
         route_crossings(),
+        take_fixes(),
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         past_drop(),

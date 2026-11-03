@@ -152,6 +152,20 @@ pub(super) fn route_crossings() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The take's fixes at work (`collect::take_counts`, A281/A282): [take.world_stand] ticks at a stand the world confirmed, ticks
+/// pressed with no world, stands the world put the body off; [take.team_memory] batteries set aside for the team (no stand
+/// left, no way), stands shared; [take.far_stands] far stands gone for; [take.cross_from_zone] crossing searches from a zone
+/// floor asked and found.
+pub(super) fn take_fixes() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::collect::take_counts::counts().to_vec(),
+        |d, line| {
+            let names = crate::v026g::bots::plays::collect::take_counts::NAMES;
+            line.main.push(names.iter().zip(d).map(|(name, n)| format!("take_{name} {n}")).collect::<Vec<_>>().join(" "));
+        },
+    )
+}
+
 /// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
 pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
     Delta::of(
