@@ -1758,6 +1758,16 @@ impl Bots {
         notes
     }
 
+    /// A285: `index`'s falls and route jumps since the last poll, as its notes (`nav_log.rs`). Called by [`Self::poll`] and the
+    /// bench's own poll.
+    pub(crate) fn nav_notes(&mut self, index: usize, notes: &mut Vec<Note>) {
+        if let Some(bot) = self.bots[index].as_mut() {
+            for (time, text) in bot.nav_log.take() {
+                bot.note(notes, time, text);
+            }
+        }
+    }
+
     /// The note of `index`'s walk over a zone's floors, if its tick began or ended one (said once, at the change).
     pub(crate) fn zone_walk_note(&mut self, index: usize, now: u32, notes: &mut Vec<Note>) {
         if let Some(bot) = self.bots[index].as_mut()
@@ -2094,11 +2104,7 @@ impl Bots {
                 bot.note(&mut notes, now, text);
             }
             bots.zone_walk_note(index, now, &mut notes);
-            if let Some(bot) = bots.bots[index].as_mut() {
-                for (time, text) in bot.nav_log.take() {
-                    bot.note(&mut notes, time, text);
-                }
-            }
+            bots.nav_notes(index, &mut notes);
             // A kit picked before play begins would respawn the bot where
             // it stands at once (the games' patch 31), not at its next
             // life: the bot picks once play has begun, for its next life.

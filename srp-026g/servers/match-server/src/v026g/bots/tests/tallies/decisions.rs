@@ -18,6 +18,10 @@ impl Decisions {
     }
 
     pub(crate) fn note(&mut self, note: &Note) {
+        // A285's lines are the log's, made from what the bot already holds: no decision (they leave the hash as it was).
+        if note.text.starts_with(crate::v026g::bots::nav_log::PREFIX) {
+            return;
+        }
         self.text(&format!("{} {} {}", note.place, note.time, crate::v026g::bots::stuck::without_evidence(&note.text)));
         self.notes += 1;
     }

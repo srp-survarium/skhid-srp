@@ -17,6 +17,9 @@
 
 use mapdata::Vec3;
 
+/// Every line begins with this (the bench's decision hash leaves these lines out: they decide nothing).
+pub const PREFIX: &str = "nav: ";
+
 /// A drop this deep between two worlds is a fall, m (a storey; the client's step is 0.80).
 pub const FALL_M: f32 = 1.5;
 /// Two worlds further apart than this say nothing of a fall between them, ms (the stuck watch's `FIX_GAP_MS`).
@@ -58,7 +61,7 @@ impl JumpOutcome {
 /// A route jump's line.
 pub fn jump_line(outcome: JumpOutcome, take_off: Vec3, landing: Vec3, tries: u32, after_ms: u32, then: &str) -> String {
     format!(
-        "nav: route jump {}: from {} to {}, rise {:.2} m, try {tries}, after {after_ms} ms ({then})",
+        "{PREFIX}route jump {}: from {} to {}, rise {:.2} m, try {tries}, after {after_ms} ms ({then})",
         outcome.word(),
         at(take_off),
         at(landing),
@@ -93,7 +96,7 @@ impl Fall {
             (Some(r), Some(planned)) => format!(", the model had it at {:.1} ({})", r.y, if planned { "planned" } else { "unplanned" }),
             _ => String::new(),
         };
-        format!("nav: fell {:.1} m from {} to {} in {} ms{model}", self.from.y - self.to.y, at(self.from), at(self.to), self.gap_ms)
+        format!("{PREFIX}fell {:.1} m from {} to {} in {} ms{model}", self.from.y - self.to.y, at(self.from), at(self.to), self.gap_ms)
     }
 }
 
