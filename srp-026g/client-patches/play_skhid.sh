@@ -46,6 +46,34 @@ detect_resolution() {
 for command in wine winetricks wineserver; do
     command -v "$command" >/dev/null || die "Install $command first."
 done
+
+# Advice only: the launch goes on. The game is tested with Wine 11.8 staging (WoW64).
+# Wine 9 leaves too little contiguous address space, so the engine stops at start
+# with "Not enough memory", and a current DXVK does not start on it (LINUX.txt).
+# A warning for a Wine older than 10; an info line for any other that is not 11.8.
+check_wine() {
+    local version number major
+    version=$(wine --version 2>/dev/null) || return 0
+    number=${version#wine-}
+    number=${number%%[!0-9.]*}              # "wine-11.8 (Staging)" -> "11.8"
+    major=${number%%.*}
+    [[ -n $major ]] || return 0
+    if (( 10#$major < 10 )); then
+        echo "Warning: $version is older than the Wine this game is tested with (11.8 staging, WoW64)." >&2
+        echo "  The game can stop at start with 'Not enough memory to run Vostok Engine'. See LINUX.txt." >&2
+    elif [[ $number != 11.8 ]]; then
+        echo "Info: $version is not the Wine this game is tested with (11.8 staging, WoW64)." >&2
+        echo "  If something fails, say which Wine you use when you report it." >&2
+    fi
+    # Wine 11 uses the kernel's ntsync driver when /dev/ntsync exists. Without it
+    # wineserver does all the thread synchronisation and the lobby can crawl.
+    if (( 10#$major >= 11 )) && [[ ! -e /dev/ntsync ]] \
+        && command -v modinfo >/dev/null && modinfo ntsync >/dev/null 2>&1; then
+        echo "Info: /dev/ntsync is missing, so the lobby may run very slowly. Run: sudo modprobe ntsync" >&2
+        echo "  (LINUX.txt: how to keep it after a restart.)" >&2
+    fi
+}
+check_wine
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 exe=survarium_skhid.exe
 [[ -f "$exe" && ! -L "$exe" ]] || die "Put this script beside $exe."

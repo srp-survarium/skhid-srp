@@ -37,7 +37,9 @@ class LauncherTests(unittest.TestCase):
         self.script = self.bin / 'play_skhid.sh'
         self.drm = self.root / 'drm'
         self.drm.mkdir()
-        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm)))
+        self.ntsync = self.root / 'ntsync'
+        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm))
+            .replace('/dev/ntsync', str(self.ntsync)))
         self.config = self.bin / 'wineprefix/drive_c/users' / pwd.getpwuid(os.getuid()).pw_name / 'Documents/Survarium/user.cfg'
         self.tools = self.root / 'tools'
         self.tools.mkdir()
@@ -48,6 +50,10 @@ class LauncherTests(unittest.TestCase):
             (self.tools / tool).symlink_to(shutil.which(tool))
         stub = '#!' + sys.executable + '\n' + '''import json,os,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
+if name=='wine' and sys.argv[1:]==['--version']:
+ # The script's version check: answered, not recorded among the calls.
+ print(os.environ.get('TEST_WINE_VERSION','wine-11.8 (Staging)'))
+ sys.exit(0)
 prefix=pathlib.Path(os.environ['WINEPREFIX'])
 if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
@@ -317,6 +323,73 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(self.calls.read_text().splitlines()), 5)
         self.assertEqual(backup.read_bytes(), before)
+
+    def run_started(self, version):
+        self.env['TEST_WINE_VERSION'] = version
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result
+
+    def modinfo(self, exit_code):
+        tool = self.tools / 'modinfo'
+        tool.write_text('#!' + sys.executable + '\nimport sys\nsys.exit(' + str(exit_code) + ')\n')
+        tool.chmod(0o755)
+
+    def test_wine_older_than_10_is_warned_about_and_the_game_still_starts(self):
+        self.copy_exe()
+        result = self.run_started('wine-9.0 (Ubuntu 9.0~repack-4build3)')
+        self.assertIn('Warning: wine-9.0 (Ubuntu 9.0~repack-4build3) is older than the Wine this game is tested with',
+            result.stderr)
+        self.assertIn('Not enough memory to run Vostok Engine', result.stderr)
+        self.assertIn('LINUX.txt', result.stderr)
+        self.assertNotIn('Info', result.stderr)  # the warning is the whole message for these
+        # The version query is not among the calls: setup and the game ran as before.
+        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
+        self.assertEqual(calls[3]['args'][0], 'survarium_skhid.exe')
+
+    def test_the_tested_wine_and_unreadable_versions_get_no_message(self):
+        self.copy_exe()
+        for version in ('wine-11.8 (Staging)', 'wine-11.8', 'not a wine version'):
+            with self.subTest(version=version):
+                result = self.run_started(version)
+                self.assertNotIn('Warning', result.stderr)
+                self.assertNotIn('Info', result.stderr)
+
+    def test_other_wines_from_10_on_get_an_info_line_and_no_warning(self):
+        self.copy_exe()
+        for version in ('wine-10.0', 'wine-10.0-rc3', 'wine-11.0 (Staging)', 'wine-11.21', 'wine-12.1'):
+            with self.subTest(version=version):
+                result = self.run_started(version)
+                self.assertIn(f'Info: {version} is not the Wine this game is tested with (11.8 staging, WoW64)',
+                    result.stderr)
+                self.assertIn('say which Wine you use', result.stderr)
+                self.assertNotIn('Warning', result.stderr)
+                self.assertNotIn('ntsync', result.stderr)  # no modinfo in PATH
+
+    def test_missing_ntsync_is_pointed_out_for_wine_11_when_the_kernel_has_the_module(self):
+        self.copy_exe()
+        self.modinfo(0)
+        result = self.run_started('wine-11.8 (Staging)')
+        # The test points the script's /dev/ntsync at its own path, in the note too.
+        self.assertIn(f'Info: {self.ntsync} is missing', result.stderr)
+        self.assertIn('sudo modprobe ntsync', result.stderr)
+        self.assertNotIn('Warning', result.stderr)
+
+    def test_no_ntsync_note_when_it_would_not_help(self):
+        self.copy_exe()
+        for case, version, module, device in (
+                ('the device is there', 'wine-11.8 (Staging)', 0, True),
+                ('the kernel has no module', 'wine-11.8 (Staging)', 1, False),
+                ('Wine 10 does not use it', 'wine-10.0', 0, False)):
+            with self.subTest(case=case):
+                self.modinfo(module)
+                if device:
+                    self.ntsync.write_text('')
+                else:
+                    self.ntsync.unlink(missing_ok=True)
+                result = self.run_started(version)
+                self.assertNotIn('ntsync', result.stderr)
 
     def test_dxvk_failure_retries_without_launching(self):
         self.copy_exe()

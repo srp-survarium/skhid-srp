@@ -1,6 +1,7 @@
 SURVARIUM 0.26g - LINUX
 
-Install Bash, Wine with 32-bit Windows application support, and Winetricks.
+Install Bash, a recent Wine with 32-bit Windows application support (see WINE
+VERSION below), and Winetricks.
 The launcher also uses standard Linux tools, including flock, timeout and GNU
 coreutils. Apply this archive's game folder over the original extracted game,
 then open a terminal in game/binaries/x86 and run:
@@ -28,6 +29,29 @@ Full builds use the login address embedded in the executable. To override it,
 set server=host:port near the top of play_skhid.sh. Certificate-only builds have
 this value filled in by the release builder. No command-line arguments or
 Python are needed to play.
+
+WINE VERSION
+
+The game is tested with Wine 11.8 staging in WoW64 mode. Wine 10 has not been
+tested. Wine 9.0 in its old 32-bit mode, such as the wine package of Ubuntu
+24.04, does not run the game: it stops at start with "Not enough memory to run
+Vostok Engine v1.0" even when the computer has plenty of memory, because that
+Wine leaves too little contiguous address space for the engine's memory arenas,
+and DXVK 3.1.1 does not start on it either. The script warns when it finds a
+Wine older than 10, and says so when the Wine is any other than 11.8.
+
+With Wine 11 on Linux 6.14 or newer, load the kernel's ntsync module before
+playing:
+
+    sudo modprobe ntsync
+
+and, to load it at every start of the computer:
+
+    echo ntsync | sudo tee /etc/modules-load.d/ntsync.conf
+
+Without /dev/ntsync, wineserver handles all thread synchronisation of the game,
+and in one test the lobby ran at about 12 frames per second. The script says so
+when /dev/ntsync is missing and the module exists.
 
 THE SKHID LAUNCHER (UPDATES)
 
