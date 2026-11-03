@@ -3531,10 +3531,10 @@ va	name	location	role	basis
 0x0038cc90	vostok::ai::fsm::serialize	ESI	FSM receiver	inferred
 0x0038cc90	vostok::ai::fsm::serialize	EDI	writer	inferred
 0x0038cc90	vostok::ai::fsm::serialize	stack+4	forwarded context	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	ESI	FSM receiver	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	EDI	reader	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	stack+4	first forwarded context	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	stack+8	second forwarded context	inferred
+0x0038ccf0	vostok::ai::fsm::deserialize	ESI	FSM receiver	verified
+0x0038ccf0	vostok::ai::fsm::deserialize	EDI	reader	verified
+0x0038ccf0	vostok::ai::fsm::deserialize	stack+4	first forwarded context	verified
+0x0038ccf0	vostok::ai::fsm::deserialize	stack+8	second forwarded context	verified
 0x00391960	vostok::animation::animation_player::set_object_transform	EAX	the animation player (player+750h)	observed
 0x00391960	vostok::animation::animation_player::set_object_transform	EDX	the transform (player+40Ch)	observed
 0x00391960	vostok::animation::animation_player::set_object_transform	entry ESP+4	the animated object (the player)	observed

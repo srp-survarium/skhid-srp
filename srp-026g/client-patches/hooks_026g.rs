@@ -681,6 +681,61 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- deserialize_guards (patch 94) ----
+
+/// The named exits of deserialize_guards::on_fsm (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnFsmExit { Done }
+/// The entry `deserialize_guards_on_fsm` (0x38cd22, fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_fsm(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_fsm` calls this, from the game's jump at 0x38cd22,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_fsm(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 94) ----
+
+/// The named exits of deserialize_guards::on_anomaly (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnAnomalyExit { NoState }
+/// The entry `deserialize_guards_on_anomaly` (0x31b0ff, deserialize before indexing the state vector with CL; no_state is the native FF path) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_anomaly(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_anomaly` calls this, from the game's jump at 0x31b0ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_anomaly(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 94) ----
+
+/// The entry `deserialize_guards_on_artefact` (0x2fe65e, inventory::deserialize before EAX indexes EDX's artefact vector; skipping with EAX=0 takes the native null path) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_artefact(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_artefact` calls this, from the game's jump at 0x2fe65e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_artefact(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- drug_interrupt (patch 84) ----
 
 /// The entry `drug_interrupt_on_hit_applied` (0x2d9cb1, base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation) calls this with the saved machine.

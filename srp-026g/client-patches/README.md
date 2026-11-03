@@ -4134,3 +4134,15 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+## Native deserialization bounds (patch 94, unreleased)
+
+Extracted from PR #478 into generated hooks on the current Rust framework.
+A missing FSM state skips its virtual reader; an anomaly id outside its state
+vector takes the native no-state path; an artefact id outside the world registry
+takes the native null-object path. Valid ids execute the original instructions.
+These guards also cover item bodies whose format cannot be walked statically.
+
+`check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
+checks invalid/empty tables at all four stack alignments (84 cases). The i686
+patch crate's 119 tests and Clippy pass. No release revision is reserved.

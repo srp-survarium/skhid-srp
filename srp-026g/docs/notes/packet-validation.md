@@ -89,3 +89,10 @@ sections. Result fixtures use ten total batteries on a ten-battery map. Tests
 cover framing-valid unsafe effects followed by a valid initial retry, late joins,
 lossy resync and the existing refusal paths. No match calculation or wire format
 changes; valid snapshots retain their existing policy.
+
+## Native deserialization bounds
+
+Patch 94 ports the FSM, anomaly and artefact guards to generated lohooks, typed
+fields and the current `vostok` boundary. It is independent of runtime message
+and semantic-world enforcement. The checked stock instructions confirm the FSM's
+ESI/EDI and two stack inputs; the re-kit records that stronger ABI evidence.
