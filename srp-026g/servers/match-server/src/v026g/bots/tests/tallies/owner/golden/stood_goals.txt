@@ -1,0 +1,17 @@
+owner-test stood goals (A278: each tick a bot stood with a goal and no route, by why|play|target|goal class; episodes by play|target|class)
+  team 0: goal ticks 0, stood 0; top ; episodes 
+  team 1: goal ticks 0, stood 0; top ; episodes 
+{
+  "stood_goals": {
+    "team0": {
+      "episodes": {},
+      "goal_ticks": 0,
+      "ticks": {}
+    },
+    "team1": {
+      "episodes": {},
+      "goal_ticks": 0,
+      "ticks": {}
+    }
+  }
+}
