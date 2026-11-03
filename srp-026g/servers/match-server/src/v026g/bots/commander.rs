@@ -1013,8 +1013,6 @@ impl Bots {
                 memo: &self.memo,
             };
             let mut rng = bot.rng.clone();
-            #[cfg(test)]
-            let span = super::bench_work::Span::new("cmd.start (a play)");
             let running = plays::start(
                 assignment.kind,
                 assignment.target,
@@ -1022,8 +1020,6 @@ impl Bots {
                 &cx,
                 &mut rng,
             );
-            #[cfg(test)]
-            span.end();
             // A Crossfire on an enemy's last known place keeps the place
             // when the memory forgets him (`commit.crossfire_point`).
             let held_choke = match (assignment.kind, assignment.target) {

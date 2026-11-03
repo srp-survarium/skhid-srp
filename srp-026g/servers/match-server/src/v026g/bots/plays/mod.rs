@@ -1402,6 +1402,18 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 /// A play's start. `slot` is the assignment's: a play whose rules depend on
 /// the role it was given (the container holder against an end-game guard)
 /// reads it, not the state of the match at the start.
+/// [A276] A value, timed in test builds for the bench's spike lines ([`super::bench_work::Span`]).
+macro_rules! timed {
+    ($name:literal, $value:expr) => {{
+        #[cfg(test)]
+        let span = super::bench_work::Span::new($name);
+        let value = $value;
+        #[cfg(test)]
+        span.end();
+        value
+    }};
+}
+
 pub fn start(
     kind: PlayKind,
     target: TargetRef,
@@ -1410,30 +1422,30 @@ pub fn start(
     rng: &mut Rng,
 ) -> Running {
     match kind {
-        PlayKind::Roam => Running::Roam(roam::start(target, cx, rng)),
-        PlayKind::Collect => Running::Collect(collect::start(target, cx, rng)),
-        PlayKind::Ambush => Running::Ambush(ambush::start(target, cx, rng)),
-        PlayKind::Intercept => Running::Intercept(intercept::start(target, cx, rng)),
-        PlayKind::Escort => Running::Escort(escort::start(target, cx, rng)),
-        PlayKind::Sneak => Running::Sneak(sneak::start(target, cx, rng)),
-        PlayKind::Flank => Running::Flank(flank::start(target, cx, rng)),
-        PlayKind::Crossfire => Running::Crossfire(crossfire::start(target, cx, rng)),
-        PlayKind::Retreat => Running::Retreat(retreat::start(target, cx, rng)),
-        PlayKind::CoverHuman => Running::CoverHuman(cover_human::start(target, cx, rng)),
-        PlayKind::PairUp => Running::PairUp(pair_up::start(target, cx, rng)),
-        PlayKind::HoldExit => Running::HoldExit(hold_exit::start(target, cx, rng)),
-        PlayKind::LateDenial => Running::LateDenial(late_denial::start(target, cx, rng)),
-        PlayKind::GuardLead => Running::GuardLead(guard_lead::start(target, slot, cx, rng)),
-        PlayKind::Trade => Running::Trade(trade::start(target, cx, rng)),
-        PlayKind::Heal => Running::Heal(heal::start(target, cx, rng)),
-        PlayKind::Hunt => Running::Hunt(hunt::start(target, cx, rng)),
-        PlayKind::Station => Running::Station(station::start(target, cx, rng)),
-        PlayKind::Raid => Running::Raid(raid::start(target, cx, rng)),
-        PlayKind::Buddy => Running::Buddy(buddy::start(target, cx, rng)),
-        PlayKind::Cut => Running::Cut(cut::start(target, cx, rng)),
-        PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
-        PlayKind::Answer => Running::Answer(answer::start(target, cx, rng)),
-        PlayKind::Breach => Running::Breach(breach::start(target, cx, rng)),
+        PlayKind::Roam => timed!("start.Roam", Running::Roam(roam::start(target, cx, rng))),
+        PlayKind::Collect => timed!("start.Collect", Running::Collect(collect::start(target, cx, rng))),
+        PlayKind::Ambush => timed!("start.Ambush", Running::Ambush(ambush::start(target, cx, rng))),
+        PlayKind::Intercept => timed!("start.Intercept", Running::Intercept(intercept::start(target, cx, rng))),
+        PlayKind::Escort => timed!("start.Escort", Running::Escort(escort::start(target, cx, rng))),
+        PlayKind::Sneak => timed!("start.Sneak", Running::Sneak(sneak::start(target, cx, rng))),
+        PlayKind::Flank => timed!("start.Flank", Running::Flank(flank::start(target, cx, rng))),
+        PlayKind::Crossfire => timed!("start.Crossfire", Running::Crossfire(crossfire::start(target, cx, rng))),
+        PlayKind::Retreat => timed!("start.Retreat", Running::Retreat(retreat::start(target, cx, rng))),
+        PlayKind::CoverHuman => timed!("start.CoverHuman", Running::CoverHuman(cover_human::start(target, cx, rng))),
+        PlayKind::PairUp => timed!("start.PairUp", Running::PairUp(pair_up::start(target, cx, rng))),
+        PlayKind::HoldExit => timed!("start.HoldExit", Running::HoldExit(hold_exit::start(target, cx, rng))),
+        PlayKind::LateDenial => timed!("start.LateDenial", Running::LateDenial(late_denial::start(target, cx, rng))),
+        PlayKind::GuardLead => timed!("start.GuardLead", Running::GuardLead(guard_lead::start(target, slot, cx, rng))),
+        PlayKind::Trade => timed!("start.Trade", Running::Trade(trade::start(target, cx, rng))),
+        PlayKind::Heal => timed!("start.Heal", Running::Heal(heal::start(target, cx, rng))),
+        PlayKind::Hunt => timed!("start.Hunt", Running::Hunt(hunt::start(target, cx, rng))),
+        PlayKind::Station => timed!("start.Station", Running::Station(station::start(target, cx, rng))),
+        PlayKind::Raid => timed!("start.Raid", Running::Raid(raid::start(target, cx, rng))),
+        PlayKind::Buddy => timed!("start.Buddy", Running::Buddy(buddy::start(target, cx, rng))),
+        PlayKind::Cut => timed!("start.Cut", Running::Cut(cut::start(target, cx, rng))),
+        PlayKind::Resupply => timed!("start.Resupply", Running::Resupply(resupply::start(target, cx, rng))),
+        PlayKind::Answer => timed!("start.Answer", Running::Answer(answer::start(target, cx, rng))),
+        PlayKind::Breach => timed!("start.Breach", Running::Breach(breach::start(target, cx, rng))),
     }
 }
 

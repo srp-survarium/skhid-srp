@@ -159,9 +159,14 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         let target = TargetRef::ThreatSpot(line.id);
         let choke = Choke { target, at: line.at, job: job_at(cx, target, line.at) };
         // With none out of the lanes, a peek spot in his own (the pin from cover).
+        #[cfg(test)]
+        let span = crate::v026g::bots::bench_work::Span::new("xf.job has_spot");
         let has_spot = matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
             || has_fine_spot(cx, &choke)
             || has_peek_spot(cx, &choke);
+        #[cfg(test)]
+        span.end();
+
         #[cfg(test)]
         if !has_spot {
             crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Pinner, why_no_fine_spot(cx, &choke));
@@ -225,6 +230,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if let Some(t) = running {
         chokes.retain(|c| *c == t);
     }
+    #[cfg(test)]
+    let span = crate::v026g::bots::bench_work::Span::new("xf.chokes");
     for choke in chokes {
         let Some(key) = choke_key(choke) else {
             continue;
@@ -244,6 +251,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             );
         }
     }
+    #[cfg(test)]
+    span.end();
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -443,11 +452,19 @@ fn out_of_lines(cx: &Ctx, choke: &Choke) -> bool {
 /// Whether [`fine_spots`] has one: it stops at the first, where the list
 /// is built whole (the offer only asks whether there is a spot).
 fn has_fine_spot(cx: &Ctx, choke: &Choke) -> bool {
+    #[cfg(test)]
+    let span = crate::v026g::bots::bench_work::Span::new("xf.has_fine_spot");
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
     let others = halves(cx, choke);
-    spots_by(cx, choke)
-        .iter()
-        .any(|at| is_fine(cx, choke, apart, &others, *at))
+    let spots = spots_by(cx, choke);
+    #[cfg(test)]
+    let fine_span = crate::v026g::bots::bench_work::Span::new("xf.has_fine_spot is_fine");
+    let any = spots.iter().any(|at| is_fine(cx, choke, apart, &others, *at));
+    #[cfg(test)]
+    fine_span.end();
+    #[cfg(test)]
+    span.end();
+    any
 }
 
 /// The pin-from-cover rule of the bot's team, when it is on.
@@ -465,6 +482,8 @@ fn peek_spots(cx: &Ctx, line: &HeldLine, rule: crate::v026g::bots::tuning::PinRu
     let key = Tactics::spot_key(PlayKind::Crossfire as u32 + 2_000, cx.bot.side, line.at);
     let keep = (cx.num(PlayKind::Crossfire, "spots_keep_s") * 1000.0) as u32;
     cx.tactics.spots_kept(key, cx.now, keep, || {
+        #[cfg(test)]
+        let span = crate::v026g::bots::bench_work::Span::new("xf.peek_spots build");
         let base = choke_query(cx, Some(line), line.at);
         let n = base.samples * rule.samples_x as usize;
         let query = SpotQuery { sight_to: None, samples: n, ..base };
@@ -487,6 +506,8 @@ fn peek_spots(cx: &Ctx, line: &HeldLine, rule: crate::v026g::bots::tuning::PinRu
         if !found.is_empty() {
             pin_tally::add(pin_tally::FOUND);
         }
+        #[cfg(test)]
+        span.end();
         found
     })
 }
@@ -498,21 +519,40 @@ fn in_other_lines(cx: &Ctx, line: &HeldLine, at: Vec3) -> bool {
 
 /// Of a job pin's peek spots, those this bot may take now (as [`is_fine`], his own lanes allowed).
 fn fine_peek_spots(cx: &Ctx, choke: &Choke, line: &HeldLine, rule: crate::v026g::bots::tuning::PinRule) -> Vec<Vec3> {
-    peek_spots(cx, line, rule)
-        .iter()
-        .copied()
-        .filter(|&at| usable_peek(cx, choke, line, at) && cx.path_dist(at) <= rule.reach_m)
-        .collect()
+    let spots = peek_spots(cx, line, rule);
+    #[cfg(test)]
+    crate::v026g::bots::bench_work::add_span_count("xf.peek spots seen", spots.len());
+    spots.iter().copied().filter(|&at| usable_peek(cx, choke, line, at) && timed_path_dist(cx, at) <= rule.reach_m).collect()
 }
 
 /// A peek spot's tests but the walk cap: a fine goal, in no other spot's lanes, not taken, a way to it, the climb to it
 /// out of a known enemy's sight.
 fn usable_peek(cx: &Ctx, choke: &Choke, line: &HeldLine, at: Vec3) -> bool {
-    cx.tactics.fine_goal(at, cx.now, cx.bot.side)
+    let timed = |name: &'static str, f: &dyn Fn() -> bool| {
+        #[cfg(test)]
+        let span = crate::v026g::bots::bench_work::Span::new(name);
+        let answer = f();
+        #[cfg(test)]
+        span.end();
+        #[cfg(not(test))]
+        let _ = name;
+        answer
+    };
+    timed("xf.usable fine_goal", &|| cx.tactics.fine_goal(at, cx.now, cx.bot.side))
         && !in_other_lines(cx, line, at)
         && !cx.spot_taken(at, super::goals::APART_M)
-        && cx.can_go(at)
-        && !cx.exposed_climb(at, choke.at)
+        && timed("xf.usable can_go", &|| cx.can_go(at))
+        && !timed("xf.usable exposed_climb", &|| cx.exposed_climb(at, choke.at))
+}
+
+/// [`Ctx::path_dist`], timed in test builds (A276).
+fn timed_path_dist(cx: &Ctx, at: Vec3) -> f32 {
+    #[cfg(test)]
+    let span = crate::v026g::bots::bench_work::Span::new("xf.peek path_dist");
+    let dist = cx.path_dist(at);
+    #[cfg(test)]
+    span.end();
+    dist
 }
 
 /// Whether a job pin with no fine spot out of the lanes has a peek spot to pin from (the switch on); the bench counts
@@ -520,10 +560,18 @@ fn usable_peek(cx: &Ctx, choke: &Choke, line: &HeldLine, at: Vec3) -> bool {
 fn has_peek_spot(cx: &Ctx, choke: &Choke) -> bool {
     match (choke.job, pin_rule(cx)) {
         (Some(line), Some(rule)) => {
+            #[cfg(test)]
+            let span = crate::v026g::bots::bench_work::Span::new("xf.has_peek_spot (live)");
             let any = !fine_peek_spots(cx, choke, line, rule).is_empty();
             #[cfg(test)]
-            if !any && peek_spots(cx, line, rule).iter().any(|&at| usable_peek(cx, choke, line, at)) {
-                pin_tally::add(pin_tally::PAST_REACH);
+            span.end();
+            #[cfg(test)]
+            {
+                let span = crate::v026g::bots::bench_work::Span::new("xf.has_peek_spot tally (test only)");
+                if !any && peek_spots(cx, line, rule).iter().any(|&at| usable_peek(cx, choke, line, at)) {
+                    pin_tally::add(pin_tally::PAST_REACH);
+                }
+                span.end();
             }
             any
         }
