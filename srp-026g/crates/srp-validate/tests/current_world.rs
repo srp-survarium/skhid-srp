@@ -164,3 +164,52 @@ fn semantic_views_reuse_the_shipped_frame_and_keep_player_offsets() {
     body.push(0);
     assert!(world::frame(&body, 1).is_err());
 }
+
+#[test]
+fn player_fields_follow_the_current_pickup_record() {
+    use survarium::v026g::match_msgs::players::{self, PlayerState};
+    let head = PlayerState {
+        current_index: 0,
+        target_index: 0,
+        pickup: weapon_pickup::Record::EMPTY,
+        items: vec![0],
+        alive: true,
+        has_to_die: false,
+        look_pitch: 0.0,
+        rotation_y: 0.0,
+        actions_mask: 0,
+        effects: 0,
+    };
+    let mut tail = vec![0; 4]; // no hit effects
+    tail.extend([0xff, 0xff]); // no active objects
+    tail.extend([0; 29]); // stamina
+    tail.extend([0; 5]); // weight and inventory bool
+    tail.extend([0xff, 0, 0, 0]); // no carried item or artefacts
+    let mut bytes = players::state_bytes(&head, &tail);
+    let profiles = [world::Profile {
+        usable_kits: 1,
+        items: 1,
+        ..world::Profile::default()
+    }];
+    let mut context = context(1, mode::TEAM_DEATHMATCH, 0);
+    context.profiles = Some(&profiles);
+    let block = world::Block {
+        place: 0,
+        at: 6,
+        state: &bytes,
+    };
+    assert_eq!(world::player_head(&block, &context), Ok(()));
+    assert_eq!(world::player_tail(&block, &context), Ok(()));
+    bytes[2] = 0; // invalid pickup record version
+    assert!(
+        world::player_head(
+            &world::Block {
+                place: 0,
+                at: 6,
+                state: &bytes,
+            },
+            &context
+        )
+        .is_err()
+    );
+}

@@ -46,3 +46,13 @@ battery progress and sparse held-step records, including cell/count/order bounds
 Validation: 16 validator tests and affected-crate Clippy pass. Production-encoder
 fixtures cover TDM rules, statistics in all four modes, one and twenty players,
 truncation, malformed held steps and body-relative player offsets.
+
+## Player-state and inventory checks
+
+The third part extracts the player-tail parser and its fifteen regressions:
+hit effects, raw-pointer rejection, stamina, artefact slots and inventory item
+owners/ammo indices. The parser stops where the native format ceases to be
+self-describing; optional profile/inventory context determines how far it can
+read. This is still a library change with no runtime enforcement.
+
+Validation: all 32 validator tests and affected-crate Clippy pass.
