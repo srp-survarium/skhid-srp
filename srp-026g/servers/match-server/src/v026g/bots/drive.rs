@@ -2013,6 +2013,11 @@ impl Bot {
         let Some(watch) = self.jump_watch.take() else {
             return;
         };
+        if let Some(route) = watch.route {
+            let outcome = super::nav_log::JumpOutcome::of(watch.up.is_some(), then);
+            let line = super::nav_log::jump_line(outcome, route.take_off, route.landing, route.tries, time.saturating_sub(watch.at), then);
+            self.nav_log.push(super::nav_log::Kind::Jump, time, line);
+        }
         if self.tracing {
             let mut line = serde_json::json!({
                 "t": time, "bot": self.place, "jumped": watch.by,
