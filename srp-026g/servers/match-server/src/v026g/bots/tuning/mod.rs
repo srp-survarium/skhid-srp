@@ -164,6 +164,7 @@ pub use take::TakePitch;
 pub use take::TakeTuning;
 pub use take::TeamMemory;
 pub use take::WorldStand;
+pub use take::ZoneLook;
 pub use tdm::Answer;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;
