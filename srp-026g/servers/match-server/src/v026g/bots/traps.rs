@@ -3317,8 +3317,8 @@ mod tests {
         assert!(!lately(&tuning, 150.0));
         assert!(lately(&tuning, 30.0));
         assert!(tuning.check().is_ok());
-        tuning.sensed_near = Some(SensedNear { within_m: 10.0 });
-        assert!(tuning.check().is_err(), "nearer than enemy_near_m");
+        tuning.sensed_near = Some(SensedNear { within_m: 0.0 });
+        assert!(tuning.check().is_err(), "no range");
     }
 
     /// A292 S4a: with `after_press` the legs stay from the press until the next think takes the trap (`placed`), at most

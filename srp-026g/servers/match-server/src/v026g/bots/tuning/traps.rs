@@ -452,7 +452,8 @@ impl Check for TrapTuning {
         )?;
         check(self.tolerance_rad > 0.0 && self.look_ms > 0, "traps.look")?;
         check(
-            self.sensed_near.is_none_or(|n| n.within_m >= self.enemy_near_m && n.within_m <= 200.0),
+            // Under `enemy_near_m` it is harmless: an enemy sensed that near is also known that near.
+            self.sensed_near.is_none_or(|n| n.within_m > 0.0 && n.within_m <= 200.0),
             "traps.sensed_near",
         )?;
         check(self.after_press.is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000), "traps.after_press")?;
