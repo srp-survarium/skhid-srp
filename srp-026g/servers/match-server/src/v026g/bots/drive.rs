@@ -556,8 +556,9 @@ fn drive_tick_inner(
     {
         bot.bench_legs_why = wished_legs.filter(|_| !using).map(|legs| legs.why);
     }
-    // The bench's stand-in camper and a script keep to their spots.
-    let held = bot.control.holds_legs();
+    // The bench's stand-in camper and a script keep to their spots; [A292 S4a] so does a placer just after its trap's press (the
+    // reflex's own legs, a side step or a peek, would walk it onto the trap: they took 11 of 158 traps' placers in a bench).
+    let held = bot.control.holds_legs() || trap.is_some_and(|trap| trap.hold);
     // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`).
     let keeps_route = Gates::keeps_route(over.legs.filter(|_| !using && !held), tuning.smoke.throw_keeps_route);
     if let Some(legs) = over.legs.filter(|_| !using && !held) {

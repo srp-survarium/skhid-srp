@@ -2017,6 +2017,7 @@ pub(super) fn drive(
         };
         let landed = landing(eye, me.yaw, me.pitch, planned.y);
         bot.features.traps.placed = landed.map(|at| (at, now));
+        bot.features.traps.pressed_at = landed.map(|_| now);
         // [A292] The press: its note and count.
         bot.features.traps.tally.ended(Ended::Placed, landed.is_some());
         let text = match landed {
@@ -2063,16 +2064,16 @@ pub(super) fn drive(
         look,
         key: if out.key_down { kit.key } else { 0 },
         crouch: out.hold_crouch,
-        hold: hold || (t.after_press.is_some() && bot.features.traps.placed.is_some()),
+        hold: hold || (t.after_press.is_some() && out.placed.is_some()),
     })
 }
 
-/// [A292 S4a] Whether the legs stay this tick: a trap let go of since the last think (`BotState::placed`, taken at the think
-/// that promises it to the team and re-plans the route round it), for at most `AfterPress::hold_ms`.
+/// [A292 S4a] Whether the legs stay this tick: within `AfterPress::hold_ms` of its last press (`BotState::pressed_at`). The
+/// think in between promises the trap to the team and re-plans the route round it; the reflex's own legs wait too.
 fn held_after_press(bot: &Bot, now: u32, t: &TrapTuning) -> bool {
     t.after_press
-        .zip(bot.features.traps.placed)
-        .is_some_and(|(a, (_, at))| now.saturating_sub(at) <= a.hold_ms)
+        .zip(bot.features.traps.pressed_at)
+        .is_some_and(|(a, at)| now.saturating_sub(at) <= a.hold_ms)
 }
 
 /// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
@@ -2165,6 +2166,8 @@ pub struct BotState {
     pub pass_wait: Option<(mapdata::Vec3, u32)>,
     /// [A292] Its counts for the match-end log line, over all its lives ([`tally::Tally`]).
     pub tally: tally::Tally,
+    /// [A292 S4a] When it last let go of a trap, ms: its legs stay `AfterPress::hold_ms` from then.
+    pub pressed_at: Option<u32>,
     /// [A292] Log notes of the ticks since its last think (a press, a look that ended) with their times: the think writes them.
     pub notes: Vec<(u32, String)>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
@@ -2178,6 +2181,7 @@ impl super::features::Feature for BotState {
         self.habit.new_life();
         self.react.new_life();
         self.pass_wait = None;
+        self.pressed_at = None;
         #[cfg(test)]
         {
             self.near = None;
@@ -3355,13 +3359,14 @@ mod tests {
         let full = crate::v026g::bots::tuning::Tuning::default();
         let mut bot = Bot::new(1, 0, 0, None, &full);
         let mut tuning = t();
-        bot.features.traps.placed = Some((Vec3::new(1.0, 0.0, 0.0), 10_000));
+        bot.features.traps.pressed_at = Some(10_000);
         assert!(!held_after_press(&bot, 10_100, &tuning), "off: no hold");
         tuning.after_press = Some(AfterPress::default());
         assert!(held_after_press(&bot, 10_100, &tuning));
+        assert!(held_after_press(&bot, 11_400, &tuning), "past the next think: the reflex's legs wait too");
         assert!(!held_after_press(&bot, 10_000 + 1_501, &tuning), "the cap");
-        bot.features.traps.placed = None;
-        assert!(!held_after_press(&bot, 10_100, &tuning), "taken by the think");
+        bot.features.traps.pressed_at = None;
+        assert!(!held_after_press(&bot, 10_100, &tuning), "never pressed");
         assert!(tuning.check().is_ok());
     }
 
