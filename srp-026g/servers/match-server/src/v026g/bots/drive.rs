@@ -2008,7 +2008,8 @@ fn drive_tick_inner(
 
 /// A jump watched for its trace: why, when and from where; for a jump of
 /// the route its take-off and landing, which try it was, and the first
-/// world's tick that showed the body up it.
+/// world's tick that showed the body up it, and the first that showed its
+/// feet on the landing (A293: the log's word for a jump down).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct JumpWatch {
     pub(super) by: &'static str,
@@ -2016,6 +2017,7 @@ pub(super) struct JumpWatch {
     pub(super) from: Vec3,
     pub(super) route: Option<RoutePress>,
     pub(super) up: Option<u32>,
+    pub(super) landed: Option<u32>,
 }
 
 impl Bot {
@@ -2026,7 +2028,8 @@ impl Bot {
             return;
         };
         if let Some(route) = watch.route {
-            let outcome = super::nav_log::JumpOutcome::of(watch.up.is_some(), then);
+            let outcome =
+                super::nav_log::JumpOutcome::of(route.landing.y - route.take_off.y, watch.up.is_some(), watch.landed.is_some(), then);
             let line = super::nav_log::jump_line(outcome, route.take_off, route.landing, route.tries, time.saturating_sub(watch.at), then);
             self.nav_log.push(super::nav_log::Kind::Jump, time, line);
         }
@@ -2046,15 +2049,19 @@ impl Bot {
     }
 
     /// A world of `time` showed the body at `feet`: up the route jump
-    /// watched, if it is ([`motor::is_up`]).
+    /// watched, if it is ([`motor::is_up`]), and on its landing, if it is
+    /// ([`motor::on_landing`], for the log only).
     pub(super) fn jump_seen(&mut self, time: u32, feet: Vec3) {
         if let Some(watch) = self.jump_watch.as_mut()
             && let Some(route) = watch.route
-            && watch.up.is_none()
             && time > watch.at
-            && motor::is_up(feet, route.take_off, route.landing)
         {
-            watch.up = Some(time);
+            if watch.up.is_none() && motor::is_up(feet, route.take_off, route.landing) {
+                watch.up = Some(time);
+            }
+            if watch.landed.is_none() && motor::on_landing(feet, route.landing) {
+                watch.landed = Some(time);
+            }
         }
     }
 }
@@ -2113,6 +2120,7 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
             from: feet,
             route,
             up: None,
+            landed: None,
         });
     }
     if bot.jump_hold == 0 {

@@ -985,6 +985,8 @@ pub(crate) enum CamperState {
     Returning { start: Vec3, sees: u32, live: Box<LiveReturn> },
     /// Works an area, peeks, steps off, leaves and returns ([`CamperMotion`]); the spot he began at and how many route points it sees.
     Moving { start: Vec3, sees: u32, motion: Box<CamperMotion> },
+    /// [A290] Not a camper: the pre-aiming stand-in human on these hooks (`SRP_BENCH_HUMAN_PLAY=hunter`, [`Hunt`]).
+    Hunting(Box<Hunt>),
 }
 
 /// [`ReturnRule::Live`] After a death the live camper of 6+ player matches is back within 1 m of the point he held (where a
@@ -1173,6 +1175,13 @@ impl BenchCamper {
         Self { place, options, seed, tuning, state: CamperState::Seeking, lane: None, walks }
     }
 
+    /// [A290] The pre-aiming stand-in human at `place` ([`Hunt`]), by `tuning` ([`hunter_tuning`]): the camper's options unset
+    /// (no spot, no long gun, no start spot).
+    pub(crate) fn hunter(place: Place, seed: u32, tuning: Arc<Tuning>) -> Self {
+        let options = CamperOptions::parse(&|_| None).expect("the unset camper options parse");
+        Self { place, options, seed, tuning, state: CamperState::Hunting(Box::default()), lane: None, walks: None }
+    }
+
     /// [A239b] While he is dead after his death at tick `died`: how long his next life, on his spot, waits after the respawn, ms: a
     /// live camper's walk from his spawn ([`live_walk_ms`]), drawn once for the death, with [`Arrival::LiveWalk`]; 0 otherwise.
     pub(crate) fn walk_after_death(&mut self, died: u32) -> u32 {
@@ -1211,7 +1220,7 @@ impl BenchCamper {
     /// The spot he began at and how many route points it sees, once found.
     pub(crate) fn first_spot(&self) -> Option<(Vec3, u32)> {
         match &self.state {
-            CamperState::Seeking | CamperState::NoSpot => None,
+            CamperState::Seeking | CamperState::NoSpot | CamperState::Hunting(_) => None,
             CamperState::Still { at, sees } => Some((*at, *sees)),
             CamperState::Returning { start, sees, .. } | CamperState::Moving { start, sees, .. } => Some((*start, *sees)),
         }
@@ -1219,6 +1228,9 @@ impl BenchCamper {
 
     /// The log line: his place and the spot found, or `none` / `not yet`.
     pub(crate) fn line(&self) -> String {
+        if let CamperState::Hunting(hunt) = &self.state {
+            return format!("hunter: place {} {}", self.place, hunt.line());
+        }
         let spot = match &self.state {
             CamperState::Seeking => "not looked for yet".to_string(),
             CamperState::NoSpot => "none".to_string(),
@@ -1241,6 +1253,9 @@ impl BenchCamper {
     pub(in crate::v026g::bots) fn drive(&mut self, due: &Due, bot: &mut Bot) -> bool {
         if bot.place != self.place {
             return false;
+        }
+        if let CamperState::Hunting(hunt) = &mut self.state {
+            return hunt.drive(due, bot);
         }
         let Due { tactics, me, now, .. } = *due;
         if matches!(self.state, CamperState::Seeking)
@@ -1269,7 +1284,7 @@ impl BenchCamper {
         }
         // The spot he watches the lane from, if he is where a watch is held.
         let watched = match &mut self.state {
-            CamperState::Seeking | CamperState::NoSpot => return false,
+            CamperState::Seeking | CamperState::NoSpot | CamperState::Hunting(_) => return false,
             CamperState::Still { at, .. } => {
                 bot.control = Driver::BenchCamper;
                 bot.intent = Intent {
