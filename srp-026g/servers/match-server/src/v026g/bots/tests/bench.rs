@@ -2070,6 +2070,10 @@ pub(crate) fn real_bot_cost() {
             // ping band (the match-end line; the code before the refresh has none of them).
             eprintln!("  sight polls: {}", bots.poll_report());
             eprintln!("  pockets: {}", bots.pocket_report());
+            // A294: the match-end drift table, as the server logs it.
+            for line in bots.drift_report() {
+                eprintln!("  {line}");
+            }
             if let Some(error) = view_error.as_ref() {
                 eprintln!("  {}", error.line());
             }
