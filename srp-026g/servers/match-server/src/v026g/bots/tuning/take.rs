@@ -108,6 +108,68 @@ impl Default for DropImpossible {
     }
 }
 
+/// A spawner whose battery could not be taken (in a damage zone) is still searched (A296 item 6, A298 cause 1): the spawner search
+/// skipped every such spot, so no bot went near, and a team never learned a battery lay there (Vostok Radar Station's 0, 3 and 4 in
+/// the gas all match, the trailing team one point behind for the last 4 minutes with three free batteries; PROVEN, A298). With
+/// this, the search walks to a dry floor within `within_m` of the spot that sees it in a clear line (`memo::Memo::zone_look`) and
+/// looks at it from there: a battery seen is known (the sight rule, `sense.rs`, 35 m), and the take decides as for any known one
+/// (its crossing, the zone's dose against the bot's health and armour).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneLook {
+    pub within_m: Metres,
+}
+
+impl Default for ZoneLook {
+    fn default() -> Self {
+        // 24 m: well inside the 35 m battery sight, so a look from the spot's floor sees it at the noticing delay of a near one.
+        Self { within_m: Metres::of(24.0) }
+    }
+}
+
+/// A battery in a damage zone is taken when it is worth the dose (A296 item 6b, the owner's match: "bots were not able to find and
+/// get 2 more batteries"). Live humans take zone batteries in the light zones (gas, fruit cloud, acid; 57 take tries in 72 matches,
+/// median 15 s inside) and walk straight in (91 % of take visits did not wait at the edge); none went near the deadly ones
+/// (traces `fx-zones-a296-zone-batteries-human-baseline.md`, PROVEN). With this:
+/// - the bot sprints in (`Pace::Run`), and the way in of a crossing is priced at `in_mps` instead of the walk's `CROSS_MPS` (the
+///   way out, carrying, keeps the walk's price);
+/// - a team behind by `behind.by` points or more bears a bigger share of the bot's health (`behind.share`, leaving `behind.left`):
+///   a battery is worth more in a comeback; never below `CROSS_ABORT_LEFT`, where a take inside gives up;
+/// - with `zone_look` on, a zone spot is looked at only if a battery there could be taken by this rule (no look at a fire that
+///   kills: the 6a bench's cost, search time spent on batteries no bot then took).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneTake {
+    pub in_mps: f32,
+    pub behind: Option<ZoneTakeBehind>,
+}
+
+impl Default for ZoneTake {
+    fn default() -> Self {
+        // 4.5 m/s: the client's sprint is about 5 m/s (`path::SPRINT_FLIGHT_MPS` 5.1), less its start and the line's side steps. GUESS.
+        Self { in_mps: 4.5, behind: Some(ZoneTakeBehind::default()) }
+    }
+}
+
+/// What a team behind bears for a zone battery ([`ZoneTake::behind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneTakeBehind {
+    /// Behind by this many points or more (`MatchSignals::score_gap`).
+    pub by: f32,
+    /// At most this share of each pool it takes from...
+    pub share: f32,
+    /// ...leaving at least this.
+    pub left: f32,
+}
+
+impl Default for ZoneTakeBehind {
+    fn default() -> Self {
+        // One battery behind; 0.7 and 0.3 against the usual 0.5 and 0.4 (`CROSS_SHARE`, `CROSS_LEFT`). GUESS.
+        Self { by: 1.0, share: 0.7, left: 0.3 }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TakeTuning {
@@ -121,6 +183,11 @@ pub struct TakeTuning {
     /// owner, 2026-11-04 (quiz): "Yes, turn it ON", a belief-correctness fix like `pitch`. Its by-side bench was identical (168
     /// pairs: the bench world drops no battery under a floor).
     pub drop_impossible: Option<DropImpossible>,
+    /// ON by default with `zone_take` (A296 6a+6b): their joint by-side bench, 168 pairs (8 battery maps x 6/8/10, seeds 1-7,
+    /// tier 9-10): wins 132 vs 124 (+6.5 %, z +0.7), delivered +2.2 % (z +1.2), points +2.0 %, zone takes +18 % (z +1.8), hits
+    /// level; no guard FAIL. Alone, `zone_look` was worse (wins -18.6 %, z -2.1): it walked to batteries no bot then took.
+    pub zone_look: Option<ZoneLook>,
+    pub zone_take: Option<ZoneTake>,
 }
 
 impl Default for TakeTuning {
@@ -132,6 +199,8 @@ impl Default for TakeTuning {
             pitch: TakePitch::default(),
             cross_from_zone: None,
             drop_impossible: Some(DropImpossible::default()),
+            zone_look: Some(ZoneLook::default()),
+            zone_take: Some(ZoneTake::default()),
         }
     }
 }
@@ -147,6 +216,16 @@ impl TakeTuning {
             && (far.use_m.get() > 1.8 || far.radii_m.iter().any(|r| r.get() > far.use_m.get()))
         {
             return Err("take.far_stands".into());
+        }
+        if let Some(zone) = self.zone_take {
+            if !(zone.in_mps > 0.0 && zone.in_mps <= 6.0) {
+                return Err("take.zone_take.in_mps".into());
+            }
+            if let Some(behind) = zone.behind
+                && !(behind.by > 0.0 && behind.share > 0.0 && behind.share <= 1.0 && behind.left >= 0.25 && behind.left < 1.0)
+            {
+                return Err("take.zone_take.behind".into());
+            }
         }
         Ok(())
     }

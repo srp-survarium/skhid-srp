@@ -1033,6 +1033,74 @@ pub fn smoke_best_cover(
         .map(|(_, plan)| plan)
 }
 
+/// [A291 `smoke.shooter_spot`] A smoke on the threat's own spot: the floor under his eye, flown there, kept when it rests
+/// within `rule.rest_within_m` of him across the ground AND its poured cloud holds his eye (radius and height: 1.3 m under
+/// its floor to 5 m over it). Without the height test, 140 of 296 level lanes with no covering landing rested near him on a
+/// floor under him (a crate, a sill, a ledge's foot) and its cloud passed under his line: a smoke on nobody (A291 spot
+/// bench, `smoke_no_plan_by_height` "no cover on him"). Its `covers_m` is the smoke on his line to the crossing, which may
+/// be under the sight rule's: the cloud is on HIM.
+pub fn smoke_on_shooter(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3, for_use: SmokeUse, rule: super::tuning::ShooterSpot) -> Option<SmokePlan> {
+    let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+    let floor = reach.floor(threat_eye)?;
+    let aim = reach.aim(floor)?;
+    if aim.rest.distance_xz(threat_eye) > rule.rest_within_m.get() {
+        return None;
+    }
+    let cloud = reach.grenade.cloud;
+    if threat_eye.y < aim.rest.y - cloud.below_m || threat_eye.y > aim.rest.y + cloud.height_m {
+        return None;
+    }
+    Some(SmokePlan {
+        at: aim.rest,
+        aim,
+        for_use,
+        covers_m: reach.smoke_on_line(aim.rest, threat_eye, chest),
+        line: SmokeLine { eye: threat_eye, target: chest, crossing },
+    })
+}
+
+/// [A291] Why a held lane got no covering landing, judged at the shooter's own spot (the scan's first point).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoPlan {
+    /// No floor under his eye within reach of the floor test.
+    NoFloor,
+    /// No throw's pitch reaches his spot (beyond the flat throw), or its flight meets nothing in its time.
+    OutOfReach,
+    /// The throw comes to rest farther than `ShooterSpot`'s default 4 m from him (it bounced or rolled off his ledge).
+    Bounced,
+    /// It rests on him, but its cloud does not put the sight rule's smoke on his line (a steep line leaves its bottom).
+    NoCover,
+}
+
+impl NoPlan {
+    pub const ALL: [Self; 4] = [Self::NoFloor, Self::OutOfReach, Self::Bounced, Self::NoCover];
+
+    pub const fn index(self) -> usize {
+        match self {
+            Self::NoFloor => 0,
+            Self::OutOfReach => 1,
+            Self::Bounced => 2,
+            Self::NoCover => 3,
+        }
+    }
+
+    /// The reason for a lane from `threat_eye` to `crossing` that no landing covered.
+    pub fn of(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3) -> Self {
+        let Some(floor) = reach.floor(threat_eye) else {
+            return Self::NoFloor;
+        };
+        let Some(aim) = reach.aim(floor) else {
+            return Self::OutOfReach;
+        };
+        if aim.rest.distance_xz(threat_eye) > super::tuning::ShooterSpot::default().rest_within_m.get() {
+            Self::Bounced
+        } else {
+            let _ = crossing;
+            Self::NoCover
+        }
+    }
+}
+
 /// [A291] How a shooter stands to the crossing he covers: his eye over the chest over it by more than [`LEVEL_M`], within
 /// it, or under it by more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1170,6 +1238,8 @@ pub mod tally {
         /// A think with a smoke plan to make (an outranging sniper not in sight of the bot, or a held lane the bot is not in) that
         /// the bot's held sprint (`sprinting` in `think::smoke_uses`) shut off: a short gap is sprinted, not smoked.
         SprintSkip,
+        /// [A291 `smoke.shooter_spot`] A plan made on the shooter's own spot because no landing covered his line.
+        ShooterSpotPlan,
     }
 
     impl Event {
@@ -1182,7 +1252,7 @@ pub mod tally {
         }
     }
 
-    pub const EVENTS: usize = 16;
+    pub const EVENTS: usize = 17;
 
     /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
     /// died (the life ended with it under way). Every throw begun ends in one of the last three.
@@ -1410,6 +1480,82 @@ pub mod tally {
         HEIGHTS.with(Cell::get)
     }
 
+    /// [A291] What the plan's shooter did, by team and where the cloud went (between, on him): [plans followed, he moved
+    /// more than [`SHOOTER_MOVED_M`] from where he stood 5 s after the plan within the next 5 s, his kills within 15 s of the
+    /// plan], switch on or off.
+    pub const SHOOTER_SLOTS: usize = 3;
+    pub const SHOOTER_MOVED_M: f32 = 3.0;
+    pub type Shooters = [[[u64; SHOOTER_SLOTS]; 2]; 2];
+    /// (shooter, team, on him, begun, where he stood at begun + 5 s, moved).
+    type Watched = (usize, u8, bool, u32, Option<super::Vec3>, bool);
+
+    thread_local! {
+        static SHOOTERS: Cell<Shooters> = const { Cell::new([[[0; SHOOTER_SLOTS]; 2]; 2]) };
+        static SHOOTER_OPEN: std::cell::RefCell<Vec<Watched>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// A plan begun at `now` against `shooter`, its cloud on him or not.
+    pub fn shooter_watch(team: u8, shooter: usize, on_him: bool, now: u32) {
+        SHOOTER_OPEN.with(|o| o.borrow_mut().push((shooter, team, on_him, now, None, false)));
+    }
+
+    /// The body at `place` alive at `tick` with its feet at `feet`: a watched shooter's stand and move.
+    pub fn shooter_tick(place: usize, tick: u32, feet: super::Vec3) {
+        SHOOTER_OPEN.with(|o| {
+            for w in o.borrow_mut().iter_mut().filter(|w| w.0 == place) {
+                match w.4 {
+                    None if tick >= w.3.saturating_add(5_000) => w.4 = Some(feet),
+                    Some(at) if tick <= w.3.saturating_add(10_000) && at.distance_xz(feet) > SHOOTER_MOVED_M => w.5 = true,
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    /// At `tick`, the watches 15 s old end: counted with the shooter's kills (`kills`: time, killer, victim) since the plan.
+    pub fn shooter_close(tick: u32, kills: &[(u32, usize, usize)]) {
+        SHOOTER_OPEN.with(|o| {
+            o.borrow_mut().retain(|&(shooter, team, on_him, begun, _, moved)| {
+                if tick < begun.saturating_add(15_000) {
+                    return true;
+                }
+                let his = kills.iter().filter(|&&(t, k, _)| k == shooter && t > begun && t <= begun + 15_000).count() as u64;
+                SHOOTERS.with(|c| {
+                    let mut counts = c.get();
+                    let row = &mut counts[usize::from(team & 1)][usize::from(on_him)];
+                    row[0] += 1;
+                    row[1] += u64::from(moved);
+                    row[2] += his;
+                    c.set(counts);
+                });
+                false
+            });
+        });
+    }
+
+    pub fn shooters() -> Shooters {
+        SHOOTERS.with(Cell::get)
+    }
+
+    /// [A291] The lanes with no covering landing by team, the shooter's height and the reason ([`super::NoPlan::ALL`]).
+    pub type NoPlans = [[[u64; super::NoPlan::ALL.len()]; super::Height::ALL.len()]; 2];
+
+    thread_local! {
+        static NO_PLANS: Cell<NoPlans> = const { Cell::new([[[0; super::NoPlan::ALL.len()]; super::Height::ALL.len()]; 2]) };
+    }
+
+    pub fn no_plan_reason(team: u8, height: super::Height, why: super::NoPlan) {
+        NO_PLANS.with(|c| {
+            let mut counts = c.get();
+            counts[usize::from(team & 1)][height.index()][why.index()] += 1;
+            c.set(counts);
+        });
+    }
+
+    pub fn no_plans() -> NoPlans {
+        NO_PLANS.with(Cell::get)
+    }
+
     pub fn throws() -> Throws {
         THROWS.with(Cell::get)
     }
@@ -1543,6 +1689,7 @@ pub mod tally {
         SEEN_LOOKS.with(|s| s.borrow_mut().clear());
         SPRAYED.with(|s| s.borrow_mut().clear());
         LANDING_OPEN.with(|s| s.borrow_mut().clear());
+        SHOOTER_OPEN.with(|s| s.borrow_mut().clear());
     }
 
     /// The bot at `place` let go of a smoke at `now`.
@@ -2147,6 +2294,26 @@ mod scenarios {
             assert!(plan.covers_m > thin + PLAN_MARGIN_M, "{plan:?}");
             assert!(best_hidden >= Landing::of(&reach, &plan, &stretch, thin).hidden, "{best:?} vs {plan:?}");
         }
+    }
+
+    #[test]
+    fn a_shooter_spot_smoke_rests_on_him_within_reach_and_not_beyond() {
+        let mesh = flat();
+        let reach = Reach {
+            mesh: &mesh,
+            grenade: SmokeGrenade::RDG_M,
+            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+        };
+        let rule = crate::v026g::bots::tuning::ShooterSpot::default();
+        let crossing = Vec3::new(0.0, 0.0, 5.0);
+        let near = Vec3::new(0.0, 1.6, 20.0);
+        let plan = smoke_on_shooter(&reach, near, crossing, SmokeUse::CrossLane, rule).expect("in reach");
+        assert!(plan.at.distance_xz(near) <= rule.rest_within_m.get(), "{plan:?}");
+        // His eye is inside the cloud.
+        let cloud = Cloud { by: 0, team: 0, placed: Placed::Arc, centre: plan.at, thrown: MatchMs(0), pours: MatchMs(0), shape: SmokeGrenade::RDG_M.cloud };
+        assert!(cloud.holds(near, MatchMs(5_000)), "{plan:?}");
+        // Beyond the throw's reach: none.
+        assert_eq!(smoke_on_shooter(&reach, Vec3::new(0.0, 1.6, 80.0), crossing, SmokeUse::CrossLane, rule), None);
     }
 
     #[test]

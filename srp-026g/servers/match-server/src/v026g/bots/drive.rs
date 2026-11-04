@@ -559,8 +559,10 @@ fn drive_tick_inner(
     // The bench's stand-in camper and a script keep to their spots.
     let held = bot.control.holds_legs();
     // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`).
-    let keeps_route = Gates::keeps_route(over.legs.filter(|_| !using && !held), tuning.smoke.throw_keeps_route);
-    if let Some(legs) = over.legs.filter(|_| !using && !held) {
+    // [#24] The fight's stand gives way to the play's walk for the objective (a take's walk and use, a press, the way into their base).
+    let legs = over.legs.filter(|legs| !using && !held && !Gates::stand_yields(legs, &intent));
+    let keeps_route = Gates::keeps_route(legs, tuning.smoke.throw_keeps_route);
+    if let Some(legs) = legs {
         intent.go = Go::To {
             at: legs.at,
             within_m: legs.within_m,
@@ -2530,6 +2532,14 @@ impl Gates {
         }
     }
 
+    /// Whether the reflex's fight stand ([`LegsWhy::Stand`], `stand_strafe`) gives way to the play's own walk: objective work, as
+    /// `goals::keep_apart` counts it (a use look, a straight step to a take's stand, a press, the way into their base). The bot
+    /// still aims and fires on its way.
+    pub(super) fn stand_yields(legs: &Legs, intent: &Intent) -> bool {
+        matches!(legs.why, LegsWhy::Stand)
+            && (intent.objective || intent.straight || intent.press != 0 || matches!(intent.look, Look::Use(_)))
+    }
+
     /// Whether the route stays while the legs stand with no goal: standing to throw a smoke, with
     /// `smoke.throw_keeps_route` (the walk goes on along the route its crossing was planned for), and holding for a
     /// cloud short of the crossing (`smoke.wait_for_cloud`: the walk goes on through it).
@@ -2695,6 +2705,19 @@ mod tests {
         assert!(!Gates::keeps_route(legs(LegsWhy::Throwing), true), "a frag throw drops it as before");
         assert!(!Gates::keeps_route(legs(LegsWhy::Range), true));
         assert!(!Gates::keeps_route(None, true));
+    }
+
+    /// The fight's stand gives way to a take's walk (its use look), a straight step and the way into their base; not to a
+    /// plain route, and no other legs give way.
+    #[test]
+    fn the_fight_stand_gives_way_to_objective_work() {
+        let legs = |why| Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why };
+        let walk = Intent::to(Vec3::new(8.0, 0.0, 0.0), Pace::Walk);
+        assert!(!Gates::stand_yields(&legs(LegsWhy::Stand), &walk), "a plain route: the stand holds");
+        assert!(Gates::stand_yields(&legs(LegsWhy::Stand), &walk.looking(Look::Use(Vec3::new(8.0, 0.5, 0.0)))));
+        assert!(Gates::stand_yields(&legs(LegsWhy::Stand), &walk.into_base()));
+        assert!(Gates::stand_yields(&legs(LegsWhy::Stand), &Intent { straight: true, ..walk }));
+        assert!(!Gates::stand_yields(&legs(LegsWhy::Range), &walk.looking(Look::Use(Vec3::ZERO))), "only the stand gives way");
     }
 
     #[test]
