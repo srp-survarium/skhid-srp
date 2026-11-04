@@ -9,7 +9,7 @@ switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape lea
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
 switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.invert
-switches ON pace: calm_sprint ring_death_spots ring_radar
+switches ON pace: calm_sprint goal_clause
 switches ON perch: on
 switches ON sense: sight_refresh
 switches ON smoke: anti_sniper cross_lane forming_client react_watch sight spot_rules throw_keeps_route
@@ -25,7 +25,7 @@ switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift press_in_reach sprint_turns straight_jumps
 switches OFF grid: capsule_steps keep_last_resorts
 switches OFF mods: risk_alive.invert
-switches OFF pace: goal_clause
+switches OFF pace: ring_death_spots ring_radar
 switches OFF smoke: objective
 switches OFF spacing: apart_ease apart_tie lane
 switches OFF take: cross_from_zone far_stands team_memory world_stand
@@ -54,6 +54,7 @@ changed numbers aim: class_aim.bolt=[0.7400000095367432,0.9700000286102295,1.399
 changed numbers cheats: sight_hold_ms=450 (default 0)
 changed numbers feel: landing_cancel_deg=60 (default 0) lip_guard_ticks=2 (default 0) lip_look_ahead_m=0.8 (default 0)
 changed numbers grid: jump_cap_m=0.998 (default 1.05)
+changed numbers pace: leave_m=19 (default 34) old_rule_plays=[] (default ["collect"]) ring_m=15 (default 30) track_age_ms=5000 (default 20000)
 changed numbers plays: buddy.numbers.respawn_rule=1 (default 0) roam.numbers.fresh_claims=1 (default 0) roam.numbers.join_ahead=1 (default 0) roam.numbers.leader_eases=1 (default 0)
 changed numbers skill: tiers.13-15.max=0.9 (default 1) tiers.13-15.min=0.3 (default 0.65) tiers.13-15.start=0.6 (default 0.85) tiers.4-5.max=0.6 (default 1) tiers.4-5.min=0 (default 0.3) tiers.4-5.start=0.3 (default 0.6) tiers.9-10.max=0.8 (default 1) tiers.9-10.min=0.2 (default 0.5) tiers.9-10.start=0.5 (default 0.75)
 changed numbers traps: chance=0.7 (default 0.35) enemy_near_m=20 (default 50) enemy_quiet_s=2 (default 4) min_score=0.05 (default 0.2) ring_m=1.3 (default 0)
