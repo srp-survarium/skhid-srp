@@ -33,7 +33,6 @@
       "grenade_wall_m": 18.0,
       "settle": "off",
       "settle_k_low": 1.0,
-      "stand_strafe": null,
       "zoom_error": "off"
     },
     "skill_curve": "linear"
