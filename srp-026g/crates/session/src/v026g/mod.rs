@@ -278,8 +278,7 @@ impl GameAccounts {
     /// ([`pay::item_wear`], the default) every weapon and armour piece in
     /// it is made whole ([`Self::mend_gear`]): what matches wore before the
     /// switch would stay worn for ever. Once in the database's life
-    /// (`persist::GEAR_MENDED`), so an item found later, which arrives worn
-    /// ([`pay::drop_condition`]), stays as found until its owner repairs it.
+    /// (`persist::GEAR_MENDED`).
     ///
     /// The first time a database is opened by an srp with the golden-weapons
     /// rule, every golden weapon in it gets the silver bonus as its own
