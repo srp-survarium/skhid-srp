@@ -1,6 +1,6 @@
 # Vostok v0.11: v0.26g spawn layout
 
-The owner requested the v0.26 layout in v0.11 on 2026-11-04, with an explicit
+The owner requested the v0.26 layout in v0.11 on 2026-11-04, then asked TDM to include the three additional Protective Device points per team, with an explicit
 check for coordinate differences. `vostok-v011-spawns-1.json`, after `maps.tsv`
 in the content manifest, changes `server_objects/respawn_points` in
 `projects/v011e_level_03/day_2/client_project` and `day_4/client_project`.
@@ -8,10 +8,10 @@ in the content manifest, changes `server_objects/respawn_points` in
 | Project | Before | After (stock level_03) |
 | --- | --- | --- |
 | day_2, Protective Device | 43 (21 team 1, 22 team 0) | 28 (14 each) |
-| day_4, Team Deathmatch | 43 (21 team 1, 22 team 0) | 22 (11 each) |
+| day_4, Team Deathmatch | 43 (21 team 1, 22 team 0) | 28 (14 each) |
 
 Positions, full Euler rotations, priority (1), team order and point IDs match
-the corresponding stock v0.26g project exactly as float32 values. Existing
+the stock v0.26g day_2 project exactly as float32 values. Existing
 records are reused within each team; surplus records are removed. Names and
 other record properties stay, including old zone references, six-second spawn
 protection and the absence of ally/enemy check-radius keys. No collision,
@@ -26,7 +26,7 @@ through base patch 23 (all manifest base layers mounted for collision models).
 position, rotation and scale in both maps. The minimaps' 0.23 m framing difference
 is not a world-coordinate offset.
 
-Using mapdata's walker collision triangles, all 50 source positions across both
+Using mapdata's walker collision triangles, all 56 copied positions across both
 modes have a floor in v0.11. The greatest difference between source and target
 floor heights is 0.000219 m. Every point locates a walkable grid node within
 0.3 m horizontally, on a 0.125 m grid with the default player body. Sampled
@@ -43,3 +43,6 @@ room with 19 idle accounts before release.
 `release/build-content 46 --out /tmp/vostok-spawn-review/content` passed on
 2026-11-04 (local validation only; no revision reserved or released). The
 full-manifest output also passed the spawn readback and unrelated-field checks.
+
+TDM now uses all 28 Protective Device points. Stock TDM's 22 positions are a
+subset of these; its six omitted positions are included at the owner's request.

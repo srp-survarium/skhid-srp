@@ -1,5 +1,5 @@
 {
- "_about": "Vostok v0.11 uses the stock v0.26g day_2/day_4 spawn layouts (owner, 2026-11-04). Copy positions, complete Euler rotations, team assignment, point order and priority; reuse existing records within each team and remove surplus points. World coordinates agree: see docs/notes/vostok-v011-spawns.md. Keep existing names, zone references, six-second protection from maps.tsv and absent check-radius keys. Apply after maps.tsv.",
+ "_about": "Vostok v0.11 uses the stock v0.26g Protective Device spawn layout in both modes (owner, 2026-11-04). Copy positions, complete Euler rotations, team assignment, point order and priority; reuse existing records within each team and remove surplus points. World coordinates agree: see docs/notes/vostok-v011-spawns.md. Keep existing names, zone references, six-second protection from maps.tsv and absent check-radius keys. Apply after maps.tsv.",
  "set_entry": [
   {
    "file": "projects/v011e_level_03/day_2/client_project",
@@ -1357,14 +1357,14 @@
    },
    "to": {
     "position": [
-     77.732,
-     0.924,
-     17.207
+     81.324,
+     1.003,
+     -9.5
     ],
     "rotation": [
-     -0.001,
-     0.713,
-     0.0
+     3.142,
+     -0.047,
+     3.142
     ],
     "priority": 1,
     "point_id": 8
@@ -1394,14 +1394,14 @@
    },
    "to": {
     "position": [
-     76.815,
-     0.924,
-     11.139
+     83.201,
+     1.367,
+     -9.36
     ],
     "rotation": [
-     0.0,
-     1.394,
-     0.0
+     -3.142,
+     0.101,
+     -3.142
     ],
     "priority": 1,
     "point_id": 9
@@ -1431,6 +1431,80 @@
    },
    "to": {
     "position": [
+     77.732,
+     0.924,
+     17.207
+    ],
+    "rotation": [
+     -0.001,
+     0.713,
+     0.0
+    ],
+    "priority": 1,
+    "point_id": 10
+   }
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/team2/safe_respawn/respawn_point(8)"
+   },
+   "from": {
+    "position": [
+     61.196,
+     0.914,
+     5.013
+    ],
+    "rotation": [
+     0.0,
+     -0.09,
+     0.0
+    ],
+    "priority": 1,
+    "point_id": 11,
+    "team": 1,
+    "invulnerability_time": 6
+   },
+   "to": {
+    "position": [
+     76.815,
+     0.924,
+     11.139
+    ],
+    "rotation": [
+     0.0,
+     1.394,
+     0.0
+    ],
+    "priority": 1,
+    "point_id": 11
+   }
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/team2/safe_respawn/respawn_point(7)"
+   },
+   "from": {
+    "position": [
+     68.575,
+     0.975,
+     10.167
+    ],
+    "rotation": [
+     3.141,
+     0.22,
+     3.141
+    ],
+    "priority": 1,
+    "point_id": 12,
+    "team": 1,
+    "invulnerability_time": 6
+   },
+   "to": {
+    "position": [
      71.347,
      0.872,
      9.224
@@ -1441,7 +1515,44 @@
      0.0
     ],
     "priority": 1,
-    "point_id": 10
+    "point_id": 12
+   }
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/team2/safe_respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     76.723,
+     0.912,
+     15.363
+    ],
+    "rotation": [
+     0.0,
+     -0.109,
+     0.0
+    ],
+    "priority": 12,
+    "point_id": 13,
+    "team": 1,
+    "invulnerability_time": 6
+   },
+   "to": {
+    "position": [
+     82.666,
+     1.207,
+     -12.634
+    ],
+    "rotation": [
+     3.142,
+     0.042,
+     3.142
+    ],
+    "priority": 1,
+    "point_id": 13
    }
   },
   {
@@ -1478,7 +1589,7 @@
      -3.142
     ],
     "priority": 1,
-    "point_id": 11
+    "point_id": 14
    }
   },
   {
@@ -1515,7 +1626,7 @@
      3.142
     ],
     "priority": 1,
-    "point_id": 12
+    "point_id": 15
    }
   },
   {
@@ -1552,7 +1663,7 @@
      0.0
     ],
     "priority": 1,
-    "point_id": 13
+    "point_id": 16
    }
   },
   {
@@ -1589,7 +1700,7 @@
      3.133
     ],
     "priority": 1,
-    "point_id": 14
+    "point_id": 17
    }
   },
   {
@@ -1626,7 +1737,7 @@
      3.142
     ],
     "priority": 1,
-    "point_id": 15
+    "point_id": 18
    }
   },
   {
@@ -1663,7 +1774,7 @@
      0.0
     ],
     "priority": 1,
-    "point_id": 16
+    "point_id": 19
    }
   },
   {
@@ -1700,7 +1811,7 @@
      0.0
     ],
     "priority": 1,
-    "point_id": 17
+    "point_id": 20
    }
   },
   {
@@ -1727,17 +1838,17 @@
    },
    "to": {
     "position": [
-     -33.399,
-     0.855,
-     -95.533
+     -23.301,
+     0.619,
+     -110.903
     ],
     "rotation": [
-     0.0,
-     1.539,
-     0.0
+     -3.142,
+     -1.532,
+     -3.142
     ],
     "priority": 1,
-    "point_id": 18
+    "point_id": 21
    }
   },
   {
@@ -1764,17 +1875,17 @@
    },
    "to": {
     "position": [
-     -51.328,
-     0.843,
-     -95.231
+     -33.399,
+     0.855,
+     -95.533
     ],
     "rotation": [
-     3.142,
-     -1.466,
-     3.142
+     0.0,
+     1.539,
+     0.0
     ],
     "priority": 1,
-    "point_id": 19
+    "point_id": 22
    }
   },
   {
@@ -1801,17 +1912,17 @@
    },
    "to": {
     "position": [
-     -39.198,
-     0.827,
-     -95.659
+     -51.328,
+     0.843,
+     -95.231
     ],
     "rotation": [
-     0.0,
-     -1.384,
-     0.0
+     3.142,
+     -1.466,
+     3.142
     ],
     "priority": 1,
-    "point_id": 20
+    "point_id": 23
    }
   },
   {
@@ -1838,6 +1949,117 @@
    },
    "to": {
     "position": [
+     -21.636,
+     0.677,
+     -112.14
+    ],
+    "rotation": [
+     3.142,
+     -1.557,
+     3.142
+    ],
+    "priority": 1,
+    "point_id": 24
+   }
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/team1/safe_reswapn/respawn_point(5)"
+   },
+   "from": {
+    "position": [
+     -50.628,
+     0.843,
+     -105.438
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "priority": 1,
+    "point_id": 32,
+    "team": 0,
+    "invulnerability_time": 6
+   },
+   "to": {
+    "position": [
+     -39.198,
+     0.827,
+     -95.659
+    ],
+    "rotation": [
+     0.0,
+     -1.384,
+     0.0
+    ],
+    "priority": 1,
+    "point_id": 25
+   }
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/team1/safe_reswapn/respawn_point(6)"
+   },
+   "from": {
+    "position": [
+     -48.44,
+     0.843,
+     -105.438
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "priority": 1,
+    "point_id": 33,
+    "team": 0,
+    "invulnerability_time": 6
+   },
+   "to": {
+    "position": [
+     -21.397,
+     0.619,
+     -110.21
+    ],
+    "rotation": [
+     3.133,
+     -1.516,
+     3.133
+    ],
+    "priority": 1,
+    "point_id": 26
+   }
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/team1/respawn_point(10)"
+   },
+   "from": {
+    "position": [
+     -30.707,
+     0.505,
+     -70.676
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "priority": 2,
+    "point_id": 34,
+    "team": 0,
+    "invulnerability_time": 6
+   },
+   "to": {
+    "position": [
      -45.645,
      0.844,
      -95.389
@@ -1848,7 +2070,7 @@
      3.142
     ],
     "priority": 1,
-    "point_id": 21
+    "point_id": 27
    }
   }
  ],
@@ -1992,33 +2214,6 @@
    "file": "projects/v011e_level_03/day_4/client_project",
    "list": "server_objects/respawn_points",
    "where": {
-    "full_name": "logic/team2/safe_respawn/respawn_point(8)",
-    "point_id": 11,
-    "team": 1
-   }
-  },
-  {
-   "file": "projects/v011e_level_03/day_4/client_project",
-   "list": "server_objects/respawn_points",
-   "where": {
-    "full_name": "logic/team2/safe_respawn/respawn_point(7)",
-    "point_id": 12,
-    "team": 1
-   }
-  },
-  {
-   "file": "projects/v011e_level_03/day_4/client_project",
-   "list": "server_objects/respawn_points",
-   "where": {
-    "full_name": "logic/team2/safe_respawn/respawn_point(3)",
-    "point_id": 13,
-    "team": 1
-   }
-  },
-  {
-   "file": "projects/v011e_level_03/day_4/client_project",
-   "list": "server_objects/respawn_points",
-   "where": {
     "full_name": "logic/team2/safe_respawn/respawn_point(9)",
     "point_id": 14,
     "team": 1
@@ -2076,33 +2271,6 @@
     "full_name": "logic/team2/respawn_point(3)",
     "point_id": 20,
     "team": 1
-   }
-  },
-  {
-   "file": "projects/v011e_level_03/day_4/client_project",
-   "list": "server_objects/respawn_points",
-   "where": {
-    "full_name": "logic/team1/safe_reswapn/respawn_point(5)",
-    "point_id": 32,
-    "team": 0
-   }
-  },
-  {
-   "file": "projects/v011e_level_03/day_4/client_project",
-   "list": "server_objects/respawn_points",
-   "where": {
-    "full_name": "logic/team1/safe_reswapn/respawn_point(6)",
-    "point_id": 33,
-    "team": 0
-   }
-  },
-  {
-   "file": "projects/v011e_level_03/day_4/client_project",
-   "list": "server_objects/respawn_points",
-   "where": {
-    "full_name": "logic/team1/respawn_point(10)",
-    "point_id": 34,
-    "team": 0
    }
   },
   {
