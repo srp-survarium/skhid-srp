@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn each_fight_gets_the_nearest_free_bot_once() {
         let fights = [(1, Vec3::new(0.0, 0.0, 0.0)), (2, Vec3::new(50.0, 0.0, 0.0))];
-        let free = [(3, Vec3::new(5.0, 0.0, 0.0)), (4, Vec3::new(8.0, 0.0, 0.0)), (5, Vec3::new(90.0, 0.0, 0.0))];
+        let free = [(3, Vec3::new(5.0, 0.0, 0.0)), (4, Vec3::new(8.0, 0.0, 0.0)), (5, Vec3::new(100.0, 0.0, 0.0))];
         // 3 answers 1; 4 is free but 42 m from 2 (over 30 m); 5 is too far from both.
         assert_eq!(answerers(&fights, &free, 30.0), vec![(1, 3)]);
         assert_eq!(answerers(&fights, &free, 45.0), vec![(1, 3), (2, 4)]);
