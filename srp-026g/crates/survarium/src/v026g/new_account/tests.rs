@@ -44,6 +44,9 @@ fn the_grant_is_the_tables() {
             ("tt_33", 1),
             ("mosin_nagant", 1),
             ("ppsh", 1),
+            ("akmn", 1),
+            ("akmsu", 1),
+            ("drop_card", 10),
             ("medkit", 50),
             ("antitoxin", 50),
             ("bandages", 20)
@@ -78,10 +81,12 @@ fn a_table_of_other_keys_is_refused_naming_them() {
 
 /// Pockets the gear does not open, or that take fewer units than the
 /// table gives, are named: without the Novice's backpack (the test
-/// data's), the gear opens two pockets of two.
+/// data's), the gear opens two pockets of two. No AKMSU (the test data's
+/// predates it).
 #[test]
 fn pockets_the_gear_does_not_give_are_named() {
     let mut grant = shared().clone();
+    grant.own.retain(|(name, _)| name != "akmsu");
     grant.all_kits.retain(|(slot, _)| *slot != 0);
     grant
         .all_kits
@@ -103,16 +108,16 @@ fn pockets_the_gear_does_not_give_are_named() {
     );
 }
 
-/// The grant on the test data: refused, naming the knit cap and the
-/// Novice's backpack of patches it predates; the released data has them
+/// The grant on the test data: refused, naming the AKMSU, the knit cap
+/// and the Novice's backpack of patches it predates; the released data has them
 /// (`session`'s `tests/starter_kit.rs`).
 #[test]
-fn the_test_data_lacks_two_items_of_the_grant() {
+fn the_test_data_lacks_three_items_of_the_grant() {
     let error = check_data(game_data::shared()).unwrap_err().to_string();
     assert!(
         error.contains(
-            "gameplay/srp/new_account.options: no item `novice_026_helmet`, no item \
-             `stk2_novice_026_back`. "
+            "gameplay/srp/new_account.options: no item `akmsu`, no item `novice_026_helmet`, \
+             no item `stk2_novice_026_back`. "
         ),
         "{error}"
     );
@@ -144,11 +149,12 @@ fn a_faction_without_quests_is_refused() {
     );
 }
 
-/// The grant with the gear of the test data (no knit cap, the oxygen
+/// The grant with the gear of the test data (no knit cap, no AKMSU, the oxygen
 /// tank on the back): what it checks of what it owns and of its
 /// modifications.
 fn on_the_test_data() -> NewAccount {
     let mut grant = shared().clone();
+    grant.own.retain(|(name, _)| name != "akmsu");
     grant.all_kits.retain(|(slot, _)| *slot != 0 && *slot != 15);
     grant
         .all_kits
