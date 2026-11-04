@@ -2095,9 +2095,15 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
             let feet = me.feet + lead;
             let view = (me.pitch - PRESS_SLACK).max(-STEEPEST.0);
             let landed = landing(eye_for(feet, crouched, view), me.yaw, view, spot.y);
+            let press = press_of(t, landed, feet, staying, || route_ahead(bot, me, t).0);
+            // [A292 S4a] Not where the body itself runs on to over the next moment.
+            let press = match (press, t.after_press, landed) {
+                (Press::Ready, Some(a), Some(at)) if swept_m(me.feet, me.velocity, a.sweep_s, at) < a.clear_m => Press::Wait(Why::OnRoute),
+                (press, ..) => press,
+            };
             Aim::Look {
                 pitch: look.pitch,
-                press: press_of(t, landed, feet, staying, || route_ahead(bot, me, t).0),
+                press,
             }
         }
         State::Down { spot, .. } => {
@@ -2110,6 +2116,13 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
         }
         _ => Aim::NoLook,
     }
+}
+
+/// [A292 S4a] How near `at` comes to the body's own path over the next `sweep_s` (its feet moved by its velocity), metres on
+/// the ground.
+fn swept_m(feet: Vec3, velocity: [f32; 2], sweep_s: f32, at: Vec3) -> f32 {
+    let end = Vec3::new(feet.x + velocity[0] * sweep_s, feet.y, feet.z + velocity[1] * sweep_s);
+    off_route_m(&[feet, end], at)
 }
 
 /// Whether the bot stays where it is: its play holds it and it is slow. Its spot then need not lie off the route.
@@ -3350,5 +3363,17 @@ mod tests {
         bot.features.traps.placed = None;
         assert!(!held_after_press(&bot, 10_100, &tuning), "taken by the think");
         assert!(tuning.check().is_ok());
+    }
+
+    /// A292 S4a: the swept path is the body's own, from its feet along its velocity for `sweep_s`.
+    #[test]
+    fn the_swept_path_is_the_feet_along_the_velocity() {
+        let feet = Vec3::new(0.0, 0.0, 0.0);
+        // Walking along x at 3 m/s: a trap 2 m ahead and 0.5 m aside lies 0.5 m off the next second's path.
+        assert!((swept_m(feet, [3.0, 0.0], 1.0, Vec3::new(2.0, 0.0, 0.5)) - 0.5).abs() < 1e-4);
+        // Behind the feet: its distance to the feet.
+        assert!((swept_m(feet, [3.0, 0.0], 1.0, Vec3::new(-1.0, 0.0, 0.0)) - 1.0).abs() < 1e-4);
+        // Standing: the feet alone.
+        assert!((swept_m(feet, [0.0, 0.0], 1.0, Vec3::new(0.0, 0.0, 1.2)) - 1.2).abs() < 1e-4);
     }
 }

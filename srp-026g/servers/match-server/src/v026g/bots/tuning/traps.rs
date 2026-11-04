@@ -200,11 +200,21 @@ pub enum Stayer {
 pub struct AfterPress {
     /// At most this, ms: a GUESS margin over the few hundred ms between two thinks of a bot.
     pub hold_ms: u32,
+    /// The press also waits until the landing lies this far from the body's own path over the next `sweep_s` (its feet plus its
+    /// velocity times 0 to `sweep_s`), metres: the trigger reaches 0.6 m from a foot point, a foot is about 0.2 m, so 1.0 keeps a
+    /// slowing walker off it (in the S1 bench 6 walkers were caught 0.4-0.6 s after the press, 1.1-1.2 m from their feet, their
+    /// route 0.9 m off the trap but their body running on).
+    pub clear_m: f32,
+    pub sweep_s: f32,
 }
 
 impl Default for AfterPress {
     fn default() -> Self {
-        Self { hold_ms: 1_500 }
+        Self {
+            hold_ms: 1_500,
+            clear_m: 1.0,
+            sweep_s: 1.0,
+        }
     }
 }
 
@@ -473,7 +483,11 @@ impl Check for TrapTuning {
             self.sensed_near.is_none_or(|n| n.within_m > 0.0 && n.within_m <= 200.0),
             "traps.sensed_near",
         )?;
-        check(self.after_press.is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000), "traps.after_press")?;
+        check(
+            self.after_press
+                .is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000 && (0.0..=1.3).contains(&a.clear_m) && (0.0..=3.0).contains(&a.sweep_s)),
+            "traps.after_press",
+        )?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)
