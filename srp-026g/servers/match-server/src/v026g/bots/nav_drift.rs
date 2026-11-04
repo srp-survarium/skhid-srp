@@ -315,7 +315,7 @@ mod tests {
         let f = Facts { crouch: true, body_m: Some(1.5), ..facts() };
         assert_eq!(
             f.line(Cause::of(&f)),
-            "nav: drift 2.7 m (flat 2.5, height +1.1) at (11.3, 16.7, -20.0), reckoned (11.0, 17.8, -22.5): crouch; play Collect, \
+            "nav: drift 2.7 m (flat 2.5, height +1.1) at (11.4, 16.7, -20.0), reckoned (11.0, 17.8, -22.5): crouch; play Collect, \
              speed 2.6 m/s, crouched, moved 1.5 of 2.0 m meant, body 1.5 m"
         );
         let late = Facts { gap_ms: Some(3_100), in_jump: true, play: None, speed: None, meant_m: None, ..facts() };
