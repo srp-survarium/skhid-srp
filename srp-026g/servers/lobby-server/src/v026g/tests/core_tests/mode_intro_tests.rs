@@ -44,7 +44,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap();
-        running.blackout = false;
+        running.map = maps::MatchMap::of(61).unwrap();
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:abc").is_empty());
         world
             .core
@@ -52,7 +52,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap()
-            .blackout = true;
+            .map = maps::MatchMap::of_lobby_id(maps::blackout_id(61).unwrap()).unwrap();
         assert!(ask_intro(&mut world, alice, "#mode-intro:scarcity:abc").is_empty());
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:bad-token").is_empty());
         assert!(ask_intro(&mut world, carol, "#mode-intro:blackout:abc").is_empty());

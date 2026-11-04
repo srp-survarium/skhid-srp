@@ -238,18 +238,18 @@ impl Core<'_> {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
-                    mode: map.mode,
+                    mode: map.mode.number(),
                     extra,
                 })
             })
             .collect::<Vec<_>>();
         let blackout: Vec<PoolEntry> = entries
             .iter()
-            .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
+            .filter(|entry| entry.mode == maps::BLACKOUT_RULES.number())
             .filter_map(|entry| {
                 Some(PoolEntry {
                     map_id: maps::blackout_id(entry.map_id)?,
-                    mode: maps::mode::BLACKOUT,
+                    mode: maps::GameMode::Blackout.lobby_number(),
                     ..*entry
                 })
             })

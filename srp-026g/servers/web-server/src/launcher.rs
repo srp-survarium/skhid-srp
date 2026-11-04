@@ -938,15 +938,15 @@ mod tests {
         // texts): its project's folder, and its mode by number.
         let twelve = maps::MapMode {
             level: 12,
-            mode: 9,
+            mode: maps::RuleMode::Research,
             project: "level_12/day_4",
             map_name_key: "st_level_12_name",
-            mode_name_key: "st_mode_09_name",
+            mode_name_key: "st_mode_99_name",
             ..*rudnya_tdm
         };
         assert_eq!(map_name(Lang::En, &twelve), "level_12");
         assert_eq!(map_name(Lang::Uk, &twelve), "level_12");
-        assert_eq!(mode_name(Lang::Uk, &twelve), "режим 9");
+        assert_eq!(mode_name(Lang::Uk, &twelve), "режим 5");
         // Every playable map and mode has a name of the game's.
         for map in maps::playable() {
             for lang in [Lang::En, Lang::Uk] {

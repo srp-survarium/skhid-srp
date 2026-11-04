@@ -34,7 +34,7 @@ fn main() {
             continue;
         };
         let body = std::fs::read(format!("{dir}/{name}")).unwrap();
-        let batteries = if map.mode == 4 {
+        let batteries = if map.mode == survarium::v026g::maps::RuleMode::TeamDeathmatch {
             0
         } else {
             map.victory_items_count as usize

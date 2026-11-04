@@ -110,10 +110,12 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 ## How
 
 - **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::blackout_pairs`:
-  ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows. A
-  room's match on such a card is made on the battery map with `MatchSetup::blackout`.
-- **Rewards (srp):** the match server's result carries `blackout`; the rewards' score and each
-  line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
+  ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows
+  (`GameMode::lobby_number`). Such a card's id parses into a `maps::MatchMap` of the battery
+  map in `GameMode::Blackout`, which the lobby's and the match server's `MatchSetup` carry: no
+  flag beside the map, and no Blackout on another mode's map.
+- **Rewards (srp):** the match server's result carries `GameMode::Blackout`; the rewards' score
+  and each line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
   computes otherwise (the hud's score is hidden).
 - **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
   maps only; a late joiner's static info keeps it.

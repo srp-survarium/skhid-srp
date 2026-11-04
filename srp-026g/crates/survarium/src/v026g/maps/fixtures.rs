@@ -8,7 +8,7 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::super::dictionary::{self, Dictionary};
 use super::super::game_data::{self, GameData};
-use super::{GAME_MODES_DIR, MapMode, mode};
+use super::{GAME_MODES_DIR, MapMode, RuleMode};
 
 /// A map a patch adds.
 #[derive(Clone, Debug, PartialEq)]
@@ -39,7 +39,7 @@ impl AddedMap {
             level: 12,
             weather: super::weather::DAY,
             project: "level_12/day_4",
-            mode: mode::TEAM_DEATHMATCH,
+            mode: RuleMode::TeamDeathmatch.number(),
             respawn_points: 17,
             containers: Vec::new(),
         }
@@ -52,7 +52,7 @@ impl AddedMap {
             id: 202,
             config: "level_12_day_5.options",
             project: "level_12/day_5",
-            mode: mode::RESEARCH,
+            mode: RuleMode::Research.number(),
             respawn_points: 14,
             ..Self::level_12_tdm()
         }
@@ -89,7 +89,7 @@ fn entry<'a>(value: &'a mut ConfigValue, key: &str) -> &'a mut ConfigValue {
 }
 
 /// The stock config whose mode is `game_mode`, on level_01 in the day.
-fn stock_config(game_mode: u8) -> ConfigValue {
+fn stock_config(game_mode: RuleMode) -> ConfigValue {
     let stock = super::all()
         .iter()
         .find(|map| (map.level, map.weather, map.mode) == (1, super::weather::DAY, game_mode))
@@ -108,15 +108,15 @@ fn stock_config(game_mode: u8) -> ConfigValue {
 pub fn with_map(map: &AddedMap) -> GameData {
     let stock = game_data::shared();
 
-    let mut config = stock_config(match map.mode {
-        mode::RESEARCH => mode::TEAM_DEATHMATCH,
-        other if mode::ALL.contains(&other) => other,
-        _ => mode::BATTERIES,
+    let mut config = stock_config(match RuleMode::of_config(map.mode) {
+        Some(RuleMode::Research) => RuleMode::TeamDeathmatch,
+        Some(other) => other,
+        None => RuleMode::Batteries,
     });
     let root = entry(&mut config, "mode");
     *entry(root, "name") = ConfigValue::String(map.config.trim_end_matches(".options").into());
     *entry(root, "mode") = ConfigValue::Integer(map.mode.into());
-    if map.mode == mode::RESEARCH {
+    if map.mode == RuleMode::Research.number() {
         *entry(root, "rules") = ConfigValue::Indexed(
             [93, 91, 480, 94]
                 .into_iter()

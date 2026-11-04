@@ -164,14 +164,14 @@ pub const TDM_KILL_FACTOR: f32 = 3.0;
 /// The weights of a match of `game_mode`: `weights`, with Research's own
 /// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
 /// weight in mode 4. The other modes play with `weights` as they are.
-pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
+pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
-    if game_mode == maps::mode::RESEARCH {
+    if game_mode == maps::RuleMode::Research {
         for (event, weight) in RESEARCH_WEIGHTS {
             weights[event] = weight;
         }
     }
-    if game_mode == maps::mode::TEAM_DEATHMATCH {
+    if game_mode == maps::RuleMode::TeamDeathmatch {
         weights[event::KILL] *= TDM_KILL_FACTOR;
     }
     weights
@@ -179,7 +179,7 @@ pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EV
 
 /// srp's weights for a match of `game_mode` ([`SCORE_WEIGHTS`],
 /// [`weights_of`]).
-pub fn score_weights(game_mode: u8) -> [f32; SCORE_EVENTS] {
+pub fn score_weights(game_mode: maps::RuleMode) -> [f32; SCORE_EVENTS] {
     weights_of(game_mode, SCORE_WEIGHTS)
 }
 
@@ -1119,15 +1119,15 @@ mod tests {
         assert_eq!(taken(false), 5);
         // Research weighs them the same.
         assert_eq!(
-            score_weights(super::super::super::maps::mode::RESEARCH)[event::WINNING_TEAM_VI_BONUS],
+            score_weights(super::super::super::maps::RuleMode::Research)[event::WINNING_TEAM_VI_BONUS],
             10.0
         );
     }
 
     #[test]
     fn research_weighs_its_captures_and_kill_invader() {
-        use super::super::super::maps::mode;
-        let research = score_weights(mode::RESEARCH);
+        use super::super::super::maps::RuleMode;
+        let research = score_weights(RuleMode::Research);
         assert_eq!(
             (research[6], research[18], research[10]),
             (30.0, 30.0, 10.0)
@@ -1137,20 +1137,20 @@ mod tests {
             assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
         }
         // Modes 2 and 3 are unchanged.
-        for game_mode in [mode::BATTERIES, mode::TIMED_BATTERIES] {
+        for game_mode in [RuleMode::Batteries, RuleMode::TimedBatteries] {
             assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
         }
         // Team Deathmatch: a kill three times, 30; the rest as every mode's.
-        let tdm = score_weights(mode::TEAM_DEATHMATCH);
+        let tdm = score_weights(RuleMode::TeamDeathmatch);
         assert_eq!(tdm[event::KILL], 30.0);
         for event in (0..SCORE_EVENTS).filter(|&event| event != event::KILL) {
             assert_eq!(tdm[event], SCORE_WEIGHTS[event], "{event}");
         }
         // Over weights of another's (a test's, a tool's): the three only.
-        let mut zero = weights_of(mode::RESEARCH, [0.0; SCORE_EVENTS]);
+        let mut zero = weights_of(RuleMode::Research, [0.0; SCORE_EVENTS]);
         assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
         zero[10] = 0.0;
-        assert_eq!(weights_of(mode::BATTERIES, zero), zero);
+        assert_eq!(weights_of(RuleMode::Batteries, zero), zero);
     }
 
     #[test]

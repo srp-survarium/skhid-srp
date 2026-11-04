@@ -104,7 +104,7 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
     raw.extend(note(
         0,
         serde_json::json!({
-            "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode,
+            "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode.number(),
             "match_id": format!("{MATCH:#x}"),
             "places": [
                 {"place": 0, "account_id": 1001, "name": "a"},

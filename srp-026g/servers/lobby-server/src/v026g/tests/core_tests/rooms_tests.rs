@@ -230,11 +230,11 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     let setup = world.host.made.locked().last().unwrap().1.clone();
     // The third card won: its battery map, played as Blackout.
     assert_eq!(
-        Some(setup.map_id),
+        Some(setup.map.map().id),
         maps::blackout_played(voted_cards[2]),
         "the vote's winner when it started"
     );
-    assert!(setup.blackout);
+    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");
@@ -1195,7 +1195,7 @@ fn a_rooms_match_has_its_players_mean_level_and_counts_its_map() {
     };
     assert_eq!(*id, ticket);
     assert_eq!(setup.match_level, 3);
-    let map = maps::map_mode(setup.map_id).unwrap().level;
+    let map = setup.map.map().level;
     for player in [alice, bob] {
         let account = world.account(player);
         assert_eq!(account.map_plays, [(map, 1)]);
@@ -1457,7 +1457,7 @@ fn one_who_leaves_the_match_by_its_own_word_is_out_of_the_room_and_may_come_agai
             .in_match
             .contains(&bob_account)
     );
-    let map = maps::map_mode(setup.map_id).unwrap().level;
+    let map = setup.map.map().level;
     assert_eq!(world.account(bob).map_plays, [(map, 1)]);
 
     // The match ends: Bob's latest place is his result, once.
@@ -2709,7 +2709,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
     settings.maps = vec![61, 62, 117];
     let mut world = World::with_settings(settings);
     let entries = world.core.room_entries();
-    let blackout = maps::mode::BLACKOUT;
+    let blackout = maps::GameMode::Blackout.lobby_number();
     let offered: Vec<_> = entries
         .iter()
         .filter(|entry| entry.mode == blackout)
@@ -2763,6 +2763,6 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .iter()
         .find(|(id, _)| *id == ticket)
         .expect("the room's match");
-    assert_eq!(setup.map_id, 61, "the battery map");
-    assert!(setup.blackout);
+    assert_eq!(setup.map.map().id, 61, "the battery map");
+    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
 }

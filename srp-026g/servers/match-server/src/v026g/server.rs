@@ -395,9 +395,9 @@ impl Server {
             log::info!(
                 "Match {:#x}: map {} ({}), mode {}, {} players",
                 formed.match_id,
-                formed.map.id,
-                formed.map.name,
-                formed.map.mode,
+                formed.played.map().id,
+                formed.played.map().name,
+                formed.played.map().mode,
                 formed.places.len()
             );
             let mut game = Game::new(formed, self.port, self.settings.clone(), now);
@@ -525,8 +525,8 @@ impl Server {
                 log::info!("Match {match_id:#x}: no client came; given up");
                 self.results.match_ended(MatchResult {
                     match_id,
-                    map_id: formed.map.id,
-                    game_mode: formed.map.mode,
+                    map_id: formed.played.map().id,
+                    mode: formed.played.mode(),
                     match_level: formed.match_level,
                     // A room's: called off, as one everyone left before its
                     // countdown (`Game::called_off`).
@@ -543,7 +543,6 @@ impl Server {
                     trusted_by: 0,
                     vs_bots: formed.vs_bots,
                     private: formed.private,
-                    blackout: formed.blackout,
                     players: formed
                         .places
                         .iter()

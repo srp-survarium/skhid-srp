@@ -93,7 +93,10 @@ fn one_player_plays_a_whole_match_over_udp() {
     let result = net.results.recv_timeout(SOON).expect("the match's result");
     assert_eq!(result.match_id, net.match_id);
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, Some(1));
     assert_eq!(result.team_points, [0, 64]);
     assert!(result.played_ms.is_some());
