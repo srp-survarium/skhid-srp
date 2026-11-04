@@ -291,9 +291,6 @@ name belongs to whoever registers it first, as any name does.
 | `SRP_MONEY_RATE` | unset: by match level | The percent of the original's silver a match's three rows pay; premium's half follows. Unset, it goes by the match's level (the owner's choice of 2026-10-14): 150 at levels 0 to 5, ten more each level, 220 from level 12. Set (1 to 1000), it is that percent at every level (it was 120 from 2026-10-13, 80 before) |
 | `SRP_REPUTATION_RATE` | 120 | The percent of the original's reputation a match's rows and the quests completed in it pay (1 to 1000). 120 is the owner's choice of 2026-10-14 |
 | `SRP_ITEM_WEAR` | off | `on`: a match wears the weapons and armour of the kits played, as the game's data says, and a worn item may get a defect. Off is the owner's choice (2026-10-13): an item stays as it is. The first start of a database with it off makes every worn weapon and armour piece whole, once |
-| `SRP_DROP_PLAYTIME_BONUS` | off | `on`: the first four games of an hour of play raise the chance of a drop by 100, 75, 50 and 25 % (the numbers are the game's data; how they were applied is a guess). Off is the owner's choice (2026-10-13): with it on, 73 % of the players who finished a match found something |
-| `SRP_DROP_CONDITION` | 40 | The condition, in percent, a weapon or armour piece found after a match arrives in (1 to 100; the owner's choice) |
-| `SRP_DROP_DEFECT` | on | `off`: such an item arrives without a defect |
 | `SRP_DAILY_BONUS` | on | `off`: no doubled victories, no seven-day reward, and no daily bonus message to the client |
 | `SRP_DAILY_BONUS_RESET_HOUR` | 0 | The hour of UTC (0 to 23) a daily bonus day starts at |
 | `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` | Gold for premium time, shortest first: a day, 3 days, a week, a month, 90 days, 180 days, a year. 90 days = 2,500 is from a January 2015 sale notice; the rest is the owner's choice (2026-10-12). |
