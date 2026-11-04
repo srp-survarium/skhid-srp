@@ -116,8 +116,11 @@ pub struct GridTuning {
     /// (`mapdata::Body::gap_no_vaults`): a rail or a parapet at the edge with a floor more than a step under its far side. The
     /// flight let the body rise with the clip at the face and go on past it once its feet were over; the client does not:
     /// Vector Laboratory's spawn exits (a 0.9 m rail) kept every bot on top, 19 of 19 and 15 of 15 tries in the owner's match
-    /// 0x8681e02, and the live bodies went down the maps' downward gap links 12 times in 2,741 visits (A293). Off (the default)
-    /// until its bench. A grid is the map's (see `gap_links`).
+    /// 0x8681e02, and the live bodies went down the maps' downward gap links 12 times in 2,741 visits (A293). A press that vaults
+    /// down cuts every press and sprint link of its take-off and way (the far presses left would make a link over the same face).
+    /// On by default (A293's bench, 192 pairs, whole matches: downward route jumps 447 -> 192, not down 383 -> 171, deaths within
+    /// 2 s of one 9 -> 4, every guard level, CPU level). The old value offers jumps down the client's body does not make, so the
+    /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub gap_no_vaults: bool,
 }
 
@@ -140,7 +143,7 @@ impl Default for GridTuning {
             run_ups_after_erosion: true,
             steep_walk_base: true,
             pocket_exits_walled: true,
-            gap_no_vaults: false,
+            gap_no_vaults: true,
         }
     }
 }
