@@ -676,7 +676,29 @@ impl Bots {
             .filter(|b| b.team == team)
             .map(|b| b.place)
             .collect();
-        for pair in mates.chunks(2) {
+        // [A297 `tdm.group`] In Team Deathmatch, pairs by position (`group::pair`) instead of place order.
+        let by_position = tuning.tdm.group.filter(|_| !view.objective().has_homes());
+        if let Some(group) = by_position {
+            let members: Vec<group::Member> = mates
+                .iter()
+                .map(|&place| {
+                    let partner = self.bots.get(place).and_then(Option::as_ref).and_then(|b| b.partner);
+                    group::Member {
+                        place,
+                        feet: view.place(place).filter(|p| p.alive).map(|p| p.feet),
+                        partner,
+                        partner_died: partner.and_then(|p| view.deaths.iter().filter(|d| d.place == p).map(|d| d.time).max()),
+                    }
+                })
+                .collect();
+            for paired in group::pair(&members, now, group.keep_m.get()) {
+                if let Some(Some(bot)) = self.bots.get_mut(paired.place) {
+                    bot.partner = paired.partner;
+                    bot.paired = paired.mutual;
+                }
+            }
+        }
+        for pair in mates.chunks(2).filter(|_| by_position.is_none()) {
             match pair {
                 [a, b] => {
                     for (me, other) in [(*a, *b), (*b, *a)] {
@@ -741,6 +763,39 @@ impl Bots {
             .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
             .collect();
         self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
+        // [A297 `tdm.group`] The team's bots in a fight now (their reflex targets): their mates answer them (play 21's cover).
+        let fighting = if by_position.is_some() {
+            let targets: Vec<(Place, Place)> = self
+                .bots
+                .iter()
+                .flatten()
+                .filter(|b| b.team == team && view.place(b.place).is_some_and(|p| p.alive))
+                .filter_map(|b| b.reflex.target().map(|enemy| (b.place, enemy)))
+                .collect();
+            group::fighting(&targets, &self.teams[usize::from(team)].knowledge.fighting, now)
+        } else {
+            Vec::new()
+        };
+        // [A297 `tdm.group`, `answer` nearest / nearest_mover] Who answers which fight: each fight the nearest free bot within
+        // `answer_m` (not in a fight, not a carrier; with nearest_mover, not holding an angle either: `group::holds`).
+        let answers = match by_position.map(|g| (g.answer, g.answer_m.get())) {
+            Some((answer @ (tuning::Answer::Nearest | tuning::Answer::NearestMover), answer_m)) => {
+                let fights: Vec<(Place, mapdata::Vec3)> =
+                    fighting.iter().filter_map(|f| view.place(f.mate).filter(|p| p.alive).map(|p| (f.mate, p.feet))).collect();
+                let free: Vec<(Place, mapdata::Vec3)> = self
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.team == team && !fighting.iter().any(|f| f.mate == b.place))
+                    .filter(|b| answer == tuning::Answer::Nearest || !b.assignment.as_ref().is_some_and(|a| group::holds(a.kind)))
+                    .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
+                    .collect();
+                group::answerers(&fights, &free, answer_m)
+            }
+            _ => Vec::new(),
+        };
+        self.teams[usize::from(team)].knowledge.fighting = fighting;
+        self.teams[usize::from(team)].knowledge.answers = answers;
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots

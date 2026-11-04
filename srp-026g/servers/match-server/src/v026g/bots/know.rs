@@ -782,6 +782,15 @@ pub struct Loss {
     pub spawner: Option<usize>,
 }
 
+/// [A297 `tdm.group`] A teammate bot in a fight: the enemy its reflex targets and since when. Its mates know of it as a
+/// human hears his teammate fire and his callout; where the enemy is, each knows only from its own memory.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fighting {
+    pub mate: Place,
+    pub enemy: Place,
+    pub since: u32,
+}
+
 /// Losses are kept this long, ms.
 pub const LOSS_KEEP_MS: u32 = 120_000;
 
@@ -1004,6 +1013,12 @@ pub struct TeamKnowledge {
     /// [A192] The team's bots running Crossfire now and the choke each
     /// covers (the commander's, from the plays it handed out).
     pub crossfiring: Vec<(Place, super::plays::TargetRef)>,
+    /// [A297 `tdm.group`] The team's bots in a fight now (the commander's, from each one's reflex target): the team hears
+    /// their shots and their callouts. Empty with the switch off or outside Team Deathmatch.
+    pub fighting: Vec<Fighting>,
+    /// [A297 `tdm.group`] Who answers which fight now, (the fighting mate, the answering bot): the commander's
+    /// (`group::answerers`).
+    pub answers: Vec<(Place, Place)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
     /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).
