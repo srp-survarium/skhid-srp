@@ -1144,12 +1144,12 @@ pub mod tally {
     /// A plan's thrower is followed this long, ms.
     pub const LANDING_FOLLOW_MS: u32 = 15_000;
     pub type Landings = [[[u64; LANDING_SLOTS]; super::SmokeUse::ALL.len()]; 2];
+    /// A plan whose thrower is followed: (place, team, use, shooter, begun).
+    type Followed = (usize, u8, super::SmokeUse, Option<usize>, u32);
 
     thread_local! {
         static LANDINGS: Cell<Landings> = const { Cell::new([[[0; LANDING_SLOTS]; super::SmokeUse::ALL.len()]; 2]) };
-        /// The plans whose throwers are followed: (place, team, use, shooter, begun).
-        static LANDING_OPEN: std::cell::RefCell<Vec<(usize, u8, super::SmokeUse, Option<usize>, u32)>> =
-            const { std::cell::RefCell::new(Vec::new()) };
+        static LANDING_OPEN: std::cell::RefCell<Vec<Followed>> = const { std::cell::RefCell::new(Vec::new()) };
     }
 
     fn landing_add(team: u8, for_use: super::SmokeUse, slot: usize, n: u64) {
