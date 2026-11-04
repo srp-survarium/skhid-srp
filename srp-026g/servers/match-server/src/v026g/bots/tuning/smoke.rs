@@ -132,7 +132,8 @@ pub struct SmokeTuning {
     pub aim_point: Option<AimPoint>,
     /// [A291 `ShooterSpot`] When no landing covers the shooter's line, a smoke on his own spot if a throw comes to rest
     /// there: he is in the cloud, so he must leave it or fire blind (the owner, 2026-11-04: "bot can throw at the enemy place
-    /// in that case so enemy would need to leave it"). None: no smoke for that crossing.
+    /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
+    /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
 }
 
@@ -303,7 +304,7 @@ impl Default for SmokeTuning {
             throw_keeps_route: true,
             wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
-            shooter_spot: None,
+            shooter_spot: Some(ShooterSpot::default()),
         }
     }
 }
