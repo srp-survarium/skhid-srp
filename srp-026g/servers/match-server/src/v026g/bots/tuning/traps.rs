@@ -117,6 +117,11 @@ pub struct TrapTuning {
     /// route round it, at most `hold_ms`. Without it the bot walks on its old route for that time: in the S1 bench 13 of 298
     /// traps caught their own placer 0-3 s after the press, landing 0.85-1.25 m from its feet. Off by default.
     pub after_press: Option<AfterPress>,
+    /// [A292 S4c] Whether a bot that stays (holds a spot, no route ahead) puts a trap down: `place` (today) or `never`. A stayer's
+    /// trap lands about a metre from its feet (its look reaches no farther), and the reflex's side steps and peeks do not keep off
+    /// the team's trap field: in the S1 + `after_press` + ring 2.0 bench 17 of 23 self-catches were stayers 4-32 s after their
+    /// press. `place` by default until its bench decides.
+    pub stayer: Stayer,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -176,6 +181,17 @@ impl Default for SensedNear {
     fn default() -> Self {
         Self { within_m: 40.0 }
     }
+}
+
+/// [A292 S4c] Whether a bot that stays puts a trap down (`TrapTuning::stayer`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Stayer {
+    /// It does, at its feet's ring of spots: today's habit.
+    #[default]
+    Place,
+    /// It does not: only a bot on its way places.
+    Never,
 }
 
 /// [A292 S4a] How long the placer may stand after its press (`TrapTuning::after_press`).
@@ -396,6 +412,7 @@ impl Default for TrapTuning {
             lanes: TrapLanes::Humans,
             sensed_near: Some(SensedNear { within_m: 40.0 }),
             after_press: None,
+            stayer: Stayer::Place,
         }
     }
 }

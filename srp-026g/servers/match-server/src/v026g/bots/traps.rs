@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{TrapLanes, TrapTuning};
+use super::tuning::{Stayer, TrapLanes, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -1281,6 +1281,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         .map(|p| (p.feet, p.velocity))
         .collect();
     let staying = is_staying(bot, me);
+    // [A292 S4c] A bot that stays puts none down with `stayer: never`.
+    if staying && t.stayer == Stayer::Never {
+        bot.features.traps.tally.stayer();
+        return;
+    }
     let in_spawn = |at: Vec3| due.tactics.in_spawn_area(at, None);
     // Where the head ray will meet the floor at the look it presses with, from the eye of the pose it has now
     // (a crouched holder lands 0.3 m nearer than a walker): none, and no trap, where no look reaches that far.
@@ -2352,6 +2357,8 @@ pub mod tally {
         /// The urgent plays that stopped a think, by play.
         plays: Vec<(PlayKind, u32)>,
         chance: u32,
+        /// Thinks of a bot that stays, with `stayer: never`.
+        stayer: u32,
         no_look: u32,
         waited_wish: u32,
         waited_pass: u32,
@@ -2412,6 +2419,10 @@ pub mod tally {
             self.no_look += 1;
         }
 
+        pub fn stayer(&mut self) {
+            self.stayer += 1;
+        }
+
         pub fn waited_wish(&mut self) {
             self.waited_wish += 1;
         }
@@ -2464,6 +2475,7 @@ pub mod tally {
             }
             self.chance += other.chance;
             self.no_look += other.no_look;
+            self.stayer += other.stayer;
             self.waited_wish += other.waited_wish;
             self.waited_pass += other.waited_pass;
             self.searched += other.searched;
@@ -2508,13 +2520,14 @@ pub mod tally {
                 .join(", ");
             format!(
                 "life spent {}, busy {}; thinks {}: refused by {gate} (the enemy: {enemy}; the plays: {plays}); \
-                 the chance {}, no look {}, waited for a wished spot {}, waited for the pass {}; searched {}, no spot {} \
+                 the chance {}, a stayer {}, no look {}, waited for a wished spot {}, waited for the pass {}; searched {}, no spot {} \
                  (candidates refused: {candidates}); planned {}; pressed {} (in the air {}), called away {}, gave up {} \
                  ({gave_up}, unjudged {})",
                 self.spent,
                 self.busy,
                 self.thinks,
                 self.chance,
+                self.stayer,
                 self.no_look,
                 self.waited_wish,
                 self.waited_pass,

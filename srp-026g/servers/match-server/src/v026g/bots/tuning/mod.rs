@@ -192,6 +192,7 @@ pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
+pub use traps::Stayer;
 pub use traps::TrapLanes;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
