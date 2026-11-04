@@ -139,6 +139,9 @@ pub(super) struct LookCounts {
     /// began, and the match's since, by team.
     watch_from: Option<[[u64; 5]; 2]>,
     watch: [[u64; 5]; 2],
+    /// [A290] The watched walk steps by `plays::watch::Near` (far: the route kept; watched; sights up), the same way.
+    near_from: Option<[[u64; 3]; 2]>,
+    near: [[u64; 3]; 2],
 }
 
 impl LookCounts {
@@ -275,6 +278,13 @@ impl Topic for LookCounts {
                 *n = counted[t][k] - from[t][k];
             }
         }
+        let near = crate::v026g::bots::plays::watch::tally::near_counted();
+        let near_from = *self.near_from.get_or_insert(near);
+        for (t, team) in self.near.iter_mut().enumerate() {
+            for (k, n) in team.iter_mut().enumerate() {
+                *n = near[t][k] - near_from[t][k];
+            }
+        }
         let now = game.tick;
         let stale: Vec<Place> =
             (0..self.open.len()).filter(|&p| self.open[p].is_some_and(|h| now.saturating_sub(h.at) > FOLLOW_MS)).collect();
@@ -354,6 +364,7 @@ impl Topic for LookCounts {
             })
             .collect();
         lines.push(format!("  walk watch (threat.walk_watch) steps by team {kinds:?}: {:?}", self.watch));
+        lines.push(format!("  walk watch near band (A290) watched steps by team [far, watch, sights_up]: {:?}", self.near));
         vec![("look", Part::new(serde_json::json!({ "look": json, "walk_watch": by_team }), lines.join("\n")))]
     }
 }
