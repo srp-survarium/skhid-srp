@@ -31,12 +31,12 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
       shop's; 345 is its premium-armour copy), the Novice's backpack (`stk2_novice_026_back`,
       the back slot; the owner's of 2026-11-02, before the Oxygen tank 9), Chemical
       protection pants (46), gloves (42) and boots (38);
-    - one weapon, in weapon slot 1 (weapon slot 2 empty; no SOK-94): kit 1 OTs-02 Kiparis
-      (88, not the premium 332) with 150 rounds of 9x18 (70); kit 2 TOZ-122 (12; the game has
-      no TOZ-11) with 30 rounds of 7.62x51 (51); kit 3 MP-153 Baikal (110) with 45 rounds of
+    - one weapon, in weapon slot 1 (weapon slot 2 empty; no SOK-94): kit 1 AK-74N
+      (306) with 90 rounds of 5.45x39 7N6M (7); kit 2 Remington 700 (14) with 30 rounds of
+      7.62x51 (51) (the owner's of 2026-11-04; before, the Kiparis and the TOZ-122); kit 3 MP-153 Baikal (110) with 45 rounds of
       12x70 smallshot (22);
     - rounds: the ammo slot full, as the ammo window fills it: the player's 3 ammo bags (no
-      bag modification on the gear) × one clip a bag: 150, 30 and 45;
+      bag modification on the gear) × one clip a bag: 90, 30 and 45;
     - pockets: 3 medkits, 3 bandages and 3 antitoxins (the owner's of 2026-11-02; before, 2
       medkits and 2 antitoxins): a player's one pocket of one unit, +1 pocket from the
       jacket's 1030, +1 pocket and +1 unit from the backpack's, +1 unit from the pants' 1170:
@@ -47,8 +47,8 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     own default 1130, -5%, for -25% in all, which the game's `fits` rule of one
     modification a type would not allow: the owner's choice);
   - autobuy on (`premium.md` §3).
-- **The kits' levels are 4, 4 and 4** (`match_making_level`: the Novice's backpack 4, the MP-153 4;
-  with the Oxygen tank they were 3, 3 and 4).
+- **The kits' levels are 7, 5 and 4** (`match_making_level`, the highest item's: the AK-74N 7,
+  the Remington 700 5, the Novice's backpack and the MP-153 4; the owner accepted it 2026-11-04).
 - **srp refuses to start**, and `srp-check-game-data` refuses the release's data
   (`game_data::init`, `survarium::v026g::new_account`, naming each), on data without the
   table or a key of it, with a key it does not know, a faction whose quests the lobby does
