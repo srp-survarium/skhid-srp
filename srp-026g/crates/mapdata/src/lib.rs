@@ -140,6 +140,9 @@ pub const STEEP_WALK_BASE_ALGO: u32 = 1;
 /// The same for the pockets shut by the exits a body can take ([`Body::pocket_exits_walled`], `WalkGrid::mark_no_exit`), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const POCKET_EXITS_WALLED_ALGO: u32 = 0x5270_0001;
+/// The same for the gap links down a flight made only over a face that held the body ([`Body::gap_no_vaults`], A293), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const GAP_NO_VAULTS_ALGO: u32 = 0x5293_0001;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -292,6 +295,10 @@ pub fn grid_key_with_links(
     // And the pockets shut by the exits a body can take.
     if body.pocket_exits_walled {
         digest.u32(POCKET_EXITS_WALLED_ALGO);
+    }
+    // And the gap links down over a face that held the body.
+    if body.gap_no_vaults {
+        digest.u32(GAP_NO_VAULTS_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

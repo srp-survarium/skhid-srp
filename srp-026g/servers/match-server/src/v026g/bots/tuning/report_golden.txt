@@ -4,7 +4,7 @@ switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_apart_mates crossfire_point cut_given_crowd held_in_pass hold_to_arrival
 switches ON cover: spot_cost=0.5
 switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 drop_aim drop_walk floor_height_clear landing_cancel_drops lip_guard_full sprint_gaps sprint_through unclear_aim zone_lines
-switches ON grid: client_numbers crouch_floors drop_room exact_erosion floor_paths gap_links honest_drops landing_carry pocket_exits_walled run_ups_after_erosion slip_landings steep_walk_base walk_off_lips
+switches ON grid: client_numbers crouch_floors drop_room exact_erosion floor_paths gap_links gap_no_vaults honest_drops landing_carry pocket_exits_walled run_ups_after_erosion slip_landings steep_walk_base walk_off_lips
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape leave_islands live_zones price_way_out run_out zone_intensity
 switches ON heal: bandages interrupt on
 switches ON kit: pocket_store
@@ -31,7 +31,7 @@ switches OFF take: cross_from_zone far_stands team_memory world_stand
 switches OFF tdm: group
 switches OFF think: door_centres wall_clear_corners
 switches OFF threat: answer_sniper breach job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes walk_watch
-switches OFF traps: at_cleared at_defeated
+switches OFF traps: after_press at_cleared at_defeated
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.hit_shooter=nearest combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric
 switch values calibration: source=PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; tiers pooled, the sweep made non-increasing) and A267(a) (fx-fights, 2026-11-02: per-type skill-1 points down to factor 0.40 and lines at skill 0 / 0.5 / 1, the same settings and estimator; MGs and pistols on forced kits)
@@ -47,7 +47,7 @@ switch values spacing: callouts=seen_and_heard queue={"cone_deg":60.0,"gap_m":2.
 switch values take: pitch=view_scale
 switch values think: search_queue=fair stamina_rates=kit
 switch values threat: concede={"concede_s":60.0,"fails":2,"keep_after_death":{"keep_s":120.0},"lone_peek":n... gang_up={"floor":0.25,"free":1,"step":0.5} sniper_memory={"memory_s":120.0,"routes":true,"smoke":true,"sprint":true,"way_cut_per_10m":...
-switch values traps: on_the_pass={"gain":1.0,"route_ahead_m":12.0}
+switch values traps: lanes=humans on_the_pass={"gain":1.0,"route_ahead_m":12.0}
 switch values unstick: drop_shut={"kept_ms":45000,"near_m":2.0} window=since_asked
 changed numbers aim: class_aim.bolt=[0.7400000095367432,0.9700000286102295,1.399999976158142] (default [1.0,1.0,1.0]) class_aim.marksman=[1.1799999475479126,1.2400000095367432,0.7200000286102295] (default [1.0,1.0,1.0]) class_aim.mg=[0.4000000059604645,0.7699999809265137,1.3200000524520874] (default [1.0,1.0,1.0]) class_aim.pistol=[0.4000000059604645,0.7699999809265137,1.3200000524520874] (default [1.0,1.0,1.0]) class_aim.rifle=[0.4000000059604645,0.7699999809265137,1.3200000524520874] (default [1.0,1.0,1.0]) class_aim.shotgun=[0.9399999976158142,1.0399999618530273,1.2999999523162842] (default [1.0,1.0,1.0]) class_aim.smg=[0.4000000059604645,0.7699999809265137,1.3200000524520874] (default [1.0,1.0,1.0]) combat.fire_through_ms=750 (default 0) combat.grenade_chance=0.6 (default 0.15) combat.grenade_friend_m=5 (default 6) combat.grenade_land_m=10 (default 12) combat.grenade_lead_s=2.5 (default 4) combat.grenade_track_chance=0.45 (default 0.08) combat.grenade_wall_m=10 (default 18) combat.settle_k_low=2 (default 1)
 changed numbers cheats: sight_hold_ms=450 (default 0)
