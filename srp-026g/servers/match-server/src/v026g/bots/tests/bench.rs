@@ -1257,6 +1257,13 @@ pub(crate) fn real_bot_cost() {
                 .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, Arc::new(human_tuning())));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
+            // [A290] `SRP_BENCH_HUMAN_PLAY=hunter`: the stand-in human hunts sights-up by his own fixed tuning, on the camper's hooks
+            // (`standin_hunter.rs`); he is no camper to the tallies.
+            if HumanPlay::from_env() == HumanPlay::Hunter {
+                let place = bots.bench_human.expect("SRP_BENCH_HUMAN_PLAY=hunter needs SRP_BENCH_HUMAN=<place>");
+                assert!(camper_place.is_none(), "SRP_BENCH_HUMAN_PLAY=hunter rides on the camper's hooks: not with SRP_BENCH_CAMPER");
+                bots.bench_camper = Some(BenchCamper::hunter(place, seed, Arc::new(hunter_tuning())));
+            }
             owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), mode, bots.bench_human, camper_place);
             if let Some(place) = camper_place
                 && camper_options.long_gun
@@ -2075,6 +2082,12 @@ pub(crate) fn real_bot_cost() {
             }
             if let Some(camper) = &bots.bench_camper {
                 eprintln!("  {}", camper.line());
+                // [A290] The hunter's shots and hits on an enemy (A287: the owner's 26-30 % a shot on the bots).
+                if HumanPlay::from_env() == HumanPlay::Hunter
+                    && let Some(&(shots, hits)) = game.shots_hits.get(camper.place())
+                {
+                    eprintln!("  hunter shots {shots} hits {hits} ({:.1} %)", 100.0 * f64::from(hits) / f64::from(shots.max(1)));
+                }
             }
             // The bots' bear traps: the habit's counts (activity: placed; harm: the team's own catches, lives
             // that ended while placing) and the response to the traps of others, one line each, always.
