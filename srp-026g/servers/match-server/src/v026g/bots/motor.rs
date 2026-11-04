@@ -2745,6 +2745,14 @@ pub fn is_up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
         && feet.y >= landing.y - UP_M.min((0.5 * rise).max(0.1))
 }
 
+/// Whether feet stand on a jump's landing: within [`UP_NEAR_M`] of it across and within [`UP_M`] of its floor's height either
+/// way. Unlike [`is_up`] it has an upper bound, so feet still on the take-off of a jump down (a gap link to a lower floor) are
+/// not on its landing (A293: 38 of 45 downward route jumps the log called `up` never left the top). Read only by the jump's log
+/// line ([`super::nav_log`]); decides nothing.
+pub fn on_landing(feet: Vec3, landing: Vec3) -> bool {
+    feet.distance_xz(landing) <= UP_NEAR_M && (feet.y - landing.y).abs() <= UP_M
+}
+
 /// The unit vector of (`dx`, `dz`), if it is not (near) zero.
 fn unit(dx: f32, dz: f32) -> Option<[f32; 2]> {
     let length = dx.hypot(dz);
