@@ -795,9 +795,7 @@ impl Default for ThreatTuning {
             concede: Some(Concede::default()),
             breach: None,
             pair_target: None,
-            // [A290] ON (a choice, all_off.json names it): the near band (`WatchNear`): by side vs the hunter stand-in, 160
-            // pairs, score +4.4 % (z +3.1), deliveries +7.5 %; the hunter's kills not moved (z -0.7).
-            walk_watch: Some(WalkWatch::default()),
+            walk_watch: None,
         }
     }
 }

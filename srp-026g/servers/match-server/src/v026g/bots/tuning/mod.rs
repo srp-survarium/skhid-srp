@@ -625,15 +625,14 @@ mod tests {
         assert_eq!(off.feel.carrier_jump_m, None);
         assert_eq!(off.sense.sprint_body_mps, None);
         assert_eq!(off.unstick.unknown_meant_needs_keys, defaults.unstick.unknown_meant_needs_keys);
-        // Under a section (`threat.walk_watch`, on in the defaults since A290): a `null` inside it is none too, a field
+        // Under a section that is none in the defaults (`threat.walk_watch`): a `null` inside it is none too, a field
         // left out is the section's own default, and a `null` for the section is none. (`known`: on in the section's
         // default, so its `null` is the case.)
-        assert_eq!(defaults.threat.walk_watch, Some(WalkWatch::default()));
+        assert_eq!(defaults.threat.walk_watch, None);
         let known_off = Tuning::parse(r#"{"threat":{"walk_watch":{"known":null}}}"#).unwrap();
         assert_eq!(known_off.threat.walk_watch, Some(WalkWatch { known: None, ..WalkWatch::default() }));
         let none = Tuning::parse(r#"{"threat":{"walk_watch":null}}"#).unwrap();
-        assert_eq!(none.threat.walk_watch, None);
-        assert_ne!(none.hash(), defaults.hash());
+        assert_eq!(none.hash(), defaults.hash());
         // A section on in the defaults (`threat.concede`, A256): a `null` inside it is none, a field left out keeps the
         // default, a `null` for the section is none.
         assert_eq!(defaults.threat.concede, Some(Concede::default()));
