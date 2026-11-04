@@ -26,7 +26,6 @@ switches OFF feel: fight_lift press_in_reach sprint_turns straight_jumps
 switches OFF grid: capsule_steps keep_last_resorts
 switches OFF mods: risk_alive.invert
 switches OFF pace: goal_clause
-switches OFF smoke: shooter_spot
 switches OFF spacing: apart_ease apart_tie lane
 switches OFF take: cross_from_zone far_stands team_memory world_stand zone_look
 switches OFF tdm: group
@@ -43,7 +42,7 @@ switch values heal: drug_stops=known
 switch values kin: edge=client fix_floor=under_in_jump jump_snap=by_keys margin_edge=body pitch_scale=client walk_off_landing=by_speed
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
-switch values smoke: wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
+switch values smoke: shooter_spot={"rest_within_m":4.0} wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
 switch values spacing: callouts=seen_and_heard queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
 switch values take: pitch=view_scale
 switch values think: search_queue=fair stamina_rates=kit
