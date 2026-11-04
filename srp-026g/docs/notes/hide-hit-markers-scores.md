@@ -66,9 +66,11 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 ## Hidden crosshair
 
-- No crosshair is drawn in a match: the hud's whole crosshair is hidden, its hit marker with it
-  (the marker is part of it), whatever "Hide hit markers" says. Back on Dynamic or Static, the
-  marker follows its own option again.
+- Only the aiming lines are hidden. Hit and kill markers remain visible unless "Hide hit
+  markers" is checked separately. The existing saved `srp_hide_crosshair` choice applies.
+- Weapon/spread updates and respawning keep the cross hidden. Changing back to Dynamic or
+  Static respects the game's current aiming/death visibility; it cannot reveal a cross that
+  the game currently suppresses. F11 and Blackout still hide the complete HUD.
 
 ## Hide hit markers
 
@@ -124,7 +126,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Settings code:** `vostok::settings` (the Settings' call, the save of user.cfg, `ConsoleBool`),
   shared with patch 79's Language choice.
 - **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden`, the Tab list's
-  `PlayerList.namesOnly` and the crosshair's visibility.
+  `PlayerList.namesOnly` and `Crosshair.crosshairHidden`. `Crosshair` combines the saved choice
+  with `HUD.show_crosshair`'s game visibility request; only `crosshair_mc` is hidden, leaving
+  the sibling hit/kill feedback under its independent setting.
 - **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two in an
   `SrpCheckGroup` (the heading, the texts asked); `SrpCrosshairChoice` (the list over the stock
   checkbox and `srp_hide_crosshair`); `Settings.layoutGameplay` places them with `SrpLanguage` and
@@ -136,5 +140,6 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   overlaps, nothing below the window, every language's texts fitting (the crosshair and minimap
   lists' choices too), with the note shown and hidden; each pending change, Apply, Cancel; Hide
   quests' inversion through the stock setter and its default; the crosshair list's mapping, Hidden
-  keeping the stock value, closing on a press outside; the hit marker shown off, hidden on, none with the crosshair hidden; the Tab list as
+  keeping the stock value, closing on a press outside; hit and kill feedback independent of the
+  hidden crosshair through weapon updates, aiming/death and respawn; the Tab list as
   today off, names only on, by clan and name). Not yet run in the game.
