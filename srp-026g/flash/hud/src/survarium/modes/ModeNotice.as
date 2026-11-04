@@ -11,7 +11,7 @@ package survarium.modes
    // Native countdown updates cannot clear this separate label.
    public class ModeNotice extends Sprite
    {
-      public static const DISPLAY_MS:int = 20000;
+      public static const DISPLAY_MS:int = 10000;
       private var _state:Object = {kind:"inactive"};
       public var label:TextField = new TextField();
       public var layoutData:LayoutData;
