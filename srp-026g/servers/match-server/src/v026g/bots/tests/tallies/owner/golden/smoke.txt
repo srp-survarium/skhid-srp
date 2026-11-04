@@ -458,6 +458,50 @@ owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, di
     0,
     0
   ],
+  "smoke_no_plan_by_height": {
+    "Above": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Below": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Level": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
   "smoke_not_seen": [
     0,
     0
