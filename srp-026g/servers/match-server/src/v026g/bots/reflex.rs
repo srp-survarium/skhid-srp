@@ -1478,7 +1478,8 @@ impl Default for CombatTuning {
             band_slack_m: 3.0,
             band_step_m: 6.0,
             band_cross_deg: None,
-            stand_strafe: None,
+            // A290 2c: by side vs the hunter stand-in, 320 pairs: score +4.4 % then +4.7 % (z +3.3) on fresh seeds, the guards level.
+            stand_strafe: Some(StandStrafe::default()),
             band_legs: true,
             spot_cooldown_ms: 3_000,
             spot_again_ms: 15_000,
