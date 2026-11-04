@@ -1893,13 +1893,13 @@ fn enemy_near(bot: &Bot, due: &Due) -> bool {
     let quiet = (t.enemy_quiet_s * 1000.0) as u32;
     !bot.memory.all_seen(due.now, due.view.clock).is_empty()
         || bot.memory.tracks().iter().any(|track| {
-            sensed_lately(t, track, due, quiet) || track.at.distance_xz(due.me.feet) < t.enemy_near_m
+            sensed_lately(t, track, due.me.feet, due.now, quiet) || track.at.distance_xz(due.me.feet) < t.enemy_near_m
         })
 }
 
 /// The gate's "sensed lately": within `enemy_quiet_s`, and with `sensed_near` (A292 S2) only this near.
-fn sensed_lately(t: &TrapTuning, track: &Track, due: &Due, quiet: u32) -> bool {
-    due.now < track.time + quiet && t.sensed_near.is_none_or(|n| track.at.distance_xz(due.me.feet) < n.within_m)
+fn sensed_lately(t: &TrapTuning, track: &Track, feet: Vec3, now: u32, quiet: u32) -> bool {
+    now < track.time + quiet && t.sensed_near.is_none_or(|n| track.at.distance_xz(feet) < n.within_m)
 }
 
 /// [A292] Which part of [`enemy_near`] holds, the first of seen / sensed lately / known near (for the counts only).
@@ -1909,7 +1909,7 @@ fn enemy_near_kind(bot: &Bot, due: &Due) -> Option<tally::EnemyNear> {
     let tracks = bot.memory.tracks();
     if !bot.memory.all_seen(due.now, due.view.clock).is_empty() {
         Some(tally::EnemyNear::Seen)
-    } else if tracks.iter().any(|track| sensed_lately(t, track, due, quiet)) {
+    } else if tracks.iter().any(|track| sensed_lately(t, track, due.me.feet, due.now, quiet)) {
         Some(tally::EnemyNear::Sensed)
     } else if tracks.iter().any(|track| track.at.distance_xz(due.me.feet) < t.enemy_near_m) {
         Some(tally::EnemyNear::Known)
@@ -2528,6 +2528,7 @@ impl super::Bots {
 mod tests {
     use super::*;
     use crate::v026g::bots::plays::tests::Scenario;
+    use crate::v026g::bots::tuning::Check;
     use crate::v026g::bots::view::Mode;
 
     fn t() -> TrapTuning {
@@ -3224,5 +3225,79 @@ mod tests {
         })
         .expect("a spot");
         assert!((chosen.spot.distance_xz(feet) - look.run_m).abs() < 1e-3, "{chosen:?}");
+    }
+
+    /// A292 S1: with `lanes: enemies` the trap map takes every enemy the team sensed itself, bot or human; a mate, a cheat or a
+    /// report too vague for a cell does not count, and the humans' lanes are not touched.
+    #[test]
+    fn the_trap_lanes_take_every_sensed_enemy() {
+        use crate::v026g::bots::know::{CheatKind, Source};
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        s.bot(1, 1, Vec3::new(20.0, 0.0, 10.0));
+        s.human(2, 1, Vec3::new(30.0, 0.0, 10.0));
+        s.bot(3, 0, Vec3::new(40.0, 0.0, 10.0));
+        let track = |who, x: f32, source, error_m| Track {
+            who,
+            at: Vec3::new(x, 0.0, 10.0),
+            error_m,
+            time: 1_000,
+            source,
+            sight_since: None,
+            notice_ms: 0,
+            own: None,
+            missed: None,
+            held_until: 0,
+        };
+        let tracks = [
+            track(1, 20.0, Source::Seen, 0.5),
+            track(2, 30.0, Source::Heard, 2.0),
+            track(3, 40.0, Source::Seen, 0.5),
+            track(1, 90.0, Source::Cheat(CheatKind::Radar), 0.0),
+            track(2, 70.0, Source::Heard, 20.0),
+        ];
+        let mut lanes = HumanLanes::default();
+        learn_enemy_lanes(&mut lanes, 0, &s.view, tracks.iter());
+        let mut who: Vec<_> = lanes.humans.iter().map(|h| h.who).collect();
+        who.sort_unstable();
+        assert_eq!(who, vec![1, 2], "{lanes:?}");
+        assert!(lanes.humans.iter().all(|h| h.cells.len() == 1), "{lanes:?}");
+        assert!(presence(&lanes, Vec3::new(21.0, 0.0, 10.0), 1_000) > 0.5);
+        assert_eq!(presence(&lanes, Vec3::new(90.0, 0.0, 10.0), 1_000), 0.0);
+        // The default reads the humans' lanes (empty here), the switch the trap map.
+        let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
+        assert_eq!(tuning.lanes, TrapLanes::Humans);
+        tuning.lanes = TrapLanes::Enemies;
+        assert!(tuning.check().is_ok());
+    }
+
+    /// A292 S2: `sensed_near` keeps a far enemy sensed lately from the enemy gate; a near one, or the default, still stops it.
+    #[test]
+    fn sensed_near_lets_a_far_sound_pass_the_gate() {
+        use crate::v026g::bots::know::Source;
+        use crate::v026g::bots::tuning::SensedNear;
+        let mut tuning = t();
+        let quiet = (tuning.enemy_quiet_s * 1000.0) as u32;
+        let at = |x: f32| Track {
+            who: 1,
+            at: Vec3::new(x, 0.0, 0.0),
+            error_m: 5.0,
+            time: 99_000,
+            source: Source::Heard,
+            sight_since: None,
+            notice_ms: 0,
+            own: None,
+            missed: None,
+            held_until: 0,
+        };
+        let lately = |tuning: &TrapTuning, x: f32| sensed_lately(tuning, &at(x), Vec3::ZERO, 100_000, quiet);
+        assert!(lately(&tuning, 150.0), "today: at any distance");
+        assert!(!sensed_lately(&tuning, &at(150.0), Vec3::ZERO, 99_000 + quiet, quiet), "not lately");
+        tuning.sensed_near = Some(SensedNear::default());
+        assert!(!lately(&tuning, 150.0));
+        assert!(lately(&tuning, 30.0));
+        assert!(tuning.check().is_ok());
+        tuning.sensed_near = Some(SensedNear { within_m: 10.0 });
+        assert!(tuning.check().is_err(), "nearer than enemy_near_m");
     }
 }
