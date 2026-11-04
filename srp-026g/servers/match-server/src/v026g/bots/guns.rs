@@ -152,6 +152,9 @@ pub struct Gun {
     /// How the bullet of the ammunition the bots' kits give it flies ([`kit_flight`]); `None` for a weapon no kit has
     /// or an ammunition with no muzzle speed.
     pub flight: Option<Flight>,
+    /// [A307] What the kit's `recoil_modifier` multiplies each shot's kick by: `max(0, 1 + Factors::recoil)`; 1 for the
+    /// weapon alone ([`Gun::of`]).
+    pub recoil_scale: f32,
 }
 
 impl Gun {
@@ -442,6 +445,7 @@ impl Gun {
             class: WeaponClass::of(w),
             by_category: WeaponClass::by_category(w.category, chamber_ms > 0 && !auto),
             flight: kit_flight(w.name),
+            recoil_scale: 1.0,
         }
     }
 }
@@ -476,6 +480,9 @@ pub struct Factors {
     /// `aim_time_modifier` (49: skill 101, gloves 1080..1084): the sights
     /// take `aim_time * max(0, 1 + this)` [PROVEN, 0x2E1B9A / 0x2E1C3B].
     pub aim_time: f32,
+    /// [A307] `recoil_modifier` (the skills' `recoil`, the worn items' default and upgrade modifications: `ren_gloves_1`
+    /// -8 % since revision 38): every shot's kick ranges times `max(0, 1 + this)` (`recoil.rs`, 0x331C50, PROVEN).
+    pub recoil: f32,
 }
 
 impl Factors {
@@ -492,6 +499,7 @@ impl Factors {
         Self {
             reload_speed: modifiers[index("reload_speed")] + worn("reload_speed_modifier"),
             aim_time: modifiers[index("aim_time")] + worn("aim_time_modifier"),
+            recoil: modifiers[index("recoil")] + worn("recoil_modifier"),
         }
     }
 }
@@ -511,7 +519,10 @@ impl Gun {
         let mut w = w.with_mods(mods);
         w.reload_time /= (1.0 + factors.reload_speed).max(MIN_RELOAD_SPEED);
         w.aim_time *= (1.0 + factors.aim_time).max(0.0);
-        Self::of(&w)
+        Self {
+            recoil_scale: (1.0 + factors.recoil).max(0.0),
+            ..Self::of(&w)
+        }
     }
 }
 
@@ -709,13 +720,13 @@ pub fn gun_with_in(
     if mods.is_empty() && factors == Factors::default() {
         return Some(base);
     }
-    type Key = (usize, &'static str, Vec<u32>, [u32; 2]);
+    type Key = (usize, &'static str, Vec<u32>, [u32; 3]);
     static MADE: std::sync::Mutex<Vec<(Key, &'static Gun)>> = std::sync::Mutex::new(Vec::new());
     let key: Key = (
         table.guns.as_ptr() as usize,
         base.item,
         mods.to_vec(),
-        [factors.reload_speed.to_bits(), factors.aim_time.to_bits()],
+        [factors.reload_speed.to_bits(), factors.aim_time.to_bits(), factors.recoil.to_bits()],
     );
     let mut made = MADE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some((_, gun)) = made.iter().find(|(made, _)| *made == key) {
@@ -1306,13 +1317,17 @@ mod tests {
         assert!(std::ptr::eq(fast, gun_with("ak_74u", &[2044], none).unwrap()));
         assert!(std::ptr::eq(gun_with("ak_74u", &[], none).unwrap(), ak));
         // Gloves with +15 % reload speed (1144) on top: 2692 / 1.15.
-        let gloves = Factors { reload_speed: 0.15, aim_time: 0.0 };
+        let gloves = Factors { reload_speed: 0.15, aim_time: 0.0, recoil: 0.0 };
         assert_eq!(gun_with("ak_74u", &[2044], gloves).unwrap().reload, Reload::Magazine { ms: 2341 });
         // The aim time follows its factor (skill 101: -10 %).
-        let aim = Factors { reload_speed: 0.0, aim_time: -0.10 };
+        let aim = Factors { reload_speed: 0.0, aim_time: -0.10, recoil: 0.0 };
         let aimed = gun_with("ak_74u", &[], aim).unwrap();
         assert_eq!(aimed.aim_ms, (ak.aim_ms as f32 * 0.9).round() as u32);
         assert_eq!(Gun { aim_ms: ak.aim_ms, ..*aimed }, *ak);
+        // [A307] The recoil factor (`ren_gloves_1`: -8 %) scales the kick and nothing else.
+        let kicked = gun_with("ak_74u", &[], Factors { reload_speed: 0.0, aim_time: 0.0, recoil: -0.08 }).unwrap();
+        assert!((kicked.recoil_scale - 0.92).abs() < 1e-6 && ak.recoil_scale == 1.0);
+        assert_eq!(Gun { recoil_scale: 1.0, ..*kicked }, *ak);
         // Inert types leave every field.
         for inert in [2074, 2084] {
             assert_eq!(*gun_with("ak_74u", &[inert], none).unwrap(), *ak, "{inert}");
@@ -1440,7 +1455,7 @@ mod tests {
         held.add(gun("ak_74u").unwrap());
         assert_eq!(held, HeldMods::default());
         // The owner's 13-15 rusher: weapon -12 %, gloves +10 %, skill 101 -10 %.
-        let owners = Factors { reload_speed: 0.10, aim_time: -0.10 };
+        let owners = Factors { reload_speed: 0.10, aim_time: -0.10, recoil: 0.0 };
         let mut held = HeldMods::default();
         held.add(gun_with("ak_74u", &[2043], owners).unwrap());
         held.add(gun_with("ak_74u", &[2061], none).unwrap());
@@ -1453,12 +1468,12 @@ mod tests {
         held.add(gun_with("mosin_nagant", &[2054], none).unwrap());
         assert_eq!((held.bots, held.rate, held.chamber), (3, 1, 1));
         // A reload past a player's most (-15 % and +27 % speed): 0.5 of the base.
-        let absurd = Factors { reload_speed: 1.0, aim_time: 0.0 };
+        let absurd = Factors { reload_speed: 1.0, aim_time: 0.0, recoil: 0.0 };
         let mut held = HeldMods::default();
         held.add(gun_with("ak_74u", &[], absurd).unwrap());
         assert_eq!((held.reload, held.out_of_range), (1, 1));
         // The most a player has is not past it.
-        let most = Factors { reload_speed: 0.27, aim_time: -0.20 };
+        let most = Factors { reload_speed: 0.27, aim_time: -0.20, recoil: 0.0 };
         let mut held = HeldMods::default();
         held.add(gun_with("ak_74u", &[2044], most).unwrap());
         assert_eq!(held.out_of_range, 0);
@@ -1654,5 +1669,30 @@ mod tests {
                 finish_ms: 1_000
             }
         );
+    }
+
+    /// [A307] The kits that wear `ren_gloves_1` get its recoil modifier from the game data (negative: less kick), and their guns'
+    /// kick scale is `1 +` the kit's sum.
+    #[test]
+    fn a_kit_with_the_ren_gloves_kicks_less() {
+        let gloves = Dictionary::shared().item_named("ren_gloves_1").expect("ren_gloves_1").dict_id;
+        let own = item_added(gloves, &[], "recoil_modifier");
+        assert!(own < 0.0, "ren_gloves_1's recoil modifier {own}");
+        let mut seen = 0;
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let equipment = BotEquipment { tier, rusher: tier.rusher_kits()[0], mask: BotMask::Table };
+                for kit in bot_kits(equipment, role) {
+                    if !kit.items.iter().any(|item| item.dict_id == gloves) {
+                        continue;
+                    }
+                    seen += 1;
+                    let none = [0.0; MODIFIERS];
+                    let factors = Factors::of_kit(kit, &none);
+                    assert!(factors.recoil <= own + 1e-6, "{tier:?} {role:?}: {}", factors.recoil);
+                }
+            }
+        }
+        assert!(seen > 0, "no kit wears ren_gloves_1");
     }
 }
