@@ -27,6 +27,11 @@ pub struct GroupUp {
     /// Seen from the enemy, the cover spot's bearing differs from the mate's by this at least, degrees: a second angle, no
     /// file (84 % of the humans' pushes came from two or more 45-degree sectors).
     pub bearing_min_deg: f32,
+    /// ... or lies this far to the side of the mate's line from the enemy, m (a far enemy sees a 15 m offset under 30 degrees;
+    /// the bench's file guard is 6 m). GUESS.
+    pub lateral_m: Metres,
+    /// Who answers a mate's fight ([`Answer`]).
+    pub answer: Answer,
     /// No cover spot within this of a teammate's death in the last `dead_s`, m: the lane that just killed is not re-entered.
     pub dead_m: Metres,
     pub dead_s: Positive,
@@ -45,6 +50,8 @@ impl Default for GroupUp {
             min_m: Metres::of(6.0),
             max_m: Metres::of(15.0),
             bearing_min_deg: 30.0,
+            lateral_m: Metres::of(5.0),
+            answer: Answer::Nearest,
             dead_m: Metres::of(8.0),
             dead_s: Positive::of(20.0),
             linger_s: Positive::of(2.0),
@@ -52,6 +59,19 @@ impl Default for GroupUp {
             walk_m: Metres::of(10.0),
         }
     }
+}
+
+/// Who answers a mate's fight.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Answer {
+    /// Its partner only (pairs by position), within `answer_m`. The first bench (168 pairs vs the hunter, half read): the
+    /// partner was over `answer_m` off in 14,645 polls against 1,595 covers taken; pairs drift apart on their own plays.
+    Partner,
+    /// The nearest free bot of the team within `answer_m` (not in a fight itself, not a carrier), each fight one answerer, the
+    /// nearest pairs first (`group::answerers`): 74 % of the owner's victims had a mate within 20 m (A287), mostly not the partner.
+    #[default]
+    Nearest,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]

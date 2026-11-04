@@ -141,12 +141,27 @@ pub enum NotCover {
     InKilledLane,
 }
 
-/// Whether `spot` covers the fight of a mate at `mate` with the enemy known at `enemy`: from a bearing at least
-/// `bearing_min_deg` off the mate's, not on a fresh teammate death, not in the lane a fresh death came from (the same bearing
-/// from the enemy within half the minimum, no farther out than that death). The sight line itself is the spot query's.
+/// How far `spot` lies to the side of the line from `enemy` through `toward` (on the ground), m: two bodies on that line are
+/// in file seen from him, one masks the other.
+fn lateral(enemy: Vec3, toward: Vec3, spot: Vec3) -> f32 {
+    let (dx, dz) = (toward.x - enemy.x, toward.z - enemy.z);
+    let len = (dx * dx + dz * dz).sqrt();
+    if len < 1e-3 {
+        return spot.distance_xz(enemy);
+    }
+    ((spot.x - enemy.x) * dz - (spot.z - enemy.z) * dx).abs() / len
+}
+
+/// Whether `spot` covers the fight of a mate at `mate` with the enemy known at `enemy`: off the mate's line from the enemy (a
+/// bearing at least `bearing_min_deg` off his, or at least `lateral_m` to the side of it: a far enemy sees a 15 m offset under
+/// 30 degrees), not on a fresh teammate death, not in the lane a fresh death came from (on that death's line from the enemy by
+/// the same test, no farther out than it). The sight line itself is the spot query's.
 pub fn cover_ok(spot: Vec3, mate: Vec3, enemy: Vec3, losses: &[Loss], now: u32, rules: &GroupUp) -> Result<(), NotCover> {
-    let to_spot = bearing(enemy, spot);
-    if apart_deg(to_spot, bearing(enemy, mate)) < rules.bearing_min_deg {
+    let on_line = |toward: Vec3| {
+        apart_deg(bearing(enemy, spot), bearing(enemy, toward)) < rules.bearing_min_deg
+            && lateral(enemy, toward, spot) < rules.lateral_m.get()
+    };
+    if on_line(mate) {
         return Err(NotCover::InFile);
     }
     let fresh_ms = (rules.dead_s.get() * 1000.0) as u32;
@@ -154,14 +169,33 @@ pub fn cover_ok(spot: Vec3, mate: Vec3, enemy: Vec3, losses: &[Loss], now: u32, 
         if loss.at.distance_xz(spot) <= rules.dead_m.get() {
             return Err(NotCover::OnDeath);
         }
-        let reach = loss.at.distance_xz(enemy);
-        if spot.distance_xz(enemy) <= reach + rules.dead_m.get()
-            && apart_deg(to_spot, bearing(enemy, loss.at)) < rules.bearing_min_deg * 0.5
-        {
+        if spot.distance_xz(enemy) <= loss.at.distance_xz(enemy) + rules.dead_m.get() && on_line(loss.at) {
             return Err(NotCover::InKilledLane);
         }
     }
     Ok(())
+}
+
+/// Who answers which fight: each fighting mate `(mate, at)` gets the nearest free bot `(place, at)` within `answer_m`, the
+/// nearest pairs first, each free bot once. Every bot of the team works it out from the same view, so they agree.
+pub fn answerers(fights: &[(Place, Vec3)], free: &[(Place, Vec3)], answer_m: f32) -> Vec<(Place, Place)> {
+    let mut pairs: Vec<(f32, Place, Place)> = Vec::new();
+    for &(mate, at) in fights {
+        for &(bot, feet) in free {
+            let d = at.distance_xz(feet);
+            if bot != mate && d <= answer_m {
+                pairs.push((d, mate, bot));
+            }
+        }
+    }
+    pairs.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+    let mut out: Vec<(Place, Place)> = Vec::new();
+    for (_, mate, bot) in pairs {
+        if out.iter().all(|&(m, b)| m != mate && b != bot) {
+            out.push((mate, bot));
+        }
+    }
+    out
 }
 
 /// What the switch did (the bench's count; nothing live): the topic `group` prints them.
@@ -287,6 +321,9 @@ mod tests {
         let mate = Vec3::new(20.0, 0.0, 0.0);
         // Behind the mate on his line: a file.
         assert_eq!(cover_ok(Vec3::new(30.0, 0.0, 2.0), mate, enemy, &[], 10_000, &rules), Err(NotCover::InFile));
+        // A far enemy: 8 m to the side is under 30 degrees, but off his line.
+        let far = Vec3::new(-40.0, 0.0, 0.0);
+        assert_eq!(cover_ok(Vec3::new(22.0, 0.0, 8.0), mate, far, &[], 10_000, &rules), Ok(()));
         // 45 degrees round: covers.
         let side = Vec3::new(14.0, 0.0, 14.0);
         assert_eq!(cover_ok(side, mate, enemy, &[], 10_000, &rules), Ok(()));
@@ -298,5 +335,14 @@ mod tests {
         // A death farther out on the same bearing: the spot is in the lane that killed.
         let far = Loss { at: Vec3::new(30.0, 0.0, 30.0), time: 5_000, spawner: None };
         assert_eq!(cover_ok(side, mate, enemy, &[far], 10_000, &rules), Err(NotCover::InKilledLane));
+    }
+
+    #[test]
+    fn each_fight_gets_the_nearest_free_bot_once() {
+        let fights = [(1, Vec3::new(0.0, 0.0, 0.0)), (2, Vec3::new(50.0, 0.0, 0.0))];
+        let free = [(3, Vec3::new(5.0, 0.0, 0.0)), (4, Vec3::new(8.0, 0.0, 0.0)), (5, Vec3::new(90.0, 0.0, 0.0))];
+        // 3 answers 1; 4 is free but 42 m from 2 (over 30 m); 5 is too far from both.
+        assert_eq!(answerers(&fights, &free, 30.0), vec![(1, 3)]);
+        assert_eq!(answerers(&fights, &free, 45.0), vec![(1, 3), (2, 4)]);
     }
 }

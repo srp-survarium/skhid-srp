@@ -148,25 +148,52 @@ fn group(cx: &Ctx) -> Option<GroupUp> {
     cx.tuning.tdm.group.filter(|_| !cx.view.objective().has_homes())
 }
 
-/// [A297 `tdm.group`] The partner whose fight this bot answers, if one is due: the partner is in a fight (the team's list),
-/// alive within `answer_m`, and this bot is in none itself. The enemy's place is the bot's own memory's ([`Ctx::known_place`]);
-/// not known, no cover (counted).
-fn partner_fight(cx: &Ctx, rules: &GroupUp) -> Option<Place> {
-    let partner = cx.bot.partner?;
-    let fight = cx.team.fighting.iter().find(|f| f.mate == partner)?;
-    if cx.team.fighting.iter().any(|f| f.mate == cx.me.place) {
+/// [A297 `tdm.group`] The mate whose fight this bot answers, if one is due, and this bot is in no fight itself:
+/// - [`Answer::Partner`]: its partner, in a fight, alive within `answer_m`;
+/// - [`Answer::Nearest`]: the fight [`group::answerers`] gives this bot (each fight the nearest free bot within `answer_m`).
+///
+/// The enemy's place is the bot's own memory's ([`Ctx::known_place`]); not known, no cover (counted).
+fn fight_to_answer(cx: &Ctx, rules: &GroupUp) -> Option<Place> {
+    use crate::v026g::bots::group;
+    use crate::v026g::bots::tuning::Answer;
+    let fighting = &cx.team.fighting;
+    if fighting.iter().any(|f| f.mate == cx.me.place) {
         return None;
     }
-    let mate = cx.known_place(partner)?;
-    if mate.distance_xz(cx.me.feet) > rules.answer_m.get() {
-        count(Count::CoverFar);
-        return None;
-    }
-    if cx.known_place(fight.enemy).is_none() {
+    let mate = match rules.answer {
+        Answer::Partner => {
+            let partner = cx.bot.partner.filter(|p| fighting.iter().any(|f| f.mate == *p))?;
+            if cx.known_place(partner)?.distance_xz(cx.me.feet) > rules.answer_m.get() {
+                count(Count::CoverFar);
+                return None;
+            }
+            partner
+        }
+        Answer::Nearest => {
+            let fights: Vec<(Place, Vec3)> =
+                fighting.iter().filter_map(|f| cx.known_place(f.mate).map(|at| (f.mate, at))).collect();
+            if fights.is_empty() {
+                return None;
+            }
+            let free: Vec<(Place, Vec3)> = cx
+                .view
+                .team(cx.me.team)
+                .filter(|p| p.bot && p.carrying.is_none() && !fighting.iter().any(|f| f.mate == p.place))
+                .map(|p| (p.place, p.feet))
+                .collect();
+            let Some(&(mate, _)) = group::answerers(&fights, &free, rules.answer_m.get()).iter().find(|(_, bot)| *bot == cx.me.place) else {
+                count(Count::CoverFar);
+                return None;
+            };
+            mate
+        }
+    };
+    let enemy = fighting.iter().find(|f| f.mate == mate)?.enemy;
+    if cx.known_place(enemy).is_none() {
         count(Count::CoverUnknown);
         return None;
     }
-    Some(partner)
+    Some(mate)
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -180,8 +207,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             out.extend(cx.candidate(PlayKind::Trade, target, None));
             return;
         }
-        if let Some(partner) = partner_fight(cx, &rules) {
-            out.extend(cx.candidate(PlayKind::Trade, TargetRef::Place(partner), None));
+        if let Some(mate) = fight_to_answer(cx, &rules) {
+            out.extend(cx.candidate(PlayKind::Trade, TargetRef::Place(mate), None));
             return;
         }
     }
