@@ -687,6 +687,40 @@ pub struct SmokePlan {
     pub covers_m: f32,
     /// The line the cloud is for.
     pub line: SmokeLine,
+    /// [A302] The rule that chose the landing, for the plan's note.
+    pub placed_by: PlacedBy,
+}
+
+/// [A302] The rule that chose a smoke's landing (the plan's note says it: the owner's logs could not tell a `best_cover`
+/// landing from a `shooter_spot` one).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlacedBy {
+    /// `smoke_between`: the landing nearest the shooter's end that covers the line (also the fallback of the two below).
+    Between,
+    /// `smoke.aim_point` `mid_line`.
+    MidLine,
+    /// `smoke.aim_point` `near_shooter`.
+    NearShooter,
+    /// `smoke.aim_point` `best_cover`.
+    BestCover,
+    /// `smoke.shooter_spot`: on the shooter's own spot, no landing covering his line.
+    ShooterSpot,
+    /// `smoke_on`: on a held spot (the sniper smoke).
+    OnSpot,
+}
+
+impl PlacedBy {
+    /// Its name in the tuning and the notes.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Between => "between",
+            Self::MidLine => "mid_line",
+            Self::NearShooter => "near_shooter",
+            Self::BestCover => "best_cover",
+            Self::ShooterSpot => "shooter_spot",
+            Self::OnSpot => "on_spot",
+        }
+    }
 }
 
 /// The line a smoke is for: the threat's eye to the chest over the crossing, and the crossing (the route's first point
@@ -880,6 +914,7 @@ pub fn smoke_between(
             for_use,
             covers_m,
             line: SmokeLine { eye: threat_eye, target: chest, crossing },
+            placed_by: PlacedBy::Between,
         })
     })
 }
@@ -933,6 +968,7 @@ pub fn smoke_mid_line(
                 for_use,
                 covers_m,
                 line: SmokeLine { eye: threat_eye, target: chest, crossing },
+                placed_by: PlacedBy::MidLine,
             }))
         })
         .max_by_key(|(key, _)| *key)
@@ -981,6 +1017,7 @@ pub fn smoke_near_shooter(
                 for_use,
                 covers_m,
                 line: SmokeLine { eye: threat_eye, target: chest, crossing },
+                placed_by: PlacedBy::NearShooter,
             }))
         })
         .max_by_key(|(key, _)| *key)
@@ -1027,6 +1064,7 @@ pub fn smoke_best_cover(
                 for_use,
                 covers_m,
                 line: SmokeLine { eye: threat_eye, target: chest, crossing },
+                placed_by: PlacedBy::BestCover,
             }))
         })
         .max_by_key(|(key, _)| *key)
@@ -1056,6 +1094,7 @@ pub fn smoke_on_shooter(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3, for
         for_use,
         covers_m: reach.smoke_on_line(aim.rest, threat_eye, chest),
         line: SmokeLine { eye: threat_eye, target: chest, crossing },
+        placed_by: PlacedBy::ShooterSpot,
     })
 }
 
@@ -1195,6 +1234,7 @@ pub fn smoke_on(reach: &Reach<'_>, spot_eye: Vec3, toward: Vec3, for_use: SmokeU
         for_use,
         covers_m: reach.smoke_on_line(aim.rest, spot_eye, toward),
         line: SmokeLine { eye: spot_eye, target: toward, crossing: toward },
+        placed_by: PlacedBy::OnSpot,
     })
 }
 
