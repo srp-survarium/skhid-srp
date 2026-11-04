@@ -376,10 +376,15 @@ mod tests {
             assert_eq!(item_params(dict_id).unwrap().kind, "ammo");
             assert_eq!(stacks(dict_id), [grant.rounds], "{dict_id}");
         }
-        // What it owns: the three free weapons, unworn, and the stacks the
-        // pockets take theirs from (the inventory shows them whole).
+        // What it owns: the free weapons and the AKs, unworn, the stash maps,
+        // and the stacks the pockets take theirs from (the inventory shows
+        // them whole). The test data predates the AKMSU.
         for (name, units) in &grant.own {
-            let item = dictionary.item_named(name).unwrap();
+            let Some(item) = dictionary.item_named(name) else {
+                assert_eq!(name, "akmsu");
+                assert!(account.inventory.iter().all(|it| it.dict_id != 2290));
+                continue;
+            };
             let owned = stacks(item.dict_id);
             if item.is_stack {
                 assert_eq!(owned, [*units], "{name}");
@@ -461,7 +466,7 @@ mod tests {
             missing,
             ["novice_026_helmet", "stk2_novice_026_back"].repeat(3)
         );
-        assert_eq!(levels, [3, 3, 4]);
+        assert_eq!(levels, [7, 5, 4]);
         assert_eq!(account.active_kit, account.kits[0].id);
 
         // The two modifications: the game's own rows.
