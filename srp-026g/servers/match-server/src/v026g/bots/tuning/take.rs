@@ -88,6 +88,23 @@ pub enum TakePitch {
 #[serde(default, deny_unknown_fields)]
 pub struct CrossFromZone {}
 
+/// A battery the team believes lies where no floor can hold it is forgotten, and the team looks where it last lay on a floor (A296
+/// item 1, the owner's match 0x33e42d77): battery 2 fell through the floor where its carrier died (251-255 s, the HUD following it
+/// down to y -91.5) and the team kept it "known" there for 570 s, every bot refusing it "no stand to take it from" and none
+/// looking for it (PROVEN, the log). A spot is impossible when it lies more than `below_m` under every floor of the grid within
+/// `box_m` across of it, or no floor is there at all (off the level). The look (`LookSpot`) is where the HUD last showed it on a
+/// floor: the game puts a battery that fell back near there (battery 1 of the same match, 6 s later, 2.4 m off).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DropImpossible {
+    pub below_m: Metres,
+    pub box_m: Metres,
+}
+
+impl Default for DropImpossible {
+    fn default() -> Self {
+        // 5 m: deeper than any step, drop or pit floor the grid misses under a lying battery; 4 m: a grid cell's error and a body.
+        Self { below_m: Metres::of(5.0), box_m: Metres::of(4.0) }
 /// A spawner whose battery could not be taken (in a damage zone) is still searched (A296 item 6, A298 cause 1): the spawner search
 /// skipped every such spot, so no bot went near, and a team never learned a battery lay there (Vostok Radar Station's 0, 3 and 4 in
 /// the gas all match, the trailing team one point behind for the last 4 minutes with three free batteries; PROVEN, A298). With
@@ -115,6 +132,7 @@ pub struct TakeTuning {
     pub far_stands: Option<FarStands>,
     pub pitch: TakePitch,
     pub cross_from_zone: Option<CrossFromZone>,
+    pub drop_impossible: Option<DropImpossible>,
     pub zone_look: Option<ZoneLook>,
 }
 

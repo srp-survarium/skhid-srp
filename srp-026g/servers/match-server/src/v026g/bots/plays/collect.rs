@@ -559,13 +559,17 @@ pub mod take_counts {
         SteepPressAimed,
         /// ... or there only after `SETTLE_MS` (not called aimed).
         SteepPressLate,
+        /// [take.drop_impossible] A battery the HUD showed where no floor holds it, dropped from the team's belief ...
+        ImpossibleDropped,
+        /// ... and a look set where it last lay on a floor.
+        ImpossibleLook,
         /// [take.zone_look] A zone spawner offered to the search from a dry look spot ...
         ZoneLookOffered,
         /// ... and a search step walking to it.
         ZoneLookWalk,
     }
 
-    pub const ALL: usize = 13;
+    pub const ALL: usize = 15;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -580,6 +584,8 @@ pub mod take_counts {
         "zone_search_found",
         "steep_press_aimed",
         "steep_press_late",
+        "impossible_dropped",
+        "impossible_look",
         "zone_look_offered",
         "zone_look_walk",
     ];
