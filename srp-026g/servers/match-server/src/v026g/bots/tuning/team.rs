@@ -34,12 +34,19 @@ pub struct BehindOpen {
     pub raid_after_s: f32,
     pub share: f32,
     pub full_at: f32,
+    /// An early raid (before the play's own `after_s`) only while at most this many enemies are known within the play's
+    /// `guard_m` of their container: the first build's early raids walked into held containers (#1236: attack deaths +13 %,
+    /// steals 31 vs 38).
+    pub thin_guard: u32,
+    /// A team behind runs a raid's approach (`Pace::Run`) outside the play's `sneak_m`: the first build walked it (Raid calm
+    /// walking +13.5 %).
+    pub run_in: bool,
 }
 
 impl Default for BehindOpen {
     fn default() -> Self {
         // GUESS, by bench: one battery behind; a raid from 30 s; 0.6 of the time taken off at two behind.
-        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0 }
+        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0, thin_guard: 0, run_in: true }
     }
 }
 
@@ -65,7 +72,9 @@ impl BehindOpen {
 
 /// [A296 item 5] Regroup before a raid: a raider first within `stage_m` of their container, with a teammate alive within
 /// `call_m` of it and none within `mate_m`, stops there (crouched, looking at the container) up to `wait_s` for one to come
-/// within `mate_m`, then goes in. A lone raider, or one with a mate already by him, goes in at once.
+/// within `mate_m`, then goes in. A lone raider, or one with a mate already by him, goes in at once. With `call` a team behind
+/// (`behind_open.by`, else one point) offers the raid's second slot, so a mate is sent to the same container: the first build's
+/// stops rarely saw one come (#1236: 4-7 stops a log, almost none joined).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RaidRegroup {
@@ -73,12 +82,13 @@ pub struct RaidRegroup {
     pub call_m: f32,
     pub mate_m: f32,
     pub wait_s: f32,
+    pub call: bool,
 }
 
 impl Default for RaidRegroup {
     fn default() -> Self {
         // GUESS, by bench: out of the container's 25 m guard ring with room; a mate in sight and in reach of a trade.
-        Self { stage_m: 40.0, call_m: 50.0, mate_m: 12.0, wait_s: 10.0 }
+        Self { stage_m: 40.0, call_m: 50.0, mate_m: 12.0, wait_s: 10.0, call: true }
     }
 }
 
