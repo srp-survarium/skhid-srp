@@ -125,7 +125,10 @@ pub struct SmokeTuning {
     /// shooter's end that the throw reaches and that covers the line (`smoke::smoke_between`), so a shooter within the
     /// throw's reach (about 30 m) gets the cloud on his own feet and steps out of its 8 m radius to see the crossing again
     /// (A288: 7 of the 12 enemy smokes against the owner's lane landed within 8 m of him; humans put 69 % between the
-    /// thrower and the enemy and 6 % on the enemy, `fx-smoke-data.md` section 5).
+    /// thrower and the enemy and 6 % on the enemy, `fx-smoke-data.md` section 5). ON by default, `best_cover` (#1217, by side
+    /// against None, 336 pairs: crossing stretch hidden 86.5 % vs 74.0 %, clouds on the shooter 28.8 % vs 40.4 %, deliveries
+    /// +4.1 % z +2.8, no guard worse; rays +1.9 %); the old point is wrong by the game (a ground cloud under a raised
+    /// shooter's line hides nothing), so it is in `KEPT_RIGHT` and `all_off.json` does not name it.
     pub aim_point: Option<AimPoint>,
 }
 
@@ -281,7 +284,7 @@ impl Default for SmokeTuning {
             claim_ms: 3_000,
             throw_keeps_route: true,
             wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
-            aim_point: None,
+            aim_point: Some(AimPoint::BestCover(BestCover::default())),
         }
     }
 }
