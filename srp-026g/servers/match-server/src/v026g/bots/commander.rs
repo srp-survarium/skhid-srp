@@ -842,7 +842,8 @@ impl Bots {
                         group::count(group::Count::ApproachAnswered);
                     }
                     let ring_m = group_rules.max_m.get() + 3.0;
-                    group::holds_short(me, at, a.since, now, (rules.hold_s.get() * 1000.0) as u32, answerer, ring_m, &group_rules)
+                    let approaching = group::Approaching { at: me, enemy: at, since: a.since };
+                    group::holds_short(approaching, now, (rules.hold_s.get() * 1000.0) as u32, answerer, ring_m, &group_rules)
                         .then_some((a.mate, at))
                 })
                 .collect(),

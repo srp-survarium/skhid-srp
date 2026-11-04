@@ -213,14 +213,21 @@ pub fn moves(kind: Option<super::plays::PlayKind>) -> bool {
     matches!(kind, None | Some(PlayKind::Roam | PlayKind::PairUp | PlayKind::Buddy | PlayKind::Hunt | PlayKind::Flank))
 }
 
-/// [A297 v4] Whether the mover at `at`, approaching an enemy known at `enemy`, holds short at `now` (its approach began
-/// `since`): within `hold_ms` of the start, while its answerer (if any) does not stand within `ring_m` of it off its line to
-/// him (by `cover_ok`'s line test, no deaths counted).
-pub fn holds_short(at: Vec3, enemy: Vec3, since: u32, now: u32, hold_ms: u32, answerer: Option<Vec3>, ring_m: f32, rules: &GroupUp) -> bool {
-    if now.saturating_sub(since) >= hold_ms {
+/// [A297 v4] A mover approaching an enemy: where it stands, where it knows him, and when the approach began.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Approaching {
+    pub at: Vec3,
+    pub enemy: Vec3,
+    pub since: u32,
+}
+
+/// [A297 v4] Whether the mover `a` holds short at `now`: within `hold_ms` of the approach's start, while its answerer (if any)
+/// does not stand within `ring_m` of it off its line to him (by `cover_ok`'s line test, no deaths counted).
+pub fn holds_short(a: Approaching, now: u32, hold_ms: u32, answerer: Option<Vec3>, ring_m: f32, rules: &GroupUp) -> bool {
+    if now.saturating_sub(a.since) >= hold_ms {
         return false;
     }
-    !answerer.is_some_and(|a| a.distance_xz(at) <= ring_m && cover_ok(a, at, enemy, &[], now, rules).is_ok())
+    !answerer.is_some_and(|b| b.distance_xz(a.at) <= ring_m && cover_ok(b, a.at, a.enemy, &[], now, rules).is_ok())
 }
 
 /// The walk from `from` to `to`, m (Breach's `walk_m`): the regions' way between their floors, at least the straight line; the
@@ -391,15 +398,14 @@ mod tests {
     fn a_lone_mover_holds_short_until_its_answerer_is_by_it_off_its_line_or_the_hold_runs_out() {
         use crate::v026g::bots::plays::PlayKind;
         let rules = GroupUp::default();
-        let me = Vec3::new(20.0, 0.0, 0.0);
-        let enemy = Vec3::new(0.0, 0.0, 0.0);
+        let a = Approaching { at: Vec3::new(20.0, 0.0, 0.0), enemy: Vec3::new(0.0, 0.0, 0.0), since: 1_000 };
         // No answerer: holds for 3 s, then goes.
-        assert!(holds_short(me, enemy, 1_000, 2_000, 3_000, None, 18.0, &rules));
-        assert!(!holds_short(me, enemy, 1_000, 4_000, 3_000, None, 18.0, &rules));
+        assert!(holds_short(a, 2_000, 3_000, None, 18.0, &rules));
+        assert!(!holds_short(a, 4_000, 3_000, None, 18.0, &rules));
         // The answerer far off: holds; by it but behind it on its line: holds; by it off the line: goes.
-        assert!(holds_short(me, enemy, 1_000, 2_000, 3_000, Some(Vec3::new(60.0, 0.0, 0.0)), 18.0, &rules));
-        assert!(holds_short(me, enemy, 1_000, 2_000, 3_000, Some(Vec3::new(28.0, 0.0, 1.0)), 18.0, &rules));
-        assert!(!holds_short(me, enemy, 1_000, 2_000, 3_000, Some(Vec3::new(18.0, 0.0, 10.0)), 18.0, &rules));
+        assert!(holds_short(a, 2_000, 3_000, Some(Vec3::new(60.0, 0.0, 0.0)), 18.0, &rules));
+        assert!(holds_short(a, 2_000, 3_000, Some(Vec3::new(28.0, 0.0, 1.0)), 18.0, &rules));
+        assert!(!holds_short(a, 2_000, 3_000, Some(Vec3::new(18.0, 0.0, 10.0)), 18.0, &rules));
         // Only movers hold.
         assert!(moves(None) && moves(Some(PlayKind::Roam)) && moves(Some(PlayKind::PairUp)));
         assert!(!moves(Some(PlayKind::Crossfire)) && !moves(Some(PlayKind::Trade)) && !moves(Some(PlayKind::Retreat)));
