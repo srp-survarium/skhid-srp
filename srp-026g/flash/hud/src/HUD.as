@@ -386,7 +386,7 @@ package
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
-         this._modeNotice = new ModeNotice(this.pregameInfo.contextText.defaultTextFormat.font);
+         this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);

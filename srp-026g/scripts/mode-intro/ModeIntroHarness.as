@@ -141,8 +141,9 @@ package
          words.pregame(pregame.contextText,"blackout","");
          expect(pregame.contextText.text == "","empty countdown stays empty");
          var Notice:Class = domain.getDefinition("survarium.modes.ModeNotice") as Class;
-         var notice:Object = new Notice(pregame.contextText.defaultTextFormat.font);
+         var notice:Object = new Notice(pregame.contextText);
          addChild(DisplayObject(notice));
+         expect(notice.label.embedFonts == pregame.contextText.embedFonts,"notice embeds its font as the countdown does");
          for each(var language:String in all)
          {
             data.setData(HarnessText.DATA[language]);
