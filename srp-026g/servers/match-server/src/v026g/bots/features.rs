@@ -96,6 +96,8 @@ features! {
         searching: search::Searching,
         /// The armed traps the last world showed and the snaps given to the ears (`trap_know`).
         snaps: trap_know::Snaps,
+        /// [A302] The traps that went off, for the match log (`trap_know`).
+        trap_log: trap_know::WentOffLog,
         /// Every place's weapon 1 kind, where known (play 11).
         weapons: Vec<Option<reflex::WeaponKind>>,
     }
