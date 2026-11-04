@@ -3794,6 +3794,16 @@ which a weapon card adds while Alt is held (`docs/notes/alt-weapon-stats.md`). S
 `docs/notes/data.md`, `check_weight_ui_026g.py`, and
 `scripts/weight-ui/check_ui.sh` for evidence and targeted checks.
 
+## Results screen without a loaded match (unreleased)
+
+A match's results (0x97) reaching a game that has loaded no match (one started
+anew and reseated into a match that then ended) crashed it: the screen's map
+name, lobby_menu+313Ch, is NULL until a match is loaded, and translate_text
+read it (0xF6C47). `match_stat_map_026g.asm` (the arena block
+`match_stat_map.code`, a jump at 0x29ABE1) reads a NULL name as "": the screen
+shows no map name. See `docs/notes/results.md` section 6, hazard 10, and
+`check_match_stat_map_026g.py`.
+
 ## Knowledge database link (unreleased)
 
 The lobby's Knowledge database button opens `https://026g.skhid.link/wiki`

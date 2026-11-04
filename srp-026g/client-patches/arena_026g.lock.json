@@ -2,12 +2,17 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 739524,
-  "sha256": "cdc9116d97ec2ca5605c381e4f0e2aae104bfa4ee206e8943e8c8b02b6c50ea1",
+  "sha256": "7e3bd24e3093522fe611c0730d19f50b48234abf79da5c225de6d512a6c8372a",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
       "va": "0xa42d000",
       "size": 24
+    },
+    "match_stat_map.code": {
+      "kind": "code",
+      "va": "0xa42d020",
+      "size": 21
     },
     "weight_ui.code": {
       "kind": "code",
@@ -97,6 +102,7 @@
     "__rodata_hide_ui_code": "0xa4391e2",
     "__rodata_kill_feed_code": "0xa43c178",
     "__rodata_match_keys_code": "0xa437154",
+    "__rodata_match_stat_map_code": "0xa42d034",
     "__rodata_patches_code": "0xa491730",
     "__rodata_research_code": "0xa432f45",
     "__rodata_weight_ui_code": "0xa42e592",
@@ -435,6 +441,7 @@
     "match_keys_hud": "0xa4370e3",
     "match_keys_keyboard": "0xa43705a",
     "match_keys_poll": "0xa437000",
+    "match_stat_map": "0xa42d020",
     "medical_skills_on_artefact": "0xa4906eb",
     "medical_skills_on_duration_restore": "0xa490464",
     "medical_skills_on_duration_start": "0xa4903ac",

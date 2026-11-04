@@ -1133,6 +1133,7 @@ va	status	ref_021d	name
 0x001fded0	inferred-medium	0x0015d2f8	survarium::swf_input_translator::get_bind
 0x001fdf20	inferred-medium	0x0015d33b	survarium::swf_input_translator::initialize
 0x001fec90	inferred-medium	0x0015d8d9	stlp_std::priv::_Rb_tree<enum vostok::input::enum_keyboard,stlp_std::less<enum vostok::input::enum_keyboard>,stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind>,stlp_std::priv::_Select1st<stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind> >,survarium::std_allocator<stlp_std::pair<enum vostok::input::enum_keyboard,survarium::dik_to_swf_bind> > >::_M_insert
+0x001fef90	inferred-medium		survarium::text_translator::expand_text
 0x001ff410	inferred-medium	0x0015dc55	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::text_translator,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<survarium::text_translator *>,boost::arg<1> > > >::manager
 0x001ff460	inferred-medium	0x0015dc9e	survarium::game_options::apply_default_graphic
 0x001ff5d0	inferred-medium	0x0015dd31	survarium::game_options::scaleform_callback
