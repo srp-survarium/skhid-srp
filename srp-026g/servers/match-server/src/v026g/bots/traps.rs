@@ -3276,7 +3276,7 @@ mod tests {
     fn sensed_near_lets_a_far_sound_pass_the_gate() {
         use crate::v026g::bots::know::Source;
         use crate::v026g::bots::tuning::SensedNear;
-        let mut tuning = t();
+        let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
         let quiet = (tuning.enemy_quiet_s * 1000.0) as u32;
         let at = |x: f32| Track {
             who: 1,
