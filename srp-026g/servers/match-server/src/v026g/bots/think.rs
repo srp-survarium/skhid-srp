@@ -1117,6 +1117,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         now,
         hopeless: bot.stuck.hopeless(now, me.spawned),
         quiet_ms: sensed.map_or(u32::MAX, |at| now.saturating_sub(at)),
+        hit_quiet_ms: bot.hurt.last_hit_ms.filter(|&at| at >= me.spawned).map_or(u32::MAX, |at| now.saturating_sub(at)),
         life_ms: now.saturating_sub(me.spawned),
         match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
         carrying: me.carrying.is_some(),
