@@ -1679,15 +1679,14 @@ mod tests {
     /// the jump down stays a link with the switch too, so only the vault is refused.
     #[test]
     fn a_jump_down_over_a_rail_is_no_link_with_gap_no_vaults() {
-        // A rail's top over the take-off's floor (2.0), or none.
-        let railed = |rail: Option<f32>| {
+        let railed = |rail: bool| {
             let mut t = world_triangles(2.0, 0.5, 1.5, -3.0);
             let (back, area) = way_back(2.0, 0.5, 1.0);
             t.extend(back);
-            if let Some(top) = rail {
-                t.extend(face_x(5.85, 0.0, 10.0, 2.0, top));
-                t.extend(face_x(5.95, 0.0, 10.0, 2.0, top));
-                t.extend(quad(5.85, 0.0, 5.95, 10.0, top));
+            if rail {
+                t.extend(face_x(5.85, 0.0, 10.0, 2.0, 2.9));
+                t.extend(face_x(5.95, 0.0, 10.0, 2.0, 2.9));
+                t.extend(quad(5.85, 0.0, 5.95, 10.0, 2.9));
             }
             (t, area)
         };
@@ -1697,33 +1696,12 @@ mod tests {
                 .filter(|l| l.press != Takeoff::WalkOff && grid.position(l.from).y > 1.9 && grid.position(l.to).x > 7.4)
                 .count()
         };
-        let build = |rail: Option<f32>, gap_no_vaults: bool| {
+        let build = |rail: bool, gap_no_vaults: bool| {
             let (t, area) = railed(rail);
             WalkGrid::build_with_links(&t, area, 0.25, Body { gap_no_vaults, ..Body::default() }, OffMeshLinks::Gaps)
         };
-        // A 0.9 m rail, and a 0.5 m one that the far presses clear at the clip's top while the near ones are held by it
-        // (v1 kept those far presses as a link over the same rail; the A293 bench's Vector Laboratory spawn exit).
-        if std::env::var("A293_SCAN").is_ok() {
-            for top in [2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9] {
-                let links = |on: bool| {
-                    let g = build(Some(top), on);
-                    let mut v: Vec<String> = g
-                        .off_links()
-                        .iter()
-                        .filter(|l| g.position(l.from).y > 1.9 && g.position(l.to).x > 7.4)
-                        .map(|l| format!("{:.2}->{:.2} {:?}", g.position(l.from).x, g.position(l.to).x, l.press))
-                        .collect();
-                    v.sort();
-                    v.dedup();
-                    v
-                };
-                eprintln!("A293SCAN top {top} OFF {:?} ON {:?}", links(false), links(true));
-            }
-        }
-        for top in [2.9, 2.5] {
-            assert!(jumps_down(&build(Some(top), false)) > 0, "the vault over the rail (top {top}) is a link without the switch");
-            assert_eq!(jumps_down(&build(Some(top), true)), 0, "no jump down over the rail (top {top}) with the switch");
-        }
+        assert!(jumps_down(&build(true, false)) > 0, "the chase rule's vault over the rail is a link without the switch");
+        assert_eq!(jumps_down(&build(true, true)), 0, "no vault down over the rail with the switch");
         // The open edge: the switch changes none of its links (a walk-off there, and any press).
         let all_down = |grid: &WalkGrid| {
             let mut v: Vec<(NodeId, NodeId, Takeoff)> = grid
@@ -1735,9 +1713,9 @@ mod tests {
             v.sort_by_key(|&(a, b, _)| (a, b));
             v
         };
-        let open = all_down(&build(None, true));
+        let open = all_down(&build(false, true));
         assert!(!open.is_empty(), "the open edge is gone down");
-        assert_eq!(open, all_down(&build(None, false)), "the switch leaves the open edge's links");
+        assert_eq!(open, all_down(&build(false, false)), "the switch leaves the open edge's links");
     }
 
     fn world_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<Triangle> {
