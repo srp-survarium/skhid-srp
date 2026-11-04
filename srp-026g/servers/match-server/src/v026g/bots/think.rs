@@ -934,8 +934,8 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
             smoke::tally::begun(bot.team, plan.for_use);
             let landing = smoke::Landing::of(&reach, &plan, &stretch, thin);
-            smoke::tally::landed(bot.place, bot.team, plan.for_use, threat, now, landing);
-            smoke::tally::height_plan(bot.team, smoke::Height::of(plan.line.eye, plan.line.target), landing);
+            let height = smoke::Height::of(plan.line.eye, plan.line.target);
+            smoke::tally::landed(bot.place, bot.team, plan.for_use, threat, now, landing, height);
             if plan.for_use == SmokeUse::AntiSniper {
                 smoke::tally::sniper_smoked(bot.place);
                 smoke::tally::sniper_begun(bot.place, bot.team, now);

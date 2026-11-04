@@ -1295,8 +1295,8 @@ pub mod tally {
     /// A plan's thrower is followed this long, ms.
     pub const LANDING_FOLLOW_MS: u32 = 15_000;
     pub type Landings = [[[u64; LANDING_SLOTS]; super::SmokeUse::ALL.len()]; 2];
-    /// A plan whose thrower is followed: (place, team, use, shooter, begun).
-    type Followed = (usize, u8, super::SmokeUse, Option<usize>, u32);
+    /// A plan whose thrower is followed: (place, team, use, shooter, begun, the shooter's height to the crossing).
+    type Followed = (usize, u8, super::SmokeUse, Option<usize>, u32, super::Height);
 
     thread_local! {
         static LANDINGS: Cell<Landings> = const { Cell::new([[[0; LANDING_SLOTS]; super::SmokeUse::ALL.len()]; 2]) };
@@ -1311,8 +1311,9 @@ pub mod tally {
         });
     }
 
-    /// A smoke plan begun by the bot at `place` against `shooter` at `now`, landing so.
-    pub fn landed(place: usize, team: u8, for_use: super::SmokeUse, shooter: Option<usize>, now: u32, landing: super::Landing) {
+    /// A smoke plan begun by the bot at `place` against `shooter` (at `height` to the crossing) at `now`, landing so.
+    pub fn landed(place: usize, team: u8, for_use: super::SmokeUse, shooter: Option<usize>, now: u32, landing: super::Landing, height: super::Height) {
+        height_plan(team, height, landing);
         let dm = |m: f32| (m * 10.0).round().max(0.0) as u64;
         landing_add(team, for_use, 0, 1);
         landing_add(team, for_use, 1, u64::from(landing.on_shooter));
@@ -1323,7 +1324,7 @@ pub mod tally {
         LANDING_OPEN.with(|o| {
             let mut open = o.borrow_mut();
             open.retain(|&(p, ..)| p != place);
-            open.push((place, team, for_use, shooter, now));
+            open.push((place, team, for_use, shooter, now, height));
         });
     }
 
@@ -1334,7 +1335,7 @@ pub mod tally {
             let Some(i) = open.iter().position(|&(p, ..)| p == place) else {
                 return;
             };
-            let (_, team, for_use, shooter, begun) = open[i];
+            let (_, team, for_use, shooter, begun, height) = open[i];
             let ran_out = tick.saturating_sub(begun) >= LANDING_FOLLOW_MS;
             if !died && !ran_out {
                 return;
@@ -1346,12 +1347,27 @@ pub mod tally {
                 (true, _) => 8,
             };
             landing_add(team, for_use, slot, 1);
+            height_add(team, height, slot - 1, 1);
         });
     }
 
-    /// The followed plan of the thrower at `place`, if any: (team, use, shooter).
-    pub fn landing_followed(place: usize) -> Option<(u8, super::SmokeUse, Option<usize>)> {
-        LANDING_OPEN.with(|o| o.borrow().iter().find(|&&(p, ..)| p == place).map(|&(_, team, u, shooter, _)| (team, u, shooter)))
+    /// A tick of the followed thrower at `place` alive: hidden by smoke from its shooter's eye or not, and of `mates` of its
+    /// team near him, `blocked` with smoke on their line to him.
+    pub fn landing_tick(place: usize, hidden: bool, blocked: usize, mates: usize) {
+        let Some((team, for_use, _, height)) = landing_followed(place) else {
+            return;
+        };
+        landing_add(team, for_use, 9, 1);
+        landing_add(team, for_use, 10, u64::from(hidden));
+        landing_add(team, for_use, 11, blocked as u64);
+        landing_add(team, for_use, 12, mates as u64);
+        height_add(team, height, 8, 1);
+        height_add(team, height, 9, u64::from(hidden));
+    }
+
+    /// The followed plan of the thrower at `place`, if any: (team, use, shooter, height).
+    pub fn landing_followed(place: usize) -> Option<(u8, super::SmokeUse, Option<usize>, super::Height)> {
+        LANDING_OPEN.with(|o| o.borrow().iter().find(|&&(p, ..)| p == place).map(|&(_, team, u, shooter, _, h)| (team, u, shooter, h)))
     }
 
     pub fn landings() -> Landings {
@@ -1359,9 +1375,10 @@ pub mod tally {
     }
 
     /// [A291] By team and the shooter's height to the crossing ([`super::Height::ALL`]): [plans, on the shooter, stretch
-    /// points hidden, stretch points, held lanes with no landing that covers the line (no smoke)], CrossLane, AntiSniper and
-    /// the objective smoke together, switch on or off.
-    pub const HEIGHT_SLOTS: usize = 5;
+    /// points hidden, stretch points, held lanes with no landing that covers the line (no smoke), thrower alive at 15 s,
+    /// died to the plan's shooter within 15 s, died to another, ticks followed, ticks hidden from the shooter], CrossLane,
+    /// AntiSniper and the objective smoke together, switch on or off.
+    pub const HEIGHT_SLOTS: usize = 10;
     pub type Heights = [[[u64; HEIGHT_SLOTS]; super::Height::ALL.len()]; 2];
 
     thread_local! {
@@ -1377,7 +1394,7 @@ pub mod tally {
     }
 
     /// A plan begun against a shooter at `height` to its crossing, landing so.
-    pub fn height_plan(team: u8, height: super::Height, landing: super::Landing) {
+    fn height_plan(team: u8, height: super::Height, landing: super::Landing) {
         height_add(team, height, 0, 1);
         height_add(team, height, 1, u64::from(landing.on_shooter));
         height_add(team, height, 2, landing.hidden as u64);
