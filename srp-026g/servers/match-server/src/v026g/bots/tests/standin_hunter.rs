@@ -22,6 +22,7 @@ use super::*;
 use super::camper_move::nearest_known;
 use crate::v026g::bots::control::Driver;
 use crate::v026g::bots::plays::{Go, Intent, Look, Pace};
+use crate::v026g::bots::reflex::StandStrafe;
 use crate::v026g::bots::think::Due;
 
 /// What the stand-in human plays (`SRP_BENCH_HUMAN_PLAY`).
@@ -130,7 +131,8 @@ pub(crate) fn hunter_tuning_with(a: HunterAim) -> Tuning {
     aim.settle_s = (a.settle_s, a.settle_s);
     aim.notice = (a.notice, a.notice);
     aim.reaction_ms = (a.reaction_ms, a.reaction_ms);
-    aim.combat.stand_strafe = true;
+    // As the owner: the side steps whatever the crowd (no `StrafeCrowd`), as he was calibrated.
+    aim.combat.stand_strafe = Some(StandStrafe { crowd: None, ..StandStrafe::default() });
     tuning
 }
 
@@ -213,7 +215,7 @@ mod tests {
         assert_eq!(aim.error_deg.0, aim.error_deg.1);
         assert_eq!(aim.reaction_ms.0, aim.reaction_ms.1);
         assert_eq!(aim.notice.0, aim.notice.1);
-        assert!(aim.combat.stand_strafe);
+        assert_eq!(aim.combat.stand_strafe.map(|stand| stand.crowd), Some(None));
         // The rest of his tuning is the stand-in camper's.
         assert_eq!(tuning.sense, human_tuning().sense);
     }
