@@ -64,6 +64,7 @@ pub mod live_grenades;
 pub mod live_zones;
 pub mod maps;
 pub mod motor;
+pub mod nav_drift;
 pub mod nav_log;
 pub mod objective;
 pub mod objective_actor;
@@ -391,6 +392,8 @@ pub struct Bot {
     jump_watch: Option<JumpWatch>,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
+    /// Its drift over the match for the match-end table (A294, `nav_drift.rs`): written, never read back.
+    drift: nav_drift::Tally,
     /// Whether the match traces, and the trace lines made while driving
     /// (written at the bot's ticks).
     tracing: bool,
@@ -585,6 +588,7 @@ impl Bot {
             hurt: Hurt::default(),
             jump_watch: None,
             nav_log: nav_log::NavLog::default(),
+            drift: nav_drift::Tally::default(),
             tracing: false,
             traced: Vec::new(),
             pause_until: 0,
@@ -1450,9 +1454,19 @@ impl Bots {
             let before = body.fix().filter(|last| last.alive && last.inserted == fix.inserted).and_then(|last| last.feet.map(|f| (last.time, f)));
             (before, body.reckoned_at(time))
         });
+        let speed = fix.speed;
         let new_life = self
             .tracker
             .fixed(place, fix, health, &self.tunings.match_wide().kin, world.as_deref());
+        // A294: what the tracker knows of this world for the drift line (its gap, the way the keys meant, the nearest body).
+        let drift_view = feet.map(|feet| {
+            let body = self.tracker.body(place);
+            (
+                body.and_then(|b| b.gap_of(time)),
+                body.and_then(|b| b.last_meant()),
+                self.tracker.neighbour_of(place, feet).map(|beside| beside.distance_m),
+            )
+        });
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return notes;
         };
@@ -1467,6 +1481,31 @@ impl Bots {
             }
             if new_life {
                 bot.stuck.forget_heights();
+                bot.drift.new_life();
+            }
+            // A294: the drift of the reckoning against this world, with its likely cause.
+            if let (false, Some(reckoned), Some((gap_ms, meant_m, body_m))) = (new_life, reckoned, drift_view) {
+                let facts = nav_drift::Facts {
+                    world: feet,
+                    reckoned,
+                    gap_ms,
+                    dropped_m: before.map_or(0.0, |(_, from)| (from.y - feet.y).max(0.0)),
+                    in_jump: bot.jump_watch.is_some(),
+                    body_m,
+                    meant_m,
+                    moved_m: before.map(|(_, from)| from.distance_xz(feet)),
+                    crouch: keys & key::CROUCH != 0,
+                    sprint: keys & key::SPRINT != 0,
+                    speed,
+                    play: bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
+                };
+                if facts.drifts() {
+                    let cause = nav_drift::Cause::of(&facts);
+                    bot.drift.world(Some((&facts, cause)));
+                    bot.nav_log.push(nav_log::Kind::Drift, time, facts.line(cause));
+                } else {
+                    bot.drift.world(None);
+                }
             }
             bot.stuck.track_fall(time, feet, self.tunings.of(bot.team).think.fall_lock);
         }
@@ -1762,6 +1801,12 @@ impl Bots {
             bot.end_route(RouteEnd::ReckoningError, time);
         }
         notes
+    }
+
+    /// A294: the match-end lines of the bots' drift (`nav_drift::report`).
+    pub fn drift_report(&self) -> Vec<String> {
+        let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
+        nav_drift::report(&tallies)
     }
 
     /// A285: `index`'s falls and route jumps since the last poll, as its notes (`nav_log.rs`). Called by [`Self::poll`] and the
