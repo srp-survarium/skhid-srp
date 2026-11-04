@@ -16,6 +16,54 @@ pub struct ModTuning {
     pub smoothing: f32,
     pub min: f32,
     pub max: f32,
+    /// [A296 item 2] The team's plan from the score and the time (`team::TeamPlan`): off, each play scores alone.
+    pub team_plan: Option<TeamPlanRule>,
+}
+
+/// [A296 item 2] A team plan from the HUD's score and the time left (the owner, 2026-11-04: "bots should give a challenge to
+/// winning team"; his match 0x33e42d77: the late steals came only from `LateDenial` in its last 4 minutes, `Raid` was taken 21
+/// times and stole once). Behind with `comeback_left_s` or less left, the team commits to the enemy's container: its attacks
+/// (`team::attack`: raid, sneak, late denial) weigh `attack_gain` times more, and while more than `bring_home_left_s` is left a
+/// raid (steal and bring home, a swing of 2) is preferred to a late denial (steal and drop, retaken in 20 s in that match): the
+/// late denial weighs `1 / attack_gain` then. Ahead with `hold_left_s` or less left, it holds: guarding its container and
+/// escorting its carriers weigh `hold_gain` times more, its attacks `1 / hold_gain`. A gap within `level_band` points is level.
+/// Behaviour only: the plays, never aim or what the bots know.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TeamPlanRule {
+    pub level_band: f32,
+    pub comeback_left_s: f32,
+    pub hold_left_s: f32,
+    pub bring_home_left_s: f32,
+    pub attack_gain: f32,
+    pub hold_gain: f32,
+}
+
+impl Default for TeamPlanRule {
+    fn default() -> Self {
+        // Comeback from 9 minutes left (the second half of a 15-minute match, A295 item 4's "earlier when behind"), hold from 5;
+        // 90 s: a raid needs about a minute to come home (the players' raids, `raid.rs`).
+        Self {
+            level_band: 0.5,
+            comeback_left_s: 540.0,
+            hold_left_s: 300.0,
+            bring_home_left_s: 90.0,
+            attack_gain: 1.6,
+            hold_gain: 1.4,
+        }
+    }
+}
+
+impl TeamPlanRule {
+    pub(super) fn check(&self) -> Result<(), String> {
+        let ok = self.level_band >= 0.0
+            && self.comeback_left_s > 0.0
+            && self.hold_left_s > 0.0
+            && self.bring_home_left_s >= 0.0
+            && self.attack_gain >= 1.0
+            && self.hold_gain >= 1.0;
+        if ok { Ok(()) } else { Err("mods.team_plan".into()) }
+    }
 }
 
 impl Default for ModTuning {
@@ -42,6 +90,7 @@ impl Default for ModTuning {
             smoothing: 0.2,
             min: 0.1,
             max: 1.0,
+            team_plan: None,
         }
     }
 }

@@ -216,6 +216,83 @@ impl Default for Bands {
 
 /// An attack on the enemy's container: what a team behind on points
 /// needs to win points back (the batteries home are taken only so).
+/// [A296 item 2, `mods.team_plan`] What a team sets out to do this commander tick, from its standing on points and the time
+/// left ([`crate::v026g::bots::tuning::TeamPlanRule`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TeamPlan {
+    /// Each play scores alone (level, or early).
+    Usual,
+    /// Behind late: attack the enemy's container; with time left to come home, steal and bring home rather than drop.
+    Comeback { bring_home: bool },
+    /// Ahead late: guard the container and escort the carriers.
+    Hold,
+}
+
+impl TeamPlan {
+    /// The plan for `signals` under `rule`.
+    pub fn of(signals: &super::signals::MatchSignals, rule: &crate::v026g::bots::tuning::TeamPlanRule) -> Self {
+        use super::signals::Standing;
+        let left = signals.time_left_s;
+        match signals.standing(rule.level_band) {
+            Standing::Behind(_) if left <= rule.comeback_left_s => {
+                TeamPlan::Comeback { bring_home: left > rule.bring_home_left_s }
+            }
+            Standing::Ahead(_) if left <= rule.hold_left_s => TeamPlan::Hold,
+            _ => TeamPlan::Usual,
+        }
+    }
+
+    /// How much more (or less) a candidate of `kind` weighs under this plan.
+    pub fn gain(self, kind: PlayKind, rule: &crate::v026g::bots::tuning::TeamPlanRule) -> f32 {
+        match self {
+            TeamPlan::Usual => 1.0,
+            TeamPlan::Comeback { bring_home } => match kind {
+                PlayKind::LateDenial if bring_home => 1.0 / rule.attack_gain,
+                k if attack(k) => rule.attack_gain,
+                _ => 1.0,
+            },
+            TeamPlan::Hold => match kind {
+                PlayKind::GuardLead | PlayKind::Escort => rule.hold_gain,
+                k if attack(k) => 1.0 / rule.hold_gain,
+                _ => 1.0,
+            },
+        }
+    }
+
+    /// Every candidate re-weighed by [`Self::gain`] (a score stays in `[0, 1]`).
+    pub fn weigh(self, candidates: &mut [Candidate], rule: &crate::v026g::bots::tuning::TeamPlanRule) {
+        if self == TeamPlan::Usual {
+            return;
+        }
+        for c in candidates {
+            c.score = crate::v026g::bots::curve::Score::new(c.score.get() * self.gain(c.kind, rule));
+        }
+    }
+}
+
+/// [A296 item 2] Commander ticks under each plan (usual, comeback bringing home, comeback late, hold), for the bench's tally.
+#[cfg(test)]
+static PLAN_TICKS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+/// Counts a commander tick under `plan` (tests only).
+#[cfg_attr(not(test), allow(unused_variables))]
+pub fn plan_tally(plan: TeamPlan) {
+    #[cfg(test)]
+    PLAN_TICKS[match plan {
+        TeamPlan::Usual => 0,
+        TeamPlan::Comeback { bring_home: true } => 1,
+        TeamPlan::Comeback { bring_home: false } => 2,
+        TeamPlan::Hold => 3,
+    }]
+    .fetch_add(1, Relaxed);
+}
+
+/// The ticks under each plan so far (tests only), in [`plan_tally`]'s order.
+#[cfg(test)]
+pub fn plan_ticks() -> [u64; 4] {
+    std::array::from_fn(|k| PLAN_TICKS[k].load(Relaxed))
+}
+
 pub fn attack(kind: PlayKind) -> bool {
     matches!(
         kind,
@@ -649,6 +726,52 @@ mod tests {
             why: Explain::default(),
             slot: slot.map(|key| SlotKey { kind, key }),
         }
+    }
+
+    /// [mods.team_plan] The plan from the standing and the time: behind late a comeback (bringing home while there is time), ahead
+    /// late a hold, else usual; level within the band.
+    #[test]
+    fn a_team_plans_a_comeback_behind_late_and_a_hold_ahead_late() {
+        use crate::v026g::bots::signals::MatchSignals;
+        use crate::v026g::bots::tuning::TeamPlanRule;
+        let rule = TeamPlanRule::default();
+        let at = |gap: f32, left: f32| TeamPlan::of(&MatchSignals { score_gap: gap, time_left_s: left, ..Default::default() }, &rule);
+        assert_eq!(at(-1.0, 800.0), TeamPlan::Usual, "behind early");
+        assert_eq!(at(-1.0, 500.0), TeamPlan::Comeback { bring_home: true });
+        assert_eq!(at(-2.0, 60.0), TeamPlan::Comeback { bring_home: false }, "the last minute: drop it there");
+        assert_eq!(at(1.0, 500.0), TeamPlan::Usual, "ahead, not late yet");
+        assert_eq!(at(1.0, 200.0), TeamPlan::Hold);
+        assert_eq!(at(0.4, 100.0), TeamPlan::Usual, "level within the band");
+    }
+
+    /// [mods.team_plan] A comeback with time left weighs raids up and late denials down; in the last minute both up; a hold weighs
+    /// guarding and escorting up and attacks down; the usual plan changes nothing; a score stays within [0, 1].
+    #[test]
+    fn a_team_plan_weighs_the_plays_it_wants() {
+        use crate::v026g::bots::tuning::TeamPlanRule;
+        let rule = TeamPlanRule::default();
+        let mut cs = vec![
+            c(PlayKind::Raid, Rank::Objective, 0.5, None, 0),
+            c(PlayKind::LateDenial, Rank::Objective, 0.5, None, 0),
+            c(PlayKind::GuardLead, Rank::Objective, 0.5, None, 0),
+            c(PlayKind::Collect, Rank::Objective, 0.9, None, 0),
+        ];
+        let scores = |cs: &[Candidate]| cs.iter().map(|c| c.score.get()).collect::<Vec<_>>();
+        let mut usual = cs.clone();
+        TeamPlan::Usual.weigh(&mut usual, &rule);
+        assert_eq!(scores(&usual), scores(&cs));
+        let mut home = cs.clone();
+        TeamPlan::Comeback { bring_home: true }.weigh(&mut home, &rule);
+        assert!(home[0].score.get() > 0.5 && home[1].score.get() < 0.5 && home[2].score.get() == 0.5);
+        assert_eq!(home[3].score.get(), 0.9, "a battery's collect is not an attack");
+        let mut late = cs.clone();
+        TeamPlan::Comeback { bring_home: false }.weigh(&mut late, &rule);
+        assert!(late[0].score.get() > 0.5 && late[1].score.get() > 0.5);
+        TeamPlan::Hold.weigh(&mut cs, &rule);
+        assert!(cs[0].score.get() < 0.5 && cs[2].score.get() > 0.5);
+        cs[2].score = Score::new(0.9);
+        TeamPlan::Hold.weigh(&mut cs, &rule);
+        assert_eq!(cs[2].score.get(), 1.0, "capped");
     }
 
     #[test]

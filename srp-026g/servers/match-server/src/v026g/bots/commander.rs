@@ -861,6 +861,14 @@ impl Bots {
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
+        // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.
+        if let Some(rule) = tuning.mods.team_plan {
+            let plan = team::TeamPlan::of(&state.signals, &rule);
+            team::plan_tally(plan);
+            for (_, candidates, _) in &mut asked {
+                plan.weigh(candidates, &rule);
+            }
+        }
         let asking = asked
             .iter()
             .map(|(place, candidates, current)| Asking {
