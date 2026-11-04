@@ -121,6 +121,32 @@ pub struct SmokeTuning {
     /// by side (136 pairs, `full-wait-crossers-20261101T0214`) smoked crossings reached with the line open fell from 93.5 %
     /// to 51.0 % (z 9.7), score +2.1 % (z +2.0), no guard worse; `all_off.json` keeps it off.
     pub wait_for_cloud: Option<WaitForCloud>,
+    /// [A291] Where on its line a CrossLane or AntiSniper smoke lands (`MidLine`). None: the first point from the
+    /// shooter's end that the throw reaches and that covers the line (`smoke::smoke_between`), so a shooter within the
+    /// throw's reach (about 30 m) gets the cloud on his own feet and steps out of its 8 m radius to see the crossing again
+    /// (A288: 7 of the 12 enemy smokes against the owner's lane landed within 8 m of him; humans put 69 % between the
+    /// thrower and the enemy and 6 % on the enemy, `fx-smoke-data.md` section 5).
+    pub aim_point: Option<MidLine>,
+}
+
+/// [A291] `SmokeTuning::aim_point`: a smoke between the shooter and the crossing that hides the most of the crossing's
+/// stretch (the route points from the crossing on that the shooter sees), with the shooter outside the cloud.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MidLine {
+    /// The cloud's centre stays this much farther from the shooter than its radius, metres: he is not in it, so a step
+    /// aside does not take him out of it to a clear line.
+    pub shooter_clear_m: Metres,
+    /// The candidate points along the line, metres apart (each one a flown throw).
+    pub step_m: Positive,
+    /// The crossing's stretch judged, metres of route from the crossing on (1 m steps, those the shooter sees).
+    pub stretch_m: Metres,
+}
+
+impl Default for MidLine {
+    fn default() -> Self {
+        Self { shooter_clear_m: Metres::of(2.0), step_m: Positive::of(2.0), stretch_m: Metres::of(12.0) }
+    }
 }
 
 /// [A208] `SmokeTuning::wait_for_cloud`: who holds for a cloud, and what ends the hold before the cloud hides the line.
@@ -191,6 +217,7 @@ impl Default for SmokeTuning {
             claim_ms: 3_000,
             throw_keeps_route: true,
             wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
+            aim_point: None,
         }
     }
 }

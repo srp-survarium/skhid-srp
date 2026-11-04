@@ -756,6 +756,39 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             .unwrap_or(0.0);
         open_m >= t.lane_open_m.get()
     };
+    // [A291] The crossing's stretch: chest points of the route from the crossing on, 1 m steps out to `stretch_m`, that
+    // every eye in `eyes` sees.
+    let stretch_of = |eyes: &[Vec3], crossing_s: f32, stretch_m: f32| -> Vec<Vec3> {
+        let Some((route, _)) = bot.route.as_ref() else {
+            return Vec::new();
+        };
+        let heights = bot.motor.heights();
+        let end = (route.length() - crossing_s).min(stretch_m);
+        (0..)
+            .map(|k| k as f32)
+            .take_while(|&d| d <= end)
+            .map(|d| route.at(crossing_s + d, heights) + chest_over)
+            .filter(|&p| eyes.iter().all(|&eye| tactics.sees(eye, p)))
+            .collect()
+    };
+    // The smoke on the line from `eyes[0]` to the crossing: mid-line with `smoke.aim_point` (A291), else the first point
+    // from the threat's end; with the stretch it was judged on (the counters' own with the switch off, tests only).
+    let plan_line = |eyes: &[Vec3], crossing_s: f32, crossing: Vec3, for_use: SmokeUse| -> Option<(smoke::SmokePlan, Vec<Vec3>)> {
+        match t.aim_point {
+            Some(rule) => {
+                let stretch = stretch_of(eyes, crossing_s, rule.stretch_m.get());
+                smoke::smoke_mid_line(&reach, eyes[0], crossing, &stretch, thin, for_use, rule).map(|plan| (plan, stretch))
+            }
+            None => smoke::smoke_between(&reach, eyes[0], crossing, thin, for_use).map(|plan| {
+                let stretch = if cfg!(test) {
+                    stretch_of(eyes, crossing_s, super::tuning::MidLine::default().stretch_m.get())
+                } else {
+                    Vec::new()
+                };
+                (plan, stretch)
+            }),
+        }
+    };
     // Against a sniper that outranges its weapon (play 11's matchup), sensed where he is within `lane_sensed_ms`: before
     // its route enters ground he sees, the line from him to the crossing. Not from where he already sees it.
     // Not a sniper the kill feed showed dead since (or just before) it sensed him: a human reads the feed and smokes no dead
@@ -813,14 +846,14 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         }
         #[cfg(test)]
         smoke::tally::sniper_candidate(bot.place, who, eye, crossing);
-        smoke::smoke_between(&reach, eye, crossing, thin, SmokeUse::AntiSniper).map(|plan| {
+        plan_line(&eyes, crossing_s, crossing, SmokeUse::AntiSniper).map(|(plan, stretch)| {
             let why = format!(
                 "player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach, crossing at ({:.1}, {:.1}, {:.1})",
                 eye.x, eye.y - eye_over.y, eye.z, crossing.x, crossing.y, crossing.z
             );
             // [A208] Short of it where none of his eyes sees the chest.
             let hold = t.wait_for_cloud.map(|_| hold_short(crossing_s, &|p| eyes.iter().any(|&e| tactics.sees(e, p + chest_over))));
-            (plan, why, eye, hold, Some(who))
+            (plan, why, eye, hold, Some(who), stretch)
         })
     };
     let sniper = sniper();
@@ -863,19 +896,21 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if !open_from(&[held.at + eye_over], crossing_s) {
             return None;
         }
-        smoke::smoke_between(&reach, held.at + eye_over, crossing, thin, SmokeUse::CrossLane).map(|plan| {
+        plan_line(&[held.at + eye_over], crossing_s, crossing, SmokeUse::CrossLane).map(|(plan, stretch)| {
             let why = format!(
                 "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
                 held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
             );
             // [A208] Short of it, out of the held lanes.
             let hold = t.wait_for_cloud.map(|_| hold_short(crossing_s, &|p| bot.smoke_threat.exposed_at(grid, p)));
-            (plan, why, held.at + eye_over, hold, Some(held.shooter))
+            (plan, why, held.at + eye_over, hold, Some(held.shooter), stretch)
         })
     };
-    let Some((plan, why, against, hold, threat)) = sniper.or_else(lane) else {
+    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(lane) else {
         return;
     };
+    #[cfg(not(test))]
+    let _ = stretch;
     // A mate's live plan near its landing or against the same shooter: none of its own.
     if t.spot_rules && knowledge.smoke_claimed(bot.place, plan.at, against, now, t.claim_m.get(), t.claim_ms) {
         #[cfg(test)]
@@ -892,6 +927,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         {
             smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
             smoke::tally::begun(bot.team, plan.for_use);
+            smoke::tally::landed(bot.place, bot.team, plan.for_use, threat, now, smoke::Landing::of(&reach, &plan, &stretch, thin));
             if plan.for_use == SmokeUse::AntiSniper {
                 smoke::tally::sniper_smoked(bot.place);
                 smoke::tally::sniper_begun(bot.place, bot.team, now);

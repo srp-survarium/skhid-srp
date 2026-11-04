@@ -145,6 +145,7 @@ pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
 pub use smoke::CloudWaiters;
+pub use smoke::MidLine;
 pub use smoke::SmokeTuning;
 pub use smoke::WaitForCloud;
 pub use spacing::Callouts;

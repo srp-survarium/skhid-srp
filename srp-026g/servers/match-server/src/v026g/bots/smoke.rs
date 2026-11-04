@@ -884,6 +884,90 @@ pub fn smoke_between(
     })
 }
 
+/// How much of a crossing's stretch a cloud at `rest` hides from `threat_eye`: of the chest points `stretch` (the route
+/// from the crossing on that he sees), those its smoke covers by `thin_m` + [`PLAN_MARGIN_M`].
+fn stretch_hidden(reach: &Reach<'_>, rest: Vec3, threat_eye: Vec3, stretch: &[Vec3], thin_m: f32) -> usize {
+    stretch
+        .iter()
+        .filter(|&&p| reach.smoke_on_line(rest, threat_eye, p) > thin_m + PLAN_MARGIN_M)
+        .count()
+}
+
+/// [A291 `smoke.aim_point`] A smoke between a threat and a crossing that lands mid-line: of the points of the line from
+/// the threat's eye to the crossing (a chest over it), `rule.step_m` apart, whose throw reaches and whose cloud covers the
+/// line by `thin_m` + [`PLAN_MARGIN_M`], the one that (1) leaves the threat outside the cloud by `rule.shooter_clear_m`, then
+/// (2) hides the most of the crossing's stretch `stretch` (chest points of the route from the crossing on that the threat
+/// sees), then (3) lies nearest the crossing (the wider the cloud looks from the crossing, the more of the threat's moves
+/// it still screens). A cloud on the threat's feet lets him step out of it and see the crossing again; one between hides
+/// the crossing wherever he steps along his cover. When no point of that line both reaches and covers at its step, the
+/// first-point rule ([`smoke_between`], 1 m steps) decides, so the switch never takes a smoke away.
+pub fn smoke_mid_line(
+    reach: &Reach<'_>,
+    threat_eye: Vec3,
+    crossing: Vec3,
+    stretch: &[Vec3],
+    thin_m: f32,
+    for_use: SmokeUse,
+    rule: super::tuning::MidLine,
+) -> Option<SmokePlan> {
+    let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+    let length = threat_eye.distance_xz(chest);
+    let step = rule.step_m.get();
+    let steps = (length / step).floor() as u32;
+    let clear_m = reach.grenade.cloud.radius_m + rule.shooter_clear_m.get();
+    let best = (0..=steps)
+        .filter_map(|k| {
+            let t = (k as f32 * step / length.max(1e-3)).min(1.0);
+            let on_line = threat_eye + (chest - threat_eye) * t;
+            let floor = reach.floor(on_line)?;
+            let aim = reach.aim(floor)?;
+            let covers_m = reach.smoke_on_line(aim.rest, threat_eye, chest);
+            if covers_m <= thin_m + PLAN_MARGIN_M {
+                return None;
+            }
+            let clear = aim.rest.distance_xz(threat_eye) >= clear_m;
+            let hidden = stretch_hidden(reach, aim.rest, threat_eye, stretch, thin_m);
+            Some(((clear, hidden, k), SmokePlan {
+                at: aim.rest,
+                aim,
+                for_use,
+                covers_m,
+                line: SmokeLine { eye: threat_eye, target: chest, crossing },
+            }))
+        })
+        .max_by_key(|(key, _)| *key)
+        .map(|(_, plan)| plan);
+    best.or_else(|| smoke_between(reach, threat_eye, crossing, thin_m, for_use))
+}
+
+/// [A291] What the landing of a smoke plan did to its line, for the counters (switch on or off): whether its cloud stands
+/// on the threat (centre within the cloud's radius + [`ON_SHOOTER_CLEAR_M`] of him), how far it is from him and from the
+/// crossing, and how much of the crossing's stretch it hides.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Landing {
+    pub on_shooter: bool,
+    pub shooter_m: f32,
+    pub crossing_m: f32,
+    pub hidden: usize,
+    pub stretch: usize,
+}
+
+/// [A291] A cloud whose centre is within its radius and this of the threat stands on him (the default `MidLine`'s).
+pub const ON_SHOOTER_CLEAR_M: f32 = 2.0;
+
+impl Landing {
+    pub fn of(reach: &Reach<'_>, plan: &SmokePlan, stretch: &[Vec3], thin_m: f32) -> Self {
+        let shooter_m = plan.at.distance_xz(plan.line.eye);
+        Self {
+            on_shooter: shooter_m < reach.grenade.cloud.radius_m + ON_SHOOTER_CLEAR_M,
+            shooter_m,
+            crossing_m: plan.at.distance_xz(plan.line.crossing),
+            hidden: stretch_hidden(reach, plan.at, plan.line.eye, stretch, thin_m),
+            stretch: stretch.len(),
+        }
+    }
+}
+
 /// A smoke on a spot (a held spot, its holder's eye `spot_eye`): the floor under it, if the throw reaches it. Its
 /// `covers_m` is the smoke on the line from the spot's eye to `toward` (the thrower's side), its line that one (the
 /// crossing at `toward`).
@@ -1053,6 +1137,71 @@ pub mod tally {
         WAIT_COUNTS.with(Cell::get)
     }
 
+    /// [A291 `smoke.aim_point`] Where the smoke plans begun landed and what became of their throwers, by team and use
+    /// (switch on or off): [plans, on the shooter, shooter-to-cloud dm summed, crossing-to-cloud dm summed, stretch points
+    /// hidden, stretch points, thrower alive at 15 s, died to the plan's shooter within 15 s, died to another].
+    pub const LANDING_SLOTS: usize = 9;
+    /// A plan's thrower is followed this long, ms.
+    pub const LANDING_FOLLOW_MS: u32 = 15_000;
+    pub type Landings = [[[u64; LANDING_SLOTS]; super::SmokeUse::ALL.len()]; 2];
+
+    thread_local! {
+        static LANDINGS: Cell<Landings> = const { Cell::new([[[0; LANDING_SLOTS]; super::SmokeUse::ALL.len()]; 2]) };
+        /// The plans whose throwers are followed: (place, team, use, shooter, begun).
+        static LANDING_OPEN: std::cell::RefCell<Vec<(usize, u8, super::SmokeUse, Option<usize>, u32)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn landing_add(team: u8, for_use: super::SmokeUse, slot: usize, n: u64) {
+        LANDINGS.with(|c| {
+            let mut counts = c.get();
+            counts[usize::from(team & 1)][for_use.index()][slot] += n;
+            c.set(counts);
+        });
+    }
+
+    /// A smoke plan begun by the bot at `place` against `shooter` at `now`, landing so.
+    pub fn landed(place: usize, team: u8, for_use: super::SmokeUse, shooter: Option<usize>, now: u32, landing: super::Landing) {
+        let dm = |m: f32| (m * 10.0).round().max(0.0) as u64;
+        landing_add(team, for_use, 0, 1);
+        landing_add(team, for_use, 1, u64::from(landing.on_shooter));
+        landing_add(team, for_use, 2, dm(landing.shooter_m));
+        landing_add(team, for_use, 3, dm(landing.crossing_m));
+        landing_add(team, for_use, 4, landing.hidden as u64);
+        landing_add(team, for_use, 5, landing.stretch as u64);
+        LANDING_OPEN.with(|o| {
+            let mut open = o.borrow_mut();
+            open.retain(|&(p, ..)| p != place);
+            open.push((place, team, for_use, shooter, now));
+        });
+    }
+
+    /// The followed thrower at `place`: its fate at `tick` when it died (killed by `killer`) or its time ran out alive.
+    pub fn landing_fate(place: usize, tick: u32, died: bool, killer: Option<usize>) {
+        LANDING_OPEN.with(|o| {
+            let mut open = o.borrow_mut();
+            let Some(i) = open.iter().position(|&(p, ..)| p == place) else {
+                return;
+            };
+            let (_, team, for_use, shooter, begun) = open[i];
+            let ran_out = tick.saturating_sub(begun) >= LANDING_FOLLOW_MS;
+            if !died && !ran_out {
+                return;
+            }
+            open.swap_remove(i);
+            let slot = match (died && !ran_out, killer) {
+                (false, _) => 6,
+                (true, Some(k)) if Some(k) == shooter => 7,
+                (true, _) => 8,
+            };
+            landing_add(team, for_use, slot, 1);
+        });
+    }
+
+    pub fn landings() -> Landings {
+        LANDINGS.with(Cell::get)
+    }
+
     pub fn throws() -> Throws {
         THROWS.with(Cell::get)
     }
@@ -1185,6 +1334,7 @@ pub mod tally {
         THREW.with(|s| s.borrow_mut().clear());
         SEEN_LOOKS.with(|s| s.borrow_mut().clear());
         SPRAYED.with(|s| s.borrow_mut().clear());
+        LANDING_OPEN.with(|s| s.borrow_mut().clear());
     }
 
     /// The bot at `place` let go of a smoke at `now`.
@@ -1694,6 +1844,52 @@ mod scenarios {
         // A line wholly out of reach: none.
         let far = (Vec3::new(0.0, 1.6, 90.0), Vec3::new(10.0, 0.0, 70.0));
         assert_eq!(smoke_between(&reach, far.0, far.1, thin, SmokeUse::CrossLane), None);
+    }
+
+    #[test]
+    fn a_mid_line_smoke_leaves_a_near_shooter_outside_its_cloud_and_hides_the_crossings_stretch() {
+        let mesh = flat();
+        let reach = Reach {
+            mesh: &mesh,
+            grenade: SmokeGrenade::RDG_M,
+            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+        };
+        let thin = SmokeTuning::default().thin_m.get();
+        let rule = crate::v026g::bots::tuning::MidLine::default();
+        // A holder 25 m out (within the throw's reach), the thrower's route crossing his lane 5 m out and running on east.
+        let threat = Vec3::new(0.0, 1.6, 25.0);
+        let crossing = Vec3::new(0.0, 0.0, 5.0);
+        let stretch: Vec<Vec3> = (0..=12).map(|d| Vec3::new(d as f32, 1.3, 5.0)).collect();
+        // The first-point rule puts it on his feet.
+        let first = smoke_between(&reach, threat, crossing, thin, SmokeUse::CrossLane).unwrap();
+        let first_landing = Landing::of(&reach, &first, &stretch, thin);
+        assert!(first_landing.on_shooter, "{first:?} {first_landing:?}");
+        // Mid-line: he is outside the cloud by the rule's margin, and it hides at least as much of the stretch.
+        let mid = smoke_mid_line(&reach, threat, crossing, &stretch, thin, SmokeUse::CrossLane, rule).unwrap();
+        let mid_landing = Landing::of(&reach, &mid, &stretch, thin);
+        assert!(!mid_landing.on_shooter, "{mid:?} {mid_landing:?}");
+        assert!(mid.at.distance_xz(threat) >= SmokeGrenade::RDG_M.cloud.radius_m + rule.shooter_clear_m.get(), "{mid:?}");
+        assert!(mid_landing.hidden >= first_landing.hidden && mid_landing.hidden > 0, "{mid_landing:?} vs {first_landing:?}");
+        // It covers the line, and a step aside along his cover (3 m east or west) still does not see the crossing.
+        assert!(mid.covers_m > thin + PLAN_MARGIN_M, "{mid:?}");
+        let cloud = Cloud {
+            by: 0,
+            team: 0,
+            placed: Placed::Arc,
+            centre: mid.at,
+            thrown: MatchMs(0),
+            pours: MatchMs(0),
+            shape: SmokeGrenade::RDG_M.cloud,
+        };
+        let clouds = Clouds::new(vec![cloud]);
+        let tuning = SmokeTuning::default();
+        for side in [-3.0, 0.0, 3.0] {
+            let eye = threat + Vec3::new(side, 0.0, 0.0);
+            assert!(clouds.covers(5_000, &tuning, eye, crossing + Vec3::new(0.0, 1.3, 0.0)), "from {side}: {mid:?}");
+        }
+        // A line wholly out of reach: none, as the first-point rule.
+        let far = (Vec3::new(0.0, 1.6, 90.0), Vec3::new(10.0, 0.0, 70.0));
+        assert_eq!(smoke_mid_line(&reach, far.0, far.1, &[], thin, SmokeUse::CrossLane, rule), None);
     }
 
     #[test]
