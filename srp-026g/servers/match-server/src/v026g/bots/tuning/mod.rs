@@ -760,6 +760,7 @@ mod tests {
             "/take/pitch",
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/traps/sensed_near",
             "/unstick/drop_shut_from_top",
             "/unstick/drop_shut_last_resort",
             "/unstick/escape_floor",

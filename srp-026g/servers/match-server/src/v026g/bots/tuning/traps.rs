@@ -109,7 +109,9 @@ pub struct TrapTuning {
     pub lanes: TrapLanes,
     /// [A292 S2] The enemy-near gate's "sensed lately" part only for an enemy sensed this near (`None`: anywhere, today). The
     /// tally of #1207 on the bench: of the thinks the enemy gate stopped, about 70 % were "sensed lately" (a shot or a step
-    /// heard across the map counts today). Seen now and known within `enemy_near_m` stay as they are. Off by default.
+    /// heard across the map counted). Seen now and known within `enemy_near_m` stay as they are. **On by default**, kept right
+    /// (`KEPT_RIGHT`): a step or shot heard across the map is no enemy near (A292 by-side bench, 256 pairs, both modes: traps
+    /// placed x2, enemy catches 9 vs 3, own-team catches 3 vs 2, the whole match level, no guard worse, the coordinator's go).
     pub sensed_near: Option<SensedNear>,
     /// [A292 S4a] The placer stands from its trap's press until its next think has put the trap in its field and re-planned its
     /// route round it, at most `hold_ms`. Without it the bot walks on its old route for that time: in the S1 bench 13 of 298
@@ -392,7 +394,7 @@ impl Default for TrapTuning {
             cooldown_s: 20.0,
             react: ReactTuning::default(),
             lanes: TrapLanes::Humans,
-            sensed_near: None,
+            sensed_near: Some(SensedNear { within_m: 40.0 }),
             after_press: None,
         }
     }
