@@ -88,6 +88,25 @@ pub enum TakePitch {
 #[serde(default, deny_unknown_fields)]
 pub struct CrossFromZone {}
 
+/// A spawner whose battery could not be taken (in a damage zone) is still searched (A296 item 6, A298 cause 1): the spawner search
+/// skipped every such spot, so no bot went near, and a team never learned a battery lay there (Vostok Radar Station's 0, 3 and 4 in
+/// the gas all match, the trailing team one point behind for the last 4 minutes with three free batteries; PROVEN, A298). With
+/// this, the search walks to a dry floor within `within_m` of the spot that sees it in a clear line (`memo::Memo::zone_look`) and
+/// looks at it from there: a battery seen is known (the sight rule, `sense.rs`, 35 m), and the take decides as for any known one
+/// (its crossing, the zone's dose against the bot's health and armour).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneLook {
+    pub within_m: Metres,
+}
+
+impl Default for ZoneLook {
+    fn default() -> Self {
+        // 24 m: well inside the 35 m battery sight, so a look from the spot's floor sees it at the noticing delay of a near one.
+        Self { within_m: Metres::of(24.0) }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TakeTuning {
@@ -96,6 +115,7 @@ pub struct TakeTuning {
     pub far_stands: Option<FarStands>,
     pub pitch: TakePitch,
     pub cross_from_zone: Option<CrossFromZone>,
+    pub zone_look: Option<ZoneLook>,
 }
 
 impl TakeTuning {

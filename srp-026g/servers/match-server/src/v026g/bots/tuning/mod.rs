@@ -155,6 +155,7 @@ pub use take::TakePitch;
 pub use take::TakeTuning;
 pub use take::TeamMemory;
 pub use take::WorldStand;
+pub use take::ZoneLook;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::Concede;

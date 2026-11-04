@@ -559,9 +559,13 @@ pub mod take_counts {
         SteepPressAimed,
         /// ... or there only after `SETTLE_MS` (not called aimed).
         SteepPressLate,
+        /// [take.zone_look] A zone spawner offered to the search from a dry look spot ...
+        ZoneLookOffered,
+        /// ... and a search step walking to it.
+        ZoneLookWalk,
     }
 
-    pub const ALL: usize = 11;
+    pub const ALL: usize = 13;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -576,6 +580,8 @@ pub mod take_counts {
         "zone_search_found",
         "steep_press_aimed",
         "steep_press_late",
+        "zone_look_offered",
+        "zone_look_walk",
     ];
 
     #[cfg(test)]
@@ -1342,6 +1348,13 @@ impl Ctx<'_> {
     /// one the team keeps falling by ([`TeamKnowledge::fallen_at`]), nor
     /// one whose stand is in a pocket no carrier gets out of
     /// ([`POCKET_BLOCK`]).
+    /// [take.zone_look] Where to look at a spawner's spot `item` from when its battery cannot be taken (a zone): a dry floor that
+    /// sees it ([`memo::Memo::zone_look`]) the bot may walk to; `None` with the switch off.
+    pub fn zone_look_at(&self, item: Vec3) -> Option<Vec3> {
+        let rule = self.tuning.take.zone_look?;
+        self.memo.zone_look(self.tactics, item, rule.within_m.get()).filter(|&spot| self.can_go(spot))
+    }
+
     pub fn can_take(&self, at: Vec3) -> bool {
         self.take_block(at).is_none()
     }
@@ -1632,8 +1645,15 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
                 .get(j)
                 .is_some_and(|s| s.item.distance_xz(item) < spread)
         });
-        if shut[k] || (taken && !own) || !cx.can_take(item) {
+        if shut[k] || (taken && !own) {
             continue;
+        }
+        // [take.zone_look] A spot whose battery cannot be taken is searched from a dry floor in sight of it, if there is one.
+        if !cx.can_take(item) {
+            if cx.zone_look_at(item).is_none() {
+                continue;
+            }
+            take_counts::count(take_counts::Count::ZoneLookOffered);
         }
         // The missing batteries a look round here may find and take: the
         // reachable spots in sight of it, by their share of all spots
@@ -1843,6 +1863,14 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     }
                 }
                 _ => return Step::Failed("no spawner"),
+            }
+            // [take.zone_look] A spawner whose battery cannot be taken is looked at from its dry look spot.
+            if matches!(target, TargetRef::Spawner(_))
+                && !cx.can_take(at)
+                && let Some(spot) = cx.zone_look_at(at)
+            {
+                take_counts::count(take_counts::Count::ZoneLookWalk);
+                return Step::Continue(Intent::to(spot, cx.pace_toward(spot)).within(1.0).looking(Look::Use(at)));
             }
             let Some(stand) = cx.tactics.stand_to_take(at) else {
                 return Step::Failed("no way to it");
@@ -2792,6 +2820,56 @@ mod tests {
         s.tactics = Tactics::new(world, 1.0);
         s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
         s
+    }
+
+    /// [take.zone_look] A spawner in the middle of a lethal zone (radius 6 m), its battery lying unseen: off, the search skips the
+    /// spot (its battery cannot be taken); on, the spot is offered and the search walks to a dry floor out of the zone that sees
+    /// it, looking at it.
+    #[test]
+    fn a_spawner_in_a_zone_is_looked_at_from_a_dry_floor_in_sight() {
+        use crate::v026g::bots::tuning::ZoneLook;
+        let item = Vec3::new(25.0, 0.3, 32.0);
+        let mut s = Scenario::field(Mode::Batteries);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "toxic".into(),
+                team: -1,
+                position: Vec3::new(25.0, 0.0, 32.0),
+                damage_type: "toxic".into(),
+                damage: None,
+                shapes: vec![Shape {
+                    kind: ShapeKind::Sphere,
+                    center: Vec3::new(25.0, 1.0, 32.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(6.0, 6.0, 6.0),
+                }],
+            });
+            map.battery_spawners = vec![mapdata::BatterySpawner {
+                position: Vec3::new(25.0, 0.0, 32.0),
+                item,
+                layer: "default".into(),
+            }];
+        });
+        s.tactics = Tactics::new(world, 1.0);
+        s.tuning.cheats.batteries = false;
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        s.battery(BatteryState::Free(item));
+        assert!(!s.cx(0).can_take(item), "lethal: no take");
+        assert_eq!(score_of(&s, TargetRef::Spawner(0)), None, "off: the search skips it");
+        s.tuning.take.zone_look = Some(ZoneLook::default());
+        assert!(score_of(&s, TargetRef::Spawner(0)).is_some(), "on: offered");
+        let target = TargetRef::Spawner(0);
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else {
+            panic!("{state:?}");
+        };
+        let Go::To { at: spot, .. } = intent.go else {
+            panic!("{intent:?}");
+        };
+        assert!(spot.distance_xz(item) > 6.0 && spot.distance_xz(item) <= 24.0, "{spot:?}");
+        assert!(matches!(intent.look, Look::Use(at) if at == item), "{intent:?}");
     }
 
     /// A battery in a zone on all match that hurts 0.02 a second (level_01's
