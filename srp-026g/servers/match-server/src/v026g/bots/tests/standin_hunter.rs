@@ -69,15 +69,31 @@ pub(crate) struct HunterAim {
     pub(crate) reaction_ms: f32,
 }
 
-/// The calibrated hunter.
+/// The calibrated hunter: the best of four tries against A287 (tier 13-15, 10 a side, the 16 offered map/mode pairs, the
+/// dial counting him, seed 1; `wsl-out/fighting/fx-fights-20261104/hunt-aim-*`, `hunt_read.py`):
+///
+/// | try (error / wander / settle tau / settle / notice / reaction) | K/D | first on his team | hits a shot | died within 1 s of his first hit, of those who died |
+/// |---|---|---|---|---|
+/// | the camper's skill 1 (0.9 / 0.8 / 1.0 / 0.1 / 0.6 / 120), seeds 1-2 | 1.28 | 12 % | 17.6 % | 37 % |
+/// | a (0.6 / 0.6 / 1.0 / 0.1 / 0.5 / 120) | 1.62 | 19 % | 19.8 % | 50 % |
+/// | b (0.4 / 0.4 / 0.6 / 0.08 / 0.4 / 100) | 1.65 | 31 % | 21.6 % | 40 % |
+/// | **c (0.25 / 0.3 / 0.4 / 0.06 / 0.35 / 90)** | **1.76** | **38 %** | **21.7 %** | **50 %** |
+/// | d (0.15 / 0.2 / 0.3 / 0.05 / 0.3 / 80) | 1.32 | 19 % | 21.6 % | 52 % |
+/// | the old stand-in human (a bot on its team's tuning), seeds 1-2 | 0.86 | 9 % | - | 59 % of 27 |
+/// | the owner, A287 (8 local matches) | 2.55 | 5 of 6 | 26-30 % | 65 % of his kills |
+///
+/// A finer aim stops paying past c (the hits a shot stay at ~21.7 %): what is left of the owner's edge is not the angles.
+/// His kills were 26 % headshots (the bots' 15 %, the live humans' 20 %), and the bots' aim point takes the chest first
+/// (`aimpoint::Part::AIM_ORDER`), which a bench-only stand-in cannot change. So the hunter is gentler than the owner, but
+/// much nearer him than the old stand-in human.
 pub(crate) const HUNTER_AIM: HunterAim = HunterAim {
-    error_deg: 0.9,
-    wander_deg: 0.8,
+    error_deg: 0.25,
+    wander_deg: 0.3,
     settled_wander_deg: 0.0,
-    settle_tau_s: 1.0,
-    settle_s: 0.1,
-    notice: 0.6,
-    reaction_ms: 120.0,
+    settle_tau_s: 0.4,
+    settle_s: 0.06,
+    notice: 0.35,
+    reaction_ms: 90.0,
 };
 
 /// The hunter's tuning: [`human_tuning`] with [`HUNTER_AIM`] (or `SRP_BENCH_HUNTER_AIM`'s, for a calibration) at both ends of
