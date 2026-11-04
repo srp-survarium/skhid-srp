@@ -143,7 +143,7 @@ package
          var Notice:Class = domain.getDefinition("survarium.modes.ModeNotice") as Class;
          var notice:Object = new Notice(pregame.contextText);
          addChild(DisplayObject(notice));
-         expect(notice.label.embedFonts == pregame.contextText.embedFonts,"notice embeds its font as the countdown does");
+         expect(notice.label.embedFonts == pregame.contextText.embedFonts && notice.label.defaultTextFormat.font == pregame.contextText.defaultTextFormat.font && notice.label.defaultTextFormat.bold == pregame.contextText.defaultTextFormat.bold,"notice has the countdown's font, embedding and bold");
          for each(var language:String in all)
          {
             data.setData(HarnessText.DATA[language]);
