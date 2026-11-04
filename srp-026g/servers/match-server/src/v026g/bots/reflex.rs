@@ -10000,7 +10000,7 @@ mod tests {
 
     /// Walking into its weapon's band (the reflex's legs, a walk: an Uzi at
     /// a rifle 46 m off), it still steps side to side (`strafe_walking`);
-    /// with that off, only standing.
+    /// with that off, only standing. The stand (`stand_strafe`) is off: it takes the range walk's place while it fires.
     #[test]
     fn it_steps_side_to_side_while_it_walks_into_its_band() {
         let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
@@ -10030,7 +10030,13 @@ mod tests {
             }
             out
         };
-        let aim = AimTuning::default();
+        let aim = AimTuning {
+            combat: CombatTuning {
+                stand_strafe: None,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
         let ticks = walk(&aim);
         let walking: Vec<&Override> = ticks
             .iter()
@@ -10042,6 +10048,7 @@ mod tests {
         let still = AimTuning {
             combat: CombatTuning {
                 strafe_walking: false,
+                stand_strafe: None,
                 ..CombatTuning::default()
             },
             ..AimTuning::default()

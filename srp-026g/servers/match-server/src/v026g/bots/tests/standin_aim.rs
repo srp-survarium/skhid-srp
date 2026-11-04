@@ -47,6 +47,19 @@ mod tests {
         }
     }
 
+    /// The paths of an object's `null` leaves, `/`-joined.
+    fn null_paths(value: &serde_json::Value, prefix: &str, into: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, inner) in map {
+                    null_paths(inner, &format!("{prefix}/{key}"), into);
+                }
+            }
+            serde_json::Value::Null => into.push(prefix.to_string()),
+            _ => {}
+        }
+    }
+
     #[test]
     fn the_camper_file_names_every_key_of_the_aim() {
         let mut default = Vec::new();
@@ -55,8 +68,15 @@ mod tests {
         key_paths(&serde_json::from_str(HUMAN_AIM).expect("JSON"), "", &mut pinned);
         default.sort();
         pinned.sort();
-        let missing: Vec<_> = default.iter().filter(|key| !pinned.contains(key)).collect();
-        let extra: Vec<_> = pinned.iter().filter(|key| !default.contains(key)).collect();
+        // A `null` names a switch the camper has off whose default is on: it covers the default's keys below it.
+        let mut off = Vec::new();
+        null_paths(&serde_json::from_str(HUMAN_AIM).expect("JSON"), "", &mut off);
+        let under_off = |key: &String| off.iter().any(|o| key.starts_with(&format!("{o}/")));
+        let missing: Vec<_> = default.iter().filter(|key| !pinned.contains(key) && !under_off(key)).collect();
+        let extra: Vec<_> = pinned
+            .iter()
+            .filter(|key| !default.contains(key) && !(off.contains(key) && default.iter().any(|d| d.starts_with(&format!("{key}/")))))
+            .collect();
         assert!(
             missing.is_empty() && extra.is_empty(),
             "tests/camper_human_aim.json: write the camper's value for {missing:?}, drop {extra:?}"
