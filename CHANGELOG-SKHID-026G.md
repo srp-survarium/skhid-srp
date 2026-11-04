@@ -997,3 +997,12 @@ update changes what a match computes.
 - TODO: #1196 New accounts: AK-74N and Remington 700 kits; the AKM, AKMSU and 10 stash maps
 - TODO: #1197 Vostok v0.11: the v0.26g spawn layout
 - TODO: #1198 Mode notice: draw its text with the countdown's embedded font
+
+## 4 Nov, 10:11 — TODO: the owner's words (update required)
+
+<!-- Revision 47 (026g-rev47), released 2026-11-04 10:11 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1201 Mode notice: the countdown's whole text format, its bold cut included
+- TODO: #1202 Match drop: always a drop card's roll, whole
+- TODO: #1203 Team Deathmatch: a kill scores three times
+- TODO: #1204 Mode notice: 10 seconds after play starts
