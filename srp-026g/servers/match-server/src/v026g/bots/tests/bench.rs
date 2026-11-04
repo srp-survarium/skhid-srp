@@ -1030,7 +1030,15 @@ pub(crate) fn real_bot_cost() {
                 }
             }
             let started = Instant::now();
-            let summary = bots.map_ready(world.clone());
+            // A map built cold (`SRP_BENCH_MAP_LATE_MS`): its tactics are built now and given to the bots that many ms
+            // into the match, after their first spawn, as the live server gives a map that was not cached.
+            let (summary, mut late_map) = match bench_settings().number::<u32>("SRP_BENCH_MAP_LATE_MS") {
+                Some(late_ms) => {
+                    let tactics = Tactics::new(world.clone(), bots.tunings.match_wide().hazard.margin_m.get());
+                    (format!("the map held to {late_ms} ms"), Some((late_ms, tactics)))
+                }
+                None => (bots.map_ready(world.clone()), None),
+            };
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
             let ready_mb = memory_mb().map(|(now, _)| now);
             reset_peak_memory();
@@ -1299,6 +1307,11 @@ pub(crate) fn real_bot_cost() {
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
                 clock += 5;
+                if late_map.as_ref().is_some_and(|(late_ms, _)| clock >= *late_ms)
+                    && let Some((_, tactics)) = late_map.take()
+                {
+                    eprintln!("  the map came late, at {clock} ms: {}", bots.tactics_ready(tactics));
+                }
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
                     for bot in bots.bots.iter().flatten() {
