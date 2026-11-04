@@ -353,6 +353,9 @@ pub struct TeamTraps {
     pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
     /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).
     pub shooters: Vec<(super::trap_react::TrapKey, Place, u32)>,
+    /// [A292 S1] The lanes of every enemy the team sensed, for the trap habit's score when `TrapTuning::lanes` is `enemies`
+    /// (`traps::learn_enemy_lanes`); empty otherwise.
+    pub lanes: super::know::HumanLanes,
 }
 
 #[cfg(test)]
