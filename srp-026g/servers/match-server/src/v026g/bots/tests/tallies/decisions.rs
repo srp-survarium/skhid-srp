@@ -22,6 +22,10 @@ impl Decisions {
         if note.text.starts_with(crate::v026g::bots::nav_log::PREFIX) {
             return;
         }
+        // A292's trap notes are the log's too, made from what the habit already decided.
+        if note.text.starts_with(crate::v026g::bots::traps::tally::PREFIX) {
+            return;
+        }
         self.text(&format!("{} {} {}", note.place, note.time, crate::v026g::bots::stuck::without_evidence(&note.text)));
         self.notes += 1;
     }
