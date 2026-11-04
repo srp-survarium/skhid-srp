@@ -104,6 +104,10 @@ pub(super) struct SmokeCounts {
     throws_start: smoke::tally::Throws,
     /// [A208] The holds for a cloud and the thrown smokes' crossings at the match's start.
     waits_start: smoke::tally::Waits,
+    /// [A291] The smoke plans' landings and their throwers' fates at the match's start.
+    landings_start: smoke::tally::Landings,
+    /// [A291] The plans and the lanes with no plan by the shooter's height, at the match's start.
+    heights_start: smoke::tally::Heights,
     /// The tracker's throws and clouds at the last tick, and its clouds then; grenade keys of humans whose pockets
     /// are not known (a real cloud the model cannot make).
     thrown: Thrown,
@@ -160,6 +164,8 @@ impl SmokeCounts {
             eyes_start: smoke::tally::counts(),
             throws_start: smoke::tally::throws(),
             waits_start: smoke::tally::waits(),
+            landings_start: smoke::tally::landings(),
+            heights_start: smoke::tally::heights(),
             thrown: Thrown::default(),
             clouds: Vec::new(),
             unknown_pockets: 0,
@@ -568,8 +574,30 @@ impl SmokeCounts {
             let team = |t: usize| -> Vec<u64> { (0..smoke::WaitsFor::COUNT).map(|f| now_waits[t][f][w] - self.waits_start[t][f][w]).collect() };
             serde_json::json!([team(0), team(1)])
         };
+        // [A291] Landings by team, each by use: [plans, on the shooter, shooter dm, crossing dm, stretch hidden, stretch,
+        // alive at 15 s, died to the shooter, died to another].
+        let now_landings = smoke::tally::landings();
+        let landings: [[[u64; smoke::tally::LANDING_SLOTS]; smoke::SmokeUse::ALL.len()]; 2] = std::array::from_fn(|team| {
+            std::array::from_fn(|u| std::array::from_fn(|k| now_landings[team][u][k] - self.landings_start[team][u][k]))
+        });
+        let landings_json: serde_json::Map<String, serde_json::Value> = uses
+            .iter()
+            .map(|u| (format!("{u:?}"), serde_json::json!([landings[0][u.index()], landings[1][u.index()]])))
+            .collect();
+        // [A291] By team and the shooter's height to the crossing: [plans, on the shooter, stretch hidden, stretch, no plan,
+        // alive at 15 s, died to the shooter, died to another, ticks followed, ticks hidden].
+        let now_heights = smoke::tally::heights();
+        let heights: [[[u64; smoke::tally::HEIGHT_SLOTS]; 3]; 2] = std::array::from_fn(|team| {
+            std::array::from_fn(|h| std::array::from_fn(|k| now_heights[team][h][k] - self.heights_start[team][h][k]))
+        });
+        let heights_json: serde_json::Map<String, serde_json::Value> = smoke::Height::ALL
+            .iter()
+            .map(|h| (format!("{h:?}"), serde_json::json!([heights[0][h.index()], heights[1][h.index()]])))
+            .collect();
         let json = serde_json::json!({
             "smoke_bot_throws_by_use": uses_json,
+            "smoke_landing_by_use": landings_json,
+            "smoke_plans_by_height": heights_json,
             "smoke_bot_thrown_by_role": roles_json,
             "smoke_thrown": self.thrown.thrown,
             "smoke_clouds": self.thrown.clouds,
@@ -627,9 +655,11 @@ impl SmokeCounts {
             }
         }
         let text = format!(
-            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); spot rules: plans refused, smoke there {:?}, a mate's claim {:?}, crossings under a cloud {:?}; plans skipped while sprinting {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; anti-sniper throws by class {:?}: {:?}; sniper crossings by [not smoked, smoked] [crossings, crossed alive, died to him, died to another] {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
+            "owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use {:?}, thrown by role {:?}; plans' landings [plans, on the shooter, shooter dm, crossing dm, stretch hidden, stretch, alive at 15 s, died to the shooter, died to another, ticks followed, ticks hidden from the shooter, mate-ticks own fire blocked, mate-ticks] by use {:?}; plans by the shooter's height [plans, on the shooter, stretch hidden, stretch, lanes with no landing covering, alive at 15 s, died to the shooter, died to another, ticks followed, ticks hidden from the shooter] {:?}; thrown {:?} clouds {:?} dropped {:?} (grenade keys with pockets unknown {}), placed by a world's grenade {:?} moved {:?} dm in all; looks lost to smoke {:?}, sights not begun for it {:?}, aim's target lost in it {:?}, spray ticks {:?}, smoke edges watched {:?} (busy {:?}), clouds learnt seen {:?} heard {:?} told {:?}, outranged by a seen sniper with a smoke: planned {:?} no plan {:?} (outranged at all {:?}); spot rules: plans refused, smoke there {:?}, a mate's claim {:?}, crossings under a cloud {:?}; plans skipped while sprinting {:?}; through smoke hits {:?} (spray {:?}) kills {:?}; time in smoke {:?} s, deaths there {:?}; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) {:?}, seen with no look {:?}, fire through smoke not a spray with no look within the spray's time {:?}; [diagnosis] seen with every eye clearly behind smoke from the game's bodies {:?}, fire so {:?}; anti-sniper throws by class {:?}: {:?}; sniper crossings by [not smoked, smoked] [crossings, crossed alive, died to him, died to another] {:?}; deaths [deaths, crowded, enemies near, traded, killer screened] by class {:?}: the tops' {:?}, the others' {:?}",
             uses.iter().map(|u| (format!("{u:?}"), [by_use[0][u.index()], by_use[1][u.index()]])).collect::<Vec<_>>(),
             roles.iter().enumerate().map(|(r, role)| (role.name(), [thrown_by_role[0][r], thrown_by_role[1][r]])).collect::<Vec<_>>(),
+            uses.iter().map(|u| (format!("{u:?}"), [landings[0][u.index()], landings[1][u.index()]])).collect::<Vec<_>>(),
+            smoke::Height::ALL.iter().map(|h| (format!("{h:?}"), [heights[0][h.index()], heights[1][h.index()]])).collect::<Vec<_>>(),
             self.thrown.thrown,
             self.thrown.clouds,
             self.thrown.dropped,
@@ -702,6 +732,28 @@ impl Topic for SmokeCounts {
         }
         // A sniper crossing resolved: the bot died (to him or another) or its time ran out alive.
         let tick = at.tick;
+        // [A291] A followed thrower alive: is it hidden by smoke from its plan's shooter, and how many of its mates' lines to
+        // him does smoke hide (own fire blocked), each tick, through the clouds as the client draws them.
+        if at.rec.alive
+            && let Some((_, _, Some(shooter), _)) = smoke::tally::landing_followed(at.place)
+            && let Some(him) = at.game.bodies.get(shooter).filter(|b| b.alive)
+        {
+            let me = &at.game.bodies[at.place];
+            let hidden = !self.clouds.is_empty() && self.hides(at.tick, Game::eye(him), Game::chest(me));
+            let mates: Vec<_> = at
+                .game
+                .bodies
+                .iter()
+                .filter(|b| b.alive && b.team == me.team && b.feet.distance_xz(him.feet) <= smoke::tally::SEE_MATES_M)
+                .collect();
+            let blocked = if self.clouds.is_empty() { 0 } else { mates.iter().filter(|m| self.hides(at.tick, Game::eye(m), Game::chest(him))).count() };
+            smoke::tally::landing_tick(at.place, hidden, blocked, mates.len());
+        }
+        // [A291] A smoke plan's thrower: died within the follow (to the plan's shooter or another) or alive at its end.
+        {
+            let killer = if died { run.kills.iter().rev().find(|&&(_, _, victim)| victim == at.place).map(|&(_, killer, _)| killer) } else { None };
+            smoke::tally::landing_fate(at.place, tick, died, killer);
+        }
         if let Some((who, _, smoked)) =
             smoke::tally::take_sniper_crossing(at.place, |(_, began, _)| died || tick.saturating_sub(began) >= SNIPER_CROSSING_MS)
         {
