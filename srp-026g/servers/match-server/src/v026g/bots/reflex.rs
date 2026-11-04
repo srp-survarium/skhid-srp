@@ -15030,7 +15030,8 @@ mod tests {
     }
 
     /// [A302 #3] With no target seen, the view goes to the enemy heard 2 s ago 20 m off with `pre_aim_heard` on; off, or heard too
-    /// long ago, it does not; a seen enemy is never needed for it, and nothing is fired.
+    /// long ago, it does not; a seen enemy is never needed for it, and nothing is fired. No grenades: a throw at a heard place
+    /// (`grenade_tracks`) would take the view first.
     #[test]
     fn with_no_target_the_view_goes_to_an_enemy_heard_lately() {
         let me = body(0, 0, Vec3::new(0.0, 0.0, 0.0), 0.0);
@@ -15044,16 +15045,17 @@ mod tests {
             reflex.think_with(&me, &Situation::of(&view), &memory, now, aim, 0.5, &mut rng);
             reflex.tick(&me, &view, &memory, now, true, aim, 0.5, &mut rng)
         };
+        let off = AimTuning { combat: CombatTuning { grenades: 0, ..CombatTuning::default() }, ..AimTuning::default() };
         let on = AimTuning {
-            combat: CombatTuning { pre_aim_heard: Some(PreAimHeard::default()), ..CombatTuning::default() },
-            ..AimTuning::default()
+            combat: CombatTuning { pre_aim_heard: Some(PreAimHeard::default()), ..off.combat.clone() },
+            ..off.clone()
         };
         let o = look(&on, 5_000, 7_000);
         let at = o.look_at.expect("a look at the heard enemy");
         assert!(at.distance_xz(heard_at) < 0.01, "{o:?}");
         assert!(o.glance && !o.fire, "{o:?}");
         assert!(look(&on, 5_000, 12_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "heard 7 s ago: stale");
-        assert!(look(&AimTuning::default(), 5_000, 7_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "off");
+        assert!(look(&off, 5_000, 7_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "off");
     }
 
     #[test]
