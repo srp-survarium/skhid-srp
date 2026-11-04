@@ -1949,8 +1949,15 @@ pub(super) fn drive(
     t: &TrapTuning,
 ) -> Option<TrapDrive> {
     let state = bot.features.traps.habit.state();
+    // [A292 S4a] From its press to the think that puts the trap in its field (and re-plans round it), the legs stay.
+    let hold = held_after_press(bot, now, t);
     if state == State::Idle {
-        return None;
+        return hold.then_some(TrapDrive {
+            look: None,
+            key: 0,
+            crouch: None,
+            hold,
+        });
     }
     let kit = bot.features.traps.habit.kit()?;
     // The pose the placing is counted on: held from the press to the release.
@@ -2051,7 +2058,16 @@ pub(super) fn drive(
         look,
         key: if out.key_down { kit.key } else { 0 },
         crouch: out.hold_crouch,
+        hold: hold || (t.after_press.is_some() && bot.features.traps.placed.is_some()),
     })
+}
+
+/// [A292 S4a] Whether the legs stay this tick: a trap let go of since the last think (`BotState::placed`, taken at the think
+/// that promises it to the team and re-plans the route round it), for at most `AfterPress::hold_ms`.
+fn held_after_press(bot: &Bot, now: u32, t: &TrapTuning) -> bool {
+    t.after_press
+        .zip(bot.features.traps.placed)
+        .is_some_and(|(a, (_, at))| now.saturating_sub(at) <= a.hold_ms)
 }
 
 /// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
@@ -2103,6 +2119,8 @@ pub(super) struct TrapDrive {
     pub key: u32,
     /// The crouch key as it was at the press, held to the release (with the landing rule).
     pub crouch: Option<bool>,
+    /// [A292 S4a] The legs stay this tick (`TrapTuning::after_press`).
+    pub hold: bool,
 }
 
 /// Where the view is turned.
@@ -3299,5 +3317,23 @@ mod tests {
         assert!(tuning.check().is_ok());
         tuning.sensed_near = Some(SensedNear { within_m: 10.0 });
         assert!(tuning.check().is_err(), "nearer than enemy_near_m");
+    }
+
+    /// A292 S4a: with `after_press` the legs stay from the press until the next think takes the trap (`placed`), at most
+    /// `hold_ms`; without it they never do.
+    #[test]
+    fn the_placer_stands_after_its_press_until_its_next_think() {
+        use crate::v026g::bots::tuning::AfterPress;
+        let full = crate::v026g::bots::tuning::Tuning::default();
+        let mut bot = Bot::new(1, 0, 0, None, &full);
+        let mut tuning = t();
+        bot.features.traps.placed = Some((Vec3::new(1.0, 0.0, 0.0), 10_000));
+        assert!(!held_after_press(&bot, 10_100, &tuning), "off: no hold");
+        tuning.after_press = Some(AfterPress::default());
+        assert!(held_after_press(&bot, 10_100, &tuning));
+        assert!(!held_after_press(&bot, 10_000 + 1_501, &tuning), "the cap");
+        bot.features.traps.placed = None;
+        assert!(!held_after_press(&bot, 10_100, &tuning), "taken by the think");
+        assert!(tuning.check().is_ok());
     }
 }

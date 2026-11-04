@@ -111,6 +111,10 @@ pub struct TrapTuning {
     /// tally of #1207 on the bench: of the thinks the enemy gate stopped, about 70 % were "sensed lately" (a shot or a step
     /// heard across the map counts today). Seen now and known within `enemy_near_m` stay as they are. Off by default.
     pub sensed_near: Option<SensedNear>,
+    /// [A292 S4a] The placer stands from its trap's press until its next think has put the trap in its field and re-planned its
+    /// route round it, at most `hold_ms`. Without it the bot walks on its old route for that time: in the S1 bench 13 of 298
+    /// traps caught their own placer 0-3 s after the press, landing 0.85-1.25 m from its feet. Off by default.
+    pub after_press: Option<AfterPress>,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -169,6 +173,20 @@ pub struct SensedNear {
 impl Default for SensedNear {
     fn default() -> Self {
         Self { within_m: 40.0 }
+    }
+}
+
+/// [A292 S4a] How long the placer may stand after its press (`TrapTuning::after_press`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AfterPress {
+    /// At most this, ms: a GUESS margin over the few hundred ms between two thinks of a bot.
+    pub hold_ms: u32,
+}
+
+impl Default for AfterPress {
+    fn default() -> Self {
+        Self { hold_ms: 1_500 }
     }
 }
 
@@ -375,6 +393,7 @@ impl Default for TrapTuning {
             react: ReactTuning::default(),
             lanes: TrapLanes::Humans,
             sensed_near: None,
+            after_press: None,
         }
     }
 }
@@ -434,6 +453,7 @@ impl Check for TrapTuning {
             self.sensed_near.is_none_or(|n| n.within_m >= self.enemy_near_m && n.within_m <= 200.0),
             "traps.sensed_near",
         )?;
+        check(self.after_press.is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000), "traps.after_press")?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)

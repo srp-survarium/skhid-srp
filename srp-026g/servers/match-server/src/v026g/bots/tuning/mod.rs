@@ -184,6 +184,7 @@ pub use teams::TeamTunings;
 pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
+pub use traps::AfterPress;
 pub use traps::SensedNear;
 pub use traps::TrapLanes;
 pub use traps::TrapTuning;
