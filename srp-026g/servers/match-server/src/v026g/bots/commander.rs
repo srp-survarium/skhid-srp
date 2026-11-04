@@ -776,7 +776,26 @@ impl Bots {
         } else {
             Vec::new()
         };
+        // [A297 `tdm.group`, `answer` nearest / nearest_mover] Who answers which fight: each fight the nearest free bot within
+        // `answer_m` (not in a fight, not a carrier; with nearest_mover, not holding an angle either: `group::holds`).
+        let answers = match by_position.map(|g| (g.answer, g.answer_m.get())) {
+            Some((answer @ (tuning::Answer::Nearest | tuning::Answer::NearestMover), answer_m)) => {
+                let fights: Vec<(Place, mapdata::Vec3)> =
+                    fighting.iter().filter_map(|f| view.place(f.mate).filter(|p| p.alive).map(|p| (f.mate, p.feet))).collect();
+                let free: Vec<(Place, mapdata::Vec3)> = self
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.team == team && !fighting.iter().any(|f| f.mate == b.place))
+                    .filter(|b| answer == tuning::Answer::Nearest || !b.assignment.as_ref().is_some_and(|a| group::holds(a.kind)))
+                    .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
+                    .collect();
+                group::answerers(&fights, &free, answer_m)
+            }
+            _ => Vec::new(),
+        };
         self.teams[usize::from(team)].knowledge.fighting = fighting;
+        self.teams[usize::from(team)].knowledge.answers = answers;
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots

@@ -1016,6 +1016,9 @@ pub struct TeamKnowledge {
     /// [A297 `tdm.group`] The team's bots in a fight now (the commander's, from each one's reflex target): the team hears
     /// their shots and their callouts. Empty with the switch off or outside Team Deathmatch.
     pub fighting: Vec<Fighting>,
+    /// [A297 `tdm.group`] Who answers which fight now, (the fighting mate, the answering bot): the commander's
+    /// (`group::answerers`).
+    pub answers: Vec<(Place, Place)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
     /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).

@@ -51,7 +51,7 @@ impl Default for GroupUp {
             max_m: Metres::of(15.0),
             bearing_min_deg: 30.0,
             lateral_m: Metres::of(5.0),
-            answer: Answer::Nearest,
+            answer: Answer::NearestMover,
             dead_m: Metres::of(8.0),
             dead_s: Positive::of(20.0),
             linger_s: Positive::of(2.0),
@@ -69,9 +69,14 @@ pub enum Answer {
     /// partner was over `answer_m` off in 14,645 polls against 1,595 covers taken; pairs drift apart on their own plays.
     Partner,
     /// The nearest free bot of the team within `answer_m` (not in a fight itself, not a carrier), each fight one answerer, the
-    /// nearest pairs first (`group::answerers`): 74 % of the owner's victims had a mate within 20 m (A287), mostly not the partner.
-    #[default]
+    /// nearest pairs first (`group::answerers`, the commander's): 74 % of the owner's victims had a mate within 20 m (A287),
+    /// mostly not the partner. Its bench (v2, 168 pairs vs the hunter): bot vs bot ON deaths -6 % (z -3.5), but the hunter died
+    /// less vs ON (z -2.43): the covers pulled bots off the angles that kill him.
     Nearest,
+    /// As `Nearest`, but a bot holding an angle (`group::holds`: Crossfire, HoldExit, Cut, Ambush, GuardLead) keeps it: only a
+    /// moving bot answers, as squads split a holder and a mover (F.E.A.R.'s cover-while-advancing; Killzone's position picking).
+    #[default]
+    NearestMover,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]

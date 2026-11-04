@@ -198,6 +198,14 @@ pub fn answerers(fights: &[(Place, Vec3)], free: &[(Place, Vec3)], answer_m: f32
     out
 }
 
+/// Whether a bot on this play holds an angle (a lane, an exit, a cut, an ambush, a container), which it keeps when a mate
+/// fights with `answer = nearest_mover`: the v2 bench's covers took ~28 % of the ON team's bot-time and its Crossfire and HoldExit
+/// kills of the hunter fell 69 -> 39 and 34 -> 27 (trace 72149578, 64 pairs). A Trade on a mate (a cover running) is no hold.
+pub fn holds(kind: super::plays::PlayKind) -> bool {
+    use super::plays::PlayKind;
+    matches!(kind, PlayKind::Crossfire | PlayKind::HoldExit | PlayKind::Cut | PlayKind::Ambush | PlayKind::GuardLead)
+}
+
 /// What the switch did (the bench's count; nothing live): the topic `group` prints them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Count {
@@ -335,6 +343,13 @@ mod tests {
         // A death farther out on the same bearing: the spot is in the lane that killed.
         let far = Loss { at: Vec3::new(30.0, 0.0, 30.0), time: 5_000, spawner: None };
         assert_eq!(cover_ok(side, mate, enemy, &[far], 10_000, &rules), Err(NotCover::InKilledLane));
+    }
+
+    #[test]
+    fn a_bot_holding_an_angle_keeps_it() {
+        use crate::v026g::bots::plays::PlayKind;
+        assert!(holds(PlayKind::Crossfire) && holds(PlayKind::HoldExit) && holds(PlayKind::Cut));
+        assert!(!holds(PlayKind::Roam) && !holds(PlayKind::Trade) && !holds(PlayKind::Buddy));
     }
 
     #[test]

@@ -150,11 +150,11 @@ fn group(cx: &Ctx) -> Option<GroupUp> {
 
 /// [A297 `tdm.group`] The mate whose fight this bot answers, if one is due, and this bot is in no fight itself:
 /// - [`Answer::Partner`]: its partner, in a fight, alive within `answer_m`;
-/// - [`Answer::Nearest`]: the fight [`group::answerers`] gives this bot (each fight the nearest free bot within `answer_m`).
+/// - [`Answer::Nearest`], [`Answer::NearestMover`]: the fight the commander gave this bot (`TeamKnowledge::answers`: each fight
+///   the nearest free bot within `answer_m`, with nearest_mover none holding an angle).
 ///
 /// The enemy's place is the bot's own memory's ([`Ctx::known_place`]); not known, no cover (counted).
 fn fight_to_answer(cx: &Ctx, rules: &GroupUp) -> Option<Place> {
-    use crate::v026g::bots::group;
     use crate::v026g::bots::tuning::Answer;
     let fighting = &cx.team.fighting;
     if fighting.iter().any(|f| f.mate == cx.me.place) {
@@ -169,23 +169,8 @@ fn fight_to_answer(cx: &Ctx, rules: &GroupUp) -> Option<Place> {
             }
             partner
         }
-        Answer::Nearest => {
-            let fights: Vec<(Place, Vec3)> =
-                fighting.iter().filter_map(|f| cx.known_place(f.mate).map(|at| (f.mate, at))).collect();
-            if fights.is_empty() {
-                return None;
-            }
-            let free: Vec<(Place, Vec3)> = cx
-                .view
-                .team(cx.me.team)
-                .filter(|p| p.bot && p.carrying.is_none() && !fighting.iter().any(|f| f.mate == p.place))
-                .map(|p| (p.place, p.feet))
-                .collect();
-            let Some(&(mate, _)) = group::answerers(&fights, &free, rules.answer_m.get()).iter().find(|(_, bot)| *bot == cx.me.place) else {
-                count(Count::CoverFar);
-                return None;
-            };
-            mate
+        Answer::Nearest | Answer::NearestMover => {
+            cx.team.answers.iter().find(|(_, bot)| *bot == cx.me.place)?.0
         }
     };
     let enemy = fighting.iter().find(|f| f.mate == mate)?.enemy;
@@ -541,6 +526,7 @@ mod tests {
         s.enemy(1, 1, Vec3::new(58.0, 0.0, 34.0), Some(Source::Heard));
         s.partner = Some(2);
         s.team.fighting = vec![Fighting { mate: 2, enemy: 1, since: s.view.clock - 500 }];
+        s.team.answers = vec![(2, 0)];
         s.tuning.tdm.group = on.then(GroupUp::default);
         s
     }
@@ -559,9 +545,16 @@ mod tests {
         let mut s = covering(true);
         s.view.mode = Mode::Batteries;
         assert!(trades(&s).is_empty());
-        // Not when the partner fights farther than answer_m.
+        // Not when the commander gave its fight to another bot.
         let mut s = covering(true);
-        s.tuning.tdm.group = Some(GroupUp { answer_m: crate::v026g::bots::tuning::Metres::of(5.0), ..GroupUp::default() });
+        s.team.answers = vec![(2, 3)];
+        assert!(trades(&s).is_empty());
+        // answer = partner: not when the partner fights farther than answer_m.
+        use crate::v026g::bots::tuning::{Answer, Metres};
+        let mut s = covering(true);
+        s.tuning.tdm.group = Some(GroupUp { answer: Answer::Partner, ..GroupUp::default() });
+        assert_eq!(trades(&s).len(), 1);
+        s.tuning.tdm.group = Some(GroupUp { answer: Answer::Partner, answer_m: Metres::of(5.0), ..GroupUp::default() });
         assert!(trades(&s).is_empty());
     }
 }
