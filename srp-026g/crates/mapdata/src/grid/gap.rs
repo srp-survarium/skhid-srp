@@ -268,6 +268,17 @@ enum Over {
     Vaulted,
 }
 
+/// [A293] Where a sprint press comes down ([`WalkGrid::sprint_landing`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum SprintLanding {
+    /// On this floor, one level whatever the prepare, leg and speed after the clip.
+    Lands(u32),
+    /// Nowhere it can be kept (no level, hurt, short of the edge, sunk).
+    Misses,
+    /// Over a face that held it, more than a step down (only with [`crate::Body::gap_no_vaults`]).
+    VaultsDown,
+}
+
 /// [A293] What the walking presses found at a take-off's edge along a way.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Edge {
@@ -716,7 +727,9 @@ impl WalkGrid {
     /// ([`FALL_HURTS_MS`]). Between the press and the jump event the body
     /// walks at the walk cap while the root runs ahead (FINDINGS §3.2); past
     /// the edge (`edge` along) it falls meanwhile.
-    fn sprint_landing(&self, a: usize, d: usize, lead: f32, edge: f32, solids: &Solids) -> Option<u32> {
+    /// [A293] With [`crate::Body::gap_no_vaults`], a flight that vaults down ([`Self::vaults_down`]) is
+    /// [`SprintLanding::VaultsDown`].
+    fn sprint_landing(&self, a: usize, d: usize, lead: f32, edge: f32, solids: &Solids) -> SprintLanding {
         let sample_s = 2.0 / (CLIP_FPS * SPRINT_CLIP_RATE);
         let mut level: Option<(u32, f32)> = None;
         for prepare in SPRINT_PREPARE_M {
@@ -730,30 +743,34 @@ impl WalkGrid {
                 0.0
             };
             if sunk > self.body.step {
-                return None;
+                return SprintLanding::Misses;
             }
             for rise in &SPRINT_JUMP_RISE {
                 let clip = Clip { ahead: &SPRINT_JUMP_AHEAD, rise, leaves: SPRINT_LEAVES_M, sample_s };
-                let (flight, over) = self.fly_clip(a, d, &clip, start, pre, sunk, solids)?;
+                let Some((flight, over)) = self.fly_clip(a, d, &clip, start, pre, sunk, solids) else {
+                    return SprintLanding::Misses;
+                };
                 for after in SPRINT_JUMP_AFTER_CLIP_MS {
-                    let (to, along, speed) = self.land(a, d, flight, after, solids)?;
+                    let Some((to, along, speed)) = self.land(a, d, flight, after, solids) else {
+                        return SprintLanding::Misses;
+                    };
                     if self.vaults_down(a, to, over) {
-                        return None;
+                        return SprintLanding::VaultsDown;
                     }
                     // Across the gap, unhurt.
                     if along <= edge || speed >= FALL_HURTS_MS {
-                        return None;
+                        return SprintLanding::Misses;
                     }
                     let y = self.height[to as usize];
                     match level {
                         None => level = Some((to, y)),
                         Some((_, l)) if (y - l).abs() <= SAME_TOP => {}
-                        Some(_) => return None,
+                        Some(_) => return SprintLanding::Misses,
                     }
                 }
             }
         }
-        level.map(|(to, _)| to)
+        level.map_or(SprintLanding::Misses, |(to, _)| SprintLanding::Lands(to))
     }
 
     /// How far a body walking along `d` from `from` towards `to` metres
@@ -913,10 +930,15 @@ impl WalkGrid {
         }
         let presses = (SPRINT_PRESS_MAX_M.min(behind) / SPRINT_PRESS_STEP_M + 1e-3).floor() as usize + 1;
         let half = (GAP_PRESS_SPREAD_M / SPRINT_PRESS_STEP_M).round() as usize;
-        let at = |p: usize| {
-            let to = self.sprint_landing(a, d, p as f32 * SPRINT_PRESS_STEP_M, edge, solids)?;
-            let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
-            ((ti - i).abs().max((tk - k).abs()) >= 2).then_some(to)
+        // A press that vaults down ([`SprintLanding::VaultsDown`]) ends this way's sprint links (as for the walking presses,
+        // [`Self::walking_gap_link`]).
+        let at = |p: usize| match self.sprint_landing(a, d, p as f32 * SPRINT_PRESS_STEP_M, edge, solids) {
+            SprintLanding::Lands(to) => {
+                let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
+                Ok(((ti - i).abs().max((tk - k).abs()) >= 2).then_some(to))
+            }
+            SprintLanding::Misses => Ok(None),
+            SprintLanding::VaultsDown => Err(Edge::VaultsDown),
         };
         // Every window of `2 half + 1` presses holds a press of this stride:
         // those first, the rest only next to one that lands.
@@ -924,14 +946,22 @@ impl WalkGrid {
         let mut landing: Vec<Option<u32>> = vec![None; presses];
         let mut looked = vec![false; presses];
         for p in (0..presses).step_by(stride) {
-            landing[p] = at(p);
+            let Ok(to) = at(p) else {
+                stats.no_landing += 1;
+                return;
+            };
+            landing[p] = to;
             looked[p] = true;
         }
         for p in (0..presses).step_by(stride) {
             if landing[p].is_some() {
                 for q in p.saturating_sub(2 * half)..(p + 2 * half + 1).min(presses) {
                     if !looked[q] {
-                        landing[q] = at(q);
+                        let Ok(to) = at(q) else {
+                            stats.no_landing += 1;
+                            return;
+                        };
+                        landing[q] = to;
                         looked[q] = true;
                     }
                 }
