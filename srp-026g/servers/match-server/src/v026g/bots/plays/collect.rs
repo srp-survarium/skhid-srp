@@ -1651,12 +1651,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
                 .get(j)
                 .is_some_and(|s| s.item.distance_xz(item) < spread)
         });
-        if shut[k] || (taken && !own) {
+        if taken && !own {
             continue;
         }
-        // [take.zone_look] A spot whose battery cannot be taken is searched from a dry floor in sight of it, if there is one: the
-        // way there is the look spot's (no way leads into the zone).
-        let look_from = if cx.can_take(item) {
+        // [take.zone_look] A spot whose battery cannot be taken (no way to it all match, or a zone) is searched from a dry floor in
+        // sight of it, if there is one: the way there is the look spot's (no way leads into the zone). Off, such a spot is skipped.
+        let look_from = if !shut[k] && cx.can_take(item) {
             None
         } else {
             let Some(spot) = cx.zone_look_at(item) else {
