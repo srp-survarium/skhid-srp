@@ -105,6 +105,9 @@ impl Default for DropImpossible {
     fn default() -> Self {
         // 5 m: deeper than any step, drop or pit floor the grid misses under a lying battery; 4 m: a grid cell's error and a body.
         Self { below_m: Metres::of(5.0), box_m: Metres::of(4.0) }
+    }
+}
+
 /// A spawner whose battery could not be taken (in a damage zone) is still searched (A296 item 6, A298 cause 1): the spawner search
 /// skipped every such spot, so no bot went near, and a team never learned a battery lay there (Vostok Radar Station's 0, 3 and 4 in
 /// the gas all match, the trailing team one point behind for the last 4 minutes with three free batteries; PROVEN, A298). With
