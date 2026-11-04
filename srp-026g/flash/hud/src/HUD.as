@@ -47,6 +47,9 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ModeNotice;
+   import survarium.modes.ModeIntroText;
+   import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
    import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
@@ -336,6 +339,7 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
+         this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -382,6 +386,8 @@ package
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
+         this._modeNotice = new ModeNotice(this.pregameInfo.contextText.defaultTextFormat.font);
+         addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -818,11 +824,30 @@ package
       private var _keptLayer:KeptLayer;
 
       private var _forcedView:ForcedView;
+      private var _modeNotice:ModeNotice;
+      private var _pregameText:String = "";
+
+      private function onIntroductionFrame(event:Event) : void
+      {
+         this._modeNotice.update(getTimer(),false,
+            this.pregameInfo != null && this.pregameInfo.visible);
+         var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
+            this.pregameInfo.getBounds(this).bottom : 0;
+         var timer:DisplayObject = this.matchTime() as DisplayObject;
+         if(timer != null)
+            bottom = Math.max(bottom,timer.getBounds(this).bottom);
+         this._modeNotice.place(this.stageWidth,bottom);
+      }
 
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
          this.setInterfaceHidden(forced);
+         if(forced)
+            this._modeNotice.begin("blackout");
+         else
+            this._modeNotice.reset();
+         this.set_pregame(this._pregameText);
       }
 
       public function interface_forced() : Boolean
@@ -832,7 +857,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo,this.contextInfo];
+         return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
       private function keptOnTab() : Array
@@ -1104,6 +1129,7 @@ package
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         this.set_pregame(this._pregameText);
       }
       
       public function show_profiles_selector(value:Boolean) : void
@@ -1820,6 +1846,7 @@ package
       public function show_pregame(bool:Boolean) : void
       {
          this.pregameInfo.visible = bool;
+         this._modeNotice.update(getTimer(),true,bool);
          if(bool == false)
          {
             this.pregameInfo.premiumMembers.visible = false;
@@ -1829,8 +1856,9 @@ package
       
       public function set_pregame(value:String) : void
       {
-         this.pregameInfo.contextText.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.contextText.text = value;
+         this._pregameText = value;
+         ModeIntroText.pregame(this.pregameInfo.contextText,
+            null,value);
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
@@ -1959,6 +1987,8 @@ package
          this._artefactOfferKey = "";
          this._artefactOfferValue = "";
          this._nativeContext = {text:"",value:0,visible:true};
+         this._modeNotice.reset();
+         this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
          // tells the movie the new match's state
@@ -2085,6 +2115,7 @@ package
       public function set_match_time(time:String) : void
       {
          this.matchTime().text = time;
+         this._modeNotice.update(getTimer(),true,this.pregameInfo.visible);
       }
 
       // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the

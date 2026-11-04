@@ -549,3 +549,61 @@ scaleform::di_command_queue	references	0x4	u32	its reference count (RefCountImpl
 scaleform::di_command_queue	context	0x34	ptr<scaleform::drawable_image_context>	its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
 scaleform::render_notify	vtable	0x0	u32	a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
 scaleform::di_command_queue	link	0x0	obj<scaleform::di_queue_link>	itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+survarium::player	damage_model	0x2E0	ptr<survarium::medical_damage>	damage model; owner bound at 0x2D7064
+survarium::player	refresh_selection	0x33E	u8	native movement/item selection invalidation
+survarium::player	effects	0x358	obj<survarium::game_effect_player>	embedded game_effect_player
+survarium::player	effect_calculator	0x394	obj<survarium::game_effect_listener>	default player effect calculator used at 0x32A37A
+survarium::player	feet	0x43C	f32	translation of the simulated transform
+survarium::inventory	holder	0x174	ptr<survarium::inventory_holder>	inventory_holder interface; owner at virtual slot 0xC
+survarium::inventory_holder	player	-0x108	obj<survarium::player>	base_player inventory_holder subobject (0x1F17A0)
+survarium::medkit	item	0x0	obj<survarium::item>	Medical hook typed object boundary; medical-skills.md
+survarium::medkit	protection	0x294	ptr<survarium::medical_protection>	configured protection records
+survarium::medkit	protection_count	0x298	u8	number of protection records
+survarium::medical_protection	name	0x70	u8	inline body part name (16 bytes)
+survarium::medical_protection	hit_kind	0x80	u32	hit type discriminator
+survarium::medical_protection	coefficient	0x84	f32	damage coefficient
+survarium::medical_protection	threshold	0x88	f32	damage threshold
+survarium::medical_protection	size	0x90	size	Medical hook typed object boundary; medical-skills.md
+survarium::player_params_modifiers_container	medical_ranks	0xAC	f32	Medical hook typed object boundary; medical-skills.md
+survarium::medical_hit	name	0x0	ptr<u8>	hit body part name
+survarium::medical_hit	kind	0x1C	u32	hit type
+survarium::medical_hit	owner	0x20	ptr<survarium::medical_owner>	hit owner reference
+survarium::medical_owner	place	0x4	u32	owner place
+survarium::medical_damage	owner	0x3B0	ptr<survarium::player>	owning player
+survarium::medical_damage	pools	0x108	obj<survarium::medical_pools>	body part lookup list
+survarium::medical_pools	first	0x0	ptr<survarium::medical_pool>	Medical hook typed object boundary; medical-skills.md
+survarium::medical_pool	model	0x7C	ptr<survarium::medical_damage>	owning damage model
+survarium::medical_pool	maximum	0x9C	f32	maximum health
+survarium::medical_pool	health	0xA0	f32	current health
+survarium::medical_pool	delay	0xAC	u32	regeneration delay milliseconds
+survarium::medical_pool	previous_health	0xB4	f32	health at last hit
+survarium::medical_protect_frame	hit	0x4	ptr<survarium::medical_hit>	hit_info argument at entry
+survarium::medical_protect_frame	damage	0x8	ptr<f32>	damage output argument at entry
+survarium::medical_damage_frame	amount	0x8	f32	local invulnerability adjusted damage at 0x2E50C7
+survarium::medical_artefact	vtable	0x0	ptr<survarium::medical_vtable>	Medical hook typed object boundary; medical-skills.md
+survarium::medical_artefact	removes	0x360	ptr<survarium::medical_remove>	configured removed-affect records begin
+survarium::medical_artefact	removes_end	0x364	ptr<survarium::medical_remove>	configured removed-affect records end
+survarium::medical_remove	name	0x0	ptr<u8>	body part name
+survarium::medical_remove	affect	0x1C	u32	affect kind
+survarium::medical_remove	size	0x20	size	Medical hook typed object boundary; medical-skills.md
+survarium::medical_vtable	enable_active	0x80	u32	artefact active callback
+survarium::image	lifebone_active	0x312250	u32	Lifebone active callback (RTTI confirmed class)
+survarium::medical_artefact	active_resource	0x290	ptr<survarium::medical_effect_resource>	active effect resource; native 0x313359 passes it to 0x329050 for each activation
+survarium::medical_effect_query	requested	0xF8	ptr<u8>	named effect request fallback; native 0x2EC838..0x2EC867
+survarium::medical_effect_query	resolved	0xFC	ptr<u8>	named effect request preferred pointer; native 0x2EC838..0x2EC867
+survarium::medical_artefact	active_remaining	0x494	u32	Lifebone active milliseconds, set before effect playback at 0x312362
+survarium::image	default_effect_clock_vtable	0xA11398	u32	default effect clock methods: 0x2E5D80 and two no-op codec methods
+survarium::game_effect	length	0x24	f32	native serialized effect length in seconds
+survarium::medical_timed_clock	vtable	0	u32	native time calculator methods
+survarium::medical_timed_clock	registry_index	4	u32	native boundary: FFFFFFFF means local pointer codec
+survarium::medical_timed_clock	listener	0	obj<survarium::game_effect_listener>	time-calculator interface
+survarium::medical_timed_clock	size	8	size	stateless native time calculator
+survarium::medical_clock_frame	result	4	ptr<survarium::medical_clock_result>	out interval/time/ended
+survarium::medical_clock_frame	node	8	ptr<survarium::medical_effect_node>	playing effect
+survarium::medical_clock_frame	now	0x10	u32	current simulation milliseconds
+survarium::medical_effect_node	effect	0	ptr<survarium::game_effect>	retained effect
+survarium::medical_effect_node	start	0x18	u32	serialized activation time
+survarium::medical_clock_result	interval	0	u32	interval zero while holding
+survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
+survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
+survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation

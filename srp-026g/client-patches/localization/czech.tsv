@@ -213,7 +213,7 @@ st_ammo_762x39_description	Náboj 7.62x39 vyvinutý v roce 1943, považovaný za
 st_ammo_762x39_m_description	Popis zatím není k dispozici.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
-st_ammo_762x51_20_description	Puškové náboje 7.62x51 v zásobnících po 20 kusech pro FN SCAR-H a H&K G3SG/1.
+st_ammo_762x51_20_description	Puškové náboje 7,62x51 v baleních po 20 nábojích pro H&K G3SG/1.
 st_ammo_762x51_20_name	7.62x51, zásobník na 20
 st_ammo_762x51_M59_description	Průbojná varianta vojenského puškového náboje 7.62x51 M61. Střela má ocelové jádro s pláštěm.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.
 st_srp_ammo069_23mm_r_name	23x75R, broky
+st_srp_ammo_scar_ap_desc	Průbojné náboje 7,62x51 pro FN SCAR-H. Každá sumka pojme 20 nábojů.
+st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 nábojů
 st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač
 st_srp_crosshair_hidden	Skrytý zaměřovač
@@ -2431,6 +2433,8 @@ st_srp_hide_hit_markers_option	Skrýt ukazatele zásahů
 st_srp_hide_quests_option	Skrýt úkoly
 st_srp_hide_scores_option	Skrýt skóre hráčů
 st_srp_hud_add_friend	Přidat do přátel
+st_srp_hud_blackout_intro	Blackout: noste baterie k zařízení svého týmu. Rozhraní a ukazatele zásahů jsou skryté pro větší vtažení do hry. Podržte Tab: munice, zdraví, chat; po smrti výběr výbavy.
+st_srp_hud_blackout_start	Blackout\nNoste baterie k zařízení svého týmu.\nRozhraní a ukazatele zásahů jsou skryté. Podržte Tab pro zobrazení munice a zdraví.
 st_srp_hud_friend_not_sent	Žádost o přátelství nebyla odeslána
 st_srp_hud_friend_sent	Žádost o přátelství odeslána
 st_srp_hud_mute_hide	Skrýt chat
@@ -2689,6 +2693,8 @@ st_srp_weapon_minimum_damage	Minimální poškození
 st_srp_weapon_minimum_damage_from	Minimální poškození od
 st_srp_weapon_recoil_heading	Zpětný ráz, rozptyl a chvění
 st_srp_weapon_reload	Přebíjení
+st_srp_weapon_reload_empty	Přebití (prázdná)
+st_srp_weapon_reload_tactical	Taktické přebití
 st_srp_weapon_shift_hint	Shift: více · Alt: v zápase
 st_srp_weapon_spread_growth	Rychlost růstu rozptylu
 st_srp_weapon_spread_max	Maximální přídavný rozptyl

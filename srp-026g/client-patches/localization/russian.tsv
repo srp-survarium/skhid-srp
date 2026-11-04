@@ -213,7 +213,7 @@ st_ammo_762x39_description	7.62-мм патрон образца 1943 года, 
 st_ammo_762x39_m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_762x39_m_name	7.62х39 РПД
 st_ammo_762x39_name	7.62х39
-st_ammo_762x51_20_description	Винтовочные патроны 7.62х51 в магазинах на 20 патронов для FN SCAR-H и H&K G3SG/1.
+st_ammo_762x51_20_description	Винтовочные патроны 7.62x51 в пачках по 20 патронов для H&K G3SG/1.
 st_ammo_762x51_20_name	7.62x51, магазин на 20
 st_ammo_762x51_M59_description	Бронебойная модификация армейского винтовочного патрона калибра 7.62. Пуля оснащена стальным сердечником.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
 st_srp_ammo069_23mm_r_desc	Патрон калибра 23 мм, снаряженный дробью, для КС-23М. Наносит высокий урон по небронированным целям.
 st_srp_ammo069_23mm_r_name	23x75R, дробь
+st_srp_ammo_scar_ap_desc	Бронебойные патроны 7.62x51 для FN SCAR-H. Каждый подсумок вмещает 20 патронов.
+st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронов
 st_srp_attachments	Обвес
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
@@ -2431,6 +2433,8 @@ st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
+st_srp_hud_blackout_start	Блэкаут\nНесите батареи к устройству своей команды.\nИнтерфейс и маркеры попаданий скрыты. Удерживайте Tab, чтобы увидеть боезапас и здоровье.
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_hud_mute_hide	Скрыть чат
@@ -2689,6 +2693,8 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
+st_srp_weapon_reload_empty	Перезарядка (пустой)
+st_srp_weapon_reload_tactical	Тактическая перезарядка
 st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса

@@ -213,7 +213,7 @@ st_ammo_762x39_description	Vuonna 1943 suunniteltu 7.62x39-patruuna, jota pidet�
 st_ammo_762x39_m_description	Kuvausta ei vielä ole.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
-st_ammo_762x51_20_description	7.62x51-kiväärinpatruunoita 20 patruunan lippaissa FN SCAR-H:lle ja H&K G3SG/1:lle.
+st_ammo_762x51_20_description	7.62x51-kiväärinpatruunoita 20 patruunan pakkauksissa H&K G3SG/1:lle.
 st_ammo_762x51_20_name	7.62x51, 20 patruunan lipas
 st_ammo_762x51_M59_description	Sotilaskäyttöön tarkoitetun 7.62x51 M61 -patruunan panssarinläpäisevä versio. Luodissa on vaipallinen teräsydin.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm:n haulipatruuna KS-23M:ään. Aiheuttaa suurta vahinkoa panssaroimattomiin kohteisiin.
 st_srp_ammo069_23mm_r_name	23x75R, haulit
+st_srp_ammo_scar_ap_desc	Panssarinläpäiseviä 7.62x51-patruunoita FN SCAR-H:lle. Kuhunkin ammustaskuun mahtuu 20 patruunaa.
+st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20 patruunaa
 st_srp_attachments	Lisävarusteet
 st_srp_crosshair_dynamic	Dynaaminen tähtäin
 st_srp_crosshair_hidden	Piilotettu tähtäin
@@ -2431,6 +2433,8 @@ st_srp_hide_hit_markers_option	Piilota osumamerkit
 st_srp_hide_quests_option	Piilota tehtävät
 st_srp_hide_scores_option	Piilota pelaajien pisteet
 st_srp_hud_add_friend	Lisää kaveriksi
+st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
+st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
 st_srp_hud_mute_hide	Piilota chat
@@ -2689,6 +2693,8 @@ st_srp_weapon_minimum_damage	Vähimmäisvahinko
 st_srp_weapon_minimum_damage_from	Vähimmäisvahinko alkaa
 st_srp_weapon_recoil_heading	Rekyyli, hajonta ja heilunta
 st_srp_weapon_reload	Lataaminen
+st_srp_weapon_reload_empty	Lataus (tyhjä)
+st_srp_weapon_reload_tactical	Taktinen lataus
 st_srp_weapon_shift_hint	Shift: lisää · Alt: ottelussa
 st_srp_weapon_spread_growth	Hajonnan kasvunopeus
 st_srp_weapon_spread_max	Suurin lisähajonta

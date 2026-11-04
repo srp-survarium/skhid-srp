@@ -510,7 +510,10 @@ struct SetTimeSent {
 enum AssignedClock {
     #[default]
     Unknown,
-    Bound { time: u32, queued_at: Instant },
+    Bound {
+        time: u32,
+        queued_at: Instant,
+    },
 }
 
 impl AssignedClock {
@@ -524,7 +527,9 @@ impl AssignedClock {
     }
 
     fn record(&mut self, time: u32, now: Instant) {
-        let time = self.project(now).map_or(time, |previous| previous.max(time));
+        let time = self
+            .project(now)
+            .map_or(time, |previous| previous.max(time));
         *self = Self::Bound {
             time,
             queued_at: now,
@@ -2458,13 +2463,16 @@ impl Game {
             || peer.correction_ends.is_some_and(|end| now < end);
         let queued = if ends_correction {
             let stop = ServerMessage::ClockOffset(0);
-            peer.transport.send_joined(
-                (stop.id(), &stop.payload()),
-                (set_time.id(), &set_time.payload()),
-            ).map(|_| ())
+            peer.transport
+                .send_joined(
+                    (stop.id(), &stop.payload()),
+                    (set_time.id(), &set_time.payload()),
+                )
+                .map(|_| ())
         } else {
             peer.transport
-                .send(set_time.id(), &set_time.payload()).map(|_| ())
+                .send(set_time.id(), &set_time.payload())
+                .map(|_| ())
         };
         match queued {
             Ok(_) => {}
@@ -6487,7 +6495,7 @@ mod tests {
             round_trip: 100,
             at: replied,
         }; 2]
-        .into();
+            .into();
         game.correct_clock(2, replied);
         let peer = game.peers[2].as_mut().unwrap();
         assert!(peer.clock_offset_pending.is_some());
@@ -6497,9 +6505,136 @@ mod tests {
         peer.transport.disconnect(replied);
         game.send_set_time(2, snapshot.time, false, replied);
         assert_eq!(
-            game.peers[2].as_ref().unwrap().assigned_clock.project(replied),
+            game.peers[2]
+                .as_ref()
+                .unwrap()
+                .assigned_clock
+                .project(replied),
             None
         );
+    }
+
+    #[test]
+    fn assigned_clock_bounds_delayed_and_reordered_client_copies() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+        use survarium::v026g::match_msgs::client_model::Taken;
+
+        let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+        bench.join_all();
+        let client = bench.clients[2].model.clone();
+        assert_eq!(client.correction_left(), 0.0);
+        let began = bench.now();
+        let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+        let snapshot = game.newest_snapshot().unwrap();
+        let clock = game.clock(began);
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.assigned_clock.forget();
+        peer.lag_ms = Some(0);
+        peer.round_trip = 100;
+        peer.correction = None;
+        peer.clock_offset_pending = None;
+        peer.correction_ends = None;
+        peer.inputs_seen.clear();
+        peer.profiles_seen.clear();
+        game.begin_timing(2, &snapshot, false, began);
+        game.send_set_time(2, snapshot.time, false, began + Duration::from_millis(10));
+        game.peers[2]
+            .as_mut()
+            .unwrap()
+            .inputs_seen
+            .insert(clock + 700);
+        game.send_set_time(2, snapshot.time, false, began + Duration::from_millis(20));
+        let peer = game.peers[2].as_ref().unwrap();
+        let copies: Vec<_> = peer.set_times.iter().copied().collect();
+        assert_eq!(copies.len(), 3);
+        let generation = peer.generation.0;
+
+        // Apply actual E5 payloads through the client clock/generation model.
+        // All copies are delayed beyond queue time; every arrival order is
+        // possible. Replies are lost, so none establish an acknowledged clock.
+        for order in [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 0, 2],
+            [1, 2, 0],
+            [2, 0, 1],
+            [2, 1, 0],
+        ] {
+            let mut client = client.clone();
+            let mut elapsed = 0;
+            for (copy, arrived) in order.into_iter().zip([100, 350, 900]) {
+                client.advance(arrived - elapsed);
+                elapsed = arrived;
+                let sent = copies[copy];
+                let message = ServerMessage::SetTime {
+                    generation,
+                    echo: sent.echo,
+                    match_time: sent.start,
+                };
+                assert!(matches!(
+                    client
+                        .receive(message.id(), &message.payload(), Dictionary::shared())
+                        .unwrap(),
+                    Taken::Applied(_)
+                ));
+                let now = began + Duration::from_millis(u64::from(arrived));
+                let bound = game.peers[2]
+                    .as_ref()
+                    .unwrap()
+                    .assigned_clock
+                    .project(now)
+                    .unwrap();
+                assert!(client.clock.unwrap() <= bound, "order {order:?}");
+            }
+            client.advance(2_000 - elapsed);
+            let now = began + Duration::from_millis(2_000);
+            let next = game.sync_start(2, snapshot.time, false, clock + 2_000, now);
+            assert_eq!(next, clock + 2_780, "no extra retry margin: {order:?}");
+            assert!(next >= client.clock.unwrap(), "must not rewind: {order:?}");
+        }
+    }
+
+    #[test]
+    fn rejected_clock_retry_preserves_existing_bound_and_full_reply_history() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        for stop_correction in [false, true] {
+            let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+            bench.join_all();
+            let began = bench.now();
+            let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+            let snapshot = game.newest_snapshot().unwrap();
+            game.begin_timing(2, &snapshot, false, began);
+            for copy in 1..SET_TIMES_KEPT {
+                game.send_set_time(
+                    2,
+                    snapshot.time,
+                    false,
+                    began + Duration::from_millis(copy as u64),
+                );
+            }
+            let now = began + Duration::from_millis(100);
+            let peer = game.peers[2].as_mut().unwrap();
+            let bound = peer.assigned_clock.project(now).unwrap();
+            let history = |peer: &Peer| {
+                peer.set_times
+                    .iter()
+                    .map(|sent| (sent.echo, sent.at, sent.start, sent.ends_correction))
+                    .collect::<Vec<_>>()
+            };
+            let before = history(peer);
+            assert_eq!(before.len(), SET_TIMES_KEPT);
+            // A newer own input requests a higher clock, but the disconnected
+            // transport cannot queue it, either alone or joined with E7-stop.
+            peer.inputs_seen.insert(bound + 1_000);
+            peer.correction_ends = stop_correction.then_some(now + Duration::from_secs(1));
+            peer.transport.disconnect(now);
+            let attempted = game.send_set_time(2, snapshot.time, false, now);
+            assert!(attempted > bound);
+            let peer = game.peers[2].as_ref().unwrap();
+            assert_eq!(peer.assigned_clock.project(now), Some(bound));
+            assert_eq!(history(peer), before);
+        }
     }
 
     /// Clock samples a second apart: (the lag each shows, its round trip).

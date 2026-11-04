@@ -3382,6 +3382,7 @@ package
             _obj.clip_size = _descr.clip_size;
          }
          _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         _obj.pocket_units = PlayerInfo.pocketUnits(_descr.category,_obj.quick_slot_item_size);
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3492,7 +3493,7 @@ package
                   // move_items), the pocket as many of them as it takes; the rest stays in the
                   // inventory (docs/notes/items.md §8).
                   new_data.count = uint(relocate_object.condition_or_stack) + count;
-                  new_data.value = int(Math.min(new_data.count,value.quick_slot_item_size == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize));
+                  new_data.value = int(Math.min(new_data.count,PlayerInfo.pocketUnits(new_data.category,value.quick_slot_item_size)));
                }
                else
                {
@@ -3654,7 +3655,7 @@ package
       
       public function set_quick_slot_size(value:uint) : void
       {
-         PlayerInfo.pocketSize = value;
+         PlayerInfo.pocketSize = Math.min(PlayerInfo.MAX_POCKET_UNITS,value);
          this.player_profile.updatePocketSize(value);
       }
       
@@ -4818,7 +4819,9 @@ package
       public function fill_skills(value:Array) : void
       {
          trace("root.fill_skills");
+         PlayerInfo.medicalSkills(value);
          this.charWindow.fillSkills(value);
+         this.player_profile.updatePocketSize(PlayerInfo.pocketSize);
       }
       
       public function set_achievements(value:Array) : void

@@ -41,6 +41,7 @@ pub mod known;
 pub mod level_stats;
 pub mod matches_now;
 pub mod matchmaking;
+pub mod mode_intro;
 pub mod moderation;
 pub mod names;
 pub mod notices;

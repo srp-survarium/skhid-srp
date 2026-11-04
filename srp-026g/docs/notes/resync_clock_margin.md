@@ -26,6 +26,13 @@ delayed answers to lower assignments, clock-correction invalidation and
 sending after disconnection. These tests use constructed server states;
 they prove the retry mechanism, not a complete historical match replay.
 
+Review regressions also pass the three queued E5 payloads through the client
+clock/generation model in all six arrival orders, with delivery delays and no
+replies. The projected assignment stays above each possible client clock and
+the next retry adds no extra margin. Failed sends are checked with an existing
+bound and a full reply history, both for an ordinary E5 and one joined with
+E7-stop: neither the bound nor a reply-history entry changes.
+
 This server-only change does not alter packet formats or the client binary.
 The independent transmission-timing fix addresses queue-inflated RTT; it
 is not required for this retry regression to pass.

@@ -44,7 +44,6 @@ section .text
 %define FIND_POOL 0x2E58B0         ; eax = the damage model's pools, ecx = &name: eax = the pool or 0
 %define INCREASE_HEALTH 0x32A420   ; esi = a pool; (time, amount), `ret 8`
 %define ACTION_BACK 0x31330A       ; artefact_base::action after its state test: `jne 0x313344`
-%define EFFECT 0x313350            ; artefact_base's activation effect (the artefact, the time), `ret 8`
 %define ONYX_ENABLE 0x3128C0       ; Onyx's enable_active (vtable +80h): its active time +F14h, ms
 %define ONYX_TIME_LEFT 0xF14       ; an Onyx's active time left, ms (its tick 0x3127E0 counts it down)
 %define ONYX_EXTRA_MS 1000         ; each Onyx fired with others: 1 s more for all of them
@@ -368,8 +367,8 @@ ready:
     ret
 
 ; ecx = an artefact, edi = the time, ebx = the time on top (ms): if it is
-; ready, activated as action does (0x31331C..0x313339): its enable_active
-; (vtable +80h), its effect, the time (+2A0h), state 4; then ebx more on its
+; ready, activated through the original action body (including its Medic hook):
+; its enable_active, effect, time (+2A0h), state 4; then ebx more on its
 ; active time (+F14h, an Onyx's; ebx is 0 for any other kind). Keeps ebx,
 ; esi, edi and ebp.
 activate:
@@ -377,14 +376,11 @@ activate:
     jnc .no
     push esi
     mov esi, ecx
-    mov eax, [esi]
     push edi
-    call [eax+0x80]
-    push edi
-    push esi
-    call EFFECT
-    mov [esi+0x2A0], edi
-    mov dword [esi+0x280], 4
+    push 1
+    ; Skip only the fire_kind entry detour, not hooks inside native action.
+    ; The bridge recreates its prologue and the original ret 8 cleans args.
+    call fire_kind.original
     test ebx, ebx
     jz .own
     add [esi+ONYX_TIME_LEFT], ebx

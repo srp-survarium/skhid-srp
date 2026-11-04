@@ -354,3 +354,48 @@ fn the_kit_rules_say_what_is_wrong() {
         1
     );
 }
+
+#[test]
+fn explicit_reload_timing_requires_a_valid_pair_and_two_clip_state() {
+    use binary_config_parser::tree::ConfigValue as V;
+    let parameters = |empty| {
+        V::Named(vec![
+            ("reload_time".into(), V::Float(2.4)),
+            ("reload_empty_time".into(), empty),
+        ])
+    };
+    let states = |state| {
+        V::Named(vec![(
+            "reload".into(),
+            V::Named(vec![("state_type".into(), V::Integer(state))]),
+        )])
+    };
+    assert_eq!(
+        super::reload_timing(&parameters(V::Float(3.4)), &states(314)),
+        Some(super::ReloadTiming::Tactical {
+            seconds: 2.4,
+            empty_seconds: 3.4
+        })
+    );
+    assert_eq!(
+        super::reload_timing(&parameters(V::Float(3.4)), &states(303)),
+        None
+    );
+    for empty in [
+        V::Float(0.0),
+        V::Float(-1.0),
+        V::Float(f32::NAN),
+        V::Float(f32::INFINITY),
+        V::String("3.4".into()),
+    ] {
+        assert_eq!(super::reload_timing(&parameters(empty), &states(314)), None);
+    }
+    let legacy = V::Named(vec![("reload_time".into(), V::Float(2.4))]);
+    assert_eq!(
+        super::reload_timing(&legacy, &states(303)),
+        Some(super::ReloadTiming::Animation {
+            seconds: 2.4,
+            state: 303
+        })
+    );
+}

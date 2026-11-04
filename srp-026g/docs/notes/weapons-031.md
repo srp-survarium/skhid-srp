@@ -16,7 +16,7 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
 | | dict id | config | lobby cell | kill feed icon | ammo |
 |---|---|---|---|---|---|
 | OTs-14 "Groza" | 2261 | `wpn_ots14` | [6, 5] | 72 | 9x39 PAB-9, SP-5, SP-6 (300, 301, 302) |
-| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | 7.62x51 in clips of 20 (2254), 7.62x51, 7.62x51 AP (51, 52) |
+| FN SCAR-H | 2262 | `wpn_scar_h` | [5, 5] | 71 | Dedicated 7.62x51 AP in packs of 20 (2266) |
 | VHS-2 | 2263 | `wpn_vhs_2` | [4, 5] | 70 | 5.56x45 (2201) |
 | FN Minimi | 2264 | `wpn_fn_minimi` | [8, 5] | 74 | 5.56x45 belt (2265) |
 
@@ -46,15 +46,21 @@ A default kit has three ammo bags.
   spawned 90/0 and never reloaded. It takes its own 5.56x45 belt (2265, `ammo_5.56x45_belt`):
   100 rounds in 2 bags, as the PKP's 7.62x54 7N13 and the RPD's 7.62x39 belts; the 5.56's ballistics,
   200 a belt (2 a round, as the 5.56), srp 100; Renaissance, rank 9 (no rank needed for ammo).
-- **FN SCAR-H:** the 7.62x51 is 10 rounds a bag (the battle and sniper rounds: 7.62x51, 7.62x54R,
-  12.7), so a kit held 30, 1.5 of its 20-round magazines, where the SOCOM 16 (10 rounds) gets 3. A
-  10-round bag is right for the SOCOM 16 and the Remington 700, so it stays; the SCAR-H takes the
-  7.62x51 in clips of 20 (2254, `ammo_7.62x51_20`, as 0.69d gave the SCAR-H its own round): 20 a bag,
-  60 rounds a kit, 3 magazines; the 7.62x51's ballistics, 300 a clip (15 a round, as the 7.62x51),
-  srp 150; icon `LobbyMenu_AmmoIcons` [21, 4]. One round for the 20-round 7.62x51 magazines: batch
-  4's H&K G3SG/1 has the same need and takes it too (the coordinator, 2026-11-01; id, cell and icon
-  were batch 4's), so it is sold by Renaissance (rank 10, the SCAR-H's) and the Black Market (rank 5,
-  the G3SG/1's). The SCAR-H still takes the shared 7.62x51 and AP.
+- **FN SCAR-H:** `scar-ammo-1.json` gives it only dedicated 7.62x51 AP in packs
+  of 20 (2266, `ammo_7.62x51_scar_ap`), copied from shared AP (52). `ammo.tsv`
+  sets 20 rounds per bag and 0.5 kg; `items.tsv` sets 200 silver per pack,
+  preserving shared AP's price and weight per round. Renaissance sells it at
+  rank 10 (ammo needs no rank), and its icon is the shared AP icon [7, 1].
+  Three bags hold 60 AP rounds: 20 loaded and 40 spare. The weapon's magazine
+  and ballistics stay as they were. The [balance audit](imported_weapon_balance.md)
+  used AP for SCAR's combat figures; this changes supply endurance only.
+  SCAR's three old compatibility pairs (51, 52, 2254) are removed. G3SG/1 keeps
+  standard 20-round packs (2254, Black Market rank 5), whose description now
+  names only G3; SCAR's Renaissance listing moves to the new AP pack. Shared
+  standard/AP ammo (51/52) retains its size, price and other compatibility.
+  Existing inventory stacks are not converted or deleted: players must select
+  the new AP ammo for SCAR. Id 2266 was used only by unreleased weapons-031@4
+  and freed in @5; no released inventory item is reassigned.
 - The cards: a new round on a native round's config shows its own bullets in a pack (prop 16) and
   weight (prop 15), written by the port from its `clip_size` and `clip_weight` (the belt 100 / 1.0,
   the clip 20 / 0.5).

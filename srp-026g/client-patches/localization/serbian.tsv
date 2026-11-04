@@ -213,7 +213,7 @@ st_ammo_762x39_description	Metak 7,62x39, razvijen 1943. godine. Opisuje se kao 
 st_ammo_762x39_m_description	Opis još nije dostupan.
 st_ammo_762x39_m_name	7.62x39 RPD
 st_ammo_762x39_name	7.62x39
-st_ammo_762x51_20_description	Puščani meci 7,62x51 u okvirima od 20 metaka za FN SCAR-H i H&K G3SG/1.
+st_ammo_762x51_20_description	Puščani meci 7,62x51 u pakovanjima od 20 metaka za H&K G3SG/1.
 st_ammo_762x51_20_name	7,62x51, okvir od 20
 st_ammo_762x51_M59_description	Probojna verzija vojnog puščanog metka 7,62x51 M61, sa obloženim čeličnim jezgrom.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
 st_srp_ammo069_23mm_r_name	23x75R, sačma
+st_srp_ammo_scar_ap_desc	Pancirni meci 7,62x51 za FN SCAR-H. Svaka torbica za municiju prima 20 metaka.
+st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
@@ -2431,6 +2433,8 @@ st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
 st_srp_hud_add_friend	Dodaj u prijatelje
+st_srp_hud_blackout_intro	Zamračenje: donesi baterije do uređaja svog tima. Interfejs i oznake pogodaka su skriveni radi uživljavanja. Drži Tab: municija, zdravlje, čet; posle smrti — izbor opreme.
+st_srp_hud_blackout_start	Zamračenje\nDonesi baterije do uređaja svog tima.\nInterfejs i oznake pogodaka su skriveni. Drži Tab da vidiš municiju i zdravlje.
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
 st_srp_hud_friend_sent	Zahtev za prijateljstvo je poslat
 st_srp_hud_mute_hide	Sakrij čet
@@ -2689,6 +2693,8 @@ st_srp_weapon_minimum_damage	Minimalna šteta
 st_srp_weapon_minimum_damage_from	Minimalna šteta od
 st_srp_weapon_recoil_heading	Trzaj, rasipanje i ljuljanje
 st_srp_weapon_reload	Punjenje
+st_srp_weapon_reload_empty	Punjenje (prazno)
+st_srp_weapon_reload_tactical	Taktičko punjenje
 st_srp_weapon_shift_hint	Shift: više · Alt: u meču
 st_srp_weapon_spread_growth	Brzina rasta rasipanja
 st_srp_weapon_spread_max	Najveće dodatno rasipanje

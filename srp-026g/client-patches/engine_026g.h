@@ -46,6 +46,9 @@ struct lobby_client;
 struct lobby_menu;
 struct match_options;
 struct material_pair;
+struct medical_effect_resource;
+struct medical_pool;
+struct medical_pools;
 struct medkit;
 struct messaging_client;
 struct network_client;
@@ -121,10 +124,10 @@ unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, st
 void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third);
 
 /* 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX */
-void *engine_find_pool(void *pools, const char *const *name);
+struct medical_pool *engine_find_pool(struct medical_pools *pools, const char *const *name);
 
 /* 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8 */
-void engine_increase_health(void *pool, unsigned int time, float amount);
+void engine_increase_health(struct medical_pool *pool, unsigned int time, float amount);
 
 /* 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8 */
 void engine_artefact_effect(void *artefact, unsigned int time);
@@ -464,5 +467,11 @@ void __attribute__((thiscall)) engine_di_queue_next_capture(struct di_command_qu
 
 /* 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_di_queue_release(struct di_command_queue *queue);
+
+/* 0x32a6a0 survarium::body_part::remove_affect: pool ESP+4, time ESP+8, affect ESP+12; pops 12 */
+void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned int affect);
+
+/* 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX */
+struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out);
 
 #endif

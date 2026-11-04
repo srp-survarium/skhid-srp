@@ -9,6 +9,8 @@ package survarium.controls
    import flash.utils.Timer;
    import scaleform.clik.layout.LayoutData;
    import scaleform.clik.motion.Tween;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.QuickSlotSize;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
    import survarium.constants.PremiumState;
@@ -32,7 +34,33 @@ package survarium.controls
       
       public static var ammoBags:int = 0;
       
+      public static const MAX_POCKET_UNITS:int = 5;
+
       public static var pocketSize:int = 0;
+
+      private static var additionalMedicine:Boolean = false;
+
+      // Only committed skill values affect equipment, never unspent previews.
+      public static function medicalSkills(value:Array) : void
+      {
+         additionalMedicine = false;
+         for each(var skill:Object in value)
+         {
+            if(skill != null && skill.id == 322 && skill.value > 0)
+            {
+               additionalMedicine = true;
+            }
+         }
+      }
+
+      public static function pocketUnits(category:uint, size:Number, base:int = -1) : int
+      {
+         // Boosters share category 10 with drugs, but fill a whole pocket.
+         if(size == QuickSlotSize.WHOLE)
+            return 1;
+         var units:int = base < 0 ? pocketSize : base;
+         return Math.max(0,Math.min(MAX_POCKET_UNITS,units + (additionalMedicine && category == ItemCategory.MEDKITS ? 1 : 0)));
+      }
       
       public static var currentLevel:int = 0;
       

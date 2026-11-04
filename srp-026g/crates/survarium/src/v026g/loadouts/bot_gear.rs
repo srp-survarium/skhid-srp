@@ -227,23 +227,54 @@ pub fn bot_kit_of(
     }
 }
 
-/// What a weapon's config says of how it fires and reloads
-/// (`gameplay/items/weapons/wpn_<name>.options`): for the match server's
-/// bots, which count the rounds they fire (`match-server` `bots::guns`).
+/// Reload timing read from a weapon config.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ReloadTiming {
+    /// Legacy animation-derived timing; the server has no animation assets.
+    Animation { seconds: f32, state: i32 },
+    /// Explicit state-314 durations compiled into the client's animation assets.
+    Tactical { seconds: f32, empty_seconds: f32 },
+}
+
+/// Weapon config facts used by match-server bots to count shots and time actions.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WeaponFacts {
     pub magazine: u32,
     pub rounds_per_minute: f32,
-    pub reload_s: f32,
+    pub reload: ReloadTiming,
     /// The first fire mode's queue: -1 automatic, else rounds a press.
     pub first_queue: i32,
     pub show_s: f32,
     pub hide_s: f32,
-    /// The reload state's `state_type`: 303 a magazine, 306 round by
-    /// round, 311 two barrels, 314 a pistol's (with a reload from empty).
-    pub reload_state: i32,
     /// It has a `chamber_a_round` state (a bolt or a pump).
     pub chamber: bool,
+}
+
+fn reload_timing(parameters: &ConfigValue, states: &ConfigValue) -> Option<ReloadTiming> {
+    let seconds = parameters.get("reload_time")?.as_f32()?;
+    let state = states
+        .get("reload")
+        .and_then(|state| state.get("state_type"))
+        .and_then(ConfigValue::as_i32)
+        .unwrap_or(303);
+    match parameters.get("reload_empty_time") {
+        Some(value) => {
+            let empty_seconds = value.as_f32()?;
+            if state != 314
+                || !seconds.is_finite()
+                || seconds <= 0.0
+                || !empty_seconds.is_finite()
+                || empty_seconds <= 0.0
+            {
+                return None;
+            }
+            Some(ReloadTiming::Tactical {
+                seconds,
+                empty_seconds,
+            })
+        }
+        None => Some(ReloadTiming::Animation { seconds, state }),
+    }
 }
 
 /// [`WeaponFacts`] of the weapon `dict_id`; none for an item that is no
@@ -258,18 +289,13 @@ pub fn weapon_facts(dict_id: u16) -> Option<WeaponFacts> {
     Some(WeaponFacts {
         magazine: number("magazine_capacity")? as u32,
         rounds_per_minute: number("rounds_per_minute")?,
-        reload_s: number("reload_time")?,
+        reload: reload_timing(parameters, states)?,
         first_queue: parameters
             .get("fire_queue_types")
             .and_then(|queues| queues.children().first().and_then(|queue| queue.as_i32()))
             .unwrap_or(1),
         show_s: number("show_time").unwrap_or(0.8),
         hide_s: number("hide_time").unwrap_or(0.8),
-        reload_state: states
-            .get("reload")
-            .and_then(|state| state.get("state_type"))
-            .and_then(ConfigValue::as_i32)
-            .unwrap_or(303),
         chamber: states.get("chamber_a_round").is_some(),
     })
 }

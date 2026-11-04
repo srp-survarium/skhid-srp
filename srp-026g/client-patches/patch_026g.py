@@ -1,6 +1,5 @@
 """Builds the srp copy of the 0.26g client (build 2777) from the original
-survarium.exe. The full patch includes the startup VRAM-check bypass used
-by the Linux launcher.
+survarium.exe. The full patch includes the startup VRAM-check bypass.
 
 USAGE (this script never touches the source exe):
 
@@ -602,7 +601,7 @@ CERT = (0x12A10, bytes.fromhex("83ec2c"), bytes.fromhex("31c0c3"))
 MUTEX = (0x124F9, bytes.fromhex("7409"), bytes.fromhex("9090"))
 
 # Skip the fatal low-VRAM warning after cmp ebx,14000000h (320 MiB).
-# Same one-byte change as play_skhid.sh: file offset 0xF5811, 73 -> EB.
+# File offset 0xF5811, 73 -> EB.
 # The branch still targets 0x106422, which returns the detected size.
 MEMORY_CHECK = (0x106411, bytes.fromhex("730f"), bytes.fromhex("eb0f"))
 
@@ -717,7 +716,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 44
+REVISION = 45
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2456,6 +2455,12 @@ WEIGHT_UI_HOOKS = (
 INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
 INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
 
+# Bullet lifetime is bounded by the level, never by past transient bodies.
+BULLET_BOUNDS_HOOKS = (
+    (0x758E1, bytes.fromhex("f6450c0a0f844c010000"), "bullet_bounds_static", 0xE9),
+)
+INSTALLS[0x758E1] = (JUMP, "static level bounds after body insertion; transient bodies skip bounds growth, all bodies still update their AABB", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2643,6 +2648,7 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
+    ArenaBlock("bullet_bounds.code", "code", 0x1000, ("bullet_bounds_026g.asm",)),
     ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
     ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
@@ -3719,7 +3725,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

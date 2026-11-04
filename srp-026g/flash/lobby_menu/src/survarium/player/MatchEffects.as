@@ -67,6 +67,7 @@ package survarium.player
                // Aim time: instant_aim_start 0x2E1B88 (index 49 on parameters/aim_time).
                return value * factor(PlayerModifier.AIM_TIME);
             case 138:
+            case 162:
                // Reload: the animation's time scale (length / reload_time) x max(0, 1 + S13)
                // (0x30E210; the shotgun's, pistol's and double barrel's the same).
                return value / factor(PlayerModifier.RELOAD_SPEED);
@@ -135,7 +136,11 @@ package survarium.player
       public static function fixed(n:Number, digits:int) : String
       {
          var scale:Number = Math.pow(10,digits);
-         return String(Math.round(n * scale) / scale);
+         // Scaleform's Number.toString can expose binary tails even after
+         // rounding. Keep the fixed decimal text when removing trailing zeros.
+         var text:String = (Math.round(n * scale) / scale).toFixed(digits);
+         if(digits > 0) text = text.replace(/0+$/, "").replace(/\.$/, "");
+         return text == "-0" ? "0" : text;
       }
    }
 }

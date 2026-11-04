@@ -2105,3 +2105,16 @@ va	status	ref_021d	name
 0x00219990	verified	0x0016c901	survarium::network_client::match_options
 0x0027a9c0	verified	0x001a259b	survarium::network_client::get_active_player
 0x00288cd0	observed		survarium::lobby_menu::autobuy_changed
+0x0030e000	reviewed	0x001f165c	survarium::weapon_core_reload_state::weapon_core_reload_state
+0x0030fc50	reviewed	0x001f3056	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state
+0x0030fe90	reviewed		survarium::pistol_weapon_core_reload_state::get_weapon_lexeme
+0x0032a6a0	verified		survarium::body_part::remove_affect
+0x00329050	verified		survarium::game_effect_resource::emit
+0x003344b0	verified		survarium::composite_game_effect::deserialize
+0x0029a250	observed		survarium::particle_game_effect_emitter::emit_from_saved_stack
+0x002ec760	verified		survarium::game_effect_resource_cook::translate_query
+0x0025a540	verified		survarium::particle_game_effect_emitter_cook::translate_query
+0x002e5d80	verified		survarium::default_game_effect_time_calculator::calculate
+0x00313640	verified		survarium::artefact_base::active_effect_time_calculator::calculate
+0x00313300	verified		survarium::artefact_base::action
+0x00313350	verified		survarium::artefact_base::effect

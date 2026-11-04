@@ -41,10 +41,10 @@ extern engine_movie_invoke
 ; void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third)
 ; 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16
 extern engine_show_message
-; void *engine_find_pool(void *pools, const char *const *name)
+; struct medical_pool *engine_find_pool(struct medical_pools *pools, const char *const *name)
 ; 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX
 extern engine_find_pool
-; void engine_increase_health(void *pool, unsigned int time, float amount)
+; void engine_increase_health(struct medical_pool *pool, unsigned int time, float amount)
 ; 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
 extern engine_increase_health
 ; void engine_artefact_effect(void *artefact, unsigned int time)
@@ -422,3 +422,9 @@ extern engine_di_queue_next_capture
 ; 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_di_queue_release
+; void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned int affect)
+; 0x32a6a0 survarium::body_part::remove_affect: pool ESP+4, time ESP+8, affect ESP+12; pops 12
+extern engine_remove_affect
+; struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out)
+; 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX
+extern engine_effect_resource_emit

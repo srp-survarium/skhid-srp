@@ -1252,10 +1252,10 @@ def test_start_up_folder(original, image, mode):
 
 
 def test_memory_check(original, image, mode):
-    """The launcher's 73 -> EB patch skips only the fatal 320 MiB gate."""
+    """The 73 -> EB patch skips only the fatal 320 MiB gate."""
     va, old, new = P.MEMORY_CHECK
     found = image.read(va, len(old))
-    check(P.file_offset(va) == 0xF5811, "VRAM patch uses the Linux launcher's file offset 0xF5811")
+    check(P.file_offset(va) == 0xF5811, "VRAM patch is at file offset 0xF5811")
     if mode == "cert-only":
         check(found == old, "cert-only keeps the original minimum VRAM check")
         return
@@ -1571,6 +1571,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 

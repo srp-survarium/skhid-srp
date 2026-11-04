@@ -11,6 +11,7 @@ package survarium.item
       private static const FIRST:int = 138, LAST:int = 160;
       // Chambering time, on bolt and pump weapons only (parameters/chamber_a_round_time).
       private static const CHAMBER:int = 160;
+      private static const TACTICAL:int = 162;
       private var values:Object;
       // In a match's view (Alt): the weapon's own base values, before its modifications, the kit
       // and the skills, for the rows that change ("base -> in a match"); null in the card's own.
@@ -39,7 +40,7 @@ package survarium.item
          var data:Object = {};
          for each(var prop:Object in properties)
          {
-            if(prop.prop_id < FIRST || prop.prop_id > LAST) continue;
+            if((prop.prop_id < FIRST || prop.prop_id > LAST) && prop.prop_id != TACTICAL) continue;
             var n:Number = ModificationRolls.value(prop);
             if(isFinite(n) && n >= 0) data[prop.prop_id] = n;
          }
@@ -48,6 +49,15 @@ package survarium.item
          // The native dispersion loader (0x330FE3) defaults the optional
          // from_the_hip_multiplier to 1, including Kiparis and AK-74M.
          if(data[152] == undefined) data[152] = 1;
+         // 162 transports empty/tactical clip duration, not a second timer.
+         // Native state 314 scales its tactical hands clip to reload_time.
+         if(data[TACTICAL] !== undefined && data[TACTICAL] > 0)
+         {
+            var ratio:Number = data[TACTICAL];
+            data[TACTICAL] = data[138];
+            data[138] *= ratio;
+         }
+         else delete data[TACTICAL];
          return new WeaponDetails(data);
       }
       private function applyWeaponModifiers(modifiers:Array) : void
@@ -71,6 +81,7 @@ package survarium.item
          values[139] *= Math.max(0,1 + sums[24]);
          values[140] *= Math.max(0,1 + sums[24]);
          values[138] *= Math.max(0,1 - sums[114]);
+         if(has(TACTICAL)) values[TACTICAL] *= Math.max(0,1 - sums[114]);
          // Recoil rolls scale the six kick bounds the loader 0x331840 reads
          // (weapon-rolls-1). Dispersion bonuses stay off the unrelated
          // spread-growth/recovery parameters.
@@ -119,6 +130,12 @@ package survarium.item
          var value:String = LocalizationData.format("st_srp_unit_seconds",shown(before,values[CHAMBER],decimals(values[CHAMBER])));
          result.push({kind:"stat",id:CHAMBER,label:label,value:value,verdict:verdictOf(before,values[CHAMBER],"lower"),
             comparison:{kind:"lower",value:Number(modified)}});
+      }
+      private function tactical(result:Array, other:WeaponDetails) : void
+      {
+         if(has(TACTICAL)) scalar(result,TACTICAL,"st_srp_weapon_reload_tactical","lower","st_srp_unit_seconds");
+         else if(other != null && other.has(TACTICAL))
+            result.push({kind:"stat",id:TACTICAL,label:LocalizationData.getName("st_srp_weapon_reload_tactical"),value:"-",comparison:{kind:"neutral"}});
       }
       private static function recoilNumber(n:Number) : String
       {
@@ -178,7 +195,8 @@ package survarium.item
       public function rows(expanded:Boolean, other:WeaponDetails = null) : Array
       {
          var result:Array = [{kind:"heading",text:LocalizationData.getName("st_srp_weapon_stats")}];
-         scalar(result,138,"st_srp_weapon_reload","lower","st_srp_unit_seconds");
+         scalar(result,138,has(TACTICAL) ? "st_srp_weapon_reload_empty" : "st_srp_weapon_reload","lower","st_srp_unit_seconds");
+         tactical(result,other);
          chamber(result,other);
          scalar(result,139,"st_srp_weapon_full_damage","higher","st_srp_unit_meters");
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");

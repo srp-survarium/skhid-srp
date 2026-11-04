@@ -32,6 +32,28 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### Explicit reload durations
+
+`weapon-stats.tsv` owns the times in seconds. `reload` maps to the native
+`parameters/reload_time`: tactical for a two-clip state-314 weapon, the ordinary
+reload for a single-clip weapon. The optional `reload_empty` column maps to
+`parameters/reload_empty_time`. Fill both columns to author an independent pair;
+leave `reload_empty` blank to retain the existing animation-derived behavior.
+
+`reload-timings-1.json`, immediately after the table in `release/content.tsv`,
+compiles each explicit pair into private hands and item animations under
+`animations/single/weapons/srp_reload/<weapon>/`. It scales every bone curve's
+time coordinates and every event timestamp, preserving poses, event payloads,
+bone names and the original hands/item phase relationship. All four hands pairs
+must agree. The native first-clip normalization and reload-speed modifiers then
+produce the authored pair; no extra gameplay timer or executable hook is needed.
+The compiler also refreshes lobby property 162's empty/tactical ratio. Bots read
+the explicit pair from the same weapon config.
+
+Change the two table cells for future tuning; do not edit generated animations.
+The paths remain stable across retunes. Such changes require a `next` simulation
+row and the normal `release/build-content` validation.
+
 ### Headwear render assets
 
 `headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`
@@ -355,7 +377,7 @@ Removed: its text is in `client-patches/localization/*.tsv`.
 
 | change | why |
 |---|---|
-| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (per second), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is the pool's health added per second for `activity_time_sec` (1 s; `medkit::tick` 0x33D790). 1/s fills a 0.5 limb pool, as the medkit's 1/s does. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
+| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (course total), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is total health over `activity_time_sec` (1 s here); the constructor 0x33CAC0 divides it by duration before `medkit::tick` 0x33D790 applies it. A total of 1 fills a 0.5 limb pool. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
 | `st_base_bandages_description` in the six localization tables: "Fully heals arms and legs. Restores 35% of body, head and pain." (Heilt Arme und Beine vollständig. Stellt 35% von Körper, Kopf und Schmerz wieder her. / W pełni leczy ręce i nogi. Przywraca 35% zdrowia tułowia, głowy i bólu. / Полностью лечит руки и ноги. Восстанавливает 35% здоровья тела, головы и боли. / Повністю лікує руки і ноги. Відновлює 35% здоров'я тіла, голови та болю.) | the owner, 2026-10-25: the description says what a bandage now heals. Each text uses only characters its table already has |
 | the card's "Heal amount" line taken out: `ui_desc/props_list` entry `prop_id` 12 ("30") | the owner, 2026-10-25: one number can't describe full and 35 %, so the line would contradict the text. The card keeps use time, active time and weight |
 

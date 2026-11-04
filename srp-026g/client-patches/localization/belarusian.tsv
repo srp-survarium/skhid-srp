@@ -213,7 +213,7 @@ st_ammo_762x39_description	7.62-мм патрон узору 1943 года, лі
 st_ammo_762x39_m_description	Апісанне пакуль недаступнае.
 st_ammo_762x39_m_name	7.62х39 РПД
 st_ammo_762x39_name	7.62х39
-st_ammo_762x51_20_description	Вінтовачныя патроны 7.62х51 у магазінах на 20 патронаў для FN SCAR-H і H&K G3SG/1.
+st_ammo_762x51_20_description	Вінтовачныя патроны 7.62x51 у пачках па 20 патронаў для H&K G3SG/1.
 st_ammo_762x51_20_name	7.62x51, магазін на 20
 st_ammo_762x51_M59_description	Бранябойная мадыфікацыя армейскага вінтовачнага патрона калібра 7.62. Куля аснашчана стальным асяродкам.
 st_ammo_762x51_M59_name	7.62x51 M59
@@ -2182,6 +2182,8 @@ st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
 st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
 st_srp_ammo069_23mm_r_name	23x75R, шрот
+st_srp_ammo_scar_ap_desc	Бранябойныя патроны 7.62x51 для FN SCAR-H. Кожны падсумак змяшчае 20 патронаў.
+st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронаў
 st_srp_attachments	Абвес
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
@@ -2431,6 +2433,8 @@ st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў
 st_srp_hud_add_friend	Дадаць у сябры
+st_srp_hud_blackout_intro	Блэкаўт: нясіце батарэі да прылады сваёй каманды. Інтэрфейс і маркеры траплянняў схаваныя для паглыблення ў гульню. Утрымлівайце Tab: боезапас, здароўе, чат; пасля смерці — выбар камплекта.
+st_srp_hud_blackout_start	Блэкаўт\nНясіце батарэі да прылады сваёй каманды.\nІнтэрфейс і маркеры траплянняў схаваныя. Утрымлівайце Tab, каб убачыць боезапас і здароўе.
 st_srp_hud_friend_not_sent	Заяўка ў сябры не адпраўлена
 st_srp_hud_friend_sent	Заяўка ў сябры адпраўлена
 st_srp_hud_mute_hide	Схаваць чат
@@ -2689,6 +2693,8 @@ st_srp_weapon_minimum_damage	Мінімальная шкода
 st_srp_weapon_minimum_damage_from	Мінімальная шкода ад
 st_srp_weapon_recoil_heading	Аддача, раскід, гойданне
 st_srp_weapon_reload	Перазарадка
+st_srp_weapon_reload_empty	Перазарадка (пусты)
+st_srp_weapon_reload_tactical	Тактычная перазарадка
 st_srp_weapon_shift_hint	Shift: дэталі · Alt: у баі
 st_srp_weapon_spread_growth	Хуткасць росту раскіду
 st_srp_weapon_spread_max	Мяжа росту раскіду

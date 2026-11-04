@@ -337,7 +337,7 @@ va	status	ref_021d	name
 0x000750d0	inferred-high	0x000563ed	vostok::physics::bullet_physics_world::draw_object
 0x000750f0	inferred-medium	0x00056404	vostok::physics::bullet_physics_world::update_single_aabb
 0x00075550	inferred-high	0x00056439	vostok::physics::bullet_physics_world::tick
-0x000758b0	inferred-medium	0x00056494	vostok::physics::bullet_physics_world::add
+0x000758b0	inferred-high	0x00056494	vostok::physics::bullet_physics_world::add
 0x00075a60	inferred-high	0x000565b5	vostok::physics::bullet_physics_world::remove
 0x00075aa0	inferred-medium	0x000565d3	vostok::physics::bullet_physics_world::move
 0x00075b00	inferred-high	0x00056630	vostok::physics::bullet_physics_world::add
@@ -2059,7 +2059,6 @@ va	status	ref_021d	name
 0x0030ddc0	inferred-high	0x001f14eb	survarium::weapon_core_hide_state::weapon_core_hide_state
 0x0030def0	inferred-high	0x001f158f	survarium::weapon_core_hide_state::initialize
 0x0030dfe0	inferred-high	0x001f1643	survarium::weapon_core_hide_state_base::on_animation_end_impl
-0x0030e000	inferred-high	0x001f165c	survarium::weapon_core_reload_state::weapon_core_reload_state
 0x0030e140	inferred-medium	0x001f16ec	survarium::weapon_core_reload_state::`scalar deleting destructor'
 0x0030e160	inferred-high	0x001f1708	survarium::weapon_core_reload_state::weapon_and_hands_expression
 0x0030e2b0	inferred-high	0x001f1879	survarium::weapon_core_chamber_a_round_state::weapon_core_chamber_a_round_state
@@ -2102,7 +2101,6 @@ va	status	ref_021d	name
 0x0030fac0	inferred-high	0x001f2ef8	survarium::weapon_core_idle_state::weapon_and_hands_expression
 0x0030fba0	inferred-high	0x001f2f7d	survarium::pistol_weapon_core_idle_state::get_weapon_lexeme
 0x0030fbe0	inferred-medium	0x001f3004	survarium::animations_registrator<survarium::pistol_weapon_core_idle_state,survarium::weapon_core_idle_state_base>::register_animations
-0x0030fc50	inferred-high	0x001f3056	survarium::pistol_weapon_core_reload_state::pistol_weapon_core_reload_state
 0x0030fdb0	inferred-high	0x001f3135	survarium::double_barreled_weapon_core_reload_state::initialize
 0x0030fdb0	inferred-high	0x001f3135	survarium::pistol_weapon_core_reload_state::initialize
 0x0030fdb0	inferred-high	0x001f3135	survarium::weapon_core_reload_state::initialize
@@ -2152,7 +2150,6 @@ va	status	ref_021d	name
 0x00312bf0	inferred-medium		survarium::artefact_onyx_core::protect
 0x00312cc0	inferred-medium	0x001f4b55	vostok::buffer_vector<survarium::damage_protector>::resize
 0x00312fd0	inferred-medium	0x001f4d54	survarium::artefact_base::artefact_base
-0x00313300	inferred-medium		survarium::artefact_base::action
 0x00313530	inferred-medium		survarium::artefact_base::end_active
 0x00313ca0	inferred-medium	0x001fba38	survarium::gather_victory_items_rule::serialize
 0x00313dd0	inferred-medium	0x001fbb49	survarium::gather_victory_items_rule::deserialize

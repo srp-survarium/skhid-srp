@@ -9,6 +9,42 @@ release that made it what it is now.
 
 ---
 
+## 3 Nov, 20:12 — Game update 45: medical skills, reloads and fixes (update required)
+
+<!-- Revision 45 (026g-rev45), released 2026-11-03 20:12 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+**Medical skill tree**
+
+A third skill tree adds ten skills with original 0.69 icons and translated descriptions. Seven skills have five ranks; three are single-point unlocks, for 38 points in total.
+
+- Potent Painkiller strengthens the painkiller's existing protection by 5% per rank and adds one second of duration per rank.
+- Fast Bandaging reduces first-aid kit and bandage activation time by 2% per rank.
+- Metabolism starts health regeneration 0.5 seconds sooner per rank.
+- Medical Training increases first-aid kit and bandage healing by 5% per rank.
+- Adrenalin increases movement speed by 3% per rank while health is below 20.
+- Brothers in Arms reduces damage received from allies by 10% per rank.
+- Supply Pocket replaces the secondary weapon slot with an additional supply pocket.
+- Strong Bones increases maximum arm and leg health by 10% per rank.
+- Additional Medicine adds one item to each medicine pocket, within the five-item limit.
+- Medic shares Larkspur's active effect with living teammates within 5 metres. Teammate glows last for the full active duration; enemies receive no benefit. "They glow, you shine"
+
+**Equipment, medicine and weapons**
+
+- Supply pockets and artefacts share a maximum of six quick slots. Each supply pocket holds at most five items after bonuses.
+- Orange Medikit pain relief corrected to 40%; yellow Science Medkit to 50%.
+- SCAR-H uses dedicated 20-round armour-piercing ammunition.
+- Corrected tactical and empty reload timings, with matching animations and bot reload waits. Weapon cards show both reload times.
+
+**Presentation and Linux**
+
+- Blackout explains its rules above the pre-match countdown and through a System introduction during each account's first three Blackout matches.
+- Corrected weapon icon brightness and the Novice hood neckline.
+- Improved modern WoW64 support, automatic Gecko setup, ntsync guidance and XDG settings support. The Linux launcher starts the game without modifying its executable.
+
+Replays recorded before revision 45 are incompatible with the updated simulation.
+
 ## 3 Nov, 06:36 — Game update 44: weapon icons and clothing fits (update required)
 
 <!-- Revision 44 (026g-rev44), released 2026-11-03 06:36 UTC. -->
