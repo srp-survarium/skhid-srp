@@ -136,7 +136,11 @@ package survarium.player
       public static function fixed(n:Number, digits:int) : String
       {
          var scale:Number = Math.pow(10,digits);
-         return String(Math.round(n * scale) / scale);
+         // Scaleform's Number.toString can expose binary tails even after
+         // rounding. Keep the fixed decimal text when removing trailing zeros.
+         var text:String = (Math.round(n * scale) / scale).toFixed(digits);
+         if(digits > 0) text = text.replace(/0+$/, "").replace(/\.$/, "");
+         return text == "-0" ? "0" : text;
       }
    }
 }
