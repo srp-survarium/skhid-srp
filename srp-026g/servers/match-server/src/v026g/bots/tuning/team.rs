@@ -665,11 +665,33 @@ pub struct WalkWatch {
     pub ahead_deg: f32,
     /// Also an enemy's last known place ([`WatchKnown`]); `None`: only the held lanes' spots.
     pub known: Option<WatchKnown>,
+    /// [A290] The watch only near the point watched, the sprint and the route's view kept farther, and the sights up nearer
+    /// ([`WatchNear`]); `None`: watched at any distance (A229 as merged, which lost the sprint on long walks: deliveries
+    /// -11.5 %, z -2.2).
+    pub near: Option<WatchNear>,
 }
 
 impl Default for WalkWatch {
     fn default() -> Self {
-        Self { ahead_deg: 60.0, known: Some(WatchKnown::default()) }
+        Self { ahead_deg: 60.0, known: Some(WatchKnown::default()), near: Some(WatchNear::default()) }
+    }
+}
+
+/// [A290] [`WalkWatch::near`]: a human clears the angle he walks into, not one a field away. A287 (the owner's 8 local PvB
+/// matches, `traces-20261028/fx-fights-a287-owner-beats-bots.md`): half the bots he killed died before they could answer,
+/// 88 % of them knowing he was near (told, heard, seen), their view on their route; his kills at a median 15.5 m (p75 22.1 m).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WatchNear {
+    /// The point watched is this near or nearer, m: farther, the walk keeps the route's view and its sprint. From A287's p75.
+    pub watch_m: f32,
+    /// This near or nearer, the sights are up too (the AIM key held), as a player walks into a fight, m. From A287's median.
+    pub aim_m: f32,
+}
+
+impl Default for WatchNear {
+    fn default() -> Self {
+        Self { watch_m: 25.0, aim_m: 15.0 }
     }
 }
 
