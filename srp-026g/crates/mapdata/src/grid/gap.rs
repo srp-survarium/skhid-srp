@@ -1678,8 +1678,20 @@ mod tests {
         };
         assert!(jumps_down(&build(true, false)) > 0, "the chase rule's vault over the rail is a link without the switch");
         assert_eq!(jumps_down(&build(true, true)), 0, "no vault down over the rail with the switch");
-        let open = jumps_down(&build(false, true));
-        assert!(open > 0 && open == jumps_down(&build(false, false)), "the open edge's jump down stays");
+        // The open edge: the switch changes none of its links (a walk-off there, and any press).
+        let all_down = |grid: &WalkGrid| {
+            let mut v: Vec<(NodeId, NodeId, Takeoff)> = grid
+                .off_links()
+                .iter()
+                .filter(|l| grid.position(l.from).y > 1.9 && grid.position(l.to).x > 7.4)
+                .map(|l| (l.from, l.to, l.press))
+                .collect();
+            v.sort_by_key(|&(a, b, _)| (a, b));
+            v
+        };
+        let open = all_down(&build(false, true));
+        assert!(!open.is_empty(), "the open edge is gone down");
+        assert_eq!(open, all_down(&build(false, false)), "the switch leaves the open edge's links");
     }
 
     fn world_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<Triangle> {
