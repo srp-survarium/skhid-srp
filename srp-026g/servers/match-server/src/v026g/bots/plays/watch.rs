@@ -12,7 +12,8 @@ use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent, Look};
 use crate::v026g::bots::kin;
-use crate::v026g::bots::tuning::WalkWatch;
+use crate::v026g::bots::tuning::{WalkWatch, WatchNear};
+use crate::v026g::drive::key;
 
 /// A walk is a heading this fast at least, m/s: a bot standing, or pressing into a wall, has none.
 const WALKING_MPS: f32 = 0.5;
@@ -85,9 +86,43 @@ pub fn walk_watch(cx: &Ctx, intent: Intent) -> Intent {
         return intent;
     };
     tally::counted_one(cx.me.team, watched);
-    match watched.at() {
-        Some(at) => intent.looking(Look::At(at)),
-        None => intent,
+    let Some(at) = watched.at() else {
+        return intent;
+    };
+    match near_watch(watch.near, at.distance_xz(cx.me.feet)) {
+        Near::Far => {
+            tally::near_one(cx.me.team, Near::Far);
+            intent
+        }
+        Near::Watch => {
+            tally::near_one(cx.me.team, Near::Watch);
+            intent.looking(Look::At(at))
+        }
+        Near::SightsUp => {
+            tally::near_one(cx.me.team, Near::SightsUp);
+            Intent { hold: intent.hold | key::AIM, ..intent.looking(Look::At(at)) }
+        }
+    }
+}
+
+/// [A290] What a walk does with a watched point `distance` m off ([`WalkWatch::near`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Near {
+    /// Farther than `watch_m`: the route's view and the sprint.
+    Far,
+    /// Looked at.
+    Watch,
+    /// Looked at, the sights up.
+    SightsUp,
+}
+
+/// The walk's [`Near`] for a point `distance` m off: with no near band (`None`) every watched point is looked at, as A229 did.
+pub fn near_watch(near: Option<WatchNear>, distance: f32) -> Near {
+    match near {
+        None => Near::Watch,
+        Some(near) if distance > near.watch_m => Near::Far,
+        Some(near) if distance > near.aim_m => Near::Watch,
+        Some(_) => Near::SightsUp,
     }
 }
 
@@ -123,6 +158,35 @@ pub mod tally {
     #[cfg(not(test))]
     pub fn counted_one(_: u8, _: Watched) {}
 
+    /// [A290] The watched walks by [`super::Near`] (far: route view kept; watched; sights up), by team.
+    #[cfg(test)]
+    thread_local! {
+        static NEAR: std::cell::Cell<[[u64; 3]; 2]> = const { std::cell::Cell::new([[0; 3]; 2]) };
+    }
+
+    #[cfg(test)]
+    pub fn near_one(team: u8, near: super::Near) {
+        let k = match near {
+            super::Near::Far => 0,
+            super::Near::Watch => 1,
+            super::Near::SightsUp => 2,
+        };
+        NEAR.with(|n| {
+            let mut all = n.get();
+            all[usize::from(team).min(1)][k] += 1;
+            n.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn near_one(_: u8, _: super::Near) {}
+
+    /// The watched walk steps by team and [`super::Near`] (far, watch, sights up), since the thread began.
+    #[cfg(test)]
+    pub fn near_counted() -> [[u64; 3]; 2] {
+        NEAR.with(std::cell::Cell::get)
+    }
+
     /// The walk steps by team and [`KINDS`], since the thread began.
     #[cfg(test)]
     pub fn counted() -> [[u64; 5]; 2] {
@@ -146,7 +210,8 @@ mod tests {
         s.bot(0, 0, Vec3::new(40.0, 0.0, 30.0));
         s.enemy(1, 1, Vec3::new(70.0, 0.0, 30.0), None);
         s.view.places[0].velocity = velocity;
-        s.tuning.threat.walk_watch = Some(WalkWatch::default());
+        // A229's walk: watched at any distance (the near band has its own tests below).
+        s.tuning.threat.walk_watch = Some(WalkWatch { near: None, ..WalkWatch::default() });
         let now = s.view.clock;
         std::sync::Arc::make_mut(&mut s.team.threat).held.push(HeldLine::for_test(
             9,
@@ -205,5 +270,23 @@ mod tests {
         assert_eq!(watched(&s.cx(0), &watch, &walk()), Some(Watched::Known(at)));
         let lanes_only = WalkWatch { known: None, ..watch };
         assert_eq!(watched(&s.cx(0), &lanes_only, &walk()), Some(Watched::Nothing));
+    }
+
+    #[test]
+    fn the_near_band_watches_only_near_and_puts_the_sights_up_nearer() {
+        let band = Some(WatchNear::default());
+        assert_eq!(near_watch(None, 50.0), Near::Watch, "no band: as A229");
+        assert_eq!(near_watch(band, 30.0), Near::Far);
+        assert_eq!(near_watch(band, 25.0), Near::Watch);
+        assert_eq!(near_watch(band, 15.0), Near::SightsUp);
+        // The held spot 30 m off: the route's view and its sprint.
+        let mut s = walking([3.0, 0.0]);
+        s.tuning.threat.walk_watch = Some(WalkWatch::default());
+        assert_eq!(walk_watch(&s.cx(0), walk()), walk());
+        // 12 m off: looked at, the sights up.
+        s.view.places[0].feet = Vec3::new(58.0, 0.0, 30.0);
+        let watched = walk_watch(&s.cx(0), walk());
+        assert_eq!(watched.look, Look::At(Vec3::new(70.0, 0.0, 30.0)));
+        assert_ne!(watched.hold & key::AIM, 0);
     }
 }
