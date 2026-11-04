@@ -265,6 +265,9 @@ pub struct Bot {
     skill: f32,
     /// Its map side (the spawns' team it first came out of).
     side: Option<i32>,
+    /// Where its first life began: the side is read from it when the map comes after that spawn (a map built
+    /// cold, after the countdown's spawns: without a side its first life had no Cut, HoldExit or Crossfire).
+    first_feet: Option<Vec3>,
     running: Option<Running>,
     assignment: Option<Assignment>,
     last_ran: Vec<(PlayKind, u32)>,
@@ -512,6 +515,7 @@ impl Bot {
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
+            first_feet: None,
             running: None,
             assignment: None,
             last_ran: Vec::new(),
@@ -870,9 +874,19 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.features.new_life(&Life { kit: self.kit });
+        self.first_feet.get_or_insert(feet);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
+    }
+
+    /// The map came after its first spawn: its side from where that life began. Whether it was read now.
+    fn side_from_first_life(&mut self, tactics: &Tactics) -> bool {
+        if self.side.is_some() {
+            return false;
+        }
+        self.side = self.first_feet.and_then(|feet| tactics.side_at(feet));
+        self.side.is_some()
     }
 }
 
@@ -1222,6 +1236,12 @@ impl Bots {
             census.unknown,
             if census.armored == 0 && census.total > 0 { " [no materials: cover is solid, load format 5 files]" } else { "" }
         );
+        // Bots that spawned before the map (built cold) take their side now, from where their first life began.
+        let mut late = 0;
+        for bot in self.bots.iter_mut().flatten() {
+            late += usize::from(bot.side_from_first_life(&tactics));
+        }
+        let summary = if late > 0 { format!("{summary}; {late} bots spawned before the map, sides read now") } else { summary };
         self.tactics = Some(tactics);
         self.memo = Default::default();
         summary
