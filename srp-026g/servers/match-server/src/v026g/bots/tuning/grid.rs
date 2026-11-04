@@ -112,6 +112,13 @@ pub struct GridTuning {
     /// bots into both (fx-grid's A257). On by default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches). The old value counts exits a body cannot take, so the
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub pocket_exits_walled: bool,
+    /// [A293] Whether the maps' walk grids refuse a gap link down whose flight went over a face that had held the body
+    /// (`mapdata::Body::gap_no_vaults`): a rail or a parapet at the edge with a floor more than a step under its far side. The
+    /// flight let the body rise with the clip at the face and go on past it once its feet were over; the client does not:
+    /// Vector Laboratory's spawn exits (a 0.9 m rail) kept every bot on top, 19 of 19 and 15 of 15 tries in the owner's match
+    /// 0x8681e02, and the live bodies went down the maps' downward gap links 12 times in 2,741 visits (A293). Off (the default)
+    /// until its bench. A grid is the map's (see `gap_links`).
+    pub gap_no_vaults: bool,
 }
 
 impl Default for GridTuning {
@@ -133,6 +140,7 @@ impl Default for GridTuning {
             run_ups_after_erosion: true,
             steep_walk_base: true,
             pocket_exits_walled: true,
+            gap_no_vaults: false,
         }
     }
 }
@@ -162,6 +170,7 @@ impl GridTuning {
             run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
             pocket_exits_walled: self.pocket_exits_walled,
+            gap_no_vaults: self.gap_no_vaults,
             ..body
         }
     }

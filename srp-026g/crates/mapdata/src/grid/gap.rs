@@ -255,6 +255,19 @@ impl Clip<'_> {
     }
 }
 
+/// [A293] Whether a jump's flight went over a face that had held the body: held at a face across its way, it rose with the clip
+/// and, once its feet were over the face, took the clip's travel on past it (the chase rule, `sprint-jump-re/FINDINGS.md` §5,
+/// LIKELY for a top it lands on). Over a rail or a parapet with nothing to stand on, the client does not carry the body over: at
+/// Vector Laboratory's spawn exits (a 0.9 m rail at the edge, the landing 2.5-4.4 m under it) the live bodies stayed on top in
+/// every one of their tries ([`crate::Body::gap_no_vaults`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Over {
+    /// No face held the body, or it came down where a face held it.
+    Clear,
+    /// A face held the body, and it went on past it.
+    Vaulted,
+}
+
 /// Where a jump's clip leaves a body: come down on a floor during it (the
 /// floor, where along, the speed it came down at), or over no floor at the
 /// clip's end (where along, the feet's height and its height a sample
@@ -436,7 +449,7 @@ impl WalkGrid {
     /// unless a face across its width is in the way, and then stays where
     /// it is while the clip lifts it, to go on once it is over the face.
     /// After the clip it falls on ([`Flight::Over`], [`Self::fall_on`]).
-    fn fly(&self, a: usize, d: usize, lead: f32, solids: &Solids) -> Option<Flight> {
+    fn fly(&self, a: usize, d: usize, lead: f32, solids: &Solids) -> Option<(Flight, Over)> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
         let (di, dk) = DIRS[d];
@@ -460,6 +473,7 @@ impl WalkGrid {
         let mut last = h;
         // Where the body is along the way (held behind the root by faces).
         let mut body = 0.0f32;
+        let (mut was_held, mut over) = (false, Over::Clear);
         let mut x = ds;
         loop {
             if x > end {
@@ -467,7 +481,7 @@ impl WalkGrid {
                 // clip's last downward speed (J0 g2b).
                 let n = SHORT_JUMP_RISE.len();
                 let down = (SHORT_JUMP_RISE[n - 2] - SHORT_JUMP_RISE[n - 1]) * CLIP_FPS / 2.0;
-                return Some(Flight::Over { body, y: h, last, down });
+                return Some((Flight::Over { body, y: h, last, down }, over));
             }
             let ahead = x + lead;
             let y = h + short_jump_rise(ahead).unwrap_or(0.0);
@@ -479,7 +493,7 @@ impl WalkGrid {
                 && body + ds + 1e-3 >= x
                 && let Some(f) = landing(x, y, last)
             {
-                return Some(Flight::Landed(f, x, 0.0));
+                return Some((Flight::Landed(f, x, 0.0), over));
             }
             // To the root, unless a face anywhere across the body's width
             // is in the way.
@@ -494,12 +508,17 @@ impl WalkGrid {
                 s += ds;
             };
             if !held {
+                if was_held {
+                    over = Over::Vaulted;
+                }
                 body = x;
             } else if ahead >= APEX_AHEAD_M
                 && let Some(f) = landing(body, y, last)
             {
                 // Held, coming down where it is.
-                return Some(Flight::Landed(f, body, 0.0));
+                return Some((Flight::Landed(f, body, 0.0), Over::Clear));
+            } else {
+                was_held = true;
             }
             last = y;
             x += ds;
@@ -614,7 +633,7 @@ impl WalkGrid {
         pre: f32,
         sunk: f32,
         solids: &Solids,
-    ) -> Option<Flight> {
+    ) -> Option<(Flight, Over)> {
         let from = self.position(a as NodeId);
         let h = self.height[a] - sunk;
         let (di, dk) = DIRS[d];
@@ -636,10 +655,11 @@ impl WalkGrid {
         let end = start + clip.ahead[12];
         let mut last = h;
         let mut body = pre;
+        let (mut was_held, mut over) = (false, Over::Clear);
         let mut x = start + clip.leaves;
         loop {
             if x > end {
-                return Some(Flight::Over { body, y: h, last, down: clip.end_fall_ms() });
+                return Some((Flight::Over { body, y: h, last, down: clip.end_fall_ms() }, over));
             }
             let ahead = x - start;
             let y = h + clip.rise_at(ahead).unwrap_or(0.0);
@@ -651,7 +671,7 @@ impl WalkGrid {
                 && body + ds + 1e-3 >= x
                 && let Some(f) = landing(x, y, last)
             {
-                return Some(Flight::Landed(f, x, fall(f)));
+                return Some((Flight::Landed(f, x, fall(f)), over));
             }
             let mut s = body + ds;
             let held = loop {
@@ -664,11 +684,16 @@ impl WalkGrid {
                 s += ds;
             };
             if !held {
+                if was_held {
+                    over = Over::Vaulted;
+                }
                 body = x;
             } else if ahead >= apex
                 && let Some(f) = landing(body, y, last)
             {
-                return Some(Flight::Landed(f, body, fall(f)));
+                return Some((Flight::Landed(f, body, fall(f)), Over::Clear));
+            } else {
+                was_held = true;
             }
             last = y;
             x += ds;
@@ -700,9 +725,12 @@ impl WalkGrid {
             }
             for rise in &SPRINT_JUMP_RISE {
                 let clip = Clip { ahead: &SPRINT_JUMP_AHEAD, rise, leaves: SPRINT_LEAVES_M, sample_s };
-                let flight = self.fly_clip(a, d, &clip, start, pre, sunk, solids)?;
+                let (flight, over) = self.fly_clip(a, d, &clip, start, pre, sunk, solids)?;
                 for after in SPRINT_JUMP_AFTER_CLIP_MS {
                     let (to, along, speed) = self.land(a, d, flight, after, solids)?;
+                    if self.vaults_down(a, to, over) {
+                        return None;
+                    }
                     // Across the gap, unhurt.
                     if along <= edge || speed >= FALL_HURTS_MS {
                         return None;
@@ -1091,6 +1119,13 @@ impl WalkGrid {
         }
     }
 
+    /// [A293] With [`crate::Body::gap_no_vaults`]: whether a flight from `a` that went over a face that held the body
+    /// ([`Over::Vaulted`]) comes down on `to` more than a step lower: a jump down over a rail or a parapet, which the client
+    /// does not make. A vault onto a top, or a landing beyond a face no more than a step lower, is kept.
+    fn vaults_down(&self, a: usize, to: u32, over: Over) -> bool {
+        self.body.gap_no_vaults && over == Over::Vaulted && self.height[to as usize] < self.height[a] - self.body.step
+    }
+
     /// The gap links from floor `a` along `d` (module documentation): for
     /// each window of presses [`GAP_PRESS_STEP_M`] apart from
     /// [`GAP_PRESS_MIN_M`] to [`GAP_PRESS_MAX_M`] before `a`'s centre that
@@ -1178,9 +1213,12 @@ impl WalkGrid {
                     return None;
                 }
                 // One level whatever the body's speed after the clip.
-                let flight = self.fly(a, d, lead, solids)?;
+                let (flight, over) = self.fly(a, d, lead, solids)?;
                 let (to, _, _) = self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[0], solids)?;
                 let (other, _, _) = self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[1], solids)?;
+                if self.vaults_down(a, to, over) || self.vaults_down(a, other, over) {
+                    return None;
+                }
                 if (self.height[to as usize] - self.height[other as usize]).abs() > SAME_TOP {
                     return None;
                 }
@@ -1609,6 +1647,39 @@ mod tests {
         assert!(grid.off_links().iter().all(|l| grid.position(l.to).x < 7.5), "{:?}", grid.off_links());
         let grid = world_back(2.0, 0.5, 1.5, -3.0);
         assert!(grid.off_links().iter().any(|l| l.kind == LinkKind::GapDrop && grid.position(l.to).x > 7.5));
+    }
+
+    /// [A293] A rail 0.9 m high on the near block's edge, over a drop of 1.5 m to the far block: the flight is held at the rail,
+    /// rises with the clip and goes on past it once the feet are over (the chase rule), so a jump link down is made; with
+    /// [`Body::gap_no_vaults`] it is not (the client keeps the body on top: Vector Laboratory's spawn exits). Without the rail
+    /// the jump down stays a link with the switch too, so only the vault is refused.
+    #[test]
+    fn a_jump_down_over_a_rail_is_no_link_with_gap_no_vaults() {
+        let railed = |rail: bool| {
+            let mut t = world_triangles(2.0, 0.5, 1.5, -3.0);
+            let (back, area) = way_back(2.0, 0.5, 1.0);
+            t.extend(back);
+            if rail {
+                t.extend(face_x(5.85, 0.0, 10.0, 2.0, 2.9));
+                t.extend(face_x(5.95, 0.0, 10.0, 2.0, 2.9));
+                t.extend(quad(5.85, 0.0, 5.95, 10.0, 2.9));
+            }
+            (t, area)
+        };
+        let jumps_down = |grid: &WalkGrid| {
+            grid.off_links()
+                .iter()
+                .filter(|l| l.press != Takeoff::WalkOff && grid.position(l.from).y > 1.9 && grid.position(l.to).x > 7.4)
+                .count()
+        };
+        let build = |rail: bool, gap_no_vaults: bool| {
+            let (t, area) = railed(rail);
+            WalkGrid::build_with_links(&t, area, 0.25, Body { gap_no_vaults, ..Body::default() }, OffMeshLinks::Gaps)
+        };
+        assert!(jumps_down(&build(true, false)) > 0, "the chase rule's vault over the rail is a link without the switch");
+        assert_eq!(jumps_down(&build(true, true)), 0, "no vault down over the rail with the switch");
+        let open = jumps_down(&build(false, true));
+        assert!(open > 0 && open == jumps_down(&build(false, false)), "the open edge's jump down stays");
     }
 
     fn world_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<Triangle> {

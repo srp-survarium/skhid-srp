@@ -200,6 +200,15 @@ pub struct Body {
     /// 21.4) eighteen sprint exits with 0.25 m to run; routes dropped bots into both (fx-grid's A257, 315-345 s stuck). A build
     /// input: in the key when set.
     pub pocket_exits_walled: bool,
+    /// [A293] Whether a gap link down is refused where its flight went over a face that had held the body (`gap::Over::Vaulted`):
+    /// the flight lets a body held at a face rise with the clip and, once its feet are over it, take the clip's travel on past it
+    /// (the chase rule), so a jump at a rail or a parapet with a floor more than a step under its far side became a link. The
+    /// client does not carry the body over such a face: of 135 downward route jumps in the owner's match 0x8681e02 (Vector
+    /// Laboratory), 124 stayed on top and 4 got down; at the spawn exit's 0.9 m rail (85.3, 24.3, -31.5) 19 of 19 stayed on top;
+    /// over every downward gap link of every day map the live bodies went down 12 times in 2,244 bot visits and never in 497
+    /// human ones, against 36 % of bot visits at the grid's ordinary drops (A293). A vault up onto a top is kept. A build input:
+    /// in the key when set.
+    pub gap_no_vaults: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -251,6 +260,7 @@ impl Body {
             run_ups_after_erosion: false,
             steep_walk_base: false,
             pocket_exits_walled: false,
+            gap_no_vaults: false,
         }
     }
 }
@@ -318,6 +328,7 @@ impl Default for Body {
             run_ups_after_erosion: false,
             steep_walk_base: false,
             pocket_exits_walled: false,
+            gap_no_vaults: false,
         }
     }
 }
