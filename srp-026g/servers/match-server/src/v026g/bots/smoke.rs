@@ -2229,6 +2229,26 @@ mod scenarios {
     }
 
     #[test]
+    fn a_shooter_spot_smoke_rests_on_him_within_reach_and_not_beyond() {
+        let mesh = flat();
+        let reach = Reach {
+            mesh: &mesh,
+            grenade: SmokeGrenade::RDG_M,
+            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+        };
+        let rule = crate::v026g::bots::tuning::ShooterSpot::default();
+        let crossing = Vec3::new(0.0, 0.0, 5.0);
+        let near = Vec3::new(0.0, 1.6, 20.0);
+        let plan = smoke_on_shooter(&reach, near, crossing, SmokeUse::CrossLane, rule).expect("in reach");
+        assert!(plan.at.distance_xz(near) <= rule.rest_within_m.get(), "{plan:?}");
+        // His eye is inside the cloud.
+        let cloud = Cloud { by: 0, team: 0, placed: Placed::Arc, centre: plan.at, thrown: MatchMs(0), pours: MatchMs(0), shape: SmokeGrenade::RDG_M.cloud };
+        assert!(cloud.holds(near, MatchMs(5_000)), "{plan:?}");
+        // Beyond the throw's reach: none.
+        assert_eq!(smoke_on_shooter(&reach, Vec3::new(0.0, 1.6, 80.0), crossing, SmokeUse::CrossLane, rule), None);
+    }
+
+    #[test]
     fn a_smoke_on_a_spot_lands_on_its_floor_when_the_throw_reaches_it() {
         let mesh = flat();
         let reach = Reach {
