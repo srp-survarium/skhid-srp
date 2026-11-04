@@ -4867,6 +4867,10 @@ impl Game {
                 self.id,
                 walkers.bots.grenade_report()
             );
+            // A294: the bots' drift against the worlds, by bot and by the map cells where it began.
+            for line in walkers.bots.drift_report() {
+                log::info!("Match {:#x}: the bots' {line}", self.id);
+            }
         }
         self.result = Some(result);
         self.result_made = true;

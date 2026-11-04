@@ -111,13 +111,15 @@ fn at(p: Vec3) -> String {
 pub enum Kind {
     Jump,
     Fall,
+    /// A294's drift line (`nav_drift.rs`).
+    Drift,
 }
 
 /// One bot's lines waiting for the next poll, and the rate limit.
 #[derive(Clone, Debug, Default)]
 pub struct NavLog {
     /// Per kind: the last line's time and the lines held back since.
-    last: [Option<(u32, u32)>; 2],
+    last: [Option<(u32, u32)>; 3],
     pending: Vec<(u32, String)>,
 }
 
