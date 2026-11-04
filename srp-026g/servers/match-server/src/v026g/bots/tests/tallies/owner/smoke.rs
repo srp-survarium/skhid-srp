@@ -615,9 +615,6 @@ impl SmokeCounts {
             })
             .collect();
         let json = serde_json::json!({
-            "smoke_no_plan_by_height": no_plans_json,
-            "smoke_shooter_by_landing": {"between": [shooters[0][0], shooters[1][0]], "on_him": [shooters[0][1], shooters[1][1]]},
-            "smoke_plans_shooter_spot": by(ShooterSpotPlan),
             "smoke_bot_throws_by_use": uses_json,
             "smoke_landing_by_use": landings_json,
             "smoke_plans_by_height": heights_json,
@@ -660,6 +657,13 @@ impl SmokeCounts {
         });
         let mut json = json;
         if let Some(map) = json.as_object_mut() {
+            // [A291] Outside the macro (its recursion limit).
+            map.insert("smoke_no_plan_by_height".to_owned(), serde_json::Value::Object(no_plans_json));
+            map.insert(
+                "smoke_shooter_by_landing".to_owned(),
+                serde_json::json!({"between": [shooters[0][0], shooters[1][0]], "on_him": [shooters[0][1], shooters[1][1]]}),
+            );
+            map.insert("smoke_plans_shooter_spot".to_owned(), serde_json::json!(by(ShooterSpotPlan)));
             use smoke::tally::Wait::{Begun, Cap, Close, CrossedHidden, CrossedNever, CrossedOpen, Died, Fight, HeldMs, Hidden, Hit};
             for (key, what) in [
                 ("smoke_hold_begun", Begun),
