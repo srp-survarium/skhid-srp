@@ -504,4 +504,37 @@ mod tests {
         assert!((2_500.0..=3_750.0).contains(&ms), "{ms}");
         assert!(s.view.places[0].feet.distance_xz(SPOT) < 6.0);
     }
+
+    /// [A297] TDM: bot 0 at (28, 0, 35), its partner 2 at (38, 0, 33) fighting enemy 1, whom bot 0 heard at (58, 0, 34).
+    fn covering(on: bool) -> Scenario {
+        use crate::v026g::bots::know::Fighting;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(28.0, 0.0, 35.0));
+        s.bot(2, 0, SPOT);
+        s.enemy(1, 1, Vec3::new(58.0, 0.0, 34.0), Some(Source::Heard));
+        s.partner = Some(2);
+        s.team.fighting = vec![Fighting { mate: 2, enemy: 1, since: s.view.clock - 500 }];
+        s.tuning.tdm.group = on.then(GroupUp::default);
+        s
+    }
+
+    #[test]
+    fn with_the_switch_a_partners_fight_is_answered_before_his_death_and_without_it_is_not() {
+        let out = trades(&covering(true));
+        assert_eq!(out.len(), 1, "{out:#?}");
+        assert_eq!(out[0].target, TargetRef::Place(2));
+        assert_eq!(out[0].rank, Rank::Alarm);
+        assert!(trades(&covering(false)).is_empty(), "off: no trade before a death");
+        // Not when the bot fights itself, nor in a battery match.
+        let mut s = covering(true);
+        s.team.fighting.push(crate::v026g::bots::know::Fighting { mate: 0, enemy: 1, since: s.view.clock });
+        assert!(trades(&s).is_empty());
+        let mut s = covering(true);
+        s.view.mode = Mode::Batteries;
+        assert!(trades(&s).is_empty());
+        // Not when the partner fights farther than answer_m.
+        let mut s = covering(true);
+        s.tuning.tdm.group = Some(GroupUp { answer_m: crate::v026g::bots::tuning::Metres::of(5.0), ..GroupUp::default() });
+        assert!(trades(&s).is_empty());
+    }
 }
