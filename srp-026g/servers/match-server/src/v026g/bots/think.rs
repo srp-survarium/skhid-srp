@@ -771,13 +771,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             .filter(|&p| eyes.iter().all(|&eye| tactics.sees(eye, p)))
             .collect()
     };
-    // The smoke on the line from `eyes[0]` to the crossing: mid-line with `smoke.aim_point` (A291), else the first point
+    // The smoke on the line from `eyes[0]` to the crossing: by `smoke.aim_point` (A291: mid-line or near the shooter), else the first point
     // from the threat's end; with the stretch it was judged on (the counters' own with the switch off, tests only).
     let plan_line = |eyes: &[Vec3], crossing_s: f32, crossing: Vec3, for_use: SmokeUse| -> Option<(smoke::SmokePlan, Vec<Vec3>)> {
         match t.aim_point {
             Some(rule) => {
-                let stretch = stretch_of(eyes, crossing_s, rule.stretch_m.get());
-                smoke::smoke_mid_line(&reach, eyes[0], crossing, &stretch, thin, for_use, rule).map(|plan| (plan, stretch))
+                let stretch = stretch_of(eyes, crossing_s, rule.stretch_m());
+                smoke::smoke_aimed(&reach, eyes[0], crossing, &stretch, thin, for_use, Some(rule)).map(|plan| (plan, stretch))
             }
             None => smoke::smoke_between(&reach, eyes[0], crossing, thin, for_use).map(|plan| {
                 let stretch = if cfg!(test) {

@@ -121,15 +121,36 @@ pub struct SmokeTuning {
     /// by side (136 pairs, `full-wait-crossers-20261101T0214`) smoked crossings reached with the line open fell from 93.5 %
     /// to 51.0 % (z 9.7), score +2.1 % (z +2.0), no guard worse; `all_off.json` keeps it off.
     pub wait_for_cloud: Option<WaitForCloud>,
-    /// [A291] Where on its line a CrossLane or AntiSniper smoke lands (`MidLine`). None: the first point from the
+    /// [A291] Where on its line a CrossLane or AntiSniper smoke lands (`AimPoint`). None: the first point from the
     /// shooter's end that the throw reaches and that covers the line (`smoke::smoke_between`), so a shooter within the
     /// throw's reach (about 30 m) gets the cloud on his own feet and steps out of its 8 m radius to see the crossing again
     /// (A288: 7 of the 12 enemy smokes against the owner's lane landed within 8 m of him; humans put 69 % between the
     /// thrower and the enemy and 6 % on the enemy, `fx-smoke-data.md` section 5).
-    pub aim_point: Option<MidLine>,
+    pub aim_point: Option<AimPoint>,
 }
 
-/// [A291] `SmokeTuning::aim_point`: a smoke between the shooter and the crossing that hides the most of the crossing's
+/// [A291] `SmokeTuning::aim_point`: where on the line from the shooter to the crossing the cloud goes.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AimPoint {
+    /// Between the two, the shooter outside the cloud, hiding the most of the crossing's stretch.
+    MidLine(MidLine),
+    /// A few metres in front of the shooter (the owner, 2026-11-04: "maybe smoke not middle but closer to shooter?"): a
+    /// cloud near him fills more of his view, never on his feet.
+    NearShooter(NearShooter),
+}
+
+impl AimPoint {
+    /// The crossing's stretch judged, metres.
+    pub fn stretch_m(self) -> f32 {
+        match self {
+            Self::MidLine(m) => m.stretch_m.get(),
+            Self::NearShooter(n) => n.stretch_m.get(),
+        }
+    }
+}
+
+/// [A291] `AimPoint::MidLine`: a smoke between the shooter and the crossing that hides the most of the crossing's
 /// stretch (the route points from the crossing on that the shooter sees), with the shooter outside the cloud.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -146,6 +167,25 @@ pub struct MidLine {
 impl Default for MidLine {
     fn default() -> Self {
         Self { shooter_clear_m: Metres::of(2.0), step_m: Positive::of(2.0), stretch_m: Metres::of(12.0) }
+    }
+}
+
+/// [A291] `AimPoint::NearShooter`: the cloud's centre on the line `short_m` in front of the shooter (toward the crossing),
+/// within `min_m`..`max_m` of him, as near `short_m` as a throw that covers the line lands.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NearShooter {
+    pub short_m: Metres,
+    /// Never nearer him than this, metres (on his feet he steps out of it).
+    pub min_m: Metres,
+    pub max_m: Metres,
+    /// The crossing's stretch judged for the counters and the tie, metres.
+    pub stretch_m: Metres,
+}
+
+impl Default for NearShooter {
+    fn default() -> Self {
+        Self { short_m: Metres::of(6.0), min_m: Metres::of(3.0), max_m: Metres::of(10.0), stretch_m: Metres::of(12.0) }
     }
 }
 
