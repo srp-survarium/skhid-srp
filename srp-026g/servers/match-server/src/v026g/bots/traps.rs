@@ -40,13 +40,13 @@ use std::sync::Arc;
 use mapdata::{NodeId, Vec3, WalkGrid};
 
 use super::kin;
-use super::know::HumanLanes;
+use super::know::{HumanLanes, Track, LANE_CELL_M};
 use super::plays::PlayKind;
 use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::TrapTuning;
+use super::tuning::{TrapLanes, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -726,6 +726,36 @@ fn presence(lanes: &HumanLanes, at: Vec3, now: u32) -> f32 {
         .sum()
 }
 
+/// [A292 S1] The team's own senses of every enemy into the trap habit's lane map (`TrapLanes::Enemies`), by the rule
+/// `TeamKnowledge::learn_humans_as` takes for the humans: its bots' own senses only (no callout), within a lane cell of error, the
+/// latest place of each enemy at each poll, at most one a second into his lane (`HumanLanes::knew`).
+pub(super) fn learn_enemy_lanes<'a>(lanes: &mut HumanLanes, team: u8, view: &super::view::MatchView, tracks: impl Iterator<Item = &'a Track>) {
+    let enemy = |who: super::view::Place| view.place(who).is_some_and(|p| p.team & 1 != team & 1);
+    let mut latest: Vec<(super::view::Place, Vec3, u32, f32)> = Vec::new();
+    for t in tracks {
+        if !t.source.own() || t.error_m > LANE_CELL_M || !enemy(t.who) {
+            continue;
+        }
+        match latest.iter_mut().find(|l| l.0 == t.who) {
+            Some(l) if (t.time, -t.error_m) > (l.2, -l.3) => *l = (t.who, t.at, t.time, t.error_m),
+            Some(_) => {}
+            None => latest.push((t.who, t.at, t.time, t.error_m)),
+        }
+    }
+    latest.sort_by_key(|l| l.0);
+    for (who, at, time, _) in latest {
+        lanes.knew(who, at, time);
+    }
+}
+
+/// The lanes the spot score reads (`TrapTuning::lanes`).
+fn lanes_of<'a>(t: &TrapTuning, state: &'a TeamState) -> &'a HumanLanes {
+    match t.lanes {
+        TrapLanes::Humans => &state.knowledge.humans,
+        TrapLanes::Enemies => &state.features.traps.lanes,
+    }
+}
+
 /// [A292] The enemy human whose lane cell lies nearest `at`, and how far (for the log only).
 fn nearest_lane(lanes: &HumanLanes, at: Vec3) -> Option<(super::view::Place, f32)> {
     lanes
@@ -1345,7 +1375,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         staying,
         ahead: &ahead,
         mates: &mates,
-        lanes: &state.knowledge.humans,
+        lanes: lanes_of(t, state),
         own: &own,
         in_spawn: &in_spawn,
         wish,
@@ -1382,7 +1412,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             onpass::count(me.team, onpass::LOST_STALE);
         }
     }
-    let lanes = &state.knowledge.humans;
+    let lanes = lanes_of(t, state);
     let here = chosen.map(|c| presence(lanes, c.spot, due.now));
     // Place on the pass: a cell ahead on the route that is richer in enemy lanes than this spot is waited for.
     if let Some(pass) = t.on_the_pass.filter(|_| !staying && !at_defeated) {
@@ -1433,7 +1463,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         bot.features.traps.tally.planned();
         let play = bot.assignment.as_ref().map(|a| a.kind);
-        let near = nearest_lane(&state.knowledge.humans, chosen.spot);
+        let near = nearest_lane(lanes_of(t, state), chosen.spot);
         bot.note(
             notes,
             due.now,
@@ -1863,8 +1893,13 @@ fn enemy_near(bot: &Bot, due: &Due) -> bool {
     let quiet = (t.enemy_quiet_s * 1000.0) as u32;
     !bot.memory.all_seen(due.now, due.view.clock).is_empty()
         || bot.memory.tracks().iter().any(|track| {
-            due.now < track.time + quiet || track.at.distance_xz(due.me.feet) < t.enemy_near_m
+            sensed_lately(t, track, due.me.feet, due.now, quiet) || track.at.distance_xz(due.me.feet) < t.enemy_near_m
         })
+}
+
+/// The gate's "sensed lately": within `enemy_quiet_s`, and with `sensed_near` (A292 S2) only this near.
+fn sensed_lately(t: &TrapTuning, track: &Track, feet: Vec3, now: u32, quiet: u32) -> bool {
+    now < track.time + quiet && t.sensed_near.is_none_or(|n| track.at.distance_xz(feet) < n.within_m)
 }
 
 /// [A292] Which part of [`enemy_near`] holds, the first of seen / sensed lately / known near (for the counts only).
@@ -1874,7 +1909,7 @@ fn enemy_near_kind(bot: &Bot, due: &Due) -> Option<tally::EnemyNear> {
     let tracks = bot.memory.tracks();
     if !bot.memory.all_seen(due.now, due.view.clock).is_empty() {
         Some(tally::EnemyNear::Seen)
-    } else if tracks.iter().any(|track| due.now < track.time + quiet) {
+    } else if tracks.iter().any(|track| sensed_lately(t, track, due.me.feet, due.now, quiet)) {
         Some(tally::EnemyNear::Sensed)
     } else if tracks.iter().any(|track| track.at.distance_xz(due.me.feet) < t.enemy_near_m) {
         Some(tally::EnemyNear::Known)
@@ -1914,8 +1949,15 @@ pub(super) fn drive(
     t: &TrapTuning,
 ) -> Option<TrapDrive> {
     let state = bot.features.traps.habit.state();
+    // [A292 S4a] From its press to the think that puts the trap in its field (and re-plans round it), the legs stay.
+    let hold = held_after_press(bot, now, t);
     if state == State::Idle {
-        return None;
+        return hold.then_some(TrapDrive {
+            look: None,
+            key: 0,
+            crouch: None,
+            hold,
+        });
     }
     let kit = bot.features.traps.habit.kit()?;
     // The pose the placing is counted on: held from the press to the release.
@@ -2016,7 +2058,16 @@ pub(super) fn drive(
         look,
         key: if out.key_down { kit.key } else { 0 },
         crouch: out.hold_crouch,
+        hold: hold || (t.after_press.is_some() && bot.features.traps.placed.is_some()),
     })
+}
+
+/// [A292 S4a] Whether the legs stay this tick: a trap let go of since the last think (`BotState::placed`, taken at the think
+/// that promises it to the team and re-plans the route round it), for at most `AfterPress::hold_ms`.
+fn held_after_press(bot: &Bot, now: u32, t: &TrapTuning) -> bool {
+    t.after_press
+        .zip(bot.features.traps.placed)
+        .is_some_and(|(a, (_, at))| now.saturating_sub(at) <= a.hold_ms)
 }
 
 /// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
@@ -2068,6 +2119,8 @@ pub(super) struct TrapDrive {
     pub key: u32,
     /// The crouch key as it was at the press, held to the release (with the landing rule).
     pub crouch: Option<bool>,
+    /// [A292 S4a] The legs stay this tick (`TrapTuning::after_press`).
+    pub hold: bool,
 }
 
 /// Where the view is turned.
@@ -2493,6 +2546,7 @@ impl super::Bots {
 mod tests {
     use super::*;
     use crate::v026g::bots::plays::tests::Scenario;
+    use crate::v026g::bots::tuning::Check;
     use crate::v026g::bots::view::Mode;
 
     fn t() -> TrapTuning {
@@ -3189,5 +3243,99 @@ mod tests {
         })
         .expect("a spot");
         assert!((chosen.spot.distance_xz(feet) - look.run_m).abs() < 1e-3, "{chosen:?}");
+    }
+
+    /// A292 S1: with `lanes: enemies` the trap map takes every enemy the team sensed itself, bot or human; a mate, a cheat or a
+    /// report too vague for a cell does not count, and the humans' lanes are not touched.
+    #[test]
+    fn the_trap_lanes_take_every_sensed_enemy() {
+        use crate::v026g::bots::know::{CheatKind, Source};
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        s.bot(1, 1, Vec3::new(20.0, 0.0, 10.0));
+        s.human(2, 1, Vec3::new(30.0, 0.0, 10.0));
+        s.bot(3, 0, Vec3::new(40.0, 0.0, 10.0));
+        let track = |who, x: f32, source, error_m| Track {
+            who,
+            at: Vec3::new(x, 0.0, 10.0),
+            error_m,
+            time: 1_000,
+            source,
+            sight_since: None,
+            notice_ms: 0,
+            own: None,
+            missed: None,
+            held_until: 0,
+        };
+        let tracks = [
+            track(1, 20.0, Source::Seen, 0.5),
+            track(2, 30.0, Source::Heard, 2.0),
+            track(3, 40.0, Source::Seen, 0.5),
+            track(1, 90.0, Source::Cheat(CheatKind::Radar), 0.0),
+            track(2, 70.0, Source::Heard, 20.0),
+        ];
+        let mut lanes = HumanLanes::default();
+        learn_enemy_lanes(&mut lanes, 0, &s.view, tracks.iter());
+        let mut who: Vec<_> = lanes.humans.iter().map(|h| h.who).collect();
+        who.sort_unstable();
+        assert_eq!(who, vec![1, 2], "{lanes:?}");
+        assert!(lanes.humans.iter().all(|h| h.cells.len() == 1), "{lanes:?}");
+        assert!(presence(&lanes, Vec3::new(21.0, 0.0, 10.0), 1_000) > 0.5);
+        assert_eq!(presence(&lanes, Vec3::new(90.0, 0.0, 10.0), 1_000), 0.0);
+        // The default reads the humans' lanes (empty here), the switch the trap map.
+        let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
+        assert_eq!(tuning.lanes, TrapLanes::Humans);
+        tuning.lanes = TrapLanes::Enemies;
+        assert!(tuning.check().is_ok());
+    }
+
+    /// A292 S2: `sensed_near` keeps a far enemy sensed lately from the enemy gate; a near one, or the default, still stops it.
+    #[test]
+    fn sensed_near_lets_a_far_sound_pass_the_gate() {
+        use crate::v026g::bots::know::Source;
+        use crate::v026g::bots::tuning::SensedNear;
+        let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
+        assert_eq!(tuning.sensed_near, Some(SensedNear::default()), "on by default (A292)");
+        tuning.sensed_near = None;
+        let quiet = (tuning.enemy_quiet_s * 1000.0) as u32;
+        let at = |x: f32| Track {
+            who: 1,
+            at: Vec3::new(x, 0.0, 0.0),
+            error_m: 5.0,
+            time: 99_000,
+            source: Source::Heard,
+            sight_since: None,
+            notice_ms: 0,
+            own: None,
+            missed: None,
+            held_until: 0,
+        };
+        let lately = |tuning: &TrapTuning, x: f32| sensed_lately(tuning, &at(x), Vec3::ZERO, 100_000, quiet);
+        assert!(lately(&tuning, 150.0), "the old gate: at any distance");
+        assert!(!sensed_lately(&tuning, &at(150.0), Vec3::ZERO, 99_000 + quiet, quiet), "not lately");
+        tuning.sensed_near = Some(SensedNear::default());
+        assert!(!lately(&tuning, 150.0));
+        assert!(lately(&tuning, 30.0));
+        assert!(tuning.check().is_ok());
+        tuning.sensed_near = Some(SensedNear { within_m: 0.0 });
+        assert!(tuning.check().is_err(), "no range");
+    }
+
+    /// A292 S4a: with `after_press` the legs stay from the press until the next think takes the trap (`placed`), at most
+    /// `hold_ms`; without it they never do.
+    #[test]
+    fn the_placer_stands_after_its_press_until_its_next_think() {
+        use crate::v026g::bots::tuning::AfterPress;
+        let full = crate::v026g::bots::tuning::Tuning::default();
+        let mut bot = Bot::new(1, 0, 0, None, &full);
+        let mut tuning = t();
+        bot.features.traps.placed = Some((Vec3::new(1.0, 0.0, 0.0), 10_000));
+        assert!(!held_after_press(&bot, 10_100, &tuning), "off: no hold");
+        tuning.after_press = Some(AfterPress::default());
+        assert!(held_after_press(&bot, 10_100, &tuning));
+        assert!(!held_after_press(&bot, 10_000 + 1_501, &tuning), "the cap");
+        bot.features.traps.placed = None;
+        assert!(!held_after_press(&bot, 10_100, &tuning), "taken by the think");
+        assert!(tuning.check().is_ok());
     }
 }

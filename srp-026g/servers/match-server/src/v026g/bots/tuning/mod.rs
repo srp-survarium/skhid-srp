@@ -187,9 +187,12 @@ pub use team::WalkWatch;
 pub use team::WatchKnown;
 pub use team::WatchNear;
 pub use teams::TeamTunings;
+pub use traps::AfterPress;
 pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
+pub use traps::SensedNear;
+pub use traps::TrapLanes;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
@@ -765,6 +768,7 @@ mod tests {
             "/take/pitch",
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/traps/sensed_near",
             "/unstick/drop_shut_from_top",
             "/unstick/drop_shut_last_resort",
             "/unstick/escape_floor",
