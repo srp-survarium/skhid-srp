@@ -1052,6 +1052,48 @@ pub fn smoke_on_shooter(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3, for
     })
 }
 
+/// [A291] Why a held lane got no covering landing, judged at the shooter's own spot (the scan's first point).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoPlan {
+    /// No floor under his eye within reach of the floor test.
+    NoFloor,
+    /// No throw's pitch reaches his spot (beyond the flat throw), or its flight meets nothing in its time.
+    OutOfReach,
+    /// The throw comes to rest farther than `ShooterSpot`'s default 4 m from him (it bounced or rolled off his ledge).
+    Bounced,
+    /// It rests on him, but its cloud does not put the sight rule's smoke on his line (a steep line leaves its bottom).
+    NoCover,
+}
+
+impl NoPlan {
+    pub const ALL: [Self; 4] = [Self::NoFloor, Self::OutOfReach, Self::Bounced, Self::NoCover];
+
+    pub const fn index(self) -> usize {
+        match self {
+            Self::NoFloor => 0,
+            Self::OutOfReach => 1,
+            Self::Bounced => 2,
+            Self::NoCover => 3,
+        }
+    }
+
+    /// The reason for a lane from `threat_eye` to `crossing` that no landing covered.
+    pub fn of(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3) -> Self {
+        let Some(floor) = reach.floor(threat_eye) else {
+            return Self::NoFloor;
+        };
+        let Some(aim) = reach.aim(floor) else {
+            return Self::OutOfReach;
+        };
+        if aim.rest.distance_xz(threat_eye) > super::tuning::ShooterSpot::default().rest_within_m.get() {
+            Self::Bounced
+        } else {
+            let _ = crossing;
+            Self::NoCover
+        }
+    }
+}
+
 /// [A291] How a shooter stands to the crossing he covers: his eye over the chest over it by more than [`LEVEL_M`], within
 /// it, or under it by more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1486,6 +1528,25 @@ pub mod tally {
 
     pub fn shooters() -> Shooters {
         SHOOTERS.with(Cell::get)
+    }
+
+    /// [A291] The lanes with no covering landing by team, the shooter's height and the reason ([`super::NoPlan::ALL`]).
+    pub type NoPlans = [[[u64; super::NoPlan::ALL.len()]; super::Height::ALL.len()]; 2];
+
+    thread_local! {
+        static NO_PLANS: Cell<NoPlans> = const { Cell::new([[[0; super::NoPlan::ALL.len()]; super::Height::ALL.len()]; 2]) };
+    }
+
+    pub fn no_plan_reason(team: u8, height: super::Height, why: super::NoPlan) {
+        NO_PLANS.with(|c| {
+            let mut counts = c.get();
+            counts[usize::from(team & 1)][height.index()][why.index()] += 1;
+            c.set(counts);
+        });
+    }
+
+    pub fn no_plans() -> NoPlans {
+        NO_PLANS.with(Cell::get)
     }
 
     pub fn throws() -> Throws {

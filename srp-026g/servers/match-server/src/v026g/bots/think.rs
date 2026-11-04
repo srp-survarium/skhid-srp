@@ -798,7 +798,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         // [A291] A held lane whose line no landing covers: no smoke, counted by the shooter's height to the crossing.
         #[cfg(test)]
         if planned.is_none() {
-            smoke::tally::height_no_plan(bot.team, smoke::Height::of(eyes[0], crossing + chest_over));
+            let height = smoke::Height::of(eyes[0], crossing + chest_over);
+            smoke::tally::height_no_plan(bot.team, height);
+            smoke::tally::no_plan_reason(bot.team, height, smoke::NoPlan::of(&reach, eyes[0], crossing));
         }
         planned
     };
