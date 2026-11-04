@@ -21,8 +21,9 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     `gameplay/items/weapons/ammo/`, the ported weapons' too (34 on the released data);
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
     sell is buyable; they are its quest faction (never neutral);
-  - owned: the TT-33, the Mosin and the PPSh-41 (the game's free weapons), 50 medkits, 50
-    antitoxins and 20 bandages (the owner's of 2026-11-02). The kits' pockets take
+  - owned: the TT-33, the Mosin and the PPSh-41 (the game's free weapons), the AKM, AKMSU and
+    AK-74N and 10 stash maps (the owner's of 2026-11-04), 50 medkits, 50 antitoxins and 20
+    bandages (the owner's of 2026-11-02). The kits' pockets take
     theirs from these stacks: the inventory shows 20 bandages, each kit's pocket 3 of them;
   - its three kits (the owner's of 2026-10-24) wearing, each the item of its English name,
     new, full condition, one item worn by all three (the kits share the inventory):
