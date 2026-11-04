@@ -1006,3 +1006,9 @@ update changes what a match computes.
 - TODO: #1202 Match drop: always a drop card's roll, whole
 - TODO: #1203 Team Deathmatch: a kill scores three times
 - TODO: #1204 Mode notice: 10 seconds after play starts
+
+## 4 Nov, 21:29 — TODO: the owner's words (update required)
+
+<!-- Revision 48 (026g-rev48), released 2026-11-04 21:29 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1206 Drops: never a camouflage or decal the player has
