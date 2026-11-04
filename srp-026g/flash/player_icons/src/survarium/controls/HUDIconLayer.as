@@ -281,6 +281,12 @@ package survarium.controls
          {
             return;
          }
+         // The native sender includes this only when it changes. Consume it
+         // even when the same update hides the marker, or it stays stale on reveal.
+         if(props.modifier_visible != undefined)
+         {
+            renderer.container = props.modifier_visible;
+         }
          var iconVisible:Boolean = props.visible == true || props.visible == undefined;
          var canBeVisible:Boolean;
          var textField:TextField;
@@ -320,10 +326,6 @@ package survarium.controls
                   {
                      textField.text = newName;
                   }
-               }
-               if(props.modifier_visible != undefined)
-               {
-                  renderer.container = props.modifier_visible;
                }
                if(props.name_visible != undefined)
                {
