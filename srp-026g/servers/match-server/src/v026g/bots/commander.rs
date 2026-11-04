@@ -865,8 +865,17 @@ impl Bots {
         if let Some(rule) = tuning.mods.team_plan {
             let plan = team::TeamPlan::of(&state.signals, &rule);
             team::plan_tally(plan);
-            for (_, candidates, _) in &mut asked {
+            for (place, candidates, current) in &mut asked {
                 plan.weigh(candidates, &rule);
+                // A comeback sticks to its runs (A298: on Vostok the trailing team's 23 late denials were each dropped within
+                // 1-20 s, and Chemical Plant's battery 7 lost 55 of 58 Collect plays on the way): a bot running an attack or a
+                // Collect keeps it against plays of its band until it ends.
+                if matches!(plan, team::TeamPlan::Comeback { .. })
+                    && current.as_ref().is_some_and(|a| team::attack(a.kind) || a.kind == plays::PlayKind::Collect)
+                    && !committed.contains(place)
+                {
+                    committed.push(*place);
+                }
             }
         }
         let asking = asked

@@ -27,6 +27,7 @@ pub struct ModTuning {
 /// raid (steal and bring home, a swing of 2) is preferred to a late denial (steal and drop, retaken in 20 s in that match): the
 /// late denial weighs `1 / attack_gain` then. Ahead with `hold_left_s` or less left, it holds: guarding its container and
 /// escorting its carriers weigh `hold_gain` times more, its attacks `1 / hold_gain`. A gap within `level_band` points is level.
+/// In a comeback a bot running an attack or a Collect keeps it against plays of its band until it ends (A298's play churn).
 /// Behaviour only: the plays, never aim or what the bots know.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
