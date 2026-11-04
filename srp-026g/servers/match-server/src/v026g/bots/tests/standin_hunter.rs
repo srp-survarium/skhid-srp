@@ -121,6 +121,16 @@ impl HunterAim {
     }
 }
 
+/// [A302] `SRP_BENCH_CAMPER_AIM`: whose tuning the stand-in camper plays by, [`human_tuning`] (unset, `human`) or
+/// [`hunter_tuning`] (`hunter`: a camping owner); anything else is refused.
+pub(crate) fn camper_tuning(value: Option<&str>) -> Result<Tuning, String> {
+    match value {
+        None | Some("human") => Ok(human_tuning()),
+        Some("hunter") => Ok(hunter_tuning()),
+        Some(other) => Err(format!("SRP_BENCH_CAMPER_AIM={other:?}: human or hunter")),
+    }
+}
+
 pub(crate) fn hunter_tuning_with(a: HunterAim) -> Tuning {
     let mut tuning = human_tuning();
     let aim = &mut tuning.aim;

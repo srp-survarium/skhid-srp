@@ -939,6 +939,11 @@ pub struct CombatTuning {
     /// the owner's rule "smarter, never cheaters"). ON by default, and `all_off.json` keeps it on too (A234: no cheat
     /// comes back in the all-off arm).
     pub aim_last_known: bool,
+    /// [A302 #3] With no target seen, the view goes to the nearest enemy it heard or was told of lately ([`PreAimHeard`]), weapon
+    /// not fired until he is seen: a camper firing from one spot is turned to before he hits (0x60217a42: of 10 victims only 4 ever
+    /// aimed at him, each 0-1.2 s before death). Only Heard and Told tracks (what a player hears and is told). `None`: off (the
+    /// last target's last seen spot only).
+    pub pre_aim_heard: Option<PreAimHeard>,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
     /// The aim is taken from the eye where its own keys put it at the tick
@@ -1597,6 +1602,7 @@ impl Default for CombatTuning {
             lead_drop: false,
             mirror_gated: true,
             aim_last_known: true,
+            pre_aim_heard: None,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
@@ -1805,6 +1811,35 @@ pub struct StrafeStats {
     pub friend_away: u32,
     /// The gait was [`Gait::StandStrafe`].
     pub stand: u32,
+}
+
+/// [`CombatTuning::pre_aim_heard`]: which heard or told enemy the view goes to with no target seen.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PreAimHeard {
+    /// Sensed (heard, or told by a mate) at most this long ago, ms.
+    pub fresh_ms: u32,
+    /// At most this far from the bot, m.
+    pub max_m: f32,
+}
+
+impl Default for PreAimHeard {
+    fn default() -> Self {
+        Self { fresh_ms: 6_000, max_m: 40.0 }
+    }
+}
+
+impl PreAimHeard {
+    /// The place to look at: the nearest Heard or Told track sensed within `fresh_ms` and within `max_m` of `feet`.
+    pub fn place(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<Vec3> {
+        memory
+            .tracks()
+            .iter()
+            .filter(|t| matches!(t.source, Source::Heard | Source::Told { .. }))
+            .filter(|t| now.saturating_sub(t.time) <= self.fresh_ms && t.at.distance_xz(feet) <= self.max_m)
+            .min_by(|a, b| a.at.distance_xz(feet).total_cmp(&b.at.distance_xz(feet)))
+            .map(|t| t.at)
+    }
 }
 
 /// [`CombatTuning::stand_strafe`]: how long the stand holds after the fight, and when it does not stand at all.
@@ -7389,12 +7424,22 @@ impl Reflex {
                         glance: true,
                         ..Override::default()
                     },
-                    None => Override {
-                        // [aimpoint] Where the last target was last seen.
-                        look_at: self.sight.pre_aim(now),
-                        keys: reload,
-                        legs,
-                        ..Override::default()
+                    None => match c.pre_aim_heard.and_then(|pre| pre.place(memory, me.feet, now)) {
+                        // [A302 #3] The nearest enemy heard or told of lately: a glance, so a use or a carry keeps the view.
+                        Some(at) => Override {
+                            look_at: Some(at + Vec3::new(0.0, 1.4, 0.0)),
+                            keys: reload,
+                            legs,
+                            glance: true,
+                            ..Override::default()
+                        },
+                        None => Override {
+                            // [aimpoint] Where the last target was last seen.
+                            look_at: self.sight.pre_aim(now),
+                            keys: reload,
+                            legs,
+                            ..Override::default()
+                        },
                     },
                 },
             };
@@ -14982,6 +15027,33 @@ mod tests {
         assert_eq!(walk(1.0, enemy_at, 1_600).3.map(|n| n.why), Some(HealWhy::ShortReach));
         assert_eq!(walk(7.0, enemy_at, 2_300).1, 0);
         assert_eq!(walk(7.0, enemy_at, 2_300).3.map(|n| n.why), Some(HealWhy::Late));
+    }
+
+    /// [A302 #3] With no target seen, the view goes to the enemy heard 2 s ago 20 m off with `pre_aim_heard` on; off, or heard too
+    /// long ago, it does not; a seen enemy is never needed for it, and nothing is fired.
+    #[test]
+    fn with_no_target_the_view_goes_to_an_enemy_heard_lately() {
+        let me = body(0, 0, Vec3::new(0.0, 0.0, 0.0), 0.0);
+        let heard_at = Vec3::new(0.0, 0.0, 20.0);
+        let view = view_of(vec![me.clone(), body(1, 1, heard_at, 0.0)]);
+        let look = |aim: &AimTuning, heard: u32, now: u32| {
+            let mut memory = Memory::default();
+            sense(&mut memory, &[percept(1, heard_at, heard, Source::Heard)], heard);
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(7);
+            reflex.think_with(&me, &Situation::of(&view), &memory, now, aim, 0.5, &mut rng);
+            reflex.tick(&me, &view, &memory, now, true, aim, 0.5, &mut rng)
+        };
+        let on = AimTuning {
+            combat: CombatTuning { pre_aim_heard: Some(PreAimHeard::default()), ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        let o = look(&on, 5_000, 7_000);
+        let at = o.look_at.expect("a look at the heard enemy");
+        assert!(at.distance_xz(heard_at) < 0.01, "{o:?}");
+        assert!(o.glance && !o.fire, "{o:?}");
+        assert!(look(&on, 5_000, 12_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "heard 7 s ago: stale");
+        assert!(look(&AimTuning::default(), 5_000, 7_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "off");
     }
 
     #[test]
