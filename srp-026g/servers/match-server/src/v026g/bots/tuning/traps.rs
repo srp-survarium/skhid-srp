@@ -117,6 +117,11 @@ pub struct TrapTuning {
     /// route round it, at most `hold_ms`. Without it the bot walks on its old route for that time: in the S1 bench 13 of 298
     /// traps caught their own placer 0-3 s after the press, landing 0.85-1.25 m from its feet. Off by default.
     pub after_press: Option<AfterPress>,
+    /// [A292 S4c] Whether a bot that stays (holds a spot, no route ahead) puts a trap down: `place` (today) or `never`. A stayer's
+    /// trap lands about a metre from its feet (its look reaches no farther), and the reflex's side steps and peeks do not keep off
+    /// the team's trap field: in the S1 + `after_press` + ring 2.0 bench 17 of 23 self-catches were stayers 4-32 s after their
+    /// press. `place` by default until its bench decides.
+    pub stayer: Stayer,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -178,17 +183,38 @@ impl Default for SensedNear {
     }
 }
 
+/// [A292 S4c] Whether a bot that stays puts a trap down (`TrapTuning::stayer`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Stayer {
+    /// It does, at its feet's ring of spots: today's habit.
+    #[default]
+    Place,
+    /// It does not: only a bot on its way places.
+    Never,
+}
+
 /// [A292 S4a] How long the placer may stand after its press (`TrapTuning::after_press`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AfterPress {
     /// At most this, ms: a GUESS margin over the few hundred ms between two thinks of a bot.
     pub hold_ms: u32,
+    /// The press also waits until the landing lies this far from the body's own path over the next `sweep_s` (its feet plus its
+    /// velocity times 0 to `sweep_s`), metres: the trigger reaches 0.6 m from a foot point, a foot is about 0.2 m, so 1.0 keeps a
+    /// slowing walker off it (in the S1 bench 6 walkers were caught 0.4-0.6 s after the press, 1.1-1.2 m from their feet, their
+    /// route 0.9 m off the trap but their body running on).
+    pub clear_m: f32,
+    pub sweep_s: f32,
 }
 
 impl Default for AfterPress {
     fn default() -> Self {
-        Self { hold_ms: 1_500 }
+        Self {
+            hold_ms: 1_500,
+            clear_m: 1.0,
+            sweep_s: 1.0,
+        }
     }
 }
 
@@ -396,6 +422,7 @@ impl Default for TrapTuning {
             lanes: TrapLanes::Humans,
             sensed_near: Some(SensedNear { within_m: 40.0 }),
             after_press: None,
+            stayer: Stayer::Place,
         }
     }
 }
@@ -456,7 +483,11 @@ impl Check for TrapTuning {
             self.sensed_near.is_none_or(|n| n.within_m > 0.0 && n.within_m <= 200.0),
             "traps.sensed_near",
         )?;
-        check(self.after_press.is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000), "traps.after_press")?;
+        check(
+            self.after_press
+                .is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000 && (0.0..=1.3).contains(&a.clear_m) && (0.0..=3.0).contains(&a.sweep_s)),
+            "traps.after_press",
+        )?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)
