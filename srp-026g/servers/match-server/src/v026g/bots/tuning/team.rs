@@ -16,6 +16,79 @@ pub struct ModTuning {
     pub smoothing: f32,
     pub min: f32,
     pub max: f32,
+    /// [A296 item 4] A team behind opens its raids and late denials earlier ([`BehindOpen`]). Off: the plays' own windows.
+    pub behind_open: Option<BehindOpen>,
+    /// [A296 item 5] A raider waits for a teammate near before it goes in ([`RaidRegroup`]). Off: it goes in alone.
+    pub raid_regroup: Option<RaidRegroup>,
+}
+
+/// [A296 item 4] The owner: "earlier pushes and battery steals". A team behind by `by` points or more:
+/// - raids from `raid_after_s` of play (the play's own `after_s`, 120 s, waits for the batteries to reach the containers;
+///   a raid needs a battery in their container anyway);
+/// - reads the time left for the late denial (`Input::TimeLeftBehind`) as `time_left x (1 - share x min(1, gap / full_at))`
+///   (the signal's own: x (1 - 0.5 x gap / 3)): one point behind from about 340 s left, two from 600 s, against 290 and 360.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BehindOpen {
+    pub by: f32,
+    pub raid_after_s: f32,
+    pub share: f32,
+    pub full_at: f32,
+}
+
+impl Default for BehindOpen {
+    fn default() -> Self {
+        // GUESS, by bench: one battery behind; a raid from 30 s; 0.6 of the time taken off at two behind.
+        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0 }
+    }
+}
+
+impl BehindOpen {
+    pub fn check(&self) -> Result<(), String> {
+        if !(self.by > 0.0 && self.raid_after_s >= 0.0 && self.share >= 0.0 && self.share < 1.0 && self.full_at > 0.0) {
+            return Err("mods.behind_open".into());
+        }
+        Ok(())
+    }
+
+    /// Behind enough by `score_gap` (ours minus theirs).
+    pub fn behind(&self, score_gap: f32) -> bool {
+        score_gap <= -self.by
+    }
+
+    /// The late denial's time left, s, for `time_left_s` and `score_gap`.
+    pub fn time_left(&self, time_left_s: f32, score_gap: f32) -> f32 {
+        let gap = (-score_gap).max(0.0);
+        time_left_s * (1.0 - self.share * (gap / self.full_at).min(1.0))
+    }
+}
+
+/// [A296 item 5] Regroup before a raid: a raider first within `stage_m` of their container, with a teammate alive within
+/// `call_m` of it and none within `mate_m`, stops there (crouched, looking at the container) up to `wait_s` for one to come
+/// within `mate_m`, then goes in. A lone raider, or one with a mate already by him, goes in at once.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RaidRegroup {
+    pub stage_m: f32,
+    pub call_m: f32,
+    pub mate_m: f32,
+    pub wait_s: f32,
+}
+
+impl Default for RaidRegroup {
+    fn default() -> Self {
+        // GUESS, by bench: out of the container's 25 m guard ring with room; a mate in sight and in reach of a trade.
+        Self { stage_m: 40.0, call_m: 50.0, mate_m: 12.0, wait_s: 10.0 }
+    }
+}
+
+impl RaidRegroup {
+    pub fn check(&self) -> Result<(), String> {
+        if !(self.stage_m > 25.0 && self.call_m >= self.mate_m && self.mate_m > 0.0 && self.wait_s >= 0.0 && self.wait_s <= 30.0) {
+            return Err("mods.raid_regroup".into());
+        }
+        Ok(())
+    }
 }
 
 impl Default for ModTuning {
@@ -42,6 +115,8 @@ impl Default for ModTuning {
             smoothing: 0.2,
             min: 0.1,
             max: 1.0,
+            behind_open: None,
+            raid_regroup: None,
         }
     }
 }

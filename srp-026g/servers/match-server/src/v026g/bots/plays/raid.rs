@@ -76,7 +76,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     let elapsed = cx.view.total_s - cx.view.time_left_s;
-    if elapsed < cx.num(PlayKind::Raid, "after_s") {
+    // [A296 item 4, `mods.behind_open`] A team behind raids from earlier.
+    let after_s = match cx.tuning.mods.behind_open {
+        Some(open) if open.behind(cx.sig.score_gap) => open.raid_after_s,
+        _ => cx.num(PlayKind::Raid, "after_s"),
+    };
+    if elapsed < after_s {
         return;
     }
     let Some(theirs) = cx.view.containers.iter().find(|c| c.team != cx.me.team) else {
@@ -133,6 +138,10 @@ fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     Approach,
+    /// [A296 item 5, `mods.raid_regroup`] Stopped short of their container for a teammate to come, to `until`.
+    Regroup { until: u32 },
+    /// In after a regroup (or with no mate to wait for): no second stop.
+    GoIn,
     Take { tries: u8, last_use: u32 },
 }
 
@@ -165,8 +174,31 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     if count == 0 {
         return Step::Done("their container is empty");
     }
+    // [A296 item 5] First within the stage ring with a teammate coming: wait for him there.
+    if let Some(rule) = cx.tuning.mods.raid_regroup {
+        let d = cx.me.feet.distance_xz(at);
+        let mate_by = |m: f32| {
+            cx.view
+                .team(cx.me.team)
+                .any(|p| p.place != cx.me.place && p.alive && p.feet.distance_xz(cx.me.feet) <= m)
+        };
+        match *state {
+            State::Approach if d <= rule.stage_m => {
+                *state = if mate_by(rule.call_m) && !mate_by(rule.mate_m) {
+                    State::Regroup { until: cx.now + (rule.wait_s * 1000.0) as u32 }
+                } else {
+                    State::GoIn
+                };
+            }
+            State::Regroup { until } if cx.now >= until || mate_by(rule.mate_m) => *state = State::GoIn,
+            _ => {}
+        }
+        if matches!(state, State::Regroup { .. }) {
+            return Step::Continue(Intent::stay().crouched().looking(Look::At(at)));
+        }
+    }
     match state {
-        State::Approach => {
+        State::Approach | State::GoIn => {
             let d = cx.me.feet.distance_xz(at);
             if d <= num("reach_m") {
                 *state = State::Take {
@@ -186,6 +218,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .into_base(),
             )
         }
+        State::Regroup { .. } => Step::Continue(Intent::stay().crouched().looking(Look::At(at))),
         State::Take { tries, last_use } => {
             if *tries >= num("tries") as u8 {
                 return Step::Failed("took nothing: blocked");
@@ -255,6 +288,59 @@ mod tests {
         let mut s = raid(1);
         s.time_left(100.0).points(3, 3);
         assert_eq!(slots(&s).len(), 1);
+    }
+
+    /// [mods.behind_open] 60 s into the match: no raid, level or behind, with the switch off; with it, a team one point behind
+    /// raids, a level one does not.
+    #[test]
+    fn a_team_behind_raids_early_with_behind_open() {
+        use crate::v026g::bots::tuning::BehindOpen;
+        let early = |ours: u32, theirs: u32, on: bool| {
+            let mut s = raid(1);
+            s.time_left(s.view.total_s - 60.0).points(ours, theirs);
+            s.tuning.mods.behind_open = on.then(BehindOpen::default);
+            !raids(&s).is_empty()
+        };
+        assert!(!early(0, 1, false), "off");
+        assert!(early(0, 1, true), "behind, on");
+        assert!(!early(1, 1, true), "level, on");
+    }
+
+    /// [mods.raid_regroup] Within the stage ring with a teammate 30 m off: it stops, crouched, looking at their container, until
+    /// he comes within 12 m (or the wait ends), then goes in; with nobody near it goes in at once; off, no stop.
+    #[test]
+    fn a_raider_waits_for_a_teammate_short_of_their_container() {
+        use crate::v026g::bots::tuning::RaidRegroup;
+        let at = Vec3::new(68.0, 0.0, 30.0);
+        let staged = |mate: Option<Vec3>, on: bool| {
+            let mut s = raid(1);
+            s.bot(0, 0, Vec3::new(35.0, 0.0, 30.0));
+            if let Some(m) = mate {
+                s.bot(2, 0, m);
+            }
+            s.tuning.mods.raid_regroup = on.then(RaidRegroup::default);
+            s
+        };
+        let target = TargetRef::Container(1);
+        let mut rng = Rng::new(1);
+        // A mate 30 m behind: a stop.
+        let s = staged(Some(Vec3::new(5.0, 0.0, 30.0)), true);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else { panic!("{state:?}") };
+        assert!(matches!(state, State::Regroup { .. }), "{state:?}");
+        assert!(matches!(intent.go, Go::Stay) && intent.crouch && matches!(intent.look, Look::At(p) if p == at), "{intent:?}");
+        // He comes within 12 m: in.
+        let s = staged(Some(Vec3::new(28.0, 0.0, 30.0)), true);
+        let _ = step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::GoIn);
+        // Alone: in at once; off: no stop.
+        for (mate, on) in [(None, true), (Some(Vec3::new(5.0, 0.0, 30.0)), false)] {
+            let s = staged(mate, on);
+            let mut state = start(target, &s.cx(0), &mut rng);
+            let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else { panic!("{state:?}") };
+            assert!(!matches!(state, State::Regroup { .. }), "{state:?}");
+            assert!(matches!(intent.go, Go::To { .. }), "{intent:?}");
+        }
     }
 
     #[test]
