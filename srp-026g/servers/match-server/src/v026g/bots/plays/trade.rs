@@ -268,6 +268,13 @@ fn cover_spot(cx: &Ctx, rules: &GroupUp, mate: Vec3, enemy: Vec3, rng: &mut Rng)
     };
     let spots = cx.tactics.spots(&query, cx.now, query.samples, rng);
     let mut why = None;
+    let mut off_lines = 0;
+    // [v4] Walkable from the bot, and not much farther than the straight line (the v3 bench's "stood with a goal and no
+    // route" +10 % came with the covers).
+    let walkable = |at: Vec3| {
+        crate::v026g::bots::group::walk_m(cx.tactics, cx.me.feet, at)
+            .is_some_and(|walk| walk <= 2.0 * cx.me.feet.distance_xz(at) + 10.0)
+    };
     let best = spots
         .into_iter()
         .map(|s| s.at)
@@ -279,9 +286,12 @@ fn cover_spot(cx: &Ctx, rules: &GroupUp, mate: Vec3, enemy: Vec3, rng: &mut Rng)
                 false
             }
         })
+        .inspect(|_| off_lines += 1)
+        .filter(|at| rules.approach.is_none() || walkable(*at))
         .min_by(|a, b| a.distance_xz(cx.me.feet).total_cmp(&b.distance_xz(cx.me.feet)));
     if best.is_none() {
         count(match why {
+            _ if off_lines > 0 => Count::NoWalkableSpot,
             Some(NotCover::InFile) => Count::OnlyInFile,
             Some(NotCover::OnDeath | NotCover::InKilledLane) => Count::OnlyDeadLanes,
             None => Count::NoSightSpot,

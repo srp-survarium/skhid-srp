@@ -1019,6 +1019,10 @@ pub struct TeamKnowledge {
     /// [A297 `tdm.group`] Who answers which fight now, (the fighting mate, the answering bot): the commander's
     /// (`group::answerers`).
     pub answers: Vec<(Place, Place)>,
+    /// [A297 v4] The team's movers approaching an enemy they know (as fights: (mover, enemy, since)), kept for `since`.
+    pub approaching: Vec<Fighting>,
+    /// [A297 v4] The movers holding short now, and the enemy's place each knows (it looks there).
+    pub holding: Vec<(Place, mapdata::Vec3)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
     /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).
