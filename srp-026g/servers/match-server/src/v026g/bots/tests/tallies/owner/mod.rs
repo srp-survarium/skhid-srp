@@ -55,6 +55,7 @@ mod feel;
 mod fight;
 mod fire_gate;
 mod gang_up;
+mod group;
 mod golden;
 mod grenades;
 mod grid;
@@ -111,6 +112,7 @@ use feel::*;
 use fight::*;
 use fire_gate::FireGate;
 use gang_up::*;
+use group::*;
 use grenades::*;
 use grid::*;
 use gun_shots::GunShots;
@@ -250,6 +252,7 @@ impl OwnerTally {
         self.topic::<LookCounts>().set_human(human);
         self.topic::<CollectAtCounts>().set_stand_in(human.or(camper));
         self.topic::<UnderFireCounts>().set_human(human);
+        self.topic::<GroupCounts>().set_human(human);
         self.topic::<Scoreboard>().set_context(context, mode, human, camper);
     }
 
