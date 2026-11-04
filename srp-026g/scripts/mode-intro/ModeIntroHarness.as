@@ -157,12 +157,12 @@ package
             expect(notice.y > 80 && notice.label.textHeight < 160,"notice below timer and fits " + language);
             words.pregame(pregame.contextText,null,"");
             pregame.visible = false;
-            notice.update(619999,true,false);
+            notice.update(609999,true,false);
             expect(notice.visible,"late notice survives native countdown clearing " + language);
-            notice.update(620000,true,false);
-            expect(!notice.visible,"notice expires after full twenty seconds " + language);
+            notice.update(610000,true,false);
+            expect(!notice.visible,"notice expires after full ten seconds " + language);
             notice.begin("blackout");
-            notice.update(620001,true,false);
+            notice.update(610001,true,false);
             expect(!notice.visible,"repeated mode callbacks do not restart notice " + language);
          }
          notice.reset();
@@ -171,8 +171,10 @@ package
          notice.update(60000,true,true);
          expect(notice.visible,"pregame notice remains through countdown");
          notice.update(60001,true,false);
-         notice.update(80000,true,false);
+         notice.update(70000,true,false);
          expect(notice.visible,"full reading interval after countdown");
+         notice.update(70001,true,false);
+         expect(!notice.visible,"notice gone ten seconds after countdown");
          notice.reset();
          expect(!notice.visible && notice.label.text == "","new match resets notice");
          var NoticeView:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
