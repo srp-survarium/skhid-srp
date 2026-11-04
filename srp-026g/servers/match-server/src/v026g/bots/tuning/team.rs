@@ -500,6 +500,11 @@ pub struct ThreatTuning {
     pub lanes_pierce: bool,
     /// K3: Trade does not go to a partner's death in a held spot's lanes.
     pub trade_out_of_lines: bool,
+    /// [A302 #1] A trade in any mode goes to a cover spot round the death that sees the killer's known place from a second bearing,
+    /// off fresh deaths and their lanes (A297's [`GroupUp`] rules, `plays/trade.rs`), not onto the body; with the killer known and
+    /// no such spot, the bot holds where it is, its view on him. In 0x60217a42 the trades walked onto bodies 6-8 m from a camper
+    /// (the A297 spot was Team Deathmatch's only). `None`: off (TDM's `tdm.group` only).
+    pub trade_cover: Option<GroupUp>,
     /// K3: PairUp does not join a teammate standing in a held spot's lanes,
     /// and its join and wait spots are out of the top player's sight and the
     /// held lanes (F3).
@@ -780,6 +785,7 @@ impl Default for ThreatTuning {
             job_kills: 2,
             lanes_pierce: true,
             trade_out_of_lines: true,
+            trade_cover: None,
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
             whole_route_booked: true,
