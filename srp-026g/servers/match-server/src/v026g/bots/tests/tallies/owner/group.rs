@@ -2,7 +2,9 @@
 //! - how soon the dead's team answered: the killer's first hit by it (`answer` ms, the median and within 1 s / 3 s) and his
 //!   death to it (traded within 1 s / 3 s);
 //! - how many of the dead's teammates had the killer for target at the kill (alone 0, 1, 2+): the bots engaged together;
-//! - a group-fed death: a teammate died within [`FED_M`] of it in the [`FED_MS`] before (the lane re-entered);
+//! - a group-fed death: a teammate died within [`FED_M`] of it in the [`FED_MS`] before (the lane re-entered); and the
+//!   coordinator's narrower count (the owner's "they shouldnt group feed"): a teammate died to the same killer within
+//!   [`FED_M`] in the [`SAME_MS`] before;
 //! - a death in file: a living teammate within [`FILE_M`] of it on the killer's bearing within [`FILE_DEG`];
 //! - and the same three for the stand-in human apart: his kills (the bots he killed) and his deaths (bots on him).
 //!
@@ -15,6 +17,8 @@ use crate::v026g::bots::group;
 /// A teammate's death this near and this recent makes a death group-fed, m and ms.
 const FED_M: f32 = 8.0;
 const FED_MS: u32 = 5_000;
+/// The same killer's kills this close make a death group-fed in the narrow count, ms.
+const SAME_MS: u32 = 2_000;
 /// A living teammate this near on the killer's bearing within this makes a death in file, m and degrees.
 const FILE_M: f32 = 6.0;
 const FILE_DEG: f32 = 12.0;
@@ -99,6 +103,7 @@ struct Side {
     /// The killer's side targeting the dead at the kill, the killer counted: 1, 2, 3+.
     attackers: [u32; 3],
     fed: u32,
+    fed_same: u32,
     file: u32,
 }
 
@@ -117,6 +122,7 @@ impl Side {
             "mates_on_killer_0_1_2plus": self.on_killer,
             "attackers_1_2_3plus": self.attackers,
             "group_fed": self.fed,
+            "group_fed_same_killer_2s": self.fed_same,
             "in_file": self.file,
         })
     }
@@ -125,7 +131,7 @@ impl Side {
         let mut answers = self.answers.clone();
         answers.sort_unstable();
         format!(
-            "deaths {} answered {} (median {} ms), hit 1 s {} 3 s {}, traded 1 s {} 3 s {}, mates on killer 0/1/2+ {:?}, attackers 1/2/3+ {:?}, group-fed {}, in file {}",
+            "deaths {} answered {} (median {} ms), hit 1 s {} 3 s {}, traded 1 s {} 3 s {}, mates on killer 0/1/2+ {:?}, attackers 1/2/3+ {:?}, group-fed {} (same killer 2 s {}), in file {}",
             self.deaths,
             answers.len(),
             answers.get(answers.len() / 2).map_or("-".to_string(), u32::to_string),
@@ -136,6 +142,7 @@ impl Side {
             self.on_killer,
             self.attackers,
             self.fed,
+            self.fed_same,
             self.file
         )
     }
@@ -193,6 +200,9 @@ impl GroupCounts {
                 s.fed = u32::from(run.kills.iter().any(|&(t2, _, v2)| {
                     v2 != victim && team(v2) == vt && t2 < t && t - t2 <= FED_MS && Self::feet(run, v2, t2).is_some_and(|f| f.distance_xz(at) <= FED_M)
                 }));
+                s.fed_same = u32::from(run.kills.iter().any(|&(t2, k2, v2)| {
+                    k2 == killer && v2 != victim && team(v2) == vt && t2 < t && t - t2 <= SAME_MS && Self::feet(run, v2, t2).is_some_and(|f| f.distance_xz(at) <= FED_M)
+                }));
                 if let Some(k) = Self::feet(run, killer, t) {
                     let b = bearing_deg(k, at);
                     s.file = u32::from((0..run.recs.len()).any(|p| {
@@ -218,6 +228,7 @@ impl GroupCounts {
                     into.attackers[i] += s.attackers[i];
                 }
                 into.fed += s.fed;
+                into.fed_same += s.fed_same;
                 into.file += s.file;
             };
             add(&mut by_team[usize::from(vt)]);
