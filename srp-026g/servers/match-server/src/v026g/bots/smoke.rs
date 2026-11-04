@@ -2098,6 +2098,41 @@ mod scenarios {
     }
 
     #[test]
+    fn a_raised_shooters_line_passes_over_a_ground_cloud_in_front_of_him_and_best_cover_takes_one_that_covers_it() {
+        // Ground at 0 and a roof at 12 m over z 21..30: the holder stands on the roof's edge, the crossing is on the ground.
+        let (a, b) = (Vec3::new(-100.0, 0.0, -100.0), Vec3::new(100.0, 0.0, -100.0));
+        let (c, d) = (Vec3::new(100.0, 0.0, 100.0), Vec3::new(-100.0, 0.0, 100.0));
+        let (e, f) = (Vec3::new(-10.0, 12.0, 21.0), Vec3::new(10.0, 12.0, 21.0));
+        let (g, h) = (Vec3::new(10.0, 12.0, 30.0), Vec3::new(-10.0, 12.0, 30.0));
+        let mesh = RayTree::from_corners([[a, b, c], [a, c, d], [e, f, g], [e, g, h]]);
+        let reach = Reach {
+            mesh: &mesh,
+            grenade: SmokeGrenade::RDG_M,
+            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+        };
+        let thin = SmokeTuning::default().thin_m.get();
+        let threat = Vec3::new(0.0, 13.6, 22.0);
+        let crossing = Vec3::new(0.0, 0.0, 5.0);
+        let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+        let stretch: Vec<Vec3> = (0..=12).map(|d| Vec3::new(d as f32, 1.3, 5.0)).collect();
+        assert_eq!(Height::of(threat, chest), Height::Above);
+        // A cloud on the ground 6 m in front of him (under his line) puts no smoke on it to speak of.
+        let under = Vec3::new(0.0, 0.0, 16.0);
+        assert!(reach.smoke_on_line(under, threat, chest) <= thin + PLAN_MARGIN_M, "{}", reach.smoke_on_line(under, threat, chest));
+        // Best cover: a landing whose cloud covers the line, and it hides at least as much of the stretch as the other rules.
+        let best = smoke_best_cover(&reach, threat, crossing, &stretch, thin, SmokeUse::CrossLane, crate::v026g::bots::tuning::BestCover::default())
+            .expect("a covering landing");
+        assert!(best.covers_m > thin + PLAN_MARGIN_M, "{best:?}");
+        let best_hidden = Landing::of(&reach, &best, &stretch, thin).hidden;
+        let near = smoke_near_shooter(&reach, threat, crossing, &stretch, thin, SmokeUse::CrossLane, crate::v026g::bots::tuning::NearShooter::default());
+        for plan in [smoke_between(&reach, threat, crossing, thin, SmokeUse::CrossLane), near].into_iter().flatten() {
+            // Every rule only takes landings that cover the line in 3D.
+            assert!(plan.covers_m > thin + PLAN_MARGIN_M, "{plan:?}");
+            assert!(best_hidden >= Landing::of(&reach, &plan, &stretch, thin).hidden, "{best:?} vs {plan:?}");
+        }
+    }
+
+    #[test]
     fn a_smoke_on_a_spot_lands_on_its_floor_when_the_throw_reaches_it() {
         let mesh = flat();
         let reach = Reach {
