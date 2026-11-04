@@ -939,6 +939,11 @@ pub struct CombatTuning {
     /// the owner's rule "smarter, never cheaters"). ON by default, and `all_off.json` keeps it on too (A234: no cheat
     /// comes back in the all-off arm).
     pub aim_last_known: bool,
+    /// [A302 #2] A shot heard from out of the view, by an enemy not seen, turns the view to him for `threat_ms` even while the bot
+    /// holds a nearer target, and from farther ([`ShotFlankLook`]): a camper shooting from the side is looked at before he hits
+    /// (0x60217a42: 6 of his 10 victims aimed at his mates or at nothing). `None`: off (only a shooter nearer than the target and
+    /// within `threat_heard_m`).
+    pub shot_flank_look: Option<ShotFlankLook>,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
     /// The aim is taken from the eye where its own keys put it at the tick
@@ -1597,6 +1602,7 @@ impl Default for CombatTuning {
             lead_drop: false,
             mirror_gated: true,
             aim_last_known: true,
+            shot_flank_look: None,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
@@ -1805,6 +1811,22 @@ pub struct StrafeStats {
     pub friend_away: u32,
     /// The gait was [`Gait::StandStrafe`].
     pub stand: u32,
+}
+
+/// [`CombatTuning::shot_flank_look`]: how far a heard shot turns the view, and how soon the next may.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ShotFlankLook {
+    /// The shooter heard within this of the bot, m (instead of `threat_heard_m`).
+    pub heard_m: f32,
+    /// The next such look waits this after one ends, ms (instead of `threat_again_ms`).
+    pub again_ms: u32,
+}
+
+impl Default for ShotFlankLook {
+    fn default() -> Self {
+        Self { heard_m: 40.0, again_ms: 500 }
+    }
 }
 
 /// [`CombatTuning::stand_strafe`]: how long the stand holds after the fight, and when it does not stand at all.
@@ -5211,12 +5233,14 @@ impl Reflex {
                 .min_by(|a, b| d(a.1).total_cmp(&d(b.1)))
                 .filter(|s| !(Some(s.0) == self.target && s.3))
         } else {
+            // [A302 #2] `shot_flank_look`: farther, and whatever the target's distance.
+            let heard_m = c.shot_flank_look.map_or(c.threat_heard_m, |flank| flank.heard_m);
             shooters
                 .iter()
                 .filter(|s| {
-                    !s.3 && d(s.1) <= c.threat_heard_m
+                    !s.3 && d(s.1) <= heard_m
                         && !super::sense::in_view(me.feet, me.yaw, s.1, c.threat_off_deg * 2.0)
-                        && target_at.is_none_or(|at| d(s.1) < d(at))
+                        && (c.shot_flank_look.is_some() || target_at.is_none_or(|at| d(s.1) < d(at)))
                 })
                 .min_by(|a, b| d(a.1).total_cmp(&d(b.1)))
         };
@@ -5232,7 +5256,8 @@ impl Reflex {
                 hit,
                 bearing: None,
             });
-            self.next_threat = now + c.threat_ms + c.threat_again_ms;
+            let again_ms = c.shot_flank_look.filter(|_| !hit).map_or(c.threat_again_ms, |flank| flank.again_ms);
+            self.next_threat = now + c.threat_ms + again_ms;
             return;
         }
         // Hit, and no shooter sensed at all: the HUD's hit marker gives
@@ -13131,6 +13156,38 @@ mod tests {
             time,
             reach_m: None,
         }
+    }
+
+    /// [A302 #2] A seen target 10 m ahead, a shot heard 30 m off to the side from an enemy not seen: with `shot_flank_look` the
+    /// view turns to the shooter (a threat), without it not (farther than the target, past `threat_heard_m`).
+    #[test]
+    fn with_shot_flank_look_a_shot_from_the_side_is_looked_at_with_a_target_held() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let ahead = Vec3::new(0.0, 0.0, 10.0);
+        let side = Vec3::new(30.0, 0.0, -2.0);
+        let mut view = view_of(vec![me.clone(), body(1, 1, ahead, 0.0), body(2, 1, side, 0.0)]);
+        let mut threat_at = |aim: &AimTuning| {
+            view.sounds.clear();
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(11);
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, ahead, now, Source::Seen)], now);
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, aim, 0.5, &mut rng);
+            }
+            assert_eq!(reflex.target(), Some(1));
+            view.sounds = vec![shot(2, side, 1_550)];
+            sense(&mut memory, &[percept(1, ahead, 1_600, Source::Seen), percept(2, side, 1_550, Source::Heard)], 1_600);
+            reflex.think_with(&me, &Situation::of(&view), &memory, 1_600, aim, 0.5, &mut rng);
+            reflex.threat.map(|t| t.at)
+        };
+        let on = AimTuning {
+            combat: CombatTuning { shot_flank_look: Some(ShotFlankLook::default()), ..CombatTuning::default() },
+            ..AimTuning::default()
+        };
+        let at = threat_at(&on).expect("a look at the shooter");
+        assert!(at.distance_xz(side) < 0.5, "{at:?}");
+        assert_eq!(threat_at(&AimTuning::default()), None, "off");
     }
 
     /// Match 0x5402a730: a bot kept a bot 67 m away as its target with the
