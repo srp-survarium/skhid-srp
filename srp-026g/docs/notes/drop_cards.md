@@ -45,7 +45,7 @@ The rules the code and the tests follow. Code: `crates/session/src/v026g/rewards
   report is `Standing::Finished`: in the match at its end); the account used no card for it
   yet; the item is a drop card of the account with a count above 0; the roll gives an item.
   Then one roll of `drop_card_drop` at the match's level (at most 7 against bots: `pvb::drop_level`), at full condition, as before; a
-  camouflage or decal the account already has (by name) is never given; with every one owned
+  camouflage or decal the account already has is never given; with every one owned
   the roll gives gear (`drops::COSMETIC_CATEGORIES`, the owner's of 2026-10-31 and 2026-11-04;
   match drops too).
 - **A room with a PIN's match** (the owner's of 2026-10-20: it pays nothing,

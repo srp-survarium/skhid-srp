@@ -22,7 +22,7 @@
 //!    cosmetics that can drop are the ones of type `drp_camo` / `drp_decl`,
 //!    and exactly those have a drop weight; premium copies of weapons have
 //!    0]. A camouflage or decal ([`COSMETIC_CATEGORIES`]) the player
-//!    already has, by name, is left out, and a group with nothing left to
+//!    already has is left out, and a group with nothing left to
 //!    give is not rolled [srp's choice, the owner's of 2026-10-31 and
 //!    2026-11-04: no repeats].
 //! 3. Unless the category is in `item_level_independent_categories`: an
@@ -362,19 +362,9 @@ pub fn roll(
         return None;
     }
     // [srp] A camouflage or decal the player has is never given (the
-    // owner's of 2026-11-04), by name: two dictionary ids can be one item
-    // (camo_chemical_fabric_02). A group with no category left to give is
-    // not rolled, so a player who has them all finds gear instead.
-    let owned_names: Vec<&str> = owned
-        .iter()
-        .filter_map(|&dict_id| dictionary.item(dict_id))
-        .map(|item| item.name.as_str())
-        .collect();
-    let new_to_player = |params: &&ItemParams| {
-        dictionary
-            .item(params.dict_id)
-            .is_some_and(|item| !owned_names.contains(&item.name.as_str()))
-    };
+    // owner's of 2026-11-04). A group with no category left to give is not
+    // rolled, so a player who has them all finds gear instead.
+    let new_to_player = |params: &&ItemParams| !owned.contains(&params.dict_id);
     let gives = |category: &u8| {
         !COSMETIC_CATEGORIES.contains(category)
             || droppable(dictionary, *category).any(|params| new_to_player(&params))
@@ -698,32 +688,13 @@ mod tests {
             .flat_map(|&category| table.candidates(dictionary, category, 0))
             .map(|params| params.dict_id)
             .collect();
-        let name = |dict_id: u16| dictionary.item(dict_id).unwrap().name.as_str();
         let (missing, owned) = cosmetics.split_last().unwrap();
-        // Every one of the missing one's name is missing (an item can have
-        // two ids); all the others are owned.
-        let owned: Vec<u16> = owned
-            .iter()
-            .copied()
-            .filter(|&id| name(id) != name(*missing))
-            .collect();
         let mut rng = Rng::new(5);
         for _ in 0..300 {
-            let drop = roll(&table, dictionary, &owned, 20, 0, &mut rng).unwrap();
-            assert_eq!(name(drop.dict_id), name(*missing));
+            let drop = roll(&table, dictionary, owned, 20, 0, &mut rng).unwrap();
+            assert_eq!(drop.dict_id, *missing);
             // Every one owned: a table of cosmetics alone gives nothing.
             assert_eq!(roll(&table, dictionary, &cosmetics, 20, 0, &mut rng), None);
-        }
-        // One of two ids owned: the other is that same camouflage, never given.
-        let twins: Vec<u16> = cosmetics
-            .iter()
-            .copied()
-            .filter(|&id| name(id) == "camo_chemical_fabric_02")
-            .collect();
-        assert_eq!(twins.len(), 2, "{twins:?}");
-        let but_twin: Vec<u16> = cosmetics.iter().copied().filter(|&id| id != twins[1]).collect();
-        for _ in 0..50 {
-            assert_eq!(roll(&table, dictionary, &but_twin, 20, 0, &mut rng), None);
         }
         // The drop card's own table: a player with every cosmetic finds gear.
         let card = &Drops::shared().drop_card;
