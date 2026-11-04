@@ -37,11 +37,29 @@ pub(super) struct GroupCounts {
     last_kill: Option<(u32, Place, Place)>,
     /// By kill: (tick, killer, victim, the victim's mates targeting the killer, the killer's team targeting the victim).
     on_killer: Vec<(u32, Place, Place, u32, u32)>,
+    /// By place: its bot's team and play at the latest tick read ("Cover" for a Trade on a mate, the switch's cover).
+    doing: Vec<Option<(u8, String)>>,
+    /// By team: bot-ticks in a cover; bot-ticks with the stand-in human for target.
+    cover_ticks: [u64; 2],
+    on_human_ticks: [u64; 2],
+    /// By the killer's team: the stand-in human's deaths by the killer's play.
+    human_killed_by: [std::collections::BTreeMap<String, u32>; 2],
 }
 
 impl Default for GroupCounts {
     fn default() -> Self {
-        Self { start: group::counted(), human: None, targets: Vec::new(), kills_seen: 0, last_kill: None, on_killer: Vec::new() }
+        Self {
+            start: group::counted(),
+            human: None,
+            targets: Vec::new(),
+            kills_seen: 0,
+            last_kill: None,
+            on_killer: Vec::new(),
+            doing: Vec::new(),
+            cover_ticks: [0; 2],
+            on_human_ticks: [0; 2],
+            human_killed_by: Default::default(),
+        }
     }
 }
 
@@ -61,6 +79,24 @@ impl Topic for GroupCounts {
             self.targets.resize(place + 1, None);
         }
         self.targets[place] = bot.and_then(|b| b.reflex.target());
+        if self.doing.len() <= place {
+            self.doing.resize(place + 1, None);
+        }
+        self.doing[place] = bot.map(|b| {
+            let play = match b.assignment.as_ref() {
+                Some(a) if a.kind == crate::v026g::bots::plays::PlayKind::Trade && matches!(a.target, crate::v026g::bots::plays::TargetRef::Place(_)) => {
+                    "Cover".to_string()
+                }
+                Some(a) => format!("{:?}", a.kind),
+                None => "none".to_string(),
+            };
+            (b.team & 1, play)
+        });
+        if let Some(Some((team, play))) = self.doing.get(place) {
+            let t = usize::from(*team);
+            self.cover_ticks[t] += u64::from(play == "Cover");
+            self.on_human_ticks[t] += u64::from(self.human.is_some() && self.targets[place] == self.human);
+        }
     }
 
     fn end(&mut self, _run: &Run, game: &mut Game, _sight: &mapdata::RayTree, _rays: &mut u64) {
@@ -81,6 +117,11 @@ impl Topic for GroupCounts {
             let on_killer = targeting(team_of(victim), victim, killer);
             // The killer counts himself: he had the victim for target, or he would not have killed him.
             let on_victim = targeting(team_of(killer), killer, victim) + 1;
+            if self.human == Some(victim)
+                && let Some(Some((team, play))) = self.doing.get(killer)
+            {
+                *self.human_killed_by[usize::from(*team)].entry(play.clone()).or_default() += 1;
+            }
             self.on_killer.push((t, killer, victim, on_killer, on_victim));
         }
     }
@@ -252,15 +293,22 @@ impl GroupCounts {
                 "human_kills": human_kills.json(),
                 "human_deaths": human_deaths.json(),
                 "switch": switch,
+                "cover_ticks": self.cover_ticks,
+                "on_human_ticks": self.on_human_ticks,
+                "human_killed_by": [&self.human_killed_by[0], &self.human_killed_by[1]],
             }
         });
         let text = format!(
-            "owner-test group (A297, by the dead's team): team 0: {}; team 1: {}; the stand-in human's kills: {}; his deaths: {}; switch {:?}",
+            "owner-test group (A297, by the dead's team): team 0: {}; team 1: {}; the stand-in human's kills: {}; his deaths: {}; switch {:?}; by team: cover bot-ticks {:?}, bot-ticks on the human {:?}, the human killed by play {:?} / {:?}",
             by_team[0].text(),
             by_team[1].text(),
             human_kills.text(),
             human_deaths.text(),
-            counted
+            counted,
+            self.cover_ticks,
+            self.on_human_ticks,
+            self.human_killed_by[0],
+            self.human_killed_by[1]
         );
         Part::new(json, text)
     }
