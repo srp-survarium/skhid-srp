@@ -41,6 +41,19 @@ package {
    return null;
   }
   private function recoilChecks():void {
+   var colt:Object=recoilItem(1.3,1.6,.2,.5,.2,.5);
+   require(stat(colt,146).value=="1.3…1.6" && stat(colt,147).value=="0.087","Colt upward variability has no floating-point tail");
+   require(stat(colt,148).value=="-0.3…0.3" && stat(colt,149).value=="0.122","Colt sideways recoil has no floating-point tail");
+   for each(var sample:Array in [[.08699999999999999,"0.087"],[1.23456,"1.23"],[9.99999,"10"],[0,"0"]]){
+    for each(var prop:Object in colt.properties)if(prop.prop_id==153)prop.prop_value=String(sample[0]);
+    require(stat(colt,153).value==sample[1],"scalar rounds without trailing zeroes: "+sample[1]);
+   }
+   var tiny:Object=recoilItem(0,.00001,0,.00001,0,.00001);
+   require(stat(tiny,148).value=="0…0","rounded recoil range has no negative zero");
+   var effects:Object=domain.getDefinition("survarium.player.MatchEffects");
+   require(effects.fixed(100,0)=="100","integer precision preserves significant zeroes");
+   require(effects.change(.2,.196,2)=="0.2 -> 0.196","match effect retains extra precision for small changes");
+   require(effects.fixed(.1234567,6)=="0.123457","match effect rounds at maximum precision");
    var symmetric:Object=recoilItem(1.8,2,1.4,1.8,1.4,1.8);
    require(stat(symmetric,146).value=="1.8…2" && stat(symmetric,147).value=="0.058","upward range and uniform standard deviation");
    require(stat(symmetric,148).value=="-0.4…0.4" && stat(symmetric,149).value=="0.163","sideways difference range and independent variance");
