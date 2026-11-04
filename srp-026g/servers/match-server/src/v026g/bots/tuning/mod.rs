@@ -182,6 +182,7 @@ pub use teams::TeamTunings;
 pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
+pub use traps::TrapLanes;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;

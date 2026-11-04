@@ -751,6 +751,11 @@ impl Bots {
         self.teams[usize::from(team)]
             .knowledge
             .learn_humans_as(team, view, tracks, now, self.bench_enemy_human_lanes(team));
+        // [A292 S1] The trap habit's own lanes of every sensed enemy.
+        if tuning.traps.lanes == super::tuning::TrapLanes::Enemies {
+            let tracks = self.bots.iter().flatten().filter(|b| b.team == team).flat_map(|b| b.memory.tracks());
+            traps::learn_enemy_lanes(&mut self.teams[usize::from(team)].features.traps.lanes, team, view, tracks);
+        }
         // Where a shooter kills from, and the regions his line covers
         // (K1).
         if tuning.threat.spots {

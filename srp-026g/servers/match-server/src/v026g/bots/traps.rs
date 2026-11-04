@@ -40,13 +40,13 @@ use std::sync::Arc;
 use mapdata::{NodeId, Vec3, WalkGrid};
 
 use super::kin;
-use super::know::HumanLanes;
+use super::know::{HumanLanes, Track, LANE_CELL_M};
 use super::plays::PlayKind;
 use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::TrapTuning;
+use super::tuning::{TrapLanes, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -726,6 +726,36 @@ fn presence(lanes: &HumanLanes, at: Vec3, now: u32) -> f32 {
         .sum()
 }
 
+/// [A292 S1] The team's own senses of every enemy into the trap habit's lane map (`TrapLanes::Enemies`), by the rule
+/// `TeamKnowledge::learn_humans_as` takes for the humans: its bots' own senses only (no callout), within a lane cell of error, the
+/// latest place of each enemy at each poll, at most one a second into his lane (`HumanLanes::knew`).
+pub(super) fn learn_enemy_lanes<'a>(lanes: &mut HumanLanes, team: u8, view: &super::view::MatchView, tracks: impl Iterator<Item = &'a Track>) {
+    let enemy = |who: super::view::Place| view.place(who).is_some_and(|p| p.team & 1 != team & 1);
+    let mut latest: Vec<(super::view::Place, Vec3, u32, f32)> = Vec::new();
+    for t in tracks {
+        if !t.source.own() || t.error_m > LANE_CELL_M || !enemy(t.who) {
+            continue;
+        }
+        match latest.iter_mut().find(|l| l.0 == t.who) {
+            Some(l) if (t.time, -t.error_m) > (l.2, -l.3) => *l = (t.who, t.at, t.time, t.error_m),
+            Some(_) => {}
+            None => latest.push((t.who, t.at, t.time, t.error_m)),
+        }
+    }
+    latest.sort_by_key(|l| l.0);
+    for (who, at, time, _) in latest {
+        lanes.knew(who, at, time);
+    }
+}
+
+/// The lanes the spot score reads (`TrapTuning::lanes`).
+fn lanes_of<'a>(t: &TrapTuning, state: &'a TeamState) -> &'a HumanLanes {
+    match t.lanes {
+        TrapLanes::Humans => &state.knowledge.humans,
+        TrapLanes::Enemies => &state.features.traps.lanes,
+    }
+}
+
 /// [A292] The enemy human whose lane cell lies nearest `at`, and how far (for the log only).
 fn nearest_lane(lanes: &HumanLanes, at: Vec3) -> Option<(super::view::Place, f32)> {
     lanes
@@ -1345,7 +1375,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         staying,
         ahead: &ahead,
         mates: &mates,
-        lanes: &state.knowledge.humans,
+        lanes: lanes_of(t, state),
         own: &own,
         in_spawn: &in_spawn,
         wish,
@@ -1382,7 +1412,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             onpass::count(me.team, onpass::LOST_STALE);
         }
     }
-    let lanes = &state.knowledge.humans;
+    let lanes = lanes_of(t, state);
     let here = chosen.map(|c| presence(lanes, c.spot, due.now));
     // Place on the pass: a cell ahead on the route that is richer in enemy lanes than this spot is waited for.
     if let Some(pass) = t.on_the_pass.filter(|_| !staying && !at_defeated) {
@@ -1433,7 +1463,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         bot.features.traps.tally.planned();
         let play = bot.assignment.as_ref().map(|a| a.kind);
-        let near = nearest_lane(&state.knowledge.humans, chosen.spot);
+        let near = nearest_lane(lanes_of(t, state), chosen.spot);
         bot.note(
             notes,
             due.now,
@@ -1863,8 +1893,13 @@ fn enemy_near(bot: &Bot, due: &Due) -> bool {
     let quiet = (t.enemy_quiet_s * 1000.0) as u32;
     !bot.memory.all_seen(due.now, due.view.clock).is_empty()
         || bot.memory.tracks().iter().any(|track| {
-            due.now < track.time + quiet || track.at.distance_xz(due.me.feet) < t.enemy_near_m
+            sensed_lately(t, track, due, quiet) || track.at.distance_xz(due.me.feet) < t.enemy_near_m
         })
+}
+
+/// The gate's "sensed lately": within `enemy_quiet_s`, and with `sensed_near` (A292 S2) only this near.
+fn sensed_lately(t: &TrapTuning, track: &Track, due: &Due, quiet: u32) -> bool {
+    due.now < track.time + quiet && t.sensed_near.is_none_or(|n| track.at.distance_xz(due.me.feet) < n.within_m)
 }
 
 /// [A292] Which part of [`enemy_near`] holds, the first of seen / sensed lately / known near (for the counts only).
@@ -1874,7 +1909,7 @@ fn enemy_near_kind(bot: &Bot, due: &Due) -> Option<tally::EnemyNear> {
     let tracks = bot.memory.tracks();
     if !bot.memory.all_seen(due.now, due.view.clock).is_empty() {
         Some(tally::EnemyNear::Seen)
-    } else if tracks.iter().any(|track| due.now < track.time + quiet) {
+    } else if tracks.iter().any(|track| sensed_lately(t, track, due, quiet)) {
         Some(tally::EnemyNear::Sensed)
     } else if tracks.iter().any(|track| track.at.distance_xz(due.me.feet) < t.enemy_near_m) {
         Some(tally::EnemyNear::Known)
