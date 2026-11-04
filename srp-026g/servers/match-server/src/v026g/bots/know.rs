@@ -902,6 +902,19 @@ pub struct LookSpot {
     pub theft: bool,
 }
 
+/// [take.drop_impossible] A battery's HUD place against the grid's floors.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum FloorBelief {
+    /// Not shown on the HUD on a floor yet.
+    #[default]
+    Unknown,
+    /// Last shown lying on a floor, here.
+    OnFloor(Vec3),
+    /// Shown where no floor holds it: the belief was dropped, and stays dropped while the HUD shows it in such a place (the
+    /// floor it last lay on, if any).
+    Impossible { last_floor: Option<Vec3> },
+}
+
 /// A look spot nobody has looked at is dropped after this, ms.
 pub const LOOK_KEEP_MS: u32 = 120_000;
 
@@ -1014,6 +1027,8 @@ pub struct TeamKnowledge {
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
     pub looks: Vec<LookSpot>,
+    /// [take.drop_impossible] What the HUD last showed of each battery against the floors (by battery).
+    pub floor_beliefs: Vec<FloorBelief>,
     /// Enemy carriers' places of the last [`CARRIER_PLACES_KEEP_MS`].
     pub carrier_places: Vec<CarrierPlace>,
     /// The team's falls by batteries of the last [`FALLS_KEEP_MS`].
@@ -1348,7 +1363,23 @@ impl TeamKnowledge {
     }
 
     pub fn hud_update(&mut self, team: u8, before: &MatchView, after: &MatchView, time: u32) {
+        self.hud_update_on(team, before, after, time, None);
+    }
+
+    /// [`Self::hud_update`], with `on_floor` (`take.drop_impossible`): whether a floor can hold a battery lying at a spot. A HUD
+    /// spot none can is no belief: the team forgets the battery there and looks where the HUD last showed it on a floor.
+    pub fn hud_update_on(
+        &mut self,
+        team: u8,
+        before: &MatchView,
+        after: &MatchView,
+        time: u32,
+        on_floor: Option<&dyn Fn(Vec3) -> bool>,
+    ) {
         let team_of = |carrier: Option<Place>| carrier.and_then(|p| after.place(p)).map(|p| p.team);
+        if on_floor.is_some() && self.floor_beliefs.len() < after.batteries.len() {
+            self.floor_beliefs.resize(after.batteries.len(), FloorBelief::Unknown);
+        }
         for (battery, now) in after.batteries.iter().enumerate() {
             let was = before.batteries.get(battery).copied();
             let known = self.battery(battery).copied();
@@ -1367,6 +1398,23 @@ impl TeamKnowledge {
                         // New, moved unseen, or out of a container.
                         _ => false,
                     };
+                    if hud && let Some(on_floor) = on_floor {
+                        let belief = self.floor_beliefs[battery];
+                        if on_floor(at) {
+                            self.floor_beliefs[battery] = FloorBelief::OnFloor(at);
+                        } else {
+                            let last_floor = match belief {
+                                FloorBelief::OnFloor(p) => Some(p),
+                                FloorBelief::Impossible { last_floor } => last_floor,
+                                FloorBelief::Unknown => None,
+                            };
+                            self.floor_beliefs[battery] = FloorBelief::Impossible { last_floor };
+                            if !matches!(belief, FloorBelief::Impossible { .. }) {
+                                self.drop_impossible(battery, at, last_floor, time);
+                            }
+                            continue;
+                        }
+                    }
                     if hud {
                         self.change_battery(battery, Some(KnownBattery { at, time, hud }), || {
                             "the HUD shows it".into()
@@ -1376,6 +1424,9 @@ impl TeamKnowledge {
                     }
                 }
                 BatteryState::Carried(carrier) => {
+                    if let Some(belief) = self.floor_beliefs.get_mut(battery) {
+                        *belief = FloorBelief::Unknown;
+                    }
                     if known.is_some_and(|k| k.hud) || team_of(carrier) == Some(team) {
                         self.change_battery(battery, None, || match carrier {
                             Some(p) => format!("carried by player {p}"),
@@ -1384,6 +1435,9 @@ impl TeamKnowledge {
                     }
                 }
                 BatteryState::Home(id) => {
+                    if let Some(belief) = self.floor_beliefs.get_mut(battery) {
+                        *belief = FloorBelief::Unknown;
+                    }
                     if known.is_some_and(|k| k.hud) {
                         self.change_battery(battery, None, || format!("put in container {id}"));
                     }
@@ -1538,6 +1592,27 @@ impl TeamKnowledge {
     }
 
     /// Where the team looks for `battery`, dropped by a carrier it lost.
+    /// [take.drop_impossible] The HUD shows `battery` at `at`, where no floor holds it: the team forgets it there, and looks where
+    /// it last lay on a floor (`last_floor`), if the HUD ever showed it on one.
+    fn drop_impossible(&mut self, battery: usize, at: Vec3, last_floor: Option<Vec3>, time: u32) {
+        use super::plays::collect::take_counts::{Count, count};
+        count(Count::ImpossibleDropped);
+        let why = format!("the HUD shows it at [{:.1}, {:.1}, {:.1}], where no floor holds it", at.x, at.y, at.z);
+        if self.battery(battery).is_some() {
+            self.change_battery(battery, None, || why);
+        } else {
+            self.battery_notes.push(format!("battery {battery} not taken in: {why}"));
+        }
+        if let Some(floor) = last_floor {
+            count(Count::ImpossibleLook);
+            self.add_look(LookSpot { battery, at: floor, time, until: time + LOOK_KEEP_MS, theft: false });
+            self.battery_notes.push(format!(
+                "looks for battery {battery} where it last lay on a floor, [{:.1}, {:.1}, {:.1}]",
+                floor.x, floor.y, floor.z
+            ));
+        }
+    }
+
     pub fn add_look(&mut self, look: LookSpot) {
         self.looks.retain(|l| l.battery != look.battery);
         self.looks.push(look);
@@ -1852,6 +1927,48 @@ mod tests {
         let ours_taken = vec![BatteryState::Home(1), BatteryState::Carried(Some(0))];
         step(&mut ours, &mut theirs, lying, ours_taken);
         assert!(ours.battery(1).is_none());
+    }
+
+    /// [take.drop_impossible] Our carrier died and the battery fell through the floor (the owner's match 0x33e42d77, battery 2):
+    /// the HUD follows it down. Off, the team keeps it known under the map; on, it forgets it there once, looks where it last lay
+    /// on a floor, does not take it in again while the HUD shows it under the floors, and knows it again when the game puts it
+    /// back on a floor.
+    #[test]
+    fn a_battery_the_hud_shows_under_every_floor_is_forgotten_and_looked_for() {
+        let floor = Vec3::new(62.9, 17.4, 43.0);
+        let under = Vec3::new(61.6, -21.0, 43.6);
+        let deep = Vec3::new(60.5, -91.5, 44.0);
+        let back = Vec3::new(63.5, 19.0, 43.5);
+        let on_floor = |at: Vec3| at.y >= 17.0 - 5.0;
+        let view = |b: BatteryState| {
+            let mut v = battery_view(vec![b]);
+            v.marks = vec![1];
+            v
+        };
+        for on in [false, true] {
+            let mut ours = TeamKnowledge::default();
+            let test: Option<&dyn Fn(Vec3) -> bool> = if on { Some(&on_floor) } else { None };
+            let step = |ours: &mut TeamKnowledge, from: BatteryState, to: BatteryState, time: u32| {
+                ours.hud_update_on(0, &view(from), &view(to), time, test);
+            };
+            step(&mut ours, BatteryState::Carried(Some(0)), BatteryState::Free(floor), 1_000);
+            assert_eq!(ours.battery(0).map(|k| k.at), Some(floor));
+            step(&mut ours, BatteryState::Free(floor), BatteryState::Free(under), 2_000);
+            step(&mut ours, BatteryState::Free(under), BatteryState::Free(deep), 3_000);
+            if !on {
+                assert_eq!(ours.battery(0).map(|k| k.at), Some(deep), "off: known under the map");
+                assert!(ours.looks.is_empty());
+                continue;
+            }
+            assert!(ours.battery(0).is_none(), "on: forgotten");
+            assert_eq!(ours.looks.iter().map(|l| (l.battery, l.at)).collect::<Vec<_>>(), vec![(0, floor)]);
+            let dropped = ours.battery_notes.iter().filter(|n| n.contains("no floor holds it")).count();
+            assert_eq!(dropped, 1, "{:?}", ours.battery_notes);
+            step(&mut ours, BatteryState::Free(deep), BatteryState::Free(deep), 4_000);
+            assert!(ours.battery(0).is_none(), "not taken in again under the floors");
+            step(&mut ours, BatteryState::Free(deep), BatteryState::Free(back), 5_000);
+            assert_eq!(ours.battery(0).map(|k| k.at), Some(back), "put back on a floor: known again");
+        }
     }
 
     /// Matches 0x1a09…/0x7298… (level_01's floor hole at about (-43.5,
