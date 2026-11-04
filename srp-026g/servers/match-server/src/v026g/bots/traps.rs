@@ -3295,6 +3295,8 @@ mod tests {
         use crate::v026g::bots::know::Source;
         use crate::v026g::bots::tuning::SensedNear;
         let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
+        assert_eq!(tuning.sensed_near, Some(SensedNear::default()), "on by default (A292)");
+        tuning.sensed_near = None;
         let quiet = (tuning.enemy_quiet_s * 1000.0) as u32;
         let at = |x: f32| Track {
             who: 1,
@@ -3309,7 +3311,7 @@ mod tests {
             held_until: 0,
         };
         let lately = |tuning: &TrapTuning, x: f32| sensed_lately(tuning, &at(x), Vec3::ZERO, 100_000, quiet);
-        assert!(lately(&tuning, 150.0), "today: at any distance");
+        assert!(lately(&tuning, 150.0), "the old gate: at any distance");
         assert!(!sensed_lately(&tuning, &at(150.0), Vec3::ZERO, 99_000 + quiet, quiet), "not lately");
         tuning.sensed_near = Some(SensedNear::default());
         assert!(!lately(&tuning, 150.0));
