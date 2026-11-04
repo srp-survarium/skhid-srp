@@ -160,6 +160,8 @@ pub use take::TakeTuning;
 pub use take::TeamMemory;
 pub use take::WorldStand;
 pub use take::ZoneLook;
+pub use take::ZoneTake;
+pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;

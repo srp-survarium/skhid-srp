@@ -127,6 +127,49 @@ impl Default for ZoneLook {
     }
 }
 
+/// A battery in a damage zone is taken when it is worth the dose (A296 item 6b, the owner's match: "bots were not able to find and
+/// get 2 more batteries"). Live humans take zone batteries in the light zones (gas, fruit cloud, acid; 57 take tries in 72 matches,
+/// median 15 s inside) and walk straight in (91 % of take visits did not wait at the edge); none went near the deadly ones
+/// (traces `fx-zones-a296-zone-batteries-human-baseline.md`, PROVEN). With this:
+/// - the bot sprints in (`Pace::Run`), and the way in of a crossing is priced at `in_mps` instead of the walk's `CROSS_MPS` (the
+///   way out, carrying, keeps the walk's price);
+/// - a team behind by `behind.by` points or more bears a bigger share of the bot's health (`behind.share`, leaving `behind.left`):
+///   a battery is worth more in a comeback; never below `CROSS_ABORT_LEFT`, where a take inside gives up;
+/// - with `zone_look` on, a zone spot is looked at only if a battery there could be taken by this rule (no look at a fire that
+///   kills: the 6a bench's cost, search time spent on batteries no bot then took).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneTake {
+    pub in_mps: f32,
+    pub behind: Option<ZoneTakeBehind>,
+}
+
+impl Default for ZoneTake {
+    fn default() -> Self {
+        // 4.5 m/s: the client's sprint is about 5 m/s (`path::SPRINT_FLIGHT_MPS` 5.1), less its start and the line's side steps. GUESS.
+        Self { in_mps: 4.5, behind: Some(ZoneTakeBehind::default()) }
+    }
+}
+
+/// What a team behind bears for a zone battery ([`ZoneTake::behind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneTakeBehind {
+    /// Behind by this many points or more (`MatchSignals::score_gap`).
+    pub by: f32,
+    /// At most this share of each pool it takes from...
+    pub share: f32,
+    /// ...leaving at least this.
+    pub left: f32,
+}
+
+impl Default for ZoneTakeBehind {
+    fn default() -> Self {
+        // One battery behind; 0.7 and 0.3 against the usual 0.5 and 0.4 (`CROSS_SHARE`, `CROSS_LEFT`). GUESS.
+        Self { by: 1.0, share: 0.7, left: 0.3 }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TakeTuning {
@@ -141,6 +184,7 @@ pub struct TakeTuning {
     /// pairs: the bench world drops no battery under a floor).
     pub drop_impossible: Option<DropImpossible>,
     pub zone_look: Option<ZoneLook>,
+    pub zone_take: Option<ZoneTake>,
 }
 
 impl Default for TakeTuning {
@@ -153,6 +197,7 @@ impl Default for TakeTuning {
             cross_from_zone: None,
             drop_impossible: Some(DropImpossible::default()),
             zone_look: None,
+            zone_take: None,
         }
     }
 }
@@ -168,6 +213,16 @@ impl TakeTuning {
             && (far.use_m.get() > 1.8 || far.radii_m.iter().any(|r| r.get() > far.use_m.get()))
         {
             return Err("take.far_stands".into());
+        }
+        if let Some(zone) = self.zone_take {
+            if !(zone.in_mps > 0.0 && zone.in_mps <= 6.0) {
+                return Err("take.zone_take.in_mps".into());
+            }
+            if let Some(behind) = zone.behind
+                && !(behind.by > 0.0 && behind.share > 0.0 && behind.share <= 1.0 && behind.left >= 0.25 && behind.left < 1.0)
+            {
+                return Err("take.zone_take.behind".into());
+            }
         }
         Ok(())
     }
