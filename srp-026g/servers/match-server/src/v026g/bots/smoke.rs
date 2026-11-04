@@ -1033,6 +1033,25 @@ pub fn smoke_best_cover(
         .map(|(_, plan)| plan)
 }
 
+/// [A291 `smoke.shooter_spot`] A smoke on the threat's own spot: the floor under his eye, flown there, kept when it rests
+/// within `rule.rest_within_m` of him across the ground (he is in its cloud). Its `covers_m` is the smoke on his line to the
+/// crossing, which may be under the sight rule's (a steep line leaves the cloud's bottom fast): the cloud is on HIM.
+pub fn smoke_on_shooter(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3, for_use: SmokeUse, rule: super::tuning::ShooterSpot) -> Option<SmokePlan> {
+    let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+    let floor = reach.floor(threat_eye)?;
+    let aim = reach.aim(floor)?;
+    if aim.rest.distance_xz(threat_eye) > rule.rest_within_m.get() {
+        return None;
+    }
+    Some(SmokePlan {
+        at: aim.rest,
+        aim,
+        for_use,
+        covers_m: reach.smoke_on_line(aim.rest, threat_eye, chest),
+        line: SmokeLine { eye: threat_eye, target: chest, crossing },
+    })
+}
+
 /// [A291] How a shooter stands to the crossing he covers: his eye over the chest over it by more than [`LEVEL_M`], within
 /// it, or under it by more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1170,6 +1189,8 @@ pub mod tally {
         /// A think with a smoke plan to make (an outranging sniper not in sight of the bot, or a held lane the bot is not in) that
         /// the bot's held sprint (`sprinting` in `think::smoke_uses`) shut off: a short gap is sprinted, not smoked.
         SprintSkip,
+        /// [A291 `smoke.shooter_spot`] A plan made on the shooter's own spot because no landing covered his line.
+        ShooterSpotPlan,
     }
 
     impl Event {
@@ -1182,7 +1203,7 @@ pub mod tally {
         }
     }
 
-    pub const EVENTS: usize = 16;
+    pub const EVENTS: usize = 17;
 
     /// What became of the bots' smoke throws: begun, thrown (the key let go), given up (the view never came round),
     /// died (the life ended with it under way). Every throw begun ends in one of the last three.
@@ -1410,6 +1431,63 @@ pub mod tally {
         HEIGHTS.with(Cell::get)
     }
 
+    /// [A291] What the plan's shooter did, by team and where the cloud went (between, on him): [plans followed, he moved
+    /// more than [`SHOOTER_MOVED_M`] from where he stood 5 s after the plan within the next 5 s, his kills within 15 s of the
+    /// plan], switch on or off.
+    pub const SHOOTER_SLOTS: usize = 3;
+    pub const SHOOTER_MOVED_M: f32 = 3.0;
+    pub type Shooters = [[[u64; SHOOTER_SLOTS]; 2]; 2];
+    /// (shooter, team, on him, begun, where he stood at begun + 5 s, moved).
+    type Watched = (usize, u8, bool, u32, Option<super::Vec3>, bool);
+
+    thread_local! {
+        static SHOOTERS: Cell<Shooters> = const { Cell::new([[[0; SHOOTER_SLOTS]; 2]; 2]) };
+        static SHOOTER_OPEN: std::cell::RefCell<Vec<Watched>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// A plan begun at `now` against `shooter`, its cloud on him or not.
+    pub fn shooter_watch(team: u8, shooter: usize, on_him: bool, now: u32) {
+        SHOOTER_OPEN.with(|o| o.borrow_mut().push((shooter, team, on_him, now, None, false)));
+    }
+
+    /// The body at `place` alive at `tick` with its feet at `feet`: a watched shooter's stand and move.
+    pub fn shooter_tick(place: usize, tick: u32, feet: super::Vec3) {
+        SHOOTER_OPEN.with(|o| {
+            for w in o.borrow_mut().iter_mut().filter(|w| w.0 == place) {
+                match w.4 {
+                    None if tick >= w.3.saturating_add(5_000) => w.4 = Some(feet),
+                    Some(at) if tick <= w.3.saturating_add(10_000) && at.distance_xz(feet) > SHOOTER_MOVED_M => w.5 = true,
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    /// At `tick`, the watches 15 s old end: counted with the shooter's kills (`kills`: time, killer, victim) since the plan.
+    pub fn shooter_close(tick: u32, kills: &[(u32, usize, usize)]) {
+        SHOOTER_OPEN.with(|o| {
+            o.borrow_mut().retain(|&(shooter, team, on_him, begun, _, moved)| {
+                if tick < begun.saturating_add(15_000) {
+                    return true;
+                }
+                let his = kills.iter().filter(|&&(t, k, _)| k == shooter && t > begun && t <= begun + 15_000).count() as u64;
+                SHOOTERS.with(|c| {
+                    let mut counts = c.get();
+                    let row = &mut counts[usize::from(team & 1)][usize::from(on_him)];
+                    row[0] += 1;
+                    row[1] += u64::from(moved);
+                    row[2] += his;
+                    c.set(counts);
+                });
+                false
+            });
+        });
+    }
+
+    pub fn shooters() -> Shooters {
+        SHOOTERS.with(Cell::get)
+    }
+
     pub fn throws() -> Throws {
         THROWS.with(Cell::get)
     }
@@ -1543,6 +1621,7 @@ pub mod tally {
         SEEN_LOOKS.with(|s| s.borrow_mut().clear());
         SPRAYED.with(|s| s.borrow_mut().clear());
         LANDING_OPEN.with(|s| s.borrow_mut().clear());
+        SHOOTER_OPEN.with(|s| s.borrow_mut().clear());
     }
 
     /// The bot at `place` let go of a smoke at `now`.

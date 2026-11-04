@@ -788,6 +788,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
                 (plan, stretch)
             }),
         };
+        // [A291 `smoke.shooter_spot`] No landing covers his line: a smoke on his own spot, if a throw rests there.
+        let planned = planned.or_else(|| {
+            let spot = smoke::smoke_on_shooter(&reach, eyes[0], crossing, for_use, t.shooter_spot?)?;
+            #[cfg(test)]
+            smoke::tally::add(bot.team, smoke::tally::Event::ShooterSpotPlan);
+            Some((spot, Vec::new()))
+        });
         // [A291] A held lane whose line no landing covers: no smoke, counted by the shooter's height to the crossing.
         #[cfg(test)]
         if planned.is_none() {
@@ -936,6 +943,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             let landing = smoke::Landing::of(&reach, &plan, &stretch, thin);
             let height = smoke::Height::of(plan.line.eye, plan.line.target);
             smoke::tally::landed(bot.place, bot.team, plan.for_use, threat, now, landing, height);
+            if let Some(shooter) = threat {
+                smoke::tally::shooter_watch(bot.team, shooter, landing.on_shooter, now);
+            }
             if plan.for_use == SmokeUse::AntiSniper {
                 smoke::tally::sniper_smoked(bot.place);
                 smoke::tally::sniper_begun(bot.place, bot.team, now);

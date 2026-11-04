@@ -130,6 +130,24 @@ pub struct SmokeTuning {
     /// +4.1 % z +2.8, no guard worse; rays +1.9 %); the old point is wrong by the game (a ground cloud under a raised
     /// shooter's line hides nothing), so it is in `KEPT_RIGHT` and `all_off.json` does not name it.
     pub aim_point: Option<AimPoint>,
+    /// [A291 `ShooterSpot`] When no landing covers the shooter's line, a smoke on his own spot if a throw comes to rest
+    /// there: he is in the cloud, so he must leave it or fire blind (the owner, 2026-11-04: "bot can throw at the enemy place
+    /// in that case so enemy would need to leave it"). None: no smoke for that crossing.
+    pub shooter_spot: Option<ShooterSpot>,
+}
+
+/// [A291] `SmokeTuning::shooter_spot`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ShooterSpot {
+    /// The throw counts when it rests this near his feet across the ground, metres.
+    pub rest_within_m: Metres,
+}
+
+impl Default for ShooterSpot {
+    fn default() -> Self {
+        Self { rest_within_m: Metres::of(4.0) }
+    }
 }
 
 /// [A291] `SmokeTuning::aim_point`: where on the line from the shooter to the crossing the cloud goes.
@@ -285,6 +303,7 @@ impl Default for SmokeTuning {
             throw_keeps_route: true,
             wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
+            shooter_spot: None,
         }
     }
 }
