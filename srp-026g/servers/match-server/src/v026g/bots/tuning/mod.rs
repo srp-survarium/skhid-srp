@@ -77,6 +77,8 @@ pub struct Tuning {
     pub plays: PlaysTuning,
     /// A281/A282: how a battery is taken from the floor (`take.rs`).
     pub take: TakeTuning,
+    /// A297: team tactics in Team Deathmatch (`tdm.rs`).
+    pub tdm: TdmTuning,
 }
 
 /// The bots' tier (`survarium::v026g::loadouts::BotTier`, from the
@@ -100,6 +102,7 @@ mod sense;
 mod smoke;
 mod spacing;
 mod take;
+mod tdm;
 mod team;
 mod teams;
 mod traps;
@@ -156,6 +159,9 @@ pub use take::TakePitch;
 pub use take::TakeTuning;
 pub use take::TeamMemory;
 pub use take::WorldStand;
+pub use tdm::Answer;
+pub use tdm::GroupUp;
+pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::CommitTuning;
 pub use team::Concede;
@@ -304,6 +310,7 @@ impl Tuning {
         self.skill.check()?;
         self.smoke.check()?;
         self.take.check()?;
+        self.tdm.check()?;
         self.think.check()?;
         self.traps.check()?;
         self.unstick.check()?;

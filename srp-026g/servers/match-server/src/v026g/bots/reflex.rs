@@ -294,11 +294,11 @@ pub struct CombatTuning {
     /// goes to the other side, else along the line.
     pub band_cross_deg: Option<f32>,
     /// Aimed in and firing at a target in range, it stands on its feet and steps to the side only (no forward or back from its
-    /// route or a range step), for `stand_strafe_hold_ms` after the last tick the fight was on; then the play's way goes on
+    /// route or a range step), for [`StandStrafe::hold_ms`] after the last tick the fight was on; then the play's way goes on
     /// ([`Gait`]). The live players' side-key shots are 69 % pure side steps, the bench bots' 18 % (`gun_shots` aimed_run:
     /// 82 % of theirs walk forward or back as well, and a diagonal crosses the line at 0.7 of its ground speed), register #24.
-    pub stand_strafe: bool,
-    pub stand_strafe_hold_ms: u32,
+    /// `None`: off (the play's way while it fights, as before).
+    pub stand_strafe: Option<StandStrafe>,
     pub band_legs: bool,
     /// Play 19: the bots' own spacing of spots, ms (the stock game's 3 s
     /// cooldown; client patch 38 has none); the same enemy is spotted
@@ -1478,8 +1478,7 @@ impl Default for CombatTuning {
             band_slack_m: 3.0,
             band_step_m: 6.0,
             band_cross_deg: None,
-            stand_strafe: false,
-            stand_strafe_hold_ms: 400,
+            stand_strafe: None,
             band_legs: true,
             spot_cooldown_ms: 3_000,
             spot_again_ms: 15_000,
@@ -1806,6 +1805,53 @@ pub struct StrafeStats {
     pub friend_away: u32,
     /// The gait was [`Gait::StandStrafe`].
     pub stand: u32,
+}
+
+/// [`CombatTuning::stand_strafe`]: how long the stand holds after the fight, and when it does not stand at all.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StandStrafe {
+    /// It stands and strafes this long after the last tick the fight was on, ms.
+    pub hold_ms: u32,
+    /// [A290] Not with this many enemies around it ([`StrafeCrowd`]): it takes the play's way and the reflex's legs (a range step,
+    /// breaking sight, a re-peek), as a player who is outnumbered does not stand in the open; `None`: whatever the crowd.
+    pub crowd: Option<StrafeCrowd>,
+}
+
+impl Default for StandStrafe {
+    fn default() -> Self {
+        Self { hold_ms: 400, crowd: Some(StrafeCrowd::default()) }
+    }
+}
+
+/// [A290] [`StandStrafe::crowd`]: enemies the bot itself knows of (its memory's tracks: seen, heard, told), sensed within
+/// `fresh_ms` and within `near_m` of it. By side vs the hunter stand-in (160 pairs) the stand without it put the teams' top bots
+/// into crowds: their deaths with 3+ enemies within 30 m 61 % vs 48 % (z +3.5; live tops 41-45 %, the other bots 62 % either way).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StrafeCrowd {
+    /// This many enemies or more: no stand. The guard's crowd (`feel`: 3 within 30 m).
+    pub enemies: usize,
+    pub near_m: f32,
+    pub fresh_ms: u32,
+}
+
+impl Default for StrafeCrowd {
+    fn default() -> Self {
+        Self { enemies: 3, near_m: 30.0, fresh_ms: 3_000 }
+    }
+}
+
+impl StrafeCrowd {
+    /// Whether `memory` (at `now`, the bot at `feet`) holds a crowd.
+    pub fn holds(&self, memory: &Memory, feet: Vec3, now: u32) -> bool {
+        memory
+            .tracks()
+            .iter()
+            .filter(|t| now.saturating_sub(t.time) <= self.fresh_ms && t.at.distance_xz(feet) <= self.near_m)
+            .count()
+            >= self.enemies
+    }
 }
 
 /// How the legs go while the bot fights (`CombatTuning::stand_strafe`). One state, not a flag: what the legs do in a fight is
@@ -7530,12 +7576,12 @@ impl Reflex {
                 c.settle_max_wait_ms,
             );
         // [#24] The fight is on: aimed in on a target in range with a round in and the play's word to fire.
-        let fight_on = c.stand_strafe
+        let fight_on = c.stand_strafe.is_some_and(|stand| stand.crowd.is_none_or(|crowd| !crowd.holds(memory, me.feet, now)))
             && fire_allowed
             && aimed_in
             && distance <= range_m
             && self.hands().held().rounds > 0;
-        self.gait = self.gait.next(fight_on, now, c.stand_strafe_hold_ms);
+        self.gait = self.gait.next(fight_on, now, c.stand_strafe.map_or(0, |stand| stand.hold_ms));
         // [measure] Each gate that fails ([`gate`]); the play's word and the
         // jump hold are the bot's ([`Self::outer_gates`]).
         let mut failed = 0;
@@ -14929,5 +14975,21 @@ mod tests {
         assert_eq!(walk(1.0, enemy_at, 1_600).3.map(|n| n.why), Some(HealWhy::ShortReach));
         assert_eq!(walk(7.0, enemy_at, 2_300).1, 0);
         assert_eq!(walk(7.0, enemy_at, 2_300).3.map(|n| n.why), Some(HealWhy::Late));
+    }
+
+    #[test]
+    fn the_stand_strafe_crowd_counts_the_enemies_the_bot_knows_near() {
+        use crate::v026g::bots::know::{Percept, Source};
+        let crowd = StrafeCrowd::default();
+        let mut memory = Memory::default();
+        let now = 10_000;
+        let at = |who, x: f32| Percept { who, at: Vec3::new(x, 0.0, 0.0), error_m: 0.0, time: now, source: Source::Seen, busy: false };
+        let me = Vec3::new(0.0, 0.0, 0.0);
+        memory.update(&[at(1, 10.0), at(2, 20.0)], now, |_| 200, 3_000, 20_000);
+        assert!(!crowd.holds(&memory, me, now), "two enemies near");
+        memory.update(&[at(3, 25.0)], now, |_| 200, 3_000, 20_000);
+        assert!(crowd.holds(&memory, me, now), "three within 30 m");
+        assert!(!crowd.holds(&memory, me, now + 3_001), "sensed too long ago");
+        assert!(!crowd.holds(&memory, Vec3::new(100.0, 0.0, 0.0), now), "far from them");
     }
 }
