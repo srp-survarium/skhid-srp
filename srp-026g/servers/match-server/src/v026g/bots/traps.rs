@@ -726,6 +726,15 @@ fn presence(lanes: &HumanLanes, at: Vec3, now: u32) -> f32 {
         .sum()
 }
 
+/// [A292] The enemy human whose lane cell lies nearest `at`, and how far (for the log only).
+fn nearest_lane(lanes: &HumanLanes, at: Vec3) -> Option<(super::view::Place, f32)> {
+    lanes
+        .humans
+        .iter()
+        .flat_map(|human| human.cells.iter().map(move |cell| (human.who, cell.at.distance_xz(at))))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+}
+
 /// A mate at `at` or where it will be in 2 and 4 s weighs on the spot:
 /// 1 for each of the three that is within `friend_m`, 0 if none. The hard
 /// rule is any one.
@@ -805,6 +814,13 @@ pub fn off_route_m(points: &[Vec3], at: Vec3) -> f32 {
 
 /// The best spot of the eight round the bot, if one passes.
 pub fn choose(s: &Search) -> Option<Chosen> {
+    choose_counted(s, &mut [0; 9])
+}
+
+/// [`choose`], counting each refused candidate by [`tally::Candidate`] into `refused` (counts only: the pick is the same).
+pub fn choose_counted(s: &Search, refused: &mut [u32; 9]) -> Option<Chosen> {
+    use tally::Candidate;
+    let mut refuse = |c: Candidate| refused[c.index()] += 1;
     let t = s.t;
     let mut best: Option<(Chosen, f32)> = None;
     for k in 0..YAWS {
@@ -822,6 +838,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             defeated::count(defeated::CANDIDATES);
         }
         let Some(spot) = good_floor(s.grid, spot, t) else {
+            refuse(Candidate::Floor);
             #[cfg(test)]
             {
                 gates::count(gates::R_FLOOR);
@@ -837,6 +854,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             None => spot,
             Some((crouched, wanted)) => {
                 let Some(look) = press_look(crouched, wanted, s.feet.y - spot.y) else {
+                    refuse(Candidate::NoLook);
                     #[cfg(test)]
                     {
                         gates::count(gates::NO_LOOK);
@@ -850,6 +868,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             }
         };
         if (s.in_spawn)(spot) {
+            refuse(Candidate::Spawn);
             #[cfg(test)]
             {
                 gates::count(gates::R_SPAWN);
@@ -860,6 +879,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             continue;
         }
         if s.own.iter().any(|own| own.distance_xz(spot) < t.near_own_m) {
+            refuse(Candidate::Own);
             #[cfg(test)]
             {
                 gates::count(gates::R_OWN);
@@ -871,6 +891,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
         }
         // Off its own route ahead, unless it stands.
         if !s.staying && off_route_m(s.ahead, spot) < t.lateral_m.max(AVOID_M) - 1e-3 {
+            refuse(Candidate::Route);
             #[cfg(test)]
             {
                 gates::count(gates::R_ROUTE);
@@ -882,6 +903,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
         }
         // Where its own body will be: it keeps off the disc.
         if s.feet.distance_xz(spot) < AVOID_M - 0.2 {
+            refuse(Candidate::Body);
             #[cfg(test)]
             {
                 gates::count(gates::R_BODY);
@@ -898,6 +920,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
         };
         let friends = friend_flow(s.mates, spot, friend_m);
         if friends > 0 {
+            refuse(Candidate::Friend);
             #[cfg(test)]
             {
                 gates::count(gates::R_FRIEND);
@@ -907,8 +930,10 @@ pub fn choose(s: &Search) -> Option<Chosen> {
             }
             continue;
         }
-        let value = score(presence(s.lanes, spot, s.now), friends, t);
+        let present = presence(s.lanes, spot, s.now);
+        let value = score(present, friends, t);
         if value < t.min_score && !wished {
+            refuse(if present > 0.0 { Candidate::LowScore } else { Candidate::NoLane });
             #[cfg(test)]
             gates::count(gates::R_SCORE);
             continue;
@@ -1143,9 +1168,13 @@ pub(super) fn filter(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option
 }
 
 /// A think: whether this bot starts to put a trap down.
-pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
+pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut Vec<super::Note>) {
     let t = &due.tuning.traps;
     let me = due.me;
+    // [A292] The notes of its ticks since the last think (presses, looks ended), at their own times.
+    for (time, text) in std::mem::take(&mut bot.features.traps.notes) {
+        bot.note(notes, time, text);
+    }
     // Its trap let go of in the ticks since: promised to the team at once,
     // the field built again, the bot keeping off it from this think on.
     if let Some((at, released)) = bot.features.traps.placed.take() {
@@ -1156,9 +1185,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     keep_off(bot, due);
     #[cfg(test)]
     passes::observe(bot, due, state);
-    if bot.features.traps.habit.may_plan(t).is_err() {
+    if let Err(refusal) = bot.features.traps.habit.may_plan(t) {
+        bot.features.traps.tally.may_not(refusal);
         return;
     }
+    bot.features.traps.tally.think();
     #[cfg(test)]
     let waiting = bot.features.traps.pass_wait.is_some();
     let facts = Facts {
@@ -1178,10 +1209,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     // The cheap gate first; the route is read only once it passes.
     #[cfg(test)]
     gates::count(gates::THINKS);
-    if let Err(_refusal) = gate(&facts, t) {
+    if let Err(refusal) = gate(&facts, t) {
+        let near = (refusal == Refusal::Enemy).then(|| enemy_near_kind(bot, due)).flatten();
+        bot.features.traps.tally.refused(refusal, near);
         #[cfg(test)]
         {
-            gates::count(gates::of(_refusal));
+            gates::count(gates::of(refusal));
             if waiting {
                 onpass::count(me.team, onpass::LOST_GATE);
             }
@@ -1189,6 +1222,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         return;
     }
     if bot.rng.unit() >= t.chance {
+        bot.features.traps.tally.chance();
         #[cfg(test)]
         {
             gates::count(gates::CHANCE);
@@ -1200,6 +1234,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     }
     let (ahead, jump) = route_ahead(bot, me, t);
     if jump {
+        bot.features.traps.tally.jump();
         #[cfg(test)]
         {
             gates::count(gates::JUMP);
@@ -1226,6 +1261,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         Some((crouched, wanted)) => match press_look(crouched, wanted, 0.0) {
             Some(look) => look.run_m,
             None => {
+                bot.features.traps.tally.no_look();
                 #[cfg(test)]
                 gates::count(gates::NO_LOOK);
                 return;
@@ -1314,7 +1350,9 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         in_spawn: &in_spawn,
         wish,
     };
-    let chosen = choose(&search);
+    let mut refused = [0; 9];
+    let chosen = choose_counted(&search, &mut refused);
+    bot.features.traps.tally.searched(&refused, chosen.is_some());
     // [A145] A spot of a killed holder ahead on the route that no candidate here is on yet: wait for the body to reach it.
     if let Some(wish) = wish {
         #[cfg(test)]
@@ -1330,6 +1368,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
             } else {
                 defeated::count_team(me.team, defeated::WAITED);
             }
+            bot.features.traps.tally.waited_wish();
             return;
         }
     }
@@ -1363,6 +1402,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
                 }
             }
             bot.features.traps.pass_wait = Some((ahead[cells[i].0], due.now));
+            bot.features.traps.tally.waited_pass();
             return;
         }
     }
@@ -1388,8 +1428,31 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
                 .is_some_and(|(at, since)| due.now.saturating_sub(since) < PASS_WAIT_MS && at.distance_xz(chosen.spot) < PASS_NEAR_M);
             onpass::placed(me.team, on_pass, here.unwrap_or(0.0));
         }
+        let on_pass = bot.features.traps.pass_wait.is_some();
         bot.features.traps.pass_wait = None;
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
+        bot.features.traps.tally.planned();
+        let play = bot.assignment.as_ref().map(|a| a.kind);
+        let near = nearest_lane(&state.knowledge.humans, chosen.spot);
+        bot.note(
+            notes,
+            due.now,
+            format!(
+                "{}plans a trap at ({:.1}, {:.1}, {:.1}) in play {play:?}: score {:.2}, enemy lane presence {:.2}{}{}{}",
+                tally::PREFIX,
+                chosen.spot.x,
+                chosen.spot.y,
+                chosen.spot.z,
+                chosen.score,
+                here.unwrap_or(0.0),
+                match near {
+                    Some((who, m)) => format!(" (nearest lane cell of player {who}, {m:.1} m)"),
+                    None => String::new(),
+                },
+                if chosen.wished { ", on a wished spot" } else { "" },
+                if on_pass { ", after a wait on its route" } else if staying { ", standing" } else { ", walking" },
+            ),
+        );
         if bot.tracing {
             bot.traced.push(serde_json::json!({
                 "t": due.now, "bot": bot.place, "trap_plan": chosen.spot.to_array(),
@@ -1804,6 +1867,22 @@ fn enemy_near(bot: &Bot, due: &Due) -> bool {
         })
 }
 
+/// [A292] Which part of [`enemy_near`] holds, the first of seen / sensed lately / known near (for the counts only).
+fn enemy_near_kind(bot: &Bot, due: &Due) -> Option<tally::EnemyNear> {
+    let t = &due.tuning.traps;
+    let quiet = (t.enemy_quiet_s * 1000.0) as u32;
+    let tracks = bot.memory.tracks();
+    if !bot.memory.all_seen(due.now, due.view.clock).is_empty() {
+        Some(tally::EnemyNear::Seen)
+    } else if tracks.iter().any(|track| due.now < track.time + quiet) {
+        Some(tally::EnemyNear::Sensed)
+    } else if tracks.iter().any(|track| track.at.distance_xz(due.me.feet) < t.enemy_near_m) {
+        Some(tally::EnemyNear::Known)
+    } else {
+        None
+    }
+}
+
 /// The points of the route ahead, a metre apart, and whether a jump lies
 /// within `jump_ahead_m`.
 fn route_ahead(bot: &Bot, me: &PlaceView, t: &TrapTuning) -> (Vec<Vec3>, bool) {
@@ -1864,6 +1943,20 @@ pub(super) fn drive(
                 "at": me.feet.to_array(),
             }));
         }
+        // [A292] A look that ended without a trap: its note and count (a press is counted below, where its landing is known).
+        let gave_up = match ended {
+            Ended::Placed => None,
+            Ended::CalledAway => Some("an enemy or a shot called it away".to_string()),
+            Ended::GaveUp(Some(why)) => Some(format!("the look ran out ({})", why.name())),
+            Ended::GaveUp(None) => Some("the look ran out (unjudged)".to_string()),
+        };
+        if let Some(why) = gave_up {
+            bot.features.traps.tally.ended(ended, false);
+            bot.features.traps.notes.push((
+                now,
+                format!("{}gave up a trap at ({:.1}, {:.1}, {:.1}): {why}", tally::PREFIX, me.feet.x, me.feet.y, me.feet.z),
+            ));
+        }
     }
     if let Some(planned) = out.placed {
         // The promise is where the head ray of this frame meets the floor,
@@ -1877,6 +1970,30 @@ pub(super) fn drive(
         };
         let landed = landing(eye, me.yaw, me.pitch, planned.y);
         bot.features.traps.placed = landed.map(|at| (at, now));
+        // [A292] The press: its note and count.
+        bot.features.traps.tally.ended(Ended::Placed, landed.is_some());
+        let text = match landed {
+            Some(at) => format!(
+                "{}puts a trap down at ({:.1}, {:.1}, {:.1}), {:.1} m from its feet{} (planned at ({:.1}, {:.1}, {:.1}))",
+                tally::PREFIX,
+                at.x,
+                at.y,
+                at.z,
+                at.distance_xz(me.feet),
+                if crouched { ", crouched" } else { "" },
+                planned.x,
+                planned.y,
+                planned.z,
+            ),
+            None => format!(
+                "{}pressed its trap key but the head ray met no floor (planned at ({:.1}, {:.1}, {:.1}))",
+                tally::PREFIX,
+                planned.x,
+                planned.y,
+                planned.z
+            ),
+        };
+        bot.features.traps.notes.push((now, text));
         if bot.tracing {
             bot.traced.push(serde_json::json!({
                 "t": now, "bot": bot.place, "trap_promise": landed.map(Vec3::to_array),
@@ -1975,6 +2092,10 @@ pub struct BotState {
     pub ringed: u64,
     /// The richer cell ahead the habit is waiting to pass, and since when (`TrapTuning::on_the_pass`).
     pub pass_wait: Option<(mapdata::Vec3, u32)>,
+    /// [A292] Its counts for the match-end log line, over all its lives ([`tally::Tally`]).
+    pub tally: tally::Tally,
+    /// [A292] Log notes of the ticks since its last think (a press, a look that ended) with their times: the think writes them.
+    pub notes: Vec<(u32, String)>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
     /// ([`passes`]).
     #[cfg(test)]
@@ -1990,6 +2111,381 @@ impl super::features::Feature for BotState {
         {
             self.near = None;
         }
+    }
+}
+
+/// [A292] What the habit did, live and per bot: where its thinks stopped, why its candidate spots were refused, and how
+/// its looks ended. Only counts: no decision reads it. Summed by team into the match-end log line ([`super::Bots::trap_report`]).
+pub mod tally {
+    use super::{Ended, Refusal, Why};
+
+    /// Every log note of the habit starts so ("trap: plans ...", "trap: puts ...", "trap: gave up ..."): made from what the bot
+    /// already decided, they leave the bench's decision digest as it was (`tests/tallies/decisions.rs`, as `nav_log::PREFIX`).
+    pub const PREFIX: &str = "trap: ";
+    use crate::v026g::bots::plays::PlayKind;
+
+    /// Why one of the eight candidate spots round the bot was refused ([`super::choose`]), in the order it is tested.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Candidate {
+        /// Not level, no room to stand, a lip, a fall near, or not open all round (`good_floor`).
+        Floor,
+        /// No look of the pose lands there (the landing rule).
+        NoLook,
+        /// In a spawn area.
+        Spawn,
+        /// An own trap within `near_own_m`.
+        Own,
+        /// On its own route ahead (`lateral_m`).
+        Route,
+        /// On its own body.
+        Body,
+        /// A mate there now, in 2 s or in 4 s.
+        Friend,
+        /// No enemy human's lane cell within 6 m at all (presence 0).
+        NoLane,
+        /// Some lane presence, but the score under `min_score`.
+        LowScore,
+    }
+
+    impl Candidate {
+        pub const ALL: [Self; 9] = [
+            Self::Floor,
+            Self::NoLook,
+            Self::Spawn,
+            Self::Own,
+            Self::Route,
+            Self::Body,
+            Self::Friend,
+            Self::NoLane,
+            Self::LowScore,
+        ];
+
+        pub const fn index(self) -> usize {
+            match self {
+                Self::Floor => 0,
+                Self::NoLook => 1,
+                Self::Spawn => 2,
+                Self::Own => 3,
+                Self::Route => 4,
+                Self::Body => 5,
+                Self::Friend => 6,
+                Self::NoLane => 7,
+                Self::LowScore => 8,
+            }
+        }
+
+        pub const fn name(self) -> &'static str {
+            match self {
+                Self::Floor => "floor",
+                Self::NoLook => "no look",
+                Self::Spawn => "spawn area",
+                Self::Own => "own trap near",
+                Self::Route => "on its route",
+                Self::Body => "its body",
+                Self::Friend => "a mate",
+                Self::NoLane => "no enemy lane",
+                Self::LowScore => "score too low",
+            }
+        }
+    }
+
+    /// Which part of the enemy-near gate stopped a think ([`super::Refusal::Enemy`]), the first that holds.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum EnemyNear {
+        /// An enemy seen now.
+        Seen,
+        /// An enemy sensed within `enemy_quiet_s`.
+        Sensed,
+        /// An enemy known within `enemy_near_m`.
+        Known,
+    }
+
+    impl EnemyNear {
+        pub const ALL: [Self; 3] = [Self::Seen, Self::Sensed, Self::Known];
+
+        pub const fn index(self) -> usize {
+            match self {
+                Self::Seen => 0,
+                Self::Sensed => 1,
+                Self::Known => 2,
+            }
+        }
+
+        pub const fn name(self) -> &'static str {
+            match self {
+                Self::Seen => "seen",
+                Self::Sensed => "sensed lately",
+                Self::Known => "known near",
+            }
+        }
+    }
+
+    /// The gate's refusals past the cheap part, by reason ([`super::gate`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Gate {
+        Play,
+        Carrying,
+        Health,
+        Enemy,
+        Hit,
+        Reloading,
+        Jump,
+        TeamCap,
+    }
+
+    impl Gate {
+        const ALL: [Self; 8] = [
+            Self::Play,
+            Self::Carrying,
+            Self::Health,
+            Self::Enemy,
+            Self::Hit,
+            Self::Reloading,
+            Self::Jump,
+            Self::TeamCap,
+        ];
+
+        const fn index(self) -> usize {
+            match self {
+                Self::Play => 0,
+                Self::Carrying => 1,
+                Self::Health => 2,
+                Self::Enemy => 3,
+                Self::Hit => 4,
+                Self::Reloading => 5,
+                Self::Jump => 6,
+                Self::TeamCap => 7,
+            }
+        }
+
+        const fn name(self) -> &'static str {
+            match self {
+                Self::Play => "an urgent play",
+                Self::Carrying => "carrying",
+                Self::Health => "health",
+                Self::Enemy => "an enemy near",
+                Self::Hit => "hit lately",
+                Self::Reloading => "reloading",
+                Self::Jump => "a jump ahead",
+                Self::TeamCap => "the team's cap",
+            }
+        }
+
+        /// The gate reason of a refusal; `None` for the cheap part's (no trap, life spent, busy), counted apart.
+        fn of(refusal: Refusal) -> Option<Self> {
+            match refusal {
+                Refusal::Play(_) => Some(Self::Play),
+                Refusal::Carrying => Some(Self::Carrying),
+                Refusal::Health => Some(Self::Health),
+                Refusal::Enemy => Some(Self::Enemy),
+                Refusal::Hit => Some(Self::Hit),
+                Refusal::Reloading => Some(Self::Reloading),
+                Refusal::Jump => Some(Self::Jump),
+                Refusal::TeamCap => Some(Self::TeamCap),
+                Refusal::Off | Refusal::NoTrap | Refusal::LifeSpent | Refusal::Busy => None,
+            }
+        }
+    }
+
+    /// One bot's counts (or a team's sum).
+    #[derive(Clone, Debug, Default, PartialEq)]
+    pub struct Tally {
+        /// Thinks of a bot with a trap left: the cheap part's refusals (`life spent`, `busy`) and the thinks that went on.
+        spent: u32,
+        busy: u32,
+        thinks: u32,
+        gate: [u32; 8],
+        enemy: [u32; 3],
+        /// The urgent plays that stopped a think, by play.
+        plays: Vec<(PlayKind, u32)>,
+        chance: u32,
+        no_look: u32,
+        waited_wish: u32,
+        waited_pass: u32,
+        searched: u32,
+        no_spot: u32,
+        /// Every refused candidate of the searches, by [`Candidate`].
+        candidates: [u32; 9],
+        planned: u32,
+        pressed: u32,
+        /// Presses whose head ray met no floor (nothing put down).
+        pressed_air: u32,
+        called_away: u32,
+        /// Looks given up, by the last [`Why`] ([`Why::index`]), and with nothing to name.
+        gave_up: [u32; 6],
+        gave_up_unjudged: u32,
+    }
+
+    impl Tally {
+        /// A think stopped by the cheap part ([`super::Habit::may_plan`]): only `life spent` and `busy` are counted (a bot
+        /// with no trap or with the habit off has nothing to count).
+        pub fn may_not(&mut self, refusal: Refusal) {
+            match refusal {
+                Refusal::LifeSpent => self.spent += 1,
+                Refusal::Busy => self.busy += 1,
+                _ => {}
+            }
+        }
+
+        pub fn think(&mut self) {
+            self.thinks += 1;
+        }
+
+        pub fn refused(&mut self, refusal: Refusal, enemy: Option<EnemyNear>) {
+            let Some(gate) = Gate::of(refusal) else {
+                return;
+            };
+            self.gate[gate.index()] += 1;
+            if let (Gate::Enemy, Some(near)) = (gate, enemy) {
+                self.enemy[near.index()] += 1;
+            }
+            if let Refusal::Play(play) = refusal {
+                match self.plays.iter_mut().find(|(p, _)| *p == play) {
+                    Some((_, n)) => *n += 1,
+                    None => self.plays.push((play, 1)),
+                }
+            }
+        }
+
+        pub fn chance(&mut self) {
+            self.chance += 1;
+        }
+
+        pub fn jump(&mut self) {
+            self.gate[Gate::Jump.index()] += 1;
+        }
+
+        pub fn no_look(&mut self) {
+            self.no_look += 1;
+        }
+
+        pub fn waited_wish(&mut self) {
+            self.waited_wish += 1;
+        }
+
+        pub fn waited_pass(&mut self) {
+            self.waited_pass += 1;
+        }
+
+        /// A search ran ([`super::choose`]): its refused candidates, and whether it found a spot.
+        pub fn searched(&mut self, refused: &[u32; 9], found: bool) {
+            self.searched += 1;
+            for (sum, n) in self.candidates.iter_mut().zip(refused) {
+                *sum += n;
+            }
+            if !found {
+                self.no_spot += 1;
+            }
+        }
+
+        pub fn planned(&mut self) {
+            self.planned += 1;
+        }
+
+        /// A look ended: let go of (on a floor or in the air), called away, or given up.
+        pub fn ended(&mut self, ended: Ended, landed: bool) {
+            match ended {
+                Ended::Placed if landed => self.pressed += 1,
+                Ended::Placed => self.pressed_air += 1,
+                Ended::CalledAway => self.called_away += 1,
+                Ended::GaveUp(Some(why)) => self.gave_up[why.index()] += 1,
+                Ended::GaveUp(None) => self.gave_up_unjudged += 1,
+            }
+        }
+
+        pub fn add(&mut self, other: &Self) {
+            self.spent += other.spent;
+            self.busy += other.busy;
+            self.thinks += other.thinks;
+            for (a, b) in self.gate.iter_mut().zip(&other.gate) {
+                *a += b;
+            }
+            for (a, b) in self.enemy.iter_mut().zip(&other.enemy) {
+                *a += b;
+            }
+            for &(play, n) in &other.plays {
+                match self.plays.iter_mut().find(|(p, _)| *p == play) {
+                    Some((_, m)) => *m += n,
+                    None => self.plays.push((play, n)),
+                }
+            }
+            self.chance += other.chance;
+            self.no_look += other.no_look;
+            self.waited_wish += other.waited_wish;
+            self.waited_pass += other.waited_pass;
+            self.searched += other.searched;
+            self.no_spot += other.no_spot;
+            for (a, b) in self.candidates.iter_mut().zip(&other.candidates) {
+                *a += b;
+            }
+            self.planned += other.planned;
+            self.pressed += other.pressed;
+            self.pressed_air += other.pressed_air;
+            self.called_away += other.called_away;
+            for (a, b) in self.gave_up.iter_mut().zip(&other.gave_up) {
+                *a += b;
+            }
+            self.gave_up_unjudged += other.gave_up_unjudged;
+        }
+
+        /// The log text of the counts.
+        pub fn line(&self) -> String {
+            let gate = Gate::ALL
+                .iter()
+                .map(|g| format!("{} {}", g.name(), self.gate[g.index()]))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let enemy = EnemyNear::ALL
+                .iter()
+                .map(|e| format!("{} {}", e.name(), self.enemy[e.index()]))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let mut plays = self.plays.clone();
+            plays.sort_by_key(|(p, n)| (std::cmp::Reverse(*n), format!("{p:?}")));
+            let plays = plays.iter().map(|(p, n)| format!("{p:?} {n}")).collect::<Vec<_>>().join(", ");
+            let candidates = Candidate::ALL
+                .iter()
+                .map(|c| format!("{} {}", c.name(), self.candidates[c.index()]))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let gave_up = Why::ALL
+                .iter()
+                .map(|w| format!("{} {}", w.name(), self.gave_up[w.index()]))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "life spent {}, busy {}; thinks {}: refused by {gate} (the enemy: {enemy}; the plays: {plays}); \
+                 the chance {}, no look {}, waited for a wished spot {}, waited for the pass {}; searched {}, no spot {} \
+                 (candidates refused: {candidates}); planned {}; pressed {} (in the air {}), called away {}, gave up {} \
+                 ({gave_up}, unjudged {})",
+                self.spent,
+                self.busy,
+                self.thinks,
+                self.chance,
+                self.no_look,
+                self.waited_wish,
+                self.waited_pass,
+                self.searched,
+                self.no_spot,
+                self.planned,
+                self.pressed,
+                self.pressed_air,
+                self.called_away,
+                self.gave_up.iter().sum::<u32>() + self.gave_up_unjudged,
+                self.gave_up_unjudged,
+            )
+        }
+    }
+}
+
+impl super::Bots {
+    /// [A292] The trap habit's counts of both teams, as the match-end log line (`the bots' traps: ...`).
+    pub fn trap_report(&self) -> String {
+        let mut sums = [tally::Tally::default(), tally::Tally::default()];
+        for bot in self.bots.iter().flatten() {
+            sums[usize::from(bot.team.min(1))].add(&bot.features.traps.tally);
+        }
+        format!("team 0: {}; team 1: {}", sums[0].line(), sums[1].line())
     }
 }
 
