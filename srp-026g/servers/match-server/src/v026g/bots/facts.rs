@@ -268,8 +268,21 @@ impl Bots {
             if self.tunings.of(team).cheats.batteries {
                 continue;
             }
+            let drop = self.tunings.of(team).take.drop_impossible;
+            let grid = self.tactics.as_ref().map(|t| &t.world.grid);
+            // [take.drop_impossible] A floor holds a battery lying at `at`: some floor within `box_m` across lies no more than
+            // `below_m` above it.
+            let on_floor = drop.zip(grid).map(|(rule, grid)| {
+                move |at: Vec3| {
+                    let b = rule.box_m.get();
+                    grid.floors_in([at.x - b, at.z - b, at.x + b, at.z + b])
+                        .map(|node| grid.position(node).y)
+                        .reduce(f32::min)
+                        .is_some_and(|lowest| at.y >= lowest - rule.below_m.get())
+                }
+            });
             let knowledge = &mut self.teams[usize::from(team)].knowledge;
-            knowledge.hud_update(team, &before, &after, time);
+            knowledge.hud_update_on(team, &before, &after, time, on_floor.as_ref().map(|f| f as &dyn Fn(Vec3) -> bool));
             knowledge.settle_looks(team, &after);
             for text in knowledge.battery_notes.drain(..) {
                 let text = format!("team {team}: {text}");
