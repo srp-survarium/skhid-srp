@@ -1730,13 +1730,12 @@ package
       
       // The Settings' "Hide hit markers", "Hide player scores" and "Hidden crosshair" (exe patch 83, told at
       // once and again at each change; docs/notes/hide-hit-markers-scores.md): the crosshair shows no hit
-      // marker; the Tab list shows the players' names only; no crosshair at all.
+      // marker; the Tab list shows the players' names only; no aiming cross.
       public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean) : void
       {
          this.crosshair.hitMarkersHidden = hideHitMarkers;
          this.player_list.players.namesOnly = hideScores;
-         // the whole crosshair, its hit marker with it (show_crosshair shows and hides its lines)
-         this.crosshair.visible = !hideCrosshair;
+         this.crosshair.crosshairHidden = hideCrosshair;
       }
       
       public function show_oxygen(bool:Boolean) : void
@@ -1879,16 +1878,9 @@ package
       
       public function show_crosshair(bool:Boolean) : void
       {
-         if(bool)
+         if(this.crosshair)
          {
-            if(this.crosshair)
-            {
-               this.crosshair.crosshair_mc.visible = true;
-            }
-         }
-         else if(this.crosshair)
-         {
-            this.crosshair.crosshair_mc.visible = false;
+            this.crosshair.setCrosshairVisible(bool);
          }
          stage.invalidate();
       }
