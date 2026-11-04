@@ -158,7 +158,7 @@ pub mod tally {
     #[cfg(not(test))]
     pub fn counted_one(_: u8, _: Watched) {}
 
-    /// [A290] The watched walks by [`super::Near`] (far: route view kept; watched; sights up), by team.
+    // [A290] The watched walks by `super::Near` (far: route view kept; watched; sights up), by team.
     #[cfg(test)]
     thread_local! {
         static NEAR: std::cell::Cell<[[u64; 3]; 2]> = const { std::cell::Cell::new([[0; 3]; 2]) };
