@@ -52,20 +52,44 @@ pub struct PaceTuning {
     pub reserve: Option<Reserve>,
 }
 
+/// [A300] The defaults since A300b + A300c (fx-bench, `traces-20261028/fx-bench-a300.md`): Collect on the gate with the goal clause
+/// (`old_rule_plays` empty, `goal_clause`), the ring's stale parts out (`ring_radar`, `ring_death_spots` off, `track_age_ms` 5 s) and
+/// a 15 m ring (`ring_m` 15, `leave_m` 19). Why: live players sprint 38 % of their walking with the nearest enemy within 15 m and
+/// 45 % at 15-30 m in the battery modes (N1's census, `push-record/human_calm_sprint_12.txt`, 144 matches; TDM 36 / 43 %), the bots
+/// 2-3 % in both bands. By side against the hunter stand-in (8 battery + 8 TDM maps, 10 a side, tier 13-15): A300c on top of A300b,
+/// 320 pairs, wins +21 % (z +2.6), score +0.8 % (z +0.8), the hunter's kills against it -0.08 a match (z -0.6); A300b against the old
+/// defaults, 320 pairs, score -0.6 % (z -0.6), delivered +3.7 %: neutral. The old values are `all_off.json`'s (not proven wrong).
+impl PaceTuning {
+    /// The defaults before A300 (the values `all_off.json` names): a 30 m ring left at 34, tracks of 20 s, the radar's and the
+    /// death spots' places in the ring, no goal clause, Collect on the plays' own rule. The gate's own tests are written on it.
+    pub fn ring_30() -> Self {
+        Self {
+            ring_m: Metres::of(30.0),
+            leave_m: Metres::of(34.0),
+            track_age_ms: 20_000,
+            goal_clause: false,
+            ring_radar: true,
+            ring_death_spots: true,
+            old_rule_plays: vec![PlayKind::Collect],
+            ..Self::default()
+        }
+    }
+}
+
 impl Default for PaceTuning {
     fn default() -> Self {
         Self {
             calm_sprint: true,
-            ring_m: Metres::of(30.0),
-            leave_m: Metres::of(34.0),
+            ring_m: Metres::of(15.0),
+            leave_m: Metres::of(19.0),
             look_s: Positive::of(2.4),
             hold_ms: 600,
-            track_age_ms: 20_000,
-            goal_clause: false,
+            track_age_ms: 5_000,
+            goal_clause: true,
             goal_walk_m: Metres::of(30.0),
-            ring_radar: true,
-            ring_death_spots: true,
-            old_rule_plays: vec![PlayKind::Collect],
+            ring_radar: false,
+            ring_death_spots: false,
+            old_rule_plays: Vec::new(),
             reserve: Some(Reserve { stop: Span::of(10.0, 25.0), gap: Span::of(15.0, 30.0) }),
         }
     }
