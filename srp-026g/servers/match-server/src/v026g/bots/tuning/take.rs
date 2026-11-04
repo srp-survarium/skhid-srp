@@ -1,7 +1,7 @@
 //! How a bot takes a battery from the floor (`plays/collect.rs`, the Take): A281 (a battery under a tree root on Mamayev Kurgan, 7 failed
 //! takes in the owner's match 0x24ddea92) and A282 (Collect plays ended "no way to its goal" at two zone batteries, 84 in two matches).
-//! Each part is off by default (the old take) until its by-side bench decides, but `pitch` (view scale, the owner's
-//! correctness fix); `traces-20261028/fx-zones-a281-blocked-pickup.md` and
+//! Each part is off by default (the old take) until its by-side bench decides, but `pitch` (view scale) and `drop_impossible` (the owner's
+//! correctness fixes); `traces-20261028/fx-zones-a281-blocked-pickup.md` and
 //! `fx-zones-a282-no-way-collect.md` have the traces.
 
 use super::*;
@@ -127,7 +127,7 @@ impl Default for ZoneLook {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TakeTuning {
     pub world_stand: Option<WorldStand>,
@@ -135,8 +135,26 @@ pub struct TakeTuning {
     pub far_stands: Option<FarStands>,
     pub pitch: TakePitch,
     pub cross_from_zone: Option<CrossFromZone>,
+    /// ON by default and kept in the all-off arm (`KEPT_RIGHT`): believing a battery lies where no floor holds it is proven wrong
+    /// (A298: Mamayev Kurgan's battery 2 lay 91 m under the map from 255 s to the end, and the team kept it "known" there). The
+    /// owner, 2026-11-04 (quiz): "Yes, turn it ON", a belief-correctness fix like `pitch`. Its by-side bench was identical (168
+    /// pairs: the bench world drops no battery under a floor).
     pub drop_impossible: Option<DropImpossible>,
     pub zone_look: Option<ZoneLook>,
+}
+
+impl Default for TakeTuning {
+    fn default() -> Self {
+        Self {
+            world_stand: None,
+            team_memory: None,
+            far_stands: None,
+            pitch: TakePitch::default(),
+            cross_from_zone: None,
+            drop_impossible: Some(DropImpossible::default()),
+            zone_look: None,
+        }
+    }
 }
 
 impl TakeTuning {
