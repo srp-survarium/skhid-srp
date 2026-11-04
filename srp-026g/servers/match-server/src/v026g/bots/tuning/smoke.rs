@@ -136,6 +136,11 @@ pub struct SmokeTuning {
     /// short (the lane smoke refuses a gap shorter than `lane_open_m`, which a goal at the route's end always is). None:
     /// nothing calls the use (A288: 0 of 168 bot smokes).
     pub objective: Option<ObjectiveSmoke>,
+    /// [A291 `ShooterSpot`] When no landing covers the shooter's line, a smoke on his own spot if a throw comes to rest
+    /// there: he is in the cloud, so he must leave it or fire blind (the owner, 2026-11-04: "bot can throw at the enemy place
+    /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
+    /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
+    pub shooter_spot: Option<ShooterSpot>,
 }
 
 /// [A291] `SmokeTuning::objective`.
@@ -151,6 +156,20 @@ pub struct ObjectiveSmoke {
 impl Default for ObjectiveSmoke {
     fn default() -> Self {
         Self { mate_m: Metres::of(25.0), ahead_m: Metres::of(30.0) }
+    }
+}
+
+/// [A291] `SmokeTuning::shooter_spot`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ShooterSpot {
+    /// The throw counts when it rests this near his feet across the ground, metres.
+    pub rest_within_m: Metres,
+}
+
+impl Default for ShooterSpot {
+    fn default() -> Self {
+        Self { rest_within_m: Metres::of(4.0) }
     }
 }
 
@@ -308,6 +327,7 @@ impl Default for SmokeTuning {
             wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
             objective: None,
+            shooter_spot: Some(ShooterSpot::default()),
         }
     }
 }
