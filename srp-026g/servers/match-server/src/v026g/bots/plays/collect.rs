@@ -1668,9 +1668,10 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         // The missing batteries a look round here may find and take: the
         // reachable spots in sight of it, by their share of all spots
         // not seen yet (the shut ones too, so the missing ones may well be
-        // there).
+        // there). [take.zone_look] A spot looked at from its dry look spot counts itself: the look tells whether a battery lies
+        // there (the team learns it), though no way leads to it.
         let near: f32 = (0..worth.len())
-            .filter(|&m| !shut[m] && spawners[worth[m]].item.distance_xz(item) <= cluster)
+            .filter(|&m| (!shut[m] || (m == k && look_from.is_some())) && spawners[worth[m]].item.distance_xz(item) <= cluster)
             .map(|m| prior[m])
             .sum();
         let chance = (missing as f32 * near / total).min(1.0);
