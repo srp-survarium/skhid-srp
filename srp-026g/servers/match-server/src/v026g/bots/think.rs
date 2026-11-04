@@ -1018,8 +1018,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             notes,
             now,
             format!(
-                "decides a smoke for {:?}: {why}; to land at ({:.1}, {:.1}, {:.1}), covering {:.1} m of the line",
-                plan.for_use, at.x, at.y, at.z, plan.covers_m
+                "decides a smoke for {:?}: {why}; placed by {}; to land at ({:.1}, {:.1}, {:.1}), covering {:.1} m of the line",
+                plan.for_use,
+                plan.placed_by.name(),
+                at.x,
+                at.y,
+                at.z,
+                plan.covers_m
             ),
         );
     }

@@ -1478,12 +1478,14 @@ impl Bots {
         let new_life = self
             .tracker
             .fixed(place, fix, health, &self.tunings.match_wide().kin, world.as_deref());
-        // A294: what the tracker knows of this world for the drift line (its gap, the way the keys meant, the nearest body).
+        // A294: what the tracker knows of this world for the drift line (its gap, the way the keys meant and the span's ticks
+        // (A302), the nearest body).
         let drift_view = feet.map(|feet| {
             let body = self.tracker.body(place);
             (
                 body.and_then(|b| b.gap_of(time)),
                 body.and_then(|b| b.last_meant()),
+                body.and_then(|b| b.last_interval()),
                 self.tracker.neighbour_of(place, feet).map(|beside| beside.distance_m),
             )
         });
@@ -1504,7 +1506,7 @@ impl Bots {
                 bot.drift.new_life();
             }
             // A294: the drift of the reckoning against this world, with its likely cause.
-            if let (false, Some(reckoned), Some((gap_ms, meant_m, body_m))) = (new_life, reckoned, drift_view) {
+            if let (false, Some(reckoned), Some((gap_ms, meant_m, ticks, body_m))) = (new_life, reckoned, drift_view) {
                 let facts = nav_drift::Facts {
                     world: feet,
                     reckoned,
@@ -1514,6 +1516,7 @@ impl Bots {
                     body_m,
                     meant_m,
                     moved_m: before.map(|(_, from)| from.distance_xz(feet)),
+                    ticks,
                     crouch: keys & key::CROUCH != 0,
                     sprint: keys & key::SPRINT != 0,
                     speed,
