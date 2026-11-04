@@ -26,7 +26,7 @@ package survarium.item
          if(details == null) return null;
          if(effects != null) details.base = copy(details.values);
          details.applyWeaponModifiers(item.modifiers);
-         if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(int(id),details.values[id]);
+         if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(item,int(id),details.values[id]);
          return details;
       }
       private static function copy(from:Object) : Object
