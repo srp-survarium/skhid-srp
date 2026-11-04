@@ -1654,13 +1654,17 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if shut[k] || (taken && !own) {
             continue;
         }
-        // [take.zone_look] A spot whose battery cannot be taken is searched from a dry floor in sight of it, if there is one.
-        if !cx.can_take(item) {
-            if cx.zone_look_at(item).is_none() {
+        // [take.zone_look] A spot whose battery cannot be taken is searched from a dry floor in sight of it, if there is one: the
+        // way there is the look spot's (no way leads into the zone).
+        let look_from = if cx.can_take(item) {
+            None
+        } else {
+            let Some(spot) = cx.zone_look_at(item) else {
                 continue;
-            }
+            };
             take_counts::count(take_counts::Count::ZoneLookOffered);
-        }
+            Some(spot)
+        };
         // The missing batteries a look round here may find and take: the
         // reachable spots in sight of it, by their share of all spots
         // not seen yet (the shut ones too, so the missing ones may well be
@@ -1677,10 +1681,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             continue;
         }
         let weight = (num("search_weight") * chance).max(num("search_min")) * risk;
-        if let Some(mut candidate) = cx.candidate(
+        let given: Vec<(Input, f32)> = look_from.map(|spot| (Input::PathDist, cx.path_dist(spot))).into_iter().collect();
+        if let Some(mut candidate) = cx.candidate_given(
             PlayKind::Collect,
             TargetRef::Spawner(i),
             Some(SPAWNER_SLOT + i as u32),
+            &given,
         ) {
             candidate.score = Score::new(candidate.score.get() * weight);
             if !candidate.score.is_zero() {
