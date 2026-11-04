@@ -185,6 +185,7 @@ pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use team::WalkWatch;
 pub use team::WatchKnown;
+pub use team::WatchNear;
 pub use teams::TeamTunings;
 pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
