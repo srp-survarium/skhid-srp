@@ -74,6 +74,7 @@ mod hump_deck;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;
+mod late_map;
 mod live_zones;
 mod match_wide;
 mod neck;
