@@ -1703,6 +1703,23 @@ mod tests {
         };
         // A 0.9 m rail, and a 0.5 m one that the far presses clear at the clip's top while the near ones are held by it
         // (v1 kept those far presses as a link over the same rail; the A293 bench's Vector Laboratory spawn exit).
+        if std::env::var("A293_SCAN").is_ok() {
+            for top in [2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9] {
+                let links = |on: bool| {
+                    let g = build(Some(top), on);
+                    let mut v: Vec<String> = g
+                        .off_links()
+                        .iter()
+                        .filter(|l| g.position(l.from).y > 1.9 && g.position(l.to).x > 7.4)
+                        .map(|l| format!("{:.2}->{:.2} {:?}", g.position(l.from).x, g.position(l.to).x, l.press))
+                        .collect();
+                    v.sort();
+                    v.dedup();
+                    v
+                };
+                eprintln!("A293SCAN top {top} OFF {:?} ON {:?}", links(false), links(true));
+            }
+        }
         for top in [2.9, 2.5] {
             assert!(jumps_down(&build(Some(top), false)) > 0, "the vault over the rail (top {top}) is a link without the switch");
             assert_eq!(jumps_down(&build(Some(top), true)), 0, "no jump down over the rail (top {top}) with the switch");
