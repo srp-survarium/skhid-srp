@@ -26,7 +26,9 @@ impl Decisions {
         if note.text.starts_with(crate::v026g::bots::traps::tally::PREFIX) {
             return;
         }
-        self.text(&format!("{} {} {}", note.place, note.time, crate::v026g::bots::stuck::without_evidence(&note.text)));
+        // A302's "; placed by <rule>" in a smoke plan's note is the log's too (the rule that already chose the landing).
+        let text = without_placed_by(&note.text);
+        self.text(&format!("{} {} {}", note.place, note.time, crate::v026g::bots::stuck::without_evidence(&text)));
         self.notes += 1;
     }
 
@@ -57,6 +59,30 @@ impl Decisions {
             self.inputs,
             self.notes
         )
+    }
+}
+
+/// A smoke plan's note without its A302 clause "; placed by <rule>" (the digest of a run before A302 and after it agree).
+fn without_placed_by(text: &str) -> std::borrow::Cow<'_, str> {
+    const CLAUSE: &str = "; placed by ";
+    match text.find(CLAUSE) {
+        Some(at) => {
+            let rest = &text[at + CLAUSE.len()..];
+            let end = rest.find(';').map_or(text.len(), |e| at + CLAUSE.len() + e);
+            std::borrow::Cow::Owned(format!("{}{}", &text[..at], &text[end..]))
+        }
+        None => std::borrow::Cow::Borrowed(text),
+    }
+}
+
+#[cfg(test)]
+mod placed_by_tests {
+    #[test]
+    fn the_placed_by_clause_leaves_the_digest_text_as_before_a302() {
+        let before = "decides a smoke for CrossLane: the lane of player 3; to land at (1.0, 2.0, 3.0), covering 9.0 m of the line";
+        let after = "decides a smoke for CrossLane: the lane of player 3; placed by best_cover; to land at (1.0, 2.0, 3.0), covering 9.0 m of the line";
+        assert_eq!(super::without_placed_by(after), before);
+        assert_eq!(super::without_placed_by(before), before);
     }
 }
 
