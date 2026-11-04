@@ -16,11 +16,13 @@ package survarium.modes
       public var label:TextField = new TextField();
       public var layoutData:LayoutData;
 
-      public function ModeNotice(font:String = "_sans")
+      // The font as `source` has it: an embedded font drawn by name alone is boxes.
+      public function ModeNotice(source:TextField)
       {
          mouseEnabled = mouseChildren = false;
          label.mouseEnabled = label.selectable = false;
-         label.defaultTextFormat = new TextFormat(font,18,0xFFFFFF,null,null,null,null,null,"center");
+         label.embedFonts = source.embedFonts;
+         label.defaultTextFormat = new TextFormat(source.defaultTextFormat.font,18,0xFFFFFF,null,null,null,null,null,"center");
          label.autoSize = TextFieldAutoSize.LEFT;
          label.multiline = label.wordWrap = true;
          label.width = 600;
