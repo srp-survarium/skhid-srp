@@ -2327,6 +2327,7 @@ mod scenarios {
         let best = smoke_best_cover(&reach, threat, crossing, &stretch, thin, SmokeUse::CrossLane, crate::v026g::bots::tuning::BestCover::default())
             .expect("a covering landing");
         assert!(best.covers_m > thin + PLAN_MARGIN_M, "{best:?}");
+        assert_eq!(best.placed_by.name(), "best_cover");
         let best_hidden = Landing::of(&reach, &best, &stretch, thin).hidden;
         let near = smoke_near_shooter(&reach, threat, crossing, &stretch, thin, SmokeUse::CrossLane, crate::v026g::bots::tuning::NearShooter::default());
         for plan in [smoke_between(&reach, threat, crossing, thin, SmokeUse::CrossLane), near].into_iter().flatten() {
@@ -2349,6 +2350,7 @@ mod scenarios {
         let near = Vec3::new(0.0, 1.6, 20.0);
         let plan = smoke_on_shooter(&reach, near, crossing, SmokeUse::CrossLane, rule).expect("in reach");
         assert!(plan.at.distance_xz(near) <= rule.rest_within_m.get(), "{plan:?}");
+        assert_eq!(plan.placed_by.name(), "shooter_spot");
         // His eye is inside the cloud.
         let cloud = Cloud { by: 0, team: 0, placed: Placed::Arc, centre: plan.at, thrown: MatchMs(0), pours: MatchMs(0), shape: SmokeGrenade::RDG_M.cloud };
         assert!(cloud.holds(near, MatchMs(5_000)), "{plan:?}");
