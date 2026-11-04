@@ -4867,6 +4867,11 @@ impl Game {
                 self.id,
                 walkers.bots.grenade_report()
             );
+            log::info!(
+                "Match {:#x}: the bots' traps: {}",
+                self.id,
+                walkers.bots.trap_report()
+            );
         }
         self.result = Some(result);
         self.result_made = true;
