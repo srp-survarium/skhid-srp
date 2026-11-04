@@ -4,9 +4,13 @@
 //! the per-bot traces, so the owner's match logs had no fall or jump line at all (A283, fx-grid: "no falls in the log" was a logging
 //! gap). Two lines, each a bot's [`super::Note`] (the log's `player N (the server's bot) at T ms ...`):
 //!
-//! - `nav: route jump up|short|gave up: from (x, y, z) to (x, y, z), rise R m, try N, after MS ms (then)`: what followed each jump the
-//!   route pressed: `up` once a world showed the body up the jump (`motor::is_up`), `gave up` when the watch ended stuck or by a new
-//!   life, `short` otherwise (it went on below, or jumped again);
+//! - `nav: route jump up|short|down|not down|gave up: from (x, y, z) to (x, y, z), rise R m, try N, after MS ms (then)`: what
+//!   followed each jump the route pressed. A jump up (or level): `up` once a world showed the body up the jump (`motor::is_up`),
+//!   `gave up` when the watch ended stuck or by a new life, `short` otherwise (it went on below, or jumped again). A jump down (a gap
+//!   link to a floor more than [`motor::UP_M`] lower, A293): `down` once a world showed the feet on the landing's level
+//!   (`motor::on_landing`), `gave up` as above, `not down` otherwise (the body stayed on top, or came down elsewhere). `is_up` has
+//!   no upper bound, so it took a body still on the top of a jump down for one across: 38 of 45 such `up` lines never left the top
+//!   (A289, match 0x8681e02);
 //! - `nav: fell D m from (x, y, z) to (x, y, z) in MS ms, the model had it at Y (unplanned|planned)`: two worlds of one life at most
 //!   [`FALL_GAP_MS`] apart with the feet [`FALL_M`] or more lower. `unplanned` when the bot's own reckoning for the later world's tick
 //!   was [`MODEL_M`] or more above the world's feet (the body went over an edge the model kept it on: a fall past an edge); no
@@ -34,20 +38,32 @@ pub const EVERY_MS: u32 = 2_000;
 /// What followed a jump the route pressed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JumpOutcome {
+    /// A jump up or level: a world showed the body up it.
     Up,
+    /// A jump up or level: no world showed it up (it went on below, or jumped again).
     Short,
+    /// A jump down: a world showed the feet on the landing's level.
+    Down,
+    /// A jump down: no world showed the feet on the landing (it stayed on top, or came down elsewhere).
+    NotDown,
+    /// The watch ended stuck or by a new life, the body not up (or not down).
     GaveUp,
 }
 
 impl JumpOutcome {
-    /// `up`: a world showed the body up the jump; else by how the watch ended (`then`, `drive.rs` `jump_followed`).
-    pub fn of(up: bool, then: &str) -> Self {
-        if up {
-            Self::Up
-        } else if then.starts_with("stuck") || then == "a new life" {
-            Self::GaveUp
-        } else {
-            Self::Short
+    /// For a jump that rises `rise` m: a jump down (lower by more than [`super::motor::UP_M`]) by `landed` (a world showed the
+    /// feet on its landing, `motor::on_landing`), any other by `up` (a world showed the body up it, `motor::is_up`); else by how
+    /// the watch ended (`then`, `drive.rs` `jump_followed`).
+    pub fn of(rise: f32, up: bool, landed: bool, then: &str) -> Self {
+        let down = rise < -super::motor::UP_M;
+        let gave_up = then.starts_with("stuck") || then == "a new life";
+        let seen = if down { landed } else { up };
+        match (down, seen, gave_up) {
+            (true, true, _) => Self::Down,
+            (false, true, _) => Self::Up,
+            (_, false, true) => Self::GaveUp,
+            (true, false, false) => Self::NotDown,
+            (false, false, false) => Self::Short,
         }
     }
 
@@ -55,6 +71,8 @@ impl JumpOutcome {
         match self {
             Self::Up => "up",
             Self::Short => "short",
+            Self::Down => "down",
+            Self::NotDown => "not down",
             Self::GaveUp => "gave up",
         }
     }
@@ -150,14 +168,33 @@ mod tests {
 
     #[test]
     fn a_jump_outcome_is_up_short_or_given_up() {
-        assert_eq!(JumpOutcome::of(true, "went on"), JumpOutcome::Up);
-        assert_eq!(JumpOutcome::of(true, "stuck: BackOff"), JumpOutcome::Up);
-        assert_eq!(JumpOutcome::of(false, "went on"), JumpOutcome::Short);
-        assert_eq!(JumpOutcome::of(false, "jumped again"), JumpOutcome::Short);
-        assert_eq!(JumpOutcome::of(false, "stuck: Sidestep"), JumpOutcome::GaveUp);
-        assert_eq!(JumpOutcome::of(false, "a new life"), JumpOutcome::GaveUp);
+        assert_eq!(JumpOutcome::of(1.1, true, false, "went on"), JumpOutcome::Up);
+        assert_eq!(JumpOutcome::of(1.1, true, false, "stuck: BackOff"), JumpOutcome::Up);
+        assert_eq!(JumpOutcome::of(1.1, false, false, "went on"), JumpOutcome::Short);
+        assert_eq!(JumpOutcome::of(1.1, false, false, "jumped again"), JumpOutcome::Short);
+        assert_eq!(JumpOutcome::of(1.1, false, false, "stuck: Sidestep"), JumpOutcome::GaveUp);
+        assert_eq!(JumpOutcome::of(1.1, false, false, "a new life"), JumpOutcome::GaveUp);
+        // A level gap jump (within a step either way) is read as a jump up.
+        assert_eq!(JumpOutcome::of(-0.3, true, false, "went on"), JumpOutcome::Up);
         let line = jump_line(JumpOutcome::Short, Vec3::new(57.1, 20.9, -3.8), Vec3::new(57.6, 22.0, -3.8), 2, 1500, "went on");
         assert_eq!(line, "nav: route jump short: from (57.1, 20.9, -3.8) to (57.6, 22.0, -3.8), rise 1.10 m, try 2, after 1500 ms (went on)");
+    }
+
+    #[test]
+    fn a_jump_down_is_down_only_once_on_its_landing() {
+        // A289: the body hopped at the edge and stayed on top; `is_up` called it up.
+        let (take_off, landing) = (Vec3::new(20.0, 20.9, -24.5), Vec3::new(19.5, 16.7, -25.0));
+        let top = Vec3::new(19.7, 20.95, -24.7);
+        assert!(super::super::motor::is_up(top, take_off, landing), "is_up takes the top for across");
+        assert!(!super::super::motor::on_landing(top, landing));
+        assert!(super::super::motor::on_landing(Vec3::new(19.3, 16.72, -25.2), landing));
+        let rise = landing.y - take_off.y;
+        assert_eq!(JumpOutcome::of(rise, true, false, "went on"), JumpOutcome::NotDown);
+        assert_eq!(JumpOutcome::of(rise, true, true, "went on"), JumpOutcome::Down);
+        assert_eq!(JumpOutcome::of(rise, false, false, "stuck: BackOff"), JumpOutcome::GaveUp);
+        assert_eq!(JumpOutcome::of(rise, false, true, "stuck: BackOff"), JumpOutcome::Down);
+        let line = jump_line(JumpOutcome::NotDown, take_off, landing, 1, 3000, "went on");
+        assert_eq!(line, "nav: route jump not down: from (20.0, 20.9, -24.5) to (19.5, 16.7, -25.0), rise -4.20 m, try 1, after 3000 ms (went on)");
     }
 
     #[test]
