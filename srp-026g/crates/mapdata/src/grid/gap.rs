@@ -268,6 +268,15 @@ enum Over {
     Vaulted,
 }
 
+/// [A293] What the walking presses found at a take-off's edge along a way.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Edge {
+    /// No press vaulted down over a face (always so without [`crate::Body::gap_no_vaults`]).
+    Open,
+    /// A press vaulted down over a face: no press or sprint link along this way.
+    VaultsDown,
+}
+
 /// Where a jump's clip leaves a body: come down on a floor during it (the
 /// floor, where along, the speed it came down at), or over no floor at the
 /// clip's end (where along, the feet's height and its height a sample
@@ -1162,10 +1171,10 @@ impl WalkGrid {
             behind += step;
             f = b as usize;
         }
-        // The walking ways first; a sprint jump only where they make none.
+        // The walking ways first; a sprint jump only where they make none and found no face to vault down over.
         let before = out.len();
-        self.walking_gap_link(wide, a, d, behind, solids, stats, out);
-        if out.len() == before {
+        let edge = self.walking_gap_link(wide, a, d, behind, solids, stats, out);
+        if out.len() == before && edge == Edge::Open {
             self.sprint_gap_link(wide, a, d, behind, solids, stats, out);
         }
     }
@@ -1183,12 +1192,12 @@ impl WalkGrid {
         solids: &Solids,
         stats: &mut GapStats,
         out: &mut Vec<OffLink>,
-    ) {
+    ) -> Edge {
         let h = self.height[a];
         let (i, k) = self.cell_xz(self.cell_of[a] as usize);
         if behind + 1e-3 < GAP_PRESS_MIN_M + GAP_RUN_UP_M {
             stats.no_run_up += 1;
-            return;
+            return Edge::Open;
         }
         // A drop walked off the edge first (J0: where a walk-off lands, a
         // jump overshoots); the presses after it, as for any gap.
@@ -1205,30 +1214,44 @@ impl WalkGrid {
             }
         }
         let presses = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize + 1;
-        // Each press's landing, two or more cells on.
-        let landing: Vec<Option<u32>> = (0..presses)
+        // Each press's landing, two or more cells on, and whether it vaults down ([`Self::vaults_down`]).
+        let flown: Vec<(Option<u32>, bool)> = (0..presses)
             .map(|p| {
                 let lead = GAP_PRESS_MIN_M + p as f32 * GAP_PRESS_STEP_M;
                 if lead + GAP_RUN_UP_M > behind + 1e-3 {
-                    return None;
+                    return (None, false);
                 }
                 // One level whatever the body's speed after the clip.
-                let (flight, over) = self.fly(a, d, lead, solids)?;
-                let (to, _, _) = self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[0], solids)?;
-                let (other, _, _) = self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[1], solids)?;
+                let Some((flight, over)) = self.fly(a, d, lead, solids) else {
+                    return (None, false);
+                };
+                let (Some((to, _, _)), Some((other, _, _))) = (
+                    self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[0], solids),
+                    self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[1], solids),
+                ) else {
+                    return (None, false);
+                };
                 if self.vaults_down(a, to, over) || self.vaults_down(a, other, over) {
-                    return None;
+                    return (None, true);
                 }
                 if (self.height[to as usize] - self.height[other as usize]).abs() > SAME_TOP {
-                    return None;
+                    return (None, false);
                 }
                 let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
-                ((ti - i).abs().max((tk - k).abs()) >= 2).then_some(to)
+                (((ti - i).abs().max((tk - k).abs()) >= 2).then_some(to), false)
             })
             .collect();
+        // A press that vaults down means a face at this edge: a bot that presses late, or jumps from standing after
+        // turning there, is held by it, so no press is kept along this way (the far presses left over would make a
+        // link over the same face; A293 bench: 3 of 112 got down on one).
+        if flown.iter().any(|&(_, vaulted)| vaulted) {
+            stats.no_landing += 1;
+            return Edge::VaultsDown;
+        }
+        let landing: Vec<Option<u32>> = flown.into_iter().map(|(to, _)| to).collect();
         if landing.iter().all(Option::is_none) {
             stats.no_landing += 1;
-            return;
+            return Edge::Open;
         }
         let half = (GAP_PRESS_SPREAD_M / GAP_PRESS_STEP_M).round() as usize;
         let mut p = 0;
@@ -1274,6 +1297,7 @@ impl WalkGrid {
             }
             p = q + 1;
         }
+        Edge::Open
     }
 
     /// The gap links of the eroded grid, kept and thinned
