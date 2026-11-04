@@ -981,3 +981,19 @@ update changes what a match computes.
 - TODO: #1076 ASh-12: 425 rounds a minute (was 400)
 - TODO: #1075 MP7: armour piercing 0.3 -> 0.35
 - TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
+
+## 4 Nov, 08:49 — TODO: the owner's words (update required)
+
+<!-- Revision 46 (026g-rev46), released 2026-11-04 08:49 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1179 Publish revision 45 patch notes
+- TODO: #1191 Fix Medic activation, booster limits and mode notices
+- TODO: #1154 Fix bullet lifetime disagreement after snapshot loads
+- TODO: #1192 Fix floating-point tails in weapon stat tooltips
+- TODO: #1193 Fix battery marker state updates while hidden
+- TODO: #1194 Keep hit markers visible when the crosshair is hidden
+- TODO: #1157 Stop resync retries from repeatedly adding the clock margin
+- TODO: #1195 Balance VSS capacity and falloff; shorten FAMAS reloads
+- TODO: #1196 New accounts: AK-74N and Remington 700 kits; the AKM, AKMSU and 10 stash maps
+- TODO: #1197 Vostok v0.11: the v0.26g spawn layout
+- TODO: #1198 Mode notice: draw its text with the countdown's embedded font
