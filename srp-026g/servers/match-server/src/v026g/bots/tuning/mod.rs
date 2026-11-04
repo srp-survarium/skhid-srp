@@ -150,6 +150,7 @@ pub use smoke::WaitForCloud;
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
 pub use take::CrossFromZone;
+pub use take::DropImpossible;
 pub use take::FarStands;
 pub use take::TakePitch;
 pub use take::TakeTuning;
