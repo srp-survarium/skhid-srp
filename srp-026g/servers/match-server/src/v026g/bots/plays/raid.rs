@@ -71,6 +71,30 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
+/// [A296 items 4 and 5] What the switches did (the bench's tally): raids offered early by `mods.behind_open` (before the play's
+/// own `after_s`), regroup stops by `mods.raid_regroup`, those a mate came to, those that waited the whole `wait_s`.
+#[cfg(test)]
+pub mod raid_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub enum Count {
+        EarlyOffered,
+        RegroupStop,
+        RegroupMate,
+        RegroupTimedOut,
+    }
+
+    pub fn count(what: Count) {
+        COUNTS[what as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 4] {
+        [0, 1, 2, 3].map(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if !cx.view.objective().has_homes() || cx.view.objective().is_actor(cx.me) {
         return;
@@ -83,6 +107,10 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     };
     if elapsed < after_s {
         return;
+    }
+    #[cfg(test)]
+    if elapsed < cx.num(PlayKind::Raid, "after_s") {
+        raid_counts::count(raid_counts::Count::EarlyOffered);
     }
     let Some(theirs) = cx.view.containers.iter().find(|c| c.team != cx.me.team) else {
         return;
@@ -185,12 +213,18 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
         match *state {
             State::Approach if d <= rule.stage_m => {
                 *state = if mate_by(rule.call_m) && !mate_by(rule.mate_m) {
+                    #[cfg(test)]
+                    raid_counts::count(raid_counts::Count::RegroupStop);
                     State::Regroup { until: cx.now + (rule.wait_s * 1000.0) as u32 }
                 } else {
                     State::GoIn
                 };
             }
-            State::Regroup { until } if cx.now >= until || mate_by(rule.mate_m) => *state = State::GoIn,
+            State::Regroup { until } if cx.now >= until || mate_by(rule.mate_m) => {
+                #[cfg(test)]
+                raid_counts::count(if mate_by(rule.mate_m) { raid_counts::Count::RegroupMate } else { raid_counts::Count::RegroupTimedOut });
+                *state = State::GoIn;
+            }
             _ => {}
         }
         if matches!(state, State::Regroup { .. }) {
