@@ -58,6 +58,7 @@ mod gang_up;
 mod golden;
 mod grenades;
 mod grid;
+mod group;
 mod gun_shots;
 mod heal;
 mod hit_marks;
@@ -113,6 +114,7 @@ use fire_gate::FireGate;
 use gang_up::*;
 use grenades::*;
 use grid::*;
+use group::*;
 use gun_shots::GunShots;
 use heal::*;
 use hit_marks::*;
@@ -250,6 +252,7 @@ impl OwnerTally {
         self.topic::<LookCounts>().set_human(human);
         self.topic::<CollectAtCounts>().set_stand_in(human.or(camper));
         self.topic::<UnderFireCounts>().set_human(human);
+        self.topic::<GroupCounts>().set_human(human);
         self.topic::<Scoreboard>().set_context(context, mode, human, camper);
     }
 

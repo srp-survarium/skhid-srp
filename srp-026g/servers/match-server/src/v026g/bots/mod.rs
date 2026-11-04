@@ -52,6 +52,7 @@ pub mod foliage;
 pub mod friends;
 pub mod grass;
 pub mod grenade_threat;
+pub mod group;
 pub mod guns;
 pub mod hazards;
 #[cfg(feature = "jump-test")]
