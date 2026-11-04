@@ -141,6 +141,8 @@ pub struct Memo {
     /// The containers' stands: they depend on the map alone, so they are
     /// made at the first ask and kept for the match.
     stands: OnceLock<UseStands>,
+    /// [take.zone_look] A dry floor to look at a zone spawner's spot from, by the spot ([`Memo::zone_look`]).
+    zone_looks: QueryMemo<(u32, u32, u32), Option<Vec3>>,
 }
 
 impl Memo {
@@ -216,6 +218,45 @@ impl Memo {
             now / POST_KEEP_MS,
         );
         self.posts.get(zones_stamp(&tactics.hazards), key, ask)
+    }
+
+    /// [take.zone_look] Where to look at the spot `item` from when the battery there cannot be taken (a zone): the nearest floor
+    /// within `within_m` across that is walkable, out of every zone now and sees the spot in a clear line from a crouched eye
+    /// (12 ways round it, rings from 4 m out), kept while the zones stay what they are.
+    pub fn zone_look(&self, tactics: &Tactics, item: Vec3, within_m: f32) -> Option<Vec3> {
+        let key = (item.x.to_bits(), item.y.to_bits(), item.z.to_bits());
+        self.zone_looks.get(zones_stamp(&tactics.hazards), key, || {
+            let grid = &tactics.world.grid;
+            let target = item + Vec3::new(0.0, 0.24, 0.0);
+            let mut radius = 4.0f32;
+            while radius <= within_m {
+                let mut best: Option<(f32, Vec3)> = None;
+                for k in 0..12 {
+                    let a = k as f32 * std::f32::consts::TAU / 12.0;
+                    let p = Vec3::new(item.x + radius * a.cos(), item.y, item.z + radius * a.sin());
+                    let Some(node) = grid.locate(p, 1.5).or_else(|| grid.locate(p + Vec3::new(0.0, 3.0, 0.0), 1.5)) else {
+                        continue;
+                    };
+                    if !tactics.walkable(node) || !tactics.hazards.hazard_free(node) {
+                        continue;
+                    }
+                    let feet = grid.position(node);
+                    let eye = crate::v026g::bots::view::still_eye(feet, true);
+                    if !tactics.sees(eye, target) {
+                        continue;
+                    }
+                    let d = feet.distance_xz(item);
+                    if best.is_none_or(|(bd, _)| d < bd) {
+                        best = Some((d, feet));
+                    }
+                }
+                if let Some((_, feet)) = best {
+                    return Some(feet);
+                }
+                radius += 4.0;
+            }
+            None
+        })
     }
 
     /// The stands of every container of the map, worked out at the first
