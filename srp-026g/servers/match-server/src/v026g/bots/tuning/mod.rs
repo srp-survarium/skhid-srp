@@ -757,6 +757,7 @@ mod tests {
             "/sense/shots",
             "/sense/sprint_body_mps",
             "/sense/use_ray_m",
+            "/take/drop_impossible",
             "/take/pitch",
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
