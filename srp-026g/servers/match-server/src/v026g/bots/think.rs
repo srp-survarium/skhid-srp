@@ -774,7 +774,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     // The smoke on the line from `eyes[0]` to the crossing: by `smoke.aim_point` (A291: mid-line or near the shooter), else the first point
     // from the threat's end; with the stretch it was judged on (the counters' own with the switch off, tests only).
     let plan_line = |eyes: &[Vec3], crossing_s: f32, crossing: Vec3, for_use: SmokeUse| -> Option<(smoke::SmokePlan, Vec<Vec3>)> {
-        match t.aim_point {
+        let planned = match t.aim_point {
             Some(rule) => {
                 let stretch = stretch_of(eyes, crossing_s, rule.stretch_m());
                 smoke::smoke_aimed(&reach, eyes[0], crossing, &stretch, thin, for_use, Some(rule)).map(|plan| (plan, stretch))
@@ -787,7 +787,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
                 };
                 (plan, stretch)
             }),
+        };
+        // [A291] A held lane whose line no landing covers: no smoke, counted by the shooter's height to the crossing.
+        #[cfg(test)]
+        if planned.is_none() {
+            smoke::tally::height_no_plan(bot.team, smoke::Height::of(eyes[0], crossing + chest_over));
         }
+        planned
     };
     // Against a sniper that outranges its weapon (play 11's matchup), sensed where he is within `lane_sensed_ms`: before
     // its route enters ground he sees, the line from him to the crossing. Not from where he already sees it.
@@ -927,7 +933,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         {
             smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
             smoke::tally::begun(bot.team, plan.for_use);
-            smoke::tally::landed(bot.place, bot.team, plan.for_use, threat, now, smoke::Landing::of(&reach, &plan, &stretch, thin));
+            let landing = smoke::Landing::of(&reach, &plan, &stretch, thin);
+            smoke::tally::landed(bot.place, bot.team, plan.for_use, threat, now, landing);
+            smoke::tally::height_plan(bot.team, smoke::Height::of(plan.line.eye, plan.line.target), landing);
             if plan.for_use == SmokeUse::AntiSniper {
                 smoke::tally::sniper_smoked(bot.place);
                 smoke::tally::sniper_begun(bot.place, bot.team, now);

@@ -138,6 +138,11 @@ pub enum AimPoint {
     /// A few metres in front of the shooter (the owner, 2026-11-04: "maybe smoke not middle but closer to shooter?"): a
     /// cloud near him fills more of his view, never on his feet.
     NearShooter(NearShooter),
+    /// The landing whose poured cloud covers the most of the shooter's line over the crossing, whatever their heights (the
+    /// owner, 2026-11-04: "smoke should block line of view for target. including when shooter below"): a shooter on a
+    /// ledge over the crossing is covered from his own floor or where the line comes down, not by a cloud on the ground
+    /// under his line; one below it by a cloud on the crossing's floor or at his spot.
+    BestCover(BestCover),
 }
 
 impl AimPoint {
@@ -146,6 +151,7 @@ impl AimPoint {
         match self {
             Self::MidLine(m) => m.stretch_m.get(),
             Self::NearShooter(n) => n.stretch_m.get(),
+            Self::BestCover(b) => b.stretch_m.get(),
         }
     }
 }
@@ -181,6 +187,24 @@ pub struct NearShooter {
     pub max_m: Metres,
     /// The crossing's stretch judged for the counters and the tie, metres.
     pub stretch_m: Metres,
+}
+
+/// [A291] `AimPoint::BestCover`: of the points of the 3D line from the shooter's eye to the crossing (`step_m` apart), each
+/// projected to where a thrown smoke rests on the floor under it, those whose throw reaches and whose cloud covers the line,
+/// the one hiding the most of the crossing's stretch; on a tie, one at least `avoid_m` from the shooter (on his feet he
+/// may step out of it), then the most smoke on the line.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BestCover {
+    pub avoid_m: Metres,
+    pub step_m: Positive,
+    pub stretch_m: Metres,
+}
+
+impl Default for BestCover {
+    fn default() -> Self {
+        Self { avoid_m: Metres::of(3.0), step_m: Positive::of(1.0), stretch_m: Metres::of(12.0) }
+    }
 }
 
 impl Default for NearShooter {
