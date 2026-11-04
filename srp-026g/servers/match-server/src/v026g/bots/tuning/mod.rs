@@ -147,7 +147,11 @@ pub use sense::CheatTuning;
 pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
+pub use smoke::AimPoint;
+pub use smoke::BestCover;
 pub use smoke::CloudWaiters;
+pub use smoke::MidLine;
+pub use smoke::NearShooter;
 pub use smoke::SmokeTuning;
 pub use smoke::WaitForCloud;
 pub use spacing::Callouts;
@@ -159,6 +163,9 @@ pub use take::TakePitch;
 pub use take::TakeTuning;
 pub use take::TeamMemory;
 pub use take::WorldStand;
+pub use take::ZoneLook;
+pub use take::ZoneTake;
+pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;
@@ -765,6 +772,7 @@ mod tests {
             "/sense/shots",
             "/sense/sprint_body_mps",
             "/sense/use_ray_m",
+            "/smoke/aim_point",
             "/take/drop_impossible",
             "/take/pitch",
             "/think/goal_off_floor_no_way",

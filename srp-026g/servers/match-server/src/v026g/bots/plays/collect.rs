@@ -24,7 +24,7 @@
 
 use super::*;
 use crate::v026g::bots::hazards::HurtTest;
-use crate::v026g::bots::tuning::RouteCrossing;
+use crate::v026g::bots::tuning::{RouteCrossing, ZoneTake};
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::crossing::START_HEALTH;
 use crate::v026g::bots::view;
@@ -563,9 +563,13 @@ pub mod take_counts {
         ImpossibleDropped,
         /// ... and a look set where it last lay on a floor.
         ImpossibleLook,
+        /// [take.zone_look] A zone spawner offered to the search from a dry look spot ...
+        ZoneLookOffered,
+        /// ... and a search step walking to it.
+        ZoneLookWalk,
     }
 
-    pub const ALL: usize = 13;
+    pub const ALL: usize = 15;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -582,6 +586,8 @@ pub mod take_counts {
         "steep_press_late",
         "impossible_dropped",
         "impossible_look",
+        "zone_look_offered",
+        "zone_look_walk",
     ];
 
     #[cfg(test)]
@@ -938,8 +944,23 @@ impl Crossing {
     /// Whether a bot with `budget` makes it: at most [`CROSS_SHARE`] of each pool it takes from, leaving
     /// [`CROSS_LEFT`] ([`bears`] for the body pool alone).
     pub fn fits(&self, budget: &Budget) -> bool {
+        self.fits_by(budget, self.cost(), CROSS_SHARE, CROSS_LEFT)
+    }
+
+    /// [take.zone_take] Whether a bot with `budget` makes it by `rule`: the way in at a sprint (`ZoneTake::in_mps`, the way out
+    /// at the walk's price), and, for a team behind, the bigger share ([`ZoneTakeBehind`]). `behind`: the team is behind by the
+    /// rule's points or more.
+    pub fn fits_zone_take(&self, budget: &Budget, rule: &ZoneTake, behind: bool) -> bool {
+        let cost = self.leg * (CROSS_MPS / rule.in_mps) + self.leg_out + self.at_per_s * CROSS_TAKE_S;
+        match rule.behind.filter(|_| behind) {
+            Some(b) => self.fits_by(budget, cost, b.share, b.left),
+            None => self.fits_by(budget, cost, CROSS_SHARE, CROSS_LEFT),
+        }
+    }
+
+    fn fits_by(&self, budget: &Budget, cost: Cost, share: f32, left: f32) -> bool {
         let borne = (!self.routed || budget.health() >= START_HEALTH)
-            && budget.reserve.bears(self.cost(), CROSS_SHARE, CROSS_LEFT);
+            && budget.reserve.bears(cost, share, left);
         #[cfg(test)]
         {
             if budget.armour.is_some() {
@@ -1307,6 +1328,23 @@ impl Ctx<'_> {
         })
     }
 
+    /// Whether this bot makes `crossing` with `budget`: [`Crossing::fits`], or with `take.zone_take` on, by its rule (a sprint in,
+    /// more borne when the team is behind, [`Crossing::fits_zone_take`]).
+    pub fn crossing_bears(&self, crossing: &Crossing, budget: &Budget) -> bool {
+        match self.tuning.take.zone_take {
+            Some(rule) => {
+                let behind = rule.behind.is_some_and(|b| self.sig.score_gap <= -b.by);
+                crossing.fits_zone_take(budget, &rule, behind)
+            }
+            None => crossing.fits(budget),
+        }
+    }
+
+    /// [take.zone_take] The pace of a walk to a zone battery or its look spot: a sprint with the switch on, else `pace`.
+    pub fn zone_pace(&self, pace: Pace) -> Pace {
+        if self.tuning.take.zone_take.is_some() { Pace::Run } else { pace }
+    }
+
     /// The rule of this team's tuning for crossings: how the motor's route is offered, whether the way out is priced,
     /// what a floor only the margin marks costs. A team's, never the match's (head-to-head runs differ per team).
     fn rules(&self) -> memo::RoutedRule {
@@ -1348,6 +1386,13 @@ impl Ctx<'_> {
     /// one the team keeps falling by ([`TeamKnowledge::fallen_at`]), nor
     /// one whose stand is in a pocket no carrier gets out of
     /// ([`POCKET_BLOCK`]).
+    /// [take.zone_look] Where to look at a spawner's spot `item` from when its battery cannot be taken (a zone): a dry floor that
+    /// sees it ([`memo::Memo::zone_look`]) the bot may walk to; `None` with the switch off.
+    pub fn zone_look_at(&self, item: Vec3) -> Option<Vec3> {
+        let rule = self.tuning.take.zone_look?;
+        self.memo.zone_look(self.tactics, item, rule.within_m.get()).filter(|&spot| self.can_go(spot))
+    }
+
     pub fn can_take(&self, at: Vec3) -> bool {
         self.take_block(at).is_none()
     }
@@ -1374,7 +1419,7 @@ impl Ctx<'_> {
             let Some(crossing) = self.crossing(at) else {
                 return Some("no crossing to its zone");
             };
-            if !crossing.fits(&self.budget()) {
+            if !self.crossing_bears(&crossing, &self.budget()) {
                 return Some("its zone hurts too much");
             }
             crossing.edge
@@ -1638,15 +1683,34 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
                 .get(j)
                 .is_some_and(|s| s.item.distance_xz(item) < spread)
         });
-        if shut[k] || (taken && !own) || !cx.can_take(item) {
+        if taken && !own {
             continue;
         }
+        // [take.zone_look] A spot whose battery cannot be taken (no way to it all match, or a zone) is searched from a dry floor in
+        // sight of it, if there is one: the way there is the look spot's (no way leads into the zone). Off, such a spot is skipped.
+        let look_from = if !shut[k] && cx.can_take(item) {
+            None
+        } else {
+            let Some(spot) = cx.zone_look_at(item) else {
+                continue;
+            };
+            // [take.zone_take] Only where a battery there could be taken (a crossing a team behind bears at the bot's pools now):
+            // no look at a fire that kills.
+            if let Some(rule) = cx.tuning.take.zone_take
+                && !cx.crossing(item).is_some_and(|c| c.fits_zone_take(&cx.budget(), &rule, rule.behind.is_some()))
+            {
+                continue;
+            }
+            take_counts::count(take_counts::Count::ZoneLookOffered);
+            Some(spot)
+        };
         // The missing batteries a look round here may find and take: the
         // reachable spots in sight of it, by their share of all spots
         // not seen yet (the shut ones too, so the missing ones may well be
-        // there).
+        // there). [take.zone_look] A spot looked at from its dry look spot counts itself: the look tells whether a battery lies
+        // there (the team learns it), though no way leads to it.
         let near: f32 = (0..worth.len())
-            .filter(|&m| !shut[m] && spawners[worth[m]].item.distance_xz(item) <= cluster)
+            .filter(|&m| (!shut[m] || (m == k && look_from.is_some())) && spawners[worth[m]].item.distance_xz(item) <= cluster)
             .map(|m| prior[m])
             .sum();
         let chance = (missing as f32 * near / total).min(1.0);
@@ -1657,10 +1721,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             continue;
         }
         let weight = (num("search_weight") * chance).max(num("search_min")) * risk;
-        if let Some(mut candidate) = cx.candidate(
+        let given: Vec<(Input, f32)> = look_from.map(|spot| (Input::PathDist, cx.path_dist(spot))).into_iter().collect();
+        if let Some(mut candidate) = cx.candidate_given(
             PlayKind::Collect,
             TargetRef::Spawner(i),
             Some(SPAWNER_SLOT + i as u32),
+            &given,
         ) {
             candidate.score = Score::new(candidate.score.get() * weight);
             if !candidate.score.is_zero() {
@@ -1850,6 +1916,14 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 }
                 _ => return Step::Failed("no spawner"),
             }
+            // [take.zone_look] A spawner whose battery cannot be taken is looked at from its dry look spot.
+            if matches!(target, TargetRef::Spawner(_))
+                && !cx.can_take(at)
+                && let Some(spot) = cx.zone_look_at(at)
+            {
+                take_counts::count(take_counts::Count::ZoneLookWalk);
+                return Step::Continue(Intent::to(spot, cx.zone_pace(cx.pace_toward(spot))).within(1.0).looking(Look::Use(at)));
+            }
             let Some(stand) = cx.tactics.stand_to_take(at) else {
                 return Step::Failed("no way to it");
             };
@@ -1858,7 +1932,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // walk to the stand itself has no way (the look ended at once, "no way to it", for every bot that took it).
             let stand = if cx.tuning.hazard.route_crossing == RouteCrossing::Total && cx.needs_crossing(stand) {
                 match cx.crossing(at) {
-                    Some(crossing) if crossing.fits(&cx.budget()) => crossing.edge,
+                    Some(crossing) if cx.crossing_bears(&crossing, &cx.budget()) => crossing.edge,
                     _ => return Step::Failed("no way to it"),
                 }
             } else {
@@ -1885,7 +1959,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let mut routed = false;
             let crossing = if cx.needs_crossing(stand) {
                 match cx.crossing(at) {
-                    Some(crossing) if crossing.fits(&cx.budget()) => {
+                    Some(crossing) if cx.crossing_bears(&crossing, &cx.budget()) => {
                         routed = crossing.routed;
                         Some(crossing.edge)
                     }
@@ -1986,7 +2060,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
             }
             let step = match take(state, target, cx) {
-                Step::Continue(intent) if crossing => Step::Continue(intent.zone_ok()),
+                Step::Continue(intent) if crossing => Step::Continue(Intent { pace: cx.zone_pace(intent.pace), ..intent.zone_ok() }),
                 step => step,
             };
             // A use lately: it may carry already without knowing it.
@@ -2798,6 +2872,109 @@ mod tests {
         s.tactics = Tactics::new(world, 1.0);
         s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
         s
+    }
+
+    /// [take.zone_look] A spawner in the middle of a lethal zone (radius 6 m), its battery lying unseen: off, the search skips the
+    /// spot (its battery cannot be taken); on, the spot is offered and the search walks to a dry floor out of the zone that sees
+    /// it, looking at it.
+    #[test]
+    fn a_spawner_in_a_zone_is_looked_at_from_a_dry_floor_in_sight() {
+        use crate::v026g::bots::tuning::ZoneLook;
+        let item = Vec3::new(25.0, 0.3, 32.0);
+        let mut s = Scenario::field(Mode::Batteries);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "toxic".into(),
+                team: -1,
+                position: Vec3::new(25.0, 0.0, 32.0),
+                damage_type: "toxic".into(),
+                damage: None,
+                shapes: vec![Shape {
+                    kind: ShapeKind::Sphere,
+                    center: Vec3::new(25.0, 1.0, 32.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(6.0, 6.0, 6.0),
+                }],
+            });
+            map.battery_spawners = vec![mapdata::BatterySpawner {
+                position: Vec3::new(25.0, 0.0, 32.0),
+                item,
+                layer: "default".into(),
+            }];
+        });
+        s.tactics = Tactics::new(world, 1.0);
+        s.tuning.cheats.batteries = false;
+        // 6a alone (the lethal zone is no spot 6b looks at): both off, then the look on.
+        s.tuning.take.zone_look = None;
+        s.tuning.take.zone_take = None;
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+        s.battery(BatteryState::Free(item));
+        assert!(!s.cx(0).can_take(item), "lethal: no take");
+        assert_eq!(score_of(&s, TargetRef::Spawner(0)), None, "off: the search skips it");
+        s.tuning.take.zone_look = Some(ZoneLook::default());
+        assert!(score_of(&s, TargetRef::Spawner(0)).is_some(), "on: offered");
+        let target = TargetRef::Spawner(0);
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else {
+            panic!("{state:?}");
+        };
+        let Go::To { at: spot, .. } = intent.go else {
+            panic!("{intent:?}");
+        };
+        assert!(spot.distance_xz(item) > 6.0 && spot.distance_xz(item) <= 24.0, "{spot:?}");
+        assert!(matches!(intent.look, Look::Use(at) if at == item), "{intent:?}");
+    }
+
+    /// [take.zone_take] A battery in a zone harsh enough that a walk in is refused: with the switch, a sprint in costs less, and a
+    /// team one battery behind bears more, so a harsher zone is taken; the take sprints in; a lethal zone stays refused, behind or
+    /// not, and is not looked at.
+    #[test]
+    fn a_zone_battery_is_taken_when_worth_it_by_a_sprint_in() {
+        use crate::v026g::bots::tuning::ZoneTake;
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        // The harshest zone a walk in bears, then the first a team behind with the switch bears and a walk in does not.
+        let refused_off = |s: &Scenario| s.cx(0).take_block(at) == Some("its zone hurts too much");
+        let rates: Vec<f32> = (1..=60).map(|k| k as f32 * 0.005).collect();
+        let mut found = None;
+        for &rate in &rates {
+            let mut s = with_hurting(4.0, rate);
+            s.battery(BatteryState::Free(at));
+            if !refused_off(&s) {
+                continue;
+            }
+            s.tuning.take.zone_take = Some(ZoneTake::default());
+            s.sig.score_gap = -1.0;
+            if s.cx(0).take_block(at).is_none() {
+                found = Some(rate);
+                break;
+            }
+        }
+        let rate = found.expect("a zone a walk in refuses and a sprint in by a team behind bears");
+        // Behind: offered.
+        let mut s = with_hurting(4.0, rate);
+        s.battery(BatteryState::Free(at));
+        s.tuning.take.zone_take = Some(ZoneTake::default());
+        s.sig.score_gap = -1.0;
+        assert_eq!(collects(&s), vec![TargetRef::Battery(0)], "behind: offered at {rate}");
+        // The take sprints in once at the crossing's edge.
+        let target = TargetRef::Battery(0);
+        let crossing = s.cx(0).crossing(at).expect("a crossing");
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        s.bot(0, 0, crossing.edge);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(intent.zone_ok && intent.pace == Pace::Run, "{intent:?}");
+        // A lethal zone: refused behind as well.
+        let mut s = with_zone(4.0, None);
+        s.battery(BatteryState::Free(at));
+        s.tuning.take.zone_take = Some(ZoneTake::default());
+        s.sig.score_gap = -3.0;
+        assert!(s.cx(0).take_block(at).is_some());
     }
 
     /// A battery in a zone on all match that hurts 0.02 a second (level_01's
