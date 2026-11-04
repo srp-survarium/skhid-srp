@@ -157,14 +157,22 @@ pub const RESEARCH_WEIGHTS: [(usize, f32); 3] = [
     (event::KILL_INVADER, 10.0),
 ];
 
+/// A kill in Team Deathmatch scores this many times its weight: there a
+/// kill is the only way to earn (the owner, 2026-11-04).
+pub const TDM_KILL_FACTOR: f32 = 3.0;
+
 /// The weights of a match of `game_mode`: `weights`, with Research's own
-/// in mode 5. The other modes play with `weights` as they are.
+/// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
+/// weight in mode 4. The other modes play with `weights` as they are.
 pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
     if game_mode == maps::mode::RESEARCH {
         for (event, weight) in RESEARCH_WEIGHTS {
             weights[event] = weight;
         }
+    }
+    if game_mode == maps::mode::TEAM_DEATHMATCH {
+        weights[event::KILL] *= TDM_KILL_FACTOR;
     }
     weights
 }
@@ -1128,13 +1136,15 @@ mod tests {
         for event in (0..SCORE_EVENTS).filter(|event| ![6, 10, 18].contains(event)) {
             assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
         }
-        // Modes 2 to 4 are unchanged.
-        for game_mode in [
-            mode::BATTERIES,
-            mode::TIMED_BATTERIES,
-            mode::TEAM_DEATHMATCH,
-        ] {
+        // Modes 2 and 3 are unchanged.
+        for game_mode in [mode::BATTERIES, mode::TIMED_BATTERIES] {
             assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
+        }
+        // Team Deathmatch: a kill three times, 30; the rest as every mode's.
+        let tdm = score_weights(mode::TEAM_DEATHMATCH);
+        assert_eq!(tdm[event::KILL], 30.0);
+        for event in (0..SCORE_EVENTS).filter(|&event| event != event::KILL) {
+            assert_eq!(tdm[event], SCORE_WEIGHTS[event], "{event}");
         }
         // Over weights of another's (a test's, a tool's): the three only.
         let mut zero = weights_of(mode::RESEARCH, [0.0; SCORE_EVENTS]);
