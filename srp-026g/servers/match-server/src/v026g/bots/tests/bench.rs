@@ -2082,6 +2082,12 @@ pub(crate) fn real_bot_cost() {
             }
             if let Some(camper) = &bots.bench_camper {
                 eprintln!("  {}", camper.line());
+                // [A290] The hunter's shots and hits on an enemy (A287: the owner's 26-30 % a shot on the bots).
+                if HumanPlay::from_env() == HumanPlay::Hunter
+                    && let Some(&(shots, hits)) = game.shots_hits.get(camper.place())
+                {
+                    eprintln!("  hunter shots {shots} hits {hits} ({:.1} %)", 100.0 * f64::from(hits) / f64::from(shots.max(1)));
+                }
             }
             // The bots' bear traps: the habit's counts (activity: placed; harm: the team's own catches, lives
             // that ended while placing) and the response to the traps of others, one line each, always.
