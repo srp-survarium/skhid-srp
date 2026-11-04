@@ -139,3 +139,4 @@ edit	items.tsv	-	the items: a row per dictionary entry, its name, price, gold fl
 edit	shop.tsv	-	the shop's sellers and ranks beyond the item data's rule, and what no shop sells (gameplay/srp/shop.options): srp reads them from its game data
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
 edit	medical-skills-1.json	-	medical skill tree and its descriptions
+edit	vostok-v011-spawns-1.json	-	Vostok v0.11 uses v0.26g spawn positions, facings and priority: 14 per team in Protective Device, 11 per team in Team Deathmatch; six-second protection retained (docs/notes/vostok-v011-spawns.md)
