@@ -2537,14 +2537,16 @@ impl Gates {
     /// Whether the reflex's fight stand ([`LegsWhy::Stand`], `stand_strafe`) gives way to the play's own walk: objective work, as
     /// `goals::keep_apart` counts it (a use look, a straight step to a take's stand, a press, the way into their base), and the
     /// whole walk of a play that goes to pick something up (`play`: a take, a raid of their pile, a resupply), whose walk in
-    /// looks along its path until the last step. The bot still aims and fires on its way.
+    /// looks along its path until the last step, and of an intercept, whose walk cuts a carrier or a thief off (standing, the
+    /// interceptor fought from where it was and the battery he dropped lay farther than another). The bot still aims and fires
+    /// on its way.
     pub(super) fn stand_yields(legs: &Legs, intent: &Intent, play: Option<PlayKind>) -> bool {
         matches!(legs.why, LegsWhy::Stand)
             && (intent.objective
                 || intent.straight
                 || intent.press != 0
                 || matches!(intent.look, Look::Use(_))
-                || matches!(play, Some(PlayKind::Collect | PlayKind::Raid | PlayKind::Resupply)))
+                || matches!(play, Some(PlayKind::Collect | PlayKind::Raid | PlayKind::Resupply | PlayKind::Intercept)))
     }
 
     /// Whether the route stays while the legs stand with no goal: standing to throw a smoke, with
@@ -2724,6 +2726,7 @@ mod tests {
         assert!(!Gates::stand_yields(&stand, &walk, None), "a plain route: the stand holds");
         assert!(!Gates::stand_yields(&stand, &walk, Some(PlayKind::Flank)), "a fight play's route: the stand holds");
         assert!(Gates::stand_yields(&stand, &walk, Some(PlayKind::Collect)), "a take's walk in, along its path");
+        assert!(Gates::stand_yields(&stand, &walk, Some(PlayKind::Intercept)), "the walk that cuts a thief off");
         assert!(Gates::stand_yields(&stand, &walk.looking(Look::Use(Vec3::new(8.0, 0.5, 0.0))), None));
         assert!(Gates::stand_yields(&stand, &walk.into_base(), None));
         assert!(Gates::stand_yields(&stand, &Intent { straight: true, ..walk }, None));
