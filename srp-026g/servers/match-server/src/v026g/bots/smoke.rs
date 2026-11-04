@@ -1034,13 +1034,20 @@ pub fn smoke_best_cover(
 }
 
 /// [A291 `smoke.shooter_spot`] A smoke on the threat's own spot: the floor under his eye, flown there, kept when it rests
-/// within `rule.rest_within_m` of him across the ground (he is in its cloud). Its `covers_m` is the smoke on his line to the
-/// crossing, which may be under the sight rule's (a steep line leaves the cloud's bottom fast): the cloud is on HIM.
+/// within `rule.rest_within_m` of him across the ground AND its poured cloud holds his eye (radius and height: 1.3 m under
+/// its floor to 5 m over it). Without the height test, 140 of 296 level lanes with no covering landing rested near him on a
+/// floor under him (a crate, a sill, a ledge's foot) and its cloud passed under his line: a smoke on nobody (A291 spot
+/// bench, `smoke_no_plan_by_height` "no cover on him"). Its `covers_m` is the smoke on his line to the crossing, which may
+/// be under the sight rule's: the cloud is on HIM.
 pub fn smoke_on_shooter(reach: &Reach<'_>, threat_eye: Vec3, crossing: Vec3, for_use: SmokeUse, rule: super::tuning::ShooterSpot) -> Option<SmokePlan> {
     let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
     let floor = reach.floor(threat_eye)?;
     let aim = reach.aim(floor)?;
     if aim.rest.distance_xz(threat_eye) > rule.rest_within_m.get() {
+        return None;
+    }
+    let cloud = reach.grenade.cloud;
+    if threat_eye.y < aim.rest.y - cloud.below_m || threat_eye.y > aim.rest.y + cloud.height_m {
         return None;
     }
     Some(SmokePlan {
