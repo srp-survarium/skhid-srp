@@ -2018,6 +2018,10 @@ pub(super) fn drive(
         let landed = landing(eye, me.yaw, me.pitch, planned.y);
         bot.features.traps.placed = landed.map(|at| (at, now));
         bot.features.traps.pressed_at = landed.map(|_| now);
+        #[cfg(test)]
+        if let Some(at) = landed {
+            bot.features.traps.pressed = Some((at, me.velocity, now));
+        }
         // [A292] The press: its note and count.
         bot.features.traps.tally.ended(Ended::Placed, landed.is_some());
         let text = match landed {
@@ -2174,6 +2178,9 @@ pub struct BotState {
     /// ([`passes`]).
     #[cfg(test)]
     pub near: Option<(mapdata::Vec3, usize, usize)>,
+    /// The bench's: its last press, where it landed, its ground velocity then and the time (for the catch lines).
+    #[cfg(test)]
+    pub pressed: Option<(mapdata::Vec3, [f32; 2], u32)>,
 }
 
 impl super::features::Feature for BotState {
