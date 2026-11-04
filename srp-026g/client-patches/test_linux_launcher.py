@@ -83,7 +83,8 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             path.chmod(0o755)
         self.env = dict(os.environ, PATH=str(self.tools), TEST_CALLS=str(self.calls))
         self.env['HOME'] = str(self.root / 'home')
-        self.env.pop('XDG_CONFIG_HOME', None)
+        for name in ('XDG_CONFIG_HOME', 'NIRI_SOCKET', 'WAYLAND_DISPLAY'):
+            self.env.pop(name, None)
         self.shared_config = self.root / 'home/.config/skhid/user.cfg'
         self.env['XDG_SESSION_TYPE'] = 'x11'
 
@@ -247,6 +248,29 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         result = self.run_script()
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('ntsync', result.stderr)
+
+    def test_wayland_driver_is_chosen_only_under_niri(self):
+        self.copy_exe()
+        key = 'HKCU\\Software\\Wine\\Drivers'
+        reg_add = ['reg', 'add', key, '/v', 'Graphics', '/d', 'wayland,x11', '/f']
+        reg_delete = ['reg', 'delete', key, '/v', 'Graphics', '/f']
+        user_reg = self.bin / 'wineprefix/user.reg'
+        # (niri session, value already in the prefix) -> the one registry call expected
+        for niri, already, expected in ((True, False, reg_add), (True, True, None),
+                                        (False, True, reg_delete), (False, False, None)):
+            with self.subTest(niri=niri, already=already):
+                self.modinfo(1)
+                self.env['WAYLAND_DISPLAY'] = 'wayland-1' if niri else ''
+                self.env['NIRI_SOCKET'] = '/run/user/1000/niri.sock' if niri else ''
+                self.calls.unlink(missing_ok=True)
+                user_reg.parent.mkdir(exist_ok=True)
+                user_reg.write_text('"Graphics"="wayland,x11"\n' if already else '')
+                result = self.run_script()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                args = [c['args'] for c in self.recorded_calls()]
+                self.assertEqual([a for a in args if a[0] == 'reg'], [expected] if expected else [])
+                if expected:
+                    self.assertLess(args.index(expected), args.index(['survarium_skhid.exe', '-mt_allocator=768', '-minimum_resources_memory_size=768']))
 
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
