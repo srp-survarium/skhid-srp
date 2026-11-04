@@ -544,6 +544,10 @@ fn drive_tick_inner(
         };
         intent.crouch |= react.crouch;
     }
+    // [traps, A292 S4a] Just after its trap's press the legs stay until the next think re-plans round it (`traps.after_press`).
+    if trap.is_some_and(|trap| trap.hold) {
+        intent.go = Go::Stay;
+    }
     #[cfg(test)]
     {
         bot.bench_legs = over.legs.is_some() && !using;

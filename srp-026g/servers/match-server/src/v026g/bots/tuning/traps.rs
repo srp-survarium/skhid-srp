@@ -101,6 +101,22 @@ pub struct TrapTuning {
     pub cooldown_s: f32,
     /// The response to a trap that is not the team's (`bots/trap_react.rs`).
     pub react: ReactTuning,
+    /// [A292 S1] Whose lanes the spot's score reads: `humans` (today: `know::HumanLanes`, the enemy humans only, so in Player vs
+    /// Bots the human's own team never places and the bots' team places only on his sensed path) or `enemies` (a team map of every
+    /// enemy the team sensed, bots and humans, by the same rule: its own senses, 6 m cells, 180 s half life; kept apart from
+    /// `HumanLanes`, whose other readers stay as they are). A human in a bot's place knows where any enemy he saw or heard walked.
+    /// `humans` by default until its by-side bench decides.
+    pub lanes: TrapLanes,
+    /// [A292 S2] The enemy-near gate's "sensed lately" part only for an enemy sensed this near (`None`: anywhere, today). The
+    /// tally of #1207 on the bench: of the thinks the enemy gate stopped, about 70 % were "sensed lately" (a shot or a step
+    /// heard across the map counted). Seen now and known within `enemy_near_m` stay as they are. **On by default**, kept right
+    /// (`KEPT_RIGHT`): a step or shot heard across the map is no enemy near (A292 by-side bench, 256 pairs, both modes: traps
+    /// placed x2, enemy catches 9 vs 3, own-team catches 3 vs 2, the whole match level, no guard worse, the coordinator's go).
+    pub sensed_near: Option<SensedNear>,
+    /// [A292 S4a] The placer stands from its trap's press until its next think has put the trap in its field and re-planned its
+    /// route round it, at most `hold_ms`. Without it the bot walks on its old route for that time: in the S1 bench 13 of 298
+    /// traps caught their own placer 0-3 s after the press, landing 0.85-1.25 m from its feet. Off by default.
+    pub after_press: Option<AfterPress>,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -134,6 +150,45 @@ impl Default for DefeatedTuning {
             ahead_m: 12.0,
             min_kills: 2,
         }
+    }
+}
+
+/// [A292 S1] Whose lanes the trap habit's spot score reads (`TrapTuning::lanes`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrapLanes {
+    /// The enemy humans' lanes (`know::HumanLanes`): today's habit.
+    #[default]
+    Humans,
+    /// Every enemy the team sensed (`trap_know::TeamTraps::lanes`).
+    Enemies,
+}
+
+/// [A292 S2] How near an enemy sensed lately must be to keep a bot from placing (`TrapTuning::sensed_near`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SensedNear {
+    /// Metres: a GUESS, about the reach a rifle fight starts at (the bots' engage range).
+    pub within_m: f32,
+}
+
+impl Default for SensedNear {
+    fn default() -> Self {
+        Self { within_m: 40.0 }
+    }
+}
+
+/// [A292 S4a] How long the placer may stand after its press (`TrapTuning::after_press`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AfterPress {
+    /// At most this, ms: a GUESS margin over the few hundred ms between two thinks of a bot.
+    pub hold_ms: u32,
+}
+
+impl Default for AfterPress {
+    fn default() -> Self {
+        Self { hold_ms: 1_500 }
     }
 }
 
@@ -338,6 +393,9 @@ impl Default for TrapTuning {
             look_ms: 900,
             cooldown_s: 20.0,
             react: ReactTuning::default(),
+            lanes: TrapLanes::Humans,
+            sensed_near: Some(SensedNear { within_m: 40.0 }),
+            after_press: None,
         }
     }
 }
@@ -393,6 +451,12 @@ impl Check for TrapTuning {
             "traps.chance",
         )?;
         check(self.tolerance_rad > 0.0 && self.look_ms > 0, "traps.look")?;
+        check(
+            // Under `enemy_near_m` it is harmless: an enemy sensed that near is also known that near.
+            self.sensed_near.is_none_or(|n| n.within_m > 0.0 && n.within_m <= 200.0),
+            "traps.sensed_near",
+        )?;
+        check(self.after_press.is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000), "traps.after_press")?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)
