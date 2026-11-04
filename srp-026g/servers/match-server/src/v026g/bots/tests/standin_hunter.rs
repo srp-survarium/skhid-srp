@@ -80,9 +80,28 @@ pub(crate) const HUNTER_AIM: HunterAim = HunterAim {
     reaction_ms: 120.0,
 };
 
-/// The hunter's tuning: [`human_tuning`] with [`HUNTER_AIM`] at both ends of every aim pair and the live side steps in a fight.
+/// The hunter's tuning: [`human_tuning`] with [`HUNTER_AIM`] (or `SRP_BENCH_HUNTER_AIM`'s, for a calibration) at both ends of
+/// every aim pair and the live side steps in a fight.
 pub(crate) fn hunter_tuning() -> Tuning {
-    hunter_tuning_with(HUNTER_AIM)
+    let aim = HunterAim::parse(bench_settings().var("SRP_BENCH_HUNTER_AIM").ok().as_deref()).unwrap_or_else(|e| panic!("{e}"));
+    hunter_tuning_with(aim)
+}
+
+impl HunterAim {
+    /// Unset: [`HUNTER_AIM`]; else seven numbers, `,`-joined, in the fields' order (a calibration's try).
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        let Some(value) = value else {
+            return Ok(HUNTER_AIM);
+        };
+        let n: Vec<f32> = value
+            .split(',')
+            .map(|v| v.trim().parse::<f32>().map_err(|_| format!("SRP_BENCH_HUNTER_AIM={value:?}: seven numbers")))
+            .collect::<Result<_, _>>()?;
+        let [error_deg, wander_deg, settled_wander_deg, settle_tau_s, settle_s, notice, reaction_ms] = n[..] else {
+            return Err(format!("SRP_BENCH_HUNTER_AIM={value:?}: seven numbers (error, wander, settled wander, settle tau, settle, notice, reaction ms)"));
+        };
+        Ok(Self { error_deg, wander_deg, settled_wander_deg, settle_tau_s, settle_s, notice, reaction_ms })
+    }
 }
 
 pub(crate) fn hunter_tuning_with(a: HunterAim) -> Tuning {
@@ -166,6 +185,9 @@ mod tests {
         assert_eq!(HumanPlay::parse(Some("bot")), Ok(HumanPlay::Bot));
         assert_eq!(HumanPlay::parse(Some("hunter")), Ok(HumanPlay::Hunter));
         assert!(HumanPlay::parse(Some("owner")).is_err());
+        assert_eq!(HunterAim::parse(None).unwrap().error_deg, HUNTER_AIM.error_deg);
+        assert_eq!(HunterAim::parse(Some("0.5,0.4,0,1,0.1,0.5,100")).unwrap().reaction_ms, 100.0);
+        assert!(HunterAim::parse(Some("0.5,0.4")).is_err());
     }
 
     #[test]
