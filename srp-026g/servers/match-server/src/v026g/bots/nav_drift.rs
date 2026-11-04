@@ -6,7 +6,12 @@
 //! or why. Now, at each world of a bot that differs from its reckoning for that tick by [`DRIFT_M`] or more (flat or in height):
 //!
 //! `nav: drift D m (flat F, height H) at (x, y, z), reckoned (x, y, z): CAUSE; play P, speed S m/s, STANCE, moved M of N m meant[,
-//! in a jump][, body B m][, world after G ms]`
+//! walk keys on K of T ticks, held by the grid on G][, in a jump][, body B m][, world after G ms]`
+//!
+//! STANCE is the world's: `crouched`, `sprinting`, or `upright` (neither; a body upright may walk or stand, its speed says which).
+//! The ticks (A302) are the bot's decided ticks since the world before: on how many a walk key was held, and on how many the walk
+//! grid held the reckoning (its keys meant a move, the slide stopped it short: `body::Interval`). A `faster` world whose keys
+//! walked while the grid held the reckoning is the grid stopping the model where the client walks on; one whose keys let go is not.
 //!
 //! The cause is the first of these that holds ([`Cause::of`]; each reads only what the bot holds at that world):
 //!
@@ -117,6 +122,8 @@ pub struct Facts {
     /// The way the keys meant since the last world (the reckoning's), and how far the world moved the body, flat, m.
     pub meant_m: Option<f32>,
     pub moved_m: Option<f32>,
+    /// The decided ticks of the same span (A302): walk keys held, the grid holding the reckoning.
+    pub ticks: Option<super::body::Interval>,
     pub crouch: bool,
     pub sprint: bool,
     pub speed: Option<f32>,
@@ -143,7 +150,7 @@ impl Facts {
         } else if self.sprint {
             "sprinting"
         } else {
-            "standing"
+            "upright"
         };
         let mut text = format!(
             "{}drift {size:.1} m (flat {flat:.1}, height {rise:+.1}) at {}, reckoned {}: {}; play {}, speed {}, {stance}",
@@ -156,6 +163,9 @@ impl Facts {
         );
         if let (Some(meant), Some(moved)) = (self.meant_m, self.moved_m) {
             text.push_str(&format!(", moved {moved:.1} of {meant:.1} m meant"));
+        }
+        if let Some(t) = self.ticks {
+            text.push_str(&format!(", walk keys on {} of {} ticks, held by the grid on {}", t.walk_ticks, t.ticks, t.held_ticks));
         }
         if self.in_jump {
             text.push_str(", in a jump");
@@ -276,6 +286,7 @@ mod tests {
             body_m: None,
             meant_m: Some(2.0),
             moved_m: Some(1.5),
+            ticks: None,
             crouch: false,
             sprint: false,
             speed: Some(2.6),
@@ -319,7 +330,17 @@ mod tests {
              speed 2.6 m/s, crouched, moved 1.5 of 2.0 m meant, body 1.5 m"
         );
         let late = Facts { gap_ms: Some(3_100), in_jump: true, play: None, speed: None, meant_m: None, ..facts() };
-        assert!(late.line(Cause::of(&late)).ends_with(": landing; play none, speed ?, standing, in a jump, world after 3100 ms"));
+        assert!(late.line(Cause::of(&late)).ends_with(": landing; play none, speed ?, upright, in a jump, world after 3100 ms"));
+        // A302: the span's ticks, after the way meant.
+        let held = super::super::body::Interval { ticks: 40, walk_ticks: 38, held_ticks: 25 };
+        let f = Facts { moved_m: Some(3.3), meant_m: Some(0.4), ticks: Some(held), ..facts() };
+        assert!(
+            f.line(Cause::of(&f)).ends_with(
+                ": faster; play Collect, speed 2.6 m/s, upright, moved 3.3 of 0.4 m meant, walk keys on 38 of 40 ticks, held by the grid on 25"
+            ),
+            "{}",
+            f.line(Cause::of(&f))
+        );
     }
 
     #[test]
