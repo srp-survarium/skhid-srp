@@ -150,6 +150,10 @@
     "throw_keeps_route": false,
     "wait_for_cloud": null
   },
+  "take": {
+    "zone_look": null,
+    "zone_take": null
+  },
   "threat": {
     "area": false,
     "concede": null,
