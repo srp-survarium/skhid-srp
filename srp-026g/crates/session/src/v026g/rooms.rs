@@ -1628,7 +1628,7 @@ fn fill(mut parties: Vec<(Vec<u32>, Strength)>, size: usize) -> [Vec<u32>; 2] {
 /// The map (`maps::MapMode::level`) a card is played on, whatever its
 /// weather and mode: a Blackout card's is its battery map's.
 fn location(id: u8) -> Option<u8> {
-    maps::map_mode(maps::blackout_played(id).unwrap_or(id)).map(|map| map.level)
+    maps::MatchMap::of_lobby_id(id).map(|played| played.map().level)
 }
 
 #[cfg(test)]

@@ -139,7 +139,7 @@ pub use patch_check::{check_min_patch_revision, min_patch_revision_from_env};
 pub use play::{LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile};
 
 /// The modes played when `SRP_MATCH_MODES` is unset: all the client has.
-const DEFAULT_MODES: [maps::RuleMode; 4] = maps::RuleMode::ALL;
+const DEFAULT_MODES: [maps::RuleMode; maps::RuleMode::ALL.len()] = maps::RuleMode::ALL;
 /// A silent client keeps its link this long: what the store calls a game
 /// that is gone (`session::GONE_AFTER`). The client itself gives up after
 /// 5 s without a datagram (0x26F0ED).
