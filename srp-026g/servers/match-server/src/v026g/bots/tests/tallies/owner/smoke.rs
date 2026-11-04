@@ -110,6 +110,8 @@ pub(super) struct SmokeCounts {
     heights_start: smoke::tally::Heights,
     /// [A291] What the plans' shooters did, at the match's start.
     shooters_start: smoke::tally::Shooters,
+    /// [A291] The lanes with no covering landing by height and reason, at the match's start.
+    no_plans_start: smoke::tally::NoPlans,
     /// The tracker's throws and clouds at the last tick, and its clouds then; grenade keys of humans whose pockets
     /// are not known (a real cloud the model cannot make).
     thrown: Thrown,
@@ -169,6 +171,7 @@ impl SmokeCounts {
             landings_start: smoke::tally::landings(),
             heights_start: smoke::tally::heights(),
             shooters_start: smoke::tally::shooters(),
+            no_plans_start: smoke::tally::no_plans(),
             thrown: Thrown::default(),
             clouds: Vec::new(),
             unknown_pockets: 0,
@@ -602,7 +605,17 @@ impl SmokeCounts {
         let shooters: [[[u64; smoke::tally::SHOOTER_SLOTS]; 2]; 2] = std::array::from_fn(|team| {
             std::array::from_fn(|o| std::array::from_fn(|k| now_shooters[team][o][k] - self.shooters_start[team][o][k]))
         });
+        // [A291] Lanes with no covering landing by team, height and reason [no floor, out of reach, bounced, no cover].
+        let now_no = smoke::tally::no_plans();
+        let no_plans_json: serde_json::Map<String, serde_json::Value> = smoke::Height::ALL
+            .iter()
+            .map(|h| {
+                let team = |t: usize| -> Vec<u64> { (0..smoke::NoPlan::ALL.len()).map(|k| now_no[t][h.index()][k] - self.no_plans_start[t][h.index()][k]).collect() };
+                (format!("{h:?}"), serde_json::json!([team(0), team(1)]))
+            })
+            .collect();
         let json = serde_json::json!({
+            "smoke_no_plan_by_height": no_plans_json,
             "smoke_shooter_by_landing": {"between": [shooters[0][0], shooters[1][0]], "on_him": [shooters[0][1], shooters[1][1]]},
             "smoke_plans_shooter_spot": by(ShooterSpotPlan),
             "smoke_bot_throws_by_use": uses_json,
