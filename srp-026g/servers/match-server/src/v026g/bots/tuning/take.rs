@@ -183,6 +183,9 @@ pub struct TakeTuning {
     /// owner, 2026-11-04 (quiz): "Yes, turn it ON", a belief-correctness fix like `pitch`. Its by-side bench was identical (168
     /// pairs: the bench world drops no battery under a floor).
     pub drop_impossible: Option<DropImpossible>,
+    /// ON by default with `zone_take` (A296 6a+6b): their joint by-side bench, 168 pairs (8 battery maps x 6/8/10, seeds 1-7,
+    /// tier 9-10): wins 132 vs 124 (+6.5 %, z +0.7), delivered +2.2 % (z +1.2), points +2.0 %, zone takes +18 % (z +1.8), hits
+    /// level; no guard FAIL. Alone, `zone_look` was worse (wins -18.6 %, z -2.1): it walked to batteries no bot then took.
     pub zone_look: Option<ZoneLook>,
     pub zone_take: Option<ZoneTake>,
 }
@@ -196,8 +199,8 @@ impl Default for TakeTuning {
             pitch: TakePitch::default(),
             cross_from_zone: None,
             drop_impossible: Some(DropImpossible::default()),
-            zone_look: None,
-            zone_take: None,
+            zone_look: Some(ZoneLook::default()),
+            zone_take: Some(ZoneTake::default()),
         }
     }
 }

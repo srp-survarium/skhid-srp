@@ -2905,6 +2905,9 @@ mod tests {
         });
         s.tactics = Tactics::new(world, 1.0);
         s.tuning.cheats.batteries = false;
+        // 6a alone (the lethal zone is no spot 6b looks at): both off, then the look on.
+        s.tuning.take.zone_look = None;
+        s.tuning.take.zone_take = None;
         s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
         s.battery(BatteryState::Free(item));
         assert!(!s.cx(0).can_take(item), "lethal: no take");
