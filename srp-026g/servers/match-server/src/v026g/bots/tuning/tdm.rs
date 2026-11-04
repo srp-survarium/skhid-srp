@@ -104,10 +104,41 @@ pub enum Answer {
     NearestMover,
 }
 
+/// [A297 item 2] Hold, not feed, when behind, in TDM only: the team behind on points (`MatchSignals::behind`, 0 level to 1
+/// from 30 tickets down in TDM) weighs the angle holds that kill the human up and the long cut-offs down. Measured (PROVEN, 168 matches
+/// vs the hunter stand-in, the tip's bots): his deaths per 10 bot-minutes of the killer's play were HoldExit 1.66, Crossfire
+/// 1.24, Roam 0.72, Cut 0.42, Buddy 0.05; Cut held 32 % of the bots' time for 14 % of his deaths.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BehindHolds {
+    /// Crossfire and HoldExit scores times `1 + hold_gain * behind`. GUESS (the bench decides).
+    pub hold_gain: f32,
+    /// Cut scores times `1 - cut_cut * behind`, `[0, 1]`. GUESS.
+    pub cut_cut: f32,
+}
+
+impl Default for BehindHolds {
+    fn default() -> Self {
+        Self { hold_gain: 1.0, cut_cut: 0.75 }
+    }
+}
+
+impl BehindHolds {
+    /// The factor on a candidate of `kind` for a team `behind` (`[0, 1]`); `None` for the plays it leaves as they are.
+    pub fn factor(&self, kind: PlayKind, behind: f32) -> Option<f32> {
+        match kind {
+            PlayKind::Crossfire | PlayKind::HoldExit => Some(1.0 + self.hold_gain * behind),
+            PlayKind::Cut => Some(1.0 - self.cut_cut * behind),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TdmTuning {
     pub group: Option<GroupUp>,
+    pub behind_holds: Option<BehindHolds>,
 }
 
 impl TdmTuning {
@@ -117,6 +148,29 @@ impl TdmTuning {
         {
             return Err("tdm.group".into());
         }
+        if let Some(b) = self.behind_holds
+            && (!(0.0..=4.0).contains(&b.hold_gain) || !(0.0..=1.0).contains(&b.cut_cut))
+        {
+            return Err("tdm.behind_holds".into());
+        }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Level: no change; behind: the holds up and Cut down by the share behind; other plays untouched.
+    #[test]
+    fn behind_holds_weighs_the_holds_up_and_cut_down_by_the_share_behind() {
+        let rule = BehindHolds::default();
+        assert_eq!(rule.factor(PlayKind::Crossfire, 0.0), Some(1.0));
+        assert_eq!(rule.factor(PlayKind::HoldExit, 0.5), Some(1.5));
+        assert_eq!(rule.factor(PlayKind::Cut, 1.0), Some(0.25));
+        assert_eq!(rule.factor(PlayKind::Roam, 1.0), None);
+        let bad = TdmTuning { behind_holds: Some(BehindHolds { hold_gain: 0.5, cut_cut: 1.5 }), ..Default::default() };
+        assert!(bad.check().is_err());
+        assert!(TdmTuning::default().behind_holds.is_none(), "off by default");
     }
 }

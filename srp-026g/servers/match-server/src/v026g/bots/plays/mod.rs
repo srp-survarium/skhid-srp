@@ -1384,8 +1384,25 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     resupply::candidates(cx, out);
     answer::candidates(cx, out);
     breach::candidates(cx, out);
+    behind_holds(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
+}
+
+/// [A297 item 2 `tdm.behind_holds`] In TDM, a team behind on points weighs Crossfire and HoldExit up and Cut down.
+fn behind_holds(cx: &Ctx, out: &mut [Candidate]) {
+    let Some(rule) = cx.tuning.tdm.behind_holds else {
+        return;
+    };
+    let behind = cx.sig.behind();
+    if behind <= 0.0 || cx.view.objective().has_homes() {
+        return;
+    }
+    for c in out.iter_mut() {
+        if let Some(factor) = rule.factor(c.kind, behind) {
+            c.score = Score::new(c.score.get() * factor);
+        }
+    }
 }
 
 /// A play's start. `slot` is the assignment's: a play whose rules depend on
