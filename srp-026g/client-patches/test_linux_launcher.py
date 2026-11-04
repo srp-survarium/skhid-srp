@@ -248,6 +248,23 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('ntsync', result.stderr)
 
+    def test_wayland_driver_is_chosen_only_under_xwayland_satellite(self):
+        self.copy_exe()
+        reg_add = ['reg', 'add', 'HKCU\\Software\\Wine\\Drivers', '/v', 'Graphics', '/d', 'wayland,x11', '/f']
+        for wayland, satellite, chosen in (('wayland-1', 0, True), ('wayland-1', 1, False), ('', 0, False)):
+            with self.subTest(wayland=wayland, satellite=satellite):
+                self.modinfo(1)
+                (self.tools / 'pgrep').write_text('#!' + sys.executable + '\nimport sys\nsys.exit(' + str(satellite) + ')\n')
+                (self.tools / 'pgrep').chmod(0o755)
+                self.env['WAYLAND_DISPLAY'] = wayland
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                args = [c['args'] for c in self.recorded_calls()]
+                self.assertEqual(reg_add in args, chosen)
+                if chosen:
+                    self.assertLess(args.index(reg_add), args.index(['survarium_skhid.exe', '-mt_allocator=768', '-minimum_resources_memory_size=768']))
+
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
         for name in ('launcher_skhid.exe', 'updater_skhid.exe'):

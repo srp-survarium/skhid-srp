@@ -106,6 +106,16 @@ Use Wine 11.0 or newer with modern WoW64 support and matching wineserver.
 For an old prefix, keep it as a backup and create a fresh one; see LINUX.txt and $log."
 }
 
+select_graphics() {
+    # Under xwayland-satellite (niri) Wine's X11 driver leaves the game's
+    # mouselook stuck; its Wayland driver locks the pointer itself, with X11
+    # as the fallback. Elsewhere Wine chooses its own driver.
+    if [[ -n ${WAYLAND_DISPLAY-} ]] && pgrep -u "$(id -u)" -f xwayland-satellite >/dev/null 2>&1; then
+        "$WINE" reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d wayland,x11 /f >>"$log" 2>&1 \
+            || die "Could not select Wine's Wayland driver. See $log"
+    fi
+}
+
 prepare_settings() {
     local config_home=${XDG_CONFIG_HOME:-$HOME/.config} settings config documents resolution
     # XDG paths must be absolute; ignore invalid overrides.
@@ -196,6 +206,7 @@ main() {
 
     configure_wine
     prepare_prefix
+    select_graphics
     prepare_settings
     install_dxvk
     if [[ $mode == launcher ]]; then
