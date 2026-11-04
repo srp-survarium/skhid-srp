@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{TrapLanes, TrapTuning};
+use super::tuning::{Stayer, TrapLanes, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -1281,6 +1281,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         .map(|p| (p.feet, p.velocity))
         .collect();
     let staying = is_staying(bot, me);
+    // [A292 S4c] A bot that stays puts none down with `stayer: never`.
+    if staying && t.stayer == Stayer::Never {
+        bot.features.traps.tally.stayer();
+        return;
+    }
     let in_spawn = |at: Vec3| due.tactics.in_spawn_area(at, None);
     // Where the head ray will meet the floor at the look it presses with, from the eye of the pose it has now
     // (a crouched holder lands 0.3 m nearer than a walker): none, and no trap, where no look reaches that far.
@@ -2012,6 +2017,7 @@ pub(super) fn drive(
         };
         let landed = landing(eye, me.yaw, me.pitch, planned.y);
         bot.features.traps.placed = landed.map(|at| (at, now));
+        bot.features.traps.pressed_at = landed.map(|_| now);
         // [A292] The press: its note and count.
         bot.features.traps.tally.ended(Ended::Placed, landed.is_some());
         let text = match landed {
@@ -2058,16 +2064,16 @@ pub(super) fn drive(
         look,
         key: if out.key_down { kit.key } else { 0 },
         crouch: out.hold_crouch,
-        hold: hold || (t.after_press.is_some() && bot.features.traps.placed.is_some()),
+        hold: hold || (t.after_press.is_some() && out.placed.is_some()),
     })
 }
 
-/// [A292 S4a] Whether the legs stay this tick: a trap let go of since the last think (`BotState::placed`, taken at the think
-/// that promises it to the team and re-plans the route round it), for at most `AfterPress::hold_ms`.
+/// [A292 S4a] Whether the legs stay this tick: within `AfterPress::hold_ms` of its last press (`BotState::pressed_at`). The
+/// think in between promises the trap to the team and re-plans the route round it; the reflex's own legs wait too.
 fn held_after_press(bot: &Bot, now: u32, t: &TrapTuning) -> bool {
     t.after_press
-        .zip(bot.features.traps.placed)
-        .is_some_and(|(a, (_, at))| now.saturating_sub(at) <= a.hold_ms)
+        .zip(bot.features.traps.pressed_at)
+        .is_some_and(|(a, at)| now.saturating_sub(at) <= a.hold_ms)
 }
 
 /// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
@@ -2090,9 +2096,15 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
             let feet = me.feet + lead;
             let view = (me.pitch - PRESS_SLACK).max(-STEEPEST.0);
             let landed = landing(eye_for(feet, crouched, view), me.yaw, view, spot.y);
+            let press = press_of(t, landed, feet, staying, || route_ahead(bot, me, t).0);
+            // [A292 S4a] Not where the body itself runs on to over the next moment.
+            let press = match (press, t.after_press, landed) {
+                (Press::Ready, Some(a), Some(at)) if swept_m(me.feet, me.velocity, a.sweep_s, at) < a.clear_m => Press::Wait(Why::OnRoute),
+                (press, ..) => press,
+            };
             Aim::Look {
                 pitch: look.pitch,
-                press: press_of(t, landed, feet, staying, || route_ahead(bot, me, t).0),
+                press,
             }
         }
         State::Down { spot, .. } => {
@@ -2105,6 +2117,13 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
         }
         _ => Aim::NoLook,
     }
+}
+
+/// [A292 S4a] How near `at` comes to the body's own path over the next `sweep_s` (its feet moved by its velocity), metres on
+/// the ground.
+fn swept_m(feet: Vec3, velocity: [f32; 2], sweep_s: f32, at: Vec3) -> f32 {
+    let end = Vec3::new(feet.x + velocity[0] * sweep_s, feet.y, feet.z + velocity[1] * sweep_s);
+    off_route_m(&[feet, end], at)
 }
 
 /// Whether the bot stays where it is: its play holds it and it is slow. Its spot then need not lie off the route.
@@ -2147,6 +2166,8 @@ pub struct BotState {
     pub pass_wait: Option<(mapdata::Vec3, u32)>,
     /// [A292] Its counts for the match-end log line, over all its lives ([`tally::Tally`]).
     pub tally: tally::Tally,
+    /// [A292 S4a] When it last let go of a trap, ms: its legs stay `AfterPress::hold_ms` from then.
+    pub pressed_at: Option<u32>,
     /// [A292] Log notes of the ticks since its last think (a press, a look that ended) with their times: the think writes them.
     pub notes: Vec<(u32, String)>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
@@ -2160,6 +2181,7 @@ impl super::features::Feature for BotState {
         self.habit.new_life();
         self.react.new_life();
         self.pass_wait = None;
+        self.pressed_at = None;
         #[cfg(test)]
         {
             self.near = None;
@@ -2352,6 +2374,8 @@ pub mod tally {
         /// The urgent plays that stopped a think, by play.
         plays: Vec<(PlayKind, u32)>,
         chance: u32,
+        /// Thinks of a bot that stays, with `stayer: never`.
+        stayer: u32,
         no_look: u32,
         waited_wish: u32,
         waited_pass: u32,
@@ -2412,6 +2436,10 @@ pub mod tally {
             self.no_look += 1;
         }
 
+        pub fn stayer(&mut self) {
+            self.stayer += 1;
+        }
+
         pub fn waited_wish(&mut self) {
             self.waited_wish += 1;
         }
@@ -2464,6 +2492,7 @@ pub mod tally {
             }
             self.chance += other.chance;
             self.no_look += other.no_look;
+            self.stayer += other.stayer;
             self.waited_wish += other.waited_wish;
             self.waited_pass += other.waited_pass;
             self.searched += other.searched;
@@ -2508,13 +2537,14 @@ pub mod tally {
                 .join(", ");
             format!(
                 "life spent {}, busy {}; thinks {}: refused by {gate} (the enemy: {enemy}; the plays: {plays}); \
-                 the chance {}, no look {}, waited for a wished spot {}, waited for the pass {}; searched {}, no spot {} \
+                 the chance {}, a stayer {}, no look {}, waited for a wished spot {}, waited for the pass {}; searched {}, no spot {} \
                  (candidates refused: {candidates}); planned {}; pressed {} (in the air {}), called away {}, gave up {} \
                  ({gave_up}, unjudged {})",
                 self.spent,
                 self.busy,
                 self.thinks,
                 self.chance,
+                self.stayer,
                 self.no_look,
                 self.waited_wish,
                 self.waited_pass,
@@ -3329,13 +3359,26 @@ mod tests {
         let full = crate::v026g::bots::tuning::Tuning::default();
         let mut bot = Bot::new(1, 0, 0, None, &full);
         let mut tuning = t();
-        bot.features.traps.placed = Some((Vec3::new(1.0, 0.0, 0.0), 10_000));
+        bot.features.traps.pressed_at = Some(10_000);
         assert!(!held_after_press(&bot, 10_100, &tuning), "off: no hold");
         tuning.after_press = Some(AfterPress::default());
         assert!(held_after_press(&bot, 10_100, &tuning));
+        assert!(held_after_press(&bot, 11_400, &tuning), "past the next think: the reflex's legs wait too");
         assert!(!held_after_press(&bot, 10_000 + 1_501, &tuning), "the cap");
-        bot.features.traps.placed = None;
-        assert!(!held_after_press(&bot, 10_100, &tuning), "taken by the think");
+        bot.features.traps.pressed_at = None;
+        assert!(!held_after_press(&bot, 10_100, &tuning), "never pressed");
         assert!(tuning.check().is_ok());
+    }
+
+    /// A292 S4a: the swept path is the body's own, from its feet along its velocity for `sweep_s`.
+    #[test]
+    fn the_swept_path_is_the_feet_along_the_velocity() {
+        let feet = Vec3::new(0.0, 0.0, 0.0);
+        // Walking along x at 3 m/s: a trap 2 m ahead and 0.5 m aside lies 0.5 m off the next second's path.
+        assert!((swept_m(feet, [3.0, 0.0], 1.0, Vec3::new(2.0, 0.0, 0.5)) - 0.5).abs() < 1e-4);
+        // Behind the feet: its distance to the feet.
+        assert!((swept_m(feet, [3.0, 0.0], 1.0, Vec3::new(-1.0, 0.0, 0.0)) - 1.0).abs() < 1e-4);
+        // Standing: the feet alone.
+        assert!((swept_m(feet, [0.0, 0.0], 1.0, Vec3::new(0.0, 0.0, 1.2)) - 1.2).abs() < 1e-4);
     }
 }
