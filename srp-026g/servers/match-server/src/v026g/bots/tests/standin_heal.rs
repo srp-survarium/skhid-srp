@@ -745,19 +745,22 @@ mod tests {
         heal
     }
 
+    /// [A306] Its 1.0 on each pool spread over the 3 s: a third a second.
     #[test]
-    fn a_medkit_heals_nothing_for_two_seconds_then_one_a_second_for_three_clamped() {
+    fn a_medkit_heals_nothing_for_two_seconds_then_a_third_a_second_for_three_clamped() {
         let mut heal = spawned();
         let mut pools = hurt();
         assert_eq!(heal.press(0, 10_000), Pressed::Used(Drug::Medkit));
         run(&mut heal, &mut pools, 10_000, 2_000);
         assert_eq!(pools, hurt(), "the delay");
         run(&mut heal, &mut pools, 12_000, 500);
-        assert!((pools.body - 0.9).abs() < 1e-3, "{}", pools.body);
-        assert!((pools.head - 0.4).abs() < 1e-3, "head clamped at 0.4");
-        assert!((pools.legs[0] - 0.5).abs() < 1e-3 && (pools.hands[0] - 0.5).abs() < 1e-3);
+        let third = 0.5 / 3.0;
+        assert!((pools.body - (0.4 + third)).abs() < 1e-3, "{}", pools.body);
+        assert!((pools.head - (0.1 + third)).abs() < 1e-3, "{}", pools.head);
+        assert!((pools.legs[0] - third).abs() < 1e-3 && (pools.hands[0] - (0.2 + third)).abs() < 1e-3);
         run(&mut heal, &mut pools, 12_500, 3_000);
         assert_eq!(pools.body, 1.0);
+        assert!((pools.head - 0.4).abs() < 1e-3, "head clamped at 0.4");
         // 40 % of the pain since revision 40, no infection.
         assert!((pools.pain - 0.9).abs() < 1e-3, "{}", pools.pain);
         assert_eq!(pools.infection, 0.3);
@@ -825,11 +828,11 @@ mod tests {
         assert_eq!(heal2.toxic_factor(500), 1.0, "not yet");
         assert_eq!(heal2.toxic_factor(5_000), 0.5, "halved while active");
         assert_eq!(heal2.toxic_factor(11_500), 1.0, "over after 11 s");
+        // [A306] Its 0.5 spread over the 10 s: 0.05 a second; 3 s of it after the 1 s delay, then the whole course.
         run(&mut heal2, &mut pools, 0, 4_000);
-        assert!(
-            (pools.infection - 1.0).abs() < 1e-3,
-            "full in 2 s from 0.3 (1.5 s)"
-        );
+        assert!((pools.infection - 0.45).abs() < 1e-3, "{}", pools.infection);
+        run(&mut heal2, &mut pools, 4_000, 8_000);
+        assert!((pools.infection - 0.8).abs() < 1e-3, "{}", pools.infection);
         assert_eq!(pools.body, 0.4);
     }
 
