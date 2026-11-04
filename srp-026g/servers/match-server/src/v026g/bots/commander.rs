@@ -676,7 +676,29 @@ impl Bots {
             .filter(|b| b.team == team)
             .map(|b| b.place)
             .collect();
-        for pair in mates.chunks(2) {
+        // [A297 `tdm.group`] In Team Deathmatch, pairs by position (`group::pair`) instead of place order.
+        let by_position = tuning.tdm.group.filter(|_| !view.objective().has_homes());
+        if let Some(group) = by_position {
+            let members: Vec<group::Member> = mates
+                .iter()
+                .map(|&place| {
+                    let partner = self.bots.get(place).and_then(Option::as_ref).and_then(|b| b.partner);
+                    group::Member {
+                        place,
+                        feet: view.place(place).filter(|p| p.alive).map(|p| p.feet),
+                        partner,
+                        partner_died: partner.and_then(|p| view.deaths.iter().filter(|d| d.place == p).map(|d| d.time).max()),
+                    }
+                })
+                .collect();
+            for paired in group::pair(&members, now, group.keep_m.get()) {
+                if let Some(Some(bot)) = self.bots.get_mut(paired.place) {
+                    bot.partner = paired.partner;
+                    bot.paired = paired.mutual;
+                }
+            }
+        }
+        for pair in mates.chunks(2).filter(|_| by_position.is_none()) {
             match pair {
                 [a, b] => {
                     for (me, other) in [(*a, *b), (*b, *a)] {
@@ -741,6 +763,20 @@ impl Bots {
             .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
             .collect();
         self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
+        // [A297 `tdm.group`] The team's bots in a fight now (their reflex targets): their mates answer them (play 21's cover).
+        let fighting = if by_position.is_some() {
+            let targets: Vec<(Place, Place)> = self
+                .bots
+                .iter()
+                .flatten()
+                .filter(|b| b.team == team && view.place(b.place).is_some_and(|p| p.alive))
+                .filter_map(|b| b.reflex.target().map(|enemy| (b.place, enemy)))
+                .collect();
+            group::fighting(&targets, &self.teams[usize::from(team)].knowledge.fighting, now)
+        } else {
+            Vec::new()
+        };
+        self.teams[usize::from(team)].knowledge.fighting = fighting;
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots

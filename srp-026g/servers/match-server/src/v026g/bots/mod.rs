@@ -51,6 +51,7 @@ pub mod flight;
 pub mod foliage;
 pub mod friends;
 pub mod grass;
+pub mod group;
 pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;

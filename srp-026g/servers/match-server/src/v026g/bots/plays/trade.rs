@@ -13,6 +13,9 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::group::{Count, NotCover, count, cover_ok};
+use crate::v026g::bots::tactics::SpotQuery;
+use crate::v026g::bots::tuning::GroupUp;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // A death this recent is traded, seconds.
@@ -140,9 +143,47 @@ fn in_held_line(cx: &Ctx, at: Vec3) -> bool {
         && cx.team.threat.held.iter().any(|l| l.kills >= PROVEN_KILLS && l.covers(at))
 }
 
+/// [A297 `tdm.group`] The switch's rules in Team Deathmatch, none elsewhere or off.
+fn group(cx: &Ctx) -> Option<GroupUp> {
+    cx.tuning.tdm.group.filter(|_| !cx.view.objective().has_homes())
+}
+
+/// [A297 `tdm.group`] The partner whose fight this bot answers, if one is due: the partner is in a fight (the team's list),
+/// alive within `answer_m`, and this bot is in none itself. The enemy's place is the bot's own memory's ([`Ctx::known_place`]);
+/// not known, no cover (counted).
+fn partner_fight(cx: &Ctx, rules: &GroupUp) -> Option<Place> {
+    let partner = cx.bot.partner?;
+    let fight = cx.team.fighting.iter().find(|f| f.mate == partner)?;
+    if cx.team.fighting.iter().any(|f| f.mate == cx.me.place) {
+        return None;
+    }
+    let mate = cx.known_place(partner)?;
+    if mate.distance_xz(cx.me.feet) > rules.answer_m.get() {
+        count(Count::CoverFar);
+        return None;
+    }
+    if cx.known_place(fight.enemy).is_none() {
+        count(Count::CoverUnknown);
+        return None;
+    }
+    Some(partner)
+}
+
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
+    }
+    // [A297 `tdm.group`] The partner's fight, answered before his death; a running cover stays a candidate until its step
+    // ends it.
+    if let Some(rules) = group(cx) {
+        if let Some((PlayKind::Trade, target @ TargetRef::Place(_), _)) = cx.bot.current {
+            out.extend(cx.candidate(PlayKind::Trade, target, None));
+            return;
+        }
+        if let Some(partner) = partner_fight(cx, &rules) {
+            out.extend(cx.candidate(PlayKind::Trade, TargetRef::Place(partner), None));
+            return;
+        }
     }
     let reach = reach(cx.tuning, cx.bot.current.map(|(kind, _, _)| kind));
     if let Some((at, time)) = partner_death(cx)
@@ -167,37 +208,147 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    Trade { until: u32 },
+    /// A partner's death traded until `until`; [A297 `tdm.group`] from `from`, a cover spot round the death that sees the
+    /// killer's known place, instead of the body's spot.
+    Trade { until: u32, from: Option<Vec3> },
+    /// [A297 `tdm.group`] The partner `mate`'s fight with `enemy` covered from `spot` (a second bearing), until the fight has
+    /// been over `linger_s` (since `quiet_since`), or `until` at most.
+    Cover { mate: Place, enemy: Place, spot: Vec3, until: u32, quiet_since: Option<u32> },
+    /// [A297 `tdm.group`] No spot covered the partner's fight: the step gives the play up (set aside a while).
+    NoCover,
 }
 
-pub fn start(_target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
+pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
+    if let (Some(rules), TargetRef::Place(mate)) = (group(cx), target) {
+        return start_cover(cx, &rules, mate, rng);
+    }
     let s = rng.range(
         cx.num(PlayKind::Trade, "trade_min_s"),
         cx.num(PlayKind::Trade, "trade_max_s"),
     );
+    let from = match (group(cx), cx.point_of(target)) {
+        (Some(rules), Some(body)) => killer_near(cx, body).and_then(|killer| cover_spot(cx, &rules, body, killer, rng)),
+        _ => None,
+    };
     State::Trade {
         until: cx.now + (s * 1000.0) as u32,
+        from,
     }
+}
+
+/// The known enemy nearest `spot` within `killer_m`: the killer.
+fn killer_near(cx: &Ctx, spot: Vec3) -> Option<Vec3> {
+    cx.memory
+        .tracks()
+        .iter()
+        .filter(|t| t.at.distance_xz(spot) <= cx.num(PlayKind::Trade, "killer_m"))
+        .min_by(|a, b| a.at.distance_xz(spot).total_cmp(&b.at.distance_xz(spot)))
+        .map(|t| t.at)
+}
+
+/// [A297 `tdm.group`] A spot round `mate` (`min_m`..`max_m`) that sees `enemy`, from a second bearing, off fresh deaths and
+/// their lanes ([`cover_ok`]), outside the spawn areas: of the query's spots, the nearest to the bot.
+fn cover_spot(cx: &Ctx, rules: &GroupUp, mate: Vec3, enemy: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let query = SpotQuery {
+        sight_to: Some(enemy),
+        side: cx.bot.side,
+        ..SpotQuery::ring(mate, rules.min_m.get(), rules.max_m.get())
+    };
+    let spots = cx.tactics.spots(&query, cx.now, query.samples, rng);
+    let mut why = None;
+    let best = spots
+        .into_iter()
+        .map(|s| s.at)
+        .filter(|at| !cx.tactics.in_spawn_area(*at, None))
+        .filter(|at| match cover_ok(*at, mate, enemy, &cx.team.losses, cx.now, rules) {
+            Ok(()) => true,
+            Err(not) => {
+                why.get_or_insert(not);
+                false
+            }
+        })
+        .min_by(|a, b| a.distance_xz(cx.me.feet).total_cmp(&b.distance_xz(cx.me.feet)));
+    if best.is_none() {
+        count(match why {
+            Some(NotCover::InFile) => Count::OnlyInFile,
+            Some(NotCover::OnDeath | NotCover::InKilledLane) => Count::OnlyDeadLanes,
+            None => Count::NoSightSpot,
+        });
+    }
+    best
+}
+
+/// [A297 `tdm.group`] The cover of `mate`'s fight: its spot, picked once.
+fn start_cover(cx: &Ctx, rules: &GroupUp, mate: Place, rng: &mut Rng) -> State {
+    let found = cx.team.fighting.iter().find(|f| f.mate == mate).and_then(|f| {
+        let mate_at = cx.known_place(mate)?;
+        let enemy_at = cx.known_place(f.enemy)?;
+        cover_spot(cx, rules, mate_at, enemy_at, rng).map(|spot| (f.enemy, spot))
+    });
+    match found {
+        Some((enemy, spot)) => {
+            count(Count::CoverTaken);
+            State::Cover { mate, enemy, spot, until: cx.now + (rules.max_s.get() * 1000.0) as u32, quiet_since: None }
+        }
+        None => State::NoCover,
+    }
+}
+
+/// [A297 `tdm.group`] A cover's step: to the spot (run, then walk the last `walk_m`), the view on the enemy's known place;
+/// over when the mate died (his death is the next poll's trade), his fight has been over `linger_s`, or at `max_s`.
+fn step_cover(state: &mut State, cx: &Ctx) -> Step {
+    let Some(rules) = group(cx) else {
+        return Step::Failed("not grouping");
+    };
+    let State::Cover { mate, enemy, spot, until, quiet_since } = state else {
+        return Step::Failed("not a cover");
+    };
+    if cx.now >= *until {
+        return Step::Done("covered long enough");
+    }
+    if cx.known_place(*mate).is_none() {
+        return Step::Done("mate down");
+    }
+    let fighting = cx.team.fighting.iter().any(|f| f.mate == *mate);
+    if fighting {
+        *quiet_since = None;
+    } else {
+        let since = *quiet_since.get_or_insert(cx.now);
+        if cx.now.saturating_sub(since) >= (rules.linger_s.get() * 1000.0) as u32 {
+            return Step::Done("mate's fight over");
+        }
+    }
+    let look = Look::At(cx.known_place(*enemy).unwrap_or(*spot));
+    let d = cx.me.feet.distance_xz(*spot);
+    let reach = cx.num(PlayKind::Trade, "reach_m");
+    if d <= reach {
+        if fighting {
+            count(Count::CoverHeld);
+        }
+        return Step::Continue(Intent::stay().looking(look));
+    }
+    let pace = if d > rules.walk_m.get() { Pace::Run } else { Pace::Walk };
+    Step::Continue(Intent::to(*spot, pace).within(reach * 0.7).looking(look))
 }
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Trade, name);
-    let State::Trade { until } = state;
-    if cx.now >= *until {
+    let (until, from) = match state {
+        State::Trade { until, from } => (*until, *from),
+        State::Cover { .. } => return step_cover(state, cx),
+        State::NoCover => return Step::Failed("no spot covers the mate's fight"),
+    };
+    if cx.now >= until {
         return Step::Done("traded or broke off");
     }
-    let Some(spot) = cx.point_of(target) else {
+    let Some(body) = cx.point_of(target) else {
         return Step::Failed("no spot to trade on");
     };
-    // The killer: the known enemy nearest the spot.
-    let killer = cx
-        .memory
-        .tracks()
-        .iter()
-        .filter(|t| t.at.distance_xz(spot) <= num("killer_m"))
-        .min_by(|a, b| a.at.distance_xz(spot).total_cmp(&b.at.distance_xz(spot)))
-        .map(|t| t.at);
-    let look = Look::At(killer.unwrap_or(spot));
+    // [A297 `tdm.group`] From the cover spot when one was found, else on the body's spot.
+    let spot = from.unwrap_or(body);
+    // The killer: the known enemy nearest the body's spot.
+    let killer = killer_near(cx, body);
+    let look = Look::At(killer.unwrap_or(body));
     let d = cx.me.feet.distance_xz(spot);
     if d <= num("reach_m") {
         return Step::Continue(Intent::stay().looking(look));
