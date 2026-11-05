@@ -207,9 +207,9 @@ the new one, and recreate the container.
   and container recreates. A file is rotated to `<server>.log.1` (`.1`
   becomes `.2`, ...) at its server's size, and a number of files is kept,
   each server about two days at the heaviest logging seen (2026-11-01/02:
-  116-127 MB a day, about 95 % of it the match server's): match 32 x 8 MB,
-  lobby 8 x 4 MB, srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB, 316 MB in
-  all (`SERVERS` in `servers/srp/src/logger.rs`). A crash's logs: crash.txt's
+  116-127 MB a day, about 95 % of it the match server's), the lobby about
+  12 days (the balance refit's input): match 32 x 8 MB, lobby 16 x 4 MB,
+  srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB, 348 MB in all (`SERVERS` in `servers/srp/src/logger.rs`). A crash's logs: crash.txt's
   first line is the crash in UTC, as these lines are, and its `Match:` line
   names the match as `match.log` does (`Match 0x...`). Lines reach the file through an 8 KiB
   buffer: at once for a warning or an error, else with the first line a

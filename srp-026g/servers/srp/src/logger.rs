@@ -33,10 +33,12 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// Each server's file: its name, the size it is rotated at, and how many
 /// files of it are kept (`<server>.log`, `.1` ...). About two days of each
 /// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
-/// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web).
+/// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web);
+/// the lobby's about 12 days, the balance refit's input
+/// (scripts/balance-refit).
 const SERVERS: [(&str, u64, u32); 5] = [
     ("login", 2 << 20, 4),
-    ("lobby", 4 << 20, 8),
+    ("lobby", 4 << 20, 16),
     ("match", 8 << 20, 32),
     ("web", 2 << 20, 2),
     ("srp", 4 << 20, 4),
