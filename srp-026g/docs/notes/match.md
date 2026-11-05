@@ -803,6 +803,7 @@ saved worlds unless tagged.
   27 entries inside 550 ms; the server already redoes a resync world past the ring. 0.46c2's 125
   entries go with its longer history. So the ring is not what made the rollbacks of PR #1246 wrong.
   LIKELY (from the counts; the ring's own eviction was not read).
+
 ## 36. A spectator: a game in the match with no place (added 2026-11-05)
 
 `game/spectate.rs` (`Spectator`, `Watch`), `server.rs` (`connect_spectator`, `spectator_routes`); the watch is the lobby's (`session::Matchmaking::watch`, `docs/notes/queue-spectate.md`). Tests: `tests/spectate.rs`.
