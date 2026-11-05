@@ -188,6 +188,13 @@ Top-level sections (**PROVEN**):
 - `modifiers[levels]{<name>_modifier: value}`, using **modifier names, not ids**, and
   **fractions, not percents**;
 - `ui{position[col,row], name, description, icon, postfix, invert_sign, skill_descriptions}`.
+- **PROVEN** (exe `fill_skills_properties` 0x223a70): `branch` = id / 100 - 1; the
+  tooltip of rank r (0..levels) is `description` + d[r][0] + `postfix` + d[r][2],
+  and below the last rank + `st_current_value` + d[r][1] + `postfix` + d[r][3]
+  (no `postfix`: the description alone). `invert_sign` is read by nothing: the
+  strings carry their signs. The tabs' names: `st_{shooting,physical,survival,
+  engineering,anomaly}_skills_label` by branch (0x224828). The website's skills
+  page (`scripts/skills-tab/build.py`) shows them so.
 
 Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 
