@@ -479,6 +479,8 @@ survarium::game_world	pvp_match	0x4D4C	ptr<survarium::pvp_match>	the match's cor
 survarium::pvp_match	spatial_tree	0x130	ptr<survarium::spatial_tree>	the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
 survarium::pvp_match	core	0x1F8	obj<survarium::core_world>	the world core (game_world_core::move's argument, 0x1F7C2F; network_client::on_idle 0x27D084)
 survarium::match_options	seed	0x577B0	u32	the match seed: the inventory recipe's +14h (0x20289E)
+survarium::match_options	map	0x577B4	u8	the match's maps_dict id (its map and mode): match_options::deserialize 0x1F0EAD, the byte after the 20 profiles
+survarium::match_options	level	0x577B6	u16	the match's level: match_options::deserialize 0x1F0EDC, after the seed
 survarium::image	inventory_request	0x9FD55C	u32	"inventory", the path of the player cook's inventory request (class 41h, 0x2028ED)
 survarium::image	inventory_variant_vtable	0x9FD808	u32	the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
 vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>: +0 its manager | 1, +8 the functor {member, adjustment, object, padding} (0x27D280); late join keeps 20h for one
@@ -540,6 +542,7 @@ survarium::victory_item_status	size	0x100	size	a battery's record (on_event 0x33
 survarium::gather_victory_items_rule_core	items_begin	0x110	ptr<survarium::inventory_slot>	its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
 survarium::gather_victory_items_rule_core	items_end	0x114	ptr<survarium::inventory_slot>	the vector's end (0x313D70)
 survarium::match_place	team	0x45EC	u32	the place's team, 0 or 1 (on_event 0x334AE3, is_solo_delivery 0x334D28)
+survarium::match_place	is_local	0x45F0	u8	nonzero for the local player's place: process_static_match_info sets it by the message's local index (0x27BE5F, abi_inputs.tsv)
 scaleform::drawable_image_capture_notify	context	-0x8	obj<scaleform::drawable_image_context>	the DrawableImageContext this ContextCaptureNotify base is part of (context+8: OnNextCapture 0x572660's ECX, kept in ESI)
 scaleform::drawable_image_context	queue_lock	0x24	obj<windows::critical_section>	the lock of its queues' list (a Scaleform::Lock): Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) hold it for their link writes alone; the stock OnNextCapture (0x572660) and OnCapture (0x5744E0) walk the list without it
 scaleform::drawable_image_context	queues	0x40	obj<scaleform::di_queue_link>	its queues' list's end (the sentinel): its next (+4Ch) the first queue, its prev (+48h) the last (AddCaptureNotify 0x5726B0 appends there)

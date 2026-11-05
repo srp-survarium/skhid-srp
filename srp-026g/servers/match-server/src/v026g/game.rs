@@ -3526,12 +3526,9 @@ impl Game {
             let oldest = clock.saturating_sub(INPUT_MAX_AGE_MS);
             peer.inputs_seen.retain(|seen| *seen >= oldest);
         }
-        // Client patch 85: a pickup naming no other place of the match. The
+        // Client patch 85: a pickup naming no place of the match. The
         // client never sends one (`weapon_pickup::sane`, its twin).
-        let pickup_sane = u8::try_from(index)
-            .ok()
-            .and_then(weapon_pickup::Place::new)
-            .is_some_and(|sender| weapon_pickup::sane(input.actions, sender, places));
+        let pickup_sane = weapon_pickup::sane(input.actions, places);
         if !input.rotation_is_sane() || !pickup_sane {
             // Relayed, it would be in every client's world for good
             // (`PlayerInput::rotation_is_sane`). Its owner drops it as it

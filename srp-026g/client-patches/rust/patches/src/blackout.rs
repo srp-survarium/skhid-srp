@@ -27,6 +27,7 @@
 
 #![forbid(unsafe_code)]
 
+use crate::vostok::breadcrumbs::{self, Crumb};
 use crate::vostok::{clock, parse::Reader};
 use crate::vostok::{
     ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NameVisibility, NoExit, OptionsRead,
@@ -136,11 +137,12 @@ pub fn forced(thread: &Thread) -> bool {
     BLACKOUT.get(thread)
 }
 
-fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
+fn options_read(thread: &Thread, read: Option<OptionsRead>, replay: bool) -> Flow<NoExit> {
     let mut on = false;
     if let Some(mut read) = read {
         on = blackout_in(read.rest());
         read.set_blackout_mark(on);
+        breadcrumbs::record(thread, Crumb::Match { replay, context: read.context(on) });
     }
     BLACKOUT.set(thread, on);
     TAB.set(thread, TabState::Up);
@@ -154,12 +156,12 @@ fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
 
 /// process_static_match_info after its deserialize (0x27B92D).
 pub fn on_static_info(ctx: &mut Context) -> Flow<NoExit> {
-    options_read(ctx.thread(), OptionsRead::at_static_info(ctx))
+    options_read(ctx.thread(), OptionsRead::at_static_info(ctx), false)
 }
 
 /// A replay's chunk 1 after its deserialize (0x1F0971).
 pub fn on_replay_options(ctx: &mut Context) -> Flow<NoExit> {
-    options_read(ctx.thread(), OptionsRead::at_replay(ctx))
+    options_read(ctx.thread(), OptionsRead::at_replay(ctx), true)
 }
 
 /// `movie` told `root.force_interface_hidden(forced)` when it is another
