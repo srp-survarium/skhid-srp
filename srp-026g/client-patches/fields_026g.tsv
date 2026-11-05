@@ -682,3 +682,6 @@ vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E
 survarium::player_input_handler	fov_factor	0x94	f32	the look's factor of the aimed weapon's zoom, on both axes (on_mouse_move 0x24025A, 0x24026C: x the option sensitivity x 0.1 is the yaw's step s)
 survarium::mouse_move_frame	handler	0x18	ptr<survarium::player_input_handler>	on_mouse_move's local [esp+18h] (0x24021C): the handler (by the site's ESP at mouse.pitch_step, the window-size calls popped)
 survarium::mouse_move_frame	horizontal	0x28	f32	its local [esp+28h] (0x240289): the yaw's step s, the handler's +94h x the option sensitivity 0xA74AEC x 0.1
+survarium::player_input_handler	mode	0x358	u32	its input mode: 0 first person (the turn is the player's input), 3 the warmup camera before the start (process_warmup_mode 0x242200 adds the turn to its own yaw and pitch +34Ch/+350h, radians), 4 a spectator (on_mouse_move 0x240214 turns nothing)
+survarium::player_input_handler	game_world	0x334	ptr<survarium::game_world>	its game world (on_mouse_move 0x2402B2, process_first_person_mode 0x2410F8)
+survarium::player	look_pitch	0x48C	f32	the look pitch, -1 (down) to 1 (up): weapon_core::look_pitch 0x2E0F60 adds the kick and scrubs the look clips at (pitch + 1) / 2 (0x2FBF90); bone Item turns 67.5 deg a unit below 0, 60 above (on_site_camera_look)

@@ -22,8 +22,8 @@ button and the wheel without a button are the cursor's, as in the
 original; a left press that moves little is the cursor's (a click); past
 that, or with the lobby's buttons at once, a drag takes the hud's pointer
 off the screen, gives the player's handler nothing, and turns a yaw and a
-pitch by the player's look's step (the mouse's sensitivity, a 4:3 window's
-height over its width at every window, an inverted mouse), within 70 degrees to either side,
+pitch by the player's look's step (the mouse's sensitivity, the pitch's
+radians a count the yaw's since patch 110, an inverted mouse), within 70 degrees to either side,
 60 up and 40 down; the wheel in a drag changes nothing; the first move after it puts the cursor
 back where the drag began. A live player, a dead one in another mode (the
 warmup's before the start: patch 31's drag; a spectator's), the kits
@@ -137,9 +137,7 @@ def expected_turn(turn, x, y, invert=0, sensitivity=1.0, vertical=None):
     sensitivity the option's, or patch 110's vertical one when it is on."""
     yaw, pitch = turn
     k = f32(f32(sensitivity) * f32(math.pi / 180 * 0.1))
-    kp = k if vertical is None else f32(f32(vertical) * f32(math.pi / 180 * 0.1))
-    v = f32(kp * f32(0.75))                   # a 4:3 window's height over its width (patch 110)
-    v = f32(v * f32(0.95492965))
+    v = k if vertical is None else f32(f32(vertical) * f32(math.pi / 180 * 0.1))   # the pitch's radians the yaw's (patch 110)
     if invert:
         v = -v
     yaw = maxss(minss(f32(yaw - f32(f32(x) * k)), YAW_MAX), -YAW_MAX)

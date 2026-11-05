@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Patch 110 (the Rust patch mouse_pitch, rust/patches/src/mouse_pitch.rs): the
-mouse look's pitch is a 4:3 window's at every window, with "Separate vertical
+mouse look's pitch turns as its yaw at every window, with "Separate vertical
 sensitivity" (client_patch.md section 3.69, ../docs/notes/mouse-pitch.md).
 
     python check_mouse_pitch_026g.py <original survarium.exe>
@@ -18,21 +18,24 @@ translate_text the key's English text, game::save_user_config counted):
   root.srp_check_option(name, label, saved) / root.srp_slider_option(name,
   label, saved hundredths); the original answers nothing;
 - player_input_handler::on_mouse_move (0x240200) from its start to the wheel's
-  store (0x2403E7) on a made-up handler (+334h the game world, +9Ch the game,
-  +5348h the render window: vtable+1Ch stubbed, the window's w and h as
-  floats, thiscall, `ret 4`); the half-float pack (0xF65A0) the game's own, its
-  argument recorded: the new yaw (the first call) and the new pitch (the
-  second) from a turn of 0. At nine windows (4:3 to 32:9), modes 0 and 3, an
-  inverted mouse, sensitivities and an aimed fov factor (+94h):
-  - off: the yaw the same float in both exes; the original's pitch h / w of
-    the 4:3 one's, the build's the original's 4:3 one bit for bit (pitch
-    radians / yaw radians 0.75 up, 0.84375 down at every window);
+  store (0x2403E7) on a made-up handler (+358h its mode, +334h the game world,
+  +9Ch the game, +53ACh its network client, +4 the local player, +48Ch its
+  look pitch; +5348h the render window: vtable+1Ch stubbed, the window's w and
+  h as floats, thiscall, `ret 4`); the half-float pack (0xF65A0) the game's
+  own, its argument recorded: the new yaw (the first call) and the new pitch
+  (the second) from a turn of 0. At nine windows (4:3 to 32:9), the look
+  pitch up and down (and no local player), the warmup's mode 3, an inverted
+  mouse, sensitivities and an aimed fov factor (+94h):
+  - off: the yaw the same float in both exes; the build's pitch the same at
+    every window, and a count's pitch radians the yaw's to float precision:
+    the units x 60 degrees up, x 67.5 down (the look clip
+    on_site_camera_look), radians in the warmup's orbit;
   - on, the vertical value the option sensitivity's: the build's off, bit for
-    bit;
-  - on, another vertical value: the yaw as off; the pitch the build's off at
-    an option sensitivity of that value (the aim's factor kept);
+    bit; on, another vertical value: the yaw as off, the pitch the build's
+    off at an option sensitivity of that value (the aim's factor kept);
   - mode 4 (a spectator's): no turn in either.
-Says nothing about the render window's real size or the look clip.
+Says nothing about the render window's real size; the look clip is decoded
+in ../docs/notes/mouse-pitch.md.
 """
 import math
 import struct
@@ -50,16 +53,23 @@ SENSITIVITY, INVERT, JOURNAL = 0xA74AEC, 0x1F1D9D3, 0xA8394C
 CC_BOOL_VTABLE, CC_FLOAT_VTABLE = 0x9E7C4C, 0x9E7C6C
 OBJECTS = 0x40000000
 HANDLER, WORLD, GAME, RENDER, RVT = (OBJECTS + 0x1000 * i for i in range(5))
+CLIENT, PLAYER = OBJECTS + 0x9000, OBJECTS + 0xA000
 SIZE_STUB, RETURN = OBJECTS + 0x8000, OBJECTS + 0x8010
 SP = OBJECTS + 0xF000
 WINDOWS = (("4:3", 1024, 768), ("4:3", 1600, 1200), ("5:4", 1280, 1024), ("16:10", 1680, 1050),
            ("16:9", 1920, 1080), ("16:9", 1366, 768), ("21:9", 2560, 1080), ("21:9", 3440, 1440),
            ("32:9", 5120, 1440))
-# (mode, x, y, invert, option sensitivity in hundredths, the handler's +94h)
-MOVES = ((0, 1, 1, 0, 100, 1.0), (0, 7, -3, 0, 100, 1.0), (0, -40, 25, 1, 100, 1.0), (0, 13, 9, 0, 37, 1.0),
-         (0, 5, -11, 0, 100, 0.25), (3, 12, 6, 0, 100, 1.0), (0, 3, 8, 0, 1000, 0.8333333))
+# (mode, x, y, invert, option sensitivity in hundredths, the handler's +94h, the look pitch: None no local player)
+MOVES = ((0, 1, 1, 0, 100, 1.0, 0.4), (0, 1, 1, 0, 100, 1.0, -0.4), (0, 7, -3, 0, 100, 1.0, 0.0),
+         (0, -40, 25, 1, 100, 1.0, -0.9), (0, 13, 9, 0, 37, 1.0, 0.7), (0, 5, -11, 0, 100, 0.25, -0.2),
+         (3, 12, 6, 0, 100, 1.0, 0.3), (0, 3, 8, 0, 1000, 0.8333333, -1.0), (0, 2, 5, 0, 250, 1.0, None))
 VERTICALS = (1, 50, 200, 735, 1000)          # other vertical values, in hundredths
-UP, DOWN = math.pi / 3, 3 * math.pi / 8       # radians of view a look-pitch unit, up and down
+UP, DOWN = math.pi / 3, 3 * math.pi / 8       # radians of view a look-pitch unit, up and down (on_site_camera_look)
+
+
+def unit(mode, look):
+    """A look-pitch unit's radians: the warmup's orbit a radian, the first person's by the look pitch's side."""
+    return 1.0 if mode == 3 else DOWN if look is not None and look < 0 else UP
 LABELS = {"st_srp_mouse_split_option": "Separate vertical sensitivity",
           "st_srp_mouse_vertical_option": "Vertical sensitivity"}
 language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
@@ -105,17 +115,20 @@ class Run(language.Run):
             node = self.read(node + 0x0C)
         return out
 
-    def move(self, window, mode, x, y, invert, sensitivity, factor):
+    def move(self, window, mode, x, y, invert, sensitivity, factor, look):
         """One move: the pack's floats (the new yaw, the new pitch), the window
         size's calls and where it stopped."""
         emu = self.emu
-        emu.mem_write(OBJECTS, bytes(0x8000))
+        emu.mem_write(OBJECTS, bytes(0xE000))
         emu.mem_write(SIZE_STUB, b"\xcc")
         emu.mem_write(RETURN, b"\xcc")
         self.word(HANDLER + 0x358, mode)
         emu.mem_write(HANDLER + 0x94, struct.pack("<f", factor))
         self.word(HANDLER + 0x334, WORLD)
         self.word(WORLD + 0x9C, GAME)
+        self.word(GAME + 0x53AC, CLIENT)
+        self.word(CLIENT + 4, PLAYER if look is not None else 0)
+        emu.mem_write(PLAYER + 0x48C, struct.pack("<f", look or 0.0))
         self.word(GAME + 0x5348, RENDER)
         self.word(RENDER, RVT)
         self.word(RVT + 0x1C, SIZE_STUB)
@@ -183,29 +196,28 @@ def main():
     def at(name_w_h):
         return float(name_w_h[1]), float(name_w_h[2])
 
-    # off: a 4:3 window's pitch at every window
+    # off: a count's pitch radians the yaw's at every window
     for move in MOVES:
-        mode, x, y, invert, sensitivity, factor = move
-        reference = run(old, (1024.0, 768.0), *move)
+        mode, x, y, invert, sensitivity, factor, look = move
+        reference = run(new, (1024.0, 768.0), *move)
         for window in WINDOWS:
             name, w, h = window
             (o_yaw, o_pitch), (n_yaw, n_pitch) = run(old, at(window), *move), run(new, at(window), *move)
             case = (name, w, h, move)
             assert bits(o_yaw) == bits(n_yaw) and bits(n_pitch) == bits(reference[1]), case
-            ratio = struct.unpack("<f", struct.pack("<f", h / w))[0] / 0.75
-            assert abs(o_pitch - reference[1] * ratio) <= 1e-6 * abs(reference[1]), (case, o_pitch, reference)
             yaw_rad = abs(n_yaw / x)
-            n_up, o_up = abs(n_pitch / y) * UP / yaw_rad, abs(o_pitch / y) * UP / yaw_rad
-            assert abs(n_up - 0.75) < 1e-5 and abs(abs(n_pitch / y) * DOWN / yaw_rad - 0.84375) < 1e-5, (case, n_up)
-            if mode == 0 and (x, y) == (1, 1):
-                print(f"   {name:>5} {w}x{h}: yaw {yaw_rad:.9f} rad/count; pitch / yaw, up: "
-                      f"original {o_up:.4f}, build {n_up:.4f} (down x 1.125)")
-        print(f"ok off: mode {mode}, move ({x}, {y}), invert {invert}, sensitivity {sensitivity / 100}, factor {factor}: "
-              f"the yaw as before, the pitch the 4:3 window's at all {len(WINDOWS)} windows")
+            n_rad, o_rad = abs(n_pitch / y) * unit(mode, look), abs(o_pitch / y) * unit(mode, look)
+            assert abs(n_rad / yaw_rad - 1) < 1e-6, (case, n_rad, yaw_rad)
+            assert (n_pitch < 0) == ((y > 0) != bool(invert)), (case, n_pitch)      # down a positive y, inverted up
+            if (x, y) == (1, 1):
+                print(f"   {name:>5} {w}x{h}, look pitch {look:+.1f}: yaw {yaw_rad:.9f} rad/count; pitch / yaw: "
+                      f"original {o_rad / yaw_rad:.4f}, build {n_rad / yaw_rad:.7f}")
+        print(f"ok off: mode {mode}, move ({x}, {y}), invert {invert}, sensitivity {sensitivity / 100}, factor {factor}, "
+              f"look pitch {look}: the yaw as before, a count's pitch radians the yaw's at all {len(WINDOWS)} windows")
 
     # on: the vertical value the option's is off; another turns the pitch alone
     for move in MOVES:
-        mode, x, y, invert, sensitivity, factor = move
+        mode, x, y, invert, sensitivity, factor, look = move
         new.callback("srp_mouse_split", "0")
         off = {window: run(new, at(window), *move) for window in WINDOWS}
         new.callback("srp_mouse_split", "1")
@@ -214,19 +226,19 @@ def main():
             assert [bits(v) for v in run(new, at(window), *move)] == [bits(v) for v in off[window]], (window, move)
         for other in VERTICALS:
             new.callback("srp_mouse_split", "0")
-            as_option = run(new, (1920.0, 1080.0), mode, x, y, invert, other, factor)
+            as_option = run(new, (1920.0, 1080.0), mode, x, y, invert, other, factor, look)
             new.callback("srp_mouse_split", "1")
             new.callback("srp_mouse_vertical", str(other))
             for window in WINDOWS:
                 yaw, pitch = run(new, at(window), *move)
                 assert bits(yaw) == bits(off[window][0]) and bits(pitch) == bits(as_option[1]), (window, move, other)
-        print(f"ok on: mode {mode}, move ({x}, {y}), sensitivity {sensitivity / 100}, factor {factor}: the vertical "
-              f"value the option's is off bit for bit; {len(VERTICALS)} others turn the pitch alone, as that option "
-              "would")
+        print(f"ok on: mode {mode}, move ({x}, {y}), sensitivity {sensitivity / 100}, factor {factor}, look pitch {look}: "
+              f"the vertical value the option's is off bit for bit; {len(VERTICALS)} others turn the pitch alone, as "
+              "that option would")
     new.callback("srp_mouse_split", "0")
 
     for r, which in ((old, "the original"), (new, "the build")):
-        packed, sizes, stopped = r.move((1920.0, 1080.0), 4, 9, 9, 0, 100, 1.0)
+        packed, sizes, stopped = r.move((1920.0, 1080.0), 4, 9, 9, 0, 100, 1.0, 0.0)
         expect(packed == [] and sizes == 0 and stopped == RETURN, f"{which}: mode 4 (a spectator's) turns nothing")
 
 

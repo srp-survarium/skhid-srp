@@ -72,7 +72,6 @@ ORG CAVE
 %define AWAY        -128           ; the hud's pointer in a drag
 %define SENSITIVITY 0xA74AEC       ; the option sensitivity, a float (0x24026C)
 %define INVERT      0x1F1D9D3      ; the option mouse_invertion, a byte (0x240226)
-%define FOUR_THREE  0xA2D728       ; 0.75 (.rdata), the look's height over width (MOUSE_PITCH)
 %define DEATH_VIEW_OFFSET 0x200   ; death_view's place in the section
 %define UPDATE      0x2422B0       ; the view's update (the handler, the transform; ret 8)
 %define THIRD       0x2422DE       ; its step for the modes but 0 and 4
@@ -154,9 +153,7 @@ death_look:
     je .pitched
     call [pitch_entry]
 .pitched:
-    mulss xmm1, [step]
-    mulss xmm1, [FOUR_THREE]        ; a 4:3 window's height over its width, as the look's (patch 110)
-    mulss xmm1, [aspect]
+    mulss xmm1, [step]              ; the pitch's radians a count the yaw's (patch 110)
     cmp byte [INVERT], 0
     je .upright
     movd eax, xmm1
@@ -173,7 +170,7 @@ death_look:
     mov eax, [edi+8]
     test eax, eax
     jz .taken
-    cvtsi2ss xmm2, eax              ; pitch -= y * the pitch's step * 0.75 * 0.955 (inverted: +)
+    cvtsi2ss xmm2, eax              ; pitch -= y * the pitch's step (inverted: +)
     mulss xmm2, xmm1
     movss xmm3, [STATE+S_PITCH]
     subss xmm3, xmm2
@@ -198,7 +195,6 @@ death_look:
 align 4, db 0xcc
 pitch_entry: dd 0                   ; patch 110's mouse_pitch_on_death_pitch (DEATH_CAMERA_PITCH: the build writes it)
 step:   dd 0.0017453292             ; pi / 180 * 0.1 (0x2402F1: 1/180, pi, 0.1)
-aspect: dd 0.95492965               ; 0xA2DAC4
 yaw_max:    dd 1.2217305            ; 70 degrees to either side of the face
 yaw_min:    dd -1.2217305
 pitch_up:   dd 1.0471976            ; 60 degrees up (above the brow: the head)

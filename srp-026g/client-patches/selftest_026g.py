@@ -3925,14 +3925,14 @@ def test_death_camera(original, image, before):
     # The code.
     code = open(P.death_camera_bin(), "rb").read()
     data_at = code.index(struct.pack("<f", math.pi / 180 * 0.1))
-    step_value, aspect, yaw_max, yaw_min, pitch_up, pitch_down = struct.unpack_from("<6f", code, data_at)
-    identity_at = (data_at + 24 + 15) // 16 * 16
+    step_value, yaw_max, yaw_min, pitch_up, pitch_down = struct.unpack_from("<5f", code, data_at)
+    identity_at = (data_at + 20 + 15) // 16 * 16
     identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
     limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
     pitch_slot = death_va + P.DEATH_CAMERA_PITCH
     parts = ((0, data_at, ["call [eax+0x30]", f"call [dword {pitch_slot:#x}]", f"call {drag_end:#x}"], ["ret 0x10"],
-              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, P.MOUSE_PITCH_ASPECT, pitch_slot, state, state + 4}
-              | {death_va + data_at + 4 * i for i in range(6)}),
+              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, pitch_slot, state, state + 4}
+              | {death_va + data_at + 4 * i for i in range(5)}),
              (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
               {state, state + 4}))
     built = image.read(death_va, len(code))
@@ -3940,7 +3940,7 @@ def test_death_camera(original, image, before):
     good = built[:P.DEATH_CAMERA_PITCH] + bytes(4) + built[P.DEATH_CAMERA_PITCH + 4:] == code and limits \
         and code[P.DEATH_CAMERA_PITCH:P.DEATH_CAMERA_PITCH + 4] == bytes(4) and P.ARENA_VA <= pitch_entry < P.ARENA_VA + P.ARENA_LIMIT \
         and code[identity_at:identity_at + 64] == identity \
-        and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
+        and set(code[data_at + 20:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
     for begin, end, calls, rets, exits, absolute in parts:
         listing = ndisasm(code[begin:end], death_va + begin)
         starts = {address for address, _, _ in listing}
@@ -3966,15 +3966,14 @@ def test_death_camera(original, image, before):
         == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
     check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
           and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
-          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
+          and abs(step_value - math.pi / 180 * 0.1) < 1e-9,
           f"the code at {death_va:#x} (.srpc) is death_camera_026g.section.bin ({len(code)} bytes): death_look "
           f"begins with warmup_look's test of the kits, leaves to warmup_look ({P.WARMUP_LOOK_VA:#x}) alone, "
           "calls the hud's pointer (vtable+30h), patch 110's pitch entry through its dword (the build's, in .srpx) "
           "and the end of a drag (not the window's size), keeps the "
           f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
-          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion, the look's 0.75 "
-          f"({P.MOUSE_PITCH_ASPECT:#x}, patch 110) and its two constants (pi/180 "
-          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
+          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its step "
+          "(pi/180 x 0.1: patch 110's pitch the yaw's) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
           "the view's update or its third-person step after the update's own start, which it gives the "
           "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
           "instruction; `ret 10h` and `ret 8`")
@@ -5086,7 +5085,7 @@ def test_grenade_ccd(original, image, before):
 
 
 def test_mouse_pitch(original, image, before):
-    """Check 110: the mouse look's pitch is a 4:3 window's at every window, with
+    """Check 110: the mouse look's pitch turns as its yaw at every window, with
     "Separate vertical sensitivity" (patch 110, the Rust patch mouse_pitch;
     ../docs/notes/mouse-pitch.md).
     check_mouse_pitch_026g.py runs on_mouse_move at 4:3, 16:9 and 21:9."""
@@ -5115,9 +5114,6 @@ def test_mouse_pitch(original, image, before):
     target = branch_target(jump[0]) if jump else None
     check(target is not None and jump[0].startswith("jmp") and P.ARENA_VA <= target < P.ARENA_VA + P.ARENA_LIMIT,
           f"{va:#x}: a jump into the arena (.srpx) here")
-    check(f32(stock, P.MOUSE_PITCH_ASPECT) == 0.75 == f32(image, P.MOUSE_PITCH_ASPECT)
-          and 0x870000 <= P.MOUSE_PITCH_ASPECT < 0x870000 + 2021888,
-          f"{P.MOUSE_PITCH_ASPECT:#x} is a 0.75 of .rdata (read-only, the death camera's 4:3), the same in the build")
     under = lambda source: [v for kind, v in source.relocations().values() if kind == 3 and va - 3 <= v < va + size]
     check(not under(stock) and not under(image), "no base relocation is under the site, in the original or the build")
     hits = [h for h in aimed_inside(original, va, size, 0x82) if not va <= h < va + size

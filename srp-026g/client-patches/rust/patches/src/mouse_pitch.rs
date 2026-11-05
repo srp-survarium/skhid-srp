@@ -9,26 +9,34 @@
 //!   `srp_mouse_split` answers `root.srp_check_option(name, label, saved)`,
 //!   `srp_mouse_vertical` answers `root.srp_slider_option(name, label,
 //!   saved hundredths)`, each saving its argument first (user.cfg at once);
-//! - on_mouse_move's pitch step (`mouse.pitch_step`): the window's h / w is a
-//!   4:3 window's 0.75 at every window, and the step's sensitivity the
-//!   [`Pitch`]'s;
+//! - on_mouse_move's pitch step (`mouse.pitch_step`): the window's h / w
+//!   becomes the factor that makes a count's pitch radians the yaw's, looking
+//!   up and looking down ([`View`]), and the step's sensitivity the [`Pitch`]'s;
 //! - patch 46's death camera asks the pitch's sensitivity
-//!   (`mouse.death_pitch`): the same [`Pitch`].
+//!   (`mouse.death_pitch`): the same [`Pitch`], its radians the yaw's.
 //!
-//! Off, every window turns as a 4:3 one did, bit for bit; on with the
-//! vertical value equal to the option sensitivity, the same. The input
+//! Off, the pitch turns as the yaw does at every window; on with the vertical
+//! value equal to the option sensitivity, the same bit for bit. The input
 //! carries the turn: nothing a match computes.
 
 #![forbid(unsafe_code)]
 
 use core::ffi::CStr;
 
-use crate::vostok::mouse::{DeathPitch, PitchStep};
+use crate::vostok::mouse::{DeathPitch, PitchStep, View};
 use crate::vostok::settings::{ConsoleBool, ConsoleFloat, OptionsCall, save_user_config};
 use crate::vostok::{Context, Flow, MousePitchOnOptionsCallExit, NoExit, Thread};
 
-/// A 4:3 window's height over its width: the pitch's h / w at every window.
-pub const FOUR_THREE: f32 = 0.75;
+/// The pitch step's factor in place of h / w that makes a count's pitch
+/// radians the yaw's: a unit is 60 degrees of view up (pi/3: the step x 3/pi
+/// x pi/3), 67.5 down (60 / 67.5), a radian in the warmup's orbit (pi/3).
+pub fn factor(view: View) -> f32 {
+    match view {
+        View::Up => 1.0,
+        View::Down => 60.0 / 67.5,
+        View::Orbit => core::f32::consts::FRAC_PI_3,
+    }
+}
 
 /// The yaw's step's factor of the option sensitivity (0x921948, 0.1).
 const TENTH: f32 = 0.1;
@@ -128,16 +136,16 @@ impl Pitch {
         if SPLIT.get(thread) { Pitch::Split(Sensitivity::of(VERTICAL.get(thread))) } else { Pitch::Same }
     }
 
-    /// The pitch's step before the invert and 3/pi: a 4:3 window's h / w x
-    /// the pitch's s, the yaw's step s (`Same`) or the handler's fov factor x
-    /// the vertical sensitivity x 0.1 (`Split`), in the game's order, so a
+    /// The pitch's step before the invert and 3/pi: the view's factor x the
+    /// pitch's s, the yaw's step s (`Same`) or the handler's fov factor x the
+    /// vertical sensitivity x 0.1 (`Split`), in the game's order, so a
     /// vertical value equal to the option sensitivity is `Same` bit for bit.
-    pub fn step(self, horizontal: f32, fov_factor: f32) -> f32 {
+    pub fn step(self, view: View, horizontal: f32, fov_factor: f32) -> f32 {
         let s = match self {
             Pitch::Same => horizontal,
             Pitch::Split(vertical) => fov_factor * vertical.get() * TENTH,
         };
-        FOUR_THREE * s
+        factor(view) * s
     }
 
     /// The death camera's: the option sensitivity it loaded (`Same`) or the
@@ -198,7 +206,7 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<MousePitchOnOptionsCallExi
 pub fn on_pitch_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let pitch = Pitch::now(ctx.thread());
     let Some(step) = PitchStep::at(ctx) else { return Flow::Continue };
-    let value = pitch.step(step.horizontal(), step.fov_factor());
+    let value = pitch.step(step.view(), step.horizontal(), step.fov_factor());
     step.set(value);
     Flow::Skip
 }
@@ -253,21 +261,35 @@ mod tests {
             for fov_factor in [1.0f32, 0.25, 0.8333333, 0.6, 1.0 / 1.2] {
                 // the game's yaw step, as 0x24026C..0x24027C makes it
                 let horizontal = fov_factor * sensitivity * TENTH;
-                let same = Pitch::Same.step(horizontal, fov_factor);
-                let split = Pitch::Split(Sensitivity::of(sensitivity)).step(horizontal, fov_factor);
-                assert_eq!(same.to_bits(), split.to_bits(), "{n} {fov_factor}");
-                assert_eq!(same.to_bits(), (0.75 * horizontal).to_bits());
+                for view in [View::Up, View::Down, View::Orbit] {
+                    let same = Pitch::Same.step(view, horizontal, fov_factor);
+                    let split = Pitch::Split(Sensitivity::of(sensitivity)).step(view, horizontal, fov_factor);
+                    assert_eq!(same.to_bits(), split.to_bits(), "{n} {fov_factor} {view:?}");
+                }
+                assert_eq!(Pitch::Same.step(View::Up, horizontal, fov_factor).to_bits(), horizontal.to_bits());
                 assert_eq!(Pitch::Split(Sensitivity::of(sensitivity)).sensitivity(sensitivity).to_bits(),
                            Pitch::Same.sensitivity(sensitivity).to_bits());
             }
         }
     }
 
+    /// A count's pitch radians are the yaw's: the step x 3/pi (0xA2DAC4) is
+    /// look-pitch units, a unit 60 degrees up, 67.5 down, a radian in the orbit.
+    #[test]
+    fn a_counts_pitch_radians_are_the_yaws() {
+        let three_over_pi = 3.0 / core::f64::consts::PI;
+        for (view, radians) in [(View::Up, 60f64.to_radians()), (View::Down, 67.5f64.to_radians()), (View::Orbit, 1.0)] {
+            let s = 0.1f32;
+            let pitch = f64::from(Pitch::Same.step(view, s, 1.0)) * three_over_pi * radians;
+            assert!((pitch / f64::from(s) - 1.0).abs() < 1e-6, "{view:?} {pitch}");
+        }
+    }
+
     #[test]
     fn split_scales_the_pitch_alone() {
         let horizontal = 1.0f32 * 1.0 * TENTH;
-        let double = Pitch::Split(Sensitivity::of(2.0)).step(horizontal, 1.0);
-        assert_eq!(double, 0.75 * (2.0f32 * TENTH));
+        let double = Pitch::Split(Sensitivity::of(2.0)).step(View::Up, horizontal, 1.0);
+        assert_eq!(double, 2.0f32 * TENTH);
         assert_eq!(Pitch::Split(Sensitivity::of(2.0)).sensitivity(1.0), 2.0);
         assert_eq!(Sensitivity::of(f32::NAN).get(), LEAST);
         assert_eq!(Sensitivity::of(20.0).get(), LEAST);

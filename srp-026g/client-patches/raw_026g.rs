@@ -346,6 +346,33 @@ impl PlayerInputHandler {
     pub unsafe fn fov_factor(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x94).cast::<f32>().as_ptr() }
     }
+
+    /// +0x358 (u32): its input mode: 0 first person (the turn is the player's input), 3 the warmup camera before the start (process_warmup_mode 0x242200 adds the turn to its own yaw and pitch +34Ch/+350h, radians), 4 a spectator (on_mouse_move 0x240214 turns nothing)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x358).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x334 (ptr<survarium::game_world>): its game world (on_mouse_move 0x2402B2, process_first_person_mode 0x2410F8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game_world(self) -> Option<GameWorld> {
+        unsafe { self.0.byte_add(0x334).cast::<Option<GameWorld>>().read_volatile() }
+    }
+
+    /// +0x334 (ptr<survarium::game_world>): its game world (on_mouse_move 0x2402B2, process_first_person_mode 0x2410F8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game_world(self, value: Option<GameWorld>) {
+        unsafe { self.0.byte_add(0x334).cast::<Option<GameWorld>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::game_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -1005,6 +1032,15 @@ impl Player {
     #[inline(always)]
     pub unsafe fn set_character_controller(self, value: Option<BtCharacterController>) {
         unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().write_volatile(value) }
+    }
+
+    /// +0x48c (f32): the look pitch, -1 (down) to 1 (up): weapon_core::look_pitch 0x2E0F60 adds the kick and scrubs the look clips at (pitch + 1) / 2 (0x2FBF90); bone Item turns 67.5 deg a unit below 0, 60 above (on_site_camera_look)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn look_pitch(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x48c).cast::<f32>().as_ptr() }
     }
 }
 

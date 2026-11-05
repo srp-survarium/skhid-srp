@@ -544,12 +544,13 @@ Patches:
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
   grenade's 0.05 m capsule, so the capsule stops at the surface it hits
   instead of 4 cm into it. A simulation change;
-- the mouse look's pitch is a 4:3 window's at every window, with an
-  option "Separate vertical sensitivity" (patch 110, the Rust patch
-  mouse_pitch; docs/notes/mouse-pitch.md): on_mouse_move's height over
-  width (0x2402E9) is the 0.75 of .rdata, and its sensitivity the vertical
-  slider's when the option is on; the death camera's (patch 46) too. The
-  input carries the turn: nothing a match computes;
+- the mouse look's pitch turns as its yaw at every window, with an option
+  "Separate vertical sensitivity" (patch 110, the Rust patch mouse_pitch;
+  docs/notes/mouse-pitch.md): on_mouse_move's height over width (0x2402E9)
+  becomes the factor that makes a count's pitch radians the yaw's, up and
+  down, and its sensitivity the vertical slider's when the option is on;
+  the death camera's (patch 46) too. The input carries the turn: nothing a
+  match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md).
@@ -1177,7 +1178,7 @@ DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK
 # `.turn` calls with XMM1 the option sensitivity and which gives the pitch's
 # (the option's, or "Vertical sensitivity"); without the arena the call is
 # skipped, the option's kept.
-DEATH_CAMERA_PITCH = 0x178
+DEATH_CAMERA_PITCH = 0x168
 DEATH_PITCH_ENTRY = "mouse_pitch_on_death_pitch"   # the generated entry of mouse.death_pitch
 
 # The order of the archive reads (patch 33, README; client_patch.md section
@@ -1517,11 +1518,11 @@ MOUSE_BUTTONS = (
 # The mouse look's pitch (patch 110, client_patch.md section 3.69,
 # ../docs/notes/mouse-pitch.md): the Rust patch mouse_pitch
 # (rust/patches/src/mouse_pitch.rs), a lohook at on_mouse_move's pitch step
-# (mouse.pitch_step, 0x2402E9) that makes the window's h / w a 4:3 window's
-# 0.75 and takes "Separate vertical sensitivity", and an entry patch 46's
-# drag calls through its DEATH_CAMERA_PITCH dword. The 0.75 is .rdata's
-# (read-only, twelve readers), which the death camera loads too.
-MOUSE_PITCH_ASPECT = 0xA2D728                 # the 0.75 of .rdata: a 4:3 window's height over its width
+# (mouse.pitch_step, 0x2402E9) that puts in place of the window's h / w the
+# factor making a count's pitch radians the yaw's (1 looking up, 60/67.5
+# looking down, pi/3 in the warmup's orbit) and takes "Separate vertical
+# sensitivity", and an entry patch 46's drag calls through its
+# DEATH_CAMERA_PITCH dword.
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
