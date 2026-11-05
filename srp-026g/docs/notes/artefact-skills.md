@@ -54,14 +54,16 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Exe skills: one packed integer in modifier 40 (`artefact_power`), parsed once (`Skills::parse`
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
-  6 Onyx II, 7 Larkspur II, 8 Resonance Cascade.
+  6 Onyx II, 7 Larkspur II, 8 Resonance Cascade, 9..11 Keeper's draw.
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no config or edit list names it; no open
   PR uses it. 42 (`artefact_synergy`) is patch 54's stopping list, 43/45 the medical ranks.
-- Keeper's artefact kind is not a skill rank: srp rolls it once per match and writes it into
-  modifier 40 of every kit of every player with the skill (bits 9..10: 1 Larkspur, 2 Onyx,
-  3 Spring), so every game reads the same kind from the static info.
+- Keeper's draw is not a skill rank: srp rolls it once per match and writes it into modifier
+  40 of every kit of every player with the skill (bits 9..11: the draw 1..6, 0 none; only with
+  bit 3), so every game reads the same draw from the static info. The client makes it a kind
+  of those the map has: present[(draw - 1) % n], uniform for 1, 2 or 3 kinds (Keeper's PR).
+- Bit 12 and above: nothing (a payload with one is refused).
 
 ## Concentration (501)
 
