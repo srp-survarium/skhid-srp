@@ -802,6 +802,10 @@ struct Peer {
     diverged: Option<Divergence>,
     /// Its reports for ticks up to this are of the world it left.
     judge_from: u32,
+    /// A report of a tick this late agreed with more than half of the
+    /// games in the simulation while a disagreement stood
+    /// (`Game::agrees_now`): its wrong reports up to it say nothing more.
+    agreed_at: u32,
     discard_run: Option<DiscardRun>,
     lag_ms: Option<i64>,
     correction: Option<(Instant, i64, Duration)>,
@@ -1368,6 +1372,7 @@ impl Game {
             resync_deferred_since: None,
             diverged: None,
             judge_from: 0,
+            agreed_at: 0,
             discard_run: None,
             lag_ms: None,
             correction: None,
@@ -4317,6 +4322,40 @@ impl Game {
         }
     }
 
+    /// The newest tick past its disagreement at which the player at
+    /// `index` reported the CRC of more than half of the games in the
+    /// simulation, if its newest report with such a majority is one: no
+    /// report still to come can turn that tick, and its world then is the
+    /// others' (the hash is the CRC of the very bytes a resync would load,
+    /// MATCH-SYNC-026G.md "Uploads"). Ticks not settled yet count: a
+    /// disagreement is judged `hash_settle_ms` late, and a game that got
+    /// back in step meanwhile (a late relay played, a state the hash shows
+    /// for a moment) would be resynced for nothing (live, 2026-11-04: a
+    /// game's world taken just ahead of its resync was the majority's byte
+    /// for byte).
+    fn agrees_now(&self, index: usize) -> Option<u32> {
+        let peer = self.peers[index].as_ref()?;
+        let after = peer
+            .diverged
+            .as_ref()
+            .map_or(peer.judge_from, |divergence| divergence.last)
+            .max(peer.judge_from);
+        let live = self.live();
+        self.hashes
+            .range(after + 1..)
+            .rev()
+            .filter_map(|(time, reports)| Some((*time, reports, *reports.get(&index)?)))
+            .find_map(|(time, reports, own)| {
+                let mut counts: HashMap<u32, usize> = HashMap::new();
+                for crc in reports.values() {
+                    *counts.entry(*crc).or_default() += 1;
+                }
+                let (crc, _) = counts.into_iter().find(|(_, count)| count * 2 > live)?;
+                Some((time, crc == own))
+            })
+            .and_then(|(time, agrees)| agrees.then_some(time))
+    }
+
     /// A client's report at `time` was wrong (`right` false) or right.
     ///
     /// A report taken for right by no strict majority (a tie judged by the
@@ -4329,6 +4368,9 @@ impl Game {
             return;
         };
         if peer.stage != Stage::Live || time <= peer.judge_from {
+            return;
+        }
+        if !right && time <= peer.agreed_at {
             return;
         }
         if !right {
@@ -4416,9 +4458,29 @@ impl Game {
             .map(|(index, _)| index)
             .collect();
         for index in desynced {
+            // Its world agrees again by a report newer than the ones
+            // judged: a resync would load what it has (0.69's
+            // process_dynamic_match_info, "ignoring resync request: hash on
+            // time %d matches").
+            let agreed = self.agrees_now(index);
+            let id = self.id;
             let Some(peer) = self.peers[index].as_mut() else {
                 continue;
             };
+            if let Some(time) = agreed {
+                if let Some(divergence) = peer.diverged.take() {
+                    log::info!(
+                        "Match {id:#x}: player {index} disagreed from {} to {} ms, but its hash \
+                         at {time} ms matches the majority's; resync skipped",
+                        divergence.first,
+                        divergence.last
+                    );
+                }
+                peer.agreed_at = time;
+                peer.restores_unagreed = 0;
+                peer.resync_deferred_since = None;
+                continue;
+            }
             // Wrong from its first reports after a world it was resynced
             // with: that world did not take, and waiting the interval out
             // leaves it out of step for nothing (live, 2026-10-15: 9 to 13

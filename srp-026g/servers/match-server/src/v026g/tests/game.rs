@@ -763,6 +763,31 @@ fn a_client_out_of_step_is_resynced_as_the_next_generation() {
     bench.assert_no_faults();
 }
 
+/// Live, 2026-11-04: a game out of step for more than a second was back in
+/// step by the time its disagreement was judged (its world taken just
+/// ahead of the resync was the majority's byte for byte), and was resynced
+/// all the same. Its newer reports that agree with most games skip the
+/// resync, as 0.69 skips a resync whose hash matches.
+#[test]
+fn a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Its ticks wrong for 1.7 s (past `divergence_confirm_ms`; a game
+    // reports the tick 500 ms back), then right again, all before its
+    // first wrong tick is settled (2.5 s).
+    bench.run(2_200);
+    bench.clients[2].sim.salt_from = None;
+    bench.run_long(25_000);
+    assert_eq!(bench.game().resyncs(2), 0);
+    assert_eq!(bench.clients[2].model.syncs, 1);
+    settle(&mut bench);
+    bench.assert_no_faults();
+}
+
 /// A game wrong from its first reports after the world it was resynced
 /// with is resynced again at once, not after the 15 s between resyncs; a
 /// third such world in a row waits them out (no world helps that game).
