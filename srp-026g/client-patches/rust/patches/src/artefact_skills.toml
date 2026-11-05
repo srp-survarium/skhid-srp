@@ -21,3 +21,23 @@ order = 2
 [[hook]]
 site = "artefact.spring_reload"
 handler = "on_spring_reload"
+
+# Resonance and Cascade (one aura, read where each effect is used; nothing kept): the shared
+# Springs' nodes at the two modifier getters, the shared Onyx before a part's protectors, the
+# shared Lifebones at a part's regeneration tick (before patch 94's booster).
+[[hook]]
+site = "artefact.shared_modifier"
+handler = "on_shared_modifier"
+
+[[hook]]
+site = "artefact.shared_modifiers"
+handler = "on_shared_modifiers"
+
+[[hook]]
+site = "artefact.shared_protection"
+handler = "on_shared_protection"
+
+[[hook]]
+site = "medical.regenerate"
+handler = "on_shared_regeneration"
+order = 1

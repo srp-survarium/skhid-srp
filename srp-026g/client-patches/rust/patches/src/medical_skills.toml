@@ -123,3 +123,4 @@ handler = "on_landing_stepped"
 [[hook]]
 site = "medical.regenerate"
 handler = "on_regenerate"
+order = 2

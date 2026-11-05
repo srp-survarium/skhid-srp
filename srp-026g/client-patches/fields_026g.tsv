@@ -689,3 +689,43 @@ survarium::spring_reload_frame	spring	0x4	ptr<survarium::skill_spring>	artefact.
 survarium::skill_spring	item	0x0	obj<survarium::item>	the Spring's inventory item (its inventory +250h, holder +174h)
 survarium::skill_spring	passive_reload	0x3E4	f32	Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
 survarium::skill_spring	active_reload	0x3F4	f32	Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
+survarium::image	engine_world	0x1F1D310	obj<vostok::engine::engine_world_slot>	the engine world's global: set by the engine's run at 0x1881A (mov [1F1D310h],ebp), 0 again at 0x1898F; message_processor reads its game at 0x18359
+vostok::engine::engine_world_slot	world	0x0	ptr<vostok::engine::engine_world>	the engine world (0 before the engine runs and after)
+vostok::engine::engine_world	game	0x2D0	ptr<survarium::game>	the game: 0 from the constructor (0x138D6), the game module's factory's result at 0x19E58; message_processor calls its slot 44h (game::is_text_input_focused 0x1EE7C0, ECX the game, its +586Ch) through it at 0x1835F
+survarium::network_client	pvp_match	0x1F1C40	ptr<survarium::pvp_match>	the match's core wrapper, 0 without a match (tested at 0x27BECE, 0x27BFA9, 0x27C289): get_active_player 0x27A9C1 looks a place's player up in its +1F8h core (core_active_player 0x2D0AB0)
+survarium::medical_pool	name	0x80	ptr<u8>	the part's name, a C string (find_pool 0x2E58C0 compares it; body_part::regenerate hands it to each regeneration modifier at 0x32A505)
+survarium::artefact	spring	0x0	obj<survarium::skill_spring>	itself as a Spring: only after its vtable's enable_active is Spring's (0x3118D0)
+survarium::artefact	lifebone	0x0	obj<survarium::skill_lifebone>	itself as a Lifebone: only after its vtable's enable_active is Lifebone's (0x312250)
+survarium::artefact	onyx	0x0	obj<survarium::skill_onyx>	itself as an Onyx: only after its vtable's enable_active is Onyx's (0x3128C0)
+survarium::skill_spring	first_node	0x340	obj<survarium::modifier_node>	its config's five native nodes (the loader 0x33ACF0, ESI = +340h): +340h and +350h the passive's (movement 4; aim 49, patch 54's), +360h, +370h, +380h the active's (4, 3, 19)
+survarium::skill_spring	added_node	0x3B8	obj<survarium::modifier_node>	patch 54's four nodes (artefacts_026g.asm): +3B8h and +3C8h the active's (aim 49, stopping 42), +3D8h the passive's reload (13), +3E8h the active's reload (13)
+survarium::modifier_node	index	0x8	u32	the index of the kit list it is linked into (+110h + index x 14h; the getter 0x2D5AE0 sums a list's values)
+survarium::modifier_node	value	0xC	f32	its value (0x2D5B20 adds it)
+survarium::modifier_node	size	0x10	size	a node {prev, next, index, value} (the loader writes one each 10h from +340h)
+survarium::skill_lifebone	regeneration	0x354	ptr<survarium::lifebone_regeneration>	its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
+survarium::skill_lifebone	regeneration_end	0x358	ptr<survarium::lifebone_regeneration>	their end (34h a record, 0x3121BC)
+survarium::lifebone_regeneration	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x3121F6 finds the part by it)
+survarium::lifebone_regeneration	rate_add	0x1C	f32	the callback 0x312590 (body_part::regenerate's rate, delay, limit at 0x32A530): rate = (rate + this) x rate_mul
+survarium::lifebone_regeneration	rate_mul	0x20	f32	the rate's factor
+survarium::lifebone_regeneration	delay_add	0x24	f32	seconds: delay = (delay + this x 1000 (0xA746B8)) x delay_mul, truncated (0x3125AD..0x3125E7)
+survarium::lifebone_regeneration	delay_mul	0x28	f32	the delay's factor
+survarium::lifebone_regeneration	limit_add	0x2C	f32	limit = (limit + this) x limit_mul (0x3125EA..0x3125FD)
+survarium::lifebone_regeneration	limit_mul	0x30	f32	the limit's factor
+survarium::lifebone_regeneration	size	0x34	size	a record (0x3121CD's /34h, 0x312232 add ebp,34h)
+survarium::skill_onyx	parts	0xC90	ptr<survarium::onyx_part>	its config's protected parts begin (enable_passive_effects 0x312860: each part found by its name gets a protector of protect 0x312BF0 at +340h + i x 70h, linked into the part's protectors +0BCh)
+survarium::skill_onyx	parts_end	0xC94	ptr<survarium::onyx_part>	their end (1Ch a part, the constructor 0x31273C)
+survarium::onyx_part	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x31286A)
+survarium::onyx_part	size	0x1C	size	a part's record (0x312736..0x31274B: /1Ch)
+survarium::skill_onyx	hit_kind	0xEE8	u32	the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)
+survarium::skill_onyx	passive_damage_add	0xEEC	f32	its passive (state 3): damage = (damage + this) x passive_damage_mul (0x312C10)
+survarium::skill_onyx	passive_damage_mul	0xEF0	f32	the passive's damage factor
+survarium::skill_onyx	passive_piercing_add	0xEF4	f32	piercing = (piercing + this) x passive_piercing_mul (0x312C2C)
+survarium::skill_onyx	passive_piercing_mul	0xEF8	f32	the passive's piercing factor
+survarium::skill_onyx	active_damage_add	0xEFC	f32	its active: damage - min(absorb, damage - (damage + this) x active_damage_mul) (0x312C47..0x312C99)
+survarium::skill_onyx	active_damage_mul	0xF00	f32	the active's damage factor
+survarium::skill_onyx	active_piercing_add	0xF04	f32	piercing = (piercing + this) x active_piercing_mul (0x312CA1)
+survarium::skill_onyx	active_piercing_mul	0xF08	f32	the active's piercing factor
+survarium::skill_onyx	absorb	0xF18	f32	the most an active takes off a hit: absorb_total (+0F0Ch) from enable_active (0x312934), only read by protect (0x312C77)
+survarium::damage_cell	value	0x0	f32	a hit's damage or piercing, a float the caller owns (body_part_parameters::hit_by_type's &damage EBX, &piercing ESP+144h)
+survarium::protectors_frame	piercing	0x144	ptr<survarium::damage_cell>	hit_by_type's &piercing argument by the ESP of its protectors' loop (0x32A042 mov edx,[esp+144h], 0x32A058)
+survarium::image	spring_active	0x3118D0	u32	artefact_spring_core::enable_active_effects: +80h of the Spring core vtable 0xA1558C (its constructor 0x31185C writes it)

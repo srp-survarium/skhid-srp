@@ -1,5 +1,5 @@
 {
-  "_about": "Artefact tree (the owner, 2026-11-05; docs/notes/artefact-skills.md): the fifth tab, thresholds 0/5/10/20/25. Concentration, Forest Protection and Knowledge of Artifacts are native modifiers 7, 41 and 39, Artifact Container 14 (+1) and 15 (-1); the other skills travel as one packed integer in the unused native modifier 40 (artefact_power), which exe patch 109 decodes: bits 0..2 Resistance, 3 Keeper of the Artifacts, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II, 8 Resonance Cascade. Names and descriptions are st_srp_artefact_* in client-patches/localization.",
+  "_about": "Artefact tree (the owner, 2026-11-05; docs/notes/artefact-skills.md): the fifth tab, thresholds 0/5/10/20/25. Concentration, Forest Protection and Knowledge of Artifacts are native modifiers 7, 41 and 39, Artifact Container 14 (+1) and 15 (-1); the other skills travel as one packed integer in the unused native modifier 40 (artefact_power), which exe patch 109 decodes: bits 0..2 Resistance, 3 Keeper of the Artifacts, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II, 8 Resonance Cascade. Resonance Cascade also sets modifier 43 (armored_trap) bit 20, patch 94's retained Medic: a Larkspur's activation heals the living teammates within 5 m, with its glow. Names and descriptions are st_srp_artefact_* in client-patches/localization.",
   "append_entry": [
     {
       "file": "gameplay/skills/skills_tree.options",
@@ -493,7 +493,8 @@
         },
         "modifiers": [
           {
-            "artefact_power_modifier": 256
+            "artefact_power_modifier": 256,
+            "armored_trap_modifier": 1048576
           }
         ]
       }

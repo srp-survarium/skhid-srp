@@ -1073,6 +1073,162 @@ artefact_skills_on_spring_reload_go:
     lea esp, [esp + 4]
     ret
 
+; 0x2d5ae6 apply_modifier after it reads the kit's own float (movss xmm0,[eax+esi*4] at 0x2D5AE1): XMM0 that float, to which the list's nodes are added (0x2D5B33) before the index's rule (additive by 0x927E08, else max(0, 1 + k x S)); replayed: lea ecx,[esi+esi*4]; cmp byte [eax+ecx*4+120h],0 (the sorted flag the jne at 0x2D5AFF reads): lohook -> artefact_skills_on_shared_modifier
+global artefact_skills_on_shared_modifier
+extern hook_artefact_skills_on_shared_modifier
+artefact_skills_on_shared_modifier:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_shared_modifier
+    mov edx, artefact_skills_on_shared_modifier_replay
+    cmp eax, 0
+    je artefact_skills_on_shared_modifier_go
+    mov edx, 0x2d5af1
+    cmp eax, 1
+    je artefact_skills_on_shared_modifier_go
+    ud2
+artefact_skills_on_shared_modifier_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_shared_modifier_replay:
+    db 0x8d, 0x0c, 0xb6, 0x80, 0xbc, 0x88, 0x20, 0x01, 0x00, 0x00, 0x00
+    jmp 0x2d5af1
+
+; 0x2d5c18 apply_modifiers 0x2D5BC0 (a weighted sum of several indices) in its loop, after one index's own float (movss xmm0,[ebx+eax*4] at 0x2D5C13, stored at 0x2D5C2A): XMM0 that float, to which the list's nodes are added (0x2D5C69); replayed: lea eax,[eax+eax*4]; cmp byte [ebx+eax*4+120h],0: lohook -> artefact_skills_on_shared_modifiers
+global artefact_skills_on_shared_modifiers
+extern hook_artefact_skills_on_shared_modifiers
+artefact_skills_on_shared_modifiers:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_shared_modifiers
+    mov edx, artefact_skills_on_shared_modifiers_replay
+    cmp eax, 0
+    je artefact_skills_on_shared_modifiers_go
+    mov edx, 0x2d5c23
+    cmp eax, 1
+    je artefact_skills_on_shared_modifiers_go
+    ud2
+artefact_skills_on_shared_modifiers_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_shared_modifiers_replay:
+    db 0x8d, 0x04, 0x80, 0x80, 0xbc, 0x83, 0x20, 0x01, 0x00, 0x00, 0x00
+    jmp 0x2d5c23
+
+; 0x32a020 body_part_parameters::hit_by_type after apply_hit_modifiers (0x32A01B returns here), before the part's protectors (+0C4h, each a delegate called by 0x3FE2C0 with the hit, &damage, &piercing: Onyx's protect 0x312BF0): EBX &damage, ESP+144h &piercing; replayed: mov esi,[ebp+0C4h]: lohook -> artefact_skills_on_shared_protection
+global artefact_skills_on_shared_protection
+extern hook_artefact_skills_on_shared_protection
+artefact_skills_on_shared_protection:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_shared_protection
+    mov edx, artefact_skills_on_shared_protection_replay
+    cmp eax, 0
+    je artefact_skills_on_shared_protection_go
+    mov edx, 0x32a026
+    cmp eax, 1
+    je artefact_skills_on_shared_protection_go
+    ud2
+artefact_skills_on_shared_protection_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_shared_protection_replay:
+    db 0x8b, 0xb5, 0xc4, 0x00, 0x00, 0x00
+    jmp 0x32a026
+
+; 0x32a53f body_part::regenerate where both paths of its regeneration-modifier loop join (mov ebp,[esp+24h] / test eax,eax): EDI the pool, EAX the delay (ms) the rest reads (its local copy ESP+14h is not read again), frame ESP+10h rate, +18h limit: lohook -> artefact_skills_on_shared_regeneration
+global artefact_skills_on_shared_regeneration
+extern hook_artefact_skills_on_shared_regeneration_chain
+artefact_skills_on_shared_regeneration:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_shared_regeneration_chain
+    mov edx, artefact_skills_on_shared_regeneration_replay
+    cmp eax, 0
+    je artefact_skills_on_shared_regeneration_go
+    mov edx, 0x32a545
+    cmp eax, 1
+    je artefact_skills_on_shared_regeneration_go
+    ud2
+artefact_skills_on_shared_regeneration_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_shared_regeneration_replay:
+    db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
+    jmp 0x32a545
+
 ; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
 global battery_progress_on_carrier_tick
 extern hook_battery_progress_on_carrier_tick
@@ -3762,45 +3918,6 @@ medical_skills_on_landing_stepped_go:
 medical_skills_on_landing_stepped_replay:
     db 0x5f, 0x5e, 0x5d, 0x5b, 0x83, 0xc4, 0x08
     jmp 0x1f3bc2
-
-; 0x32a53f body_part::regenerate where both paths of its regeneration-modifier loop join (mov ebp,[esp+24h] / test eax,eax): EDI the pool, EAX the delay (ms) the rest reads (its local copy ESP+14h is not read again), frame ESP+10h rate, +18h limit: lohook -> medical_skills_on_regenerate
-global medical_skills_on_regenerate
-extern hook_medical_skills_on_regenerate
-medical_skills_on_regenerate:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_regenerate
-    mov edx, medical_skills_on_regenerate_replay
-    cmp eax, 0
-    je medical_skills_on_regenerate_go
-    mov edx, 0x32a545
-    cmp eax, 1
-    je medical_skills_on_regenerate_go
-    ud2
-medical_skills_on_regenerate_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_regenerate_replay:
-    db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
-    jmp 0x32a545
 
 ; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
 global music_on_frame
