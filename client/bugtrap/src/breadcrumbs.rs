@@ -199,7 +199,8 @@ impl<'a> Ring<'a> {
                 replay: flags & 2 != 0,
             }),
             local: u32_at(bytes, 44).checked_sub(1).map(|p| p as u8),
-            reading: Reading::parse(u32_at(bytes, 48), u32_at(bytes, 52)).map(|r| (r, u64_at(bytes, 56))),
+            reading: Reading::parse(u32_at(bytes, 48), u32_at(bytes, 52))
+                .map(|r| (r, u64_at(bytes, 56))),
             entries: &bytes[HEADER..BYTES],
         })
     }
@@ -252,20 +253,22 @@ pub fn write_context(w: &mut dyn Write, ring: &Ring) -> fmt::Result {
     w.write_str("\r\n")
 }
 
-/// `Reading:` what the game read last, and how long before `now`.
+/// `Reading:` a read the game began and had not finished, and how long
+/// before `now`: a world before its players, or a player state before its
+/// last native field. Nothing once the last player state read was finished
+/// (a rollback's history loads stamp them all the time; a crash after one
+/// is not inside it).
 pub fn write_reading(w: &mut dyn Write, ring: &Ring, now: u64) -> fmt::Result {
     let Some((what, counter)) = ring.reading else {
         return Ok(());
     };
-    w.write_str("Reading:   ")?;
     match what {
-        Reading::World => w.write_str("a world (0xE8), before its players")?,
-        Reading::Player { place, offset } => {
-            write!(w, "place {place}'s player state, from byte {offset} of its stream")?
-        }
-        Reading::PlayerRead { place, offset } => {
-            write!(w, "place {place}'s player state, its native fields read to byte {offset}")?
-        }
+        Reading::World => w.write_str("Reading:   a world (0xE8), before its players")?,
+        Reading::Player { place, offset } => write!(
+            w,
+            "Reading:   place {place}'s player state, from byte {offset} of its stream"
+        )?,
+        Reading::PlayerRead { .. } => return Ok(()),
     }
     let (s, ms) = ring.before(now, counter);
     write!(w, ", {s}.{ms:03} s before the crash\r\n")

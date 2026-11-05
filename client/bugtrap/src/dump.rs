@@ -32,11 +32,14 @@ pub enum Kind {
 static KIND: OnceLock<Kind> = OnceLock::new();
 impl Kind {
     /// The game's `SKHID_CRASH_DUMP`, read at the first call (`DllMain`, at
-    /// load): `full` is [`Kind::Full`], anything else (unset) [`Kind::Small`].
-    /// `play_skhid.sh` refuses other values before the game starts.
+    /// load): `full` is [`Kind::Full`] (any case, spaces around it: cmd's
+    /// `set SKHID_CRASH_DUMP=full ` keeps the space), anything else (unset)
+    /// [`Kind::Small`]. `play_skhid.sh` refuses other values before the game
+    /// starts.
     pub fn get() -> Kind {
         *KIND.get_or_init(|| {
-            if std::env::var_os("SKHID_CRASH_DUMP").as_deref() == Some(OsStr::new("full")) {
+            let value = std::env::var_os("SKHID_CRASH_DUMP");
+            if value.as_deref().and_then(OsStr::to_str).is_some_and(crate::details::asks_full_dump) {
                 Kind::Full
             } else {
                 Kind::Small

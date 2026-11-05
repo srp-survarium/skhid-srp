@@ -120,9 +120,10 @@ srp: ...
   stream. The header's `reading` is stamped at a world's load
   (`a world (0xE8), before its players`), at base_player::deserialize's
   start (`place 3's player state, from byte 420 of its stream`, patch 85's
-  `pickup.load`) and after its last native field (`... its native fields
-  read to byte 600`, patch 78's `carry.load`), with its seconds before the
-  crash: a stamp long before the crash is an old one, not the cause. Three
+  `pickup.load`) and after its last native field (patch 78's `carry.load`),
+  with its seconds before the crash. The line is there only while a read
+  is unfinished: after a player state's last native field (rollbacks load
+  history states all the time) there is none. Three
   stores and a counter read a stamp; once a player a load, never a frame.
   The world's sections have no hook of their own (game_world_core's
   deserialize reads them in one function), so a section is not named.
@@ -242,7 +243,8 @@ environment variable `SKHID_CRASH_DUMP`.
 - **Full-memory dumps** (`SKHID_CRASH_DUMP=full`, any build; on Linux
   `SKHID_CRASH_DUMP=full bash Skhid.sh launcher`, which refuses any other
   value and lists the crash files at the end; on Windows `set
-  SKHID_CRASH_DUMP=full` in the `cmd` that starts `Skhid.bat`):
+  SKHID_CRASH_DUMP=full` in the `cmd` that starts `Skhid.bat`; the DLL
+  takes `full` in any case, with spaces around it, as `set` keeps them):
   `MiniDumpWithFullMemory | FullMemoryInfo | HandleData | ThreadInfo |
   UnloadedModules` (0x1826), no memory callback: the whole process memory,
   every heap object. About the game's committed memory (1–3 GB); kept as the
