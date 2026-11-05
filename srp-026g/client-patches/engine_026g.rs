@@ -221,8 +221,8 @@ unsafe extern "C" {
     pub fn engine_write_matrix(value: *const c_void, writer: *mut c_void, file: *const u8, line: u32, function: *const u8, name: *const u8);
     /// 0x81a70 vostok::network_core::buffer_writer::w<class vostok::math::float3>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
     pub fn engine_write_float3(value: *const c_void, writer: *mut c_void, file: *const u8, line: u32, function: *const u8, name: *const u8);
-    /// 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, zero ESP+8; pops 0; EAX
-    pub fn engine_create_collision_shape(r#type: u32, dims: *const f32, scale: *const f32, zero: u32) -> *mut c_void;
+    /// 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, material ESP+8; pops 0; EAX
+    pub fn engine_create_collision_shape(r#type: u32, dims: *const f32, scale: *const f32, material: u32) -> *mut c_void;
     /// 0x357100 vostok::physics::create_dynamic_rigid_body: description ESP+4, shape ESP+8; pops 0; EAX
     pub fn engine_create_rigid_body(description: *const c_void, shape: *mut c_void) -> *mut c_void;
     /// 0x7a1b0 vostok::physics::destroy_shape: shape ESI; pops 0

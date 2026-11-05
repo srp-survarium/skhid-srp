@@ -15,9 +15,11 @@ the spots (edit list `artefact-spots-1`, below).
   with `throw_power` (15) x the thrower's throw modifier.
 - Held past the fuse it explodes in the hand: the cloud on its holder, the Sponge consumed, the
   grenade slot given back, the throw state left.
-- Its first contact explodes it at the next tick when it comes 1.5 s (`safe_time` 1500) or more
-  after the pull (0.46c2's rule, 0x7AD5E0); an earlier contact is spent and the fuse decides.
+- Its first contact explodes it at that tick when it comes 1.5 s (`safe_time` 1500) or more
+  after the pull; an earlier contact is spent and the fuse decides. A contact is its body's
+  (the physics world's) or the sensor's: another player in its way (below).
 - While it is in the air another press does not throw it again.
+- Its body is of the game material "grenade": it bounces and sounds as a grenade.
 - The explosion: a splash of fire, 0.3 at any distance within 10 m (x the splash radius
   modifier; x the grenade damage modifier), pierce 0.1, on hit target 18 (the face). It hurts and
   kills.
@@ -30,6 +32,79 @@ the spots (edit list `artefact-spots-1`, below).
   not reach it.
 - Not taken from 0.69d0 (the owner's to decide): its passive (-20 % from radiation and
   explosions for 180 s), the skill Sponge II's second charge.
+
+## 0.69d0's own, read (2026-11-05)
+
+Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
+- the config: `gameplay/game.options` of resources.75.db (resources.43.db's the same),
+  `ammo_grenades_etc/artefact_sponge`;
+- the materials: `game_materials/game.materials` (resources.72.db) and `material.pairs`
+  (resources.54.db);
+- the texts: resources.70.db;
+- the exe: `binaries/x64/survarium.exe`, image base 0x200000000.
+
+- **The contact rule.**
+  - The config's `data/`: `ttl_ms` 3000, `safe_time` 1500, `explode_on_contact` true,
+    `start_timer_on_throw` false, `collide_with_player` true.
+  - `grenade_core_cook` 0x200322450 builds a `grenade_core_state_transition_by_contact` (vtable
+    0x20098D750) on the thrown state, with `[t+58h]` = ttl_ms - safe_time (0x2003231EF..0x2003232F8).
+  - `pull_pin` 0x20039D920 sets the fuse's end to the pull time + ttl_ms, on the tick grid, and
+    clears the first contact.
+  - The contact handler 0x2003ECC00 explodes it at the first contact since the pull when the
+    fuse's end - now <= 1500; that first contact is consumed either way.
+  - The timeout (0x2003EFF60) is the fuse's end.
+  - Ours is the same rule (0.46c2's 0x7AD5E0 was too). An early landing waits for the 3 s fuse
+    in retail as well.
+- **The sensor.**
+  - With `collide_with_player` the thrown state is `grenade_core_thrown_with_sensor_state`. Its
+    tick 0x2003EBF10 sweeps a ray from the last position and fires the same handler for a hit
+    on a player other than the thrower.
+  - 0.26g's grenade_core has no states and no sensor: its RTTI names only `grenade_core`, its
+    cook and its contact callback.
+  - Ours: the sweep is in the Sponge's own tick (`in_the_way`). Each tick in the air, the way
+    from the last position to this one is swept with spheres of 0.1 m (its body's), at most
+    that far apart. Each sphere is the collision query the splash makes (the hit manager's
+    collision world, vt+60h, flags 10h and 40h). A found object whose owner is a player not of
+    the thrower's place is a contact, under the same rule.
+  - Not retail's exactly: spheres along the path, where retail casts one ray.
+- **The sound.**
+  - `data/active/damage_zone/activated_sound` is "weapons/f1" (resource 257), retail's own: the
+    damage-zone cook 0x20021EEF0 reads it (0x20021EF98..0x20021EFC1).
+  - There is no other explosion sound: the visual cook 0x2002410F0 sends subtype 2 to
+    0x200323C10, which reads none.
+  - The throw's grenade sounds (the pin's "grenade_pin_out_01", "grenade_wear",
+    "grenade_second_pin_out") are its throw_sponge state's, the same as throw_grenade's. Kept.
+- **The material.**
+  - `data/mtl_idx` 45: game.materials' id 45 "grenade".
+  - Its pairs sound "weapons/f1_surface_hit" on ground, concrete, stone, wood and the like;
+    "weapons/f1_metal_hit" on metals; nothing on bodies, water or sand.
+  - 0.26g's "grenade" is id 45 too (its `game_materials/game.materials`, materials[35]). Its
+    material.pairs give it "weapons/f1/f1_hit_ground" and the others, and the RGD-5 and the smoke
+    grenade have `data/mtl_idx` 45.
+  - Ours: the edit list `sponge-material-1` gives the Sponge's config `data/mtl_idx` 45, and the
+    patch passes it to its body's shape (0x7A390's material, as grenade_core passes its own at
+    0x300353). Before this, it had none (0).
+- **The numbers, all as ours:**
+  - duration 15 s (retail's key `data/duration_s`);
+  - `data/explosive` min = max 0.3, `player_pierce` 0.1, fire, `affected_bodies` [18],
+    `max_range` 10;
+  - the zone: fire, `hit_parts_filter` ["health"], `max_hit` 0.2, `interval_in_msec` 1000;
+  - its mesh: type 2, scale [5.5, 1.5, 5.5], position [0, 1, 0];
+  - `idle_particle` mochalka_explosion, no `activated_particle`;
+  - `object/particle_on_spawn` pre_mochalka1;
+  - `throw_power` 15.
+- **Deviations, with their reasons:**
+  - The passive is the owner's rule.
+  - The body's numbers stay 0.26g's grenade's: retail's `rigid_body` has mass 0.5, friction 10,
+    restitution 0, no damping, and its shape scale is [0.04, 0.07, 0.07]. 0.26g's body cook
+    takes a description of its own layout (make_body), not those keys. Not ported.
+- **The texts.**
+  - Retail's: "Protection from anomalies and explosions +%VALUE%%.\nExplodes when activated."
+    (its pickup hint, of its own passive) and "Throw / tox.damage".
+  - It has no description and no activation hint (`st_sponge_activation_hint` is named but
+    missing).
+  - Ours are written for what it does: fire, a burst on impact from 1.5 s after the pull,
+    otherwise at 3 s.
 
 ## The owner's rules
 
@@ -50,13 +125,27 @@ the spots (edit list `artefact-spots-1`, below).
 - A spent Sponge cannot be picked up while its zone runs.
 - Destroyed at a match's end, it frees only its own (its body, its geometry, its hold on the
   zone) and touches nothing the world owns.
+- Exploded, it stays in its slot until the throw state holding it lets it go (its next is_ready,
+  the next tick: players tick before the anomaly). A world saved in between names it by its slot,
+  and its load finds it there. With no throw state holding it, it leaves its slot the tick after
+  the explosion.
+- Its key does nothing while another grenade (a stock one being cooked) holds the grenade slot.
 - Patch 78 (H + an artefact's key raises it in the hand) does not take the Sponge: the carry
   has no model for it, and its key throws it.
 
 ## Every game the same (lockstep, late join, rollback)
 
-- The press is an input; the pin, throw, explosion and zone ticks are on the 50 ms grid; a
-  contact is ruled at the next tick.
+- The press is an input. The pin, throw, explosion and zone ticks are on the 50 ms grid. A
+  contact is ruled at the next tick; the sensor's sweep is part of the tick.
+- Its state is one tagged union (sponge_a_026g.c `struct sp_state`, AGENTS.md types and states):
+  - held, as artefact_base has it;
+  - in the hand (the fuse's end, the thrower, the first contact);
+  - in the air (the same, and the physics world);
+  - the cloud (its start, the thrower).
+
+  One function, `sp_transition`, takes (state, event) to the new state and its actions. The
+  events are the pull, the throw, a drop, a contact and a tick. The stream's bytes are parsed
+  into the state at the load and written from it.
 - Serialized: the fuse, the pin, whether thrown, the body (transform, velocities), the first
   contact's state, the thrower's place, and while the zone is on its state and the explosion
   point.
@@ -97,7 +186,9 @@ the spots (edit list `artefact-spots-1`, below).
   `pre_mochalka1` and `mochalka_explosion`; 0.28d0's other particles; the materials and textures
   0.26g lacks (`release/texture_closure.py --pack` checks every texture of the pack's particles;
   run by hand, not by build-content: main's live weapon packs fail it today).
-- Texts in the six languages, one line each.
+- Its texts are in the ten catalogs (client-patches/localization), one line each: the pack's
+  six languages' strings are the build's no more.
+- `data/mtl_idx` 45 is the edit list `sponge-material-1`'s.
 - The lobby icon: atlas cell [22, 1] (in 0.26g already). The combat-log icon 17: 0.26g's empty
   frame (no weapon uses it), drawn by the hud movie's `SpongeLogIcon`.
 - The server needs nothing: it reads the item from the game data; artefacts are never sold.

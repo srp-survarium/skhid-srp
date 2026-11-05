@@ -268,7 +268,7 @@ st_artefact_booster_name	Artefaktummester
 st_artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
 st_artefact_search_failed	Nem találtál artefaktumot
 st_artefact_search_success	Szereztél egy artefaktumot! 
-st_artefact_sponge_description	Amíg nálad van, tele tartja a méregszintedet. Dobd el: becsapódáskor (vagy 3 mp után) 15 mp-re mérgező felhővé pukkan.
+st_artefact_sponge_description	Amíg nálad van, tele tartja a méregszintedet. Dobd el: becsapódáskor pukkan, ha a biztosítószeg kihúzása óta eltelt 1,5 mp, különben 3 mp után, és 15 mp-re égő felhőt hagy.
 st_artefact_sponge_name	Szivacs
 st_artefact_take_teammate	Artefaktum felvétele ({USE})
 st_ash12_description	A leírás még nem érhető el.
@@ -2168,8 +2168,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Különleges ajánlat
 st_speed_booster_description	Koffeines, taurinos energiaital. Élénkít és serkenti a központi idegrendszert.
 st_speed_booster_name	Tornado energiaital
-st_sponge_activation_hint	Dobás: becsapódáskor (vagy 3 mp után) pukkan, mérgező felhő 15 mp-re.
-st_sponge_pickup_hint	Szivacs artefaktum. Elnyeli a mérgező gázokat és a radioaktív port. Aktiváláskor mérgező spórafelhővé robban.
+st_sponge_activation_hint	Dobás: becsapódáskor pukkan, ha a kihúzás óta eltelt 1,5 mp, különben 3 mp után; égő felhő 15 mp-re.
+st_sponge_pickup_hint	Szivacs artefaktum. Amíg nálad van, tele tartja a méregszintedet. Eldobva égő felhővé pukkan.
 st_spot_action	Ellenség megjelölése
 st_spring_activation_hint	Rugó aktiválva! Mozgási és célzási sebesség +10%. Gyorsabb állóképesség-regeneráció! A lövedékek nem lassítanak!
 st_spring_pickup_hint	Rugó artefaktum. 5%-kal növeli a mozgási és célzási sebességet.

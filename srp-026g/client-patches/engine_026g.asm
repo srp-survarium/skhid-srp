@@ -2004,12 +2004,12 @@ engine_write_float3:
 
     align 16, db 0xCC
 engine_create_collision_shape:
-    ; 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, zero ESP+8; pops 0; EAX
+    ; 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, material ESP+8; pops 0; EAX
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 32]   ; zero -> 8
+    push dword [esp + 32]   ; material -> 8
     push dword [esp + 32]   ; scale -> 4
     mov edx, [esp + 28]   ; type
     mov ecx, [esp + 32]   ; dims

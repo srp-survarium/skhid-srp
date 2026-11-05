@@ -507,8 +507,8 @@ void engine_write_matrix(const void *value, struct buffer_writer *writer, const 
 /* 0x81a70 vostok::network_core::buffer_writer::w<class vostok::math::float3>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
 void engine_write_float3(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name);
 
-/* 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, zero ESP+8; pops 0; EAX */
-void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int zero);
+/* 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, material ESP+8; pops 0; EAX */
+void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material);
 
 /* 0x357100 vostok::physics::create_dynamic_rigid_body: description ESP+4, shape ESP+8; pops 0; EAX */
 void *engine_create_rigid_body(const void *description, void *shape);

@@ -48,6 +48,8 @@ section .text
 %define PREDICATE_ON      0x2E40D2 ; test al,al
 %define AS_SET_HAS        0x30A090 ; eax = a grenade set: al, a grenade ready
 %define READY_ON          0x33A683 ; movzx eax,al
+%define SPAWN_TAKE        1        ; sp_spawn_pick's enum spawn_choice
+%define SPAWN_DECLINED    2
 %define READY_YES         0x33A696
 %define READY_NO          0x33A692
 %define THROW_SET         0x30A250
@@ -268,16 +270,19 @@ artefacts:
 ; 0x31B800, jumped to: edi = the core, [ebp-8] the container chosen (its
 ; draw made), the free list's room allocated below; ebx, ecx, edx free.
 spawn:
+    push 0                            ; the artefact (SPAWN_TAKE)
+    mov eax, esp
+    push eax
     push dword [ebp - 8]
     push edi
-    call sp_spawn_pick                ; cdecl (core, container): the artefact, 0 or 1
-    add esp, 8
-    test eax, eax
-    jz SPAWN_NONE                     ; none free: 0.26g's way
-    cmp eax, 1
+    call sp_spawn_pick                ; cdecl (core, container, &artefact): enum spawn_choice
+    add esp, 12
+    pop edx                           ; the artefact
+    cmp eax, SPAWN_TAKE
+    je SPAWN_ON                       ; edx the artefact, as the stock's free list gives it
+    cmp eax, SPAWN_DECLINED
     je .declined
-    mov edx, eax
-    jmp SPAWN_ON
+    jmp SPAWN_NONE                    ; none free: 0.26g's way
 .declined:                            ; free ones, none the container may take:
     mov byte [edi + CORE_DUE], 1      ; still due (0x31B7C1 cleared it for a spawn
     jmp SPAWN_NONE                    ; that did not happen), then the delay

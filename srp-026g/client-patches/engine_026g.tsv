@@ -140,7 +140,7 @@ engine_body_set_linear_velocity	0x3576c0	ECX:velocity ESP+4:body	void engine_bod
 engine_body_set_angular_velocity	0x357750	ECX:velocity ESP+4:body	void engine_body_set_angular_velocity(const float *velocity, void *body)	thunk	
 engine_write_matrix	0x301de0	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_matrix(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_float3	0x081a70	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_float3(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
-engine_create_collision_shape	0x07a390	EDX:type ECX:dims ESP+4:scale ESP+8:0	void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int zero)	thunk	
+engine_create_collision_shape	0x07a390	EDX:type ECX:dims ESP+4:scale ESP+8:material	void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material)	thunk	
 engine_create_rigid_body	0x357100	ESP+4:description ESP+8:shape	void *engine_create_rigid_body(const void *description, void *shape)	thunk	
 engine_destroy_shape	0x07a1b0	ESI:shape	void engine_destroy_shape(void *shape)	thunk	
 engine_rt_cast_to_void	0x42a390	ESP+4:object	void *engine_rt_cast_to_void(void *object)	thunk	

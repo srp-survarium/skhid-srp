@@ -139,6 +139,7 @@ edit	new-account.tsv	-	what a new account is given at its first sign-in (gamepla
 edit	items.tsv	-	the items: a row per dictionary entry, its name, price, gold flag, the plain item a golden or premium copy is (srp_like) and the modifications of its own a new one comes with (srp_start), which srp reads
 edit	shop.tsv	-	the shop's sellers and ranks beyond the item data's rule, and what no shop sells (gameplay/srp/shop.options): srp reads them from its game data
 edit	artefact-spots-1.json	-	the owner's spots of the Sponge (758), 2026-11-05: 19 containers on 5 maps (level_01 and v069d_level_01 3 each, level_04 and v011e_level_04 6 each, level_05 1); each of those maps' mode configs gets mode/artefact_spots, which exe patch 59 reads: a picked container spawns only the Sponge, the anomaly's others its own kinds, an anomaly with no pick is 0.26g's (srp-026g/scripts/sponge/spots.py from spots.tsv)
+edit	sponge-material-1.json	-	the Sponge's body's game material: data/mtl_idx 45 ("grenade", the RGD-5's and 0.69d0's Sponge's), which exe patch 59 gives its collision shape: it bounces and sounds as a grenade
 edit	localization-1.json	-	compile every language from client-patches/localization/*.tsv; require complete keys, placeholders, markup and UI references
 edit	medical-skills-1.json	-	medical skill tree and its descriptions
 edit	vostok-v011-spawns-1.json	-	Vostok v0.11 uses v0.26g spawn positions, facings and priority: 14 per team in both Protective Device and Team Deathmatch; six-second protection retained (docs/notes/vostok-v011-spawns.md)

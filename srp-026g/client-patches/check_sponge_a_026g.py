@@ -79,6 +79,7 @@ ARENA = base.arena()
 SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith("sp_")}
 STATE = SYMBOLS["sp_g"]
 # the content pack (release/content.tsv sponge@5), in the main checkout's private folder
+MATERIAL_EDITS = os.path.join(HERE, "..", "scripts", "content-edit", "sponge-material-1.json")
 PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "sponge-5")
 HEAP, STACK, FAKE, CORE, CONFIG = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000
 STOP = FAKE + 0x10
@@ -86,14 +87,53 @@ NEVER = 0xFFFFFFFF
 # struct sponge (sponge_a_026g.c's _Static_asserts)
 S_LOADING, S_PASSIVE, S_DURATION, S_TTL, S_POWER, S_SPLASH, S_NODE, S_LINKED = \
     0x360, 0x370, 0x3A4, 0x3A8, 0x3AC, 0x3B0, 0x3F0, 0x418
-S_EXPLODE, S_PIN, S_OWNER, S_CONTACT, S_BODY, S_PHYSICS, S_TRANSFORM, S_ZONE, S_SIZE = \
-    0x41C, 0x420, 0x421, 0x422, 0x424, 0x428, 0x430, 0x470, 0x6B8
-S_CONTACT_FN, S_SAFE, S_ON_CONTACT, S_REGISTERED = 0x698, 0x6B0, 0x6B4, 0x6B5
-CONTACT_ARMED, CONTACT_HIT = 1, 2
+S_STATE, S_BODY, S_TRANSFORM, S_ZONE, S_SIZE = 0x41C, 0x434, 0x43C, 0x47C, 0x6C4
+S_CONTACT_FN, S_SAFE, S_ON_CONTACT, S_MATERIAL = 0x6A4, 0x6BC, 0x6C0, 0x6C2
+# struct sp_state at S_STATE: the tag, then the union (armed: the fuse's end +4, the thrower's kind +8 and
+# place +0Ch, the first contact +10h, in the air the physics world +14h; the cloud: its start +4, the thrower)
+SP_HELD, SP_IN_HAND, SP_IN_AIR, SP_CLOUD = range(4)
+FIRST_WAITING, FIRST_SEEN, FIRST_SPENT = range(3)
+CONTACT_ARMED, CONTACT_HIT = 1, 2                      # the stream's m_contact bits (waiting 1, seen 3, spent 0)
 CONTACT_VTABLE = 0xA13FAC                              # grenade_core's contact boost::function (invoker 0x202300)
-S_INFLICTOR = 0x67C                                    # its position at +10h (the game's getter 0x346480)
+S_INFLICTOR = 0x688                                    # its position at +10h (the game's getter 0x346480)
 BIND_VTABLE = 0xA09374                                 # boost::function of a bound member (invoker 0x202300)
-S_SOUNDS, S_EFFECTS, S_SOUND_LOCAL, S_EFFECT_LOCAL = 0x474, 0x478, 0x47C, 0x57C
+S_SOUNDS, S_EFFECTS, S_SOUND_LOCAL, S_EFFECT_LOCAL = 0x480, 0x484, 0x488, 0x588
+
+
+def tag_of(r, o):
+    return r.read(o + S_STATE)
+
+
+def explode_of(r, o):
+    """m_explode_time_ms as the stream has it: the fuse's end, the cloud's start, NEVER for none"""
+    return NEVER if tag_of(r, o) == SP_HELD else r.read(o + S_STATE + 4)
+
+
+def pin_of(r, o):
+    return int(tag_of(r, o) in (SP_IN_HAND, SP_IN_AIR))
+
+
+def contact_of(r, o):
+    """m_contact as the stream has it"""
+    if tag_of(r, o) not in (SP_IN_HAND, SP_IN_AIR):
+        return 0
+    return {FIRST_WAITING: CONTACT_ARMED, FIRST_SEEN: CONTACT_ARMED | CONTACT_HIT, FIRST_SPENT: 0}[r.read(o + S_STATE + 0x10)]
+
+
+def thrower_place_of(r, o):
+    """m_zone_owner: the thrower's place, FFh for none"""
+    if tag_of(r, o) == SP_HELD or r.read(o + S_STATE + 8) != 1:
+        return 0xFF
+    return r.read(o + S_STATE + 0xC, 1)
+
+
+def physics_of(r, o):
+    return r.read(o + S_STATE + 0x14) if tag_of(r, o) == SP_IN_AIR else 0
+
+
+def registered_of(r, o):
+    """its contacts' callback in the physics world: in the air, exploding on contact"""
+    return int(tag_of(r, o) == SP_IN_AIR and r.read(o + S_ON_CONTACT, 1) != 0)
 # the game's
 STATE_AT, INVENTORY, SLOT, COUNT, WORLD = 0x280, 0x250, 0x254, 0x260, 0x248
 TOXIC = 4                                              # the toxic damage type (0x304370: 0x9257E0 ranged, blunt, slash, explosive, toxic)
@@ -146,7 +186,7 @@ def sponge_options():
                 "splash_min_damage": 0.30000001192092896, "duration_s": 15, "splash_damage_type": "fire",
                 "splash_affected_bodies": [18], "stamina_damage": 0, "splash_radius": 10,
                 "splash_pierce": 0.10000000149011612},
-            "cooldown_sec": 0, "ttl_ms": 3000, "safe_time": 1500, "explode_on_contact": True,
+            "cooldown_sec": 0, "ttl_ms": 3000, "safe_time": 1500, "explode_on_contact": True, "mtl_idx": 45,
             "passive": {"regen_add": 0, "regen_mul": 1, "timeout_add": 0, "threshold_mul": 1, "timeout_mul": 1,
                         "threshold_add": 1.5},
             "type": 12, "amount": 1, "spawn_sec": 2, "effect": "artefact_spring",
@@ -549,8 +589,15 @@ def main():
         results.append(bool(ok))
         print(f"  {'ok' if ok else 'FAIL'}  {what}" + (f": {detail}" if detail else ""))
 
+    def live(config):
+        """the pack's config as players have it: the edit lists of release/content.tsv that change it
+        (sponge-material-1: data/mtl_idx)"""
+        for edit in json.load(open(MATERIAL_EDITS))["add_value"]:
+            config.setdefault(edit["table"], {})[edit["key"]] = edit["value"]
+        return config
+
     if args.options:
-        shipped = bcw.load(args.options)
+        shipped = live(bcw.load(args.options))
         mine = sponge_options()
         mine["data"]["passive"] = dict(mine["data"]["passive"], regen_add=1000, timeout_mul=0)
         mine["ui_desc"]["text_descriptions"] = dict(mine["ui_desc"]["text_descriptions"],
@@ -566,7 +613,7 @@ def main():
 
     # 1. The cook: size and construct, type 12 ours, every other type the switch's.
     size, cleanup = r.thiscall(0x25E770, game.cook, game.resource_ptr)
-    check("the artefact cook's size for type 12 is the sponge's (6B8h), ret 4", size == S_SIZE and cleanup == 4,
+    check("the artefact cook's size for type 12 is the sponge's (6C4h), ret 4", size == S_SIZE and cleanup == 4,
           f"{size:#x}, cleanup {cleanup}")
     effect = r.allocate(4)
     sponge = r.allocate(S_SIZE, 0xAB)
@@ -594,7 +641,7 @@ def main():
           and hit["stamina"] == 0.0 and hit["stopping"] == 0.0, str(hit))
     check("not armed (m_explode_time_ms -1), the pin in, no body, identity m_transform, its inflictor "
           "{FFFFh, the sponge}, its regeneration node Lifebone's (0xA1566C|1, 0x312590, the sponge, the passive)",
-          r.read(sponge + S_EXPLODE) == NEVER and r.read(sponge + S_PIN, 1) == 0 and r.read(sponge + S_BODY) == 0
+          explode_of(r, sponge) == NEVER and pin_of(r, sponge) == 0 and r.read(sponge + S_BODY) == 0
           and r.readf(sponge + S_TRANSFORM, 16) == IDENTITY and r.read(sponge + S_INFLICTOR + 4, 2) == 0xFFFF
           and r.read(sponge + S_INFLICTOR + 0xC) == sponge and r.read(sponge + S_NODE) == 0xA1566C | 1
           and r.read(sponge + S_NODE + 8) == 0x312590 and r.read(sponge + S_NODE + 0x10) == sponge
@@ -603,7 +650,7 @@ def main():
           "(0xA13FAC|1, in place) {sp_contact, 0, the sponge}; no first contact armed",
           struct.unpack("<6I", r.bytes(sponge + S_CONTACT_FN, 0x18)) == (CONTACT_VTABLE | 1, 0, SYMBOLS["sp_contact"],
                                                                          0, sponge, 0)
-          and r.read(sponge + S_CONTACT, 1) == 0 and r.read(sponge + S_REGISTERED, 1) == 0)
+          and contact_of(r, sponge) == 0 and registered_of(r, sponge) == 0)
 
     # 1b. Every other type is the switch's: Rattle (type 8) through the switch's own case, as the original.
     rattle = dict(sponge_options())
@@ -721,15 +768,16 @@ def main():
     # 2. set_world: Rattle's (the world, the drawable linked), the rigid body (0.28's numbers), the zone's drawable.
     vt = lambda obj, slot: r.read(r.read(obj) + 4 * slot)
     _, cleanup = r.thiscall(vt(sponge, 28), sponge, CORE)
-    shape, kind, dims, scale, flag = game.shapes[-1] if game.shapes else (0, 0, 0, 0, 0)
+    shape, kind, dims, scale, material = game.shapes[-1] if game.shapes else (0, 0, 0, 0, 0)
     body, desc, body_shape = game.bodies[-1] if game.bodies else (0, b"", 0)
     bullet = r.read(body + 0x14) if body else 0
     expected = struct.pack("<4f4fB3x4f6fB3x", 0.3, 0, 0, 0, 0.5, 0, 0.8, 1.0, 0, 0.005, 0.01, 0.01, 0.01,
                            1, 1, 1, 1, 1, 1, 1)
-    check("set_world: the world (+248h), a sphere 0.05 (type 3, dims 0.05 0.1 0.1, scale 1; its resource flag 2) "
+    check("set_world: the world (+248h), a sphere 0.05 (type 3, dims 0.05 0.1 0.1, scale 1, the game material 45 "
+          "\"grenade\": data/mtl_idx, 0x7A390's material; its resource flag 2) "
           "and a body of 0.28's (and the grenade's) description, damping 0.03 and 0.01; ret 4",
           cleanup == 4 and r.read(sponge + WORLD) == CORE and kind == 3 and dims == [f32(0.05), f32(0.1), f32(0.1)]
-          and scale == [1.0, 1.0, 1.0] and flag == 0 and r.read(shape + 0xFC) & 2 and desc == expected
+          and scale == [1.0, 1.0, 1.0] and material == 45 and r.read(shape + 0xFC) & 2 and desc == expected
           and body_shape == shape and r.read(sponge + S_BODY) == body and r.readf(bullet + 0x104) == f32(0.03)
           and r.readf(bullet + 0x100) == f32(0.01), f"desc {desc.hex()}")
     drawables = []
@@ -802,33 +850,33 @@ def main():
     r.emu.mem_write(throw_state + 0x180, b"\xFF")
     r.word(substate + 0x138, throw_state)
     eip, moved = r.span(0x3103C9, 0x3103E3, {UC_X86_REG_ESI: substate, UC_X86_REG_EAX: 100050, UC_X86_REG_EDI: 0})
-    armed_at = r.read(sponge + S_EXPLODE)
+    armed_at = explode_of(r, sponge)
     check("the pull substate (0x3103C9): the pin out, the throw state's grenade index 0 (0.28's "
           "grenade_set_base[1] 0x514610), and the fuse from the pull (retail's start_timer_on_throw false): "
           "state 6, m_explode_time_ms = 100050 + 3000 on the tick grid from 50 (103050), the first contact armed "
-          "(grenade_core::pull_pin 0x303B90's +156h)", eip == 0x3103E3 and r.read(sponge + S_PIN, 1) == 1
+          "(grenade_core::pull_pin 0x303B90's +156h)", eip == 0x3103E3 and pin_of(r, sponge) == 1
           and r.read(throw_state + 0x180, 1) == 0 and r.read(sponge + STATE_AT) == 6 and armed_at == 103050
-          and r.read(sponge + S_CONTACT, 1) == CONTACT_ARMED, f"eip {eip:#x} fuse {armed_at}")
+          and contact_of(r, sponge) == CONTACT_ARMED, f"eip {eip:#x} fuse {armed_at}")
     eip, _ = r.span(0x33A677, 0x33A692, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EAX: 0})
     check("is_ready (0x33A677): no zone on, not done", eip == 0x33A692, f"eip {eip:#x}")
     _, cleanup = r.thiscall(vt(sponge, 11), sponge, 0, 100060)
     check("the release: out of the grenade slot (17h), nothing else (the fuse the pull's: 103050)",
           r.read(game.inventory + 0x17C) == 0x17 and r.read(sponge + STATE_AT) == 6
-          and r.read(sponge + S_EXPLODE) == armed_at == 103050, f"{r.read(sponge + S_EXPLODE)}")
+          and explode_of(r, sponge) == armed_at == 103050, f"{explode_of(r, sponge)}")
     fuse = []
     probe = r.allocate(S_SIZE)
     r.emu.mem_write(probe, r.bytes(sponge, S_SIZE))
     for now in (100000, 100001, 100049, 100050, 99999, 30, 0):
-        r.word(probe + S_EXPLODE, NEVER)
+        r.word(probe + S_STATE, SP_HELD)                  # not armed again
         r.call(SYMBOLS["sp_pull_pin"], (probe, now))
-        fuse.append(r.read(probe + S_EXPLODE))
+        fuse.append(explode_of(r, probe))
     check("the fuse's end on other pulls: the first tick of the grid (50 + 50k) at or past now + 3000, as 0.28's "
           "0x514580 and 0.26g's pull_pin 0x30A120 round",
           fuse == [103000, 103050, 103050, 103050, 103000, 3050, 3000], str(fuse))
     r.call(SYMBOLS["sp_pull_pin"], (sponge, 100100))
     r.thiscall(vt(sponge, 11), sponge, 1, 100100)
     check("a press or a pull while armed changes nothing but the grenade slot (17h)",
-          r.read(game.inventory + 0x17C) == 0x17 and r.read(sponge + S_EXPLODE) == 103050)
+          r.read(game.inventory + 0x17C) == 0x17 and explode_of(r, sponge) == 103050)
 
     # 5. The throw (0x33A7BB): from the hand's transform, along the aim's z, 15 x the holder's throw modifier (27).
     game.modifier(27, 0.2)
@@ -843,7 +891,7 @@ def main():
     check("thrown: the body at the hand's transform into the physics world (818h, 8), velocity (0.6, 0, 0.8) x 15 "
           "x 1.2 (0.26g's setter keeps it with z negated), no spin, the item count 0, the inventory dirty",
           eip == 0x33A7D9 and moved == 0 and ("body_set", body, [f32(5.2), 1.5, f32(7.1)]) in game.log
-          and ("pw_add", body, 0x818, 8) in game.log and r.read(sponge + S_PHYSICS) == game.physics
+          and ("pw_add", body, 0x818, 8) in game.log and physics_of(r, sponge) == game.physics
           and [round(v, 4) for v in linear] == [10.8, 0.0, -14.4] and angular == [0.0, 0.0, 0.0]
           and r.read(sponge + COUNT, 2) == 0 and r.read(game.inventory + 0x184, 1) == 1,
           f"velocity {linear}, log {game.log}")
@@ -851,7 +899,7 @@ def main():
           "grenade_core::throw_grenade 0x303C10 does it): once",
           [e for e in game.log if e[0] == "pw_contact_add"] == [("pw_contact_add", body, sponge + S_CONTACT_FN)]
           and game.log.index(("pw_add", body, 0x818, 8)) < game.log.index(("pw_contact_add", body, sponge + S_CONTACT_FN))
-          and r.read(sponge + S_REGISTERED, 1) == 1, str(game.log))
+          and registered_of(r, sponge) == 1, str(game.log))
     entered, _ = r.thiscall(0x2E4090, core)
     check("in the air it is no longer a way into the throw state (0.28's grenade_set_base[6])", (entered & 0xFF) == 0)
 
@@ -916,17 +964,17 @@ def main():
           and r.read(zone + 0x1A8) == game.physics and r.read(zone + 0x1CC) == NEVER
           and r.read(zone + 0x1D1, 1) == 0 and ("geometry_set", r.read(r.read(zone + 0x11C)), transform[12:15]) in events
           and r.readf(r.read(zone + 0x41C), 16) == transform and r.readf(r.read(zone + 0x43C), 16) == transform
-          and r.read(sponge + S_OWNER, 1) == 3,
+          and thrower_place_of(r, sponge) == 3,
           f"{r.read(zone + 0x1A8):#x} {r.read(zone + 0x1CC):#x} {r.read(zone + 0x1D1, 1)} sound "
           f"{r.readf(r.read(zone + 0x41C), 16)} effect {r.readf(r.read(zone + 0x43C), 16)} transform {transform} "
-          f"owner {r.read(sponge + S_OWNER, 1)}")
+          f"owner {thrower_place_of(r, sponge)}")
     check("its contacts' callback out (vt+74h, as grenade_core's 0x303D50) before the body leaves the physics "
           "world", ("pw_contact_remove", body, sponge + S_CONTACT_FN) in game.log and ("pw_remove", body, 1) in game.log
           and game.log.index(("pw_contact_remove", body, sponge + S_CONTACT_FN)) < game.log.index(("pw_remove", body, 1))
-          and r.read(sponge + S_REGISTERED, 1) == 0, str(game.log))
+          and registered_of(r, sponge) == 0, str(game.log))
     check("the body out of the physics world, the pin in, the passive out, state 7; still in its slot 13 this "
           "tick (a throw state holding it lets it go at its is_ready)",
-          ("pw_remove", body, 1) in game.log and r.read(sponge + S_PHYSICS) == 0 and r.read(sponge + S_PIN, 1) == 0
+          ("pw_remove", body, 1) in game.log and physics_of(r, sponge) == 0 and pin_of(r, sponge) == 0
           and r.read(game.inventory + 0x10C + 4 * 13) == sponge and r.read(sponge + SLOT) == 13
           and r.read(sponge + S_LINKED) == 0 and r.read(infection + 0x2EC) == 0 and r.read(sponge + STATE_AT) == 7)
     check("the same tick the zone ticks (0x319A70: 50, the time, on the tick grid) naming its thrower, the "
@@ -951,7 +999,7 @@ def main():
     time += 50
     r.thiscall(vt(sponge, 29), sponge, 50, time)
     check("at m_explode_time_ms + duration (118050): the zone off (0x319D30(zone, 0)), state 0, not armed",
-          ("zone_off", zone, 0) in events and r.read(sponge + STATE_AT) == 0 and r.read(sponge + S_EXPLODE) == NEVER)
+          ("zone_off", zone, 0) in events and r.read(sponge + STATE_AT) == 0 and explode_of(r, sponge) == NEVER)
 
     # 7. The zone's hit call site (0x319C7C..0x319CAC): stock args, or the sponge's while it ticks its zone.
     def site(emu, zone_at, g_values):
@@ -1190,13 +1238,13 @@ def main():
     r.thiscall(vt(b_sponge, 11), b_sponge, 1, 200000)
     r.call(SYMBOLS["sp_pull_pin"], (b_sponge, 200000))
     r.thiscall(vt(b_sponge, 11), b_sponge, 0, 200050)
-    b_armed = r.read(b_sponge + S_EXPLODE)
+    b_armed = explode_of(r, b_sponge)
     blob, names, c, c_zone, c_body, read_ok, same = round_trip(b_sponge, 16, "armed")
     check("armed in the hand (state 6, the pin out, not thrown, the first contact armed): read back the same, "
           "the same bytes again",
-          read_ok and same and r.read(c + STATE_AT) == 6 and r.read(c + S_EXPLODE) == b_armed == 203000
-          and r.read(c + S_PIN, 1) == 1 and r.read(c + S_PHYSICS) == 0
-          and r.read(c + S_CONTACT, 1) == CONTACT_ARMED and r.read(c + S_REGISTERED, 1) == 0, f"{b_armed}")
+          read_ok and same and r.read(c + STATE_AT) == 6 and explode_of(r, c) == b_armed == 203000
+          and pin_of(r, c) == 1 and physics_of(r, c) == 0
+          and contact_of(r, c) == CONTACT_ARMED and registered_of(r, c) == 0, f"{b_armed}")
     r.word(throw_state + 0x17C, b_sponge)
     hand = translation(-3.0, 2.0, 4.0)
     frame = [0, 0, 0, 0] + [struct.unpack("<I", struct.pack("<f", v))[0] for v in hand]
@@ -1212,9 +1260,9 @@ def main():
           "body goes into the physics world at m_transform with both velocities, the same bytes again",
           read_ok and same and names[-8:] == ["m_explode_time_ms", "m_is_pin_pulled", "thrown()", "m_transform",
                                               "linear_velocity", "angular_velocity", "m_contact", "m_zone_owner"]
-          and r.read(c + S_PHYSICS) == game.physics and ("pw_add", c_body, 0x818, 8) in game.log
-          and ("pw_contact_add", c_body, c + S_CONTACT_FN) in game.log and r.read(c + S_REGISTERED, 1) == 1
-          and r.read(c + S_CONTACT, 1) == CONTACT_ARMED
+          and physics_of(r, c) == game.physics and ("pw_add", c_body, 0x818, 8) in game.log
+          and ("pw_contact_add", c_body, c + S_CONTACT_FN) in game.log and registered_of(r, c) == 1
+          and contact_of(r, c) == CONTACT_ARMED
           and r.readf(c + S_TRANSFORM, 16) == translation(-1.0, 2.5, 7.0)
           and r.bytes(c_bullet + 0x140, 12) == r.bytes(b_bullet + 0x140, 12)
           and r.bytes(c_bullet + 0x150, 12) == r.bytes(b_bullet + 0x150, 12) and r.readf(c_bullet + 0x150) == 0.5,
@@ -1242,7 +1290,7 @@ def main():
           and r.readf(c + S_TRANSFORM + 0x30, 3) == [-1.0, 2.5, 7.0]
           and b"ZONE!" in blob and ("activate", c_zone + 0x108, game.physics) in events
           and ("zone_deserialize", c_zone + 0x130, b"ZONE!") in zone_io and ("zone_after", c_zone + 0x130, CORE) in zone_io
-          and r.read(c + S_OWNER, 1) == 3 and r.read(c + STATE_AT) == 7
+          and thrower_place_of(r, c) == 3 and r.read(c + STATE_AT) == 7
           and r.readf(r.read(c_zone + 0x43C) + 0x30, 3) == [-1.0, 2.5, 7.0], f"{names[-3:]} {zone_io}")
     r.word(c_zone + 0x124, 1)
     events.clear()
@@ -1329,12 +1377,12 @@ def main():
     r.word(game.inventory + 0x17C, 0x17)
     r.stub(lambda r: None, 8, at=0x313350)               # the activation's effect (the artefact, the time)
     r.thiscall(0x313300, lifebone_like, 1, 500000)
-    untouched = r.read(other + S_EXPLODE) == NEVER and r.read(other + STATE_AT) == 3 \
+    untouched = explode_of(r, other) == NEVER and r.read(other + STATE_AT) == 3 \
         and r.read(game.inventory + 0x17C) == 0x17
     r.thiscall(vt(alive, 11), alive, 1, 500000)
     check("another kind's press (patch 54's fire_kind at 0x313300) fires none of the sponges; a sponge's press "
           "(its own +2Ch) takes that one sponge into the grenade slot, no other",
-          untouched and r.read(game.inventory + 0x17C) == r.read(alive + SLOT) and r.read(other + S_EXPLODE) == NEVER
+          untouched and r.read(game.inventory + 0x17C) == r.read(alive + SLOT) and explode_of(r, other) == NEVER
           and r.read(other + STATE_AT) == 3 and r.read(lifebone_like + STATE_AT) == 4)
     r.thiscall(vt(alive, 11), alive, 0, 500050)          # its key let go: the grenade slot 17h again
 
@@ -1396,7 +1444,7 @@ def main():
     r.thiscall(vt(a, 11), a, 1, 600000)
     r.call(SYMBOLS["sp_pull_pin"], (a, 600000))
     r.thiscall(vt(a, 11), a, 0, 600000)
-    a_fuse = r.read(a + S_EXPLODE)
+    a_fuse = explode_of(r, a)
     was_in = in_pool(a + S_NODE)
     game.log.clear()
     remove_from_slot(13)
@@ -1405,10 +1453,10 @@ def main():
           "+30h skipped state 6 and left it there); it falls from the hand (into the physics world there, no "
           "speed), still armed (the same fuse), the thrower kept",
           was_in == 1 and in_pool(a + S_NODE) == 0 and r.read(a + S_LINKED) == 0 and r.read(a + INVENTORY) == 0
-          and r.read(a + STATE_AT) == 6 and r.read(a + S_EXPLODE) == a_fuse == 603000
+          and r.read(a + STATE_AT) == 6 and explode_of(r, a) == a_fuse == 603000
           and ("body_set", a_body, [f32(0.4), f32(1.7), f32(0.2)]) in game.log and ("pw_add", a_body, 0x818, 8) in game.log
-          and r.read(a + S_PHYSICS) == game.physics and r.readf(a_bullet + 0x140, 3) == [0.0, 0.0, 0.0]
-          and r.read(a + S_OWNER, 1) == 3, f"fuse {a_fuse} log {game.log}")
+          and physics_of(r, a) == game.physics and r.readf(a_bullet + 0x140, 3) == [0.0, 0.0, 0.0]
+          and thrower_place_of(r, a) == 3, f"fuse {a_fuse} log {game.log}")
     r.floats(a_body + 0x100, translation(0.4, 0.1, 0.2))
     splashes.clear()
     end = tick_until(a, 600000, 7)
@@ -1478,23 +1526,23 @@ def main():
     #      the fuse is the pull's now, so nothing of the release is kept).
     t, _, t_body = make_sponge(19)
     tap(t, 800000)
-    tapped = (r.read(t + S_EXPLODE), r.read(t + S_CONTACT, 1), r.read(game.inventory + 0x17C))
+    tapped = (explode_of(r, t), contact_of(r, t), r.read(game.inventory + 0x17C))
     tap_blob, _, t2, _, _, read_ok, same = round_trip(t, 20, "tap")
     r.call(SYMBOLS["sp_pull_pin"], (t2, 800050))
     check("a tap (press and release before the pull substate): not armed yet, nothing kept; the pull a tick "
           "later arms it once, from the pull: 803050, the first contact armed, the thrower its holder",
-          tapped == (NEVER, 0, 0x17) and read_ok and same and r.read(t2 + S_CONTACT, 1) == CONTACT_ARMED
-          and r.read(t2 + S_EXPLODE) == 803050 and r.read(t2 + STATE_AT) == 6 and r.read(t2 + S_OWNER, 1) == 3,
-          f"{tapped} {r.read(t2 + S_EXPLODE)}")
+          tapped == (NEVER, 0, 0x17) and read_ok and same and contact_of(r, t2) == CONTACT_ARMED
+          and explode_of(r, t2) == 803050 and r.read(t2 + STATE_AT) == 6 and thrower_place_of(r, t2) == 3,
+          f"{tapped} {explode_of(r, t2)}")
     r.thiscall(vt(t2, 11), t2, 0, 800100)
-    again = r.read(t2 + S_EXPLODE)
+    again = explode_of(r, t2)
     throw(t2, 2.0, 1.0, 2.0)
     t_end = tick_until(t2, 800050, 7)
     r.call(SYMBOLS["sp_pull_pin"], (t, 800000))
     check("a release after that changes nothing; thrown (no contact), it explodes at its fuse; a tap with the "
           "pull in the same tick arms from that tick (803000 from 800000)",
-          again == 803050 and t_end == 803050 and r.read(t2 + STATE_AT) == 7 and r.read(t + S_EXPLODE) == 803000,
-          f"{again} {t_end} {r.read(t2 + STATE_AT)} {r.read(t + S_EXPLODE)}")
+          again == 803050 and t_end == 803050 and r.read(t2 + STATE_AT) == 7 and explode_of(r, t) == 803000,
+          f"{again} {t_end} {r.read(t2 + STATE_AT)} {explode_of(r, t)}")
 
     # 14e. The destructor (at a match's end, when the world goes in whatever order its parts go) touches
     #      nothing the world owns, as 0.26g's grenade, Spring, Rattle and collision sensor destructors: the
@@ -1512,8 +1560,8 @@ def main():
         scene_list = (r.read(game.scene + 0xDC + 4), r.read(game.scene + 0xDC + 8))
         if linked:
             r.word(obj + S_LINKED, GONE)
-        if r.read(obj + S_PHYSICS):
-            r.word(obj + S_PHYSICS, GONE + 0x1000)
+        if physics_of(r, obj):
+            r.word(obj + S_STATE + 0x14, GONE + 0x1000)
         r.word(game.scene + 0xDC + 4, GONE + 0x2000)
         r.word(game.scene + 0xDC + 8, GONE + 0x2000)
         game.log.clear()
@@ -1530,7 +1578,7 @@ def main():
     r.call(SYMBOLS["sp_pull_pin"], (flying, 900000))
     r.thiscall(vt(flying, 11), flying, 0, 900000)
     throw(flying, 1.0, 2.0, 3.0)
-    in_air = r.read(flying + S_PHYSICS) != 0 and r.read(flying + S_LINKED) != 0
+    in_air = physics_of(r, flying) != 0 and r.read(flying + S_LINKED) != 0
     faulted, kinds = destroyed_after_its_world(flying)
     forget_node(flying + S_NODE)
     check("a sponge destroyed in the air with its passive linked, its world gone (its physics world, the "
@@ -1538,7 +1586,7 @@ def main():
           "destroyed (grenade_core's 0x303770 way), then Rattle's destructor; nothing of the world kept",
           in_air and faulted is None and "pw_remove" not in kinds
           and kinds.index("destroy_shape") < kinds.index("free_body") < kinds.index("rattle_dtor")
-          and r.read(flying + S_PHYSICS) == 0 and r.read(flying + S_LINKED) == 0 and r.read(flying + S_BODY) == 0
+          and physics_of(r, flying) == 0 and r.read(flying + S_LINKED) == 0 and r.read(flying + S_BODY) == 0
           and r.read(flying + S_ZONE) == 0, faulted or str(kinds))
     spent, s_zone, _ = make_sponge(22)
     made = r.read(r.read(s_zone + 0x11C))
@@ -1589,7 +1637,7 @@ def main():
           "while its zone runs); and were its state changed, the zone still ticks to its end, and the end leaves "
           "that state alone",
           (spent_use & 0xFF) == 0 and (ready_use & 0xFF) == 1 and len(z_ticks) == 300
-          and ("zone_off", z_zone, 0) in events and r.read(z + STATE_AT) == 3 and r.read(z + S_EXPLODE) == NEVER,
+          and ("zone_off", z_zone, 0) in events and r.read(z + STATE_AT) == 3 and explode_of(r, z) == NEVER,
           f"{spent_use:#x} {ready_use:#x} ticks {len(z_ticks)}")
 
     # 18. Retail's first contact (0.31a2 on, 0.69d0's numbers): the physics world's step reports a contact of
@@ -1661,9 +1709,9 @@ def main():
     # a contact before 1.5 s: spent, the fuse decides; a second contact after 1.5 s changes nothing
     early, early_body = thrown_at(9, 2000000)
     invoker, cleanup = contact(early)
-    seen = r.read(early + S_CONTACT, 1)
+    seen = contact_of(r, early)
     t, booms = run_to(early, 2000000, 2001000)
-    spent = (r.read(early + S_CONTACT, 1), r.read(early + STATE_AT), r.read(early + S_EXPLODE))
+    spent = (contact_of(r, early), r.read(early + STATE_AT), explode_of(r, early))
     t, booms2 = run_to(early, t, 2004000, contacts=(2002000,))
     check("a contact reported through the game's invoker (0x202300: ecx the sponge, its argument popped by "
           "sp_contact) is only noted (CONTACT_HIT); at the next tick, 2 s of the fuse left (>= safe_time 1500), "
@@ -1680,9 +1728,9 @@ def main():
           "tick (2101550), where the body is, its callback out before the body leaves the physics world, the "
           "zone on to 2101550 + 15000",
           booms == [2101550] and t == 2101550 and r.read(late_obj + STATE_AT) == 7
-          and r.read(late_obj + S_EXPLODE) == 2101550 and r.readf(late_obj + S_TRANSFORM + 0x30, 3) == [4.0, 0.25, -3.0]
+          and explode_of(r, late_obj) == 2101550 and r.readf(late_obj + S_TRANSFORM + 0x30, 3) == [4.0, 0.25, -3.0]
           and ("pw_contact_remove", late_body, late_obj + S_CONTACT_FN) in game.log
-          and r.read(late_obj + S_REGISTERED, 1) == 0, f"{booms} {t}")
+          and registered_of(r, late_obj) == 0, f"{booms} {t}")
     check("still in its slot 10 at that tick (the throw state holds it until its is_ready)",
           r.read(game.inventory + 0x10C + 4 * 10) == late_obj and r.read(throw_state + 0x17C) == late_obj)
     save_load_in_tick("a contact burst (thrown, the throw state still holding it)", late_obj, 10)
@@ -1696,7 +1744,34 @@ def main():
         t += 50
         r.thiscall(vt(late_obj, 29), late_obj, 50, t)
     check("its zone off at 2116550 (the contact's tick + 15 s), state 0",
-          r.read(late_obj + STATE_AT) == 0 and r.read(late_obj + S_EXPLODE) == NEVER)
+          r.read(late_obj + STATE_AT) == 0 and explode_of(r, late_obj) == NEVER)
+    # the sensor (0.69d0's thrown_with_sensor state, collide_with_player: its tick 0x2003EBF10): a player
+    # in its way since the last tick is a contact, under the same rule; the thrower never. The way is
+    # swept with the hit manager's collision query (vt+60h, as the splash's); here it finds `game.targets`.
+    def person(player):
+        obj, owner = r.allocate(0x40), r.allocate(0x10)
+        r.word(obj + 0xC, owner)
+        r.word(owner, r.vtable({0: (lambda r, p=player: p + 0x118, 0), 2: (lambda r, p=player: p, 0)}))
+        return {"object": obj, "place": player, "distance": 0.0}
+    enemy, thrower_self = person(game.make_player(8)), person(game.player)
+    sensed = []
+    for label, targets, pull, slot in (("an enemy after 1.5 s", [enemy], 2500000, 9),
+                                       ("an enemy before 1.5 s", [enemy], 2600000, 10),
+                                       ("the thrower after 1.5 s", [thrower_self], 2700000, 11)):
+        obj, _ = thrown_at(slot, pull)
+        early = label.endswith("before 1.5 s")
+        game.targets = targets if early else []
+        t, booms = run_to(obj, pull, pull + (100 if early else 1550))
+        game.targets = targets if not early else []
+        queries_before = len([e for e in game.log if e[0] == "sphere_query"])
+        t, booms2 = run_to(obj, t, pull + 4000)
+        sensed.append((label, booms + booms2, contact_of(r, obj)))
+        game.targets = []
+    check("the sensor's sweep in the air: an enemy in its way 1.6 s after the pull bursts it at that tick "
+          "(2501600); one in its way 50 ms after the pull is its first contact, spent, and the fuse decides "
+          "(2603000); the thrower in its way never counts (2703000)",
+          [b for _, b, _ in sensed] == [[2501600], [2603000], [2703000]], str(sensed))
+
     # no contact: 3 s from the pull
     plain, _ = thrown_at(11, 2200000)
     t, booms = run_to(plain, 2200000, 2204000)
@@ -1705,13 +1780,13 @@ def main():
     held_obj, _, _ = make_sponge(12)
     contact(held_obj)
     check("a contact of a sponge not armed (held, never pulled) is nothing: the first contact is armed at the pull",
-          r.read(held_obj + S_CONTACT, 1) == 0)
+          contact_of(r, held_obj) == 0)
     # the state between the step and the tick: a late joiner's (or a rollback's) game has the contact too
     pend, pend_body = thrown_at(13, 2300000)
     run_to(pend, 2300000, 2301550)
     contact(pend)
     blob, names, j, j_zone, j_body, read_ok, same = round_trip(pend, 14, "contact")
-    loaded_contact = (r.read(j + S_REGISTERED, 1), r.read(j + S_CONTACT, 1), r.read(j + S_PHYSICS) == game.physics)
+    loaded_contact = (registered_of(r, j), contact_of(r, j), physics_of(r, j) == game.physics)
     splashes.clear()
     r.thiscall(vt(pend, 29), pend, 50, 2301600)
     r.thiscall(vt(j, 29), j, 50, 2301600)
@@ -1748,11 +1823,12 @@ def main():
     def our_rule(due, now, safe, slot):
         obj, _, _ = make_sponge(slot)
         r.call(SYMBOLS["sp_pull_pin"], (obj, now - 1000))
-        r.word(obj + S_EXPLODE, due)
+        throw(obj, 1.0, 1.0, 1.0)                        # a contact is of its body in the air
+        r.word(obj + S_STATE + 4, due)
         r.word(obj + S_SAFE, safe)
         contact(obj)
         r.thiscall(vt(obj, 29), obj, 50, now)
-        return r.read(obj + STATE_AT) == 7, r.read(obj + S_CONTACT, 1)
+        return r.read(obj + STATE_AT) == 7, contact_of(r, obj)
     # ttl 3000 (the config's): retail's rule explodes when the fuse's end - now <= ttl - safe_time
     cases = [(due, now, safe) for safe in (1500, 2500, 0)
              for due, now in ((2403000, 2400050), (2403000, 2401450), (2403000, 2401500), (2403000, 2401550),
@@ -1899,7 +1975,7 @@ def main():
     r.thiscall(vt(held, 11), held, 0, t_h + 50)
     throw(held, 1.0, 1.0, 1.0)
     check("a release and the throw site after the explosion: nothing thrown",
-          r.read(held + S_PHYSICS) == 0 and r.read(held + STATE_AT) == 7 and r.read(game.inventory + 0x17C) == 0x17)
+          physics_of(r, held) == 0 and r.read(held + STATE_AT) == 7 and r.read(game.inventory + 0x17C) == 0x17)
     # a drop while held in the grenade slot (not pulled): the grenade slot given back too
     dropped, _, _ = make_sponge(21)
     r.thiscall(vt(dropped, 11), dropped, 1, 3100000)
@@ -1917,8 +1993,73 @@ def main():
     r.word(game.inventory + 0x17C, 0x17)
     check("a press and a release of the Sponge's key while a stock grenade is cooked (the grenade slot 5, not "
           "17h): the grenade slot stays 5 (the stock throw state's grenade not released), the Sponge not armed",
-          after_press == 5 and after_release == 5 and r.read(cooking + S_EXPLODE) == NEVER,
+          after_press == 5 and after_release == 5 and explode_of(r, cooking) == NEVER,
           f"{after_press} {after_release}")
+
+    # 20. A Sponge's kill in the kill feed: icon 17 (ui_desc/combat_log_icon), the thrower the killer. The
+    #     hit as the game makes it: the zone's hit (the receiver's vt+20h, 0x2D9AE0: the hook's instigator,
+    #     inflictor and item) and the splash's (vt+24h, base_player::hit 0x2D9A60 and its hit's constructor
+    #     0x32B9F0), hit_impl (0x2D9B90) answered with the hit it is given; then hit_impl's kill call as
+    #     0x2D9EFC..0x2D9F15 makes it (the time +3Ch, the killer +44h, the bone, the damage source +40h, the
+    #     bullet: the inflictor's vtable slot 0, the game's 0x300040) into generate_killed_event 0x2DA170,
+    #     whose event node gets the killer (+1) and the weapon icon (+2: the bullet's, else the damage
+    #     source's +224h).
+    print("  20. a Sponge's kill in the kill feed: icon 17, the thrower credited")
+    killer_sponge, _, _ = make_sponge(23)
+    r.call(SYMBOLS["sp_pull_pin"], (killer_sponge, 4000000))
+    victim = game.make_player(7)
+    r.word(victim + 0x120, CORE)
+    victim_inventory = r.allocate(0x200)
+    r.word(victim + 0x10C, victim_inventory)
+    hits_made, on = [], [True]                           # the stubs answer only in this case (False: the game's)
+    r.stub(lambda r: (hits_made.append(r.bytes(r.arg(1), 0x48)), None)[1] if on[0] else False, 8, at=0x2D9B90)
+    r.stub(lambda r: None if on[0] else False, 8, at=0x12780)   # a part's name (the hit's bone): not read here
+    records = r.allocate(0x200)
+    record_owner = r.allocate(0x200)
+    r.word(victim + 0x118 + 0x380, record_owner)       # base_player::hit is the player's +118h: its +380h
+    r.word(record_owner + 0x120, records - 18 * 0x6C)    # hit target 18's record
+    r.word(records + 0x4C, r.allocate(0x40))
+    thrower_go = game.player + 0x110
+    inflictor_at = killer_sponge + S_INFLICTOR
+    part = r.allocate(0x80)
+    r.word(part + 0x4C, r.allocate(0x40))
+    f32w = lambda v: struct.unpack("<I", struct.pack("<f", v))[0]
+    # the zone's: (time, instigator, &part, type, hit, power, inflictor, item)
+    r.thiscall(0x2D9AE0, victim + 0x118, 4000100, thrower_go, part, FIRE, f32w(0.2), f32w(1.0), inflictor_at,
+               killer_sponge)
+    # the splash's: (time, instigator, the hit target, type, damage, pierce, inflictor, &a vector, ?, item)
+    r.thiscall(0x2D9A60, victim + 0x118, 4000050, thrower_go, 18, FIRE, f32w(0.3), f32w(0.1), inflictor_at,
+               r.allocate(16), 0,
+               killer_sponge)
+    events_made = []
+    node = r.allocate(0x40)
+    r.stub(lambda r: node if on[0] else False, 0, at=0x2D43B0)
+    r.stub(lambda r: (events_made.append(r.bytes(node, 8)), None)[1] if on[0] else False, 0, at=0x2D0A60)
+    keep_fa8 = r.read(CORE + 0x18FA8)
+    r.word(CORE + 0x18FA8, 0)
+    killer_iface = r.read(game.player + 0x118)
+    position = r.allocate(0x40)
+    r.word(game.player + 0x118, r.vtable({10: (lambda r: position, 0)}))
+    bone = r.allocate(8)
+    r.emu.mem_write(bone, b"body\0")
+    bullet_of = r.read(r.read(inflictor_at))             # the inflictor's slot 0
+    kills = []
+    for hit in hits_made:
+        time_, killer, source = struct.unpack_from("<I", hit, 0x3C)[0], hit[0x44], struct.unpack_from("<I", hit, 0x40)[0]
+        bullet, _ = r.call(bullet_of, (), {UC_X86_REG_ECX: struct.unpack_from("<I", hit, 0x20)[0]})
+        events_made.clear()
+        r.call(0x2DA170, (time_, killer, bone, source, bullet), {UC_X86_REG_ESI: victim})
+        kills.append((killer, source == killer_sponge, bullet, events_made[0][1], events_made[0][2]) if events_made
+                     else None)
+    r.word(game.player + 0x118, killer_iface)
+    r.word(CORE + 0x18FA8, keep_fa8)
+    on[0] = False
+    check("a Sponge's kill, by its cloud (0x2D9AE0) and by its splash (0x2D9A60, 0x32B9F0): the hit names the "
+          "sponge its damage source (+40h) and its thrower's place (+44h, 3); the inflictor is not a bullet "
+          "(its slot 0 the game's 0x300040: 0); generate_killed_event's event: the killer 3 (the thrower "
+          "credited), the weapon icon 17 (the sponge's +224h, its config's ui_desc/combat_log_icon)",
+          r.read(killer_sponge + 0x224, 1) == 17 and bullet_of == 0x300040 and len(kills) == 2
+          and all(k == (3, True, 0, 3, 17) for k in kills), f"{r.read(killer_sponge + 0x224, 1)} {kills}")
 
     # 16. Each slot of ours reached through the game's own call site with what the game passes there
     #     (patch_026g.py's INSTALLED_VTABLES name these cases; the self-test fails a slot of ours with none).
@@ -1943,8 +2084,8 @@ def main():
     check("driven: slot 11, action(pressed, time), through inventory::action 0x2FCB20: the press takes the grenade "
           "slot, the release gives it back (17h); the fuse the pull's (1100010 + 3000 on the tick grid)",
           eip1 == eip2 == 0x2FCB33 and moved1 == moved2 == 0 and pressed_slot == 2
-          and r.read(game.inventory + 0x17C) == 0x17 and r.read(act + S_EXPLODE) == 1103050
-          and r.read(act + STATE_AT) == 6, f"fuse {r.read(act + S_EXPLODE)}")
+          and r.read(game.inventory + 0x17C) == 0x17 and explode_of(r, act) == 1103050
+          and r.read(act + STATE_AT) == 6, f"fuse {explode_of(r, act)}")
     # slot 29: generic_anomaly_core::tick's loop (edi the core, esi the index; push ebx (time), push ebp (dt))
     throw(act, 1.0, 0.5, 2.0)
     artefacts_of(act)
@@ -2425,7 +2566,7 @@ def main():
     pack_config = os.path.join(args.pack, "files", "gameplay", "items", "artefacts", "artefact_sponge.options")
     if os.path.exists(pack_config):
         prun = Run(pe_sections(built))
-        pgame = Game(prun, open(pack_config, "rb").read())
+        pgame = Game(prun, bcw.dump(live(bcw.load(pack_config))))
         p = prun
         pvt = lambda obj, slot: p.read(p.read(obj) + 4 * slot)
         psponge = p.allocate(S_SIZE, 0xAB)
@@ -2433,7 +2574,7 @@ def main():
         size, _ = p.thiscall(0x25E770, pgame.cook, pgame.resource_ptr)
         phit = splash_of(p, psponge + S_SPLASH)
         check("the pack's artefact_sponge.options (0.28d0's file with 0.69d0's fuse, contact and numbers, the "
-              "passive's regen_add 1000 and timeout_mul 0): a sponge of 6B8h bytes; duration 15000, fuse 3000 from "
+              "passive's regen_add 1000 and timeout_mul 0): a sponge of 6C4h bytes; duration 15000, fuse 3000 from "
               "the pull, safe_time 1500, explode_on_contact, throw power 15, the passive {1000, 1, 0, 0, 1.5, 1}, the "
               "splash 0.69d0's (radius 10, 0.3, pierce 0.1, fire, on hit target 18)",
               made == psponge and size == S_SIZE and p.read(psponge + S_DURATION) == 15000

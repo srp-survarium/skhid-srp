@@ -5498,7 +5498,7 @@ va	name	location	role	basis
 0x0007a390	vostok::physics::create_collision_shape	EDX	the type (3 the grenade's sphere)	observed
 0x0007a390	vostok::physics::create_collision_shape	ECX	&dims float3 (0.05, 0.1, 0.1)	observed
 0x0007a390	vostok::physics::create_collision_shape	stack+4	&scale float3	observed
-0x0007a390	vostok::physics::create_collision_shape	stack+8	0	observed
+0x0007a390	vostok::physics::create_collision_shape	stack+8	the game material (u16, the shape's +110h: data/mtl_idx, 45 "grenade"; grenade_core passes its own at 0x300353)	observed
 0x00357100	vostok::physics::create_dynamic_rigid_body	stack+4	&the description (50h bytes)	observed
 0x00357100	vostok::physics::create_dynamic_rigid_body	stack+8	the shape	observed
 0x003576c0	vostok::physics::bullet_rigid_body::set_linear_velocity	ECX	&the velocity (float3)	observed
