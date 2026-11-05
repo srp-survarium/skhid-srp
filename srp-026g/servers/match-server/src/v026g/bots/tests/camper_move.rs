@@ -1336,12 +1336,17 @@ impl BenchCamper {
             }
         };
         let mut scoped = false;
-        if self.options.watch == Watch::Lane
+        if matches!(self.options.watch, Watch::Lane | Watch::Known)
             && let (Some(spot), Some(side)) = (watched, bot.side)
             && me.speed() < AT_REST_MPS
             && let Some(look) = self.lane_look_from(tactics, side, spot)
         {
-            bot.intent.look = Look::At(look);
+            // [A302 calibration] A bot he knows of near: the view where it was last placed, chest high.
+            let known = (self.options.watch == Watch::Known)
+                .then(|| nearest_known(bot.memory.tracks(), me.feet, now))
+                .flatten()
+                .map(|at| at + Vec3::new(0.0, 1.3, 0.0));
+            bot.intent.look = Look::At(known.unwrap_or(look));
             bot.intent.hold |= key::AIM;
             scoped = true;
         }

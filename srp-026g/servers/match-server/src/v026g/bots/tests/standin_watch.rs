@@ -25,6 +25,10 @@ pub(crate) enum Watch {
     Around,
     /// Holds the view on the lane, scoped.
     Lane,
+    /// [A302 calibration] As [`Self::Lane`], but with a bot he knows of near (seen, heard or told within `KNOWN_MS`, placed
+    /// to 6 m, `camper_move::nearest_known`) the view goes where it was last placed, as the owner's does (his view was on
+    /// the bot a median 2.55 s before his first shot, `fx-fights-a302-firstshot-baseline.md`).
+    Known,
 }
 
 impl Watch {
@@ -32,7 +36,8 @@ impl Watch {
         match value {
             None | Some("around") => Ok(Self::Around),
             Some("lane") => Ok(Self::Lane),
-            Some(other) => Err(format!("SRP_BENCH_CAMPER_WATCH={other:?}: around or lane")),
+            Some("known") => Ok(Self::Known),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_WATCH={other:?}: around, lane or known")),
         }
     }
 }
@@ -99,6 +104,7 @@ mod tests {
     fn the_watch_setting_is_parsed_and_refuses_an_unknown_value() {
         assert_eq!(Watch::parse(None), Ok(Watch::Around));
         assert_eq!(Watch::parse(Some("lane")), Ok(Watch::Lane));
+        assert_eq!(Watch::parse(Some("known")), Ok(Watch::Known));
         assert!(Watch::parse(Some("lanes")).is_err());
     }
 
