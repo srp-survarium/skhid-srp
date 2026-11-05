@@ -607,3 +607,10 @@ survarium::medical_clock_result	interval	0	u32	interval zero while holding
 survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
 survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
 survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation
+survarium::player_params_modifiers_container	combo_ranks	0xB4	f32	modifier 45 can_defuse_traps (no getter call, no code name reference, no retail config): the medical combo skills' packed ranks; medical-skills.md
+survarium::player_stamina	player	-0x6C0	obj<survarium::player>	its player: base_player embeds player_stamina at +6C0h (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+survarium::player	character_controller	0x494	ptr<vostok::physics::bt_character_controller>	its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+vostok::physics::bt_character_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+vostok::physics::bullet_character_controller	effective_crouch	0x201	u8	effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
+survarium::medical_stopping_frame	player	0x4	ptr<survarium::player>	medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+survarium::medical_stopping_frame	sum	0x8	f32	its second: the recent hits' stopping power after Spring's list 42, written back

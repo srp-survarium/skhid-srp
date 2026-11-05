@@ -1,11 +1,71 @@
-//! Medical skill decisions. The existing profile modifier 43 transports an
-//! exact 24-bit integer; no new world state or snapshot side table is needed.
+//! Medical skill decisions. Two unused profile modifiers transport exact
+//! integers: 43 the tree's original ranks, 45 the combo skills' (Numb Legs,
+//! Take Cover, Unflinching). No new world state or snapshot side table.
 #![forbid(unsafe_code)]
 
 use crate::vostok::{Context, Flow, NoExit, medical};
 
-/// A rank is parsed once from the profile, never an arbitrary float inside
-/// the gameplay calculation. Seven five-rank skills and three unlocks.
+/// Whether one of the player's painkillers is active: native set_active's
+/// flag (+2B0h), the whole time its pain protection is linked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Painkiller {
+    Inactive,
+    Active,
+}
+
+/// The player's effective crouch (the controller's, which stays crouched
+/// under a low ceiling), not the crouch key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stance {
+    Standing,
+    Crouched,
+}
+
+/// A packed field: its first bit, its width and the most ranks it takes.
+struct Field {
+    shift: u32,
+    bits: u32,
+    most: u8,
+}
+impl Field {
+    const fn new(shift: u32, bits: u32, most: u8) -> Self {
+        Self { shift, bits, most }
+    }
+    fn rank(&self, packed: u32) -> Option<u8> {
+        let rank = ((packed >> self.shift) & ((1 << self.bits) - 1)) as u8;
+        (rank <= self.most).then_some(rank)
+    }
+    fn unlock(&self, packed: u32) -> Option<bool> {
+        self.rank(packed).map(|rank| rank != 0)
+    }
+}
+
+/// Modifier 43's layout, unchanged since the tree shipped (the five-rank
+/// fields kept three bits when their skills went down to two or three ranks).
+const PAINKILLER: Field = Field::new(0, 3, 3);
+const BANDAGING: Field = Field::new(3, 3, 2);
+const METABOLISM: Field = Field::new(6, 3, 5);
+const TRAINING: Field = Field::new(9, 3, 3);
+const ADRENALIN: Field = Field::new(12, 3, 3);
+const MEDICINE: Field = Field::new(15, 1, 1);
+const SUPPLY: Field = Field::new(16, 1, 1);
+const BONES: Field = Field::new(17, 3, 5);
+/// Medic left the tree (it returns in another one): its bit stays decoded.
+const MEDIC: Field = Field::new(20, 1, 1);
+const BROTHERS: Field = Field::new(21, 3, 2);
+/// Modifier 45: two bits each, every combination of ranks below 64.
+const NUMB_LEGS: Field = Field::new(0, 2, 2);
+const TAKE_COVER: Field = Field::new(2, 2, 2);
+const UNFLINCHING: Field = Field::new(4, 2, 2);
+
+/// A packed modifier: an exact integer of `bits` bits, nothing else.
+fn packed(value: f32, bits: u32) -> Option<u32> {
+    let most = ((1u32 << bits) - 1) as f32;
+    ((0.0..=most).contains(&value) && value == (value as u32) as f32).then_some(value as u32)
+}
+
+/// The ranks, parsed once from the profile, never an arbitrary float inside
+/// the gameplay calculation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Skills {
     painkiller: u8,
@@ -18,39 +78,31 @@ pub struct Skills {
     bones: u8,
     medic: bool,
     brothers: u8,
+    numb_legs: u8,
+    take_cover: u8,
+    unflinching: u8,
 }
 
 impl Skills {
-    pub fn parse(value: f32) -> Option<Self> {
-        if !(0.0..=16_777_215.0).contains(&value) || value != (value as u32) as f32 {
-            return None;
-        }
-        let bits = value as u32;
-        let rank = |shift: u32| ((bits >> shift) & 7u32) as u8;
-        let result = Self {
-            painkiller: rank(0),
-            bandaging: rank(3),
-            metabolism: rank(6),
-            training: rank(9),
-            adrenalin: rank(12),
-            medicine: bits & (1 << 15) != 0,
-            supply: bits & (1 << 16) != 0,
-            bones: rank(17),
-            medic: bits & (1 << 20) != 0,
-            brothers: rank(21),
-        };
-        [
-            result.painkiller,
-            result.bandaging,
-            result.metabolism,
-            result.training,
-            result.adrenalin,
-            result.bones,
-            result.brothers,
-        ]
-        .iter()
-        .all(|&rank| rank <= 5)
-        .then_some(result)
+    /// Modifiers 43 and 45 of the kit; None when either is not a valid set.
+    pub fn parse(medical: f32, combo: f32) -> Option<Self> {
+        let medical = packed(medical, 24)?;
+        let combo = packed(combo, 6)?;
+        Some(Self {
+            painkiller: PAINKILLER.rank(medical)?,
+            bandaging: BANDAGING.rank(medical)?,
+            metabolism: METABOLISM.rank(medical)?,
+            training: TRAINING.rank(medical)?,
+            adrenalin: ADRENALIN.rank(medical)?,
+            medicine: MEDICINE.unlock(medical)?,
+            supply: SUPPLY.unlock(medical)?,
+            bones: BONES.rank(medical)?,
+            medic: MEDIC.unlock(medical)?,
+            brothers: BROTHERS.rank(medical)?,
+            numb_legs: NUMB_LEGS.rank(combo)?,
+            take_cover: TAKE_COVER.rank(combo)?,
+            unflinching: UNFLINCHING.rank(combo)?,
+        })
     }
 
     pub fn is_medic(self) -> bool {
@@ -60,18 +112,18 @@ impl Skills {
         self.adrenalin != 0
     }
     pub fn use_time(self, native: f32) -> f32 {
-        native * (1.0 - f32::from(self.bandaging) * 0.02)
+        native * (1.0 - f32::from(self.bandaging) * 0.05)
     }
 
     pub fn pain_coefficient(self, native: f32) -> f32 {
         if self.painkiller == 0 {
             return native;
         }
-        (1.0 - (1.0 - native) * (1.0 + f32::from(self.painkiller) * 0.05)).max(0.0)
+        (1.0 - (1.0 - native) * (1.0 + f32::from(self.painkiller) * 0.08)).max(0.0)
     }
 
     pub fn pain_duration_ms(self, native: f32) -> f32 {
-        native + f32::from(self.painkiller) * 1000.0
+        native + f32::from(self.painkiller) * 1500.0
     }
 
     pub fn regeneration_delay_ms(self, native: u32) -> u32 {
@@ -79,8 +131,8 @@ impl Skills {
     }
 
     pub fn movement_speed(self, native: f32, health: f32) -> f32 {
-        if health > 0.0 && health < 0.2 {
-            native * (1.0 + f32::from(self.adrenalin) * 0.03)
+        if health > 0.0 && health < 0.3 {
+            native * (1.0 + f32::from(self.adrenalin) * 0.05)
         } else {
             native
         }
@@ -91,10 +143,33 @@ impl Skills {
     }
 
     pub fn allied_damage(self, native: f32) -> f32 {
-        native * (1.0 - f32::from(self.brothers) * 0.1)
+        native * (1.0 - f32::from(self.brothers) * 0.25)
+    }
+
+    /// Numb Legs: the sprint's stamina a second.
+    pub fn sprint_cost(self, native: f32, painkiller: Painkiller) -> f32 {
+        match painkiller {
+            Painkiller::Active => native * (1.0 - f32::from(self.numb_legs) * 0.2),
+            Painkiller::Inactive => native,
+        }
+    }
+
+    /// Take Cover: what a first-aid kit or bandage heals at this tick.
+    pub fn medicine_heal(self, native: f32, stance: Stance) -> f32 {
+        match stance {
+            Stance::Crouched => native * (1.0 + f32::from(self.take_cover) * 0.1),
+            Stance::Standing => native,
+        }
+    }
+
+    /// Unflinching: the recent hits' stopping power (the slow).
+    pub fn stopping_power(self, native: f32, painkiller: Painkiller) -> f32 {
+        match painkiller {
+            Painkiller::Active => native * (1.0 - f32::from(self.unflinching) * 0.2),
+            Painkiller::Inactive => native,
+        }
     }
 }
-
 pub fn on_duration_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::duration_start(ctx);
     Flow::Continue
@@ -165,39 +240,91 @@ pub fn on_effect_clock(ctx: &mut Context<'_>) -> Flow<crate::vostok::MedicalSkil
     }
 }
 
+pub fn on_sprint(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::sprint(ctx);
+    Flow::Continue
+}
+pub fn on_medicine_heal(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::medicine_heal(ctx);
+    Flow::Continue
+}
+/// Patch 54's stagger calls this entry after Spring's factor: the one site.
+pub fn on_stopping(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::stopping(ctx);
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn ranks_are_exact_and_invalid_profiles_are_refused() {
-        for shift in [0, 3, 6, 9, 12, 17, 21] {
-            for rank in 0..=5 {
-                assert!(Skills::parse((rank << shift) as f32).is_some());
-            }
-            assert!(Skills::parse((6 << shift) as f32).is_none());
-        }
-        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 16_777_216.0] {
-            assert!(Skills::parse(invalid).is_none());
-        }
+    fn medical(ranks: &[(u32, u32)]) -> f32 {
+        ranks.iter().map(|&(rank, shift)| rank << shift).sum::<u32>() as f32
     }
     #[test]
-    fn rank_five_effects_and_thresholds() {
+    fn ranks_are_exact_and_invalid_profiles_are_refused() {
+        // (shift, most) of modifier 43's ranked fields, then modifier 45's.
+        for (shift, most) in [(0, 3), (3, 2), (6, 5), (9, 3), (12, 3), (17, 5), (21, 2)] {
+            for rank in 0..=most {
+                assert!(Skills::parse(medical(&[(rank, shift)]), 0.0).is_some());
+            }
+            for rank in most + 1..=7 {
+                assert!(Skills::parse(medical(&[(rank, shift)]), 0.0).is_none(), "{shift} {rank}");
+            }
+        }
+        for shift in [0, 2, 4] {
+            for rank in 0..=2 {
+                assert!(Skills::parse(0.0, (rank << shift) as f32).is_some());
+            }
+            assert!(Skills::parse(0.0, (3 << shift) as f32).is_none());
+        }
+        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 16_777_216.0] {
+            assert!(Skills::parse(invalid, 0.0).is_none());
+        }
+        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 64.0] {
+            assert!(Skills::parse(0.0, invalid).is_none());
+        }
+        let full = Skills::parse(
+            medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (2, 21)]),
+            42.0,
+        )
+        .unwrap();
+        assert_eq!((full.numb_legs, full.take_cover, full.unflinching), (2, 2, 2));
+        assert!(!full.is_medic());
+    }
+    #[test]
+    fn top_rank_effects_and_thresholds() {
         let s = Skills {
-            painkiller: 5,
+            painkiller: 3,
+            bandaging: 2,
             metabolism: 5,
-            adrenalin: 5,
+            adrenalin: 3,
             bones: 5,
-            brothers: 5,
+            brothers: 2,
             ..Skills::default()
         };
-        assert!((s.pain_coefficient(0.9) - 0.875).abs() < 0.000001);
-        assert_eq!(s.pain_duration_ms(10_000.0), 15_000.0);
+        assert!((s.pain_coefficient(0.9) - 0.876).abs() < 0.000001);
+        assert_eq!(s.pain_duration_ms(10_000.0), 14_500.0);
+        assert!((s.use_time(1000.0) - 900.0).abs() < 0.001);
         assert_eq!(s.regeneration_delay_ms(8_000), 5_500);
         assert_eq!(s.regeneration_delay_ms(1_000), 0);
-        assert_eq!(s.movement_speed(4.0, 0.2), 4.0);
-        assert_eq!(s.movement_speed(4.0, 0.199), 4.6);
+        assert_eq!(s.movement_speed(4.0, 0.3), 4.0);
+        assert!((s.movement_speed(4.0, 0.299) - 4.6).abs() < 0.00001);
+        assert!((s.movement_speed(4.0, 0.199) - 4.6).abs() < 0.00001);
         assert_eq!(s.movement_speed(4.0, 0.0), 4.0);
         assert_eq!(s.limb_health(0.5), 0.75);
         assert_eq!(s.allied_damage(0.6), 0.3);
+    }
+    #[test]
+    fn combo_skills_need_their_condition() {
+        for rank in 0..=2u8 {
+            let s = Skills { numb_legs: rank, take_cover: rank, unflinching: rank, ..Skills::default() };
+            let r = f32::from(rank);
+            assert_eq!(s.sprint_cost(10.0, Painkiller::Inactive), 10.0);
+            assert!((s.sprint_cost(10.0, Painkiller::Active) - 10.0 * (1.0 - 0.2 * r)).abs() < 1e-5);
+            assert_eq!(s.medicine_heal(0.5, Stance::Standing), 0.5);
+            assert!((s.medicine_heal(0.5, Stance::Crouched) - 0.5 * (1.0 + 0.1 * r)).abs() < 1e-6);
+            assert_eq!(s.stopping_power(0.4, Painkiller::Inactive), 0.4);
+            assert!((s.stopping_power(0.4, Painkiller::Active) - 0.4 * (1.0 - 0.2 * r)).abs() < 1e-6);
+        }
     }
 }

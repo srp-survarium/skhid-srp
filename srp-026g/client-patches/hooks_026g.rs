@@ -1537,6 +1537,51 @@ pub extern "C" fn hook_medical_skills_on_effect_clock(frame: &mut Frame) -> u32 
     }
 }
 
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_sprint` (0x329aad, player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_sprint(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_sprint` calls this, from the game's jump at 0x329aad,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_sprint(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_medicine_heal` (0x33d948, medkit::tick's heal amount (drug_amount 57 times the elapsed time, past its comiss with the minimum; flags kept for the ja): XMM0 the amount for this influence, stored for increase_health) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_medicine_heal(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_medicine_heal` calls this, from the game's jump at 0x33d948,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_medicine_heal(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_stopping` (medical.stopping, patch 54's stagger (artefacts_026g.asm, 0x2DBD89) after Spring's getter: cdecl, the player, the sum (in/out); the caller keeps every register and pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_stopping(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_stopping` calls this, from our own code's call (medical.stopping),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_stopping(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.

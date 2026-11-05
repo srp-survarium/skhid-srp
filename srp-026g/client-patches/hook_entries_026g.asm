@@ -2907,6 +2907,116 @@ medical_skills_on_effect_clock_replay:
     db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
     jmp 0x2e5d88
 
+; 0x329aad player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply: lohook -> medical_skills_on_sprint
+global medical_skills_on_sprint
+extern hook_medical_skills_on_sprint
+medical_skills_on_sprint:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_sprint
+    mov edx, medical_skills_on_sprint_replay
+    cmp eax, 0
+    je medical_skills_on_sprint_go
+    mov edx, 0x329ab3
+    cmp eax, 1
+    je medical_skills_on_sprint_go
+    ud2
+medical_skills_on_sprint_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_sprint_replay:
+    db 0xf3, 0x0f, 0x11, 0x44, 0x24, 0x10
+    jmp 0x329ab3
+
+; 0x33d948 medkit::tick's heal amount (drug_amount 57 times the elapsed time, past its comiss with the minimum; flags kept for the ja): XMM0 the amount for this influence, stored for increase_health: lohook -> medical_skills_on_medicine_heal
+global medical_skills_on_medicine_heal
+extern hook_medical_skills_on_medicine_heal
+medical_skills_on_medicine_heal:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_medicine_heal
+    mov edx, medical_skills_on_medicine_heal_replay
+    cmp eax, 0
+    je medical_skills_on_medicine_heal_go
+    mov edx, 0x33d94e
+    cmp eax, 1
+    je medical_skills_on_medicine_heal_go
+    ud2
+medical_skills_on_medicine_heal_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_medicine_heal_replay:
+    db 0xf3, 0x0f, 0x11, 0x44, 0x24, 0x24
+    jmp 0x33d94e
+
+; medical.stopping patch 54's stagger (artefacts_026g.asm, 0x2DBD89) after Spring's getter: cdecl, the player, the sum (in/out); the caller keeps every register and pops the two: entry -> medical_skills_on_stopping
+global medical_skills_on_stopping
+extern hook_medical_skills_on_stopping
+medical_skills_on_stopping:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_stopping
+    cmp eax, 0
+    je medical_skills_on_stopping_go
+    ud2
+medical_skills_on_stopping_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
 ; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
 global music_on_frame
 extern hook_music_on_frame

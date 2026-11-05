@@ -11,7 +11,10 @@ import sys
 from unicorn import UC_HOOK_CODE, UC_PROT_ALL
 from unicorn.x86_const import *
 import patch_026g as base
-from check_artefacts_026g import Game, MEMORY, STACK, PLAYER, KITS, STOP, REGISTER, HOLDER_VT, DM
+from check_artefacts_026g import Game, MEMORY, STACK, PLAYER, KITS, STOP, REGISTER, HOLDER_VT, DM, \
+    SPRING, PASSIVE_LINK, ACTIVE_LINK, STAGGER, MOVEMENT
+
+MEDKIT_VTABLE=0xA1C79C
 
 REGISTER['ebp']=UC_X86_REG_EBP
 
@@ -84,9 +87,25 @@ class MedicalGame(Game):
         self.word(self.places+place*0x30,at)
         self.word(self.core+0x18fd8,self.read(self.core+0x18fd8)|(1<<place))
         return at
-    def ranks(self,encoded):
+    def ranks(self,encoded,slot=43):
         kit=self.emu.mem_read(PLAYER+0x115,1)[0]
-        self.word(KITS+0xf4+kit*0x704+43*4,bits(encoded))
+        self.word(KITS+0xf4+kit*0x704+slot*4,bits(encoded))
+    def combo(self,encoded):self.ranks(encoded,45)
+    def carried(self,pain,active,slot=5):
+        # A medicine in the player's own inventory slot (player+10Ch, its 23
+        # slots at +10Ch..+168h), with the native medkit vtable and activity.
+        inventory=self.read(PLAYER+0x10c)
+        if not inventory:inventory=self.block(0x200);self.word(PLAYER+0x10c,inventory)
+        item=self.medkit(pain,not pain);self.word(item,MEDKIT_VTABLE)
+        self.emu.mem_write(item+0x2b0,bytes([int(active)]))
+        self.word(inventory+0x10c+slot*4,item)
+        return item
+    def crouch(self,effective):
+        # player+494h -> bt_character_controller -> its Bullet controller +201h
+        wrapper=self.read(PLAYER+0x494)
+        if not wrapper:
+            wrapper=self.block(8);self.word(PLAYER+0x494,wrapper);self.word(wrapper,self.block(0x300))
+        self.emu.mem_write(self.read(wrapper)+0x201,bytes([int(effective)]))
     def medkit(self,pain=True,heal=False):
         item=self.block(0x400);inventory=self.block(0x200)
         self.word(inventory+0x174,PLAYER+0x108);self.word(item+0x250,inventory)
@@ -174,18 +193,25 @@ def run(data,padding=0,kit=0):
     g.emu.mem_write(g.places+0xc,bytes([kit]))
     g.word(g.places+kit*4,PLAYER)
     item=g.medkit();healing=g.medkit(False,True);other=g.medkit(False,False)
-    for rank in range(6):
-        g.ranks(rank|(rank<<3))
+    # Potent Painkiller 0..3 (4..7 refused: no skill at all), Fast Bandaging
+    # 0..2 (3 refused), each with the other at its own top rank.
+    for rank in range(8):
+        painkiller=rank if rank<=3 else 0
+        g.ranks(rank|(2<<3))
+        bandaging=2 if rank<=3 else 0
         for site,regs in [(0x33d41b,dict(ebp=item,ebx=PLAYER)),(0x33d852,dict(edi=item,ebp=PLAYER)),(0x33dd65,dict(edi=item,ebx=PLAYER))]:
-            close(g.step(site,6,xmm=10000,**regs),10000+rank*1000)
+            close(g.step(site,6,xmm=10000,**regs),10000+painkiller*1500)
         close(g.step(0x33d41b,6,xmm=1000,ebp=healing,ebx=PLAYER),1000)
-        close(g.step(0x33d486,6,xmm=1000,ebp=healing,ebx=PLAYER),1000*(1-.02*rank))
+        close(g.step(0x33d486,6,xmm=1000,ebp=healing,ebx=PLAYER),1000*(1-.05*bandaging))
         close(g.step(0x33d486,6,xmm=1000,ebp=other,ebx=PLAYER),1000)
         hit=g.block(0x50);damage=g.block(4);pierce=g.block(4);name=g.block(16)
         g.emu.mem_write(name,b'pain\0');g.word(hit,name);g.word(damage,bits(.5));g.word(pierce,bits(.3))
         g.call(0x33db30,(hit,damage,pierce),ecx=item)
-        close(g.float(damage),.5*(1-.1*(1+.05*rank)));close(g.float(pierce),.3)
-    g.ranks((5<<6)|(5<<17)|(5<<12))
+        close(g.float(damage),.5*(1-.1*(1+.08*painkiller)));close(g.float(pierce),.3)
+    for rank in range(8):
+        g.ranks(3|(rank<<3))
+        close(g.step(0x33d486,6,xmm=1000,ebp=healing,ebx=PLAYER),1000*(1-.05*rank) if rank<=2 else 1000)
+    g.ranks((5<<6)|(5<<17)|(3<<12))
     g.step(0x2d706f,7,ebp=PLAYER)
     for name,pool in g.pools[PLAYER].items():
         assert g.read(pool+0xac)==5500
@@ -198,7 +224,7 @@ def run(data,padding=0,kit=0):
         g.call(0x32ac90,eax=limb)
         close(g.float(limb+0xa0),.75);close(g.float(limb+0x9c),.75)
     body=g.pools[PLAYER]['body']
-    for health,expected in [(1,4),(.2,4),(.19,4.6),(0,4)]:
+    for health,expected in [(1,4),(.3,4),(.29,4.6),(.19,4.6),(0,4)]:
         g.word(body+0xa0,bits(health));close(g.step(0x2dbc91,5,xmm=4,ebx=PLAYER,ebp=STACK+0x40),expected)
     g.emu.mem_write(PLAYER+0x33e,b'\0');g.step(0x32a460,8,xmm=.4,esi=body)
     assert g.emu.mem_read(PLAYER+0x33e,1)==b'\1'
@@ -207,7 +233,7 @@ def run(data,padding=0,kit=0):
     ally=g.player(1,0,(3,4,0));far=g.player(2,0,(5.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
     g.emu.mem_write(dead+0x33c,b'\0')
     hit=g.block(0x50);owner=g.block(0x20);g.word(hit+0x20,owner)
-    g.ranks(5<<21)
+    g.ranks(2<<21)
     for place,expected in [(0,.8),(1,.4),(2,.4),(3,.8),(19,.8)]:
         g.word(owner+4,place)
         g.step(0x2e50c7,5,stack=(0,0,bits(.8)),edi=g.read(PLAYER+0x2e0),esi=hit)
@@ -294,7 +320,7 @@ def run(data,padding=0,kit=0):
     for at in [ally,second]:close(g.float(g.pools[at]['body']+0xa0),g.float(g.pools[at]['body']+0x9c))
     assert g.effects==before
     print('Medic: activation-only healing; visual reconstruction never heals; missing visuals do not disable healing: PASS')
-    print('medical skills: ranks 0..5; duration start/tick/restore; healing-only activation; protection; limb health; regeneration; Adrenalin damage/heal; allied damage; Medic radius/team/life filters and references: PASS')
+    print('medical skills: ranks 0..3/0..2/0..5, out-of-range refused; duration start/tick/restore; healing-only activation; protection; limb health; regeneration; Adrenalin damage/heal; allied damage; Medic radius/team/life filters and references: PASS')
 
     return (
         tuple(tuple((name,g.read(pool+0xa0)) for name,pool in g.pools[at].items())
@@ -302,6 +328,43 @@ def run(data,padding=0,kit=0):
         tuple(g.read(at+0x114)&255 for at in g.effects),
         tuple((g.read(e+0x14),g.read(e+0x18),g.read(e+0x1c)) for e in g.emitted),
     )
+
+def check_combo(data,kit=0):
+    # Numb Legs (sprint stamina), Take Cover (medicine healing crouched) and
+    # Unflinching (bullets' slow through the real stagger, with Spring), ranks
+    # 0..2 in modifier 45, painkiller on/off, effective crouch vs the key.
+    outcome=[]
+    for combo in range(64):
+        numb,cover,unflinching=combo&3,(combo>>2)&3,(combo>>4)&3
+        valid=max(numb,cover,unflinching)<=2
+        if not valid and combo not in (3,12,48,63):continue
+        for active in (False,True):
+            for crouched in (False,True):
+                for spring in (False,True):
+                    g=MedicalGame(data)
+                    g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+                    g.combo(combo)
+                    g.carried(False,True,3)          # an active bandage is no painkiller
+                    pain=g.carried(True,active)
+                    g.crouch(crouched)
+                    g.emu.mem_write(PLAYER+0x330,struct.pack('<I',0x100 if not crouched else 0))  # the key alone is no crouch
+                    r=lambda x:x if valid else 0
+                    sprint=g.step(0x329aad,6,xmm=10,edi=PLAYER+0x6c0)
+                    close(sprint,10*(1-.2*r(numb)) if active else 10)
+                    healed=g.step(0x33d948,6,xmm=.5,edi=pain,ebp=PLAYER)
+                    close(healed,.5*(1+.1*r(cover)) if crouched else .5)
+                    s=g.spring(SPRING);g.call(PASSIVE_LINK,eax=s)
+                    if spring:g.call(ACTIVE_LINK,eax=s)
+                    recent=g.block(24)
+                    g.emu.mem_write(recent,struct.pack('<IfIf',9900,.15,9800,.3))
+                    g.word(PLAYER+0x2e8,recent);g.word(PLAYER+0x2ec,recent+16)
+                    g.emu.mem_write(PLAYER+0x31c,struct.pack('<ff',.5,.5));g.word(PLAYER+0x2fc,MOVEMENT)
+                    g.call(STAGGER,(10000,),eax=PLAYER)
+                    slow=0 if spring else .45*((1-.2*r(unflinching)) if active else 1)
+                    close(g.float(PLAYER+0x300),-slow)
+                    outcome.append((combo,active,crouched,spring,sprint,healed,g.read(PLAYER+0x300)))
+    print('Numb Legs, Take Cover, Unflinching: ranks 0..2, painkiller on/off, effective crouch, Spring on/off, rank 3 refused: PASS')
+    return outcome
 
 def check_pressed_entry(data):
     # Start at the public, already-detoured action entry, not inside its body.
@@ -343,6 +406,7 @@ def main():
     patched,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,open(base.late_join_bin(),'rb').read())
     check_pressed_entry(patched)
     check_particle_capacity(patched)
+    assert check_combo(patched)==check_combo(patched,2)
     assert run(patched)==run(patched,0x4000,2)==run(patched,0x8000,1)
     print("Medical simulation outcome identical across independent client memory layouts and all three kits: PASS")
 

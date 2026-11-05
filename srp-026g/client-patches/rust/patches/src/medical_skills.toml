@@ -56,3 +56,17 @@ handler = "on_effect_capacity"
 [[hook]]
 site = "medical.effect_clock"
 handler = "on_effect_clock"
+
+[[hook]]
+site = "medical.sprint"
+handler = "on_sprint"
+
+[[hook]]
+site = "medical.medicine_heal"
+handler = "on_medicine_heal"
+
+# Patch 54's stagger (artefacts_026g.asm) calls this generated entry after
+# Spring's factor, at its one hook on 0x2DBD89.
+[[hook]]
+site = "medical.stopping"
+handler = "on_stopping"

@@ -434,7 +434,7 @@ engine_increase_health:
 
     align 16, db 0xCC
 engine_artefact_effect:
-    ; 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    ; 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     push ebp
     push ebx
     push esi

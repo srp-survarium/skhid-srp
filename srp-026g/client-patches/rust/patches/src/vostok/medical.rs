@@ -1,7 +1,10 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
 use super::{Context, Thread};
-use crate::{medical_skills::Skills, raw};
+use crate::{
+    medical_skills::{Painkiller, Skills, Stance},
+    raw,
+};
 use core::{
     cell::UnsafeCell,
     ffi::CStr,
@@ -34,10 +37,42 @@ impl<'t> Player<'t> {
         }
     }
     fn skills(self) -> Skills {
-        // SAFETY: generated modifier field belongs to the live current kit.
+        // SAFETY: generated modifier fields belong to the live current kit.
         self.modifiers()
-            .and_then(|m| Skills::parse(unsafe { *m.medical_ranks() }))
+            .and_then(|m| unsafe { Skills::parse(*m.medical_ranks(), *m.combo_ranks()) })
             .unwrap_or_default()
+    }
+    /// Any painkiller of its inventory active (set_active's +2B0h, the time
+    /// its protection records are linked into the body parts, 0x33D638).
+    fn painkiller(self) -> Painkiller {
+        // SAFETY: the player's inventory owns its 23 slots' array; a slot's
+        // item is the inventory's; a medkit is read only after its vtable.
+        let active = unsafe {
+            self.at.inventory().is_some_and(|inventory| {
+                let first = inventory.slots();
+                let count = inventory.slots_end().index_from(first).unwrap_or(0);
+                (0..count).any(|slot| {
+                    first.at(slot).item().is_some_and(|item| {
+                        *item.vtable() == raw::image::MEDKIT_VTABLE
+                            && *item.medkit().active() != 0
+                            && painkiller(item.medkit())
+                    })
+                })
+            })
+        };
+        if active { Painkiller::Active } else { Painkiller::Inactive }
+    }
+    /// The controller's effective crouch (+201h): it stays set under a low
+    /// ceiling after the crouch key is released (0x337830).
+    fn stance(self) -> Stance {
+        // SAFETY: the player owns its controller wrapper and Bullet controller.
+        let crouched = unsafe {
+            self.at
+                .character_controller()
+                .and_then(|wrapper| wrapper.controller())
+                .is_some_and(|controller| *controller.effective_crouch() != 0)
+        };
+        if crouched { Stance::Crouched } else { Stance::Standing }
     }
     fn damage(self) -> Option<raw::MedicalDamage> {
         // SAFETY: the model is bound before the initialization hook.
@@ -198,6 +233,48 @@ pub fn use_time(ctx: &mut Context<'_>) {
         }
     };
     ctx.set_xmm_f32(0, value);
+}
+/// Numb Legs at player_stamina::sprint: XMM0 the stamina a second.
+pub fn sprint(ctx: &mut Context<'_>) {
+    // SAFETY: the stamina is embedded in its live player (base_player+6C0h).
+    let value = unsafe {
+        let Some(stamina) = raw::site::medical_sprint::stamina(ctx) else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), stamina.player());
+        player.skills().sprint_cost(ctx.xmm_f32(0), player.painkiller())
+    };
+    ctx.set_xmm_f32(0, value);
+}
+/// Take Cover at medkit::tick's heal amount (after drug_amount, which
+/// Medical Training raises): XMM0 the amount of this influence.
+pub fn medicine_heal(ctx: &mut Context<'_>) {
+    use raw::site::medical_medicine_heal as site;
+    // SAFETY: medkit::tick's holder (EBP) is live for the tick.
+    let value = unsafe {
+        let Some(at) = site::player(ctx) else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        player.skills().medicine_heal(ctx.xmm_f32(0), player.stance())
+    };
+    ctx.set_xmm_f32(0, value);
+}
+/// Unflinching, from patch 54's stagger after Spring's factor: the sum of
+/// the recent hits' stopping power, written back to its argument.
+pub fn stopping(ctx: &mut Context<'_>) {
+    use raw::site::medical_stopping as site;
+    // SAFETY: the caller's frame holds the staggered live player and the sum.
+    unsafe {
+        let Some(frame) = site::frame(ctx) else {
+            return;
+        };
+        let Some(at) = frame.player() else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        *frame.sum() = player.skills().stopping_power(*frame.sum(), player.painkiller());
+    }
 }
 pub fn initialize(ctx: &mut Context<'_>) {
     // SAFETY: constructor bound the complete model, before first reset/load.

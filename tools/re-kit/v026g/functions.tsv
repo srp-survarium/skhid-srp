@@ -2118,3 +2118,7 @@ va	status	ref_021d	name
 0x00313640	verified		survarium::artefact_base::active_effect_time_calculator::calculate
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
+0x0007f1a0	reviewed	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
+0x0007bda0	reviewed	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
+0x00337810	reviewed		survarium::player_logic_crouch_state::request_effective_crouch
+0x00337830	reviewed		survarium::player_logic_crouch_state::release_effective_crouch_if_clear

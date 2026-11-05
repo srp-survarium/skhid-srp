@@ -47,7 +47,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: Option<MedicalPools>, name: *const *const u8) -> Option<MedicalPool>;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: Option<MedicalPool>, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: Option<PlayerParamsModifiersContainer>, index: u32, value: f32, weight: f32) -> f32;
@@ -940,6 +940,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn feet(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x43c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x494 (ptr<vostok::physics::bt_character_controller>): its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn character_controller(self) -> Option<BtCharacterController> {
+        unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().read_volatile() }
+    }
+
+    /// +0x494 (ptr<vostok::physics::bt_character_controller>): its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_character_controller(self, value: Option<BtCharacterController>) {
+        unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().write_volatile(value) }
     }
 }
 
@@ -10934,6 +10952,15 @@ impl PlayerParamsModifiersContainer {
     pub unsafe fn medical_ranks(self) -> *mut f32 {
         unsafe { self.0.byte_add(0xac).cast::<f32>().as_ptr() }
     }
+
+    /// +0xb4 (f32): modifier 45 can_defuse_traps (no getter call, no code name reference, no retail config): the medical combo skills' packed ranks; medical-skills.md
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn combo_ranks(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb4).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::medical_hit (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11730,6 +11757,129 @@ impl MedicalClockResult {
     #[inline(always)]
     pub unsafe fn ended(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::player_stamina (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerStamina(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerStamina {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x6c0 (obj<survarium::player>): its player: base_player embeds player_stamina at +6C0h (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Player {
+        Player(unsafe { self.0.byte_sub(0x6c0) })
+    }
+}
+
+/// A vostok::physics::bt_character_controller (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtCharacterController(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtCharacterController {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bullet_character_controller>): the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn controller(self) -> Option<BulletCharacterController> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BulletCharacterController>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bullet_character_controller>): the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_controller(self, value: Option<BulletCharacterController>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BulletCharacterController>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bullet_character_controller (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BulletCharacterController(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BulletCharacterController {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x201 (u8): effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effective_crouch(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x201).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::medical_stopping_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MedicalStoppingFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MedicalStoppingFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::player>): medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::player>): medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x8 (f32): its second: the recent hits' stopping power after Spring's list 42, written back
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sum(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
     }
 }
 
@@ -14243,6 +14393,60 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalClockFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalClockFrame)
+        }
+    }
+
+    /// medical.sprint (0x329aad): player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply
+    pub mod medical_sprint {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::player_stamina (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stamina(machine: &impl Machine) -> Option<PlayerStamina> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(PlayerStamina)
+        }
+    }
+
+    /// medical.medicine_heal (0x33d948): medkit::tick's heal amount (drug_amount 57 times the elapsed time, past its comiss with the minimum; flags kept for the ja): XMM0 the amount for this influence, stored for increase_health
+    pub mod medical_medicine_heal {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::medkit (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<Medkit> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Medkit)
+        }
+
+        /// EBP: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// medical.stopping (our entry): patch 54's stagger (artefacts_026g.asm, 0x2DBD89) after Spring's getter: cdecl, the player, the sum (in/out); the caller keeps every register and pops the two
+    pub mod medical_stopping {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::medical_stopping_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalStoppingFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalStoppingFrame)
         }
     }
 }
