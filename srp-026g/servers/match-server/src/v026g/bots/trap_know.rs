@@ -258,6 +258,9 @@ pub struct TrapField {
     ring_m: f32,
     /// The trap list's version it was built for: a route is looked at against the ring once per version.
     stamp: u64,
+    /// [keep_off] How far round a disc the floors are shut, metres: [`FIELD_M`], or `TrapTuning::keep_off`'s `hard_m`
+    /// ([`Self::reach`]; 0 in a default field, which has no discs).
+    reach: f32,
 }
 
 impl TrapField {
@@ -270,7 +273,11 @@ impl TrapField {
 
     /// The field of traps at `discs`.
     pub fn round(discs: Vec<Vec3>, grid: &WalkGrid) -> Self {
-        let reach = FIELD_M;
+        Self::round_within(discs, grid, FIELD_M)
+    }
+
+    /// [keep_off] The field of traps at `discs` with its floors shut within `reach` of each.
+    pub fn round_within(discs: Vec<Vec3>, grid: &WalkGrid, reach: f32) -> Self {
         let mut shut: Vec<NodeId> = discs
             .iter()
             .flat_map(|disc| {
@@ -296,14 +303,20 @@ impl TrapField {
             ring: Vec::new(),
             ring_m: 0.0,
             stamp: 0,
+            reach,
         }
     }
 
     /// The field of the standing traps in `list` with the ring of `ring_m` metres (0: none) round them.
     pub fn of_ringed(list: &TrapList, grid: &WalkGrid, ring_m: f32) -> Self {
-        let mut field = Self::of(list, grid);
+        Self::of_ringed_within(list, grid, ring_m, FIELD_M)
+    }
+
+    /// [keep_off] [`Self::of_ringed`] with the floors shut within `reach` of each trap (the ring outside that).
+    pub fn of_ringed_within(list: &TrapList, grid: &WalkGrid, ring_m: f32, reach: f32) -> Self {
+        let mut field = Self::round_within(list.standing().map(|trap| trap.at).collect(), grid, reach);
         field.stamp = list.version();
-        if ring_m > FIELD_M {
+        if ring_m > reach {
             let mut ring: Vec<NodeId> = field
                 .discs
                 .iter()
@@ -361,7 +374,12 @@ impl TrapField {
     pub fn hits(&self, points: &[Vec3]) -> bool {
         self.discs
             .iter()
-            .any(|disc| off_route_m(points, *disc) < FIELD_M - 0.05)
+            .any(|disc| off_route_m(points, *disc) < self.reach - 0.05)
+    }
+
+    /// [keep_off] How far round a disc its floors are shut, metres.
+    pub fn reach(&self) -> f32 {
+        self.reach
     }
 }
 
@@ -371,6 +389,9 @@ pub struct TeamTraps {
     /// The floors of the traps its bots put down, and the list's version it was built for.
     pub field: std::sync::Arc<TrapField>,
     pub field_version: u64,
+    /// [keep_off] The same traps shut only within [`FIELD_M`]: the searches' fallback when the wider field leaves no way; the
+    /// same field as `field` without `TrapTuning::keep_off`.
+    pub narrow: std::sync::Arc<TrapField>,
     /// The armed traps the last world showed, for the bots' notice (`trap_react.rs`); empty while the switch is off.
     pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
     /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).

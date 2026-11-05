@@ -782,6 +782,20 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [traps.keep_off] The route searches with the wider trap discs, and those with no way searched again with the narrow ones
+/// (`traps::keep_off_counts`): a way found, none, past the poll's floors.
+pub(super) fn keep_off() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::traps::keep_off_counts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "keep_off_searches {} keep_off_narrow_found {} keep_off_narrow_none {} keep_off_narrow_left {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
 /// The drops a body held at their top shut to its searches (`unstick.drop_shut`, `stuck::drop_shuts`): the shuts, the
 /// landings shut, and what followed each: stuck again at the spot within 10 s, off it (down, or 2 m away), still there
 /// after 30 s, killed itself first (the rest: a new life or another shut ended the watch); and the landings a search was not

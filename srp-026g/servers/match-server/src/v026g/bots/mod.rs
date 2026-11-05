@@ -1950,11 +1950,11 @@ impl Bots {
     /// world that shows it.
     #[cfg(test)]
     pub(crate) fn bench_team_knows_trap(&mut self, team: u8, by: Place, at: Vec3, released: u32) {
-        let ring_m = self.tuning_of(team).traps.ring_m;
+        let (ring_m, keep_off) = (self.tuning_of(team).traps.ring_m, self.tuning_of(team).traps.keep_off);
         let state = &mut self.teams[usize::from(team)];
         state.knowledge.traps.promise(by, at, released);
         if let Some(tactics) = self.tactics.as_ref() {
-            state.refresh_traps(&tactics.world.grid, ring_m);
+            state.refresh_traps(&tactics.world.grid, ring_m, keep_off);
         }
     }
 
@@ -1981,13 +1981,16 @@ impl Bots {
             Vec::new()
         });
         let mut went_off: Vec<(u8, Vec3)> = Vec::new();
-        let rings = [self.tuning_of(0).traps.ring_m, self.tuning_of(1).traps.ring_m];
+        let rings = [
+            (self.tuning_of(0).traps.ring_m, self.tuning_of(0).traps.keep_off),
+            (self.tuning_of(1).traps.ring_m, self.tuning_of(1).traps.keep_off),
+        ];
         for (team, state) in self.teams.iter_mut().enumerate() {
             if own {
                 let fired = state.knowledge.traps.sync(time, &found);
                 went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
                 if let Some(tactics) = self.tactics.as_ref() {
-                    state.refresh_traps(&tactics.world.grid, rings[team & 1]);
+                    state.refresh_traps(&tactics.world.grid, rings[team & 1].0, rings[team & 1].1);
                 }
             }
             state.features.traps.world_traps = armed.clone();

@@ -48,6 +48,12 @@ pub struct TrapTuning {
     /// is back within 3 m of his death place in 120 s in 27-40 % of cases (his team's other bots 21-22 %), but the carriers seldom
     /// pass it: of the candidates at a wished spot the floor, their own route and a mate near refuse most.
     pub at_defeated: Option<DefeatedTuning>,
+    /// [keep_off] The team's searches keep every known trap of the team at `hard_m`, hard, instead of `FIELD_M` (0.75 m) and the
+    /// soft ring; where that leaves no way (a corridor), the search falls back to `FIELD_M`. At the defaults the habit caught its own
+    /// side as often as the enemy (A318 check, every bench's OFF arm: 123 own vs 106 enemy catches): 72 % were mates, most 10 s or
+    /// more after the press, walking a route past a known trap with only 0.75 m against a 0.6 m trigger and the body's drift. A bot
+    /// already within `hard_m` of a trap (its placer) may still take the floors farther from it than its feet. Off by default.
+    pub keep_off: Option<KeepOff>,
     /// [A145, design-p1c §9] A trap on the floor a camper stood on when the team's Breach (in its hold) or its K2 flanker
     /// killed him: the job's bot with a trap nearest his death point is wished to put it there when its route passes the
     /// point or it stands by it (no detour, no new goal), with the gates of any trap and a wider guard for mates. Live 6+
@@ -191,6 +197,21 @@ impl Default for DefeatedTuning {
             ahead_m: 12.0,
             min_kills: 2,
         }
+    }
+}
+
+/// [keep_off] How far the team keeps off its own known traps (`TrapTuning::keep_off`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct KeepOff {
+    /// The hard disc round each known trap of the team, metres: the trigger (0.6 m from a foot) plus the body's usual drift off
+    /// its route (most under 0.7 m in A292).
+    pub hard_m: f32,
+}
+
+impl Default for KeepOff {
+    fn default() -> Self {
+        Self { hard_m: 1.3 }
     }
 }
 
@@ -546,6 +567,7 @@ impl Default for TrapTuning {
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
             at_defeated: None,
+            keep_off: None,
             at_cleared: None,
             release: TrapRelease::Client,
             camper_job: None,
@@ -652,6 +674,7 @@ impl Check for TrapTuning {
                 .is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000 && (0.0..=1.3).contains(&a.clear_m) && (0.0..=3.0).contains(&a.sweep_s)),
             "traps.after_press",
         )?;
+        check(self.keep_off.is_none_or(|k| (0.75..=4.0).contains(&k.hard_m)), "traps.keep_off")?;
         check(
             self.forward.is_none_or(|f| (0.0..=1.0).contains(&f.min_share) && (0.0..=f.min_share).contains(&f.fallback_share)),
             "traps.forward",

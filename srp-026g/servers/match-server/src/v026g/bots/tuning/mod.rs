@@ -205,6 +205,7 @@ pub use teams::TeamTunings;
 pub use traps::AfterPress;
 pub use traps::CamperJob;
 pub use traps::DefeatedTuning;
+pub use traps::KeepOff;
 pub use traps::Forward;
 pub use traps::FreshRing;
 pub use traps::PassTuning;
