@@ -1,7 +1,7 @@
-boosters	weight	health_regen	stamina_regen	movement	max_weight	artefact_search	sway	respawn	artefact_cooldown
-aiming_booster	0.1						1210		
-artefact_booster	0.1					1134			1310
-regeneration_booster	0.1	1094							
-respawn_booster	0.1							1220	
-speed_booster	0.1		1104	1114					
-weight_booster	0.1				1124				
+boosters	weight	health_regen	stamina_regen	movement	max_weight	artefact_search	sway	respawn	artefact_cooldown	regen_delay	regen_limit
+aiming_booster	0.1						1210				
+artefact_booster	0.1					1134			1310		
+regeneration_booster	0.1	1094								1290	1300
+respawn_booster	0.1							1220			
+speed_booster	0.1		1104	1114							
+weight_booster	0.1				1124						

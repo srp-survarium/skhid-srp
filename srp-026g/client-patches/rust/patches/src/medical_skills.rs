@@ -1,7 +1,9 @@
 //! Medical skill decisions. Two unused profile modifiers transport exact
 //! integers: 43 the tree's original ranks, 45 the combo skills' (Numb Legs,
-//! Take Cover, Unflinching or Concentration). No new world state or snapshot
-//! side table: Concentration is the local player's hearing only.
+//! Take Cover, Unflinching or Concentration). Two more, 9 and 10, are summed
+//! from the kit's items like any modifier: their regeneration (the
+//! Regeneration booster). No new world state or snapshot side table:
+//! Concentration is the local player's hearing only.
 #![forbid(unsafe_code)]
 
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -9,6 +11,39 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use crate::vostok::sound::{self, OnceCaller, OncePoint, Source, VoiceVolume, WeaponSound, WeaponSoundKind};
 use crate::vostok::types::Place;
 use crate::vostok::{Context, Flow, NoExit, medical};
+
+/// What the kit's items add to passive regeneration (the Regeneration
+/// booster's built-in modifications 1290, 1300; regeneration-booster.md),
+/// parsed once from the two sums of the kit's modifier lists.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Regeneration {
+    /// Milliseconds off the delay after a hit, on top of Metabolism's.
+    sooner_ms: u32,
+    /// Fraction of the maximum added to the limit regeneration stops at.
+    raise: f32,
+}
+
+impl Regeneration {
+    /// `delay_s`: seconds added to the delay (only sooner, at most 60 s);
+    /// `limit`: fraction added to the limit (0 or more). None otherwise.
+    pub fn parse(delay_s: f32, limit: f32) -> Option<Self> {
+        ((-60.0..=0.0).contains(&delay_s) && limit.is_finite() && limit >= 0.0).then(|| Self {
+            sooner_ms: (-delay_s * 1000.0 + 0.5) as u32,
+            raise: limit,
+        })
+    }
+
+    /// The delay (ms) and limit one tick of a pool's regeneration uses. A
+    /// pool that does not regenerate (rate 0) keeps its own: raising its
+    /// limit would only make the native heal it by nothing.
+    pub fn apply(self, rate: f32, delay_ms: u32, limit: f32) -> (u32, f32) {
+        if rate > 0.0 {
+            (delay_ms.saturating_sub(self.sooner_ms), limit.max((limit + self.raise).min(1.0)))
+        } else {
+            (delay_ms, limit)
+        }
+    }
+}
 
 /// Whether one of the player's painkillers is active: native set_active's
 /// flag (+2B0h), the whole time its pain protection is linked.
@@ -300,6 +335,12 @@ pub fn on_initialize(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::initialize(ctx);
     Flow::Continue
 }
+/// One pool's regeneration, past its own regeneration modifiers: the kit's
+/// Regeneration (on top of Metabolism's delay, set at initialization).
+pub fn on_regenerate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::regenerate(ctx);
+    Flow::Continue
+}
 pub fn on_wound(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::wound(ctx);
     Flow::Continue
@@ -520,6 +561,27 @@ mod tests {
         assert_eq!(s.movement_speed(4.0, 0.0), 4.0);
         assert_eq!(s.limb_health(0.5), 0.75);
         assert_eq!(s.allied_damage(0.6), 0.3);
+    }
+    #[test]
+    fn regeneration_starts_sooner_and_goes_to_full_health() {
+        // The booster: -2 s, +100 % of the limit; Metabolism's 5 ranks are
+        // already in the pool's delay (8 s - 2.5 s).
+        let booster = Regeneration::parse(-2.0, 1.0).unwrap();
+        assert_eq!(booster.apply(0.03, 8_000, 0.5), (6_000, 1.0));
+        assert_eq!(booster.apply(0.03, 5_500, 0.2), (3_500, 1.0));
+        assert_eq!(booster.apply(0.1, 8_000, 1.0), (6_000, 1.0));
+        assert_eq!(booster.apply(0.03, 1_000, 0.5), (0, 1.0));
+        // A pool without regeneration keeps its own.
+        assert_eq!(booster.apply(0.0, 0, 0.0), (0, 0.0));
+        // No items: the native's.
+        assert_eq!(Regeneration::parse(0.0, 0.0).unwrap().apply(0.03, 8_000, 0.2), (8_000, 0.2));
+        assert_eq!(Regeneration::default().apply(0.03, 8_000, 0.5), (8_000, 0.5));
+        // Two of them never pass full health; part of the way stays part.
+        assert_eq!(Regeneration::parse(-4.0, 2.0).unwrap().apply(0.03, 8_000, 0.5), (4_000, 1.0));
+        assert_eq!(Regeneration::parse(0.0, 0.25).unwrap().apply(0.03, 8_000, 0.5), (8_000, 0.75));
+        for (delay, limit) in [(0.5, 0.0), (-61.0, 0.0), (f32::NAN, 0.0), (0.0, -0.1), (0.0, f32::INFINITY)] {
+            assert!(Regeneration::parse(delay, limit).is_none(), "{delay} {limit}");
+        }
     }
     #[test]
     fn combo_skills_need_their_condition() {
