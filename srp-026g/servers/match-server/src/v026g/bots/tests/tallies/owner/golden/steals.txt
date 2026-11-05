@@ -5,6 +5,7 @@ owner-test steals: team 0: steals 0 (bot/stand-in [0, 0], by play {}), mates wit
       "0": {
         "chance_s": 0.0,
         "chance_tried_s": 0.0,
+        "first_steal_s": null,
         "steal_age_median_s": 0.0,
         "steal_age_p25_s": 0.0,
         "steal_age_p75_s": 0.0,
@@ -46,11 +47,13 @@ owner-test steals: team 0: steals 0 (bot/stand-in [0, 0], by play {}), mates wit
           0,
           0
         ],
-        "steals_by_play": {}
+        "steals_by_play": {},
+        "steals_last_240s": 0
       },
       "1": {
         "chance_s": 0.0,
         "chance_tried_s": 0.0,
+        "first_steal_s": null,
         "steal_age_median_s": 0.0,
         "steal_age_p25_s": 0.0,
         "steal_age_p75_s": 0.0,
@@ -92,7 +95,8 @@ owner-test steals: team 0: steals 0 (bot/stand-in [0, 0], by play {}), mates wit
           0,
           0
         ],
-        "steals_by_play": {}
+        "steals_by_play": {},
+        "steals_last_240s": 0
       }
     }
   }

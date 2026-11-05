@@ -245,6 +245,8 @@ impl TeamPlan {
             TeamPlan::Usual => 1.0,
             TeamPlan::Comeback { bring_home } => match kind {
                 PlayKind::LateDenial if bring_home => 1.0 / rule.attack_gain,
+                // #1222's bench: the gain on every attack landed on Sneak (crouched: Sneak calm walking +48 %), attack takes -12 %.
+                PlayKind::Sneak => rule.sneak_gain,
                 k if attack(k) => rule.attack_gain,
                 _ => 1.0,
             },
@@ -761,6 +763,11 @@ mod tests {
         cs[0].score = Score::new(0.9);
         TeamPlan::Comeback { bring_home: true }.weigh(&mut cs, &rule);
         assert_eq!(cs[0].score.get(), 1.0, "capped");
+        // A Sneak is not weighed up in a comeback (#1222's bench: the gain landed on crouched Sneak), a Raid is.
+        let mut sneak = vec![c(PlayKind::Sneak, Rank::Objective, 0.5, None, 0), c(PlayKind::Raid, Rank::Objective, 0.5, None, 0)];
+        TeamPlan::Comeback { bring_home: true }.weigh(&mut sneak, &rule);
+        assert_eq!(sneak[0].score.get(), 0.5);
+        assert!(sneak[1].score.get() > 0.5);
     }
 
     #[test]

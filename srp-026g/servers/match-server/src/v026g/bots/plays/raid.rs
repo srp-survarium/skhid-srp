@@ -100,28 +100,32 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     let elapsed = cx.view.total_s - cx.view.time_left_s;
-    // [A296 item 4, `mods.behind_open`] A team behind raids from earlier.
-    let after_s = match cx.tuning.mods.behind_open {
-        Some(open) if open.behind(cx.sig.score_gap) => open.raid_after_s,
-        _ => cx.num(PlayKind::Raid, "after_s"),
-    };
-    if elapsed < after_s {
-        return;
-    }
-    #[cfg(test)]
-    if elapsed < cx.num(PlayKind::Raid, "after_s") {
-        raid_counts::count(raid_counts::Count::EarlyOffered);
-    }
     let Some(theirs) = cx.view.containers.iter().find(|c| c.team != cx.me.team) else {
         return;
     };
     if theirs.batteries == 0 {
         return;
     }
+    // [A296 item 4, `mods.behind_open`] A team behind raids from earlier, into a thin guard only.
+    let behind = cx.tuning.mods.behind_open.filter(|open| open.behind(cx.sig.score_gap));
+    if elapsed < cx.num(PlayKind::Raid, "after_s") {
+        let Some(open) = behind else {
+            return;
+        };
+        let guard = cx.enemies_near(theirs.at, cx.num(PlayKind::Raid, "guard_m"));
+        if elapsed < open.raid_after_s || guard > open.thin_guard as usize {
+            return;
+        }
+        #[cfg(test)]
+        raid_counts::count(raid_counts::Count::EarlyOffered);
+    }
     let target = TargetRef::Container(theirs.id);
     out.extend(raid_candidate(cx, target, u32::from(theirs.id)));
-    // Behind late: a second bot raids too (holding gains nothing then).
-    if cx.sig.behind_late() >= cx.num(PlayKind::Raid, "pair_behind") && theirs.batteries >= 2 {
+    // Behind late: a second bot raids too (holding gains nothing then). [A296 item 5, `mods.raid_regroup.call`] Behind with the
+    // regroup's call: the second slot too, a mate for the stop.
+    let call = cx.tuning.mods.raid_regroup.is_some_and(|r| r.call)
+        && cx.sig.score_gap <= -cx.tuning.mods.behind_open.map_or(1.0, |open| open.by);
+    if (call || cx.sig.behind_late() >= cx.num(PlayKind::Raid, "pair_behind")) && theirs.batteries >= 2 {
         out.extend(raid_candidate(cx, target, 0x100 | u32::from(theirs.id)));
     }
 }
@@ -241,8 +245,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 };
                 return Step::Continue(Intent::stay().crouched().looking(Look::use_box(at)));
             }
+            // [A296 item 4, `behind_open.run_in`] A team behind runs the approach outside `sneak_m`.
+            let run_in = cx.tuning.mods.behind_open.is_some_and(|open| open.run_in && open.behind(cx.sig.score_gap));
             let pace = if d < num("sneak_m") {
                 Pace::Sneak
+            } else if run_in {
+                Pace::Run
             } else {
                 cx.pace_toward(at)
             };
@@ -338,6 +346,36 @@ mod tests {
         assert!(!early(0, 1, false), "off");
         assert!(early(0, 1, true), "behind, on");
         assert!(!early(1, 1, true), "level, on");
+        // An enemy known by their container: no early raid (a thin guard only).
+        let mut s = raid(1);
+        s.time_left(s.view.total_s - 60.0).points(0, 1);
+        s.tuning.mods.behind_open = Some(BehindOpen::default());
+        s.enemy(3, 1, Vec3::new(70.0, 0.0, 31.0), Some(Source::Seen));
+        assert!(raids(&s).is_empty(), "guarded");
+        // Behind with `run_in` (off by default: a running raider was heard), it runs the approach outside sneak_m.
+        let mut s = raid(1);
+        s.points(0, 1);
+        s.tuning.mods.behind_open = Some(BehindOpen { run_in: true, ..BehindOpen::default() });
+        let target = TargetRef::Container(1);
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else { panic!("{state:?}") };
+        assert_eq!(intent.pace, Pace::Run, "{intent:?}");
+    }
+
+    /// [mods.raid_regroup.call] A team one point behind with the regroup on offers the raid's second slot (a mate for the
+    /// stop); level, one slot.
+    #[test]
+    fn a_team_behind_calls_a_second_raider_with_the_regroup() {
+        use crate::v026g::bots::tuning::RaidRegroup;
+        let slots = |ours: u32, theirs: u32| {
+            let mut s = raid(1);
+            s.points(ours, theirs);
+            s.tuning.mods.raid_regroup = Some(RaidRegroup::default());
+            raids(&s).len()
+        };
+        assert_eq!(slots(0, 1), 2, "behind: a mate called");
+        assert_eq!(slots(1, 1), 1, "level");
     }
 
     /// [mods.raid_regroup] Within the stage ring with a teammate 30 m off: it stops, crouched, looking at their container, until
