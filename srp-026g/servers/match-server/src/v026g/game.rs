@@ -2425,7 +2425,8 @@ impl Game {
         let Some((majority, _)) = counts.into_iter().find(|(_, count)| count * 2 > live) else {
             return;
         };
-        let askable = |peer: &Peer| peer.patched && peer.stage == Stage::Live && !peer.is_asked(now);
+        let askable =
+            |peer: &Peer| peer.patched && peer.stage == Stage::Live && !peer.is_asked(now);
         let mut indices: Vec<usize> = reports.keys().copied().collect();
         indices.sort_unstable();
         let pick = |wrong: bool| {
