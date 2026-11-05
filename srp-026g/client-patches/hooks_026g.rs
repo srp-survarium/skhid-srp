@@ -946,6 +946,21 @@ pub extern "C" fn hook_music_on_configs(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- mouse_pitch (patch 112) ----
+
+/// The entry `mouse_pitch_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_mouse_pitch_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `mouse_pitch_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::mouse_pitch::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_options (patch 83) ----
 
 /// The entry `hud_options_on_process_start` (0xe9580, memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device) calls this with the saved machine.
@@ -995,6 +1010,26 @@ pub extern "C" fn hook_hud_options_on_options_call(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_options_call(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- mouse_pitch (patch 112) ----
+
+/// The named exits of mouse_pitch::on_options_call (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MousePitchOnOptionsCallExit { Done }
+/// The entry `mouse_pitch_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_mouse_pitch_on_options_call(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `mouse_pitch_on_options_call` calls this, from the game's jump at 0x1ff5d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::mouse_pitch::on_options_call(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -2092,6 +2127,36 @@ pub extern "C" fn hook_medical_skills_on_regenerate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- mouse_pitch (patch 112) ----
+
+/// The entry `mouse_pitch_on_pitch_step` (0x2402e9, on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_mouse_pitch_on_pitch_step(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `mouse_pitch_on_pitch_step` calls this, from the game's jump at 0x2402e9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::mouse_pitch::on_pitch_step(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- mouse_pitch (patch 112) ----
+
+/// The entry `mouse_pitch_on_death_pitch` (mouse.death_pitch, patch 46's drag (death_camera_026g.asm .turn), through the dword the build writes (DEATH_CAMERA_PITCH): cdecl, no arguments; XMM1 the option sensitivity in, the pitch's out; the caller keeps every other register) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_mouse_pitch_on_death_pitch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `mouse_pitch_on_death_pitch` calls this, from our own code's call (mouse.death_pitch),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::mouse_pitch::on_death_pitch(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
@@ -2845,6 +2910,8 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_music_on_configs(frame);
     if flow != 0 { return flow; }
+    let flow = hook_mouse_pitch_on_configs(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -2853,6 +2920,8 @@ pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 
     let flow = hook_language_on_options_call(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_options_call(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_mouse_pitch_on_options_call(frame);
     if flow != 0 { return flow; }
     0
 }

@@ -124,6 +124,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
+| `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
@@ -2851,7 +2852,9 @@ join's state page +E60h):
   the hud's pointer off the screen during it, back where it began at the
   release). A drag's move turns the yaw by x and the pitch by y at the
   player's look's step (the option sensitivity, 0xA74AEC, x 0.1 x pi/180; the
-  pitch also x height / width of the render window x 0.9549, and inverted by
+  pitch also x height / width x 0.9549 (since patch 112 16:9's 0.5625 at
+  every window while "Lock vertical sensitivity" is ticked; unticked the
+  yaw's step at the vertical sensitivity), and inverted by
   mouse_invertion, 0x1F1D9D3), within 70 degrees to either side, 60 up and
   40 down (relative to the head, below), and is taken (1):
   neither the cursor's nor the player's handler's. The wheel in a drag is
@@ -4511,3 +4514,38 @@ own back), once a layout. Under Windows (no `wine_get_version` in ntdll) and bef
 nothing moves. X11: the names are the moved keys' own, so nothing moves twice. Each client's own
 keys: nothing a match computes. The rules: `../docs/notes/keyboard_layout.md`; the addresses:
 `client_patch.md` 3.69. Checked with `check_key_remap_026g.py`; not run in a game.
+
+## The mouse look's pitch: 16:9's at every window, and "Lock vertical sensitivity" (patch 112, unreleased)
+
+Players' report (Discord suggestions, 2026-11-03): the mouse is right only at 4:3; at 16:9, looking
+up and down is slower than turning. `player_input_handler::on_mouse_move` (0x240200) turns the yaw
+by x × π/180 × s radians and the look pitch by y × π/180 × s × h/w × 3/π units (h/w is the render
+window's). A unit is 60° of view up and 67.5° down (the look clip `on_site_camera_look`, linear on
+each half; decoded again). So the pitch turned 0.75 of the yaw at 4:3 (0.84 down), 0.5625 at 16:9
+and 0.42 at 21:9. 0.69d0 keeps the same formula.
+
+**The patch** (the Rust patch `mouse_pitch`; `sites_026g.tsv` `mouse.pitch_step`,
+`mouse.death_pitch`): a lohook at on_mouse_move's pitch step (0x2402E9, 18 bytes), and the owner's
+design (2026-11-05) in Settings, Controls, under Mouse sensitivity: "Lock vertical sensitivity"
+(ticked by default) over a slider "Vertical sensitivity".
+
+- **Ticked (locked):** the stock formula with h/w fixed at 16:9's 0.5625 at every window. A 16:9
+  window turns bit for bit as the original game; every other window gets 16:9's feel (4:3 25 %
+  slower vertically, 21:9 +33 %). The death camera and the warmup camera use the same constant.
+  The greyed slider shows Mouse sensitivity × 0.5625 (1.25 → 0.70) as the main slider is dragged.
+- **Unticked:** exactly 1:1. A count's pitch radians equal the yaw's at the vertical value. The
+  factor is 1 while the local player's look pitch is up, 60/67.5 while it is down, and π/3 in the
+  warmup camera's orbit; the death camera's pitch step equals its yaw step. Unticking starts the
+  value at what the greyed slider showed.
+- **Storage:** `srp_mouse_vertical_locked on|off` (on by default) and `srp_mouse_vertical`, in
+  user.cfg. They are registered at `configs.start` and answered at `options.callback`
+  (`root.srp_check_option`, `root.srp_slider_option`), and read once per move into one enum,
+  `Pitch` (`Same` | `Split`).
+- **The menu** (main_menu: `SrpMouseVertical`, `Settings.layoutControls`): Invert mouse and the
+  Lobby keys move down under the new rows. The Chat keys move to the right column under the
+  game-key list, which scrolls. The owner has not yet decided on this layout.
+- The input carries the turn, not the mouse's counts: nothing a match computes changes.
+
+The rules and the decoded clip: `../docs/notes/mouse-pitch.md`; the addresses: `client_patch.md`
+3.70. Checked with `check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 112
+and 46, `../scripts/hud-options/check.sh` and `cargo test`. Not run in a game.

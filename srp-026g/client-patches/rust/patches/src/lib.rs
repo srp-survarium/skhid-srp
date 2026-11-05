@@ -77,5 +77,6 @@ pub mod animation_id_log;
 pub mod input_check;
 pub mod subtick_hits;
 pub mod keyboard_layout;
+pub mod mouse_pitch;
 pub mod bake_cache;
 pub mod key_remap;

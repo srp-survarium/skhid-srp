@@ -2522,6 +2522,8 @@ st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
+st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
+st_srp_mouse_vertical_option	Вертикальная чувствительность
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_play_in_squad	В отряде

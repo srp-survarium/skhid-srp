@@ -312,8 +312,8 @@ def main():
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["s_music_volume", "srp_dxvk", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores",
-                         "srp_hide_hit_markers", "localization"]
+           and names == ["srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume", "srp_dxvk", "srp_hide_crosshair",
+                         "srp_map_names", "srp_hide_scores", "srp_hide_hit_markers", "localization"]
            and all((kind, saved) == (2, 1) and ours.read(value, 1) == b"\0" for _, kind, saved, value in variables.values()),
            "configs.start: registers and stack as the original's; the five settings, "
            "saved bools of kind 2, off, registered after patch 79's `localization` (the original registers nothing)")

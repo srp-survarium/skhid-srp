@@ -84,7 +84,7 @@ const USER_CFG: u32 = 2;
 /// A console variable on or off that the engine saves in user.cfg and sets
 /// from it (`<name> on|off`, a line game::on_configs_loaded runs). The engine
 /// writes the value itself (executing the line); a patch reads and writes it
-/// inside a hook. Off until the file says otherwise.
+/// inside a hook. Its default (off for `new`) until the file says otherwise.
 pub struct ConsoleBool {
     storage: UnsafeCell<BoolStorage>,
     registration: UnsafeCell<Registration>,
@@ -96,8 +96,14 @@ unsafe impl Sync for ConsoleBool {}
 
 impl ConsoleBool {
     pub const fn new() -> ConsoleBool {
+        ConsoleBool::with(false)
+    }
+
+    /// On or off until the file says otherwise (the engine's constructor
+    /// keeps the value it is given).
+    pub const fn with(default: bool) -> ConsoleBool {
         ConsoleBool {
-            storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: 0 }),
+            storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: default as u8 }),
             registration: UnsafeCell::new(Registration::Unregistered),
         }
     }
@@ -200,6 +206,13 @@ impl ConsoleFloat {
     pub fn get(&self, _: &Thread) -> f32 {
         // SAFETY: on the game's thread, the value's only user while it runs.
         unsafe { (*self.storage.get()).value }
+    }
+
+    /// A value within the range (the caller's type keeps it there), as the
+    /// console's setter would store it.
+    pub fn set(&self, _: &Thread, value: f32) {
+        // SAFETY: as get.
+        unsafe { (*self.storage.get()).value = value }
     }
 }
 
