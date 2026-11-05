@@ -607,8 +607,12 @@ THISCALL void sp_action(struct sponge *s, u32 pressed, u32 time) {
     (void)time;
     u8 *inventory = AT(s, I_INVENTORY, u8 *);
     if (!inventory) return;
+    u32 grenade = AT(inventory, INV_GRENADE_SLOT, u32), mine = AT(s, I_SLOT, u32);
+    /* Another grenade in the grenade slot (a stock grenade being cooked): its
+     * throw state's, not ours to change (a release there throws it). */
+    if (grenade != NO_SLOT && grenade != mine) return;
     if ((u8)pressed && s->explode_time == NEVER) {
-        AT(inventory, INV_GRENADE_SLOT, u32) = AT(s, I_SLOT, u32);
+        AT(inventory, INV_GRENADE_SLOT, u32) = mine;
         return;
     }
     AT(inventory, INV_GRENADE_SLOT, u32) = NO_SLOT;
@@ -683,6 +687,15 @@ static void splash_of(struct sponge *s, struct splash *out) {
     out->stopping = modified(player, M_DAMAGE, out->stopping);
 }
 
+/* Consumed: out of its slot when it is still in it (0x2FC680; its
+ * removed_from_inventory sees it spent and gives the grenade slot back). */
+static void consume(struct sponge *s) {
+    u8 *inventory = AT(s, I_INVENTORY, u8 *);
+    u32 slot = AT(s, I_SLOT, u32);
+    if (inventory && slot < NO_SLOT && AT(inventory, INV_SLOTS + 4 * slot, struct sponge *) == s)
+        engine_inventory_remove_item(inventory, slot);
+}
+
 /* 0.28's tick 0x514160: states 6 and 7 are the sponge's own. */
 THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
     u32 state = AT(s, A_STATE, u32);
@@ -723,11 +736,14 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
         leave_physics(s);
         s->pin = 0;
         AT(s, A_STATE, u32) = ST_ZONE;               /* before the slot: its removed_from_inventory sees it spent */
-        u8 *inventory = AT(s, I_INVENTORY, u8 *);
-        u32 slot = AT(s, I_SLOT, u32);
-        if (inventory && slot < NO_SLOT && AT(inventory, INV_SLOTS + 4 * slot, struct sponge *) == s)
-            engine_inventory_remove_item(inventory, slot);
         sp_disable_passive(s);                       /* 0.28 leaves it in the thrower's list (its +30h skips state 6) */
+        /* Still in its slot: the throw state holding it (+17Ch) lets it go
+         * at its next is_ready (sp_released), and a world saved before that
+         * names it by that slot (0x33A51B; its load 0x33A5BD reads the slot
+         * back). Players tick before the anomaly, so that is the next tick;
+         * with no throw state holding it, the tick after this one (below). */
+    } else if (AT(s, A_STATE, u32) == ST_ZONE && time == s->explode_time + TICK) {
+        consume(s);
     }
     /* the zone runs on whatever the item's state (nothing can take an
      * exploded sponge: a container's can_use 0x31C6B0 wants state 2, which
@@ -743,7 +759,7 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
 /* ---- the throw (the throw-grenade state's hooks, sponge_a_026g.asm) ---- */
 
 /* 0.28's grenade_set_base[6] 0x515150: ready to be thrown (not in the air). */
-u32 sp_can_throw(struct sponge *s) { return !s->physics; }
+u32 sp_can_throw(struct sponge *s) { return !s->physics && AT(s, A_STATE, u32) != ST_ZONE; }
 
 /* [1] 0x514610: the pin; the "grenade index" 0. The fuse starts here. */
 u32 sp_pull_pin(struct sponge *s, u32 time) {
@@ -754,6 +770,14 @@ u32 sp_pull_pin(struct sponge *s, u32 time) {
 
 /* [4] 0x515140: done (the zone on). */
 u32 sp_exploded(struct sponge *s) { return (u32)zone_active(s); }
+
+/* The throw state's is_ready with it exploded: the state lets it go now
+ * (its +17Ch), so it leaves its slot now (consume). */
+u32 sp_released(struct sponge *s) {
+    if (!sp_exploded(s)) return 0;
+    consume(s);
+    return 1;
+}
 
 /* [2] 0x514620: thrown along the aim's z axis at throw_power x the holder's
  * throw modifier (27), from the hand's transform. */

@@ -924,19 +924,23 @@ def main():
           "world", ("pw_contact_remove", body, sponge + S_CONTACT_FN) in game.log and ("pw_remove", body, 1) in game.log
           and game.log.index(("pw_contact_remove", body, sponge + S_CONTACT_FN)) < game.log.index(("pw_remove", body, 1))
           and r.read(sponge + S_REGISTERED, 1) == 0, str(game.log))
-    check("the body out of the physics world, the pin in, out of its slot (0x2FC680: slot 13 empty, the item's "
-          "inventory none, slot 17h, the inventory dirty), the passive out, state 7",
+    check("the body out of the physics world, the pin in, the passive out, state 7; still in its slot 13 this "
+          "tick (a throw state holding it lets it go at its is_ready)",
           ("pw_remove", body, 1) in game.log and r.read(sponge + S_PHYSICS) == 0 and r.read(sponge + S_PIN, 1) == 0
-          and r.read(game.inventory + 0x10C + 4 * 13) == 0 and r.read(sponge + INVENTORY) == 0
-          and r.read(sponge + SLOT) == 0x17 and r.read(game.inventory + 0x184, 1) == 1
-          and r.read(sponge + S_LINKED) == 0 and r.read(infection + 0x2EC) == 0 and r.read(sponge + STATE_AT) == 7
-          and r.read(sponge + 0xD0) == 1)
+          and r.read(game.inventory + 0x10C + 4 * 13) == sponge and r.read(sponge + SLOT) == 13
+          and r.read(sponge + S_LINKED) == 0 and r.read(infection + 0x2EC) == 0 and r.read(sponge + STATE_AT) == 7)
     check("the same tick the zone ticks (0x319A70: 50, the time, on the tick grid) naming its thrower, the "
           "inflictor and the sponge for the hit hook; nothing named after",
           zone_ticks and zone_ticks[0][1:5] == (zone, 50, armed_at, 1)
           and zone_ticks[0][5] == (zone, game.player + 0x110, sponge + S_INFLICTOR, sponge) and g() == (0, 0, 0, 0),
           str(zone_ticks[:1]))
     events.clear()
+    time += 50
+    r.thiscall(vt(sponge, 29), sponge, 50, time)
+    check("no throw state's is_ready let it go: the tick after, out of its slot (0x2FC680: slot 13 empty, the "
+          "item's inventory none, slot 17h, the inventory dirty), consumed",
+          r.read(game.inventory + 0x10C + 4 * 13) == 0 and r.read(sponge + INVENTORY) == 0
+          and r.read(sponge + SLOT) == 0x17 and r.read(game.inventory + 0x184, 1) == 1 and r.read(sponge + 0xD0) == 1)
     while time < armed_at + 15000 - 50:
         time += 50
         r.thiscall(vt(sponge, 29), sponge, 50, time)
@@ -1332,6 +1336,7 @@ def main():
           "(its own +2Ch) takes that one sponge into the grenade slot, no other",
           untouched and r.read(game.inventory + 0x17C) == r.read(alive + SLOT) and r.read(other + S_EXPLODE) == NEVER
           and r.read(other + STATE_AT) == 3 and r.read(lifebone_like + STATE_AT) == 4)
+    r.thiscall(vt(alive, 11), alive, 0, 500050)          # its key let go: the grenade slot 17h again
 
     # 14. Lifetimes and lockstep (the review of 2026-10-22): each hole of 0.28's closed.
     infection = game.pools["infection"]
@@ -1623,6 +1628,36 @@ def main():
             r.thiscall(vt(obj, 29), obj, 50, t)
         return t, [x[3] for x in splashes]
 
+    def save_load_in_tick(what, obj, slot):
+        """A world saved in the explosion's tick and loaded (players tick before the anomaly, so the throw
+        state still holds the sponge, +17Ch): its serialize writes the sponge's slot (0x33A51B, the item's
+        +254h), its load reads the inventory's slot back (0x33A5AB..0x33A5F7) into the loaded state's +17Ch."""
+        eip, _ = r.span(0x33A51B, 0x33A527, {UC_X86_REG_EBX: throw_state})
+        written = r.emu.reg_read(UC_X86_REG_EDX) & 0xFF
+        player = r.allocate(0x200)
+        r.word(player + 0x10C, game.inventory)
+        holder_ = r.allocate(0x20)
+        r.word(holder_ + 8, player)
+        loaded = r.allocate(0x200)
+        r.word(loaded + 0x120, holder_)
+        reader, source = r.allocate(12), r.allocate(16)
+        r.emu.mem_write(source, bytes([written, 0]))
+        r.word(reader, source)
+        r.word(reader + 4, source)
+        r.word(reader + 8, 2)
+        refs = r.read(obj + 0xD0)
+        try:
+            eip2, _ = r.span(0x33A5A2, 0x33A635, {UC_X86_REG_EBX: loaded, UC_X86_REG_EDI: reader})
+            fault = None
+        except RuntimeError as error:
+            eip2, fault = 0, str(error)
+        check(f"saved in the tick of {what} and loaded: the throw state's serialize writes slot {slot} (the "
+              "sponge's +254h, still in its slot), its load reads the inventory's slot back and holds the same "
+              "sponge (+17Ch, one reference more), no fault",
+              written == slot and fault is None and eip2 == 0x33A635 and r.read(loaded + 0x17C) == obj
+              and r.read(obj + 0xD0) == refs + 1, f"slot {written:#x} {fault} {eip2:#x} {r.read(loaded + 0x17C):#x}")
+        r.word(obj + 0xD0, refs)
+
     # a contact before 1.5 s: spent, the fuse decides; a second contact after 1.5 s changes nothing
     early, early_body = thrown_at(9, 2000000)
     invoker, cleanup = contact(early)
@@ -1648,6 +1683,15 @@ def main():
           and r.read(late_obj + S_EXPLODE) == 2101550 and r.readf(late_obj + S_TRANSFORM + 0x30, 3) == [4.0, 0.25, -3.0]
           and ("pw_contact_remove", late_body, late_obj + S_CONTACT_FN) in game.log
           and r.read(late_obj + S_REGISTERED, 1) == 0, f"{booms} {t}")
+    check("still in its slot 10 at that tick (the throw state holds it until its is_ready)",
+          r.read(game.inventory + 0x10C + 4 * 10) == late_obj and r.read(throw_state + 0x17C) == late_obj)
+    save_load_in_tick("a contact burst (thrown, the throw state still holding it)", late_obj, 10)
+    try:
+        eip_l, _ = r.span(0x33A677, 0x33A696, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EAX: 0})
+    except RuntimeError:
+        eip_l = 0
+    check("the throw state's is_ready the tick after: ready (0x33A696), and the sponge out of its slot 10",
+          eip_l == 0x33A696 and r.read(game.inventory + 0x10C + 4 * 10) == 0, f"{eip_l:#x}")
     while t < 2101550 + 15000:
         t += 50
         r.thiscall(vt(late_obj, 29), late_obj, 50, t)
@@ -1804,16 +1848,38 @@ def main():
         r.thiscall(vt(held, 29), held, 50, t_h)
     shape_h = r.read(r.read(held_zone + 0x11C))
     check("pulled at 3000000 and held: armed, never thrown; at 3003000 it explodes in the hand: the splash where "
-          "the hand is (0x309F00), the zone on there, out of its slot 20 (consumed), its passive out, state 7, no "
-          "body in the physics world (none subscribed, none unsubscribed)",
+          "the hand is (0x309F00), the zone on there, its passive out, state 7, still in its slot 20 (the throw "
+          "state holds it until its is_ready), no body in the physics world (none subscribed, none unsubscribed)",
           pressed_slot == 20 and linked_then == 1 and t_h == 3003000 and r.read(held + STATE_AT) == 7
           and [x[3] for x in splashes] == [3003000] and splashes[0][2] == [f32(0.4), f32(1.7), f32(0.2)]
           and ("geometry_set", shape_h, [f32(0.4), f32(1.7), f32(0.2)]) in events
-          and r.read(game.inventory + 0x10C + 4 * 20) == 0 and in_pool(held + S_NODE) == 0
+          and r.read(game.inventory + 0x10C + 4 * 20) == held and r.read(held + SLOT) == 20
+          and in_pool(held + S_NODE) == 0
           and not [e for e in game.log if e[0] in ("pw_add", "pw_remove", "pw_contact_add", "pw_contact_remove")],
           f"{t_h} {splashes} {game.log}")
-    check("the grenade slot (inventory +17Ch) given back (17h) when it left its slot, as a release gives it back",
-          r.read(game.inventory + 0x17C) == 0x17, f"{r.read(game.inventory + 0x17C):#x}")
+    save_load_in_tick("the explosion in the hand", held, 20)
+    try:
+        eip, _ = r.span(0x33A677, 0x33A696, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EAX: 0})
+    except RuntimeError:
+        eip = 0                                          # it went on past `not ready` (0x33A692)
+    check("the throw state's is_ready (0x33A677) the tick after: ready (0x33A696), the state leaves as with a "
+          "grenade exploded in the hand, and it lets the sponge go: out of its slot 20 (0x2FC680, consumed), the "
+          "grenade slot (inventory +17Ch) given back (17h), as a release gives it back",
+          eip == 0x33A696 and r.read(game.inventory + 0x10C + 4 * 20) == 0 and r.read(game.inventory + 0x17C) == 0x17,
+          f"eip {eip:#x} slot {r.read(game.inventory + 0x10C + 4 * 20):#x} grenade {r.read(game.inventory + 0x17C):#x}")
+    r.thiscall(vt(held, 29), held, 50, t_h + 50)
+    check("its tick after that: nothing more (out of its slot already)",
+          r.read(held + STATE_AT) == 7 and r.read(game.inventory + 0x10C + 4 * 20) == 0)
+    null_held = r.read(throw_state + 0x17C)
+    r.word(throw_state + 0x17C, 0)
+    try:
+        eip_null, _ = r.span(0x33A677, 0x33A696, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EAX: 0})
+        fault_null = None
+    except RuntimeError as error:
+        eip_null, fault_null = 0, str(error)
+    r.word(throw_state + 0x17C, null_held)
+    check("is_ready with no grenade held (+17Ch 0: a load that found its slot empty): ready (0x33A696), no fault",
+          eip_null == 0x33A696 and fault_null is None, f"{eip_null:#x} {fault_null}")
     try:
         entered, _ = r.thiscall(0x2E4090, core)
         fault = None
@@ -1830,13 +1896,6 @@ def main():
           "grenade slot naming the emptied slot (the crash's state) sponge_predicate answers no instead of reading "
           "through 0", fault is None and fault2 is None and (entered & 0xFF) == 0 and (entered2 & 0xFF) == 0,
           f"{fault} {fault2}")
-    try:
-        eip, _ = r.span(0x33A677, 0x33A696, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EAX: 0})
-    except RuntimeError:
-        eip = 0                                          # it went on past `not ready` (0x33A692)
-    check("the throw state's is_ready (0x33A677) with it exploded: ready (0x33A696), the state leaves as with a "
-          "grenade exploded in the hand; a release after it throws nothing (no body, state 7)",
-          eip == 0x33A696, f"eip {eip:#x}")
     r.thiscall(vt(held, 11), held, 0, t_h + 50)
     throw(held, 1.0, 1.0, 1.0)
     check("a release and the throw site after the explosion: nothing thrown",
@@ -1848,6 +1907,18 @@ def main():
     remove_from_slot(21)
     check("taken out of its slot while its key holds the grenade slot (a drop, a death): the grenade slot 17h",
           was == 21 and r.read(game.inventory + 0x17C) == 0x17)
+    # a stock grenade being cooked (the grenade slot its slot): the Sponge's key changes nothing
+    cooking, _, _ = make_sponge(22)
+    r.word(game.inventory + 0x17C, 5)
+    r.thiscall(vt(cooking, 11), cooking, 1, 3200000)
+    after_press = r.read(game.inventory + 0x17C)
+    r.thiscall(vt(cooking, 11), cooking, 0, 3200050)
+    after_release = r.read(game.inventory + 0x17C)
+    r.word(game.inventory + 0x17C, 0x17)
+    check("a press and a release of the Sponge's key while a stock grenade is cooked (the grenade slot 5, not "
+          "17h): the grenade slot stays 5 (the stock throw state's grenade not released), the Sponge not armed",
+          after_press == 5 and after_release == 5 and r.read(cooking + S_EXPLODE) == NEVER,
+          f"{after_press} {after_release}")
 
     # 16. Each slot of ours reached through the game's own call site with what the game passes there
     #     (patch_026g.py's INSTALLED_VTABLES name these cases; the self-test fails a slot of ours with none).

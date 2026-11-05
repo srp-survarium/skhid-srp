@@ -36,7 +36,7 @@
 bits 32
 global sponge_construct, sponge_size, sponge_query, sponge_predicate, sponge_ready, sponge_throw, sponge_pull
 global sponge_zone_hit, sponge_artefacts, sponge_spawn, sponge_links
-extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_exploded, sp_throw, sp_pull_pin, sp_vtable, sp_g
+extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_released, sp_throw, sp_pull_pin, sp_vtable, sp_g
 extern sp_artefacts, sp_spawn_pick, sp_links
 section .text
 
@@ -162,15 +162,20 @@ predicate:
     jmp PREDICATE_ON
 
 ; 0x33A677, esi = the throw state, al = its grenade's index (not FFh).
+; No grenade held (+17Ch 0: a load that found its slot empty, 0x33A5C8):
+; ready, the state leaves. A sponge exploded: ready, and the state lets it
+; go now, so it leaves its slot now (sp_released).
 ready:
     mov ecx, [esi + 0x17C]
+    test ecx, ecx
+    jz READY_YES
     cmp dword [ecx], SP_VTABLE
     je .sponge
     mov edx, [ecx + 0x268]
     jmp READY_ON
 .sponge:
     push ecx
-    call sp_exploded
+    call sp_released
     add esp, 4
     test al, al
     jnz READY_YES
