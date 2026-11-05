@@ -47,7 +47,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: Option<MedicalPools>, name: *const *const u8) -> Option<MedicalPool>;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: Option<MedicalPool>, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: Option<PlayerParamsModifiersContainer>, index: u32, value: f32, weight: f32) -> f32;
@@ -583,6 +583,24 @@ impl MatchOptions {
     #[inline(always)]
     pub unsafe fn seed(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x577b0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x577b4 (u8): the match's maps_dict id (its map and mode): match_options::deserialize 0x1F0EAD, the byte after the 20 profiles
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn map(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x577b4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x577b6 (u16): the match's level: match_options::deserialize 0x1F0EDC, after the seed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn level(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x577b6).cast::<u16>().as_ptr() }
     }
 }
 
@@ -7532,6 +7550,15 @@ impl MatchPlace {
     #[inline(always)]
     pub unsafe fn team(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x45ec).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x45f0 (u8): nonzero for the local player's place: process_static_match_info sets it by the message's local index (0x27BE5F, abi_inputs.tsv)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn is_local(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x45f0).cast::<u8>().as_ptr() }
     }
 
     /// 0x45fc bytes: a place's record: 45FCh bytes (imul esi,esi,45FCh at 0x234EEF)

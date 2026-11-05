@@ -34,6 +34,8 @@ import slots) stubs that record the line.
   through the unpacked one too, and each verdict must be the host's.
 """
 import argparse
+import json
+from pathlib import Path
 import struct
 import sys
 
@@ -46,6 +48,8 @@ import patch_026g as base
 RAW_SITE, UNPACKED_SITE = 0x27C0FF, 0x27C0D0
 LOAD, LOADED, EPILOGUE, CLOSE = 0x2D0B70, 0x27C116, 0x27C1E0, 0x27A790
 CREATE_FILE, WRITE_FILE, CLOSE_HANDLE = 0x870048, 0x870108, 0x870040   # the import slots
+QPC, QPF = 0x870158, 0x870150                                            # QueryPerformanceCounter / -Frequency
+BREADCRUMB_CHECK = int.from_bytes(b"BRCS", "little")                     # vostok/breadcrumbs.rs CHECK
 CLIENT, GAME, READER = 0x40000000, 0x40400000, 0x40500000
 WORLD, STACK, STUBS = 0x41000000, 0x42000000, 0x43000000
 WORLD_ROOM, STACK_ROOM = 0x20000, 0x10000
@@ -72,9 +76,11 @@ class Run:
                          (STACK, STACK_ROOM), (STUBS, 0x1000)):
             emu.mem_map(at, size, UC_PROT_ALL)
         self.word(CLIENT + 0x1F1C40, GAME)
-        for slot, stub in ((CREATE_FILE, STUBS), (WRITE_FILE, STUBS + 0x10), (CLOSE_HANDLE, STUBS + 0x20)):
+        for slot, stub in ((CREATE_FILE, STUBS), (WRITE_FILE, STUBS + 0x10), (CLOSE_HANDLE, STUBS + 0x20),
+                           (QPC, STUBS + 0x30), (QPF, STUBS + 0x40)):
             self.word(slot, stub)
-        for address in (LOAD, CLOSE, STUBS, STUBS + 0x10, STUBS + 0x20):
+        self.counter = 0
+        for address in (LOAD, CLOSE, STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=address, end=address)
         for address in (LOADED, EPILOGUE):
             emu.hook_add(UC_HOOK_CODE, self.stop, begin=address, end=address)
@@ -97,6 +103,11 @@ class Run:
             pops, result = 4, 0
         elif address == STUBS:              # CreateFileA: 7 arguments, a handle
             pops, result = 28, 0x1234
+        elif address in (STUBS + 0x30, STUBS + 0x40):   # QueryPerformanceCounter / -Frequency(&out)
+            self.counter += 1
+            value = self.counter if address == STUBS + 0x30 else 10_000_000
+            self.emu.mem_write(args[0], struct.pack("<Q", value))
+            pops, result = 4, 1
         elif address == STUBS + 0x10:       # WriteFile(file, bytes, size, &written, 0)
             self.lines.append(bytes(emu.mem_read(args[1], args[2])))
             self.word(args[3], args[2])
@@ -226,6 +237,36 @@ def compare(stock, ours, path, world, can_load):
     return fails
 
 
+def breadcrumbs(ours, worlds):
+    """Failures of the crash report's ring (vostok/breadcrumbs.rs) after
+    `worlds` (each case's state, raw then unpacked, in order): found as the
+    reporter finds it (its address, then that xor "BRCS"), one World entry a
+    load, the last one's bytes, packed and refused."""
+    lock = json.load(open(Path(__file__).resolve().parent / "arena_026g.lock.json"))
+    start, size = int(lock["va"], 16), int(lock["size"])
+    memory = bytes(ours.emu.mem_read(start, size))
+    found = [start + at for at in range(0, size - 8, 4)
+             if struct.unpack_from("<II", memory, at) == (start + at, (start + at) ^ BREADCRUMB_CHECK)]
+    if len(found) != 1:
+        return [f"the ring's header found {len(found)} times"]
+    at = found[0] - start
+    version, entry_size, capacity, count = struct.unpack_from("<HHII", memory, at + 8)
+    fails = []
+    if (version, entry_size, capacity) != (1, 32, 1024):
+        fails.append(f"the header: version {version}, entry {entry_size}, capacity {capacity}")
+    if count != len(worlds):
+        fails.append(f"{count} entries for {len(worlds)} loads")
+    entries = []
+    for n in range(max(0, count - capacity), count):
+        seq, kind, a, b, _, time, size_ = struct.unpack_from("<IBBHQII", memory, at + 64 + 32 * (n % capacity))
+        entries.append((seq, kind, a, b, time, size_))
+    want = [(n + 1, 2, (path == "unpacked") | (ok << 1), 0, struct.unpack("<I", world[:4])[0] if len(world) >= 4 else 0,
+             len(world)) for n, (world, path, ok) in enumerate(worlds)]
+    if entries != want:
+        fails.append(f"the entries differ: first {next((e, w) for e, w in zip(entries, want) if e != w)}")
+    return fails
+
+
 def drift(ours, path):
     """(worlds, checks, the rows that differ)."""
     worlds = checks = 0
@@ -260,12 +301,18 @@ def main():
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
     stock, ours = Run(original), Run(bytes(built))
     failed = 0
+    worlds = []
     for what, world, can_load in cases():
         for path in ("raw", "unpacked"):
+            worlds.append((world, path, can_load))
             fails = compare(stock, ours, path, world, can_load)
             failed += bool(fails)
             verdict = "loaded" if can_load else "refused, the match left"
             print(f"  {'FAIL' if fails else 'ok'}  {path}: {what}: {verdict}" + "".join(f"\n      {f}" for f in fails))
+    fails = breadcrumbs(ours, worlds)
+    failed += bool(fails)
+    print(f"  {'FAIL' if fails else 'ok'}  the crash report's ring: one World entry a load"
+          + "".join(f"\n      {f}" for f in fails))
     if args.drift:
         worlds, checks, differ = drift(ours, args.drift)
         failed += len(differ)

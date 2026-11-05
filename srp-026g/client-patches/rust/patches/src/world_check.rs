@@ -14,6 +14,7 @@
 
 use world_frame::{Frame, Part, Places, Refusal};
 
+use crate::vostok::breadcrumbs::{self, Crumb};
 use crate::vostok::log::{line, Piece};
 use crate::vostok::{Context, Flow, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
 
@@ -48,7 +49,16 @@ fn check(load: Option<WorldLoad<'_>>) -> Verdict {
     let Some(load) = load else {
         return Verdict::Load;
     };
-    match Frame::parse_state(load.state(), Places::ALL) {
+    let parsed = Frame::parse_state(load.state(), Places::ALL);
+    let state = load.state();
+    breadcrumbs::record(load.thread(), Crumb::World {
+        time: state.get(..4).map_or(0, |t| u32::from_le_bytes([t[0], t[1], t[2], t[3]])),
+        bytes: state.len() as u32,
+        packed: load.packed(),
+        local: load.network_client().local_profile(),
+        loaded: parsed.is_ok(),
+    });
+    match parsed {
         Ok(frame) => {
             crate::weapon_pickup::before_world_load(&load, &frame);
             Verdict::Load

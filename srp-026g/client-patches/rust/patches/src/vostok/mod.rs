@@ -22,6 +22,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
 pub mod camera;

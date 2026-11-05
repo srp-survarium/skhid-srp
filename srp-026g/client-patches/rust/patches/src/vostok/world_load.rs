@@ -78,6 +78,11 @@ impl<'t> WorldLoad<'t> {
         self.state
     }
 
+    /// Whether the world came packed (unpacked before this load).
+    pub fn packed(&self) -> bool {
+        matches!(self.source, Source::Unpacked)
+    }
+
     /// The handler's network client (its places' players).
     pub fn network_client(&self) -> NetworkClient<'t> {
         NetworkClient::of(self.client, self.thread)
