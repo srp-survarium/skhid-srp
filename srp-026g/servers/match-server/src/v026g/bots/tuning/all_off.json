@@ -187,7 +187,8 @@
     "search_queue": "first_come",
     "shut_in_gate": false,
     "stamina": false,
-    "stranded_start": false
+    "stranded_start": false,
+    "wall_clear_corners": false
   },
   "traps": {
     "chance": 0.35,
