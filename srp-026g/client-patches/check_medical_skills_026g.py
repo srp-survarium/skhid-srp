@@ -573,12 +573,52 @@ def check_concentration(data):
     print('Concentration volume: environment -10%/opponents +10% a rank 0..4 (5..7 and with Unflinching refused), painkiller on/off, untagged unchanged, set_volume_impl clamp kept, lobby reset: PASS')
     return outcomes
 
+def check_regeneration(data,kit=0):
+    # The kit's regeneration modifiers (10 seconds off the delay, 9 the limit
+    # raised: the Regeneration booster's -2 and 1) at body_part::regenerate's
+    # join 0x32A53F, then the whole native body_part::regenerate. Modifier 10
+    # as the kit's own float, 9 as an item's node in its list (as a booster in
+    # a pocket adds it), so both of the getter's sums are run.
+    g=MedicalGame(data)
+    g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+    container=KITS+0xf4+kit*0x704
+    node=g.block(0x10)
+    def booster(on):
+        g.word(container+10*4,bits(-2 if on else 0))
+        g.word(node+4,0);g.word(node+0xc,bits(1 if on else 0))
+        g.word(container+0x110+9*0x14+4,node);g.emu.mem_write(container+0x120+9*0x14,b'\1')
+    g.ranks(5<<6)
+    g.step(0x2d706f,7,ebp=PLAYER)
+    pools=g.pools[PLAYER]
+    for on in [False,True]:
+        booster(on)
+        for name,rate,limit in [('body',.03,.5),('head',.03,.5),('left_leg',.03,.2),('pain',.1,1),('right_hand',0,0)]:
+            pool=pools[name];delay=g.read(pool+0xac)
+            assert delay==5500
+            stack=[0]*12;stack[4]=bits(rate);stack[5]=delay;stack[6]=bits(limit);stack[9]=12345
+            g.step(0x32a53f,6,stack=stack,eax=delay,edi=pool)
+            regenerates=on and rate>0
+            assert g.emu.reg_read(UC_X86_REG_EAX)==(3500 if regenerates else 5500),name
+            close(g.float(STACK-0x100+0x18),1 if regenerates else limit)
+            assert g.emu.reg_read(UC_X86_REG_EBP)==12345
+    # The native regenerates the body from 10 %: to its 50 % without the
+    # booster, to full with it; never before the delay.
+    body=pools['body']
+    for on,now,expected in [(False,5000,.1),(False,200000,.5),(True,3400,.1),(True,200000,1)]:
+        booster(on)
+        g.word(body+0xa0,bits(.1));g.word(body+0xa4,bits(.03));g.word(body+0xa8,bits(.5));g.word(body+0xb0,0)
+        g.call(0x32a4b0,(now,now),edi=body)
+        close(g.float(body+0xa0),expected)
+        close(g.float(body+0xa8),.5)
+    print('Regeneration booster: delay after Metabolism 5.5 -> 3.5 s, limit 50 %/20 % -> 100 %, pools without regeneration and kits without it unchanged; native regenerate to full: PASS')
+
 def main():
     original=open(sys.argv[1],'rb').read()
     patched,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,open(base.late_join_bin(),'rb').read())
     check_pressed_entry(patched)
     check_concentration(patched)
     check_particle_capacity(patched)
+    check_regeneration(patched);check_regeneration(patched,2)
     assert check_combo(patched)==check_combo(patched,2)
     assert run(patched)==run(patched,0x4000,2)==run(patched,0x8000,1)
     print("Medical simulation outcome identical across independent client memory layouts and all three kits: PASS")

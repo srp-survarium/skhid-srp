@@ -669,11 +669,13 @@ From revision 25 to 2026-11-01 a buy on an owned item was not asked "This
 item is already purchased by you. Would you like to buy anyway?":
 `LobbyMenu.try_buy_item`, which every buy goes through, asked it only for a
 buy from the shop's list (`sourceSlot == 200`), not from an owned item's own
-slot (100 or less). Since 2026-11-01 (the owner: "it should only skip from rmb
-on item in your inventory, since there it is a voluntary action") it asks for
-every buy but a bundle's (`sourceSlot != 300`), camouflages included, except
-the right-click menu's Buy on an owned item (`ItemCard.buyFromOwnMenu`, the
-`ownItemMenu` argument; `docs/notes/items.md` §6).
+slot (100 or less). From 2026-11-01 it asked for every buy but a bundle's
+(`sourceSlot != 300`), camouflages included, except the right-click menu's Buy
+on an owned item. Since 2026-11-05 (the owner: buying through the upgrade
+window or from the inventory should not ask) every caller says where the buy
+was started (`try_buy_item`'s `origin`, a `BuyOrigin`: `SHOP`, `OWN`,
+`UPGRADE`) and only a buy started in the shop asks, camouflages included, a
+bundle never (`docs/notes/items.md` §6).
 
 ## The craft window: Buy and Sell, Continue and Exit
 

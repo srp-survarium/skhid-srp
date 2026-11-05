@@ -3206,6 +3206,10 @@ va	name	location	role	basis
 0x0032a4b0	survarium::body_part::regenerate	EDI	the pool: +9Ch max health, +A0h health, +A4h regeneration_speed (per s), +A8h regeneration_threshold (x max), +ACh timeout ms, +B0h last hit ms, +2ECh regeneration_modifiers subscribers (0x329DF0); speed = getter 0x2D5AE0 index 2 (health_regeneration_speed) on +A4h, k 1	observed
 0x0032a4b0	survarium::body_part::regenerate	entry ESP+4	elapsed ms	observed
 0x0032a4b0	survarium::body_part::regenerate	entry ESP+8	now ms	observed
+0x0032a4b0	survarium::body_part::regenerate	ESP+10h at 0x32A53F	float rate: +A4h x apply_modifier(2 health_regeneration_speed), then each +2ECh regeneration modifier (0x329DF0 over {rate, delay, limit} at ESP+10h)	observed
+0x0032a4b0	survarium::body_part::regenerate	EAX at 0x32A53F	delay ms (+ACh past the regeneration modifiers): 0 regenerates at once, else not until now > +B0h + delay; its copy ESP+14h is not read again	observed
+0x0032a4b0	survarium::body_part::regenerate	ESP+18h at 0x32A53F	float limit (+A8h regeneration_threshold past the regeneration modifiers): heals to max x limit (0x32A56B..0x32A581); +A8h itself is also the HUD doll's break point (0x23712C)	observed
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	9 engineer_use_time and 10 engineer_success_chance: none of the 93 calls passes either index (76 an immediate ESI, the rest a computed or earlier one: 14, 15, 4/20, apply_kit_parameter 5 and 14..17); srp's regeneration indices (client patch 94, regeneration-booster.md)	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred
@@ -5559,3 +5563,6 @@ va	name	location	role	basis
 0x003198d0	survarium::damage_zone_core::on_objects_entered	ECX	the zone (nothing counted while +0A4h is 0); each entering player's +2E4h (byte, zones it is in) incremented at 0x319967	observed
 0x00319780	survarium::damage_zone_core::on_objects_left	ECX	the zone; each leaving player's +2E4h decremented at 0x31980B (also 0x319DAC deactivate, 0x319F11 activate; zeroed at 0x2DB76D)	observed
 0x00329ff0	survarium::body_part_parameters::hit_by_type	EDI at 0x32A083	the hit's type (+1Ch), XMM0 the part's armour for it, XMM1 the piercing, EBX &damage, EBP the pool (patch 109's artefact.isolation)	observed
+0x0033f690	survarium::booster::booster	EDI	the booster (vtable 0xA1CA34) after inventory_item 0x2FFB80: its 68 modifier floats at +108h, one node {0, 0, index, value} at +268h for each that is not 0, their count +26Ch	observed
+0x0033f990	survarium::booster::add_modifiers	EDI	the booster: +250h its inventory (+174h the holder, vtable +0Ch the player); links its +268h nodes at the tail of the kit list +6B8h + kit x 704h + 204h + index x 14h	observed
+0x00313530	survarium::artefact_base::end_active	EDI	the artefact: +274h cooldown_sec x 1000; +28Ch = round(+274h x apply_modifier index 38 artefact_cooldown, k 1: x max(0, 1 + S)) on the holder kit container; +280h = 3	observed

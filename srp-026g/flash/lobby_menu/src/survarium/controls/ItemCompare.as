@@ -247,7 +247,7 @@ package survarium.controls
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
-         // Held Alt over a weapon or a medicine: the stats as a match has them, with the kit and the skills.
+         // Held Alt over a weapon, a medicine, a grenade or a trap: the stats as a match has them, with the kit and the skills.
          var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(this._primary);
          // The item's own base value of the property last read (initPropValues).
          var base_value:Number = 0;
