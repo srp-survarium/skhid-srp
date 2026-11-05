@@ -139,7 +139,7 @@ pub struct GridTuning {
     pub drop_room_walk_faces: bool,
     /// [A313] Whether the floors the erosion rounds took in a narrow door the body fits are given back in the maps' walk grids
     /// (`mapdata::Body::narrow_doors`): 6 doorways on the 8 maps the client walks through and the grid closed (Vector
-    /// Laboratory's strip among them). OFF until benched. A grid is the map's (see `gap_links`).
+    /// Laboratory's strip among them). ON (A313 NAV FIRST: SCORE_LINE). A grid is the map's (see `gap_links`).
     pub narrow_doors: bool,
 }
 
@@ -166,7 +166,7 @@ impl Default for GridTuning {
             ramp_faces: true,
             client_controller: true,
             drop_room_walk_faces: true,
-            narrow_doors: false,
+            narrow_doors: true,
         }
     }
 }
