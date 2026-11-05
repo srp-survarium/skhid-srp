@@ -11,7 +11,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, mode};
+use survarium::v026g::maps::{self, RuleMode};
 use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
 use survarium::v026g::match_msgs::late_join::{CONNECT_CAPABILITY, Prepare, Prepared, Status};
 use survarium::v026g::match_msgs::motion;
@@ -29,7 +29,6 @@ use survarium::v026g::match_msgs::{
 use udp_transport::seq::{Recorded, Window};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Class, Direction, Table, ack};
-use world_frame::Section;
 
 /// The client's event horizon: `max_ping_time_in_ms` + 250.
 pub const HORIZON_MS: u32 = 500;
@@ -62,9 +61,9 @@ pub struct Sim {
     pub events_from: Vec<(u32, usize, usize, u16)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
-    /// Extra bytes in every world (a bigger upload): in the bullets, and
-    /// what is over their buffer in the physics, each under its cap
-    /// (`world_frame::Section::cap`), as a real game's world would be.
+    /// Extra bytes in every world (a bigger upload): in the bullets, as
+    /// pellets in flight make them (the sections grow, patch 98; the body
+    /// stays under `world_frame::MAX_BODY`).
     pub ballast: usize,
     /// From a tick on the world's game objects have this many bytes: the
     /// grenades and traps of a place this game installed, or started with.
@@ -120,12 +119,12 @@ impl Sim {
         maps::map_mode(self.map_id).map_or(0, |map| map.tickets_count as u16)
     }
 
-    fn game_mode(&self) -> u8 {
-        maps::map_mode(self.map_id).map_or(mode::BATTERIES, |map| map.mode)
+    fn game_mode(&self) -> RuleMode {
+        maps::map_mode(self.map_id).map_or(RuleMode::Batteries, |map| map.mode.rules())
     }
 
     fn batteries(&self) -> usize {
-        if mode::WITH_BATTERIES.contains(&self.game_mode()) {
+        if self.game_mode().has_batteries() {
             maps::map_mode(self.map_id).map_or(0, |map| map.victory_items_count as usize)
         } else {
             0
@@ -190,7 +189,7 @@ impl Sim {
         for &(_, place, event, count) in self.events_from.iter().filter(|set| since(set.0)) {
             players[place].events[event][0] = count;
         }
-        let tdm = (self.game_mode() == mode::TEAM_DEATHMATCH).then(|| {
+        let tdm = (self.game_mode() == RuleMode::TeamDeathmatch).then(|| {
             self.tdm_from.filter(|(from, _)| since(*from)).map_or(
                 Tdm {
                     tickets: [100, 100],
@@ -228,7 +227,7 @@ impl Sim {
         .encode();
         // Modes 2 and 3: each team's points are batteries in its container
         // (team 0's is container 0 here); the others lie about.
-        let gather = mode::WITH_BATTERIES.contains(&self.game_mode()).then(|| {
+        let gather = self.game_mode().has_batteries().then(|| {
             let batteries = self.batteries();
             let home = [usize::from(points[0]), usize::from(points[1])];
             let mut containers = vec![Container::default(); 2];
@@ -253,7 +252,7 @@ impl Sim {
                 team_points: [points[0] as u8, points[1] as u8],
                 batteries: state,
                 containers,
-                timed: (self.game_mode() == mode::TIMED_BATTERIES).then(|| Timed {
+                timed: (self.game_mode() == RuleMode::TimedBatteries).then(|| Timed {
                     available: batteries as u32,
                     started: rule.state == state::IN_PROCESS,
                     ..Timed::default()
@@ -262,7 +261,7 @@ impl Sim {
         });
         // Mode 5: the points are Research's shown ones, whole; three units
         // of nobody's; its end 3 s after the points that reach the goal.
-        let research = (self.game_mode() == mode::RESEARCH).then(|| {
+        let research = (self.game_mode() == RuleMode::Research).then(|| {
             let goal = maps::map_mode(self.map_id).map_or(0, |map| map.resources_count);
             let end = self
                 .points_from
@@ -304,14 +303,7 @@ impl Sim {
                 .map_or([true, true], |(_, teams)| teams),
         }
         .to_bytes();
-        // One byte of the bullets' left for the salt.
-        let in_bullets = self.ballast.min(Section::Bullets.cap() - 1);
-        let mut bullets = vec![0xB0; in_bullets];
-        let physics = vec![0xB0; self.ballast - in_bullets];
-        assert!(
-            physics.len() <= Section::Physics.cap(),
-            "more ballast than a world holds"
-        );
+        let mut bullets = vec![0xB0; self.ballast];
         if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
             bullets.push(salt);
         }
@@ -348,7 +340,7 @@ impl Sim {
             bullets: &bullets,
             statistics: &statistics,
             objects: &objects,
-            physics: &physics,
+            physics: &[],
             rules: &rules,
             effects: &[],
         }
@@ -377,7 +369,7 @@ impl Sim {
             .and_then(|decoded| decoded.rules.as_ref())
             .is_some_and(|rules| rules.timelimit.state == state::IN_PROCESS);
         self.stale_tickets_from =
-            (first && in_play && self.game_mode() == mode::TEAM_DEATHMATCH).then_some(time);
+            (first && in_play && self.game_mode() == RuleMode::TeamDeathmatch).then_some(time);
         if let Some(read) = decoded.and_then(|decoded| decoded.rules) {
             self.base.state = read.timelimit.state;
             self.base.start = read.timelimit.start;
