@@ -141,6 +141,34 @@ pub struct SmokeTuning {
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
+    /// [A317] The crossing smoke (the owner, 2026-11-05: bots cross lines near a shooter they should know of without
+    /// smoking): when the bot's way within `lane_ahead_m` enters the line of a known spot (`lane_ahead::known_lane_ahead`,
+    /// tested from the spot), the cloud goes ON the crossing (`smoke::smoke_on_crossing`): it hides the crossers there and
+    /// leaves the mates' lines to him from elsewhere clear (A308: a cloud on his line blinded our shooters as much as him).
+    /// Before the lane smoke; the life's lane smoke. None: off.
+    pub crossing: Option<CrossingSmoke>,
+}
+
+/// [A317] `SmokeTuning::crossing`: what makes a spot known (`lane_ahead::Known`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CrossingSmoke {
+    /// A held spot with this many of the team's deaths.
+    pub kills: u32,
+    /// Or its shooter sensed there within this, ms (at most `smoke::FAIR_SENSED_MS`).
+    pub sensed_ms: u32,
+}
+
+impl Default for CrossingSmoke {
+    fn default() -> Self {
+        Self { kills: 1, sensed_ms: 15_000 }
+    }
+}
+
+impl CrossingSmoke {
+    pub fn known(self) -> super::super::lane_ahead::Known {
+        super::super::lane_ahead::Known { kills: self.kills as usize, sensed_ms: self.sensed_ms }
+    }
 }
 
 /// [A291] `SmokeTuning::objective`.
@@ -293,7 +321,8 @@ pub enum CloudWaiters {
 
 impl SmokeTuning {
     pub(super) fn check(&self) -> Result<(), String> {
-        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")
+        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")?;
+        check(self.crossing.is_none_or(|c| c.sensed_ms <= super::super::smoke::FAIR_SENSED_MS), "smoke.crossing")
     }
 }
 
@@ -328,6 +357,7 @@ impl Default for SmokeTuning {
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
             objective: None,
             shooter_spot: Some(ShooterSpot::default()),
+            crossing: None,
         }
     }
 }

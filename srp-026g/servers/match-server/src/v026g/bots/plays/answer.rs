@@ -467,7 +467,7 @@ mod tests {
         let mut s = sniper();
         let sensed = s.view.clock;
         s.view.clock += 12_000;
-        let held = HeldLane { at: Vec3::new(85.0, 0.0, 30.0), shooter: 1, reach_m: 98.0, sensed: Some(sensed), area_m: 10.0 };
+        let held = HeldLane { at: Vec3::new(85.0, 0.0, 30.0), shooter: 1, reach_m: 98.0, sensed: Some(sensed), area_m: 10.0, kills: 0 };
         s.team.threat = std::sync::Arc::new(Picture { snipers: vec![held], ..Picture::default() });
         assert_eq!(answers(&s).len(), 2, "remembered by the team");
         s.view.clock = sensed + 16_000;

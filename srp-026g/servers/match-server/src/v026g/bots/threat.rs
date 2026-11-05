@@ -1807,6 +1807,7 @@ impl ThreatSpots {
                 reach_m: s.reach_m,
                 sensed: s.sensed(),
                 area_m: area_m(s.sensed().map(|t| now.saturating_sub(t))),
+                kills: s.kill_count(),
             })
             .collect()
     }
@@ -2483,6 +2484,8 @@ pub struct HeldLane {
     pub reach_m: f32,
     pub sensed: Option<u32>,
     pub area_m: f32,
+    /// [A317] The team's deaths it counts (a sensed sniper's spot: none).
+    pub kills: usize,
 }
 
 impl ThreatSpots {
@@ -2500,6 +2503,7 @@ impl ThreatSpots {
                 reach_m: s.reach_m,
                 sensed: s.sensed(),
                 area_m: area_m(s.sensed().map(|t| now.saturating_sub(t))),
+                kills: s.kill_count(),
             })
             .collect()
     }

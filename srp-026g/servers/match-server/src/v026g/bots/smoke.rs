@@ -707,6 +707,8 @@ pub enum PlacedBy {
     ShooterSpot,
     /// `smoke_on`: on a held spot (the sniper smoke).
     OnSpot,
+    /// `smoke_on_crossing`: on the crossing itself (`smoke.crossing`).
+    OnCrossing,
 }
 
 impl PlacedBy {
@@ -719,6 +721,7 @@ impl PlacedBy {
             Self::BestCover => "best_cover",
             Self::ShooterSpot => "shooter_spot",
             Self::OnSpot => "on_spot",
+            Self::OnCrossing => "on_crossing",
         }
     }
 }
@@ -916,6 +919,30 @@ pub fn smoke_between(
             line: SmokeLine { eye: threat_eye, target: chest, crossing },
             placed_by: PlacedBy::Between,
         })
+    })
+}
+
+/// [A317 `smoke.crossing`] The cloud ON the crossing: the floor under the crosser's chest there, kept only if its smoke covers
+/// the shooter's 3D line from `threat_eye` onto that chest by `thin_m` + [`PLAN_MARGIN_M`]. It hides the crossers where they
+/// cross and leaves the lines of mates elsewhere to him clear (A308: a cloud on his own line blinded our shooters as much).
+pub fn smoke_on_crossing(
+    reach: &Reach<'_>,
+    threat_eye: Vec3,
+    crossing: Vec3,
+    thin_m: f32,
+    for_use: SmokeUse,
+) -> Option<SmokePlan> {
+    let chest = crossing + Vec3::new(0.0, 1.3, 0.0);
+    let floor = reach.floor(chest)?;
+    let aim = reach.aim(floor)?;
+    let covers_m = reach.smoke_on_line(aim.rest, threat_eye, chest);
+    (covers_m > thin_m + PLAN_MARGIN_M).then_some(SmokePlan {
+        at: aim.rest,
+        aim,
+        for_use,
+        covers_m,
+        line: SmokeLine { eye: threat_eye, target: chest, crossing },
+        placed_by: PlacedBy::OnCrossing,
     })
 }
 
