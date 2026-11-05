@@ -1635,6 +1635,45 @@ input_check_on_change_input_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x1fab56
 
+; 0x3b914b keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers: lohook -> key_remap_on_events
+global key_remap_on_events
+extern hook_key_remap_on_events
+key_remap_on_events:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_key_remap_on_events
+    mov edx, key_remap_on_events_replay
+    cmp eax, 0
+    je key_remap_on_events_go
+    mov edx, 0x3b9151
+    cmp eax, 1
+    je key_remap_on_events_go
+    ud2
+key_remap_on_events_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+key_remap_on_events_replay:
+    db 0x89, 0x87, 0x04, 0x04, 0x00, 0x00
+    jmp 0x3b9151
+
 ; 0x1835f message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov ecx,[edx+2D0h] after mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL: lohook -> keyboard_layout_on_request
 global keyboard_layout_on_request
 extern hook_keyboard_layout_on_request
