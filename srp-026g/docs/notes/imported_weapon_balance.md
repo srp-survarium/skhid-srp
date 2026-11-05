@@ -15,9 +15,10 @@ assembled or revision reserved. A `next` simulation row invalidates older replay
   best-ammo curve matters. This is an explicit armour-specialist decision, not a claim
   that retail 0.69 used these penetration units. At 42 damage it needs two helmet hits
   with either SP-5 or SP-6; 44 damage would accidentally give SP-5 a one-shot helmet kill.
-  Retune (the owner, 2026-11-05: "a bit too strong", keep it high-pierce): damage 42 -> 38 and
-  top kick 1.2–1.5 -> 1.5–1.8. Against Zubr +8 the torso still takes 4 hits to 30 m; one more
-  from 50 m (12 and 14), the head 3 at 40 m (was 2). Its pierce stays.
+  Retune (the owner, 2026-11-05: "a bit too strong", keep it high-pierce): damage 42 -> 34 and
+  top kick 1.2–1.5 -> 1.5–1.8. Against armour 80 the torso takes 4 hits at 10 m (was 3, 0.257 s)
+  and 9 at 50 m (was 7); against Zubr +8, 4 at 10 m, 6 at 30 m (was 5), 13 at 50 m (was 11), the
+  head 3 at 40 m (was 2). Its pierce stays.
 - L85A2: equipment **12 -> 10**, matchmaking level **12 -> 10**, damage stays 48,
   penetration stays 32; 725 rpm, 25/60 m falloff, much softer kick and sideways variation.
   It trades close-range damage output for control and reach. Price/faction are unchanged.
