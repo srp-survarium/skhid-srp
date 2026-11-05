@@ -712,7 +712,9 @@ own `GangShop.createItem`) call the same adapter. The UI harness exercises the
 real shop price-list/reconnect path, including zero, negative, positive and
 golden weapons, whose silver bonus is retained.
 This is the weapon's base stat; Bear Arms (skill 112, modifier 62) does not
-rewrite its card, just as it does not change the weapon's weight.
+rewrite its card, just as it does not change the weapon's weight. Held Alt the
+card shows the line as a match has it, a cancelled penalty "-5% -> 0%"
+(`alt-weapon-stats.md`, "Movement speed under Bear Arms").
 
 `weight_ui_026g` caches the same player stamina config at 0x22110F, owned by that
 lobby instance. At 0x2222EB it extends the existing two-number movie callback

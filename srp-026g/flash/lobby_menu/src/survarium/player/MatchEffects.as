@@ -196,10 +196,24 @@ package survarium.player
          return false;
       }
 
+      // What a drawn weapon's own movement parameter (its card's movement line) adds to the
+      // speed's sum S4 in a match: weapon_core::initialize (0x2E2A30, every firearm: weapon::initialize
+      // 0x2449E0 when it is put in hand; weapon_core::deserialize 0x2E3490 the same at 0x2E37A4) adds
+      // it unless S62 (Bear Arms, additive: 0 + S) is above 0 and the parameter is not above 0
+      // (0x2E2C5C..0x2E2C9C). A bonus always counts.
+      public function weaponMovement(value:Number) : Number
+      {
+         return sum(PlayerModifier.BEAR_ARMS) > 0 && value <= 0 ? 0 : value;
+      }
+
+      private function sum(index:int) : Number
+      {
+         return (_kit == null ? 0 : _kit.at(index)) + (_armour[index] == undefined ? 0 : _armour[index]);
+      }
+
       private function factor(index:int) : Number
       {
-         var sum:Number = (_kit == null ? 0 : _kit.at(index)) + (_armour[index] == undefined ? 0 : _armour[index]);
-         return Math.max(0,1 + sum);
+         return Math.max(0,1 + sum(index));
       }
 
       // Whether a changed value reads otherwise than the original at the most decimals shown.

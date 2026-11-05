@@ -43,7 +43,7 @@ pub enum HitType {
 
 impl HitType {
     /// The names' order (0x9257E0); a value past them is no hit type.
-    fn parse(value: u32) -> Option<HitType> {
+    pub(super) fn parse(value: u32) -> Option<HitType> {
         const ALL: [HitType; 8] = [
             HitType::Ranged,
             HitType::Blunt,

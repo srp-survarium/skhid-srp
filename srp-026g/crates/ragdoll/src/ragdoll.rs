@@ -87,9 +87,6 @@ const SLOW_TIME: f32 = 1.0;
 const MAX_AGE: f32 = 5.0;
 /// A sweep reaches this much past a body's motion of the frame.
 const SWEEP_MARGIN: f32 = 0.05;
-/// The pelvis stays within this of where the player died (horizontally), so
-/// the body stays by its battery and in its model's bounds.
-const TRAVEL: f32 = 2.5;
 /// The gun: its mass and the shape when its model gives none.
 const GUN_MASS: f32 = 3.5;
 
@@ -465,7 +462,6 @@ pub struct Ragdoll {
     /// draws no clip.
     at_death: PartPoses,
     up: Vec3,
-    origin: Vec3,
     /// The pairs of bodies that collide ([`pair_bit`]): those that
     /// share no joint and did not overlap at the death (an arm across the
     /// chest holding the gun).
@@ -716,7 +712,6 @@ impl Ragdoll {
             rig,
             cause,
             up,
-            origin: at(ROOT),
             colliding,
             age: 0.0,
             pending: 0.0,
@@ -786,15 +781,20 @@ impl Ragdoll {
                 let j = hit.impulse * (weight * tuning::DEATH_KNOCK);
                 ragdoll.knock(part_of(hit.point), hit.point, j);
                 // and the body as a whole goes with it (level: the legs
-                // stay on the ground), capped
+                // stay on the ground), capped; a heavy hit throws it
                 let mass: f32 = ragdoll.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
                 let level = j.reject(up) * (tuning::BODY_SHARE / mass);
-                let dv = limit_length(level, tuning::BODY_KNOCK_MAX);
+                let heavy = hit.impulse.length() >= tuning::HEAVY_HIT;
+                let (dv, lift) = if heavy {
+                    (level, up * (level.length() * tuning::HEAVY_LIFT))
+                } else {
+                    (limit_length(level, tuning::BODY_KNOCK_MAX), Vec3::ZERO)
+                };
                 for body in ragdoll.bodies.iter_mut() {
-                    body.velocity += dv;
+                    body.velocity += dv + lift;
                 }
                 ragdoll.report.knock += dv.length();
-                ragdoll.report.capped |= level.length() > tuning::BODY_KNOCK_MAX;
+                ragdoll.report.capped |= !heavy && level.length() > tuning::BODY_KNOCK_MAX;
             }
         }
         for part in Part::ALL {
@@ -940,7 +940,6 @@ impl Ragdoll {
                 joint.limit.solve(parent, child, alpha_h);
             }
             self.solve_self_collision();
-            self.solve_travel();
             for (i, body) in self
                 .bodies
                 .iter_mut()
@@ -1301,17 +1300,6 @@ impl Ragdoll {
                     carry_previous(b, was_b);
                 }
             }
-        }
-    }
-
-    /// The pelvis stays within TRAVEL of the death's place, horizontally.
-    fn solve_travel(&mut self) {
-        let pelvis = &mut self.bodies[Part::Pelvis.index()];
-        let away = (pelvis.pose.position - self.origin).reject(self.up);
-        let distance = away.length();
-        if distance > TRAVEL {
-            let back = away * ((TRAVEL - distance) / distance);
-            close_gap(Pair::One(pelvis), Vec3::ZERO, Vec3::ZERO, back, 0.0);
         }
     }
 }
