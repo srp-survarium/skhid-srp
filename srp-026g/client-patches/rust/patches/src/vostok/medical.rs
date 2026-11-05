@@ -94,7 +94,7 @@ impl<'t> Player<'t> {
             .map(|p| unsafe { *p.health() / *p.maximum() })
             .unwrap_or(1.0)
     }
-    fn refresh(self) {
+    pub(super) fn refresh(self) {
         // SAFETY: native invalidation requests movement/item selection again.
         unsafe {
             *self.at.refresh_selection() = 1;

@@ -4,12 +4,12 @@
 name = "forest_glow"
 patch = 111
 
-# every player's simulation tick (after the battery carrier's): the glow
+# every player's simulation tick (after the battery carrier's and Resonance's re-selection): the glow
 # played when the player shows it; the effect asked for at the first one
 [[hook]]
 site = "battery.carrier_tick"
 handler = "on_tick"
-order = 2
+order = 3
 
 # the effect's query: the resource kept
 [[hook]]

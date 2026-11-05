@@ -381,6 +381,78 @@ def check_resonance_springs(data):
     return outcomes
 
 
+TICK_SITE = 0x2DAAD3        # base_player::tick after the held object's tick (battery.carrier_tick), EBX the player
+TICK_ANIMATIONS = 0x2DAADB  # its `call tick_animations` (0x2D8EE0): select_animations runs there only with +33Eh
+
+
+def tick(m, player, time):
+    """The player's tick at the site, its time (+324h) `time` ms, up to its tick_animations call;
+    whether the animations are to be selected again (+33Eh) then, cleared for the next."""
+    g = m.g
+    g.word(player + 0x324, time)
+    g.emu.mem_write(player + 0x33E, b'\0')
+    g.emu.reg_write(UC_X86_REG_ESP, STACK - 0x100)
+    g.emu.reg_write(UC_X86_REG_EBX, player)
+    g.emu.reg_write(UC_X86_REG_EDI, 0)
+    g.emu.emu_start(TICK_SITE, TICK_ANIMATIONS, count=2_000_000)
+    assert g.emu.reg_read(UC_X86_REG_EIP) == TICK_ANIMATIONS
+    return g.emu.mem_read(player + 0x33E, 1)[0] == 1
+
+
+def check_resonance_movement(data):
+    """B runs with one input (+33Eh is set by nothing else); A, a teammate with Resonance and a
+    passive Spring, comes into reach, leaves, comes back and dies. movement_speed's sum (the
+    weighted getter, {4, 1} {20, 1}) is what select_animations would take."""
+    m = Match(data)
+    g = m.g
+    far, near = (20.0, 0.0, 0.0), (3.0, 0.0, 0.0)
+    a = m.player(1, 0, far, RESONANCE)
+    m.spring(a, 3)
+    speed = lambda: m.weighted([(4, 1.0), (20, 1.0)])
+    at = lambda position: g.emu.mem_write(a + 0x43C, struct.pack('<fff', *position))
+    steps = []
+    def step(time, want, speed_want):
+        steps.append((time, tick(m, PLAYER, time)))
+        assert steps[-1][1] == want, (time, steps)
+        close(speed(), speed_want)
+    base, shared = 1.0, 1.0 + SPRING_PASSIVE[4]
+    step(1000, False, base)            # out of reach: nothing shared, nothing to select
+    step(1050, False, base)
+    at(near)
+    step(1100, True, shared)           # A in reach: selected again, the new speed
+    step(1150, False, shared)          # no change
+    step(1200, False, shared)
+    at(far)
+    step(1250, True, base)             # A left
+    at(near)
+    step(1300, True, shared)
+    g.emu.mem_write(a + 0x33C, b'\0')
+    step(1350, True, base)             # A died
+    step(1400, False, base)
+    # A re-simulation of 1100..1150 (A alive and near again): each tick as at first.
+    g.emu.mem_write(a + 0x33C, b'\1')
+    step(1100, True, shared)
+    step(1150, False, shared)
+    # An enemy's Spring and a Spring without the skill: nothing shared, nothing selected.
+    m = Match(data)
+    e = m.player(1, 1, (3.0, 0.0, 0.0), RESONANCE)
+    m.spring(e, 3)
+    n = m.player(2, 0, (3.0, 0.0, 0.0), 0)
+    m.spring(n, 3)
+    assert not tick(m, PLAYER, 1000) and not tick(m, PLAYER, 1050)
+    # The lobby (no match): nothing.
+    m = Match(data, in_match=False)
+    a = m.player(1, 0, (3.0, 0.0, 0.0), RESONANCE)
+    m.spring(a, 3)
+    assert not tick(m, PLAYER, 1000)
+    print("Resonance, Spring movement: at base_player::tick before tick_animations a running player's "
+          "animations are selected again (+33Eh) at the tick its shared movement changes (a teammate's "
+          "Spring in reach, out of it, its carrier dead), the getter movement_speed reads then giving the "
+          "new speed; not while it stays, nor for an enemy's or a skill-less Spring, nor in the lobby; a "
+          "re-simulated tick answers as at first: PASS")
+    return steps
+
+
 def onyx(m, player, state, parts=('body', 'head')):
     """An Onyx with the release's numbers (absorb 5 from its enable_active), protecting `parts`."""
     g = m.g
@@ -577,6 +649,7 @@ def main():
     check_spring(patched)
     print('Artefact skills: identical outcomes on two kits: PASS')
     check_resonance_springs(patched)
+    check_resonance_movement(patched)
     check_resonance_onyx(patched)
     check_resonance_lifebone(patched)
 
