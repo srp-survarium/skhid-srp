@@ -120,6 +120,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
+| `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -4138,3 +4139,29 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+## A world takes no input whose rotation no client makes (patch 99, unreleased)
+
+0.26i fixed "crashes of all clients in the game associated with sending 'bad' input of one of the
+clients": from 0.27d, `game_world_core::change_input<player_input>` refuses an input whose
+rotation (two half floats) is a NaN or an infinity before it touches the world ("change input
+(client %s) request REJECTED, reason: input is invalid", event action 6). 0.26g's (0x1FAB50) takes
+any, and every world then adds it to that player's angles for good. The match server already
+refuses such inputs (`PlayerInput::rotation_is_sane`); this is the client's twin.
+
+**The patch** (the Rust patch `input_check`, one lohook, `sites_026g.tsv`): `change_input.player`
+(0x1FAB50, the function's start; every input a world takes comes through it: local, relayed,
+moved, a replay's). An input whose two halves are each a number under 1024 radians goes on; any
+other is refused as 0.27d refuses it: EAX 6, the exit `refused` (0x1FAC4E, its `ret 24h`), nothing
+of the world written, a line to `srp_patches.log`. A refused local input is never sent. The bound
+is the server's (a superset of 0.27d's): the server never relays an input it refuses, so no
+relayed or replayed input is refused here that the server took.
+
+Every world refuses the same inputs, so they stay the same, but a world given one now plays on
+without it: a row `next` in `../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/client_patch.md` section 3.62 has the evidence.
+
+Checked: `check_input_check_026g.py` runs change_input's start on rotations a mouse makes (the
+build at 0x1FAB56 as the original, every register the same) and on NaNs, infinities, 65504 and
+±1024 as either half (the original keeps them; the build returns 6 with its arguments popped, the
+callee-saved registers kept, nothing written, the line logged). **Not run in a game.**

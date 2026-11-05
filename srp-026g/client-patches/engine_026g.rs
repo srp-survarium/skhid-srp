@@ -41,7 +41,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: *mut c_void, name: *const *const u8) -> *mut c_void;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: *mut c_void, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: *const c_void, index: u32, value: f32, weight: f32) -> f32;

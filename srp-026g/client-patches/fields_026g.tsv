@@ -607,3 +607,6 @@ survarium::medical_clock_result	interval	0	u32	interval zero while holding
 survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
 survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
 survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation
+survarium::change_input_frame	rotation	0x8	u32	game_world_core::change_input<player_input>'s input at its start (0x1FAB50, by the site's ESP): its rotation, math::half2 as it came (+8 the yaw's half, +0Ah the pitch's)
+survarium::change_input_frame	time	0x10	u32	the input's time (ms)
+survarium::change_input_frame	player	0x14	u8	the place whose input it is (0..19)

@@ -47,7 +47,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: Option<MedicalPools>, name: *const *const u8) -> Option<MedicalPool>;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: Option<MedicalPool>, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: Option<PlayerParamsModifiersContainer>, index: u32, value: f32, weight: f32) -> f32;
@@ -11733,6 +11733,48 @@ impl MedicalClockResult {
     }
 }
 
+/// A survarium::change_input_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChangeInputFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ChangeInputFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): game_world_core::change_input<player_input>'s input at its start (0x1FAB50, by the site's ESP): its rotation, math::half2 as it came (+8 the yaw's half, +0Ah the pitch's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rotation(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): the input's time (ms)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u8): the place whose input it is (0..19)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -14243,6 +14285,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalClockFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalClockFrame)
+        }
+    }
+
+    /// change_input.player (0x1fab50): game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it)
+    pub mod change_input_player {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::change_input_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ChangeInputFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ChangeInputFrame)
         }
     }
 }

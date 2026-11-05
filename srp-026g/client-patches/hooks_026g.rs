@@ -796,6 +796,26 @@ pub extern "C" fn hook_hud_options_on_options_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- input_check (patch 99) ----
+
+/// The named exits of input_check::on_change_input (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum InputCheckOnChangeInputExit { Refused }
+/// The entry `input_check_on_change_input` (0x1fab50, game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_input_check_on_change_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `input_check_on_change_input` calls this, from the game's jump at 0x1fab50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::input_check::on_change_input(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
