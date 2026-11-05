@@ -791,9 +791,8 @@ saved worlds unless tagged.
     match, 20 s apart, one a player. Comparing the two names the first field apart.
   - **Local repro** (not run): the local server with `SRP_SNAPSHOT_DIR` set; 3 or more clients
     in a battery match; each player picks a different kit at least once (so every place has a
-    non-current kit with a life behind it); then one client is resynced (the server's
-    `SRP_RESYNC_FORCE`-like trigger does not exist: stall it 2 s, or leave and come back, a late
-    join) and every player dies and respawns into another kit within 10 s. Expected if the
+    non-current kit with a life behind it); then one client is resynced (no switch forces one: stall its game 2 s, or have it leave and
+    come back, a late join) and every player dies and respawns into another kit within 10 s. Expected if the
     candidate holds: the loaded game reports against the others within a respawn of the load
     ("splits from the majority" in the log), and the `split` world differs from the `checked` one
     in the respawned player's block.
