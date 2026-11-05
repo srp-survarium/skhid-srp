@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, MapMode};
+use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -73,9 +73,9 @@ pub struct MatchPlayer {
 /// A match the lobby formed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
-    /// A playable `maps_dict` id: the map, the mode and its timings
+    /// The map, the mode and its timings
     /// (`survarium::v026g::maps`).
-    pub map_id: u8,
+    pub map: MatchMap,
     /// Logged by the client only.
     pub match_level: u16,
     /// The players who will really come: the roster's size is the N of the
@@ -102,9 +102,6 @@ pub struct MatchSetup {
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
     /// (clan matches, against bots): the clients' rule alone.
     pub room_minimum: Option<u8>,
-    /// A Blackout match (the lobby's rooms, `docs/notes/blackout.md`): the
-    /// static info's flag (exe patch 65), on a battery map only.
-    pub blackout: bool,
 }
 
 /// Where the players of a made match connect.
@@ -189,16 +186,14 @@ pub(crate) struct Place {
 #[derive(Clone)]
 pub(crate) struct Formed {
     pub match_id: u32,
-    pub map: &'static MapMode,
+    /// The map and the mode.
+    pub played: MatchMap,
     pub match_level: u16,
     pub places: Vec<Place>,
     /// The profiles the clients were given, by place: what a snapshot's
     /// player blocks are read against.
     pub profiles: Vec<MatchProfile>,
     pub score_weights: [f32; SCORE_EVENTS],
-    /// Whether the static info says Blackout (exe patch 65), the same for a
-    /// late joiner's.
-    pub blackout: bool,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -395,12 +390,11 @@ impl MatchRegistry {
         if setup.players.is_empty() || setup.players.len() > MAX_PLAYERS {
             return Err(CreateError::Roster(setup.players.len()));
         }
-        let map = maps::map_mode(setup.map_id)
-            .filter(|map| map.is_playable())
-            .ok_or(CreateError::Map(setup.map_id))?;
+        let played = setup.map;
+        let map = played.map();
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
-            return Err(CreateError::Map(setup.map_id));
+        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+            return Err(CreateError::Map(map.id));
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
@@ -435,7 +429,7 @@ impl MatchRegistry {
         inner.last_id = match_id;
         let score_weights = setup
             .score_weights
-            .unwrap_or_else(|| static_info_weights(map.mode));
+            .unwrap_or_else(|| static_info_weights(map.mode.rules()));
         let places = setup
             .players
             .iter()
@@ -454,18 +448,16 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
-        let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
         let options = MatchOptions {
             players: setup
                 .players
                 .into_iter()
                 .map(|player| player.profile)
                 .collect(),
-            map_id: setup.map_id,
+            map: played,
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
-            blackout,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -486,12 +478,11 @@ impl MatchRegistry {
             match_id,
             std::sync::Arc::new(Formed {
                 match_id,
-                map,
+                played,
                 match_level: setup.match_level,
                 places,
                 profiles,
                 score_weights,
-                blackout: options.blackout,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -513,7 +504,7 @@ impl MatchRegistry {
             "Match {match_id:#x} made: map {} ({}, mode {}), {} players{}{}{}",
             map.id,
             map.name,
-            map.mode,
+            map.mode.lobby_number(),
             options.players.len(),
             if setup.vs_bots {
                 ", one player against the server's bots"
@@ -602,11 +593,10 @@ impl MatchRegistry {
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
-                map_id: next.map.id,
+                map: next.played,
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
-                blackout: next.blackout,
             },
             Dictionary::shared(),
         )
@@ -790,7 +780,7 @@ impl MatchRegistry {
             }
             return LiveMatch {
                 match_id: formed.match_id,
-                map_id: formed.map.id,
+                map_id: formed.played.map().id,
                 phase: LivePhase::Gathering,
                 players,
                 present: (1_u32 << formed.places.len().min(31)) - 1,
@@ -803,7 +793,7 @@ impl MatchRegistry {
         let since = now.saturating_duration_since(live.at);
         LiveMatch {
             match_id: formed.match_id,
-            map_id: formed.map.id,
+            map_id: formed.played.map().id,
             phase: live.phase,
             players: live.players,
             present: live.present,
@@ -935,8 +925,8 @@ pub struct PlayerResult {
 pub struct MatchResult {
     pub match_id: u32,
     pub map_id: u8,
-    /// `survarium::v026g::maps::mode`.
-    pub game_mode: u8,
+    /// [`Formed::played`]'s: Blackout's scores pay twice.
+    pub mode: GameMode,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a
@@ -967,8 +957,6 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
-    /// A Blackout match ([`Formed::blackout`]): its scores pay twice.
-    pub blackout: bool,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

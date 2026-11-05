@@ -614,7 +614,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         let options = client.model.options.as_ref().unwrap();
         // Not the lobby's match id: `registry::static_id`.
         assert_eq!(
-            (options.map_id, options.match_id),
+            (options.map.map().id, options.match_id),
             (MAP, static_id(match_id))
         );
         assert_eq!(options.players.len(), 2);
