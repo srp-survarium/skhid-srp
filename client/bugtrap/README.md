@@ -64,7 +64,7 @@ Stack:     report_probe.exe+0x14D4
 Game:      report_probe.exe, patch revision unknown, sha256 6ac354ea1c2e
 Reporter:  local build
 Windows:   10.0.19045 (Wine 11.8)
-Match:     id 4242, map 12, 8 places, level 5; local place 3
+Match:     0x1092, map 12, 8 places, level 5; local place 3
 Dump:      saved
 Events:    1530 recorded, the last 1024 kept: match 2 world 61 started 1 death 140 pickup 820 ...
            the last 200, seconds before the crash:
@@ -112,8 +112,8 @@ srp: ...
   place (`Match:`, in what Copy copies), and after the dump's line the
   counts per kind of the kept entries and the last 200 of them, dated in
   seconds before the capture began (its QueryPerformanceCounter). The map is
-  the maps_dict id; the id is the match's seed, the one the server's logs
-  name. The ZIP's `breadcrumbs.txt` has all the kept entries.
+  the maps_dict id; the match as the server's logs name it (`Match
+  0x...`). The ZIP's `breadcrumbs.txt` has all the kept entries.
 - Dump: saved, or why not, with the Windows error.
 - Game log: the last 20 lines of the newest `Survarium*.log` in
   Documents\Survarium (its last 8 KiB), from the first line that starts a

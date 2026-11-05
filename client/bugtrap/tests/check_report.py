@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         assert "\r\nDump:      saved\r\n" in text, text
         # The probe's breadcrumbs (its .srpx section): the match in the part
         # Copy copies, the events after the dump's line, and all in the ZIP.
-        assert "\r\nMatch:     id 4242, map 12, 8 places, level 5; local place 3\r\n" in text, text
+        assert "\r\nMatch:     0x1092, map 12, 8 places, level 5; local place 3\r\n" in text, text
         events = text.split("\r\nDump:      saved\r\n", 1)[1].split("\r\nGame log:", 1)[0]
         lines = events.split("\r\n")
         assert lines[0] == "Events:    3 recorded, the last 3 kept: match 1 world 1 death 1", events
@@ -104,7 +104,7 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         assert all(0 <= age - want < 1.0 for age, want in zip(ages, (3, 2, 1.5))), ages
         assert lines[3].endswith("world: 4500 ms, 900 bytes packed, loaded, local place 3")
         assert lines[4].endswith("death: place 4, life 2, at 61000 ms"), events
-        assert crumbs.decode().startswith("Match:     id 4242") and crumbs.decode().count(" s  ") == 3, crumbs
+        assert crumbs.decode().startswith("Match:     0x1092") and crumbs.decode().count(" s  ") == 3, crumbs
         # The game log's last 20 lines, the password's record removed.
         tail = text.split("\r\nGame log:  ", 1)[1]
         assert all(f"record {n}\r\n" in tail for n in (12, 24, 26, 27, 30)), tail

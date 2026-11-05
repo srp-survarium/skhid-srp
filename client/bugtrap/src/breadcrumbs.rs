@@ -204,9 +204,11 @@ impl<'a> Ring<'a> {
 fn write_match(w: &mut dyn Write, m: &Match) -> fmt::Result {
     write!(
         w,
-        "{}id {}, map {}, {} places, level {}{}",
+        "{}{:#x}, map {}, {} places, level {}{}",
         if m.replay { "a replay, " } else { "" },
-        m.id,
+        // As the server's logs name it (`Match 0x...`): the options carry
+        // it with its top bit set (match-server registry::static_id).
+        m.id & 0x7FFF_FFFF,
         m.map,
         m.places,
         m.level,
