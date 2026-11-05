@@ -53,10 +53,11 @@ const BONES: Field = Field::new(17, 3, 5);
 /// Medic left the tree (it returns in another one): its bit stays decoded.
 const MEDIC: Field = Field::new(20, 1, 1);
 const BROTHERS: Field = Field::new(21, 3, 2);
-/// Modifier 45: two bits each, every combination of ranks below 64.
+/// Modifier 45: Numb Legs and Take Cover two bits each, Unflinching three
+/// (four ranks); every combination of ranks below 128.
 const NUMB_LEGS: Field = Field::new(0, 2, 2);
 const TAKE_COVER: Field = Field::new(2, 2, 2);
-const UNFLINCHING: Field = Field::new(4, 2, 2);
+const UNFLINCHING: Field = Field::new(4, 3, 4);
 
 /// A packed modifier: an exact integer of `bits` bits, nothing else.
 fn packed(value: f32, bits: u32) -> Option<u32> {
@@ -87,7 +88,7 @@ impl Skills {
     /// Modifiers 43 and 45 of the kit; None when either is not a valid set.
     pub fn parse(medical: f32, combo: f32) -> Option<Self> {
         let medical = packed(medical, 24)?;
-        let combo = packed(combo, 6)?;
+        let combo = packed(combo, 7)?;
         Some(Self {
             painkiller: PAINKILLER.rank(medical)?,
             bandaging: BANDAGING.rank(medical)?,
@@ -115,11 +116,10 @@ impl Skills {
         native * (1.0 - f32::from(self.bandaging) * 0.05)
     }
 
+    /// Potent Painkiller: one percentage point of pain protection a rank,
+    /// added (the hit's coefficient 0.9, 10%, becomes 0.87 at rank 3).
     pub fn pain_coefficient(self, native: f32) -> f32 {
-        if self.painkiller == 0 {
-            return native;
-        }
-        (1.0 - (1.0 - native) * (1.0 + f32::from(self.painkiller) * 0.08)).max(0.0)
+        (native - f32::from(self.painkiller) * 0.01).max(0.0)
     }
 
     pub fn pain_duration_ms(self, native: f32) -> f32 {
@@ -165,7 +165,7 @@ impl Skills {
     /// Unflinching: the recent hits' stopping power (the slow).
     pub fn stopping_power(self, native: f32, painkiller: Painkiller) -> f32 {
         match painkiller {
-            Painkiller::Active => native * (1.0 - f32::from(self.unflinching) * 0.2),
+            Painkiller::Active => native * (1.0 - f32::from(self.unflinching) * 0.1),
             Painkiller::Inactive => native,
         }
     }
@@ -271,24 +271,28 @@ mod tests {
                 assert!(Skills::parse(medical(&[(rank, shift)]), 0.0).is_none(), "{shift} {rank}");
             }
         }
-        for shift in [0, 2, 4] {
-            for rank in 0..=2 {
+        // (shift, most) of modifier 45's fields; past the most is no set,
+        // Unflinching's 5..7 (its third bit) too.
+        for (shift, most, width) in [(0, 2, 2), (2, 2, 2), (4, 4, 3)] {
+            for rank in 0..=most {
                 assert!(Skills::parse(0.0, (rank << shift) as f32).is_some());
             }
-            assert!(Skills::parse(0.0, (3 << shift) as f32).is_none());
+            for rank in most + 1..1 << width {
+                assert!(Skills::parse(0.0, (rank << shift) as f32).is_none(), "{shift} {rank}");
+            }
         }
         for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 16_777_216.0] {
             assert!(Skills::parse(invalid, 0.0).is_none());
         }
-        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 64.0] {
+        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 128.0] {
             assert!(Skills::parse(0.0, invalid).is_none());
         }
         let full = Skills::parse(
             medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (2, 21)]),
-            42.0,
+            74.0,
         )
         .unwrap();
-        assert_eq!((full.numb_legs, full.take_cover, full.unflinching), (2, 2, 2));
+        assert_eq!((full.numb_legs, full.take_cover, full.unflinching), (2, 2, 4));
         assert!(!full.is_medic());
     }
     #[test]
@@ -302,7 +306,14 @@ mod tests {
             brothers: 2,
             ..Skills::default()
         };
-        assert!((s.pain_coefficient(0.9) - 0.876).abs() < 0.000001);
+        assert!((s.pain_coefficient(0.9) - 0.87).abs() < 0.000001);
+        for (rank, want) in [(0, 0.9), (1, 0.89), (2, 0.88), (3, 0.87)] {
+            let s = Skills { painkiller: rank, ..Skills::default() };
+            assert!((s.pain_coefficient(0.9) - want).abs() < 1e-6, "{rank}");
+        }
+        // Never below no pain at all.
+        assert_eq!(s.pain_coefficient(0.02), 0.0);
+        assert_eq!(Skills::default().pain_coefficient(0.9), 0.9);
         assert_eq!(s.pain_duration_ms(10_000.0), 14_500.0);
         assert!((s.use_time(1000.0) - 900.0).abs() < 0.001);
         assert_eq!(s.regeneration_delay_ms(8_000), 5_500);
@@ -317,14 +328,21 @@ mod tests {
     #[test]
     fn combo_skills_need_their_condition() {
         for rank in 0..=2u8 {
-            let s = Skills { numb_legs: rank, take_cover: rank, unflinching: rank, ..Skills::default() };
+            let s = Skills { numb_legs: rank, take_cover: rank, ..Skills::default() };
             let r = f32::from(rank);
             assert_eq!(s.sprint_cost(10.0, Painkiller::Inactive), 10.0);
             assert!((s.sprint_cost(10.0, Painkiller::Active) - 10.0 * (1.0 - 0.2 * r)).abs() < 1e-5);
             assert_eq!(s.medicine_heal(0.5, Stance::Standing), 0.5);
             assert!((s.medicine_heal(0.5, Stance::Crouched) - 0.5 * (1.0 + 0.1 * r)).abs() < 1e-6);
-            assert_eq!(s.stopping_power(0.4, Painkiller::Inactive), 0.4);
-            assert!((s.stopping_power(0.4, Painkiller::Active) - 0.4 * (1.0 - 0.2 * r)).abs() < 1e-6);
         }
+        for rank in 0..=4u8 {
+            let s = Skills { unflinching: rank, ..Skills::default() };
+            let r = f32::from(rank);
+            assert_eq!(s.stopping_power(0.4, Painkiller::Inactive), 0.4);
+            assert!((s.stopping_power(0.4, Painkiller::Active) - 0.4 * (1.0 - 0.1 * r)).abs() < 1e-6);
+        }
+        // Four ranks of 10%: the same -40% the two ranks of 20% gave.
+        let top = Skills { unflinching: 4, ..Skills::default() };
+        assert!((top.stopping_power(1.0, Painkiller::Active) - 0.6).abs() < 1e-6);
     }
 }

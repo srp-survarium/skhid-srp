@@ -6,10 +6,10 @@ use survarium::v026g::skills::{SkillError, SkillsTree};
 /// combo skills) and the rank field's first bit (medical-skills.md).
 #[rustfmt::skip]
 const TREE: [(u16, u8, u32, u8, u8, usize, u32); 12] = [
-    (303, 2, 0, 1, 1, 45, 0), (301, 3, 0, 2, 1, 43, 0), (302, 2, 0, 3, 1, 43, 3),
-    (311, 5, 5, 1, 2, 43, 6), (313, 2, 5, 3, 2, 45, 2), (312, 3, 5, 4, 2, 43, 9),
-    (321, 3, 10, 2, 3, 43, 12), (342, 2, 10, 3, 3, 43, 21),
-    (323, 2, 15, 2, 4, 45, 4), (332, 5, 15, 3, 4, 43, 17),
+    (301, 3, 0, 2, 1, 43, 0), (302, 2, 0, 3, 1, 43, 3),
+    (311, 5, 3, 1, 2, 43, 6), (313, 2, 3, 3, 2, 45, 2), (312, 3, 3, 4, 2, 43, 9),
+    (342, 2, 10, 1, 3, 43, 21), (303, 2, 10, 2, 3, 45, 0), (321, 3, 10, 4, 3, 43, 12),
+    (332, 5, 15, 2, 4, 43, 17), (323, 4, 15, 3, 4, 45, 4),
     (331, 1, 20, 2, 5, 43, 16), (322, 1, 20, 3, 5, 43, 15),
 ];
 
@@ -55,13 +55,23 @@ fn medical_tree_progression_and_native_payload() {
             Err(SkillError::TooManyPoints { .. })
         ));
     }
-    // Each tier needs its threshold in the rows above: 0/5/10/15/20.
+    // Each tier needs its threshold in the rows above: 0/3/10/15/20.
     let tier_one = [(301, 3), (302, 2)];
-    tree.validate(100, &[(301, 3), (302, 2), (311, 1)]).unwrap();
+    tree.validate(100, &[(301, 3), (311, 1)]).unwrap();
+    tree.validate(100, &[(301, 1), (302, 2), (311, 1)]).unwrap();
     assert!(matches!(
-        tree.validate(100, &[(301, 3), (302, 1), (311, 1)]),
-        Err(SkillError::Locked { .. })
+        tree.validate(100, &[(301, 2), (311, 1)]),
+        Err(SkillError::Locked { skill: 311, .. })
     ));
+    let mut nine = tier_one.to_vec();
+    nine.extend([(311, 4), (303, 1)]);
+    assert!(matches!(
+        tree.validate(100, &nine),
+        Err(SkillError::Locked { skill: 303, .. })
+    ));
+    let mut ten = tier_one.to_vec();
+    ten.extend([(311, 5), (303, 1)]);
+    tree.validate(100, &ten).unwrap();
     let mut fourteen = tier_one.to_vec();
     fourteen.extend([(311, 5), (312, 3), (313, 1), (323, 1)]);
     assert!(matches!(
@@ -84,7 +94,7 @@ fn medical_tree_progression_and_native_payload() {
         }
         spent.push((id, ranks));
     }
-    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 30);
+    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 32);
     let mut medicine = spent.clone();
     medicine.retain(|&(id, _)| id != 331);
     medicine.push((322, 1));
@@ -118,7 +128,7 @@ fn medical_tree_progression_and_native_payload() {
         assert_eq!(modifiers[slot], encoded as f32, "modifier {slot}");
         assert_eq!(modifiers[slot] as u32, encoded);
     }
-    assert_eq!(modifiers[45], 42.0);
+    assert_eq!(modifiers[45], 74.0);
     assert_eq!(modifiers[33], 0.0); // activation is filtered by native medicine kind
     assert!((modifiers[57] - 0.24).abs() < 1e-6);
     assert_eq!(modifiers[15], 1.0);

@@ -30,9 +30,7 @@ package survarium.char
       
       protected const POINTS_PER_LEVEL:uint = 5;
       
-      // a skill branch's tiers (one every POINTS_PER_LEVEL branch points) and the points of its last
-      private static const TIERS:int = 5;
-      
+      // the branch points of a skill branch's last tier
       private static const LAST_TIER_POINTS:int = 20;
       
       protected var _data:Object;
@@ -344,18 +342,18 @@ package survarium.char
       {
          this.progressIndicator.value = Math.min(branchPoints + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
          var unclockedData:Object = this.getBranchUnlockedLevel();
-         var level:uint = unclockedData.level * this.POINTS_PER_LEVEL;
+         var unlocked:uint = unclockedData.points;
          if(unclockedData.lastUnlocked == true)
          {
             this.progressIndicator.value = this.progressIndicator.maximum;
          }
-         trace("setSkillProgress::",branchPoints,level,"|",this.points_aviable);
+         trace("setSkillProgress::",branchPoints,unlocked,"|",this.points_aviable);
          var l:uint = this._skillRenderers.length;
          for(var i:uint = 0; i < l; i++)
          {
             var renderer:ISkillRenderer = this._skillRenderers[i];
             var rendererData:Object = renderer.data;
-            renderer.enabled = rendererData.branch_points <= level;
+            renderer.enabled = rendererData.branch_points <= unlocked;
             renderer.unlockable = this.points_aviable > 0;
             renderer.invalidateData();
          }
@@ -368,7 +366,7 @@ package survarium.char
          var l:uint = _currentSkills.length;
          var data:Object = {};
          var value:uint = 0;
-         var level:uint = 0;
+         var points:uint = 0;
          var lastUnlocked:Boolean = false;
          for(var i:uint = 0; i < l; i++)
          {
@@ -378,7 +376,9 @@ package survarium.char
             {
                if(skillData.branch_points <= value)
                {
-                  level = (int(skillData.branch_points / this.POINTS_PER_LEVEL));
+                  // the branch points this row asks, whole (the stock window rounded them down
+                  // to fives; the medical tree's second row opens at 3: medical-skills.md)
+                  points = skillData.branch_points;
                   if(skillData.branch_points == LAST_TIER_POINTS && skillData.newValue > 0)
                   {
                      lastUnlocked = true;
@@ -391,8 +391,7 @@ package survarium.char
                value += skillData.newValue;
             }
          }
-         level = Math.min(TIERS,level);
-         data.level = level;
+         data.points = points;
          data.lastUnlocked = lastUnlocked;
          return data;
       }

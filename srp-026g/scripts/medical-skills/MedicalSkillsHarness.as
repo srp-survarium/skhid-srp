@@ -6,7 +6,7 @@ package {
  import flash.system.*;
  public class MedicalSkillsHarness extends Sprite {
   // The medical tab's skills and each's embedded artwork (bitmaps/<class>.png, icons-069.tsv).
-  private static const ARTWORK:Object = {301:301,302:302,303:303,311:311,312:312,313:341,321:321,322:322,323:323,
+  private static const ARTWORK:Object = {301:301,302:302,303:301,311:311,312:312,313:313,321:321,322:322,323:323,
    331:331,332:332,341:341,342:342};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
@@ -116,8 +116,8 @@ package {
     values.push({id:v.id,value:0});
    }
    check(skills[341]==null,"Medic left the medical tree");
-   var layout:Object={303:[1,1,2,0],301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,5],313:[3,2,2,5],312:[4,2,3,5],
-    321:[2,3,3,10],342:[3,3,2,10],323:[2,4,2,15],332:[3,4,5,15],331:[2,5,1,20],322:[3,5,1,20]};
+   var layout:Object={301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,3],313:[3,2,2,3],312:[4,2,3,3],
+    342:[1,3,2,10],303:[2,3,2,10],321:[4,3,3,10],332:[2,4,5,15],323:[3,4,4,15],331:[2,5,1,20],322:[3,5,1,20]};
    var total:int=0;
    for(var id:String in layout) {
     var want:Array=layout[id];var have:Object=skills[id];
@@ -125,12 +125,12 @@ package {
      && have.preconditions.branch_points==want[3],"layout "+id);
     if(have) total+=have.levels_amount;
    }
-   check(total==31,"31 ranks, 30 points with one exclusive unlock");
+   check(total==33,"33 ranks, 32 points with one exclusive unlock");
    for each(var line:String in described(skills[301].ui,3)) {
     check(line.indexOf("<green>")>=0 && /%.*s<\/green>/.test(line.split("\n")[0]),"Potent Painkiller green percent and seconds: "+line);
    }
-   check(described(skills[301].ui,3)[3].indexOf("<green> +24% / +4.5 s</green>")>=0,"Potent Painkiller maximum");
-   check(described(skills[301].ui,3)[1].indexOf("Current value: +8% / +1.5 s")>=0,"Potent Painkiller current value");
+   check(described(skills[301].ui,3)[3].indexOf("<green> +3% / +4.5 s</green>")>=0,"Potent Painkiller maximum");
+   check(described(skills[301].ui,3)[1].indexOf("Current value: +1% / +1.5 s")>=0,"Potent Painkiller current value");
 
    var Window:Class=domain.getDefinition("SrvCharWindow") as Class;
    var Renderer:Class=domain.getDefinition("SrvSkillRendererCh") as Class;
@@ -155,33 +155,36 @@ package {
     return r.data.newValue;
    }
    function take(id:int,times:int):int {var v:int=0;for(var k:int=0;k<times;k++) v=click(id);return v;}
-   check(take(301,4)==3,"Potent Painkiller stops at 3");
+   check(take(301,2)==2,"Potent Painkiller 2");
+   check(take(311,1)==0,"tier 2 refused at 2 points");
+   check(take(301,2)==3,"Potent Painkiller stops at 3");
+   check(take(311,1)==1,"tier 2 opens at 3");
    check(take(302,3)==2,"Fast Bandaging stops at 2");
-   check(take(311,1)==1,"tier 2 opens at 5");
-   check(take(303,3)==2,"Numb Legs stops at 2");
    check(shown[301].data.description_2_string==shown[301].data.description_2[3],"Potent Painkiller tooltip at maximum");
-   check(String(shown[301].data.description_2_string).indexOf("+24% / +4.5 s")>=0,"Potent Painkiller tooltip text");
-   check(take(311,4)==5 && take(313,3)==2,"tier 2 filled to 14 points");
+   check(String(shown[301].data.description_2_string).indexOf("+3% / +4.5 s")>=0,"Potent Painkiller tooltip text");
+   check(take(303,1)==0,"tier 3 refused at 6 points");
+   check(take(311,4)==5,"Metabolism 5: 10 points");
+   check(take(303,3)==2,"tier 3 at 10; Numb Legs stops at 2");
    check(take(321,1)==1 && take(342,1)==1,"tier 3 at 10");
    click(321,true);click(342,true);
    check(shown[321].data.newValue==0 && shown[342].data.newValue==0,"tier 3 points taken back");
+   check(take(313,3)==2,"Take Cover stops at 2: 14 points");
    check(take(323,1)==0,"tier 4 refused at 14 points");
    check(take(312,4)==3,"Medical Training stops at 3");
    click(312,true);click(312,true);
    check(shown[312].data.newValue==1,"Medical Training back to 1: 15 points");
-   check(take(323,3)==2,"tier 4 at 15; Unflinching stops at 2");
-   check(take(332,2)==2,"Strong Bones 2: 19 points");
+   check(take(323,5)==4,"tier 4 at 15; Unflinching stops at 4");
    check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 19 points");
-   check(take(332,1)==3,"20 points");
+   check(take(332,1)==1,"20 points");
    check(take(331,2)==1,"Supply Pocket at 20, one rank");
    check(take(322,1)==0,"Additional Medicine refused beside Supply Pocket");
    click(331,true);
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 20, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // One renderer shows skills of 5, 2 and 3 ranks in turn (tabs reuse renderers).
+   // One renderer shows skills of 5, 2, 3, 1 and 4 ranks in turn (tabs reuse renderers).
    var reused:Object=new Renderer();addChild(DisplayObject(reused));
-   for each(var ranks:int in [5,2,2,3,1,5]) {
+   for each(var ranks:int in [5,2,2,3,1,4,5]) {
     reused.data={id:300+ranks,name:"r",branch:2,level:1,maxValue:ranks,value:0,newValue:1,icon:1,description_1:"d",description_2:["a","b","c","d","e","f"],antiskills:null};
     reused.validateNow();
     check(pips(reused)==ranks,"reused renderer pips "+ranks+": "+pips(reused));

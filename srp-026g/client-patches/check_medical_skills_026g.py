@@ -207,7 +207,7 @@ def run(data,padding=0,kit=0):
         hit=g.block(0x50);damage=g.block(4);pierce=g.block(4);name=g.block(16)
         g.emu.mem_write(name,b'pain\0');g.word(hit,name);g.word(damage,bits(.5));g.word(pierce,bits(.3))
         g.call(0x33db30,(hit,damage,pierce),ecx=item)
-        close(g.float(damage),.5*(1-.1*(1+.08*painkiller)));close(g.float(pierce),.3)
+        close(g.float(damage),.5*(.9-.01*painkiller));close(g.float(pierce),.3)
     for rank in range(8):
         g.ranks(3|(rank<<3))
         close(g.step(0x33d486,6,xmm=1000,ebp=healing,ebx=PLAYER),1000*(1-.05*rank) if rank<=2 else 1000)
@@ -332,12 +332,13 @@ def run(data,padding=0,kit=0):
 def check_combo(data,kit=0):
     # Numb Legs (sprint stamina), Take Cover (medicine healing crouched) and
     # Unflinching (bullets' slow through the real stagger, with Spring), ranks
-    # 0..2 in modifier 45, painkiller on/off, effective crouch vs the key.
+    # 0..2, 0..2 and 0..4 in modifier 45 (Unflinching three bits at 4),
+    # painkiller on/off, effective crouch vs the key.
     outcome=[]
-    for combo in range(64):
-        numb,cover,unflinching=combo&3,(combo>>2)&3,(combo>>4)&3
-        valid=max(numb,cover,unflinching)<=2
-        if not valid and combo not in (3,12,48,63):continue
+    for combo in range(128):
+        numb,cover,unflinching=combo&3,(combo>>2)&3,(combo>>4)&7
+        valid=numb<=2 and cover<=2 and unflinching<=4
+        if not valid and combo not in (3,12,5<<4,6<<4,7<<4,(5<<4)|10,127):continue
         for active in (False,True):
             for crouched in (False,True):
                 for spring in (False,True):
@@ -360,10 +361,10 @@ def check_combo(data,kit=0):
                     g.word(PLAYER+0x2e8,recent);g.word(PLAYER+0x2ec,recent+16)
                     g.emu.mem_write(PLAYER+0x31c,struct.pack('<ff',.5,.5));g.word(PLAYER+0x2fc,MOVEMENT)
                     g.call(STAGGER,(10000,),eax=PLAYER)
-                    slow=0 if spring else .45*((1-.2*r(unflinching)) if active else 1)
+                    slow=0 if spring else .45*((1-.1*r(unflinching)) if active else 1)
                     close(g.float(PLAYER+0x300),-slow)
                     outcome.append((combo,active,crouched,spring,sprint,healed,g.read(PLAYER+0x300)))
-    print('Numb Legs, Take Cover, Unflinching: ranks 0..2, painkiller on/off, effective crouch, Spring on/off, rank 3 refused: PASS')
+    print('Numb Legs, Take Cover, Unflinching: ranks 0..2/0..2/0..4, painkiller on/off, effective crouch, Spring on/off, ranks 3/3/5..7 refused: PASS')
     return outcome
 
 def check_pressed_entry(data):

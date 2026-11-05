@@ -1,23 +1,24 @@
 # Medical skill tree
 
 Source: `scripts/content-edit/medical-skills-1.json`, listed in `release/content.tsv`.
-The third skill tab has 30 points in a full build: twelve skills, of which the
+The third skill tab has 32 points in a full build: twelve skills, of which the
 two tier-5 unlocks exclude each other. Thresholds count points in earlier tiers
-of this branch: 0, 5, 10, 15 and 20. The 2026-11-05 retune below is implemented
-and tested locally; it has not been played or released.
+of this branch: 0, 3, 10, 15 and 20. The 2026-11-05 retune and the 2026-11-06
+changes below are implemented and tested locally; they have not been played or
+released.
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
-| 1 | 0 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
-| 1 | 0 | 301 | Potent Painkiller | Existing protection +8%; duration +1.5 s | +24%; +4.5 s |
+| 1 | 0 | 301 | Potent Painkiller | Pain protection +1 point; duration +1.5 s | +3 points; +4.5 s |
 | 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time -5% | -10% |
-| 2 | 5 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
-| 2 | 5 | 313 | Take Cover | First-aid kit and bandage healing +10% while crouched | +20% |
-| 2 | 5 | 312 | Medical Training | First-aid kit and bandage healing +8% | +24% |
-| 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
+| 2 | 3 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
+| 2 | 3 | 313 | Take Cover | First-aid kit and bandage healing +10% while crouched | +20% |
+| 2 | 3 | 312 | Medical Training | First-aid kit and bandage healing +8% | +24% |
 | 3 | 10 | 342 | Brothers in Arms | Incoming allied damage -25% | -50% |
-| 4 | 15 | 323 | Unflinching | Bullets' slow -20% while a painkiller is active | -40% |
+| 3 | 10 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
+| 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
 | 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
+| 4 | 15 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
 | 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
 | 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
@@ -25,14 +26,43 @@ The four-column layout, from tier 1 down to tier 5 (`S` Supply Pocket and `M`
 Additional Medicine, one or the other):
 
 ```text
-| x x x - |    Numb Legs, Potent Painkiller, Fast Bandaging
+| - x x - |    Potent Painkiller, Fast Bandaging
 | x - x x |    Metabolism, Take Cover, Medical Training
-| - x x - |    Adrenalin, Brothers in Arms
-| - x x - |    Unflinching, Strong Bones
+| x x - x |    Brothers in Arms, Numb Legs, Adrenalin
+| - x x - |    Strong Bones, Unflinching
 | - S M - |    Supply Pocket XOR Additional Medicine
 ```
 
-Points held: tier 1 = 7, tiers 1-2 = 17, tiers 1-3 = 22, tiers 1-4 = 29.
+Points held: tier 1 = 5, tiers 1-2 = 15, tiers 1-3 = 22, tiers 1-4 = 31; a full
+build 32.
+
+## 2026-11-06 changes (owner decisions)
+
+- Unflinching: 4 ranks of -10% (was 2 of -20%), the same -40% maximum; tier 4,
+  now column 3. Its modifier-45 field is 3 bits at bit 4 (16.0 a rank, 0..4).
+  Saved ranks above the old 2 cannot exist, so no new refund rule.
+- Numb Legs moves from tier 1 to tier 3 (column 2). Tier 1 then holds 5 points,
+  so tier 2 opens at 3 (was 5) and tier 1 still leaves a choice.
+- A row unlocks the branch points it asks, whole: the stock window (and srp's
+  walk after it) rounded the reached `branch_points` down to fives, which would
+  leave a threshold of 3 locked. The lobby source (`CharWindow.as`) and
+  `SkillsTree::unlocked_branch_points` take it whole; for the stock tree, whose
+  thresholds are fives, nothing changes.
+- Tiers 3 and 4 shuffled: tier 3 Brothers in Arms column 1, Numb Legs 2,
+  Adrenalin 4; tier 4 Strong Bones column 2, Unflinching 3.
+- Saved skills: `SkillsTree::settle` refunds a saved Numb Legs only when rows 1
+  and 2 no longer hold its 10 points (ids unchanged); a full build saved before
+  stays as it is.
+- Potent Painkiller is additive: +1 percentage point of pain protection a rank
+  (the hit's coefficient minus 0.01 a rank, never below 0: 0.9 -> 0.89, 0.88,
+  0.87, so 10% -> 13%) and +1.5 s, replacing the relative +8% a rank. The
+  descriptions say it adds to the painkiller's protection; the lobby's Alt
+  medicine card uses the same rule.
+- Icons: Numb Legs shows Potent Painkiller's `survival/1.png` (the same
+  embedded bitmap, MedicalSkill069301; its own MedicalSkill069303 is gone). Take
+  Cover shows retail 0.69d0 `skills/physical/15.png` (234 "Mobility", a crouched
+  soldier; MedicalSkill069313, bytes unchanged), a try the owner judges in game;
+  Medic keeps `survival/14.png`.
 
 ## 2026-11-05 retune (owner decisions)
 
@@ -42,13 +72,13 @@ Points held: tier 1 = 7, tiers 1-2 = 17, tiers 1-3 = 22, tiers 1-4 = 29.
   the player is effectively crouched, checked at each heal tick. It multiplies
   with Medical Training. Effective crouch is the controller's, which stays set
   under a low ceiling, never the crouch key.
-- Unflinching (new, 2 ranks): while a painkiller is active, the movement slow of
-  bullets (their stopping power) is 20% less a rank. It multiplies with Spring's
+- Unflinching (new; 4 ranks since 2026-11-06, 2 before): while a painkiller is
+  active, the movement slow of bullets (their stopping power) is 10% less a rank. It multiplies with Spring's
   factor, whose active already removes the slow.
 - "A painkiller is active" is native set_active's flag on a painkiller in the
   player's inventory: the whole time its pain protection is linked, from the use
   (0x33D638) to its end (0x33DA3E).
-- Fewer ranks, the same or a near maximum: Potent Painkiller 3 x (+8%, +1.5 s);
+- Fewer ranks, the same or a near maximum: Potent Painkiller 3 x (+8%, +1.5 s; additive +1 point since 2026-11-06);
   Fast Bandaging 2 x -5%; Medical Training 3 x +8%; Adrenalin 3 x +5% below
   30 health (was 20); Brothers in Arms 2 x -25%. Metabolism and Strong Bones
   keep five ranks.
@@ -66,7 +96,8 @@ Points held: tier 1 = 7, tiers 1-2 = 17, tiers 1-3 = 22, tiers 1-4 = 29.
   again (points to spend are the level minus the points held), the kits are sent
   again, and the five-items-a-pocket cap handles pockets that become overfilled.
 - Icons: unchanged 0.69d0 survival PNGs chosen by the owner: Numb Legs
-  `survival/9.png`, Take Cover `survival/14.png` (Medic's former icon),
+  `survival/9.png` (since 2026-11-06 `survival/1.png`, above), Take Cover `survival/14.png` (Medic's former icon; since 2026-11-06
+  `physical/15.png`),
   Unflinching `survival/7.png` (`scripts/medical-skills/icons-069.tsv`).
 
 Current equipment limits (owner clarification): **six quick slots total**, shared
@@ -75,9 +106,9 @@ four supply pockets leave at most two artifact slots. Each supply pocket holds
 **at most five items after all bonuses**, including Additional Medicine. Storage
 stacks and ammunition quantities are not restricted to five.
 
-Painkiller protection strengthens the existing effect relatively. The stock
-coefficient 0.9 means 10% protection: at rank 3 it becomes 0.876, or 12.4%
-protection, for 14.5 instead of 10 seconds. It does not add 24 percentage points.
+Painkiller protection adds percentage points (since 2026-11-06). The stock
+coefficient 0.9 means 10% protection: at rank 3 it becomes 0.87, or 13%
+protection, for 14.5 instead of 10 seconds.
 The English Medic description ended exactly: `"They glow, you shine"`; its texts
 leave the edit list with the skill.
 
@@ -108,8 +139,9 @@ leaves the player with no medical skill at all.
   9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
   16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
   21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
-- Slot 45 `can_defuse_traps`, 6 bits: two bits each, Numb Legs at 0 (1.0 a
-  rank), Take Cover at 2 (4.0), Unflinching at 4 (16.0); 0..2 each.
+- Slot 45 `can_defuse_traps`, 7 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
+  0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
+  0..4; two bits and 0..2 before 2026-11-06). A full set is 74.
 - The parser refuses fractional, nonfinite, negative or too-large values and any
   rank past its skill's levels. Only the base profile value is decoded.
 - Do not repurpose either slot for gear or a trap feature.
@@ -215,7 +247,7 @@ Automated checks cover all twelve skills; not all twelve have been played manual
   Server reset/equipment/repair/preset and bot-loadout tests, plus affected-crate
   Clippy, passed for the medical feature before the final native-only correction.
 - `survarium/tests/medical_skills.rs` parses the content-built tree, validating
-  the twelve skills' progression, layout, 30-point full build, exclusions and
+  the twelve skills' progression, layout, 32-point full build, exclusions and
   native modifier transport.
 - CPU Ruffle exercises the built lobby: medicine and whole-pocket capacities,
   drag limits, unsaved previews, reset, combined slot bounds and the ten original
@@ -324,3 +356,33 @@ Implemented and tested locally; not played, not released.
   build, exclusions, modifiers 43/45/57).
 - Ruffle harness on the built lobby movie: `MEDICALSKILLS RESULT pass`.
 - `engine_026g.py`, `hooks_026g.py` and `link_026g.py` checks current.
+
+## Validation of the 2026-11-06 changes
+
+Implemented and tested locally; not played, not released.
+
+- Patch-crate `cargo test medical` (3 tests: Unflinching 0..4 and 5..7
+  refused, modifier 45 below 128, the additive painkiller 0.9/0.89/0.88/0.87)
+  and i686 Clippy, no warnings.
+- `check_medical_skills_026g.py` (Unicorn): Potent Painkiller's protection
+  0.5 x (0.9 - 0.01 x rank); every modifier-45 combination of Numb Legs 0..2,
+  Take Cover 0..2 and Unflinching 0..4 (-10% a rank) plus ranks 3/3/5..7
+  refused; the rest unchanged. PASS.
+- `survarium` skills tests (the whole-threshold walk, tier 2 at 3, settle:
+  a full build saved before the move stays, Numb Legs refunded when rows 1-2
+  no longer hold 10), session account tests (the saved row-1 Numb Legs build
+  unchanged, kits not sent again) and the simulation-list test; Clippy on
+  both crates, no warnings.
+- `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write` (new
+  lock), then current.
+- `release/build-content 49` (a local build; no number reserved): all 18960
+  files the manifest makes are as it makes them; patch
+  `fbf094cd39e8d61a959da3d4d43bbc51f8615a9c053928bcd6d38c341a0211cf`, server
+  data `ea4ca3e2f8b7d5e2fd2b95192fc4241a9b0ab15c77711c4f3fd563bdc3203fd9`.
+  Its skills tree passes `survarium/tests/medical_skills.rs` (positions,
+  thresholds 0/3/10/15/20, ranks, 32-point build, modifier 45 = 74).
+- Ruffle on that lobby movie: `MEDICALSKILLS RESULT pass` (layout, tier 2
+  refused at 2 and open at 3, tier 3 at 10, Unflinching stops at 4, the
+  +3% / +4.5 s texts, Numb Legs on the painkiller bitmap, Take Cover's
+  physical/15 pixels) and `DETAILS RESULT pass` (Alt card 10 -> 13%,
+  Unflinching 5 refused, full combo 74 valid).

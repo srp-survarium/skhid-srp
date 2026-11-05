@@ -1,5 +1,5 @@
 {
-  "_about": "Medical tree agreed with the owner. Thresholds 0/5/10/15/20. Packed integer ranks travel in the unused native modifiers armored_trap (43) and can_defuse_traps (45: Numb Legs, Take Cover, Unflinching); client medical_skills decodes them. Supply Pocket excludes the existing equivalent, Terminator and Additional Medicine. Native gameplay hooks must ship with this content.",
+  "_about": "Medical tree agreed with the owner. Thresholds 0/3/10/15/20. Packed integer ranks travel in the unused native modifiers armored_trap (43) and can_defuse_traps (45: Numb Legs, Take Cover, Unflinching); client medical_skills decodes them. Supply Pocket excludes the existing equivalent, Terminator and Additional Medicine. Native gameplay hooks must ship with this content.",
   "append_entry": [
     {
       "file": "gameplay/skills/skills_tree.options",
@@ -24,25 +24,25 @@
           "postfix": "st_srp_medical_seconds",
           "skill_descriptions": [
             [
-              " <green>+8% / +1.5",
+              " <green>+1% / +1.5",
               " 0% / 0",
               "</green>",
               ""
             ],
             [
-              " <green>+8% / +1.5",
-              " +8% / +1.5",
+              " <green>+1% / +1.5",
+              " +1% / +1.5",
               "</green>",
               ""
             ],
             [
-              " <green>+8% / +1.5",
-              " +16% / +3",
+              " <green>+1% / +1.5",
+              " +2% / +3",
               "</green>",
               ""
             ],
             [
-              "<green> +24% / +4.5",
+              "<green> +3% / +4.5",
               0,
               "</green>",
               ""
@@ -123,12 +123,12 @@
         "id": 303,
         "levels_amount": 2,
         "preconditions": {
-          "branch_points": 0
+          "branch_points": 10
         },
         "ui": {
           "position": [
-            1,
-            1
+            2,
+            3
           ],
           "name": "st_srp_medical_303_name",
           "description": "st_srp_medical_303_description",
@@ -175,7 +175,7 @@
         "id": 311,
         "levels_amount": 5,
         "preconditions": {
-          "branch_points": 5
+          "branch_points": 3
         },
         "ui": {
           "position": [
@@ -254,7 +254,7 @@
         "id": 312,
         "levels_amount": 3,
         "preconditions": {
-          "branch_points": 5
+          "branch_points": 3
         },
         "ui": {
           "position": [
@@ -318,7 +318,7 @@
         "id": 313,
         "levels_amount": 2,
         "preconditions": {
-          "branch_points": 5
+          "branch_points": 3
         },
         "ui": {
           "position": [
@@ -374,7 +374,7 @@
         },
         "ui": {
           "position": [
-            2,
+            4,
             3
           ],
           "name": "st_srp_medical_321_name",
@@ -459,13 +459,13 @@
       "unique_key": "id",
       "value": {
         "id": 323,
-        "levels_amount": 2,
+        "levels_amount": 4,
         "preconditions": {
           "branch_points": 15
         },
         "ui": {
           "position": [
-            2,
+            3,
             4
           ],
           "name": "st_srp_medical_323_name",
@@ -475,14 +475,26 @@
           "postfix": "st_percent_postfix",
           "skill_descriptions": [
             [
-              " <green>+20",
+              " <green>+10",
               " 0",
               "</green>",
               ""
             ],
             [
-              " <green>+20",
+              " <green>+10",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
               " +20",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +30",
               "</green>",
               ""
             ],
@@ -495,6 +507,12 @@
           ]
         },
         "modifiers": [
+          {
+            "can_defuse_traps_modifier": 16.0
+          },
+          {
+            "can_defuse_traps_modifier": 16.0
+          },
           {
             "can_defuse_traps_modifier": 16.0
           },
@@ -551,7 +569,7 @@
         },
         "ui": {
           "position": [
-            3,
+            2,
             4
           ],
           "name": "st_srp_medical_332_name",
@@ -630,7 +648,7 @@
         },
         "ui": {
           "position": [
-            3,
+            1,
             3
           ],
           "name": "st_srp_medical_342_name",
@@ -681,7 +699,7 @@
       "file": "localization/english/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Bonus to painkiller pain protection and duration:"
+      "text": "Adds to the painkiller's pain protection and duration:"
     },
     {
       "file": "localization/german/localization",
@@ -693,7 +711,7 @@
       "file": "localization/german/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Bonus auf Schmerzschutz und Wirkungsdauer von Schmerzmitteln:"
+      "text": "Wird zu Schmerzschutz und Wirkungsdauer von Schmerzmitteln addiert:"
     },
     {
       "file": "localization/polish/localization",
@@ -705,7 +723,7 @@
       "file": "localization/polish/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Premia do ochrony przed bólem i czasu działania środka przeciwbólowego:"
+      "text": "Dodaje się do ochrony przed bólem i czasu działania środka przeciwbólowego:"
     },
     {
       "file": "localization/russian/localization",
@@ -717,7 +735,7 @@
       "file": "localization/russian/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Бонус к защите от боли и длительности действия обезболивающего:"
+      "text": "Прибавляется к защите от боли и длительности действия обезболивающего:"
     },
     {
       "file": "localization/original/localization",
@@ -729,7 +747,7 @@
       "file": "localization/original/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Бонус к защите от боли и длительности действия обезболивающего:"
+      "text": "Прибавляется к защите от боли и длительности действия обезболивающего:"
     },
     {
       "file": "localization/ukrainian/localization",
@@ -741,7 +759,7 @@
       "file": "localization/ukrainian/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Бонус до захисту від болю і тривалості дії знеболювального:"
+      "text": "Додається до захисту від болю і тривалості дії знеболювального:"
     },
     {
       "file": "localization/english/localization",
@@ -1581,7 +1599,7 @@
       "file": "localization/serbian/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Dodatak zaštiti od bola i trajanju analgetika:"
+      "text": "Dodaje se zaštiti od bola i trajanju analgetika:"
     },
     {
       "file": "localization/serbian/localization",
@@ -1731,7 +1749,7 @@
       "file": "localization/czech/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Bonus k ochraně před bolestí a délce účinku analgetika:"
+      "text": "Přičítá se k ochraně před bolestí a délce účinku analgetika:"
     },
     {
       "file": "localization/czech/localization",
@@ -1881,7 +1899,7 @@
       "file": "localization/hungarian/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Bónusz a fájdalomcsillapító fájdalom elleni védelméhez és hatásidejéhez:"
+      "text": "Hozzáadódik a fájdalomcsillapító fájdalom elleni védelméhez és hatásidejéhez:"
     },
     {
       "file": "localization/hungarian/localization",
@@ -2031,7 +2049,7 @@
       "file": "localization/finnish/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Lisäys kipulääkkeen kipusuojaan ja vaikutusaikaan:"
+      "text": "Lisätään kipulääkkeen kipusuojaan ja vaikutusaikaan:"
     },
     {
       "file": "localization/finnish/localization",
@@ -2181,7 +2199,7 @@
       "file": "localization/belarusian/localization",
       "table": "strings",
       "key": "st_srp_medical_301_description",
-      "text": "Бонус да абароны ад болю і працягласці дзеяння абязбольвальнага:"
+      "text": "Дадаецца да абароны ад болю і працягласці дзеяння абязбольвальнага:"
     },
     {
       "file": "localization/belarusian/localization",

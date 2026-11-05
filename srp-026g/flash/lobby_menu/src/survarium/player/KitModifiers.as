@@ -22,9 +22,9 @@ package survarium.player
       {
          _values = values;
          // As the exe's medical_skills: float 43 an exact integer below 2^24 and float 45 one below
-         // 2^6, each rank field at most its skill's ranks, otherwise no medical skill at all.
+         // 2^7, each rank field at most its skill's ranks, otherwise no medical skill at all.
          var medical:Object = packed(values[PlayerModifier.MEDICAL_RANKS],24);
-         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],6);
+         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],7);
          if(medical == null || comboField == null) return;
          var bits:int = int(medical);
          var combo:int = int(comboField);
@@ -34,7 +34,7 @@ package survarium.player
          {
             if((bits >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }
-         for each(field in [[0,2,2],[2,2,2],[4,2,2]])
+         for each(field in [[0,2,2],[2,2,2],[4,3,4]])
          {
             if((combo >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }

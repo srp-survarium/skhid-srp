@@ -124,10 +124,10 @@ package survarium.player
                return has(item,PAIN_PROTECTION) ? value + painkiller * 1.5 : value;
             case PAIN_PROTECTION:
                // The hit's coefficient c = (1 - protection) x max(0, 1 + S58); Potent Painkiller
-               // makes it max(0, 1 - (1 - c) x (1 + 0.08 x rank)) (medical::protect). In %, so
-               // that no skill leaves the card's own number exact.
+               // adds a percentage point a rank: max(0, c - 0.01 x rank) (medical::protect). In %,
+               // so that no skill leaves the card's own number exact.
                var coefficient:Number = (100 - value) * factor(PlayerModifier.DRUG_HIT_COEFF);
-               if(painkiller > 0) coefficient = Math.max(0,100 - (100 - coefficient) * (1 + painkiller * 0.08));
+               coefficient = Math.max(0,coefficient - painkiller);
                return 100 - coefficient;
             case 13:
             case 135:

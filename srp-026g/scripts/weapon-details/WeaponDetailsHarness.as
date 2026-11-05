@@ -320,10 +320,10 @@ package {
     require(medicineLines(cards[0],d).join()==released[name],"Alt, no medical skills: "+name+" "+medicineLines(cards[0],d).join());
    }
    // Each skill alone at its most ranks, then all three; the expected numbers from the spec's
-   // rules (medical-skills.md): Potent Painkiller (3) protection 10 % -> 12.4 %, +4.5 s; Fast
+   // rules (medical-skills.md): Potent Painkiller (3) protection 10 % -> 13 % (+1 point a rank), +4.5 s; Fast
    // Bandaging (2) use time x (1 - 2 x 0.05) on a medicine that heals; Medical Training (3) each
    // healing line x 1.24, a pool at most 100 %.
-   var painkiller:Object={painkiller:"Pain protection=10 -> 12.4%,Activation=1s,Duration=10 -> 14.5s,Weight=0.1kg"};
+   var painkiller:Object={painkiller:"Pain protection=10 -> 13%,Activation=1s,Duration=10 -> 14.5s,Weight=0.1kg"};
    var bandaging:Object={
     bandages:"Activation=1 -> 0.9s",medkit:"Activation=2 -> 1.8s",military_medkit:"Activation=2 -> 1.8s",
     blackmarket_medkit:"Activation=2 -> 1.8s",science_medkit:"Activation=2 -> 1.8s",antitoxin:"Activation=1 -> 0.9s"
@@ -366,6 +366,12 @@ package {
    require(medicineLines(cards[0],d).join()==released.painkiller,"refused ranks change nothing");
    profile.setKitModifiers(kitFloats({43:3,45:3}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.painkiller,"refused combo ranks change nothing");
+   // Unflinching's three bits at 4: rank 5 of 4 is refused; every combo skill at its most (74) is
+   // a valid set beside Potent Painkiller 3.
+   profile.setKitModifiers(kitFloats({43:3,45:5<<4}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==released.painkiller,"Unflinching 5 refused");
+   profile.setKitModifiers(kitFloats({43:3,45:74}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"full combo ranks valid: "+medicineLines(cards[0],d).join());
    // An exe that sends no floats: no skill known, the card's own numbers.
    profile.setKitModifiers(null);d=medicine("bandages");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.bandages,"no floats: the card's own numbers");
@@ -607,7 +613,7 @@ package {
     if(frame==150){require(line(cards[0],"Reload")=="Reload: 3 -> 2.46s" && nativeText(cards[0],"Aim time")=="0.25 -> 0.21s","Alt pressed over an open card");Scene.isAlt=false;}
     if(frame==160){require(text(cards[0])==released && nativeText(cards[0],"Aim time")=="0.25s","Alt let go over an open card");profile.setKitModifiers(medicalKit(3,2,3));shows(medicine("painkiller"),medicine("medkit"));}
     if(frame==170){require(nativeText(cards[0],"Pain protection")=="10%","an open painkiller card, Alt up");Scene.isAlt=true;}
-    if(frame==180){require(nativeText(cards[0],"Pain protection")=="10 -> 12.4%" && nativeText(cards[0],"Duration")=="10 -> 14.5s","Alt pressed over an open medicine card");Scene.isAlt=false;}
+    if(frame==180){require(nativeText(cards[0],"Pain protection")=="10 -> 13%" && nativeText(cards[0],"Duration")=="10 -> 14.5s","Alt pressed over an open medicine card");Scene.isAlt=false;}
     if(frame==190){require(nativeText(cards[0],"Pain protection")=="10%" && nativeText(cards[0],"Duration")=="10s","Alt let go over an open medicine card");shows(items[0],items[1]);finish(null);}
    }catch(err:Error){finish("frame "+frame+": "+err+" "+err.getStackTrace());}
   }

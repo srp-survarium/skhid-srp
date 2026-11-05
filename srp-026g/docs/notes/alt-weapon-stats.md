@@ -85,7 +85,7 @@ floats 43 and 45 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `
 |---|---|
 | Activation (19) | x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging x (1 - 0.05 x rank) on a medicine that heals (its card has a healing line: `data/influences`; antitoxin too, not the painkiller) |
 | Duration (18) | + 1.5 s a rank of Potent Painkiller on a pain protector (the painkiller) |
-| Pain protection (17) | c = (1 - p) x max(0, 1 + S58); Potent Painkiller: max(0, 1 - (1 - c) x (1 + 0.08 x rank)); shown 1 - c (10 % -> 12.4 % at rank 3) |
+| Pain protection (17) | c = (1 - p) x max(0, 1 + S58); Potent Painkiller: max(0, c - 0.01 x rank), a percentage point a rank; shown 1 - c (10 % -> 13 % at rank 3) |
 | Healing lines (135, 136, 137, 13) | x max(0, 1 + S57) (medkit::tick 0x33D790; Medical Training +0.08 a rank), at most 100 % of the pool |
 
 Left out: S34 (`drug_activity_time`, the duration's weight): no skill or item gives it. No skill

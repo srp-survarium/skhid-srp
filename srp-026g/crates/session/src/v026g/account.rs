@@ -1123,10 +1123,10 @@ mod tests {
         type Row = (u16, u8, u32, u8, u8, &'static [u16]);
         #[rustfmt::skip]
         let rows: [Row; 12] = [
-            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 0, 1, 1, &[]),
-            (311, 5, 5, 1, 2, &[]), (312, 3, 5, 4, 2, &[]), (313, 2, 5, 3, 2, &[]),
-            (321, 3, 10, 2, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 2, 15, 2, 4, &[]),
-            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 3, 4, &[]), (342, 2, 10, 3, 3, &[]),
+            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 10, 2, 3, &[]),
+            (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
+            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[]),
+            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (342, 2, 10, 1, 3, &[]),
         ];
         let skills = rows
             .iter()
@@ -1202,5 +1202,40 @@ mod tests {
         );
         // Settled once, the set stays as it is.
         assert!(!account.settle_skills(&tree));
+    }
+
+    /// A full build saved before Numb Legs moved from row 1 to row 3 (and
+    /// Unflinching went from two ranks to four): the ids are the same and
+    /// rows 1 and 2 hold Numb Legs' ten points, so nothing is taken back and
+    /// the kits are not sent again.
+    #[test]
+    fn numb_legs_saved_in_row_one_stays_after_the_move() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        account.skills = vec![
+            (303, 2),
+            (301, 3),
+            (302, 2),
+            (311, 5),
+            (313, 2),
+            (312, 3),
+            (321, 3),
+            (342, 2),
+            (323, 2),
+            (332, 5),
+            (331, 1),
+        ];
+        let saved = account.skills.clone();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(!account.settle_skills(&tree));
+        assert_eq!(account.skills, saved);
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision == before)
+        );
     }
 }
