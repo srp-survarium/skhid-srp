@@ -181,6 +181,7 @@ pub use team::GangRule;
 pub use team::GangUp;
 pub use team::LonePeek;
 pub use team::ModTuning;
+pub use team::TeamPlanRule;
 pub use team::PairTarget;
 pub use team::PerchTuning;
 pub use team::Personalities;
@@ -324,6 +325,9 @@ impl Tuning {
         self.skill.check()?;
         self.smoke.check()?;
         self.take.check()?;
+        if let Some(plan) = self.mods.team_plan {
+            plan.check()?;
+        }
         if let Some(open) = self.mods.behind_open {
             open.check()?;
         }

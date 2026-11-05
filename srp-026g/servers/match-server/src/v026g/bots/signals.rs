@@ -91,12 +91,32 @@ impl MatchSignals {
         self.behind() * (self.progress / LATE_FULL).clamp(0.0, 1.0)
     }
 
+    /// Where the team stands on points (`dead_band`: a gap this small or smaller is level). The one score state every team-level
+    /// rule reads (A296's team plan, A297's TDM tactics), from the HUD's points like the rest of the signals.
+    pub fn standing(&self, dead_band: f32) -> Standing {
+        if self.score_gap > dead_band {
+            Standing::Ahead(self.score_gap)
+        } else if self.score_gap < -dead_band {
+            Standing::Behind(-self.score_gap)
+        } else {
+            Standing::Level
+        }
+    }
+
     /// Seconds left, fewer the farther behind: down to half at
     /// [`BEHIND_FULL`] points behind, so a team far behind starts the
     /// endgame (play 16, late denial) earlier.
     pub fn time_left_behind(&self) -> f32 {
         self.time_left_s * (1.0 - 0.5 * self.behind())
     }
+}
+
+/// A team's standing on points ([`MatchSignals::standing`]): ahead or behind by how many points (positive), or level.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Standing {
+    Ahead(f32),
+    Level,
+    Behind(f32),
 }
 
 /// [`MatchSignals::behind`] is full this many points behind.

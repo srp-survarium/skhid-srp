@@ -166,6 +166,17 @@ pub(super) fn take_fixes() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [A296 item 2] Commander ticks under each team plan (`team::plan_tally`): usual, comeback bringing home, comeback late.
+pub(super) fn team_plans() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::team::plan_ticks().to_vec(),
+        |d, line| {
+            let names = ["usual", "comeback_home", "comeback_late"];
+            line.main.push(names.iter().zip(d).map(|(name, n)| format!("plan_{name} {n}")).collect::<Vec<_>>().join(" "));
+        },
+    )
+}
+
 /// [A296 items 4 and 5] `mods.behind_open` and `mods.raid_regroup` at work (`raid::raid_counts`): raids offered early, regroup
 /// stops, those a mate came to, those that waited out.
 pub(super) fn raid_switches() -> Box<dyn RouteTopic> {
