@@ -3381,7 +3381,7 @@ package
          {
             _obj.clip_size = _descr.clip_size;
          }
-         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         _obj.quick_slot_item_size = QuickSlotSize.of(_descr);
          _obj.pocket_units = PlayerInfo.pocketUnits(_descr.category,_obj.quick_slot_item_size);
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);

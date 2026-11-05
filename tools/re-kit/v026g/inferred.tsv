@@ -3198,3 +3198,4 @@ va	status	ref_021d	name
 0x00063140	inferred-high	0x00046be8	vostok::sound::sound_voice::sound_voice
 0x0005a470	inferred-medium		vostok::sound::sound_voice::~sound_voice
 0x0005dde0	inferred-high	0x00043729	vostok::sound::voice_bridge::OnBufferEnd
+0x002ffce0	inferred-medium		survarium::stack_item::resupply_from_profile_slot

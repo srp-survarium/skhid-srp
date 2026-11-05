@@ -787,7 +787,7 @@ package survarium.controls
          item_data.upgradesAvailable = descrData.upgrades_available;
          item_data.weight = descrData.weight;
          item_data.clipSize = descrData.clip_size;
-         item_data.quickSlotItemSize = (descrData.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         item_data.quickSlotItemSize = QuickSlotSize.of(descrData);
          item_data.clipsInBag = descrData.clips_in_bag;
          if(descrData.required_bags != undefined)
          {

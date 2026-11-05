@@ -91,6 +91,7 @@ fn srp_needs_readable_server_game_data() {
     // The test data has srp's own configs and keys over the archive's.
     let mut files = opened.files.clone();
     with_srp_tables(&mut files);
+    with_pocket_units(&mut files);
     with_blackout_maps(&mut files);
     assert_eq!(files, shared().files);
     assert_eq!(opened.projects, shared().projects);

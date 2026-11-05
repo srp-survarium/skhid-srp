@@ -68,3 +68,31 @@ The owner's rule of 2026-10-21. Code: `session::v026g::account` (`doubled_pocket
     paper doll's drops, the inventory's double click and drop region, the relocate question, the
     character's `relocate_to_paperdoll` and the ammo window's rows. Never build such an object
     literal by hand.
+
+## An RGD-5 takes two pocket units (2026-11-05)
+
+The owner: "each one takes two pocket slots". A pocket holds at most 5 units (`MAX_POCKET_UNITS`).
+
+- **The rule:** a pocket holds `max(1, size / 2)` RGD-5s, `size` the units it holds of any other
+  stack: 1 for size 1 to 3, 2 for size 4 and 5. Never more than 2. Only the RGD-5 (`rgd-5`, dict 5);
+  smoke grenades, traps, medicines and boosters as before.
+- **The data:** `parameters/pocket_units` 2 in `rgd-5.options`, srp's key (`throwables.tsv` column
+  `pocket_units`, none 1). Read once into `item_params::PocketShare` (`Unit`, `Pair`, `Whole`: the
+  boosters' `fills_whole_pocket`); a value other than 1 or 2, or one beside `fills_whole_pocket`,
+  stops srp at start.
+- **The lobby:** the exe gives the movie a fixed set of an item's parameters
+  (`fill_items_dictionary_impl` 0x286410: `fills_whole_pocket` yes, other keys no), but every card
+  line. `pocket-units-1` carries `pocket_units` to the item descriptors as card property 163, not
+  comparable (no row on the card). `QuickSlotSize.of` reads it (`PAIR`), `PlayerInfo.pocketUnits`
+  halves the pocket: drops, the slider, the ammo window, the buy dialog's pocket count.
+- **The server** caps an RGD-5 pocket at 2 (`loadouts::equipped_units`: half of the largest pocket;
+  it does not know the kit's size): moves, buys onto a pocket, kits at load and in every `repair`.
+  The units over it stay in the storage, nothing is lost. Bots' pockets hold 2 units, so a bot
+  carries one RGD-5 (it had two), and its grenade play throws one a life.
+- **Not covered:** the exe's own trim when gear that shrinks the pockets comes off
+  (`process_default_relocate_item` 0x289B04: `min(units, pocket size)`, `fills_whole_pocket` 1) asks
+  for up to the pocket's size; the server keeps 2 at most, so a pocket of 3 can show 2 until the
+  next move. No exe patch for it.
+- **Match:** the crate refills a pocket to the kit's count (`resupply_from_profile` 0x2FDC10, the
+  stack's `vtable+0x40` 0x2FFCE0: up to the kit slot's count, from the stock), never to the pocket's
+  size, so it keeps the rule. The kit is sent at the start: no `next` row.
