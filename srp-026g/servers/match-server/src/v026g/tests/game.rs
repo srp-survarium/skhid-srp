@@ -801,14 +801,61 @@ fn a_games_world_is_asked_for_at_its_first_report_against_the_majority() {
     let from = bench.clients[2].clock();
     bench.clients[2].sim.salt_from = Some((from, 7));
     // Its first wrong report comes a horizon (500 ms) and a way later.
-    assert!(bench.until(1_500, |bench| bench.game().split_world(2).0));
+    assert!(bench.until(1_500, |bench| bench.game().split_world(2).0.is_some()));
     assert_eq!(bench.game().resyncs(2), 0);
     assert!(bench.until(1_000, |bench| !bench.game().split_world(2).1));
     assert!(bench.clients[0].upload_requests + bench.clients[1].upload_requests > right_asked);
     // Once a player, however long it is wrong; it is resynced as before.
     assert!(bench.until(10_000, |bench| bench.game().resyncs(2) == 1));
-    assert_eq!(bench.game().split_world(0), (false, false));
-    assert_eq!(bench.game().split_world(1), (false, false));
+    assert_eq!(bench.game().split_world(0), (None, false));
+    assert_eq!(bench.game().split_world(1), (None, false));
+}
+
+/// A split's request that its game never answered (a full packet pool
+/// skips it) says nothing of the game's next upload: asked later as a
+/// source for another game's resync, its world is a vote, not "split".
+#[test]
+fn an_unanswered_split_request_does_not_take_the_next_upload() {
+    let dir = std::env::temp_dir().join(format!("srp-split-stale-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let settings = Settings {
+        snapshot_dir: Some(dir.clone()),
+        ..Settings::default()
+    };
+    let mut bench = Bench::new(3, MAP_BATTERIES, settings);
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    bench.clients[1].no_uploads = true;
+    let from = bench.clients[1].clock();
+    bench.clients[1].sim.salt_from = Some((from, 7));
+    assert!(bench.until(1_500, |bench| bench.game().split_world(1).0.is_some()));
+    // Wrong for a moment only, and its request skipped.
+    bench.clients[1].sim.salt_from = None;
+    bench.run(2_000);
+    bench.clients[1].no_uploads = false;
+    let asked = bench.clients[1].upload_requests;
+    // Player 0 goes wrong: its resync's source is player 1
+    // (the best link; the lowest place of equal ones).
+    let from = bench.clients[0].clock();
+    bench.clients[0].sim.salt_from = Some((from, 9));
+    assert!(bench.until(15_000, |bench| bench.game().resyncs(0) == 1));
+    assert!(bench.until(5_000, |bench| bench.clients[1].upload_requests > asked));
+    bench.run(2_000);
+    let saved: Vec<String> = std::fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        !saved.iter().any(|name| name.contains("_p1_split_")),
+        "{saved:?}"
+    );
+    assert!(!bench.game().split_world(1).1);
 }
 
 /// A game wrong from its first reports after the world it was resynced

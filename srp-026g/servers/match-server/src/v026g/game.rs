@@ -605,6 +605,25 @@ struct LagSample {
     at: Instant,
 }
 
+/// What a request for a game's world (0xF6) is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Wanted {
+    /// A world of the present: a report for its tick, and a world to start
+    /// others from.
+    Vote,
+    /// A world to look at, no vote.
+    Look(WrongWorld),
+}
+
+/// A request for a game's world that went and is not answered yet.
+#[derive(Clone, Copy, Debug)]
+struct Asked {
+    at: Instant,
+    /// The match clock as it went.
+    clock: u32,
+    wanted: Wanted,
+}
+
 /// Why a game's world was asked for to look at, with no vote.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WrongWorld {
@@ -690,17 +709,17 @@ struct Peer {
     /// for it, and if it loads without a place taken meanwhile it is let
     /// go, to come again with the whole roster (`late_join`).
     left_behind: bool,
-    /// When it was last asked for an upload and has not given one since:
-    /// the only time its upload is taken, but for the initial world.
-    asked: Option<Instant>,
-    /// The match clock when that request went.
-    asked_clock: Option<u32>,
+    /// Its last request for an upload that it has not answered yet: the
+    /// only time its upload is taken, but for the initial world. A newer
+    /// request replaces it, with what it is for.
+    asked: Option<Asked>,
     /// When it was first asked for an upload after the last one it gave
     /// (or ever): how long a match against bots has waited for its world
     /// (`check_pvb_stall`).
     unanswered_since: Option<Instant>,
-    /// A request waiting for its moment (match clock): aimed at a tick.
-    ask_at: Option<u32>,
+    /// A request waiting for its moment (match clock), aimed at a tick,
+    /// and what it is for: it becomes `asked` only as it goes.
+    ask_at: Option<(u32, Wanted)>,
     /// Bounds `[low, high)` on its upload offset: asked at match clock
     /// `c`, it uploads the tick `floor((c + offset) / 50)`. Each upload
     /// gives 50 ms of bounds; they hold while its clock and link do.
@@ -757,13 +776,11 @@ struct Peer {
     /// Back in a match it left: when it entered for the others, before it
     /// was started, until it is live.
     entered_early: Option<u32>,
-    /// Asked for its world to look at, no vote: when (match clock) and
-    /// why. How many it gave as it was found out of step so far.
-    wrong_world_asked: Option<(u32, WrongWorld)>,
+    /// How often its world was asked for as it was found out of step.
     wrong_worlds: u32,
-    /// Its world was asked for at the first tick it split from the
-    /// majority (`capture_split`).
-    split_captured: bool,
+    /// The tick of its first report against the majority, for which its
+    /// world was asked for (`capture_split`): once a player.
+    split_at: Option<u32>,
     /// The times of its inputs already handled.
     inputs_seen: HashSet<u32>,
     profiles_seen: HashSet<(u32, u8)>,
@@ -823,7 +840,7 @@ struct Peer {
     /// A report of a tick this late agreed with more than half of the
     /// games in the simulation while a disagreement stood
     /// (`Game::agrees_now`): its wrong reports up to it say nothing more.
-    agreed_at: u32,
+    agreed_at: Option<u32>,
     discard_run: Option<DiscardRun>,
     lag_ms: Option<i64>,
     correction: Option<(Instant, i64, Duration)>,
@@ -870,7 +887,7 @@ struct Peer {
 impl Peer {
     fn is_asked(&self, now: Instant) -> bool {
         self.asked
-            .is_some_and(|at| now.saturating_duration_since(at) < ASKED_FOR)
+            .is_some_and(|asked| now.saturating_duration_since(asked.at) < ASKED_FOR)
     }
 }
 
@@ -1335,7 +1352,6 @@ impl Game {
             loading_since: Some(now),
             left_behind: false,
             asked: None,
-            asked_clock: None,
             unanswered_since: None,
             ask_at: None,
             upload_offset: None,
@@ -1359,9 +1375,8 @@ impl Game {
             answer_redos: 0,
             sync_sent_at: None,
             entered_early: None,
-            wrong_world_asked: None,
             wrong_worlds: 0,
-            split_captured: false,
+            split_at: None,
             inputs_seen: HashSet::new(),
             profiles_seen: HashSet::new(),
             placed: VecDeque::new(),
@@ -1396,7 +1411,7 @@ impl Game {
             resync_deferred_since: None,
             diverged: None,
             judge_from: 0,
-            agreed_at: 0,
+            agreed_at: None,
             discard_run: None,
             lag_ms: None,
             correction: None,
@@ -2249,7 +2264,7 @@ impl Game {
         );
         for (index, at) in plan {
             if let Some(peer) = self.peers[index].as_mut() {
-                peer.ask_at = Some(at);
+                peer.ask_at = Some((at, Wanted::Vote));
             }
         }
         self.requested_at = Some(now);
@@ -2324,7 +2339,10 @@ impl Game {
     fn send_requests(&mut self, now: Instant) {
         let clock = self.clock(now);
         for peer in self.peers.iter_mut().flatten() {
-            if peer.ask_at.is_none_or(|at| at > clock) {
+            let Some((at, wanted)) = peer.ask_at else {
+                continue;
+            };
+            if at > clock {
                 continue;
             }
             peer.ask_at = None;
@@ -2332,8 +2350,11 @@ impl Game {
                 continue;
             }
             send(peer, &ServerMessage::UploadRequest);
-            peer.asked = Some(now);
-            peer.asked_clock = Some(clock);
+            peer.asked = Some(Asked {
+                at: now,
+                clock,
+                wanted,
+            });
             peer.unanswered_since.get_or_insert(now);
         }
     }
@@ -2363,10 +2384,12 @@ impl Game {
             return;
         }
         peer.wrong_worlds += 1;
-        peer.wrong_world_asked = Some((clock, WrongWorld::Resync));
         send(peer, &ServerMessage::UploadRequest);
-        peer.asked = Some(now);
-        peer.asked_clock = None;
+        peer.asked = Some(Asked {
+            at: now,
+            clock,
+            wanted: Wanted::Look(WrongWorld::Resync),
+        });
         self.wrong_worlds_asked += 1;
     }
 
@@ -2434,7 +2457,7 @@ impl Game {
                 (reports[index] != majority) == wrong
                     && self.peers[*index].as_ref().is_some_and(|peer| {
                         askable(peer)
-                            && (!wrong || (peer.diverged.is_none() && !peer.split_captured))
+                            && (!wrong || (peer.diverged.is_none() && peer.split_at.is_none()))
                     })
             })
         };
@@ -2460,11 +2483,12 @@ impl Game {
         );
         for (index, at) in [wrong, right].into_iter().zip(at) {
             if let Some(peer) = self.peers[index].as_mut() {
-                peer.ask_at = Some(at);
-                if index == wrong {
-                    peer.split_captured = true;
-                    peer.wrong_world_asked = Some((clock, WrongWorld::Split));
-                }
+                peer.ask_at = Some(if index == wrong {
+                    peer.split_at = Some(time);
+                    (at, Wanted::Look(WrongWorld::Split))
+                } else {
+                    (at, Wanted::Vote)
+                });
             }
         }
         self.splits_captured += 1;
@@ -3842,26 +3866,36 @@ impl Game {
             self.dump(&snapshot, index, "unloadable");
             return;
         }
-        peer.asked = None;
+        let asked = peer.asked.take();
         peer.unanswered_since = None;
-        if !initial && let Some((asked_at, why)) = peer.wrong_world_asked.take() {
+        if !initial
+            && let Some(Asked {
+                clock,
+                wanted: Wanted::Look(why),
+                ..
+            }) = asked
+        {
             // Asked for as it was found out of step: a world to look at,
             // no vote (`ask_wrong_world`, `capture_split`).
-            peer.asked_clock = None;
-            self.wrong_world_uploaded(index, asked_at, why, &snapshot);
+            self.wrong_world_uploaded(index, clock, why, &snapshot);
             return;
         }
         if !initial && joiner {
             // Asked for over its wrong reports: a world to look at, no vote
             // (`check_joiner_worlds`).
-            peer.asked_clock = None;
             self.joiner_uploaded(index, &snapshot);
             return;
         }
         // A world of the present: its game simulates.
         peer.simulating_at = Some(now);
-        if !initial && let Some(asked) = peer.asked_clock.take() {
-            observe_upload(&mut peer.upload_offset, asked, snapshot.time);
+        if !initial
+            && let Some(Asked {
+                clock,
+                wanted: Wanted::Vote,
+                ..
+            }) = asked
+        {
+            observe_upload(&mut peer.upload_offset, clock, snapshot.time);
         }
         if initial {
             self.first_snapshot(index, snapshot, now);
@@ -4481,7 +4515,7 @@ impl Game {
         if peer.stage != Stage::Live || time <= peer.judge_from {
             return;
         }
-        if !right && time <= peer.agreed_at {
+        if !right && peer.agreed_at.is_some_and(|agreed| time <= agreed) {
             return;
         }
         if !right {
@@ -4587,7 +4621,7 @@ impl Game {
                         divergence.last
                     );
                 }
-                peer.agreed_at = time;
+                peer.agreed_at = Some(time);
                 peer.restores_unagreed = 0;
                 peer.resync_deferred_since = None;
                 continue;
@@ -6521,12 +6555,13 @@ impl Game {
     /// Whether the client's world was asked for at its first split from
     /// the majority, and whether that world is still awaited
     /// (`capture_split`).
-    pub fn split_world(&self, index: usize) -> (bool, bool) {
-        self.peers[index].as_ref().map_or((false, false), |peer| {
+    pub fn split_world(&self, index: usize) -> (Option<u32>, bool) {
+        let look = Wanted::Look(WrongWorld::Split);
+        self.peers[index].as_ref().map_or((None, false), |peer| {
             (
-                peer.split_captured,
-                peer.wrong_world_asked
-                    .is_some_and(|(_, why)| why == WrongWorld::Split),
+                peer.split_at,
+                peer.ask_at.is_some_and(|(_, wanted)| wanted == look)
+                    || peer.asked.is_some_and(|asked| asked.wanted == look),
             )
         })
     }
@@ -6535,7 +6570,11 @@ impl Game {
     /// and whether one of them is still awaited (`ask_wrong_world`).
     pub fn wrong_worlds(&self, index: usize) -> (u32, bool) {
         self.peers[index].as_ref().map_or((0, false), |peer| {
-            (peer.wrong_worlds, peer.wrong_world_asked.is_some())
+            (
+                peer.wrong_worlds,
+                peer.asked
+                    .is_some_and(|asked| asked.wanted == Wanted::Look(WrongWorld::Resync)),
+            )
         })
     }
 
