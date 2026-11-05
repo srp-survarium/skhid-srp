@@ -443,6 +443,7 @@
     "kit_recoil": false,
     "aim_last_known": true,
     "pre_aim_heard": null,
+    "gate_from_client": null,
     "lead_most_ms": 300,
     "lead_own": true,
     "live_eye": true,

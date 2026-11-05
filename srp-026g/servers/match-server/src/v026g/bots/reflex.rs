@@ -952,6 +952,12 @@ pub struct CombatTuning {
     /// aimed at him, each 0-1.2 s before death). Only Heard and Told tracks (what a player hears and is told). `None`: off (the
     /// last target's last seen spot only).
     pub pre_aim_heard: Option<PreAimHeard>,
+    /// [fx-grid aim gates, `private/grid/aim-gates/FINDINGS.md`] The aim-in counts from when the client lets the sights
+    /// come up ([`Reflex::aim_open`]), not from the AIM press: the client refuses the sights (`can_aim` 0x2E3AC0) and the
+    /// shot (0x2E3CB0) while it sprints and until the sprint animation's end ([`ClientGate::sprint_out_ms`]), through a
+    /// reload or a switch, and while a bolt or a pump chambers a round, so the bot counted its sights up too early after
+    /// each. OFF until its by-side bench against the hunter. Not yet: the landing after a jump (its clip not read).
+    pub gate_from_client: Option<ClientGate>,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
     /// The aim is taken from the eye where its own keys put it at the tick
@@ -1612,6 +1618,7 @@ impl Default for CombatTuning {
             kit_recoil: false,
             aim_last_known: true,
             pre_aim_heard: None,
+            gate_from_client: None,
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
@@ -1820,6 +1827,21 @@ pub struct StrafeStats {
     pub friend_away: u32,
     /// The gait was [`Gait::StandStrafe`].
     pub stand: u32,
+}
+
+/// [`CombatTuning::gate_from_client`]: the client's gates on the sights, as fx-grid read them from the 0.26g exe.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ClientGate {
+    /// After the sprint stops, no sights and no shot until the sprint animation's end callback (weapon+0x5EC back to 6,
+    /// 0x2E25C0: the gate PROVEN), ms: the 0.3 s blend (const 0x921804, LIKELY; every weapon, no config key).
+    pub sprint_out_ms: u32,
+}
+
+impl Default for ClientGate {
+    fn default() -> Self {
+        Self { sprint_out_ms: 300 }
+    }
 }
 
 /// [`CombatTuning::pre_aim_heard`]: which heard or told enemy the view goes to with no target seen.
@@ -3481,6 +3503,8 @@ pub struct Reflex {
     cloud_hold: Option<CloudHolding>,
     /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
     hold_ended: Option<(Vec3, u32)>,
+    /// [`CombatTuning::gate_from_client`] The last tick it sent the sprint, ms.
+    sprinted_at: Option<u32>,
     /// [A208, the bench's] The last thrown smoke's crossing.
     #[cfg(test)]
     crossing_watch: Option<CrossingWatch>,
@@ -3957,6 +3981,20 @@ impl Reflex {
     }
 
     /// The weapon in hand (weapon 1 before the life's first use).
+    /// [`CombatTuning::gate_from_client`] When the client lets the sights come up by `gate`: the sprint's end and
+    /// `sprint_out_ms`, a reload's or a switch's end (`busy_until`), and for a gun that chambers a round (a bolt, a pump)
+    /// the chambering's end.
+    pub fn aim_open(&self, gate: ClientGate) -> u32 {
+        let sprint = self.sprinted_at.map_or(0, |at| at + gate.sprint_out_ms);
+        let chambered = if self.held_gun().chamber_ms > 0 { self.ready_at.ceil() as u32 } else { 0 };
+        sprint.max(self.busy_until).max(chambered)
+    }
+
+    /// The aim-in's start for an aim pressed at `since`: with `gate_from_client` not before [`Self::aim_open`].
+    fn aim_from(&self, since: u32, c: &CombatTuning) -> u32 {
+        c.gate_from_client.map_or(since, |gate| since.max(self.aim_open(gate)))
+    }
+
     pub fn held_gun(&self) -> &'static Gun {
         match &self.hands {
             Some(hands) => hands.held().gun,
@@ -4682,6 +4720,9 @@ impl Reflex {
     /// (the base pitch moves by `pitch` and that); then the tick's shots by
     /// its `keys`.
     pub fn sent(&mut self, now: u32, keys: u32, pitch: f32) -> f32 {
+        if keys & key::SPRINT != 0 {
+            self.sprinted_at = Some(now);
+        }
         self.in_hand();
         self.recoil.update(now);
         let taken = self.recoil.turn(pitch);
@@ -7520,7 +7561,7 @@ impl Reflex {
         // down over the sights' aim time.
         let zoom = c.zoom_error.factor(
             gun.optic,
-            aim_since.map_or(0.0, |since| now.saturating_sub(since) as f32 / gun.aim_ms.max(1) as f32),
+            aim_since.map_or(0.0, |since| now.saturating_sub(self.aim_from(since, c)) as f32 / gun.aim_ms.max(1) as f32),
         );
         let error = (
             (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
@@ -7595,7 +7636,7 @@ impl Reflex {
         self.aim_since = ads.then(|| aim_since.unwrap_or(now));
         let aimed_in = self
             .aim_since
-            .is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
+            .is_some_and(|since| now >= self.aim_from(since, c) + gun.aim_ms + c.aim_in_margin_ms);
         let ceiling_m = if bolt {
             c.fire.bolt_range_m.max(aim.range_m)
         } else {
@@ -7876,7 +7917,7 @@ impl Reflex {
         }
         // The view is on the place and the sights as they were for fire already going.
         let off = off_by(me, at, (0.0, 0.0));
-        let aimed_in = self.aim_since.is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
+        let aimed_in = self.aim_since.is_some_and(|since| now >= self.aim_from(since, c) + gun.aim_ms + c.aim_in_margin_ms);
         if off > aim.fire_within_deg.to_radians() || !(aimed_in || hip_cone_fits(me, gun, self.strafe_fire, distance, c)) {
             return None;
         }
@@ -8153,6 +8194,25 @@ fn bearing_rate(me: &PlaceView, point: Vec3, velocity: [f32; 2]) -> (f32, f32) {
 
 #[cfg(test)]
 mod tests {
+    /// [fx-grid aim gates] With `gate_from_client` an aim pressed in the sprint's gate counts its aim-in from the gate's end
+    /// (and from a reload's end); off, from the press, as before.
+    #[test]
+    fn the_aim_in_counts_from_the_clients_gate_with_the_switch() {
+        use super::*;
+        let off = CombatTuning::default();
+        let gate = ClientGate::default();
+        let on = CombatTuning { gate_from_client: Some(gate), ..CombatTuning::default() };
+        let mut reflex = Reflex::default();
+        assert_eq!(reflex.aim_from(1_050, &on), 1_050, "never sprinted");
+        reflex.sent(1_000, key::FORWARD | key::SPRINT, 0.0);
+        assert_eq!(reflex.aim_open(gate), 1_000 + gate.sprint_out_ms);
+        assert_eq!(reflex.aim_from(1_050, &off), 1_050);
+        assert_eq!(reflex.aim_from(1_050, &on), 1_000 + gate.sprint_out_ms);
+        assert_eq!(reflex.aim_from(2_000, &on), 2_000, "pressed after the gate");
+        reflex.busy_until = 3_000;
+        assert_eq!(reflex.aim_from(2_000, &on), 3_000, "a reload's end");
+    }
+
     use super::*;
     use std::sync::Arc;
 

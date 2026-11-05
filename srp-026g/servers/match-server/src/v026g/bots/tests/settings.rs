@@ -180,6 +180,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_CAMP", "unset", "**model** a camping carrier: the first of team 0's to come within this of his container, m, stops there (audit #6)"),
     s("SRP_BENCH_NUDGE", "unset", "**model** every NUDGE_EVERY_MS one lying battery moves this far, m, unseen (audit #7)"),
     s("SRP_BENCH_SPREAD", "off", "**model** shots spread (bench_spread.rs)"),
+    s("SRP_BENCH_SPRINT_GATE", "off", "**model** `<ms>`: the client's sprint gate (fx-grid, `private/grid/aim-gates/FINDINGS.md`; the live value 300, LIKELY): no shot while the sprint is held and this long after it, and the aim-in counted from then (bench_spread.rs)"),
     s("SRP_BENCH_AIM_SWAY", "off", "**model** `live` (A241): down the sights an automatic's shot (rifles, submachine guns, machine guns) leaves right of the view by the client's aim sway, by the time since the aim began, as the live bots' bullets showed it (`recoil::AIM_SWAY_DEG`: +0.16 degrees in an aim's first 100 ms to +0.4 after 2 s; the breath sway the client adds to the recoil animation while aiming); the bots are told so, and their counter (`aim.combat.aim_sway_counter`, on) takes it back; off: the shot leaves along the view and the counter holds (it takes back only a sway there is)"),
     s("SRP_BENCH_BATTERIES", "unset: one at every spawner", "**model** batteries lying at start, at spawners drawn at random (the mode's count is 10)"),
     s("SRP_BENCH_START", "0,0", "**model** batteries already in team 0's and team 1's containers: `a,b`"),
