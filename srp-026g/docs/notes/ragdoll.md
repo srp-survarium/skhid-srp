@@ -186,9 +186,9 @@ The rules for a ragdoll follow from this:
 - **Read-only queries of that world are allowed**, on the logic thread outside `move`:
   ray / convex sweeps against the static groups. They change no state (Bullet's ray stacks
   are scratch).
-- **The battery and loot stay where the simulation puts them.** A ragdoll that slides far
-  would part the body from its battery, so the root's travel is capped (GUESS: 1 m from the
-  death position, to tune).
+- **The battery and loot stay where the simulation puts them.** The body is not held near
+  them: a thrown body lies apart from the battery it dropped, as a thrown hat lies apart from
+  its body (the drops are picked up where they are, section 11; the gun's copy where it lies).
 - **Rollback and resync:** every frame, after `move`, the ragdoll checks the player's state
   in the world as it now stands (section 5). A rollback or a loaded world that makes the
   player alive drops the ragdoll at once. A death re-simulated as the same death (same key)
@@ -257,8 +257,6 @@ The rules for a ragdoll follow from this:
   oldest-first), and a ragdoll over budget waits a frame: no frame hitch for a corpse.
 - **Risks:**
   - The bone array's space (model or world) and layout are not read yet.
-  - The model's culling box follows the player's transform, so the travel cap keeps the
-    body inside it.
   - `object_query`'s callback and result layout (closest_ray_result) need reading.
   - The local player's own body: patch 46's camera at +44Ch would ride a tumbling head.
     So the local player keeps the clip at first (an owner question).
@@ -428,6 +426,9 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   level, at most 1.2 m/s; each part's speed change at most 6 m/s, its spin's 15 rad/s. The
   killing hit's part names the cause (the head: a headshot). With no bullet known (a fall, a
   blast): the motion the player had, no push.
+  A heavy hit (100 N s or more, more than any bullet's push: a gun-stock push of a carrier of the
+  Anomalous Force Protein, `force-protein-knockback.md`) throws the whole body: its share is not
+  capped, and goes up at half its level speed.
 - **A frame:** the frame's time (capped at 1/30 s) is stepped in fixed substeps of 1/360 s,
   the rest carried to the next frame (464c: the answer does not depend on the frame rate),
   one iteration each: integrate (g 9.81, damping 0.05/s linear, 0.3/s angular), joints,
@@ -446,8 +447,9 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   than 0.35 m/s for a second (a limb that still drifts, two constraints fighting with one
   iteration a substep); at the latest after 5 s. Near
   rest on the ground (every end below 1 m/s) the bodies are slowed at 8/s. A step that goes
-  non-finite falls back to the last finite poses and settles. The pelvis stays within
-  2.5 m (horizontally) of where the player died.
+  non-finite falls back to the last finite poses and settles. Nothing holds a body near
+  where the player died (the 2.5 m cap went, 2026-11-05: the owner saw a thrown body stop at
+  it as at a wall); the ground's friction stops it.
 - **Drawn:** a body's bone is the body times its offset at the death; every other bone keeps
   its place on its parent from the death (fingers, rolls, clavicles, toes); the root stays.
   The gun drops: a capsule (0.35 m half length, 0.04 radius, 3.5 kg) along the "Weapon"

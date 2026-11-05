@@ -45,6 +45,12 @@ global engine_action_present
 global engine_create_file_a
 global engine_write_file
 global engine_close_handle
+global engine_delete_file_a
+global engine_load_library_a
+global engine_get_proc_address
+global engine_free_library
+global engine_get_module_file_name_a
+global engine_sh_get_folder_path_a
 global engine_ray_test
 global engine_release_object
 global engine_material_pair
@@ -151,16 +157,27 @@ global engine_finish_query
 global engine_resource_release
 global engine_translate_query
 global engine_release_model_instance
-global engine_delete_file_a
 global engine_create_directory_a
 global engine_get_tick_count
 global engine_find_first_file_a
 global engine_find_next_file_a
 global engine_find_close
+global engine_ray_callback
+global engine_ray_needs_collision
+global engine_ray_test_single
+global engine_key_name
+global engine_activate_keyboard_layout
+global engine_get_module_handle_a
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
 engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
+engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (an import, stdcall)
+engine_load_library_a equ 0x870080   ; the IAT slot 0x870080 (an import, stdcall)
+engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (an import, stdcall)
+engine_free_library equ 0x870088   ; the IAT slot 0x870088 (an import, stdcall)
+engine_get_module_file_name_a equ 0x87014c   ; the IAT slot 0x87014c (an import, stdcall)
+engine_sh_get_folder_path_a equ 0xaefe7c   ; the IAT slot 0xaefe7c (an import, stdcall)
 engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)
@@ -202,12 +219,15 @@ engine_heap_free equ 0x870054   ; the IAT slot 0x870054 (an import, stdcall)
 engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
 engine_finish_query equ 0xf0d00   ; 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
 engine_translate_query equ 0x12d1d0   ; 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
-engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (an import, stdcall)
 engine_create_directory_a equ 0x870220   ; the IAT slot 0x870220 (an import, stdcall)
 engine_get_tick_count equ 0x870090   ; the IAT slot 0x870090 (an import, stdcall)
 engine_find_first_file_a equ 0x870238   ; the IAT slot 0x870238 (an import, stdcall)
 engine_find_next_file_a equ 0x87023c   ; the IAT slot 0x87023c (an import, stdcall)
 engine_find_close equ 0x870228   ; the IAT slot 0x870228 (an import, stdcall)
+engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
+engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
+engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1942,6 +1962,43 @@ engine_release_model_instance:
     mov ecx, [esp + 20]   ; instance
     mov eax, [esp + 24]   ; count
     call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_callback:
+    ; 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; requester -> 12
+    push dword [esp + 40]   ; mask -> 8
+    push dword [esp + 40]   ; group -> 4
+    mov eax, [esp + 32]   ; callback
+    mov esi, [esp + 36]   ; from
+    mov edx, [esp + 40]   ; to
+    call 0x75b40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_needs_collision:
+    ; 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; proxy -> 4
+    mov ecx, [esp + 24]   ; callback
+    call 0x75bd0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx

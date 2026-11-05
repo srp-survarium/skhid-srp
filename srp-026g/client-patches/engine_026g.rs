@@ -215,6 +215,10 @@ unsafe extern "C" {
     pub fn engine_resource_release(texture: *const c_void, manager: *mut c_void);
     /// 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0
     pub fn engine_release_model_instance(instance: *mut c_void, count: *mut u32);
+    /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
+    pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
+    /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
+    pub fn engine_ray_needs_collision(callback: *mut c_void, proxy: *mut c_void) -> u8;
 }
 
 #[allow(dead_code)]
@@ -241,6 +245,8 @@ unsafe extern "cdecl" {
     pub fn engine_store_first_resource(result: *mut c_void, value: *mut c_void);
     /// 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
+    /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
+    pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -285,6 +291,8 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_release(queue: *mut c_void);
     /// 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
     pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
+    /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+    pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -295,6 +303,18 @@ unsafe extern "C" {
     pub static engine_write_file: unsafe extern "stdcall" fn(*mut c_void, *const c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870040 (an import, stdcall): unsigned int engine_close_handle(void *handle)
     pub static engine_close_handle: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x87021c (an import, stdcall): unsigned int engine_delete_file_a(const char *name)
+    pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
+    /// the IAT slot 0x870080 (an import, stdcall): void *engine_load_library_a(const char *name)
+    pub static engine_load_library_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870084 (an import, stdcall): void *engine_get_proc_address(void *module, const char *name)
+    pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
+    /// the IAT slot 0x870088 (an import, stdcall): unsigned int engine_free_library(void *module)
+    pub static engine_free_library: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x87014c (an import, stdcall): unsigned int engine_get_module_file_name_a(void *module, char *name, unsigned int size)
+    pub static engine_get_module_file_name_a: unsafe extern "stdcall" fn(*mut c_void, *mut u8, u32) -> u32;
+    /// the IAT slot 0xaefe7c (an import, stdcall): unsigned int engine_sh_get_folder_path_a(void *window, unsigned int folder, void *token, unsigned int flags, char *path)
+    pub static engine_sh_get_folder_path_a: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void, u32, *mut u8) -> u32;
     /// the IAT slot 0x870158 (an import, stdcall): unsigned int engine_query_performance_counter(unsigned int *count)
     pub static engine_query_performance_counter: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870150 (an import, stdcall): unsigned int engine_query_performance_frequency(unsigned int *frequency)
@@ -321,8 +341,6 @@ unsafe extern "C" {
     pub static engine_get_process_heap: unsafe extern "stdcall" fn() -> *mut c_void;
     /// the IAT slot 0x870054 (an import, stdcall): unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)
     pub static engine_heap_free: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void) -> u32;
-    /// the IAT slot 0x87021c (an import, stdcall): unsigned int engine_delete_file_a(const char *name)
-    pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
     /// the IAT slot 0x870220 (an import, stdcall): unsigned int engine_create_directory_a(const char *name, void *security)
     pub static engine_create_directory_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> u32;
     /// the IAT slot 0x870090 (an import, stdcall): unsigned int engine_get_tick_count(void)
@@ -333,4 +351,8 @@ unsafe extern "C" {
     pub static engine_find_next_file_a: unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32;
     /// the IAT slot 0x870228 (an import, stdcall): unsigned int engine_find_close(void *find)
     pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
+    pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
+    /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
+    pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
 }

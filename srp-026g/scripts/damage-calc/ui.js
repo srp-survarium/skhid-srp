@@ -332,10 +332,21 @@ function setIcon(img, key) {
   if (src) img.src = src; else img.removeAttribute("src");
 }
 
+// The wall in front of the target (DATA.walls, by name), or none.
+const wallOf = () => (DATA.walls || []).find(x => x.name === state.wall) || null;
+const wallArmour = () => { const x = wallOf(); return x ? x.armor : null; };
+function fillWalls() {
+  const s = $("wall");
+  s.append(el("option", { value: "", text: T("<none>", "<немає>") }));
+  for (const x of DATA.walls || []) s.append(el("option", { value: x.name, text: `${nm(x)} (${T("armour", "броня")} ${hp(x.armor)})` }));
+  if (!wallOf()) state.wall = "";
+  s.addEventListener("change", e => { state.wall = e.target.value; update(); });
+}
+
 // ---------- result ----------
 function shotFor(weaponKey, ammoKey, target, part) {
   const w = effectiveWeapon(weaponKey);
-  const b = bulletAt(w, DATA.ammo[ammoKey], state.dist);
+  const b = bulletAt(w, DATA.ammo[ammoKey], state.dist, wallArmour());
   const sim = simulate(target, b, part);
   return { w, b, sim };
 }
@@ -378,6 +389,10 @@ function update() {
     [T("rate", "темп"), (w.rounds_per_minute || "—") + T(" rpm", " постр./хв")], [T("magazine", "магазин"), w.magazine_capacity],
   ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
   drawScale(b);
+  $("wall").value = state.wall || "";
+  $("wallnote").textContent = !b.wall ? "" : b.wall.k > 0
+    ? T(`Gets through: k ${fx(b.wall.k, 2)}, D ${hp(b.D)} · P ${hp(b.P)}.`, `Пробиває: k ${fx(b.wall.k, 2)}, D ${hp(b.D)} · P ${hp(b.P)}.`)
+    : T(`Does not get through: penetration ${hp(b.wall.P)}, armour ${hp(b.wall.A)}.`, `Не пробиває: бронебійність ${hp(b.wall.P)}, броня ${hp(b.wall.A)}.`);
 
   // Doll: selected and covered parts.
   const arm = target.armour;
@@ -460,6 +475,10 @@ function drawTrace(b, sim) {
   li(T(`Flies ${state.dist} m`, `Летить ${state.dist} м`), `D ${hp(b.D)} · P ${hp(b.P)}`,
     T(`Speed ${fx(b.v0, 0)} → ${fx(b.v, 0)} m/s. Damage and penetration slide from full (${hp(b.Dmax)}/${hp(b.Pmax)}) to minimum (${hp(b.Dmin)}/${hp(b.Pmin)}) by speed between ${fx(b.r0, 0)} and ${fx(b.r1, 0)} m: here ${pct(b.u)}.`,
       `Швидкість ${fx(b.v0, 0)} → ${fx(b.v, 0)} м/с. Пошкодження й бронебійність спадають від повних (${hp(b.Dmax)}/${hp(b.Pmax)}) до мінімальних (${hp(b.Dmin)}/${hp(b.Pmin)}) за швидкістю між ${fx(b.r0, 0)} і ${fx(b.r1, 0)} м: тут ${pct(b.u)}.`), b.u < 1);
+  if (b.wall) li(T(`Through ${nm(wallOf()).toLowerCase()}`, `Крізь: ${nm(wallOf()).toLowerCase()}`), b.wall.k > 0 ? `×${fx(b.wall.k, 3)} → D ${hp(b.D)} · P ${hp(b.P)}` : T("stopped", "зупинено"),
+    b.wall.k > 0 ? T(`Penetration ${hp(b.wall.P)}, armour ${hp(b.wall.A)}. Damage, penetration and speed × k; then no higher than at ${fx(b.wall.v, 0)} m/s.`,
+      `Бронебійність ${hp(b.wall.P)}, броня ${hp(b.wall.A)}. Пошкодження, бронебійність і швидкість × k; далі не вищі, ніж на ${fx(b.wall.v, 0)} м/с.`)
+      : T(`Penetration ${hp(b.wall.P)} is not above armour ${hp(b.wall.A)}: the bullet stops.`, `Бронебійність ${hp(b.wall.P)} не вища за броню ${hp(b.wall.A)}: куля зупиняється.`), true);
   // The first pellet of the first shot.
   const firstId = sim.firstLog.length ? 0 : null;
   let seenDepth1 = new Set();
@@ -523,7 +542,7 @@ function drawChart(w, a, target) {
   const A = (target.armour[state.part] || {}).ranged || 0;
   const pts = [];
   for (let d = 0; d <= max; d += 2) {
-    const b = bulletAt(w, a, d);
+    const b = bulletAt(w, a, d, wallArmour());
     pts.push({ d, raw: b.D * b.pellets, hit: b.D * armourFactor(A, b.P) * b.pellets });
   }
   const ymax = Math.max(...pts.map(p => p.raw)) * 1.1 || 1;
@@ -536,7 +555,7 @@ function drawChart(w, a, target) {
   let ax = "";
   for (let v = 0; v <= ymax; v += step) ax += `<text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${hp(v)}</text>`;
   for (let m = 0; m <= max; m += 25) ax += `<text x="${x(m)}" y="${H - 6}" text-anchor="middle">${m} ${M}</text>`;
-  const cur = bulletAt(w, a, state.dist);
+  const cur = bulletAt(w, a, state.dist, wallArmour());
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${T("Damage over distance", "Пошкодження за дистанцією")}">
     <rect class="zone" x="${x(Math.min(b0.r0, max))}" y="${Tp}" width="${Math.max(0, x(Math.min(b0.r1, max)) - x(Math.min(b0.r0, max)))}" height="${H - Tp - B}"/>
     <g class="grid">${grid}</g><g class="axis">${ax}</g>
@@ -549,7 +568,7 @@ function drawChart(w, a, target) {
   const svg = host.querySelector("svg"), tip = $("tip");
   const toD = ev => { const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) / r.width * W; return clamp(Math.round((px - L) / (W - L - R) * max), 0, max); };
   $("chart-hit").addEventListener("pointermove", ev => {
-    const d = toD(ev), b = bulletAt(w, a, d), r = svg.getBoundingClientRect();
+    const d = toD(ev), b = bulletAt(w, a, d, wallArmour()), r = svg.getBoundingClientRect();
     tip.hidden = false; tip.style.left = (x(d) / W * r.width) + "px"; tip.style.top = (y(b.D * b.pellets) / H * r.height) + "px";
     tip.textContent = `${d} ${M} · ${hp(b.D * b.pellets)} → ${hp(b.D * armourFactor(A, b.P) * b.pellets)} ${T("after armour", "після броні")}`;
   });
@@ -624,6 +643,8 @@ function drawExplain() {
   const onyx = DATA.artefacts && DATA.artefacts.onyx, pk = DATA.drugs && DATA.drugs.painkiller;
   $("explain").textContent = (LANG === "uk" ? [
     "D, P  = зброя × набій, менші між ближньою й дальньою дистанцією",
+    "стіна k = 1 − (1 − clamp((P − A) / A, 0, 1))²   A броня стіни; A 0 → k 1; k 0 → зупинено",
+    "      D, P, швидкість ×= k; D, P не вищі, ніж на новій швидкості",
     onyx ? `D, P ×= ${onyx.passive.damage_mul} за кожен ${nm(onyx)} (${onyx.active.damage_mul} активний, один раз на всі)` : null,
     "hit   = D × (1 − clamp(броня − P, 0, 1))",
     "пул  −= hit       груди, спина → тіло · голова, обличчя → голова · нога · кисть",
@@ -634,6 +655,8 @@ function drawExplain() {
     "а кожен пул бере від цієї кулі найбільше, не суму: біль від кистей 40 і 40, від грудей 35 → −40, не −115",
   ] : [
     "D, P  = weapon × ammo, lowered between near and far range",
+    "wall  k = 1 − (1 − clamp((P − A) / A, 0, 1))²   A wall armour; A 0 → k 1; k 0 → stopped",
+    "      D, P, speed ×= k; D, P no higher than at the new speed",
     onyx ? `D, P ×= ${onyx.passive.damage_mul} per ${nm(onyx)} (${onyx.active.damage_mul} active, once for all)` : null,
     "hit   = D × (1 − clamp(armour − P, 0, 1))",
     "pool −= hit       chest, back → body · head, face → head · leg · hand",
@@ -842,7 +865,7 @@ if (LANG === "uk") {
   document.querySelectorAll("[data-uk]").forEach(n => { n.textContent = n.dataset.uk; });
   document.querySelectorAll("[data-uk-label]").forEach(n => n.setAttribute("aria-label", n.dataset.ukLabel));
 }
-fillWeapons(); fillArmour(); drawDoll(); fillMaps(); fillHealPick();
+fillWeapons(); fillWalls(); fillArmour(); drawDoll(); fillMaps(); fillHealPick();
 if (DATA.stamp) $("source").textContent = T(DATA.stamp, DATA.stamp_uk || DATA.stamp);
 $("dollprev").addEventListener("click", () => { state.dollShot = (state.dollShot || 1) - 1; update(); });
 $("dollnext").addEventListener("click", () => { state.dollShot = (state.dollShot || 1) + 1; update(); });
