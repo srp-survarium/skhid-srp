@@ -1122,11 +1122,12 @@ mod tests {
         use survarium::v026g::skills::Skill;
         type Row = (u16, u8, u32, u8, u8, &'static [u16]);
         #[rustfmt::skip]
-        let rows: [Row; 12] = [
+        let rows: [Row; 13] = [
             (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 10, 2, 3, &[]),
             (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
-            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[]),
-            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (342, 2, 10, 1, 3, &[]),
+            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[333]),
+            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (333, 4, 15, 4, 4, &[323]),
+            (342, 2, 10, 1, 3, &[]),
         ];
         let skills = rows
             .iter()
@@ -1201,6 +1202,42 @@ mod tests {
                 .all(|(kit, &before)| kit.revision != before)
         );
         // Settled once, the set stays as it is.
+        assert!(!account.settle_skills(&tree));
+    }
+
+    /// Unflinching and Concentration exclude each other: a set holding both
+    /// (none was ever saved; the pair is new) gives Unflinching's four
+    /// points back, keeps Concentration, and sends the kits again.
+    #[test]
+    fn unflinching_beside_concentration_is_refunded() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        account.skills = vec![
+            (301, 3),
+            (302, 2),
+            (311, 5),
+            (312, 3),
+            (313, 2),
+            (303, 2),
+            (321, 3),
+            (342, 2),
+            (323, 4),
+            (333, 4),
+        ];
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.settle_skills(&tree));
+        assert!(!account.skills.iter().any(|&(id, _)| id == 323));
+        assert!(account.skills.contains(&(333, 4)));
+        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 26);
+        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision != before)
+        );
         assert!(!account.settle_skills(&tree));
     }
 

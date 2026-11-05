@@ -7,7 +7,7 @@ package {
  public class MedicalSkillsHarness extends Sprite {
   // The medical tab's skills and each's embedded artwork (bitmaps/<class>.png, icons-069.tsv).
   private static const ARTWORK:Object = {301:301,302:302,303:301,311:311,312:312,313:313,321:321,322:322,323:323,
-   331:331,332:332,341:341,342:342};
+   331:331,332:332,333:333,341:341,342:342};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
@@ -117,7 +117,7 @@ package {
    }
    check(skills[341]==null,"Medic left the medical tree");
    var layout:Object={301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,3],313:[3,2,2,3],312:[4,2,3,3],
-    342:[1,3,2,10],303:[2,3,2,10],321:[4,3,3,10],332:[2,4,5,15],323:[3,4,4,15],331:[2,5,1,20],322:[3,5,1,20]};
+    342:[1,3,2,10],303:[2,3,2,10],321:[4,3,3,10],332:[2,4,5,15],323:[3,4,4,15],333:[4,4,4,15],331:[2,5,1,20],322:[3,5,1,20]};
    var total:int=0;
    for(var id:String in layout) {
     var want:Array=layout[id];var have:Object=skills[id];
@@ -125,7 +125,7 @@ package {
      && have.preconditions.branch_points==want[3],"layout "+id);
     if(have) total+=have.levels_amount;
    }
-   check(total==33,"33 ranks, 32 points with one exclusive unlock");
+   check(total==37,"37 ranks, 32 points with two exclusive pairs");
    for each(var line:String in described(skills[301].ui,3)) {
     check(line.indexOf("<green>")>=0 && /%.*s<\/green>/.test(line.split("\n")[0]),"Potent Painkiller green percent and seconds: "+line);
    }
@@ -174,6 +174,11 @@ package {
    click(312,true);click(312,true);
    check(shown[312].data.newValue==1,"Medical Training back to 1: 15 points");
    check(take(323,5)==4,"tier 4 at 15; Unflinching stops at 4");
+   check(take(333,1)==0,"Concentration refused beside Unflinching");
+   for(var back:int=0;back<4;back++) click(323,true);
+   check(shown[323].data.newValue==0,"Unflinching taken back");
+   check(take(333,5)==4,"Concentration at 15, stops at 4");
+   check(take(323,1)==0,"Unflinching refused beside Concentration");
    check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 19 points");
    check(take(332,1)==1,"20 points");
    check(take(331,2)==1,"Supply Pocket at 20, one rank");

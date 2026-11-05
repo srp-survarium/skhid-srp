@@ -1,8 +1,8 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Thread, drug::DrugsInUse};
+use super::{Context, Thread, drug::DrugsInUse, types::Place};
 use crate::{
-    medical_skills::{Painkiller, Skills, Stance},
+    medical_skills::{Opponents, Painkiller, Skills, Stance},
     raw,
 };
 use core::{
@@ -68,6 +68,10 @@ impl<'t> Player<'t> {
     fn team(self) -> Option<u32> {
         // SAFETY: the profile is owned by the live player.
         unsafe { Some(*self.at.profile()?.team()) }
+    }
+    fn place(self) -> u8 {
+        // SAFETY: the live player's place byte.
+        unsafe { *self.at.place() }
     }
     fn ally(self, other: Self) -> bool {
         self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
@@ -263,6 +267,31 @@ pub fn stopping(ctx: &mut Context<'_>) {
         *frame.sum() = player.skills().stopping_power(*frame.sum(), player.painkiller());
     }
 }
+/// The local player as Concentration hears, at `game_world.after_move`
+/// (the simulation's move done, its bullet tasks joined): its ranks, its
+/// painkiller (the same test as Numb Legs' and Unflinching's) and the
+/// places whose sounds are an opponent's.
+pub struct Listener {
+    pub skills: Skills,
+    pub painkiller: Painkiller,
+    pub opponents: Opponents,
+}
+
+pub fn listener(ctx: &Context<'_>) -> Option<Listener> {
+    let client = super::world::GameWorld::at_after_move(ctx)?.network_client()?;
+    let local = Player::new(ctx.thread(), client.local_player()?.this);
+    let team = local.team();
+    let mut opponents = Opponents::NONE;
+    for (place, other) in Place::all().zip(client.place_teams()) {
+        // ally()'s rule by place: teams 0 and 1 have allies, any other none.
+        let ally = matches!(team, Some(0 | 1)) && other == team;
+        if other.is_some() && !ally && place.index() != usize::from(local.place()) {
+            opponents.insert(place);
+        }
+    }
+    Some(Listener { skills: local.skills(), painkiller: local.painkiller(), opponents })
+}
+
 pub fn initialize(ctx: &mut Context<'_>) {
     // SAFETY: constructor bound the complete model, before first reset/load.
     unsafe {

@@ -1,8 +1,13 @@
 //! Medical skill decisions. Two unused profile modifiers transport exact
 //! integers: 43 the tree's original ranks, 45 the combo skills' (Numb Legs,
-//! Take Cover, Unflinching). No new world state or snapshot side table.
+//! Take Cover, Unflinching or Concentration). No new world state or snapshot
+//! side table: Concentration is the local player's hearing only.
 #![forbid(unsafe_code)]
 
+use core::sync::atomic::{AtomicU32, Ordering};
+
+use crate::vostok::sound::{self, OnceCaller, OncePoint, Source, VoiceVolume, WeaponSound, WeaponSoundKind};
+use crate::vostok::types::Place;
 use crate::vostok::{Context, Flow, NoExit, medical};
 
 /// Whether one of the player's painkillers is active: native set_active's
@@ -53,11 +58,34 @@ const BONES: Field = Field::new(17, 3, 5);
 /// Medic left the tree (it returns in another one): its bit stays decoded.
 const MEDIC: Field = Field::new(20, 1, 1);
 const BROTHERS: Field = Field::new(21, 3, 2);
-/// Modifier 45: Numb Legs and Take Cover two bits each, Unflinching three
-/// (four ranks); every combination of ranks below 128.
+/// Modifier 45: Numb Legs and Take Cover two bits each, Unflinching and
+/// Concentration three each (four ranks); every combination below 1024.
 const NUMB_LEGS: Field = Field::new(0, 2, 2);
 const TAKE_COVER: Field = Field::new(2, 2, 2);
 const UNFLINCHING: Field = Field::new(4, 3, 4);
+const CONCENTRATION: Field = Field::new(7, 3, 4);
+
+/// Tier 4's pair that excludes each other (the tree's antiskills): at most
+/// one of them, 1..=4 ranks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Focus {
+    #[default]
+    Neither,
+    Unflinching(u8),
+    Concentration(u8),
+}
+
+impl Focus {
+    /// Both held is no set the tree makes: refused.
+    fn parse(unflinching: u8, concentration: u8) -> Option<Focus> {
+        match (unflinching, concentration) {
+            (0, 0) => Some(Focus::Neither),
+            (rank, 0) => Some(Focus::Unflinching(rank)),
+            (0, rank) => Some(Focus::Concentration(rank)),
+            _ => None,
+        }
+    }
+}
 
 /// A packed modifier: an exact integer of `bits` bits, nothing else.
 fn packed(value: f32, bits: u32) -> Option<u32> {
@@ -81,14 +109,14 @@ pub struct Skills {
     brothers: u8,
     numb_legs: u8,
     take_cover: u8,
-    unflinching: u8,
+    focus: Focus,
 }
 
 impl Skills {
     /// Modifiers 43 and 45 of the kit; None when either is not a valid set.
     pub fn parse(medical: f32, combo: f32) -> Option<Self> {
         let medical = packed(medical, 24)?;
-        let combo = packed(combo, 7)?;
+        let combo = packed(combo, 10)?;
         Some(Self {
             painkiller: PAINKILLER.rank(medical)?,
             bandaging: BANDAGING.rank(medical)?,
@@ -102,7 +130,7 @@ impl Skills {
             brothers: BROTHERS.rank(medical)?,
             numb_legs: NUMB_LEGS.rank(combo)?,
             take_cover: TAKE_COVER.rank(combo)?,
-            unflinching: UNFLINCHING.rank(combo)?,
+            focus: Focus::parse(UNFLINCHING.rank(combo)?, CONCENTRATION.rank(combo)?)?,
         })
     }
 
@@ -164,11 +192,93 @@ impl Skills {
 
     /// Unflinching: the recent hits' stopping power (the slow).
     pub fn stopping_power(self, native: f32, painkiller: Painkiller) -> f32 {
-        match painkiller {
-            Painkiller::Active => native * (1.0 - f32::from(self.unflinching) * 0.1),
-            Painkiller::Inactive => native,
+        match (painkiller, self.focus) {
+            (Painkiller::Active, Focus::Unflinching(rank)) => native * (1.0 - f32::from(rank) * 0.1),
+            _ => native,
         }
     }
+}
+
+/// Concentration's ranks, 1..=4 (made only from a parsed set).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rank(u8);
+
+/// What the local player hears: Concentration while its painkiller is
+/// active, else the game's volumes. The game's thread publishes it once a
+/// frame ([`publish`]); the sound thread reads it for each voice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hearing {
+    Plain,
+    Concentrated(Rank),
+}
+
+impl Hearing {
+    pub fn of(skills: Skills, painkiller: Painkiller) -> Hearing {
+        match (painkiller, skills.focus) {
+            (Painkiller::Active, Focus::Concentration(rank)) => Hearing::Concentrated(Rank(rank)),
+            _ => Hearing::Plain,
+        }
+    }
+
+    /// A voice's volume: the environment 10% quieter a rank, an opponent's
+    /// sounds (not his shots) 10% louder a rank. set_volume_impl still clamps
+    /// the result to [0, 1].
+    pub fn volume(self, source: Source, native: f32) -> f32 {
+        match (self, source) {
+            (Hearing::Concentrated(Rank(rank)), Source::Environment) => native * (1.0 - f32::from(rank) * 0.1),
+            (Hearing::Concentrated(Rank(rank)), Source::Opponent) => native * (1.0 + f32::from(rank) * 0.1),
+            (Hearing::Plain, _) | (_, Source::Untagged) => native,
+        }
+    }
+
+    fn code(self) -> u32 {
+        match self {
+            Hearing::Plain => 0,
+            Hearing::Concentrated(Rank(rank)) => u32::from(rank),
+        }
+    }
+
+    fn parse(code: u32) -> Hearing {
+        match code {
+            1..=4 => Hearing::Concentrated(Rank(code as u8)),
+            _ => Hearing::Plain,
+        }
+    }
+}
+
+/// The places whose sounds are the local player's opponents': every other
+/// place not on its team (vostok::medical::listener).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Opponents(u32);
+
+impl Opponents {
+    pub const NONE: Opponents = Opponents(0);
+
+    pub fn insert(&mut self, place: Place) {
+        self.0 |= 1 << place.get();
+    }
+
+    pub fn has(self, place: Place) -> bool {
+        self.0 & 1 << place.get() != 0
+    }
+}
+
+/// The frame's [`Hearing`] (its code) for the sound thread, and the
+/// frame's [`Opponents`] for the sites that tag a sound as it is made.
+static HEARING: AtomicU32 = AtomicU32::new(0);
+static OPPONENTS: AtomicU32 = AtomicU32::new(0);
+
+fn publish(hearing: Hearing, opponents: Opponents) {
+    HEARING.store(hearing.code(), Ordering::Relaxed);
+    OPPONENTS.store(opponents.0, Ordering::Relaxed);
+}
+
+fn hearing() -> Hearing {
+    Hearing::parse(HEARING.load(Ordering::Relaxed))
+}
+
+fn opponent(place: Option<Place>) -> bool {
+    place.is_some_and(|place| Opponents(OPPONENTS.load(Ordering::Relaxed)).has(place))
 }
 pub fn on_duration_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::duration_start(ctx);
@@ -254,6 +364,87 @@ pub fn on_stopping(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Concentration, once a frame after the simulation's move: the local
+/// player's hearing and opponents (none without a local player).
+pub fn on_listener(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    match medical::listener(ctx) {
+        Some(local) => publish(Hearing::of(local.skills, local.painkiller), local.opponents),
+        None => publish(Hearing::Plain, Opponents::NONE),
+    }
+    Flow::Continue
+}
+/// The lobby again after a match: no painkiller, no opponents.
+pub fn on_lobby(_: &mut Context<'_>) -> Flow<NoExit> {
+    publish(Hearing::Plain, Opponents::NONE);
+    Flow::Continue
+}
+/// The sound thread at a voice's volume.
+pub fn on_voice_gain(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(voice) = VoiceVolume::at(ctx) {
+        let volume = hearing().volume(voice.source, voice.volume);
+        if volume != voice.volume {
+            VoiceVolume::set(ctx, volume);
+        }
+    }
+    Flow::Continue
+}
+pub fn on_proxy_allocated(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    sound::clear_allocated(ctx);
+    Flow::Continue
+}
+pub fn on_object_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(proxy) = sound::object_sound(ctx) {
+        proxy.tag(Source::Environment);
+    }
+    Flow::Continue
+}
+pub fn on_zone_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(proxy) = sound::zone_sound(ctx) {
+        proxy.tag(Source::Environment);
+    }
+    Flow::Continue
+}
+pub fn on_weapon_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(sound) = WeaponSound::at(ctx)
+        && sound.kind == WeaponSoundKind::Other
+        && opponent(sound.place)
+    {
+        sound.proxy.tag(Source::Opponent);
+    }
+    Flow::Continue
+}
+pub fn on_foot_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if opponent(sound::foot_step_place(ctx)) {
+        sound::begin_opponent_step(ctx.thread());
+    }
+    Flow::Continue
+}
+pub fn on_landing_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if opponent(sound::landing_place(ctx)) {
+        sound::begin_opponent_step(ctx.thread());
+    }
+    Flow::Continue
+}
+/// After either step call, also when it played nothing.
+pub fn on_foot_stepped(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    sound::end_step(ctx.thread());
+    Flow::Continue
+}
+pub fn on_landing_stepped(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    sound::end_step(ctx.thread());
+    Flow::Continue
+}
+pub fn on_once_point(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(point) = OncePoint::at(ctx) {
+        match point.caller {
+            OnceCaller::OpponentStep => point.proxy.tag(Source::Opponent),
+            OnceCaller::DamageZone => point.proxy.tag(Source::Environment),
+            OnceCaller::Other => {}
+        }
+    }
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,8 +463,8 @@ mod tests {
             }
         }
         // (shift, most) of modifier 45's fields; past the most is no set,
-        // Unflinching's 5..7 (its third bit) too.
-        for (shift, most, width) in [(0, 2, 2), (2, 2, 2), (4, 4, 3)] {
+        // Unflinching's and Concentration's 5..7 (their third bit) too.
+        for (shift, most, width) in [(0, 2, 2), (2, 2, 2), (4, 4, 3), (7, 4, 3)] {
             for rank in 0..=most {
                 assert!(Skills::parse(0.0, (rank << shift) as f32).is_some());
             }
@@ -284,16 +475,21 @@ mod tests {
         for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 16_777_216.0] {
             assert!(Skills::parse(invalid, 0.0).is_none());
         }
-        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 128.0] {
+        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 1024.0] {
             assert!(Skills::parse(0.0, invalid).is_none());
         }
-        let full = Skills::parse(
-            medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (2, 21)]),
-            74.0,
-        )
-        .unwrap();
-        assert_eq!((full.numb_legs, full.take_cover, full.unflinching), (2, 2, 4));
+        let ranks = medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (2, 21)]);
+        let full = Skills::parse(ranks, 74.0).unwrap();
+        assert_eq!((full.numb_legs, full.take_cover, full.focus), (2, 2, Focus::Unflinching(4)));
         assert!(!full.is_medic());
+        // Concentration instead: 2 + 8 + 4 x 128.
+        let concentrating = Skills::parse(ranks, 522.0).unwrap();
+        assert_eq!(concentrating.focus, Focus::Concentration(4));
+        // Unflinching and Concentration both held is no set: refused.
+        for (unflinching, concentration) in [(1, 1), (4, 4), (2, 3)] {
+            let combo = (unflinching << 4) | (concentration << 7);
+            assert!(Skills::parse(0.0, combo as f32).is_none(), "{combo}");
+        }
     }
     #[test]
     fn top_rank_effects_and_thresholds() {
@@ -336,13 +532,43 @@ mod tests {
             assert!((s.medicine_heal(0.5, Stance::Crouched) - 0.5 * (1.0 + 0.1 * r)).abs() < 1e-6);
         }
         for rank in 0..=4u8 {
-            let s = Skills { unflinching: rank, ..Skills::default() };
+            let s = Skills { focus: Focus::parse(rank, 0).unwrap(), ..Skills::default() };
             let r = f32::from(rank);
             assert_eq!(s.stopping_power(0.4, Painkiller::Inactive), 0.4);
             assert!((s.stopping_power(0.4, Painkiller::Active) - 0.4 * (1.0 - 0.1 * r)).abs() < 1e-6);
         }
         // Four ranks of 10%: the same -40% the two ranks of 20% gave.
-        let top = Skills { unflinching: 4, ..Skills::default() };
+        let top = Skills { focus: Focus::Unflinching(4), ..Skills::default() };
         assert!((top.stopping_power(1.0, Painkiller::Active) - 0.6).abs() < 1e-6);
+        // Concentration is no Unflinching.
+        let ears = Skills { focus: Focus::Concentration(4), ..Skills::default() };
+        assert_eq!(ears.stopping_power(0.4, Painkiller::Active), 0.4);
+    }
+    #[test]
+    fn concentration_needs_the_painkiller_and_changes_only_tagged_sounds() {
+        for rank in 0..=4u8 {
+            let s = Skills { focus: Focus::parse(0, rank).unwrap(), ..Skills::default() };
+            let r = f32::from(rank);
+            assert_eq!(Hearing::of(s, Painkiller::Inactive), Hearing::Plain);
+            let hearing = Hearing::of(s, Painkiller::Active);
+            assert_eq!(hearing == Hearing::Plain, rank == 0);
+            assert_eq!(Hearing::parse(hearing.code()), hearing);
+            assert!((hearing.volume(Source::Environment, 0.5) - 0.5 * (1.0 - 0.1 * r)).abs() < 1e-6);
+            assert!((hearing.volume(Source::Opponent, 0.5) - 0.5 * (1.0 + 0.1 * r)).abs() < 1e-6);
+            assert_eq!(hearing.volume(Source::Untagged, 0.5), 0.5);
+            for painkiller in [Painkiller::Inactive, Painkiller::Active] {
+                let other = Skills { focus: Focus::parse(rank, 0).unwrap(), ..Skills::default() };
+                assert_eq!(Hearing::of(other, painkiller), Hearing::Plain);
+            }
+        }
+        for code in [0, 5, 7, u32::MAX] {
+            assert_eq!(Hearing::parse(code), Hearing::Plain);
+        }
+        let mut opponents = Opponents::NONE;
+        let places: std::vec::Vec<Place> = Place::all().collect();
+        opponents.insert(places[3]);
+        opponents.insert(places[19]);
+        assert!(opponents.has(places[3]) && opponents.has(places[19]));
+        assert!(!opponents.has(places[0]) && !opponents.has(places[4]));
     }
 }

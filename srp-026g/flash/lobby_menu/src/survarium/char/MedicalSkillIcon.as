@@ -14,6 +14,7 @@ package survarium.char
    import MedicalSkill069323;
    import MedicalSkill069331;
    import MedicalSkill069332;
+   import MedicalSkill069333;
    import MedicalSkill069341;
    import MedicalSkill069342;
 
@@ -48,6 +49,7 @@ package survarium.char
             case 323: type = MedicalSkill069323; break;
             case 331: type = MedicalSkill069331; break;
             case 332: type = MedicalSkill069332; break;
+            case 333: type = MedicalSkill069333; break;
             case 341: type = MedicalSkill069341; break;
             case 342: type = MedicalSkill069342; break;
             default: image.bitmapData = null; return;

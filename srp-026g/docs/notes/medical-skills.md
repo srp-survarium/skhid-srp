@@ -1,11 +1,12 @@
 # Medical skill tree
 
 Source: `scripts/content-edit/medical-skills-1.json`, listed in `release/content.tsv`.
-The third skill tab has 32 points in a full build: twelve skills, of which the
-two tier-5 unlocks exclude each other. Thresholds count points in earlier tiers
-of this branch: 0, 3, 10, 15 and 20. The 2026-11-05 retune and the 2026-11-06
-changes below are implemented and tested locally; they have not been played or
-released.
+The third skill tab has 32 points in a full build: thirteen skills, of which
+the two tier-5 unlocks exclude each other, and so do tier 4's Unflinching and
+Concentration. Thresholds count points in earlier tiers of this branch: 0, 3,
+10, 15 and 20. The 2026-11-05 retune and the 2026-11-06 changes below
+(Concentration among them) are implemented and tested locally; they have not
+been played or released.
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
@@ -19,6 +20,7 @@ released.
 | 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
 | 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
 | 4 | 15 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
+| 4 | 15 | 333 | Concentration | While a painkiller is active: environment sounds -10%, opponents' sounds (not shots) +10% | -40% / +40% |
 | 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
 | 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
@@ -29,12 +31,30 @@ Additional Medicine, one or the other):
 | - x x - |    Potent Painkiller, Fast Bandaging
 | x - x x |    Metabolism, Take Cover, Medical Training
 | x x - x |    Brothers in Arms, Numb Legs, Adrenalin
-| - x x - |    Strong Bones, Unflinching
+| - x U C |    Strong Bones, Unflinching XOR Concentration
 | - S M - |    Supply Pocket XOR Additional Medicine
 ```
 
-Points held: tier 1 = 5, tiers 1-2 = 15, tiers 1-3 = 22, tiers 1-4 = 31; a full
-build 32.
+Points held: tier 1 = 5, tiers 1-2 = 15, tiers 1-3 = 22, tiers 1-4 = 31 (with
+Unflinching or Concentration); a full build 32.
+
+## Concentration (owner decision, 2026-11-06)
+
+- New skill 333, tier 4 column 4, 4 ranks; Strong Bones column 2, Unflinching
+  column 3. Unflinching and Concentration exclude each other (antiskills both
+  ways, as Supply Pocket and Additional Medicine).
+- For the local player only, while a painkiller is active (the same test as
+  Numb Legs and Unflinching): environment sounds 10% quieter a rank, opponents'
+  sounds except their shots 10% louder a rank (-40% / +40% at rank 4).
+  Teammates and the player's own sounds are unchanged.
+- Name and text from retail 0.69's orphan strings st_trained_ears_name /
+  description ("Concentration"; "Makes environment sounds more quiet, and
+  opponents' sounds (except firing) are louder by:"), adapted to the
+  painkiller condition, in every locale of the edit list.
+- Icon: retail 0.69d0 `skills/survival/15.png` (a brain), bytes unchanged,
+  MedicalSkill069333 (`icons-069.tsv`).
+- Purely what the local player hears: no simulation change, so no
+  `simulation_changes.tsv` row for it (the retune's `next` row stays).
 
 ## 2026-11-06 changes (owner decisions)
 
@@ -139,11 +159,14 @@ leaves the player with no medical skill at all.
   9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
   16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
   21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
-- Slot 45 `can_defuse_traps`, 7 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
+- Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
   0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
-  0..4; two bits and 0..2 before 2026-11-06). A full set is 74.
-- The parser refuses fractional, nonfinite, negative or too-large values and any
-  rank past its skill's levels. Only the base profile value is decoded.
+  0..4; two bits and 0..2 before 2026-11-06), Concentration at 7 (3 bits,
+  128.0, 0..4). A full set is 74 with Unflinching, 522 with Concentration.
+- The parser refuses fractional, nonfinite, negative or too-large values, any
+  rank past its skill's levels, and Unflinching beside Concentration (the
+  tree's exclusive pair: `Focus` holds one or neither). The lobby's
+  `KitModifiers.as` parses the same. Only the base profile value is decoded.
 - Do not repurpose either slot for gear or a trap feature.
 - Slot 45 evidence (2026-11-05, the exact 0.26g exe): all 94 calls of the
   modifier getter 0x2D5AE0 and its rounding wrapper 0x2D5B80 resolve to an index
@@ -201,6 +224,50 @@ The source's normal activation and cooldown continue unchanged. Brothers in Arms
 uses the same core lookup and team rule, after spawn invulnerability and before
 native body-part damage processing. Environmental and self damage are unchanged.
 
+Concentration (`on_listener` .. `on_once_point` in medical_skills.rs; the
+sound sites' owner is `vostok/sound.rs`, the listener `vostok/medical.rs`):
+
+- What a sound is: a tag of ours in each sound proxy, `Source` (untagged,
+  environment, opponent), at proxy +8Ch, the tail padding of its 144-byte
+  pool record (the three constructors write up to +88h; the sound code
+  0x55000..0x67000 has no +8Ch access of a proxy). `sound_proxy.allocated`
+  (new_helper 0x65484, the one allocation of point, hud and spot proxies)
+  clears it, so a proxy no site tags is untagged.
+- Tagged where it is made, before it is played, on the game's thread:
+  - environment: a map object's looped spot or point sound
+    (`object_sound.play`, object_sound::insert 0x294A6F); a damage zone's
+    loop (`damage_zone.sound`, emit_sound 0x298CF8) and its three fx
+    one-shots (emit_and_play_once's return address 0x298DEE, 0x298F1E,
+    0x299269);
+  - opponent: a weapon's sounds that are not its shot (`weapon_sound.made`,
+    play_sound_callback 0x297F7E; a shot is an effect of the fire states'
+    handlers, whose +18h vtable lies 150h before the effect for
+    weapon_core_fire_state, 158h for the pistol's and the double barrel's,
+    both words inside every handler state) when its user's place is an
+    opponent's; a step or a landing (`player_sound.foot_step` ..
+    `foot_stepped` around on_foot_step's call of on_step 0x2A6572,
+    `player.landing_step` .. `landing_stepped` around on_landing's landing
+    step 0x23FBE0) of an opponent: the thread's id is marked before the call
+    and cleared after it (also on its early returns), and only that thread's
+    point one-shots in between (`sound_emitter.once_point`,
+    emit_and_play_once 0x6587F) are the step's: a bullet task's sound at the
+    same time is not.
+- Opponents: every other place of the match's options not on the local
+  player's team (vostok::medical `ally()`'s rule by place: teams 0 and 1
+  have allies, another team none).
+- Published once a frame at `game_world.after_move` (order 2, after ragdoll
+  and lamps): the local player's `Hearing` (`Plain`, or `Concentrated` with
+  its rank while its painkiller is active) for the sound thread and the
+  opponents' places for the tagging sites, two atomics; `lobby_menu.activate`
+  (order 1, after lobby_scene's) sets them back to plain and none.
+- The volume: `sound_voice.gain` (notify_listener2 0x5C73E, the sound thread)
+  multiplies XMM1 by the factor of the voice's proxy's tag; set_volume_impl
+  still clamps it to [0, 1], so an opponent's sound already at full volume is
+  not louder.
+- Later (left untagged in this version): stamina breathing, the game-effect
+  presenter's sounds, poisoning, the rustles of equipment; hud sounds;
+  bullet impacts and other one-shots (game_world::play_sound).
+
 ## Effect ownership, capacity and duration
 
 Each recipient receives an independent native effect from the source resource.
@@ -228,7 +295,7 @@ This excludes nested renderer allocations, allocator overhead and playing nodes.
 
 ## Validation and review
 
-Automated checks cover all twelve skills; not all twelve have been played manually.
+Automated checks cover all thirteen skills; not all of them have been played manually.
 
 - `check_medical_skills_026g.py`: ranks 0–5; start/tick/restore durations;
   healing-only use time; native protection; limb health and repeated respawn;
@@ -247,7 +314,7 @@ Automated checks cover all twelve skills; not all twelve have been played manual
   Server reset/equipment/repair/preset and bot-loadout tests, plus affected-crate
   Clippy, passed for the medical feature before the final native-only correction.
 - `survarium/tests/medical_skills.rs` parses the content-built tree, validating
-  the twelve skills' progression, layout, 32-point full build, exclusions and
+  the thirteen skills' progression, layout, 32-point full build, exclusions and
   native modifier transport.
 - CPU Ruffle exercises the built lobby: medicine and whole-pocket capacities,
   drag limits, unsaved previews, reset, combined slot bounds and the ten original
@@ -356,6 +423,48 @@ Implemented and tested locally; not played, not released.
   build, exclusions, modifiers 43/45/57).
 - Ruffle harness on the built lobby movie: `MEDICALSKILLS RESULT pass`.
 - `engine_026g.py`, `hooks_026g.py` and `link_026g.py` checks current.
+
+## Validation of Concentration (2026-11-06)
+
+Implemented and tested locally; not played, not released.
+
+- `check_medical_skills_026g.py` (Unicorn, built exe), `check_concentration`:
+  the tag cleared at allocation (and nothing written when the pool is
+  empty); map objects', damage zones' loops and one-shots environment,
+  another one-shot untagged; weapon sounds of every place of three team
+  layouts (allies, self, places past the count untagged), the three fire
+  handlers' shots never, non-fire effects at +158h/+168h/+170h tagged; foot
+  steps and landings tagged only between their pair, only on their thread,
+  nothing after, and nothing after a call that played nothing (on_step's
+  early return); the volume through the real set_volume_impl for
+  Concentration 0..7 (5..7 refused), with Unflinching beside it (refused),
+  painkiller on/off (an active bandage is no painkiller), every tag, volumes
+  0..1.5 and below 0 clamped; the lobby's activate resets it. The publish
+  runs the real after_move chain (ragdoll and lamps first). PASS; the
+  earlier checks unchanged, PASS.
+- Patch-crate tests (4 medical: Concentration 0..4, 5..7 and beside
+  Unflinching refused, the volume per tag, the opponents' set) and i686
+  Clippy, no warnings.
+- `survarium` skills tests (layout with 333, both held refused and settled
+  to Concentration with 32 points), session account tests (a set holding
+  both refunds Unflinching and sends the kits again) and Clippy, no warnings.
+- `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write`, then
+  current. The after_move and lobby-activate chains' own checks
+  (`check_ragdoll`, `check_lamps`, `check_lobby_scene`, `check_weapon_pickup`)
+  run with Concentration's handlers in them.
+- `release/build-content 49` (a local build; no number reserved): all 18960
+  files the manifest makes are as it makes them; patch
+  `c099d3ea278492c75af392133779e914a54ae3731f8654fd5e1fe244801b5f87`, server
+  data `44f1c4414a8ea38cf8ace5087b15ce18212bf946b404d67e6090a7d2c1a97566`.
+  Its skills tree passes `survarium/tests/medical_skills.rs` (13 skills,
+  Concentration at tier 4 column 4, 32-point builds with either of the pair,
+  both refused, modifier 45 = 74 or 522).
+- Ruffle on that lobby movie: `MEDICALSKILLS RESULT pass` (layout with 333,
+  Concentration refused beside Unflinching and the other way, stops at 4,
+  survival/15 pixels) and `DETAILS RESULT pass` (Concentration 5, and
+  beside Unflinching, refused; its full set 522 valid).
+- Not played: whether the factors are audible as intended, and the sources
+  left untagged (above), need the owner's ears in a match.
 
 ## Validation of the 2026-11-06 changes
 

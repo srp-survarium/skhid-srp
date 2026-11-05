@@ -703,11 +703,11 @@ mod tests {
     fn medical_tree() -> SkillsTree {
         type Row = (u16, u8, u32, u8, u8, &'static [u16]);
         #[rustfmt::skip]
-        let rows: [Row; 12] = [
+        let rows: [Row; 13] = [
             (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
             (311, 5, 3, 1, 2, &[]), (313, 2, 3, 3, 2, &[]), (312, 3, 3, 4, 2, &[]),
             (342, 2, 10, 1, 3, &[]), (303, 2, 10, 2, 3, &[]), (321, 3, 10, 4, 3, &[]),
-            (332, 5, 15, 2, 4, &[]), (323, 4, 15, 3, 4, &[]),
+            (332, 5, 15, 2, 4, &[]), (323, 4, 15, 3, 4, &[333]), (333, 4, 15, 4, 4, &[323]),
             (331, 1, 20, 2, 5, &[322]), (322, 1, 20, 3, 5, &[331]),
         ];
         let mut skills: Vec<Skill> = rows
@@ -796,6 +796,24 @@ mod tests {
         assert!(!settled.iter().any(|&(id, _)| id == 322));
         assert!(settled.contains(&(331, 1)));
         assert_eq!(tree.validate(100, &settled), Ok(()));
+        // Concentration instead of Unflinching is a full build too; both
+        // (a set the tree never made) is refused, and settling takes
+        // Unflinching back, its points free again, Concentration kept.
+        let mut concentration = full;
+        concentration[8] = (333, 4);
+        assert_eq!(tree.validate(100, &concentration), Ok(()));
+        assert_eq!(tree.settle(100, &concentration), concentration);
+        let mut both = full.to_vec();
+        both.push((333, 4));
+        assert_eq!(
+            tree.validate(100, &both),
+            Err(SkillError::Exclusive(323, 333))
+        );
+        let settled = tree.settle(100, &both);
+        assert!(!settled.iter().any(|&(id, _)| id == 323));
+        assert!(settled.contains(&(333, 4)));
+        assert_eq!(tree.validate(100, &settled), Ok(()));
+        assert_eq!(settled.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 32);
         // A row no longer reached goes, and with it the rows it unlocked:
         // 302 at 5 is 2 now, under row 2's three points, so row 2 goes and
         // row 3 with it.

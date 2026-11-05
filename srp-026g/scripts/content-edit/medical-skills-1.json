@@ -1,5 +1,5 @@
 {
-  "_about": "Medical tree agreed with the owner. Thresholds 0/3/10/15/20. Packed integer ranks travel in the unused native modifiers armored_trap (43) and can_defuse_traps (45: Numb Legs, Take Cover, Unflinching); client medical_skills decodes them. Supply Pocket excludes the existing equivalent, Terminator and Additional Medicine. Native gameplay hooks must ship with this content.",
+  "_about": "Medical tree agreed with the owner. Thresholds 0/3/10/15/20. Packed integer ranks travel in the unused native modifiers armored_trap (43) and can_defuse_traps (45: Numb Legs, Take Cover, Unflinching, Concentration); client medical_skills decodes them. Supply Pocket excludes the existing equivalent, Terminator and Additional Medicine; Unflinching and Concentration exclude each other. Native gameplay hooks must ship with this content.",
   "append_entry": [
     {
       "file": "gameplay/skills/skills_tree.options",
@@ -461,7 +461,10 @@
         "id": 323,
         "levels_amount": 4,
         "preconditions": {
-          "branch_points": 15
+          "branch_points": 15,
+          "antiskills": [
+            333
+          ]
         },
         "ui": {
           "position": [
@@ -639,6 +642,79 @@
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
       "expected_count": 37,
+      "unique_key": "id",
+      "value": {
+        "id": 333,
+        "levels_amount": 4,
+        "preconditions": {
+          "branch_points": 15,
+          "antiskills": [
+            323
+          ]
+        },
+        "ui": {
+          "position": [
+            4,
+            4
+          ],
+          "name": "st_srp_medical_333_name",
+          "description": "st_srp_medical_333_description",
+          "icon": 15,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+10",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +30",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +40",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "can_defuse_traps_modifier": 128.0
+          },
+          {
+            "can_defuse_traps_modifier": 128.0
+          },
+          {
+            "can_defuse_traps_modifier": 128.0
+          },
+          {
+            "can_defuse_traps_modifier": 128.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 38,
       "unique_key": "id",
       "value": {
         "id": 342,
@@ -1278,6 +1354,18 @@
       "text": "While a painkiller is active, reduction in the stopping power of enemy hits:"
     },
     {
+      "file": "localization/english/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Concentration"
+    },
+    {
+      "file": "localization/english/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "While a painkiller is active, environment sounds are quieter and enemy sounds (except shots) louder by:"
+    },
+    {
       "file": "localization/german/localization",
       "table": "strings",
       "key": "st_srp_medical_323_name",
@@ -1288,6 +1376,18 @@
       "table": "strings",
       "key": "st_srp_medical_323_description",
       "text": "Solange ein Schmerzmittel wirkt, Verringerung der Verlangsamung durch feindliche Treffer:"
+    },
+    {
+      "file": "localization/german/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Konzentration"
+    },
+    {
+      "file": "localization/german/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Solange ein Schmerzmittel wirkt, sind Umgebungsgeräusche leiser und feindliche Geräusche (außer Schüssen) lauter um:"
     },
     {
       "file": "localization/polish/localization",
@@ -1302,6 +1402,18 @@
       "text": "Gdy działa środek przeciwbólowy, zmniejszenie siły hamującej wrogich trafień:"
     },
     {
+      "file": "localization/polish/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Koncentracja"
+    },
+    {
+      "file": "localization/polish/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Gdy działa środek przeciwbólowy, dźwięki otoczenia są cichsze, a dźwięki wrogów (oprócz strzałów) głośniejsze o:"
+    },
+    {
       "file": "localization/russian/localization",
       "table": "strings",
       "key": "st_srp_medical_323_name",
@@ -1314,6 +1426,18 @@
       "text": "Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:"
     },
     {
+      "file": "localization/russian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Концентрация"
+    },
+    {
+      "file": "localization/russian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Пока действует обезболивающее, звуки окружения тише, а звуки противников (кроме выстрелов) громче на:"
+    },
+    {
       "file": "localization/original/localization",
       "table": "strings",
       "key": "st_srp_medical_323_name",
@@ -1324,6 +1448,18 @@
       "table": "strings",
       "key": "st_srp_medical_323_description",
       "text": "Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:"
+    },
+    {
+      "file": "localization/original/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Концентрация"
+    },
+    {
+      "file": "localization/original/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Пока действует обезболивающее, звуки окружения тише, а звуки противников (кроме выстрелов) громче на:"
     },
     {
       "file": "localization/ukrainian/localization",
@@ -1336,6 +1472,18 @@
       "table": "strings",
       "key": "st_srp_medical_323_description",
       "text": "Поки діє знеболювальне, зменшення зупинної сили ворожих влучань:"
+    },
+    {
+      "file": "localization/ukrainian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Зосередженість"
+    },
+    {
+      "file": "localization/ukrainian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Поки діє знеболювальне, звуки довкілля тихіші, а звуки ворогів (крім пострілів) гучніші на:"
     },
     {
       "file": "localization/english/localization",
@@ -1700,6 +1848,18 @@
     {
       "file": "localization/serbian/localization",
       "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Koncentracija"
+    },
+    {
+      "file": "localization/serbian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Dok analgetik deluje, zvuci okoline su tiši, a zvuci neprijatelja (osim pucnjeva) glasniji za:"
+    },
+    {
+      "file": "localization/serbian/localization",
+      "table": "strings",
       "key": "st_srp_medical_331_name",
       "text": "Džep za zalihe"
     },
@@ -1846,6 +2006,18 @@
       "table": "strings",
       "key": "st_srp_medical_323_description",
       "text": "Během účinku analgetika snížení zastavovacího účinku nepřátelských zásahů:"
+    },
+    {
+      "file": "localization/czech/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Soustředění"
+    },
+    {
+      "file": "localization/czech/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Během účinku analgetika jsou zvuky okolí tišší a zvuky nepřátel (kromě výstřelů) hlasitější o:"
     },
     {
       "file": "localization/czech/localization",
@@ -2000,6 +2172,18 @@
     {
       "file": "localization/hungarian/localization",
       "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Összpontosítás"
+    },
+    {
+      "file": "localization/hungarian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Fájdalomcsillapító hatása alatt a környezet hangjai halkabbak, az ellenség hangjai (a lövések kivételével) hangosabbak:"
+    },
+    {
+      "file": "localization/hungarian/localization",
+      "table": "strings",
       "key": "st_srp_medical_331_name",
       "text": "Felszerelészseb"
     },
@@ -2150,6 +2334,18 @@
     {
       "file": "localization/finnish/localization",
       "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Keskittyminen"
+    },
+    {
+      "file": "localization/finnish/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Kipulääkkeen vaikuttaessa ympäristön äänet ovat hiljaisempia ja vihollisten äänet (paitsi laukaukset) kovempia:"
+    },
+    {
+      "file": "localization/finnish/localization",
+      "table": "strings",
       "key": "st_srp_medical_331_name",
       "text": "Tarviketasku"
     },
@@ -2296,6 +2492,18 @@
       "table": "strings",
       "key": "st_srp_medical_323_description",
       "text": "Пакуль дзейнічае абязбольвальнае, зніжэнне спыняльнай сілы варожых трапленняў:"
+    },
+    {
+      "file": "localization/belarusian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_name",
+      "text": "Канцэнтрацыя"
+    },
+    {
+      "file": "localization/belarusian/localization",
+      "table": "strings",
+      "key": "st_srp_medical_333_description",
+      "text": "Пакуль дзейнічае абязбольвальнае, гукі наваколля цішэйшыя, а гукі ворагаў (акрамя стрэлаў) гучнейшыя на:"
     },
     {
       "file": "localization/belarusian/localization",

@@ -372,6 +372,14 @@ package {
    require(medicineLines(cards[0],d).join()==released.painkiller,"Unflinching 5 refused");
    profile.setKitModifiers(kitFloats({43:3,45:74}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"full combo ranks valid: "+medicineLines(cards[0],d).join());
+   // Concentration's three bits at 7: rank 5 of 4 is refused, and so is Concentration beside
+   // Unflinching (they exclude each other); its full set (2 + 8 + 4 x 128 = 522) is valid.
+   for each(var refused:int in [5<<7,(1<<4)|(1<<7),(4<<4)|(4<<7)]) {
+    profile.setKitModifiers(kitFloats({43:3,45:refused}));d=medicine("painkiller");shows(d,other);
+    require(medicineLines(cards[0],d).join()==released.painkiller,"combo "+refused+" refused");
+   }
+   profile.setKitModifiers(kitFloats({43:3,45:522}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"Concentration set valid: "+medicineLines(cards[0],d).join());
    // An exe that sends no floats: no skill known, the card's own numbers.
    profile.setKitModifiers(null);d=medicine("bandages");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.bandages,"no floats: the card's own numbers");

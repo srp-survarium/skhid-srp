@@ -22,22 +22,25 @@ package survarium.player
       {
          _values = values;
          // As the exe's medical_skills: float 43 an exact integer below 2^24 and float 45 one below
-         // 2^7, each rank field at most its skill's ranks, otherwise no medical skill at all.
+         // 2^10, each rank field at most its skill's ranks and not both of Unflinching and
+         // Concentration, otherwise no medical skill at all.
          var medical:Object = packed(values[PlayerModifier.MEDICAL_RANKS],24);
-         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],7);
+         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],10);
          if(medical == null || comboField == null) return;
          var bits:int = int(medical);
          var combo:int = int(comboField);
          // [first bit, width, most ranks]: Potent Painkiller, Fast Bandaging, Metabolism, Medical
-         // Training, Adrenalin, Strong Bones, Brothers in Arms; then Numb Legs, Take Cover, Unflinching.
+         // Training, Adrenalin, Strong Bones, Brothers in Arms; then Numb Legs, Take Cover, Unflinching,
+         // Concentration.
          for each(var field:Array in [[0,3,3],[3,3,2],[6,3,5],[9,3,3],[12,3,3],[17,3,5],[21,3,2]])
          {
             if((bits >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }
-         for each(field in [[0,2,2],[2,2,2],[4,3,4]])
+         for each(field in [[0,2,2],[2,2,2],[4,3,4],[7,3,4]])
          {
             if((combo >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }
+         if((combo >> 4 & 7) != 0 && (combo >> 7 & 7) != 0) return;
          _painkillerRank = bits & 7;
          _bandagingRank = bits >> 3 & 7;
       }
