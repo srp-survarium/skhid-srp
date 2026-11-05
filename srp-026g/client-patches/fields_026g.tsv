@@ -68,6 +68,7 @@ survarium::inventory	slots_end	0x168	obj<survarium::inventory_slot>	the slots' e
 survarium::inventory_slot	item	0x0	ptr<survarium::item>	the slot's item (0: empty; inventory::update_weight 0x2FC6E0)
 survarium::inventory_slot	size	0x4	size	a slot is the item's pointer: update_weight's loop steps 4 (0x2FC6E0)
 survarium::ammo_data	muzzle_speed	0x3C	f32	the ammo config's data.muzzle_speed, m/s (ammo_data::load 0x332440): with the mass, the ammo's identity in the trace
+survarium::ammo_data	damage_type	0x4C	u32	the ammo config's data.damage_type, hit_type_enum (ammo_data::load 0x332725, 0 ranged when absent: every round); a weapon's melee/data says blunt (1), the bullet of a gun-stock hit
 survarium::player	game_world	0xF474	ptr<survarium::game_world>	its game world (mt_draw 0x2477E8: +9Ch its game, for the renderer)
 survarium::game	renderer	0x5360	ptr<vostok::render::game::renderer>	the game's vostok::render::game::renderer (mt_draw 0x2477FE)
 vostok::render::game::renderer	scene_renderer	0x200064	ptr<vostok::render::scene_renderer>	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)

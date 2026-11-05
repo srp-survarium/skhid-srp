@@ -388,6 +388,8 @@ pub struct Start<'a> {
     /// motion while alive: a running body carries it; the clip's own motion
     /// after the death has none of it).
     pub velocity: Vec3,
+    /// How hard the hits push, and how far the speed caps go with them.
+    pub knockback: crate::shot::Knockback,
 }
 
 /// Whether the bodies have stayed put: since when, and where they were then.
@@ -783,18 +785,21 @@ impl Ragdoll {
                 } else {
                     tuning::EARLIER_HIT
                 };
-                let j = hit.impulse * (weight * tuning::DEATH_KNOCK);
-                ragdoll.knock(part_of(hit.point), hit.point, j);
+                let k = start.knockback.get();
+                let j = hit.impulse * (weight * tuning::DEATH_KNOCK * k);
+                ragdoll.knock(part_of(hit.point), hit.point, j, k);
                 // and the body as a whole goes with it (level: the legs
-                // stay on the ground), capped
+                // stay on the ground), capped; a knockback's share is k
+                // times more, and throws it up at KNOCKBACK_LIFT of that
                 let mass: f32 = ragdoll.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
-                let level = j.reject(up) * (tuning::BODY_SHARE / mass);
-                let dv = limit_length(level, tuning::BODY_KNOCK_MAX);
+                let level = j.reject(up) * (tuning::BODY_SHARE * k / mass);
+                let dv = limit_length(level, tuning::BODY_KNOCK_MAX * k);
+                let lift = if k > 1.0 { up * (dv.length() * tuning::KNOCKBACK_LIFT) } else { Vec3::ZERO };
                 for body in ragdoll.bodies.iter_mut() {
-                    body.velocity += dv;
+                    body.velocity += dv + lift;
                 }
                 ragdoll.report.knock += dv.length();
-                ragdoll.report.capped |= level.length() > tuning::BODY_KNOCK_MAX;
+                ragdoll.report.capped |= level.length() > tuning::BODY_KNOCK_MAX * k;
             }
         }
         for part in Part::ALL {
@@ -1083,16 +1088,17 @@ impl Ragdoll {
     }
 
     /// A hit's impulse `j` (N s) on `part` at the world `point`, the
-    /// part's speed and spin changes capped (the joints carry it to the
-    /// rest of the body). True if the speed's cap held it.
-    fn knock(&mut self, part: Part, point: Vec3, j: Vec3) -> bool {
+    /// part's speed and spin changes capped, the caps `scale` times theirs
+    /// (the joints carry it to the rest of the body). True if the speed's
+    /// cap held it.
+    fn knock(&mut self, part: Part, point: Vec3, j: Vec3, scale: f32) -> bool {
         let body = &mut self.bodies[part.index()];
         let r = point - body.pose.position;
         let dv = j * body.inverse_mass;
         let dw = body.inverse_inertia_times(r.cross(j));
-        body.velocity += limit_length(dv, tuning::SHOT_MAX_SPEED);
-        body.spin += limit_length(dw, tuning::SHOT_MAX_SPIN);
-        dv.length() > tuning::SHOT_MAX_SPEED
+        body.velocity += limit_length(dv, tuning::SHOT_MAX_SPEED * scale);
+        body.spin += limit_length(dw, tuning::SHOT_MAX_SPIN * scale);
+        dv.length() > tuning::SHOT_MAX_SPEED * scale
     }
 
     /// A shot's push on `part`: the impulse `j` (N s) at the world `point`,
@@ -1103,7 +1109,7 @@ impl Ragdoll {
             return None;
         }
         let j = j + self.up * (j.length() * tuning::SHOT_LIFT);
-        let capped = self.knock(part, point, j);
+        let capped = self.knock(part, point, j, 1.0);
         self.rest = Rest::Moving;
         self.moving_for = 0.0;
         self.grace = tuning::SHOT_GRACE;

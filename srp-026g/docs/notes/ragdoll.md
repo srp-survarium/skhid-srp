@@ -428,6 +428,9 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   level, at most 1.2 m/s; each part's speed change at most 6 m/s, its spin's 15 rad/s. The
   killing hit's part names the cause (the head: a headshot). With no bullet known (a fall, a
   blast): the motion the player had, no push.
+  A gun-stock kill by a carrier of the Anomalous Force Protein: the death's `Knockback` (4) times
+  the push, the caps and the whole body's share, and the body thrown up at half its level knock
+  (`force-protein-knockback.md`).
 - **A frame:** the frame's time (capped at 1/30 s) is stepped in fixed substeps of 1/360 s,
   the rest carried to the next frame (464c: the answer does not depend on the frame rate),
   one iteration each: integrate (g 9.81, damping 0.05/s linear, 0.3/s angular), joints,

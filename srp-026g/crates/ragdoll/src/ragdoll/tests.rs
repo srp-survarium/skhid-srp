@@ -116,6 +116,7 @@ fn start<'a>(
         hits: &[],
         load: [0.0; PARTS],
         velocity: Vec3::ZERO,
+        knockback: crate::shot::Knockback::ONE,
     }
 }
 
@@ -1305,4 +1306,66 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     assert!(at.z > 0.05, "it slid on: {at:?}");
     assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
     assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
+}
+
+/// A gun-stock hit's push (the weapon's melee/data: mass 0.01, 1000 m/s).
+fn gun_stock(direction: Vec3, point: Vec3) -> crate::shot::Hit {
+    crate::shot::Hit { point, impulse: crate::shot::impulse(direction, 0.01, 1000.0) }
+}
+
+#[test]
+fn a_knockback_pushes_harder_and_lifts_the_caps_with_it() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [gun_stock(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12))];
+    let report = |k: f32| {
+        let mut s = start(&now, &before, Cause::Unknown, None);
+        s.hits = &hits;
+        s.knockback = crate::shot::Knockback::new(k).unwrap();
+        Ragdoll::new(&s).unwrap().report()
+    };
+    let (one, four) = (report(1.0), report(4.0));
+    assert!(four.knock > 3.5 * one.knock && four.knock <= tuning::BODY_KNOCK_MAX * 4.0 + 1e-4, "{one:?} {four:?}");
+    assert!(four.peak_speed > 2.0 * one.peak_speed, "{one:?} {four:?}");
+    assert_eq!(crate::shot::Knockback::new(0.5), None);
+    assert_eq!(crate::shot::Knockback::new(f32::NAN), None);
+    assert_eq!(crate::shot::Knockback::new(11.0), None);
+}
+
+#[test]
+#[ignore = "render dump: RAGDOLL_DUMP=<file> cargo test -p ragdoll render_knockback -- --ignored"]
+fn render_knockback() {
+    use std::io::Write;
+    let out = std::env::var("RAGDOLL_DUMP").unwrap();
+    let mut file = std::fs::File::create(out).unwrap();
+    let scenes = [
+        ("front", gun_stock(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12))),
+        ("side", gun_stock(Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0))),
+    ];
+    for (name, hit) in scenes {
+        for k in [1.0, 4.0] {
+            let now = standing(Quat::IDENTITY, Vec3::ZERO);
+            let before = driver_bones(&now);
+            let hits = [hit];
+            let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+            s.hits = &hits;
+            s.knockback = crate::shot::Knockback::new(k).unwrap();
+            let mut r = Ragdoll::new(&s).unwrap();
+            let mut ground = Ground::flat();
+            let mut frames = std::vec::Vec::new();
+            for _ in 0..240 {
+                let mut caps = std::vec::Vec::new();
+                for b in r.bodies.iter().chain(r.gun.iter()) {
+                    let (a, c) = b.shape.ends(b.pose);
+                    caps.push(std::format!(
+                        "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
+                        a.x, a.y, a.z, c.x, c.y, c.z, b.shape.radius
+                    ));
+                }
+                frames.push(std::format!("[{}]", caps.join(",")));
+                r.step(1.0 / 60.0, None, &mut ground);
+            }
+            writeln!(file, "{{\"name\":\"{name}\",\"k\":{k},\"frames\":[{}]}}", frames.join(",")).unwrap();
+        }
+    }
 }

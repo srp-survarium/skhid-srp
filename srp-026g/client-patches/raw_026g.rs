@@ -1975,6 +1975,15 @@ impl AmmoData {
     pub unsafe fn muzzle_speed(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x3c).cast::<f32>().as_ptr() }
     }
+
+    /// +0x4c (u32): the ammo config's data.damage_type, hit_type_enum (ammo_data::load 0x332725, 0 ranged when absent: every round); a weapon's melee/data says blunt (1), the bullet of a gun-stock hit
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn damage_type(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::bullet_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

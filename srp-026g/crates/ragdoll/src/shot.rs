@@ -180,6 +180,28 @@ pub struct Hit {
     pub impulse: Vec3,
 }
 
+/// How many times its usual push a death's hits push its body, and how
+/// many times the caps on a part's and the whole body's speed change: 1 for
+/// every death but a melee kill by a carrier of the Anomalous Force Protein
+/// (its kit's knockback, docs/notes/force-protein-knockback.md).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Knockback(f32);
+
+impl Knockback {
+    pub const ONE: Knockback = Knockback(1.0);
+    /// The most a knockback counts.
+    pub const MAX: f32 = 10.0;
+
+    /// `factor`, if a finite number of at least 1, at most [`Knockback::MAX`].
+    pub fn new(factor: f32) -> Option<Knockback> {
+        (factor.is_finite() && (1.0..=Knockback::MAX).contains(&factor)).then_some(Knockback(factor))
+    }
+
+    pub fn get(self) -> f32 {
+        self.0
+    }
+}
+
 /// The hits a place took lately (a ring of [`RECENT`] a place, the time of
 /// each), for the push of the death that follows.
 pub const RECENT: usize = 4;
