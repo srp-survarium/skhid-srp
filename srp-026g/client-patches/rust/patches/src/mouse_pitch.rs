@@ -2,22 +2,22 @@
 //! are `mouse_pitch.toml`'s:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 88): the
-//!   console variables `srp_mouse_split` (on|off, off by default) and
-//!   `srp_mouse_vertical` (the vertical sensitivity, 0.01 to 10 as the stock
-//!   `mouse_sensitivity`, 1 by default), saved in user.cfg;
+//!   console variables `srp_mouse_vertical_locked` (on|off, on by default:
+//!   "Lock vertical sensitivity") and `srp_mouse_vertical` (the vertical
+//!   sensitivity, 0.01 to 10 as the stock `mouse_sensitivity`, 1 by default),
+//!   saved in user.cfg;
 //! - the Settings' call (`options.callback`, after patches 79 and 83):
-//!   `srp_mouse_split` answers `root.srp_check_option(name, label, saved)`,
-//!   `srp_mouse_vertical` answers `root.srp_slider_option(name, label,
-//!   saved hundredths)`, each saving its argument first (user.cfg at once);
-//! - on_mouse_move's pitch step (`mouse.pitch_step`): the window's h / w
-//!   becomes the factor that makes a count's pitch radians the yaw's, looking
-//!   up and looking down ([`View`]), and the step's sensitivity the [`Pitch`]'s;
-//! - patch 46's death camera asks the pitch's sensitivity
-//!   (`mouse.death_pitch`): the same [`Pitch`], its radians the yaw's.
+//!   `srp_mouse_vertical_locked` answers `root.srp_check_option(name, label,
+//!   saved)`, `srp_mouse_vertical` answers `root.srp_slider_option(name,
+//!   label, saved hundredths)`, each saving its argument first (user.cfg at
+//!   once);
+//! - on_mouse_move's pitch step (`mouse.pitch_step`): locked, the stock
+//!   formula with h / w fixed at 16:9's 0.5625 (bit for bit the game at a
+//!   16:9 window); unlocked, the factor that makes a count's pitch radians
+//!   the yaw's at the vertical sensitivity, looking up and down ([`View`]);
+//! - patch 46's death camera asks the same [`Pitch`] (`mouse.death_pitch`).
 //!
-//! Off, the pitch turns as the yaw does at every window; on with the vertical
-//! value equal to the option sensitivity, the same bit for bit. The input
-//! carries the turn: nothing a match computes.
+//! The input carries the turn: nothing a match computes.
 
 #![forbid(unsafe_code)]
 
@@ -26,6 +26,10 @@ use core::ffi::CStr;
 use crate::vostok::mouse::{DeathPitch, PitchStep, View};
 use crate::vostok::settings::{ConsoleBool, ConsoleFloat, OptionsCall, save_user_config};
 use crate::vostok::{Context, Flow, MousePitchOnOptionsCallExit, NoExit, Thread};
+
+/// 16:9's height over width: the stock pitch step's h / w at every window
+/// while the vertical sensitivity is locked (1080 / 1920 is exactly it).
+pub const SIXTEEN_NINE: f32 = 0.5625;
 
 /// The pitch step's factor in place of h / w that makes a count's pitch
 /// radians the yaw's: a unit is 60 degrees of view up (pi/3: the step x 3/pi
@@ -46,12 +50,12 @@ const TENTH: f32 = 0.1;
 const LEAST: f32 = 0.01;
 const MOST: f32 = 10.0;
 
-pub const SPLIT_NAME: &CStr = c"srp_mouse_split";
+pub const LOCKED_NAME: &CStr = c"srp_mouse_vertical_locked";
 pub const VERTICAL_NAME: &CStr = c"srp_mouse_vertical";
-const SPLIT_LABEL: &CStr = c"st_srp_mouse_split_option";
+const LOCKED_LABEL: &CStr = c"st_srp_mouse_lock_option";
 const VERTICAL_LABEL: &CStr = c"st_srp_mouse_vertical_option";
 
-static SPLIT: ConsoleBool = ConsoleBool::new();
+static LOCKED: ConsoleBool = ConsoleBool::with(true);
 static VERTICAL: ConsoleFloat = ConsoleFloat::new(1.0, LEAST, MOST);
 
 /// A sensitivity of the Settings' sliders in hundredths, as they snap it:
@@ -123,7 +127,7 @@ impl Sensitivity {
 }
 
 /// The pitch's sensitivity: the option sensitivity's (`Same`, one slider for
-/// both axes) or its own (`Split`, "Separate vertical sensitivity").
+/// both axes, "Lock vertical sensitivity" ticked) or its own (`Split`, unticked).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Pitch {
     Same,
@@ -133,33 +137,23 @@ pub enum Pitch {
 impl Pitch {
     /// The two variables, read once.
     pub fn now(thread: &Thread) -> Pitch {
-        if SPLIT.get(thread) { Pitch::Split(Sensitivity::of(VERTICAL.get(thread))) } else { Pitch::Same }
+        if LOCKED.get(thread) { Pitch::Same } else { Pitch::Split(Sensitivity::of(VERTICAL.get(thread))) }
     }
 
-    /// The pitch's step before the invert and 3/pi: the view's factor x the
-    /// pitch's s, the yaw's step s (`Same`) or the handler's fov factor x the
-    /// vertical sensitivity x 0.1 (`Split`), in the game's order, so a
-    /// vertical value equal to the option sensitivity is `Same` bit for bit.
+    /// The pitch's step before the invert and 3/pi. `Same`: the stock 16:9
+    /// one, 0.5625 x the yaw's step s, as the game's `movss` / `mulss` make it.
+    /// `Split`: the view's factor x the handler's fov factor x the vertical
+    /// sensitivity x 0.1, a count's pitch radians the yaw's at that value.
     pub fn step(self, view: View, horizontal: f32, fov_factor: f32) -> f32 {
-        let s = match self {
-            Pitch::Same => horizontal,
-            Pitch::Split(vertical) => fov_factor * vertical.get() * TENTH,
-        };
-        factor(view) * s
-    }
-
-    /// The death camera's: the option sensitivity it loaded (`Same`) or the
-    /// vertical one.
-    pub fn sensitivity(self, option: f32) -> f32 {
         match self {
-            Pitch::Same => option,
-            Pitch::Split(vertical) => vertical.get(),
+            Pitch::Same => SIXTEEN_NINE * horizontal,
+            Pitch::Split(vertical) => factor(view) * (fov_factor * vertical.get() * TENTH),
         }
     }
 }
 
 pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    SPLIT.register(ctx.thread(), SPLIT_NAME);
+    LOCKED.register(ctx.thread(), LOCKED_NAME);
     VERTICAL.register(ctx.thread(), VERTICAL_NAME);
     Flow::Continue
 }
@@ -179,14 +173,14 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<MousePitchOnOptionsCallExi
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let mut label = [0; 0x200];
-    if call.method() == SPLIT_NAME {
+    if call.method() == LOCKED_NAME {
         if let Some(on) = call.string_argument(0).and_then(choice) {
-            SPLIT.set(thread, on);
+            LOCKED.set(thread, on);
             save_user_config(thread);
         }
-        let label = call.translate(SPLIT_LABEL, &mut label);
-        let saved = if SPLIT.get(thread) { c"1" } else { c"0" };
-        call.answer(c"root.srp_check_option", &[SPLIT_NAME, label, saved]);
+        let label = call.translate(LOCKED_LABEL, &mut label);
+        let saved = if LOCKED.get(thread) { c"1" } else { c"0" };
+        call.answer(c"root.srp_check_option", &[LOCKED_NAME, label, saved]);
     } else if call.method() == VERTICAL_NAME {
         if let Some(value) = call.string_argument(0).and_then(Hundredths::parse) {
             VERTICAL.set(thread, value.sensitivity().get());
@@ -211,12 +205,15 @@ pub fn on_pitch_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Skip
 }
 
-/// Patch 46's drag: XMM1, the option sensitivity, becomes the pitch's.
+/// Patch 46's drag: locked, its stock 16:9 step; unlocked, the vertical
+/// sensitivity at 1:1 (its pitch is in radians: the yaw's step).
 pub fn on_death_pitch(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let pitch = Pitch::now(ctx.thread());
     let death = DeathPitch::at(ctx);
-    let sensitivity = pitch.sensitivity(death.sensitivity());
-    death.set(sensitivity);
+    match pitch {
+        Pitch::Same => death.locked(),
+        Pitch::Split(vertical) => death.split(vertical.get()),
+    }
     Flow::Continue
 }
 
@@ -254,43 +251,35 @@ mod tests {
         }
     }
 
+    /// Locked: 0.5625 x the game's yaw step, what the game's own lines give
+    /// at a 16:9 window (1080 / 1920 = 0.5625 exactly), in every view.
     #[test]
-    fn split_at_the_option_sensitivity_is_same_bit_for_bit() {
+    fn locked_is_the_stock_step_at_16_9() {
         for n in 1..=1000 {
             let sensitivity = Hundredths::new(n).unwrap().sensitivity().get();
             for fov_factor in [1.0f32, 0.25, 0.8333333, 0.6, 1.0 / 1.2] {
-                // the game's yaw step, as 0x24026C..0x24027C makes it
                 let horizontal = fov_factor * sensitivity * TENTH;
+                let stock = (1080.0f32 / 1920.0) * horizontal;
                 for view in [View::Up, View::Down, View::Orbit] {
-                    let same = Pitch::Same.step(view, horizontal, fov_factor);
-                    let split = Pitch::Split(Sensitivity::of(sensitivity)).step(view, horizontal, fov_factor);
-                    assert_eq!(same.to_bits(), split.to_bits(), "{n} {fov_factor} {view:?}");
+                    assert_eq!(Pitch::Same.step(view, horizontal, fov_factor).to_bits(), stock.to_bits());
                 }
-                assert_eq!(Pitch::Same.step(View::Up, horizontal, fov_factor).to_bits(), horizontal.to_bits());
-                assert_eq!(Pitch::Split(Sensitivity::of(sensitivity)).sensitivity(sensitivity).to_bits(),
-                           Pitch::Same.sensitivity(sensitivity).to_bits());
             }
         }
     }
 
-    /// A count's pitch radians are the yaw's: the step x 3/pi (0xA2DAC4) is
-    /// look-pitch units, a unit 60 degrees up, 67.5 down, a radian in the orbit.
+    /// Unlocked: a count's pitch radians are the yaw's at the vertical value:
+    /// the step x 3/pi (0xA2DAC4) is look-pitch units, a unit 60 degrees up,
+    /// 67.5 down, a radian in the orbit.
     #[test]
-    fn a_counts_pitch_radians_are_the_yaws() {
+    fn unlocked_pitch_radians_are_the_yaws() {
         let three_over_pi = 3.0 / core::f64::consts::PI;
         for (view, radians) in [(View::Up, 60f64.to_radians()), (View::Down, 67.5f64.to_radians()), (View::Orbit, 1.0)] {
-            let s = 0.1f32;
-            let pitch = f64::from(Pitch::Same.step(view, s, 1.0)) * three_over_pi * radians;
-            assert!((pitch / f64::from(s) - 1.0).abs() < 1e-6, "{view:?} {pitch}");
+            for (v, fov_factor) in [(1.0f32, 1.0f32), (0.37, 0.25), (10.0, 0.8333333)] {
+                let s = fov_factor * v * TENTH;
+                let pitch = f64::from(Pitch::Split(Sensitivity::of(v)).step(view, 0.123, fov_factor)) * three_over_pi * radians;
+                assert!((pitch / f64::from(s) - 1.0).abs() < 1e-6, "{view:?} {v} {pitch}");
+            }
         }
-    }
-
-    #[test]
-    fn split_scales_the_pitch_alone() {
-        let horizontal = 1.0f32 * 1.0 * TENTH;
-        let double = Pitch::Split(Sensitivity::of(2.0)).step(View::Up, horizontal, 1.0);
-        assert_eq!(double, 2.0f32 * TENTH);
-        assert_eq!(Pitch::Split(Sensitivity::of(2.0)).sensitivity(1.0), 2.0);
         assert_eq!(Sensitivity::of(f32::NAN).get(), LEAST);
         assert_eq!(Sensitivity::of(20.0).get(), LEAST);
     }

@@ -8,7 +8,7 @@
 //! `mouse.pitch_step`); patch 46's death camera turns by its own steps, in
 //! radians (`mouse.death_pitch`).
 
-use super::context::Context;
+use super::context::{Context, Reg};
 use crate::raw;
 
 /// What a unit of the turn's pitch turns: the first-person view by the look
@@ -89,7 +89,8 @@ impl<'a, 'c> PitchStep<'a, 'c> {
 }
 
 /// Patch 46's drag asking the pitch's sensitivity (`mouse.death_pitch`):
-/// XMM1 holds the option sensitivity it loaded; `set` gives the pitch's.
+/// XMM1 holds the option sensitivity it loaded; `locked` leaves the drag its
+/// stock step (EAX 0), `split` gives it a sensitivity at 1:1 (EAX 1, XMM1).
 pub struct DeathPitch<'a, 'c> {
     ctx: &'a mut Context<'c>,
 }
@@ -99,12 +100,12 @@ impl<'a, 'c> DeathPitch<'a, 'c> {
         DeathPitch { ctx }
     }
 
-    /// The option sensitivity the drag loaded (0xA74AEC).
-    pub fn sensitivity(&self) -> f32 {
-        self.ctx.xmm_f32(1)
+    pub fn locked(self) {
+        self.ctx.set_reg(Reg::Eax, 0);
     }
 
-    pub fn set(self, sensitivity: f32) {
+    pub fn split(self, sensitivity: f32) {
+        self.ctx.set_reg(Reg::Eax, 1);
         self.ctx.set_xmm_f32(1, sensitivity);
     }
 }

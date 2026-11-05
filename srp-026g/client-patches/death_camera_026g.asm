@@ -72,6 +72,7 @@ ORG CAVE
 %define AWAY        -128           ; the hud's pointer in a drag
 %define SENSITIVITY 0xA74AEC       ; the option sensitivity, a float (0x24026C)
 %define INVERT      0x1F1D9D3      ; the option mouse_invertion, a byte (0x240226)
+%define SIXTEEN_NINE 0xA2D79C      ; 0.5625 (.rdata), 16:9's height over width (patch 110, locked)
 %define DEATH_VIEW_OFFSET 0x200   ; death_view's place in the section
 %define UPDATE      0x2422B0       ; the view's update (the handler, the transform; ret 8)
 %define THIRD       0x2422DE       ; its step for the modes but 0 and 4
@@ -148,12 +149,20 @@ death_look:
 .turn:
     movss xmm0, [SENSITIVITY]       ; a unit's turn, as the player's look (0x24026C..0x240353)
     mulss xmm0, [step]
-    movss xmm1, [SENSITIVITY]       ; the pitch's sensitivity: patch 110's (its entry, when the build
-    cmp dword [pitch_entry], 0      ; wrote it: the option's or "Vertical sensitivity")
-    je .pitched
+    xor eax, eax                    ; patch 110's entry, when the build wrote it: EAX 1 with
+    cmp dword [pitch_entry], 0      ; "Lock vertical sensitivity" unticked, XMM1 the vertical
+    je .locked                      ; sensitivity; EAX 0 locked
+    movss xmm1, [SENSITIVITY]
     call [pitch_entry]
+    test eax, eax
+    jz .locked
+    mulss xmm1, [step]              ; unlocked: the pitch's radians a count the yaw's
+    jmp .pitched
+.locked:
+    movss xmm1, [SIXTEEN_NINE]      ; locked: the look's step with 16:9's height over width
+    mulss xmm1, xmm0
+    mulss xmm1, [aspect]
 .pitched:
-    mulss xmm1, [step]              ; the pitch's radians a count the yaw's (patch 110)
     cmp byte [INVERT], 0
     je .upright
     movd eax, xmm1
@@ -195,6 +204,7 @@ death_look:
 align 4, db 0xcc
 pitch_entry: dd 0                   ; patch 110's mouse_pitch_on_death_pitch (DEATH_CAMERA_PITCH: the build writes it)
 step:   dd 0.0017453292             ; pi / 180 * 0.1 (0x2402F1: 1/180, pi, 0.1)
+aspect: dd 0.95492965               ; 0xA2DAC4
 yaw_max:    dd 1.2217305            ; 70 degrees to either side of the face
 yaw_min:    dd -1.2217305
 pitch_up:   dd 1.0471976            ; 60 degrees up (above the brow: the head)

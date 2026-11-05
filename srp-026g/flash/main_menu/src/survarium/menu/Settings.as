@@ -98,7 +98,7 @@ package survarium.menu
       // The HUD group's own texts (setHudTexts); null until the exe answers.
       protected var _hudTexts:Array = null;
       
-      // The controls tab's "Separate vertical sensitivity" and its slider (exe patch 110), under
+      // The controls tab's "Lock vertical sensitivity" and its slider (exe patch 110), under
       // the stock Mouse sensitivity slider (layoutControls). A change of either is a change of the
       // tab, saved by Apply.
       protected var _mouse:SrpMouseVertical;
@@ -248,9 +248,9 @@ package survarium.menu
       // its name, label and saved state (shown, so no change is pending).
       public function setCheckOption(values:Array) : void
       {
-         if(values.length > 0 && values[0] == SrpMouseVertical.SPLIT)
+         if(values.length > 0 && values[0] == SrpMouseVertical.LOCKED)
          {
-            this._mouse.answerSplit(values.slice(1));
+            this._mouse.answerLock(values.slice(1));
             this.mouseChanged(null);
             this.layoutControls();
             return;
@@ -913,7 +913,7 @@ package survarium.menu
          this.checkButtons();
       }
       
-      // A toggle of "Separate vertical sensitivity" or a move of its slider: each pending while it is
+      // A toggle of "Lock vertical sensitivity" or a move of its slider: each pending while it is
       // not the saved state.
       protected function mouseChanged(event:Event) : void
       {
@@ -938,7 +938,7 @@ package survarium.menu
       }
       
       // The controls tab's left column: the stock Mouse sensitivity slider, then patch 110's
-      // "Separate vertical sensitivity" and "Vertical sensitivity" under it, then Invert mouse and the
+      // "Lock vertical sensitivity" and "Vertical sensitivity" under it, then Invert mouse and the
       // lobby's keys, at the tab's own spacing (the timeline's, read once). The chat's keys go to the
       // right column under the game's, whose list (it scrolls) ends where they begin.
       protected function layoutControls() : void

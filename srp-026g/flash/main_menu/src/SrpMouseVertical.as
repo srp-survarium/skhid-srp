@@ -5,31 +5,37 @@ package
     import flash.external.ExternalInterface;
     import scaleform.clik.events.IndexEvent;
 
-    // The controls tab's "Separate vertical sensitivity" and "Vertical
+    // The controls tab's "Lock vertical sensitivity" and "Vertical
     // sensitivity" (exe patch 110, docs/notes/mouse-pitch.md), under the stock
     // Mouse sensitivity slider. The exe keeps both in user.cfg
-    // (srp_mouse_split, srp_mouse_vertical): it answers
-    // ExternalInterface.call(SPLIT[, "1" or "0"]) with
-    // root.srp_check_option(SPLIT, label, saved) and
+    // (srp_mouse_vertical_locked, on by default; srp_mouse_vertical): it
+    // answers ExternalInterface.call(LOCKED[, "1" or "0"]) with
+    // root.srp_check_option(LOCKED, label, saved) and
     // ExternalInterface.call(VERTICAL[, hundredths]) with
     // root.srp_slider_option(VERTICAL, label, saved hundredths).
     //
-    // Off, the vertical slider is greyed and shows the main slider's value as
-    // it moves; on, it is the player's own, starting from the value it showed.
-    // Settings counts a change of either as a pending change of the tab:
-    // Apply saves them (save), Cancel puts the saved state back (revert).
+    // Ticked (locked), the vertical slider is greyed and shows what the
+    // locked look turns up in its units: the main slider's value x 0.5625
+    // (16:9's height over width, at every window), as the main one moves.
+    // Unticked, it is the player's own, starting from the value it showed: the
+    // pitch then turns as the yaw does at that value. Settings counts a change
+    // of either as a pending change of the tab: Apply saves them (save),
+    // Cancel puts the saved state back (revert).
     public class SrpMouseVertical
     {
-        public static const SPLIT:String = "srp_mouse_split";
+        public static const LOCKED:String = "srp_mouse_vertical_locked";
         public static const VERTICAL:String = "srp_mouse_vertical";
         private static const FRAME:int = SrpCheckOption.CONTROLS_FRAME;
         // The greyed slider's opacity, as a disabled stock control's.
         private static const GREYED:Number = 0.45;
+        // The locked look's looking-up rate per unit of the main slider, in the
+        // vertical slider's units (the exe's 16:9 h / w).
+        private static const SIXTEEN_NINE:Number = 0.5625;
 
         public var check:SrpCheckOption;
         public var slider:SrvOptionSlider;
         private var content:MovieClip;
-        // The main slider this one follows while off (the tab's, recreated at
+        // The main slider this one follows while locked (the tab's, recreated at
         // each visit of its frame).
         private var main:SrvOptionSlider;
         // The saved vertical value in hundredths; -1 until the exe answers.
@@ -38,8 +44,8 @@ package
         public function SrpMouseVertical(content:MovieClip)
         {
             this.content = content;
-            check = new SrpCheckOption(content, SPLIT, 0, 0, FRAME);
-            check.box.addEventListener(Event.SELECT, onSplit);
+            check = new SrpCheckOption(content, LOCKED, 0, 0, FRAME);
+            check.box.addEventListener(Event.SELECT, onLock);
             slider = new SrvOptionSlider();
             slider.name = "_" + VERTICAL;
             slider.visible = false;
@@ -87,8 +93,8 @@ package
             shown();
         }
 
-        // The exe's answer to SPLIT (root.srp_check_option, after the name).
-        public function answerSplit(values:Array):void
+        // The exe's answer to LOCKED (root.srp_check_option, after the name).
+        public function answerLock(values:Array):void
         {
             check.answer(values);
             revert();
@@ -116,7 +122,7 @@ package
 
         public function get verticalPending():Boolean
         {
-            return saved > 0 && split && hundredths(slider.selectedIndex) != saved;
+            return saved > 0 && !locked && hundredths(slider.selectedIndex) != saved;
         }
 
         // Apply: the vertical value (when it is the player's) and the checkbox.
@@ -134,7 +140,7 @@ package
         public function revert():void
         {
             check.revert();
-            if (split && saved > 0)
+            if (!locked && saved > 0)
             {
                 show(saved / 100);
             }
@@ -142,18 +148,19 @@ package
             shown();
         }
 
-        private function get split():Boolean
+        private function get locked():Boolean
         {
             return check.box.selected;
         }
 
-        // Off: the main slider's value, greyed and inactive; on: its own.
+        // Locked: the main slider's value x 0.5625, greyed and inactive;
+        // unlocked: its own.
         private function follow():void
         {
-            var on:Boolean = split;
+            var on:Boolean = !locked;
             if (!on && main != null)
             {
-                show(main.selectedIndex);
+                show(main.selectedIndex * SIXTEEN_NINE);
             }
             slider.slider.enabled = on;
             slider.mouseChildren = on;
@@ -162,9 +169,9 @@ package
 
         private function onMain(event:Event):void
         {
-            if (!split)
+            if (locked)
             {
-                show(main.selectedIndex);
+                show(main.selectedIndex * SIXTEEN_NINE);
             }
         }
 
@@ -178,8 +185,8 @@ package
             slider.slider.enabled = on;
         }
 
-        // A toggle: on continues from the value shown, off follows again.
-        private function onSplit(event:Event):void
+        // A toggle: unlocking continues from the value shown, locking follows again.
+        private function onLock(event:Event):void
         {
             follow();
         }

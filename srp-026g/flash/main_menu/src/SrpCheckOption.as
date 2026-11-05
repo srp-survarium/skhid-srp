@@ -6,7 +6,7 @@ package
     // A Settings checkbox that the exe keeps in user.cfg as the console
     // variable of its name (exe patch 83's "Hide hit markers" and "Hide
     // scores", docs/notes/hide-hit-markers-scores.md, on the gameplay tab;
-    // patch 110's "Separate vertical sensitivity", docs/notes/mouse-pitch.md,
+    // patch 110's "Lock vertical sensitivity", docs/notes/mouse-pitch.md,
     // on the controls tab). Settings owns it and
     // counts a toggle as a pending change of the tab: Apply saves it (save),
     // Cancel or leaving without Apply puts the saved state back (revert). The

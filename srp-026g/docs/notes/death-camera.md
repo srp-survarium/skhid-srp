@@ -22,8 +22,8 @@ mouse button? Scroll shouldn't work though".
   at the corpse's eyes and the drag turns it as the head would turn, relative to the head's
   own pose, read every frame (the head bone's transform, player+44Ch): left/right about the
   head's up, then up/down about the turned right, the step of the player's own mouse look
-  (sensitivity, invert; since patch 110 the pitch's radians a count the yaw's, and
-  "Separate vertical sensitivity" when it is on). No per-pose tables: whatever pose the body falls in, the look stays
+  (sensitivity, invert; since patch 110 with 16:9's height over width at every window while
+  "Lock vertical sensitivity" is ticked, the vertical sensitivity at 1:1 when it is not). No per-pose tables: whatever pose the body falls in, the look stays
   in a cone in front of the face: at most **70 degrees to either side, 60 up, 40 down** of
   the face's forward (40 down stays short of the chest; to be tuned in the game). Releasing
   the button stops; the view stays where it was turned until the respawn. Not an orbit.

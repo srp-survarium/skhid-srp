@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Patch 110 (the Rust patch mouse_pitch, rust/patches/src/mouse_pitch.rs): the
-mouse look's pitch turns as its yaw at every window, with "Separate vertical
-sensitivity" (client_patch.md section 3.69, ../docs/notes/mouse-pitch.md).
+mouse look's pitch with "Lock vertical sensitivity" (client_patch.md section
+3.69, ../docs/notes/mouse-pitch.md).
 
     python check_mouse_pitch_026g.py <original survarium.exe>
 
@@ -9,10 +9,10 @@ Requires Python `unicorn`. check_language_026g.py's harness (the exe's
 sections and the arena loaded as they are; Scaleform's Invoke recorded,
 translate_text the key's English text, game::save_user_config counted):
 
-- on_configs_loaded's start (0x1EA210 to 0x1EA216): `srp_mouse_split` (a saved
-  bool, off) and `srp_mouse_vertical` (a saved float, 1) registered once, of
-  kind 2 (user.cfg's lines set them); the original registers neither;
-- the Settings' call (0x1FF5D0): `srp_mouse_split` with "1"/"0" and
+- on_configs_loaded's start (0x1EA210 to 0x1EA216): `srp_mouse_vertical_locked`
+  (a saved bool, on) and `srp_mouse_vertical` (a saved float, 1) registered
+  once, of kind 2 (user.cfg's lines set them); the original registers neither;
+- the Settings' call (0x1FF5D0): `srp_mouse_vertical_locked` with "1"/"0" and
   `srp_mouse_vertical` with hundredths ("1" to "1000") save it (user.cfg
   written once), another value or none nothing; each answers
   root.srp_check_option(name, label, saved) / root.srp_slider_option(name,
@@ -23,16 +23,18 @@ translate_text the key's English text, game::save_user_config counted):
   look pitch; +5348h the render window: vtable+1Ch stubbed, the window's w and
   h as floats, thiscall, `ret 4`); the half-float pack (0xF65A0) the game's
   own, its argument recorded: the new yaw (the first call) and the new pitch
-  (the second) from a turn of 0. At nine windows (4:3 to 32:9), the look
-  pitch up and down (and no local player), the warmup's mode 3, an inverted
-  mouse, sensitivities and an aimed fov factor (+94h):
-  - off: the yaw the same float in both exes; the build's pitch the same at
-    every window, and a count's pitch radians the yaw's to float precision:
-    the units x 60 degrees up, x 67.5 down (the look clip
-    on_site_camera_look), radians in the warmup's orbit;
-  - on, the vertical value the option sensitivity's: the build's off, bit for
-    bit; on, another vertical value: the yaw as off, the pitch the build's
-    off at an option sensitivity of that value (the aim's factor kept);
+  (the second) from a turn of 0. At eleven windows (4:3 to 32:9, three exact
+  16:9 ones), the look pitch up and down (and no local player), the warmup's
+  mode 3, an inverted mouse, sensitivities and an aimed fov factor (+94h):
+  - locked (the default): the build bit for bit the original at an exact
+    16:9 window, and at every other window the original's 16:9 pitch; the
+    yaw the original's float everywhere;
+  - unlocked: a count's pitch radians the yaw's to float precision at the
+    vertical value (units x 60 degrees up, x 67.5 down: the look clip
+    on_site_camera_look; radians in the warmup's orbit), the same at every
+    window, the yaw as locked; at the value the greyed slider shows while
+    locked (the option x 0.5625, to the slider's 0.01) the first person's
+    looking-up rate the locked one's, to that rounding;
   - mode 4 (a spectator's): no turn in either.
 Says nothing about the render window's real size; the look clip is decoded
 in ../docs/notes/mouse-pitch.md.
@@ -57,7 +59,7 @@ CLIENT, PLAYER = OBJECTS + 0x9000, OBJECTS + 0xA000
 SIZE_STUB, RETURN = OBJECTS + 0x8000, OBJECTS + 0x8010
 SP = OBJECTS + 0xF000
 WINDOWS = (("4:3", 1024, 768), ("4:3", 1600, 1200), ("5:4", 1280, 1024), ("16:10", 1680, 1050),
-           ("16:9", 1920, 1080), ("16:9", 1366, 768), ("21:9", 2560, 1080), ("21:9", 3440, 1440),
+           ("16:9", 1920, 1080), ("16:9", 1280, 720), ("16:9", 2560, 1440), ("16:9", 1366, 768), ("21:9", 2560, 1080), ("21:9", 3440, 1440),
            ("32:9", 5120, 1440))
 # (mode, x, y, invert, option sensitivity in hundredths, the handler's +94h, the look pitch: None no local player)
 MOVES = ((0, 1, 1, 0, 100, 1.0, 0.4), (0, 1, 1, 0, 100, 1.0, -0.4), (0, 7, -3, 0, 100, 1.0, 0.0),
@@ -70,7 +72,9 @@ UP, DOWN = math.pi / 3, 3 * math.pi / 8       # radians of view a look-pitch uni
 def unit(mode, look):
     """A look-pitch unit's radians: the warmup's orbit a radian, the first person's by the look pitch's side."""
     return 1.0 if mode == 3 else DOWN if look is not None and look < 0 else UP
-LABELS = {"st_srp_mouse_split_option": "Separate vertical sensitivity",
+
+
+LABELS = {"st_srp_mouse_lock_option": "Lock vertical sensitivity",
           "st_srp_mouse_vertical_option": "Vertical sensitivity"}
 language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
 
@@ -151,30 +155,31 @@ def main():
                           open(base.late_join_bin(), "rb").read())
     old, new = Run(original), Run(bytes(built))
     expect = lambda ok, text: print("ok", text) if ok else sys.exit("FAIL " + text)
+    LOCK = "srp_mouse_vertical_locked"
 
     # on_configs_loaded's start
     old.start()
     new.start()
     ours = new.variables()
-    split, vertical = ours.get("srp_mouse_split"), ours.get("srp_mouse_vertical")
+    locked, vertical = ours.get(LOCK), ours.get("srp_mouse_vertical")
     expect(not any(name.startswith("srp_mouse") for name in old.variables())
-           and split is not None and split[:3] == (CC_BOOL_VTABLE, 2, 1) and new.read(split[3], 1) == b"\0"
+           and locked is not None and locked[:3] == (CC_BOOL_VTABLE, 2, 1) and new.read(locked[3], 1) == b"\x01"
            and vertical is not None and vertical[:3] == (CC_FLOAT_VTABLE, 2, 1)
            and bytes(new.emu.mem_read(vertical[3], 4)) == bits(1.0),
-           "configs.start: srp_mouse_split (a saved bool of kind 2, off) and srp_mouse_vertical (a saved float, 1); "
+           f"configs.start: {LOCK} (a saved bool of kind 2, on) and srp_mouse_vertical (a saved float, 1); "
            "the original registers neither")
     new.start()
     expect(list(new.variables()) == list(ours), "configs.start again: each registered once")
-    on = lambda: new.read(split[3], 1) == b"\x01"
+    on = lambda: new.read(locked[3], 1) == b"\x01"
     value = lambda: struct.unpack("<f", new.emu.mem_read(vertical[3], 4))[0]
 
     # the Settings' calls
-    for argument, want, saves in (("1", True, 1), ("0", False, 1), ("1", True, 1), ("on", True, 0), (None, True, 0)):
-        invokes, count = new.callback("srp_mouse_split", argument)
+    for argument, want, saves in (("0", False, 1), ("1", True, 1), ("0", False, 1), ("on", False, 0), (None, False, 0)):
+        invokes, count = new.callback(LOCK, argument)
         expect(invokes == [(language.MOVIE, "root.srp_check_option",
-                            ("srp_mouse_split", LABELS["st_srp_mouse_split_option"], "1" if want else "0"))]
+                            (LOCK, LABELS["st_srp_mouse_lock_option"], "1" if want else "0"))]
                and count == saves and on() == want,
-               f"srp_mouse_split with {argument!r}: {int(want)}, user.cfg written {saves} time(s), answered")
+               f"{LOCK} with {argument!r}: {int(want)}, user.cfg written {saves} time(s), answered")
     for argument, want, saves in (("123", 123, 1), ("1000", 1000, 1), ("1", 1, 1), ("0", 1, 0), ("1001", 1, 0),
                                   ("1.5", 1, 0), ("abc", 1, 0), (None, 1, 0), ("100", 100, 1)):
         invokes, count = new.callback("srp_mouse_vertical", argument)
@@ -183,10 +188,10 @@ def main():
                and count == saves and bits(value()) == bits(hundredths(want)),
                f"srp_mouse_vertical with {argument!r}: {want} hundredths ({value()!r}), user.cfg written {saves} "
                "time(s), answered")
-    for name in ("srp_mouse_split", "srp_mouse_vertical"):
+    for name in (LOCK, "srp_mouse_vertical"):
         invokes, count = old.callback(name, "1")
         expect(invokes == [] and count == 0, f"the original ignores {name}")
-    new.callback("srp_mouse_split", "0")
+    new.callback(LOCK, "1")
 
     def run(r, window, *move):
         packed, sizes, stopped = r.move(window, *move)
@@ -196,46 +201,52 @@ def main():
     def at(name_w_h):
         return float(name_w_h[1]), float(name_w_h[2])
 
-    # off: a count's pitch radians the yaw's at every window
+    exact = lambda w, h: w * 9 == h * 16
+
+    # locked: the original at 16:9, bit for bit, at every window
     for move in MOVES:
         mode, x, y, invert, sensitivity, factor, look = move
-        reference = run(new, (1024.0, 768.0), *move)
+        reference = run(old, (1920.0, 1080.0), *move)
         for window in WINDOWS:
             name, w, h = window
             (o_yaw, o_pitch), (n_yaw, n_pitch) = run(old, at(window), *move), run(new, at(window), *move)
             case = (name, w, h, move)
             assert bits(o_yaw) == bits(n_yaw) and bits(n_pitch) == bits(reference[1]), case
-            yaw_rad = abs(n_yaw / x)
-            n_rad, o_rad = abs(n_pitch / y) * unit(mode, look), abs(o_pitch / y) * unit(mode, look)
-            assert abs(n_rad / yaw_rad - 1) < 1e-6, (case, n_rad, yaw_rad)
-            assert (n_pitch < 0) == ((y > 0) != bool(invert)), (case, n_pitch)      # down a positive y, inverted up
+            if exact(w, h):
+                assert bits(o_pitch) == bits(n_pitch), case
             if (x, y) == (1, 1):
-                print(f"   {name:>5} {w}x{h}, look pitch {look:+.1f}: yaw {yaw_rad:.9f} rad/count; pitch / yaw: "
-                      f"original {o_rad / yaw_rad:.4f}, build {n_rad / yaw_rad:.7f}")
-        print(f"ok off: mode {mode}, move ({x}, {y}), invert {invert}, sensitivity {sensitivity / 100}, factor {factor}, "
-              f"look pitch {look}: the yaw as before, a count's pitch radians the yaw's at all {len(WINDOWS)} windows")
+                yaw_rad = abs(n_yaw / x)
+                print(f"   {name:>5} {w}x{h}, look pitch {look:+.1f}: pitch / yaw, original "
+                      f"{abs(o_pitch / y) * unit(mode, look) / yaw_rad:.4f}, build locked {abs(n_pitch / y) * unit(mode, look) / yaw_rad:.4f}")
+        print(f"ok locked: mode {mode}, move ({x}, {y}), invert {invert}, sensitivity {sensitivity / 100}, factor {factor}, "
+              f"look pitch {look}: the original bit for bit at the exact 16:9 windows, its 16:9 pitch at all {len(WINDOWS)}")
 
-    # on: the vertical value the option's is off; another turns the pitch alone
+    # unlocked: 1:1 at the vertical value; at the greyed slider's value the locked looking-up rate
     for move in MOVES:
         mode, x, y, invert, sensitivity, factor, look = move
-        new.callback("srp_mouse_split", "0")
-        off = {window: run(new, at(window), *move) for window in WINDOWS}
-        new.callback("srp_mouse_split", "1")
-        new.callback("srp_mouse_vertical", str(sensitivity))
-        for window in WINDOWS:
-            assert [bits(v) for v in run(new, at(window), *move)] == [bits(v) for v in off[window]], (window, move)
-        for other in VERTICALS:
-            new.callback("srp_mouse_split", "0")
-            as_option = run(new, (1920.0, 1080.0), mode, x, y, invert, other, factor, look)
-            new.callback("srp_mouse_split", "1")
+        new.callback(LOCK, "1")
+        locked_runs = {window: run(new, at(window), *move) for window in WINDOWS}
+        new.callback(LOCK, "0")
+        shown = int(sensitivity * 0.5625 + 0.5)       # the greyed slider: the option x 0.5625, to 0.01 (Math.round)
+        for other in (shown,) + VERTICALS:
             new.callback("srp_mouse_vertical", str(other))
+            unlocked = {window: run(new, at(window), *move) for window in WINDOWS}
             for window in WINDOWS:
-                yaw, pitch = run(new, at(window), *move)
-                assert bits(yaw) == bits(off[window][0]) and bits(pitch) == bits(as_option[1]), (window, move, other)
-        print(f"ok on: mode {mode}, move ({x}, {y}), sensitivity {sensitivity / 100}, factor {factor}, look pitch {look}: "
-              f"the vertical value the option's is off bit for bit; {len(VERTICALS)} others turn the pitch alone, as "
-              "that option would")
-    new.callback("srp_mouse_split", "0")
+                yaw, pitch = unlocked[window]
+                assert bits(yaw) == bits(locked_runs[window][0]) and bits(pitch) == bits(unlocked[WINDOWS[0]][1]), (window, move, other)
+                yaw_rad = abs(yaw / x)
+                rate = abs(pitch / y) * unit(mode, look)            # the pitch's radians a count
+                assert abs(rate / (yaw_rad * hundredths(other) / hundredths(sensitivity)) - 1) < 1e-6, (window, move, other)
+                assert (pitch < 0) == ((y > 0) != bool(invert)), (window, move, other)
+            if other == shown and mode == 0 and (look is None or look >= 0):
+                locked_rate = abs(locked_runs[WINDOWS[0]][1] / y) * UP
+                bound = 0.005 / (hundredths(sensitivity) * 0.5625) + 1e-6
+                assert abs(rate / locked_rate - 1) <= bound, (move, rate, locked_rate)
+        print(f"ok unlocked: mode {mode}, move ({x}, {y}), sensitivity {sensitivity / 100}, factor {factor}, look pitch {look}: "
+              f"a count's pitch radians the yaw's x vertical / option at {shown / 100} (the greyed slider's) and "
+              f"{len(VERTICALS)} others, at all {len(WINDOWS)} windows"
+              + ("; at the greyed value the locked looking-up rate" if mode == 0 and (look is None or look >= 0) else ""))
+    new.callback(LOCK, "1")
 
     for r, which in ((old, "the original"), (new, "the build")):
         packed, sizes, stopped = r.move((1920.0, 1080.0), 4, 9, 9, 0, 100, 1.0, 0.0)

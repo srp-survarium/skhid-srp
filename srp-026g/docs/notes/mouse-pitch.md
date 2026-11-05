@@ -1,4 +1,4 @@
-# The mouse look's pitch at every window (patch 110)
+# The mouse look's pitch: 16:9's at every window, and "Lock vertical sensitivity" (patch 110)
 
 The rules that the code and the checks follow. Code: the Rust patch `mouse_pitch`
 (`client-patches/rust/patches/src/mouse_pitch.rs`, `vostok/mouse.rs`), `death_camera_026g.asm`
@@ -37,48 +37,47 @@ The rules that the code and the checks follow. Code: the Rust patch `mouse_pitch
   - Two other kinds differ. The running aimed look clips are within 1 % (66.8 / 60.7 degrees).
     The grenade hold (`grenade_idle_look`) is not linear: 41.7 degrees at a quarter instead of
     33.75. They were not traced as the camera's layer.
-- **The fix (the owner, 2026-11-05: "exactly the same"):** the window's h/w is replaced by the
-  factor that makes a count's pitch radians equal to the yaw's.
-  - The factor is 1 while the look pitch is up and 60/67.5 while it is down, keyed on the local
-    player's look pitch (+48Ch).
-  - The warmup camera's orbit (mode 3) turns its pitch in radians, so there the factor is pi/3.
-  - Equal slider values now mean equal turning speed, at every window.
-- **What players notice:** every resolution is faster vertically, 4:3 included.
-
-  | window | before, pitch / yaw (up / down) | change |
-  | --- | --- | --- |
-  | 4:3 | 0.75 / 0.84 | +33 % up, +19 % down |
-  | 16:10 | 0.625 / 0.70 | +60 % up, +42 % down |
-  | 16:9 | 0.5625 / 0.63 | +78 % up, +58 % down |
-  | 21:9 | 0.42 / 0.47 | +137 % up, +111 % down |
-
-  The warmup orbit was 0.716 at 4:3 and is now 1. A player who wants the old feel lowers
-  "Vertical sensitivity".
-- **The option (the owner, 2026-11-05):** Settings, Controls, under Mouse sensitivity: a checkbox
-  "Separate vertical sensitivity", off by default, and under it a slider "Vertical sensitivity"
-  with the same range and look as the main slider.
-  - Off: one slider for both axes, 1:1 as described above. The vertical slider is greyed and inactive,
-    and it shows the main slider's value as the main slider is dragged.
-  - On: the pitch uses the vertical slider's value in place of the sensitivity option, in the
-    same formula. A vertical value equal to the main one gives exactly the off behaviour. Ticking
-    the box continues from the value the slider showed, which is the main slider's.
-  - Unticking makes the vertical slider follow the main slider again. The stored vertical value
-    matters only while the option is on.
+- **The owner's design (2026-11-05):** a checkbox "Lock vertical sensitivity" in Settings,
+  Controls, under Mouse sensitivity. It is ticked by default, and under it is a slider "Vertical
+  sensitivity" with the same range and look as the main slider.
+  - **Ticked (locked, `Same`):** the stock formula with h/w fixed at 16:9's 0.5625 at every
+    window. A 16:9 window turns bit for bit as in the original game; most players are on 16:9.
+    Every other window gets 16:9's feel: pitch / yaw is 0.5625 looking up and 0.63 looking down.
+    The death camera (h/w x 0.9549) and the warmup camera use the same constant. The greyed
+    vertical slider shows Mouse sensitivity x 0.5625 (1.25 -> 0.70), live as the main slider is
+    dragged. That is the locked look's looking-up rate in the vertical slider's units.
+  - **Unticked (`Split(v)`):** exactly 1:1. A count's pitch radians equal the yaw's at the
+    vertical value v. The step's factor in place of h/w is 1 while the look pitch is up and
+    60/67.5 while it is down; the side is keyed on the local player's look pitch, +48Ch. In
+    the warmup camera's orbit, whose pitch is in radians, the factor is pi/3. The death camera,
+    whose pitch is in radians too, turns its pitch by its yaw step at v. v equal to the main value
+    means vertical turns exactly as fast as horizontal.
+  - **Unticking** starts v at the value the greyed slider showed, so looking up feels as it did
+    at that moment (to the slider's 0.01). **Ticking** goes back to the locked look, and the
+    slider follows main x 0.5625 again.
   - Apply saves, as for every option on the tab. Cancel puts the saved state back.
-  - Texts: `st_srp_mouse_split_option` and `st_srp_mouse_vertical_option`, in all ten dictionaries.
-- **Stored in user.cfg:** `srp_mouse_split on|off` and `srp_mouse_vertical <0.01 to 10>`, both
-  saved console variables. The menu sends the value in hundredths, as the sliders snap it. The
-  two variables are read once per move into `Pitch` (`Same` or `Split(vertical)`), and the look
-  takes only that.
-- **The Controls tab's layout:** the left column holds Mouse sensitivity, the checkbox, Vertical
-  sensitivity, Invert mouse and the Lobby keys. The Chat keys move to the right column, under the
-  game keys. The game-key list scrolls; it now ends above the Chat keys. The left column had no
-  room for two more rows.
+  - Texts: `st_srp_mouse_lock_option` and `st_srp_mouse_vertical_option`, in all ten dictionaries.
+- **What players notice, locked:**
+
+  | window | before, pitch / yaw (up / down) | locked |
+  | --- | --- | --- |
+  | 16:9 | 0.5625 / 0.63 | unchanged |
+  | 4:3 | 0.75 / 0.84 | 25 % slower vertically |
+  | 16:10 | 0.625 / 0.70 | 10 % slower |
+  | 21:9 | 0.42 / 0.47 | +33 % |
+  | 32:9 | 0.28 / 0.32 | +100 % |
+
+  A 4:3 player who wants the old feel unticks the box and sets the vertical slider to main x 0.75.
+- **Stored in user.cfg:** `srp_mouse_vertical_locked on|off` (on by default) and
+  `srp_mouse_vertical <0.01 to 10>` (in 1:1 units), both saved console variables. The menu sends
+  the value in hundredths, as the sliders snap it. The two variables are read once per move into
+  `Pitch` (`Same` or `Split(vertical)`), and the look takes only that.
+- **The Controls tab's layout (still open with the owner):** the left column holds Mouse
+  sensitivity, the checkbox, Vertical sensitivity, Invert mouse and the Lobby keys. The Chat keys
+  move to the right column, under the game keys. The game-key list scrolls; it now ends above the
+  Chat keys.
 - **Same path, so covered:** the aimed look and scopes (the fov factor scales both axes alike) and
   the warmup camera before the start (patch 31: mode 3 of the same function).
-- **The death camera** (patch 46) copied the look's step (h/w x 0.9549 of the yaw's). Its pitch is
-  in radians, so its pitch step is now the yaw's step, and when the option is on it uses the
-  vertical sensitivity, as the player's look does.
 - **Not changed:** the menu cursor and the lobby's character drag (`lobby_camera` 0x283D30, menus),
   the keyboard look actions (`process_first_person_mode`, not the mouse), and the input journal
   (a developer tool).

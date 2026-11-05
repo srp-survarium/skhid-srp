@@ -9,8 +9,8 @@
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
 #   the Tab map's names with Alt, and "Names on map" reversing Alt.
-# - SettingsHarness.as also: the controls tab's "Separate vertical sensitivity" and its slider (exe
-#   patch 110, docs/notes/mouse-pitch.md): off it follows the main slider, on it is its own.
+# - SettingsHarness.as also: the controls tab's "Lock vertical sensitivity" and its slider (exe
+#   patch 110, docs/notes/mouse-pitch.md): locked it follows the main slider x 0.5625, unlocked it is its own.
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), settings-crosshair-open.png, settings-minimap-open.png, settings-controls-off.png,
 # settings-controls-on.png, list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
@@ -35,7 +35,7 @@ from localization_026g import CATALOG, LANGUAGES, read_translations
 keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
         'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
         'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top',
-        'st_srp_map_names_option', 'st_srp_mouse_split_option', 'st_srp_mouse_vertical_option')
+        'st_srp_map_names_option', 'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

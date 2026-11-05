@@ -2521,7 +2521,7 @@ st_srp_mode_chargers	Ochranné zařízení: nabíječky
 st_srp_mode_protective_device	Ochranné zařízení
 st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
-st_srp_mouse_split_option	Samostatná svislá citlivost
+st_srp_mouse_lock_option	Zamknout svislou citlivost
 st_srp_mouse_vertical_option	Svislá citlivost
 st_srp_optics	Optika
 st_srp_options_hud	HUD:

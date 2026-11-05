@@ -130,13 +130,13 @@ package
                         trace("SETTINGS RESULT fail: " + error.message);
                     }
                     controls(Object(loader.content), settings, domain, 1.25);
-                    Object(loader.content).srp_check_option("srp_mouse_split", texts[0][14], "0");
+                    Object(loader.content).srp_check_option("srp_mouse_vertical_locked", texts[0][14], "1");
                     Object(loader.content).srp_slider_option("srp_mouse_vertical", texts[0][15], "100");
                 }
                 if (frames == 270) trace("SETTINGS SHOT controls-off");
                 if (frames == 280)
                 {
-                    settings.settings_content.getChildByName("_srp_mouse_split").selected = true;
+                    settings.settings_content.getChildByName("_srp_mouse_vertical_locked").selected = false;
                     settings.settings_content.getChildByName("_srp_mouse_vertical").slider.value = 2.35;
                 }
                 if (frames == 310) trace("SETTINGS SHOT controls-on");
@@ -641,81 +641,88 @@ package
             c.keysChat.height = 3 * c.keysChat.rowHeight;
         }
 
-        // "Separate vertical sensitivity" and "Vertical sensitivity" (exe patch 110,
-        // docs/notes/mouse-pitch.md) on the controls tab: waiting for the exe's answers; off, the
-        // vertical slider greyed and following the main one as it is dragged; on, its own, the main
-        // one staying when it is dragged; pending until Apply, Cancel putting the saved state back;
-        // the exe's answers; the tab's left column (main slider, the box, the vertical slider, Invert
-        // mouse, the lobby's keys) and right column (the game's keys, the chat's over the default
-        // button) spaced as the tab's own, every dictionary's labels inside the left column.
+        // "Lock vertical sensitivity" and "Vertical sensitivity" (exe patch 110,
+        // docs/notes/mouse-pitch.md) on the controls tab: waiting for the exe's answers; ticked (the
+        // default), the vertical slider greyed and showing the main one x 0.5625 as it is dragged;
+        // unticked, its own from that value, the main one staying when it is dragged; pending until
+        // Apply, Cancel putting the saved state back; the exe's answers; the tab's left column (main
+        // slider, the box, the vertical slider, Invert mouse, the lobby's keys) and right column (the
+        // game's keys, the chat's over the default button) spaced as the tab's own, every
+        // dictionary's labels inside the left column.
         private function checkControls(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
         {
             var c:* = settings.settings_content;
+            var LOCKED:String = "srp_mouse_vertical_locked";
+            // what the greyed slider shows: the main one x 0.5625, to the slider's 0.01
+            var shown:Function = function(main:Number):Number { return Math.round(main * 0.5625 / 0.01) * 0.01; };
             controls(root, settings, domain, 1.25);
-            var box:* = c.getChildByName("_srp_mouse_split");
+            var box:* = c.getChildByName("_" + LOCKED);
             var vertical:* = c.getChildByName("_srp_mouse_vertical");
             var main:* = c._slider_mouse_sens;
             require(box != null && vertical != null && !box.visible && !vertical.visible,
                 "controls: the box and the vertical slider wait for the exe's answers");
-            root.srp_check_option("srp_mouse_split", texts[0][14], "0");
+            root.srp_check_option(LOCKED, texts[0][14], "1");
             require(box.visible && !vertical.visible, "controls: the box shown at its answer, the slider waits for its own");
             root.srp_slider_option("srp_mouse_vertical", texts[0][15], "100");
-            require(vertical.visible && vertical.alpha < 1 && !vertical.slider.enabled && !box.selected
+            require(vertical.visible && vertical.alpha < 1 && !vertical.slider.enabled && box.selected
                 && box.label == texts[0][14] && vertical.textField.text == texts[0][15],
-                "controls: both shown, labelled the exe's; off: the vertical slider greyed and inactive");
-            require(close(vertical.selectedIndex, 1.25) && close(main.selectedIndex, 1.25) && !settings.btn_accept.enabled,
-                "controls: off, the vertical slider shows the main one's value (1.25), nothing pending: " + vertical.selectedIndex);
+                "controls: both shown, labelled the exe's; ticked (locked): the vertical slider greyed and inactive");
+            require(close(vertical.selectedIndex, 0.7) && close(main.selectedIndex, 1.25) && !settings.btn_accept.enabled,
+                "controls: locked, the vertical slider shows the main one x 0.5625 (1.25 -> 0.70), nothing pending: "
+                + vertical.selectedIndex);
             require(vertical.slider.minimum == main.slider.minimum && vertical.slider.maximum == main.slider.maximum
                 && vertical.slider.snapInterval == main.slider.snapInterval, "controls: the main slider's range");
-            // drag the main one: the vertical follows
+            // drag the main one: the vertical follows at x 0.5625
             main.slider.value = 2.5;
-            require(close(main.selectedIndex, 2.5) && close(vertical.selectedIndex, 2.5), "controls: off, dragging the main slider moves "
-                + "the vertical one with it: " + vertical.selectedIndex);
+            require(close(main.selectedIndex, 2.5) && close(vertical.selectedIndex, shown(2.5)), "controls: locked, dragging the "
+                + "main slider moves the vertical one with it (2.5 -> " + vertical.selectedIndex + ")");
             main.slider.value = 0.7;
-            require(close(vertical.selectedIndex, 0.7), "controls: and again (0.7): " + vertical.selectedIndex);
-            // tick it: on continues from that value; drag the vertical one: the main stays
-            box.selected = true;
-            require(vertical.alpha == 1 && vertical.slider.enabled && close(vertical.selectedIndex, 0.7) && settings.btn_accept.enabled,
-                "controls: ticked, the vertical slider active at the value it showed (0.7), Apply enabled");
+            require(close(vertical.selectedIndex, shown(0.7)), "controls: and again (0.7 -> " + vertical.selectedIndex + ")");
+            // untick: its own from the value shown; drag the vertical one: the main stays
+            var from:Number = vertical.selectedIndex;
+            box.selected = false;
+            require(vertical.alpha == 1 && vertical.slider.enabled && close(vertical.selectedIndex, from) && settings.btn_accept.enabled,
+                "controls: unticked, the vertical slider active at the value it showed (" + from + "), Apply enabled");
             vertical.slider.value = 3.1;
-            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 0.7), "controls: on, dragging the vertical slider leaves the "
-                + "main one: " + main.selectedIndex);
+            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 0.7), "controls: unlocked, dragging the vertical "
+                + "slider leaves the main one: " + main.selectedIndex);
             main.slider.value = 1.5;
-            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 1.5), "controls: on, dragging the main slider leaves the "
-                + "vertical one: " + vertical.selectedIndex);
+            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 1.5), "controls: unlocked, dragging the main "
+                + "slider leaves the vertical one: " + vertical.selectedIndex);
             click(settings.btn_cancel);
-            require(!box.selected && vertical.alpha < 1 && close(vertical.selectedIndex, main.selectedIndex) && !settings.btn_accept.enabled,
-                "controls: Cancel: off again, following the main one");
-            box.selected = true;
+            require(box.selected && vertical.alpha < 1 && close(vertical.selectedIndex, shown(main.selectedIndex))
+                && !settings.btn_accept.enabled, "controls: Cancel: locked again, following the main one x 0.5625");
+            box.selected = false;
             vertical.slider.value = 3.1;
             click(settings.btn_accept);
-            require(box.selected && close(vertical.selectedIndex, 3.1) && !settings.btn_accept.enabled, "controls: Apply keeps on at 3.1");
-            root.srp_check_option("srp_mouse_split", texts[0][14], "1");
+            require(!box.selected && close(vertical.selectedIndex, 3.1) && !settings.btn_accept.enabled, "controls: Apply keeps it unlocked at 3.1");
+            root.srp_check_option(LOCKED, texts[0][14], "0");
             root.srp_slider_option("srp_mouse_vertical", texts[0][15], "310");
-            require(box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
-                "controls: the exe's answers (on, 310) keep it, nothing pending");
+            require(!box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
+                "controls: the exe's answers (unlocked, 310) keep it, nothing pending");
             vertical.slider.value = 4;
-            require(settings.btn_accept.enabled, "controls: on, a vertical move is pending");
+            require(settings.btn_accept.enabled, "controls: unlocked, a vertical move is pending");
             vertical.slider.value = 3.1;
             require(!settings.btn_accept.enabled, "controls: and back at the saved value, nothing pending");
-            box.selected = false;
-            require(vertical.alpha < 1 && !vertical.slider.enabled && close(vertical.selectedIndex, main.selectedIndex) && settings.btn_accept.enabled,
-                "controls: unticked, the vertical slider snaps back to the main one's value, greyed, pending");
+            box.selected = true;
+            require(vertical.alpha < 1 && !vertical.slider.enabled && close(vertical.selectedIndex, shown(main.selectedIndex))
+                && settings.btn_accept.enabled, "controls: ticked, the vertical slider follows the main one x 0.5625 again, greyed, pending");
             click(settings.btn_cancel);
-            require(box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
-                "controls: Cancel: on at the saved 3.1 again");
-            box.selected = false;
+            require(!box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
+                "controls: Cancel: unlocked at the saved 3.1 again");
+            box.selected = true;
             click(settings.btn_accept);
-            root.srp_check_option("srp_mouse_split", texts[0][14], "0");
-            require(!box.selected && close(vertical.selectedIndex, main.selectedIndex) && !settings.btn_accept.enabled,
-                "controls: Apply off: following the main slider, nothing pending");
-            trace("SETTINGS controls: off follows the main slider, on is its own, pending until Apply, Cancel reverts");
+            root.srp_check_option(LOCKED, texts[0][14], "1");
+            require(box.selected && close(vertical.selectedIndex, shown(main.selectedIndex)) && !settings.btn_accept.enabled,
+                "controls: Apply locked: following the main slider x 0.5625, nothing pending");
+            trace("SETTINGS controls: locked follows the main slider x 0.5625, unlocked is its own, pending until Apply, "
+                + "Cancel reverts");
             require(!settings.btn_accept.enabled, "controls: nothing pending after the toggles");
 
             // the layout: a new visit of the frame as the game makes it
             c.gotoAndStop(1);
             controls(root, settings, domain, 1.25);
-            root.srp_check_option("srp_mouse_split", texts[0][14], "0");
+            root.srp_check_option("srp_mouse_vertical_locked", texts[0][14], "1");
             root.srp_slider_option("srp_mouse_vertical", texts[0][15], "100");
             require(!settings.btn_accept.enabled, "controls: nothing pending at a new visit of the frame");
             var left:Array = [main, box, vertical, c._setter_inverse_mouse, c.s_lobby, c.keysLobby];

@@ -1,5 +1,5 @@
-# Patch 110: the mouse look's pitch (docs/notes/mouse-pitch.md): a count's
-# pitch radians the yaw's at every window, and "Separate vertical sensitivity" kept in
+# Patch 110: the mouse look's pitch (docs/notes/mouse-pitch.md): 16:9's h / w
+# at every window, and "Lock vertical sensitivity" (1:1 unticked) kept in
 # user.cfg. Only the decisions: which sites, and the handlers; the logic is
 # mouse_pitch.rs. configs.start after patches 79, 83, 81 and 88 (orders 1 to
 # 4), options.callback after patches 79 and 83 (1, 2).

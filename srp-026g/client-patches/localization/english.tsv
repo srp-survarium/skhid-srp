@@ -2521,7 +2521,7 @@ st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
-st_srp_mouse_split_option	Separate vertical sensitivity
+st_srp_mouse_lock_option	Lock vertical sensitivity
 st_srp_mouse_vertical_option	Vertical sensitivity
 st_srp_optics	Optics
 st_srp_options_hud	HUD:

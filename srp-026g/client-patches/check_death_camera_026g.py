@@ -22,8 +22,9 @@ button and the wheel without a button are the cursor's, as in the
 original; a left press that moves little is the cursor's (a click); past
 that, or with the lobby's buttons at once, a drag takes the hud's pointer
 off the screen, gives the player's handler nothing, and turns a yaw and a
-pitch by the player's look's step (the mouse's sensitivity, the pitch's
-radians a count the yaw's since patch 110, an inverted mouse), within 70 degrees to either side,
+pitch by the player's look's step (the mouse's sensitivity, the stock step
+with 16:9's height over width while "Lock vertical sensitivity" is ticked,
+the vertical sensitivity at 1:1 when it is not, an inverted mouse), within 70 degrees to either side,
 60 up and 40 down; the wheel in a drag changes nothing; the first move after it puts the cursor
 back where the drag began. A live player, a dead one in another mode (the
 warmup's before the start: patch 31's drag; a spectator's), the kits
@@ -112,7 +113,7 @@ class Look(kc.Look):
             super().stub(emu, address, size, user)
 
     def split(self, vertical):
-        """Patch 110's "Separate vertical sensitivity" on at `vertical`: its two
+        """Patch 110's "Lock vertical sensitivity" unticked at `vertical`: its two
         console variables registered (on_configs_loaded's start, 0x1EA210 to
         0x1EA216) and set where the console keeps them."""
         emu = self.emu
@@ -124,8 +125,8 @@ class Look(kc.Look):
             name = bytes(emu.mem_read(self.read(node + 0x10), 32)).split(b"\0")[0]
             found[name] = self.read(node + 0x40)
             node = self.read(node + 0x0C)
-        if b"srp_mouse_split" in found:            # the original has neither
-            self.byte(found[b"srp_mouse_split"], 1)
+        if b"srp_mouse_vertical_locked" in found:  # the original has neither
+            self.byte(found[b"srp_mouse_vertical_locked"], 0)
             emu.mem_write(found[b"srp_mouse_vertical"], struct.pack("<f", vertical))
 
     def turn(self):
@@ -137,7 +138,10 @@ def expected_turn(turn, x, y, invert=0, sensitivity=1.0, vertical=None):
     sensitivity the option's, or patch 110's vertical one when it is on."""
     yaw, pitch = turn
     k = f32(f32(sensitivity) * f32(math.pi / 180 * 0.1))
-    v = k if vertical is None else f32(f32(vertical) * f32(math.pi / 180 * 0.1))   # the pitch's radians the yaw's (patch 110)
+    if vertical is None:                      # locked: the stock step at 16:9 (patch 110)
+        v = f32(f32(f32(0.5625) * k) * f32(0.95492965))
+    else:                                     # unlocked: the pitch's radians the yaw's at the vertical value
+        v = f32(f32(vertical) * f32(math.pi / 180 * 0.1))
     if invert:
         v = -v
     yaw = maxss(minss(f32(yaw - f32(f32(x) * k)), YAW_MAX), -YAW_MAX)
