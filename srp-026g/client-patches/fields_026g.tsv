@@ -607,3 +607,9 @@ survarium::medical_clock_result	interval	0	u32	interval zero while holding
 survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
 survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
 survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation
+survarium::core_world	maximum_time	0x18FC4	u32	the newest simulation time played once (prediction core; set to an item's time after its move 0x2D0FCB, 50 by clear 0x2D0776): a tick at or before it is a re-simulation (the time rule's 0x267AD2, the step guard 0x2A6488)
+survarium::player_equipment_sound_effect	player	0x3C	ptr<survarium::player>	its player (on_player_sound_event 0x2A6472; the player's +884h)
+survarium::player_equipment_sound_effect	feet	0x44	u8	the feet's positions are read (1 by 0x2A645A from the toe bones, 0 when the bone indices are taken again 0x2A63B3); on_player_sound_event plays no step without it
+vostok::animation::animation_callback_params	object	0x0	u32	the animated object (on_player_sound_event plays only for its own player, 0x2A6495): an address, compared only
+vostok::animation::animation_callback_params	time	0x10	u32	the event's simulation milliseconds (compared with core_world maximum_time at 0x2A6488)
+vostok::animation::animation_callback_params	domain	0x20	u8	the event channel's domain value: 0 and 1 a step of one foot or the other, 2..4 the rustles (on_player_sound_event's switch 0x2A64A2)

@@ -696,6 +696,26 @@ pub extern "C" fn hook_drug_interrupt_on_hit_applied(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- footsteps (patch 101) ----
+
+/// The named exits of footsteps::on_step_guard (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FootstepsOnStepGuardExit { Play, Skip }
+/// The entry `footsteps_on_step_guard` (0x2a6485, player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_footsteps_on_step_guard(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `footsteps_on_step_guard` calls this, from the game's jump at 0x2a6485,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::footsteps::on_step_guard(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
