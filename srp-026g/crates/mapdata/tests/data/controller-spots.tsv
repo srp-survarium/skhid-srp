@@ -1,0 +1,11 @@
+# The nav problem spots (NAV FIRST, 2026-11-05) for the client's controller (mapdata::controller), one walk a row: from the
+# feet at (fx, fy, fz) toward (tx, ty, tz), and what real bodies do there (walk: humans or clients cross it; no: they cannot,
+# with the cause). Sources: traces-20261028/nav-ground-truth.md sections 4-5, fx-bench-a304.md (Vostok spots), nav-truth/fx-zones-classes.md.
+# project	fx	fy	fz	tx	ty	tz	expect	spot
+level_03_day_2	8.30	2.44	-18.76	8.30	2.69	-20.06	walk	Vostok gully: a 0.43 m riser cell the grid cuts; a client walked through (fx-bench-a304, PROVEN)
+level_03_day_2	60.00	0.91	11.20	58.70	0.70	12.50	walk	Vostok slab edge: a one-column crack (x 59.60-59.85) between floors within a step; the grid made a phantom gap jump (38 failed presses)
+level_03_day_2	58.70	0.70	12.50	60.00	0.91	11.20	walk	Vostok slab edge, the other way
+level_02_day_2	19.00	15.70	63.50	26.00	15.70	63.50	walk	School r1: humans walk at y 15.7; bots stall on the rim of a 45 deg by-slope face
+level_02_day_2	26.00	15.70	63.50	19.00	15.70	63.50	walk	School r1, the other way
+level_07_day_2	10.50	20.80	-7.00	10.50	20.80	-4.00	walk	Vector Laboratory: a one-cell strip the grid cuts on open floor 20.76-20.84 (fx-zones, PROVEN no wall)
+level_07_day_2	10.50	20.80	-4.00	10.50	20.80	-7.00	walk	Vector Laboratory strip, the other way
