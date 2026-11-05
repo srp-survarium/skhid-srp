@@ -128,8 +128,8 @@ pub struct GridTuning {
     /// grid is the map's (see `gap_links`).
     pub ramp_faces: bool,
     /// [A304] Whether `drop_room`'s walls count steep faces whatever their walker behaviour (`mapdata::Body::drop_room_walk_faces`): a
-    /// parapet with `walk` faces then cuts the walk-off over it as any wall does (level 7's deck). OFF until the drift lab. A grid is
-    /// the map's (see `gap_links`).
+    /// parapet with `walk` faces then cuts the walk-off over it as any wall does (level 7's deck). ON (A304: the drift lab, all 15
+    /// client-test recordings: level 7 -9.2 %, no other map changed). A grid is the map's (see `gap_links`).
     pub drop_room_walk_faces: bool,
 }
 
@@ -154,7 +154,7 @@ impl Default for GridTuning {
             pocket_exits_walled: true,
             gap_no_vaults: true,
             ramp_faces: true,
-            drop_room_walk_faces: false,
+            drop_room_walk_faces: true,
         }
     }
 }

@@ -76,6 +76,7 @@
   },
   "grid": {
     "crouch_floors": false,
+    "drop_room_walk_faces": false,
     "exact_erosion": false,
     "floor_paths": false,
     "gap_links": false,
