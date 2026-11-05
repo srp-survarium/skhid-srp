@@ -2556,7 +2556,7 @@ impl Gates {
     pub(super) fn keeps_route(legs: Option<Legs>, switch: bool) -> bool {
         legs.is_some_and(|legs| match legs.why {
             LegsWhy::ThrowingSmoke => switch,
-            LegsWhy::WaitingForCloud => true,
+            LegsWhy::WaitingForCloud | LegsWhy::CheckingSpot => true,
             _ => false,
         })
     }
