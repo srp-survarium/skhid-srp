@@ -2203,6 +2203,8 @@ st_srp_artefact_532_description	Kein Fallschaden, solange ein Onyx aktiv ist.
 st_srp_artefact_532_name	Onyx II
 st_srp_artefact_533_description	Das Aktivieren eines Lebknochens stellt die ganze Ausdauer wieder her.
 st_srp_artefact_533_name	Lebknochen II
+st_srp_artefact_534_description	Eine Tasche wird zu einem Artefaktbehälter.
+st_srp_artefact_534_name	Artefaktbehälter
 st_srp_artefact_541_description	Aktivierte Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 5 m. "Sie leuchten, du strahlst"
 st_srp_artefact_541_name	Resonanzkaskade
 st_srp_artefact_points	 Punkte

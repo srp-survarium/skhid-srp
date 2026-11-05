@@ -2203,6 +2203,8 @@ st_srp_artefact_532_description	No fall damage while an Onyx is active.
 st_srp_artefact_532_name	Onyx II
 st_srp_artefact_533_description	Activating a Larkspur restores all energy.
 st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_534_description	One pocket becomes an artifact container.
+st_srp_artefact_534_name	Artifact Container
 st_srp_artefact_541_description	Activated artifacts also work on living teammates within 5 m. "They glow, you shine"
 st_srp_artefact_541_name	Resonance Cascade
 st_srp_artefact_points	 points

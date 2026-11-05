@@ -7,7 +7,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 ## The tree
 
 - The fifth skills tab, "Knowledge of the Forest" (`st_anomaly_skills_label`, the stock text in
-  every language), ids 501..541 (branch 5). My pick: the fourth tab ("Technical skills") stays
+  every language), ids 501..541 (branch 5). Eleven skills: the owner's ten and Artifact Container
+  (the owner, 2026-11-05, retail 0.31a2's 513). My pick: the fourth tab ("Technical skills") stays
   for the equipment skills.
 - Source: `scripts/content-edit/artefact-skills-1.json` (`release/content.tsv`), names and
   descriptions in `client-patches/localization/*.tsv` (`st_srp_artefact_<id>_name` /
@@ -19,14 +20,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 |---|---:|---:|---|---:|---|---|
 | 1 | 0 | 501 | Concentration | 5 | collection time -5% | data: modifier 7 |
 | 1 | 0 | 502 | Resistance | 5 | isolation +5 | exe hook |
-| 2 | 5 | 511 | Forest Protection | 3 | bullet and fragment damage -5% in an anomaly | data: modifier 41 |
+| 2 | 5 | 511 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly | data: modifier 41 |
 | 2 | 5 | 512 | Knowledge of Artifacts | 5 | active duration +5% | data: modifier 39 |
 | 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact | server + exe |
 | 3 | 10 | 522 | Resonance | 1 | passives shared, 8 m | exe |
 | 4 | 20 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
 | 4 | 20 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
 | 4 | 20 | 533 | Larkspur II | 1 | activation restores all energy | exe |
-| 5 | 23 | 541 | Resonance Cascade | 1 | actives shared, 5 m | exe |
+| 4 | 20 | 534 | Artifact Container | 1 | a pocket becomes an artefact container | data: modifiers 14, 15 |
+| 5 | 25 | 541 | Resonance Cascade | 1 | actives shared, 5 m | exe |
 
 - Layout, four columns (1..4):
 
@@ -34,13 +36,14 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | - C R - |    Concentration, Resistance
 | - F K - |    Forest Protection, Knowledge of Artifacts
 | - P N - |    Keeper of the Artifacts, Resonance
-| S O L - |    Spring II, Onyx II, Larkspur II
+| S O L A |    Spring II, Onyx II, Larkspur II, Artifact Container
 | - - X - |    Resonance Cascade
 ```
 
-- Points: tier 1 holds 10, tiers 1-2 18, tiers 1-3 20, tiers 1-4 23; the whole tree 24.
-- Tier 5 at 23, not the table's 25 (my pick, sent to the owner 2026-11-05): 25 cannot be reached,
-  tiers 1-4 hold 23. Tier 4's 20 needs every point of tiers 1-3.
+- Points: tier 1 holds 10, tiers 1-2 19, tiers 1-3 21, tiers 1-4 25; the whole tree 26.
+- Thresholds 0/5/10/20/25 as the table (the owner, 2026-11-05, with Forest Protection's fourth
+  rank and Artifact Container): tier 4 leaves one point of tiers 1-3 free, tier 5 needs every
+  point of tiers 1-4.
 - The skills window's last tier is the branch's highest `branch_points` (was a constant 20, the
   stock and medical last tier), so the bar fills when tier 5 is taken.
 
@@ -81,7 +84,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 ## Forest Protection (511)
 
-- Modifier 41 `incoming_weapon_damage_in_anomaly` -0.05 a rank (0x332810, before armour): a hit
+- Modifier 41 `incoming_weapon_damage_in_anomaly` -0.05 a rank (4 ranks, -20%) (0x332810, before armour): a hit
   with an owner (hit+20h) on a player whose damage-zone count (player+2E4h, damage_zone_core's
   enter 0x319967 / leave 0x31980B) is above 0 is x max(0, 1 + sum).
 - "While you receive isolation damage" = while inside an anomaly's damage zone, the area that
@@ -96,6 +99,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   41 and the zone count, so it is derived where it is drawn: no new network data, no
   simulation change, no `next` row. Not built yet (a pack of the grey leg effect and its
   trigger, a small PR after Resistance).
+
+## Artifact Container (534)
+
+- The owner (2026-11-05): one rank, one pocket becomes an artefact container, as retail 0.31a2
+  (513, tier 5, exclusive with Forest Sense there). Here tier 4, no exclusion (my pick).
+- Data: modifiers 14 `artefact_slots` +1 and 15 `pocket_slots` -1, both additive (table
+  0x927E08) and read by apply_kit_parameter (0x2F7660: 5, 14..17), whose value the lobby gets
+  too (item_slots, artifact_slots; the skills are in the kit's modifier block). The six quick
+  positions stay six: `ProfileSlot.artifactCount` caps artefacts at 6 - pockets.
+- A pocket lost is what the game does when gear with a pocket comes off: the lobby shows the
+  first `pocket_slots` pockets, the next places are artefact containers (locked, empty), and
+  nothing of the server changes. A player with one pocket has none with it.
+- To check in the test round: what a kit's item in the lost pocket does in a match (a booster
+  carried there still counting would be the same as taking a jacket off).
 
 ## Knowledge of Artifacts (512)
 

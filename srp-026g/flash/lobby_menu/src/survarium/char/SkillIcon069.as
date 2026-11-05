@@ -13,6 +13,7 @@ package survarium.char
    import ArtefactSkill069531;
    import ArtefactSkill069532;
    import ArtefactSkill069533;
+   import ArtefactSkill069534;
    import MedicalSkill069301;
    import MedicalSkill069302;
    import MedicalSkill069311;
@@ -72,6 +73,7 @@ package survarium.char
             case 531: type = ArtefactSkill069531; break;
             case 532: type = ArtefactSkill069532; break;
             case 533: type = ArtefactSkill069533; break;
+            case 534: type = ArtefactSkill069534; break;
             case 541: type = MedicalSkill069341; break;
             default: image.bitmapData = null; return false;
          }

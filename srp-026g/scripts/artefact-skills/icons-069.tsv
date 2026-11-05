@@ -1,5 +1,6 @@
 # Original Survarium 0.69d0 skill artwork (anomaly; Cascade shows Medic's survival icon, MedicalSkill069341).
-# Six indexed/interlaced donor PNGs are converted losslessly to RGBA for Flash (every decoded pixel equal); the others are the donor bytes.
+# Artifact Container: anomaly/12, which no 0.69 skill uses; 0.31a2's Artifact Container (513) had icon index 12.
+# Seven indexed/interlaced donor PNGs are converted losslessly to RGBA for Flash (every decoded pixel equal); the others are the donor bytes.
 # skill	name	donor path	donor sha256	Flash PNG sha256
 501	Concentration	flash_movies/textures/ui_icons/skills/anomaly/0.png	b49143ad89459bc7cf45c26b8ee3821ea7aa125f938c36e24a0c473d195b418b	d1a9a0dce7abf475b9c9adf907f94d26a4194902f4fcfce184db1b4399fe9ad2
 502	Resistance	flash_movies/textures/ui_icons/skills/anomaly/1.png	e59a3dbb939058d44be620703cceea80211a8bbe9127b3a53c5f82cd6d6dec15	50925fc1ddd3b352215a10bf25937ceda9ffdca152b73f94bbe3fe0cf5cb8c3c
@@ -10,4 +11,5 @@
 531	Spring II	flash_movies/textures/ui_icons/skills/anomaly/14.png	a4791edc9fec8045f57629ee0a2f58ea3d695f00882b020c6d37b656f0cb500d	a4791edc9fec8045f57629ee0a2f58ea3d695f00882b020c6d37b656f0cb500d
 532	Onyx II	flash_movies/textures/ui_icons/skills/anomaly/16.png	c2bc982a94826374e5aa8b588cb55a31c61d2c99cf1fc389bef4d2d1805a1c7e	c2bc982a94826374e5aa8b588cb55a31c61d2c99cf1fc389bef4d2d1805a1c7e
 533	Larkspur II	flash_movies/textures/ui_icons/skills/anomaly/17.png	043e60fe899f94956d0766e5259cb1e78ce7a60cba71bbf91a83f44c51d9526d	043e60fe899f94956d0766e5259cb1e78ce7a60cba71bbf91a83f44c51d9526d
+534	Artifact Container	flash_movies/textures/ui_icons/skills/anomaly/12.png	9fc29d063760991f4904618d4f28013864674a0bf0a703f9f381c21b66978b5e	9a90b067ef35d074c879107a83dbc4804d95ccfdfe9e9b695453b1d573746a25
 541	Resonance Cascade	flash_movies/textures/ui_icons/skills/survival/14.png	dcf65c3554d4d2f42906c6aa088c6373777bad72942bd00ac90c4d3e8566e3f8	dcf65c3554d4d2f42906c6aa088c6373777bad72942bd00ac90c4d3e8566e3f8
