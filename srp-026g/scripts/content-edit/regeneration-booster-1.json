@@ -4,7 +4,7 @@
     {
       "file": "gameplay/items/modifications/modifications.options",
       "list": "modifications",
-      "expected_count": 158,
+      "expected_count": 159,
       "unique_key": "id",
       "value": {
         "id": 1290,
@@ -19,7 +19,7 @@
     {
       "file": "gameplay/items/modifications/modifications.options",
       "list": "modifications",
-      "expected_count": 159,
+      "expected_count": 160,
       "unique_key": "id",
       "value": {
         "id": 1300,
