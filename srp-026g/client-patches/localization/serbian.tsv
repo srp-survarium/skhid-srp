@@ -2189,6 +2189,7 @@ st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
 st_srp_crosshair_static	Statični nišan
+st_srp_dxvk_option	Vulkan renderer (DXVK), posle restarta
 st_srp_equipment029_bm_back_6_desc	Opis još nije dostupan.
 st_srp_equipment029_bm_back_6_name	Stražarski ranac
 st_srp_equipment029_bm_back_8_desc	Opis još nije dostupan.

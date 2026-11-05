@@ -2189,6 +2189,7 @@ st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač
 st_srp_crosshair_hidden	Skrytý zaměřovač
 st_srp_crosshair_static	Pevný zaměřovač
+st_srp_dxvk_option	Vykreslování Vulkan (DXVK), po restartu
 st_srp_equipment029_bm_back_6_desc	Popis zatím není k dispozici.
 st_srp_equipment029_bm_back_6_name	Hlídačův batoh
 st_srp_equipment029_bm_back_8_desc	Popis zatím není k dispozici.

@@ -2189,6 +2189,7 @@ st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
 st_srp_crosshair_static	Statisches Visier
+st_srp_dxvk_option	Vulkan-Renderer (DXVK), nach Neustart
 st_srp_equipment029_bm_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_back_6_name	Wächterrucksack
 st_srp_equipment029_bm_back_8_desc	Beschreibung noch nicht verfügbar.

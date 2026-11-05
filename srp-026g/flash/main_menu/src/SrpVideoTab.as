@@ -5,19 +5,26 @@ package
     import flash.text.TextField;
     import survarium.menu.Settings;
 
+    // srp's rows of the Graphics tab's left column: the FOV slider under gamma
+    // and the "Vulkan renderer (DXVK)" checkbox under Vertical sync.
+    //
     // The native video options send a slider for index 7 (Settings maps it to
     // settings_content._slider_fov), but the stock timeline never places one.
     // create_content calls apply first, so the slider exists when the options
     // are bound (label, range and value come from the native option), and
-    // finish last, after the label is set.
-    public class SrpFovSlider
+    // finish last, after the label is set. The DXVK checkbox is Settings'
+    // (an SrpCheckOption of the Graphics frame); finish places it.
+    //
+    // To make room, the rows under Vertical sync move down one checkbox step
+    // and the preset panel's top moves down by that and the slider's row; its
+    // two buttons go side by side in it.
+    public class SrpVideoTab
     {
         private static const VIDEO_FRAME:int = 3;
-        // Below gamma; the preset panel moves down to make room.
+        // Below gamma.
         private static const ROW:Number = 50;
-        // The preset panel keeps its bottom edge; its two buttons move down
-        // less than the panel top, so both still fit inside it.
-        private static const BUTTONS:Number = 26;
+        // Between the two preset buttons, side by side.
+        private static const GAP:Number = 8;
 
         // The timeline recreates frame 3 children on each visit; move each
         // set once.
@@ -51,7 +58,9 @@ package
             slider.visible = false;
         }
 
-        public static function finish(settings:Settings):void
+        // `dxvk`: the DXVK checkbox (Settings shows it on this frame once the
+        // exe has answered).
+        public static function finish(settings:Settings, dxvk:DisplayObject):void
         {
             var content:MovieClip = settings.settings_content;
             if (content == null)
@@ -61,10 +70,36 @@ package
             var tabs:Object = content;
             var slider:SrvOptionSlider = tabs._slider_fov as SrvOptionSlider;
             var gamma:DisplayObject = tabs.slider_gamma;
-            if (slider == null || content.currentFrame != VIDEO_FRAME || gamma == null)
+            var fullscreen:DisplayObject = tabs._fullscreen;
+            var vsync:DisplayObject = tabs._vsync;
+            if (slider == null || content.currentFrame != VIDEO_FRAME || gamma == null || fullscreen == null
+                || vsync == null)
             {
                 return;
             }
+            var step:Number = vsync.y - fullscreen.y;
+            var optimal:DisplayObject = tabs.button_optimal_video;
+            var standard:DisplayObject = tabs.button_default_video;
+            var panel:DisplayObject = tabs.bottomContainer;
+            if (optimal != null && standard != null && panel != null && optimal != moved)
+            {
+                moved = optimal;
+                for each (var row:DisplayObject in [tabs._antialias, tabs._filtering, gamma])
+                {
+                    if (row != null)
+                    {
+                        row.y += step;
+                    }
+                }
+                panel.y += ROW + step;
+                panel.height -= ROW + step;
+                var width:Number = (optimal.width - GAP) / 2;
+                optimal.width = standard.width = width;
+                standard.x = optimal.x + width + GAP;
+                optimal.y = standard.y = panel.y + (panel.height - optimal.height) / 2;
+            }
+            dxvk.x = vsync.x;
+            dxvk.y = vsync.y + step;
             slider.visible = true;
             // Scaleform leaves the script-created slider fully transparent.
             slider.alpha = 1;
@@ -77,18 +112,6 @@ package
             }
             slider.x = gamma.x;
             slider.y = gamma.y + ROW;
-            var optimal:DisplayObject = tabs.button_optimal_video;
-            var standard:DisplayObject = tabs.button_default_video;
-            var panel:DisplayObject = tabs.bottomContainer;
-            if (optimal == null || standard == null || panel == null || optimal == moved)
-            {
-                return;
-            }
-            moved = optimal;
-            panel.y += ROW;
-            panel.height -= ROW;
-            optimal.y += BUTTONS;
-            standard.y += BUTTONS;
         }
     }
 }

@@ -2189,6 +2189,7 @@ st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt
 st_srp_crosshair_static	Statikus célkereszt
+st_srp_dxvk_option	Vulkan renderelő (DXVK), újraindítás után
 st_srp_equipment029_bm_back_6_desc	A leírás még nem érhető el.
 st_srp_equipment029_bm_back_6_name	Őrszem hátizsák
 st_srp_equipment029_bm_back_8_desc	A leírás még nem érhető el.

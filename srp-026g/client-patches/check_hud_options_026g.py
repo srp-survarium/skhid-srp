@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run patch 83 (rust/patches/src/hud_options.rs, its lohooks of
 hud_options.toml: the Settings' "Hide hit markers" and "Hide player scores", kept in
-user.cfg) in the default build on made-up game objects, each from the game's
+user.cfg, and the Graphics tab's "Vulkan renderer (DXVK)", `srp_dxvk`, which only the updater reads) in the default build on made-up game objects, each from the game's
 own code before its site to past it, the original beside it.
 
     python check_hud_options_026g.py <original survarium.exe>
@@ -13,7 +13,7 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 
 - on_configs_loaded's start (0x1EA210 to 0x1EA216, the chain: patch 79's
   hook, then this one): the console variables `srp_hide_hit_markers`,
-  `srp_hide_scores`, `srp_map_names` and `srp_hide_crosshair` registered once, after patch 79's `localization`, with
+  `srp_hide_scores`, `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk` registered once, after patch 79's `localization`, with
   the game's own cc_value<bool>::cc_value (a cc_bool, saved, kind 2: user.cfg's
   lines set them), off; the game's own cc_bool::execute sets each from a
   user.cfg line's value; registers and stack as the original's;
@@ -48,14 +48,16 @@ import check_language_026g as language
 
 EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
 SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide player scores",
-            "srp_map_names": "Names on map", "srp_hide_crosshair": "Hidden crosshair"}
+            "srp_map_names": "Names on map", "srp_hide_crosshair": "Hidden crosshair",
+            "srp_dxvk": "Vulkan renderer (DXVK), after restart"}
 # the group's own texts, in root.srp_hud_texts' order
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
          "st_srp_static_minimap_option": "Static minimap"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
-                         "st_srp_map_names_option": b"Names on map"})
+                         "st_srp_map_names_option": b"Names on map",
+                         "st_srp_dxvk_option": b"Vulkan renderer (DXVK), after restart"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
 # lie in check_language_026g.py's DATA: these are their own)
@@ -157,10 +159,10 @@ def main():
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["s_music_volume", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores", "srp_hide_hit_markers",
-                     "localization"]
+           and names == ["s_music_volume", "srp_dxvk", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores",
+                         "srp_hide_hit_markers", "localization"]
            and all((kind, saved) == (2, 1) and ours.read(value, 1) == b"\0" for _, kind, saved, value in variables.values()),
-           "configs.start: registers and stack as the original's; the four settings, "
+           "configs.start: registers and stack as the original's; the five settings, "
            "saved bools of kind 2, off, registered after patch 79's `localization` (the original registers nothing)")
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]

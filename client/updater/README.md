@@ -89,6 +89,7 @@ functions of the standard library's).
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
+| `updater_skhid.exe vulkan` | the updater itself (the DXVK step) | The Vulkan check, apart: no window, no log; the exit code is the best Vulkan version of a device that is not the CPU (as Vulkan packs it), or 11 no `vulkan-1.dll`, 12 no instance, 13 no such device |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
 (an internal error; logged).
@@ -709,6 +710,30 @@ what the game mounts is a checked file or nothing.
 (the status `ready`, the folder against the kept list, every file hashed)
 and refuses otherwise: also before the launcher has ever run the step, and
 after a new overlay until the step has run with the server's list.
+
+## Vulkan renderer (DXVK)
+
+Settings, Graphics, "Vulkan renderer (DXVK)" (`srp-026g/docs/notes/dxvk-option.md`): off by
+default, saved as `srp_dxvk on|off` in user.cfg. The ZIP ships DXVK's 32-bit `d3d11.dll` and
+`dxgi.dll` in `dxvk\` beside the updater; the game takes the two from its own folder when they
+are there. After the overlay and the restore, at every run (`exe/src/dxvk.rs`,
+`logic/src/dxvk.rs`):
+
+- `srp_dxvk on` and a Vulkan 1.4 device (DXVK 3's need): both are copied from `dxvk\` beside
+  the game, each written as `<name>.skhid-new` and renamed into place; one that is there already is
+  left. The Vulkan check runs only then, as `updater_skhid.exe vulkan`, ended after 10 s.
+- Otherwise: each of the two beside the game whose SHA-256 is one of `OURS` (every DXVK DLL a ZIP
+  has shipped) is deleted. Any other `d3d11.dll` or `dxgi.dll` is the player's and stays; with one,
+  DXVK is not used. A copy that fails deletes ours again: both or neither.
+- Best effort: a `dxvk:` line in the log says what was done or why not; nothing here fails the
+  update or keeps PLAY off.
+
+Run on 2026-11-05 (Linux, Wine, the host's NVIDIA RTX 3060 Ti through winevulkan): the probe
+says 1.4.351; with lavapipe alone 13, with no driver 12. `check quiet` with the real DXVK 3.1.1
+DLLs in the archive (a scratch script on `test_db_patches.py`'s harness, a prefix whose
+Documents is its own): no user.cfg, nothing beside the game and no `dxvk:` line; `on`, both
+copied, the next run nothing, `off` both removed; `on` with lavapipe alone, not used and ours
+removed; a d3d11.dll of the player's own kept, `on` and `off`. Not run on Windows.
 
 ## Build and test
 

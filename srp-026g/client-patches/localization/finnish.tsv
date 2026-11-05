@@ -2189,6 +2189,7 @@ st_srp_attachments	Lisävarusteet
 st_srp_crosshair_dynamic	Dynaaminen tähtäin
 st_srp_crosshair_hidden	Piilotettu tähtäin
 st_srp_crosshair_static	Kiinteä tähtäin
+st_srp_dxvk_option	Vulkan (DXVK), uudelleenkäynnistyksen jälkeen
 st_srp_equipment029_bm_back_6_desc	Kuvausta ei vielä ole.
 st_srp_equipment029_bm_back_6_name	Vartiomiehen reppu
 st_srp_equipment029_bm_back_8_desc	Kuvausta ei vielä ole.

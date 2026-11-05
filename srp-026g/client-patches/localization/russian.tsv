@@ -2189,6 +2189,7 @@ st_srp_attachments	Обвес
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
 st_srp_crosshair_static	Статический прицел
+st_srp_dxvk_option	Рендер Vulkan (DXVK), после перезапуска
 st_srp_equipment029_bm_back_6_desc	Описание пока недоступно.
 st_srp_equipment029_bm_back_6_name	Рюкзак часового
 st_srp_equipment029_bm_back_8_desc	Описание пока недоступно.

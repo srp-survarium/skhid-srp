@@ -38,6 +38,10 @@ package
 
         private var loader:Loader = new Loader();
         private var frames:int = 0;
+        // The texts of check.sh (texts[n][14]: "Vulkan renderer (DXVK)").
+        private var texts:Array;
+        // The gameplay tab's settings and values as check() gave them.
+        private var gameplay:Array;
 
         public function SettingsHarness()
         {
@@ -112,6 +116,26 @@ package
                     settings.settings_content._setter_static_minimap_position.open();
                 }
                 if (frames == 230) trace("SETTINGS SHOT minimap");
+                if (frames == 240)
+                {
+                    settings.settings_content._setter_static_minimap_position.close();
+                    // the toggle of the checked shot dropped
+                    click(settings.btn_cancel);
+                }
+                // the Graphics tab after the gameplay shots: its controls tell their changes a frame later
+                if (frames == 250)
+                {
+                    try
+                    {
+                        checkGraphics(settings, settings.settings_content, gameplay[0], gameplay[1]);
+                    }
+                    catch (error:Error)
+                    {
+                        trace("SETTINGS RESULT fail: " + error.message);
+                    }
+                }
+                if (frames == 270) graphicsTab(settings, "1");
+                if (frames == 300) trace("SETTINGS SHOT graphics");
             });
         }
 
@@ -275,12 +299,131 @@ package
             return [cross.selectedIndex, Object(content)._setter_static_cross.selected];
         }
 
+        // The Graphics tab as the exe makes it: its 19 options, then the DXVK checkbox's answer (`saved`).
+        private function graphicsTab(settings:*, saved:String):void
+        {
+            var root:* = loader.content;
+            var labels:Array = ["Monitor", "Resolution", "Fullscreen", "Vertical sync", "Antialiasing", "Texture filtering",
+                "Gamma:", "Field of view", "Overall", "Textures", "Geometry", "Shadows", "Lighting", "Water", "Decorations",
+                "Post process", "Ambient occlusion", "Particles", "Motion blur"];
+            var list:Array = [], values:Array = [];
+            for (var i:int = 0; i < labels.length; ++i)
+            {
+                var option:Object = {label: labels[i], setter: function(value:*):* { return value; }};
+                if (i < 2) option.dataProvider = ["1920x1080", "1280x720"];
+                else if (i != 2 && i != 3 && i != 6 && i != 7) option.dataProvider = ["Low", "Medium", "High"];
+                list.push(option);
+                values.push({id: i, value: 0});
+            }
+            try
+            {
+                settings.selectIndex(2);
+            }
+            catch (error:Error)
+            {
+                // the tab's change calls the exe, which a test player lacks
+            }
+            settings.settings_content.gotoAndStop(3);
+            root.set_settings(2, list);
+            root.set_values(2, values);
+            root.srp_check_option("srp_dxvk", texts[0][14], saved);
+        }
+
+        // The Graphics tab's "Vulkan renderer (DXVK)" (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown
+        // there only, once the exe answers; under Vertical sync, the rows under it one checkbox step down, in
+        // order without overlaps, the preset buttons side by side inside their panel, above the window's
+        // bottom; every dictionary's label inside the left column; a toggle pending until Apply, Cancel
+        // dropping it. Ends back on the gameplay tab.
+        private function checkGraphics(settings:*, content:MovieClip, gameplay:Array, gameplayValues:Array):void
+        {
+            var root:* = loader.content;
+            var box:* = content.getChildByName("_srp_dxvk");
+            require(box != null && !box.visible, "DXVK: not on the gameplay tab");
+            var fresh:* = new (Object(content).constructor as Class)();
+            fresh.gotoAndStop(3);
+            graphicsTab(settings, "0");
+            var c:* = content;
+            require(c.currentFrame == 3 && box.visible && box.alpha == 1 && box.label == texts[0][14] && !box.selected
+                && !settings.btn_accept.enabled, "DXVK: on the Graphics tab, the exe's label, off, nothing pending");
+            var step:Number = fresh._vsync.y - fresh._fullscreen.y;
+            require(near(box.x, c._vsync.x) && near(box.y, c._vsync.y + step), "DXVK: one checkbox step under Vertical sync");
+            for each (var moved:String in ["_antialias", "_filtering", "slider_gamma"])
+            {
+                require(near(c[moved].y, fresh[moved].y + step), "DXVK: " + moved + " one step down");
+            }
+            var column:Array = [c._select_monitor, c._fscr_resolution, c._fullscreen, c._vsync, box, c._antialias, c._filtering,
+                c.slider_gamma, c._slider_fov];
+            var panel:Rectangle = c.bottomContainer.getBounds(content);
+            for (var i:int = 0; i < column.length; ++i)
+            {
+                var here:Array = span(column[i]);
+                require(column[i].visible, "Graphics: " + column[i].name + " shown");
+                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : panel.top;
+                require(here[1] <= next + 1, "Graphics: " + column[i].name + " (" + here + ") over the next (" + next + ")");
+            }
+            // the buttons draw at their new width in the next frame: now, for the measure
+            c.button_optimal_video.validateNow();
+            c.button_default_video.validateNow();
+            var optimal:Rectangle = c.button_optimal_video.getBounds(content);
+            var standard:Rectangle = c.button_default_video.getBounds(content);
+            require(panel.containsRect(optimal) && panel.containsRect(standard) && optimal.right < standard.left
+                && near(optimal.y, standard.y), "Graphics: the preset buttons side by side inside their panel (" + optimal
+                + ", " + standard + " in " + panel + ")");
+            require(near(panel.bottom, fresh.bottomContainer.getBounds(fresh).bottom), "Graphics: the panel's bottom kept");
+            var end:Number = c._fscr_resolution.x + c._fscr_resolution.width;
+            var shown:String = box.label;
+            var widest:Number = 0;
+            for each (var row:Array in texts)
+            {
+                box.label = row[14];
+                box.validateNow();
+                var right:Number = box.x + box.textField.x + box.textField.textWidth;
+                require(right < end, "DXVK: " + row[14] + " ends in the left column (" + end + "): " + right);
+                widest = Math.max(widest, right);
+            }
+            box.label = shown;
+            box.validateNow();
+            trace("SETTINGS Graphics: DXVK at " + box.y + " under Vertical sync " + c._vsync.y + ", FOV to " + span(c._slider_fov)[1]
+                + ", panel " + panel.top + "-" + panel.bottom + "; the widest label ends at " + widest + " of " + end);
+            box.selected = true;
+            require(settings.btn_accept.enabled, "DXVK: a toggle enables Apply");
+            click(settings.btn_cancel);
+            require(!box.selected && !settings.btn_accept.enabled, "DXVK: Cancel puts the saved state back");
+            box.selected = true;
+            click(settings.btn_accept);
+            require(box.selected && !settings.btn_accept.enabled, "DXVK: Apply saves it");
+            root.srp_check_option("srp_dxvk", texts[0][14], "1");
+            require(box.selected && !settings.btn_accept.enabled, "DXVK: the exe's answer (on) keeps it");
+            box.selected = false;
+            require(settings.btn_accept.enabled, "DXVK: unchecking a saved on is a change");
+            click(settings.btn_cancel);
+            require(box.selected, "DXVK: Cancel: on again");
+            root.srp_check_option("srp_dxvk", texts[0][14], "0");
+            require(!box.selected && !settings.btn_accept.enabled, "DXVK: the exe's answer sets the saved state");
+            graphicsTab(settings, "0");
+            require(box.visible && near(box.y, c._vsync.y + step) && near(c._antialias.y, fresh._antialias.y + step),
+                "DXVK: the tab bound again, every row moved once");
+            require(!settings.btn_accept.enabled, "DXVK: nothing pending after the checks");
+            trace("SETTINGS Graphics: DXVK pass");
+            try
+            {
+                settings.selectIndex(0);
+            }
+            catch (error:Error)
+            {
+            }
+            content.gotoAndStop(1);
+            root.set_settings(0, gameplay);
+            root.set_values(0, gameplayValues);
+            require(!box.visible && !settings.btn_accept.enabled, "DXVK: not on the gameplay tab again, nothing pending");
+        }
+
         private function check():void
         {
             // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
             //   the crosshair list's three choices, "Static minimap", the minimap position list's three
             //   (st_minimap_off, _bottom, _top)], ...] for every dictionary
-            var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
+            texts = JSON.parse(loaderInfo.parameters.texts) as Array;
             var root:* = loader.content;
             var settings:* = root.settings_window;
             var content:MovieClip = settings.settings_content;
@@ -290,6 +433,8 @@ package
             try
             {
                 root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
+                    {name: "video_options_type", label: "Graphics"}, {name: "sound_options_type", label: "Sound"},
+                    {name: "button_optimal_video", label: "Optimal"}, {name: "button_default_video", label: "Default"},
                     {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
                     {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"},
                     {name: "s_friends", label: "Friends:"}, {name: "s_cross", label: "Crosshair:"},
@@ -531,6 +676,7 @@ package
                 "the HUD controls over the bottom panel after a tab change");
             checkLayout(content, boxes, texts, stockOf(content), "after a tab change");
             trace("SETTINGS tabs pass");
+            gameplay = [settingsList, values];
 
             var fontName:String = boxes[0].textField.getTextFormat().font;
             var font:Font = null;

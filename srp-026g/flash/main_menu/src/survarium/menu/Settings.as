@@ -88,6 +88,13 @@ package survarium.menu
       // The HUD group's option that goes with the map's controls, over Static minimap (layoutGameplay).
       private static const MAP_OPTION:String = "srp_map_names";
       
+      // The Graphics tab's "Vulkan renderer (DXVK)" (patch 83's `srp_dxvk`, which the updater reads at the
+      // next start: docs/notes/dxvk-option.md), placed under Vertical sync (SrpVideoTab). A toggle is a
+      // change of the tab as the HUD group's are, saved by Apply.
+      protected var _dxvk:SrpCheckOption;
+      
+      private static const VIDEO_FRAME:int = 3;
+      
       // The gameplay tab's spacing, read from its own groups (the timeline's) the first
       // time it is laid out (layoutGameplay); null until then.
       protected var _gameplaySpacing:Object = null;
@@ -235,8 +242,8 @@ package survarium.menu
          this.layoutGameplay();
       }
       
-      // The exe's answer to a setting of the HUD group (root.srp_check_option):
-      // its name, label and saved state (shown, so no change is pending).
+      // The exe's answer to a checkbox it keeps (root.srp_check_option): its name, label and saved state
+      // (shown, so no change is pending).
       public function setCheckOption(values:Array) : void
       {
          if(values.length > 0 && values[0] == SrpCrosshairChoice.NAME)
@@ -245,12 +252,20 @@ package survarium.menu
             this.crosshairChanged(null);
             return;
          }
-         this._hudGroup.answer(values);
-         var option:SrpCheckOption = values.length > 0 ? this._hudGroup.option(values[0]) : null;
-         if(option != null)
+         for each(var option:SrpCheckOption in this.checks)
          {
-            this.checkChanged(option);
+            if(values.length > 0 && option.name == values[0])
+            {
+               option.answer(values.slice(1,3));
+               this.checkChanged(option);
+            }
          }
+      }
+      
+      // Every checkbox the exe keeps: the HUD group's and DXVK.
+      protected function get checks() : Array
+      {
+         return this._hudGroup.options.concat([this._dxvk]);
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
@@ -520,7 +535,7 @@ package survarium.menu
             this._changed[control] = 0;
          }
          this._language.revert();
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         for each(var option:SrpCheckOption in this.checks)
          {
             option.revert();
          }
@@ -559,7 +574,8 @@ package survarium.menu
          this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         this._dxvk = new SrpCheckOption(this.settings_content,"srp_dxvk",VIDEO_FRAME);
+         for each(var option:SrpCheckOption in this.checks)
          {
             this._changed[option.box] = 0;
             option.box.addEventListener(Event.SELECT,this.onCheckSelect);
@@ -575,8 +591,9 @@ package survarium.menu
       
       protected function create_content(settings:Array) : void
       {
-         SrpFovSlider.apply(this);
+         SrpVideoTab.apply(this);
          this._hudGroup.place();
+         this._dxvk.place();
          this._language.place();
          var key:Object;
          var tabIndex:uint;
@@ -678,7 +695,7 @@ package survarium.menu
          {
             hideChat.enabled = true;
          }
-         SrpFovSlider.finish(this);
+         SrpVideoTab.finish(this,this._dxvk.box);
          // the HUD group, after the tab's settings are bound (their labels set)
          this._crosshair.place();
          this.applyHudTexts();
@@ -873,10 +890,10 @@ package survarium.menu
          this.checkButtons();
       }
       
-      // The option of the HUD group whose checkbox `control` is, or null.
+      // The option whose checkbox `control` is, or null.
       protected function checkOf(control:Object) : SrpCheckOption
       {
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         for each(var option:SrpCheckOption in this.checks)
          {
             if(option.box == control)
             {
@@ -891,7 +908,7 @@ package survarium.menu
          this.checkChanged(this.checkOf(event.target));
       }
       
-      // A toggle of a checkbox of the HUD group counts as the change of an option:
+      // A toggle of a checkbox the exe keeps counts as the change of an option:
       // it is pending while the checkbox is not the saved state.
       protected function checkChanged(option:SrpCheckOption) : void
       {
@@ -989,7 +1006,7 @@ package survarium.menu
          _changes = 0;
          this._changed[this._language.menu] = 0;
          this._language.revert();
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         for each(var option:SrpCheckOption in this.checks)
          {
             this._changed[option.box] = 0;
             option.revert();

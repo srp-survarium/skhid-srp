@@ -22,6 +22,7 @@
 
 extern crate alloc;
 
+mod dxvk;
 mod game;
 mod gate;
 mod http;
@@ -555,6 +556,8 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
         resources::Outcome::Done => {}
         resources::Outcome::Stopped => return Done::Stopped,
     }
+    // Best effort: DXVK beside the game when the Settings ask for it, else not.
+    dxvk::run(session, layout);
     // The patches of resources.db the server lists: required, every one of
     // them checked before the game is played.
     let installed = read_installed(layout);
@@ -914,6 +917,10 @@ fn run() -> u32 {
     let arguments = arguments();
     if let Some((replay_arguments, quiet)) = updater_logic::replay::command(&arguments) {
         return replay::run(replay_arguments, quiet);
+    }
+    // The Vulkan check of the DXVK step (`dxvk.rs`), run apart: no log.
+    if arguments.get(1).is_some_and(|word| word == dxvk::PROBE_WORD) {
+        return dxvk::probe();
     }
     let options = options();
     let layout = match Layout::find() {

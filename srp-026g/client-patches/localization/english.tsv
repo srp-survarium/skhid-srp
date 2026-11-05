@@ -2189,6 +2189,7 @@ st_srp_attachments	Attachments
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
 st_srp_crosshair_static	Static crosshair
+st_srp_dxvk_option	Vulkan renderer (DXVK), after restart
 st_srp_equipment029_bm_back_6_desc	Description not available yet.
 st_srp_equipment029_bm_back_6_name	Watchman backpack
 st_srp_equipment029_bm_back_8_desc	Description not available yet.

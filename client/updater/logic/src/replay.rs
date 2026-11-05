@@ -44,13 +44,20 @@ pub const LANGUAGES: [&str; 5] = ["english", "russian", "ukrainian", "german", "
 /// `localization <name>` line, as the launcher reads it. None without one, or
 /// for a language the messages are not written in (they are then English).
 pub fn language_of_user_cfg(text: &[u8]) -> Option<u32> {
+    let name = user_cfg_value(text, b"localization")?;
+    LANGUAGES.iter().position(|language| language.as_bytes() == name).map(|at| at as u32)
+}
+
+/// The value of a user.cfg variable: the first word after `name` on its
+/// first line (`name value`), as the launcher reads `localization`. None
+/// without such a line, or with no value on it.
+pub fn user_cfg_value<'t>(text: &'t [u8], name: &[u8]) -> Option<&'t [u8]> {
     let line = text.split(|&byte| byte == b'\n').find_map(|line| {
-        let rest = line.strip_prefix(b"localization")?;
+        let rest = line.strip_prefix(name)?;
         rest.first().filter(|&&byte| byte == b' ' || byte == b'\t')?;
         Some(rest)
     })?;
-    let name = line.split(|&byte| byte <= b' ').find(|word| !word.is_empty())?;
-    LANGUAGES.iter().position(|language| language.as_bytes() == name).map(|at| at as u32)
+    line.split(|&byte| byte <= b' ').find(|word| !word.is_empty())
 }
 
 /// A replay link that passed every check.

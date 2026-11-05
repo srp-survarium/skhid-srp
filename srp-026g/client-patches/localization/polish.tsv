@@ -2189,6 +2189,7 @@ st_srp_attachments	Dodatki
 st_srp_crosshair_dynamic	Celownik dynamiczny
 st_srp_crosshair_hidden	Celownik ukryty
 st_srp_crosshair_static	Celownik statyczny
+st_srp_dxvk_option	Renderer Vulkan (DXVK), po restarcie
 st_srp_equipment029_bm_back_6_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment029_bm_back_6_name	Plecak wartownika
 st_srp_equipment029_bm_back_8_desc	Opis nie jest jeszcze dostępny.

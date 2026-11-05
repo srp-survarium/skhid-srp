@@ -1,11 +1,13 @@
 //! Patch 83: the Settings' "HUD:" group (docs/notes/hide-hit-markers-scores.md):
 //! four settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
-//! player scores", "Names on map" and the crosshair list's "Hidden crosshair". The hooks are
+//! player scores", "Names on map" and the crosshair list's "Hidden crosshair"; and the
+//! Graphics tab's "Vulkan renderer (DXVK)" (docs/notes/dxvk-option.md), which only the
+//! updater reads, at the next start. The hooks are
 //! `hud_options.toml`'s, each a `lohook` after another patch's at the same site:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 79):
 //!   the console variables `srp_hide_hit_markers`, `srp_hide_scores`,
-//!   `srp_map_names` and `srp_hide_crosshair`, saved in user.cfg, off by default;
+//!   `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk`, saved in user.cfg, off by default;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" saves that first (user.cfg at once);
@@ -60,8 +62,13 @@ pub static MAP_NAMES: Setting = Setting::new(c"srp_map_names", c"st_srp_map_name
 /// are the stock static crosshair setting's two states).
 pub static HIDE_CROSSHAIR: Setting = Setting::new(c"srp_hide_crosshair", c"st_srp_crosshair_hidden");
 
+/// The Graphics tab's "Vulkan renderer (DXVK)": nothing here reads it; the
+/// updater puts DXVK's DLLs beside the game at the next start when it is on
+/// (client/updater/logic/src/dxvk.rs, `SETTING`).
+pub static DXVK: Setting = Setting::new(c"srp_dxvk", c"st_srp_dxvk_option");
+
 /// Every setting of this patch, as the Settings call them.
-pub static SETTINGS: [&Setting; 4] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR];
+pub static SETTINGS: [&Setting; 5] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK];
 
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
@@ -198,6 +205,7 @@ mod tests {
         assert!(core::ptr::eq(setting(c"srp_hide_hit_markers").unwrap(), &HIDE_HIT_MARKERS));
         assert!(core::ptr::eq(setting(c"srp_hide_scores").unwrap(), &HIDE_SCORES));
         assert!(core::ptr::eq(setting(c"srp_map_names").unwrap(), &MAP_NAMES));
+        assert!(core::ptr::eq(setting(c"srp_dxvk").unwrap(), &DXVK));
         assert!(setting(c"srp_language").is_none());
         assert!(setting(c"srp_hide").is_none());
     }

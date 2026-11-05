@@ -12,6 +12,7 @@ import shutil
 import stat
 import struct
 import subprocess
+import tarfile
 import tempfile
 import time
 import unittest
@@ -83,13 +84,24 @@ class ReleaseTests(unittest.TestCase):
         updater = bytearray(dll)
         updater[86:88] = (0x0102).to_bytes(2, 'little')
         self.updater.write_bytes(updater + b"<requestedExecutionLevel level='asInvoker' uiAccess='false'/>")
+        # DXVK's release archive, a stand-in with its two DLLs, and its pins
+        # (build() gives the builder these in place of the real ones).
+        self.dxvk_dlls = {'d3d11.dll': b'MZ dxvk d3d11 fixture', 'dxgi.dll': b'MZ dxvk dxgi fixture'}
+        self.dxvk = self.root / f'dxvk-{overlay.DXVK_VERSION}.tar.gz'
+        with tarfile.open(self.dxvk, 'w:gz') as archive:
+            for name, data in self.dxvk_dlls.items():
+                info = tarfile.TarInfo(f'dxvk-{overlay.DXVK_VERSION}/x32/{name}')
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+        self.dxvk_pins = dict(DXVK_SHA256=hashlib.sha256(self.dxvk.read_bytes()).hexdigest(),
+                              DXVK_DLLS={name: hashlib.sha256(data).hexdigest() for name, data in self.dxvk_dlls.items()})
         self.without_launcher = {'README.txt', 'LINUX.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
             'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
-            'game/binaries/x86/7zr.exe',
+            'game/binaries/x86/7zr.exe', 'game/binaries/x86/dxvk/d3d11.dll', 'game/binaries/x86/dxvk/dxgi.dll',
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
             'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
@@ -98,13 +110,13 @@ class ReleaseTests(unittest.TestCase):
     def build(self, output, *options):
         args = ['make_client_026g.py', str(self.game), str(output),
                 '--server=release.example:2234',
-                '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater), *options]
+                '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater), '--dxvk=' + str(self.dxvk), *options]
         # Binary patching has its own disassembly suite. Exercise every other
         # part of the real release builder, including source reads and ZIP I/O.
         launcher = mock.patch.object(
             overlay.L, 'build', return_value=(b'patched launcher fixture', 'test launcher'))
         with mock.patch.object(overlay.P, 'build', return_value=(b'patched fixture', 'test patch')) as patcher:
-            with launcher as self.launcher, mock.patch('sys.argv', args), \
+            with launcher as self.launcher, mock.patch('sys.argv', args), mock.patch.multiple(overlay, **self.dxvk_pins), \
                     contextlib.redirect_stdout(io.StringIO()) as messages:
                 overlay.main()
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
@@ -318,6 +330,29 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as refused:
             self.build(self.root / 'refused', '--extractor=' + str(other))
         self.assertIn('not the extractor the updater is built to run', str(refused.exception))
+        self.assertFalse((self.root / 'refused').exists())
+
+    def test_dxvk_shipped_is_what_the_updater_takes_for_its_own(self):
+        # The updater replaces or removes a d3d11.dll or dxgi.dll beside the
+        # game only when its sha256 is one of OURS: the builder's pins must be
+        # among them, and the archive's dxvk folder the pinned DLLs.
+        rust = Path(overlay.HERE, '..', '..', 'client', 'updater', 'logic', 'src', 'dxvk.rs').read_text(encoding='utf-8')
+        ours = re.search(r'pub const OURS: \[&str; \d+\] = \[(.*?)\];', rust, re.S).group(1)
+        self.assertLessEqual(set(overlay.DXVK_DLLS.values()), set(re.findall(r'"([0-9a-f]{64})"', ours)))
+        self.assertIn('pub const DLLS: [&str; 2] = ["d3d11.dll", "dxgi.dll"];', rust)
+        self.assertEqual(list(overlay.DXVK_DLLS), ['d3d11.dll', 'dxgi.dll'])
+        archive = self.root / 'dxvk.zip'
+        self.build(archive, '--pack-zip')
+        with zipfile.ZipFile(archive) as z:
+            for name, data in self.dxvk_dlls.items():
+                self.assertEqual(z.read(f'game/binaries/x86/dxvk/{name}'), data)
+
+    def test_another_dxvk_archive_than_the_pinned_one_is_refused(self):
+        other = self.root / 'other.tar.gz'
+        other.write_bytes(b'not dxvk')
+        with self.assertRaises(SystemExit) as refused:
+            self.build(self.root / 'refused', '--dxvk=' + str(other))
+        self.assertIn("not DXVK 3.1.1's release archive", str(refused.exception))
         self.assertFalse((self.root / 'refused').exists())
 
     def test_certificate_only_launcher_has_an_explicit_server(self):
