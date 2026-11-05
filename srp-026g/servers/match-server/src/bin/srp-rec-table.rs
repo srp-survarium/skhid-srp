@@ -11,6 +11,10 @@
 //! - `rec_worlds.csv`: `match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted`: every
 //!   player block of every world a client uploaded (upload `k` of `uploads` at that time, `same` 1 when all the uploads of
 //!   the time are byte-equal), the body's centre (`m_last_pos`) and feet in the map's frame;
+//! - `rec_motion.csv` (A304): `match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,
+//!   last_recent_hit,stagger,health0`: the same blocks' controller flags (`m_is_sprinting` and the others), the support normal's
+//!   y and the fall velocity's y, the damage model's last hit time, the recent hits' count and latest time, the stagger float
+//!   before the hits' count, and part 0's health; empty where the block has none;
 //! - `rec_head.txt`: the header's map, mode and place count, the note kinds, the report's counts. No account is written.
 
 use std::collections::BTreeMap;
@@ -92,6 +96,8 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     inputs.flush()?;
     let mut worlds = std::io::BufWriter::new(std::fs::File::create(out.join("rec_worlds.csv"))?);
     writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted")?;
+    let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
+    writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
     let (mut read, mut unread) = (0usize, 0usize);
     for (&time, bodies) in &tables.worlds {
         let same = u8::from(bodies.windows(2).all(|w| w[0] == w[1]));
@@ -104,6 +110,37 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 read += 1;
                 let (c, f) = motion.body.as_ref().map_or(([f32::NAN; 3], [f32::NAN; 3]), |b| (b.position, b.feet()));
                 let speed = motion.damage.as_ref().map_or(f32::NAN, |d| d.linear_horizontal_speed);
+                // The stagger float: the 4 bytes before the recent hits' count, which ends the state but for the last bool.
+                let count_at = block.state.len().checked_sub(5 + 8 * motion.recent_hits.len());
+                let stagger = count_at
+                    .and_then(|at| at.checked_sub(4))
+                    .and_then(|at| block.state.get(at..at + 4))
+                    .map_or(f32::NAN, |b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+                let flag = |b: bool| u8::from(b).to_string();
+                let (sprinting, jumping, colliding, can_stand, normal_y, fall_y) = motion.body.as_ref().map_or_else(
+                    || Default::default(),
+                    |b| {
+                        (
+                            flag(b.sprinting),
+                            flag(b.jumping),
+                            flag(b.colliding_with_player),
+                            flag(b.can_stand),
+                            format!("{:.3}", b.supporting_surface_normal[1]),
+                            format!("{:.3}", b.fall_and_slide_velocity[1]),
+                        )
+                    },
+                );
+                let (last_hit, health0) = motion.damage.as_ref().map_or((String::new(), String::new()), |d| {
+                    (d.last_hit_time_ms.to_string(), d.part_health.first().map_or(String::new(), |h| format!("{h:.3}")))
+                });
+                let last_recent = motion.recent_hits.last().map_or(String::new(), |h| h.0.to_string());
+                writeln!(
+                    motions,
+                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0}",
+                    block.place,
+                    u8::from(motion.alive),
+                    motion.recent_hits.len()
+                )?;
                 writeln!(
                     worlds,
                     "{id},{time},{k},{},{same},{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.4},{:.4},{:#x},{speed:.3},{}",
@@ -125,6 +162,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     worlds.flush()?;
+    motions.flush()?;
     let r = &tables.report;
     let text = format!(
         "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\n",
