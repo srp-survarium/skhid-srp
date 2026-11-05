@@ -32,6 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
+use super::jump_arc::{ArcStep, JumpArc};
 use super::kin::{Blend, Edge, FIX_ABOVE_M, FixFloor, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
@@ -81,6 +82,9 @@ pub struct Estimate {
     pub air_until: u32,
     /// The highest rise (m) the jump in the air can make ([`Kinematics::jump_snap`]; infinite: any).
     pub air_cap: f32,
+    /// [A318] The client's jump under way ([`Kinematics::jump_arc`]): the clip's arc moves the body until it lands; none on the
+    /// ground and with the switch off.
+    pub arc: Option<JumpArc>,
     /// How the pitch unit relates to the elevation ([`Kinematics::pitch_scale`]).
     pub scale: PitchScale,
 }
@@ -126,6 +130,7 @@ impl Estimate {
             node,
             air_until: 0,
             air_cap: f32::INFINITY,
+            arc: None,
             scale: PitchScale::Radian,
         }
     }
@@ -581,6 +586,7 @@ impl BodyTrack {
             };
         }
         let (air_until, air_cap) = self.air_at(fix.time, kin);
+        let arc = if kin.jump_arc { self.arc_at(fix.time, feet.y) } else { None };
         let mut estimate = Estimate {
             time: fix.time,
             feet,
@@ -596,8 +602,9 @@ impl BodyTrack {
                 .map_or(0.0, |tick| tick.kick),
             keys: held,
             node,
-            air_until,
+            air_until: if kin.jump_arc { 0 } else { air_until },
             air_cap,
+            arc,
             scale: kin.pitch_scale,
         };
         self.trail.clear();
@@ -635,6 +642,25 @@ impl BodyTrack {
             .filter(|&(until, _)| until > time)
             .unwrap_or((0, f32::INFINITY))
     }
+
+    /// [A318] The client's jump a world at `time` with its feet at height `y` is in ([`Kinematics::jump_arc`]): the last press at
+    /// or before it, uncrouched, whose clip has not ended; the press's speed as the ticks show it (forward held long enough for
+    /// the walk cap).
+    fn arc_at(&self, time: u32, y: f32) -> Option<JumpArc> {
+        let mut held = false;
+        let mut pressed = None;
+        let mut forward = 0u32;
+        for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
+            let jump = tick.keys & key::JUMP != 0;
+            if jump && !held && tick.keys & key::CROUCH == 0 {
+                let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };
+                pressed = Some((tick.time, tick.keys, speed));
+            }
+            held = jump;
+            forward = if tick.keys & key::FORWARD != 0 { forward + 1 } else { 0 };
+        }
+        pressed.and_then(|(at, keys, speed)| JumpArc::seen(at, keys, speed, time, y))
+    }
 }
 
 /// [`advance`], and whether the walk grid held the body on that tick ([`Reckoned::held`]): the keys it moved by meant a move
@@ -662,6 +688,32 @@ fn advance(
     let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
         let local = at.blend.tick(target, kin.blend_ticks);
+        // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
+        // client's mix (fx-zones' `kin.mixer`).
+        if let (Some(arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+            let t0 = at.time + (step - 1) * TICK_MS;
+            match arc.step(grid, at.feet, at.yaw, at.keys, t0, t0 + TICK_MS) {
+                ArcStep::Ground(travel) => {
+                    let to = Vec3::new(at.feet.x + travel[0], at.feet.y, at.feet.z + travel[1]);
+                    let offs = WalkOffs::of(kin.walk_off_landing, travel[0].hypot(travel[1]) / TICK_S);
+                    let (next, feet, _) = slide_edge(kin, grid, node, at.feet, to, offs);
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.node = Some(next);
+                    at.feet = feet;
+                }
+                ArcStep::Air(feet) => {
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.feet = feet;
+                }
+                ArcStep::Landed(feet, landed) => {
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.feet = feet;
+                    at.node = landed.or_else(|| grid.locate(feet, LOCATE_M)).or(Some(node));
+                    at.arc = None;
+                }
+            }
+            continue;
+        }
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
@@ -707,7 +759,17 @@ fn advance(
             _ => at.feet = to,
         }
     }
-    if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
+    if kin.jump_arc {
+        // [A318] A press starts the client's jump when it may (`on_ground` 0x7EF90: standing, uncrouched; none under way).
+        if tick.keys & key::JUMP != 0
+            && at.keys & key::JUMP == 0
+            && tick.keys & key::CROUCH == 0
+            && at.arc.is_none()
+            && at.node.is_some()
+        {
+            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet.y));
+        }
+    } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
         at.air_cap = press_cap(kin, tick.keys, at.velocity[0].hypot(at.velocity[1]) >= WALK_CAP_MS);
     } else if tick.time > at.air_until {
