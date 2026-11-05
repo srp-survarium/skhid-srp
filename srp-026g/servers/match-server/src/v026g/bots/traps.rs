@@ -1467,6 +1467,41 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         bot.features.traps.pass_wait = None;
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         bot.features.traps.tally.planned();
+        // [A309] The bench's record of the plan for its press line.
+        #[cfg(test)]
+        {
+            let source = if chosen.wished && on_cleared {
+                "cleared"
+            } else if chosen.wished {
+                "defeated"
+            } else if on_pass {
+                "pass"
+            } else {
+                "lane"
+            };
+            let homes: Vec<Vec3> = due.tactics.world.map.spawns.iter().filter(|s| Some(s.team) == bot.side).map(|s| s.position).collect();
+            let (way, to_home) = if homes.is_empty() {
+                ("unknown", 0.0)
+            } else {
+                let n = homes.len() as f32;
+                let home = Vec3::new(homes.iter().map(|h| h.x).sum::<f32>() / n, me.feet.y, homes.iter().map(|h| h.z).sum::<f32>() / n);
+                let (dx, dz) = (home.x - me.feet.x, home.z - me.feet.z);
+                let d = dx.hypot(dz).max(1e-3);
+                let v = me.velocity;
+                let speed = v[0].hypot(v[1]);
+                let way = if speed < 0.5 {
+                    "still"
+                } else {
+                    match (v[0] * dx + v[1] * dz) / (speed * d) {
+                        c if c > 0.5 => "home",
+                        c if c < -0.5 => "out",
+                        _ => "across",
+                    }
+                };
+                (way, d)
+            };
+            bot.features.traps.planned_by = Some((source, way, to_home));
+        }
         let play = bot.assignment.as_ref().map(|a| a.kind);
         let near = nearest_lane(lanes_of(t, state), chosen.spot);
         bot.note(
@@ -2021,6 +2056,18 @@ pub(super) fn drive(
         #[cfg(test)]
         if let Some(at) = landed {
             bot.features.traps.pressed = Some((at, me.velocity, now));
+            // [A309] The bench's press line: where, what chose it, which way the placer walked.
+            let (source, way, to_home) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0));
+            eprintln!(
+                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m play {:?} speed {:.1}",
+                bot.place,
+                bot.team,
+                at.x,
+                at.z,
+                now,
+                bot.assignment.as_ref().map(|a| a.kind),
+                me.speed()
+            );
         }
         // [A292] The press: its note and count.
         bot.features.traps.tally.ended(Ended::Placed, landed.is_some());
@@ -2181,6 +2228,10 @@ pub struct BotState {
     /// The bench's: its last press, where it landed, its ground velocity then and the time (for the catch lines).
     #[cfg(test)]
     pub pressed: Option<(mapdata::Vec3, [f32; 2], u32)>,
+    /// [A309] The bench's: what chose its planned spot, which way it walked against its side's home (the spawns' centre) and how
+    /// far home was, for the press line.
+    #[cfg(test)]
+    pub planned_by: Option<(&'static str, &'static str, f32)>,
 }
 
 impl super::features::Feature for BotState {
