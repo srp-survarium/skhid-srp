@@ -25,10 +25,11 @@
 //!   yet): the renderer is chosen ([`step`]). With Vulkan/DXVK picked in
 //!   user.cfg, the five DLLs in `dxvk\`, no marker left and a Vulkan 1.4
 //!   device, DXVK's DLLs are loaded from `dxvk\` by their full paths, after
-//!   the marker `dxvk.pending` is written: a module of a name serves every
-//!   later load of that plain name, so the game's delayed d3d9, dxgi and
-//!   d3d11 are DXVK's. A marker left is a start with DXVK that never showed
-//!   its login screen: plain DirectX, and the setting goes off;
+//!   the marker `dxvk.pending` is written, and the game's delayed d3d9, dxgi
+//!   and d3d11 bound to them (their module slots: Windows' dxgi.dll, which
+//!   the Vulkan loader loads, may be loaded under the same name). A marker
+//!   left is a start with DXVK that never showed its login screen: plain
+//!   DirectX, and the setting goes off;
 //! - the login screen shown (`login_menu.activated`, after patch 88): the
 //!   renderer works, the marker goes; after a failed DXVK start the setting
 //!   is turned off there (user.cfg has run by then) and saved;
@@ -46,7 +47,8 @@
 use core::ffi::CStr;
 
 use crate::vostok::log::{Piece::*, line};
-use crate::vostok::renderer::{Vulkan, VulkanVersion, best_vulkan, exists_beside_exe, load_beside_exe, with_user_cfg};
+use crate::vostok::renderer::{DelayedImport, Vulkan, VulkanVersion, best_vulkan, bind_delayed_import, exists_beside_exe,
+                              is_loaded, load_beside_exe, with_user_cfg};
 use crate::vostok::settings::{ConsoleBool, OptionsCall, create_file, delete_file, file_exists, save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread};
 
@@ -85,11 +87,22 @@ pub static DXVK: Setting = Setting::new(c"srp_dxvk", c"st_srp_renderer_option");
 /// The marker of a start with DXVK that has not shown its login screen yet,
 /// in the game's working folder (`binaries\x86`).
 pub const DXVK_MARKER: &CStr = c"dxvk.pending";
+/// A DLL of DXVK's: its file and the game's delayed import it serves.
+pub struct DxvkDll {
+    pub file: &'static CStr,
+    pub serves: Option<DelayedImport>,
+}
+
 /// DXVK's DLLs (`make_client_026g.py`'s `DXVK_DLLS`, `winetricks dxvk`'s set),
 /// in their load order: each one's imports by name are of those before it
 /// (d3d11 imports dxgi, d3d10core d3d11, d3d8 d3d9).
-pub const DXVK_DLLS: [&CStr; 5] =
-    [c"dxvk\\dxgi.dll", c"dxvk\\d3d11.dll", c"dxvk\\d3d10core.dll", c"dxvk\\d3d9.dll", c"dxvk\\d3d8.dll"];
+pub const DXVK_DLLS: [DxvkDll; 5] = [
+    DxvkDll { file: c"dxvk\\dxgi.dll", serves: Some(DelayedImport::Dxgi) },
+    DxvkDll { file: c"dxvk\\d3d11.dll", serves: Some(DelayedImport::D3d11) },
+    DxvkDll { file: c"dxvk\\d3d10core.dll", serves: None },
+    DxvkDll { file: c"dxvk\\d3d9.dll", serves: Some(DelayedImport::D3d9) },
+    DxvkDll { file: c"dxvk\\d3d8.dll", serves: None },
+];
 /// What DXVK 3 needs of a device.
 const VULKAN_NEEDED: VulkanVersion = VulkanVersion::new(1, 4, 0);
 
@@ -190,11 +203,16 @@ fn drive(thread: &Thread, event: Event) {
                 create_file(thread, DXVK_MARKER);
                 event = Some(Event::Looked(best_vulkan(thread)));
             }
-            Action::Load => match DXVK_DLLS.iter().position(|name| !load_beside_exe(thread, name)) {
-                None => line(&[Text("dxvk: DXVK loaded from dxvk\\")]),
-                Some(i) => line(&[Text("dxvk: loading DXVK stopped at DLL "), Dec(i as u32),
-                                  Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0)")]),
-            },
+            Action::Load => {
+                if is_loaded(thread, c"dxgi.dll") {
+                    line(&[Text("dxvk: another dxgi.dll is loaded already (the Vulkan loader's)")]);
+                }
+                match load_dxvk(thread) {
+                    Ok(()) => line(&[Text("dxvk: DXVK loaded from dxvk\\, the game's d3d9, dxgi and d3d11 bound to it")]),
+                    Err(i) => line(&[Text("dxvk: loading DXVK stopped at DLL "), Dec(i as u32),
+                                     Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0)")]),
+                }
+            }
             Action::TurnOff => {
                 DXVK.value.set(thread, false);
                 save_user_config(thread);
@@ -210,6 +228,17 @@ fn drive(thread: &Thread, event: Event) {
     }
 }
 
+/// DXVK's DLLs loaded in order, each delayed import of the game bound to its
+/// DLL as it loads; the index of the first that did not load.
+fn load_dxvk(thread: &Thread) -> Result<(), usize> {
+    for (i, dll) in DXVK_DLLS.iter().enumerate() {
+        let module = load_beside_exe(thread, dll.file).ok_or(i)?;
+        if let Some(import) = dll.serves {
+            bind_delayed_import(thread, import, module);
+        }
+    }
+    Ok(())
+}
 
 /// Every setting of this patch, as the Settings call them.
 pub static SETTINGS: [&Setting; 5] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK];
@@ -280,7 +309,7 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let choice = with_user_cfg(thread, Choice::of_user_cfg).unwrap_or(Choice::DirectX);
-    let files = DXVK_DLLS.iter().all(|name| exists_beside_exe(thread, name));
+    let files = DXVK_DLLS.iter().all(|dll| exists_beside_exe(thread, dll.file));
     let marker = file_exists(thread, DXVK_MARKER);
     drive(thread, Event::Started { choice, files, marker });
     Flow::Continue
@@ -448,10 +477,18 @@ mod tests {
 
     #[test]
     fn dxvk_loads_dxgi_first_and_d3d9_before_d3d8() {
-        let at = |name: &str| DXVK_DLLS.iter().position(|n| n.to_bytes() == name.as_bytes()).unwrap();
+        let at = |name: &str| DXVK_DLLS.iter().position(|dll| dll.file.to_bytes() == name.as_bytes()).unwrap();
         assert_eq!(at("dxvk\\dxgi.dll"), 0);
         assert!(at("dxvk\\dxgi.dll") < at("dxvk\\d3d11.dll") && at("dxvk\\d3d11.dll") < at("dxvk\\d3d10core.dll"));
         assert!(at("dxvk\\d3d9.dll") < at("dxvk\\d3d8.dll"));
+    }
+
+    #[test]
+    fn each_delayed_import_of_the_game_is_bound_to_its_own_dll() {
+        let serving = |import| DXVK_DLLS.iter().filter(|dll| dll.serves == Some(import)).map(|dll| dll.file.to_bytes()).collect::<Vec<_>>();
+        assert_eq!(serving(DelayedImport::Dxgi), [b"dxvk\\dxgi.dll"]);
+        assert_eq!(serving(DelayedImport::D3d11), [b"dxvk\\d3d11.dll"]);
+        assert_eq!(serving(DelayedImport::D3d9), [b"dxvk\\d3d9.dll"]);
     }
 
     #[test]

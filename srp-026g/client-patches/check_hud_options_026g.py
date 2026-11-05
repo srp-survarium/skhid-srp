@@ -25,8 +25,10 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   for by full path, the marker; Vulkan/DXVK picked with all five, no marker
   and a 1.4 device: the marker written first, vulkan-1.dll loaded, an
   instance made and destroyed, the DLL let go, then dxgi, d3d11, d3d10core,
-  d3d9, d3d8 loaded by full path (one that fails stops the loads, nothing let
-  go, the marker kept); a 1.3 device or no vulkan-1.dll, DirectX 11 picked,
+  d3d9, d3d8 loaded by full path, the game's delayed dxgi, d3d11 and d3d9
+  bound to them (their module slots), also with Windows' dxgi.dll loaded
+  already, said (one that fails stops the loads, nothing let go, the marker
+  kept); a 1.3 device or no vulkan-1.dll, DirectX 11 picked,
   no user.cfg, a file missing, a marker left: nothing loaded, the marker
   deleted; never the engine's allocator; registers (EAX the probe's size) and
   stack as the original's, which calls none of these;
@@ -95,7 +97,10 @@ VULKAN, INSTANCE, DEVICES = 0x71000000, 0x73000000, 0x74000000
 # kernel32's and shell32's import slots patch 83 calls at the process's start and the login screen
 SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (0x870108, 5), "CloseHandle": (0x870040, 1),
          "DeleteFileA": (0x87021C, 1), "LoadLibraryA": (0x870080, 1), "GetProcAddress": (0x870084, 2),
-         "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5)}
+         "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5),
+         "GetModuleHandleA": (0x87003C, 1)}
+# the game's delayed imports' module slots (__delayLoadHelper2 0xE48E0 loads nothing for one set), DXVK's DLL of each
+MODULE_SLOTS = {"dxgi.dll": 0xAF30CC, "d3d11.dll": 0xAF30D0, "d3d9.dll": 0xAF1194}
 VK = {"vkCreateInstance": 3, "vkDestroyInstance": 2, "vkEnumeratePhysicalDevices": 3, "vkGetPhysicalDeviceProperties": 2}
 
 
@@ -116,10 +121,12 @@ class Run(language.Run):
     def malloc(self, *_):
         self.mallocs += 1
 
-    def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None):
+    def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False):
         """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
-        the best device's (apiVersion, type) (None: no vulkan-1.dll), a DLL whose load fails."""
+        the best device's (apiVersion, type) (None: no vulkan-1.dll), a DLL whose load fails, whether Windows'
+        dxgi.dll is loaded already (the Vulkan loader's)."""
         self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, vulkan, fails
+        self.windows_dxgi, self.modules = windows_dxgi, {}
         self.calls_made, self.logged, self.read_at = [], b"", 0
         if getattr(self, "stubs", None):
             return
@@ -172,6 +179,12 @@ class Run(language.Run):
                 result = VULKAN if self.vulkan is not None else 0
             else:
                 result = 0 if path == DXVK_DIR + str(self.fails) else 0x72000000 + 0x10000 * len(self.calls_made)
+                if result:
+                    self.modules[path[len(DXVK_DIR):]] = result
+        elif name == "GetModuleHandleA":
+            path = self.text(arg(0)).decode()
+            self.calls_made.append((name, path))
+            result = 0x6A000000 if path == "dxgi.dll" and self.windows_dxgi else 0
         elif name == "GetProcAddress":
             function = self.text(arg(1)).decode()
             result = self.stubs[function] if arg(0) == VULKAN and function in VK else 0
@@ -433,13 +446,16 @@ def renderer(original, patched, expect):
     opened = [("CreateFileA", USER_CFG, 3)]
     marker = [("CreateFileA", "dxvk.pending", 3)]
     unmark = [("DeleteFileA", "dxvk.pending")]
-    loads = [("LoadLibraryA", DXVK_DIR + name) for name in DXVK]
+    loads = [("GetModuleHandleA", "dxgi.dll")] + [("LoadLibraryA", DXVK_DIR + name) for name in DXVK]
     log = [("CreateFileA", "srp_patches.log", 4)]
     cases = [
         # (what, the world, the calls wanted, the marker after, the log's words)
         ("Vulkan picked, dxvk\\ whole, a Vulkan 1.4 device: the marker first, the look (all let go), DXVK's five "
          "by their full paths in their order", dict(user_cfg=on, vulkan=good),
          opened + files + marker + look + loads + log, True, b"DXVK loaded"),
+        ("Vulkan picked, Windows' dxgi.dll loaded already (the Vulkan loader's): the same loads, the game still "
+         "bound to DXVK's, and said", dict(user_cfg=on, vulkan=good, windows_dxgi=True),
+         opened + files + marker + look + loads[:1] + log + loads[1:] + log, True, b"another dxgi.dll is loaded already"),
         ("Vulkan picked, the best device 1.3: no DLL loaded, the marker taken away", dict(user_cfg=on, vulkan=old),
          opened + files + marker + look + log + unmark, False, b"no Vulkan 1.4 device"),
         ("Vulkan picked, no vulkan-1.dll: the same", dict(user_cfg=on),
@@ -453,18 +469,23 @@ def renderer(original, patched, expect):
         ("Vulkan picked, a marker left: no look, nothing loaded, the marker taken away",
          dict(user_cfg=on, vulkan=good, marker=True), opened + files + marker + unmark, False, b""),
         ("Vulkan picked, d3d10core.dll does not load: the loads stop there, nothing let go, the marker kept",
-         dict(user_cfg=on, vulkan=good, fails="d3d10core.dll"), opened + files + marker + look + loads[:3] + log, True,
+         dict(user_cfg=on, vulkan=good, fails="d3d10core.dll"), opened + files + marker + look + loads[:4] + log, True,
          b"stopped at DLL 2"),
     ]
     for what, world, wanted, marked, words in cases:
         r = Run(patched)
         kept, calls = r.process_start(**world)
-        expect(kept and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0,
-               f"the process's start, {what} (no engine allocation, registers and stack as the original's)"
-               + ("" if calls == wanted else f": {calls}"))
+        bound = {name: r.read(slot) for name, slot in MODULE_SLOTS.items()}
+        loaded = {name: r.modules.get(name, 0) for name in MODULE_SLOTS}
+        expect(kept and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0
+               and bound == loaded,
+               f"the process's start, {what} (no engine allocation, registers and stack as the original's; the "
+               "game's delayed dxgi, d3d11 and d3d9 bound to DXVK's as each loaded, the others' slots left 0)"
+               + ("" if calls == wanted else f": {calls}") + ("" if bound == loaded else f": slots {bound}"))
     stock = Run(original)
     kept, calls = stock.process_start(user_cfg=on, vulkan=good)
-    expect(kept and calls == [], "the original's process start calls none of these")
+    expect(kept and calls == [] and all(stock.read(slot) == 0 for slot in MODULE_SLOTS.values()),
+           "the original's process start calls none of these and binds no delayed import")
 
     # a failed DXVK start: the setting off at the login screen (user.cfg has run by then), saved once
     r = Run(patched)

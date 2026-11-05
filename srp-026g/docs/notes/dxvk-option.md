@@ -47,7 +47,10 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
     counted), the instance destroyed, the DLL let go. A device of 1.4 or later: DXVK's DLLs loaded
     by their full paths, dxgi, d3d11, d3d10core, d3d9, d3d8 (each one's imports by name are of
     those before it), never let go; one that fails stops the loads, logged, and the marker covers
-    a crash. Otherwise Windows' own, the marker deleted.
+    a crash. As each loads, the game's delayed import of its name (dxgi, d3d11, d3d9) is bound to
+    it: its module slot (`survarium::image` `dxgi_module`, `d3d11_module`, `d3d9_module`) holds
+    the DLL, and `__delayLoadHelper2` (0xE48E0) loads nothing for a slot already set (below).
+    Otherwise Windows' own, the marker deleted.
   - Vulkan/DXVK picked and a marker left: the last start with DXVK never showed its login screen
     (a driver that crashed in the look, in d3d9's VRAM check, the factory or the device): Windows'
     own, the marker deleted, and at the login screen (user.cfg has run there, the console's value
@@ -55,6 +58,22 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
     again tries once more.
   - The login screen (`login_menu.activated`) deletes the marker in every case.
 - Every outcome but plain DirectX writes one `dxvk:` line in `srp_patches.log`.
+- **Why the imports are bound, not left to the name** (the first Windows report, 2026-11-05, rev50,
+  RTX 5070 Ti, Windows 10 19045): the Vulkan look itself loads Windows' `System32\dxgi.dll`
+  (the Khronos loader sorts its devices through DXGI; the minidump lists it right before
+  NVIDIA's `nvoglv32.dll`), and it stays after vulkan-1.dll is let go. The process then has two
+  modules named dxgi.dll, and the game's plain-name load got Windows' one: its factory, DXVK's
+  d3d11 device (`D3D11InternalCreateDevice: Adapter is not a DXVK adapter`), and
+  `IDXGIFactory::CreateSwapChain` (vtable +28h) failing into the engine's assert,
+  `res_render_output::initialize_swap_chain`'s int3 at 0x3CF765, before the login screen, at
+  every try. Under Wine the prefix's own dxgi is DXVK's, so it never showed there.
+  Reproduced under Wine with stand-ins, a `vulkan-1.dll` beside the exe that loads a
+  `fake\dxgi.dll` (Wine's own dxgi, not DXVK's) and keeps it, then passes every call to Wine's
+  vulkan-1: rev50's code crashes at the same 0x3CF765 with the same stack; with the slots bound
+  the game's factory is DXVK's and it reaches the login screen.
+  The game's VRAM probe `GetVideoMemoryViaDXGI` (0x106030, the DirectX SDK sample's) still loads
+  `dxgi.dll` by its plain name (LoadLibraryW, then CreateDXGIFactory1): whichever dxgi it gets
+  answers that, Windows' own included.
 - **Why it works** (`../../scripts/dxvk-loader/run.sh`, Wine 11.8): a program that preloads the five
   from `dxvk\` by full path and then asks for each plain name gets the preloaded module, one module
   of each name in the process (DXVK's d3d11 bound to its dxgi), and its delay-loaded

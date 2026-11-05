@@ -2,7 +2,8 @@
 //! (docs/notes/dxvk-option.md), before the engine's memory exists: the user's
 //! user.cfg (read into a static buffer: no engine allocator), the files of
 //! the game's folder, the best Vulkan device (vulkan-1.dll loaded for the
-//! look and let go), and DXVK's DLLs loaded from `dxvk\` by their full paths.
+//! look and let go), and DXVK's DLLs loaded from `dxvk\` by their full paths,
+//! the game's delayed d3d9, dxgi and d3d11 bound to them.
 //! kernel32's and shell32's functions through the exe's import slots (raw).
 
 use core::cell::UnsafeCell;
@@ -126,15 +127,54 @@ pub fn exists_beside_exe(_: &Thread, name: &CStr) -> bool {
     true
 }
 
+/// A loaded DLL, never let go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Module(NonNull<c_void>);
+
 /// Loads the DLL `name` of the game's folder by its full path (LoadLibraryA),
-/// for the life of the process: a module of that name then serves every
-/// later load of the plain name (the game's delay-loaded `d3d11.dll`, DXVK's
-/// own imports). Whether it loaded.
-pub fn load_beside_exe(_: &Thread, name: &CStr) -> bool {
-    let Some(path) = beside_exe(name) else { return false };
+/// for the life of the process. Another module of the same name may be
+/// loaded already (Windows' dxgi.dll, which the Vulkan loader loads to sort
+/// its devices): a later load of the plain name may get either, so the game's
+/// own imports are bound with [`bind_delayed_import`].
+pub fn load_beside_exe(_: &Thread, name: &CStr) -> Option<Module> {
+    let path = beside_exe(name)?;
     // SAFETY: LoadLibraryA with a NUL-terminated path; the module is never
     // let go.
-    !unsafe { (raw::engine_load_library_a)(path.c()) }.is_null()
+    NonNull::new(unsafe { (raw::engine_load_library_a)(path.c()) }).map(Module)
+}
+
+/// Whether a module of the plain name `name` is loaded (GetModuleHandleA).
+pub fn is_loaded(_: &Thread, name: &CStr) -> bool {
+    // SAFETY: GetModuleHandleA with a NUL-terminated name; nothing is kept.
+    !unsafe { (raw::engine_get_module_handle_a)(name.as_ptr().cast()) }.is_null()
+}
+
+/// The game's delayed imports a DXVK DLL serves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DelayedImport {
+    D3d9,
+    Dxgi,
+    D3d11,
+}
+
+impl DelayedImport {
+    /// Its descriptor's module slot.
+    fn slot(self) -> u32 {
+        match self {
+            DelayedImport::D3d9 => raw::image::D3D9_MODULE,
+            DelayedImport::Dxgi => raw::image::DXGI_MODULE,
+            DelayedImport::D3d11 => raw::image::D3D11_MODULE,
+        }
+    }
+}
+
+/// The game's delayed `import` bound to `module`: the delay-load helper
+/// (0xE48E0) takes a module already in its slot and loads nothing. Before
+/// the import's first call (at the process's start none has been called).
+pub fn bind_delayed_import(_: &Thread, import: DelayedImport, module: Module) {
+    // SAFETY: the slot is an HMODULE of the exe's .data, written by the
+    // helper alone, at the import's first call; none has run yet.
+    unsafe { *(import.slot() as *mut *mut c_void) = module.0.as_ptr() };
 }
 
 /// A Vulkan version as Vulkan packs it (`VK_MAKE_API_VERSION`, variant 0).

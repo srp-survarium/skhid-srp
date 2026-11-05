@@ -15189,6 +15189,15 @@ pub mod image {
 
     /// 0x21e76c8 (u32, survarium::image): the allocator set_unmanaged_resource 0xF0080 gets with a baked texture resource (push 21E76C8h, 0x12F1B1 and 0x12DDD6)
     pub const UNMANAGED_RESOURCE_ALLOCATOR: u32 = 0x21e76c8;
+
+    /// 0xaf1194 (u32, survarium::image): the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
+    pub const D3D9_MODULE: u32 = 0xaf1194;
+
+    /// 0xaf30cc (u32, survarium::image): the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
+    pub const DXGI_MODULE: u32 = 0xaf30cc;
+
+    /// 0xaf30d0 (u32, survarium::image): the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
+    pub const D3D11_MODULE: u32 = 0xaf30d0;
 }
 
 /// A general-purpose register at a hook's site.
