@@ -6,7 +6,7 @@ package survarium.player
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
 
-   // What a match adds to a weapon's or a medicine's card stats in the selected kit, shown while Alt is held
+   // What a match adds to a weapon's, a medicine's, a grenade's or a trap's card stats in the selected kit, shown while Alt is held
    // (docs/notes/alt-weapon-stats.md). A player modifier's sum S is the kit's own float (the
    // skills) plus the kit's armour's and pocket boosters' modifications of it
    // (armor::add_modifiers 0x33F3A0, booster 0x33F990): the sum
@@ -59,10 +59,15 @@ package survarium.player
          return LocalizationData.getName(_kit != null ? "st_srp_weapon_with_kit_skills" : "st_srp_weapon_with_kit");
       }
 
-      // Whether Alt shows an item's card as a match has it: a weapon's or a medicine's.
+      // Whether Alt shows an item's card as a match has it: a weapon's, a medicine's, a grenade's or a trap's.
       public static function covers(item:Object) : Boolean
       {
-         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS);
+         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item));
+      }
+
+      private static function throwable(item:Object) : Boolean
+      {
+         return item.category == ItemCategory.GRENADES || item.category == ItemCategory.BOOBY_TRAPS;
       }
 
       // A card stat (its prop_id) of `item`, already with the item's own modifications, as a
@@ -70,6 +75,7 @@ package survarium.player
       public function stat(item:Object, propId:int, value:Number) : Number
       {
          if(item.category == ItemCategory.MEDKITS) return medicine(item,propId,value);
+         if(throwable(item)) return thrown(propId,value);
          switch(propId)
          {
             case 133:
@@ -118,25 +124,50 @@ package survarium.player
          {
             case 19:
                // Use time: x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging's
-               // -2 % a rank on a medicine that heals (data/influences: a healing line on its card).
-               return value * factor(PlayerModifier.DRUG_USING_TIME) * (heals(item) ? 1 - bandaging * 0.02 : 1);
+               // -5 % a rank on a medicine that heals (data/influences: a healing line on its card).
+               return value * factor(PlayerModifier.DRUG_USING_TIME) * (heals(item) ? 1 - bandaging * 0.05 : 1);
             case 18:
-               // Active time: Potent Painkiller's +1 s a rank on a pain protector.
-               return has(item,PAIN_PROTECTION) ? value + painkiller : value;
+               // Active time: Potent Painkiller's +1.5 s a rank on a pain protector.
+               return has(item,PAIN_PROTECTION) ? value + painkiller * 1.5 : value;
             case PAIN_PROTECTION:
                // The hit's coefficient c = (1 - protection) x max(0, 1 + S58); Potent Painkiller
-               // makes it max(0, 1 - (1 - c) x (1 + 0.05 x rank)) (medical::protect). In %, so
-               // that no skill leaves the card's own number exact.
+               // adds a percentage point a rank: max(0, c - 0.01 x rank) (medical::protect). In %,
+               // so that no skill leaves the card's own number exact.
                var coefficient:Number = (100 - value) * factor(PlayerModifier.DRUG_HIT_COEFF);
-               if(painkiller > 0) coefficient = Math.max(0,100 - (100 - coefficient) * (1 + painkiller * 0.05));
+               coefficient = Math.max(0,coefficient - painkiller);
                return 100 - coefficient;
             case 13:
             case 135:
             case 136:
             case 137:
                // Healing: each tick's amount x max(0, 1 + S57) (medkit::tick 0x33D790; Medical
-               // Training +5 % a rank), a pool never above its maximum.
+               // Training +8 % a rank), a pool never above its maximum.
                return Math.min(100,value * factor(PlayerModifier.DRUG_AMOUNT));
+            default:
+               return value;
+         }
+      }
+
+      // A grenade's or a trap's card stat (docs/notes/alt-weapon-stats.md), each as the match's
+      // apply_modifier takes it.
+      private function thrown(propId:int, value:Number) : Number
+      {
+         switch(propId)
+         {
+            case 1:
+            case 132:
+            case 167:
+               // Damage, stopping power and stamina damage: a grenade's splash (0x30A350), a trap's
+               // hit on the foot (0x304A40), x max(0, 1 + S11).
+               return value * factor(PlayerModifier.DEVICE_DAMAGE);
+            case 23:
+               // Radius: x max(0, 1 + S12) (0x30A350).
+               return value * factor(PlayerModifier.SPLASH_RADIUS);
+            case 169:
+               // Throw speed: the grenade's velocity, throw_power x max(0, 1 + S27) (0x30A2DE;
+               // Grenadier +10 % a rank). Anything else the kit adds to S27 (a booster in a
+               // pocket) belongs in the sums the constructor makes, not here.
+               return value * factor(PlayerModifier.GRENADE_THROW_POWER);
             default:
                return value;
          }

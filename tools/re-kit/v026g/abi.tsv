@@ -2306,6 +2306,9 @@ va	name	source	ret_cleanup	result
 0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	manual	4	void; preloads one independent particle resource per requested instance
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	thiscall	16	EAX: output interval/time/ended record
 0x00313640	survarium::artefact_base::active_effect_time_calculator::calculate	thiscall	16	EAX: output; time stays zero until artefact state is no longer active
+0x0007f1a0	vostok::physics::bullet_character_controller::setup_crouch_state	manual	4	void; writes +203h (the crouched capsule) and +202h, keeps the feet
+0x00337810	survarium::player_logic_crouch_state::request_effective_crouch	manual	0	void; controller +201h = 1 (crouch state vtables 0xA1A1B8/0xA1A1E4 +8)
+0x00337830	survarium::player_logic_crouch_state::release_effective_crouch_if_clear	manual	0	void; clears controller +201h only when +202h (can stand); vtable +10h
 0x002d6590	survarium::animations_registry::animation_id	manual	4	AX: the pair's id; 0FFFFh when the map has no entry for it (0x2D65EE)
 0x002ef130	survarium::animations_registry::register_animation	manual	12	
 0x002ef280	survarium::animations_registry::actualize	manual	4	
@@ -2320,6 +2323,17 @@ va	name	source	ret_cleanup	result
 0x002ff930	survarium::weapon_controller_core::serialize	manual	8	A1386C slot 14h, from weapon_core::serialize 2E3382 ([weapon+278h]): legs IK (if 1F1D9EFh) + 2FBBB0 (u32 seed, byte, fsm) + 3309B0 (8 x 12 bytes)
 0x002ff970	survarium::weapon_controller_core::deserialize	manual	12	A1386C slot 18h; the fsm's state from the reader's own list (38CCF0)
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	manual	0	reads 8 x (u32, u32, u32) into ECX+0Ch.. stride 18h
+0x00057b80	vostok::sound::sound_scene::tick	manual	8	none
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	manual	28	none; writes the two-channel output matrix (entry ESP+18h) and the low-pass coefficient (entry ESP+1Ch) of the proxy at its position, as 0.21d's: per emitter, from the listener (+120h..+130h)
+0x0005c1c0	vostok::sound::new_sound_propagator::amplitude	manual	0	ST0: the gain by distance (+4Ch) of the last propagator of its master chain (+14h, followed to 0)
+0x0005c1f0	vostok::sound::sound_instance_proxy_internal::get_position	manual	0	EAX: ESI, the proxy's position (atomic half3 at +40h) as three floats
+0x0005c280	vostok::sound::sound_scene::notify_listener2	manual	8	none; per propagator of the scene's proxies (+2A8h, next +60h; a proxy's first propagator +58h, next +0): calculate_3d_pan (0x5C3CC) and set_output_matrix_impl (0x5C70B) for a positional non-hud sound, then the voice's volume = options volume_k (+8h of its emitter's slot 2) x amplitude (0x5C717) or its own gain (+4Ch), set by set_volume_impl at 0x5C743 (its only caller)
+0x000633f0	vostok::sound::voice_bridge::set_volume_impl	manual	4	none; the volume clamped to [0, 1] (0xA70884): stored at the voice_bridge's +2Ch while the voice is not started (+24h set; start_impl 0x63200 applies it through 0x5DB30), else IXAudio2Voice::SetVolume (vtable +30h, operation set [0A7AF74h]) when it differs from +2Ch by 1e-5 or more
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	manual	16	EAX: the out slot (entry ESP+4), the new proxy with one reference or 0 (the scene's proxies, [EDI+188h], all taken)
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	manual	8	EAX: the out slot (entry ESP+4): the new point proxy (type 0) with one reference, or 0; not played
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	manual	12	none; makes a hud (new_hud 0x65803) or point (new_point 0x65874) proxy, sets its position (proxy vtable +10h), plays it once (vtable +0, mode 0) with a finished callback and lets its reference go: the caller never holds the proxy
+0x0025b940	survarium::game_world::play_sound	manual	8	none; emit_and_play_once (0x25B98A) of the emitter at the position as a point sound, from the world's own scene slot (+94h)
+0x00297c50	survarium::weapon_sound_effect::on_sound_event	manual	4	EAX 0 (callback_return_type_enum)
 0x00303890	survarium::grenade_core::load	manual	4	none; the body: capsule r 0.05 h 0.1 (0x7A390 type 3), 0x357100 with mass 0.3, friction 0.5, restitution 0, into +18Ch; its btRigidBody (+14h) m_ccdMotionThreshold (+104h) 0.03 and m_ccdSweptSphereRadius (+100h) 0.01 (patch 105: 0.04)
 0x00303c10	survarium::grenade_core::throw_grenade	manual	8	none; sets the body's transform, adds it to the physics world (vtable +2Ch) as group 818h mask 8, its linear velocity, a zero angular velocity
 0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	manual	4	none; writes the btRigidBody's (+14h) m_linearVelocity (+140h) as (x, y, -z), the Bullet axes, a zero as +0

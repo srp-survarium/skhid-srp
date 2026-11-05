@@ -9,7 +9,7 @@
   (`throwables.tsv`: 17 m/s, the RGD-5 and the RDG-M). S27 is the thrower's kit sum: the Grenadier
   skill (203, +0.1 a rank, 2 ranks; its card says "Throwing distance: +10 %") and every carried
   item's entries.
-- **The effect:** built-in modification 1320 on the booster, `parameters/grenade_throw_power_modifier`
+- **The effect:** built-in modification 1320 on the booster (`boosters.tsv` column `throw_distance`), `parameters/grenade_throw_power_modifier`
   +0.15 (type 1), as its +5 kg is 1124: the booster adds each non-zero parameter to the kit's lists
   at every spawn while it is in a pocket (`survarium::booster` 0x33F690 / 0x33F990, data.md). The
   booster's config gets the key (0.0), as it has every key its modifications change. Type 34 (a

@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ładownice
 st_inv_ano_armor	Izolacja
 st_inv_armor	Pancerz
 st_inv_arp	Penetracja pancerza
+st_inv_artefact_recharge	Czas ładowania artefaktów
 st_inv_artefact_slots	Pojemnik na artefakty
 st_inv_buckshot	Śrut
 st_inv_clip_size	Nabojów w opakowaniu
@@ -1777,7 +1778,7 @@ st_ranking	Ranking
 st_ranking_diff	Różnica
 st_rattle_activation_hint	Grzechotka aktywowana! Przeciwnik nie usłyszy twoich kroków!
 st_rattle_pickup_hint	Artefakt Grzechotka. Tłumi odgłos kroków o 50%.
-st_rdgm_descr	OPIS NIE JEST GOTOWY!!!
+st_rdgm_descr	Ręczny granat dymny. Stawia gęstą zasłonę, która ukrywa ruch.
 st_rdgm_name	Granat dymny RDG-M
 st_reach_level	osiągnął <green>Poziom</green>
 st_ready	Gotowy
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Zastosuj
 st_refill_ammo_label	Amunicja
 st_regen_booster_description	Stare, wojskowe racje żywnościowe. Stosowane z powodzeniem w armiach krajów WNP w czasach przed kryzysem. Pobudzają metabolizm i są całkiem smaczne.
 st_regen_booster_name	Racje
+st_regen_delay_name	Opóźnienie regeneracji
+st_regen_limit_name	Limit regeneracji
 st_registration_str	Utwórz konto
 st_regular_fix	Naprawa
 st_regular_money	Srebro
@@ -2446,8 +2449,14 @@ st_srp_hud_unmute	Włącz czat
 st_srp_hud_unmuted	Czat włączony
 st_srp_inv_ammo_range	Zasięg
 st_srp_inv_bullet_speed	Prędkość pocisku
+st_srp_inv_defuse_time	Czas rozbrajania
+st_srp_inv_fuse_time	Czas zapalnika
 st_srp_inv_pellets	Śruciny
+st_srp_inv_pocket_units	Miejsca w kieszeni
+st_srp_inv_stamina_damage	Obrażenia wytrzymałości
+st_srp_inv_throw_speed	Prędkość rzutu
 st_srp_inventory_search	Szukaj
+st_srp_item_props_mps	m/s
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
 st_srp_loadout_block_ammo	Za mało amunicji do broni

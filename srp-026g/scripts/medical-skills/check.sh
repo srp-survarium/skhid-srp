@@ -21,6 +21,10 @@ flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
     -output="$work/MedicalSkillsHarness.swf" "$here/MedicalSkillsHarness.as" >"$work/MedicalSkillsHarness.mxmlc.log" 2>&1 \
     || { cat "$work/MedicalSkillsHarness.mxmlc.log"; exit 1; }
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
+# The tree as the edit list makes it, and the PNGs the movie embeds (pixel comparison).
+cp "$here/../content-edit/medical-skills-1.json" "$work/"
+mkdir -p "$work/bitmaps"
+cp "$here"/../../flash/lobby_menu/bitmaps/MedicalSkill069*.png "$work/bitmaps/"
 
 paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver --no-link --print-out-paths)
 ruffle=$(grep -- '-ruffle-' <<<"$paths")

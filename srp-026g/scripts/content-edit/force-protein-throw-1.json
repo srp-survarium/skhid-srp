@@ -1,5 +1,5 @@
 {
-  "_about": "The Anomalous Force Protein (weight_booster, 339) also throws grenades 15 % farther while in a pocket (the owner, 2026-11-05): a built-in modification 1320 of player modifier 27 (grenade_throw_power, the Grenadier skill's: throw speed x max(0, 1 + S27), 0x30A2DE), +0.15 as the booster's +5 kg (1124), docs/notes/force-protein.md. Its card line is property 174 (Throwing distance, a percentage like 105). The booster gets the key its modification changes, as every booster has those of its own. Before modifications.tsv, which writes the value.",
+  "_about": "The Anomalous Force Protein (weight_booster, 339) also throws grenades 15 % farther while in a pocket (the owner, 2026-11-05): a built-in modification 1320 of player modifier 27 (grenade_throw_power, the Grenadier skill's: throw speed x max(0, 1 + S27), 0x30A2DE), +0.15 as the booster's +5 kg (1124), docs/notes/force-protein.md. Its card line is property 174 (Throwing distance, a percentage like 105). The booster gets the key its modification changes, as every booster has those of its own. boosters.tsv makes 1320 the booster's built-in (column throw_distance), modifications.tsv holds its row.",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
@@ -13,7 +13,7 @@
     {
       "file": "gameplay/items/modifications/modifications.options",
       "list": "modifications",
-      "expected_count": 158,
+      "expected_count": 161,
       "unique_key": "id",
       "value": {
         "drop_weight": 0,
@@ -28,8 +28,5 @@
   ],
   "add_value": [
     {"files": ["gameplay/items/boosters/weight_booster.options"], "table": "parameters", "key": "grenade_throw_power_modifier", "value": 0.0}
-  ],
-  "append_item": [
-    {"file": "gameplay/items/boosters/weight_booster.options", "path": "default_modifications", "value": 1320}
   ]
 }
