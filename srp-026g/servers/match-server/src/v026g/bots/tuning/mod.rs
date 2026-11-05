@@ -151,6 +151,7 @@ pub use sense::ShotRanges;
 pub use smoke::AimPoint;
 pub use smoke::BestCover;
 pub use smoke::CloudWaiters;
+pub use smoke::CrossingSmoke;
 pub use smoke::MidLine;
 pub use smoke::NearShooter;
 pub use smoke::ObjectiveSmoke;

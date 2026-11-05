@@ -931,6 +931,46 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             (plan, why, held.at + eye_over, hold, Some(held.shooter), stretch)
         })
     };
+    // [A317 `smoke.crossing`] The way enters a known spot's line ahead (the one test, `lane_ahead::known_lane_ahead`, from the
+    // spot itself, a farming spot, 6-10 m ahead): the cloud ON the crossing, hiding the crossers there; no hold.
+    let crossing_smoke = || {
+        let rule = t.crossing?;
+        if !t.cross_lane || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life || sprinting {
+            return None;
+        }
+        let (route, _) = bot.route.as_ref()?;
+        let heights = bot.motor.heights();
+        let walked = route.walked();
+        let start = (walked + rule.ahead_from_m.get()).min(route.length());
+        let end = (walked + rule.ahead_to_m.get()).min(route.length());
+        if end <= start {
+            return None;
+        }
+        let ahead = super::lane_ahead::known_lane_ahead(
+            &bot.lanes,
+            rule.known(),
+            view.clock,
+            me.feet,
+            |s| route.at(s, heights),
+            (start, end, 1.0),
+            |a, b| tactics.sees(a, b),
+        )?;
+        if ahead.in_line {
+            return None;
+        }
+        let held = ahead.lane;
+        let eye = held.at + eye_over;
+        if smoke_there(eye, ahead.crossing + chest_over) {
+            return None;
+        }
+        let plan = smoke::smoke_on_crossing(&reach, eye, ahead.crossing, thin, SmokeUse::CrossLane)?;
+        let why = format!(
+            "the crossing of player {}'s line (at ({:.1}, {:.1}, {:.1}), {} of our deaths) at ({:.1}, {:.1}, {:.1})",
+            held.shooter, held.at.x, held.at.y, held.at.z, held.kills, ahead.crossing.x, ahead.crossing.y, ahead.crossing.z
+        );
+        // No hold: the cloud is on its own way 6-10 m ahead, and the first cut's holds cost the fights.
+        Some((plan, why, eye, None, Some(held.shooter), Vec::new()))
+    };
     // [A291 `smoke.objective`] Our carrier near: the first held lane on his way home (a carrier cannot throw), its cloud
     // between the shooter and his way. No hold: the thrower crosses nothing.
     let carrier = || {
@@ -981,7 +1021,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         );
         Some((plan, why, eye, None, Some(held.shooter), stretch))
     };
-    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(lane).or_else(carrier) else {
+    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(crossing_smoke).or_else(lane).or_else(carrier) else {
         return;
     };
     #[cfg(not(test))]

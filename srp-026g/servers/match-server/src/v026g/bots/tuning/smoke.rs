@@ -141,6 +141,48 @@ pub struct SmokeTuning {
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
+    /// [A317] The crossing smoke (the owner, 2026-11-05: bots cross lines near a shooter they should know of without
+    /// smoking): when the bot's way within `lane_ahead_m` enters the line of a known spot (`lane_ahead::known_lane_ahead`,
+    /// tested from the spot), the cloud goes ON the crossing (`smoke::smoke_on_crossing`): it hides the crossers there and
+    /// leaves the mates' lines to him from elsewhere clear (A308: a cloud on his line blinded our shooters as much as him).
+    /// Before the lane smoke; no hold (the cloud is on its own way ahead); the life's lane smoke. None: off.
+    pub crossing: Option<CrossingSmoke>,
+}
+
+/// [A317] `SmokeTuning::crossing`: a farming spot (`lane_ahead::Known`) and the stretch of the way its crossing may lie in.
+/// The first cut (any spot with one death, or sensed within 15 s; the crossing anywhere within `lane_ahead_m`, held short)
+/// fired about once a life and lost 41 % of the wins to the stops.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CrossingSmoke {
+    /// This many of the team's deaths at the spot (1 to 3)
+    pub kills: u32,
+    /// within this of now, ms,
+    pub within_ms: u32,
+    /// its shooter sensed there within this, ms (at most `smoke::FAIR_SENSED_MS`).
+    pub sensed_ms: u32,
+    /// The crossing lies this far ahead on the way, metres (not at the feet: a cloud there is late; not far: the way may turn).
+    pub ahead_from_m: Metres,
+    pub ahead_to_m: Metres,
+}
+
+impl Default for CrossingSmoke {
+    fn default() -> Self {
+        let farming = super::super::lane_ahead::Known::FARMING;
+        Self {
+            kills: farming.kills as u32,
+            within_ms: farming.within_ms,
+            sensed_ms: farming.sensed_ms,
+            ahead_from_m: Metres::of(6.0),
+            ahead_to_m: Metres::of(10.0),
+        }
+    }
+}
+
+impl CrossingSmoke {
+    pub fn known(self) -> super::super::lane_ahead::Known {
+        super::super::lane_ahead::Known { kills: self.kills as usize, within_ms: self.within_ms, sensed_ms: self.sensed_ms }
+    }
 }
 
 /// [A291] `SmokeTuning::objective`.
@@ -293,7 +335,15 @@ pub enum CloudWaiters {
 
 impl SmokeTuning {
     pub(super) fn check(&self) -> Result<(), String> {
-        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")
+        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")?;
+        check(
+            self.crossing.is_none_or(|c| {
+                c.sensed_ms <= super::super::smoke::FAIR_SENSED_MS
+                    && (1..=3).contains(&c.kills)
+                    && c.ahead_from_m.get() <= c.ahead_to_m.get()
+            }),
+            "smoke.crossing",
+        )
     }
 }
 
@@ -328,6 +378,7 @@ impl Default for SmokeTuning {
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
             objective: None,
             shooter_spot: Some(ShooterSpot::default()),
+            crossing: None,
         }
     }
 }
