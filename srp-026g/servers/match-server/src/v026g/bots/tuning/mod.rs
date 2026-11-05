@@ -788,6 +788,7 @@ mod tests {
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/pitch_scale",
+            "/kin/speed_terms",
             "/kin/walk_off_landing",
             "/sense/ranges",
             "/sense/shots",
