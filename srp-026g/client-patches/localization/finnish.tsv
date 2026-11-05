@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammustaskut
 st_inv_ano_armor	Eristys
 st_inv_armor	Panssari
 st_inv_arp	Panssarinläpäisy
+st_inv_artefact_recharge	Artefaktien latausaika
 st_inv_artefact_slots	Artefaktisäiliö
 st_inv_buckshot	Haulit
 st_inv_clip_size	Patruunoita pakkauksessa

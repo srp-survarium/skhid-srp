@@ -1186,6 +1186,26 @@ STATS = {
         'match': {'use_s', 'active_s', 'limbs', 'body', 'head', 'pain', 'infection', 'weight'},
         'cards': medicine_card,
     },
+    # A booster works while in a pocket: survarium::booster (0x33F690) makes a player modifier of each
+    # of its 68 `parameters/*_modifier` that is not 0, its built-in modifications' sums included.
+    'boosters': {
+        'configs': 'gameplay/items/boosters/*.options',
+        'columns': {
+            'weight': 'parameters/weight',
+            # built-in bonuses, a column a kind: the modification's id
+            'health_regen': default_modification(109),
+            'stamina_regen': default_modification(110),
+            'movement': default_modification(111),
+            'max_weight': default_modification(112),
+            'artefact_search': default_modification(113),
+            'sway': default_modification(121),
+            'respawn': default_modification(122),
+            # player modifier 38: the artefact's end of active (0x313530) starts cooldown x (1 + it)
+            'artefact_cooldown': default_modification(131),
+        },
+        'match': {'weight', 'artefact_cooldown', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
+                  'artefact_search', 'sway', 'respawn'},
+    },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
     # srp reads them from its game data (RoomRules, ShopRules): nothing a match computes.

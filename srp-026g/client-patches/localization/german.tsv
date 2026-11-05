@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Patronen Beutel
 st_inv_ano_armor	Isolierung
 st_inv_armor	Rüstung
 st_inv_arp	Panzerschutzkraft
+st_inv_artefact_recharge	Aufladezeit der Artefakte
 st_inv_artefact_slots	Container für Artefakten
 st_inv_buckshot	Schrotkugeln
 st_inv_clip_size	Patronen in der Packung
