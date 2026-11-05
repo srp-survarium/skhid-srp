@@ -267,6 +267,43 @@ impl Collision {
         });
     }
 
+    /// The nearest face a ray from `a` to `b` crosses: the share of the way and the face's normal turned toward `a` (Bullet's
+    /// triangle ray normal, LIKELY).
+    pub fn ray(&self, a: Vec3, b: Vec3) -> Option<(f32, Vec3)> {
+        let d = b - a;
+        let mut best: Option<(f32, Vec3)> = None;
+        self.faces_in(a.min(b), a.max(b), |f| {
+            let face = &self.faces[f];
+            if face.normal == Vec3::ZERO {
+                return;
+            }
+            // Moller-Trumbore.
+            let (e1, e2) = (face.v[1] - face.v[0], face.v[2] - face.v[0]);
+            let p = d.cross(e2);
+            let det = e1.dot(p);
+            if det.abs() < 1e-12 {
+                return;
+            }
+            let inv = 1.0 / det;
+            let s = a - face.v[0];
+            let u = s.dot(p) * inv;
+            if !(0.0..=1.0).contains(&u) {
+                return;
+            }
+            let q = s.cross(e1);
+            let v = d.dot(q) * inv;
+            if v < 0.0 || u + v > 1.0 {
+                return;
+            }
+            let t = e2.dot(q) * inv;
+            if (0.0..=1.0).contains(&t) && best.is_none_or(|b| t < b.0) {
+                let n = if face.normal.dot(d) > 0.0 { -face.normal } else { face.normal };
+                best = Some((t, n));
+            }
+        });
+        best
+    }
+
     /// The smallest distance from the capsule's surface to a face `keep` accepts within `reach` (negative when it overlaps
     /// one), with that face's closest point and the direction from it to the capsule's segment.
     pub fn nearest(&self, capsule: Capsule, reach: f32, keep: impl Fn(&Face) -> bool) -> Option<(f32, Vec3, Vec3, usize)> {

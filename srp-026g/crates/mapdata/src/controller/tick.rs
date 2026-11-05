@@ -42,6 +42,7 @@ pub struct Settings {
     pub slope_slide_bouncing_factor: f32,
     pub slide_coefficient: f32,
     pub already_sliding_on_slope_dp: f32,
+    pub ground_normal_via_ray_offset: f32,
 }
 
 impl Settings {
@@ -67,6 +68,7 @@ impl Settings {
         slope_slide_bouncing_factor: 0.50,
         slide_coefficient: 1.0,
         already_sliding_on_slope_dp: 0.20,
+        ground_normal_via_ray_offset: 0.050,
     };
 }
 
@@ -124,6 +126,17 @@ fn normalized_safe(v: Vec3, fallback: Vec3) -> Vec3 {
     }
     let inv = 1.0 / l2.sqrt();
     Vec3::new(v.x * inv, inv * v.y, inv * v.z)
+}
+
+/// 0x84E20: `n` tilted about the horizontal to just walkable (`cos_max + 0.001`); a normal along up as it is.
+fn limit_walkable(n: Vec3, s: &Settings) -> Vec3 {
+    let h = Vec3::new(n.x, 0.0, n.z);
+    let hl2 = h.dot(h);
+    if hl2 < 1e-12 {
+        return n;
+    }
+    let c = s.max_slope_cos + 0.001;
+    UP * c + h * ((1.0 - c * c) / hl2).sqrt()
 }
 
 /// `get_wall_slide_vector` 0x7AC50 with the live factors.
@@ -445,11 +458,24 @@ impl Controller {
                         UP * cm + h * ((1.0 - cm * cm) / hl2).sqrt()
                     }
                 }
-                _ => c.normal,
+                _ => {
+                    let n = c.normal;
+                    if (UP.y * n.y + UP.z * n.z) + UP.x * n.x < s.max_slope_cos { self.ground_relook(world, c.point, n, s) } else { n }
+                }
             };
             return Some((c.t, c.point, n));
         }
         None
+    }
+
+    /// 0x84810 for a map face (not a small round shape): a steep hit looked at again by a ray along `-n`, from 0.5 m out along
+    /// `n` and the ground offset over the hit point, 1 m long. No face met: the ground counts as flat (up). A face flatter than
+    /// `n` and walkable: `n` tilted to just walkable (0x84E20). Else `n` as it is (steep).
+    fn ground_relook(&self, world: &Collision, hp: Vec3, n: Vec3, s: &Settings) -> Vec3 {
+        let start = (hp + UP * s.ground_normal_via_ray_offset) + n * 0.5;
+        let Some((_, rn)) = world.ray(start, start - n) else { return UP };
+        let (ry, ny) = (rn.dot(UP), n.dot(UP));
+        if ry > ny && ry > s.max_slope_cos { limit_walkable(n, s) } else { n }
     }
 
     /// `step_down_sweep_test_impl` 0x7EA80: moves `pos`; the hit's point and normal.
