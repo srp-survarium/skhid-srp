@@ -2700,6 +2700,17 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Preferovat dedikovanou GPU
+st_srp_vulkan_frame_limit	Omezení FPS
+st_srp_vulkan_low_latency	Snížit zpoždění vstupu
+st_srp_vulkan_off	Vyp.
+st_srp_vulkan_options	Možnosti Vulkanu
+st_srp_vulkan_options_open	Nastavit...
+st_srp_vulkan_overlay	Překryv výkonu
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS a časy snímků
+st_srp_vulkan_overlay_full	Úplný
+st_srp_vulkan_tear_free	Bez trhání obrazu bez V-Sync
 st_srp_weapon069_akmsu_desc	Zkrácený AKMS se sklopnou pažbou na náboje 7.62x39. Střílí jednotlivě i automaticky.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francouzská útočná puška bullpup na náboje 5.56x45. Střílí jednotlivě, dávkou po třech i automaticky.

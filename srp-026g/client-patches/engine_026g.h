@@ -592,4 +592,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_la
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
 
+/* the IAT slot 0x87029c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_set_environment_variable_a)(const char * name, const char * value);
+
 #endif
