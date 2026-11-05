@@ -264,14 +264,14 @@ package survarium.menu
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
-      // list's three choices, "Static minimap"; then the Renderer list's two choices.
+      // list's three choices, "Static minimap"; then the Renderer list's two choices and its note.
       public function setHudTexts(values:Array) : void
       {
-         if(values.length >= 8)
+         if(values.length >= 9)
          {
             _hudTexts = values;
             this.applyHudTexts();
-            this._renderer.texts(values[6],values[7]);
+            this._renderer.texts(values[6],values[7],values[8]);
          }
       }
       

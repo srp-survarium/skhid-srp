@@ -16,8 +16,9 @@ package
     // (SrpRendererChoice); finish places it.
     //
     // To make room, the rows under Monitor move down one of its steps and the
-    // preset panel's top moves down by that and the slider's row; its two
-    // buttons go side by side in it.
+    // Renderer note's room (kept whether it shows or not: the rows never move
+    // with it), and the preset panel's top moves down by that and the slider's
+    // row; its two buttons go side by side in it.
     public class SrpVideoTab
     {
         private static const VIDEO_FRAME:int = 3;
@@ -31,6 +32,11 @@ package
         private static var moved:DisplayObject;
         // Monitor's step to the row under it, read from the set before it moved.
         private static var step:Number = 0;
+        // How far the rows under the Renderer list move: a step and its note's room.
+        private static function get shift():Number
+        {
+            return step + SrpRendererChoice.NOTE_ROOM;
+        }
 
         public static function apply(settings:Settings):void
         {
@@ -91,11 +97,11 @@ package
                 {
                     if (row != null)
                     {
-                        row.y += step;
+                        row.y += shift;
                     }
                 }
-                panel.y += ROW + step;
-                panel.height -= ROW + step;
+                panel.y += ROW + shift;
+                panel.height -= ROW + shift;
                 var width:Number = (optimal.width - GAP) / 2;
                 optimal.width = standard.width = width;
                 standard.x = optimal.x + width + GAP;
