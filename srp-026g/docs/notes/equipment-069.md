@@ -207,17 +207,22 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
 ### Pictures (offline, bind pose)
 
 `private/renders/equipment-069-snow-delta/` (README.txt there): the Delta mask
-on the three native heads and under eight live helmets; the Sniper set (before)
-and the Snow-20 (after); the Snow-20 with a backpack and masks.
+on the three native heads and under eight live helmets, and a close-up of its
+mount under the helmets; the Sniper set (before) and the Snow-20 (after); the
+Snow-20 with a backpack and masks.
+
+### Decisions (the owner, 2026-11-05)
+
+- The Delta mask keeps its night-vision mount, and it may show in front of
+  the brim of scavengers_05, edge_assault_05, scavenger_scout_07 and
+  edge_researcher_03; the mask stays in the mask slot only (a helmet goes on
+  over it).
 
 ### Needs a look in game
 
 - The snow materials (gloss and Fresnel from the fitted ranges), the dark
   ghillie (0.69d's own albedo is dark, mean 24/255; drawn without an alpha
   test like the live Sniper's).
-- The Delta mask under helmets: the mount in front of the brim of
-  scavengers_05, edge_assault_05, scavenger_scout_07 and edge_researcher_03:
-  keep it a mask only (now), or have it take the helmet slot.
 - The six icons in the lobby (0.69d's, cells column 8 rows 20-22, column 9
   rows 14-16).
 
