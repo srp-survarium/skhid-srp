@@ -9,6 +9,7 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct baked_texture_resource;
 struct bt_broadphase_proxy;
 struct bt_collision_object;
 struct bt_collision_shape;
@@ -18,6 +19,7 @@ struct buffer_writer;
 struct bullet;
 struct bullet_manager;
 struct bullet_physics_world;
+struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
 struct cc_float;
 struct cc_string;
@@ -70,11 +72,14 @@ struct pure_game_effect_emitter;
 struct queries_result;
 struct query_callback;
 struct query_function;
+struct query_result_for_cook;
 struct query_user_data;
 struct ray_result;
 struct render_model_instance;
 struct render_notify;
 struct render_visual;
+struct res_texture;
+struct resource_manager;
 struct resource_request;
 struct scene_model;
 struct scene_model_ref;
@@ -532,6 +537,42 @@ const struct sound_options *engine_sound_options(const struct sound_propagator_e
 
 /* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
 void engine_buffer_reallocate(void *buffer, unsigned int capacity);
+
+/* 0x1e8da0 survarium::delete_folder: path EAX; pops 0 */
+void engine_delete_folder(const struct buffer_string *path);
+
+/* 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX */
+struct baked_texture_resource *engine_baked_texture_resource(void *memory);
+
+/* 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12 */
+void engine_set_unmanaged_resource(struct query_result_for_cook *query, struct baked_texture_resource *resource, void *allocator, unsigned int size);
+
+/* 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly */
+void __attribute__((stdcall)) engine_finish_query(struct query_result_for_cook *query, unsigned int result, unsigned int assert_on_fail, unsigned int error);
+
+/* 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4 */
+void engine_resource_release(const struct res_texture *texture, struct resource_manager *manager);
+
+/* 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_translate_query(struct camouflage_decal_texture_type_baker_cook *cook, struct query_result_for_cook *query);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0 */
+void engine_release_model_instance(struct render_model_instance *instance, unsigned int *count);
+
+/* the IAT slot 0x870220 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_create_directory_a)(const char * name, void * security);
+
+/* the IAT slot 0x870090 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_tick_count)(void);
+
+/* the IAT slot 0x870238 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_find_first_file_a)(const char * pattern, void * data);
+
+/* the IAT slot 0x87023c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_next_file_a)(void * find, void * data);
+
+/* the IAT slot 0x870228 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_close)(void * find);
 
 /* 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12 */
 void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester);

@@ -205,6 +205,16 @@ unsafe extern "C" {
     pub fn engine_sound_options(emitter: *const c_void) -> *const c_void;
     /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
     pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
+    /// 0x1e8da0 survarium::delete_folder: path EAX; pops 0
+    pub fn engine_delete_folder(path: *const c_void);
+    /// 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX
+    pub fn engine_baked_texture_resource(memory: *mut c_void) -> *mut c_void;
+    /// 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12
+    pub fn engine_set_unmanaged_resource(query: *mut c_void, resource: *mut c_void, allocator: *mut c_void, size: u32);
+    /// 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4
+    pub fn engine_resource_release(texture: *const c_void, manager: *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0
+    pub fn engine_release_model_instance(instance: *mut c_void, count: *mut u32);
     /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
     pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
@@ -221,6 +231,8 @@ unsafe extern "stdcall" {
     pub fn engine_process_sound_orders(world: *mut c_void);
     /// 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
     pub fn engine_detach_voice(propagator: *mut c_void);
+    /// 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
+    pub fn engine_finish_query(query: *mut c_void, result: u32, assert_on_fail: u32, error: u32);
 }
 
 #[allow(dead_code)]
@@ -277,6 +289,8 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_next_capture(queue: *mut c_void, notify: *mut c_void);
     /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
     pub fn engine_di_queue_release(queue: *mut c_void);
+    /// 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
+    pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
 }
@@ -327,6 +341,16 @@ unsafe extern "C" {
     pub static engine_get_process_heap: unsafe extern "stdcall" fn() -> *mut c_void;
     /// the IAT slot 0x870054 (an import, stdcall): unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)
     pub static engine_heap_free: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void) -> u32;
+    /// the IAT slot 0x870220 (an import, stdcall): unsigned int engine_create_directory_a(const char *name, void *security)
+    pub static engine_create_directory_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> u32;
+    /// the IAT slot 0x870090 (an import, stdcall): unsigned int engine_get_tick_count(void)
+    pub static engine_get_tick_count: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870238 (an import, stdcall): void *engine_find_first_file_a(const char *pattern, void *data)
+    pub static engine_find_first_file_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> *mut c_void;
+    /// the IAT slot 0x87023c (an import, stdcall): unsigned int engine_find_next_file_a(void *find, void *data)
+    pub static engine_find_next_file_a: unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32;
+    /// the IAT slot 0x870228 (an import, stdcall): unsigned int engine_find_close(void *find)
+    pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)

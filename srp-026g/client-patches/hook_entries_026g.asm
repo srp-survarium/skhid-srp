@@ -921,6 +921,291 @@ artefact_score_on_transfer_replay:
     db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
     jmp 0x31c816
 
+; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
+global bake_cache_on_game_start
+extern hook_bake_cache_on_game_start
+bake_cache_on_game_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_game_start
+    mov edx, bake_cache_on_game_start_replay
+    cmp eax, 0
+    je bake_cache_on_game_start_go
+    mov edx, 0x1e9455
+    cmp eax, 1
+    je bake_cache_on_game_start_go
+    mov edx, 0x1e945a
+    cmp eax, 2
+    je bake_cache_on_game_start_go
+    ud2
+bake_cache_on_game_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_game_start_replay:
+    db 0x8d, 0x84, 0x24, 0x70, 0x04, 0x00, 0x00
+    jmp 0x1e9455
+
+; 0x131c90 check_loaded_baked_texture's compare of the CRC loaded with its record's (cmp eax,[edi+114h]; EAX the CRC, EDI the record); the jz 0x131DC2 after it takes the flags: lohook -> bake_cache_on_check_crc
+global bake_cache_on_check_crc
+extern hook_bake_cache_on_check_crc
+bake_cache_on_check_crc:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_check_crc
+    mov edx, bake_cache_on_check_crc_replay
+    cmp eax, 0
+    je bake_cache_on_check_crc_go
+    mov edx, 0x131c96
+    cmp eax, 1
+    je bake_cache_on_check_crc_go
+    ud2
+bake_cache_on_check_crc_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_check_crc_replay:
+    db 0x3b, 0x87, 0x14, 0x01, 0x00, 0x00
+    jmp 0x131c96
+
+; 0x12d4c5 translate_query before its look-up of a saved texture (lea edx,[esp+1B8h], then push edx / call 0x131ED0; EAX the cook, EBX the surface, [ebp+8] the query, [esp+1Ch] the parameters, [esp+1B8h] the path); not_baked its end after a refused query (the surfaces emptied, EDI's model instance released, ret 4): lohook -> bake_cache_on_lookup
+global bake_cache_on_lookup
+extern hook_bake_cache_on_lookup
+bake_cache_on_lookup:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_lookup
+    mov edx, bake_cache_on_lookup_replay
+    cmp eax, 0
+    je bake_cache_on_lookup_go
+    mov edx, 0x12d4cc
+    cmp eax, 1
+    je bake_cache_on_lookup_go
+    mov edx, 0x12d42d
+    cmp eax, 2
+    je bake_cache_on_lookup_go
+    ud2
+bake_cache_on_lookup_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_lookup_replay:
+    db 0x8d, 0x94, 0x24, 0xb8, 0x01, 0x00, 0x00
+    jmp 0x12d4cc
+
+; 0x12f194 process_compression, its texture made and in the surface's slot, its resource's allocation named (after mov ecx,0AC3334h / call 0x420789: push eax / mov eax,108h, no relocation; [esp+10h] the texture, +604h the query, +610h the surface, +620h the type): lohook -> bake_cache_on_baked
+global bake_cache_on_baked
+extern hook_bake_cache_on_baked
+bake_cache_on_baked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_baked
+    mov edx, bake_cache_on_baked_replay
+    cmp eax, 0
+    je bake_cache_on_baked_go
+    mov edx, 0x12f19a
+    cmp eax, 1
+    je bake_cache_on_baked_go
+    ud2
+bake_cache_on_baked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_baked_replay:
+    db 0x50, 0xb8, 0x08, 0x01, 0x00, 0x00
+    jmp 0x12f19a
+
+; 0x12ddb9 on_baked_texture_loaded, its texture made and in the surface's slot, its resource's allocation named (after mov ecx,0AC3334h / call 0x420789: push eax / mov eax,108h, no relocation; EDI the texture, [ebp+0Ch] the parameters, +10h the surface, +14h the query): lohook -> bake_cache_on_loaded
+global bake_cache_on_loaded
+extern hook_bake_cache_on_loaded
+bake_cache_on_loaded:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_loaded
+    mov edx, bake_cache_on_loaded_replay
+    cmp eax, 0
+    je bake_cache_on_loaded_go
+    mov edx, 0x12ddbf
+    cmp eax, 1
+    je bake_cache_on_loaded_go
+    ud2
+bake_cache_on_loaded_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_loaded_replay:
+    db 0x50, 0xb8, 0x08, 0x01, 0x00, 0x00
+    jmp 0x12ddbf
+
+; 0xf0d00 finish_query_impl's start (push ebp / mov ebp,esp / and esp,-8; stdcall: the query, the result, assert on fail, the error type); done its own ret 10h (no result): lohook -> bake_cache_on_finish
+global bake_cache_on_finish
+extern hook_bake_cache_on_finish
+bake_cache_on_finish:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_finish
+    mov edx, bake_cache_on_finish_replay
+    cmp eax, 0
+    je bake_cache_on_finish_go
+    mov edx, 0xf0d06
+    cmp eax, 1
+    je bake_cache_on_finish_go
+    mov edx, 0xf0e6c
+    cmp eax, 2
+    je bake_cache_on_finish_go
+    ud2
+bake_cache_on_finish_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_finish_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0xf0d06
+
+; 0x42050 the CRC-32 step's start (mov ecx,[esp+4] / push edi; EAX &the CRC, EDX the bytes, [esp+4] the count); done its own ret 4 (it leaves ECX the new CRC, EDX past the bytes): lohook -> bake_cache_on_crc_step
+global bake_cache_on_crc_step
+extern hook_bake_cache_on_crc_step
+bake_cache_on_crc_step:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_crc_step
+    mov edx, bake_cache_on_crc_step_replay
+    cmp eax, 0
+    je bake_cache_on_crc_step_go
+    mov edx, 0x42055
+    cmp eax, 1
+    je bake_cache_on_crc_step_go
+    mov edx, 0x4207e
+    cmp eax, 2
+    je bake_cache_on_crc_step_go
+    ud2
+bake_cache_on_crc_step_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_crc_step_replay:
+    db 0x8b, 0x4c, 0x24, 0x04, 0x57
+    jmp 0x42055
+
 ; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
 global battery_progress_on_carrier_tick
 extern hook_battery_progress_on_carrier_tick

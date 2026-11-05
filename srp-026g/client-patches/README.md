@@ -153,7 +153,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
-| `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -236,7 +236,6 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
 | `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
 | `kill_feed.code` | 67, the kill feed's flags | NASM |
-| `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
 | `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key) | Rust, generated hook entries |
 
 The older fixed sections stay as they are (client_patch.md 0.3 says what
@@ -3653,25 +3652,28 @@ three kits, often wearing the same items) bake the same textures 2 or 3 times: t
 match baked 115 textures into 62 files. Revision 32's starter kit (#400: three kits wearing the
 same items for every new account) makes each newcomer cost three times the same bakes.
 
-**The patch** (with the late join; bake_cache_026g.asm and .c in the arena's blocks
-bake_cache.code and .state):
-- `game::game`'s delete (`call 0x1E8DA0` at 0x1E9455) calls `bake_cache_start`. The folder is
+**The patch** (with the late join; the Rust patch bake_cache, `rust/patches/src/bake_cache.rs`
+and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
+- `game::game` before its delete (`lea eax,[esp+470h] / call 0x1E8DA0`, the lohook at 0x1E944E,
+  `on_game_start`; it goes on past the call, 0x1E945A). The folder is
   deleted only when its stamp `srp_baked_textures.txt` is missing or names another revision; then
   it is made again and stamped. Otherwise each whole DDS in it (DXT1 or DXT5, the file as long as
   its header says) goes back into the baker's list with CRC 0, at most 512 files and 512 MB; the
   rest are deleted. `game::exit`'s delete (0x1EC832) is a 5-byte nop (`BAKE_CACHE_KEEP`).
-- check_loaded_baked_texture's CRC compare (0x131C90) calls `bake_cache_adopt`: a record of CRC 0
+- check_loaded_baked_texture's CRC compare (0x131C90, `on_check_crc`): a record of CRC 0
   takes the CRC of the bytes loaded, so a kept file is used; then stock rules apply.
-- translate_query's look-up (`call 0x131ED0` at 0x12D4CD) calls `bake_cache_lookup`. The first
+- translate_query before its look-up (`lea edx,[esp+1B8h]` before `call 0x131ED0`, 0x12D4C5,
+  `on_lookup`). The first
   query of a path owns it. A later query of the path while it is under way waits: it leaves
   translate_query by its own end (0x12D42D), with no look-up, no bake and no load, and holds a
   reference to its model instance.
-- When the owner's texture is made, process_compression (0x12F18F, a bake) and
-  on_baked_texture_loaded (0x12DDB4, a load) call `bake_cache_baked` / `bake_cache_loaded` in place
-  of `call 0x420789` (`lea eax,[ecx+8]`, which they then do). Each waiting query gets the texture in
+- When the owner's texture is made, process_compression (0x12F194, a bake) and
+  on_baked_texture_loaded (0x12DDB9, a load), after their `call 0x420789` (`push eax / mov
+  eax,108h`; `on_baked` / `on_loaded`). Each waiting query gets the texture in
   its surface's slot, a resource as on_baked_texture_loaded makes one, and finish_query with
   success. This happens only if the texture is in the owner's slot.
-- finish_query's entry (0xF0D00) jumps to `bake_cache_finish`. An owner that ends any other way
+- finish_query's entry (0xF0D00, `on_finish`; its exit is the function's own `ret 10h` at
+  0xF0E6C). An owner that ends any other way
   (an error, a requery, a texture not in its slot) has its waiting queries made again
   (translate_query) after its own finish. Any other query goes straight to the function. An owner
   still listed after 10 s (GetTickCount) is taken over by the next query of its path, its waiting
@@ -3679,23 +3681,25 @@ bake_cache.code and .state):
 - A texture loaded from the folder is held for the game (one reference more; at most 256 of them and
   256 MB of their files, the least used let go). A later query of its path (a respawn rebuilds the
   player's model: the owner's log read one player's armour again at every respawn) gets it at once in
-  `bake_cache_lookup`, with no file read, no CRC and no new texture, and leaves translate_query
+  `on_lookup`, with no file read, no CRC and no new texture, and leaves translate_query
   finished.
 - The game's CRC-32 step (0x42050: a byte a step through the table 0x1C210 makes, polynomial
   04C11DB7h reflected), which every bake runs over its whole DDS (process_compression 0x12F340) and
-  every load over the file read (0x3C0FF0), 1.4 to 5.6 MB each, jumps to `bake_cache_crc32`: the same
-  value eight bytes a step (slice by 8, tables made once from EDB88320h), the registers as the
+  every load over the file read (0x3C0FF0), 1.4 to 5.6 MB each (its start 0x42050, `on_crc_step`;
+  its exit the function's own `ret 4` at 0x4207E): the same value eight bytes a step (slice by 8,
+  tables from EDB88320h, made at build time), the registers as the
   original leaves them. Measured on the owner's game, the CRC was most of a bake burst's stall
   (16:37:47, 0.4 s); here 3.25 instructions a byte against 11.
 - The stamp is written only when no `.dds` is left after the delete (one held open by another game
   is not deleted): otherwise the next start deletes the folder again.
 
-Textures only; games with and without it play together. Sites: 0x1E9455 (CALLEE), 0x131C90
-(INLINE), 0x12D4CD, 0x12F18F, 0x12DDB4 (CALLEE), 0xF0D00 (ENTRY); no base relocation under them,
-no branch into them.
+Textures only; games with and without it play together. Sites (lohooks, JUMP): 0x1E944E,
+0x131C90, 0x12D4C5, 0x12F194, 0x12DDB9, 0xF0D00, 0x42050; no base relocation under them, no branch
+into them (each span branch-free: main's lohooks replay it).
 
-**Checked:** `selftest_026g.py` check 70 (the sites' original code, the hooks, the nop, no
-relocation or branch inside, the link's code). `check_bake_cache_026g.py` (Unicorn) runs every
+**Checked:** `selftest_026g.py` check 70 (the sites' original code, the generated lohooks at
+their sites and exits, the nop, no relocation or branch inside). `check_bake_cache_026g.py`
+(Unicorn) runs every
 site from the game's code on the game's own static baker:
 - the folder: kept and back in the list, a file cut short and the files past 512 deleted;
   deleted and stamped for another revision, no stamp, or no folder; the original deletes it every
