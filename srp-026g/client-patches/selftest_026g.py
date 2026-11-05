@@ -825,6 +825,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     rewritten.extend((va, va + len(old)) for va, old, _ in P.KNOWLEDGE_BASE[1:])
     ranges.append((P.file_offset(P.HASH_INTERVAL_BYTE_VA), 1))
     rewritten.append((P.HASH_INTERVAL_BYTE_VA, P.HASH_INTERVAL_BYTE_VA + 1))
+    for va, old, _ in P.WORLD_BUFFER + P.WORLD_UNPACK:
+        ranges.append((P.file_offset(va), len(old)))
+        rewritten.append((va, va + len(old)))
     for va, old, _ in P.GATHER:
         ranges.append((P.file_offset(va), len(old)))
         rewritten.append((va, va + len(old)))
@@ -983,6 +986,66 @@ def test_hash_interval(original, image, mode):
     hits = [f"{address:#x}: {text}" for address, _, text in ndisasm(Image(original).read(0x27CC45, 0x30B), 0x27CC45)
             if branch_target(text) in inside]
     check(not hits, "no branch of try_send_all lands inside that instruction")
+
+
+def test_world_buffer(original, image, mode):
+    """hash()'s world buffer and the 0xE8 handler's unpack buffer are 0xF000
+    bytes (patch 98, client_patch.md section 3.66): each its stack allocation
+    and its capacity, two immediates; the rest of both the original's."""
+    stock = Image(original)
+    start, end = 0x325150, 0x325270
+    original_rows = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    (alloc, alloc_old, alloc_new), (capacity, capacity_old, capacity_new) = P.WORLD_BUFFER
+    check(stock.read(alloc, len(alloc_old)) == alloc_old and stock.read(capacity, len(capacity_old)) == capacity_old
+          and original_rows.get(alloc) == "mov eax,0x8000" and original_rows.get(0x32517B) == "mov byte [esi+0xc0bb8],0x1"
+          and original_rows.get(0x325182) == "call 0x424ca0" and original_rows.get(0x32518A) == "mov eax,esp"
+          and original_rows.get(capacity) == "mov dword [ebp-0xc],0x8000"
+          and original_rows.get(0x32518E) == "mov [ebp-0x10],eax" and original_rows.get(0x32519A) == "mov [ebp-0x14],edi",
+          "the original hash(): 0x8000 bytes of the stack (0x325176, _alloca_probe_16 0x424ca0), the buffer "
+          "{[ebp-0x14] allocator 0, [ebp-0x10] esp, [ebp-0xc] 0x8000}")
+    size = f"{P.WORLD_BUFFER_SIZE:#x}"
+    if mode == "cert-only":
+        check(image.read(alloc, len(alloc_old)) == alloc_old and image.read(capacity, len(capacity_old)) == capacity_old,
+              "cert-only: hash()'s buffer is the original's 0x8000 bytes")
+    else:
+        check(image.read(alloc, len(alloc_new)) == alloc_new and image.read(capacity, len(capacity_new)) == capacity_new
+              and rows.get(alloc) == f"mov eax,{size}" and rows.get(capacity) == f"mov dword [ebp-0xc],{size}",
+              f"{alloc:#x} `mov eax,{size}` and {capacity:#x} `mov dword [ebp-0xc],{size}`")
+        changed = [a for a in range(start, end) if image.read(a, 1) != stock.read(a, 1)]
+        check(changed == [alloc + 2, capacity + 4], "nothing else in hash() 0x325150..0x325270 differs: "
+              + ", ".join(f"{a:#x}" for a in changed))
+    relocated = [rva for kind, rva in stock.relocations().values()
+                 if kind == 3 and any(rva + 4 > va and rva < va + len(old) for va, old, _ in P.WORLD_BUFFER)]
+    check(not relocated, "no base relocation of the original is under the two instructions")
+    inside = [a for va, old, _ in P.WORLD_BUFFER for a in range(va + 1, va + len(old))]
+    hits = [f"{address:#x}: {text}" for address, text in original_rows.items() if branch_target(text) in inside]
+    check(not hits, "no branch of hash() lands inside them")
+    # The 0xE8 handler's unpack buffer, the same two immediates.
+    start, end = 0x27BFF0, 0x27C1F0
+    original_rows = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    (alloc, alloc_old, alloc_new), (capacity, capacity_old, capacity_new) = P.WORLD_UNPACK
+    check(original_rows.get(alloc) == "mov eax,0x8000" and original_rows.get(0x27C05E) == "call 0x424ca0"
+          and original_rows.get(0x27C069) == "mov eax,esp" and original_rows.get(capacity) == "mov eax,0x8000"
+          and original_rows.get(0x27C081) == "mov [ebp-0xc],eax" and original_rows.get(0x27C084) == "mov [ebp-0x1c],eax"
+          and original_rows.get(0x27C09F) == "call edx" and original_rows.get(0x27C036) == "lea esp,[ebp-0x30]",
+          "the original 0xE8 handler: 0x8000 bytes of the stack (0x27C059), the capacity 0x8000 (0x27C07C) to "
+          "[ebp-0xc] (the codec's) and [ebp-0x1c] (the buffer's); its exits restore esp from ebp")
+    if mode == "cert-only":
+        check(all(image.read(va, len(old)) == old for va, old, _ in P.WORLD_UNPACK),
+              "cert-only: the 0xE8 handler's buffer is the original's")
+        return
+    check(all(image.read(va, len(new)) == new and rows.get(va) == f"mov eax,{size}" for va, _, new in P.WORLD_UNPACK),
+          f"{alloc:#x} and {capacity:#x} `mov eax,{size}`")
+    changed = [a for a in range(start, 0x27C0D0) if image.read(a, 1) != stock.read(a, 1)]
+    check(changed == [alloc + 2, capacity + 2], "nothing else in the handler before its first hook (0x27C0D0) "
+          "differs: " + ", ".join(f"{a:#x}" for a in changed))
+    inside = [a for va, old, _ in P.WORLD_UNPACK for a in range(va + 1, va + len(old))]
+    relocated = [rva for kind, rva in stock.relocations().values()
+                 if kind == 3 and any(rva + 4 > va and rva < va + len(old) for va, old, _ in P.WORLD_UNPACK)]
+    hits = [a for a, text in original_rows.items() if branch_target(text) in inside]
+    check(not relocated and not hits, "no relocation under them, no branch of the handler into them")
 
 
 def test_gather(original, image, mode):
@@ -1601,6 +1664,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.AUDIO_DEVICE_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.WORLD_SECTIONS_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
         [(P.EXPAND_TEXT_UNBOUND[0], len(P.EXPAND_TEXT_UNBOUND[1]))]
 
@@ -6965,6 +7029,7 @@ def test_late_join(original, without, server, source):
     test_revision_override(original, data, server)
     test_required_patches(original, data, server)
     test_hash_interval(original, image, "section")
+    test_world_buffer(original, image, "section")
     test_memory_check(original, image, "section")
     test_default_server(original, image, "section", server)
     test_gather(original, image, "section")
@@ -7058,6 +7123,7 @@ def main():
         test_pe(original, image, mode)
         test_bytes(original, image, mode, payload, server)
         test_hash_interval(original, image, mode)
+        test_world_buffer(original, image, mode)
         test_memory_check(original, image, mode)
         test_default_server(original, image, mode, server)
         test_revision(original, image, mode, P.REVISION_WITHOUT_LATE_JOIN)

@@ -19,8 +19,10 @@ use super::{
     WireTime, id, mask_bytes, player_inputs_len, server_length,
 };
 
-/// A compressed snapshot is decoded into a buffer of this size.
-pub const COMPRESSED_SNAPSHOT_BUFFER: usize = 0x8000;
+/// A compressed snapshot is decoded into a buffer of this size: 0xF000
+/// bytes of the 0xE8 handler's stack (patch 98; 0x8000 in the original
+/// exe), the world buffer `world_frame::MAX_BODY` is.
+pub const COMPRESSED_SNAPSHOT_BUFFER: usize = 0xF000;
 
 /// What a real client would choke on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,7 +46,7 @@ pub enum ModelError {
     SnapshotWithoutTime,
     /// A 0xE8 whose state is not a time, a mask, player blocks and six
     /// sections; or a compressed one that is no LZMA2 stream or decodes to
-    /// more than 0x8000 bytes.
+    /// more than [`COMPRESSED_SNAPSHOT_BUFFER`] bytes.
     SnapshotState,
     /// A message with a tick, before any 0xE5 set the clock it is read
     /// against.
@@ -832,7 +834,7 @@ mod tests {
         let sent = ServerMessage::packed_snapshot(3, 500, &world);
         assert_eq!(sent.payload()[1], 1);
         assert_eq!(decode_server(0xE8, &sent.payload(), 2), Ok(sent));
-        // Over the client's 0x8000-byte buffer.
+        // Over the client's buffer.
         let mut payload = vec![3, 1];
         payload.extend(lzma2::stored(&vec![0; COMPRESSED_SNAPSHOT_BUFFER + 1]));
         assert_eq!(
