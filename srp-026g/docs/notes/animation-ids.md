@@ -75,14 +75,14 @@ time it happens. The root cause is **not proven**: no dump of the crash has the 
   melee state, the battery states 0x344F60/0x345070, the user animations 0x3300E0) takes its
   pair from the same arrays the registrators register (for example the two-clip reload
   0x30FE90: +144h + 8 x (empty + 2 x crouch), registered by 0x24B820 as four pairs from +144h).
-  The only index into them that is not computed on the spot is a state's current clip,
-  a byte at +134h relative to +130h (0x30FEE4), read back by the animation-end callbacks
-  (0x30DB7D, 0x310692, 0x310CF0).
+  Indices are computed on the spot from the gun's state (ammo, posture). A state's current
+  clip, a byte at +134h relative to +130h (0x30FEE4), is saved and loaded raw
+  (`weapon_core_animation_end_aware_state::serialize` 0x30DC90, `deserialize` 0x30DBB0) but
+  only compared with an ending clip (0x30DB7D, 0x310692, 0x310CF0), never looked up.
 
-So a missing pair needs a clip pointer that is no registered table's entry: a resource the
-load never saw, or a state reading its tables at an index the stream gave it. The second
-fits the pickup's state-length mismatch (a reader four bytes out of step inside the picked
-gun's state, `fix/pickup-state-length`), not proven.
+So a missing pair needs a clip pointer that is in no registered table: a resource the load
+never registered, held by an object the load never saw. Not found statically; the names the
+diagnostic logs will say which.
 
 ## The diagnostic (patch 95)
 
