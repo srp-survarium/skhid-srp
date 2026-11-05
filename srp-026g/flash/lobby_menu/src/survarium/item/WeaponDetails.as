@@ -234,17 +234,18 @@ package survarium.item
                comparison:isNaN(against) ? {kind:"neutral"} : {kind:"higher",value:stat[4](round),against:against}});
       }
       // The card's row of a stat a round changes (roundStats): its best round's, against the other
-      // card's best (a shotgun's slug: buckshot does not compare with a single bullet); none when
-      // neither card has it. A shotgun of both kinds of round (kinds) instead: the stat's label alone
-      // over its best Buckshot and best Slug, each against the other shotgun's same kind; against any
-      // other weapon its Slug against that weapon's best, its Buckshot against nothing.
-      private function roundStat(result:Array, other:WeaponDetails, stat:Array) : void
+      // card's best (a shotgun's slug); none when neither card has it. A shotgun of both kinds of
+      // round (kinds) shown alone or beside another such (split): the stat's label alone over its
+      // best Buckshot and best Slug, each against the other's same kind. Beside any other gun a
+      // shotgun is a gun of slugs: its best slug's rows, no kinds shown.
+      private function roundStat(result:Array, other:WeaponDetails, stat:Array, split:Boolean) : void
       {
          var mine:Object = kinds(), theirs:Object = other == null ? null : other.kinds();
          var best:Number = other == null ? NaN : scoreOf(theirs == null ? other.rounds : theirs.slug,stat);
-         if(mine == null)
+         if(!split)
          {
-            if(bestOf(rounds,stat) != null || !isNaN(best)) statRow(result,String(stat[0]),stat[1],stat,bestOf(rounds,stat),best);
+            var own:Object = bestOf(mine == null ? rounds : mine.slug,stat);
+            if(own != null || !isNaN(best)) statRow(result,String(stat[0]),stat[1],stat,own,best);
             return;
          }
          result.push({kind:"stat",id:String(stat[0]),label:stat[1],value:"",comparison:{kind:"neutral"}});
@@ -335,9 +336,11 @@ package survarium.item
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
          scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);
          // The best round's bullet speed and material (its damage and armour piercing are the
-         // native bars', ItemCompare); a shotgun of both kinds all four, by kind.
+         // native bars', ItemCompare); a shotgun of both kinds, alone or beside another, all four by
+         // kind.
          var stats:Array = roundStats();
-         for(var at:int = kinds() == null ? 2 : 0; at < stats.length; at++) roundStat(result,other,stats[at]);
+         var split:Boolean = kinds() != null && (other == null || other.kinds() != null);
+         for(var at:int = split ? 0 : 2; at < stats.length; at++) roundStat(result,other,stats[at],split);
          if(!expanded) { result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")}); return result; }
          scalar(result,142,"st_srp_weapon_draw_time","lower","st_srp_unit_seconds");
          scalar(result,143,"st_srp_weapon_holster_time","lower","st_srp_unit_seconds");

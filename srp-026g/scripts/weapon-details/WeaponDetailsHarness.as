@@ -178,14 +178,16 @@ package {
    require(colours(cards[0],"• Buckshot").join()==[GREEN,NEUTRAL,NEUTRAL,NEUTRAL].join() && colours(cards[1],"• Buckshot").join()==[RED,NEUTRAL,NEUTRAL,NEUTRAL].join(),
     "buckshot against buckshot: "+colours(cards[0],"• Buckshot")+" / "+colours(cards[1],"• Buckshot"));
    require(colours(cards[0],"Pierces").join()==[NEUTRAL].join() && colours(cards[0],"Damage").join()==[NEUTRAL].join(),"a header has no value and no colour");
-   // Shotgun against any other weapon: its Slug against the other's best (an MP-443 stand-in, Para:
-   // damage 34, piercing 35, 360 m/s, Tinplate · 89%), its Buckshot against nothing; the other's best
-   // against the shotgun's Slug (41, 450 m/s, Plywood · 19%); no rows padded.
+   // Shotgun against any other gun (an MP-443 stand-in, Para: 360 m/s, Tinplate · 89%): a gun of
+   // slugs, its best slug's rows, no kinds shown (the slug's 450 m/s green, Plywood · 19% red), the
+   // other gun's best against them.
    shows(weapon(2600,"Benelli M4"),weapon(2400,"MP-443"));
-   require(colours(cards[0],"• Buckshot").join()==[NEUTRAL,NEUTRAL,NEUTRAL,NEUTRAL].join(),"buckshot against another gun: nothing: "+colours(cards[0],"• Buckshot"));
-   require(colours(cards[0],"• Slug").join()==[GREEN,NEUTRAL,GREEN,RED].join(),"slug against the other's best: "+colours(cards[0],"• Slug"));
-   require(colours(cards[1],S).join()==[RED].join() && colours(cards[1],M).join()==[GREEN].join(),"the best against the shotgun's slug: "+colours(cards[1],S)+" "+colours(cards[1],M));
-   require(text(cards[1]).indexOf("•")<0 && text(cards[1]).indexOf("–")<0,"no rows padded on the other card");
+   require(text(cards[0]).indexOf("•")<0 && text(cards[1]).indexOf("•")<0 && text(cards[1]).indexOf("–")<0,"no kinds, nothing padded");
+   require(line(cards[0],S)=="Bullet speed: 450 m/s" && line(cards[0],M)=="Pierces: Plywood · 19%","the shotgun's slug rows: "+line(cards[0],S)+" "+line(cards[0],M));
+   require(both(S)==[GREEN,RED].join() && both(M)==[RED,GREEN].join(),"slug against the gun's best: "+both(S)+" "+both(M));
+   require(text(cards[0]).indexOf("Damage: ")<0,"its damage and piercing the bars only, as any gun's");
+   // Alone (no compared card), a shotgun shows its kinds.
+   require(Details.read(weapon(2600,"Benelli M4")).rows(false,null).some(function(r:Object,...rest):Boolean{return r.label=="• Buckshot";}),"a shotgun alone: its kinds");
    // The bars compare as any: the shotgun's slug damage 41 and piercing 35 against the AK-74M's best round's 34 and 42.
    shows(weapon(2600,"Benelli M4"),item(false));
    require(nativeBoth("Armor penetration")==[RED,GREEN].join() && nativeBoth("Damage")==[GREEN,RED].join(),"a shotgun's bars compare: "+nativeBoth("Armor penetration"));
