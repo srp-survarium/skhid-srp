@@ -297,3 +297,21 @@ fn full_dumps_are_asked_for_in_any_case_with_spaces() {
         assert!(!details::asks_full_dump(value), "{value:?}");
     }
 }
+
+#[test]
+fn a_finished_read_is_no_reading_line() {
+    let at = 0x0A4D_D000;
+    let mut bytes = ring_bytes(at, &[], 0);
+    // Place 3's player state read to byte 600 (patch 78's carry.load).
+    bytes[48..52].copy_from_slice(&(3u32 | 3 << 8).to_le_bytes());
+    bytes[52..56].copy_from_slice(&600u32.to_le_bytes());
+    let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
+    let mut out = details::Buffer::<256>::new();
+    breadcrumbs::write_reading(&mut out, &ring, 10_000).unwrap();
+    assert_eq!(out.as_str(), "");
+    // A world before its players is one.
+    bytes[48..52].copy_from_slice(&1u32.to_le_bytes());
+    let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
+    breadcrumbs::write_reading(&mut out, &ring, 10_000).unwrap();
+    assert!(out.as_str().starts_with("Reading:   a world (0xE8), before its players, "), "{}", out.as_str());
+}
