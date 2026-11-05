@@ -9,3 +9,6 @@ level_02_day_2	19.00	15.70	63.50	26.00	15.70	63.50	walk	School r1: humans walk a
 level_02_day_2	26.00	15.70	63.50	19.00	15.70	63.50	walk	School r1, the other way
 level_07_day_2	10.50	20.80	-7.00	10.50	20.80	-4.00	walk	Vector Laboratory: a one-cell strip the grid cuts on open floor 20.76-20.84 (fx-zones, PROVEN no wall)
 level_07_day_2	10.50	20.80	-4.00	10.50	20.80	-7.00	walk	Vector Laboratory strip, the other way
+level_07_day_2	11.00	20.77	-7.00	10.00	20.77	-4.00	walk	Vector Laboratory strip on the humans' cells (fx-zones-classes.md: (11,20,-7), (11,20,-6), (10,20,-4)): the diagonal they walk
+level_07_day_2	10.00	20.77	-4.00	11.00	20.77	-7.00	walk	Vector Laboratory strip on the humans' cells, the other way
+level_07_day_2	10.90	20.77	-7.00	10.90	20.77	-5.00	walk	Vector Laboratory strip along x 10.9 (the grid has no floors in x 10.5-11.5, z -6.3..-6.5)
