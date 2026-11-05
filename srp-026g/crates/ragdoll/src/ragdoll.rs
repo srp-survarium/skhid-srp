@@ -87,9 +87,6 @@ const SLOW_TIME: f32 = 1.0;
 const MAX_AGE: f32 = 5.0;
 /// A sweep reaches this much past a body's motion of the frame.
 const SWEEP_MARGIN: f32 = 0.05;
-/// The pelvis stays within this of where the player died (horizontally), so
-/// the body stays by its battery and in its model's bounds.
-const TRAVEL: f32 = 2.5;
 /// The gun: its mass and the shape when its model gives none.
 const GUN_MASS: f32 = 3.5;
 
@@ -465,7 +462,6 @@ pub struct Ragdoll {
     /// draws no clip.
     at_death: PartPoses,
     up: Vec3,
-    origin: Vec3,
     /// The pairs of bodies that collide ([`pair_bit`]): those that
     /// share no joint and did not overlap at the death (an arm across the
     /// chest holding the gun).
@@ -716,7 +712,6 @@ impl Ragdoll {
             rig,
             cause,
             up,
-            origin: at(ROOT),
             colliding,
             age: 0.0,
             pending: 0.0,
@@ -945,7 +940,6 @@ impl Ragdoll {
                 joint.limit.solve(parent, child, alpha_h);
             }
             self.solve_self_collision();
-            self.solve_travel();
             for (i, body) in self
                 .bodies
                 .iter_mut()
@@ -1306,17 +1300,6 @@ impl Ragdoll {
                     carry_previous(b, was_b);
                 }
             }
-        }
-    }
-
-    /// The pelvis stays within TRAVEL of the death's place, horizontally.
-    fn solve_travel(&mut self) {
-        let pelvis = &mut self.bodies[Part::Pelvis.index()];
-        let away = (pelvis.pose.position - self.origin).reject(self.up);
-        let distance = away.length();
-        if distance > TRAVEL {
-            let back = away * ((TRAVEL - distance) / distance);
-            close_gap(Pair::One(pelvis), Vec3::ZERO, Vec3::ZERO, back, 0.0);
         }
     }
 }
