@@ -457,7 +457,6 @@ va	status	ref_021d	name
 0x000e4560	inferred-medium	0x000aff90	vostok::buffer_string::operator+=
 0x000e45b0	inferred-high		vostok::buffer_string::appendf
 0x000e45d0	inferred-medium	0x000affb7	vostok::buffer_string::appendf_va_list
-0x000e48e0	inferred-medium	0x000b01a5	__delayLoadHelper2
 0x000e4c80	inferred-medium	0x000b0509	__FUnloadDelayLoadedDLL2
 0x000e4d70	inferred-medium	0x000b0623	out_of_memory_with_crash
 0x000e4ec0	inferred-medium	0x000b0710	out_of_memory_silent
@@ -648,6 +647,7 @@ va	status	ref_021d	name
 0x00105290	inferred-medium		vostok::resources::query_erase_file
 0x00105ad0	inferred-medium	0x000c8e62	GetVideoMemoryViaWMI
 0x00105db0	inferred-medium	0x000c90d3	GetVideoMemoryViaDirectDraw
+0x00106030	inferred-high		GetVideoMemoryViaDXGI
 0x00106300	inferred-medium		vostok::platform::get_local_video_memory_size
 0x00106430	inferred-medium	0x000c9389	vostok::resources::game_resources_manager::try_free_or_decrease_quality
 0x001064c0	inferred-medium	0x000c93e0	vostok::resources::game_resources_manager::try_reallocate_queue
