@@ -140,6 +140,7 @@ package
                 if (frames == 300) trace("SETTINGS SHOT graphics");
                 if (frames == 330)
                 {
+                    click(settings.btn_cancel);              // the Graphics shot's pick dropped
                     var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
                     var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
                     // the controls tab, after the gameplay tab's screenshots (its stock stepper takes a
@@ -148,6 +149,8 @@ package
                     {
                         checkControls(Object(loader.content), settings, texts, domain);
                         trace("SETTINGS controls pass");
+                        checkBorders(Object(loader.content), settings, texts, domain);
+                        trace("SETTINGS borders pass");
                     }
                     catch (error:Error)
                     {
@@ -1036,6 +1039,72 @@ package
             trace("SETTINGS controls layout: slider " + main.y + ", box " + box.y + ", vertical " + vertical.y + ", invert "
                 + c._setter_inverse_mouse.y + ", lobby " + c.s_lobby.y + " to " + span(c.keysLobby)[1] + "; game to " + (c.keysGame.y + c.keysGame.height)
                 + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y);
+        }
+
+        // The two sliders at their borders (the stock mouse_sensitivity's 0.01 to 10, from its console
+        // variable): locked, the greyed slider shows the main one x 0.5625 within its own range; unlocking at
+        // either end starts from that value; unlocked, either slider at either end leaves the other; Apply,
+        // the exe's answers and a new visit of the tab (Settings reopened) keep each value.
+        private function checkBorders(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            var LOCKED:String = "srp_mouse_vertical_locked";
+            var main:* = null;
+            // Settings opened again: the exe's settings and answers bound anew (a test player's tab bar
+            // cannot change the frame and bind in one go)
+            var reopen:Function = function(value:Number, locked:String, vertical:String):void {
+                controls(root, settings, domain, value);
+                root.srp_check_option(LOCKED, texts[0][17], locked);
+                root.srp_slider_option("srp_mouse_vertical", texts[0][18], vertical);
+                main = c._slider_mouse_sens;               // the tab's new instance at each visit
+            };
+            reopen(1.25, "1", "100");
+            var box:* = c.getChildByName("_" + LOCKED), vertical:* = c.getChildByName("_srp_mouse_vertical");
+            var least:Number = main.slider.minimum, most:Number = main.slider.maximum;
+            var valid:Function = function(v:Number):Boolean { return !isNaN(v) && v >= vertical.slider.minimum - 1e-9 && v <= vertical.slider.maximum + 1e-9; };
+            require(close(least, 0.01) && close(most, 10), "borders: the main slider's range 0.01 to 10: " + least + " to " + most);
+            for each (var end:Number in [least, most])
+            {
+                main.slider.value = end;
+                var shown:Number = Math.round(end * 0.5625 / 0.01) * 0.01;
+                require(box.selected && close(vertical.selectedIndex, shown) && valid(vertical.selectedIndex) && vertical.visible,
+                    "borders: locked, the main slider at " + end + ": the greyed one shows " + vertical.selectedIndex + " (" + shown + "), in its range");
+                box.selected = false;
+                require(close(vertical.selectedIndex, shown) && vertical.slider.enabled && settings.btn_accept.enabled,
+                    "borders: unlocked at main " + end + ": it starts from " + vertical.selectedIndex);
+                click(settings.btn_accept);
+                var saved:String = String(Math.round(shown * 100));
+                reopen(end, "0", saved);
+                require(!box.selected && close(main.selectedIndex, end) && close(vertical.selectedIndex, shown) && !settings.btn_accept.enabled,
+                    "borders: Apply and reopen at main " + end + ": unlocked at " + vertical.selectedIndex + " (saved " + saved + ")");
+                box.selected = true;
+                click(settings.btn_accept);
+                reopen(end, "1", saved);
+                require(box.selected && close(vertical.selectedIndex, shown), "borders: locked again at main " + end);
+            }
+            // unlocked: either slider at either end leaves the other
+            reopen(1.25, "0", "300");
+            for each (end in [least, most])
+            {
+                vertical.slider.value = end;
+                require(close(vertical.selectedIndex, end) && close(main.selectedIndex, 1.25) && valid(vertical.selectedIndex),
+                    "borders: unlocked, the vertical slider at " + end + ", the main one stays 1.25: " + main.selectedIndex);
+                click(settings.btn_accept);
+                reopen(1.25, "0", String(Math.round(end * 100)));
+                require(close(vertical.selectedIndex, end) && !box.selected && !settings.btn_accept.enabled,
+                    "borders: Apply and reopen at vertical " + end + ": " + vertical.selectedIndex);
+            }
+            for each (end in [least, most])
+            {
+                var before:Number = vertical.selectedIndex;
+                main.slider.value = end;
+                require(close(main.selectedIndex, end) && close(vertical.selectedIndex, before), "borders: unlocked, the main slider at "
+                    + end + ", the vertical one stays " + before + ": " + vertical.selectedIndex);
+            }
+            click(settings.btn_cancel);
+            reopen(1.25, "1", "100");
+            trace("SETTINGS borders: locked shows main x 0.5625 within range at 0.01 and 10 (0.01, 5.63); unlocking starts there; "
+                + "unlocked ends leave the other slider; Apply and reopen keep the values");
         }
 
         // The exe's setter of option `i`: records [i, value] and gives the value back.
