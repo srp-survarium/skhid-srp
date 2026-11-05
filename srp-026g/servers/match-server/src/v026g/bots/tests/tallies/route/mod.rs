@@ -123,6 +123,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         zone_pool_asks(),
         route_crossings(),
         take_fixes(),
+        raid_switches(),
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         past_drop(),
