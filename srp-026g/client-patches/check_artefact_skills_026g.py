@@ -385,10 +385,21 @@ TICK_SITE = 0x2DAAD3        # base_player::tick after the held object's tick (ba
 TICK_ANIMATIONS = 0x2DAADB  # its `call tick_animations` (0x2D8EE0): select_animations runs there only with +33Eh
 
 
+QUERY = 0xE5B60             # query_resources (cdecl), which Forest Protection's glow (patch 111) calls at its first tick
+
+
 def tick(m, player, time):
     """The player's tick at the site, its time (+324h) `time` ms, up to its tick_animations call;
-    whether the animations are to be selected again (+33Eh) then, cleared for the next."""
+    whether the animations are to be selected again (+33Eh) then, cleared for the next. The other
+    hooks of the site run too (the battery's; the glow's, its resource query answered nothing)."""
     g = m.g
+    if not getattr(m, 'query_stubbed', False):
+        def no_query(emu, address, size, _):
+            esp = emu.reg_read(UC_X86_REG_ESP)
+            emu.reg_write(UC_X86_REG_EIP, g.read(esp))
+            emu.reg_write(UC_X86_REG_ESP, esp + 4)
+        g.emu.hook_add(UC_HOOK_CODE, no_query, begin=QUERY, end=QUERY)
+        m.query_stubbed = True
     g.word(player + 0x324, time)
     g.emu.mem_write(player + 0x33E, b'\0')
     g.emu.reg_write(UC_X86_REG_ESP, STACK - 0x100)
