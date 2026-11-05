@@ -30,14 +30,31 @@ pub(super) struct Walls {
     triangles: Vec<[Vec3; 3]>,
 }
 
+/// Which steep faces are walls ([`Walls::new_with`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WallFaces {
+    /// Not a `walk` face (always ground to the slope test): the exact erosion's walls.
+    NotWalk,
+    /// Any walker behaviour ([`Body::drop_room_walk_faces`]).
+    AnyWalker,
+}
+
 impl Walls {
     /// The walls among `triangles` over the area starting at (`x0`, `z0`) `nx * nz` cells of `cell` metres.
     pub(super) fn new(triangles: &[Triangle], x0: f32, z0: f32, cell: f32, nx: usize, nz: usize) -> Self {
+        Self::new_with(triangles, x0, z0, cell, nx, nz, WallFaces::NotWalk)
+    }
+
+    /// [`Self::new`] with `faces` the steep faces that are walls.
+    pub(super) fn new_with(triangles: &[Triangle], x0: f32, z0: f32, cell: f32, nx: usize, nz: usize, faces: WallFaces) -> Self {
         let (width, depth) = (nx as f32 * cell, nz as f32 * cell);
         let (bx, bz) = (((width / BIN_M).ceil() as usize).max(1), ((depth / BIN_M).ceil() as usize).max(1));
         let walls: Vec<[Vec3; 3]> = triangles
             .iter()
-            .filter(|t| is_wall(t))
+            .filter(|t| match faces {
+                WallFaces::NotWalk => is_wall(t),
+                WallFaces::AnyWalker => is_steep(t),
+            })
             .map(|t| t.v)
             .filter(|v| v.iter().all(|p| p.is_finite()))
             .collect();
@@ -205,10 +222,15 @@ fn segment_distance(polygon: &[Vec3], from: Vec3, to: Vec3) -> f32 {
 /// Whether a triangle is a wall: no `walk` face, and steeper than [`STEEP_NORMAL_Y`] (which no body walks on,
 /// whatever its material says).
 fn is_wall(t: &Triangle) -> bool {
+    t.walker != WalkerBehaviour::Walk && is_steep(t)
+}
+
+/// Whether a triangle is steep enough to be a wall whatever its walker behaviour.
+fn is_steep(t: &Triangle) -> bool {
     let [a, b, c] = t.v;
     let normal = (b - a).cross(c - a);
     let length = normal.length();
-    t.walker != WalkerBehaviour::Walk && length >= 1e-9 && normal.y.abs() / length < STEEP_NORMAL_Y
+    length >= 1e-9 && normal.y.abs() / length < STEEP_NORMAL_Y
 }
 
 /// The distance on the ground from (`x`, `z`) to the convex polygon `polygon` (0 inside it).
