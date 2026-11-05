@@ -82,6 +82,7 @@
     "honest_drops": false,
     "jump_cap_m": 1.05,
     "landing_carry": false,
+    "ramp_faces": false,
     "walk_off_lips": false
   },
   "hazard": {
@@ -100,7 +101,8 @@
   },
   "kin": {
     "edge": "lattice",
-    "margin_edge": "lattice"
+    "margin_edge": "lattice",
+    "slope_speed": "planar"
   },
   "kit": {
     "frags": "off",

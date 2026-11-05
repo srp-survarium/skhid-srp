@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use mapdata::{Vec3, World};
+use mapdata::{NodeId, Vec3, World};
 
 use super::super::body::{BodyTrack, Fix};
 use super::bench::bench_tuning;
@@ -64,6 +64,28 @@ fn drift_on_a_real_match() {
         tuning.needs_wall_clearance(),
         tuning.needs_open_sides(),
     ));
+    // `SRP_A304_RAMP_AT=x,z;x,z`: the ramp marks (`grid.ramp_faces`) of the floors within 2 m of each point, then nothing else.
+    if let Some(points) = var("SRP_A304_RAMP_AT") {
+        let g = &*world.grid;
+        for point in points.split(';') {
+            let Some((x, z)) = point.split_once(',').and_then(|(x, z)| Some((x.parse::<f32>().ok()?, z.parse::<f32>().ok()?))) else {
+                continue;
+            };
+            let near: Vec<(f32, Option<f32>)> = (0..g.len() as NodeId)
+                .map(|node| (g.position(node), node))
+                .filter(|(p, _)| (p.x - x).hypot(p.z - z) <= 2.0)
+                .map(|(p, node)| (p.y, g.ramp_slope_deg(node)))
+                .collect();
+            let marked: Vec<f32> = near.iter().filter_map(|&(_, d)| d).collect();
+            let (low, high) = near.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &(y, _)| (lo.min(y), hi.max(y)));
+            eprintln!(
+                "A304 ramp at ({x}, {z}) {project}: {} floors within 2 m (y {low:.2}-{high:.2}), {} marked {marked:?}",
+                near.len(),
+                marked.len()
+            );
+        }
+        return;
+    }
     // `SRP_A304_FREE=1`: the reckoning with no walk grid (free space), to weigh what the grid adds.
     let grid: Option<&mapdata::WalkGrid> = var("SRP_A304_FREE").is_none().then_some(&*world.grid);
     // The inputs, by time; the worlds, by the time they reach the bots.
