@@ -12594,6 +12594,30 @@ impl SoundOptions {
     }
 }
 
+/// A vostok::engine::message_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MessageFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MessageFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (u32): message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lparam(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15194,6 +15218,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<HdrFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HdrFrame)
+        }
+    }
+
+    /// window.lang_request (0x18359): message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL
+    pub mod window_lang_request {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::engine::message_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MessageFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MessageFrame)
+        }
+    }
+
+    /// window.lang_change (0x183dd): message_processor's WM_INPUTLANGCHANGE (51h) case (the je at 0x1839A), before the same check guards ActivateKeyboardLayout(lParam, KLF_SETFORPROCESS) at 0x183FE (mov ecx,[1F1D310h]): the site's ESP+1Ch the activated HKL
+    pub mod window_lang_change {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::engine::message_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MessageFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MessageFrame)
         }
     }
 }

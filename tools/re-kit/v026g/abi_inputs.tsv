@@ -5494,3 +5494,11 @@ va	name	location	role	basis
 0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	entry ESP+4	the bt_dynamic_rigid_body	observed
 0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	ECX	the angular velocity (float3*)	observed
 0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	entry ESP+4	the bt_dynamic_rigid_body	observed
+0x003b92d0	vostok::input::platform::keyboard::translate_text	ECX	the platform keyboard (its pending dead key at +90Ch)	observed
+0x003b92d0	vostok::input::platform::keyboard::translate_text	entry ESP+4	the key, made a DirectInput scan code in place by 0x3B9230: MapVirtualKeyExA(scan, MAPVK_VSC_TO_VK_EX, hkl) 0x3B9318 and ToUnicodeEx's scan code 0x3B9341	observed
+0x003b92d0	vostok::input::platform::keyboard::translate_text	entry ESP+8	the WCHAR written (0x3B93A3)	observed
+0x003b92d0	vostok::input::platform::keyboard::translate_text	EAX at 0x3B92E2	GetKeyboardLayout(0)'s HKL (0x3B92DC), kept in EDI for MapVirtualKeyExA and ToUnicodeEx: the calling thread's layout, the engine's logic thread (input_world tick); patch 107's site keyboard.text_layout	observed
+0x000181e0	message_processor	entry ESP+4..ESP+10h	hwnd, message, wParam, lParam (stdcall, ret 10h); inside, with EBX ESI EDI pushed, lParam at ESP+1Ch	observed
+0x000181e0	message_processor	ESP+1Ch at 0x18359	WM_INPUTLANGCHANGEREQUEST's HKL: passed to DefWindowProc (0x18377) only when survarium::game slot 44h (0x1EE7C0) says a text input is focused, else dropped (return 0, 0x18272); patch 107's site window.lang_request	observed
+0x000181e0	message_processor	ESP+1Ch at 0x183DD	WM_INPUTLANGCHANGE's HKL: ActivateKeyboardLayout(hkl, KLF_SETFORPROCESS) at 0x183FE when a text input is focused, then DefWindowProc; patch 107's site window.lang_change	observed
+0x001ee7c0	survarium::game::is_text_input_focused	ECX	the game (its slot 44h, called through engine_world+2D0h at 0x18359 and 0x183DD); +586Ch set to 1 by game::game 0x1E935D, switch_to_lobby 0x1ED256 and switch_to_login 0x1ED2E6, 0 by game::unload 0x1ED1D8, +1/-1 by chat_handler::focus 0x209BF8/0x209C10	observed

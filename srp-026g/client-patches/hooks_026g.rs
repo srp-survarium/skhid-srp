@@ -851,6 +851,51 @@ pub extern "C" fn hook_input_check_on_change_input(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_request` (0x18359, message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_request(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_request` calls this, from the game's jump at 0x18359,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_request(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_change` (0x183dd, message_processor's WM_INPUTLANGCHANGE (51h) case (the je at 0x1839A), before the same check guards ActivateKeyboardLayout(lParam, KLF_SETFORPROCESS) at 0x183FE (mov ecx,[1F1D310h]): the site's ESP+1Ch the activated HKL) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_change(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_change` calls this, from the game's jump at 0x183dd,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_change(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_text` (0x3b92e2, keyboard::translate_text after its GetKeyboardLayout(0) (0x3B92DC; mov edi,eax / lea eax,[esp+20h]): EAX the calling thread's HKL, which EDI carries to MapVirtualKeyExA (0x3B9318) and ToUnicodeEx (0x3B9341); the logic thread's, which Wine never changes (KLF_SETFORPROCESS unsupported)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_text(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_text` calls this, from the game's jump at 0x3b92e2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_text(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.

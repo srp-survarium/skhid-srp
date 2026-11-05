@@ -2141,3 +2141,5 @@ va	status	ref_021d	name
 0x0007a390	verified	0x000591ca	vostok::physics::create_primitive_shape
 0x0007a1f0	verified	0x0005904e	vostok::physics::create_bt_primitive
 0x00075550	reviewed	0x00056439	vostok::physics::bullet_physics_world::tick
+0x003b92d0	verified	0x00265484	vostok::input::platform::keyboard::translate_text
+0x000181e0	verified	0x000152cc	message_processor
