@@ -91,18 +91,25 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   behind that owner instead of exposing competing ways to bypass it. Verify initialization,
   transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
   the lifecycle rules of an external engine.
-- For Rust changes, test and lint affected crates under `nix develop`; use workspace Clippy
-  only when shared APIs, configuration or dependencies affect multiple crates.
+- For Rust changes, test and lint affected crates under `nix develop` (`tools/check` runs the
+  `cargo:<crate>` checks of every crate your change reaches); use workspace Clippy only when
+  shared APIs, configuration or dependencies affect multiple crates.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
 
 ## Checks while iterating and before a PR
 
-- Run checks for changed behavior and its affected consumers, also before pushing or opening
-  a PR. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated server tests.
-- Use the patch's own self-tests and Unicorn check, affected crate tests/Clippy, or the movie's
-  Ruffle harness. World save/load changes also need `check_world_roundtrip_026g.py`; content
-  changes need `release/build-content`. Reserve full suites for shared infrastructure changes
-  that affect them or release validation.
+- Run `tools/check`, also before pushing or opening a PR: it picks the checks your change affects
+  (the rows of `tools/checks.tsv` whose inputs differ from the merge-base with origin/main) and
+  skips the ones that already passed on the same inputs (a cache shared by every worktree), so a
+  clean merge from main or a trivial edit reruns nothing it does not touch. `tools/check <name>`
+  runs one check (still cached), `tools/check --list` shows what your change selects.
+- Don't run checks by hand except to debug one. When you add a check, add its row to
+  `tools/checks.tsv` with every input it reads; a changed file it reports as `not covered` has no
+  check yet (docs need none).
+- Where it has no row yet, use the patch's own self-tests and Unicorn check or the movie's
+  Ruffle harness. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
+  server tests. World save/load changes also need `check_world_roundtrip_026g.py`. Reserve full
+  suites for shared infrastructure changes that affect them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
   relevant changes. Report validation limits and pre-existing failures without expanding the PR.
