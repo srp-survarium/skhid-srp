@@ -90,6 +90,7 @@ const FLIGHT_CELLS: i32 = 48;
 /// A floor this far under the body's feet in the air still catches it, metres.
 const FLIGHT_TOLERANCE_M: f32 = 0.1;
 
+pub mod controlled;
 pub mod gap;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead};
 use gap::gap_cost;
@@ -218,6 +219,10 @@ pub struct Body {
     /// (4, 32-34), Chemical Plant's (8, 22): 0-20 deg). A mark only: the floors and links are as without it. A build input: in the key
     /// when set.
     pub ramp_faces: bool,
+    /// [A313] Whether the walk links are decided by the client's own walk tick (`grid::controlled`): gap links over one cell
+    /// between floors within a step are walked where the controller walks the body across (a crack, a riser cell), and walk
+    /// links by a face no body walks on stay only where it gets the body half way. A build input: in the key when set.
+    pub client_controller: bool,
     /// [A304] Whether [`Self::drop_room`]'s walls count steep faces whatever their walker behaviour: a `walk` face (`walk`
     /// material: stairs and steep paths, always ground to the slope test) that stands up across a walk-off's way blocks the capsule
     /// as any wall does. The exact erosion's walls are as without it. Level 7's deck parapet at (16.15-16.30, 20.20-22.03, -18.4 to
@@ -288,6 +293,7 @@ impl Body {
             pocket_exits_walled: false,
             gap_no_vaults: false,
             ramp_faces: false,
+            client_controller: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
@@ -360,6 +366,7 @@ impl Default for Body {
             pocket_exits_walled: false,
             gap_no_vaults: false,
             ramp_faces: false,
+            client_controller: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
@@ -843,6 +850,8 @@ pub struct BuildStats {
     pub floors_kept: usize,
     /// [A304] The floors with a ramp mark ([`Body::ramp_faces`]).
     pub ramp_floors: usize,
+    /// [A313] The controller pass ([`Body::client_controller`]).
+    pub controlled: controlled::ControlledStats,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
     /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
@@ -1046,6 +1055,13 @@ impl WalkGrid {
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
+        if body.client_controller {
+            let (controlled, failing) = grid.controlled_links(&mut wide, triangles);
+            stats.controlled = controlled;
+            // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
+            // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
+            (stats.controlled.checks_dropped, stats.controlled.checks_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+        }
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {
             // The walk-offs' walls with the steep `walk` faces too (the erosion's are as before).
@@ -1059,7 +1075,7 @@ impl WalkGrid {
         }
         if body.drop_check {
             let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
-            (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns);
+            (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
         }
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
@@ -1246,13 +1262,21 @@ impl WalkGrid {
                 }
             }
         }
-        self.cut_keeping_reach(wide, failing, seeds, spawns)
+        self.cut_keeping_reach(wide, failing, seeds, spawns, self.body.keep_last_resorts)
     }
 
-    /// Takes away the neighbour links `failing` ((take-off, direction, rank): the higher rank kept first where one must be),
-    /// keeping a link that is the only way to a floor from the seeds or a spawn ([`Body::keep_last_resorts`]) or the only way back
-    /// from it: the cut disconnects nothing a body can walk to. Returns the links taken away and those kept for that.
-    fn cut_keeping_reach(&self, wide: &mut Wide, mut failing: Vec<(u32, usize, f32)>, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize) {
+    /// Takes away the links `failing` names (a floor and a direction, with a score: the higher kept first), except one that is
+    /// the only way to a floor from the seeds and spawns (with `keep_last_resorts`), or the only way back from it: the cut
+    /// disconnects nothing. Returns the links taken away and those kept for that. [`Self::drop_overshot_landings`]'s guard, and
+    /// the controller pass's ([`Body::client_controller`]).
+    fn cut_keeping_reach(
+        &self,
+        wide: &mut Wide,
+        mut failing: Vec<(u32, usize, f32)>,
+        seeds: &[Vec3],
+        spawns: &[Vec3],
+        keep_last_resorts: bool,
+    ) -> (usize, usize) {
         if failing.is_empty() {
             return (0, 0);
         }
@@ -1323,7 +1347,7 @@ impl WalkGrid {
                 // Without the last resorts kept, only the way back out of a floor a body can walk to counts (a pit it fell into);
                 // the floors only those links led to are out of reach.
                 let needed = (0..groups.len()).any(|g| {
-                    (self.body.keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
+                    (keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
                         || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
                 });
                 if !needed {

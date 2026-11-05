@@ -147,6 +147,9 @@ pub const GAP_NO_VAULTS_ALGO: u32 = 0x5293_0001;
 /// The same for the ramp slopes kept by floor ([`Body::ramp_faces`], A304), in [`grid_key_with_links`] only for a body that asks
 /// for it. A value of its own.
 pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
+/// The same for the links the client's walk tick decides ([`Body::client_controller`], A313), in [`grid_key_with_links`] only for
+/// a body that asks for it. A value of its own.
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0001;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
@@ -316,6 +319,10 @@ pub fn grid_key_with_links(
     // And the ramp slopes.
     if body.ramp_faces {
         digest.u32(RAMP_FACES_ALGO);
+    }
+    // And the links of the client's walk tick.
+    if body.client_controller {
+        digest.u32(CLIENT_CONTROLLER_ALGO);
     }
     // And the walk-off walls with the `walk` faces.
     if body.drop_room_walk_faces {
