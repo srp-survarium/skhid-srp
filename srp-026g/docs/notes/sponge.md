@@ -126,8 +126,10 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
 - A spent Sponge cannot be picked up while its zone runs.
 - Destroyed at a match's end, it frees only its own (its body, its geometry, its hold on the
   zone) and touches nothing the world owns.
-- Exploded, it stays in its slot until the throw state holding it (from the pull) lets it go: that
-  state's finalize, however long it takes (a dead or still holder's state is not ticked). A world
+- Exploded, it stays in its slot until the throw state holding it (from the pull) lets it go,
+  however long it takes (a dead or still holder's state is not ticked): each tick it reads the
+  world, its holder's weapon's current state and that state's grenade, so a finalize, a respawn
+  (which finalizes nothing), a return and the next grenade all count. A world
   saved in between names it by its slot, and its load finds it there. Its cloud over first, it is
   spent (still 7) until then. With no throw state holding it, it leaves its slot at the explosion.
   The throw state's own save and load are safe either way (no grenade held: slot 17h, loaded as

@@ -167,9 +167,12 @@ typedef struct { float m[16]; } matrix;
  * The first contact (retail's rule, sp_transition) is waiting from the pull,
  * seen by a contact before the tick that rules on it, or spent; the thrower
  * is a place of the match, or nobody (armed with no holder). From the pull
- * on, a throw state holds it (its +17Ch) until the state's finalize lets it
- * go: while one does, it stays in its slot (a world saved then names it by
- * its slot, 0x33A51B, and its load reads the slot back, 0x33A5BD). */
+ * on, a throw state holds it (its +17Ch): while one does, it stays in its
+ * slot (a world saved then names it by its slot, 0x33A51B, and its load reads
+ * the slot back, 0x33A5BD). Each tick it is let go once its holder's weapon's
+ * current state is not that throw state holding it (throw_state_holds): a
+ * finalize, a respawn's weapon_core::initialize 0x2E2A30 (which sets the
+ * initial state without one), a return, the next grenade's. */
 enum sp_tag { SP_HELD, SP_IN_HAND, SP_IN_AIR, SP_CLOUD, SP_SPENT };
 enum sp_contact { CONTACT_WAITING, CONTACT_SEEN, CONTACT_SPENT };
 enum sp_hold { HOLD_NONE, HOLD_THROW_STATE };
@@ -839,6 +842,8 @@ static void sync_passive(struct sponge *s) {
 }
 
 static void step_to(struct sponge *s, struct sp_event ev);
+static enum sp_hold hold_of(const struct sp_state *st);
+static void let_go(struct sponge *s);
 
 THISCALL void sp_contact(struct sponge *s, const void *point) {
     (void)point;
@@ -932,8 +937,8 @@ static void consume(struct sponge *s) {
  * state 6). Still in its slot: the throw state holding it (+17Ch) lets it go
  * at its next is_ready (sp_released), and a world saved before that names it
  * by that slot (0x33A51B; its load 0x33A5BD reads the slot back). Players
- * tick before the anomaly; it leaves its slot when the state's finalize lets
- * it go (sp_let_go), or now when no throw state holds it (ACT_CONSUME). */
+ * tick before the anomaly; it leaves its slot when no throw state holds it
+ * any more (sp_tick, let_go), or now when none does (ACT_CONSUME). */
 static void explode(struct sponge *s, const matrix *at, void *physics, u32 time) {
     struct splash hit;
     matrix transform = *at;
@@ -1013,9 +1018,30 @@ static int in_the_way(struct sponge *s, const float from[3], const float to[3], 
     return found_one;
 }
 
+/* Whether a throw state holds it now, from the world: its holder's held item
+ * (player+128h) a weapon (weapon 0xA04174 or weapon_core 0xA11094, the active
+ * interfaces at their +0), its FSM's current state (+330h, weapon_core::
+ * initialize 0x2E2A88 sets it) weapon_core_throw_grenade_state (vtable
+ * 0xA1C1B0: initialize 0x33A450, finalize 0x33A490, is_ready 0x33A650) with
+ * this sponge its grenade (+17Ch). Every game reads the same world. */
+#define P_HELD_ITEM 0x128
+#define WEAPON_VTABLE 0xA04174
+#define WEAPON_CORE_VTABLE 0xA11094
+#define WC_STATE 0x330
+#define THROW_STATE_VTABLE 0xA1C1B0
+#define TS_GRENADE 0x17C
+static int throw_state_holds(const struct sponge *s) {
+    u8 *player = holder(s);
+    u8 *weapon = player ? AT(player, P_HELD_ITEM, u8 *) : 0;
+    if (!weapon || (AT(weapon, 0, u32) != WEAPON_VTABLE && AT(weapon, 0, u32) != WEAPON_CORE_VTABLE)) return 0;
+    u8 *state = AT(weapon, WC_STATE, u8 *);
+    return state && AT(state, 0, u32) == THROW_STATE_VTABLE && AT(state, TS_GRENADE, const struct sponge *) == s;
+}
+
 /* 0.28's tick 0x514160: the base's tick while it is an artefact; the body's
  * transform while in the air, the sensor's sweep, then the transition. */
 THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
+    if (hold_of(&s->state) == HOLD_THROW_STATE && !throw_state_holds(s)) let_go(s);
     if (s->state.tag == SP_HELD) engine_artefact_tick(s, dt, time);
     if (s->state.tag == SP_IN_AIR) {
         matrix at;
@@ -1072,12 +1098,12 @@ u32 sp_pull_pin(struct sponge *s, u32 time) {
 /* [4] 0x515140: done (the zone on). */
 u32 sp_exploded(struct sponge *s) { return (u32)zone_active(s); }
 
-/* The throw state's finalize (0x33A490, sponge_let_go) about to let it go
- * (+17Ch): no throw state holds it now; spent, it leaves its slot now. */
-void sp_let_go(struct sponge *s) {
+/* Let go (EV_LET_GO): no throw state holds it now; spent, it leaves its
+ * slot now. */
+static void let_go(struct sponge *s) {
     struct sp_rules rules = rules_of(s);
-    struct sp_event let_go = {EV_LET_GO, 0, {THROWER_NOBODY, 0, {0}}, 0};
-    struct sp_step step = sp_transition(&rules, s->state, let_go);
+    struct sp_event event = {EV_LET_GO, 0, {THROWER_NOBODY, 0, {0}}, 0};
+    struct sp_step step = sp_transition(&rules, s->state, event);
     s->state = step.state;
     if (step.actions & ACT_CONSUME) {
         if (step.state.tag == SP_HELD && AT(s, A_STATE, u32) == ST_ZONE) AT(s, A_STATE, u32) = ST_NONE;

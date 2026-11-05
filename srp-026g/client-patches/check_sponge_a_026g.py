@@ -862,6 +862,15 @@ def main():
           "reads its grenade set through null (0x30A090: [0+25Ch])",
           (entered & 0xFF) == 1 and stock_fault and "eip 0x30a090" in stock_fault, stock_fault)
     throw_state, substate = r.allocate(0x200), r.allocate(0x200)
+    r.word(throw_state, 0xA1C1B0)                        # weapon_core_throw_grenade_state's vtable
+    weapon = r.allocate(0x700)                           # the player's held weapon_core (+8 the player)
+    r.word(weapon, 0xA11094)
+    r.word(weapon + 8, game.player)
+    r.word(weapon + 0x330, throw_state)                  # its FSM's current state
+    idle_state = r.allocate(0x200)
+    r.word(idle_state, r.vtable({1: (lambda r: None, 0)}))    # the initial state: its enter
+    r.word(weapon + 0x328, idle_state)
+    r.word(game.player + 0x128, weapon)
     r.word(throw_state + 0x17C, sponge)
     r.emu.mem_write(throw_state + 0x180, b"\xFF")
     r.word(substate + 0x138, throw_state)
@@ -1005,8 +1014,11 @@ def main():
     r.word(sponge + 0xD0, r.read(sponge + 0xD0) + 1)     # the throw state's own reference to its grenade
     r.word(throw_state + 0x17C, sponge)
     r.thiscall(0x33A490, throw_state)
-    check("held by the throw state that pulled it: still in its slot 13 the tick after (no tick lets it go); "
-          "that state's finalize (0x33A490, sponge_let_go) lets it go: out of its slot (0x2FC680: slot 13 "
+    time += 50
+    r.thiscall(vt(sponge, 29), sponge, 50, time)
+    check("held by the throw state that pulled it (the weapon's current state, its +17Ch the sponge): still in "
+          "its slot 13 the tick after; that state's finalize (0x33A490: +17Ch 0) and the sponge's next tick let "
+          "it go: out of its slot (0x2FC680: slot 13 "
           "empty, the item's inventory none, slot 17h, the inventory dirty), consumed, the state's +17Ch 0",
           still and r.read(game.inventory + 0x10C + 4 * 13) == 0 and r.read(sponge + INVENTORY) == 0
           and r.read(sponge + SLOT) == 0x17 and r.read(game.inventory + 0x184, 1) == 1 and r.read(sponge + 0xD0) == 1
@@ -1318,7 +1330,7 @@ def main():
     r.word(c_zone + 0x124, 1)
     events.clear()
     load(c, round_trip(b_sponge, 13, "x")[0] if False else write(b_sponge)[0])
-    r.call(SYMBOLS["sp_let_go"], (b_sponge,))            # its throw state's finalize: an artefact after its cloud
+    r.word(throw_state + 0x17C, 0)                       # its throw state let it go: an artefact after its cloud
     t2 = time + 50
     while t2 < b_armed + 15000:
         t2 += 50
@@ -1765,8 +1777,10 @@ def main():
     kept = r.read(game.inventory + 0x10C + 4 * 10) == late_obj
     r.word(late_obj + 0xD0, r.read(late_obj + 0xD0) + 1)
     r.thiscall(0x33A490, throw_state)
+    t += 50
+    r.thiscall(vt(late_obj, 29), late_obj, 50, t)
     check("the throw state's is_ready the tick after: ready (0x33A696), the sponge still in its slot 10; the "
-          "state's finalize lets it go: out of its slot",
+          "state's finalize and the sponge's next tick let it go: out of its slot",
           eip_l == 0x33A696 and kept and r.read(game.inventory + 0x10C + 4 * 10) == 0, f"{eip_l:#x}")
     while t < 2101550 + 15000:
         t += 50
@@ -2004,6 +2018,7 @@ def main():
     kept = r.read(game.inventory + 0x10C + 4 * 20) == held
     r.word(held + 0xD0, r.read(held + 0xD0) + 1)
     r.thiscall(0x33A490, throw_state)
+    r.thiscall(vt(held, 29), held, 50, t_h + 50)
     r.word(throw_state + 0x17C, held)                    # (the cases below read it there)
     check("the throw state's is_ready (0x33A66D) the tick after: ready (0x33A696), the state leaves as with a "
           "grenade exploded in the hand, the sponge still in its slot; the state's finalize (0x33A490) lets it "
@@ -2012,7 +2027,7 @@ def main():
           eip == 0x33A696 and kept and r.read(game.inventory + 0x10C + 4 * 20) == 0
           and r.read(game.inventory + 0x17C) == 0x17,
           f"eip {eip:#x} slot {r.read(game.inventory + 0x10C + 4 * 20):#x} grenade {r.read(game.inventory + 0x17C):#x}")
-    r.thiscall(vt(held, 29), held, 50, t_h + 50)
+    r.thiscall(vt(held, 29), held, 50, t_h + 100)
     check("its tick after that: nothing more (out of its slot already)",
           r.read(held + STATE_AT) == 7 and r.read(game.inventory + 0x10C + 4 * 20) == 0)
     null_held = r.read(throw_state + 0x17C)
@@ -2050,8 +2065,18 @@ def main():
     #      It bursts in the hand, stays in its slot while the state holds it (saved and loaded then: the
     #      same sponge), is spent when its cloud ends, and leaves its slot at the state's finalize.
     frozen_seen = []
-    for label, slot, pull, dead in (("its holder dead", 21, 3400000, True), ("its holder alive and still", 22, 3500000, False)):
+
+    def respawn():
+        """base_player::initialize's weapon_core::initialize 0x2E2A30 to its new state's enter: +330h the
+        initial state (+328h), no finalize of the old one (0x2E2A71..0x2E2A97)"""
+        r.span(0x2E2A30, 0x2E2A99, {UC_X86_REG_ECX: weapon})
+
+    for label, slot, pull, dead, early in (
+            ("its holder dead, respawned after the cloud", 21, 3400000, True, False),
+            ("its holder alive and still, re-initialized after the cloud", 22, 3500000, False, False),
+            ("its holder dead, respawned during the cloud", 21, 3800000, True, True)):
         obj, _, _ = make_sponge(slot)
+        r.word(weapon + 0x330, throw_state)
         r.word(game.inventory + 0x17C, 0x17)
         r.thiscall(vt(obj, 11), obj, 1, pull)
         r.word(throw_state + 0x17C, obj)
@@ -2066,20 +2091,34 @@ def main():
             r.thiscall(vt(obj, 29), obj, 50, t_f)
         burst = (r.read(obj + STATE_AT), tag_of(r, obj), r.read(game.inventory + 0x10C + 4 * slot) == obj)
         save_load_in_tick(f"a burst in the hand, {label}, half a second on", obj, slot)
+        if early:
+            r.emu.mem_write(game.player + 0x33C, b"\x01")
+            respawn()
+            t_f += 50
+            r.thiscall(vt(obj, 29), obj, 50, t_f)
+            spent = (r.read(obj + STATE_AT), tag_of(r, obj), r.read(game.inventory + 0x10C + 4 * slot) == obj)
         while t_f < pull + 3000 + 15000 + 100:
             t_f += 50
             r.thiscall(vt(obj, 29), obj, 50, t_f)
-        spent = (r.read(obj + STATE_AT), tag_of(r, obj), r.read(game.inventory + 0x10C + 4 * slot) == obj)
-        save_load_in_tick(f"its cloud over, {label}", obj, slot)
-        r.emu.mem_write(game.player + 0x33C, b"\x01")
-        r.thiscall(0x33A490, throw_state)                # the respawn (or the next update): its finalize
+        if not early:
+            spent = (r.read(obj + STATE_AT), tag_of(r, obj), r.read(game.inventory + 0x10C + 4 * slot) == obj)
+            save_load_in_tick(f"its cloud over, {label}", obj, slot)
+            r.emu.mem_write(game.player + 0x33C, b"\x01")
+            respawn()
+            t_f += 50
+            r.thiscall(vt(obj, 29), obj, 50, t_f)
         frozen_seen.append((label, burst, spent, r.read(game.inventory + 0x10C + 4 * slot), tag_of(r, obj),
-                            r.read(obj + STATE_AT)))
-    check("a throw state not ticked (its holder dead, or alive and still): the burst in the hand (state 7, the "
-          "cloud) with the sponge kept in its slot; spent when the cloud ends (still 7, still in its slot); the "
-          "state's finalize lets it go: out of its slot, an artefact of state 0 again",
-          all(b == (7, SP_CLOUD, True) and sp == (7, SP_SPENT, True) and slot_after == 0 and tag == SP_HELD
-              and state == 0 for _, b, sp, slot_after, tag, state in frozen_seen), str(frozen_seen))
+                            r.read(obj + STATE_AT), r.read(weapon + 0x330) == idle_state))
+    r.word(weapon + 0x330, throw_state)
+    check("a throw state not ticked (its holder dead, or alive and still) holding a cooked Sponge: the burst in the "
+          "hand (state 7, the cloud) with the sponge kept in its slot; its cloud over first, spent (still 7, still "
+          "in its slot); a respawn's weapon_core::initialize (0x2E2A30: the initial state, no finalize) lets it go "
+          "at the sponge's next tick: out of its slot, an artefact of state 0 again for its anomaly; respawned "
+          "during the cloud, out of its slot at once (the cloud still 7, its own), state 0 at the cloud's end",
+          [(b, sp, after, tag, state, idle) for _, b, sp, after, tag, state, idle in frozen_seen] ==
+          [((7, SP_CLOUD, True), (7, SP_SPENT, True), 0, SP_HELD, 0, True),
+           ((7, SP_CLOUD, True), (7, SP_SPENT, True), 0, SP_HELD, 0, True),
+           ((7, SP_CLOUD, True), (7, SP_CLOUD, False), 0, SP_HELD, 0, True)], str(frozen_seen))
     # the throw state's own save and load made safe whatever holds what: no grenade held writes slot 17h, and
     # a slot past the slots (17h and up) loads as none (0x33A5BD read inventory+168h there)
     r.word(throw_state + 0x17C, 0)

@@ -2469,8 +2469,6 @@ INSTALLS = {
                      "sponge_predicate", None, None),
     0x33A66D: (JUMP, "the throw state's is_ready 0x33A650, its grenade's index and exploded flag: sponge_ready "
                      "(a sponge's zone on; no grenade held: ready, or not for the index FFh)", None, None),
-    0x33A490: (ENTRY, "the throw state's finalize (thiscall, `ret`): sponge_let_go, a held sponge's sp_let_go "
-                      "before the state lets it go (+17Ch), then the function", None, None),
     0x33A51B: (JUMP, "the throw state's serialize 0x33A4E0, its grenade's slot ([+17Ch]+254h): sponge_save, 17h for "
                      "no grenade held", None, None),
     0x33A5AB: (JUMP, "the throw state's deserialize 0x33A570, the inventory's slot read back: sponge_load, no item "
@@ -2878,7 +2876,6 @@ SPONGE_HOOKS = (
     (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
     (0x31B800, bytes.fromhex(
         "33db894de88945ec85f676308b97b00100008b049a83b88002000000750f8945f48d45f4508d75e8e8230a0000433b9fb401000072d68b45ec8b4de82bc1c1f8028bd085d2767b8b87b801000069c005840808408987b8010000f7e28b1491"), "sponge_spawn", 0xE9),                                                     # an anomaly's spawn
-    (0x33A490, bytes.fromhex("568bf18b8e50010000"), "sponge_let_go", 0xE9),              # finalize's entry
     (0x33A51B, bytes.fromhex("8b8b7c0100008a9154020000"), "sponge_save", 0xE9),        # serialize's slot
     (0x33A5AB, bytes.fromhex("8b83200100008b50080fb6c18b8a0c0100008b84810c010000"), "sponge_load", 0xE9),  # its load
 )

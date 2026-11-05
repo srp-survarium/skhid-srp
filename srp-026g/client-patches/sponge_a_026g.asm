@@ -30,9 +30,6 @@
 ;   sponge_links      the core's resolve_links 0x33C440 (its vtable slot
 ;                     0xA16A10, thiscall, `ret 1Ch`): the original, then the
 ;                     kinds of its picked containers kept (sp_links)
-;   sponge_let_go     the throw state's finalize 0x33A490 (its entry, `push
-;                     esi / mov esi,ecx / mov ecx,[esi+150h]`): before it lets
-;                     its grenade go (+17Ch), a sponge's sp_let_go
 ;   sponge_save       the throw state's serialize 0x33A4E0 at 0x33A51B (its
 ;                     grenade's slot, [+17Ch]+254h): 17h for no grenade held
 ;   sponge_load       its deserialize 0x33A570 at 0x33A5AB (the inventory's
@@ -43,8 +40,8 @@
 ; zone's hit reads) and the functions below.
 bits 32
 global sponge_construct, sponge_size, sponge_query, sponge_predicate, sponge_ready, sponge_throw, sponge_pull
-global sponge_zone_hit, sponge_artefacts, sponge_spawn, sponge_links, sponge_let_go, sponge_save, sponge_load
-extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_exploded, sp_let_go, sp_throw, sp_pull_pin, sp_vtable, sp_g
+global sponge_zone_hit, sponge_artefacts, sponge_spawn, sponge_links, sponge_save, sponge_load
+extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_exploded, sp_throw, sp_pull_pin, sp_vtable, sp_g
 extern sp_artefacts, sp_spawn_pick, sp_links
 section .text
 
@@ -56,7 +53,6 @@ section .text
 %define PREDICATE_ON      0x2E40D2 ; test al,al
 %define AS_SET_HAS        0x30A090 ; eax = a grenade set: al, a grenade ready
 %define READY_STOCK       0x33A677 ; mov ecx,[esi+17Ch] / mov edx,[ecx+268h] (al the index)
-%define LET_GO_ON         0x33A499 ; finalize after its first three
 %define SAVE_ON           0x33A527 ; dl the slot written
 %define LOAD_ON           0x33A5C4 ; eax the item of the slot (0 none)
 %define NO_SLOT           0x17
@@ -103,8 +99,6 @@ sponge_spawn:
     jmp near spawn
 sponge_links:
     jmp near links
-sponge_let_go:
-    jmp near let_go
 sponge_save:
     jmp near save
 sponge_load:
@@ -332,25 +326,6 @@ links:
     call sp_links                     ; cdecl (core+4, &config)
     add esp, 8
     ret 0x1C
-
-; 0x33A490, the throw state's finalize (thiscall, ecx = it): the three
-; instructions replaced, after sp_let_go(the sponge) when it holds one.
-let_go:
-    mov eax, [ecx + 0x17C]
-    test eax, eax
-    jz .on
-    cmp dword [eax], SP_VTABLE
-    jne .on
-    push ecx
-    push eax
-    call sp_let_go                    ; cdecl (sponge)
-    add esp, 4
-    pop ecx
-.on:
-    push esi
-    mov esi, ecx
-    mov ecx, [esi + 0x150]
-    jmp LET_GO_ON
 
 ; 0x33A51B, ebx = the throw state: dl = its grenade's slot, 17h for none.
 save:
