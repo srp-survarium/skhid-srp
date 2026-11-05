@@ -297,7 +297,8 @@ impl Controller {
                 (((sv * UP.z) * be) + ((pv2 * UP.z) * al)) + h.z,
             );
         }
-        let mm = |x: f32| (x * 1000.0).round() / 1000.0;
+        // 0x7B7F0: floor(x * 1000 + 0.5) * 0.001 (proven against the exe in Unicorn).
+        let mm = |x: f32| (x * 1000.0 + 0.5).floor() * 0.001;
         self.pos = Vec3::new(mm(self.pos.x), mm(self.pos.y), mm(self.pos.z));
         self.contact_normal = Vec3::new(mm(self.contact_normal.x), mm(self.contact_normal.y), mm(self.contact_normal.z));
         self.walk = Vec3::ZERO;
