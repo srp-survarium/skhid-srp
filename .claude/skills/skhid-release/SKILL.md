@@ -283,7 +283,7 @@ the image built with its compilers at the lowest priority, so the running
 matches keep the host's one core); then it waits for the owner's go; at
 the go it plans the maintenance at once, to start **30 seconds after the
 last running match ends**, so Play locks and no new match starts, and at
-its end, once no match runs, swaps it all in at once (the downtime is the
+its end (or as soon as no match has run for 30 s), swaps it all in at once (the downtime is the
 restart). Players wait only for the matches that run, never for a build.
 
 The order, as it runs:
@@ -383,7 +383,12 @@ The order, as it runs:
      The log says which.
    - `--minutes <n>`: `<n>`, planned at the same point (right after the go).
    - `--no-maintenance` or `--now`: nothing is planned (below).
-5. **The swap, at the planned time**: it waits for it; then, once the launcher page says the
+5. **The swap, at the planned time at the latest**: while it waits for it, it reads
+   `/api/stats` every quarter of a minute, and once `"matches":0` has held 30 s (the
+   plan's margin) while Play is locked (the countdown's last 30 min), it goes on at once
+   ("no match has run for 30 s: swapping now, N min before the planned time"): the plan
+   counts a match's whole time limit, and matches often end sooner (by their rules, or
+   their players leaving). Else, at the planned time, once the launcher page says the
    server is down and `/api/stats` says `"matches":0` (it waits up to `--match-wait`,
    default `$SKHID_MATCH_WAIT_MINUTES`, else 15, more): it shows what changes,
    **y/N** (or its swap file, step 3; no answer in
