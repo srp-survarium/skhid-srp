@@ -853,10 +853,10 @@ pub extern "C" fn hook_input_check_on_change_input(frame: &mut Frame) -> u32 {
 
 // ---- keyboard_layout (patch 107) ----
 
-/// The entry `keyboard_layout_on_request` (0x18359, message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL) calls this with the saved machine.
+/// The entry `keyboard_layout_on_request` (0x1835f, message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov ecx,[edx+2D0h] after mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_keyboard_layout_on_request(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `keyboard_layout_on_request` calls this, from the game's jump at 0x18359,
+    // SAFETY: only the entry `keyboard_layout_on_request` calls this, from the game's jump at 0x1835f,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::keyboard_layout::on_request(&mut ctx) {
@@ -868,10 +868,10 @@ pub extern "C" fn hook_keyboard_layout_on_request(frame: &mut Frame) -> u32 {
 
 // ---- keyboard_layout (patch 107) ----
 
-/// The entry `keyboard_layout_on_change` (0x183dd, message_processor's WM_INPUTLANGCHANGE (51h) case (the je at 0x1839A), before the same check guards ActivateKeyboardLayout(lParam, KLF_SETFORPROCESS) at 0x183FE (mov ecx,[1F1D310h]): the site's ESP+1Ch the activated HKL) calls this with the saved machine.
+/// The entry `keyboard_layout_on_change` (0x183e3, message_processor's WM_INPUTLANGCHANGE (51h) case (the je at 0x1839A), before the same check guards ActivateKeyboardLayout(lParam, KLF_SETFORPROCESS) at 0x183FE (mov ecx,[ecx+2D0h] after mov ecx,[1F1D310h]): the site's ESP+1Ch the activated HKL) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_keyboard_layout_on_change(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `keyboard_layout_on_change` calls this, from the game's jump at 0x183dd,
+    // SAFETY: only the entry `keyboard_layout_on_change` calls this, from the game's jump at 0x183e3,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::keyboard_layout::on_change(&mut ctx) {
