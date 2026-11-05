@@ -15,9 +15,7 @@ package survarium.item
          [163,"st_srp_unit_mps","higher"],[164,"st_srp_unit_percent","higher"],[165,null,"neutral"],
          [16,null,"higher"],[15,"st_srp_unit_kg","lower"]];
       private var values:Object;
-      // What it pierces (PierceLine), null without the line.
-      private var pierce:Object;
-      public function AmmoDetails(data:Object, pierce:Object) { values = data; this.pierce = pierce; }
+      public function AmmoDetails(data:Object) { values = data; }
       public static function read(item:Object) : AmmoDetails
       {
          if(item == null || ItemFactory.getCategory(item.category) != SuperCategory.AMMO || !(item.properties is Array)) return null;
@@ -27,7 +25,7 @@ package survarium.item
             var n:Number = ModificationRolls.value(prop);
             if(isFinite(n)) data[prop.prop_id] = n;
          }
-         return new AmmoDetails(data,PierceLine.ofRound(item.properties));
+         return new AmmoDetails(data);
       }
       private function has(id:int) : Boolean { return values[id] !== undefined; }
       // `other`: the compared round's details; a row only it has shows a dash here, so the
@@ -50,7 +48,6 @@ package survarium.item
             result.push({kind:"stat",id:id,label:label,value:row[1] == null ? text : LocalizationData.format(row[1],text),
                comparison:row[2] == "neutral" ? {kind:"neutral"} : {kind:row[2],value:n}});
          }
-         PierceLine.row(result,pierce,other == null ? null : other.pierce);
          return result;
       }
    }

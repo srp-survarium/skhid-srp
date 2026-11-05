@@ -282,8 +282,12 @@ package survarium.controls
                }
             }
             // The exe sends a line's prop_value as the config's text ("175", ui_desc/props_list):
-            // a number before any sum, where "175" + 0 would be "1750".
+            // a number before any sum, where "175" + 0 would be "1750". A weapon's damage and armour
+            // piercing with its best round (WeaponDetails.bestRoundFactor), whole as the card shows
+            // them (Util.getNumberString cuts a fraction's float tail: 34 x 1.2 read 40.79).
             var base:Number = ModificationRolls.value(baseProperty);
+            var roundFactor:Number = WeaponDetails.bestRoundFactor(owner,propDescription.prop_id);
+            if(roundFactor != 1) base = Math.round(base * roundFactor);
             base_value = base;
             if(modifierType == ModifierType.ADD)
             {

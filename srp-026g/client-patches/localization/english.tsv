@@ -2451,7 +2451,7 @@ st_srp_inv_ammo_range	Range
 st_srp_inv_bullet_speed	Bullet speed
 st_srp_inv_defuse_time	Defuse time
 st_srp_inv_fuse_time	Fuse time
-st_srp_inv_material_pierce	Material penetration
+st_srp_inv_material_pierce	Pierces
 st_srp_inv_pellets	Pellets
 st_srp_inv_pocket_units	Pocket slots
 st_srp_inv_stamina_damage	Stamina damage
@@ -2531,7 +2531,7 @@ st_srp_pierce_glass	Glass, foliage
 st_srp_pierce_plywood	Plywood
 st_srp_pierce_stone	Stone
 st_srp_pierce_tinplate	Tinplate
-st_srp_pierce_varies	Varies
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
@@ -2704,7 +2704,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Shpagin submachine gun with a 71-round drum magazine, ammo: 7.62x25. Supports single shot and automatic fire modes.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
-st_srp_weapon_bullet_speed_varies	Varies
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
 st_srp_weapon_full_damage	Full damage up to

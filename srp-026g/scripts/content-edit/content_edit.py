@@ -49,10 +49,10 @@ Edits (edits.json):
                     add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
                     duration ratio into prop_value, only for state 314. Declare its clips here.
                     add_entry with "pierce_line": {"tiers": [[material, text], ...]} puts in a
-                    round's prop_value, for each weapon the dictionary pairs it with, the text of
-                    the hardest material their bullet goes through keeping half its speed and
-                    piercing (pierce_lines: "<weapon dict_id>:<rank>:<text> ..."), only on the rounds of
-                    its `files`. Declare the weapons, game_materials/game.materials and
+                    round's prop_value, for each weapon the dictionary pairs it with, the hardest
+                    material their bullet gets through and the damage it keeps there (pierce_lines:
+                    "<weapon dict_id>:<rank>:<text>:<percent> ..."), only on the rounds of its
+                    `files`. Declare the weapons, game_materials/game.materials and
                     gameplay/db_static_dictionaries here.
   "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
                     weapon-stats.tsv. Private hands/item clips and event times follow the pair;
@@ -716,10 +716,11 @@ def pierce_kept(pierce, armor):
 def pierce_lines(read, paths, spec):
     """{round config: its pierce line} (add_entry's `pierce_line`), for each round config of `paths`
     the item dictionary pairs (items_compatibility) with a weapon config of `paths`: for each such
-    weapon, by its dictionary id ascending, "<dict_id>:<rank>:<text>", space-separated (the rank the
-    tier's place, 0 the softest: the lobby colours a compared card by it). The text is the
-    hardest tier the pair's bullet goes through keeping at least half its speed and piercing
-    (pierce_kept >= 0.5): its piercing is the weapon's parameters/bullet_pierce x the round's
+    weapon, by its dictionary id ascending, "<dict_id>:<rank>:<text>:<percent>", space-separated.
+    The text is the hardest tier the pair's bullet gets through, as try_pierce has it: piercing P
+    above the material's armor A (it stops at P <= A; A = 0 lets every bullet through); the rank the
+    tier's place, 0 the softest (the lobby compares cards by it); the percent what of its damage it
+    keeps there, round(100 x pierce_kept). P is the weapon's parameters/bullet_pierce x the round's
     data/k_arp (bullet::bullet 0x32BA60: +74h = ammo +24h x weapon +520h). spec["tiers"]:
     [material, text], softest first, their game_materials/game.materials `armor` rising from 0.
     The round carries its weapons' texts, the weapon none: no weapon config grows (several are
@@ -753,7 +754,7 @@ def pierce_lines(read, paths, spec):
     for i, _ in enumerate(children(dictionary, find(dictionary, 'items_dict'))):
         at = 'items_dict[%d]' % i
         cfg_of[value_of(dictionary, find(dictionary, at + '/dict_id'))] = value_of(dictionary, find(dictionary, at + '/cfg_name'))
-    lines = {}  # round config -> {weapon dict id: (tier rank, text)}
+    lines = {}  # round config -> {weapon dict id: "<rank>:<text>:<percent>"}
     for pair in children(dictionary, find(dictionary, 'items_compatibility')):
         ids = [value_of(dictionary, find(dictionary, k, pair)) for k in ('first_item', 'second_item')]
         for wid, mid in (ids, ids[::-1]):
@@ -762,10 +763,10 @@ def pierce_lines(read, paths, spec):
             if pierce is None or k_arp is None:
                 continue
             bullet = single(pierce * k_arp)
-            lines.setdefault(m, {})[wid] = [(rank, text) for rank, (a, text) in enumerate(tiers)
-                                            if pierce_kept(bullet, a) >= 0.5][-1]
-    return {m: ' '.join('%d:%d:%s' % (wid, rank, text) for wid, (rank, text) in sorted(texts.items()))
-            for m, texts in lines.items()}
+            rank, wall, text = [(rank, a, text) for rank, (a, text) in enumerate(tiers) if a == 0 or bullet > a][-1]
+            percent = math.floor(100 * pierce_kept(bullet, wall) + 0.5)
+            lines.setdefault(m, {})[wid] = '%d:%s:%d' % (rank, text, percent)
+    return {m: ' '.join('%d:%s' % (wid, line) for wid, line in sorted(texts.items())) for m, texts in lines.items()}
 
 
 def prop_text(buf, prop_id):

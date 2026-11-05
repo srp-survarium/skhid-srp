@@ -73,20 +73,28 @@ package {
   // A bolt-action AK-74M stand-in: its chambering time (prop 160, the weapons that have one).
   private function boltItem(chamber:String):Object {var d:Object=item(false);d.properties.push({prop_id:160,prop_value:chamber});return d;}
   private function shows(d:Object,other:Object):void {cards[0].data=d;cards[1].data=other;cards[0].itemCompare.setSecondaryWeapon(other);cards[1].itemCompare.setSecondaryWeapon(d);}
-  // Material penetration (pierce-line-1.json): a round's line 174 says it for each weapon that fires
-  // it ("<weapon dict id>:<rank>:<key> ...", the rank the material's place: glass 0 .. stone 6), as
-  // the content build computes it; a weapon's card reads its rounds'. 3 the AK-74M and 2229 the PKP
-  // (the cards' weapons), 2300 an A-545 stand-in, 2400 an MP-443 stand-in (tinplate).
-  private static const ROUND_LINES:Object={901:"3:5:st_srp_pierce_concrete 2300:5:st_srp_pierce_concrete",
-   902:"3:5:st_srp_pierce_concrete 2300:4:st_srp_pierce_brick",903:"2229:5:st_srp_pierce_concrete",904:"2400:3:st_srp_pierce_tinplate"};
+  // The rounds a weapon fires, as the lobby's item descriptors have them: card lines 21 (k_damage x
+  // pellets x100), 22 (k_arp x100), 163 (bullet speed) and 174 (pierce-line-1.json: for each weapon
+  // that fires it "<weapon dict id>:<rank>:<key>:<percent> ...", the rank the material's place: glass
+  // 0 .. stone 6). 3 the AK-74M (damage 34, armour piercing 35) with three rounds whose best of each
+  // stat differ: speed 7N10, piercing and material 7N22, 7N6M neither; 2229 the PKP (the cards'
+  // weapons); 2300 an A-545, 2400 an MP-443, 2500 a VSSK stand-in (VPS: damage and piercing x1.2).
+  private static const ROUNDS:Array=[
+   [901,"7N22",100,120,880,"3:5:st_srp_pierce_concrete:81 2300:5:st_srp_pierce_concrete:52"],
+   [902,"7N10",100,110,920,"3:5:st_srp_pierce_concrete:68 2300:5:st_srp_pierce_concrete:35"],
+   [905,"7N6M",100,100,900,"3:5:st_srp_pierce_concrete:52"],
+   [903,"7N1",100,100,830,"2229:5:st_srp_pierce_concrete:100"],
+   [904,"Para",100,100,360,"2400:3:st_srp_pierce_tinplate:89"],
+   [906,"12.7x54 VPS",120,120,320,"2500:6:st_srp_pierce_stone:36"],
+   [907,"12.7x54 PT",100,100,320,"2500:5:st_srp_pierce_concrete:100"]];
   private static const ROUND_PAIRS:Array=[{first_item_dict_id:3,second_item_dict_id:901},{first_item_dict_id:902,second_item_dict_id:3},
-   {first_item_dict_id:2300,second_item_dict_id:901},{first_item_dict_id:2300,second_item_dict_id:902},{first_item_dict_id:2229,second_item_dict_id:903},
-   {first_item_dict_id:2400,second_item_dict_id:904}];
-  private static const TIERS:Array=["glass","car","plywood","tinplate","brick","concrete","stone"];
-  private var roundProps:Object={};
+   {first_item_dict_id:3,second_item_dict_id:905},{first_item_dict_id:2300,second_item_dict_id:901},{first_item_dict_id:2300,second_item_dict_id:902},
+   {first_item_dict_id:2229,second_item_dict_id:903},{first_item_dict_id:2400,second_item_dict_id:904},
+   {first_item_dict_id:2500,second_item_dict_id:906},{first_item_dict_id:2500,second_item_dict_id:907}];
   private function roundDescriptors():Array {
    var out:Array=[];
-   for(var id:String in ROUND_LINES){roundProps[id]=[{prop_id:174,prop_value:ROUND_LINES[id]}];out.push({dictId:int(id),item_properties:roundProps[id]});}
+   for each(var r:Array in ROUNDS)out.push({dictId:r[0],name:r[1],item_properties:[{prop_id:21,prop_value:String(r[2])},
+    {prop_id:22,prop_value:String(r[3])},{prop_id:163,prop_value:String(r[4])},{prop_id:174,prop_value:r[5]}]});
    return out;
   }
   private function weapon(dictId:int,name:String):Object {var d:Object=item(false);d.dictId=dictId;d.name=name;return d;}
@@ -97,76 +105,96 @@ package {
    if(line)d.properties.push({prop_id:174,prop_value:line});
    return d;
   }
+  // "Concrete · 52%" in the current language.
+  private function pierceText(t:Object,key:String,percent:int):String {
+   return t.st_srp_pierce_value.split("%1$s").join(t["st_srp_pierce_"+key]).split("%2$s").join(t.st_srp_unit_percent.split("%1$s").join(String(percent)));
+  }
+  private function mps(t:Object,n:int):String {return t.st_srp_unit_mps.split("%1$s").join(String(n));}
+  // The value colours of every detail row labelled `label`.
+  private function colours(card:Object,label:String):Array {
+   var view:Object=detailsView(card),out:Array=[];
+   for(var i:int=0;i<view.numChildren;i++){var e:Object=view.getChildAt(i);if(!(e is Caption) && e.indicator.textFieldLabel.text==label)out.push(e.indicator.textFieldValue.textColor);}
+   return out;
+  }
+  private function both(label:String):String {return [color(cards[0],label),color(cards[1],label)].join();}
+  private function nativeBoth(label:String):String {return [nativeField(cards[0],label).textColor,nativeField(cards[1],label).textColor].join();}
   private function pierceChecks():void {
    Scene.isShift=false;Scene.isAlt=false;
+   var M:String="Pierces",S:String="Bullet speed";
    for each(var language:String in HarnessText.LANGUAGES){
     Loc.setData(texts(language));
     var t:Object=HarnessText.DATA[language];
-    shows(item(false),weapon(2300,"A-545"));
-    require(text(cards[0]).indexOf(t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_concrete+"\n")>=0,"a weapon whose rounds agree: "+language);
-    require(text(cards[1]).indexOf(t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_varies+"\n")>=0,"a weapon whose rounds differ: "+language);
-    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"pierce line fits: "+language+" "+overflows(cards[1],language));
+    // The card: each stat its best round's, from different rounds.
+    shows(item(false),item(true));
+    var card:String=text(cards[0]);
+    require(card.indexOf(t.st_srp_inv_material_pierce+": "+pierceText(t,"concrete",81)+"\n")>=0,"the best material (7N22): "+language+" "+card);
+    require(card.indexOf(t.st_srp_inv_bullet_speed+": "+mps(t,920)+"\n")>=0,"the best speed (7N10): "+language);
+    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"pierce line fits: "+language+" "+overflows(cards[0],language));
     aligned();
-    // A round's card (no bars, so no native row to measure its typography against: its rows' own text).
-    shows(round("7N22",ROUND_LINES[901],"120"),round("7N10",ROUND_LINES[902],"110"));
-    require(roundLine(cards[0].data,cards[1].data)==t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_concrete,"a round its weapons agree on: "+language);
-    require(roundLine(cards[1].data,cards[0].data)==t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_varies,"a round its weapons differ on: "+language);
-    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"round pierce line fits: "+language+" "+overflows(cards[0],language));
+    // Held Shift: each round's under each line, beside a weapon of one round padded with dashes.
+    Scene.isShift=true;shows(item(false),item(true));
+    card=text(cards[0]);
+    for each(var r:Array in [["7N22",880,81],["7N10",920,68],["7N6M",900,52]]){
+     require(card.indexOf("\n"+r[0]+": "+mps(t,r[1])+"\n")>0,"a round's speed: "+language+" "+r[0]);
+     require(card.indexOf("\n"+r[0]+": "+pierceText(t,"concrete",r[2])+"\n")>0,"a round's material: "+language+" "+r[0]);
+    }
+    require(text(cards[1]).split("\n").filter(function(l:String,...rest):Boolean{return l==" : –";}).length==4,"dashes beside three rounds: "+text(cards[1]).split("\n").join("|"));
+    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"round rows fit: "+language+" "+overflows(cards[0],language));
+    require(cards[0].height<900,"the card with each round's rows fits: "+language+" "+cards[0].height);
     aligned();
+    Scene.isShift=false;
    }
    Loc.setData(texts("english"));
-   // Each material's text; beside the AK-74M's concrete (rank 5) a harder one is the card's green, a
-   // softer its red, the same neutral, as the other rows compare.
-   for(var rank:int=0;rank<TIERS.length;rank++){
-    var key:String=TIERS[rank];
-    roundProps[903][0].prop_value="2229:"+rank+":st_srp_pierce_"+key;
-    shows(item(true),item(false));
-    require(line(cards[0],"Material penetration")=="Material penetration: "+HarnessText.DATA.english["st_srp_pierce_"+key],"tier text: "+key);
-    var want:Array=rank>5?[GREEN,RED]:rank<5?[RED,GREEN]:[NEUTRAL,NEUTRAL];
-    require(color(cards[0],"Material penetration")==want[0] && color(cards[1],"Material penetration")==want[1],
-     "compared by material: "+key+" "+[color(cards[0],"Material penetration"),color(cards[1],"Material penetration")]);
+   // The native bars take the best round: the AK-74M's armour piercing 35 x 1.2 (7N22), its damage
+   // x1 (every round); the VSSK's damage 34 x 1.2 and piercing 35 x 1.2 (VPS, PT x1).
+   shows(item(false),weapon(2500,"VSSK"));
+   require(nativeText(cards[0],"Damage")=="34" && nativeText(cards[0],"Armor penetration")=="42","best-round bars: "+nativeText(cards[0],"Damage")+" "+nativeText(cards[0],"Armor penetration"));
+   require(nativeText(cards[1],"Damage")=="41" && nativeText(cards[1],"Armor penetration")=="42","the best round's damage, whole (34 x 1.2): "+nativeText(cards[1],"Damage"));
+   // Held Shift, each round's rows are neutral.
+   Scene.isShift=true;shows(item(false),weapon(2400,"MP-443"));
+   for each(var name:String in ["7N22","7N10","7N6M"]){
+    var cs:Array=colours(cards[0],name);
+    require(cs.length==2 && cs[0]==NEUTRAL && cs[1]==NEUTRAL,"a round's rows are neutral: "+name+" "+cs);
    }
-   roundProps[903][0].prop_value=ROUND_LINES[903];
-   // Concrete against tinplate: better and worse; Ctrl keeps them neutral.
-   shows(item(false),weapon(2400,"MP-443"));
-   require(color(cards[0],"Material penetration")==GREEN && color(cards[1],"Material penetration")==RED,"harder is better, softer worse");
-   Scene.isCtrl=true;shows(weapon(2400,"MP-443"),item(false));
-   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"Ctrl: neutral");
+   Scene.isShift=false;
+   // The harder material wins over more damage kept: the VSSK's VPS (stone, 36 %) over PT (concrete, 100 %).
+   shows(weapon(2500,"VSSK"),item(false));
+   require(line(cards[0],M)=="Pierces: Stone · 36%","the harder material is the best");
+   require(both(M)==[GREEN,RED].join(),"harder is better: "+both(M));
+   // The same material: more damage kept is better (81 against the A-545's 52).
+   shows(item(false),weapon(2300,"A-545"));
+   require(line(cards[1],M)=="Pierces: Concrete · 52%" && both(M)==[GREEN,RED].join(),"more damage kept is better: "+both(M));
+   // Equal: neutral. Ctrl: neutral.
+   shows(item(false),weapon(3,"AK-74M copy"));
+   require(both(M)==[NEUTRAL,NEUTRAL].join() && both(S)==[NEUTRAL,NEUTRAL].join(),"equal stays neutral");
+   Scene.isCtrl=true;shows(item(false),weapon(2400,"MP-443"));
+   require(both(M)==[NEUTRAL,NEUTRAL].join() && both(S)==[NEUTRAL,NEUTRAL].join(),"Ctrl: neutral");
    Scene.isCtrl=false;
-   // Varies compares with nothing: both neutral.
-   shows(weapon(2300,"A-545"),weapon(2400,"MP-443"));
-   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"Varies stays neutral");
-   // A round's card, the same: concrete against tinplate, against Varies.
-   shows(round("7N22",ROUND_LINES[901],"120"),round("9x19",ROUND_LINES[904],"100"));
-   require(color(cards[0],"Material penetration")==GREEN && color(cards[1],"Material penetration")==RED,"a harder round is better");
-   shows(round("7N22",ROUND_LINES[901],"120"),round("7N10",ROUND_LINES[902],"110"));
-   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"a round beside Varies stays neutral");
-   // A weapon no round speaks for beside one: a dash keeps the rows aligned; two such: no row.
+   // Best against best: the fastest round, the hardest material, the best-round bars.
+   shows(item(false),weapon(2400,"MP-443"));
+   require(both(S)==[GREEN,RED].join() && both(M)==[GREEN,RED].join(),"faster and harder are better");
+   require(nativeBoth("Armor penetration")==[GREEN,RED].join(),"best-round armour piercing compares: "+nativeBoth("Armor penetration"));
+   // A weapon no round speaks for beside one: a dash, neutral; two such: no rows.
    shows(weapon(4444,"no rounds"),item(false));
-   require(line(cards[0],"Material penetration")=="Material penetration: –","a dash beside a weapon with the line");aligned();
-   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"missing on one side: neutral");
-   shows(weapon(4444,"no rounds"),weapon(4445,"none either"));require(text(cards[0]).indexOf("Material penetration")<0,"no row without the data");
-   shows(round("old",null,"100"),round("7N22",ROUND_LINES[901],"120"));
-   require(roundLine(cards[0].data,cards[1].data)=="Material penetration: –","a dash beside a round with the line");aligned();
+   require(line(cards[0],M)=="Pierces: –" && line(cards[0],S)=="Bullet speed: –","a dash beside a weapon with the rows");
+   require(both(M)==[NEUTRAL,NEUTRAL].join() && both(S)==[NEUTRAL,NEUTRAL].join(),"missing on one side: neutral");aligned();
+   shows(weapon(4444,"no rounds"),weapon(4445,"none either"));
+   require(text(cards[0]).indexOf(M)<0 && text(cards[0]).indexOf(S)<0,"no rows without the data");
+   // The ammo card shows no Pierces row (a weapon's and a round's together).
+   shows(round("7N22",ROUNDS[0][5],"120"),round("7N10",ROUNDS[1][5],"110"));
+   var Ammo:Object=domain.getDefinition("survarium.item.AmmoDetails");
+   for each(var row:Object in Ammo.read(cards[0].data).rows(true,Ammo.read(cards[1].data)))require(row.id!=174 && row.label!=M,"no row on a round's card");
    // Not comparable: no bar.
    shows(item(false),item(true));
-   for(var i:int=1;i<=9;i++){var row:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!row || !row.visible || row.indicator.label!="Material penetration","no pierce bar");}
+   for(var i:int=1;i<=9;i++){var bar:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!bar || !bar.visible || bar.indicator.label!=M,"no pierce bar");}
    shows(items[0],items[1]);
   }
-  // A round's Material penetration row beside `other`, "label: value".
-  private function roundLine(d:Object,other:Object):String {
-   var Ammo:Object=domain.getDefinition("survarium.item.AmmoDetails");
-   for each(var row:Object in Ammo.read(d).rows(false,Ammo.read(other)))if(row.kind=="stat" && row.id==174)return row.label+": "+row.value;
-   return null;
-  }
-  // For a capture (-P pierce=one|varies|ammo|compare): the cards of a before|after pair, no checks.
+  // For a capture (-P pierce=compare|details): the cards of a before|after pair, no checks.
   private function pierceCapture(what:String):void {
-   Scene.isShift=false;
-   if(what=="one")shows(item(false),item(true));
-   else if(what=="compare")shows(item(false),weapon(2400,"MP-443"));
-   else if(what=="varies")shows(weapon(2300,"A-545"),item(false));
-   else shows(round("5.45x39 7N22",ROUND_LINES[901],"120"),round("5.45x39 7N10",ROUND_LINES[902],"110"));
-   removeEventListener(Event.ENTER_FRAME,tick);trace("DETAILS RESULT capture "+what);
+   Scene.isShift=what=="details";
+   if(what=="details")shows(item(false),item(true));
+   else shows(item(false),weapon(2300,"A-545"));
+   removeEventListener(Event.ENTER_FRAME,tick);trace("DETAILS RESULT capture "+what+" heights "+[cards[0].height/cards[0].scaleY,cards[1].height/cards[1].scaleY].join());
   }
   private function tacticalItem():Object {var d:Object=item(false);d.properties.push({prop_id:162,prop_value:String(4/3)});return d;}
   private function tacticalChecks():void {
@@ -571,8 +599,8 @@ package {
     // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), no bar.
     for each(spec in [[23,"Explosion radius",1,"m"],[167,"Stamina damage",1,""],[168,"Fuse time",0,"s"],[169,"Throw speed",1,"m/s"],[170,"Defuse time",1,"s"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
-    // A round's lines (AmmoDetails labels them by these names), and Material penetration (pierce-line-1), no bar.
-    for each(spec in [[21,"Damage"],[22,"Armor penetration"],[163,"Bullet speed"],[16,"Rounds in a pack"],[174,"Material penetration"]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false});
+    // A round's lines (AmmoDetails labels them by these names), and Pierces (pierce-line-1), no bar.
+    for each(spec in [[21,"Damage"],[22,"Armor penetration"],[163,"Bullet speed"],[16,"Rounds in a pack"],[174,"Pierces"]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);

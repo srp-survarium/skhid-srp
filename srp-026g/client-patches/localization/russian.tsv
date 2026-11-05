@@ -2451,7 +2451,7 @@ st_srp_inv_ammo_range	Дальность
 st_srp_inv_bullet_speed	Скорость пули
 st_srp_inv_defuse_time	Время обезвреживания
 st_srp_inv_fuse_time	Время запала
-st_srp_inv_material_pierce	Пробитие материалов
+st_srp_inv_material_pierce	Пробивает
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
 st_srp_inv_stamina_damage	Урон выносливости
@@ -2531,7 +2531,7 @@ st_srp_pierce_glass	Стекло, листва
 st_srp_pierce_plywood	Фанера
 st_srp_pierce_stone	Камень
 st_srp_pierce_tinplate	Жесть
-st_srp_pierce_varies	Разное
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	В отряде
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту
@@ -2704,7 +2704,6 @@ st_srp_weapon069_mauser_m712_name	Маузер M.712
 st_srp_weapon069_ppsh_drum_desc	Пистолет-пулемет Шпагина с дисковым магазином на 71 патрон, патрон 7.62×25. Поддерживает одиночный и автоматический режим стрельбы.
 st_srp_weapon069_ppsh_drum_name	ППШ-41 «Диск»
 st_srp_weapon_aim_zoom	Базовое увеличение
-st_srp_weapon_bullet_speed_varies	Разная
 st_srp_weapon_chamber	Досылка патрона
 st_srp_weapon_draw_time	Время доставания
 st_srp_weapon_full_damage	Полный урон до

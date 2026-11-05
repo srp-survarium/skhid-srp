@@ -490,13 +490,14 @@ moves. Presentation only: no simulation change.
 
 | change | why |
 |---|---|
-| `ui_properties` line 174 (`st_srp_inv_material_pierce`, "Material penetration", made like the clip size line 16, not comparable) | the owner's: each weapon and ammo card says what wall its bullet goes through (`../../docs/notes/pierce_line.md`) |
-| a `props_list` line 174 on every round the item dictionary pairs with a weapon (`items_compatibility`): `<weapon dict_id>:<rank>:<key> ...` (rank 0 the softest tier: a compared card is coloured by it), a dictionary key (`st_srp_pierce_glass` .. `_stone`) for each of its weapons | computed, not written in the list (`add_entry`'s `pierce_line`, `content_edit.py` `pierce_lines`): bullet_pierce x k_arp against each tier material's `armor` in `game_materials/game.materials` (try_pierce 0x32D960: k >= 0.5). The lobby shows a round the key its weapons agree on, a weapon the key its rounds give it, else Varies |
+| `ui_properties` line 174 (`st_srp_inv_material_pierce`, "Pierces", made like the clip size line 16, not comparable) | the owner's: each weapon card says the hardest wall its bullet gets through and the damage it keeps there (`../../docs/notes/pierce_line.md`) |
+| a `props_list` line 174 on every round the item dictionary pairs with a weapon (`items_compatibility`): `<weapon dict_id>:<rank>:<key>:<percent> ...`, the tier (`st_srp_pierce_glass` .. `_stone`) and the damage kept for each of its weapons | computed, not written in the list (`add_entry`'s `pierce_line`, `content_edit.py` `pierce_lines`): bullet_pierce x k_arp above each tier material's `armor` in `game_materials/game.materials` (try_pierce 0x32D960 stops at P <= A), percent round(100 x k). The rank (0 the softest) orders the lobby's best round and its comparison |
 | no weapon config changed | several are within 3 entries (one line) of the 565 the client rebuilds an upgraded item in (`tables.rs` `MAX_CONFIG_ENTRIES`): with a line on every weapon the SV-98 had 566 and build-content stopped |
 
 The last edit row, so it reads the weapons (declared in `_inputs`), rounds and dictionary as every
 row above leaves them: a retune of `weapon-stats.tsv` or `ammo.tsv`, or a new gun or round, needs no
 change here. `release/build-content` (`pierce_check`) computes every line again from the final files
 and stops when one differs. On the players' files (the stock db and the patches of
-release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; 84 weapons one
-material, 19 Varies, 4 rounds Varies. Presentation only: no simulation change.
+release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; each weapon's
+best round: 82 Concrete, 11 Plywood, 7 Brick, 2 Stone (the VSSKs' VPS), 1 Tinplate. Presentation
+only: no simulation change.
