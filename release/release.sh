@@ -47,7 +47,7 @@
 #      srp-game-data reads it, and it is not listed yet (published already
 #      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
-#      calculator): built from other patches than the list (and the
+#      calculator, the skills): built from other patches than the list (and the
 #      --resources file) on main, they are rebuilt from those, last in the
 #      preflight and only when nothing else failed (release/build-site,
 #      about 2 min, in a worktree of the commit; a failure stops the run),
@@ -1140,21 +1140,22 @@ if [[ -n $rev ]] && ((rev >= MENUS_PATCH)) && [[ -z $(list_row "resources.db.pat
     ${resources##*/} != "resources.db.patch_$MENUS_PATCH" ]]; then
     problem "revision $rev needs resources.db.patch_$MENUS_PATCH (the menus) offered, and $PATCH_LIST has no row of it: release it (--resources) first"
 fi
-# The site's pages built from the game (the Maps tab, the calculator, and the
-# wiki's weapons and icons the calculator's build makes): each
+# The site's pages built from the game (the Maps tab, the calculator, the
+# skills, and the wiki's weapons and icons the calculator's build makes): each
 # from exactly the patches the release offers (with --resources, that one
 # too), so neither shows stale data. Built from others on main (a release
 # with new content always is): rebuilt below, at the end of the preflight
 # (release/build-site, in a worktree of the commit), nothing players see; the
 # server's source carries them (so the server code is built) and the record
 # commits them. A ref without them has nothing to build.
-SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/wiki)
+SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/skills
+    srp-026g/servers/web-server/wiki)
 site_tree='' site_stale=0 want=''
 if ((!test_server)) && [[ -n $main_commit ]]; then
     site_with=''
     if [[ -n $resources && -f $resources ]]; then site_with=$resources; fi
     want=$(site_wants "$site_with")
-    for page in "the Maps tab:maps" "the calculator:damage"; do
+    for page in "the Maps tab:maps" "the calculator:damage" "the skills:skills"; do
         IFS=: read -r what dir <<<"$page"
         built=srp-026g/servers/web-server/$dir/built-from.tsv
         if ! git -C "$REPO" cat-file -e "$main_commit:$built" 2>/dev/null; then
@@ -1332,7 +1333,7 @@ if ((site_stale)); then
             problem "the Maps tab and the calculator: the rebuild failed (release/build-site; its log: $work/build-site.log): $(tail -n 3 "$work/build-site.log" | tr '\n' ' ')"
         else
             site_tree=$work/site
-            for page in "the Maps tab:maps" "the calculator:damage"; do
+            for page in "the Maps tab:maps" "the calculator:damage" "the skills:skills"; do
                 IFS=: read -r what dir <<<"$page"
                 if [[ $(built_from "$site_tree/srp-026g/servers/web-server/$dir/built-from.tsv") != "$want" ]]; then
                     problem "$what, rebuilt: its built-from.tsv does not name the patches this release offers"

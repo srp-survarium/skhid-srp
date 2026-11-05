@@ -1256,6 +1256,7 @@ va	status	ref_021d	name
 0x00222330	inferred-medium	0x001745c0	survarium::lobby_menu::on_profile_changed
 0x00223190	inferred-medium	0x00174d56	survarium::lobby_menu::on_price_items_arrived
 0x00223460	inferred-medium	0x00174e9e	survarium::lobby_menu::fill_reputation_levels
+0x00223a70	inferred-medium		survarium::lobby_menu::fill_skills_properties
 0x00224420	inferred-medium	0x00175809	survarium::lobby_menu::fill_character_data
 0x00224ed0	inferred-medium	0x00175d90	survarium::lobby_menu::fill_service_prices
 0x00225130	inferred-medium	0x001761c7	survarium::lobby_menu::set_cursor
