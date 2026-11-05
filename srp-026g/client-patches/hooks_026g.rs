@@ -6,6 +6,21 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- animation_id_log (patch 95) ----
+
+/// The entry `animation_id_log_on_id_missing` (0x2d65ee, the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_animation_id_log_on_id_missing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `animation_id_log_on_id_missing` calls this, from the game's jump at 0x2d65ee,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::animation_id_log::on_id_missing(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_carry (patch 78) ----
 
 /// The entry `artefact_carry_on_weapon_hide` (0x243fa0, weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal) calls this with the saved machine.

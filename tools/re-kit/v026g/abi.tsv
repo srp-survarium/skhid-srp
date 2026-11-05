@@ -2301,3 +2301,7 @@ va	name	source	ret_cleanup	result
 0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	manual	4	void; preloads one independent particle resource per requested instance
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	thiscall	16	EAX: output interval/time/ended record
 0x00313640	survarium::artefact_base::active_effect_time_calculator::calculate	thiscall	16	EAX: output; time stays zero until artefact state is no longer active
+0x002d6590	survarium::animations_registry::animation_id	manual	4	AX: the pair's id; 0FFFFh when the map has no entry for it (0x2D65EE)
+0x002ef130	survarium::animations_registry::register_animation	manual	12	
+0x002ef280	survarium::animations_registry::actualize	manual	4	
+0x001f18b0	survarium::game_world::animation_resolver	manual	8	EAX: the out resource_ptr, the id's entry's second resource (the ids' vector indexed unchecked)
