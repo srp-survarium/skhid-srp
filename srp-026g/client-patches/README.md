@@ -4146,8 +4146,8 @@ The rev47 crashes at 0x1F18C8 (drawing a player's held weapon) read the animatio
 ids' vector at 0FFFFh: the registry's lookup (0x2D6590) had no entry for a clip pair, and its
 0FFFFh went into the player's animation tree. Which clip, and why nobody registered it, the
 dumps cannot say (no heap). `../docs/notes/animation-ids.md` has what is known: the registry,
-who registers (only `player::register_animations` 0x2D8100, at the world's load and a late
-join's install), the full dump's 221 entries, the owner's crash and the pickup just before it.
+who registers (`player::register_animations` 0x2D8100 and the match rules, at the world's load,
+and a late join's install), the full dump's 221 entries, the owner's crash and the pickup just before it.
 
 **The patch** (the Rust patch `animation_id_log`, one lohook, `sites_026g.tsv`
 `animations.id_missing`, 0x2D65EE: the lookup's 0FFFFh exit, its `pop edi / pop esi / mov

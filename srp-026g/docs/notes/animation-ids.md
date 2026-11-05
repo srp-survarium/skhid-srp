@@ -24,9 +24,11 @@ time it happens. The root cause is **not proven**: no dump of the crash has the 
 - `animations_registry::register_animation` 0x2EF130 (registry, &first, &second) inserts a
   pair. Its callers are the animation registrators (the weapon states' 0x24B700..0x24B946,
   0x30D616.., 0x30F2C6.., 0x30FC06.., 0x3300BC, 0x3388DC/0x338911 for the weapon's user
-  animations, 0x338ED6, 0x339176, 0x2ADDBD), reached only from `player::register_animations`
-  0x2D8100: the player's inventory slots 7 and 10 (inventory +128h, +134h; vtable +20h of each,
-  `weapon_core::register_animations` 0x2DF720 for a gun).
+  animations, 0x338ED6, 0x339176, 0x2ADDBD), reached from two places of the world's load:
+  `player::register_animations` 0x2D8100, the player's inventory slots 7 and 10 (inventory
+  +128h, +134h; vtable +20h of each, `weapon_core::register_animations` 0x2DF720 for a gun),
+  and each match rule's vtable +28h (0x2CBE19; the batteries' rule 0x313FD0 registers each
+  battery item through its vtable +20h).
 - 0x2D8100 runs at the world's load for every kit player of every place (0x2CBF9B), then
   `actualize` 0x2EF280 (0x2CBFD7) sorts the vector (0x2EF490, then 0x2EF530) and numbers
   it, once (+10050h). A late join's install registers the newcomer's kit players and appends
@@ -56,6 +58,31 @@ time it happens. The root cause is **not proven**: no dump of the crash has the 
   600 950 ms and the switch installed it at 601 750 ms; rollbacks then re-installed it from a
   second copy (0x7C971D48, then 0x7CD3F7C8). The timing makes the pickup a strong lead, not a
   proof: a picked gun's clips are the donor gun's, and the donor's kit player registered them.
+
+## What was ruled out (2026-11-05)
+
+- **A cooked copy with its own resources** (a clip loaded again under a new pointer, so the
+  pointer key misses): no. The cooks share animations by name (`weapon_pickup.md`), the
+  registry's entries hold a reference to each, and in the full dump the four live cooked
+  copies (0x7CA50C98, 0x7CB560D8, 0x7C88E830, 0x7C8975A8, each named by its cook's
+  `srp_patches.log` line) register only pairs the map has (334 to 342 each), as the kit guns do.
+- **The user's side** (the picker's animations paired with another gun family's): the player's
+  clips while holding a gun come from the gun's own `user_animations` object
+  (`[weapon+278h]+48h`, made from the gun's config, 0x30AAE1), registered with the gun: one
+  object for every rifle-family gun of the dump (0x7C15C290).
+- **Lexemes outside the registered tables**: every lexeme maker (0x31EBD0, 0x31EAB0,
+  0x31E960 and their 31 callers: the weapon states, the shotgun and grenade substates, the
+  melee state, the battery states 0x344F60/0x345070, the user animations 0x3300E0) takes its
+  pair from the same arrays the registrators register (for example the two-clip reload
+  0x30FE90: +144h + 8 x (empty + 2 x crouch), registered by 0x24B820 as four pairs from +144h).
+  The only index into them that is not computed on the spot is a state's current clip,
+  a byte at +134h relative to +130h (0x30FEE4), read back by the animation-end callbacks
+  (0x30DB7D, 0x310692, 0x310CF0).
+
+So a missing pair needs a clip pointer that is no registered table's entry: a resource the
+load never saw, or a state reading its tables at an index the stream gave it. The second
+fits the pickup's state-length mismatch (a reader four bytes out of step inside the picked
+gun's state, `fix/pickup-state-length`), not proven.
 
 ## The diagnostic (patch 95)
 

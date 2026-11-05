@@ -4,9 +4,10 @@
 //! A player's animation tree holds its clips by id: base_player's
 //! animation_id_resolver (0x2D7B90) asks the global animations registry
 //! (0x2247D00) for the id of a clip pair through its lookup (0x2D6590), a
-//! map keyed by the two resources. A pair nobody registered (only
-//! player::register_animations 0x2D8100, at the world's load and a late
-//! join's install, registers: the slot 7 and 10 weapons of each kit player)
+//! map keyed by the two resources. A pair nobody registered (the world's
+//! load registers the slot 7 and 10 weapons of each kit player,
+//! player::register_animations 0x2D8100, and the match rules' items; a late
+//! join's install the newcomer's kit players)
 //! gets 0FFFFh, which the tree keeps; drawing the held weapon then reads the
 //! ids' vector at 0FFFFh (0x1F18B0, unchecked) and the game crashes.
 //! `animations.id_missing` is at that 0FFFFh: what the lookup was asked for,
