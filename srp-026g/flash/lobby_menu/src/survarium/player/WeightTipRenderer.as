@@ -25,6 +25,13 @@ package survarium.player
       private var _heading:MovieClip;
       // One a row entry; null where the entry is a section's heading ({heading}).
       private var _rows:Array = [];
+      // A row's value ({value}): another native row's text field (its style sheet, font and
+      // size), right-aligned at the card's edge as the weapon card's numbers are; null where
+      // the entry has none. The row only makes the field: the field alone is kept, in one
+      // column (_valueColumn) after the rows.
+      private var _values:Array = [];
+      private var _valueColumn:Sprite = new Sprite();
+      private var _valueFields:Array = [];
       private var _skin:ItemInfoRenderer;
       // A section's heading: the same divider as the title, from another copy of the
       // card's skin (waiting for its timeline, as the first), one a {heading} entry.
@@ -38,6 +45,8 @@ package survarium.player
       private static const ICON:Number = 38;
       // The space above and below a heading's text, and a row's spacing.
       private static const GAP:Number = 3;
+      // The least space between a row's label and its value.
+      private static const VALUE_GAP:Number = 16;
       private var _groupHolders:Array = [];
       // The modifier atlas icons' glyphs inside their 38 x 38 cell (their opaque
       // pixels: speed 7,9 26x20; weight 8,12 22x14; energy 8,10 23x20): a group
@@ -228,12 +237,20 @@ package survarium.player
                   addChild(section);
                   _sectionSkins.push(section);
                   _rows.push(null);
+                  _values.push(null);
                   _groups.push(null);
                   continue;
                }
                var nativeRow:ModificatorListRenderer = new SrvModifierLabeledRenderer();
                addChild(nativeRow);
                _rows.push(nativeRow);
+               var valueRow:ModificatorListRenderer = null;
+               if(item.value != undefined)
+               {
+                  valueRow = new SrvModifierLabeledRenderer();
+                  _valueColumn.addChild(valueRow);
+               }
+               _values.push(valueRow);
                var filter:MovieClip = null;
                if(item.group != undefined)
                {
@@ -243,9 +260,10 @@ package survarium.player
                }
                _groups.push(filter);
             }
+            addChild(_valueColumn);
             return; // Let the row timelines initialize too.
          }
-         for each(var pending:ModificatorListRenderer in _rows)
+         for each(var pending:ModificatorListRenderer in _rows.concat(_values))
             if(pending != null && (pending.textFieldLabel == null || pending.iconContainer == null)) return;
          for each(var skin:ItemInfoRenderer in _sectionSkins)
             if(skin.criticalSeparator == null || skin.criticalSeparator.textField == null) return;
@@ -304,12 +322,29 @@ package survarium.player
             }
             row.x = 8;
             row.y = y;
-            w = Math.max(w,row.x + row.textFieldLabel.x + row.textFieldLabel.textWidth + 12);
+            var labelEnd:Number = row.x + row.textFieldLabel.x + row.textFieldLabel.textWidth;
+            var value:ModificatorListRenderer = _values[i];
+            if(value != null)
+            {
+               value.validateNow();
+               value.data = {icon:null,label:entry.value};
+               value.validateNow();
+               oneLine(value);
+               var field:TextField = value.textFieldLabel;
+               _valueColumn.removeChild(value);
+               _valueColumn.addChild(field);
+               field.y = row.y + row.textFieldLabel.y;
+               _valueFields.push(field);
+               labelEnd += VALUE_GAP + field.textWidth;
+            }
+            w = Math.max(w,labelEnd + 12);
             // One pitch for every row: the native row's own height (icon and text line).
             if(isNaN(_pitch)) _pitch = Math.ceil(Math.max(row.iconContainer.y + ICON * row.iconContainer.scaleY,
                row.textFieldLabel.y + row.textFieldLabel.textHeight + 4)) + GAP;
             y += _pitch;
          }
+         // Each value's right edge at the card's text margin.
+         for each(field in _valueFields) field.x = Math.ceil(w) - 12 - field.textWidth;
          _background.x = _background.y = 0;
          _background.width = Math.ceil(w);
          _background.height = Math.ceil(y + 6);

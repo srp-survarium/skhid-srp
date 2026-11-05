@@ -1,11 +1,12 @@
 package survarium.player
 {
+   import survarium.constants.ItemCategory;
    import survarium.constants.PlayerModifier;
    import survarium.constants.ProfileSlot;
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
 
-   // What a match adds to a weapon's card stats in the selected kit, shown while Alt is held
+   // What a match adds to a weapon's or a medicine's card stats in the selected kit, shown while Alt is held
    // (docs/notes/alt-weapon-stats.md). A player modifier's sum S is the kit's own float (the
    // skills) plus the kit's armour's modifications of it (armor::add_modifiers 0x33F3A0): the sum
    // apply_modifier 0x2D5AE0 takes, B x max(0, 1 + k x S), k 1 at every site below.
@@ -57,10 +58,17 @@ package survarium.player
          return LocalizationData.getName(_kit != null ? "st_srp_weapon_with_kit_skills" : "st_srp_weapon_with_kit");
       }
 
-      // A weapon card stat (its prop_id), already with the weapon's own modifications, as a
-      // match has it with the kit and the skills.
-      public function stat(propId:int, value:Number) : Number
+      // Whether Alt shows an item's card as a match has it: a weapon's or a medicine's.
+      public static function covers(item:Object) : Boolean
       {
+         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS);
+      }
+
+      // A card stat (its prop_id) of `item`, already with the item's own modifications, as a
+      // match has it with the kit and the skills.
+      public function stat(item:Object, propId:int, value:Number) : Number
+      {
+         if(item.category == ItemCategory.MEDKITS) return medicine(item,propId,value);
          switch(propId)
          {
             case 133:
@@ -96,6 +104,65 @@ package survarium.player
             default:
                return value;
          }
+      }
+
+      // A medicine card stat (docs/notes/medical-skills.md; client-patches/rust/patches/src/
+      // medical_skills.rs): the card's healing lines are the share of a pool (%), its pain
+      // protection the % a hit loses.
+      private function medicine(item:Object, propId:int, value:Number) : Number
+      {
+         var painkiller:int = _kit == null ? 0 : _kit.painkillerRank;
+         var bandaging:int = _kit == null ? 0 : _kit.bandagingRank;
+         switch(propId)
+         {
+            case 19:
+               // Use time: x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging's
+               // -5 % a rank on a medicine that heals (data/influences: a healing line on its card).
+               return value * factor(PlayerModifier.DRUG_USING_TIME) * (heals(item) ? 1 - bandaging * 0.05 : 1);
+            case 18:
+               // Active time: Potent Painkiller's +1.5 s a rank on a pain protector.
+               return has(item,PAIN_PROTECTION) ? value + painkiller * 1.5 : value;
+            case PAIN_PROTECTION:
+               // The hit's coefficient c = (1 - protection) x max(0, 1 + S58); Potent Painkiller
+               // makes it max(0, 1 - (1 - c) x (1 + 0.08 x rank)) (medical::protect). In %, so
+               // that no skill leaves the card's own number exact.
+               var coefficient:Number = (100 - value) * factor(PlayerModifier.DRUG_HIT_COEFF);
+               if(painkiller > 0) coefficient = Math.max(0,100 - (100 - coefficient) * (1 + painkiller * 0.08));
+               return 100 - coefficient;
+            case 13:
+            case 135:
+            case 136:
+            case 137:
+               // Healing: each tick's amount x max(0, 1 + S57) (medkit::tick 0x33D790; Medical
+               // Training +8 % a rank), a pool never above its maximum.
+               return Math.min(100,value * factor(PlayerModifier.DRUG_AMOUNT));
+            default:
+               return value;
+         }
+      }
+
+      // A medicine card's pain protection (%), the painkiller's.
+      private static const PAIN_PROTECTION:int = 17;
+
+      // A medicine card's healing lines: infection, arms and legs, body and head, pain.
+      private static const HEALING:Array = [13,135,136,137];
+
+      private static function heals(item:Object) : Boolean
+      {
+         for each(var propId:int in HEALING)
+         {
+            if(has(item,propId)) return true;
+         }
+         return false;
+      }
+
+      private static function has(item:Object, propId:int) : Boolean
+      {
+         for each(var prop:Object in item.properties)
+         {
+            if(prop.prop_id == propId) return true;
+         }
+         return false;
       }
 
       private function factor(index:int) : Number

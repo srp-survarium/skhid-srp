@@ -8,7 +8,9 @@
 
 use super::context::Context;
 use super::hook::Thread;
+use super::breadcrumbs::Match;
 use super::parse::Reader;
+use super::world::read;
 use crate::raw;
 
 /// The options just read and the reader they were read from (its cursor
@@ -55,6 +57,20 @@ impl<'t> OptionsRead<'t> {
         // SAFETY: begin..begin+size are the message's bytes, alive for the hook,
         // and cursor..end lies inside them.
         unsafe { Reader::of_memory(cursor, end - at) }
+    }
+
+    /// What names the match, for the crash report's breadcrumbs.
+    pub fn context(&self, blackout: bool) -> Match {
+        // SAFETY: the options are alive for the hook; plain values of theirs.
+        unsafe {
+            Match {
+                id: read(self.options.seed()),
+                map: read(self.options.map()),
+                places: read(self.options.places()),
+                level: read(self.options.level()),
+                blackout,
+            }
+        }
     }
 
     /// Patch 65's mark in the options: "SRBO" for a Blackout match, else

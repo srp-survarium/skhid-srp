@@ -28,3 +28,4 @@ vtable	slot	va	class	base	basis
 0x009ffb14	0x50	0x0027a9c0	survarium::network_client	survarium::base_network_client	observed: get_active_player; revision-42 replay crash investigation, ragdoll.md section 16
 0x009ff344	0x34	0x002189e0	survarium::replay_network_client	survarium::base_network_client	observed: match_options; revision-42 replay crash investigation, ragdoll.md section 16
 0x009ff344	0x50	0x0026d6a0	survarium::replay_network_client	survarium::base_network_client	observed: get_active_player; revision-42 replay crash investigation, ragdoll.md section 16
+0x009e1ffc	0x8	0x00038990	vostok::sound::single_sound	vostok::sound::sound_propagator_emitter	observed: the single sound's propagator emitter (RTTI single_sound at offset 108h, written at 0x64198 and 0x6420F; slot 0 emit_sound_propagators 0x64280); slot 2 its options, `lea eax,[ecx+8]` (a folded getter), read by calculate_hdr_audio_frame at 0x5CAC3 for can_be_displaced (+11h, 0x5CACD)

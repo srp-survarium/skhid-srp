@@ -17,8 +17,10 @@ rem   that removes every line naming a password, a digest, a token, a key, a
 rem   cookie, a command line or a URL with a user in it (the crash
 rem   reporter's, client/bugtrap/src/sanitize.rs), and the record it starts;
 rem - the crash reporter's text reports (SRP-crash-*.txt, beside the game
-rem   and in the temporary folder); its dumps are only listed, never taken
-rem   (their memory may hold the password);
+rem   and in the temporary folder), and of the newest 5 crash ZIPs their
+rem   crash.txt and breadcrumbs.txt (the match and its last events); its
+rem   dumps are only listed, never taken (their memory may hold the
+rem   password), the ZIPs too, for the dump in them;
 rem - the updater's small state files and play_skhid.bat;
 rem - the list of the folder game (names, sizes, dates) and of this
 rem   folder's Skhid files (no other name of it), the sha256 of the game's
@@ -117,7 +119,7 @@ goto end
 %EN% Dry run: nothing is collected, only what would be is printed.
 echo.
 echo [dry-run] logs: Documents\Survarium, "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
-echo [dry-run] crash reports: SRP-crash-*.txt in "%X86%" and the temporary folder
+echo [dry-run] crash reports: SRP-crash-*.txt in "%X86%" and the temporary folder, the text of the newest 5 SRP-crash-*.zip
 echo [dry-run] sha256: game\binaries\x86 programs, the certificate, game\resources.db, game\resources.db.patch_*
 echo [dry-run] servers: updater_skhid.url's (else https://skhid.link) /api/client-files, /patches, /game and their hosts
 echo [dry-run] write: Desktop\Skhid-logs-^<date^>-^<time^>.zip
@@ -283,12 +285,18 @@ function Take($file, [string]$name, [long]$cap) {
     $what = '{0}  {1} bytes, {2} UTC' -f $name, $file.Length, (Utc $file.LastWriteTime)
     $size = [Math]::Min([long]$file.Length, $cap)
     $bytes = Read-Bytes $file.FullName ($file.Length - $size) $size
+    Keep $bytes $name $what ($size -lt $file.Length)
+}
+# Text `bytes` (`cut`: the end of a longer file) into the folder at `name`,
+# cleaned: `what` and what became of it, for the report.
+function Keep([byte[]]$bytes, [string]$name, [string]$what, [bool]$cut) {
+    $size = $bytes.Length
     if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { return ($what + ', not taken: not text') }
-    $clean = Clean $bytes ($size -lt $file.Length)
+    $clean = Clean $bytes $cut
     $to = Under $stage ($name -split '/')
     [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($to))
     [IO.File]::WriteAllBytes($to, $clean.Bytes)
-    if ($size -lt $file.Length) { $what += ", its last $size bytes" }
+    if ($cut) { $what += ", its last $size bytes" }
     if ($clean.Removed) { $what += ", $($clean.Removed) lines removed (credentials)" }
     $state.Taken += $size
     $what
@@ -547,6 +555,30 @@ try {
             try { Line ('  ' + (Take $newest[$i].File $entry 1MB)) } catch { Line ('  ' + $entry + ': not read: ' + (Why $_.Exception)) }
         }
         if (-not $reports) { Line '  no SRP-crash-*.txt' }
+        # A crash ZIP's text (crash.txt: the crash, the match and its last
+        # events; breadcrumbs.txt: all of them), the newest 5 ZIPs: their dumps
+        # stay out, as every dump.
+        $zips = @($dumps | Where-Object { $_.File.Name -like 'SRP-crash-*.zip' } | Sort-Object { $_.File.LastWriteTimeUtc } -Descending)
+        for ($i = 0; $i -lt [Math]::Min($zips.Length, 5); $i++) {
+            $z = $zips[$i]
+            $folder = 'crash/' + $z.Place + '/' + [IO.Path]::GetFileNameWithoutExtension($z.File.Name)
+            try {
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $archive = [IO.Compression.ZipFile]::OpenRead($z.File.FullName)
+                try {
+                    foreach ($member in @('crash.txt', 'breadcrumbs.txt')) {
+                        $e = $archive.GetEntry($member)
+                        if (-not $e) { continue }
+                        if ($e.Length -gt 1MB) { Line ('  ' + $folder + '/' + $member + ': not taken, over 1 MB'); continue }
+                        $from = $e.Open()
+                        $bytes = New-Object IO.MemoryStream
+                        try { $from.CopyTo($bytes) } finally { $from.Dispose() }
+                        $what = '{0}/{1}  {2} bytes, from its ZIP' -f $folder, $member, $e.Length
+                        Line ('  ' + (Keep $bytes.ToArray() ($folder + '/' + $member) $what $false))
+                    }
+                } finally { $archive.Dispose() }
+            } catch { Line ('  ' + $folder + '.zip: its text not read: ' + (Why $_.Exception)) }
+        }
         # The dumps hold the game's memory (perhaps the password): named, never taken.
         foreach ($d in @($dumps | Sort-Object { $_.File.LastWriteTimeUtc } -Descending)) {
             Line ('  not taken: {0}/{1}  {2} bytes, {3} UTC' -f $d.Place, $d.File.Name, $d.File.Length, (Utc $d.File.LastWriteTime))

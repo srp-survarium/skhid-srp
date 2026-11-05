@@ -278,17 +278,114 @@ package {
    Scene.isAlt=false;shows(ak,items[0]);
    require(text(cards[0])==released,"released: the weapon's own card");
   }
+  // Held Alt over a medicine (docs/notes/alt-weapon-stats.md, "Medicines"): its card's lines after
+  // the medical skills, the ranks packed in kit float 43, Medical Training in float 57.
+  // The live cards (scripts/content-edit/medicines.tsv, the painkiller's and antitoxin's configs).
+  private static const MEDICINES:Object={
+   bandages:[[19,"1.0"],[18,"1.0"],[135,"100"],[136,"35"],[137,"35"],[15,"0.1"]],
+   medkit:[[19,"2.0"],[18,"3.0"],[135,"100"],[136,"100"],[137,"40"],[15,"0.2"]],
+   military_medkit:[[19,"2.0"],[18,"1.0"],[135,"100"],[136,"60"],[137,"50"],[15,"0.3"]],
+   blackmarket_medkit:[[19,"2.0"],[18,"2.0"],[135,"0"],[136,"100"],[137,"100"],[15,"0.3"]],
+   science_medkit:[[19,"2.0"],[18,"3.0"],[135,"100"],[136,"100"],[137,"50"],[13,"100"],[15,"0.3"]],
+   antitoxin:[[13,"50"],[19,"1.0"],[18,"10.0"],[15,"0.1"]],
+   painkiller:[[17,"10"],[19,"1.0"],[18,"10.0"],[15,"0.1"]]
+  };
+  private static const MEDICINE_LABELS:Object={13:"Intoxication",17:"Pain protection",18:"Duration",19:"Activation",135:"Healing: arms / legs",136:"Healing: body / head",137:"Pain relief",15:"Weight"};
+  private function medicine(name:String):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name=name;d.category=10;d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(10);d.descriptor=100;d.modifiers=[];d.properties=[];
+   for each(var p:Array in MEDICINES[name])d.properties.push({prop_id:p[0],prop_value:p[1]});
+   return d;
+  }
+  // Each line of a medicine's card: "label=value", in the card's order.
+  private function medicineLines(card:Object,d:Object):Array {
+   var out:Array=[];
+   for each(var p:Array in MEDICINES[d.name])out.push(MEDICINE_LABELS[p[0]]+"="+nativeText(card,MEDICINE_LABELS[p[0]]));
+   return out;
+  }
+  // The medical skills as srp packs them (bit offsets 0, 3, 9; medical-skills.md), Medical
+  // Training also its +0.08 a rank of drug_amount (57).
+  private function medicalKit(painkiller:int,bandaging:int,training:int):Object {return kitFloats({43:painkiller|bandaging<<3|training<<9,57:training*.08});}
+  private function medicineChecks():void {
+   Scene.isShift=false;
+   var names:Array=["bandages","medkit","military_medkit","blackmarket_medkit","science_medkit","antitoxin","painkiller"];
+   var other:Object=medicine("medkit"),released:Object={},name:String,d:Object;
+   // Released, and held with no medical skill: the card's own numbers (the gloves altChecks
+   // left on change no medicine line).
+   profile.setKitModifiers(kitFloats({}));
+   for each(name in names){
+    Scene.isAlt=false;d=medicine(name);shows(d,other);released[name]=medicineLines(cards[0],d).join();
+    require(released[name]==MEDICINES[name].map(function(p:Array,...rest):String{return MEDICINE_LABELS[p[0]]+"="+Number(p[1])+(p[0]==15?"kg":p[0]==13?"":p[0]==18||p[0]==19?"s":"%");}).join(),"released "+name+": "+released[name]);
+    Scene.isAlt=true;shows(d,other);
+    require(medicineLines(cards[0],d).join()==released[name],"Alt, no medical skills: "+name+" "+medicineLines(cards[0],d).join());
+   }
+   // Each skill alone at its most ranks, then all three; the expected numbers from the spec's
+   // rules (medical-skills.md): Potent Painkiller (3) protection 10 % -> 12.4 %, +4.5 s; Fast
+   // Bandaging (2) use time x (1 - 2 x 0.05) on a medicine that heals; Medical Training (3) each
+   // healing line x 1.24, a pool at most 100 %.
+   var painkiller:Object={painkiller:"Pain protection=10 -> 12.4%,Activation=1s,Duration=10 -> 14.5s,Weight=0.1kg"};
+   var bandaging:Object={
+    bandages:"Activation=1 -> 0.9s",medkit:"Activation=2 -> 1.8s",military_medkit:"Activation=2 -> 1.8s",
+    blackmarket_medkit:"Activation=2 -> 1.8s",science_medkit:"Activation=2 -> 1.8s",antitoxin:"Activation=1 -> 0.9s"
+   };
+   var training:Object={
+    bandages:["Healing: body / head=35 -> 43.4%","Pain relief=35 -> 43.4%"],medkit:["Pain relief=40 -> 49.6%"],
+    military_medkit:["Healing: body / head=60 -> 74.4%","Pain relief=50 -> 62%"],science_medkit:["Pain relief=50 -> 62%"],
+    antitoxin:["Intoxication=50 -> 62"]
+   };
+   // The lines a rule changes, the others as released.
+   var expect:Function=function(name:String,changes:Array):String{
+    var lines:Array=released[name].split(",");
+    for each(var change:String in changes){var label:String=change.split("=")[0];for(var i:int=0;i<lines.length;i++)if(lines[i].split("=")[0]==label)lines[i]=change;}
+    return lines.join();
+   };
+   var cases:Array=[[3,0,0],[0,2,0],[0,0,3],[3,2,3]];
+   for each(var ranks:Array in cases){
+    profile.setKitModifiers(medicalKit(ranks[0],ranks[1],ranks[2]));
+    for each(name in names){
+     var changes:Array=[];
+     if(ranks[0]&&name=="painkiller")changes=changes.concat(painkiller.painkiller.split(","));
+     if(ranks[1]&&bandaging[name])changes.push(bandaging[name]);
+     if(ranks[2]&&training[name])changes=changes.concat(training[name]);
+     d=medicine(name);Scene.isAlt=true;shows(d,other);
+     var got:String=medicineLines(cards[0],d).join();
+     require(got==expect(name,changes),"ranks "+ranks+" "+name+": "+got+" (want "+expect(name,changes)+")");
+     Scene.isAlt=false;shows(d,other);
+     require(medicineLines(cards[0],d).join()==released[name],"released with ranks "+ranks+": "+name);
+    }
+   }
+   // Better is green: a shorter use, more healing, more protection.
+   profile.setKitModifiers(medicalKit(3,2,3));Scene.isAlt=true;
+   d=medicine("bandages");shows(d,other);
+   require(changeColours(nativeField(cards[0],"Activation")).join()==[NEUTRAL,NEUTRAL,GREEN].join() && changeColours(nativeField(cards[0],"Pain relief")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"bandages: shorter and more is green");
+   d=medicine("painkiller");shows(d,other);
+   require(changeColours(nativeField(cards[0],"Pain protection")).join()==[NEUTRAL,NEUTRAL,GREEN].join() && changeColours(nativeField(cards[0],"Duration")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"painkiller: more and longer is green");
+   // Packed ranks the exe refuses (Potent Painkiller 6 of 3; or a valid 43 beside Numb Legs 3 of
+   // 2 in float 45) are no medical skill at all, as in a match.
+   profile.setKitModifiers(kitFloats({43:6}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==released.painkiller,"refused ranks change nothing");
+   profile.setKitModifiers(kitFloats({43:3,45:3}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==released.painkiller,"refused combo ranks change nothing");
+   // An exe that sends no floats: no skill known, the card's own numbers.
+   profile.setKitModifiers(null);d=medicine("bandages");shows(d,other);
+   require(medicineLines(cards[0],d).join()==released.bandages,"no floats: the card's own numbers");
+   // altChecks' skills again, for the open-card checks that follow.
+   profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
+   Scene.isAlt=false;Scene.isShift=true;shows(item(false),items[0]);
+  }
   private function loaded(e:Event):void {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;Scene=domain.getDefinition("MainScene");Scene.stage=this;Scene.scaleFactor=1;
     var css:StyleSheet=new StyleSheet();css.setStyle("red",{color:"#CF4242"});css.setStyle("white",{color:"#D7DEDC"});css.setStyle("gray",{color:"#8A9490"});Scene.textStyleSheet=css;
     Loc=domain.getDefinition("survarium.data.LocalizationData");Loc.setData(texts("english"));
     Details=domain.getDefinition("survarium.item.WeaponDetails");
-    DetailsView=domain.getDefinition("survarium.item.WeaponDetailsView") as Class;
+    DetailsView=domain.getDefinition("survarium.item.ItemDetailsView") as Class;
     Caption=domain.getDefinition("survarium.item.WeaponDetailCaption") as Class;
     var Props:Class=domain.getDefinition("survarium.data.PropertiesDescriptor") as Class;
     var props:Object=new Props("properties"),list:Array=[];
     for each(var spec:Array in [[1,"Damage",1,""],[2,"Dispersion",0,""],[3,"Armor penetration",1,""],[4,"Rate of fire",1,""],[15,"Weight",0,"kg"],[24,"Distance",1,"m"],[132,"Stopping power",1,"%"],[133,"Aim time",0,"s"],[134,"Magazine",1,""]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
+    // A medicine card's lines, as static_game_parameters has them (13 has no unit there).
+    for each(spec in [[13,"Intoxication",1,""],[17,"Pain protection",1,"%"],[18,"Duration",1,"s"],[19,"Activation",0,"s"],[135,"Healing: arms / legs",1,"%"],[136,"Healing: body / head",1,"%"],[137,"Pain relief",1,"%"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     for(var id:int=138;id<=162;id++)list.push({prop_id:id,comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
@@ -504,10 +601,14 @@ package {
      require(Math.abs(cards[0].topBlackContainer.height-headerHeight)<.1,"single card restores its natural header");
      cards[1].textFieldDescription.visible=false;cards[0].alignComparisonHeader(cards[1]);aligned();
      altChecks();
+     medicineChecks();
     }
     if(frame==140){Scene.isAlt=true;}
     if(frame==150){require(line(cards[0],"Reload")=="Reload: 3 -> 2.46s" && nativeText(cards[0],"Aim time")=="0.25 -> 0.21s","Alt pressed over an open card");Scene.isAlt=false;}
-    if(frame==160){require(text(cards[0])==released && nativeText(cards[0],"Aim time")=="0.25s","Alt let go over an open card");finish(null);}
+    if(frame==160){require(text(cards[0])==released && nativeText(cards[0],"Aim time")=="0.25s","Alt let go over an open card");profile.setKitModifiers(medicalKit(3,2,3));shows(medicine("painkiller"),medicine("medkit"));}
+    if(frame==170){require(nativeText(cards[0],"Pain protection")=="10%","an open painkiller card, Alt up");Scene.isAlt=true;}
+    if(frame==180){require(nativeText(cards[0],"Pain protection")=="10 -> 12.4%" && nativeText(cards[0],"Duration")=="10 -> 14.5s","Alt pressed over an open medicine card");Scene.isAlt=false;}
+    if(frame==190){require(nativeText(cards[0],"Pain protection")=="10%" && nativeText(cards[0],"Duration")=="10s","Alt let go over an open medicine card");shows(items[0],items[1]);finish(null);}
    }catch(err:Error){finish("frame "+frame+": "+err+" "+err.getStackTrace());}
   }
   private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;Scene.isAlt=loaderInfo.parameters.alt=="1";
