@@ -263,7 +263,7 @@ st_army_026_mask_desc	Балаклава с одной широкой проре
 st_army_026_mask_name	Армейская балаклава
 st_artcontainer_time_corr_perc_name	Время поиска
 st_artefact_activated_message	Артефакт активирован
-st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.\nАртефакты перезаряжаются на 20% быстрее.
+st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.
 st_artefact_booster_name	Артефакт-мастер
 st_artefact_no_free_slots	Нет свободных слотов, чтобы взять артефакт!
 st_artefact_search_failed	Артефакт не найден
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Подсумки для патронов
 st_inv_ano_armor	Изоляция
 st_inv_armor	Броня
 st_inv_arp	Бронебойность
+st_inv_artefact_recharge	Время перезарядки артефактов
 st_inv_artefact_slots	Контейнер артефактов
 st_inv_buckshot	Дробь
 st_inv_clip_size	Патронов в пачке

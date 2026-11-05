@@ -263,7 +263,7 @@ st_army_026_mask_desc	Kominiarka z jednym szerokim otworem na oczy z anulowanego
 st_army_026_mask_name	Kominiarka wojskowa
 st_artcontainer_time_corr_perc_name	Czas zbierania artefaktów
 st_artefact_activated_message	Artefakt aktywowany
-st_artefact_booster_description	Druga wersja skonstruowanego przez wykwalifikowanych rzemieślników urządzenia do zbierania artefaktów. Wbudowany tłumik anormalnej aktywności artefaktów pozwala na skrócenie czasu ekstrakcji.\nArtefakty ładują się o 20% szybciej.
+st_artefact_booster_description	Druga wersja skonstruowanego przez wykwalifikowanych rzemieślników urządzenia do zbierania artefaktów. Wbudowany tłumik anormalnej aktywności artefaktów pozwala na skrócenie czasu ekstrakcji.
 st_artefact_booster_name	Władca artefaktów
 st_artefact_no_free_slots	Brak wolnego miejsca na zabranie artefaktu!
 st_artefact_search_failed	Nie znaleziono artefaktu
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ładownice
 st_inv_ano_armor	Izolacja
 st_inv_armor	Pancerz
 st_inv_arp	Penetracja pancerza
+st_inv_artefact_recharge	Czas ładowania artefaktów
 st_inv_artefact_slots	Pojemnik na artefakty
 st_inv_buckshot	Śrut
 st_inv_clip_size	Nabojów w opakowaniu

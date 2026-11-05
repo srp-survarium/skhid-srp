@@ -263,7 +263,7 @@ st_army_026_mask_desc	A balaclava with one wide eye slit, from the cancelled S.T
 st_army_026_mask_name	Army balaclava
 st_artcontainer_time_corr_perc_name	Collection time
 st_artefact_activated_message	Artifact activated
-st_artefact_booster_description	The second version of the device invented by craftsmen to retrieve artifacts. The built-in suppressor of the abnormal activity from the artifact allows you to accelerate the extraction process.\nArtifacts recharge 20% faster.
+st_artefact_booster_description	The second version of the device invented by craftsmen to retrieve artifacts. The built-in suppressor of the abnormal activity from the artifact allows you to accelerate the extraction process.
 st_artefact_booster_name	Artifact-master
 st_artefact_no_free_slots	No empty slots to pick up the artifact!
 st_artefact_search_failed	Artifact not found
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammo bags
 st_inv_ano_armor	Isolation
 st_inv_armor	Armor
 st_inv_arp	Armor penetration
+st_inv_artefact_recharge	Artifact recharge time
 st_inv_artefact_slots	Artifact container
 st_inv_buckshot	Buckshot
 st_inv_clip_size	Bullets in pack

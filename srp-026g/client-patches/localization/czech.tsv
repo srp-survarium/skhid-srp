@@ -263,7 +263,7 @@ st_army_026_mask_desc	Kukla s jedním širokým otvorem na oči ze zrušeného S
 st_army_026_mask_name	Vojenská kukla
 st_artcontainer_time_corr_perc_name	Čas sběru
 st_artefact_activated_message	Artefakt aktivován
-st_artefact_booster_description	Druhá verze podomácku vyrobeného přístroje na získávání artefaktů. Vestavěný tlumič jejich anomální aktivity urychluje sběr.\nArtefakty se dobíjejí o 20% rychleji.
+st_artefact_booster_description	Druhá verze podomácku vyrobeného přístroje na získávání artefaktů. Vestavěný tlumič jejich anomální aktivity urychluje sběr.
 st_artefact_booster_name	Mistr artefaktů
 st_artefact_no_free_slots	Na artefakt není volný slot!
 st_artefact_search_failed	Artefakt nenalezen
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Sumky na munici
 st_inv_ano_armor	Izolace
 st_inv_armor	Ochrana
 st_inv_arp	Průbojnost
+st_inv_artefact_recharge	Doba dobíjení artefaktů
 st_inv_artefact_slots	Kontejner na artefakty
 st_inv_buckshot	Broky
 st_inv_clip_size	Nábojů v balení

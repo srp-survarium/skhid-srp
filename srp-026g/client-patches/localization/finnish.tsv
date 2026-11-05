@@ -263,7 +263,7 @@ st_army_026_mask_desc	Kypärähuppu yhdellä leveällä silmäaukolla perutusta 
 st_army_026_mask_name	Armeijan kypärähuppu
 st_artcontainer_time_corr_perc_name	Keräysaika
 st_artefact_activated_message	Artefakti aktivoitu
-st_artefact_booster_description	Artefaktien keräämiseen nikkaroidun laitteen toinen versio. Sisäinen vaimennin hillitsee artefaktin anomaliaa ja nopeuttaa keräystä.\nArtefaktit latautuvat 20% nopeammin.
+st_artefact_booster_description	Artefaktien keräämiseen nikkaroidun laitteen toinen versio. Sisäinen vaimennin hillitsee artefaktin anomaliaa ja nopeuttaa keräystä.
 st_artefact_booster_name	Artefaktimestari
 st_artefact_no_free_slots	Artefaktille ei ole vapaata paikkaa!
 st_artefact_search_failed	Artefaktia ei löytynyt
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammustaskut
 st_inv_ano_armor	Eristys
 st_inv_armor	Panssari
 st_inv_arp	Panssarinläpäisy
+st_inv_artefact_recharge	Artefaktien latausaika
 st_inv_artefact_slots	Artefaktisäiliö
 st_inv_buckshot	Haulit
 st_inv_clip_size	Patruunoita pakkauksessa

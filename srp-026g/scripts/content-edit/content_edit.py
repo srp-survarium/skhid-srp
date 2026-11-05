@@ -1185,8 +1185,6 @@ STATS = {
         'configs': 'gameplay/items/boosters/*.options',
         'columns': {
             'weight': 'parameters/weight',
-            # player modifier 38: the artefact's end of active (0x313530) starts cooldown x (1 + it)
-            'artefact_cooldown': 'parameters/artefact_cooldown_modifier',
             # built-in bonuses, a column a kind: the modification's id
             'health_regen': default_modification(109),
             'stamina_regen': default_modification(110),
@@ -1195,8 +1193,9 @@ STATS = {
             'artefact_search': default_modification(113),
             'sway': default_modification(121),
             'respawn': default_modification(122),
+            # player modifier 38: the artefact's end of active (0x313530) starts cooldown x (1 + it)
+            'artefact_cooldown': default_modification(131),
         },
-        'add': {'artefact_cooldown'},
         'match': {'weight', 'artefact_cooldown', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
                   'artefact_search', 'sway', 'respawn'},
     },
