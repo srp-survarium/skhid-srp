@@ -1177,19 +1177,22 @@ mod tests {
 
     /// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's
     /// test data lacks the 0.29a3 weapons): every rusher kit of both tiers
-    /// has its arms, the SMGs with a life of 150 or 200 rounds. Run alone:
+    /// has its arms, the SMGs with a life of 200 or 250 rounds: the armour's
+    /// bags (3 at 9-10, 4 at 13-15 with `edge_torso_5`) and skill 109's bag
+    /// (`loadouts::bot_ammo_bags`, since b07184eb1) times the ammo's 50-round
+    /// clip. Run alone (the tables are read once a process):
     /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib
-    /// -- --ignored on_the_live_data_every_rusher_kit_has_its_arms`
+    /// -- --ignored --exact v026g::bots::guns::tests::on_the_live_data_every_rusher_kit_has_its_arms`
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the server's game data"]
     fn on_the_live_data_every_rusher_kit_has_its_arms() {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
         every_kit_of_every_tier_is_known();
         for (tier, kit, item, rounds, magazine) in [
-            (BotTier::Mid, RusherKit::Smg, "sr2m", 150, 20),
-            (BotTier::Mid, RusherKit::Alt, "ump45", 150, 25),
-            (BotTier::High, RusherKit::Smg, "fn_p90", 200, 50),
-            (BotTier::High, RusherKit::Alt, "kriss_vector", 200, 30),
+            (BotTier::Mid, RusherKit::Smg, "sr2m", 200, 20),
+            (BotTier::Mid, RusherKit::Alt, "ump45", 200, 25),
+            (BotTier::High, RusherKit::Smg, "fn_p90", 250, 50),
+            (BotTier::High, RusherKit::Alt, "kriss_vector", 250, 30),
         ] {
             assert_eq!(kit.worn_in(tier), kit, "{tier} {}", kit.name());
             let rusher = BotEquipment { tier, rusher: kit, mask: BotMask::Table };
