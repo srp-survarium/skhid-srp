@@ -10617,6 +10617,15 @@ impl VictoryItemStatus {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0xfd (u8): last player to take it from a container, FF nobody (on_event 0x334B4D writes; 0x334C74 compares for event 26); native save/load omit it, battery.save/load preserve it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn last_taker(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xfd).cast::<u8>().as_ptr() }
+    }
+
     /// 0x100 bytes: a battery's record (on_event 0x334B11: shl ecx,8)
     pub const SIZE: usize = 0x100;
 

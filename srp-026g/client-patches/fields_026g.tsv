@@ -539,6 +539,7 @@ survarium::victory_item_event_manager	rule	0xA38	ptr<survarium::gather_victory_i
 survarium::victory_item_event_manager	options	0xA3C	ptr<survarium::match_options>	the match's options (start_match 0x334914): a place's team at +45ECh + place x 45FCh (on_event 0x334AD9..0x334AE3)
 survarium::victory_item_event_manager	statistics	-0x2760	obj<survarium::shared_statistics>	the shared statistics it is part of: the only manager is their +2760h (shared_statistics::on_victory_item_event 0x2F55D6: lea esi,[eax+2760h])
 survarium::victory_item_status	size	0x100	size	a battery's record (on_event 0x334B11: shl ecx,8)
+survarium::victory_item_status	last_taker	0xFD	u8	last player to take it from a container, FF nobody (on_event 0x334B4D writes; 0x334C74 compares for event 26); native save/load omit it, battery.save/load preserve it
 survarium::gather_victory_items_rule_core	items_begin	0x110	ptr<survarium::inventory_slot>	its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
 survarium::gather_victory_items_rule_core	items_end	0x114	ptr<survarium::inventory_slot>	the vector's end (0x313D70)
 survarium::match_place	team	0x45EC	u32	the place's team, 0 or 1 (on_event 0x334AE3, is_solo_delivery 0x334D28)
