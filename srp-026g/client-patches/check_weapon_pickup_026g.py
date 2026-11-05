@@ -403,6 +403,7 @@ def main():
     keep_and_reuse(patched)
     one_gun_a_copy(patched)
     a_match_has_its_own_copies(patched)
+    its_own_drop(patched)
     second_pickup(patched)
     two_slots(patched)
     ordinary_kit(patched)
@@ -2104,6 +2105,40 @@ def a_match_has_its_own_copies(patched):
     assert len(r.queries) == 1 and not any("re-using a kept copy" in l for l in r.log), r.log
     print("ok a copy is its match's: the next match frees the copies of the match before (one kept past its end, "
           "ever in hands); the same place, kit and slot's death there cooks anew")
+
+
+def its_own_drop(patched):
+    """A player takes its own drop back (the owner, 2026-11-05): place 5 dies holding its kit 1 gun, respawns into
+    kit 0 (another player object of the place) and picks the old body's gun up. The same place's record has the
+    drop taken and the pick of its own recipe; its own kit 0 gun is parked in the copy and comes back at its next
+    removal; a game that loads the record (a resync, a late join) installs the same copy."""
+    r = Pick(patched)
+    r.setup()
+    r.remove(PLAYER, DIED + 8_000)                     # the body leaves: the drop stays, alone
+    me = r.add_picker(PLACE, GUN_ID + 2)               # place 5's kit 0 player, its own gun in slot 10
+    r.emu.mem_write(me.p + 0x115, bytes([0]))
+    taken = DIED + 20_000
+    r.queries = []
+    r.pick(target=PLACE, now=taken, picker=me.p)
+    pick_id = reserved(PLACE, 10)
+    assert r.queries == [] and r.slot(me.inventory, 10) == r.new_gun + 0x10, r.log
+    assert r.slot(r.cooked, 10) == me.own_gun + 0x10, "its own gun parked in the copy"
+    assert r.read(r.registry + 4 * pick_id) == r.new_gun and r.read(r.new_gun + 0xC, 1)[0] == pick_id
+    assert r.read(r.new_gun + 0x5E5, 1)[0] == CAPACITY, "alone: a full magazine"
+    r.in_hands(me.p)
+    saved = r.save(me.p)
+    assert saved[:20] == record(("taken", 1, A_GUN, True), slot10=(taken, PLACE, KIT, 1))[:20], saved.hex()
+    assert saved[28] == record(("taken", 1, A_GUN, True))[28]
+    # A resync of that record: the same copy, nothing cooked, the same record written.
+    r.load(me.p, saved)
+    assert r.queries == [] and r.slot(me.inventory, 10) == r.new_gun + 0x10 and r.save(me.p) == saved
+    # Its next removal: its own gun back, the copy let go.
+    r.word(me.p + 0x128, r.new_gun)
+    r.remove(me.p, taken + 30_000)
+    assert r.slot(me.inventory, 10) == me.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
+    print("ok a player takes its own drop back after a respawn into another kit: its own gun parked and back at its "
+          "next removal; the place's record has the drop taken and the pick of its own recipe; a resync installs the "
+          "same copy and writes the same record")
 
 
 def bullet_record(patched, original):

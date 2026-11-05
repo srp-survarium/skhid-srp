@@ -997,7 +997,7 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     let picker = picker_of(player, place).ok_or(Why::NoPlace)?;
     // The rule without the gun first (a pistol refuses least): no cook is
     // waited for a refusal.
-    weapon_pickup::decide(picker, target, theirs.drop, |_| Handedness::One).map_err(Why::Rule)?;
+    weapon_pickup::decide(picker, theirs.drop, |_| Handedness::One).map_err(Why::Rule)?;
     let Some(gun) = theirs.drop.available() else { return Err(Why::Rule(weapon_pickup::Refusal::NotAvailable)) };
     let recipe = gun.recipe;
     let body = peer(player, target).ok_or(Why::NoDonor)?;
@@ -1016,7 +1016,7 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     // magazine is the body's gun's, in the slot it held it in, while the
     // body is in the world; a gun alone gets a full one.
     let incoming = native::handedness(thread, cook, recipe.slot).ok_or(Why::Install(native::Refusal::NoCookedGun))?;
-    let into = weapon_pickup::decide(picker, target, theirs.drop, |_| incoming).map_err(Why::Rule)?;
+    let into = weapon_pickup::decide(picker, theirs.drop, |_| incoming).map_err(Why::Rule)?;
     let magazine = match gun.lying {
         Lying::OnBody => body.magazine(gun.held),
         Lying::Alone => None,
@@ -1688,7 +1688,7 @@ fn refusal_key(why: weapon_pickup::Refusal) -> &'static CStr {
         R::SecondWeaponDisabled => c"st_weapon_one_gun_only",
         R::NoGunInHands => c"st_weapon_no_gun_in_hands",
         R::Switching => c"st_weapon_switching",
-        // A dead viewer has no prompt; the own place is never aimed at.
+        // A dead viewer has no prompt.
         R::Dead | R::NotAvailable => c"st_weapon_cannot_pick_up",
     }
 }
@@ -1754,7 +1754,7 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
         Err(why) => return Some((None, Prompt::Cannot(cannot_key(why)))),
     };
     let places = GameWorldUi::at_update_icons(ctx)?.places()?;
-    weapon_pickup::allowed(sender, target, places).then_some(())?;
+    weapon_pickup::allowed(target, places).then_some(())?;
     let name = gun.and_then(|(cook, slot)| native::gun_name(thread, cook, slot)).unwrap_or(NameKey::EMPTY);
     Some((Some(Aimed { target, sender, places }), Prompt::Take(name)))
 }
@@ -1886,7 +1886,7 @@ fn offer(thread: &Thread, viewer: &Player<'_>, world: WorldKey, place: Place, ta
     let picker = picker_of(viewer, place).ok_or(Sight::NoPicker)?;
     // Not made yet: the rule as for a pistol (the pickup asks it again).
     let incoming = gun.and_then(|(cook, slot)| native::handedness(thread, cook, slot)).unwrap_or(Handedness::One);
-    weapon_pickup::decide(picker, target, theirs.drop, |_| incoming)
+    weapon_pickup::decide(picker, theirs.drop, |_| incoming)
         .map_err(|why| Sight::Refused { why, held: match picker.hands {
                                             Hands::Gun(slot) => Some((slot, viewer.weapon_handedness(slot))),
                                             Hands::Switching | Hands::NoGun => None,
@@ -1992,7 +1992,7 @@ fn press(key: UseKey, aimed: Option<Aimed>, actions: u32) -> (UseKey, u32) {
         UseKey::Up => {
             let command = aimed.filter(|_| actions & weapon_pickup::CHORD == 0)
                 .map(|a| (a, weapon_pickup::encode(actions, a.target)))
-                .filter(|&(a, sent)| weapon_pickup::sane(sent, a.sender, a.places));
+                .filter(|&(a, sent)| weapon_pickup::sane(sent, a.places));
             match command {
                 Some((_, sent)) => (UseKey::Picked, sent),
                 None => (UseKey::Held, actions),
@@ -2238,7 +2238,7 @@ mod tests {
     #[test]
     fn the_server_check_and_a_carry_command_keep_use_the_games() {
         let use_ = weapon_pickup::USE;
-        assert_eq!(press(UseKey::Up, aimed(3), use_), (UseKey::Held, use_), "its own place");
+        assert_eq!(press(UseKey::Up, aimed(3), use_).0, UseKey::Picked, "its own place's drop");
         assert_eq!(press(UseKey::Up, aimed(9), use_), (UseKey::Held, use_), "no such place in the match");
         let chord = weapon_pickup::CHORD | 0x4000 | use_;
         assert_eq!(press(UseKey::Up, aimed(5), chord), (UseKey::Held, chord), "patch 78's carry command");
