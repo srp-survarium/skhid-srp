@@ -201,7 +201,7 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 .trace .what { font-weight: 700 }
 .trace .vals { font: .86rem var(--font-data); text-align: right; white-space: nowrap }
 .trace .why { grid-column: 1 / -1; font-size: .84rem; color: var(--ink-2) }
-.trace .why code, .explain code { font: .82rem var(--font-data); background: var(--bg); padding: 0 3px }
+.trace .why code { font: .82rem var(--font-data); background: var(--bg); padding: 0 3px }
 .pools { display: grid; gap: 8px }
 .pool { display: grid; grid-template-columns: 74px minmax(0, 1fr) 96px; gap: 8px; align-items: center; font-size: .85rem }
 .pool .bar { height: 14px; background: var(--bg); border: 1px solid var(--rule); position: relative; overflow: hidden }
@@ -289,11 +289,19 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
 .mapview text { font: 700 34px "Carlito", var(--font-display); fill: #fff; paint-order: stroke; stroke: #000; stroke-width: 6px; stroke-linejoin: round }
 .mapread { margin: 0; min-height: 3em }
 .mapread b { font-family: var(--font-data) }
-.formula { margin: 0; padding: 12px 14px; font: .88rem/1.7 var(--font-data); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); overflow-x: auto; white-space: pre }
-.explain { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 14px 26px }
-.explain section { min-width: 0 }
-.explain h3 { color: var(--ink); margin-bottom: 4px }
-.explain p { margin: 0 0 8px; max-width: 65ch; color: var(--ink-2); font-size: .92rem }
+/* The rules, one numbered step each: the rule | this shot (under it on a phone). */
+.rules { margin: 0; padding: 0; list-style: none; counter-reset: step; background: var(--panel); border: 1px solid var(--rule) }
+.rules li { counter-increment: step; display: grid; grid-template-columns: 2em minmax(0, 1fr) minmax(0, 26em); gap: 4px 16px;
+  padding: 10px 14px; border-bottom: 1px dotted var(--rule) }
+.rules li:last-child { border-bottom: 0 }
+.rules li::before { content: counter(step) "."; font: .9rem var(--font-data); color: var(--ink-3) }
+.rules .rule { min-width: 0 }
+.rules .rule b { font-family: var(--font-display); letter-spacing: .02em }
+.rules .rule code { display: inline-block; margin-top: 4px; font: .84rem var(--font-data); background: var(--bg); padding: 1px 5px; overflow-wrap: anywhere }
+.rules .ex { font: .86rem var(--font-data); color: var(--ink-2); text-align: right; overflow-wrap: anywhere }
+.rules .ex.none { color: var(--ink-3) }
+@media (max-width: 600px) { .rules li { grid-template-columns: 2em minmax(0, 1fr) } .rules .ex { grid-column: 2; text-align: left } }
+.rulesnote { margin: 0; max-width: 75ch; color: var(--ink-2); font-size: .9rem }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
 
@@ -393,7 +401,8 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
 
   <section style="display:grid;gap:12px">
     <h2 data-uk="Формула">Formula</h2>
-    <pre class="formula" id="explain"></pre>
+    <ol class="rules" id="explain"></ol>
+    <p class="rulesnote" id="explainnote"></p>
   </section>
 
   <section style="display:grid;gap:10px">

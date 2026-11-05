@@ -874,7 +874,7 @@ function update() {
   drawTrace(b, sim);
   drawPools(target, sim);
   drawChart(w, a, target);
-  drawExplain();
+  drawExplain(target, b, sim);
   drawHealing();
   // The two big tables simulate every part and every gun: draw them a frame
   // later so a click paints first, once for several quick clicks.
@@ -1081,34 +1081,69 @@ function drawCompare(target) {
   }));
 }
 
-// The rules in words, with the numbers taken from the data where they live.
-function drawExplain() {
+// The rules in words, step by step in the bullet's order, with the numbers
+// taken from the data where they live; beside each, the shot chosen above
+// (the same `b` and `sim` the trace shows: the first pellet of the first shot).
+function drawExplain(target, b, sim) {
   const onyx = DATA.artefacts && DATA.artefacts.onyx, pk = DATA.drugs && DATA.drugs.painkiller;
-  $("explain").textContent = (LANG === "uk" ? [
-    "D, P  = зброя × набій, менші між ближньою й дальньою дистанцією",
-    "стіна k = 1 − (1 − clamp((P − A) / A, 0, 1))²   A броня стіни; A 0 → k 1; k 0 → зупинено",
-    "      D, P, швидкість ×= k; D, P не вищі, ніж на новій швидкості",
-    onyx ? `D, P ×= ${onyx.passive.damage_mul} за кожен ${nm(onyx)} (${onyx.active.damage_mul} активний, один раз на всі)` : null,
-    "hit   = D × (1 − clamp(броня − P, 0, 1))",
-    "пул  −= hit       груди, спина → тіло · голова, обличчя → голова · нога · кисть",
-    `біль −= hit × k   k = 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи${pk ? ` · ×${pk.damage_protection[0].hit_coeff} ${nm(pk)}` : ""}`,
-    "смерть, коли тіло, голова або біль доходить до 0",
-    "",
-    "одна куля крізь кілька зон (дві кисті й груди): кожна зона рахується зі своєю бронею,",
-    "а кожен пул бере від цієї кулі найбільше, не суму: біль від кистей 40 і 40, від грудей 35 → −40, не −115",
-  ] : [
-    "D, P  = weapon × ammo, lowered between near and far range",
-    "wall  k = 1 − (1 − clamp((P − A) / A, 0, 1))²   A wall armour; A 0 → k 1; k 0 → stopped",
-    "      D, P, speed ×= k; D, P no higher than at the new speed",
-    onyx ? `D, P ×= ${onyx.passive.damage_mul} per ${nm(onyx)} (${onyx.active.damage_mul} active, once for all)` : null,
-    "hit   = D × (1 − clamp(armour − P, 0, 1))",
-    "pool −= hit       chest, back → body · head, face → head · leg · hand",
-    `pain −= hit × k   k = 1 chest, head, arms · 0.9 legs · 0.8 hands, feet${pk ? ` · ×${pk.damage_protection[0].hit_coeff} ${nm(pk)}` : ""}`,
-    "dead when body, head or pain reaches 0",
-    "",
-    "one bullet through several boxes (both hands and the chest): each box counts with its own armour,",
-    "and each pool takes that bullet's largest share, not the sum: pain 40 and 40 from the hands, 35 from the chest → −40, not −115",
-  ]).filter(x => x !== null).join("\n");
+  const pkK = pk && pk.damage_protection[0].hit_coeff;
+  const log = sim.firstLog;
+  // D and P × one factor, or each its own.
+  const both = (dm, pm) => dm === pm ? T(`D and P × ${dm}`, `D і P × ${dm}`) : `D × ${dm}, P × ${pm}`;
+  const fired = b.wall || b;
+  const onyxLog = log.filter(e => e.step === "callback" && e.depth === 0);
+  const armour = log.find(e => e.step === "armour" && e.depth === 0);
+  const pool = log.find(e => e.step === "pool" && e.depth >= 1 && e.part !== "pain");
+  const pain = log.find(e => e.step === "pool" && e.part === "pain");
+  const drug = log.find(e => e.step === "callback" && e.part === "pain");
+  const part = armour && PARTS[armour.part];
+  const painK = armour && ((target.rows[armour.part].routes || {}).ranged || {}).pain;
+  const kept = T("kept", "частка"), hit = T("hit", "влучання");
+  // [label, rule, formula chip and what follows it, this shot (null: does not apply now)]
+  const steps = [
+    [T("Bullet", "Куля"),
+      T("Damage D and penetration P are the weapon's × the ammo's; both fall from full to minimum between the two damage distances.",
+        "Пошкодження D і бронебійність P: зброя × набій; обидва спадають від повних до мінімальних між двома дистанціями пошкодження."),
+      null, T(`Flies ${state.dist} m: `, `Летить ${state.dist} м: `) + `D ${hp(fired.D)} · P ${hp(fired.P)}`
+        + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : "")],
+    [T("Wall", "Стіна"),
+      T("A wall of armour A stops the bullet if P is not above A; otherwise D, P and its speed keep a share.",
+        "Стіна з бронею A зупиняє кулю, якщо P не вища за A; інакше D, P і швидкість зберігають частку."),
+      [`${kept} = 1 − (1 − (P − A) / A)²`, T("nothing lost at P ≥ 2 × A; the slower bullet can fall further toward its minimum D and P",
+        "без втрат при P ≥ 2 × A; повільніша куля може спасти ще ближче до мінімальних D і P")],
+      b.wall && T(`Through ${nm(wallOf()).toLowerCase()}`, `Крізь: ${nm(wallOf()).toLowerCase()}`) + `, A ${hp(b.wall.A)}: `
+        + (b.wall.k > 0 ? `${kept} ${fx(b.wall.k, 2)} → D ${hp(b.D)} · P ${hp(b.P)}` : T("stopped", "зупинено"))],
+    onyx && [nm(onyx),
+      T(`Each ${nm(onyx)} worn: ${both(onyx.passive.damage_mul, onyx.passive.armor_piercing_mul)}; active: ${both(onyx.active.damage_mul, onyx.active.armor_piercing_mul)}, once for all.`,
+        `Кожен ${nm(onyx)} у слоті: ${both(onyx.passive.damage_mul, onyx.passive.armor_piercing_mul)}; активний: ${both(onyx.active.damage_mul, onyx.active.armor_piercing_mul)}, один раз на всі.`),
+      null, onyxLog.length > 0 && `D ${hp(onyxLog[0].before)} → ${hp(onyxLog[onyxLog.length - 1].D)} · P ${hp(onyxLog[onyxLog.length - 1].P)}`],
+    [T("Armour", "Броня"),
+      T("Armour above P stops (armour − P)% of D, all of it at 100 or more; armour not above P stops nothing.",
+        "Броня, вища за P, зупиняє (броня − P)% від D, усе при 100 і більше; броня, не вища за P, не зупиняє нічого."),
+      [`${hit} = D × (1 − (${T("armour", "броня")} − P) / 100)`, T("between 0 and D", "від 0 до D")],
+      armour && T(`Hits ${part.toLowerCase()}: armour `, `Влучає: ${part.toLowerCase()} · броня `) + `${hp(armour.A)} − P ${hp(armour.P)} → ${hit} ${hp(armour.D)}`],
+    [T("Pools", "Пули"),
+      T("The hit goes to its pool: chest, back → body · head, face → head · leg, foot → that leg · arm, hand → that hand.",
+        "Влучання йде у свій пул: груди, спина → тіло · голова, обличчя → голова · нога, стопа → ця нога · рука, кисть → ця кисть."),
+      null, pool && `→ ${POOLS[pool.part]} −${hp(pool.D)} (${hp(pool.before)} → ${hp(pool.after)})`],
+    [T("Pain", "Біль"),
+      T("Every hit also takes pain: the hit × the part's factor.", "Кожне влучання також знімає біль: влучання × множник частини тіла."),
+      [T("× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet", "× 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи") + (pk ? ` · × ${pkK} ${nm(pk)}` : "")],
+      pain && `→ ${POOLS.pain} −${hp(pain.D)} (× ${painK} ${part.toLowerCase()}${drug ? ` · × ${pkK} ${drug.name}` : ""})`],
+    [T("Death", "Смерть"),
+      T("Body, head or pain at 0 kills.", "Тіло, голова або біль на 0 вбиває."),
+      null, sim.killer ? T(`${sim.shots} hits · ${POOLS[sim.killer].toLowerCase()} at 0`, `влучань: ${sim.shots} · ${POOLS[sim.killer].toLowerCase()} на 0`)
+        : T("does not kill", "не вбиває")],
+  ].filter(Boolean);
+  const list = $("explain"); list.innerHTML = "";
+  for (const [label, rule, formula, ex] of steps) {
+    list.append(el("li", {},
+      el("div", { class: "rule" }, el("b", { text: label }), ` — ${rule}`,
+        formula ? el("div", {}, el("code", { text: formula[0] }), formula[1] ? `, ${formula[1]}` : null) : null),
+      el("div", { class: ex ? "ex" : "ex none", text: ex || "—" })));
+  }
+  $("explainnote").textContent = T("One bullet through several parts: each part counts with its own armour; each pool takes the largest share, not the sum (pain 40, 40, 35 → −40).",
+    "Одна куля крізь кілька частин: кожна рахується зі своєю бронею; кожен пул бере найбільшу частку, не суму (біль 40, 40, 35 → −40).");
 }
 
 // How many Larkspurs the healing table counts (its own tiles), 1 to 4.
