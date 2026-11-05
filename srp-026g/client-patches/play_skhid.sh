@@ -99,11 +99,27 @@ prepare_prefix() {
         verify_prefix_arch
         touch "$WINEPREFIX/.skhid-ready"
     fi
+    select_graphics
     # Exercise a 32-bit PE under the forced modern loader. A 64-bit cmd.exe would
     # not prove the mode needed by the game. Refuse failures without an old-mode retry.
     timeout 60 "$WINE" 'C:\windows\syswow64\cmd.exe' /d /c 'exit 0' >>"$log" 2>&1 || die "Modern WoW64 could not run a 32-bit Windows program.
 Use Wine 11.0 or newer with modern WoW64 support and matching wineserver.
 For an old prefix, keep it as a backup and create a fresh one; see LINUX.txt and $log."
+}
+
+select_graphics() {
+    local chosen=0
+    # Under niri (xwayland-satellite) Wine's X11 driver leaves the game's
+    # mouselook stuck; its Wayland driver locks the pointer itself, with X11
+    # as the fallback. Elsewhere Wine chooses its own driver.
+    grep -qsF '"Graphics"="wayland,x11"' "$WINEPREFIX/user.reg" && chosen=1
+    if [[ -n ${NIRI_SOCKET-} && -n ${WAYLAND_DISPLAY-} ]]; then
+        (( chosen )) || "$WINE" reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d wayland,x11 /f >>"$log" 2>&1 \
+            || echo "Warning: could not select Wine's Wayland driver. See $log" >&2
+    elif (( chosen )); then
+        "$WINE" reg delete 'HKCU\Software\Wine\Drivers' /v Graphics /f >>"$log" 2>&1 \
+            || echo "Warning: could not reset Wine's graphics driver. See $log" >&2
+    fi
 }
 
 prepare_settings() {
