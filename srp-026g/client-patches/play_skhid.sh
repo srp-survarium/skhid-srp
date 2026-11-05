@@ -214,9 +214,9 @@ print_crashes() {
         echo 'Crash reports and full-memory dumps of this run:'
         for file in "${found[@]}"; do
             case $file in
-                *.zip) echo "    $file  (send this to #bugreports)" ;;
+                *.zip) echo "    $file  (a crash ZIP: send this to a new post in #bugreports)" ;;
                 *.dmp) echo "    $file  (the whole memory: keep it, do not post it; give its path when asked)" ;;
-                *.txt) echo "    $file  (the crash report: the match and its last events)" ;;
+                *.txt) echo "    $file  (the crash report: send this to a new post in #bugreports)" ;;
                 *) echo "    $file" ;;
             esac
         done
