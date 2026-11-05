@@ -928,7 +928,7 @@ static void consume(struct sponge *s) {
     u8 *inventory = AT(s, I_INVENTORY, u8 *);
     u32 slot = AT(s, I_SLOT, u32);
     if (inventory && slot < NO_SLOT && AT(inventory, INV_SLOTS + 4 * slot, struct sponge *) == s)
-        engine_inventory_remove_item(inventory, slot);
+        engine_inventory_remove((struct inventory *)inventory, slot);
 }
 
 /* The explosion (ACT_EXPLODE) at `at` (where it was armed: the hand or the

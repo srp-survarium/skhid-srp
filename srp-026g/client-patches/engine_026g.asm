@@ -159,7 +159,6 @@ global engine_create_rigid_body
 global engine_destroy_shape
 global engine_rt_cast_to_void
 global engine_splash_hit
-global engine_inventory_remove_item
 global engine_scene_add_model
 global engine_scene_update_model
 global engine_scene_remove_model
@@ -2132,22 +2131,6 @@ engine_splash_hit:
     push dword [esp + 32]   ; manager -> 4
     mov esi, [esp + 32]   ; parameters
     call 0x339630
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_inventory_remove_item:
-    ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
-    push ebp
-    push ebx
-    push esi
-    push edi
-    mov esi, [esp + 20]   ; inventory
-    mov eax, [esp + 24]   ; slot
-    call 0x2fc680
     pop edi
     pop esi
     pop ebx

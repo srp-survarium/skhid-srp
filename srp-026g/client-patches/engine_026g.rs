@@ -235,8 +235,6 @@ unsafe extern "C" {
     pub fn engine_rt_cast_to_void(object: *mut c_void) -> *mut c_void;
     /// 0x339630 survarium::bullet_manager::explode: parameters ESI, manager ESP+4, centre ESP+8, time ESP+12; pops 12
     pub fn engine_splash_hit(parameters: *const c_void, manager: *mut c_void, centre: *const f32, time: u32);
-    /// 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
-    pub fn engine_inventory_remove_item(inventory: *mut c_void, slot: u32);
     /// 0x21cd0 vostok::render::scene_renderer::add_model: model EAX, renderer ESP+4, scene ESP+8, first ESP+12, second ESP+16; pops 16
     pub fn engine_scene_add_model(model: *mut c_void, renderer: *mut c_void, scene: *mut c_void, first: *const c_void, second: *const c_void);
     /// 0x22280 vostok::render::scene_renderer::update_model: model EAX, renderer ESP+4, scene ESP+8, first ESP+12, second ESP+16; pops 16

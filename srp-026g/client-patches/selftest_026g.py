@@ -2679,7 +2679,7 @@ def test_sponge_a(original, image, before):
                    "engine_rattle_set_world", "engine_rattle_draw", "engine_rattle_destroy", "engine_cook_finish_query",
                    "engine_artefact_tick", "engine_artefact_serialize", "engine_artefact_deserialize",
                    "engine_apply_modifier", "engine_find_pool", "engine_hand_transform", "engine_splash_hit",
-                   "engine_inventory_remove_item", "engine_sensor_insert", "engine_zone_tick", "engine_zone_deactivate",
+                   "engine_inventory_remove", "engine_sensor_insert", "engine_zone_tick", "engine_zone_deactivate",
                    "engine_geometry_load", "engine_geometry_destroy", "engine_create_collision_shape",
                    "engine_create_rigid_body", "engine_destroy_shape", "engine_rt_cast_to_void",
                    "engine_body_set_linear_velocity", "engine_body_set_angular_velocity",

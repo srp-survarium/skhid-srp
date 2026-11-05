@@ -114,7 +114,9 @@ def edit_list(rows, live):
     configs = collections.defaultdict(set)
     for row in dictionary['maps_dict']:
         path = live / 'gameplay' / 'game_modes' / row['cfg_mode_name']
-        if not path.is_file():
+        # Blackout's configs are copies of these (blackout-mode-1, laid after this list), so
+        # they have the spots already.
+        if not path.is_file() or row['cfg_mode_name'].startswith('blackout/'):
             continue
         name = ((bcw.load(path).get('mode') or {}).get('match_making_params') or {}).get('map_name') or ''
         configs[name.split('/')[0]].add('gameplay/game_modes/' + row['cfg_mode_name'])

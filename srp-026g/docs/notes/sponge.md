@@ -174,6 +174,9 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
 - `scripts/sponge/spots.py edit-list` makes the edit list `artefact-spots-1` of it: each map's
   mode configs get `mode/artefact_spots`; every row is checked against every live project of its
   map. `spots.py check` says whether the edit list is current.
+- Blackout has the same spots (the owner, 2026-11-05): `blackout-mode-1`, laid after
+  `artefact-spots-1`, copies these maps' configs with their spots, so `spots.py` skips
+  `gameplay/game_modes/blackout/`.
 - A picked container spawns only the Sponge. The anomaly's other containers spawn its own kinds,
   as before. An anomaly with no pick is 0.26g's: no Sponge there.
 - The exe (client_patch.md 3.52, "The owner's spots"): the anomaly cook gives a picked core one

@@ -553,9 +553,6 @@ void *engine_rt_cast_to_void(void *object);
 /* 0x339630 survarium::bullet_manager::explode: parameters ESI, manager ESP+4, centre ESP+8, time ESP+12; pops 12 */
 void engine_splash_hit(const void *parameters, void *manager, const float *centre, unsigned int time);
 
-/* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
-void engine_inventory_remove_item(void *inventory, unsigned int slot);
-
 /* 0x21cd0 vostok::render::scene_renderer::add_model: model EAX, renderer ESP+4, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
 void engine_scene_add_model(void *model, void *renderer, void *scene, const void *first, const void *second);
 

@@ -154,7 +154,6 @@ engine_create_rigid_body	0x357100	ESP+4:description ESP+8:shape	void *engine_cre
 engine_destroy_shape	0x07a1b0	ESI:shape	void engine_destroy_shape(void *shape)	thunk	
 engine_rt_cast_to_void	0x42a390	ESP+4:object	void *engine_rt_cast_to_void(void *object)	thunk	
 engine_splash_hit	0x339630	ESI:splash ESP+4:manager ESP+8:centre ESP+12:time	void engine_splash_hit(const void *parameters, void *manager, const float *centre, unsigned int time)	thunk	
-engine_inventory_remove_item	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove_item(void *inventory, unsigned int slot)	thunk	
 engine_scene_add_model	0x021cd0	EAX:render-model ESP+4:receiver ESP+8:scene ESP+12:first ESP+16:second	void engine_scene_add_model(void *model, void *renderer, void *scene, const void *first, const void *second)	thunk	
 engine_scene_update_model	0x022280	EAX:render-model ESP+4:receiver ESP+8:scene ESP+12:first ESP+16:second	void engine_scene_update_model(void *model, void *renderer, void *scene, const void *first, const void *second)	thunk	
 engine_scene_remove_model	0x021f40	EAX:render-model ESP+4:receiver ESP+8:scene	void engine_scene_remove_model(void *model, void *renderer, void *scene)	thunk	
