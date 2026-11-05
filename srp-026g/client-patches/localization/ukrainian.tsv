@@ -1778,7 +1778,7 @@ st_ranking	Рейтинг
 st_ranking_diff	Різниця
 st_rattle_activation_hint	Брязкальце активовано! Вороги не почують ваших кроків!
 st_rattle_pickup_hint	Артефакт Брязкальце. Стишує звуки кроків на 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Ручна димова граната. Ставить щільну завісу, що приховує пересування.
 st_rdgm_name	Димова граната РДГ-М
 st_reach_level	досяг <green>Рівня</green>
 st_ready	Готовий
@@ -2447,8 +2447,14 @@ st_srp_hud_unmute	Увімкнути чат
 st_srp_hud_unmuted	Чат увімкнено
 st_srp_inv_ammo_range	Дальність
 st_srp_inv_bullet_speed	Швидкість кулі
+st_srp_inv_defuse_time	Час знешкодження
+st_srp_inv_fuse_time	Час запалу
 st_srp_inv_pellets	Дробин
+st_srp_inv_pocket_units	Місце в кишені
+st_srp_inv_stamina_damage	Шкода витривалості
+st_srp_inv_throw_speed	Швидкість кидка
 st_srp_inventory_search	Пошук
+st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Застосується після перезапуску.
 st_srp_loadout_block_ammo	Замало набоїв до зброї

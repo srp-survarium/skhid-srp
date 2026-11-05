@@ -128,6 +128,7 @@ edit	dead-keys-1.json	-	the dead duplicate keys out (parameters/ copies of what 
 edit	scar-ammo-1.json	-	SCAR-H uses only dedicated AP in 20-round packs (2266), with shared AP ballistics; other weapons retain their ammo
 edit	ammo-cards-1.json	-	ammo cards: bullet speed (m/s) on every round, range (%) on the four rounds that change it, pellets on the three smallshot rounds (UI properties 163..165); before ammo.tsv, which writes their values
 edit	ammo.tsv	-	the ammo's stats, and their cards
+edit	throwable-cards-1.json	-	grenade and trap cards: damage on one body hit (prop 1, the RGD-5 130 not 780), armour penetration, stopping power, stamina damage, fuse, throw speed (m/s) and the trap's defuse time (UI properties 167..170); before throwables.tsv
 edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)

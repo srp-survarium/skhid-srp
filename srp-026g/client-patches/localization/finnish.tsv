@@ -1778,7 +1778,7 @@ st_ranking	Sijoitus
 st_ranking_diff	Ero
 st_rattle_activation_hint	Helistin aktivoitu! Viholliset eivät kuule askeleitasi.
 st_rattle_pickup_hint	Helistin-artefakti. Vaimentaa askeleiden ääntä 50%.
-st_rdgm_descr	Kuvausta ei vielä ole.
+st_rdgm_descr	Savukäsikranaatti. Levittää sakean savuverhon, joka kätkee liikkeen.
 st_rdgm_name	RDG-M-savukranaatti
 st_reach_level	saavutti <green>tason</green>
 st_ready	Valmis
@@ -2447,8 +2447,14 @@ st_srp_hud_unmute	Poista mykistys
 st_srp_hud_unmuted	Mykistys poistettu
 st_srp_inv_ammo_range	Kantama
 st_srp_inv_bullet_speed	Luodin nopeus
+st_srp_inv_defuse_time	Purkuaika
+st_srp_inv_fuse_time	Sytytysaika
 st_srp_inv_pellets	Haulit
+st_srp_inv_pocket_units	Taskupaikat
+st_srp_inv_stamina_damage	Kestävyysvahinko
+st_srp_inv_throw_speed	Heittonopeus
 st_srp_inventory_search	Hae
+st_srp_item_props_mps	m/s
 st_srp_language_option	Kieli:
 st_srp_language_restart	Vaatii uudelleenkäynnistyksen.
 st_srp_loadout_block_ammo	Liian vähän ammuksia aseelle

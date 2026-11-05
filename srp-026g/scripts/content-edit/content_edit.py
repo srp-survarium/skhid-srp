@@ -772,20 +772,27 @@ def ammo_card(buf):
 
 
 def throwable_card(buf):
-    """{prop_id: text} of a grenade's or a trap's card: 1 damage x100 (a grenade's on every body it
-    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight."""
+    """{prop_id: text} of a grenade's or a trap's card (throwable-cards-1): 1 the damage x100 on each
+    body it hits (a grenade's at the centre on each of its splash bodies, a trap's on the foot), 3 its
+    piercing x100, 15 the weight; a grenade's 132 stopping power x100, 167 stamina damage, 23 radius,
+    168 fuse (s) and 169 throw speed (m/s); a trap's 170 defuse time (s)."""
     def number(path):
         try:
             return value_of(buf, find(buf, path))
         except KeyError:
             return None
+
+    def text(path, times=1):
+        return number_text(round(number(path) * times, 4))
     out = {15: weight_text(number('parameters/weight'))}
     if number('data/splash_max_damage') is not None:
-        bodies = len(children(buf, find(buf, 'data/splash_affected_bodies')))
-        out.update({1: number_text(number('data/splash_max_damage') * 100 * bodies),
-                    23: number_text(number('data/splash_radius'))})
+        out.update({1: text('data/splash_max_damage', 100), 3: text('data/splash_pierce', 100),
+                    132: text('data/stopping_power', 100), 167: text('data/stamina_damage'),
+                    23: text('data/splash_radius'), 168: text('data/ttl_ms', 0.001),
+                    169: text('data/throw_power')})
     if number('data/damage_parameters[0]/amount') is not None:
-        out[1] = number_text(number('data/damage_parameters[0]/amount') * 100)
+        out.update({1: text('data/damage_parameters[0]/amount', 100),
+                    3: text('data/damage_parameters[0]/armor_piercing', 100), 170: text('data/defuse_time')})
     return out
 
 

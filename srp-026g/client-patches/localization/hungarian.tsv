@@ -1778,7 +1778,7 @@ st_ranking	Ranglista
 st_ranking_diff	Különbség
 st_rattle_activation_hint	Csörgő aktiválva! Az ellenség nem hallja a lépteidet.
 st_rattle_pickup_hint	Csörgő artefaktum. 50%-kal halkítja a lépteid zaját.
-st_rdgm_descr	A leírás még nem érhető el.
+st_rdgm_descr	Kézi füstgránát. Sűrű füstfüggönyt von, amely elrejti a mozgást.
 st_rdgm_name	RDG-M füstgránát
 st_reach_level	elérte a következő <green>szintet</green>:
 st_ready	Kész
@@ -2447,8 +2447,14 @@ st_srp_hud_unmute	Némítás feloldása
 st_srp_hud_unmuted	Némítás feloldva
 st_srp_inv_ammo_range	Lőtávolság
 st_srp_inv_bullet_speed	Lövedéksebesség
+st_srp_inv_defuse_time	Hatástalanítási idő
+st_srp_inv_fuse_time	Gyújtási idő
 st_srp_inv_pellets	Sörétek
+st_srp_inv_pocket_units	Zsebhelyek
+st_srp_inv_stamina_damage	Állóképesség-sebzés
+st_srp_inv_throw_speed	Dobási sebesség
 st_srp_inventory_search	Keresés
+st_srp_item_props_mps	m/s
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
 st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
