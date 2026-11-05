@@ -13,16 +13,20 @@ fn main() {
             files.extend(entries.map(|entry| entry.unwrap().path()));
             continue;
         }
-        let path = file.strip_prefix(&root).unwrap().to_str().unwrap();
+        // The URL's path is the file's components joined by `/` on every host (Windows' own separator is `\`).
+        let parts: Vec<&str> = file.strip_prefix(&root).unwrap().components().map(|part| part.as_os_str().to_str().unwrap()).collect();
+        let path = parts.join("/");
         let kind = match file.extension().and_then(|ending| ending.to_str()) {
             Some("js") => "text/javascript; charset=utf-8",
             Some("woff2") => "font/woff2",
             Some("webp") => "image/webp",
             // The page itself and the patches it was built from.
-            _ if ["damage.html", "built-from.tsv"].contains(&path) => continue,
+            _ if ["damage.html", "built-from.tsv"].contains(&path.as_str()) => continue,
             _ => panic!("damage/{path}: no content type for its extension"),
         };
-        out += &format!("(\"/damage/{path}\", \"{kind}\", include_bytes!({file:?}) as &[u8]),");
+        // Both strings as Rust literals ({:?} escapes them).
+        let url = format!("/damage/{path}");
+        out += &format!("({url:?}, {kind:?}, include_bytes!({file:?}) as &[u8]),");
     }
     let list = Path::new(&env::var("OUT_DIR").unwrap()).join("damage_files.rs");
     fs::write(list, out + "]").unwrap();

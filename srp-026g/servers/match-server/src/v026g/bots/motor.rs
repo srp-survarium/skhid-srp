@@ -462,6 +462,8 @@ pub struct Hurt {
     pub leg_broken: bool,
     /// The last bullet hit, the world's ms (`m_last_hit_time_ms`).
     pub last_hit_ms: Option<u32>,
+    /// [A313] The legs' pools as the world showed them (none where it did not).
+    pub legs: [Option<f32>; 2],
 }
 
 /// After a hit the body is staggered this long, ms (`stagger_duration`,
@@ -479,8 +481,22 @@ impl Hurt {
     pub fn of(legs: [Option<f32>; 2], last_hit_ms: u32, now: u32) -> Self {
         Self {
             leg_broken: legs.iter().flatten().any(|&pool| pool <= LEG_BROKEN),
+            legs,
             last_hit_ms: (last_hit_ms != 0 && last_hit_ms <= now).then_some(last_hit_ms),
         }
+    }
+
+    /// [A313] The client's speed factor from the legs alone, `max(0, 1 + the legs' terms)`: a leg at 0 (broken) -0.2, under 20 %
+    /// of its pool -0.1 (the leg's speed node 0x32A9C0, `notes-speed.md`); 1 for a leg the world did not show.
+    pub fn legs_factor(&self) -> f32 {
+        let term = |pool: Option<f32>| -> f32 {
+            match pool {
+                Some(p) if p <= LEG_BROKEN => -0.2,
+                Some(p) if p < 0.2 * super::pools::LIMB_MAX => -0.1,
+                _ => 0.0,
+            }
+        };
+        (1.0 + term(self.legs[0]) + term(self.legs[1])).max(0.0)
     }
 
     /// Whether the body may jump at `now`, ms: no broken leg, and not
@@ -4405,6 +4421,19 @@ mod tests {
         assert!(!hit.may_jump(now));
         assert!(hit.may_jump(now - 200 + HIT_JUMP_HOLD_MS));
         assert_eq!(Hurt::of([Some(0.5); 2], now + 50, now).last_hit_ms, None);
+    }
+
+    /// [A313] The legs' speed term: -0.1 a leg under 20 % of its 0.5 pool, -0.2 a leg at 0, nothing for a leg not shown.
+    #[test]
+    fn the_legs_factor_is_the_clients() {
+        let f = |legs: [Option<f32>; 2]| Hurt::of(legs, 0, 1_000).legs_factor();
+        assert_eq!(Hurt::default().legs_factor(), 1.0);
+        assert_eq!(f([Some(0.5), Some(0.1)]), 1.0);
+        assert!((f([Some(0.5), Some(0.09)]) - 0.9).abs() < 1e-6);
+        assert!((f([Some(0.0), Some(0.5)]) - 0.8).abs() < 1e-6);
+        assert!((f([Some(0.0), Some(0.05)]) - 0.7).abs() < 1e-6);
+        assert!((f([Some(0.0), Some(0.0)]) - 0.6).abs() < 1e-6);
+        assert_eq!(f([None, Some(0.5)]), 1.0);
     }
 
     /// A jump whose way turns from the approach (Cologne's battery 6) is

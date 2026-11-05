@@ -78,6 +78,7 @@ mod kits;
 mod late_map;
 mod live_zones;
 mod match_wide;
+mod narrow_doors;
 mod neck;
 mod no_way;
 mod opening;

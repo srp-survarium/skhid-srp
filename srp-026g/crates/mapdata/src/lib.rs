@@ -153,6 +153,9 @@ pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0001;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
+/// The same for the narrow doors' floors given back after the erosion rounds ([`Body::narrow_doors`], A313), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -321,6 +324,10 @@ pub fn grid_key_with_links(
     // And the walk-off walls with the `walk` faces.
     if body.drop_room_walk_faces {
         digest.u32(DROP_ROOM_WALK_FACES_ALGO);
+    }
+    // And the narrow doors' floors.
+    if body.narrow_doors {
+        digest.u32(NARROW_DOORS_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

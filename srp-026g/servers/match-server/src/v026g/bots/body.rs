@@ -282,6 +282,9 @@ pub struct BodyTrack {
     /// The level its profile gives (`bot_skills::profile_movement_level`:
     /// skills, the weight carried), taken until a world shows this life's.
     prior_level: Option<f32>,
+    /// [A313] The legs' term of the speed factor (`Kinematics::speed_terms`); none is 1. Kept out of the level: a world's level is
+    /// read without it and the body moves by both.
+    legs: Option<f32>,
     /// The lives the worlds showed, the present one counted.
     lives: u32,
     /// Where the body was last reckoned alive, and which life that was:
@@ -346,10 +349,15 @@ impl BodyTrack {
         self.prior_level = level.filter(|level| level.is_finite() && *level > 0.0);
     }
 
+    /// [A313] The legs' term of the speed factor the body moves by from now (`Kinematics::speed_terms`): 1 or none for none.
+    pub fn set_legs(&mut self, factor: Option<f32>) {
+        self.legs = factor.filter(|f| f.is_finite() && *f > 0.0 && *f != 1.0);
+    }
+
     /// The speed level the body is moved at: this life's from a world, else
-    /// its profile's, else the nominal 1.
+    /// its profile's, else the nominal 1; times the legs' term.
     pub fn level(&self) -> f32 {
-        self.level.or(self.prior_level).unwrap_or(1.0)
+        self.level.or(self.prior_level).unwrap_or(1.0) * self.legs.unwrap_or(1.0)
     }
 
     /// How far the body was reckoned to move between the last two worlds
@@ -488,7 +496,8 @@ impl BodyTrack {
             self.level = None;
             self.lives += 1;
         }
-        if let Some(level) = fix.speed.and_then(|speed| kin.level_of(fix.keys, speed)) {
+        // The world's speed with the legs' term taken out: the level is the rest of the factor.
+        if let Some(level) = fix.speed.and_then(|speed| kin.level_of(fix.keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
         }
         let level = self.level();
@@ -1594,6 +1603,26 @@ pub(super) mod tests {
         // Nonsense is not taken.
         track.set_prior_level(Some(f32::NAN));
         assert_eq!(track.level(), 1.0);
+    }
+
+    /// [A313] With the legs' term set, a world's speed is read without it (the level stays the rest of the factor) and the body
+    /// moves by both: a leg under 20 % (0.9) and a world showing it walk at 0.9 of the walk is a level of 1; at 0.81 a level of 0.9.
+    #[test]
+    fn a_hurt_legs_term_is_kept_out_of_the_level_and_moves_the_body() {
+        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.set_legs(Some(0.9));
+        assert!((track.level() - 0.9).abs() < 1e-6);
+        let walking = |speed: f32, time: u32| Fix { keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        track.fixed(walking(kin.walk[0] * 0.9, 0), &kin, None);
+        assert!((track.level() - 0.9).abs() < 1e-5, "the level is 1, the legs 0.9: {}", track.level());
+        track.fixed(walking(kin.walk[0] * 0.81, 1_000), &kin, None);
+        assert!((track.level() - 0.81).abs() < 1e-5, "{}", track.level());
+        // The leg mended: the level alone.
+        track.set_legs(Some(1.0));
+        assert!((track.level() - 0.9).abs() < 1e-5);
+        track.set_legs(None);
+        assert!((track.level() - 0.9).abs() < 1e-5);
     }
 
     #[test]

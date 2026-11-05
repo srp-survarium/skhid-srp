@@ -14,6 +14,8 @@
 //! | `SRP_BENCH_CAMP` | no camping carrier |
 //! | `SRP_BENCH_NUDGE` | no nudged battery |
 //! | `SRP_BENCH_SPREAD` | off: no shot spread |
+//! | `SRP_BENCH_SPRINT_GATE` | off: a shot and the aim-in right after a sprint |
+//! | `SRP_BENCH_JUMP_GATE` | off: a shot and the aim-in in a jump |
 //! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and the line is scattered by the live position error |
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
@@ -27,6 +29,7 @@
 //! | `SRP_BENCH_STAGGER_MODEL` ([`standin_stagger`](super::standin_stagger)) | on: a hit slows by the weapon's `stopping_power`; `off`: 0.75 for 0.5 s |
 //! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
 //! | `SRP_BENCH_TRAPS_MODEL` ([`standin_traps`](super::standin_traps)) | on: the bear traps; `off`: none |
+//! | `SRP_BENCH_STAND_IN_LEGS` | on: a body walks at the client's legs term of its speed factor ([`stand_in_legs`]); `off`: legs never slow it |
 //!
 //! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`,
 //! `DRAW_MS`, `PUT_MS`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
@@ -34,6 +37,29 @@
 use super::*;
 use mapdata::{DamageShare, FaceArmor, Load};
 use super::super::pitch::{Pitch, PitchScale};
+
+/// [A313] Whether a stand-in body walks at the client's legs term of its speed factor (`SRP_BENCH_STAND_IN_LEGS`, on unless `off`):
+/// the client slows a body 0.1 a leg under 20 % of its pool and 0.2 a leg at 0 (`mapdata::controller::speed`, read from the 0.26g
+/// exe). Benches before it moved hurt bodies at full speed, so they overrate them.
+pub(crate) fn stand_in_legs() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_LEGS").map_or(true, |v| v != "off"))
+}
+
+/// [A313] The client's legs term of the speed factor, `max(0, 1 + each leg's term)`: -0.2 a leg at 0 (broken: at or under 0.005,
+/// as the worlds show it), -0.1 a leg under 20 % of its 0.5 pool.
+pub(crate) fn stand_in_legs_factor(legs: [f32; 2]) -> f32 {
+    let term = |pool: f32| -> f32 {
+        if pool <= 0.005 {
+            -0.2
+        } else if pool < 0.2 * 0.5 {
+            -0.1
+        } else {
+            0.0
+        }
+    };
+    (1.0 + term(legs[0]) + term(legs[1])).max(0.0)
+}
 
 /// The patched client's take of a battery under the feet: its ray and the
 /// distance across (patch 11, `client_patch.md`).
@@ -654,6 +680,8 @@ pub(crate) struct Game {
     pub(crate) kick_ticks: Vec<fight_tally::KickTick>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
+    /// The client's sprint and jump gates on shots and the aim-in (`SRP_BENCH_SPRINT_GATE`, `SRP_BENCH_JUMP_GATE`).
+    pub(crate) gates: bench_spread::ClientGates,
     /// [A241] An aimed automatic's shot leaves right of the view by the client's aim sway when `Live` (`SRP_BENCH_AIM_SWAY=live`,
     /// [`crate::v026g::bots::recoil::AIM_SWAY_DEG`]); and each team's shots so turned, with the degrees in all.
     pub(crate) aim_sway: crate::v026g::bots::recoil::ClientSway,
@@ -958,6 +986,7 @@ impl Game {
             kick_pairs: Vec::new(),
             kick_ticks: Vec::new(),
             spread: false,
+            gates: bench_spread::ClientGates::default(),
             aim_sway: crate::v026g::bots::recoil::ClientSway::Absent,
             swayed: [(0, 0.0); 2],
             volume: HitVolume::Disc,
@@ -1247,6 +1276,10 @@ impl Game {
             let caught = body.trap.slowed(tick);
             if caught {
                 level *= standin_traps::SLOW;
+            } else if stand_in_legs() {
+                // [A313] The client's legs term of the speed factor (the leg's speed node 0x32A9C0, `notes-speed.md`): -0.1 a leg
+                // under 20 % of its pool, -0.2 a leg at 0. A trap's catch is both legs at 0 already ([`standin_traps::SLOW`], 0.6).
+                level *= stand_in_legs_factor(body.legs);
             }
             // A carrier cannot sprint: the sprint check asks the item in
             // hand, and the battery's answer is no (0x397C20), PROVEN; seen
@@ -1561,7 +1594,8 @@ impl Game {
                 && body.keys & key::FIRE != 0
                 && body.carrying.is_none()
                 && tick >= body.drawn_at
-                && body.stock.may_fire(tick);
+                && body.stock.may_fire(tick)
+                && !body.spread.gated(tick, self.gates);
             let (auto, interval_ms) = (body.gun.auto, body.gun.shot_ms());
             let mut times = Vec::new();
             body.cadence
@@ -1652,7 +1686,7 @@ impl Game {
         let truth = body.recoil.y();
         let mirror = body.mirror.map(|m| m.0);
         self.bodies[shooter].recoil.shot(at, top, 0.0);
-        let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at);
+        let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at, self.gates);
         let view_dir = dir;
         let (origin, dir) = self.shot_line(eye, dir, cone);
         let tick = self.tick;
@@ -2899,4 +2933,15 @@ fn the_bots_profiles_carry_the_radio_in_every_kit() {
     let profiles: Vec<_> = [BotRole::Support, BotRole::Rusher].iter().enumerate().map(|(n, &role)| bot_profile(n + 1, n as u8, role, equipment)).collect();
     game.set_radio_kits(&profiles);
     assert_eq!((game.bodies[0].radio, game.bodies[1].radio), ([true; 3], [true; 3]));
+}
+
+/// [A313] The stand-in's legs term is the client's: nothing for sound legs or a leg at 20 % of its pool, -0.1 under it, -0.2 at 0,
+/// both broken 0.6 (the trap catch's [`standin_traps::SLOW`]).
+#[test]
+fn the_stand_in_legs_slow_a_body_as_the_client() {
+    assert_eq!(stand_in_legs_factor([0.5, 0.5]), 1.0);
+    assert_eq!(stand_in_legs_factor([0.5, 0.1]), 1.0);
+    assert!((stand_in_legs_factor([0.5, 0.09]) - 0.9).abs() < 1e-6);
+    assert!((stand_in_legs_factor([0.0, 0.5]) - 0.8).abs() < 1e-6);
+    assert!((stand_in_legs_factor([0.0, 0.0]) - standin_traps::SLOW).abs() < 1e-6);
 }

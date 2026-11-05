@@ -11,6 +11,7 @@
 //! steps that far along the move and measures again, until the gap is under [`CONTACT_M`] or the move ends. A capsule that only
 //! translates gets no closer than its speed allows, so no contact is stepped over.
 pub mod gjk;
+pub mod speed;
 pub mod tick;
 
 use crate::{Triangle, WalkerBehaviour};
