@@ -123,9 +123,12 @@ mod tests {
     #[ignore = "needs SRP_GAME_DATA, the server's game data"]
     fn every_weapon_of_the_live_game_data_has_a_reach() {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA");
+        // The table is keyed by the config's stem (`wpn_ak_74u`), as the readers look it up
+        // (`game/driven.rs`'s `shot_reach_of`): the dictionary name (`ak_74u`) is not a key.
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
         let silent: Vec<String> = survarium::v026g::weapons::all()
             .iter()
-            .filter(|w| reach_of(w.name).is_none())
+            .filter(|w| dictionary.item(w.dict_id).is_none_or(|item| reach_of(&item.cfg_name).is_none()))
             .map(|w| w.name.to_owned())
             .collect();
         assert!(silent.is_empty(), "no row in shot_reach.tsv for {silent:?}");
