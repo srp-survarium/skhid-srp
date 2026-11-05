@@ -76,7 +76,7 @@ A default kit has three ammo bags.
   had was barely visible; the Val's `fx/weapons/9x39` is a suppressed puff, the Groza is not
   suppressed). The port now refuses a config naming a resource no archive has (resource-porter
   `resources.rs`).
-- **Groza's sights (@12):** it took the Val's `aim_offset` (0.028) from its template; the donor has
+- **Groza's sights (@12, shipped as @13):** it took the Val's `aim_offset` (0.028) from its template; the donor has
   none, so the port leaves it out. The camera sits at the `aim` locator and looks along the gun
   (the in-game view's proportions match a render from it). One sights the post through the rear
   plate's top notch; the ring below it is a boss, as in 0.69d0. The aim locator is the donor's own,
