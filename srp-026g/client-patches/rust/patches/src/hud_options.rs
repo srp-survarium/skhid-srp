@@ -19,6 +19,10 @@
 //!   (`root.srp_hud_options(hide hit markers, hide scores, hide crosshair,
 //!   map names)`),
 //!   once for each change of the movie or of a setting;
+//! - the lobby shown (`lobby_menu.activated`, after patch 88): the
+//!   updater's `dxvk.pending` deleted: a start with DXVK got this far
+//!   (docs/notes/dxvk-option.md; the updater turns DXVK off when it finds
+//!   the marker still there);
 //! - a match's options read (`static_info.options_read`,
 //!   `replay.options_read`, after patch 65): a new match, whose hud may be
 //!   another at the last one's address, is told again.
@@ -32,7 +36,7 @@
 
 use core::ffi::CStr;
 
-use crate::vostok::settings::{ConsoleBool, OptionsCall, save_user_config};
+use crate::vostok::settings::{ConsoleBool, OptionsCall, delete_file, save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
@@ -66,6 +70,10 @@ pub static HIDE_CROSSHAIR: Setting = Setting::new(c"srp_hide_crosshair", c"st_sr
 /// updater puts DXVK's DLLs beside the game at the next start when it is on
 /// (client/updater/logic/src/dxvk.rs, `SETTING`).
 pub static DXVK: Setting = Setting::new(c"srp_dxvk", c"st_srp_dxvk_option");
+
+/// The updater's marker of a start with DXVK (client/updater/logic/src/dxvk.rs,
+/// `MARKER`), beside the game.
+pub const DXVK_MARKER: &CStr = c"dxvk.pending";
 
 /// Every setting of this patch, as the Settings call them.
 pub static SETTINGS: [&Setting; 5] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK];
@@ -153,6 +161,13 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let saved = if setting.on(thread) { c"1" } else { c"0" };
     call.answer(c"root.srp_check_option", &[setting.name, label, saved]);
     Flow::Exit(HudOptionsOnOptionsCallExit::Done)
+}
+
+/// The lobby shown (lobby_menu::on_activate 0x21D31D): this start reached
+/// it, with DXVK or not; the updater's marker goes.
+pub fn on_lobby(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    delete_file(ctx.thread(), DXVK_MARKER);
+    Flow::Continue
 }
 
 /// A new match (process_static_match_info 0x27B92D, a replay's chunk 1

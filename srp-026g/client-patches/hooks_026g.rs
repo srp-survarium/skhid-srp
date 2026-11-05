@@ -831,6 +831,36 @@ pub extern "C" fn hook_hud_options_on_options_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- music (patch 88) ----
+
+/// The entry `music_on_lobby` (0x21d31d, lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_lobby(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_lobby` calls this, from the game's jump at 0x21d31d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_lobby(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_lobby` (0x21d31d, lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_lobby(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_lobby` calls this, from the game's jump at 0x21d31d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_lobby(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- input_check (patch 99) ----
 
 /// The named exits of input_check::on_change_input (the order the shim's Flow code
@@ -1909,21 +1939,6 @@ pub extern "C" fn hook_music_on_login(frame: &mut Frame) -> u32 {
 
 // ---- music (patch 88) ----
 
-/// The entry `music_on_lobby` (0x21d31d, lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_lobby(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_lobby` calls this, from the game's jump at 0x21d31d,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::music::on_lobby(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- music (patch 88) ----
-
 /// The entry `music_on_loading` (0x2204b3, lobby_menu::switch_to_level_loading with its mode's ui table (mov eax,esi / mov [esp+0Ch],esi, before loading_screen_id is read): ESI mode/ui) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_loading(frame: &mut Frame) -> u32 {
@@ -2644,6 +2659,15 @@ pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 
     let flow = hook_language_on_options_call(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_options_call(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_lobby_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_lobby(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_hud_options_on_lobby(frame);
     if flow != 0 { return flow; }
     0
 }

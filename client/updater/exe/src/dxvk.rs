@@ -1,9 +1,13 @@
 //! The opt-in Vulkan renderer (`updater_logic::dxvk`,
 //! `srp-026g/docs/notes/dxvk-option.md`): after the overlay, at every
-//! update, DXVK's `d3d11.dll` and `dxgi.dll` are copied from `dxvk\` beside
-//! the game when user.cfg says `srp_dxvk on` and a Vulkan device can run
-//! DXVK, and ours are removed from beside the game otherwise. Best effort:
-//! what fails is logged, and the update goes on as if nothing were asked.
+//! update, what is found (user.cfg's `srp_dxvk`, the DLLs beside the game and
+//! in `dxvk\`, the marker `dxvk.pending`) gives the run's plan
+//! (`updater_logic::dxvk::step`), carried out here: DXVK's `d3d11.dll` and
+//! `dxgi.dll` copied beside the game and the marker left (the game deletes
+//! it once its lobby shows); or ours removed and the marker deleted; or,
+//! after a start with DXVK that never showed the lobby, the setting turned
+//! off in user.cfg too. Best effort: what fails is logged, and the update
+//! goes on with plain DirectX.
 //!
 //! The Vulkan check runs in a second run of this program
 //! (`updater_skhid.exe vulkan`, [`probe`]): a driver or a Vulkan layer that
@@ -15,7 +19,8 @@ use core::ffi::c_void;
 use core::ptr::{null, null_mut};
 
 use updater_logic::dxvk::{
-    DLLS, Decision, FOLDER, File, NEEDED, Probe, Version, asked, decide, is_ours,
+    DLLS, FOLDER, File, Found, MARKER, NEEDED, Plan, Probe, Unused, Version, asked, step,
+    turned_off,
 };
 use updater_logic::sha256::digest;
 
@@ -30,49 +35,87 @@ pub const PROBE_WORD: &str = "vulkan";
 const PROBE_MS: u64 = 10_000;
 /// Larger than either DLL (8 MB, 6 MB).
 const MAX_DLL: usize = 64 << 20;
-/// A copy while it is written beside its place (the overlay's name: the
+/// A file while it is written beside its place (the overlay's name: the
 /// next start's clean-up deletes one left over).
 const NEW: &str = ".skhid-new";
 
-/// The step: the decision for this run, carried out, and logged.
+/// The step: what is found, the plan for it, carried out and logged.
 pub fn run(session: &mut Session, layout: &Layout) {
-    let wanted = wanted(session, layout);
-    let beside = DLLS.map(|name| look(&format!("{}\\{name}", layout.exe_dir)));
-    let source = DLLS.map(|name| look(&source_path(layout, name)));
-    match decide(wanted, beside, source) {
-        Decision::Nothing => {}
-        Decision::Copy(which) => {
-            for i in which {
-                if let Err(why) = copy(layout, DLLS[i], source[i]) {
-                    log!("dxvk: {why}; DXVK not used this time");
-                    remove_ours(layout, &[0, 1]);
-                    return;
+    let user_cfg = win::user_cfg();
+    let marker = format!("{}\\{MARKER}", layout.exe_dir);
+    let found = Found {
+        asked: user_cfg.as_ref().is_some_and(|(_, text)| asked(text)),
+        marker: win::exists(&marker),
+        beside: [0, 1].map(|i| look(i, &format!("{}\\{}", layout.exe_dir, DLLS[i]))),
+        source: [0, 1].map(|i| look(i, &source_path(layout, DLLS[i]))),
+    };
+    let plan = step(&found, || run_probe(session, layout));
+    match plan {
+        Plan::Use { copy: which } => {
+            // The marker first: no DXVK without the way back to DirectX.
+            let done = win::write_file(&marker, b"")
+                .map_err(|code| format!("{MARKER} not written: {}", win::error_text(code)))
+                .and_then(|()| {
+                    which.iter().try_for_each(|&i| {
+                        copy(layout, i, found.source[i])?;
+                        log!("dxvk: {} put beside the game", DLLS[i]);
+                        Ok(())
+                    })
+                });
+            match done {
+                Ok(()) => {
+                    log!("dxvk: in use; {MARKER} left for the game to take once its lobby shows")
                 }
-                log!("dxvk: {} put beside the game", DLLS[i]);
+                Err(why) => {
+                    log!("dxvk: {why}; plain DirectX this time");
+                    remove_ours(layout, &[0, 1]);
+                    let _ = win::delete(&marker);
+                }
             }
+            return;
         }
-        Decision::Remove(which) => remove_ours(layout, &which),
-        Decision::NoSource(i) => log!("dxvk: {FOLDER}\\{} is not DXVK's: DXVK not used", DLLS[i]),
-        Decision::Foreign(i) => log!(
-            "dxvk: the {} beside the game is not DXVK's (the player's own?): left as it is, DXVK not used",
-            DLLS[i]
-        ),
+        Plan::Unused { remove, why } => {
+            match why {
+                Unused::Off => {}
+                Unused::Vulkan(probe) => {
+                    log!("dxvk: not used: {probe}, and DXVK needs Vulkan {NEEDED}")
+                }
+                Unused::NoSource(i) => log!(
+                    "dxvk: asked, but {FOLDER}\\{} is missing or not DXVK's: not used",
+                    DLLS[i]
+                ),
+                Unused::Foreign(i) => log!(
+                    "dxvk: asked, but the {} beside the game is not DXVK's (the player's own?): left as it is, DXVK not used",
+                    DLLS[i]
+                ),
+            }
+            remove_ours(layout, &remove);
+        }
+        Plan::TurnOff { remove } => {
+            log!(
+                "dxvk: the last start with DXVK never showed the lobby: turned off, plain DirectX"
+            );
+            match user_cfg.and_then(|(path, text)| Some((path, turned_off(&text)?))) {
+                Some((path, text)) => {
+                    let staged = format!("{path}{NEW}");
+                    let saved = win::write_file(&staged, &text)
+                        .and_then(|()| win::rename(&staged, &path, true));
+                    match saved {
+                        Ok(()) => log!("dxvk: user.cfg says srp_dxvk off"),
+                        Err(code) => {
+                            let _ = win::delete(&staged);
+                            log!("dxvk: user.cfg not written: {}", win::error_text(code));
+                        }
+                    }
+                }
+                None => log!("dxvk: user.cfg not read: the setting stays as it is"),
+            }
+            remove_ours(layout, &remove);
+        }
     }
-}
-
-/// Whether DXVK is to be used: asked in user.cfg, and a Vulkan device can
-/// run it (checked only when asked).
-fn wanted(session: &mut Session, layout: &Layout) -> bool {
-    if !win::user_cfg().is_some_and(|text| asked(&text)) {
-        return false;
+    if found.marker {
+        let _ = win::delete(&marker);
     }
-    let probe = run_probe(session, layout);
-    if probe.suffices() {
-        log!("dxvk: asked; {probe}");
-        return true;
-    }
-    log!("dxvk: asked, but not used: {probe} (DXVK needs Vulkan {NEEDED})");
-    false
 }
 
 fn run_probe(session: &mut Session, layout: &Layout) -> Probe {
@@ -82,7 +125,7 @@ fn run_probe(session: &mut Session, layout: &Layout) -> Probe {
     };
     let until = win::ticks() + PROBE_MS;
     let mut pump = || session.pump() && win::ticks() < until;
-    match win::run_wait(
+    let probe = match win::run_wait(
         &program,
         &format!("\"{program}\" {PROBE_WORD}"),
         &layout.exe_dir,
@@ -91,31 +134,34 @@ fn run_probe(session: &mut Session, layout: &Layout) -> Probe {
     ) {
         Ok(code) => Probe::of_exit_code(code),
         Err(code) => Probe::Failed(code),
-    }
+    };
+    log!("dxvk: asked; {probe}");
+    probe
 }
 
 fn source_path(layout: &Layout, name: &str) -> String {
     format!("{}\\{FOLDER}\\{name}", layout.exe_dir)
 }
 
-/// What a place holds: nothing, one of ours, or anything else (also a file
-/// that cannot be read).
-fn look(path: &str) -> File {
+/// What a place of DLL `dll` holds: nothing, one of ours, or anything else
+/// (also a file that cannot be read).
+fn look(dll: usize, path: &str) -> File {
     match win::hash_file(path) {
-        Ok((_, hash)) => File::of_hash(hash),
+        Ok((_, hash)) => File::of_hash(dll, hash),
         Err(code) if win::is_missing(code) => File::Missing,
         Err(_) => File::Other,
     }
 }
 
-/// `name` from `dxvk\` beside the game: the bytes read are the ones checked
-/// (`source`, one of ours), written beside their place, then renamed into it.
-fn copy(layout: &Layout, name: &str, source: File) -> Result<(), String> {
+/// DLL `dll` from `dxvk\` beside the game: the bytes read are the ones
+/// checked (`source`, one of ours), written beside their place, then renamed
+/// into it.
+fn copy(layout: &Layout, dll: usize, source: File) -> Result<(), String> {
+    let name = DLLS[dll];
     let from = source_path(layout, name);
     let data = win::read_file(&from, MAX_DLL)
         .map_err(|code| format!("{from}: {}", win::error_text(code)))?;
-    let hash = digest(&data);
-    if source != File::Ours(hash) || !is_ours(&hash) {
+    if File::of_hash(dll, digest(&data)) != source {
         return Err(format!("{from} changed while it was read"));
     }
     let to = format!("{}\\{name}", layout.exe_dir);
@@ -131,13 +177,13 @@ fn copy(layout: &Layout, name: &str, source: File) -> Result<(), String> {
 /// ours; a DLL of the player's own stays. One that cannot be removed now (a
 /// running game holds it) is logged and goes at a later start.
 fn remove_ours(layout: &Layout, which: &[usize]) {
-    for name in which.iter().map(|&i| DLLS[i]) {
-        let path = format!("{}\\{name}", layout.exe_dir);
-        if !matches!(look(&path), File::Ours(_)) {
+    for &i in which {
+        let path = format!("{}\\{}", layout.exe_dir, DLLS[i]);
+        if !matches!(look(i, &path), File::Ours(_)) {
             continue;
         }
         match win::delete(&path) {
-            Ok(()) => log!("dxvk: {name} removed from beside the game"),
+            Ok(()) => log!("dxvk: {} removed from beside the game", DLLS[i]),
             Err(code) => log!("dxvk: {path} not removed: {}", win::error_text(code)),
         }
     }

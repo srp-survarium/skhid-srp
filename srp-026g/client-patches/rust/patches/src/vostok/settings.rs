@@ -19,6 +19,16 @@ pub fn save_user_config(_: &Thread) {
     unsafe { raw::engine_save_user_config() }
 }
 
+/// Deletes a file of the game's working folder (`binaries\x86`) when it is
+/// there: kernel32's DeleteFileA. Whether it was is not told.
+pub fn delete_file(_: &Thread, name: &CStr) {
+    // SAFETY: kernel32's DeleteFileA through the exe's import slot, which the
+    // loader filled before the game ran; a NUL-terminated name.
+    unsafe {
+        (raw::engine_delete_file_a)(name.as_ptr().cast());
+    }
+}
+
 /// The console variable object, a cc_bool (cc_value<bool>::cc_value 0x1DDB0),
 /// and its value.
 #[repr(C)]

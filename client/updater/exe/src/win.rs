@@ -624,12 +624,12 @@ pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
 /// The game's language, which its Settings and the launcher's menu keep
 /// (`localization` of user.cfg), as a number of `replay::LANGUAGES`.
 pub fn game_language() -> Option<u32> {
-    updater_logic::replay::language_of_user_cfg(&user_cfg()?)
+    updater_logic::replay::language_of_user_cfg(&user_cfg()?.1)
 }
 
 /// The game's settings file, `<Documents>\survarium\user.cfg` (the folder
-/// the game takes: CSIDL_PERSONAL); read only.
-pub fn user_cfg() -> Option<Vec<u8>> {
+/// the game takes: CSIDL_PERSONAL): its path and its bytes.
+pub fn user_cfg() -> Option<(String, Vec<u8>)> {
     use windows_sys::Win32::UI::Shell::SHGetFolderPathW;
     const CSIDL_PERSONAL: i32 = 5;
     let mut folder = [0_u16; 260];
@@ -639,7 +639,8 @@ pub fn user_cfg() -> Option<Vec<u8>> {
     }
     let end = folder.iter().position(|&unit| unit == 0)?;
     let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
-    read_file(&path, 1 << 16).ok()
+    let text = read_file(&path, 1 << 16).ok()?;
+    Some((path, text))
 }
 
 /// Whether the game, which reads its command line as ANSI text

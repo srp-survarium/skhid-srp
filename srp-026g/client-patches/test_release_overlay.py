@@ -337,8 +337,10 @@ class ReleaseTests(unittest.TestCase):
         # game only when its sha256 is one of OURS: the builder's pins must be
         # among them, and the archive's dxvk folder the pinned DLLs.
         rust = Path(overlay.HERE, '..', '..', 'client', 'updater', 'logic', 'src', 'dxvk.rs').read_text(encoding='utf-8')
-        ours = re.search(r'pub const OURS: \[&str; \d+\] = \[(.*?)\];', rust, re.S).group(1)
-        self.assertLessEqual(set(overlay.DXVK_DLLS.values()), set(re.findall(r'"([0-9a-f]{64})"', ours)))
+        # its rows: a release each, its DLLs in the order of DLLS
+        ours = re.search(r'pub const OURS: \[\[&str; 2\]; \d+\] = \[(.*?)\];', rust, re.S).group(1)
+        rows = [re.findall(r'"([0-9a-f]{64})"', row) for row in re.findall(r"\[([^\]]*)\]", ours)]
+        self.assertIn(list(overlay.DXVK_DLLS.values()), rows)
         self.assertIn('pub const DLLS: [&str; 2] = ["d3d11.dll", "dxgi.dll"];', rust)
         self.assertEqual(list(overlay.DXVK_DLLS), ['d3d11.dll', 'dxgi.dll'])
         archive = self.root / 'dxvk.zip'

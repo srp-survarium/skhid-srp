@@ -24,6 +24,13 @@ site = "player_icons.update_start"
 handler = "on_update_icons"
 order = 2
 
+# the lobby shows (after patch 88's theme there): a start with DXVK got this
+# far, its marker goes (docs/notes/dxvk-option.md)
+[[hook]]
+site = "lobby_menu.activated"
+handler = "on_lobby"
+order = 2
+
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"

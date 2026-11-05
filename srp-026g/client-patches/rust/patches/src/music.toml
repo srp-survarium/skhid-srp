@@ -23,10 +23,11 @@ handler = "on_frame"
 site = "login_menu.activated"
 handler = "on_login"
 
-# the lobby: the lobby theme
+# the lobby: the lobby theme (before patch 83's marker, order 2)
 [[hook]]
 site = "lobby_menu.activated"
 handler = "on_lobby"
+order = 1
 
 # a match's loading: its mode's loading_music
 [[hook]]

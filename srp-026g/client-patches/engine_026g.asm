@@ -45,6 +45,7 @@ global engine_action_present
 global engine_create_file_a
 global engine_write_file
 global engine_close_handle
+global engine_delete_file_a
 global engine_ray_test
 global engine_release_object
 global engine_material_pair
@@ -148,6 +149,7 @@ engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler:
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
 engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
+engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (an import, stdcall)
 engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)

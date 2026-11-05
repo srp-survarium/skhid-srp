@@ -31,7 +31,14 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 - Otherwise: the two DLLs beside the game are removed, **only when their hash is one of ours**
   (`OURS` in `client/updater/logic/src/dxvk.rs`). A `d3d11.dll` or `dxgi.dll` of the player's own is
   never replaced or removed; with one there, DXVK is not used.
-- Both or neither: a copy that fails removes ours again.
+- Both or neither: a copy that fails removes ours again; the two in `dxvk\` must be one release's.
+- **Back to DirectX by itself** (the owner, 2026-11-05): with DXVK put beside the game the updater
+  leaves `dxvk.pending` beside it; the game deletes it once its lobby shows (exe patch 83, at
+  `lobby_menu.activated`). Still there at the next run, with ours beside the game: that start never
+  reached the lobby. The updater then sets `srp_dxvk off` in user.cfg (that line only, every other
+  byte kept), removes ours and the marker, and logs it; the checkbox shows off, and ticking it
+  again tries once more. One enum and one transition (`State`, `step` in `logic/src/dxvk.rs`): off;
+  on and not started; on and confirmed (the marker left again); on and failed (turned off).
 - The Vulkan check runs only for a player who asked, in a second run of the updater
   (`updater_skhid.exe vulkan`, 10 s at most), so a driver that crashes or hangs in it cannot stop
   the update.
@@ -40,8 +47,13 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 
 ## Known limits
 
-- A GPU that passes the check but on which DXVK fails at start leaves the game unable to reach
-  Settings. The way out: `srp_dxvk off` in `Documents\survarium\user.cfg` (or the line deleted),
-  then the launcher again. Deleting the two DLLs alone does not help: the next update copies them
-  back.
+- A start that fails with DXVK costs one more launcher start: that run turns it off. A start that
+  never reaches the lobby for another reason (closed at the login screen, the server down), or the
+  launcher opened twice without PLAY, turns it off too; ticking it again is the way back.
+- Antivirus: DXVK's 3.1.1 release notes say some antivirus programs flag its 32-bit builds. A
+  false positive on `dxvk\` stops every Windows player's update ("Game files removed by
+  antivirus", `Skhid-defender-setup.cmd`), as for any Skhid file. Check the two hashes on
+  VirusTotal before the release. DXVK's release ships no signature: its DLLs are not
+  Authenticode-signed and there is no checksum file; GitHub's asset digest (sha256) is the one
+  pinned here.
 - Not checked on Windows; not played.
